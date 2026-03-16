@@ -1,0 +1,451 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  OWNER
+  MANAGER
+  VIEWER
+}
+
+enum CampaignStatus {
+  DRAFT
+  PENDING
+  IN_PROGRESS
+  COMPLETE
+  CANCELLED
+}
+
+enum Platform {
+  TIKTOK
+  INSTAGRAM
+  YOUTUBE
+  TWITTER
+}
+
+enum ActivationStatus {
+  AWAITING_DRAFT
+  DRAFT_SUBMITTED
+  AWAITING_APPROVAL
+  APPROVED
+  POSTING
+  POSTED
+  COMPLETE
+  DECLINED
+}
+
+enum PayoutStatus {
+  PENDING
+  PROCESSING
+  SUCCESS
+  FAILED
+}
+
+enum PaymentMethod {
+  PAYPAL
+  BANK_TRANSFER
+}
+
+enum Currency {
+  USD
+  EUR
+  GBP
+  INR
+}
+
+model Organization {
+  id           String   @id @default(cuid())
+  name         String
+  subdomain    String   @unique
+  logoUrl      String?
+  primaryColor String   @default("#4F46E5")
+  currency     Currency @default(USD)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  users          User[]
+  campaigns      Campaign[]
+  creators       Creator[]
+  creatorLists   CreatorList[]
+  clients        Client[]
+  folders        Folder[]
+  payoutBalances PayoutBalance[]
+  payouts        Payout[]
+  tiktokSounds   TikTokSound[]
+  connections    Connection[] @relation("FromOrg")
+  connectionsTo  Connection[] @relation("ToOrg")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  orgId         String
+  email         String    @unique
+  name          String
+  avatarUrl     String?
+  role          UserRole  @default(VIEWER)
+  createdAt     DateTime  @default(now())
+  password      String?
+  emailVerified DateTime?
+
+  org             Organization         @relation(fields: [orgId], references: [id])
+  campaignMembers CampaignTeamMember[]
+  comments        CampaignComment[]
+  activityLogs    ActivityLog[]
+  documents       Document[]
+  briefsUpdated   CreativeBrief[]
+  accounts        Account[]
+  sessions        Session[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+  @@unique([identifier, token])
+}
+
+model Campaign {
+  id           String         @id @default(cuid())
+  orgId        String
+  title        String
+  status       CampaignStatus @default(DRAFT)
+  thumbnailUrl String?
+  budget       Decimal?       @db.Decimal(10, 2)
+  currency     Currency       @default(USD)
+  notes        String?        @db.Text
+  clientId     String?
+  folderId     String?
+  createdById  String
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  deletedAt    DateTime?
+
+  org          Organization        @relation(fields: [orgId], references: [id])
+  client       Client?             @relation(fields: [clientId], references: [id])
+  folder       Folder?             @relation(fields: [folderId], references: [id])
+  teamMembers  CampaignTeamMember[]
+  tags         CampaignTag[]
+  posts        Post[]
+  activations  Activation[]
+  brief        CreativeBrief?
+  analytics    AnalyticsModule[]
+  financials   CampaignFinancials?
+  documents    Document[]
+  comments     CampaignComment[]
+  activityLogs ActivityLog[]
+  payouts      Payout[]
+}
+
+model CampaignTeamMember {
+  id         String   @id @default(cuid())
+  campaignId String
+  userId     String
+  addedAt    DateTime @default(now())
+
+  campaign Campaign @relation(fields: [campaignId], references: [id])
+  user     User     @relation(fields: [userId], references: [id])
+
+  @@unique([campaignId, userId])
+}
+
+model CampaignTag {
+  campaignId String
+  tag        String
+
+  campaign Campaign @relation(fields: [campaignId], references: [id])
+
+  @@id([campaignId, tag])
+}
+
+model CreativeBrief {
+  id          String   @id @default(cuid())
+  campaignId  String   @unique
+  content     Json
+  version     Int      @default(1)
+  updatedById String?
+  updatedAt   DateTime @updatedAt
+
+  campaign  Campaign @relation(fields: [campaignId], references: [id])
+  updatedBy User?    @relation(fields: [updatedById], references: [id])
+}
+
+model Creator {
+  id             String    @id @default(cuid())
+  orgId          String
+  name           String
+  handle         String
+  platform       Platform  @default(TIKTOK)
+  platformUserId String?
+  avatarUrl      String?
+  followersCount Int       @default(0)
+  averageViews   Int       @default(0)
+  bio            String?   @db.Text
+  contactEmail   String?
+  paymentInfo    Json?
+  rate           Decimal?  @db.Decimal(10, 2)
+  notes          String?   @db.Text
+  addedAt        DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  org         Organization    @relation(fields: [orgId], references: [id])
+  listItems   CreatorListItem[]
+  activations Activation[]
+  posts       Post[]
+  payouts     Payout[]
+}
+
+model CreatorList {
+  id          String   @id @default(cuid())
+  orgId       String
+  name        String
+  description String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  org   Organization    @relation(fields: [orgId], references: [id])
+  items CreatorListItem[]
+}
+
+model CreatorListItem {
+  id        String   @id @default(cuid())
+  listId    String
+  creatorId String
+  addedAt   DateTime @default(now())
+
+  list    CreatorList @relation(fields: [listId], references: [id])
+  creator Creator     @relation(fields: [creatorId], references: [id])
+
+  @@unique([listId, creatorId])
+}
+
+model Activation {
+  id                 String           @id @default(cuid())
+  campaignId         String
+  creatorId          String
+  status             ActivationStatus @default(AWAITING_DRAFT)
+  deliverableDueDate DateTime?
+  postedUrl          String?
+  feedbackNotes      String?          @db.Text
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  deletedAt          DateTime?
+
+  campaign Campaign @relation(fields: [campaignId], references: [id])
+  creator  Creator  @relation(fields: [creatorId], references: [id])
+}
+
+model Post {
+  id             String   @id @default(cuid())
+  campaignId     String
+  creatorId      String
+  platform       Platform
+  platformPostId String
+  postUrl        String
+  thumbnailUrl   String?
+  caption        String?  @db.Text
+  postedAt       DateTime
+
+  viewsCount     Int     @default(0)
+  likesCount     Int     @default(0)
+  commentsCount  Int     @default(0)
+  sharesCount    Int     @default(0)
+  downloadsCount Int     @default(0)
+  engagementRate Decimal @default(0) @db.Decimal(5, 4)
+
+  lastSyncedAt DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  campaign Campaign @relation(fields: [campaignId], references: [id])
+  creator  Creator  @relation(fields: [creatorId], references: [id])
+}
+
+model TikTokSound {
+  id            String   @id @default(cuid())
+  orgId         String
+  tiktokSoundId String
+  title         String
+  artist        String
+  coverImageUrl String?
+  trackedSince  DateTime @default(now())
+  createdAt     DateTime @default(now())
+
+  org       Organization           @relation(fields: [orgId], references: [id])
+  snapshots SoundTrackerSnapshot[]
+}
+
+model SoundTrackerSnapshot {
+  id             String   @id @default(cuid())
+  soundId        String
+  usesCount      Int
+  videosAdded24h Int      @default(0)
+  recordedAt     DateTime @default(now())
+
+  sound TikTokSound @relation(fields: [soundId], references: [id])
+}
+
+model Client {
+  id          String   @id @default(cuid())
+  orgId       String
+  name        String
+  logoUrl     String?
+  contactInfo Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  org       Organization @relation(fields: [orgId], references: [id])
+  campaigns Campaign[]
+}
+
+model AnalyticsModule {
+  id         String   @id @default(cuid())
+  campaignId String
+  type       String
+  title      String
+  config     Json
+  position   Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  campaign Campaign @relation(fields: [campaignId], references: [id])
+}
+
+model CampaignFinancials {
+  id          String   @id @default(cuid())
+  campaignId  String   @unique
+  totalBudget Decimal  @default(0) @db.Decimal(10, 2)
+  spentAmount Decimal  @default(0) @db.Decimal(10, 2)
+  notes       String?  @db.Text
+  updatedAt   DateTime @updatedAt
+
+  campaign Campaign @relation(fields: [campaignId], references: [id])
+}
+
+model Payout {
+  id                   String        @id @default(cuid())
+  orgId                String
+  creatorId            String
+  campaignId           String?
+  amount               Decimal       @db.Decimal(10, 2)
+  currency             Currency      @default(USD)
+  status               PayoutStatus  @default(PENDING)
+  paymentMethod        PaymentMethod @default(PAYPAL)
+  recipientPaypalEmail String?
+  transactionId        String?
+  initiatedAt          DateTime      @default(now())
+  completedAt          DateTime?
+  failureReason        String?
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+
+  org      Organization @relation(fields: [orgId], references: [id])
+  creator  Creator      @relation(fields: [creatorId], references: [id])
+  campaign Campaign?    @relation(fields: [campaignId], references: [id])
+}
+
+model PayoutBalance {
+  id             String   @id @default(cuid())
+  orgId          String
+  label          String   @default("Default Balance")
+  currentBalance Decimal  @default(0) @db.Decimal(10, 2)
+  currency       Currency @default(USD)
+  updatedAt      DateTime @updatedAt
+
+  org Organization @relation(fields: [orgId], references: [id])
+}
+
+model Document {
+  id           String   @id @default(cuid())
+  campaignId   String
+  name         String
+  fileUrl      String
+  fileSize     Int
+  mimeType     String
+  uploadedById String
+  uploadedAt   DateTime @default(now())
+
+  campaign   Campaign @relation(fields: [campaignId], references: [id])
+  uploadedBy User     @relation(fields: [uploadedById], references: [id])
+}
+
+model ActivityLog {
+  id         String   @id @default(cuid())
+  campaignId String
+  userId     String?
+  action     String
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  campaign Campaign @relation(fields: [campaignId], references: [id])
+  user     User?    @relation(fields: [userId], references: [id])
+}
+
+model CampaignComment {
+  id         String    @id @default(cuid())
+  campaignId String
+  userId     String
+  content    String    @db.Text
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime?
+  deletedAt  DateTime?
+
+  campaign Campaign @relation(fields: [campaignId], references: [id])
+  user     User     @relation(fields: [userId], references: [id])
+}
+
+model Folder {
+  id             String   @id @default(cuid())
+  orgId          String
+  name           String
+  parentFolderId String?
+  createdAt      DateTime @default(now())
+
+  org          Organization @relation(fields: [orgId], references: [id])
+  parentFolder Folder?      @relation("FolderHierarchy", fields: [parentFolderId], references: [id])
+  subfolders   Folder[]     @relation("FolderHierarchy")
+  campaigns    Campaign[]
+}
+
+model Connection {
+  id             String    @id @default(cuid())
+  fromOrgId      String
+  toOrgId        String
+  status         String    @default("pending")
+  shareRoster    Boolean   @default(false)
+  shareCampaigns Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+  acceptedAt     DateTime?
+
+  fromOrg Organization @relation("FromOrg", fields: [fromOrgId], references: [id])
+  toOrg   Organization @relation("ToOrg", fields: [toOrgId], references: [id])
+}
