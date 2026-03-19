@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { signIn } from "next-auth/react";
 import Link from "next/link";
-import { Megaphone } from "lucide-react";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -24,85 +23,202 @@ export default function LoginPage() {
       setError("Invalid email or password");
       setLoading(false);
     } else {
-      window.location.href = "/dashboard";
+      window.location.href = "/campaigns";
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 bg-[#0A0A0F] relative overflow-hidden">
-      {/* Subtle grid pattern */}
-      <div
-        className="absolute inset-0 opacity-[0.03]"
-        style={{
-          backgroundImage: `linear-gradient(#F0F0FF 1px, transparent 1px), linear-gradient(90deg, #F0F0FF 1px, transparent 1px)`,
-          backgroundSize: "60px 60px",
-        }}
-      />
-      {/* Gradient glow */}
-      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] rounded-full bg-[var(--color-primary)]/10 blur-[120px]" />
-
-      <div className="w-full max-w-sm relative z-10">
+    <div
+      className="min-h-screen flex items-center justify-center px-4 relative"
+      style={{
+        background: "linear-gradient(135deg, #6C3EF4 0%, #4A8EF0 100%)",
+      }}
+    >
+      <div className="w-full max-w-sm">
         {/* Logo */}
-        <div className="flex items-center gap-2.5 justify-center mb-8">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[var(--color-primary)] to-purple-500 flex items-center justify-center">
-            <Megaphone className="h-5 w-5 text-white" />
-          </div>
-          <span className="text-xl font-bold text-white tracking-tight">CampaignHub</span>
+        <div className="flex items-center gap-2.5 justify-center mb-10">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="10" stroke="white" strokeWidth="2.5"/>
+            <circle cx="12" cy="12" r="5.5" stroke="white" strokeWidth="2"/>
+            <circle cx="12" cy="12" r="2" fill="white"/>
+          </svg>
+          <span
+            style={{
+              fontWeight: 800,
+              fontSize: 20,
+              color: "white",
+              letterSpacing: "-0.5px",
+            }}
+          >
+            creatorcore
+          </span>
         </div>
 
         {/* Card */}
-        <div className="bg-[#111118] border border-[#2A2A3A] rounded-2xl shadow-2xl p-8">
-          <h1 className="text-xl font-bold text-[#F0F0FF] mb-1">Welcome back</h1>
-          <p className="text-sm text-[#8888AA] mb-6">Sign in to CampaignHub</p>
+        <div
+          style={{
+            background: "white",
+            borderRadius: "24px",
+            boxShadow: "0 20px 60px rgba(0, 0, 0, 0.15)",
+            padding: "40px",
+          }}
+        >
+          <h1
+            style={{
+              fontSize: 24,
+              fontWeight: 700,
+              color: "var(--cc-text)",
+              marginBottom: "4px",
+            }}
+          >
+            Login
+          </h1>
+          <p
+            style={{
+              fontSize: 14,
+              color: "var(--cc-text-muted)",
+              marginBottom: "24px",
+            }}
+          >
+            Sign in to creatorcore
+          </p>
 
           {error && (
-            <div className="px-4 py-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm mb-4">
+            <div
+              style={{
+                padding: "12px 16px",
+                borderRadius: "12px",
+                background: "rgba(239, 68, 68, 0.1)",
+                border: "1px solid rgba(239, 68, 68, 0.3)",
+                color: "#DC2626",
+                fontSize: 13,
+                marginBottom: 16,
+              }}
+            >
               {error}
             </div>
           )}
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             <div>
-              <label className="text-xs font-medium text-[#8888AA] block mb-1.5">Email</label>
+              <label
+                style={{
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: "var(--cc-text)",
+                  display: "block",
+                  marginBottom: 8,
+                }}
+              >
+                Email
+              </label>
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@company.com"
+                placeholder="you@example.com"
                 required
-                className="w-full px-4 py-2.5 rounded-lg bg-[#0A0A0F] border border-[#2A2A3A] text-sm text-[#F0F0FF] placeholder:text-[#555577] outline-none focus:border-[var(--color-primary)] transition-colors"
+                style={{
+                  width: "100%",
+                  padding: "10px 14px",
+                  borderRadius: "12px",
+                  background: "#F3F4F8",
+                  border: "1px solid var(--cc-border)",
+                  fontSize: 14,
+                  color: "var(--cc-text)",
+                  outline: "none",
+                  transition: "all 0.2s",
+                }}
+                onFocus={(e) => {
+                  (e.target as HTMLInputElement).style.borderColor = "var(--cc-primary)";
+                  (e.target as HTMLInputElement).style.background = "white";
+                }}
+                onBlur={(e) => {
+                  (e.target as HTMLInputElement).style.borderColor = "var(--cc-border)";
+                  (e.target as HTMLInputElement).style.background = "#F3F4F8";
+                }}
               />
             </div>
+
             <div>
-              <label className="text-xs font-medium text-[#8888AA] block mb-1.5">Password</label>
+              <label
+                style={{
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: "var(--cc-text)",
+                  display: "block",
+                  marginBottom: 8,
+                }}
+              >
+                Password
+              </label>
               <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
                 required
-                className="w-full px-4 py-2.5 rounded-lg bg-[#0A0A0F] border border-[#2A2A3A] text-sm text-[#F0F0FF] placeholder:text-[#555577] outline-none focus:border-[var(--color-primary)] transition-colors"
+                style={{
+                  width: "100%",
+                  padding: "10px 14px",
+                  borderRadius: "12px",
+                  background: "#F3F4F8",
+                  border: "1px solid var(--cc-border)",
+                  fontSize: 14,
+                  color: "var(--cc-text)",
+                  outline: "none",
+                  transition: "all 0.2s",
+                }}
+                onFocus={(e) => {
+                  (e.target as HTMLInputElement).style.borderColor = "var(--cc-primary)";
+                  (e.target as HTMLInputElement).style.background = "white";
+                }}
+                onBlur={(e) => {
+                  (e.target as HTMLInputElement).style.borderColor = "var(--cc-border)";
+                  (e.target as HTMLInputElement).style.background = "#F3F4F8";
+                }}
               />
-            </div>
-
-            <div className="flex items-center justify-end">
-              <Link href="#" className="text-xs text-[var(--color-primary)] hover:underline">
-                Forgot password?
-              </Link>
             </div>
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-2.5 rounded-lg bg-gradient-to-r from-[#6366F1] to-[#8B5CF6] text-white text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50 shadow-lg shadow-[var(--color-primary)]/25"
+              style={{
+                width: "100%",
+                padding: "12px 16px",
+                borderRadius: "12px",
+                background: "var(--cc-primary)",
+                color: "white",
+                fontSize: 14,
+                fontWeight: 600,
+                border: "none",
+                cursor: loading ? "not-allowed" : "pointer",
+                opacity: loading ? 0.7 : 1,
+                marginTop: 8,
+                transition: "opacity 0.2s",
+              }}
             >
               {loading ? "Signing in..." : "Sign in"}
             </button>
           </form>
 
-          <p className="text-xs text-[#555577] text-center mt-6">
+          <p
+            style={{
+              fontSize: 12,
+              color: "var(--cc-text-muted)",
+              textAlign: "center",
+              marginTop: 24,
+            }}
+          >
             Don&apos;t have an account?{" "}
-            <Link href="/signup" className="text-[var(--color-primary)] font-medium hover:underline">
+            <Link
+              href="/signup"
+              style={{
+                color: "var(--cc-primary)",
+                fontWeight: 600,
+                textDecoration: "none",
+              }}
+            >
               Sign up
             </Link>
           </p>

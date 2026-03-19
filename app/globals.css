@@ -2,32 +2,34 @@
 @import "tailwindcss";
 
 :root {
-  --color-primary: #6366F1;
-  --color-primary-hover: #5558E3;
-  --color-secondary: #1E1B4B;
-  --color-accent: #F59E0B;
+  --cc-bg: #EFF0F8;
+  --cc-sidebar: #FFFFFF;
+  --cc-card: #FFFFFF;
+  --cc-border: #E4E6F0;
+  --cc-primary: #5B5BD6;
+  --cc-primary-hover: #4A4AC8;
+  --cc-text: #1C2048;
+  --cc-text-muted: #9097B4;
+  --cc-text-subtle: #C4C9E0;
   --font-family: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
 body {
-  background-color: #0A0A0F;
-  color: #F0F0FF;
+  background-color: var(--cc-bg);
+  color: var(--cc-text);
   font-family: var(--font-family);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Custom scrollbar */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: #111118; }
-::-webkit-scrollbar-thumb { background: #2A2A3A; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #3A3A4A; }
+::-webkit-scrollbar-track { background: #F0F1F8; }
+::-webkit-scrollbar-thumb { background: #D0D3E8; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #B8BCE0; }
 
-/* Selection */
-::selection { background: rgba(99, 102, 241, 0.3); color: #F0F0FF; }
+::selection { background: rgba(91,91,214,0.15); color: var(--cc-text); }
 
-/* Focus ring */
 *:focus-visible {
-  outline: 2px solid var(--color-primary);
+  outline: 2px solid var(--cc-primary);
   outline-offset: 2px;
 }
