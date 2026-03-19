@@ -23,9 +23,9 @@ export default function ConnectionsPage() {
 
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
         {INTEGRATIONS.map(int => (
-          <Card key={int.name} variant="glass" className="p-6" style={{ background: "var(--cc-surface)", border: "1px solid var(--cc-border)", borderRadius: 16 }}>
+          <Card key={int.name} variant="glass" className="p-6" style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 16 }}>
             <div className="flex items-start justify-between mb-4">
-              <div className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl" style={{ background: "var(--cc-surface-2)" }}>
+              <div className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl" style={{ background: "#F3F4F6" }}>
                 {int.icon}
               </div>
               {int.connected && (

@@ -69,13 +69,11 @@ export default function ReportsPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+    <div style={{ padding: 32 }}>
+      <div style={{ marginBottom: 32, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div>
-          <h1 className="text-2xl font-semibold">Reports</h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            Create and share campaign reports
-          </p>
+          <h1 style={{ fontSize: 28, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Reports</h1>
+          <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>Create and share campaign reports</p>
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger render={<Button />}>New Report</DialogTrigger>
@@ -103,47 +101,47 @@ export default function ReportsPage() {
       </div>
 
       {loading ? (
-        <p className="text-muted-foreground text-sm">Loading...</p>
+        <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>Loading...</p>
       ) : reports.length === 0 ? (
-        <p className="text-muted-foreground text-sm">No reports yet. Create one to get started.</p>
+        <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>No reports yet. Create one to get started.</p>
       ) : (
-        <div className="border rounded-lg overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/50">
-              <tr>
-                <th className="text-left px-4 py-3 font-medium">Title</th>
-                <th className="text-left px-4 py-3 font-medium">Campaign</th>
-                <th className="text-left px-4 py-3 font-medium">Created</th>
-                <th className="text-left px-4 py-3 font-medium">Visibility</th>
-                <th className="px-4 py-3"></th>
+        <div style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, overflow: "hidden" }}>
+          <table className="w-full" style={{ fontSize: 14 }}>
+            <thead>
+              <tr style={{ background: "#F9FAFB" }}>
+                <th style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", color: "#9097B4", padding: "12px 20px", textAlign: "left", letterSpacing: "0.5px" }}>Title</th>
+                <th style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", color: "#9097B4", padding: "12px 20px", textAlign: "left", letterSpacing: "0.5px" }}>Campaign</th>
+                <th style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", color: "#9097B4", padding: "12px 20px", textAlign: "left", letterSpacing: "0.5px" }}>Created</th>
+                <th style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", color: "#9097B4", padding: "12px 20px", textAlign: "left", letterSpacing: "0.5px" }}>Visibility</th>
+                <th style={{ padding: "12px 20px" }}></th>
               </tr>
             </thead>
-            <tbody className="divide-y">
+            <tbody>
               {reports.map((r) => (
-                <tr key={r.id} className="hover:bg-muted/30">
-                  <td className="px-4 py-3 font-medium">{r.title}</td>
-                  <td className="px-4 py-3 text-muted-foreground">
+                <tr key={r.id} style={{ borderTop: "1px solid var(--cc-border)" }}>
+                  <td style={{ padding: "12px 20px", fontWeight: 500, color: "var(--cc-text)" }}>{r.title}</td>
+                  <td style={{ padding: "12px 20px", color: "var(--cc-text-muted)" }}>
                     {r.campaign?.title ?? "—"}
                   </td>
-                  <td className="px-4 py-3 text-muted-foreground">
+                  <td style={{ padding: "12px 20px", color: "var(--cc-text-muted)" }}>
                     {new Date(r.createdAt).toLocaleDateString()}
                   </td>
-                  <td className="px-4 py-3">
+                  <td style={{ padding: "12px 20px" }}>
                     <button
                       onClick={() => togglePublic(r)}
-                      className={`text-xs px-2 py-1 rounded-full font-medium ${
-                        r.isPublic
-                          ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                          : "bg-muted text-muted-foreground"
-                      }`}
+                      style={{
+                        fontSize: 12, padding: "4px 8px", borderRadius: 9999, fontWeight: 500, border: "none", cursor: "pointer",
+                        background: r.isPublic ? "#dcfce7" : "#F3F4F6",
+                        color: r.isPublic ? "#16a34a" : "var(--cc-text-muted)",
+                      }}
                     >
                       {r.isPublic ? "Public" : "Private"}
                     </button>
                   </td>
-                  <td className="px-4 py-3 text-right">
+                  <td style={{ padding: "12px 20px", textAlign: "right" }}>
                     <button
                       onClick={() => deleteReport(r.id)}
-                      className="text-xs text-destructive hover:underline"
+                      style={{ fontSize: 12, color: "#ef4444", background: "none", border: "none", cursor: "pointer" }}
                     >
                       Delete
                     </button>

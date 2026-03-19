@@ -60,13 +60,11 @@ export default function MediaKitsPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+    <div style={{ padding: 32 }}>
+      <div style={{ marginBottom: 32, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div>
-          <h1 className="text-2xl font-semibold">Media Kits</h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            Build and share creator media kits
-          </p>
+          <h1 style={{ fontSize: 28, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Media Kits</h1>
+          <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>Build and share creator media kits</p>
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger render={<Button />}>New Media Kit</DialogTrigger>
@@ -94,46 +92,46 @@ export default function MediaKitsPage() {
       </div>
 
       {loading ? (
-        <p className="text-muted-foreground text-sm">Loading...</p>
+        <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>Loading...</p>
       ) : kits.length === 0 ? (
-        <p className="text-muted-foreground text-sm">No media kits yet. Create one to get started.</p>
+        <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>No media kits yet. Create one to get started.</p>
       ) : (
-        <div className="border rounded-lg overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/50">
-              <tr>
-                <th className="text-left px-4 py-3 font-medium">Title</th>
-                <th className="text-left px-4 py-3 font-medium">Creators</th>
-                <th className="text-left px-4 py-3 font-medium">Created</th>
-                <th className="text-left px-4 py-3 font-medium">Visibility</th>
-                <th className="px-4 py-3"></th>
+        <div style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, overflow: "hidden" }}>
+          <table className="w-full" style={{ fontSize: 14 }}>
+            <thead>
+              <tr style={{ background: "#F9FAFB" }}>
+                <th style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", color: "#9097B4", padding: "12px 20px", textAlign: "left", letterSpacing: "0.5px" }}>Title</th>
+                <th style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", color: "#9097B4", padding: "12px 20px", textAlign: "left", letterSpacing: "0.5px" }}>Creators</th>
+                <th style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", color: "#9097B4", padding: "12px 20px", textAlign: "left", letterSpacing: "0.5px" }}>Created</th>
+                <th style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", color: "#9097B4", padding: "12px 20px", textAlign: "left", letterSpacing: "0.5px" }}>Visibility</th>
+                <th style={{ padding: "12px 20px" }}></th>
               </tr>
             </thead>
-            <tbody className="divide-y">
+            <tbody>
               {kits.map((k) => (
-                <tr key={k.id} className="hover:bg-muted/30">
-                  <td className="px-4 py-3 font-medium">{k.title}</td>
-                  <td className="px-4 py-3 text-muted-foreground">
+                <tr key={k.id} style={{ borderTop: "1px solid var(--cc-border)" }}>
+                  <td style={{ padding: "12px 20px", fontWeight: 500, color: "var(--cc-text)" }}>{k.title}</td>
+                  <td style={{ padding: "12px 20px", color: "var(--cc-text-muted)" }}>
                     {k.creatorIds.length} creator{k.creatorIds.length !== 1 ? "s" : ""}
                   </td>
-                  <td className="px-4 py-3 text-muted-foreground">
+                  <td style={{ padding: "12px 20px", color: "var(--cc-text-muted)" }}>
                     {new Date(k.createdAt).toLocaleDateString()}
                   </td>
-                  <td className="px-4 py-3">
+                  <td style={{ padding: "12px 20px" }}>
                     <span
-                      className={`text-xs px-2 py-1 rounded-full font-medium ${
-                        k.isPublic
-                          ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                          : "bg-muted text-muted-foreground"
-                      }`}
+                      style={{
+                        fontSize: 12, padding: "4px 8px", borderRadius: 9999, fontWeight: 500,
+                        background: k.isPublic ? "#dcfce7" : "#F3F4F6",
+                        color: k.isPublic ? "#16a34a" : "var(--cc-text-muted)",
+                      }}
                     >
                       {k.isPublic ? "Public" : "Private"}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-right">
+                  <td style={{ padding: "12px 20px", textAlign: "right" }}>
                     <button
                       onClick={() => deleteKit(k.id)}
-                      className="text-xs text-destructive hover:underline"
+                      style={{ fontSize: 12, color: "#ef4444", background: "none", border: "none", cursor: "pointer" }}
                     >
                       Delete
                     </button>

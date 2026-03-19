@@ -1,12 +1,12 @@
 "use client";
-import { Button, Badge, Card, StatCard } from "@pratham7711/ui";
 import { Plus } from "lucide-react";
+import Link from "next/link";
 
 type Client = {
   id: string;
   name: string;
   logoUrl: string | null;
-  contactInfo: any;
+  contactInfo: unknown;
   _count: { campaigns: number };
 };
 
@@ -15,42 +15,65 @@ export default function ClientsClient({ clients, stats }: {
   stats: { total: number; totalCampaigns: number };
 }) {
   return (
-    <div className="p-8">
-      <div className="flex items-center justify-between mb-8">
+    <div>
+      {/* Header */}
+      <div style={{ marginBottom: 32, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div>
-          <h1 style={{ fontSize: 26, fontWeight: 900, color: "var(--cc-text)" }}>Clients</h1>
-          <p style={{ fontSize: 14, color: "var(--cc-text-muted)", marginTop: 4 }}>Manage your client relationships</p>
+          <h1 style={{ fontSize: 28, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Clients</h1>
+          <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>Manage your client relationships</p>
         </div>
-        <Button variant="primary" iconLeft={<Plus size={16} />}>Add Client</Button>
+        <button style={{ background: "var(--cc-primary)", color: "white", border: "none", borderRadius: 8, padding: "9px 16px", fontSize: 14, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
+          <Plus size={15} /> Add Client
+        </button>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        <StatCard value={String(stats.total)} label="Total Clients" />
-        <StatCard value={String(stats.totalCampaigns)} label="Total Campaigns" />
+      {/* Stat cards */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 32 }}>
+        {[
+          { label: "Total Clients", value: String(stats.total) },
+          { label: "Total Campaigns", value: String(stats.totalCampaigns) },
+        ].map(s => (
+          <div key={s.label} style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, padding: 20 }}>
+            <div style={{ fontSize: 24, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>{s.value}</div>
+            <div style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{s.label}</div>
+          </div>
+        ))}
       </div>
 
-      <Card variant="glass" style={{ background: "var(--cc-surface)", border: "1px solid var(--cc-border)", borderRadius: 16, overflow: "hidden" }}>
-        <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--cc-border)" }}>
-          <span style={{ fontWeight: 800, fontSize: 15, color: "var(--cc-text)" }}>All Clients</span>
+      {/* Clients table */}
+      <div style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, overflow: "hidden" }}>
+        <div style={{ padding: "14px 20px", borderBottom: "1px solid var(--cc-border)" }}>
+          <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)" }}>All Clients</span>
         </div>
         {clients.map((c, i) => (
-          <div key={c.id} className="flex items-center gap-4 px-5 py-4" style={{ borderBottom: i < clients.length - 1 ? "1px solid var(--cc-border)" : "none" }}>
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold" style={{ background: "var(--cc-surface-2)", color: "var(--cc-text)" }}>
-              {c.name.slice(0, 2).toUpperCase()}
+          <Link key={c.id} href={`/clients/${c.id}`} style={{ textDecoration: "none" }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 16,
+                padding: "14px 20px",
+                borderBottom: i < clients.length - 1 ? "1px solid var(--cc-border)" : "none",
+                cursor: "pointer",
+              }}
+            >
+              <div style={{ width: 40, height: 40, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 700, background: "#F3F4F8", color: "var(--cc-text)", flexShrink: 0 }}>
+                {c.name.slice(0, 2).toUpperCase()}
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 600, fontSize: 14, color: "var(--cc-text)" }}>{c.name}</div>
+              </div>
+              <div style={{ textAlign: "center" }}>
+                <div style={{ fontWeight: 700, fontSize: 14, color: "var(--cc-text)" }}>{c._count.campaigns}</div>
+                <div style={{ fontSize: 10, color: "var(--cc-text-muted)" }}>Campaigns</div>
+              </div>
             </div>
-            <div className="flex-1">
-              <div style={{ fontWeight: 700, fontSize: 14, color: "var(--cc-text)" }}>{c.name}</div>
-            </div>
-            <div className="text-center">
-              <div style={{ fontWeight: 800, fontSize: 14, color: "var(--cc-text)" }}>{c._count.campaigns}</div>
-              <div style={{ fontSize: 10, color: "var(--cc-text-muted)" }}>Campaigns</div>
-            </div>
-          </div>
+          </Link>
         ))}
         {clients.length === 0 && (
           <p style={{ fontSize: 14, color: "var(--cc-text-muted)", textAlign: "center", padding: 40 }}>No clients yet</p>
         )}
-      </Card>
+      </div>
     </div>
   );
 }

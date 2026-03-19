@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ArrowLeft, Save } from "lucide-react";
-import { FEATURES, clientHasFeature, type FeatureKey } from "@/lib/features";
+import { FEATURES, type FeatureKey } from "@/lib/features";
 
 type Plan = { id: string; name: string; features: Record<string, boolean> };
 
@@ -90,74 +90,67 @@ export default function ClientDetailClient({ client, plans }: Props) {
   }
 
   return (
-    <div className="p-8 max-w-3xl mx-auto">
+    <div style={{ padding: 32, maxWidth: 720, margin: "0 auto" }}>
       {/* Breadcrumb */}
       <Link
         href="/clients"
-        className="inline-flex items-center gap-1.5 text-sm mb-6"
-        style={{ color: "var(--cc-text-muted)" }}
+        style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 14, color: "var(--cc-text-muted)", textDecoration: "none", marginBottom: 24 }}
       >
         <ArrowLeft size={14} />
         Back to Clients
       </Link>
 
       {/* Header */}
-      <div className="flex items-center gap-4 mb-8">
-        <div
-          className="w-14 h-14 rounded-2xl flex items-center justify-center text-lg font-bold"
-          style={{ background: "var(--cc-surface-2)", color: "var(--cc-text)" }}
-        >
+      <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 32 }}>
+        <div style={{ width: 56, height: 56, borderRadius: 14, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, fontWeight: 700, background: "#F3F4F8", color: "var(--cc-text)" }}>
           {client.name.slice(0, 2).toUpperCase()}
         </div>
         <div>
-          <h1 style={{ fontSize: 24, fontWeight: 900, color: "var(--cc-text)" }}>{client.name}</h1>
-          <p style={{ fontSize: 13, color: "var(--cc-text-muted)", marginTop: 2 }}>
+          <h1 style={{ fontSize: 22, fontWeight: 700, color: "var(--cc-text)", marginBottom: 2 }}>{client.name}</h1>
+          <p style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>
             {client.campaignCount} campaign{client.campaignCount !== 1 ? "s" : ""}
           </p>
         </div>
       </div>
 
       {/* Plan & Features card */}
-      <div
-        className="rounded-2xl overflow-hidden"
-        style={{ border: "1px solid var(--cc-border)" }}
-      >
-        <div
-          className="px-6 py-4"
-          style={{ background: "var(--cc-surface-2)", borderBottom: "1px solid var(--cc-border)" }}
-        >
-          <span style={{ fontWeight: 800, fontSize: 15, color: "var(--cc-text)" }}>Plan & Features</span>
+      <div style={{ borderRadius: 16, overflow: "hidden", border: "1px solid var(--cc-border)" }}>
+        <div style={{ padding: "14px 24px", background: "#F3F4F8", borderBottom: "1px solid var(--cc-border)" }}>
+          <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)" }}>Plan & Features</span>
         </div>
 
-        <div className="p-6" style={{ background: "var(--cc-surface)" }}>
+        <div style={{ padding: 24, background: "var(--cc-card)" }}>
           {error && (
-            <div className="mb-5 px-4 py-3 rounded-xl text-sm" style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)" }}>
+            <div style={{ marginBottom: 20, padding: "10px 16px", borderRadius: 10, fontSize: 14, background: "rgba(239,68,68,0.08)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)" }}>
               {error}
             </div>
           )}
           {saved && (
-            <div className="mb-5 px-4 py-3 rounded-xl text-sm" style={{ background: "rgba(34,197,94,0.1)", color: "#22c55e", border: "1px solid rgba(34,197,94,0.2)" }}>
+            <div style={{ marginBottom: 20, padding: "10px 16px", borderRadius: 10, fontSize: 14, background: "rgba(34,197,94,0.08)", color: "#16a34a", border: "1px solid rgba(34,197,94,0.2)" }}>
               Saved successfully
             </div>
           )}
 
           {/* Plan selector */}
-          <div className="mb-6">
-            <label className="block mb-1.5 text-sm font-semibold" style={{ color: "var(--cc-text)" }}>
+          <div style={{ marginBottom: 24 }}>
+            <label style={{ display: "block", marginBottom: 6, fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>
               Assigned Plan
             </label>
             <select
               value={selectedPlanId}
               onChange={(e) => {
                 setSelectedPlanId(e.target.value);
-                // Reset overrides when plan changes
                 const reset: Record<string, OverrideValue> = {};
                 for (const key of featureKeys) reset[key] = "plan";
                 setOverrides(reset);
               }}
-              className="w-full px-4 py-2.5 rounded-xl text-sm outline-none"
               style={{
-                background: "var(--cc-surface)",
+                width: "100%",
+                padding: "10px 14px",
+                borderRadius: 10,
+                fontSize: 14,
+                outline: "none",
+                background: "var(--cc-card)",
                 border: "1px solid var(--cc-border)",
                 color: "var(--cc-text)",
               }}
@@ -168,19 +161,16 @@ export default function ClientDetailClient({ client, plans }: Props) {
               ))}
             </select>
             {plans.length === 0 && (
-              <p className="mt-2 text-xs" style={{ color: "var(--cc-text-muted)" }}>
+              <p style={{ marginTop: 8, fontSize: 12, color: "var(--cc-text-muted)" }}>
                 No plans yet.{" "}
-                <Link href="/plans/new" style={{ color: "#3b82f6" }}>Create one</Link>
+                <Link href="/plans/new" style={{ color: "var(--cc-primary)" }}>Create one</Link>
               </p>
             )}
           </div>
 
           {/* Feature overrides table */}
-          <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--cc-border)" }}>
-            <div
-              className="grid grid-cols-[1fr_auto] px-4 py-2.5 text-xs font-semibold uppercase tracking-wide"
-              style={{ background: "var(--cc-surface-2)", color: "var(--cc-text-muted)", borderBottom: "1px solid var(--cc-border)" }}
-            >
+          <div style={{ borderRadius: 10, overflow: "hidden", border: "1px solid var(--cc-border)" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr auto", padding: "10px 16px", fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", background: "#F9FAFB", color: "var(--cc-text-muted)", borderBottom: "1px solid var(--cc-border)" }}>
               <span>Feature</span>
               <span>Override</span>
             </div>
@@ -191,30 +181,27 @@ export default function ClientDetailClient({ client, plans }: Props) {
               return (
                 <div
                   key={key}
-                  className="flex items-center gap-4 px-4 py-3"
-                  style={{ borderBottom: i < featureKeys.length - 1 ? "1px solid var(--cc-border)" : "none" }}
+                  style={{ display: "flex", alignItems: "center", gap: 16, padding: "12px 16px", borderBottom: i < featureKeys.length - 1 ? "1px solid var(--cc-border)" : "none" }}
                 >
-                  {/* Feature info */}
-                  <div className="flex-1 min-w-0 flex items-center gap-2.5">
-                    <div
-                      className="w-2 h-2 rounded-full shrink-0"
-                      style={{ background: effective ? "#22c55e" : "var(--cc-border)" }}
-                    />
+                  <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 10 }}>
+                    <div style={{ width: 8, height: 8, borderRadius: "50%", flexShrink: 0, background: effective ? "#22c55e" : "var(--cc-border)" }} />
                     <div>
                       <div style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>{feat.label}</div>
                       <div style={{ fontSize: 11, color: "var(--cc-text-muted)" }}>{feat.description}</div>
                     </div>
                   </div>
 
-                  {/* Override selector */}
                   <select
                     value={ov}
                     onChange={(e) => setOverrides((prev) => ({ ...prev, [key]: e.target.value as OverrideValue }))}
-                    className="text-xs px-2.5 py-1.5 rounded-lg outline-none"
                     style={{
-                      background: ov === "on" ? "rgba(34,197,94,0.1)" : ov === "off" ? "rgba(239,68,68,0.1)" : "var(--cc-surface-2)",
+                      fontSize: 12,
+                      padding: "6px 10px",
+                      borderRadius: 8,
+                      outline: "none",
+                      background: ov === "on" ? "rgba(34,197,94,0.08)" : ov === "off" ? "rgba(239,68,68,0.08)" : "#F3F4F8",
                       border: `1px solid ${ov === "on" ? "rgba(34,197,94,0.3)" : ov === "off" ? "rgba(239,68,68,0.3)" : "var(--cc-border)"}`,
-                      color: ov === "on" ? "#22c55e" : ov === "off" ? "#ef4444" : "var(--cc-text-muted)",
+                      color: ov === "on" ? "#16a34a" : ov === "off" ? "#ef4444" : "var(--cc-text-muted)",
                     }}
                   >
                     <option value="plan">Use plan default</option>
@@ -227,12 +214,11 @@ export default function ClientDetailClient({ client, plans }: Props) {
           </div>
 
           {/* Save */}
-          <div className="mt-5 flex items-center gap-3">
+          <div style={{ marginTop: 20, display: "flex", alignItems: "center", gap: 12 }}>
             <button
               onClick={handleSave}
               disabled={saving}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-60"
-              style={{ background: "#2563EB" }}
+              style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 20px", borderRadius: 10, fontSize: 14, fontWeight: 600, color: "white", background: "var(--cc-primary)", border: "none", cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.6 : 1 }}
             >
               <Save size={14} />
               {saving ? "Saving…" : "Save Plan & Overrides"}

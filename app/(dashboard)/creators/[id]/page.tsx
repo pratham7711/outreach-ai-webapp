@@ -1,7 +1,6 @@
 "use client";
 import { useState, useEffect, use } from "react";
 import { motion } from "framer-motion";
-import { Card, Badge } from "@pratham7711/ui";
 import {
   ArrowLeft, Eye, Heart, Play, ChevronRight,
 } from "lucide-react";
@@ -62,8 +61,8 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
     { label: "Campaigns", value: "campaigns" },
   ];
 
-  if (loading) return <div className="p-8" style={{ color: "var(--cc-text-muted)" }}>Loading...</div>;
-  if (!creator) return <div className="p-8" style={{ color: "var(--cc-text-muted)" }}>Creator not found</div>;
+  if (loading) return <div style={{ padding: 32, color: "var(--cc-text-muted)" }}>Loading...</div>;
+  if (!creator) return <div style={{ padding: 32, color: "var(--cc-text-muted)" }}>Creator not found</div>;
 
   const initials = creator.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
   const totalPaid = creator.payouts
@@ -71,58 +70,62 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
     .reduce((sum, p) => sum + parseFloat(p.amount), 0);
 
   return (
-    <div className="p-8">
+    <div style={{ padding: 32 }}>
       {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-sm mb-6" style={{ color: "var(--cc-text-muted)" }}>
-        <Link href="/creators" className="flex items-center gap-1" style={{ color: "var(--cc-text-muted)" }}>
-          <ArrowLeft className="h-4 w-4" /> Creators
+      <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, marginBottom: 24, color: "var(--cc-text-muted)" }}>
+        <Link href="/creators" style={{ display: "flex", alignItems: "center", gap: 4, color: "var(--cc-text-muted)", textDecoration: "none" }}>
+          <ArrowLeft size={16} /> Creators
         </Link>
-        <ChevronRight className="h-3 w-3" />
+        <ChevronRight size={12} />
         <span style={{ color: "var(--cc-text)" }}>{creator.name}</span>
       </div>
 
       {/* Banner + Profile */}
-      <Card variant="glass" className="overflow-hidden mb-8" style={{ background: "var(--cc-surface)", border: "1px solid var(--cc-border)", borderRadius: 16 }}>
-        <div className="h-32 bg-gradient-to-r from-blue-600/20 to-purple-600/20" />
-        <div className="px-6 pb-6 -mt-10">
-          <div className="flex items-end gap-4">
-            <div className="h-24 w-24 rounded-2xl bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center text-2xl font-black text-white" style={{ border: "4px solid var(--cc-surface)" }}>
+      <div style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 16, overflow: "hidden", marginBottom: 32 }}>
+        <div style={{ height: 96, background: "linear-gradient(to right, rgba(91,91,214,0.15), rgba(168,85,247,0.15))" }} />
+        <div style={{ padding: "0 24px 24px", marginTop: -40 }}>
+          <div style={{ display: "flex", alignItems: "flex-end", gap: 16 }}>
+            <div style={{ height: 80, width: 80, borderRadius: 16, background: "var(--cc-primary)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, fontWeight: 900, color: "white", border: "4px solid var(--cc-card)", flexShrink: 0 }}>
               {initials}
             </div>
-            <div className="flex-1 pb-1">
-              <div className="flex items-center gap-3">
-                <h1 style={{ fontSize: 24, fontWeight: 900, color: "var(--cc-text)" }}>{creator.name}</h1>
-              </div>
-              <div style={{ fontSize: 14, color: "var(--cc-text-muted)", marginTop: 2 }}>{creator.handle} · {creator.platform}</div>
+            <div style={{ flex: 1, paddingBottom: 4 }}>
+              <h1 style={{ fontSize: 22, fontWeight: 700, color: "var(--cc-text)", marginBottom: 2 }}>{creator.name}</h1>
+              <div style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>{creator.handle} · {creator.platform}</div>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6">
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginTop: 24 }}>
             {[
               { label: "Followers", value: formatNumber(creator.followersCount) },
               { label: "Avg Views", value: formatNumber(creator.averageViews) },
               { label: "Campaigns", value: String(creator._count.activations) },
               { label: "Total Paid", value: totalPaid > 0 ? "$" + totalPaid.toLocaleString() : "—" },
             ].map(s => (
-              <div key={s.label} className="rounded-xl p-4" style={{ background: "var(--cc-surface-2)" }}>
+              <div key={s.label} style={{ borderRadius: 10, padding: 16, background: "#F3F4F8" }}>
                 <div style={{ fontSize: 10, color: "var(--cc-text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>{s.label}</div>
-                <div style={{ fontSize: 20, fontWeight: 900, color: "var(--cc-text)" }}>{s.value}</div>
+                <div style={{ fontSize: 20, fontWeight: 700, color: "var(--cc-text)" }}>{s.value}</div>
               </div>
             ))}
           </div>
         </div>
-      </Card>
+      </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 mb-6" style={{ borderBottom: "1px solid var(--cc-border)" }}>
+      <div style={{ display: "flex", gap: 4, marginBottom: 24, borderBottom: "1px solid var(--cc-border)" }}>
         {tabsList.map(tab => (
           <button
             key={tab.value}
             onClick={() => setActiveTab(tab.value)}
-            className="px-5 py-3 text-sm font-medium transition-all"
             style={{
-              borderBottom: activeTab === tab.value ? "2px solid #2563EB" : "2px solid transparent",
-              color: activeTab === tab.value ? "#3b82f6" : "var(--cc-text-muted)",
+              padding: "10px 20px",
+              fontSize: 14,
+              fontWeight: 500,
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              borderBottom: activeTab === tab.value ? "2px solid var(--cc-primary)" : "2px solid transparent",
+              color: activeTab === tab.value ? "var(--cc-primary)" : "var(--cc-text-muted)",
+              transition: "all 0.15s",
             }}
           >
             {tab.label}
@@ -132,71 +135,71 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
 
       <motion.div key={activeTab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
         {activeTab === "profile" && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card variant="glass" className="p-6" style={{ background: "var(--cc-surface)", border: "1px solid var(--cc-border)", borderRadius: 16 }}>
-              <span style={{ fontWeight: 800, fontSize: 15, color: "var(--cc-text)", display: "block", marginBottom: 12 }}>About</span>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+            <div style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 16, padding: 24 }}>
+              <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)", display: "block", marginBottom: 12 }}>About</span>
               <p style={{ fontSize: 14, color: "var(--cc-text-muted)", lineHeight: 1.6 }}>
                 {creator.bio ?? `${creator.platform} content creator. Open to brand partnerships and collaborations.`}
               </p>
               {creator.contactEmail && (
-                <div className="mt-4" style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{creator.contactEmail}</div>
+                <div style={{ marginTop: 16, fontSize: 13, color: "var(--cc-text-muted)" }}>{creator.contactEmail}</div>
               )}
-            </Card>
-            <Card variant="glass" className="p-6" style={{ background: "var(--cc-surface)", border: "1px solid var(--cc-border)", borderRadius: 16 }}>
-              <span style={{ fontWeight: 800, fontSize: 15, color: "var(--cc-text)", display: "block", marginBottom: 12 }}>Rates</span>
+            </div>
+            <div style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 16, padding: 24 }}>
+              <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)", display: "block", marginBottom: 12 }}>Rates</span>
               {creator.rate ? (
-                <div className="flex justify-between py-2" style={{ borderBottom: "1px solid var(--cc-border)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid var(--cc-border)" }}>
                   <span style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>Rate</span>
                   <span style={{ fontSize: 14, fontWeight: 700, color: "var(--cc-text)" }}>${parseFloat(creator.rate).toLocaleString()}</span>
                 </div>
               ) : (
-                <div className="py-4 text-center" style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>No rate set</div>
+                <div style={{ padding: "16px 0", textAlign: "center", fontSize: 13, color: "var(--cc-text-muted)" }}>No rate set</div>
               )}
-            </Card>
+            </div>
           </div>
         )}
 
         {activeTab === "posts" && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
             {DUMMY_POSTS.map(post => (
-              <Card key={post.id} variant="glass" className="overflow-hidden" style={{ background: "var(--cc-surface)", border: "1px solid var(--cc-border)", borderRadius: 16 }}>
-                <div className={`h-48 bg-gradient-to-br ${post.gradient} flex items-center justify-center`}>
-                  <div className="h-12 w-12 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
-                    <Play className="h-5 w-5 text-white ml-0.5" />
+              <div key={post.id} style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 16, overflow: "hidden" }}>
+                <div className={`h-48 bg-gradient-to-br ${post.gradient}`} style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <div style={{ width: 48, height: 48, borderRadius: "50%", background: "rgba(0,0,0,0.3)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", opacity: 0 }}>
+                    <Play size={20} color="white" style={{ marginLeft: 2 }} />
                   </div>
                 </div>
-                <div className="p-4">
-                  <div style={{ fontSize: 14, fontWeight: 700, color: "var(--cc-text)" }}>{post.title}</div>
-                  <div className="flex items-center gap-4 mt-2" style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>
-                    <span className="flex items-center gap-1"><Eye className="h-3 w-3" />{formatNumber(post.views)}</span>
-                    <span className="flex items-center gap-1"><Heart className="h-3 w-3" />{formatNumber(post.likes)}</span>
+                <div style={{ padding: 16 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: "var(--cc-text)", marginBottom: 8 }}>{post.title}</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 16, fontSize: 12, color: "var(--cc-text-muted)" }}>
+                    <span style={{ display: "flex", alignItems: "center", gap: 4 }}><Eye size={12} />{formatNumber(post.views)}</span>
+                    <span style={{ display: "flex", alignItems: "center", gap: 4 }}><Heart size={12} />{formatNumber(post.likes)}</span>
                   </div>
                 </div>
-              </Card>
+              </div>
             ))}
           </div>
         )}
 
         {activeTab === "campaigns" && (
-          <div className="flex flex-col gap-3">
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             {creator.activations.length === 0 ? (
-              <div className="py-8 text-center" style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>No campaigns yet</div>
+              <div style={{ padding: "32px 0", textAlign: "center", fontSize: 13, color: "var(--cc-text-muted)" }}>No campaigns yet</div>
             ) : creator.activations.map(act => (
-              <Link key={act.id} href={`/campaigns/${act.campaign.id}`}>
-                <Card variant="glass" className="p-5" style={{ background: "var(--cc-surface)", border: "1px solid var(--cc-border)", borderRadius: 16 }}>
-                  <div className="flex items-center gap-4">
-                    <div className="w-2 h-2 rounded-full" style={{ background: "#3b82f6" }} />
-                    <div className="flex-1">
+              <Link key={act.id} href={`/campaigns/${act.campaign.id}`} style={{ textDecoration: "none" }}>
+                <div style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 16, padding: 20 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                    <div style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--cc-primary)", flexShrink: 0 }} />
+                    <div style={{ flex: 1 }}>
                       <div style={{ fontWeight: 700, fontSize: 14, color: "var(--cc-text)" }}>{act.campaign.title}</div>
                       <div style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{act.campaign.status}</div>
                     </div>
                     {act.campaign.budget && (
-                      <span style={{ fontWeight: 800, fontSize: 14, color: "var(--cc-text)" }}>
+                      <span style={{ fontWeight: 700, fontSize: 14, color: "var(--cc-text)" }}>
                         {act.campaign.currency} {formatNumber(parseFloat(act.campaign.budget))}
                       </span>
                     )}
                   </div>
-                </Card>
+                </div>
               </Link>
             ))}
           </div>

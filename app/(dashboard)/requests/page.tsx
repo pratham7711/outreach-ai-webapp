@@ -30,7 +30,7 @@ export default function RequestsPage() {
         <StatCard value="$5,950" label="Total Amount" />
       </div>
 
-      <Card variant="glass" style={{ background: "var(--cc-surface)", border: "1px solid var(--cc-border)", borderRadius: 16, overflow: "hidden" }}>
+      <Card variant="glass" style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 16, overflow: "hidden" }}>
         <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--cc-border)" }}>
           <span style={{ fontWeight: 800, fontSize: 15, color: "var(--cc-text)" }}>All Requests</span>
         </div>

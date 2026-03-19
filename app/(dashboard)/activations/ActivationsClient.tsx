@@ -36,14 +36,14 @@ const COLUMN_LABELS: Record<string, string> = {
 };
 
 const COLUMN_COLORS: Record<string, string> = {
-  AWAITING_DRAFT: "bg-amber-500",
-  DRAFT_SUBMITTED: "bg-blue-500",
-  AWAITING_APPROVAL: "bg-amber-500",
-  APPROVED: "bg-emerald-500",
-  POSTING: "bg-[var(--color-primary)]",
-  POSTED: "bg-emerald-500",
-  COMPLETE: "bg-emerald-600",
-  DECLINED: "bg-red-500",
+  AWAITING_DRAFT: "#f59e0b",
+  DRAFT_SUBMITTED: "#3b82f6",
+  AWAITING_APPROVAL: "#f59e0b",
+  APPROVED: "#22c55e",
+  POSTING: "var(--cc-primary)",
+  POSTED: "#22c55e",
+  COMPLETE: "#16a34a",
+  DECLINED: "#ef4444",
 };
 
 export default function ActivationsClient({ activations, stats }: {
@@ -64,7 +64,15 @@ export default function ActivationsClient({ activations, stats }: {
         title="Activations"
         description={`${stats.total} total activations, ${stats.active} active`}
         actions={
-          <button className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-gradient-to-r from-[var(--color-primary)] to-purple-500 text-white text-sm font-medium hover:opacity-90 transition-opacity shadow-lg shadow-[var(--color-primary)]/25">
+          <button
+            style={{
+              display: "flex", alignItems: "center", gap: 8,
+              padding: "10px 16px", borderRadius: 8,
+              background: "var(--cc-primary)", color: "white",
+              fontSize: 14, fontWeight: 500,
+              border: "none", cursor: "pointer",
+            }}
+          >
             <Plus className="h-4 w-4" />
             Add Activation
           </button>
@@ -80,9 +88,9 @@ export default function ActivationsClient({ activations, stats }: {
           { label: "Complete", value: activations.filter(a => a.status === "COMPLETE").length },
         ].map((s, i) => (
           <motion.div key={s.label} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.08 }}>
-            <div className="bg-[#111118] border border-[#2A2A3A] rounded-xl p-4">
-              <p className="text-xs text-[#8888AA] mb-1">{s.label}</p>
-              <p className="text-xl font-bold text-[#F0F0FF]">{s.value}</p>
+            <div style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, padding: 16 }}>
+              <p style={{ fontSize: 12, color: "var(--cc-text-muted)", marginBottom: 4 }}>{s.label}</p>
+              <p style={{ fontSize: 20, fontWeight: 700, color: "var(--cc-text)" }}>{s.value}</p>
             </div>
           </motion.div>
         ))}
@@ -101,12 +109,12 @@ export default function ActivationsClient({ activations, stats }: {
             {COLUMNS.map((col) => {
               const items = grouped.get(col) ?? [];
               return (
-                <div key={col} className="w-72 flex flex-col bg-[#0D0D14] rounded-xl border border-[#2A2A3A]">
+                <div key={col} className="w-72 flex flex-col" style={{ background: "#F5F6FA", borderRadius: 12, border: "1px solid var(--cc-border)" }}>
                   {/* Column header */}
-                  <div className="flex items-center gap-2 px-4 py-3 border-b border-[#1E1E2C]">
-                    <span className={`w-2 h-2 rounded-full ${COLUMN_COLORS[col]}`} />
-                    <span className="text-xs font-semibold text-[#F0F0FF]">{COLUMN_LABELS[col]}</span>
-                    <span className="ml-auto text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-white/5 text-[#8888AA]">
+                  <div className="flex items-center gap-2" style={{ padding: "12px 16px", borderBottom: "1px solid var(--cc-border)" }}>
+                    <span className="w-2 h-2 rounded-full" style={{ background: COLUMN_COLORS[col] }} />
+                    <span style={{ fontSize: 12, fontWeight: 600, color: "var(--cc-text)" }}>{COLUMN_LABELS[col]}</span>
+                    <span className="ml-auto" style={{ fontSize: 10, fontWeight: 500, padding: "2px 6px", borderRadius: 9999, background: "var(--cc-border)", color: "var(--cc-text-muted)" }}>
                       {items.length}
                     </span>
                   </div>
@@ -120,22 +128,22 @@ export default function ActivationsClient({ activations, stats }: {
                         animate={{ opacity: 1 }}
                         transition={{ delay: i * 0.05 }}
                       >
-                        <div className="bg-[#111118] border border-[#2A2A3A] rounded-lg p-3 cursor-pointer hover:border-[var(--color-primary)]/30 transition-colors">
-                          <div className="flex items-center gap-2 mb-2">
-                            <div className="w-6 h-6 rounded-full bg-gradient-to-br from-[var(--color-primary)] to-purple-600 flex items-center justify-center text-white text-[8px] font-bold shrink-0">
+                        <div style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 8, padding: 12, cursor: "pointer" }}>
+                          <div className="flex items-center gap-2" style={{ marginBottom: 8 }}>
+                            <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-[8px] font-bold shrink-0" style={{ background: "var(--cc-primary)" }}>
                               {a.creator.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
                             </div>
-                            <p className="text-sm font-medium text-[#F0F0FF] truncate">{a.creator.name}</p>
+                            <p className="truncate" style={{ fontSize: 14, fontWeight: 500, color: "var(--cc-text)" }}>{a.creator.name}</p>
                           </div>
-                          <p className="text-xs text-[#8888AA] mb-2 truncate">{a.campaign.title}</p>
-                          <p className="text-[10px] text-[#555577]">{new Date(a.createdAt).toLocaleDateString()}</p>
+                          <p className="truncate" style={{ fontSize: 12, color: "var(--cc-text-muted)", marginBottom: 8 }}>{a.campaign.title}</p>
+                          <p style={{ fontSize: 10, color: "var(--cc-text-muted)" }}>{new Date(a.createdAt).toLocaleDateString()}</p>
                         </div>
                       </motion.div>
                     ))}
                   </div>
 
                   {/* Add button */}
-                  <button className="m-2 py-2 rounded-lg border border-dashed border-[#2A2A3A] text-xs text-[#555577] hover:text-[#8888AA] hover:border-[#8888AA] transition-colors">
+                  <button style={{ margin: 8, padding: "8px 0", borderRadius: 8, border: "1px dashed var(--cc-border)", fontSize: 12, color: "var(--cc-text-muted)", background: "transparent", cursor: "pointer" }}>
                     + Add
                   </button>
                 </div>

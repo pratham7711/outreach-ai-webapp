@@ -29,17 +29,17 @@ export default function CalendarPage() {
           <p style={{ fontSize: 14, color: "var(--cc-text-muted)", marginTop: 4 }}>Campaign schedule and deadlines</p>
         </div>
         <div className="flex items-center gap-3">
-          <button className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: "var(--cc-surface)", border: "1px solid var(--cc-border)", color: "var(--cc-text-muted)" }}>
+          <button className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", color: "var(--cc-text-muted)" }}>
             <ChevronLeft size={16} />
           </button>
           <span style={{ fontWeight: 800, fontSize: 15, color: "var(--cc-text)" }}>July 2026</span>
-          <button className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: "var(--cc-surface)", border: "1px solid var(--cc-border)", color: "var(--cc-text-muted)" }}>
+          <button className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", color: "var(--cc-text-muted)" }}>
             <ChevronRight size={16} />
           </button>
         </div>
       </div>
 
-      <Card variant="glass" style={{ background: "var(--cc-surface)", border: "1px solid var(--cc-border)", borderRadius: 16, overflow: "hidden" }}>
+      <Card variant="glass" style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 16, overflow: "hidden" }}>
         <div className="grid grid-cols-7" style={{ borderBottom: "1px solid var(--cc-border)" }}>
           {DAYS.map(d => (
             <div key={d} className="py-3 text-center" style={{ fontSize: 12, fontWeight: 600, color: "var(--cc-text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>{d}</div>

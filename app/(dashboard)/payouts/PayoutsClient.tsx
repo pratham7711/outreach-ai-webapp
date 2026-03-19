@@ -24,9 +24,9 @@ export default function PayoutsClient({ payouts, stats }: {
   stats: { total: number; sent: number; pending: number };
 }) {
   const statCards = [
-    { title: "Total Paid", value: formatCurrency(stats.sent), icon: <DollarSign className="h-4 w-4 text-emerald-400" />, color: "emerald" },
-    { title: "Pending Amount", value: formatCurrency(stats.pending), icon: <Wallet className="h-4 w-4 text-amber-400" />, color: "amber" },
-    { title: "Total Processed", value: formatCurrency(stats.total), icon: <CreditCard className="h-4 w-4 text-[var(--color-primary)]" />, color: "primary" },
+    { title: "Total Paid", value: formatCurrency(stats.sent), icon: <DollarSign className="h-4 w-4" style={{ color: "#22c55e" }} /> },
+    { title: "Pending Amount", value: formatCurrency(stats.pending), icon: <Wallet className="h-4 w-4" style={{ color: "#f59e0b" }} /> },
+    { title: "Total Processed", value: formatCurrency(stats.total), icon: <CreditCard className="h-4 w-4" style={{ color: "var(--cc-primary)" }} /> },
   ];
 
   return (
@@ -35,7 +35,15 @@ export default function PayoutsClient({ payouts, stats }: {
         title="Payouts"
         description="Track and manage creator payments"
         actions={
-          <button className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-gradient-to-r from-[var(--color-primary)] to-purple-500 text-white text-sm font-medium hover:opacity-90 transition-opacity shadow-lg shadow-[var(--color-primary)]/25">
+          <button
+            style={{
+              display: "flex", alignItems: "center", gap: 8,
+              padding: "10px 16px", borderRadius: 8,
+              background: "var(--cc-primary)", color: "white",
+              fontSize: 14, fontWeight: 500,
+              border: "none", cursor: "pointer",
+            }}
+          >
             <Plus className="h-4 w-4" />
             Process Payout
           </button>
@@ -46,14 +54,14 @@ export default function PayoutsClient({ payouts, stats }: {
       <div className="grid grid-cols-3 gap-4 mb-6">
         {statCards.map((s, i) => (
           <motion.div key={s.title} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.08 }}>
-            <div className="bg-[#111118] border border-[#2A2A3A] rounded-xl p-5 hover:border-[var(--color-primary)]/30 transition-colors">
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-sm text-[#8888AA]">{s.title}</p>
-                <div className="w-9 h-9 rounded-lg bg-white/5 flex items-center justify-center">
+            <div style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, padding: 20 }}>
+              <div className="flex items-center justify-between" style={{ marginBottom: 12 }}>
+                <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>{s.title}</p>
+                <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: "#F3F4F6" }}>
                   {s.icon}
                 </div>
               </div>
-              <p className="text-2xl font-bold text-[#F0F0FF]">{s.value}</p>
+              <p style={{ fontSize: 24, fontWeight: 700, color: "var(--cc-text)" }}>{s.value}</p>
             </div>
           </motion.div>
         ))}
@@ -65,21 +73,21 @@ export default function PayoutsClient({ payouts, stats }: {
           title="No payouts yet"
           description="Payouts will appear here once you start paying creators."
           action={
-            <button className="px-4 py-2 rounded-lg bg-[var(--color-primary)] text-white text-sm font-medium hover:bg-[var(--color-primary-hover)] transition-colors">
+            <button style={{ padding: "8px 16px", borderRadius: 8, background: "var(--cc-primary)", color: "white", fontSize: 14, fontWeight: 500, border: "none", cursor: "pointer" }}>
               Process Payout
             </button>
           }
         />
       ) : (
-        <div className="bg-[#111118] border border-[#2A2A3A] rounded-xl overflow-hidden">
+        <div style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, overflow: "hidden" }}>
           <table className="w-full">
             <thead>
-              <tr className="bg-[#0D0D14]">
-                <th className="text-left text-[10px] uppercase tracking-wider text-[#8888AA] font-medium px-5 py-3">Creator</th>
-                <th className="text-left text-[10px] uppercase tracking-wider text-[#8888AA] font-medium px-5 py-3">Campaign</th>
-                <th className="text-left text-[10px] uppercase tracking-wider text-[#8888AA] font-medium px-5 py-3">Amount</th>
-                <th className="text-left text-[10px] uppercase tracking-wider text-[#8888AA] font-medium px-5 py-3">Status</th>
-                <th className="text-left text-[10px] uppercase tracking-wider text-[#8888AA] font-medium px-5 py-3">Date</th>
+              <tr style={{ background: "#F9FAFB" }}>
+                <th style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", color: "#9097B4", padding: "12px 20px", textAlign: "left", letterSpacing: "0.5px" }}>Creator</th>
+                <th style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", color: "#9097B4", padding: "12px 20px", textAlign: "left", letterSpacing: "0.5px" }}>Campaign</th>
+                <th style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", color: "#9097B4", padding: "12px 20px", textAlign: "left", letterSpacing: "0.5px" }}>Amount</th>
+                <th style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", color: "#9097B4", padding: "12px 20px", textAlign: "left", letterSpacing: "0.5px" }}>Status</th>
+                <th style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", color: "#9097B4", padding: "12px 20px", textAlign: "left", letterSpacing: "0.5px" }}>Date</th>
               </tr>
             </thead>
             <tbody>
@@ -89,23 +97,26 @@ export default function PayoutsClient({ payouts, stats }: {
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ delay: i * 0.03 }}
-                  className="border-t border-[#1E1E2C] hover:bg-[#1A1A24] transition-colors"
+                  className="transition-colors"
+                  style={{ borderTop: "1px solid var(--cc-border)" }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = "#F9FAFB")}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                 >
-                  <td className="px-5 py-3.5">
+                  <td style={{ padding: "14px 20px" }}>
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[var(--color-primary)] to-purple-600 flex items-center justify-center text-white text-[10px] font-bold shrink-0">
+                      <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-[10px] font-bold shrink-0" style={{ background: "var(--cc-primary)" }}>
                         {p.creator.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
                       </div>
                       <div>
-                        <p className="text-sm font-medium text-[#F0F0FF]">{p.creator.name}</p>
-                        <p className="text-xs text-[#555577]">@{p.creator.handle}</p>
+                        <p style={{ fontSize: 14, fontWeight: 500, color: "var(--cc-text)" }}>{p.creator.name}</p>
+                        <p style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>@{p.creator.handle}</p>
                       </div>
                     </div>
                   </td>
-                  <td className="px-5 py-3.5 text-sm text-[#8888AA]">{p.campaign?.title ?? "—"}</td>
-                  <td className="px-5 py-3.5 text-sm font-semibold text-[#F0F0FF]">{formatCurrency(p.amount)}</td>
-                  <td className="px-5 py-3.5"><StatusBadge status={p.status} /></td>
-                  <td className="px-5 py-3.5 text-sm text-[#8888AA]">{new Date(p.createdAt).toLocaleDateString()}</td>
+                  <td style={{ padding: "14px 20px", fontSize: 14, color: "var(--cc-text-muted)" }}>{p.campaign?.title ?? "—"}</td>
+                  <td style={{ padding: "14px 20px", fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>{formatCurrency(p.amount)}</td>
+                  <td style={{ padding: "14px 20px" }}><StatusBadge status={p.status} /></td>
+                  <td style={{ padding: "14px 20px", fontSize: 14, color: "var(--cc-text-muted)" }}>{new Date(p.createdAt).toLocaleDateString()}</td>
                 </motion.tr>
               ))}
             </tbody>

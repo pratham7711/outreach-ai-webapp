@@ -1,5 +1,4 @@
 "use client";
-import { Button, Card } from "@pratham7711/ui";
 import { Plus, Users, Share2 } from "lucide-react";
 
 type List = {
@@ -10,56 +9,62 @@ type List = {
   createdAt: string;
 };
 
-const GRADIENTS = [
-  "from-blue-500 to-cyan-500",
-  "from-purple-500 to-pink-500",
-  "from-green-500 to-teal-500",
-  "from-orange-500 to-red-500",
+const ACCENT_COLORS = [
+  "#5B5BD6",
+  "#7C3AED",
+  "#059669",
+  "#DC2626",
 ];
 
 export default function ListsClient({ lists }: { lists: List[] }) {
   return (
-    <div className="p-8">
-      <div className="flex items-center justify-between mb-8">
+    <div>
+      {/* Header */}
+      <div style={{ marginBottom: 32, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div>
-          <h1 style={{ fontSize: 26, fontWeight: 900, color: "var(--cc-text)" }}>Creator Lists</h1>
-          <p style={{ fontSize: 14, color: "var(--cc-text-muted)", marginTop: 4 }}>Organize creators into curated lists</p>
+          <h1 style={{ fontSize: 28, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Creator Lists</h1>
+          <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>Organize creators into curated lists</p>
         </div>
-        <Button variant="primary" iconLeft={<Plus size={16} />}>New List</Button>
+        <button style={{ background: "var(--cc-primary)", color: "white", border: "none", borderRadius: 8, padding: "9px 16px", fontSize: 14, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
+          <Plus size={15} /> New List
+        </button>
       </div>
 
-      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
         {lists.map((list, i) => (
-          <Card key={list.id} variant="glass" className="overflow-hidden" style={{ background: "var(--cc-surface)", border: "1px solid var(--cc-border)", borderRadius: 16 }}>
-            <div className={`h-2 bg-gradient-to-r ${GRADIENTS[i % GRADIENTS.length]}`} />
-            <div className="p-5">
-              <h3 style={{ fontWeight: 800, fontSize: 15, color: "var(--cc-text)", marginBottom: 8 }}>{list.name}</h3>
-              <div className="flex items-center gap-4" style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>
-                <span className="flex items-center gap-1"><Users size={13} /> {list._count.items} creators</span>
+          <div key={list.id} style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, overflow: "hidden" }}>
+            <div style={{ height: 4, background: ACCENT_COLORS[i % ACCENT_COLORS.length] }} />
+            <div style={{ padding: 20 }}>
+              <h3 style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)", marginBottom: 8 }}>{list.name}</h3>
+              {list.description && (
+                <p style={{ fontSize: 13, color: "var(--cc-text-muted)", marginBottom: 8 }}>{list.description}</p>
+              )}
+              <div style={{ display: "flex", alignItems: "center", gap: 16, fontSize: 12, color: "var(--cc-text-muted)" }}>
+                <span style={{ display: "flex", alignItems: "center", gap: 4 }}><Users size={13} /> {list._count.items} creators</span>
               </div>
-              <div className="flex items-center justify-between mt-4 pt-4" style={{ borderTop: "1px solid var(--cc-border)" }}>
-                <div className="flex -space-x-2">
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--cc-border)" }}>
+                <div style={{ display: "flex", marginLeft: -4 }}>
                   {Array.from({ length: Math.min(list._count.items, 4) }).map((_, j) => (
-                    <div key={j} className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-[8px] font-bold" style={{ border: "2px solid var(--cc-surface)" }}>
+                    <div key={j} style={{ width: 28, height: 28, borderRadius: "50%", background: "var(--cc-primary)", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontSize: 9, fontWeight: 700, border: "2px solid var(--cc-card)", marginLeft: j > 0 ? -8 : 0 }}>
                       {String.fromCharCode(65 + j)}
                     </div>
                   ))}
                   {list._count.items > 4 && (
-                    <div className="w-7 h-7 rounded-full flex items-center justify-center text-[9px]" style={{ background: "var(--cc-surface-2)", color: "var(--cc-text-muted)", border: "2px solid var(--cc-surface)" }}>
+                    <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#F3F4F8", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, color: "var(--cc-text-muted)", border: "2px solid var(--cc-card)", marginLeft: -8 }}>
                       +{list._count.items - 4}
                     </div>
                   )}
                 </div>
-                <button className="p-2 rounded-lg transition-all" style={{ color: "var(--cc-text-muted)" }}>
+                <button style={{ padding: 8, borderRadius: 8, border: "none", background: "transparent", cursor: "pointer", color: "var(--cc-text-muted)" }}>
                   <Share2 size={14} />
                 </button>
               </div>
             </div>
-          </Card>
+          </div>
         ))}
 
-        <div className="flex flex-col items-center justify-center py-12 rounded-2xl cursor-pointer transition-all min-h-[200px]" style={{ border: "2px dashed var(--cc-border)" }}>
-          <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-3" style={{ background: "var(--cc-surface-2)" }}>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "48px 0", borderRadius: 12, cursor: "pointer", border: "2px dashed var(--cc-border)", minHeight: 200 }}>
+          <div style={{ width: 48, height: 48, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", background: "#F3F4F8", marginBottom: 12 }}>
             <Plus size={20} style={{ color: "var(--cc-text-muted)" }} />
           </div>
           <p style={{ fontSize: 14, fontWeight: 500, color: "var(--cc-text-muted)" }}>Create a new list</p>

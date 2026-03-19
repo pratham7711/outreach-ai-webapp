@@ -116,8 +116,8 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
             onClick={() => setActiveTab(tab.value)}
             className="px-5 py-3 text-sm font-medium transition-all"
             style={{
-              borderBottom: activeTab === tab.value ? "2px solid #2563EB" : "2px solid transparent",
-              color: activeTab === tab.value ? "#3b82f6" : "var(--cc-text-muted)",
+              borderBottom: activeTab === tab.value ? "2px solid var(--cc-primary)" : "2px solid transparent",
+              color: activeTab === tab.value ? "var(--cc-primary)" : "var(--cc-text-muted)",
             }}
           >
             {tab.label}
@@ -135,13 +135,13 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                 { label: "Creators", value: String(campaign._count.activations) },
                 { label: "Budget Used", value: budget > 0 ? `${Math.round((spent / budget) * 100)}%` : "—" },
               ].map(s => (
-                <Card key={s.label} variant="glass" className="p-5" style={{ background: "var(--cc-surface)", border: "1px solid var(--cc-border)", borderRadius: 16 }}>
+                <Card key={s.label} variant="glass" className="p-5" style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 16 }}>
                   <div style={{ fontSize: 24, fontWeight: 900, color: "var(--cc-text)" }}>{s.value}</div>
                   <div style={{ fontSize: 11, color: "var(--cc-text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginTop: 4 }}>{s.label}</div>
                 </Card>
               ))}
             </div>
-            <Card variant="glass" className="p-6" style={{ background: "var(--cc-surface)", border: "1px solid var(--cc-border)", borderRadius: 16 }}>
+            <Card variant="glass" className="p-6" style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 16 }}>
               <span style={{ fontWeight: 800, fontSize: 15, color: "var(--cc-text)", display: "block", marginBottom: 12 }}>Recent Activity</span>
               <div className="py-4 text-center" style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>No recent activity</div>
             </Card>
@@ -151,7 +151,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
         {activeTab === "posts" && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {DUMMY_POSTS.map(post => (
-              <Card key={post.id} variant="glass" className="overflow-hidden" style={{ background: "var(--cc-surface)", border: "1px solid var(--cc-border)", borderRadius: 16 }}>
+              <Card key={post.id} variant="glass" className="overflow-hidden" style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 16 }}>
                 <div className={`h-48 bg-gradient-to-br ${post.gradient} flex items-center justify-center`}>
                   <div className="h-12 w-12 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
                     <Play className="h-5 w-5 text-white ml-0.5" />
@@ -171,7 +171,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
         )}
 
         {activeTab === "creators" && (
-          <Card variant="glass" style={{ background: "var(--cc-surface)", border: "1px solid var(--cc-border)", borderRadius: 16, overflow: "hidden" }}>
+          <Card variant="glass" style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 16, overflow: "hidden" }}>
             {campaign.activations.length === 0 ? (
               <div className="py-8 text-center" style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>No creators in this campaign yet</div>
             ) : campaign.activations.map((act, i) => {
@@ -193,7 +193,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
 
         {activeTab === "analytics" && (
           <div className="space-y-6">
-            <Card variant="glass" className="p-6" style={{ background: "var(--cc-surface)", border: "1px solid var(--cc-border)", borderRadius: 16 }}>
+            <Card variant="glass" className="p-6" style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 16 }}>
               <span style={{ fontWeight: 800, fontSize: 15, color: "var(--cc-text)", display: "block", marginBottom: 16 }}>Monthly Trend</span>
               <div className="py-8 text-center" style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>Analytics data available once posts are synced</div>
             </Card>
@@ -203,7 +203,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
         {activeTab === "financials" && (
           <div className="space-y-6">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <Card variant="glass" className="p-6" style={{ background: "var(--cc-surface)", border: "1px solid var(--cc-border)", borderRadius: 16 }}>
+              <Card variant="glass" className="p-6" style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 16 }}>
                 <span style={{ fontWeight: 800, fontSize: 15, color: "var(--cc-text)", display: "block", marginBottom: 12 }}>Budget Overview</span>
                 <div className="flex items-center gap-2 mb-4">
                   <span style={{ fontSize: 28, fontWeight: 900, color: "var(--cc-text)" }}>{campaign.currency} {formatNumber(spent)}</span>
@@ -211,14 +211,14 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                 </div>
                 {budget > 0 && (
                   <>
-                    <div className="h-3 rounded-full mb-2" style={{ background: "var(--cc-surface-2)" }}>
+                    <div className="h-3 rounded-full mb-2" style={{ background: "#F3F4F6" }}>
                       <div className="h-full rounded-full" style={{ width: `${Math.min(100, (spent / budget) * 100)}%`, background: "linear-gradient(90deg, #2563EB, #7C3AED)" }} />
                     </div>
                     <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{Math.round((spent / budget) * 100)}% of budget used</span>
                   </>
                 )}
               </Card>
-              <Card variant="glass" className="p-6" style={{ background: "var(--cc-surface)", border: "1px solid var(--cc-border)", borderRadius: 16 }}>
+              <Card variant="glass" className="p-6" style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 16 }}>
                 <span style={{ fontWeight: 800, fontSize: 15, color: "var(--cc-text)", display: "block", marginBottom: 12 }}>Budget Breakdown</span>
                 {budget > 0 ? (
                   <div style={{ height: 200 }}>
@@ -226,9 +226,9 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                       <PieChart>
                         <Pie data={pieData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} dataKey="value" paddingAngle={2}>
                           <Cell fill="#2563EB" />
-                          <Cell fill="var(--cc-surface-2)" />
+                          <Cell fill="#F3F4F6" />
                         </Pie>
-                        <Tooltip contentStyle={{ background: "var(--cc-surface)", border: "1px solid var(--cc-border)", borderRadius: 12 }} />
+                        <Tooltip contentStyle={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12 }} />
                       </PieChart>
                     </ResponsiveContainer>
                   </div>
