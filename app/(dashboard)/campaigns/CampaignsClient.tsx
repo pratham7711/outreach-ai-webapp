@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Search, MoreVertical, Share2, FolderOpen, ChevronDown } from "lucide-react";
+import { Plus, Search, MoreVertical, Share2, FolderOpen } from "lucide-react";
 import Link from "next/link";
+import { Button, Card, Badge, StatCard } from "@pratham7711/ui";
 import NewCampaignModal from "@/components/modals/NewCampaignModal";
 
 type Campaign = {
@@ -17,18 +18,35 @@ type Campaign = {
 
 type Client = { id: string; name: string };
 
+const STATUS_TABS = [
+  { key: "ALL",         label: "All",      bg: "#F3F4F6", color: "#374151" },
+  { key: "PENDING",     label: "Pending",  bg: "#FEF3C7", color: "#D97706" },
+  { key: "IN_PROGRESS", label: "Active",   bg: "#EEF2FF", color: "#4F46E5" },
+  { key: "COMPLETE",    label: "Complete", bg: "#D1FAE5", color: "#059669" },
+  { key: "CANCELLED",   label: "Canceled", bg: "#FEE2E2", color: "#DC2626" },
+];
+
+const STATUS_BADGE_VARIANT: Record<string, "warning" | "accent" | "success" | "danger" | "neutral"> = {
+  PENDING: "warning",
+  IN_PROGRESS: "accent",
+  COMPLETE: "success",
+  CANCELLED: "danger",
+  DRAFT: "neutral",
+};
+
+function formatCurrency(n: number) {
+  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `$${(n / 1_000).toFixed(0)}K`;
+  return `$${n}`;
+}
+
 export default function CampaignsClient({
   campaigns,
   stats,
   clients,
 }: {
   campaigns: Campaign[];
-  stats: {
-    total: number;
-    active: number;
-    creatorCount: number;
-    totalBudget: number;
-  };
+  stats: { total: number; active: number; creatorCount: number; totalBudget: number };
   clients: Client[];
 }) {
   const [search, setSearch] = useState("");
@@ -43,179 +61,38 @@ export default function CampaignsClient({
     return matchesSearch && matchesStatus;
   });
 
-  const STATUS_TABS = [
-    { key: "ALL",         label: "All",      icon: "",   bg: "#F3F4F6", color: "#374151" },
-    { key: "PENDING",     label: "Pending",  icon: "🕐", bg: "#FEF3C7", color: "#D97706" },
-    { key: "IN_PROGRESS", label: "Active",   icon: "✦",  bg: "#EEF2FF", color: "#4F46E5" },
-    { key: "COMPLETE",    label: "Complete", icon: "✓",  bg: "#D1FAE5", color: "#059669" },
-    { key: "CANCELLED",   label: "Canceled", icon: "✕",  bg: "#FEE2E2", color: "#DC2626" },
-  ];
-
   return (
-    <div style={{ minHeight: "100vh", background: "var(--cc-bg)" }}>
+    <div style={{ padding: "32px 40px 40px" }}>
       {/* Header */}
       <div style={{ marginBottom: 32, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div>
-          <h1 style={{ fontSize: 28, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>
-            Campaigns
-          </h1>
-          <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>
-            {stats.total} Active Campaigns
-          </p>
+          <h1 style={{ fontSize: 28, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Campaigns</h1>
+          <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>Manage and track your influencer campaigns</p>
         </div>
         <div style={{ display: "flex", gap: 12 }}>
-          <button
-            onClick={() => setShowModal(true)}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              padding: "9px 16px",
-              borderRadius: 8,
-              background: "white",
-              color: "#5B5BD6",
-              border: "1.5px solid #5B5BD6",
-              fontSize: 14,
-              fontWeight: 600,
-              cursor: "pointer",
-            }}
-          >
-            <Plus size={15} color="#5B5BD6" />
-            New Campaign +
-          </button>
-          <button
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              padding: "9px 16px",
-              borderRadius: 8,
-              background: "#1E1B4B",
-              color: "white",
-              border: "none",
-              fontSize: 14,
-              fontWeight: 600,
-              cursor: "pointer",
-            }}
-          >
-            <FolderOpen size={15} color="white" />
-            Folders
-          </button>
+          <Button variant="secondary" iconLeft={<FolderOpen size={15} />}>Folders</Button>
+          <Button variant="primary" iconLeft={<Plus size={15} />} onClick={() => setShowModal(true)}>New Campaign</Button>
         </div>
       </div>
 
-      {/* Search & Filters */}
+      {/* Stats */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 32 }}>
+        <StatCard value={String(stats.total)} label="Total Campaigns" trend="up" trendLabel="+8% from last month" />
+        <StatCard value={String(stats.active)} label="Active" trend="up" trendLabel="+2 this month" />
+        <StatCard value={String(stats.creatorCount)} label="Creator Reach" trend="neutral" />
+        <StatCard value={stats.totalBudget ? formatCurrency(stats.totalBudget) : "$0"} label="Total Budget" trend="up" trendLabel="+12% from last month" />
+      </div>
+
+      {/* Search + Filters */}
       <div style={{ marginBottom: 24, display: "flex", gap: 12 }}>
-        <div
-          style={{
-            flex: 1,
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            padding: "10px 14px",
-            borderRadius: 12,
-            background: "var(--cc-card)",
-            border: "1px solid var(--cc-border)",
-            transition: "all 0.2s",
-          }}
-          onMouseEnter={(e) => {
-            (e.currentTarget as HTMLElement).style.borderColor = "var(--cc-primary)";
-          }}
-          onMouseLeave={(e) => {
-            (e.currentTarget as HTMLElement).style.borderColor = "var(--cc-border)";
-          }}
-        >
-          <Search size={16} style={{ color: "var(--cc-text-muted)", flexShrink: 0 }} />
-          <input
+        <div style={{ flex: 1 }}>
+          <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search Campaigns"
-            style={{
-              flex: 1,
-              background: "transparent",
-              border: "none",
-              outline: "none",
-              fontSize: 14,
-              color: "var(--cc-text)",
-            }}
+            placeholder="Search campaigns..."
+            iconLeft={<Search size={16} />}
           />
         </div>
-
-        {/* Status Filter Dropdowns */}
-        <select
-          style={{
-            padding: "10px 14px",
-            borderRadius: 12,
-            background: "var(--cc-card)",
-            border: "1px solid var(--cc-border)",
-            color: "var(--cc-text)",
-            fontSize: 14,
-            cursor: "pointer",
-            outline: "none",
-            transition: "all 0.2s",
-          }}
-        >
-          <option value="">Campaign Status</option>
-          <option value="DRAFT">Draft</option>
-          <option value="IN_PROGRESS">In Progress</option>
-          <option value="COMPLETE">Complete</option>
-        </select>
-        <select
-          style={{
-            padding: "10px 14px",
-            borderRadius: 12,
-            background: "var(--cc-card)",
-            border: "1px solid var(--cc-border)",
-            color: "var(--cc-text)",
-            fontSize: 14,
-            cursor: "pointer",
-            outline: "none",
-          }}
-        >
-          <option value="">Team Member</option>
-        </select>
-        <select
-          style={{
-            padding: "10px 14px",
-            borderRadius: 12,
-            background: "var(--cc-card)",
-            border: "1px solid var(--cc-border)",
-            color: "var(--cc-text)",
-            fontSize: 14,
-            cursor: "pointer",
-            outline: "none",
-          }}
-        >
-          <option value="">Tags</option>
-        </select>
-        <select
-          style={{
-            padding: "10px 14px",
-            borderRadius: 12,
-            background: "var(--cc-card)",
-            border: "1px solid var(--cc-border)",
-            color: "var(--cc-text)",
-            fontSize: 14,
-            cursor: "pointer",
-            outline: "none",
-          }}
-        >
-          <option value="">Client</option>
-        </select>
-        <select
-          style={{
-            padding: "10px 14px",
-            borderRadius: 12,
-            background: "var(--cc-card)",
-            border: "1px solid var(--cc-border)",
-            color: "var(--cc-text)",
-            fontSize: 14,
-            cursor: "pointer",
-            outline: "none",
-          }}
-        >
-          <option value="">Creation Date</option>
-        </select>
       </div>
 
       {/* Status Tabs */}
@@ -233,14 +110,10 @@ export default function CampaignsClient({
                 color: isSelected ? tab.color : "#9CA3AF",
                 border: "none",
                 fontSize: 13,
-                fontWeight: 500,
+                fontWeight: isSelected ? 600 : 500,
                 cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
               }}
             >
-              {tab.icon && <span>{tab.icon}</span>}
               {tab.label}
             </button>
           );
@@ -248,165 +121,86 @@ export default function CampaignsClient({
       </div>
 
       {/* Campaign List */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <Card variant="solid" noPadding>
         {filtered.length === 0 ? (
-          <div
-            style={{
-              textAlign: "center",
-              padding: "60px 20px",
-              color: "var(--cc-text-muted)",
-            }}
-          >
-            <p>No campaigns found</p>
+          <div style={{ padding: "40px 0" }}>
+            <EmptyState
+              icon="🎯"
+              title="No campaigns yet"
+              description="Create your first campaign to get started"
+              action={
+                <Button variant="primary" iconLeft={<Plus size={16} />} onClick={() => setShowModal(true)}>
+                  New Campaign
+                </Button>
+              }
+            />
           </div>
         ) : (
-          filtered.map((campaign) => (
-            <Link key={campaign.id} href={`/campaigns/${campaign.id}`}>
-              <div
-                style={{
-                  background: "var(--cc-card)",
-                  border: "1px solid var(--cc-border)",
-                  borderRadius: 12,
-                  padding: "16px",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 16,
-                  transition: "all 0.2s",
-                  cursor: "pointer",
-                }}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLElement).style.borderColor = "var(--cc-primary)";
-                  (e.currentTarget as HTMLElement).style.boxShadow =
-                    "0 4px 12px rgba(91, 91, 214, 0.1)";
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLElement).style.borderColor = "var(--cc-border)";
-                  (e.currentTarget as HTMLElement).style.boxShadow = "none";
-                }}
-              >
-                {/* Album Art */}
-                <div
-                  style={{
-                    width: 56,
-                    height: 56,
-                    borderRadius: 8,
-                    background: `linear-gradient(135deg, #5B5BD6 0%, #7B7DE8 100%)`,
-                    flexShrink: 0,
-                  }}
-                />
-
-                {/* Name + Updated */}
-                <div style={{ flex: 1 }}>
-                  <p
-                    style={{
-                      fontSize: 14,
-                      fontWeight: 600,
-                      color: "var(--cc-text)",
-                      marginBottom: 4,
-                    }}
-                  >
-                    {campaign.title}
-                  </p>
-                  <p style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>
-                    Last Updated 2 hours ago
-                  </p>
-                </div>
-
-                {/* Stats */}
+          <div>
+            {/* Table header */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 120px 100px 120px 100px 120px", gap: 16, padding: "12px 20px", borderBottom: "1px solid var(--cc-border)", background: "#F9FAFB" }}>
+              {["Campaign", "Status", "Budget", "Client", "Activations", "Actions"].map((h) => (
+                <span key={h} style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--cc-text-muted)" }}>{h}</span>
+              ))}
+            </div>
+            {filtered.map((campaign, i) => (
+              <Link key={campaign.id} href={`/campaigns/${campaign.id}`} style={{ textDecoration: "none" }}>
                 <div
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "1fr 1fr 1fr 1fr",
+                    gridTemplateColumns: "1fr 120px 100px 120px 100px 120px",
                     gap: 16,
-                    paddingRight: 16,
+                    padding: "14px 20px",
+                    alignItems: "center",
+                    borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined,
+                    cursor: "pointer",
+                    transition: "background 0.15s",
                   }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "#F9FAFB"; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
                 >
-                  <div style={{ textAlign: "center" }}>
-                    <p style={{ fontSize: 11, color: "#9CA3AF", marginBottom: 2 }}>💰 Budget</p>
-                    <p style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>N/A</p>
+                  {/* Campaign name */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <div style={{ width: 40, height: 40, borderRadius: 8, background: "linear-gradient(135deg, #5B5BD6 0%, #7B7DE8 100%)", flexShrink: 0 }} />
+                    <div>
+                      <p style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)", marginBottom: 2 }}>{campaign.title}</p>
+                      <p style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>Last updated 2 hours ago</p>
+                    </div>
                   </div>
-                  <div style={{ textAlign: "center" }}>
-                    <p style={{ fontSize: 11, color: "#9CA3AF", marginBottom: 2 }}>👤 Creators</p>
-                    <p style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>
-                      {campaign._count.activations}
-                    </p>
-                  </div>
-                  <div style={{ textAlign: "center" }}>
-                    <p style={{ fontSize: 11, color: "#9CA3AF", marginBottom: 2 }}>📷 Posts</p>
-                    <p style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>
-                      {campaign._count.posts}
-                    </p>
-                  </div>
-                  <div style={{ textAlign: "center" }}>
-                    <p style={{ fontSize: 11, color: "#9CA3AF", marginBottom: 2 }}>👥 Team</p>
-                    <p style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
-                      <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#10B981", display: "inline-block" }} />
-                      1
-                    </p>
+                  {/* Status */}
+                  <Badge variant={STATUS_BADGE_VARIANT[campaign.status] ?? "neutral"} dot>
+                    {campaign.status.replace("_", " ")}
+                  </Badge>
+                  {/* Budget */}
+                  <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>
+                    {campaign.budget ? formatCurrency(campaign.budget) : "—"}
+                  </span>
+                  {/* Client */}
+                  <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>
+                    {campaign.client?.name ?? "—"}
+                  </span>
+                  {/* Activations */}
+                  <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>
+                    {campaign._count.activations}
+                  </span>
+                  {/* Actions */}
+                  <div style={{ display: "flex", gap: 8 }} onClick={(e) => e.preventDefault()}>
+                    <button
+                      style={{ padding: "5px 12px", borderRadius: 20, background: "#1E1B4B", color: "white", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 600 }}
+                    >
+                      <Share2 size={12} /> Share
+                    </button>
+                    <button style={{ padding: 6, borderRadius: 6, background: "transparent", border: "none", color: "var(--cc-text-muted)", cursor: "pointer" }}>
+                      <MoreVertical size={15} />
+                    </button>
                   </div>
                 </div>
-
-                {/* Status Badge */}
-                <div
-                  style={{
-                    padding: "6px 12px",
-                    borderRadius: 20,
-                    background: "var(--cc-primary)",
-                    color: "white",
-                    fontSize: 12,
-                    fontWeight: 600,
-                    whiteSpace: "nowrap",
-                    flexShrink: 0,
-                  }}
-                >
-                  In-Progress
-                </div>
-
-                {/* Share + Menu */}
-                <div style={{ display: "flex", gap: 8, flexShrink: 0 }} onClick={(e) => e.preventDefault()}>
-                  <button
-                    style={{
-                      padding: "6px 14px",
-                      borderRadius: 20,
-                      background: "#1E1B4B",
-                      color: "white",
-                      border: "none",
-                      cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 6,
-                      fontSize: 12,
-                      fontWeight: 600,
-                    }}
-                  >
-                    <Share2 size={13} color="white" />
-                    Share
-                  </button>
-                  <button
-                    style={{
-                      padding: "8px",
-                      borderRadius: 8,
-                      background: "transparent",
-                      border: "none",
-                      color: "var(--cc-text-muted)",
-                      cursor: "pointer",
-                      transition: "color 0.2s",
-                    }}
-                    onMouseEnter={(e) => {
-                      (e.currentTarget as HTMLElement).style.color = "var(--cc-text)";
-                    }}
-                    onMouseLeave={(e) => {
-                      (e.currentTarget as HTMLElement).style.color = "var(--cc-text-muted)";
-                    }}
-                  >
-                    <MoreVertical size={16} />
-                  </button>
-                </div>
-              </div>
-            </Link>
-          ))
+              </Link>
+            ))}
+          </div>
         )}
-      </div>
+      </Card>
+
       {showModal && <NewCampaignModal clients={clients} onClose={() => setShowModal(false)} />}
     </div>
   );

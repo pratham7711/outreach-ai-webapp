@@ -1,9 +1,7 @@
 "use client";
 
-import { motion } from "framer-motion";
 import { Plus, Zap } from "lucide-react";
-import { PageHeader } from "@/components/ui/PageHeader";
-import { EmptyState } from "@/components/ui/EmptyState";
+import { Button, Badge, EmptyState, StatCard } from "@pratham7711/ui";
 
 type Activation = {
   id: string;
@@ -46,6 +44,17 @@ const COLUMN_COLORS: Record<string, string> = {
   DECLINED: "#ef4444",
 };
 
+const STATUS_BADGE_VARIANT: Record<string, "warning" | "accent" | "success" | "danger" | "neutral"> = {
+  AWAITING_DRAFT: "warning",
+  DRAFT_SUBMITTED: "accent",
+  AWAITING_APPROVAL: "warning",
+  APPROVED: "success",
+  POSTING: "accent",
+  POSTED: "success",
+  COMPLETE: "success",
+  DECLINED: "danger",
+};
+
 export default function ActivationsClient({ activations, stats }: {
   activations: Activation[];
   stats: { total: number; active: number };
@@ -59,86 +68,66 @@ export default function ActivationsClient({ activations, stats }: {
   }
 
   return (
-    <div className="flex flex-col h-full">
-      <PageHeader
-        title="Activations"
-        description={`${stats.total} total activations, ${stats.active} active`}
-        actions={
-          <button
-            style={{
-              display: "flex", alignItems: "center", gap: 8,
-              padding: "10px 16px", borderRadius: 8,
-              background: "var(--cc-primary)", color: "white",
-              fontSize: 14, fontWeight: 500,
-              border: "none", cursor: "pointer",
-            }}
-          >
-            <Plus className="h-4 w-4" />
-            Add Activation
-          </button>
-        }
-      />
+    <div style={{ padding: "32px 40px 40px" }}>
+      {/* Header */}
+      <div style={{ marginBottom: 32, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+        <div>
+          <h1 style={{ fontSize: 28, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Activations</h1>
+          <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>Track creator deliverables and posts</p>
+        </div>
+        <Button variant="primary" iconLeft={<Plus size={15} />}>Add Activation</Button>
+      </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        {[
-          { label: "Total", value: stats.total },
-          { label: "Active", value: stats.active },
-          { label: "Pending", value: activations.filter(a => a.status === "AWAITING_DRAFT" || a.status === "AWAITING_APPROVAL").length },
-          { label: "Complete", value: activations.filter(a => a.status === "COMPLETE").length },
-        ].map((s, i) => (
-          <motion.div key={s.label} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.08 }}>
-            <div style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, padding: 16 }}>
-              <p style={{ fontSize: 12, color: "var(--cc-text-muted)", marginBottom: 4 }}>{s.label}</p>
-              <p style={{ fontSize: 20, fontWeight: 700, color: "var(--cc-text)" }}>{s.value}</p>
-            </div>
-          </motion.div>
-        ))}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 32 }}>
+        <StatCard value={String(stats.total)} label="Total" />
+        <StatCard value={String(stats.active)} label="Active" trend="up" />
+        <StatCard value={String(activations.filter(a => a.status === "AWAITING_DRAFT" || a.status === "AWAITING_APPROVAL").length)} label="Pending" trend="neutral" />
+        <StatCard value={String(activations.filter(a => a.status === "COMPLETE").length)} label="Complete" trend="up" />
       </div>
 
       {activations.length === 0 ? (
         <EmptyState
-          icon={<Zap className="h-6 w-6" />}
+          icon="⚡"
           title="No activations yet"
           description="Activations will appear here once creators are assigned to campaigns."
+          action={
+            <Button variant="primary" iconLeft={<Plus size={16} />}>Add Activation</Button>
+          }
         />
       ) : (
         /* Kanban Board */
-        <div className="flex-1 overflow-x-auto pb-4">
-          <div className="flex gap-4 min-w-max">
+        <div style={{ overflowX: "auto", paddingBottom: 16 }}>
+          <div style={{ display: "flex", gap: 16, minWidth: "max-content" }}>
             {COLUMNS.map((col) => {
               const items = grouped.get(col) ?? [];
               return (
-                <div key={col} className="w-72 flex flex-col" style={{ background: "#F5F6FA", borderRadius: 12, border: "1px solid var(--cc-border)" }}>
+                <div key={col} style={{ width: 280, display: "flex", flexDirection: "column", background: "#F5F6FA", borderRadius: 12, border: "1px solid var(--cc-border)" }}>
                   {/* Column header */}
-                  <div className="flex items-center gap-2" style={{ padding: "12px 16px", borderBottom: "1px solid var(--cc-border)" }}>
-                    <span className="w-2 h-2 rounded-full" style={{ background: COLUMN_COLORS[col] }} />
-                    <span style={{ fontSize: 12, fontWeight: 600, color: "var(--cc-text)" }}>{COLUMN_LABELS[col]}</span>
-                    <span className="ml-auto" style={{ fontSize: 10, fontWeight: 500, padding: "2px 6px", borderRadius: 9999, background: "var(--cc-border)", color: "var(--cc-text-muted)" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 16px", borderBottom: "1px solid var(--cc-border)" }}>
+                    <span style={{ width: 8, height: 8, borderRadius: "50%", background: COLUMN_COLORS[col], flexShrink: 0 }} />
+                    <span style={{ fontSize: 12, fontWeight: 600, color: "var(--cc-text)", flex: 1 }}>{COLUMN_LABELS[col]}</span>
+                    <span style={{ fontSize: 10, fontWeight: 500, padding: "2px 6px", borderRadius: 9999, background: "var(--cc-border)", color: "var(--cc-text-muted)" }}>
                       {items.length}
                     </span>
                   </div>
 
                   {/* Cards */}
-                  <div className="flex-1 p-2 space-y-2 overflow-y-auto max-h-[500px]">
-                    {items.map((a, i) => (
-                      <motion.div
+                  <div style={{ flex: 1, padding: 8, display: "flex", flexDirection: "column", gap: 8, overflowY: "auto", maxHeight: 500 }}>
+                    {items.map((a) => (
+                      <div
                         key={a.id}
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        transition={{ delay: i * 0.05 }}
+                        style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 8, padding: 12, cursor: "pointer" }}
                       >
-                        <div style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 8, padding: 12, cursor: "pointer" }}>
-                          <div className="flex items-center gap-2" style={{ marginBottom: 8 }}>
-                            <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-[8px] font-bold shrink-0" style={{ background: "var(--cc-primary)" }}>
-                              {a.creator.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
-                            </div>
-                            <p className="truncate" style={{ fontSize: 14, fontWeight: 500, color: "var(--cc-text)" }}>{a.creator.name}</p>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                          <div style={{ width: 24, height: 24, borderRadius: "50%", background: "var(--cc-primary)", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontSize: 8, fontWeight: 700, flexShrink: 0 }}>
+                            {a.creator.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
                           </div>
-                          <p className="truncate" style={{ fontSize: 12, color: "var(--cc-text-muted)", marginBottom: 8 }}>{a.campaign.title}</p>
-                          <p style={{ fontSize: 10, color: "var(--cc-text-muted)" }}>{new Date(a.createdAt).toLocaleDateString()}</p>
+                          <p style={{ fontSize: 14, fontWeight: 500, color: "var(--cc-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.creator.name}</p>
                         </div>
-                      </motion.div>
+                        <p style={{ fontSize: 12, color: "var(--cc-text-muted)", marginBottom: 8, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.campaign.title}</p>
+                        <p style={{ fontSize: 10, color: "var(--cc-text-muted)" }}>{new Date(a.createdAt).toLocaleDateString()}</p>
+                      </div>
                     ))}
                   </div>
 

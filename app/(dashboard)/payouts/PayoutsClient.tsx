@@ -1,11 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { motion } from "framer-motion";
-import { Plus, DollarSign, CreditCard, Wallet } from "lucide-react";
-import { StatusBadge } from "@/components/ui/StatusBadge";
-import { PageHeader } from "@/components/ui/PageHeader";
-import { EmptyState } from "@/components/ui/EmptyState";
+import { Plus, Search, DollarSign, Wallet, CreditCard } from "lucide-react";
+import { Button, Card, Badge, StatCard, EmptyState, Input, Tag } from "@pratham7711/ui";
 import AddPayoutModal from "@/components/modals/AddPayoutModal";
 
 type Payout = {
@@ -17,12 +14,20 @@ type Payout = {
   campaign: { id: string; title: string } | null;
 };
 
+type Creator = { id: string; name: string; handle: string };
+type Campaign = { id: string; title: string };
+
+const STATUS_BADGE_VARIANT: Record<string, "warning" | "success" | "danger" | "neutral"> = {
+  PENDING: "warning",
+  SENT: "success",
+  FAILED: "danger",
+};
+
+const STATUS_TABS = ["All", "Pending", "Sent", "Failed"];
+
 function formatCurrency(n: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
 }
-
-type Creator = { id: string; name: string; handle: string };
-type Campaign = { id: string; title: string };
 
 export default function PayoutsClient({ payouts, stats, creators, campaigns }: {
   payouts: Payout[];
@@ -31,107 +36,126 @@ export default function PayoutsClient({ payouts, stats, creators, campaigns }: {
   campaigns: Campaign[];
 }) {
   const [showModal, setShowModal] = useState(false);
-  const statCards = [
-    { title: "Total Paid", value: formatCurrency(stats.sent), icon: <DollarSign className="h-4 w-4" style={{ color: "#22c55e" }} /> },
-    { title: "Pending Amount", value: formatCurrency(stats.pending), icon: <Wallet className="h-4 w-4" style={{ color: "#f59e0b" }} /> },
-    { title: "Total Processed", value: formatCurrency(stats.total), icon: <CreditCard className="h-4 w-4" style={{ color: "var(--cc-primary)" }} /> },
-  ];
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("All");
+
+  const filtered = payouts.filter((p) => {
+    const matchSearch =
+      p.creator.name.toLowerCase().includes(search.toLowerCase()) ||
+      (p.campaign?.title ?? "").toLowerCase().includes(search.toLowerCase());
+    const matchStatus =
+      statusFilter === "All" || p.status.toUpperCase() === statusFilter.toUpperCase();
+    return matchSearch && matchStatus;
+  });
 
   return (
-    <div>
-      <PageHeader
-        title="Payouts"
-        description="Track and manage creator payments"
-        actions={
-          <button
-            onClick={() => setShowModal(true)}
-            style={{
-              display: "flex", alignItems: "center", gap: 8,
-              padding: "10px 16px", borderRadius: 8,
-              background: "var(--cc-primary)", color: "white",
-              fontSize: 14, fontWeight: 500,
-              border: "none", cursor: "pointer",
-            }}
-          >
-            <Plus className="h-4 w-4" />
-            Process Payout
-          </button>
-        }
-      />
-
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
-        {statCards.map((s, i) => (
-          <motion.div key={s.title} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.08 }}>
-            <div style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, padding: 20 }}>
-              <div className="flex items-center justify-between" style={{ marginBottom: 12 }}>
-                <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>{s.title}</p>
-                <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: "#F3F4F6" }}>
-                  {s.icon}
-                </div>
-              </div>
-              <p style={{ fontSize: 24, fontWeight: 700, color: "var(--cc-text)" }}>{s.value}</p>
-            </div>
-          </motion.div>
-        ))}
+    <div style={{ padding: "32px 40px 40px" }}>
+      {/* Header */}
+      <div style={{ marginBottom: 32, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+        <div>
+          <h1 style={{ fontSize: 28, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Payouts</h1>
+          <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>Track and manage creator payments</p>
+        </div>
+        <Button variant="primary" iconLeft={<Plus size={15} />} onClick={() => setShowModal(true)}>
+          Process Payout
+        </Button>
       </div>
 
-      {payouts.length === 0 ? (
-        <EmptyState
-          icon={<DollarSign className="h-6 w-6" />}
-          title="No payouts yet"
-          description="Payouts will appear here once you start paying creators."
-          action={
-            <button style={{ padding: "8px 16px", borderRadius: 8, background: "var(--cc-primary)", color: "white", fontSize: 14, fontWeight: 500, border: "none", cursor: "pointer" }}>
-              Process Payout
-            </button>
-          }
-        />
-      ) : (
-        <div style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, overflow: "hidden" }}>
-          <table className="w-full">
-            <thead>
-              <tr style={{ background: "#F9FAFB" }}>
-                <th style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", color: "#9097B4", padding: "12px 20px", textAlign: "left", letterSpacing: "0.5px" }}>Creator</th>
-                <th style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", color: "#9097B4", padding: "12px 20px", textAlign: "left", letterSpacing: "0.5px" }}>Campaign</th>
-                <th style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", color: "#9097B4", padding: "12px 20px", textAlign: "left", letterSpacing: "0.5px" }}>Amount</th>
-                <th style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", color: "#9097B4", padding: "12px 20px", textAlign: "left", letterSpacing: "0.5px" }}>Status</th>
-                <th style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", color: "#9097B4", padding: "12px 20px", textAlign: "left", letterSpacing: "0.5px" }}>Date</th>
-              </tr>
-            </thead>
-            <tbody>
-              {payouts.map((p, i) => (
-                <motion.tr
-                  key={p.id}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: i * 0.03 }}
-                  className="transition-colors"
-                  style={{ borderTop: "1px solid var(--cc-border)" }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = "#F9FAFB")}
-                  onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-                >
-                  <td style={{ padding: "14px 20px" }}>
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-[10px] font-bold shrink-0" style={{ background: "var(--cc-primary)" }}>
-                        {p.creator.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
-                      </div>
-                      <div>
-                        <p style={{ fontSize: 14, fontWeight: 500, color: "var(--cc-text)" }}>{p.creator.name}</p>
-                        <p style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>@{p.creator.handle}</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td style={{ padding: "14px 20px", fontSize: 14, color: "var(--cc-text-muted)" }}>{p.campaign?.title ?? "—"}</td>
-                  <td style={{ padding: "14px 20px", fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>{formatCurrency(p.amount)}</td>
-                  <td style={{ padding: "14px 20px" }}><StatusBadge status={p.status} /></td>
-                  <td style={{ padding: "14px 20px", fontSize: 14, color: "var(--cc-text-muted)" }}>{new Date(p.createdAt).toLocaleDateString()}</td>
-                </motion.tr>
-              ))}
-            </tbody>
-          </table>
+      {/* Stats */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 32 }}>
+        <StatCard value={formatCurrency(stats.sent)} label="Total Paid" trend="up" trendLabel="+12% from last month" />
+        <StatCard value={formatCurrency(stats.pending)} label="Pending Amount" trend="neutral" />
+        <StatCard value={formatCurrency(stats.total)} label="Total Processed" trend="up" />
+      </div>
+
+      {/* Search + Status Filter */}
+      <div style={{ marginBottom: 24, display: "flex", gap: 12, alignItems: "center" }}>
+        <div style={{ flex: 1 }}>
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search payouts..."
+            iconLeft={<Search size={16} />}
+          />
         </div>
-      )}
+        <div style={{ display: "flex", gap: 8 }}>
+          {STATUS_TABS.map((tab) => (
+            <Tag
+              key={tab}
+              outlined={statusFilter !== tab}
+              onClick={() => setStatusFilter(tab)}
+              style={{ cursor: "pointer", fontWeight: statusFilter === tab ? 600 : 400 }}
+            >
+              {tab}
+            </Tag>
+          ))}
+        </div>
+      </div>
+
+      {/* Table */}
+      <Card variant="solid" noPadding>
+        {filtered.length === 0 ? (
+          <div style={{ padding: "40px 0" }}>
+            <EmptyState
+              icon="💸"
+              title="No payouts yet"
+              description="Process your first creator payment to get started"
+              action={
+                <Button variant="primary" iconLeft={<Plus size={16} />} onClick={() => setShowModal(true)}>
+                  Process Payout
+                </Button>
+              }
+            />
+          </div>
+        ) : (
+          <div>
+            {/* Table header */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 140px 100px 100px 100px", gap: 16, padding: "12px 20px", borderBottom: "1px solid var(--cc-border)", background: "#F9FAFB" }}>
+              {["Creator", "Campaign", "Amount", "Status", "Date"].map((h) => (
+                <span key={h} style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--cc-text-muted)" }}>{h}</span>
+              ))}
+            </div>
+            {filtered.map((p, i) => (
+              <div
+                key={p.id}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 140px 100px 100px 100px",
+                  gap: 16,
+                  padding: "14px 20px",
+                  alignItems: "center",
+                  borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined,
+                  transition: "background 0.15s",
+                }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "#F9FAFB"; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+              >
+                {/* Creator */}
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{ width: 32, height: 32, borderRadius: "50%", background: "var(--cc-primary)", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontSize: 10, fontWeight: 700, flexShrink: 0 }}>
+                    {p.creator.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
+                  </div>
+                  <div>
+                    <p style={{ fontSize: 14, fontWeight: 500, color: "var(--cc-text)" }}>{p.creator.name}</p>
+                    <p style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>@{p.creator.handle}</p>
+                  </div>
+                </div>
+                {/* Campaign */}
+                <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{p.campaign?.title ?? "—"}</span>
+                {/* Amount */}
+                <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>{formatCurrency(p.amount)}</span>
+                {/* Status */}
+                <Badge variant={STATUS_BADGE_VARIANT[p.status] ?? "neutral"} dot>
+                  {p.status}
+                </Badge>
+                {/* Date */}
+                <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{new Date(p.createdAt).toLocaleDateString()}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
       {showModal && <AddPayoutModal creators={creators} campaigns={campaigns} onClose={() => setShowModal(false)} />}
     </div>
   );

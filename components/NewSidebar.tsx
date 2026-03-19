@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Megaphone, Play, Calendar, Users, Radio, LineChart,
-  Search, List, Wallet, Inbox, UserCheck, Link2, ClipboardList, Bell
+  Search, List, Wallet, Inbox, UserCheck, Link2, CreditCard, Shield, Bell
 } from "lucide-react";
 
 const NAV_SECTIONS = [
@@ -43,7 +43,8 @@ const NAV_SECTIONS = [
   {
     label: "Admin",
     items: [
-      { href: "/plans", icon: ClipboardList, label: "Plans" },
+      { href: "/admin", icon: Shield, label: "Feature Access" },
+      { href: "/plans", icon: CreditCard, label: "Plans" },
     ],
   },
 ];

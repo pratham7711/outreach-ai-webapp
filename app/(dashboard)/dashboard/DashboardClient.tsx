@@ -1,7 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
-import { StatusBadge } from "@/components/ui/StatusBadge";
+import { StatCard, Badge, Card } from "@pratham7711/ui";
 import {
   AreaChart,
   Area,
@@ -43,19 +42,26 @@ type Props = {
   chartData: { month: string; spend: number }[];
 };
 
-const stats = (p: Props) => [
-  { title: "Total Campaigns", value: String(p.campaignCount), icon: <Megaphone className="h-4 w-4" style={{ color: "var(--cc-primary)" }} />, trend: 12 },
-  { title: "Active Creators", value: String(p.creatorCount), icon: <Users className="h-4 w-4" style={{ color: "var(--cc-primary)" }} />, trend: 8 },
-  { title: "Pending Payouts", value: formatCurrency(p.pendingPayouts), icon: <Wallet className="h-4 w-4" style={{ color: "var(--cc-primary)" }} /> },
-  { title: "Growth", value: "+24%", icon: <TrendingUp className="h-4 w-4" style={{ color: "var(--cc-primary)" }} />, trend: 24 },
-];
+const STATUS_BADGE_VARIANT: Record<string, "warning" | "accent" | "success" | "danger" | "neutral"> = {
+  PENDING: "warning",
+  IN_PROGRESS: "accent",
+  COMPLETE: "success",
+  CANCELLED: "danger",
+  DRAFT: "neutral",
+};
 
 export default function DashboardClient(props: Props) {
   const { recentCampaigns, chartData } = props;
-  const statItems = stats(props);
+
+  const statItems = [
+    { label: "Total Campaigns", value: String(props.campaignCount), trend: "up" as const, trendLabel: "+12% from last month" },
+    { label: "Active Creators", value: String(props.creatorCount), trend: "up" as const, trendLabel: "+8% from last month" },
+    { label: "Pending Payouts", value: formatCurrency(props.pendingPayouts), trend: "neutral" as const },
+    { label: "Growth", value: "+24%", trend: "up" as const, trendLabel: "from last month" },
+  ];
 
   return (
-    <div>
+    <div style={{ padding: "32px 40px 40px" }}>
       {/* Header */}
       <div style={{ marginBottom: 32 }}>
         <h1 style={{ fontSize: 28, fontWeight: 700, color: "var(--cc-text)" }}>Dashboard</h1>
@@ -63,54 +69,40 @@ export default function DashboardClient(props: Props) {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4" style={{ marginBottom: 32 }}>
-        {statItems.map((stat, i) => (
-          <motion.div
-            key={stat.title}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.1 }}
-          >
-            <div style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, padding: 20 }}>
-              <div className="flex items-center justify-between" style={{ marginBottom: 16 }}>
-                <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>{stat.title}</p>
-                <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: "#F3F4F6" }}>
-                  {stat.icon}
-                </div>
-              </div>
-              <p style={{ fontSize: 24, fontWeight: 700, color: "var(--cc-text)" }}>{stat.value}</p>
-              {stat.trend && (
-                <p style={{ fontSize: 12, color: "#22c55e", marginTop: 4 }}>+{stat.trend}% from last month</p>
-              )}
-            </div>
-          </motion.div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 32 }}>
+        {statItems.map((stat) => (
+          <StatCard
+            key={stat.label}
+            value={stat.value}
+            label={stat.label}
+            trend={stat.trend}
+            trendLabel={stat.trendLabel}
+          />
         ))}
       </div>
 
       {/* Two column */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6" style={{ marginBottom: 32 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "3fr 2fr", gap: 24, marginBottom: 32 }}>
         {/* Recent Campaigns */}
-        <div className="lg:col-span-3" style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, overflow: "hidden" }}>
-          <div className="flex items-center justify-between" style={{ padding: "16px 20px", borderBottom: "1px solid var(--cc-border)" }}>
+        <Card variant="solid" noPadding>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: "1px solid var(--cc-border)" }}>
             <span style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>Recent Campaigns</span>
-            <Link href="/campaigns" className="flex items-center gap-1" style={{ fontSize: 12, color: "var(--cc-primary)" }}>
-              View all <ArrowUpRight className="h-3 w-3" />
+            <Link href="/campaigns" style={{ fontSize: 12, color: "var(--cc-primary)", display: "flex", alignItems: "center", gap: 4 }}>
+              View all <ArrowUpRight size={12} />
             </Link>
           </div>
-          <table className="w-full">
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ background: "#F9FAFB" }}>
-                <th style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", color: "#9097B4", padding: "12px 20px", textAlign: "left", letterSpacing: "0.5px" }}>Name</th>
-                <th style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", color: "#9097B4", padding: "12px 20px", textAlign: "left", letterSpacing: "0.5px" }}>Status</th>
-                <th style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", color: "#9097B4", padding: "12px 20px", textAlign: "left", letterSpacing: "0.5px" }}>Budget</th>
-                <th style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", color: "#9097B4", padding: "12px 20px", textAlign: "left", letterSpacing: "0.5px" }}>Client</th>
+                {["Name", "Status", "Budget", "Client"].map((h) => (
+                  <th key={h} style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", color: "var(--cc-text-muted)", padding: "10px 20px", textAlign: "left", letterSpacing: "0.05em" }}>{h}</th>
+                ))}
               </tr>
             </thead>
             <tbody>
               {recentCampaigns.map((c) => (
                 <tr
                   key={c.id}
-                  className="transition-colors"
                   style={{ borderTop: "1px solid var(--cc-border)" }}
                   onMouseEnter={(e) => (e.currentTarget.style.background = "#F9FAFB")}
                   onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
@@ -120,30 +112,34 @@ export default function DashboardClient(props: Props) {
                       {c.title}
                     </Link>
                   </td>
-                  <td style={{ padding: "12px 20px" }}><StatusBadge status={c.status} /></td>
+                  <td style={{ padding: "12px 20px" }}>
+                    <Badge variant={STATUS_BADGE_VARIANT[c.status] ?? "neutral"} dot>
+                      {c.status.replace(/_/g, " ")}
+                    </Badge>
+                  </td>
                   <td style={{ padding: "12px 20px", fontSize: 14, color: "var(--cc-text-muted)" }}>{c.budget ? formatCurrency(c.budget) : "—"}</td>
                   <td style={{ padding: "12px 20px", fontSize: 14, color: "var(--cc-text-muted)" }}>{c.client?.name ?? "—"}</td>
                 </tr>
               ))}
               {recentCampaigns.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="text-center" style={{ fontSize: 14, color: "var(--cc-text-muted)", padding: "40px 0" }}>No campaigns yet</td>
+                  <td colSpan={4} style={{ fontSize: 14, color: "var(--cc-text-muted)", padding: "40px 0", textAlign: "center" }}>No campaigns yet</td>
                 </tr>
               )}
             </tbody>
           </table>
-        </div>
+        </Card>
 
-        {/* Activity */}
-        <div className="lg:col-span-2" style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, overflow: "hidden" }}>
+        {/* Activity Feed */}
+        <Card variant="solid" noPadding>
           <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--cc-border)" }}>
             <span style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>Activity Feed</span>
           </div>
-          <div style={{ padding: 20 }} className="space-y-4">
+          <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 16 }}>
             {recentCampaigns.slice(0, 5).map((c) => (
-              <div key={c.id} className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5" style={{ background: "#F3F4F6" }}>
-                  <Clock className="h-3.5 w-3.5" style={{ color: "var(--cc-primary)" }} />
+              <div key={c.id} style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+                <div style={{ width: 32, height: 32, borderRadius: "50%", background: "#F3F4F6", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 2 }}>
+                  <Clock size={14} style={{ color: "var(--cc-primary)" }} />
                 </div>
                 <div>
                   <p style={{ fontSize: 14, color: "var(--cc-text)" }}>
@@ -159,13 +155,13 @@ export default function DashboardClient(props: Props) {
               <p style={{ fontSize: 14, color: "var(--cc-text-muted)", textAlign: "center", padding: "24px 0" }}>No recent activity</p>
             )}
           </div>
-        </div>
+        </Card>
       </div>
 
       {/* Chart */}
       <div style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, padding: 24 }}>
         <span style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)", display: "block", marginBottom: 20 }}>Monthly Campaign Spend</span>
-        <div style={{ height: 300 }}>
+        <div style={{ height: 220 }}>
           <ResponsiveContainer width="100%" height={200} minWidth={0}>
             <AreaChart data={chartData}>
               <defs>
