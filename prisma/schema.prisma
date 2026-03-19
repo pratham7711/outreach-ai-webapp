@@ -1,10 +1,10 @@
 generator client {
-  provider = "prisma-client"
+  provider = "prisma-client-js"
   output   = "../lib/generated/prisma"
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
 }
 
 enum UserRole {
@@ -123,12 +123,12 @@ model Account {
   type              String
   provider          String
   providerAccountId String
-  refresh_token     String? @db.Text
-  access_token      String? @db.Text
+  refresh_token     String?
+  access_token      String?
   expires_at        Int?
   token_type        String?
   scope             String?
-  id_token          String? @db.Text
+  id_token          String?
   session_state     String?
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   @@unique([provider, providerAccountId])
@@ -155,9 +155,9 @@ model Campaign {
   title        String
   status       CampaignStatus @default(DRAFT)
   thumbnailUrl String?
-  budget       Decimal?       @db.Decimal(10, 2)
+  budget       Float?      
   currency     Currency       @default(USD)
-  notes        String?        @db.Text
+  notes        String?       
   clientId     String?
   folderId     String?
   createdById  String
@@ -206,7 +206,7 @@ model CampaignTag {
 model CreativeBrief {
   id          String   @id @default(cuid())
   campaignId  String   @unique
-  content     Json
+  content     String
   version     Int      @default(1)
   updatedById String?
   updatedAt   DateTime @updatedAt
@@ -225,11 +225,11 @@ model Creator {
   avatarUrl      String?
   followersCount Int       @default(0)
   averageViews   Int       @default(0)
-  bio            String?   @db.Text
+  bio            String?  
   contactEmail   String?
-  paymentInfo    Json?
-  rate           Decimal?  @db.Decimal(10, 2)
-  notes          String?   @db.Text
+  paymentInfo    String?
+  rate           Float? 
+  notes          String?  
   addedAt        DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   deletedAt      DateTime?
@@ -245,7 +245,7 @@ model CreatorList {
   id          String   @id @default(cuid())
   orgId       String
   name        String
-  description String?  @db.Text
+  description String? 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -272,7 +272,7 @@ model Activation {
   status             ActivationStatus @default(AWAITING_DRAFT)
   deliverableDueDate DateTime?
   postedUrl          String?
-  feedbackNotes      String?          @db.Text
+  feedbackNotes      String?         
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt
   deletedAt          DateTime?
@@ -289,7 +289,7 @@ model Post {
   platformPostId String
   postUrl        String
   thumbnailUrl   String?
-  caption        String?  @db.Text
+  caption        String? 
   postedAt       DateTime
 
   viewsCount     Int     @default(0)
@@ -297,7 +297,7 @@ model Post {
   commentsCount  Int     @default(0)
   sharesCount    Int     @default(0)
   downloadsCount Int     @default(0)
-  engagementRate Decimal @default(0) @db.Decimal(5, 4)
+  engagementRate Float @default(0)
 
   lastSyncedAt DateTime?
   createdAt    DateTime  @default(now())
@@ -335,7 +335,7 @@ model Plan {
   id          String   @id @default(cuid())
   name        String
   description String?
-  features    Json     // { "feature_key": true/false, ... }
+  features    String     // { "feature_key": true/false, ... }
   isCustom    Boolean  @default(false)
   orgId       String
   org         Organization @relation(fields: [orgId], references: [id])
@@ -349,9 +349,9 @@ model Client {
   orgId            String
   name             String
   logoUrl          String?
-  contactInfo      Json?
+  contactInfo      String?
   planId           String?
-  featureOverrides Json?
+  featureOverrides String?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
@@ -365,7 +365,7 @@ model AnalyticsModule {
   campaignId String
   type       String
   title      String
-  config     Json
+  config     String
   position   Int      @default(0)
   createdAt  DateTime @default(now())
 
@@ -375,9 +375,9 @@ model AnalyticsModule {
 model CampaignFinancials {
   id          String   @id @default(cuid())
   campaignId  String   @unique
-  totalBudget Decimal  @default(0) @db.Decimal(10, 2)
-  spentAmount Decimal  @default(0) @db.Decimal(10, 2)
-  notes       String?  @db.Text
+  totalBudget Float  @default(0)
+  spentAmount Float  @default(0)
+  notes       String? 
   updatedAt   DateTime @updatedAt
 
   campaign Campaign @relation(fields: [campaignId], references: [id])
@@ -388,7 +388,7 @@ model Payout {
   orgId                String
   creatorId            String
   campaignId           String?
-  amount               Decimal       @db.Decimal(10, 2)
+  amount               Float      
   currency             Currency      @default(USD)
   status               PayoutStatus  @default(PENDING)
   paymentMethod        PaymentMethod @default(PAYPAL)
@@ -409,7 +409,7 @@ model PayoutBalance {
   id             String   @id @default(cuid())
   orgId          String
   label          String   @default("Default Balance")
-  currentBalance Decimal  @default(0) @db.Decimal(10, 2)
+  currentBalance Float  @default(0)
   currency       Currency @default(USD)
   updatedAt      DateTime @updatedAt
 
@@ -435,7 +435,7 @@ model ActivityLog {
   campaignId String
   userId     String?
   action     String
-  metadata   Json?
+  metadata   String?
   createdAt  DateTime @default(now())
 
   campaign Campaign @relation(fields: [campaignId], references: [id])
@@ -446,7 +446,7 @@ model CampaignComment {
   id         String    @id @default(cuid())
   campaignId String
   userId     String
-  content    String    @db.Text
+  content    String   
   createdAt  DateTime  @default(now())
   updatedAt  DateTime?
   deletedAt  DateTime?
@@ -490,7 +490,7 @@ model Report {
   slug        String
   shareToken  String   @unique @default(cuid())
   isPublic    Boolean  @default(false)
-  config      Json     @default("{}")
+  config      String   @default("{}")
   createdById String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -508,8 +508,8 @@ model MediaKit {
   slug        String
   shareToken  String   @unique @default(cuid())
   isPublic    Boolean  @default(false)
-  creatorIds  String[]
-  config      Json     @default("{}")
+  creatorIds  String  @default("[]")
+  config      String   @default("{}")
   createdById String?
   createdAt   DateTime @default(now())
 
@@ -525,7 +525,7 @@ model AuditLog {
   action     String
   entityType String
   entityId   String?
-  metadata   Json?
+  metadata   String?
   createdAt  DateTime @default(now())
 
   org Organization @relation(fields: [orgId], references: [id])

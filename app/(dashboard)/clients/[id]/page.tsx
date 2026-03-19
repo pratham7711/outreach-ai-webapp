@@ -39,14 +39,14 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
           ? {
               id: client.plan.id,
               name: client.plan.name,
-              features: client.plan.features as Record<string, boolean>,
+              features: JSON.parse(client.plan.features as string) as Record<string, boolean>,
             }
           : null,
       }}
       plans={plans.map((p) => ({
         id: p.id,
         name: p.name,
-        features: p.features as Record<string, boolean>,
+        features: JSON.parse(p.features as string) as Record<string, boolean>,
       }))}
     />
   );

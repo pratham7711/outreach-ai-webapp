@@ -18,7 +18,7 @@ export default async function EditPlanPage({ params }: { params: Promise<{ id: s
         id: plan.id,
         name: plan.name,
         description: plan.description,
-        features: plan.features as Record<string, boolean>,
+        features: JSON.parse(plan.features as string) as Record<string, boolean>,
         isCustom: plan.isCustom,
       }}
     />

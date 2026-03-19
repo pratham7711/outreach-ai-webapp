@@ -20,7 +20,7 @@ export default async function PlansPage() {
         id: p.id,
         name: p.name,
         description: p.description,
-        features: p.features as Record<string, boolean>,
+        features: JSON.parse(p.features as string) as Record<string, boolean>,
         isCustom: p.isCustom,
         clientCount: p._count.clients,
         createdAt: p.createdAt.toISOString(),
