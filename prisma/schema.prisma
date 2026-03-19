@@ -93,6 +93,7 @@ model Organization {
   reports        Report[]
   mediakits      MediaKit[]
   auditLogs      AuditLog[]
+  plans          Plan[]
 }
 
 model User {
@@ -330,17 +331,33 @@ model SoundTrackerSnapshot {
   sound TikTokSound @relation(fields: [soundId], references: [id])
 }
 
-model Client {
+model Plan {
   id          String   @id @default(cuid())
-  orgId       String
   name        String
-  logoUrl     String?
-  contactInfo Json?
+  description String?
+  features    Json     // { "feature_key": true/false, ... }
+  isCustom    Boolean  @default(false)
+  orgId       String
+  org         Organization @relation(fields: [orgId], references: [id])
+  clients     Client[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+model Client {
+  id               String   @id @default(cuid())
+  orgId            String
+  name             String
+  logoUrl          String?
+  contactInfo      Json?
+  planId           String?
+  featureOverrides Json?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   org       Organization @relation(fields: [orgId], references: [id])
   campaigns Campaign[]
+  plan      Plan?        @relation(fields: [planId], references: [id])
 }
 
 model AnalyticsModule {

@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Megaphone, Users, Wallet, Search, Calendar, List, Bell, Settings, BarChart3, Link2, UserSquare2 } from "lucide-react";
+import { Megaphone, Users, Wallet, Search, Calendar, List, Bell, Settings, BarChart3, Link2, UserSquare2, ClipboardList } from "lucide-react";
 import ThemeToggle from "./ThemeToggle";
 
 const NAV = [
@@ -16,6 +16,7 @@ const NAV = [
   { href: "/requests", icon: Bell, label: "Requests" },
   { href: "/connections", icon: Link2, label: "Connections" },
   { href: "/clients", icon: UserSquare2, label: "Clients" },
+  { href: "/plans", icon: ClipboardList, label: "Plans" },
 ];
 
 export default function NewSidebar() {
