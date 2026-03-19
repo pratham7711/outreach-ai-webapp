@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Search, MoreVertical, Share2 } from "lucide-react";
+import { Plus, Search, MoreVertical, Share2, FolderOpen, ChevronDown } from "lucide-react";
 import Link from "next/link";
 
 type Campaign = {
@@ -37,15 +37,13 @@ export default function CampaignsClient({
     return matchesSearch && matchesStatus;
   });
 
-  const statuses = ["ALL", "DRAFT", "IN_PROGRESS", "COMPLETE", "PENDING"];
-  const statusLabels: Record<string, { label: string; icon: string }> = {
-    ALL: { label: "All", icon: "" },
-    DRAFT: { label: "Draft", icon: "📝" },
-    PENDING: { label: "Pending", icon: "⏳" },
-    IN_PROGRESS: { label: "Active", icon: "✦" },
-    COMPLETE: { label: "Complete", icon: "✓" },
-    CANCELLED: { label: "Canceled", icon: "✕" },
-  };
+  const STATUS_TABS = [
+    { key: "ALL",         label: "All",      icon: "",   bg: "#F3F4F6", color: "#374151" },
+    { key: "PENDING",     label: "Pending",  icon: "🕐", bg: "#FEF3C7", color: "#D97706" },
+    { key: "IN_PROGRESS", label: "Active",   icon: "✦",  bg: "#EEF2FF", color: "#4F46E5" },
+    { key: "COMPLETE",    label: "Complete", icon: "✓",  bg: "#D1FAE5", color: "#059669" },
+    { key: "CANCELLED",   label: "Canceled", icon: "✕",  bg: "#FEE2E2", color: "#DC2626" },
+  ];
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--cc-bg)" }}>
@@ -64,46 +62,37 @@ export default function CampaignsClient({
             style={{
               display: "flex",
               alignItems: "center",
-              gap: 8,
-              padding: "10px 16px",
-              borderRadius: 12,
-              background: "var(--cc-primary)",
-              color: "white",
-              border: "none",
+              gap: 6,
+              padding: "9px 16px",
+              borderRadius: 8,
+              background: "white",
+              color: "#5B5BD6",
+              border: "1.5px solid #5B5BD6",
               fontSize: 14,
               fontWeight: 600,
               cursor: "pointer",
-              transition: "opacity 0.2s",
             }}
-            onMouseEnter={(e) => ((e.target as HTMLElement).style.opacity = "0.9")}
-            onMouseLeave={(e) => ((e.target as HTMLElement).style.opacity = "1")}
           >
-            <Plus size={16} />
-            New Campaign
+            <Plus size={15} color="#5B5BD6" />
+            New Campaign +
           </button>
           <button
             style={{
               display: "flex",
               alignItems: "center",
-              gap: 8,
-              padding: "10px 16px",
-              borderRadius: 12,
-              background: "var(--cc-card)",
-              color: "var(--cc-text)",
-              border: "1px solid var(--cc-border)",
+              gap: 6,
+              padding: "9px 16px",
+              borderRadius: 8,
+              background: "#1E1B4B",
+              color: "white",
+              border: "none",
               fontSize: 14,
               fontWeight: 600,
               cursor: "pointer",
-              transition: "all 0.2s",
-            }}
-            onMouseEnter={(e) => {
-              (e.target as HTMLElement).style.borderColor = "var(--cc-primary)";
-            }}
-            onMouseLeave={(e) => {
-              (e.target as HTMLElement).style.borderColor = "var(--cc-border)";
             }}
           >
-            📁 Folders
+            <FolderOpen size={15} color="white" />
+            Folders
           </button>
         </div>
       </div>
@@ -224,29 +213,31 @@ export default function CampaignsClient({
 
       {/* Status Tabs */}
       <div style={{ marginBottom: 24, display: "flex", gap: 8 }}>
-        {statuses.map((status) => (
-          <button
-            key={status}
-            onClick={() => setStatusFilter(status)}
-            style={{
-              padding: "8px 16px",
-              borderRadius: 20,
-              background: statusFilter === status ? "var(--cc-primary)" : "var(--cc-card)",
-              color: statusFilter === status ? "white" : "var(--cc-text-muted)",
-              border: statusFilter === status ? "none" : "1px solid var(--cc-border)",
-              fontSize: 13,
-              fontWeight: 500,
-              cursor: "pointer",
-              transition: "all 0.2s",
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-            }}
-          >
-            {statusLabels[status].icon && <span>{statusLabels[status].icon}</span>}
-            {statusLabels[status].label}
-          </button>
-        ))}
+        {STATUS_TABS.map((tab) => {
+          const isSelected = statusFilter === tab.key;
+          return (
+            <button
+              key={tab.key}
+              onClick={() => setStatusFilter(tab.key)}
+              style={{
+                padding: "6px 14px",
+                borderRadius: 20,
+                background: isSelected ? tab.bg : "transparent",
+                color: isSelected ? tab.color : "#9CA3AF",
+                border: "none",
+                fontSize: 13,
+                fontWeight: 500,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+              }}
+            >
+              {tab.icon && <span>{tab.icon}</span>}
+              {tab.label}
+            </button>
+          );
+        })}
       </div>
 
       {/* Campaign List */}
@@ -324,26 +315,27 @@ export default function CampaignsClient({
                   }}
                 >
                   <div style={{ textAlign: "center" }}>
-                    <p style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>Budget</p>
-                    <p style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>
-                      N/A
-                    </p>
+                    <p style={{ fontSize: 11, color: "#9CA3AF", marginBottom: 2 }}>💰 Budget</p>
+                    <p style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>N/A</p>
                   </div>
                   <div style={{ textAlign: "center" }}>
-                    <p style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>Creators</p>
-                    <p style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>
+                    <p style={{ fontSize: 11, color: "#9CA3AF", marginBottom: 2 }}>👤 Creators</p>
+                    <p style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>
                       {campaign._count.activations}
                     </p>
                   </div>
                   <div style={{ textAlign: "center" }}>
-                    <p style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>Posts</p>
-                    <p style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>
+                    <p style={{ fontSize: 11, color: "#9CA3AF", marginBottom: 2 }}>📷 Posts</p>
+                    <p style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>
                       {campaign._count.posts}
                     </p>
                   </div>
                   <div style={{ textAlign: "center" }}>
-                    <p style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>Team</p>
-                    <p style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>1</p>
+                    <p style={{ fontSize: 11, color: "#9CA3AF", marginBottom: 2 }}>👥 Team</p>
+                    <p style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
+                      <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#10B981", display: "inline-block" }} />
+                      1
+                    </p>
                   </div>
                 </div>
 
@@ -367,29 +359,20 @@ export default function CampaignsClient({
                 <div style={{ display: "flex", gap: 8, flexShrink: 0 }} onClick={(e) => e.preventDefault()}>
                   <button
                     style={{
-                      padding: "8px 12px",
-                      borderRadius: 8,
-                      background: "var(--cc-card)",
-                      border: "1px solid var(--cc-border)",
-                      color: "var(--cc-text)",
+                      padding: "6px 14px",
+                      borderRadius: 20,
+                      background: "#1E1B4B",
+                      color: "white",
+                      border: "none",
                       cursor: "pointer",
                       display: "flex",
                       alignItems: "center",
                       gap: 6,
                       fontSize: 12,
-                      fontWeight: 500,
-                      transition: "all 0.2s",
-                    }}
-                    onMouseEnter={(e) => {
-                      (e.currentTarget as HTMLElement).style.borderColor = "var(--cc-primary)";
-                      (e.currentTarget as HTMLElement).style.color = "var(--cc-primary)";
-                    }}
-                    onMouseLeave={(e) => {
-                      (e.currentTarget as HTMLElement).style.borderColor = "var(--cc-border)";
-                      (e.currentTarget as HTMLElement).style.color = "var(--cc-text)";
+                      fontWeight: 600,
                     }}
                   >
-                    <Share2 size={14} />
+                    <Share2 size={13} color="white" />
                     Share
                   </button>
                   <button

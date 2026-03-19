@@ -97,7 +97,7 @@ export default function NewSidebar() {
                   className="flex items-center gap-2.5 px-3 py-2 rounded-lg transition-all duration-150 mb-0.5"
                   style={{
                     background: active ? "var(--cc-primary)" : "transparent",
-                    color: active ? "#ffffff" : "var(--cc-text-muted)",
+                    color: active ? "#ffffff" : "#6B7280",
                   }}
                 >
                   <Icon size={15} style={{ flexShrink: 0 }} />
