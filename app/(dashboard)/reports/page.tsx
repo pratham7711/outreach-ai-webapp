@@ -1,16 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Plus } from "lucide-react";
+import { Button, Modal, Input, Badge, EmptyState } from "@pratham7711/ui";
 
 interface Report {
   id: string;
@@ -69,82 +61,56 @@ export default function ReportsPage() {
   }
 
   return (
-    <div style={{ padding: 32 }}>
+    <div style={{ padding: "32px 40px 40px" }}>
       <div style={{ marginBottom: 32, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div>
           <h1 style={{ fontSize: 28, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Reports</h1>
           <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>Create and share campaign reports</p>
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger render={<Button />}>New Report</DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Create Report</DialogTitle>
-            </DialogHeader>
-            <form onSubmit={createReport} className="space-y-4 mt-2">
-              <div className="space-y-1">
-                <Label htmlFor="title">Title</Label>
-                <Input
-                  id="title"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Q1 Campaign Report"
-                  required
-                />
-              </div>
-              <Button type="submit" disabled={creating} className="w-full">
-                {creating ? "Creating..." : "Create"}
-              </Button>
-            </form>
-          </DialogContent>
-        </Dialog>
+        <Button variant="primary" iconLeft={<Plus size={15} />} onClick={() => setOpen(true)}>
+          New Report
+        </Button>
       </div>
 
       {loading ? (
         <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>Loading...</p>
       ) : reports.length === 0 ? (
-        <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>No reports yet. Create one to get started.</p>
+        <EmptyState
+          icon="📊"
+          title="No reports yet"
+          description="Create a report to get started"
+          action={
+            <Button variant="primary" iconLeft={<Plus size={16} />} onClick={() => setOpen(true)}>
+              New Report
+            </Button>
+          }
+        />
       ) : (
         <div style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, overflow: "hidden" }}>
-          <table className="w-full" style={{ fontSize: 14 }}>
+          <table style={{ width: "100%", fontSize: 14, borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ background: "#F9FAFB" }}>
-                <th style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", color: "#9097B4", padding: "12px 20px", textAlign: "left", letterSpacing: "0.5px" }}>Title</th>
-                <th style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", color: "#9097B4", padding: "12px 20px", textAlign: "left", letterSpacing: "0.5px" }}>Campaign</th>
-                <th style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", color: "#9097B4", padding: "12px 20px", textAlign: "left", letterSpacing: "0.5px" }}>Created</th>
-                <th style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", color: "#9097B4", padding: "12px 20px", textAlign: "left", letterSpacing: "0.5px" }}>Visibility</th>
-                <th style={{ padding: "12px 20px" }}></th>
+                {["Title", "Campaign", "Created", "Visibility", ""].map((h, i) => (
+                  <th key={i} style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", color: "var(--cc-text-muted)", padding: "12px 20px", textAlign: "left", letterSpacing: "0.05em" }}>{h}</th>
+                ))}
               </tr>
             </thead>
             <tbody>
               {reports.map((r) => (
                 <tr key={r.id} style={{ borderTop: "1px solid var(--cc-border)" }}>
                   <td style={{ padding: "12px 20px", fontWeight: 500, color: "var(--cc-text)" }}>{r.title}</td>
-                  <td style={{ padding: "12px 20px", color: "var(--cc-text-muted)" }}>
-                    {r.campaign?.title ?? "—"}
-                  </td>
-                  <td style={{ padding: "12px 20px", color: "var(--cc-text-muted)" }}>
-                    {new Date(r.createdAt).toLocaleDateString()}
-                  </td>
+                  <td style={{ padding: "12px 20px", color: "var(--cc-text-muted)" }}>{r.campaign?.title ?? "—"}</td>
+                  <td style={{ padding: "12px 20px", color: "var(--cc-text-muted)" }}>{new Date(r.createdAt).toLocaleDateString()}</td>
                   <td style={{ padding: "12px 20px" }}>
                     <button
                       onClick={() => togglePublic(r)}
-                      style={{
-                        fontSize: 12, padding: "4px 8px", borderRadius: 9999, fontWeight: 500, border: "none", cursor: "pointer",
-                        background: r.isPublic ? "#dcfce7" : "#F3F4F6",
-                        color: r.isPublic ? "#16a34a" : "var(--cc-text-muted)",
-                      }}
+                      style={{ fontSize: 12, padding: "4px 8px", borderRadius: 9999, fontWeight: 500, border: "none", cursor: "pointer", background: r.isPublic ? "#dcfce7" : "#F3F4F6", color: r.isPublic ? "#16a34a" : "var(--cc-text-muted)" }}
                     >
                       {r.isPublic ? "Public" : "Private"}
                     </button>
                   </td>
                   <td style={{ padding: "12px 20px", textAlign: "right" }}>
-                    <button
-                      onClick={() => deleteReport(r.id)}
-                      style={{ fontSize: 12, color: "#ef4444", background: "none", border: "none", cursor: "pointer" }}
-                    >
-                      Delete
-                    </button>
+                    <button onClick={() => deleteReport(r.id)} style={{ fontSize: 12, color: "#ef4444", background: "none", border: "none", cursor: "pointer" }}>Delete</button>
                   </td>
                 </tr>
               ))}
@@ -152,6 +118,31 @@ export default function ReportsPage() {
           </table>
         </div>
       )}
+
+      <Modal
+        open={open}
+        onClose={() => setOpen(false)}
+        title="Create Report"
+        size="md"
+        footer={
+          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+            <Button variant="secondary" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button variant="primary" loading={creating} onClick={(e: React.MouseEvent) => { const form = (e.currentTarget as HTMLElement).closest("form"); if (form) form.requestSubmit(); }}>
+              Create
+            </Button>
+          </div>
+        }
+      >
+        <form onSubmit={createReport} id="report-form">
+          <Input
+            label="Title"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Q1 Campaign Report"
+            required
+          />
+        </form>
+      </Modal>
     </div>
   );
 }

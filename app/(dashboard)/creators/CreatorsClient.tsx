@@ -2,7 +2,27 @@
 
 import { useState } from "react";
 import { Plus, Search, LayoutGrid, List as ListIcon } from "lucide-react";
-import { Button, Badge, EmptyState, Input, Tag } from "@pratham7711/ui";
+import { Button, Badge } from "@pratham7711/ui";
+
+const EmptyState = ({ icon, title, description, action }: { icon: string; title: string; description?: string; action?: React.ReactNode }) => (
+  <div style={{ textAlign: "center", padding: "64px 24px" }}>
+    <div style={{ fontSize: 40, marginBottom: 12 }}>{icon}</div>
+    <h3 style={{ fontSize: 17, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>{title}</h3>
+    {description && <p style={{ fontSize: 14, color: "var(--cc-text-muted)", marginBottom: 20 }}>{description}</p>}
+    {action}
+  </div>
+);
+const SearchInput = ({ value, onChange, placeholder }: { value: string; onChange: (e: React.ChangeEvent<HTMLInputElement>) => void; placeholder?: string }) => (
+  <div style={{ position: "relative" }}>
+    <Search size={16} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--cc-text-muted)", pointerEvents: "none" }} />
+    <input value={value} onChange={onChange} placeholder={placeholder} style={{ width: "100%", padding: "9px 12px 9px 36px", border: "1px solid var(--cc-border)", borderRadius: 8, fontSize: 14, background: "var(--cc-card)", color: "var(--cc-text)", outline: "none" }} />
+  </div>
+);
+const FilterTag = ({ children, active, onClick }: { children: React.ReactNode; active: boolean; onClick: () => void }) => (
+  <button onClick={onClick} style={{ padding: "6px 14px", borderRadius: 20, fontSize: 13, fontWeight: active ? 600 : 400, cursor: "pointer", border: `1px solid ${active ? "var(--cc-primary)" : "var(--cc-border)"}`, background: active ? "var(--cc-primary)" : "var(--cc-card)", color: active ? "white" : "var(--cc-text-muted)", transition: "all 0.15s" }}>
+    {children}
+  </button>
+);
 import AddCreatorModal from "@/components/modals/AddCreatorModal";
 import Link from "next/link";
 
@@ -61,12 +81,7 @@ export default function CreatorsClient({ creators }: { creators: Creator[] }) {
       {/* Filters */}
       <div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 12 }}>
         <div style={{ flex: 1 }}>
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search creators..."
-            iconLeft={<Search size={16} />}
-          />
+          <SearchInput value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search creators..." />
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 4, background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 10, padding: 4 }}>
           <button onClick={() => setView("grid")} style={{ padding: "6px 8px", borderRadius: 6, border: "none", cursor: "pointer", background: view === "grid" ? "rgba(91,91,214,0.12)" : "transparent", color: view === "grid" ? "var(--cc-primary)" : "var(--cc-text-muted)", display: "flex", alignItems: "center" }}>
@@ -81,14 +96,9 @@ export default function CreatorsClient({ creators }: { creators: Creator[] }) {
       {/* Platform filter tags */}
       <div style={{ marginBottom: 24, display: "flex", gap: 8 }}>
         {PLATFORMS.map((p) => (
-          <Tag
-            key={p}
-            outlined={platformFilter !== p}
-            onClick={() => setPlatformFilter(p)}
-            style={{ cursor: "pointer", fontWeight: platformFilter === p ? 600 : 400 }}
-          >
+          <FilterTag key={p} active={platformFilter === p} onClick={() => setPlatformFilter(p)}>
             {p}
-          </Tag>
+          </FilterTag>
         ))}
       </div>
 

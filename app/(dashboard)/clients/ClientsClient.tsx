@@ -2,7 +2,23 @@
 import { useState } from "react";
 import { Plus, Search } from "lucide-react";
 import Link from "next/link";
-import { Button, Card, StatCard, EmptyState, Input } from "@pratham7711/ui";
+import { Button, Card, StatCard } from "@pratham7711/ui";
+
+const EmptyState = ({ icon, title, description, action }: { icon: string; title: string; description?: string; action?: React.ReactNode }) => (
+  <div style={{ textAlign: "center", padding: "64px 24px" }}>
+    <div style={{ fontSize: 40, marginBottom: 12 }}>{icon}</div>
+    <h3 style={{ fontSize: 17, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>{title}</h3>
+    {description && <p style={{ fontSize: 14, color: "var(--cc-text-muted)", marginBottom: 20 }}>{description}</p>}
+    {action}
+  </div>
+);
+const SearchInput = ({ value, onChange, placeholder }: { value: string; onChange: (e: React.ChangeEvent<HTMLInputElement>) => void; placeholder?: string }) => (
+  <div style={{ position: "relative" }}>
+    <Search size={16} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--cc-text-muted)", pointerEvents: "none" }} />
+    <input value={value} onChange={onChange} placeholder={placeholder} style={{ width: "100%", padding: "9px 12px 9px 36px", border: "1px solid var(--cc-border)", borderRadius: 8, fontSize: 14, background: "var(--cc-card)", color: "var(--cc-text)", outline: "none" }} />
+  </div>
+);
+
 import AddClientModal from "@/components/modals/AddClientModal";
 
 type Client = {
@@ -39,18 +55,13 @@ export default function ClientsClient({ clients, stats }: {
 
       {/* Stats */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 16, marginBottom: 32, maxWidth: 480 }}>
-        <StatCard value={String(stats.total)} label="Total Clients" trend="up" trendLabel="+1 this month" />
-        <StatCard value={String(stats.totalCampaigns)} label="Total Campaigns" trend="up" />
+        <StatCard value={String(stats.total)} label="Total Clients" />
+        <StatCard value={String(stats.totalCampaigns)} label="Total Campaigns" />
       </div>
 
       {/* Search */}
       <div style={{ marginBottom: 24 }}>
-        <Input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search clients..."
-          iconLeft={<Search size={16} />}
-        />
+        <SearchInput value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search clients..." />
       </div>
 
       {/* Clients table */}

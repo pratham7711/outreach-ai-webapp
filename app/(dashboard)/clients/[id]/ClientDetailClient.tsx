@@ -2,8 +2,9 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { ArrowLeft, Save } from "lucide-react";
-import { FEATURES, type FeatureKey } from "@/lib/features";
+import { ArrowLeft, Save, Building2, Settings2 } from "lucide-react";
+import { FEATURES, type FeatureKey, clientHasFeature } from "@/lib/features";
+import ClientFeatureModal from "@/components/modals/ClientFeatureModal";
 
 type Plan = { id: string; name: string; features: Record<string, boolean> };
 
@@ -23,74 +24,20 @@ type Props = {
   plans: Plan[];
 };
 
-type OverrideValue = "plan" | "on" | "off";
+const featureKeys = Object.keys(FEATURES) as FeatureKey[];
 
 export default function ClientDetailClient({ client, plans }: Props) {
   const router = useRouter();
-  const featureKeys = Object.keys(FEATURES) as FeatureKey[];
+  const [activeTab, setActiveTab] = useState<"overview" | "features">("overview");
+  const [showFeatureModal, setShowFeatureModal] = useState(false);
 
-  const [selectedPlanId, setSelectedPlanId] = useState<string>(client.planId ?? "");
-  const [overrides, setOverrides] = useState<Record<string, OverrideValue>>(() => {
-    const init: Record<string, OverrideValue> = {};
-    for (const key of featureKeys) {
-      const ov = client.featureOverrides?.[key];
-      if (ov === true) init[key] = "on";
-      else if (ov === false) init[key] = "off";
-      else init[key] = "plan";
-    }
-    return init;
-  });
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const selectedPlan = plans.find((p) => p.id === selectedPlanId) ?? null;
-
-  function getEffectiveValue(key: FeatureKey): boolean {
-    if (overrides[key] === "on") return true;
-    if (overrides[key] === "off") return false;
-    return selectedPlan?.features?.[key] ?? false;
-  }
-
-  function buildOverridesPayload(): Record<string, boolean> | null {
-    const result: Record<string, boolean> = {};
-    let hasAny = false;
-    for (const key of featureKeys) {
-      if (overrides[key] === "on") { result[key] = true; hasAny = true; }
-      else if (overrides[key] === "off") { result[key] = false; hasAny = true; }
-    }
-    return hasAny ? result : null;
-  }
-
-  async function handleSave() {
-    setSaving(true);
-    setError(null);
-    setSaved(false);
-    try {
-      const res = await fetch(`/api/clients/${client.id}/plan`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          planId: selectedPlanId || null,
-          featureOverrides: buildOverridesPayload(),
-        }),
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        setError(data?.error ?? "Failed to save");
-        return;
-      }
-      setSaved(true);
-      router.refresh();
-    } catch {
-      setError("Network error");
-    } finally {
-      setSaving(false);
-    }
-  }
+  const tabs = [
+    { key: "overview" as const, label: "Overview", icon: Building2 },
+    { key: "features" as const, label: "Feature Access", icon: Settings2 },
+  ];
 
   return (
-    <div style={{ padding: 32, maxWidth: 720, margin: "0 auto" }}>
+    <div style={{ padding: "32px 40px 40px" }}>
       {/* Breadcrumb */}
       <Link
         href="/clients"
@@ -102,130 +49,222 @@ export default function ClientDetailClient({ client, plans }: Props) {
 
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 32 }}>
-        <div style={{ width: 56, height: 56, borderRadius: 14, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, fontWeight: 700, background: "#F3F4F8", color: "var(--cc-text)" }}>
+        <div style={{ width: 56, height: 56, borderRadius: 14, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, fontWeight: 700, background: "#EEF2FF", color: "#5B5BD6" }}>
           {client.name.slice(0, 2).toUpperCase()}
         </div>
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 700, color: "var(--cc-text)", marginBottom: 2 }}>{client.name}</h1>
-          <p style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>
-            {client.campaignCount} campaign{client.campaignCount !== 1 ? "s" : ""}
-          </p>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>
+              {client.campaignCount} campaign{client.campaignCount !== 1 ? "s" : ""}
+            </span>
+            {client.plan && (
+              <span style={{
+                fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 6,
+                background: "rgba(91,91,214,0.1)", color: "#5B5BD6",
+              }}>
+                {client.plan.name}
+              </span>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Plan & Features card */}
-      <div style={{ borderRadius: 16, overflow: "hidden", border: "1px solid var(--cc-border)" }}>
-        <div style={{ padding: "14px 24px", background: "#F3F4F8", borderBottom: "1px solid var(--cc-border)" }}>
-          <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)" }}>Plan & Features</span>
-        </div>
-
-        <div style={{ padding: 24, background: "var(--cc-card)" }}>
-          {error && (
-            <div style={{ marginBottom: 20, padding: "10px 16px", borderRadius: 10, fontSize: 14, background: "rgba(239,68,68,0.08)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)" }}>
-              {error}
-            </div>
-          )}
-          {saved && (
-            <div style={{ marginBottom: 20, padding: "10px 16px", borderRadius: 10, fontSize: 14, background: "rgba(34,197,94,0.08)", color: "#16a34a", border: "1px solid rgba(34,197,94,0.2)" }}>
-              Saved successfully
-            </div>
-          )}
-
-          {/* Plan selector */}
-          <div style={{ marginBottom: 24 }}>
-            <label style={{ display: "block", marginBottom: 6, fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>
-              Assigned Plan
-            </label>
-            <select
-              value={selectedPlanId}
-              onChange={(e) => {
-                setSelectedPlanId(e.target.value);
-                const reset: Record<string, OverrideValue> = {};
-                for (const key of featureKeys) reset[key] = "plan";
-                setOverrides(reset);
-              }}
+      {/* Tab nav */}
+      <div style={{ display: "flex", gap: 4, marginBottom: 24, borderBottom: "1px solid var(--cc-border)" }}>
+        {tabs.map((t) => {
+          const Icon = t.icon;
+          const active = activeTab === t.key;
+          return (
+            <button
+              key={t.key}
+              onClick={() => setActiveTab(t.key)}
               style={{
-                width: "100%",
-                padding: "10px 14px",
-                borderRadius: 10,
-                fontSize: 14,
-                outline: "none",
-                background: "var(--cc-card)",
-                border: "1px solid var(--cc-border)",
-                color: "var(--cc-text)",
+                display: "flex", alignItems: "center", gap: 6,
+                padding: "10px 16px", fontSize: 13, fontWeight: active ? 600 : 500,
+                color: active ? "var(--cc-primary)" : "var(--cc-text-muted)",
+                background: "none", border: "none", cursor: "pointer",
+                borderBottom: active ? "2px solid var(--cc-primary)" : "2px solid transparent",
+                marginBottom: -1,
               }}
             >
-              <option value="">— No plan —</option>
-              {plans.map((p) => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
-            </select>
-            {plans.length === 0 && (
-              <p style={{ marginTop: 8, fontSize: 12, color: "var(--cc-text-muted)" }}>
-                No plans yet.{" "}
-                <Link href="/plans/new" style={{ color: "var(--cc-primary)" }}>Create one</Link>
-              </p>
+              <Icon size={14} />
+              {t.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Overview Tab */}
+      {activeTab === "overview" && (
+        <div style={{ maxWidth: 640 }}>
+          <div style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, padding: 24 }}>
+            <h3 style={{ fontSize: 15, fontWeight: 700, color: "var(--cc-text)", marginBottom: 16 }}>Client Details</h3>
+
+            <div style={{ display: "grid", gap: 16 }}>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: "var(--cc-text-muted)", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>Name</div>
+                <div style={{ fontSize: 14, color: "var(--cc-text)" }}>{client.name}</div>
+              </div>
+
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: "var(--cc-text-muted)", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>Plan</div>
+                <div style={{ fontSize: 14, color: "var(--cc-text)" }}>
+                  {client.plan ? (
+                    <span style={{
+                      fontSize: 12, fontWeight: 600, padding: "3px 10px", borderRadius: 6,
+                      background: "rgba(91,91,214,0.1)", color: "#5B5BD6",
+                    }}>
+                      {client.plan.name}
+                    </span>
+                  ) : (
+                    <span style={{ color: "var(--cc-text-muted)" }}>No plan assigned</span>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: "var(--cc-text-muted)", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>Campaigns</div>
+                <div style={{ fontSize: 14, color: "var(--cc-text)" }}>{client.campaignCount}</div>
+              </div>
+
+              {client.contactInfo != null && (
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: "var(--cc-text-muted)", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>Contact</div>
+                  <div style={{ fontSize: 14, color: "var(--cc-text)" }}>
+                    {(() => {
+                      const raw = String(client.contactInfo);
+                      try { const c = JSON.parse(raw); return (c.email as string) || raw; } catch { return raw; }
+                    })()}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Feature Access Tab */}
+      {activeTab === "features" && (
+        <div style={{ maxWidth: 640 }}>
+          {/* Current plan card */}
+          <div style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, padding: 20, marginBottom: 20 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)", marginBottom: 4 }}>Current Plan</div>
+                {client.plan ? (
+                  <span style={{
+                    fontSize: 12, fontWeight: 600, padding: "3px 10px", borderRadius: 6,
+                    background: "rgba(91,91,214,0.1)", color: "#5B5BD6",
+                  }}>
+                    {client.plan.name}
+                  </span>
+                ) : (
+                  <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>No plan assigned</span>
+                )}
+              </div>
+              <button
+                onClick={() => setShowFeatureModal(true)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  padding: "8px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600,
+                  background: "var(--cc-primary)", border: "none", color: "white", cursor: "pointer",
+                }}
+              >
+                <Settings2 size={14} />
+                Manage Access
+              </button>
+            </div>
+
+            {client.featureOverrides && Object.keys(client.featureOverrides).length > 0 && (
+              <div style={{
+                fontSize: 12, padding: "6px 12px", borderRadius: 6,
+                background: "rgba(234,179,8,0.08)", color: "#d97706",
+                border: "1px solid rgba(234,179,8,0.15)",
+              }}>
+                {Object.keys(client.featureOverrides).length} feature override{Object.keys(client.featureOverrides).length > 1 ? "s" : ""} active
+              </div>
             )}
           </div>
 
-          {/* Feature overrides table */}
-          <div style={{ borderRadius: 10, overflow: "hidden", border: "1px solid var(--cc-border)" }}>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr auto", padding: "10px 16px", fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", background: "#F9FAFB", color: "var(--cc-text-muted)", borderBottom: "1px solid var(--cc-border)" }}>
-              <span>Feature</span>
-              <span>Override</span>
+          {/* Feature list */}
+          <div style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, overflow: "hidden" }}>
+            <div style={{ padding: "12px 20px", borderBottom: "1px solid var(--cc-border)", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--cc-text-muted)" }}>
+              All Features ({featureKeys.filter((k) => clientHasFeature(client.plan ? { features: client.plan.features } : null, client.featureOverrides, k)).length}/{featureKeys.length} enabled)
             </div>
             {featureKeys.map((key, i) => {
-              const feat = FEATURES[key];
-              const effective = getEffectiveValue(key);
-              const ov = overrides[key];
+              const planVal = client.plan?.features?.[key] ?? false;
+              const overrideVal = client.featureOverrides?.[key];
+              const effective = clientHasFeature(
+                client.plan ? { features: client.plan.features } : null,
+                client.featureOverrides,
+                key
+              );
+              const isOverridden = overrideVal !== undefined;
+
               return (
                 <div
                   key={key}
-                  style={{ display: "flex", alignItems: "center", gap: 16, padding: "12px 16px", borderBottom: i < featureKeys.length - 1 ? "1px solid var(--cc-border)" : "none" }}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 12,
+                    padding: "12px 20px",
+                    borderBottom: i < featureKeys.length - 1 ? "1px solid var(--cc-border)" : "none",
+                    background: isOverridden ? "rgba(91,91,214,0.02)" : "transparent",
+                  }}
                 >
-                  <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 10 }}>
-                    <div style={{ width: 8, height: 8, borderRadius: "50%", flexShrink: 0, background: effective ? "#22c55e" : "var(--cc-border)" }} />
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>{feat.label}</div>
-                      <div style={{ fontSize: 11, color: "var(--cc-text-muted)" }}>{feat.description}</div>
+                  <div style={{
+                    width: 8, height: 8, borderRadius: "50%", flexShrink: 0,
+                    background: effective ? "#22c55e" : "#D1D5DB",
+                  }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 500, color: effective ? "var(--cc-text)" : "var(--cc-text-muted)" }}>
+                      {FEATURES[key].label}
+                    </div>
+                    <div style={{ fontSize: 11, color: "var(--cc-text-muted)" }}>
+                      {FEATURES[key].description}
                     </div>
                   </div>
-
-                  <select
-                    value={ov}
-                    onChange={(e) => setOverrides((prev) => ({ ...prev, [key]: e.target.value as OverrideValue }))}
-                    style={{
-                      fontSize: 12,
-                      padding: "6px 10px",
-                      borderRadius: 8,
-                      outline: "none",
-                      background: ov === "on" ? "rgba(34,197,94,0.08)" : ov === "off" ? "rgba(239,68,68,0.08)" : "#F3F4F8",
-                      border: `1px solid ${ov === "on" ? "rgba(34,197,94,0.3)" : ov === "off" ? "rgba(239,68,68,0.3)" : "var(--cc-border)"}`,
-                      color: ov === "on" ? "#16a34a" : ov === "off" ? "#ef4444" : "var(--cc-text-muted)",
-                    }}
-                  >
-                    <option value="plan">Use plan default</option>
-                    <option value="on">Force ON</option>
-                    <option value="off">Force OFF</option>
-                  </select>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    {isOverridden && (
+                      <span style={{
+                        fontSize: 10, fontWeight: 600, padding: "2px 6px", borderRadius: 4,
+                        background: overrideVal ? "rgba(34,197,94,0.1)" : "rgba(239,68,68,0.1)",
+                        color: overrideVal ? "#16a34a" : "#ef4444",
+                      }}>
+                        Override: {overrideVal ? "ON" : "OFF"}
+                      </span>
+                    )}
+                    {!isOverridden && (
+                      <span style={{
+                        fontSize: 10, fontWeight: 500, color: "var(--cc-text-muted)",
+                      }}>
+                        Plan: {planVal ? "ON" : "OFF"}
+                      </span>
+                    )}
+                  </div>
                 </div>
               );
             })}
           </div>
-
-          {/* Save */}
-          <div style={{ marginTop: 20, display: "flex", alignItems: "center", gap: 12 }}>
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 20px", borderRadius: 10, fontSize: 14, fontWeight: 600, color: "white", background: "var(--cc-primary)", border: "none", cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.6 : 1 }}
-            >
-              <Save size={14} />
-              {saving ? "Saving…" : "Save Plan & Overrides"}
-            </button>
-          </div>
         </div>
-      </div>
+      )}
+
+      {/* Client Feature Modal */}
+      <ClientFeatureModal
+        open={showFeatureModal}
+        onClose={() => setShowFeatureModal(false)}
+        client={{
+          id: client.id,
+          name: client.name,
+          planId: client.planId,
+          featureOverrides: client.featureOverrides,
+        }}
+        plans={plans}
+        onSave={() => {
+          setShowFeatureModal(false);
+          router.refresh();
+        }}
+      />
     </div>
   );
 }

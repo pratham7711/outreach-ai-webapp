@@ -1,7 +1,16 @@
 "use client";
 
 import { Plus, Zap } from "lucide-react";
-import { Button, Badge, EmptyState, StatCard } from "@pratham7711/ui";
+import { Button, Badge, StatCard } from "@pratham7711/ui";
+
+const EmptyState = ({ icon, title, description, action }: { icon: string; title: string; description?: string; action?: React.ReactNode }) => (
+  <div style={{ textAlign: "center", padding: "64px 24px" }}>
+    <div style={{ fontSize: 40, marginBottom: 12 }}>{icon}</div>
+    <h3 style={{ fontSize: 17, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>{title}</h3>
+    {description && <p style={{ fontSize: 14, color: "var(--cc-text-muted)", marginBottom: 20 }}>{description}</p>}
+    {action}
+  </div>
+);
 
 type Activation = {
   id: string;
@@ -81,9 +90,9 @@ export default function ActivationsClient({ activations, stats }: {
       {/* Stats */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 32 }}>
         <StatCard value={String(stats.total)} label="Total" />
-        <StatCard value={String(stats.active)} label="Active" trend="up" />
-        <StatCard value={String(activations.filter(a => a.status === "AWAITING_DRAFT" || a.status === "AWAITING_APPROVAL").length)} label="Pending" trend="neutral" />
-        <StatCard value={String(activations.filter(a => a.status === "COMPLETE").length)} label="Complete" trend="up" />
+        <StatCard value={String(stats.active)} label="Active" />
+        <StatCard value={String(activations.filter(a => a.status === "AWAITING_DRAFT" || a.status === "AWAITING_APPROVAL").length)} label="Pending" />
+        <StatCard value={String(activations.filter(a => a.status === "COMPLETE").length)} label="Complete" />
       </div>
 
       {activations.length === 0 ? (

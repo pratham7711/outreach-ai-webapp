@@ -1,7 +1,8 @@
 "use client";
+
 import { useState } from "react";
-import { X } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { Modal, Button, Input } from "@pratham7711/ui";
 
 export default function AddCreatorModal({ onClose }: { onClose: () => void }) {
   const router = useRouter();
@@ -40,60 +41,97 @@ export default function AddCreatorModal({ onClose }: { onClose: () => void }) {
     }
   };
 
-  const inputStyle = { width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-border)", fontSize: 14, color: "var(--cc-text)", outline: "none", boxSizing: "border-box" as const };
-  const labelStyle = { fontSize: 12, fontWeight: 600 as const, color: "var(--cc-text)", display: "block" as const, marginBottom: 6 };
+  const selectStyle = {
+    width: "100%",
+    padding: "10px 14px",
+    borderRadius: 10,
+    border: "1px solid var(--cc-border)",
+    fontSize: 14,
+    color: "var(--cc-text)",
+    outline: "none",
+    background: "white",
+    boxSizing: "border-box" as const,
+  };
+
+  const labelStyle = {
+    display: "block" as const,
+    fontSize: 13,
+    fontWeight: 600 as const,
+    color: "var(--cc-text)",
+    marginBottom: 6,
+  };
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div style={{ background: "white", borderRadius: 16, padding: 32, width: "100%", maxWidth: 480, boxShadow: "0 20px 60px rgba(0,0,0,0.15)" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-          <h2 style={{ fontSize: 20, fontWeight: 700, color: "var(--cc-text)" }}>Add Creator</h2>
-          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--cc-text-muted)" }}><X size={20} /></button>
+    <Modal
+      open={true}
+      onClose={onClose}
+      title="Add Creator"
+      size="md"
+      footer={
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button variant="primary" loading={loading} onClick={() => { document.getElementById("add-creator-form")?.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true })); }}>
+            Add Creator
+          </Button>
         </div>
-        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <div>
-            <label style={labelStyle}>Name *</label>
-            <input required value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-              placeholder="e.g. Blessing Jolie" style={inputStyle} />
+      }
+    >
+      <form id="add-creator-form" onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        <Input
+          label="Name"
+          value={form.name}
+          onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+          placeholder="e.g. Blessing Jolie"
+          required
+        />
+        <Input
+          label="Handle"
+          value={form.handle}
+          onChange={(e) => setForm((f) => ({ ...f, handle: e.target.value }))}
+          placeholder="@username"
+          required
+        />
+        <div>
+          <label style={labelStyle}>Platform</label>
+          <select
+            value={form.platform}
+            onChange={(e) => setForm((f) => ({ ...f, platform: e.target.value }))}
+            style={selectStyle}
+          >
+            <option value="INSTAGRAM">Instagram</option>
+            <option value="TIKTOK">TikTok</option>
+            <option value="YOUTUBE">YouTube</option>
+            <option value="TWITTER">Twitter / X</option>
+          </select>
+        </div>
+        <div style={{ display: "flex", gap: 12 }}>
+          <div style={{ flex: 1 }}>
+            <Input
+              label="Follower Count"
+              type="number"
+              value={form.followersCount}
+              onChange={(e) => setForm((f) => ({ ...f, followersCount: e.target.value }))}
+              placeholder="e.g. 2400000"
+            />
           </div>
-          <div>
-            <label style={labelStyle}>Handle *</label>
-            <input required value={form.handle} onChange={e => setForm(f => ({ ...f, handle: e.target.value }))}
-              placeholder="@username" style={inputStyle} />
+          <div style={{ flex: 1 }}>
+            <Input
+              label="Avg Views"
+              type="number"
+              value={form.averageViews}
+              onChange={(e) => setForm((f) => ({ ...f, averageViews: e.target.value }))}
+              placeholder="e.g. 500000"
+            />
           </div>
-          <div>
-            <label style={labelStyle}>Platform</label>
-            <select value={form.platform} onChange={e => setForm(f => ({ ...f, platform: e.target.value }))}
-              style={{ ...inputStyle, background: "white" }}>
-              <option value="INSTAGRAM">Instagram</option>
-              <option value="TIKTOK">TikTok</option>
-              <option value="YOUTUBE">YouTube</option>
-              <option value="TWITTER">Twitter / X</option>
-            </select>
-          </div>
-          <div style={{ display: "flex", gap: 12 }}>
-            <div style={{ flex: 1 }}>
-              <label style={labelStyle}>Follower Count</label>
-              <input type="number" value={form.followersCount} onChange={e => setForm(f => ({ ...f, followersCount: e.target.value }))}
-                placeholder="e.g. 2400000" style={inputStyle} />
-            </div>
-            <div style={{ flex: 1 }}>
-              <label style={labelStyle}>Avg Views</label>
-              <input type="number" value={form.averageViews} onChange={e => setForm(f => ({ ...f, averageViews: e.target.value }))}
-                placeholder="e.g. 500000" style={inputStyle} />
-            </div>
-          </div>
-          <div>
-            <label style={labelStyle}>Rate per Post (USD)</label>
-            <input type="number" value={form.rate} onChange={e => setForm(f => ({ ...f, rate: e.target.value }))}
-              placeholder="e.g. 5000" style={inputStyle} />
-          </div>
-          <button type="submit" disabled={loading}
-            style={{ padding: "12px", borderRadius: 10, background: "var(--cc-primary)", color: "white", fontSize: 14, fontWeight: 600, border: "none", cursor: loading ? "not-allowed" : "pointer", opacity: loading ? 0.7 : 1, marginTop: 8 }}>
-            {loading ? "Adding..." : "Add Creator"}
-          </button>
-        </form>
-      </div>
-    </div>
+        </div>
+        <Input
+          label="Rate per Post (USD)"
+          type="number"
+          value={form.rate}
+          onChange={(e) => setForm((f) => ({ ...f, rate: e.target.value }))}
+          placeholder="e.g. 5000"
+        />
+      </form>
+    </Modal>
   );
 }

@@ -18,7 +18,7 @@ const STATUS_BADGE: Record<string, "success"|"accent"|"neutral"|"danger"> = {
 
 export default function TrackersPage() {
   return (
-    <div className="p-8">
+    <div style={{ padding: "32px 40px 40px" }}>
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 style={{ fontSize: 26, fontWeight: 900, color: "var(--cc-text)" }}>Trackers</h1>
@@ -28,7 +28,7 @@ export default function TrackersPage() {
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         <StatCard value="4" label="Active Trackers" />
-        <StatCard value="249K" label="Total Uses" trend={18} />
+        <StatCard value="249K" label="Total Uses" />
         <StatCard value="1" label="Viral Sounds" />
         <StatCard value="+12%" label="Avg. Growth" />
       </div>

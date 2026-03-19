@@ -33,7 +33,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
         logoUrl: client.logoUrl,
         contactInfo: client.contactInfo,
         planId: client.planId,
-        featureOverrides: (client.featureOverrides ?? null) as Record<string, boolean> | null,
+        featureOverrides: client.featureOverrides ? (JSON.parse(client.featureOverrides as string) as Record<string, boolean>) : null,
         campaignCount: client._count.campaigns,
         plan: client.plan
           ? {

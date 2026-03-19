@@ -54,10 +54,10 @@ export default function DashboardClient(props: Props) {
   const { recentCampaigns, chartData } = props;
 
   const statItems = [
-    { label: "Total Campaigns", value: String(props.campaignCount), trend: "up" as const, trendLabel: "+12% from last month" },
-    { label: "Active Creators", value: String(props.creatorCount), trend: "up" as const, trendLabel: "+8% from last month" },
-    { label: "Pending Payouts", value: formatCurrency(props.pendingPayouts), trend: "neutral" as const },
-    { label: "Growth", value: "+24%", trend: "up" as const, trendLabel: "from last month" },
+    { label: "Total Campaigns", value: String(props.campaignCount), trend: 12, trendLabel: "+12% from last month" },
+    { label: "Active Creators", value: String(props.creatorCount), trend: 8, trendLabel: "+8% from last month" },
+    { label: "Pending Payouts", value: formatCurrency(props.pendingPayouts), trend: 0 },
+    { label: "Growth", value: "+24%", trend: 24, trendLabel: "from last month" },
   ];
 
   return (

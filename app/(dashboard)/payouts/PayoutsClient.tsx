@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Search, DollarSign, Wallet, CreditCard } from "lucide-react";
+import { Plus, Search } from "lucide-react";
 import { Button, Card, Badge, StatCard, EmptyState, Input, Tag } from "@pratham7711/ui";
 import AddPayoutModal from "@/components/modals/AddPayoutModal";
 
@@ -63,9 +63,9 @@ export default function PayoutsClient({ payouts, stats, creators, campaigns }: {
 
       {/* Stats */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 32 }}>
-        <StatCard value={formatCurrency(stats.sent)} label="Total Paid" trend="up" trendLabel="+12% from last month" />
-        <StatCard value={formatCurrency(stats.pending)} label="Pending Amount" trend="neutral" />
-        <StatCard value={formatCurrency(stats.total)} label="Total Processed" trend="up" />
+        <StatCard value={formatCurrency(stats.sent)} label="Total Paid" />
+        <StatCard value={formatCurrency(stats.pending)} label="Pending Amount" />
+        <StatCard value={formatCurrency(stats.total)} label="Total Processed" />
       </div>
 
       {/* Search + Status Filter */}

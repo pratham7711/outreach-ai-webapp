@@ -13,7 +13,7 @@ const INTEGRATIONS = [
 
 export default function ConnectionsPage() {
   return (
-    <div className="p-8">
+    <div style={{ padding: "32px 40px 40px" }}>
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 style={{ fontSize: 26, fontWeight: 900, color: "var(--cc-text)" }}>Connections</h1>
