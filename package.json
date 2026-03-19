@@ -11,7 +11,7 @@
     "test:install": "npm install --save-dev jest @testing-library/react @testing-library/jest-dom @testing-library/user-event jest-environment-jsdom ts-jest @types/jest supertest @playwright/test playwright",
     "test:unit": "jest --config jest.config.js",
     "test:unit:watch": "jest --config jest.config.js --watch",
-    "test:integration": "jest --config jest.config.js --selectProjects integration",
+    "test:integration": "jest --config jest.integration.config.js",
     "test:e2e": "playwright test --config=playwright.config.ts",
     "test:e2e:ui": "playwright test --config=playwright.config.ts --ui",
     "test:coverage": "jest --config jest.config.js --coverage"

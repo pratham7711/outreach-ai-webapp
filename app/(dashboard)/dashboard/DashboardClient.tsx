@@ -1,12 +1,31 @@
 "use client";
+
 import { motion } from "framer-motion";
-import { StatCard, Card } from "@pratham7711/ui";
+import { StatusBadge } from "@/components/ui/StatusBadge";
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer,
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
 } from "recharts";
 import Link from "next/link";
-import { ArrowUpRight } from "lucide-react";
+import {
+  Megaphone,
+  Users,
+  Wallet,
+  TrendingUp,
+  ArrowUpRight,
+  Clock,
+} from "lucide-react";
+
+function formatCurrency(n: number) {
+  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `$${(n / 1_000).toFixed(1)}K`;
+  return `$${n.toFixed(0)}`;
+}
 
 type Campaign = {
   id: string;
@@ -24,73 +43,154 @@ type Props = {
   chartData: { month: string; spend: number }[];
 };
 
-export default function DashboardClient({ campaignCount, creatorCount, pendingPayouts, recentCampaigns, chartData }: Props) {
-  const statusColor = (s: string) =>
-    s === "IN_PROGRESS" ? "#22c55e" : s === "DRAFT" ? "var(--cc-text-subtle)" : "#3b82f6";
+const stats = (p: Props) => [
+  { title: "Total Campaigns", value: String(p.campaignCount), icon: <Megaphone className="h-4 w-4 text-[var(--color-primary)]" />, trend: 12 },
+  { title: "Active Creators", value: String(p.creatorCount), icon: <Users className="h-4 w-4 text-[var(--color-primary)]" />, trend: 8 },
+  { title: "Pending Payouts", value: formatCurrency(p.pendingPayouts), icon: <Wallet className="h-4 w-4 text-[var(--color-primary)]" /> },
+  { title: "Growth", value: "+24%", icon: <TrendingUp className="h-4 w-4 text-[var(--color-primary)]" />, trend: 24 },
+];
+
+export default function DashboardClient(props: Props) {
+  const { recentCampaigns, chartData } = props;
+  const statItems = stats(props);
 
   return (
-    <div className="p-8">
+    <div>
+      {/* Header */}
       <div className="mb-8">
-        <h1 style={{ fontSize: 26, fontWeight: 900, color: "var(--cc-text)" }}>Dashboard</h1>
-        <p style={{ fontSize: 14, color: "var(--cc-text-muted)", marginTop: 4 }}>Welcome back. Here&apos;s what&apos;s happening.</p>
+        <h1 className="text-2xl font-bold text-[#F0F0FF]">Dashboard</h1>
+        <p className="text-sm text-[#8888AA] mt-1">Welcome back. Here&apos;s what&apos;s happening.</p>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <StatCard value={String(campaignCount)} label="Total Campaigns" />
-        <StatCard value={String(creatorCount)} label="Total Creators" />
-        <StatCard value={`$${(pendingPayouts / 1000).toFixed(1)}K`} label="Pending Payouts" />
+        {statItems.map((stat, i) => (
+          <motion.div
+            key={stat.title}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.1 }}
+          >
+            <div className="bg-[#111118] border border-[#2A2A3A] rounded-xl p-5 hover:border-[var(--color-primary)]/30 transition-colors">
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-sm text-[#8888AA]">{stat.title}</p>
+                <div className="w-9 h-9 rounded-lg bg-[var(--color-primary)]/10 flex items-center justify-center">
+                  {stat.icon}
+                </div>
+              </div>
+              <p className="text-2xl font-bold text-[#F0F0FF]">{stat.value}</p>
+              {stat.trend && (
+                <p className="text-xs text-emerald-400 mt-1">+{stat.trend}% from last month</p>
+              )}
+            </div>
+          </motion.div>
+        ))}
       </div>
 
+      {/* Two column */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 mb-8">
         {/* Recent Campaigns */}
-        <Card variant="glass" className="lg:col-span-3 p-6" style={{ background: "var(--cc-surface)", border: "1px solid var(--cc-border)", borderRadius: 16 }}>
-          <div className="flex items-center justify-between mb-5">
-            <span style={{ fontWeight: 800, fontSize: 15, color: "var(--cc-text)" }}>Recent Campaigns</span>
-            <Link href="/campaigns" style={{ fontSize: 12, color: "#3b82f6", fontWeight: 600 }}>
-              View all <ArrowUpRight className="h-3 w-3 inline" />
+        <div className="lg:col-span-3 bg-[#111118] border border-[#2A2A3A] rounded-xl overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-[#1E1E2C]">
+            <span className="text-sm font-semibold text-[#F0F0FF]">Recent Campaigns</span>
+            <Link href="/campaigns" className="text-xs text-[var(--color-primary)] hover:underline flex items-center gap-1">
+              View all <ArrowUpRight className="h-3 w-3" />
             </Link>
           </div>
-          <div className="flex flex-col gap-2">
-            {recentCampaigns.map(c => (
-              <Link key={c.id} href={`/campaigns/${c.id}`} className="flex items-center gap-4 rounded-xl px-4 py-3 transition-colors" style={{ cursor: "pointer" }}>
-                <div className="w-2 h-2 rounded-full" style={{ background: statusColor(c.status) }} />
-                <div className="flex-1 min-w-0">
-                  <div style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>{c.title}</div>
-                  <div style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{c.client?.name ?? "—"}</div>
+          <table className="w-full">
+            <thead>
+              <tr className="bg-[#0D0D14]">
+                <th className="text-left text-[10px] uppercase tracking-wider text-[#8888AA] font-medium px-5 py-3">Name</th>
+                <th className="text-left text-[10px] uppercase tracking-wider text-[#8888AA] font-medium px-5 py-3">Status</th>
+                <th className="text-left text-[10px] uppercase tracking-wider text-[#8888AA] font-medium px-5 py-3">Budget</th>
+                <th className="text-left text-[10px] uppercase tracking-wider text-[#8888AA] font-medium px-5 py-3">Client</th>
+              </tr>
+            </thead>
+            <tbody>
+              {recentCampaigns.map((c) => (
+                <tr key={c.id} className="border-t border-[#1E1E2C] hover:bg-[#1A1A24] transition-colors">
+                  <td className="px-5 py-3">
+                    <Link href={`/campaigns/${c.id}`} className="text-sm font-medium text-[#F0F0FF] hover:text-[var(--color-primary)]">
+                      {c.title}
+                    </Link>
+                  </td>
+                  <td className="px-5 py-3"><StatusBadge status={c.status} /></td>
+                  <td className="px-5 py-3 text-sm text-[#8888AA]">{c.budget ? formatCurrency(c.budget) : "—"}</td>
+                  <td className="px-5 py-3 text-sm text-[#8888AA]">{c.client?.name ?? "—"}</td>
+                </tr>
+              ))}
+              {recentCampaigns.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="text-center text-sm text-[#555577] py-10">No campaigns yet</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Activity */}
+        <div className="lg:col-span-2 bg-[#111118] border border-[#2A2A3A] rounded-xl overflow-hidden">
+          <div className="px-5 py-4 border-b border-[#1E1E2C]">
+            <span className="text-sm font-semibold text-[#F0F0FF]">Activity Feed</span>
+          </div>
+          <div className="p-5 space-y-4">
+            {recentCampaigns.slice(0, 5).map((c) => (
+              <div key={c.id} className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-full bg-[var(--color-primary)]/10 flex items-center justify-center shrink-0 mt-0.5">
+                  <Clock className="h-3.5 w-3.5 text-[var(--color-primary)]" />
                 </div>
-                <span style={{ fontSize: 11, fontWeight: 700, color: statusColor(c.status), textTransform: "uppercase" }}>{c.status.replace("_", " ")}</span>
-                {c.budget && <span style={{ fontSize: 13, fontWeight: 700, color: "var(--cc-text-muted)" }}>${(c.budget / 1000).toFixed(0)}K</span>}
-              </Link>
+                <div>
+                  <p className="text-sm text-[#F0F0FF]">
+                    <span className="font-medium">{c.title}</span>{" "}
+                    <span className="text-[#8888AA]">status updated to</span>{" "}
+                    <span className="text-[var(--color-primary)]">{c.status.replace(/_/g, " ")}</span>
+                  </p>
+                  <p className="text-xs text-[#555577] mt-0.5">Just now</p>
+                </div>
+              </div>
             ))}
             {recentCampaigns.length === 0 && (
-              <p style={{ fontSize: 13, color: "var(--cc-text-muted)", textAlign: "center", padding: 20 }}>No campaigns yet</p>
+              <p className="text-sm text-[#555577] text-center py-6">No recent activity</p>
             )}
           </div>
-        </Card>
-
-        {/* Placeholder for activity — could be wired later */}
-        <Card variant="glass" className="lg:col-span-2 p-6" style={{ background: "var(--cc-surface)", border: "1px solid var(--cc-border)", borderRadius: 16 }}>
-          <span style={{ fontWeight: 800, fontSize: 15, color: "var(--cc-text)", display: "block", marginBottom: 16 }}>Activity Feed</span>
-          <p style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>Activity tracking coming soon.</p>
-        </Card>
+        </div>
       </div>
 
       {/* Chart */}
-      <Card variant="glass" className="p-6" style={{ background: "var(--cc-surface)", border: "1px solid var(--cc-border)", borderRadius: 16 }}>
-        <span style={{ fontWeight: 800, fontSize: 15, color: "var(--cc-text)", display: "block", marginBottom: 20 }}>Monthly Spend</span>
-        <div style={{ height: 300 }}>
+      <div className="bg-[#111118] border border-[#2A2A3A] rounded-xl p-6">
+        <span className="text-sm font-semibold text-[#F0F0FF] block mb-5">Monthly Campaign Spend</span>
+        <div className="h-[300px]">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--cc-border)" />
-              <XAxis dataKey="month" tick={{ fill: "var(--cc-text-muted)", fontSize: 12 }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fill: "var(--cc-text-muted)", fontSize: 12 }} axisLine={false} tickLine={false} tickFormatter={(v) => `$${(v / 1000).toFixed(0)}K`} />
-              <Tooltip contentStyle={{ background: "var(--cc-surface)", border: "1px solid var(--cc-border)", borderRadius: 12, color: "var(--cc-text)" }} />
-              <Bar dataKey="spend" fill="#2563EB" radius={[6, 6, 0, 0]} />
-            </BarChart>
+            <AreaChart data={chartData}>
+              <defs>
+                <linearGradient id="spendGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="var(--color-primary)" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="var(--color-primary)" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#1E1E2C" />
+              <XAxis dataKey="month" tick={{ fill: "#8888AA", fontSize: 12 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: "#8888AA", fontSize: 12 }} axisLine={false} tickLine={false} tickFormatter={(v) => `$${(v / 1000).toFixed(0)}K`} />
+              <Tooltip
+                contentStyle={{
+                  background: "#1A1A24",
+                  border: "1px solid #2A2A3A",
+                  borderRadius: 12,
+                  color: "#F0F0FF",
+                  boxShadow: "0 4px 24px rgba(0,0,0,0.4)",
+                }}
+              />
+              <Area
+                type="monotone"
+                dataKey="spend"
+                stroke="var(--color-primary)"
+                strokeWidth={2}
+                fill="url(#spendGradient)"
+              />
+            </AreaChart>
           </ResponsiveContainer>
         </div>
-      </Card>
+      </div>
     </div>
   );
 }

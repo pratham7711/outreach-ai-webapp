@@ -9,7 +9,9 @@ datasource db {
 
 enum UserRole {
   OWNER
+  ADMIN
   MANAGER
+  MEMBER
   VIEWER
 }
 
@@ -59,14 +61,23 @@ enum Currency {
 }
 
 model Organization {
-  id           String   @id @default(cuid())
-  name         String
-  subdomain    String   @unique
-  logoUrl      String?
-  primaryColor String   @default("#4F46E5")
-  currency     Currency @default(USD)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id              String    @id @default(cuid())
+  name            String
+  subdomain       String    @unique
+  logoUrl         String?
+  primaryColor    String    @default("#4F46E5")
+  secondaryColor  String    @default("#1E1B4B")
+  accentColor     String    @default("#F59E0B")
+  fontFamily      String    @default("Inter")
+  brandName       String?
+  customDomain    String?   @unique
+  faviconUrl      String?
+  timezone        String    @default("UTC")
+  plan            String    @default("starter")
+  planExpiresAt   DateTime?
+  currency        Currency  @default(USD)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   users          User[]
   campaigns      Campaign[]
@@ -79,6 +90,9 @@ model Organization {
   tiktokSounds   TikTokSound[]
   connections    Connection[] @relation("FromOrg")
   connectionsTo  Connection[] @relation("ToOrg")
+  reports        Report[]
+  mediakits      MediaKit[]
+  auditLogs      AuditLog[]
 }
 
 model User {
@@ -164,6 +178,7 @@ model Campaign {
   comments     CampaignComment[]
   activityLogs ActivityLog[]
   payouts      Payout[]
+  reports      Report[]
 }
 
 model CampaignTeamMember {
@@ -448,4 +463,53 @@ model Connection {
 
   fromOrg Organization @relation("FromOrg", fields: [fromOrgId], references: [id])
   toOrg   Organization @relation("ToOrg", fields: [toOrgId], references: [id])
+}
+
+model Report {
+  id          String   @id @default(cuid())
+  orgId       String
+  campaignId  String?
+  title       String
+  slug        String
+  shareToken  String   @unique @default(cuid())
+  isPublic    Boolean  @default(false)
+  config      Json     @default("{}")
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  org      Organization @relation(fields: [orgId], references: [id])
+  campaign Campaign?    @relation(fields: [campaignId], references: [id])
+
+  @@unique([orgId, slug])
+}
+
+model MediaKit {
+  id          String   @id @default(cuid())
+  orgId       String
+  title       String
+  slug        String
+  shareToken  String   @unique @default(cuid())
+  isPublic    Boolean  @default(false)
+  creatorIds  String[]
+  config      Json     @default("{}")
+  createdById String?
+  createdAt   DateTime @default(now())
+
+  org Organization @relation(fields: [orgId], references: [id])
+
+  @@unique([orgId, slug])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  orgId      String
+  userId     String?
+  action     String
+  entityType String
+  entityId   String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  org Organization @relation(fields: [orgId], references: [id])
 }

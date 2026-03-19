@@ -1,0 +1,37 @@
+[     685ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3002/dashboard:0
+[    1176ms] PrismaClientKnownRequestError: 
+Invalid `__TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$db$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["db"].campaign.count()` invocation in
+/Users/pratham/Documents/Repositories/creatorcore-clone/webapp/.next/dev/server/chunks/ssr/[root-of-the-server]__6b5d83bf._.js:884:130
+
+  881 if (!session?.user) (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$client$2f$components$2f$navigation$2e$react$2d$server$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["redirect"])("/login");
+  882 const orgId = session.user.orgId;
+  883 const [campaignCount, creatorCount, pendingPayoutsAgg, recentCampaigns] = await Promise.all([
+→ 884     __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$db$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["db"].campaign.count(
+Can't reach database server at db.itsgnptmyfyxatrjpime.supabase.co
+    at Function.all (<anonymous>:1:21)
+    at DashboardPage (about://React/Server/file:///Users/pratham/Documents/Repositories/creatorcore-clone/webapp/.next/dev/server/chunks/ssr/%5Broot-of-the-server%5D__6b5d83bf._.js?8:883:79)
+    at resolveErrorDev (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-server-dom-turbopack_9212ccad._.js:1894:148)
+    at processFullStringRow (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-server-dom-turbopack_9212ccad._.js:2402:29)
+    at processFullBinaryRow (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-server-dom-turbopack_9212ccad._.js:2361:9)
+    at processBinaryChunk (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-server-dom-turbopack_9212ccad._.js:2470:221)
+    at progress (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-server-dom-turbopack_9212ccad._.js:2640:13)
+[    4364ms] [WARNING] The resource http://localhost:3002/_next/static/chunks/_9fa01262._.css was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://localhost:3002/dashboard:0
+[  159310ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3002/dashboard:0
+[  159703ms] [ERROR] %o
+
+%s PrismaClientKnownRequestError: 
+Invalid `__TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$db$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["db"].creator.count()` invocation in
+/Users/pratham/Documents/Repositories/creatorcore-clone/webapp/.next/dev/server/chunks/ssr/[root-of-the-server]__45ca8bf3._.js:894:129
+
+  891         deletedAt: null
+  892     }
+  893 }),
+→ 894 __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$db$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["db"].creator.count(
+Can't reach database server at db.itsgnptmyfyxatrjpime.supabase.co
+    at Function.all (<anonymous>:1:21)
+    at DashboardPage (about://React/Server/file:///Users/pratham/Documents/Repositories/creatorcore-clone/webapp/.next/dev/server/chunks/ssr/%5Broot-of-the-server%5D__45ca8bf3._.js?8:887:79)
+    at resolveErrorDev (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-server-dom-turbopack_9212ccad._.js:1894:148)
+    at processFullStringRow (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-server-dom-turbopack_9212ccad._.js:2402:29)
+    at processFullBinaryRow (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-server-dom-turbopack_9212ccad._.js:2361:9)
+    at processBinaryChunk (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-server-dom-turbopack_9212ccad._.js:2470:221)
+    at progress (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-server-dom-turbopack_9212ccad._.js:2640:13) The above error occurred in the <DashboardPage> component. It was handled by the <ErrorBoundaryHandler> error boundary. @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_client_17643121._.js:1342

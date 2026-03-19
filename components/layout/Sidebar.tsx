@@ -2,79 +2,87 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { cn } from "@/lib/utils";
-import { useState } from "react";
+import { signOut } from "next-auth/react";
 import {
-  LayoutGrid,
+  LayoutDashboard,
+  BarChart3,
+  Megaphone,
   Zap,
   Calendar,
-  Search,
   Users,
   List,
+  Compass,
+  DollarSign,
   Building2,
-  Star,
-  Music,
-  CreditCard,
+  Activity,
+  Network,
   FileText,
-  UserCheck,
-  Link2,
-  Bell,
+  BookOpen,
+  Settings,
+  LogOut,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
+import { useState } from "react";
+import { cn } from "@/lib/utils";
 
-interface NavItem {
+type NavItem = {
   label: string;
   href: string;
   icon: React.ReactNode;
-  badge?: string;
-}
+};
 
-interface NavSection {
+type NavSection = {
   title: string;
   items: NavItem[];
-}
+};
 
-const iconClass = "h-[18px] w-[18px]";
+const ic = "h-[18px] w-[18px]";
 
 const navSections: NavSection[] = [
   {
-    title: "Campaigns & Reporting",
+    title: "OVERVIEW",
     items: [
-      { label: "Dashboard", href: "/dashboard", icon: <LayoutGrid className={iconClass} /> },
-      { label: "Campaigns", href: "/campaigns", icon: <LayoutGrid className={iconClass} /> },
-      { label: "Activations", href: "/activations", icon: <Zap className={iconClass} /> },
-      { label: "Calendar", href: "/calendar", icon: <Calendar className={iconClass} /> },
+      { label: "Dashboard", href: "/dashboard", icon: <LayoutDashboard className={ic} /> },
+      { label: "Analytics", href: "/analytics", icon: <BarChart3 className={ic} /> },
     ],
   },
   {
-    title: "Creators & Pitching",
+    title: "CAMPAIGNS",
     items: [
-      { label: "Discovery", href: "/discovery", icon: <Search className={iconClass} />, badge: "BETA" },
-      { label: "Creators", href: "/creators", icon: <Users className={iconClass} /> },
-      { label: "Lists", href: "/lists", icon: <List className={iconClass} /> },
+      { label: "Campaigns", href: "/campaigns", icon: <Megaphone className={ic} /> },
+      { label: "Activations", href: "/activations", icon: <Zap className={ic} /> },
+      { label: "Calendar", href: "/calendar", icon: <Calendar className={ic} /> },
     ],
   },
   {
-    title: "Clients",
+    title: "CREATORS",
     items: [
-      { label: "Clients", href: "/clients", icon: <Building2 className={iconClass} /> },
-      { label: "Fan Pages", href: "/fan-pages", icon: <Star className={iconClass} /> },
-      { label: "Trackers", href: "/trackers", icon: <Music className={iconClass} />, badge: "BETA" },
+      { label: "Creators", href: "/creators", icon: <Users className={ic} /> },
+      { label: "Lists", href: "/lists", icon: <List className={ic} /> },
+      { label: "Discovery", href: "/discovery", icon: <Compass className={ic} /> },
     ],
   },
   {
-    title: "Financial",
+    title: "FINANCE",
     items: [
-      { label: "Payouts", href: "/payouts", icon: <CreditCard className={iconClass} /> },
-      { label: "Requests", href: "/requests", icon: <FileText className={iconClass} /> },
-      { label: "Recipients", href: "/recipients", icon: <UserCheck className={iconClass} /> },
+      { label: "Payouts", href: "/payouts", icon: <DollarSign className={ic} /> },
+      { label: "Clients", href: "/clients", icon: <Building2 className={ic} /> },
     ],
   },
   {
-    title: "Settings",
+    title: "TOOLS",
     items: [
-      { label: "Connections", href: "/connections", icon: <Link2 className={iconClass} /> },
+      { label: "Trackers", href: "/trackers", icon: <Activity className={ic} /> },
+      { label: "Connections", href: "/connections", icon: <Network className={ic} /> },
+      { label: "Reports", href: "/reports", icon: <FileText className={ic} /> },
+      { label: "Media Kits", href: "/media-kits", icon: <BookOpen className={ic} /> },
+    ],
+  },
+  {
+    title: "SETTINGS",
+    items: [
+      { label: "Settings", href: "/settings", icon: <Settings className={ic} /> },
     ],
   },
 ];
@@ -85,27 +93,32 @@ export function Sidebar() {
 
   return (
     <>
-      {/* Desktop Sidebar */}
+      {/* Desktop */}
       <aside
         className={cn(
-          "hidden md:flex h-screen flex-col bg-[#0A0B14] border-r border-white/[0.06] transition-all duration-300",
-          collapsed ? "w-16" : "w-60"
+          "hidden md:flex h-screen flex-col bg-[#0D0D14] border-r border-[#2A2A3A] transition-all duration-300 shrink-0",
+          collapsed ? "w-[68px]" : "w-60"
         )}
       >
         {/* Logo */}
-        <div className="flex items-center gap-2.5 px-4 py-5">
-          <span className="text-blue-500 text-lg font-black shrink-0">✦</span>
+        <div className="flex items-center gap-2.5 px-4 h-14 shrink-0 border-b border-[#2A2A3A]">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[var(--color-primary)] to-purple-500 flex items-center justify-center shrink-0">
+            <Megaphone className="h-4 w-4 text-white" />
+          </div>
           {!collapsed && (
-            <span className="text-[15px] font-black tracking-tight text-white lowercase">
-              creatorcore
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-[15px] font-bold text-white tracking-tight">CampaignHub</span>
+              <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-[var(--color-primary)]/15 text-[var(--color-primary)]">
+                PRO
+              </span>
+            </div>
           )}
         </div>
 
         {/* Collapse toggle */}
         <button
           onClick={() => setCollapsed(!collapsed)}
-          className="mx-3 mb-2 flex items-center justify-center rounded-lg p-1.5 text-white/30 hover:bg-white/5 hover:text-white/60 transition-colors"
+          className="mx-3 mt-2 mb-1 flex items-center justify-center rounded-lg p-1.5 text-[#555577] hover:bg-white/5 hover:text-[#8888AA] transition-colors"
         >
           {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
         </button>
@@ -113,9 +126,9 @@ export function Sidebar() {
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto px-2.5 py-1">
           {navSections.map((section) => (
-            <div key={section.title} className="mb-5">
+            <div key={section.title} className="mb-1">
               {!collapsed && (
-                <p className="mb-2 px-2.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-white/25">
+                <p className="text-[10px] uppercase tracking-widest text-[#555577] px-3 mt-4 mb-1 font-medium">
                   {section.title}
                 </p>
               )}
@@ -128,20 +141,15 @@ export function Sidebar() {
                       href={item.href}
                       title={collapsed ? item.label : undefined}
                       className={cn(
-                        "flex items-center gap-3 rounded-lg px-2.5 py-2 text-[13px] font-medium transition-all duration-200",
-                        collapsed && "justify-center px-0",
+                        "flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium transition-all duration-150",
+                        collapsed && "justify-center px-2",
                         isActive
-                          ? "bg-blue-600/15 text-blue-400"
-                          : "text-white/40 hover:bg-white/5 hover:text-white/70"
+                          ? "bg-[var(--color-primary)]/15 text-[var(--color-primary)] border-r-2 border-[var(--color-primary)]"
+                          : "text-[#8888AA] hover:text-white hover:bg-white/5"
                       )}
                     >
                       <span className="shrink-0">{item.icon}</span>
                       {!collapsed && <span>{item.label}</span>}
-                      {!collapsed && item.badge && (
-                        <span className="ml-auto rounded-full bg-blue-600/20 px-1.5 py-0.5 text-[9px] font-bold text-blue-400 uppercase">
-                          {item.badge}
-                        </span>
-                      )}
                     </Link>
                   );
                 })}
@@ -150,35 +158,43 @@ export function Sidebar() {
           ))}
         </nav>
 
-        {/* User profile */}
-        <div className="border-t border-white/[0.06] px-3 py-3">
+        {/* User area */}
+        <div className="border-t border-[#2A2A3A] px-3 py-3">
           <div className={cn("flex items-center gap-2.5", collapsed && "justify-center")}>
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-purple-600 text-[11px] font-bold text-white">
-              JD
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[var(--color-primary)] to-purple-600 flex items-center justify-center text-white text-[11px] font-bold shrink-0">
+              AD
             </div>
             {!collapsed && (
-              <div className="flex-1 truncate">
-                <p className="text-[13px] font-semibold text-white">John Doe</p>
-                <p className="text-[11px] text-white/30">Owner</p>
+              <div className="flex-1 min-w-0">
+                <p className="text-[13px] font-semibold text-white truncate">Admin Demo</p>
+                <p className="text-[11px] text-[#555577] truncate">admin@demo.com</p>
               </div>
             )}
-            {!collapsed && (
-              <button className="rounded-lg p-1.5 text-white/25 transition-colors hover:bg-white/5 hover:text-white/50">
-                <Bell className="h-4 w-4" />
-              </button>
-            )}
           </div>
+          {!collapsed && (
+            <div className="flex items-center justify-between mt-2">
+              <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-[var(--color-primary)]/15 text-[var(--color-primary)]">
+                OWNER
+              </span>
+              <button
+                onClick={() => signOut({ callbackUrl: "/login" })}
+                className="text-[#555577] hover:text-red-400 transition-colors p-1 rounded-lg hover:bg-red-500/10"
+              >
+                <LogOut className="h-4 w-4" />
+              </button>
+            </div>
+          )}
         </div>
       </aside>
 
       {/* Mobile Bottom Tab Bar */}
-      <nav className="fixed bottom-0 left-0 right-0 z-50 flex md:hidden items-center justify-around border-t border-white/[0.06] bg-[#0A0B14]/95 backdrop-blur-xl px-2 py-2">
+      <nav className="fixed bottom-0 left-0 right-0 z-50 flex md:hidden items-center justify-around border-t border-[#2A2A3A] bg-[#0D0D14]/95 backdrop-blur-xl px-2 py-2">
         {[
-          { label: "Home", href: "/dashboard", icon: <LayoutGrid className="h-5 w-5" /> },
-          { label: "Campaigns", href: "/campaigns", icon: <LayoutGrid className="h-5 w-5" /> },
+          { label: "Home", href: "/dashboard", icon: <LayoutDashboard className="h-5 w-5" /> },
+          { label: "Campaigns", href: "/campaigns", icon: <Megaphone className="h-5 w-5" /> },
           { label: "Creators", href: "/creators", icon: <Users className="h-5 w-5" /> },
-          { label: "Payouts", href: "/payouts", icon: <CreditCard className="h-5 w-5" /> },
-          { label: "More", href: "/connections", icon: <Link2 className="h-5 w-5" /> },
+          { label: "Payouts", href: "/payouts", icon: <DollarSign className="h-5 w-5" /> },
+          { label: "More", href: "/settings", icon: <Settings className="h-5 w-5" /> },
         ].map((item) => {
           const isActive = pathname === item.href || pathname?.startsWith(item.href + "/");
           return (
@@ -187,7 +203,7 @@ export function Sidebar() {
               href={item.href}
               className={cn(
                 "flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg text-[10px] font-medium transition-colors",
-                isActive ? "text-blue-400" : "text-white/30"
+                isActive ? "text-[var(--color-primary)]" : "text-[#555577]"
               )}
             >
               {item.icon}

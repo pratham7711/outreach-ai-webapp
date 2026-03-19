@@ -1,76 +1,312 @@
-import { createMocks } from 'node-mocks-http';
-import handler from '@/app/api/campaigns/route';
-import { prisma } from '@/lib/prisma';
+/**
+ * @jest-environment node
+ */
+import { NextRequest } from 'next/server';
+import { GET, POST } from '@/app/api/campaigns/route';
+import { GET as GETById, PATCH, DELETE } from '@/app/api/campaigns/[id]/route';
 
-// Mock Prisma client
-jest.mock('@/lib/prisma', () => ({
-  prisma: {
+// Mock db before any imports use it
+jest.mock('@/lib/db', () => ({
+  db: {
     campaign: {
       findMany: jest.fn(),
-      findUnique: jest.fn(),
+      count: jest.fn(),
       create: jest.fn(),
+      findUnique: jest.fn(),
       update: jest.fn(),
-      delete: jest.fn(),
     },
   },
 }));
 
+jest.mock('@/lib/auth', () => ({
+  auth: jest.fn(),
+}));
+
+import { db } from '@/lib/db';
+import { auth } from '@/lib/auth';
+
+const mockAuth = auth as jest.Mock;
+const mockDb = (db as any);
+
+const authedSession = { user: { id: 'user-1', orgId: 'org-1' } };
+
+function makeRequest(url: string, options?: RequestInit) {
+  return new NextRequest(url, options);
+}
+
+function makeParams(id: string) {
+  return { params: Promise.resolve({ id }) };
+}
+
+beforeEach(() => {
+  jest.clearAllMocks();
+  mockAuth.mockResolvedValue(authedSession);
+});
+
+// ─── GET /api/campaigns ───────────────────────────────────────────────────────
+
 describe('GET /api/campaigns', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
+  it('returns 401 when no session', async () => {
+    mockAuth.mockResolvedValue(null);
+    const req = makeRequest('http://localhost/api/campaigns');
+    const res = await GET(req);
+    expect(res.status).toBe(401);
+    const body = await res.json();
+    expect(body.error).toBe('Unauthorized');
   });
 
-  it('returns a list of campaigns', async () => {
+  it('returns campaigns list with pagination', async () => {
     const mockCampaigns = [
-      { id: '1', title: 'Campaign A', status: 'DRAFT' },
-      { id: '2', title: 'Campaign B', status: 'IN_PROGRESS' },
+      { id: '1', title: 'Campaign A', status: 'DRAFT', tags: [], teamMembers: [], _count: { activations: 0, posts: 0 } },
     ];
-    prisma.campaign.findMany = jest.fn().mockResolvedValue(mockCampaigns);
+    mockDb.campaign.findMany.mockResolvedValue(mockCampaigns);
+    mockDb.campaign.count.mockResolvedValue(1);
 
-    const { req, res } = createMocks({ method: 'GET' });
-    await handler(req, res);
+    const req = makeRequest('http://localhost/api/campaigns');
+    const res = await GET(req);
+    const body = await res.json();
 
-    expect(res._getJSONData()).toEqual(mockCampaigns);
-    expect(res._getStatusCode()).toBe(200);
+    expect(res.status).toBe(200);
+    expect(body.campaigns).toEqual(mockCampaigns);
+    expect(body.pagination.total).toBe(1);
+    expect(body.pagination.page).toBe(1);
   });
 
-  it('handles empty list', async () => {
-    prisma.campaign.findMany = jest.fn().mockResolvedValue([]);
+  it('passes search param to db query', async () => {
+    mockDb.campaign.findMany.mockResolvedValue([]);
+    mockDb.campaign.count.mockResolvedValue(0);
 
-    const { req, res } = createMocks({ method: 'GET' });
-    await handler(req, res);
+    const req = makeRequest('http://localhost/api/campaigns?search=test');
+    await GET(req);
 
-    expect(res._getJSONData()).toEqual([]);
+    expect(mockDb.campaign.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          title: expect.objectContaining({ contains: 'test' }),
+        }),
+      })
+    );
   });
 
-  it('handles database errors', async () => {
-    prisma.campaign.findMany = jest.fn().mockRejectedValue(new Error('DB error'));
+  it('passes status filter to db query', async () => {
+    mockDb.campaign.findMany.mockResolvedValue([]);
+    mockDb.campaign.count.mockResolvedValue(0);
 
-    const { req, res } = createMocks({ method: 'GET' });
-    await handler(req, res);
+    const req = makeRequest('http://localhost/api/campaigns?status=DRAFT');
+    await GET(req);
 
-    expect(res._getStatusCode()).toBe(500);
-    expect(res._getJSONData()).toHaveProperty('error');
+    expect(mockDb.campaign.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ status: 'DRAFT' }),
+      })
+    );
+  });
+
+  it('returns 500 on database error', async () => {
+    mockDb.campaign.findMany.mockRejectedValue(new Error('DB connection failed'));
+
+    const req = makeRequest('http://localhost/api/campaigns');
+    const res = await GET(req);
+
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body.error).toBeDefined();
   });
 });
 
+// ─── POST /api/campaigns ──────────────────────────────────────────────────────
+
 describe('POST /api/campaigns', () => {
-  it('creates a new campaign', async () => {
-    const newCampaign = { title: 'New Campaign', status: 'DRAFT' };
-    const createdCampaign = { id: '3', ...newCampaign };
-    prisma.campaign.create = jest.fn().mockResolvedValue(createdCampaign);
+  const newCampaign = {
+    id: 'camp-new',
+    title: 'New Campaign',
+    status: 'DRAFT',
+    orgId: 'org-1',
+    tags: [],
+    teamMembers: [],
+    _count: { activations: 0, posts: 0 },
+  };
 
-    const { req, res } = createMocks({
+  it('returns 401 when no session', async () => {
+    mockAuth.mockResolvedValue(null);
+    const req = makeRequest('http://localhost/api/campaigns', {
       method: 'POST',
-      body: newCampaign,
+      body: JSON.stringify({ title: 'Test' }),
+      headers: { 'Content-Type': 'application/json' },
     });
+    const res = await POST(req);
+    expect(res.status).toBe(401);
+  });
 
-    await handler(req, res);
+  it('creates campaign and returns 201', async () => {
+    mockDb.campaign.create.mockResolvedValue(newCampaign);
 
-    expect(prisma.campaign.create).toHaveBeenCalledWith({
-      data: { ...newCampaign, orgId: expect.any(String) },
+    const req = makeRequest('http://localhost/api/campaigns', {
+      method: 'POST',
+      body: JSON.stringify({ title: 'New Campaign' }),
+      headers: { 'Content-Type': 'application/json' },
     });
-    expect(res._getStatusCode()).toBe(201);
-    expect(res._getJSONData()).toEqual(createdCampaign);
+    const res = await POST(req);
+    const body = await res.json();
+
+    expect(res.status).toBe(201);
+    expect(body.title).toBe('New Campaign');
+  });
+
+  it('returns 400 for invalid input (empty title)', async () => {
+    const req = makeRequest('http://localhost/api/campaigns', {
+      method: 'POST',
+      body: JSON.stringify({ title: '' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 400 when title missing', async () => {
+    const req = makeRequest('http://localhost/api/campaigns', {
+      method: 'POST',
+      body: JSON.stringify({}),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 500 on database error', async () => {
+    mockDb.campaign.create.mockRejectedValue(new Error('DB error'));
+
+    const req = makeRequest('http://localhost/api/campaigns', {
+      method: 'POST',
+      body: JSON.stringify({ title: 'Test Campaign' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(500);
+  });
+});
+
+// ─── GET /api/campaigns/[id] ──────────────────────────────────────────────────
+
+describe('GET /api/campaigns/[id]', () => {
+  it('returns 401 when no session', async () => {
+    mockAuth.mockResolvedValue(null);
+    const req = makeRequest('http://localhost/api/campaigns/camp-1');
+    const res = await GETById(req, makeParams('camp-1'));
+    expect(res.status).toBe(401);
+  });
+
+  it('returns campaign by id', async () => {
+    const campaign = { id: 'camp-1', title: 'Test', deletedAt: null, _count: { activations: 0, posts: 0 } };
+    mockDb.campaign.findUnique.mockResolvedValue(campaign);
+
+    const req = makeRequest('http://localhost/api/campaigns/camp-1');
+    const res = await GETById(req, makeParams('camp-1'));
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.id).toBe('camp-1');
+  });
+
+  it('returns 404 when campaign not found', async () => {
+    mockDb.campaign.findUnique.mockResolvedValue(null);
+
+    const req = makeRequest('http://localhost/api/campaigns/nonexistent');
+    const res = await GETById(req, makeParams('nonexistent'));
+    expect(res.status).toBe(404);
+  });
+
+  it('returns 404 for soft-deleted campaign', async () => {
+    const campaign = { id: 'camp-1', title: 'Test', deletedAt: new Date() };
+    mockDb.campaign.findUnique.mockResolvedValue(campaign);
+
+    const req = makeRequest('http://localhost/api/campaigns/camp-1');
+    const res = await GETById(req, makeParams('camp-1'));
+    expect(res.status).toBe(404);
+  });
+
+  it('returns 500 on database error', async () => {
+    mockDb.campaign.findUnique.mockRejectedValue(new Error('DB error'));
+
+    const req = makeRequest('http://localhost/api/campaigns/camp-1');
+    const res = await GETById(req, makeParams('camp-1'));
+    expect(res.status).toBe(500);
+  });
+});
+
+// ─── PATCH /api/campaigns/[id] ────────────────────────────────────────────────
+
+describe('PATCH /api/campaigns/[id]', () => {
+  it('returns 401 when no session', async () => {
+    mockAuth.mockResolvedValue(null);
+    const req = makeRequest('http://localhost/api/campaigns/camp-1', {
+      method: 'PATCH',
+      body: JSON.stringify({ title: 'Updated' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const res = await PATCH(req, makeParams('camp-1'));
+    expect(res.status).toBe(401);
+  });
+
+  it('updates campaign successfully', async () => {
+    const updated = { id: 'camp-1', title: 'Updated Title', status: 'IN_PROGRESS', tags: [], teamMembers: [], _count: { activations: 0, posts: 0 } };
+    mockDb.campaign.update.mockResolvedValue(updated);
+
+    const req = makeRequest('http://localhost/api/campaigns/camp-1', {
+      method: 'PATCH',
+      body: JSON.stringify({ title: 'Updated Title' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const res = await PATCH(req, makeParams('camp-1'));
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.title).toBe('Updated Title');
+  });
+
+  it('returns 400 for invalid status value', async () => {
+    const req = makeRequest('http://localhost/api/campaigns/camp-1', {
+      method: 'PATCH',
+      body: JSON.stringify({ status: 'INVALID_STATUS' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const res = await PATCH(req, makeParams('camp-1'));
+    expect(res.status).toBe(400);
+  });
+});
+
+// ─── DELETE /api/campaigns/[id] ───────────────────────────────────────────────
+
+describe('DELETE /api/campaigns/[id]', () => {
+  it('returns 401 when no session', async () => {
+    mockAuth.mockResolvedValue(null);
+    const req = makeRequest('http://localhost/api/campaigns/camp-1', { method: 'DELETE' });
+    const res = await DELETE(req, makeParams('camp-1'));
+    expect(res.status).toBe(401);
+  });
+
+  it('soft deletes campaign and returns success', async () => {
+    mockDb.campaign.update.mockResolvedValue({ id: 'camp-1', deletedAt: new Date() });
+
+    const req = makeRequest('http://localhost/api/campaigns/camp-1', { method: 'DELETE' });
+    const res = await DELETE(req, makeParams('camp-1'));
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.success).toBe(true);
+    expect(mockDb.campaign.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'camp-1' },
+        data: expect.objectContaining({ deletedAt: expect.any(Date) }),
+      })
+    );
+  });
+
+  it('returns 500 on database error', async () => {
+    mockDb.campaign.update.mockRejectedValue(new Error('DB error'));
+
+    const req = makeRequest('http://localhost/api/campaigns/camp-1', { method: 'DELETE' });
+    const res = await DELETE(req, makeParams('camp-1'));
+    expect(res.status).toBe(500);
   });
 });
