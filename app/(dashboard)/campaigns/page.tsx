@@ -8,7 +8,7 @@ export default async function CampaignsPage() {
   if (!session?.user) redirect("/login");
   const orgId = (session.user as any).orgId;
 
-  const [campaigns, total, activeCount, creatorCount, budgetAgg] = await Promise.all([
+  const [campaigns, total, activeCount, creatorCount, budgetAgg, clients] = await Promise.all([
     db.campaign.findMany({
       where: { orgId, deletedAt: null },
       include: {
@@ -21,6 +21,7 @@ export default async function CampaignsPage() {
     db.campaign.count({ where: { orgId, deletedAt: null, status: "IN_PROGRESS" } }),
     db.creator.count({ where: { orgId, deletedAt: null } }),
     db.campaign.aggregate({ where: { orgId, deletedAt: null }, _sum: { budget: true } }),
+    db.client.findMany({ where: { orgId }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
   ]);
 
   return (
@@ -40,6 +41,7 @@ export default async function CampaignsPage() {
         creatorCount,
         totalBudget: Number(budgetAgg._sum.budget ?? 0),
       }}
+      clients={clients}
     />
   );
 }

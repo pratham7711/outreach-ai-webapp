@@ -8,7 +8,7 @@ export default async function PayoutsPage() {
   if (!session?.user) redirect("/login");
   const orgId = (session.user as any).orgId;
 
-  const [payouts, totalAgg, sentAgg, pendingAgg] = await Promise.all([
+  const [payouts, totalAgg, sentAgg, pendingAgg, creators, campaigns] = await Promise.all([
     db.payout.findMany({
       where: { orgId },
       include: {
@@ -21,6 +21,8 @@ export default async function PayoutsPage() {
     db.payout.aggregate({ where: { orgId }, _sum: { amount: true } }),
     db.payout.aggregate({ where: { orgId, status: "SUCCESS" }, _sum: { amount: true } }),
     db.payout.aggregate({ where: { orgId, status: "PENDING" }, _sum: { amount: true } }),
+    db.creator.findMany({ where: { orgId, deletedAt: null }, select: { id: true, name: true, handle: true }, orderBy: { name: "asc" } }),
+    db.campaign.findMany({ where: { orgId, deletedAt: null }, select: { id: true, title: true }, orderBy: { title: "asc" } }),
   ]);
 
   return (
@@ -38,6 +40,8 @@ export default async function PayoutsPage() {
         sent: Number(sentAgg._sum.amount ?? 0),
         pending: Number(pendingAgg._sum.amount ?? 0),
       }}
+      creators={creators}
+      campaigns={campaigns}
     />
   );
 }

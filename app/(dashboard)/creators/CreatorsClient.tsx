@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { Plus, Search, LayoutGrid, List as ListIcon } from "lucide-react";
 import { PlatformBadge } from "@/components/ui/PlatformBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
+import AddCreatorModal from "@/components/modals/AddCreatorModal";
 
 type Creator = {
   id: string;
@@ -27,6 +28,7 @@ function formatNumber(n: number): string {
 export default function CreatorsClient({ creators }: { creators: Creator[] }) {
   const [search, setSearch] = useState("");
   const [view, setView] = useState<"grid" | "table">("grid");
+  const [showModal, setShowModal] = useState(false);
 
   const filtered = creators.filter((c) =>
     c.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -41,7 +43,7 @@ export default function CreatorsClient({ creators }: { creators: Creator[] }) {
           <h1 style={{ fontSize: 28, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Creators</h1>
           <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>All creators in your roster</p>
         </div>
-        <button style={{ background: "var(--cc-primary)", color: "white", border: "none", borderRadius: 8, padding: "9px 16px", fontSize: 14, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
+        <button onClick={() => setShowModal(true)} style={{ background: "var(--cc-primary)", color: "white", border: "none", borderRadius: 8, padding: "9px 16px", fontSize: 14, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
           <Plus size={15} /> Add Creator
         </button>
       </div>
@@ -182,6 +184,7 @@ export default function CreatorsClient({ creators }: { creators: Creator[] }) {
           </table>
         </div>
       )}
+      {showModal && <AddCreatorModal onClose={() => setShowModal(false)} />}
     </div>
   );
 }

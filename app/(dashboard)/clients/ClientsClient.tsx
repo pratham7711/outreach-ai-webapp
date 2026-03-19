@@ -1,6 +1,8 @@
 "use client";
+import { useState } from "react";
 import { Plus } from "lucide-react";
 import Link from "next/link";
+import AddClientModal from "@/components/modals/AddClientModal";
 
 type Client = {
   id: string;
@@ -14,6 +16,8 @@ export default function ClientsClient({ clients, stats }: {
   clients: Client[];
   stats: { total: number; totalCampaigns: number };
 }) {
+  const [showModal, setShowModal] = useState(false);
+
   return (
     <div>
       {/* Header */}
@@ -22,7 +26,7 @@ export default function ClientsClient({ clients, stats }: {
           <h1 style={{ fontSize: 28, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Clients</h1>
           <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>Manage your client relationships</p>
         </div>
-        <button style={{ background: "var(--cc-primary)", color: "white", border: "none", borderRadius: 8, padding: "9px 16px", fontSize: 14, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
+        <button onClick={() => setShowModal(true)} style={{ background: "var(--cc-primary)", color: "white", border: "none", borderRadius: 8, padding: "9px 16px", fontSize: 14, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
           <Plus size={15} /> Add Client
         </button>
       </div>
@@ -74,6 +78,7 @@ export default function ClientsClient({ clients, stats }: {
           <p style={{ fontSize: 14, color: "var(--cc-text-muted)", textAlign: "center", padding: 40 }}>No clients yet</p>
         )}
       </div>
+      {showModal && <AddClientModal onClose={() => setShowModal(false)} />}
     </div>
   );
 }

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Plus, Search, MoreVertical, Share2, FolderOpen, ChevronDown } from "lucide-react";
 import Link from "next/link";
+import NewCampaignModal from "@/components/modals/NewCampaignModal";
 
 type Campaign = {
   id: string;
@@ -14,9 +15,12 @@ type Campaign = {
   _count: { activations: number; posts: number };
 };
 
+type Client = { id: string; name: string };
+
 export default function CampaignsClient({
   campaigns,
   stats,
+  clients,
 }: {
   campaigns: Campaign[];
   stats: {
@@ -25,9 +29,11 @@ export default function CampaignsClient({
     creatorCount: number;
     totalBudget: number;
   };
+  clients: Client[];
 }) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
+  const [showModal, setShowModal] = useState(false);
 
   const filtered = campaigns.filter((c) => {
     const matchesSearch =
@@ -59,6 +65,7 @@ export default function CampaignsClient({
         </div>
         <div style={{ display: "flex", gap: 12 }}>
           <button
+            onClick={() => setShowModal(true)}
             style={{
               display: "flex",
               alignItems: "center",
@@ -400,6 +407,7 @@ export default function CampaignsClient({
           ))
         )}
       </div>
+      {showModal && <NewCampaignModal clients={clients} onClose={() => setShowModal(false)} />}
     </div>
   );
 }

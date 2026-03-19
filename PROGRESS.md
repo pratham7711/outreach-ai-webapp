@@ -11,7 +11,7 @@
 **Last updated:** 2026-03-20
 **App URL:** http://localhost:3009
 **Login:** admin@demo.com / admin123
-**DB:** prisma/dev.db (SQLite — empty, no real data yet)
+**DB:** prisma/dev.db (SQLite — seeded with 3 clients, 5 creators, 5 campaigns, 4 activations, 3 payouts)
 
 ---
 
@@ -81,46 +81,28 @@
 
 ---
 
-## Phase 3 — Real Data Integration ⏳ IN PROGRESS
+## Phase 3 — Real Data Integration ✅ FORMS DONE
 
-### Database Setup
-- [ ] **Choose production DB** — options:
-  - Supabase (managed PostgreSQL, free tier, was paused before)
-  - Railway PostgreSQL (~$5/mo)
-  - Local PostgreSQL (`brew install postgresql`)
-  - Neon (serverless PostgreSQL, generous free tier) ← **recommended**
+### Rich Seed Data ✅
+- [x] 3 clients: Sony Music, Universal Records, Warner Music
+- [x] 5 creators: Blessing Jolie, Alex Turner, Maria Santos, James Kim, Priya Patel
+- [x] 5 campaigns: LEAK IT (BTS), FUJI KAZE (2ND PHASE), Blessing Jolie, CRUEL WORLD, American Girls
+- [x] 4 activations + 3 payouts seeded
+
+### Create/Edit Forms ✅
+- [x] **New Campaign modal** (`components/modals/NewCampaignModal.tsx`) — wired to campaigns page
+- [x] **Add Creator modal** (`components/modals/AddCreatorModal.tsx`) — wired to creators page
+- [x] **Add Client modal** (`components/modals/AddClientModal.tsx`) — wired to clients page
+- [x] **Add Payout modal** (`components/modals/AddPayoutModal.tsx`) — wired to payouts page
+
+### Database Setup (production — TODO)
+- [ ] **Choose production DB** — Neon (serverless PostgreSQL, generous free tier) ← **recommended**
 - [ ] Update `.env` `DATABASE_URL` to production DB
 - [ ] Run `npx prisma db push` on production DB
-- [ ] Verify build passes with production DB
 
 ### Organization Setup
 - [ ] **Create real organization** — replace "Demo Agency" in seed or via DB
-  - Fields: name, subdomain, logoUrl, primaryColor
-  - Currently seeded: `Demo Agency` (subdomain: `demo-agency`)
 - [ ] **Create real user accounts** for team members
-  - Current: only `admin@demo.com` / `admin123`
-  - Need: add Pratham's real email, team members
-
-### Real Data Import
-- [ ] **Campaigns** — import from real app or create fresh
-  - Build: `scripts/import-campaigns.ts` OR
-  - Use: "New Campaign" form (UI exists but form not wired yet)
-  - Fields: title, status, budget, currency, clientId, imageUrl
-- [ ] **Creators** — import influencer roster
-  - Build: `scripts/import-creators.ts` OR
-  - Use: "Add Creator" form (UI exists but form not wired yet)
-  - Fields: name, handle, platform, followerCount, engagementRate, rate, avatarUrl
-- [ ] **Clients** — import client/brand list
-  - Build: `scripts/import-clients.ts` OR
-  - Use: "Add Client" form (needs building)
-  - Fields: name, logoUrl, contactInfo
-- [ ] **Payouts** — import payment records (if any)
-
-### Create/Edit Forms (currently show empty state, no way to add data via UI)
-- [ ] **New Campaign form** — modal or page, wires to `POST /api/campaigns`
-- [ ] **Add Creator form** — modal or page, wires to `POST /api/creators`
-- [ ] **Add Client form** — modal or page, wires to `POST /api/clients`
-- [ ] **Add Payout form** — modal or page, wires to `POST /api/payouts`
 
 ### Authentication (production-ready)
 - [ ] **Add real user accounts** via seed or admin UI

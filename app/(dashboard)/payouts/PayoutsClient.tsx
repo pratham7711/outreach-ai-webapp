@@ -1,10 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import { motion } from "framer-motion";
 import { Plus, DollarSign, CreditCard, Wallet } from "lucide-react";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { EmptyState } from "@/components/ui/EmptyState";
+import AddPayoutModal from "@/components/modals/AddPayoutModal";
 
 type Payout = {
   id: string;
@@ -19,10 +21,16 @@ function formatCurrency(n: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
 }
 
-export default function PayoutsClient({ payouts, stats }: {
+type Creator = { id: string; name: string; handle: string };
+type Campaign = { id: string; title: string };
+
+export default function PayoutsClient({ payouts, stats, creators, campaigns }: {
   payouts: Payout[];
   stats: { total: number; sent: number; pending: number };
+  creators: Creator[];
+  campaigns: Campaign[];
 }) {
+  const [showModal, setShowModal] = useState(false);
   const statCards = [
     { title: "Total Paid", value: formatCurrency(stats.sent), icon: <DollarSign className="h-4 w-4" style={{ color: "#22c55e" }} /> },
     { title: "Pending Amount", value: formatCurrency(stats.pending), icon: <Wallet className="h-4 w-4" style={{ color: "#f59e0b" }} /> },
@@ -36,6 +44,7 @@ export default function PayoutsClient({ payouts, stats }: {
         description="Track and manage creator payments"
         actions={
           <button
+            onClick={() => setShowModal(true)}
             style={{
               display: "flex", alignItems: "center", gap: 8,
               padding: "10px 16px", borderRadius: 8,
@@ -123,6 +132,7 @@ export default function PayoutsClient({ payouts, stats }: {
           </table>
         </div>
       )}
+      {showModal && <AddPayoutModal creators={creators} campaigns={campaigns} onClose={() => setShowModal(false)} />}
     </div>
   );
 }

@@ -10,6 +10,8 @@ const createCreatorSchema = z.object({
   contactEmail: z.string().email().optional(),
   bio: z.string().optional(),
   rate: z.number().positive().optional(),
+  followersCount: z.number().int().nonnegative().optional(),
+  averageViews: z.number().int().nonnegative().optional(),
 });
 
 // GET /api/creators
@@ -80,7 +82,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { name, handle, platform, contactEmail, bio, rate } = parsed.data;
+    const { name, handle, platform, contactEmail, bio, rate, followersCount, averageViews } = parsed.data;
 
     const creator = await db.creator.create({
       data: {
@@ -90,6 +92,8 @@ export async function POST(request: NextRequest) {
         contactEmail: contactEmail ?? null,
         bio: bio ?? null,
         rate: rate ?? null,
+        followersCount: followersCount ?? 0,
+        averageViews: averageViews ?? 0,
         orgId: (session.user as any).orgId,
       },
     });
