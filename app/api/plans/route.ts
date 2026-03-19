@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
       orgId,
       name: parsed.data.name,
       description: parsed.data.description ?? null,
-      features: parsed.data.features,
+      features: JSON.stringify(parsed.data.features),
       isCustom: parsed.data.isCustom,
     },
   });

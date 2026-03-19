@@ -12,7 +12,7 @@ export async function logAudit(params: {
     await db.auditLog.create({
       data: {
         ...params,
-        metadata: params.metadata as object | undefined,
+        metadata: params.metadata != null ? JSON.stringify(params.metadata) : undefined,
       },
     });
   } catch (e) {

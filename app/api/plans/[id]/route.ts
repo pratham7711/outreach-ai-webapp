@@ -43,7 +43,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     data: {
       ...(parsed.data.name !== undefined && { name: parsed.data.name }),
       ...(parsed.data.description !== undefined && { description: parsed.data.description }),
-      ...(parsed.data.features !== undefined && { features: parsed.data.features }),
+      ...(parsed.data.features !== undefined && { features: JSON.stringify(parsed.data.features) }),
       ...(parsed.data.isCustom !== undefined && { isCustom: parsed.data.isCustom }),
     },
   });
