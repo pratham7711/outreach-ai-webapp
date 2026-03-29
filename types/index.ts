@@ -1,12 +1,13 @@
-import type { CampaignStatus, Currency, Platform, ActivationStatus, PayoutStatus, PaymentMethod, UserRole } from "@/lib/generated/prisma/client";
+import type { CampaignStatus, CampaignType, Currency, Platform, ActivationStatus, PayoutStatus, PaymentMethod, UserRole } from "@/lib/generated/prisma/client";
 
-export type { CampaignStatus, Currency, Platform, ActivationStatus, PayoutStatus, PaymentMethod, UserRole };
+export type { CampaignStatus, CampaignType, Currency, Platform, ActivationStatus, PayoutStatus, PaymentMethod, UserRole };
 
 export interface CampaignWithRelations {
   id: string;
   orgId: string;
   title: string;
   status: CampaignStatus;
+  campaignType?: CampaignType;
   thumbnailUrl: string | null;
   budget: string | null;
   currency: Currency;

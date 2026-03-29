@@ -71,10 +71,26 @@ type Activation = {
   };
 };
 
+const CAMPAIGN_TYPE_LABELS: Record<string, string> = {
+  BUDGET_BASED: "Budget Based",
+  VIEW_BASED: "View Based",
+  OPEN_COMMUNITY: "Open Community",
+  PRIVATE_INVITE: "Private Invite",
+};
+
+const CAMPAIGN_TYPE_BADGE: Record<string, "accent" | "success" | "warning" | "neutral"> = {
+  BUDGET_BASED: "accent",
+  VIEW_BASED: "success",
+  OPEN_COMMUNITY: "warning",
+  PRIVATE_INVITE: "neutral",
+};
+
 type Campaign = {
   id: string;
   title: string;
   status: string;
+  campaignType?: string;
+  typeConfig?: Record<string, unknown> | null;
   budget: number | null;
   currency: string;
   notes: string | null;
@@ -191,6 +207,11 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
         <h1 style={{ fontSize: 26, fontWeight: 700, color: "var(--cc-text)" }}>{campaign.title}</h1>
         <Badge variant={STATUS_BADGE[campaign.status] ?? "neutral"}>{campaign.status.replace(/_/g, " ")}</Badge>
+        {campaign.campaignType && (
+          <Badge variant={CAMPAIGN_TYPE_BADGE[campaign.campaignType] ?? "neutral"}>
+            {CAMPAIGN_TYPE_LABELS[campaign.campaignType] ?? campaign.campaignType}
+          </Badge>
+        )}
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 32, fontSize: 14, color: "var(--cc-text-muted)" }}>
         <span style={{ display: "flex", alignItems: "center", gap: 4 }}><Calendar size={14} />{new Date(campaign.createdAt).toLocaleDateString()}</span>

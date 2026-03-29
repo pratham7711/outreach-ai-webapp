@@ -4,9 +4,13 @@ import { auth } from "@/lib/auth";
 import { z } from "zod";
 import type { CampaignStatus } from "@/lib/generated/prisma/client";
 
+const CAMPAIGN_TYPES = ["BUDGET_BASED", "VIEW_BASED", "OPEN_COMMUNITY", "PRIVATE_INVITE"] as const;
+
 const createCampaignSchema = z.object({
   title: z.string().min(1).max(200),
   status: z.enum(["DRAFT", "PENDING", "IN_PROGRESS", "COMPLETE", "CANCELLED"]).optional(),
+  campaignType: z.enum(CAMPAIGN_TYPES).optional(),
+  typeConfig: z.any().nullable().optional(),
   budget: z.number().positive().optional(),
   currency: z.enum(["USD", "EUR", "GBP", "INR"]).optional(),
   notes: z.string().optional(),
@@ -94,13 +98,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { title, status, budget, currency, notes, clientId, folderId } = parsed.data;
+    const { title, status, campaignType, typeConfig, budget, currency, notes, clientId, folderId } = parsed.data;
 
-    // TODO: Get orgId and createdById from auth session
     const campaign = await db.campaign.create({
       data: {
         title,
         status: status ?? "DRAFT",
+        campaignType: campaignType ?? "BUDGET_BASED",
+        typeConfig: typeConfig ?? null,
         budget: budget ?? null,
         currency: currency ?? "USD",
         notes: notes ?? null,

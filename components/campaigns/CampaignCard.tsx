@@ -23,6 +23,20 @@ const statusLabels: Record<string, string> = {
   CANCELLED: "Cancelled",
 };
 
+const campaignTypeLabels: Record<string, string> = {
+  BUDGET_BASED: "Budget",
+  VIEW_BASED: "Views",
+  OPEN_COMMUNITY: "Community",
+  PRIVATE_INVITE: "Invite",
+};
+
+const campaignTypeColors: Record<string, string> = {
+  BUDGET_BASED: "bg-indigo-50 text-indigo-700",
+  VIEW_BASED: "bg-emerald-50 text-emerald-700",
+  OPEN_COMMUNITY: "bg-amber-50 text-amber-700",
+  PRIVATE_INVITE: "bg-rose-50 text-rose-700",
+};
+
 function formatBudget(budget: string | null, currency: string): string {
   if (!budget) return "—";
   const num = parseFloat(budget);
@@ -61,6 +75,14 @@ export function CampaignCard({ campaign }: { campaign: CampaignWithRelations }) 
             >
               {statusLabels[campaign.status]}
             </Badge>
+            {campaign.campaignType && campaign.campaignType !== "BUDGET_BASED" && (
+              <Badge
+                variant="secondary"
+                className={cn("shrink-0 text-xs font-medium px-2 py-0.5", campaignTypeColors[campaign.campaignType] ?? "bg-gray-100 text-gray-700")}
+              >
+                {campaignTypeLabels[campaign.campaignType] ?? campaign.campaignType}
+              </Badge>
+            )}
           </div>
 
           <p className="mt-1.5 text-base text-muted-foreground font-medium">

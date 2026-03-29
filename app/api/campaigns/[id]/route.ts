@@ -3,9 +3,13 @@ import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { z } from "zod";
 
+const CAMPAIGN_TYPES = ["BUDGET_BASED", "VIEW_BASED", "OPEN_COMMUNITY", "PRIVATE_INVITE"] as const;
+
 const updateCampaignSchema = z.object({
   title: z.string().min(1).max(200).optional(),
   status: z.enum(["DRAFT", "PENDING", "IN_PROGRESS", "COMPLETE", "CANCELLED"]).optional(),
+  campaignType: z.enum(CAMPAIGN_TYPES).optional(),
+  typeConfig: z.any().nullable().optional(),
   budget: z.number().positive().nullable().optional(),
   currency: z.enum(["USD", "EUR", "GBP", "INR"]).optional(),
   notes: z.string().nullable().optional(),

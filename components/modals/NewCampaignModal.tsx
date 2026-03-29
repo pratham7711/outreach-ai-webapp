@@ -15,6 +15,7 @@ export default function NewCampaignModal({ clients, onClose }: { clients: Client
     budget: "",
     currency: "USD",
     clientId: "",
+    campaignType: "BUDGET_BASED",
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -28,6 +29,7 @@ export default function NewCampaignModal({ clients, onClose }: { clients: Client
           ...form,
           budget: form.budget ? Number(form.budget) : undefined,
           clientId: form.clientId || undefined,
+          campaignType: form.campaignType,
         }),
       });
       if (res.ok) {
@@ -110,6 +112,20 @@ export default function NewCampaignModal({ clients, onClose }: { clients: Client
             <option value="PENDING">Pending</option>
             <option value="IN_PROGRESS">In Progress</option>
             <option value="COMPLETE">Complete</option>
+          </select>
+        </div>
+        <div>
+          <label htmlFor="campaign-type" style={labelStyle}>Campaign Type</label>
+          <select
+            id="campaign-type"
+            value={form.campaignType}
+            onChange={(e) => setForm((f) => ({ ...f, campaignType: e.target.value }))}
+            style={selectStyle}
+          >
+            <option value="BUDGET_BASED">Budget Based</option>
+            <option value="VIEW_BASED">View Based</option>
+            <option value="OPEN_COMMUNITY">Open Community</option>
+            <option value="PRIVATE_INVITE">Private Invite</option>
           </select>
         </div>
         <div style={{ display: "flex", gap: 12 }}>
