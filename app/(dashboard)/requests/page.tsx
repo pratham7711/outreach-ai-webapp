@@ -1,5 +1,5 @@
 "use client";
-import { Button, Badge, Card, StatCard } from "@pratham7711/ui";
+import { Button, Badge, Card, StatCard, Avatar } from "@pratham7711/ui";
 
 const REQUESTS = [
   { id: "r1", creator: "Aria Rose", type: "Payout", amount: 3200, status: "pending", date: "2026-07-10", note: "Campaign completion bonus" },
@@ -16,40 +16,48 @@ const STATUS_BADGE: Record<string, "warning"|"success"|"danger"> = {
 
 export default function RequestsPage() {
   return (
-    <div style={{ padding: "32px 40px 40px" }}>
-      <div className="flex items-center justify-between mb-8">
+    <div className="cc-page-content">
+      <div style={{ marginBottom: 32, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div>
-          <h1 style={{ fontSize: 26, fontWeight: 900, color: "var(--cc-text)" }}>Requests</h1>
-          <p style={{ fontSize: 14, color: "var(--cc-text-muted)", marginTop: 4 }}>View and manage payout requests</p>
+          <h1 style={{ fontSize: 26, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Requests</h1>
+          <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>View and manage payout requests</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-4 mb-8">
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 32 }}>
         <StatCard value="4" label="Total Requests" />
         <StatCard value="2" label="Pending" />
         <StatCard value="$5,950" label="Total Amount" />
       </div>
 
-      <Card variant="glass" style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 16, overflow: "hidden" }}>
+      <Card variant="outlined" noPadding>
         <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--cc-border)" }}>
-          <span style={{ fontWeight: 800, fontSize: 15, color: "var(--cc-text)" }}>All Requests</span>
+          <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)" }}>All Requests</span>
         </div>
         {REQUESTS.map((r, i) => (
-          <div key={r.id} className="flex items-center gap-4 px-5 py-4" style={{ borderBottom: i < REQUESTS.length - 1 ? "1px solid var(--cc-border)" : "none" }}>
-            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold">
-              {r.creator.split(" ").map(n => n[0]).join("")}
-            </div>
-            <div className="flex-1">
-              <div style={{ fontWeight: 700, fontSize: 14, color: "var(--cc-text)" }}>{r.creator}</div>
+          <div
+            key={r.id}
+            className="cc-table-row"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 16,
+              padding: "14px 20px",
+              borderBottom: i < REQUESTS.length - 1 ? "1px solid var(--cc-border)" : "none",
+            }}
+          >
+            <Avatar name={r.creator} size="sm" />
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 600, fontSize: 14, color: "var(--cc-text)" }}>{r.creator}</div>
               <div style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{r.type} · {r.note}</div>
             </div>
             <Badge variant={STATUS_BADGE[r.status]} size="sm">{r.status}</Badge>
-            <div className="text-right">
-              <div style={{ fontWeight: 800, fontSize: 15, color: "var(--cc-text)" }}>${r.amount.toLocaleString()}</div>
+            <div style={{ textAlign: "right" }}>
+              <div style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)" }}>${r.amount.toLocaleString()}</div>
               <div style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{r.date}</div>
             </div>
             {r.status === "pending" && (
-              <div className="flex gap-2">
+              <div style={{ display: "flex", gap: 8 }}>
                 <Button variant="primary" size="sm">Approve</Button>
                 <Button variant="ghost" size="sm">Deny</Button>
               </div>

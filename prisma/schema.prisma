@@ -4,8 +4,10 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
 }
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
 
 enum UserRole {
   OWNER
@@ -21,6 +23,13 @@ enum CampaignStatus {
   IN_PROGRESS
   COMPLETE
   CANCELLED
+}
+
+enum CampaignType {
+  BUDGET_BASED
+  VIEW_BASED
+  OPEN_COMMUNITY
+  PRIVATE_INVITE
 }
 
 enum Platform {
@@ -60,62 +69,7 @@ enum Currency {
   INR
 }
 
-model Organization {
-  id              String    @id @default(cuid())
-  name            String
-  subdomain       String    @unique
-  logoUrl         String?
-  primaryColor    String    @default("#4F46E5")
-  secondaryColor  String    @default("#1E1B4B")
-  accentColor     String    @default("#F59E0B")
-  fontFamily      String    @default("Inter")
-  brandName       String?
-  customDomain    String?   @unique
-  faviconUrl      String?
-  timezone        String    @default("UTC")
-  plan            String    @default("starter")
-  planExpiresAt   DateTime?
-  currency        Currency  @default(USD)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-
-  users          User[]
-  campaigns      Campaign[]
-  creators       Creator[]
-  creatorLists   CreatorList[]
-  clients        Client[]
-  folders        Folder[]
-  payoutBalances PayoutBalance[]
-  payouts        Payout[]
-  tiktokSounds   TikTokSound[]
-  connections    Connection[] @relation("FromOrg")
-  connectionsTo  Connection[] @relation("ToOrg")
-  reports        Report[]
-  mediakits      MediaKit[]
-  auditLogs      AuditLog[]
-  plans          Plan[]
-}
-
-model User {
-  id            String    @id @default(cuid())
-  orgId         String
-  email         String    @unique
-  name          String
-  avatarUrl     String?
-  role          UserRole  @default(VIEWER)
-  createdAt     DateTime  @default(now())
-  password      String?
-  emailVerified DateTime?
-
-  org             Organization         @relation(fields: [orgId], references: [id])
-  campaignMembers CampaignTeamMember[]
-  comments        CampaignComment[]
-  activityLogs    ActivityLog[]
-  documents       Document[]
-  briefsUpdated   CreativeBrief[]
-  accounts        Account[]
-  sessions        Session[]
-}
+// ─── Auth ─────────────────────────────────────────────────────────────────────
 
 model Account {
   id                String  @id @default(cuid())
@@ -130,7 +84,9 @@ model Account {
   scope             String?
   id_token          String?
   session_state     String?
+
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@unique([provider, providerAccountId])
 }
 
@@ -139,35 +95,148 @@ model Session {
   sessionToken String   @unique
   userId       String
   expires      DateTime
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model VerificationToken {
   identifier String
   token      String   @unique
   expires    DateTime
+
   @@unique([identifier, token])
 }
 
-model Campaign {
-  id           String         @id @default(cuid())
-  orgId        String
-  title        String
-  status       CampaignStatus @default(DRAFT)
-  thumbnailUrl String?
-  budget       Float?      
-  currency     Currency       @default(USD)
-  notes        String?       
-  clientId     String?
-  folderId     String?
-  createdById  String
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
-  deletedAt    DateTime?
+// ─── Organization & IAM ───────────────────────────────────────────────────────
 
-  org          Organization        @relation(fields: [orgId], references: [id])
-  client       Client?             @relation(fields: [clientId], references: [id])
-  folder       Folder?             @relation(fields: [folderId], references: [id])
+model Organization {
+  id             String    @id @default(cuid())
+  name           String
+  subdomain      String    @unique
+  logoUrl        String?
+  primaryColor   String    @default("#4F46E5")
+  secondaryColor String    @default("#1E1B4B")
+  accentColor    String    @default("#F59E0B")
+  fontFamily     String    @default("Inter")
+  brandName      String?
+  customDomain   String?   @unique
+  faviconUrl     String?
+  timezone       String    @default("UTC")
+  plan           String    @default("starter")
+  planExpiresAt  DateTime?
+  currency       Currency  @default(USD)
+  uiConfig       Json?     // OrgUIConfig — features, nav, branding, limits, dashboard widgets
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  users          User[]
+  campaigns      Campaign[]
+  creators       Creator[]
+  creatorLists   CreatorList[]
+  clients        Client[]
+  folders        Folder[]
+  payoutBalances PayoutBalance[]
+  payouts        Payout[]
+  tiktokSounds   TikTokSound[]
+  connections    Connection[]    @relation("FromOrg")
+  connectionsTo  Connection[]    @relation("ToOrg")
+  reports        Report[]
+  mediakits      MediaKit[]
+  auditLogs      AuditLog[]
+  plans          Plan[]
+  planConfig     OrgPlanConfig?
+  invites        UserInvite[]
+  apiKeys        ApiKey[]
+}
+
+model User {
+  id            String    @id @default(cuid())
+  orgId         String
+  email         String    @unique
+  name          String
+  avatarUrl     String?
+  role          UserRole  @default(VIEWER)
+  password      String?
+  emailVerified DateTime?
+  isActive      Boolean   @default(true)
+  lastLoginAt   DateTime?
+  lastLoginIp   String?
+  invitedById   String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  org             Organization         @relation(fields: [orgId], references: [id])
+  campaignMembers CampaignTeamMember[]
+  comments        CampaignComment[]
+  activityLogs    ActivityLog[]
+  documents       Document[]
+  briefsUpdated   CreativeBrief[]
+  accounts        Account[]
+  sessions        Session[]
+}
+
+model OrgPlanConfig {
+  id           String       @id @default(cuid())
+  orgId        String       @unique
+  planName     String       @default("starter")
+  maxCampaigns Int          @default(10)
+  maxCreators  Int          @default(100)
+  maxUsers     Int          @default(5)
+  features     Json         @default("{}")
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+}
+
+model UserInvite {
+  id           String       @id @default(cuid())
+  orgId        String
+  email        String
+  role         UserRole     @default(MEMBER)
+  token        String       @unique @default(cuid())
+  expiresAt    DateTime
+  acceptedAt   DateTime?
+  createdAt    DateTime     @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+}
+
+model ApiKey {
+  id           String       @id @default(cuid())
+  orgId        String
+  name         String
+  keyHash      String       @unique // SHA-256 hash — never store plaintext
+  lastUsedAt   DateTime?
+  createdAt    DateTime     @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+}
+
+// ─── Campaigns ────────────────────────────────────────────────────────────────
+
+model Campaign {
+  id             String         @id @default(cuid())
+  orgId          String
+  title          String
+  status         CampaignStatus @default(DRAFT)
+  campaignType   CampaignType   @default(BUDGET_BASED)
+  typeConfig     Json?          // shape varies per CampaignType
+  enrollmentOpen Boolean        @default(false)
+  thumbnailUrl   String?
+  budget         Float?
+  currency       Currency       @default(USD)
+  notes          String?
+  clientId       String?
+  folderId       String?
+  createdById    String
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  deletedAt      DateTime?
+
+  org          Organization         @relation(fields: [orgId], references: [id])
+  client       Client?              @relation(fields: [clientId], references: [id])
+  folder       Folder?              @relation(fields: [folderId], references: [id])
   teamMembers  CampaignTeamMember[]
   tags         CampaignTag[]
   posts        Post[]
@@ -215,6 +284,8 @@ model CreativeBrief {
   updatedBy User?    @relation(fields: [updatedById], references: [id])
 }
 
+// ─── Creators ─────────────────────────────────────────────────────────────────
+
 model Creator {
   id             String    @id @default(cuid())
   orgId          String
@@ -225,27 +296,46 @@ model Creator {
   avatarUrl      String?
   followersCount Int       @default(0)
   averageViews   Int       @default(0)
-  bio            String?  
+  bio            String?
   contactEmail   String?
   paymentInfo    String?
-  rate           Float? 
-  notes          String?  
+  rate           Float?
+  notes          String?
   addedAt        DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   deletedAt      DateTime?
 
-  org         Organization    @relation(fields: [orgId], references: [id])
-  listItems   CreatorListItem[]
-  activations Activation[]
-  posts       Post[]
-  payouts     Payout[]
+  org            Organization           @relation(fields: [orgId], references: [id])
+  listItems      CreatorListItem[]
+  activations    Activation[]
+  posts          Post[]
+  payouts        Payout[]
+  socialAccounts CreatorSocialAccount[]
+}
+
+model CreatorSocialAccount {
+  id             String    @id @default(cuid())
+  creatorId      String
+  platform       Platform
+  handle         String
+  accessToken    String    // encrypted at rest via lib/crypto/encrypt.ts
+  refreshToken   String?
+  tokenExpiry    DateTime?
+  followersCount Int       @default(0)
+  avgViews       Int       @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  creator Creator @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  @@unique([creatorId, platform])
 }
 
 model CreatorList {
   id          String   @id @default(cuid())
   orgId       String
   name        String
-  description String? 
+  description String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -265,6 +355,8 @@ model CreatorListItem {
   @@unique([listId, creatorId])
 }
 
+// ─── Activations ──────────────────────────────────────────────────────────────
+
 model Activation {
   id                 String           @id @default(cuid())
   campaignId         String
@@ -272,7 +364,7 @@ model Activation {
   status             ActivationStatus @default(AWAITING_DRAFT)
   deliverableDueDate DateTime?
   postedUrl          String?
-  feedbackNotes      String?         
+  feedbackNotes      String?
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt
   deletedAt          DateTime?
@@ -280,6 +372,8 @@ model Activation {
   campaign Campaign @relation(fields: [campaignId], references: [id])
   creator  Creator  @relation(fields: [creatorId], references: [id])
 }
+
+// ─── Posts & Social Metrics ───────────────────────────────────────────────────
 
 model Post {
   id             String   @id @default(cuid())
@@ -289,22 +383,34 @@ model Post {
   platformPostId String
   postUrl        String
   thumbnailUrl   String?
-  caption        String? 
+  caption        String?
   postedAt       DateTime
+  viewsCount     Int      @default(0)
+  likesCount     Int      @default(0)
+  commentsCount  Int      @default(0)
+  sharesCount    Int      @default(0)
+  downloadsCount Int      @default(0)
+  engagementRate Float    @default(0)
+  lastSyncedAt   DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  viewsCount     Int     @default(0)
-  likesCount     Int     @default(0)
-  commentsCount  Int     @default(0)
-  sharesCount    Int     @default(0)
-  downloadsCount Int     @default(0)
-  engagementRate Float @default(0)
+  campaign  Campaign              @relation(fields: [campaignId], references: [id])
+  creator   Creator               @relation(fields: [creatorId], references: [id])
+  snapshots PostMetricSnapshot[]
+}
 
-  lastSyncedAt DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+model PostMetricSnapshot {
+  id             String   @id @default(cuid())
+  postId         String
+  viewsCount     Int      @default(0)
+  likesCount     Int      @default(0)
+  commentsCount  Int      @default(0)
+  sharesCount    Int      @default(0)
+  engagementRate Float    @default(0)
+  recordedAt     DateTime @default(now())
 
-  campaign Campaign @relation(fields: [campaignId], references: [id])
-  creator  Creator  @relation(fields: [creatorId], references: [id])
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
 }
 
 model TikTokSound {
@@ -326,22 +432,27 @@ model SoundTrackerSnapshot {
   soundId        String
   usesCount      Int
   videosAdded24h Int      @default(0)
+  deltaUses24h   Int      @default(0)
+  velocityScore  Float    @default(0)
   recordedAt     DateTime @default(now())
 
   sound TikTokSound @relation(fields: [soundId], references: [id])
 }
 
+// ─── Clients & Plans ──────────────────────────────────────────────────────────
+
 model Plan {
-  id          String   @id @default(cuid())
+  id          String       @id @default(cuid())
   name        String
   description String?
-  features    String     // { "feature_key": true/false, ... }
-  isCustom    Boolean  @default(false)
+  features    Json         @default("{}")
+  isCustom    Boolean      @default(false)
   orgId       String
-  org         Organization @relation(fields: [orgId], references: [id])
-  clients     Client[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  org     Organization @relation(fields: [orgId], references: [id])
+  clients Client[]
 }
 
 model Client {
@@ -351,7 +462,7 @@ model Client {
   logoUrl          String?
   contactInfo      String?
   planId           String?
-  featureOverrides String?
+  featureOverrides Json?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
@@ -360,35 +471,14 @@ model Client {
   plan      Plan?        @relation(fields: [planId], references: [id])
 }
 
-model AnalyticsModule {
-  id         String   @id @default(cuid())
-  campaignId String
-  type       String
-  title      String
-  config     String
-  position   Int      @default(0)
-  createdAt  DateTime @default(now())
-
-  campaign Campaign @relation(fields: [campaignId], references: [id])
-}
-
-model CampaignFinancials {
-  id          String   @id @default(cuid())
-  campaignId  String   @unique
-  totalBudget Float  @default(0)
-  spentAmount Float  @default(0)
-  notes       String? 
-  updatedAt   DateTime @updatedAt
-
-  campaign Campaign @relation(fields: [campaignId], references: [id])
-}
+// ─── Payouts ──────────────────────────────────────────────────────────────────
 
 model Payout {
   id                   String        @id @default(cuid())
   orgId                String
   creatorId            String
   campaignId           String?
-  amount               Float      
+  amount               Float
   currency             Currency      @default(USD)
   status               PayoutStatus  @default(PENDING)
   paymentMethod        PaymentMethod @default(PAYPAL)
@@ -409,12 +499,39 @@ model PayoutBalance {
   id             String   @id @default(cuid())
   orgId          String
   label          String   @default("Default Balance")
-  currentBalance Float  @default(0)
+  currentBalance Float    @default(0)
   currency       Currency @default(USD)
   updatedAt      DateTime @updatedAt
 
   org Organization @relation(fields: [orgId], references: [id])
 }
+
+// ─── Analytics ────────────────────────────────────────────────────────────────
+
+model AnalyticsModule {
+  id         String   @id @default(cuid())
+  campaignId String
+  type       String
+  title      String
+  config     Json     @default("{}")
+  position   Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  campaign Campaign @relation(fields: [campaignId], references: [id])
+}
+
+model CampaignFinancials {
+  id          String   @id @default(cuid())
+  campaignId  String   @unique
+  totalBudget Float    @default(0)
+  spentAmount Float    @default(0)
+  notes       String?
+  updatedAt   DateTime @updatedAt
+
+  campaign Campaign @relation(fields: [campaignId], references: [id])
+}
+
+// ─── Documents & Activity ─────────────────────────────────────────────────────
 
 model Document {
   id           String   @id @default(cuid())
@@ -435,7 +552,7 @@ model ActivityLog {
   campaignId String
   userId     String?
   action     String
-  metadata   String?
+  metadata   Json?
   createdAt  DateTime @default(now())
 
   campaign Campaign @relation(fields: [campaignId], references: [id])
@@ -446,7 +563,7 @@ model CampaignComment {
   id         String    @id @default(cuid())
   campaignId String
   userId     String
-  content    String   
+  content    String
   createdAt  DateTime  @default(now())
   updatedAt  DateTime?
   deletedAt  DateTime?
@@ -454,6 +571,8 @@ model CampaignComment {
   campaign Campaign @relation(fields: [campaignId], references: [id])
   user     User     @relation(fields: [userId], references: [id])
 }
+
+// ─── Structure ────────────────────────────────────────────────────────────────
 
 model Folder {
   id             String   @id @default(cuid())
@@ -482,6 +601,8 @@ model Connection {
   toOrg   Organization @relation("ToOrg", fields: [toOrgId], references: [id])
 }
 
+// ─── Reports & Media Kits ─────────────────────────────────────────────────────
+
 model Report {
   id          String   @id @default(cuid())
   orgId       String
@@ -490,7 +611,7 @@ model Report {
   slug        String
   shareToken  String   @unique @default(cuid())
   isPublic    Boolean  @default(false)
-  config      String   @default("{}")
+  config      Json     @default("{}")
   createdById String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -508,8 +629,8 @@ model MediaKit {
   slug        String
   shareToken  String   @unique @default(cuid())
   isPublic    Boolean  @default(false)
-  creatorIds  String  @default("[]")
-  config      String   @default("{}")
+  creatorIds  Json     @default("[]")
+  config      Json     @default("{}")
   createdById String?
   createdAt   DateTime @default(now())
 
@@ -518,15 +639,23 @@ model MediaKit {
   @@unique([orgId, slug])
 }
 
+// ─── Audit ────────────────────────────────────────────────────────────────────
+
 model AuditLog {
-  id         String   @id @default(cuid())
-  orgId      String
-  userId     String?
-  action     String
-  entityType String
-  entityId   String?
-  metadata   String?
-  createdAt  DateTime @default(now())
+  id          String   @id @default(cuid())
+  orgId       String
+  userId      String?
+  actorType   String   @default("user") // "user" | "system" | "api"
+  actorEmail  String?
+  action      String
+  entityType  String
+  entityId    String?
+  entityLabel String?
+  ipAddress   String?
+  metadata    Json?
+  before      Json?
+  after       Json?
+  createdAt   DateTime @default(now())
 
   org Organization @relation(fields: [orgId], references: [id])
 }

@@ -1,7 +1,7 @@
 export const FEATURES = {
   analytics:         { label: "Analytics Dashboard",     description: "View campaign analytics and reports" },
   bulk_export:       { label: "Bulk Export",             description: "Export data in bulk (CSV/XLSX)" },
-  api_access:        { label: "API Access",              description: "Access CreatorCore REST API" },
+  api_access:        { label: "API Access",              description: "Access Outreach AI REST API" },
   custom_branding:   { label: "Custom Branding",         description: "White-label with own logo & colors" },
   advanced_reports:  { label: "Advanced Reports",        description: "Advanced reporting & custom dashboards" },
   creator_discovery: { label: "Creator Discovery",       description: "Search & discover new creators" },

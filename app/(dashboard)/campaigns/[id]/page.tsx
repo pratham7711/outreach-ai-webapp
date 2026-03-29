@@ -1,15 +1,14 @@
 "use client";
 import { useState, useEffect, use } from "react";
 import { motion } from "framer-motion";
-import { Card, Badge, Button } from "@pratham7711/ui";
+import { Card, Badge, Button, StatCard, EmptyState, Avatar, Skeleton } from "@pratham7711/ui";
 import {
-  ArrowLeft, Eye, Heart, TrendingUp, Users,
-  Calendar, Play, ChevronRight,
+  ArrowLeft, Eye, Heart, MessageCircle, Share2, TrendingUp, Users,
+  Calendar, Play, ChevronRight, ExternalLink, DollarSign,
 } from "lucide-react";
 import Link from "next/link";
 import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, PieChart, Pie, Cell,
+  ResponsiveContainer, PieChart, Pie, Cell, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid,
 } from "recharts";
 
 type Tab = "overview" | "posts" | "creators" | "analytics" | "financials";
@@ -20,6 +19,10 @@ function formatNumber(num: number): string {
   return num.toString();
 }
 
+function formatCurrency(n: number, currency = "USD") {
+  return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(n);
+}
+
 const STATUS_BADGE: Record<string, "success" | "warning" | "accent" | "neutral"> = {
   DRAFT: "neutral",
   PENDING: "warning",
@@ -28,28 +31,75 @@ const STATUS_BADGE: Record<string, "success" | "warning" | "accent" | "neutral">
   CANCELLED: "neutral",
 };
 
-const DUMMY_POSTS = [
-  { id: 1, title: "Summer Vibes Reel", platform: "tiktok", views: 450000, likes: 32000, gradient: "from-blue-600 to-cyan-500" },
-  { id: 2, title: "Behind the Scenes", platform: "instagram", views: 120000, likes: 8900, gradient: "from-pink-600 to-purple-500" },
-  { id: 3, title: "Product Unboxing", platform: "tiktok", views: 890000, likes: 67000, gradient: "from-orange-500 to-red-500" },
-  { id: 4, title: "Dance Challenge", platform: "tiktok", views: 2100000, likes: 180000, gradient: "from-green-500 to-teal-500" },
-  { id: 5, title: "Day in My Life", platform: "instagram", views: 340000, likes: 21000, gradient: "from-purple-600 to-blue-500" },
-  { id: 6, title: "Tutorial Series Ep1", platform: "youtube", views: 78000, likes: 5400, gradient: "from-red-500 to-orange-500" },
-];
+const ACTIVATION_STATUS: Record<string, "success" | "warning" | "danger" | "neutral"> = {
+  AWAITING_DRAFT: "warning",
+  DRAFT_SUBMITTED: "neutral",
+  APPROVED: "success",
+  POSTED: "success",
+  COMPLETE: "success",
+  DECLINED: "danger",
+};
+
+const PLATFORM_COLORS: Record<string, string> = {
+  TIKTOK: "#000000",
+  INSTAGRAM: "#E4405F",
+  YOUTUBE: "#FF0000",
+  TWITTER: "#1DA1F2",
+};
+
+type Post = {
+  id: string;
+  platform: string;
+  postUrl: string;
+  caption: string | null;
+  postedAt: string;
+  viewsCount: number;
+  likesCount: number;
+  commentsCount: number;
+  sharesCount: number;
+  engagementRate: number;
+  creator: { id: string; name: string };
+};
+
+type Activation = {
+  id: string;
+  status: string;
+  deliverableDueDate: string | null;
+  creator: {
+    id: string; name: string; handle: string; platform: string;
+    followersCount: number; avatarUrl: string | null; rate: number | null;
+  };
+};
 
 type Campaign = {
   id: string;
   title: string;
   status: string;
-  budget: string | null;
+  budget: number | null;
   currency: string;
+  notes: string | null;
   createdAt: string;
   updatedAt: string;
   teamMembers: { id: string; user: { id: string; name: string; avatarUrl: string | null } }[];
-  activations: { id: string; status: string; creator: { id: string; name: string; handle: string; platform: string; followersCount: number } }[];
-  financials: { spentAmount: string; totalBudget: string } | null;
+  activations: Activation[];
+  posts: Post[];
+  brief: { content: string } | null;
+  financials: { spentAmount: number; totalBudget: number } | null;
   _count: { activations: number; posts: number };
 };
+
+function LoadingSkeleton() {
+  return (
+    <div className="cc-page-content" style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+      <Skeleton width="120px" height="16px" />
+      <Skeleton width="300px" height="32px" />
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
+        {[1, 2, 3, 4].map(i => <Skeleton key={i} height="80px" borderRadius="10px" />)}
+      </div>
+      <Skeleton width="100%" height="300px" borderRadius="12px" />
+    </div>
+  );
+}
 
 export default function CampaignDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -64,179 +114,389 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
       .finally(() => setLoading(false));
   }, [id]);
 
-  const tabsList: { label: string; value: Tab }[] = [
+  const tabsList: { label: string; value: Tab; count?: number }[] = [
     { label: "Overview", value: "overview" },
-    { label: "Posts", value: "posts" },
-    { label: "Creators", value: "creators" },
+    { label: "Posts", value: "posts", count: campaign?._count.posts },
+    { label: "Creators", value: "creators", count: campaign?._count.activations },
     { label: "Analytics", value: "analytics" },
     { label: "Financials", value: "financials" },
   ];
 
-  if (loading) return <div className="p-8" style={{ color: "var(--cc-text-muted)" }}>Loading...</div>;
-  if (!campaign) return <div className="p-8" style={{ color: "var(--cc-text-muted)" }}>Campaign not found</div>;
+  if (loading) return <LoadingSkeleton />;
+  if (!campaign) return (
+    <div className="cc-page-content">
+      <EmptyState icon="📋" title="Campaign not found" description="This campaign may have been deleted." />
+    </div>
+  );
 
-  const budget = campaign.budget ? parseFloat(campaign.budget) : 0;
-  const spent = campaign.financials ? parseFloat(campaign.financials.spentAmount) : 0;
+  const budget = campaign.budget ? Number(campaign.budget) : 0;
+  const spent = campaign.financials ? Number(campaign.financials.spentAmount) : 0;
+  const totalViews = campaign.posts.reduce((s, p) => s + p.viewsCount, 0);
+  const totalLikes = campaign.posts.reduce((s, p) => s + p.likesCount, 0);
+  const avgEngagement = campaign.posts.length > 0
+    ? campaign.posts.reduce((s, p) => s + p.engagementRate, 0) / campaign.posts.length
+    : 0;
+
+  // Platform breakdown for analytics
+  const platformStats = campaign.posts.reduce((acc, p) => {
+    if (!acc[p.platform]) acc[p.platform] = { views: 0, likes: 0, posts: 0 };
+    acc[p.platform].views += p.viewsCount;
+    acc[p.platform].likes += p.likesCount;
+    acc[p.platform].posts += 1;
+    return acc;
+  }, {} as Record<string, { views: number; likes: number; posts: number }>);
+
+  const platformPieData = Object.entries(platformStats).map(([platform, stats]) => ({
+    name: platform, value: stats.views, fill: PLATFORM_COLORS[platform] ?? "var(--cc-primary)",
+  }));
+
+  // Per-creator breakdown for analytics
+  const creatorStats = campaign.posts.reduce((acc, p) => {
+    const name = (p as any).creator?.name ?? "Unknown";
+    if (!acc[name]) acc[name] = { views: 0, likes: 0, posts: 0 };
+    acc[name].views += p.viewsCount;
+    acc[name].likes += p.likesCount;
+    acc[name].posts += 1;
+    return acc;
+  }, {} as Record<string, { views: number; likes: number; posts: number }>);
+
+  const creatorBarData = Object.entries(creatorStats).map(([name, stats]) => ({
+    name: name.split(" ")[0], views: stats.views, likes: stats.likes,
+  }));
+
+  // Per-creator payout for financials
+  const creatorPayouts = campaign.activations.map(act => ({
+    name: act.creator.name,
+    rate: act.creator.rate ? Number(act.creator.rate) : 0,
+    status: act.status,
+  }));
+
   const pieData = [
     { name: "Spent", value: spent },
     { name: "Remaining", value: Math.max(0, budget - spent) },
   ];
 
   return (
-    <div className="p-8">
+    <div className="cc-page-content">
       {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-sm mb-6" style={{ color: "var(--cc-text-muted)" }}>
-        <Link href="/campaigns" className="flex items-center gap-1" style={{ color: "var(--cc-text-muted)" }}>
-          <ArrowLeft className="h-4 w-4" /> Campaigns
+      <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, marginBottom: 24, color: "var(--cc-text-muted)" }}>
+        <Link href="/campaigns" style={{ display: "flex", alignItems: "center", gap: 4, color: "var(--cc-text-muted)", textDecoration: "none" }}>
+          <ArrowLeft size={16} /> Campaigns
         </Link>
-        <ChevronRight className="h-3 w-3" />
+        <ChevronRight size={12} />
         <span style={{ color: "var(--cc-text)" }}>{campaign.title}</span>
       </div>
 
       {/* Header */}
-      <div className="flex items-center gap-3 mb-2">
-        <h1 style={{ fontSize: 26, fontWeight: 900, color: "var(--cc-text)" }}>{campaign.title}</h1>
-        <Badge variant={STATUS_BADGE[campaign.status] ?? "neutral"}>{campaign.status}</Badge>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
+        <h1 style={{ fontSize: 26, fontWeight: 700, color: "var(--cc-text)" }}>{campaign.title}</h1>
+        <Badge variant={STATUS_BADGE[campaign.status] ?? "neutral"}>{campaign.status.replace(/_/g, " ")}</Badge>
       </div>
-      <div className="flex items-center gap-4 mb-8" style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>
-        <span className="flex items-center gap-1"><Calendar className="h-3.5 w-3.5" />{new Date(campaign.createdAt).toLocaleDateString()}</span>
+      <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 32, fontSize: 14, color: "var(--cc-text-muted)" }}>
+        <span style={{ display: "flex", alignItems: "center", gap: 4 }}><Calendar size={14} />{new Date(campaign.createdAt).toLocaleDateString()}</span>
         {budget > 0 && (
           <>
             <span>·</span>
-            <span style={{ fontWeight: 700 }}>{campaign.currency} {formatNumber(budget)} budget</span>
+            <span style={{ fontWeight: 700 }}>{formatCurrency(budget, campaign.currency)} budget</span>
           </>
         )}
+        <span>·</span>
+        <span>{campaign._count.activations} creators · {campaign._count.posts} posts</span>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 mb-6" style={{ borderBottom: "1px solid var(--cc-border)" }}>
-        {tabsList.map(tab => (
+      <div style={{ display: "flex", gap: 4, marginBottom: 24, borderBottom: "1px solid var(--cc-border)" }}>
+        {tabsList.map((tab) => (
           <button
             key={tab.value}
             onClick={() => setActiveTab(tab.value)}
-            className="px-5 py-3 text-sm font-medium transition-all"
             style={{
+              padding: "10px 20px", fontSize: 14, fontWeight: 500,
+              background: "none", border: "none", cursor: "pointer",
               borderBottom: activeTab === tab.value ? "2px solid var(--cc-primary)" : "2px solid transparent",
               color: activeTab === tab.value ? "var(--cc-primary)" : "var(--cc-text-muted)",
+              display: "flex", alignItems: "center", gap: 6,
             }}
           >
             {tab.label}
+            {tab.count !== undefined && (
+              <span style={{ fontSize: 11, background: "var(--cc-bg)", borderRadius: 10, padding: "1px 7px", color: "var(--cc-text-muted)" }}>{tab.count}</span>
+            )}
           </button>
         ))}
       </div>
 
       <motion.div key={activeTab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+        {/* Overview */}
         {activeTab === "overview" && (
-          <div className="space-y-6">
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              {[
-                { label: "Total Views", value: "—" },
-                { label: "Engagement", value: "—" },
-                { label: "Creators", value: String(campaign._count.activations) },
-                { label: "Budget Used", value: budget > 0 ? `${Math.round((spent / budget) * 100)}%` : "—" },
-              ].map(s => (
-                <Card key={s.label} variant="glass" className="p-5" style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 16 }}>
-                  <div style={{ fontSize: 24, fontWeight: 900, color: "var(--cc-text)" }}>{s.value}</div>
-                  <div style={{ fontSize: 11, color: "var(--cc-text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginTop: 4 }}>{s.label}</div>
-                </Card>
-              ))}
+          <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
+              <StatCard value={formatNumber(totalViews)} label="Total Views" />
+              <StatCard value={avgEngagement > 0 ? avgEngagement.toFixed(1) + "%" : "—"} label="Avg Engagement" />
+              <StatCard value={String(campaign._count.activations)} label="Creators" />
+              <StatCard value={budget > 0 ? `${Math.round((spent / budget) * 100)}%` : "—"} label="Budget Used" />
             </div>
-            <Card variant="glass" className="p-6" style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 16 }}>
-              <span style={{ fontWeight: 800, fontSize: 15, color: "var(--cc-text)", display: "block", marginBottom: 12 }}>Recent Activity</span>
-              <div className="py-4 text-center" style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>No recent activity</div>
-            </Card>
+
+            {/* Brief */}
+            {campaign.brief && (
+              <Card variant="outlined" style={{ padding: 24 }}>
+                <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)", display: "block", marginBottom: 12 }}>Creative Brief</span>
+                <div style={{ fontSize: 14, color: "var(--cc-text-muted)", lineHeight: 1.7, whiteSpace: "pre-wrap" }}>
+                  {campaign.brief.content}
+                </div>
+              </Card>
+            )}
+
+            {/* Notes */}
+            {campaign.notes && (
+              <Card variant="outlined" style={{ padding: 24 }}>
+                <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)", display: "block", marginBottom: 12 }}>Notes</span>
+                <p style={{ fontSize: 14, color: "var(--cc-text-muted)", lineHeight: 1.6 }}>{campaign.notes}</p>
+              </Card>
+            )}
+
+            {/* Team */}
+            {campaign.teamMembers.length > 0 && (
+              <Card variant="outlined" style={{ padding: 24 }}>
+                <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)", display: "block", marginBottom: 12 }}>Team</span>
+                <div style={{ display: "flex", gap: 12 }}>
+                  {campaign.teamMembers.map(tm => (
+                    <div key={tm.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderRadius: 8, background: "var(--cc-bg)" }}>
+                      <Avatar name={tm.user.name} size="sm" />
+                      <span style={{ fontSize: 13, fontWeight: 500, color: "var(--cc-text)" }}>{tm.user.name}</span>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            )}
           </div>
         )}
 
+        {/* Posts Tab — Real Data */}
         {activeTab === "posts" && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {DUMMY_POSTS.map(post => (
-              <Card key={post.id} variant="glass" className="overflow-hidden" style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 16 }}>
-                <div className={`h-48 bg-gradient-to-br ${post.gradient} flex items-center justify-center`}>
-                  <div className="h-12 w-12 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
-                    <Play className="h-5 w-5 text-white ml-0.5" />
-                  </div>
+          campaign.posts.length === 0 ? (
+            <EmptyState icon="📹" title="No posts yet" description="Posts will appear here when synced from social platforms." />
+          ) : (
+            <Card variant="solid" noPadding>
+              <div style={{
+                display: "grid", gridTemplateColumns: "1fr 100px 90px 80px 80px 80px 70px",
+                gap: 12, padding: "12px 24px", borderBottom: "1px solid var(--cc-border)", background: "var(--cc-bg)",
+              }}>
+                {["Post", "Platform", "Views", "Likes", "Comments", "Shares", "Eng %"].map(h => (
+                  <span key={h} style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--cc-text-subtle)" }}>{h}</span>
+                ))}
+              </div>
+              <div className="cc-stagger">
+                {campaign.posts.map((post, i) => (
+                  <a
+                    key={post.id}
+                    href={post.postUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      textDecoration: "none", display: "grid",
+                      gridTemplateColumns: "1fr 100px 90px 80px 80px 80px 70px",
+                      gap: 12, padding: "14px 24px", alignItems: "center",
+                      borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined,
+                    }}
+                    className="cc-table-row"
+                  >
+                    <div>
+                      <p style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {post.caption?.slice(0, 50) ?? "Untitled"} <ExternalLink size={11} style={{ opacity: 0.4 }} />
+                      </p>
+                      <p style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{new Date(post.postedAt).toLocaleDateString()}</p>
+                    </div>
+                    <Badge variant="neutral" style={{ fontSize: 11 }}>{post.platform}</Badge>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>{formatNumber(post.viewsCount)}</span>
+                    <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{formatNumber(post.likesCount)}</span>
+                    <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{formatNumber(post.commentsCount)}</span>
+                    <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{formatNumber(post.sharesCount)}</span>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-primary)" }}>{post.engagementRate.toFixed(1)}%</span>
+                  </a>
+                ))}
+              </div>
+            </Card>
+          )
+        )}
+
+        {/* Creators Tab */}
+        {activeTab === "creators" && (
+          campaign.activations.length === 0 ? (
+            <EmptyState icon="👥" title="No creators yet" description="Add creators to this campaign to get started." />
+          ) : (
+            <Card variant="solid" noPadding>
+              <div style={{
+                display: "grid", gridTemplateColumns: "1fr 120px 100px 100px 100px",
+                gap: 12, padding: "12px 24px", borderBottom: "1px solid var(--cc-border)", background: "var(--cc-bg)",
+              }}>
+                {["Creator", "Platform", "Followers", "Rate", "Status"].map(h => (
+                  <span key={h} style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--cc-text-subtle)" }}>{h}</span>
+                ))}
+              </div>
+              <div className="cc-stagger">
+                {campaign.activations.map((act, i) => (
+                  <Link
+                    key={act.id}
+                    href={`/creators/${act.creator.id}`}
+                    style={{ textDecoration: "none", display: "grid", gridTemplateColumns: "1fr 120px 100px 100px 100px", gap: 12, padding: "14px 24px", alignItems: "center", borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined }}
+                    className="cc-table-row"
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                      <Avatar name={act.creator.name} size="sm" />
+                      <div>
+                        <p style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>{act.creator.name}</p>
+                        <p style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>@{act.creator.handle}</p>
+                      </div>
+                    </div>
+                    <Badge variant="neutral">{act.creator.platform}</Badge>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>{formatNumber(act.creator.followersCount)}</span>
+                    <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{act.creator.rate ? formatCurrency(Number(act.creator.rate)) : "—"}</span>
+                    <Badge variant={ACTIVATION_STATUS[act.status] ?? "neutral"} dot>{act.status.replace(/_/g, " ")}</Badge>
+                  </Link>
+                ))}
+              </div>
+            </Card>
+          )
+        )}
+
+        {/* Analytics Tab */}
+        {activeTab === "analytics" && (
+          campaign.posts.length === 0 ? (
+            <EmptyState icon="📈" title="No analytics yet" description="Analytics will be available once posts are synced." />
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+              {/* Platform breakdown */}
+              <Card variant="outlined" style={{ padding: 24 }}>
+                <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)", display: "block", marginBottom: 16 }}>Views by Platform</span>
+                <div style={{ height: 240 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie data={platformPieData} cx="50%" cy="50%" innerRadius={60} outerRadius={90} dataKey="value" paddingAngle={2} label={({ name, percent }: any) => `${name ?? ""} ${((percent ?? 0) * 100).toFixed(0)}%`}>
+                        {platformPieData.map((entry, i) => (
+                          <Cell key={i} fill={entry.fill} />
+                        ))}
+                      </Pie>
+                      <Tooltip formatter={(v: any) => formatNumber(Number(v ?? 0))} contentStyle={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12 }} />
+                    </PieChart>
+                  </ResponsiveContainer>
                 </div>
-                <div className="p-4">
-                  <div style={{ fontSize: 11, color: "var(--cc-text-muted)", textTransform: "uppercase", marginBottom: 4 }}>{post.platform}</div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: "var(--cc-text)" }}>{post.title}</div>
-                  <div className="flex items-center gap-4 mt-2" style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>
-                    <span className="flex items-center gap-1"><Eye className="h-3 w-3" />{formatNumber(post.views)}</span>
-                    <span className="flex items-center gap-1"><Heart className="h-3 w-3" />{formatNumber(post.likes)}</span>
+              </Card>
+
+              {/* Creator performance */}
+              <Card variant="outlined" style={{ padding: 24 }}>
+                <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)", display: "block", marginBottom: 16 }}>Creator Performance</span>
+                {creatorBarData.length > 0 ? (
+                  <div style={{ height: 240 }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={creatorBarData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="var(--cc-border)" />
+                        <XAxis dataKey="name" tick={{ fontSize: 12, fill: "var(--cc-text-muted)" }} />
+                        <YAxis tick={{ fontSize: 12, fill: "var(--cc-text-muted)" }} tickFormatter={(v) => formatNumber(v)} />
+                        <Tooltip formatter={(v: any) => formatNumber(Number(v ?? 0))} contentStyle={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12 }} />
+                        <Bar dataKey="views" fill="var(--cc-primary)" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="likes" fill="#10B981" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                ) : (
+                  <EmptyState icon="📊" title="No creator data" />
+                )}
+              </Card>
+
+              {/* Summary stats */}
+              <Card variant="outlined" style={{ padding: 24, gridColumn: "1 / -1" }}>
+                <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)", display: "block", marginBottom: 16 }}>Performance Summary</span>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
+                  <div style={{ padding: 16, borderRadius: 10, background: "var(--cc-bg)" }}>
+                    <div style={{ fontSize: 11, color: "var(--cc-text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>Total Views</div>
+                    <div style={{ fontSize: 22, fontWeight: 700, color: "var(--cc-text)" }}>{formatNumber(totalViews)}</div>
+                  </div>
+                  <div style={{ padding: 16, borderRadius: 10, background: "var(--cc-bg)" }}>
+                    <div style={{ fontSize: 11, color: "var(--cc-text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>Total Likes</div>
+                    <div style={{ fontSize: 22, fontWeight: 700, color: "var(--cc-text)" }}>{formatNumber(totalLikes)}</div>
+                  </div>
+                  <div style={{ padding: 16, borderRadius: 10, background: "var(--cc-bg)" }}>
+                    <div style={{ fontSize: 11, color: "var(--cc-text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>Avg Engagement</div>
+                    <div style={{ fontSize: 22, fontWeight: 700, color: "var(--cc-primary)" }}>{avgEngagement.toFixed(1)}%</div>
+                  </div>
+                  <div style={{ padding: 16, borderRadius: 10, background: "var(--cc-bg)" }}>
+                    <div style={{ fontSize: 11, color: "var(--cc-text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>Posts</div>
+                    <div style={{ fontSize: 22, fontWeight: 700, color: "var(--cc-text)" }}>{campaign.posts.length}</div>
                   </div>
                 </div>
               </Card>
-            ))}
-          </div>
+            </div>
+          )
         )}
 
-        {activeTab === "creators" && (
-          <Card variant="glass" style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 16, overflow: "hidden" }}>
-            {campaign.activations.length === 0 ? (
-              <div className="py-8 text-center" style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>No creators in this campaign yet</div>
-            ) : campaign.activations.map((act, i) => {
-              const initials = act.creator.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
-              return (
-                <div key={act.id} className="flex items-center gap-4 px-5 py-4" style={{ borderBottom: i < campaign.activations.length - 1 ? "1px solid var(--cc-border)" : "none" }}>
-                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold">{initials}</div>
-                  <div className="flex-1">
-                    <div style={{ fontWeight: 700, fontSize: 14, color: "var(--cc-text)" }}>{act.creator.name}</div>
-                    <div style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{act.creator.handle} · {act.creator.platform}</div>
-                  </div>
-                  <div style={{ fontWeight: 800, fontSize: 13, color: "var(--cc-text)" }}>{formatNumber(act.creator.followersCount)}</div>
-                  <Badge variant="neutral">{act.status}</Badge>
-                </div>
-              );
-            })}
-          </Card>
-        )}
-
-        {activeTab === "analytics" && (
-          <div className="space-y-6">
-            <Card variant="glass" className="p-6" style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 16 }}>
-              <span style={{ fontWeight: 800, fontSize: 15, color: "var(--cc-text)", display: "block", marginBottom: 16 }}>Monthly Trend</span>
-              <div className="py-8 text-center" style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>Analytics data available once posts are synced</div>
-            </Card>
-          </div>
-        )}
-
+        {/* Financials Tab */}
         {activeTab === "financials" && (
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <Card variant="glass" className="p-6" style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 16 }}>
-                <span style={{ fontWeight: 800, fontSize: 15, color: "var(--cc-text)", display: "block", marginBottom: 12 }}>Budget Overview</span>
-                <div className="flex items-center gap-2 mb-4">
-                  <span style={{ fontSize: 28, fontWeight: 900, color: "var(--cc-text)" }}>{campaign.currency} {formatNumber(spent)}</span>
-                  {budget > 0 && <span style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>/ {campaign.currency} {formatNumber(budget)}</span>}
+          <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+              <Card variant="outlined" style={{ padding: 24 }}>
+                <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)", display: "block", marginBottom: 12 }}>Budget Overview</span>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+                  <span style={{ fontSize: 28, fontWeight: 700, color: "var(--cc-text)" }}>{formatCurrency(spent, campaign.currency)}</span>
+                  {budget > 0 && <span style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>/ {formatCurrency(budget, campaign.currency)}</span>}
                 </div>
                 {budget > 0 && (
                   <>
-                    <div className="h-3 rounded-full mb-2" style={{ background: "#F3F4F6" }}>
-                      <div className="h-full rounded-full" style={{ width: `${Math.min(100, (spent / budget) * 100)}%`, background: "linear-gradient(90deg, #2563EB, #7C3AED)" }} />
+                    <div style={{ height: 12, borderRadius: 6, marginBottom: 8, background: "var(--cc-bg)" }}>
+                      <div style={{ height: "100%", borderRadius: 6, width: `${Math.min(100, (spent / budget) * 100)}%`, background: "linear-gradient(90deg, var(--cc-primary), #7C3AED)", transition: "width 0.5s" }} />
                     </div>
-                    <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{Math.round((spent / budget) * 100)}% of budget used</span>
+                    <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>
+                      {Math.round((spent / budget) * 100)}% used · {formatCurrency(budget - spent, campaign.currency)} remaining
+                    </span>
                   </>
                 )}
               </Card>
-              <Card variant="glass" className="p-6" style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 16 }}>
-                <span style={{ fontWeight: 800, fontSize: 15, color: "var(--cc-text)", display: "block", marginBottom: 12 }}>Budget Breakdown</span>
+              <Card variant="outlined" style={{ padding: 24 }}>
+                <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)", display: "block", marginBottom: 12 }}>Budget Breakdown</span>
                 {budget > 0 ? (
                   <div style={{ height: 200 }}>
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
                         <Pie data={pieData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} dataKey="value" paddingAngle={2}>
-                          <Cell fill="#2563EB" />
-                          <Cell fill="#F3F4F6" />
+                          <Cell fill="var(--cc-primary)" />
+                          <Cell fill="var(--cc-bg)" />
                         </Pie>
-                        <Tooltip contentStyle={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12 }} />
+                        <Tooltip formatter={(v: any) => formatCurrency(Number(v ?? 0), campaign.currency)} contentStyle={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12 }} />
                       </PieChart>
                     </ResponsiveContainer>
                   </div>
                 ) : (
-                  <div className="py-8 text-center" style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>No budget set</div>
+                  <EmptyState icon="💰" title="No budget set" />
                 )}
               </Card>
             </div>
+
+            {/* Per-creator payout breakdown */}
+            {creatorPayouts.length > 0 && (
+              <Card variant="solid" noPadding>
+                <div style={{ padding: "16px 24px", borderBottom: "1px solid var(--cc-border)" }}>
+                  <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)" }}>Creator Rates</span>
+                </div>
+                {creatorPayouts.map((cp, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      display: "flex", alignItems: "center", justifyContent: "space-between",
+                      padding: "14px 24px",
+                      borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined,
+                    }}
+                  >
+                    <span style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>{cp.name}</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                      <Badge variant={ACTIVATION_STATUS[cp.status] ?? "neutral"} dot>{cp.status.replace(/_/g, " ")}</Badge>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: "var(--cc-text)" }}>
+                        {cp.rate > 0 ? formatCurrency(cp.rate) : "—"}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </Card>
+            )}
           </div>
         )}
       </motion.div>

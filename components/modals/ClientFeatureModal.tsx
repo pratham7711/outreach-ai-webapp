@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { X } from "lucide-react";
+import { Modal, Button, Badge } from "@pratham7711/ui";
 import { FEATURES, type FeatureKey } from "@/lib/features";
 
 const featureKeys = Object.keys(FEATURES) as FeatureKey[];
@@ -44,8 +44,6 @@ export default function ClientFeatureModal({ open, onClose, client, plans, onSav
       setError(null);
     }
   }, [open, client]);
-
-  if (!open) return null;
 
   const selectedPlan = plans.find((p) => p.id === selectedPlanId) ?? null;
 
@@ -106,227 +104,164 @@ export default function ClientFeatureModal({ open, onClose, client, plans, onSav
     transition: "all 0.15s",
   });
 
+  const selectStyle = {
+    flex: 1,
+    padding: "10px 14px",
+    borderRadius: 10,
+    fontSize: 14,
+    border: "1px solid var(--cc-border)",
+    background: "var(--cc-card)",
+    color: "var(--cc-text)",
+    outline: "none",
+  };
+
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 1000,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "rgba(0,0,0,0.4)",
-      }}
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={`Feature Access — ${client.name}`}
+      size="lg"
+      footer={
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
+          <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>
+            {overrideCount > 0 ? `${overrideCount} override${overrideCount > 1 ? "s" : ""}` : "No overrides"}
+          </span>
+          <div style={{ display: "flex", gap: 8 }}>
+            <Button variant="secondary" onClick={onClose}>Cancel</Button>
+            <Button variant="primary" loading={saving} onClick={handleSave}>
+              Save Changes
+            </Button>
+          </div>
+        </div>
+      }
     >
-      <div
-        style={{
-          background: "var(--cc-card)",
-          borderRadius: 16,
-          width: "100%",
-          maxWidth: 620,
-          maxHeight: "90vh",
-          overflow: "auto",
-          boxShadow: "0 20px 60px rgba(0,0,0,0.15)",
-        }}
-      >
-        {/* Header */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 24px", borderBottom: "1px solid var(--cc-border)" }}>
-          <h2 style={{ fontSize: 18, fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>
-            Feature Access — {client.name}
-          </h2>
-          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--cc-text-muted)", padding: 4 }}>
-            <X size={18} />
-          </button>
+      <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+        {error && (
+          <div style={{ padding: "10px 16px", borderRadius: 10, fontSize: 14, background: "rgba(239,68,68,0.08)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)" }}>
+            {error}
+          </div>
+        )}
+
+        {/* Section 1: Plan Assignment */}
+        <div>
+          <label style={{ display: "block", fontSize: 14, fontWeight: 600, color: "var(--cc-text)", marginBottom: 8 }}>
+            Plan Assignment
+          </label>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <select
+              value={selectedPlanId}
+              onChange={(e) => setSelectedPlanId(e.target.value)}
+              style={selectStyle}
+            >
+              <option value="">— No plan —</option>
+              {plans.map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+            {selectedPlan && (
+              <span style={{ fontSize: 12, color: "var(--cc-text-muted)", whiteSpace: "nowrap" }}>
+                {featureKeys.filter((k) => selectedPlan.features[k]).length}/{featureKeys.length} features
+              </span>
+            )}
+          </div>
         </div>
 
-        <div style={{ padding: 24 }}>
-          {error && (
-            <div style={{ marginBottom: 16, padding: "10px 16px", borderRadius: 10, fontSize: 14, background: "rgba(239,68,68,0.08)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)" }}>
-              {error}
-            </div>
-          )}
-
-          {/* Section 1: Plan Assignment */}
-          <div style={{ marginBottom: 24 }}>
-            <label style={{ display: "block", fontSize: 14, fontWeight: 600, color: "var(--cc-text)", marginBottom: 8 }}>
-              Plan Assignment
-            </label>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <select
-                value={selectedPlanId}
-                onChange={(e) => setSelectedPlanId(e.target.value)}
-                style={{
-                  flex: 1,
-                  padding: "10px 14px",
-                  borderRadius: 10,
-                  fontSize: 14,
-                  border: "1px solid var(--cc-border)",
-                  background: "var(--cc-card)",
-                  color: "var(--cc-text)",
-                  outline: "none",
-                }}
-              >
-                <option value="">— No plan —</option>
-                {plans.map((p) => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-              </select>
-              {selectedPlan && (
-                <span style={{ fontSize: 12, color: "var(--cc-text-muted)", whiteSpace: "nowrap" }}>
-                  {featureKeys.filter((k) => selectedPlan.features[k]).length}/{featureKeys.length} features
-                </span>
-              )}
-            </div>
+        {/* Section 2: Feature Overrides */}
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)", marginBottom: 4 }}>
+            Feature Overrides
           </div>
+          <p style={{ fontSize: 12, color: "var(--cc-text-muted)", margin: "0 0 12px" }}>
+            Override individual features regardless of plan
+          </p>
 
-          {/* Section 2: Feature Overrides */}
-          <div style={{ marginBottom: 24 }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)", marginBottom: 4 }}>
-              Feature Overrides
-            </div>
-            <p style={{ fontSize: 12, color: "var(--cc-text-muted)", margin: "0 0 12px" }}>
-              Override individual features regardless of plan
-            </p>
-
-            <div style={{ borderRadius: 10, overflow: "hidden", border: "1px solid var(--cc-border)" }}>
-              {featureKeys.map((key, i) => {
-                const planVal = selectedPlan?.features?.[key] ?? false;
-                const ov = overrides[key] ?? "plan";
-                const effective = getEffective(key);
-                return (
-                  <div
-                    key={key}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 12,
-                      padding: "10px 16px",
-                      borderBottom: i < featureKeys.length - 1 ? "1px solid var(--cc-border)" : "none",
-                      background: ov !== "plan" ? "rgba(91,91,214,0.03)" : "transparent",
-                    }}
-                  >
-                    {/* Feature name + plan status */}
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 500, color: "var(--cc-text)" }}>{FEATURES[key].label}</div>
-                      <div style={{ fontSize: 11, color: "var(--cc-text-muted)" }}>
-                        Plan: {planVal ? "ON" : "OFF"}
-                      </div>
+          <div style={{ borderRadius: 10, overflow: "hidden", border: "1px solid var(--cc-border)" }}>
+            {featureKeys.map((key, i) => {
+              const planVal = selectedPlan?.features?.[key] ?? false;
+              const ov = overrides[key] ?? "plan";
+              const effective = getEffective(key);
+              return (
+                <div
+                  key={key}
+                  className="cc-table-row"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 12,
+                    padding: "10px 16px",
+                    borderBottom: i < featureKeys.length - 1 ? "1px solid var(--cc-border)" : "none",
+                    background: ov !== "plan" ? "var(--cc-row-hover)" : "transparent",
+                  }}
+                >
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 500, color: "var(--cc-text)" }}>{FEATURES[key].label}</div>
+                    <div style={{ fontSize: 11, color: "var(--cc-text-muted)" }}>
+                      Plan: {planVal ? "ON" : "OFF"}
                     </div>
-
-                    {/* 3-segment pill */}
-                    <div style={{ display: "flex", gap: 2, background: "#F3F4F6", borderRadius: 8, padding: 2 }}>
-                      <button
-                        type="button"
-                        onClick={() => setOverrides((prev) => ({ ...prev, [key]: "plan" }))}
-                        style={segmentStyle(ov === "plan", "#6B7280")}
-                      >
-                        Default
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setOverrides((prev) => ({ ...prev, [key]: "on" }))}
-                        style={segmentStyle(ov === "on", "#16a34a")}
-                      >
-                        Force ON
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setOverrides((prev) => ({ ...prev, [key]: "off" }))}
-                        style={segmentStyle(ov === "off", "#ef4444")}
-                      >
-                        Force OFF
-                      </button>
-                    </div>
-
-                    {/* Effective indicator */}
-                    <div
-                      style={{
-                        width: 8,
-                        height: 8,
-                        borderRadius: "50%",
-                        background: effective ? "#22c55e" : "#D1D5DB",
-                        flexShrink: 0,
-                      }}
-                      title={`Effective: ${effective ? "ON" : "OFF"}`}
-                    />
                   </div>
-                );
-              })}
-            </div>
-          </div>
 
-          {/* Section 3: Summary */}
-          <div style={{ marginBottom: 24 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 8 }}>
-              Effective access: {enabledCount}/{featureKeys.length} features
-            </div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-              {featureKeys.map((key) => {
-                const on = getEffective(key);
-                return (
-                  <span
-                    key={key}
+                  <div style={{ display: "flex", gap: 2, background: "var(--cc-hover-bg)", borderRadius: 8, padding: 2 }}>
+                    <button
+                      type="button"
+                      onClick={() => setOverrides((prev) => ({ ...prev, [key]: "plan" }))}
+                      style={segmentStyle(ov === "plan", "#6B7280")}
+                    >
+                      Default
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setOverrides((prev) => ({ ...prev, [key]: "on" }))}
+                      style={segmentStyle(ov === "on", "#16a34a")}
+                    >
+                      Force ON
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setOverrides((prev) => ({ ...prev, [key]: "off" }))}
+                      style={segmentStyle(ov === "off", "#ef4444")}
+                    >
+                      Force OFF
+                    </button>
+                  </div>
+
+                  <div
                     style={{
-                      fontSize: 11,
-                      fontWeight: 500,
-                      padding: "3px 10px",
-                      borderRadius: 6,
-                      border: `1px solid ${on ? "rgba(34,197,94,0.3)" : "var(--cc-border)"}`,
-                      background: on ? "rgba(34,197,94,0.06)" : "transparent",
-                      color: on ? "#16a34a" : "var(--cc-text-muted)",
+                      width: 8,
+                      height: 8,
+                      borderRadius: "50%",
+                      background: effective ? "#22c55e" : "var(--cc-text-subtle)",
+                      flexShrink: 0,
                     }}
-                  >
-                    {FEATURES[key].label}
-                  </span>
-                );
-              })}
-            </div>
+                    title={`Effective: ${effective ? "ON" : "OFF"}`}
+                  />
+                </div>
+              );
+            })}
           </div>
+        </div>
 
-          {/* Footer */}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>
-              {overrideCount > 0 ? `${overrideCount} override${overrideCount > 1 ? "s" : ""}` : "No overrides"}
-            </span>
-            <div style={{ display: "flex", gap: 10 }}>
-              <button
-                type="button"
-                onClick={onClose}
-                style={{
-                  padding: "10px 20px",
-                  borderRadius: 10,
-                  fontSize: 14,
-                  fontWeight: 600,
-                  background: "var(--cc-card)",
-                  border: "1px solid var(--cc-border)",
-                  color: "var(--cc-text)",
-                  cursor: "pointer",
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                style={{
-                  padding: "10px 20px",
-                  borderRadius: 10,
-                  fontSize: 14,
-                  fontWeight: 600,
-                  background: "var(--cc-primary)",
-                  border: "none",
-                  color: "#fff",
-                  cursor: saving ? "not-allowed" : "pointer",
-                  opacity: saving ? 0.6 : 1,
-                }}
-              >
-                {saving ? "Saving..." : "Save Changes"}
-              </button>
-            </div>
+        {/* Section 3: Summary */}
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 8 }}>
+            Effective access: {enabledCount}/{featureKeys.length} features
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {featureKeys.map((key) => {
+              const on = getEffective(key);
+              return (
+                <Badge
+                  key={key}
+                  variant={on ? "success" : "neutral"}
+                  size="sm"
+                  outlined
+                >
+                  {FEATURES[key].label}
+                </Badge>
+              );
+            })}
           </div>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }

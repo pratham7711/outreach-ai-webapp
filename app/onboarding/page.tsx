@@ -74,7 +74,7 @@ export default function OnboardingPage() {
         <div className="text-center mb-8">
           <a href="/" className="inline-flex items-center gap-2">
             <span className="text-2xl text-[#2563EB] font-black">✦</span>
-            <span className="text-2xl font-black text-white">creatorcore</span>
+            <span className="text-2xl font-black text-white">outreach ai</span>
           </a>
         </div>
 
@@ -250,7 +250,7 @@ export default function OnboardingPage() {
                 </motion.div>
                 <h2 className="text-3xl font-black text-white mb-3">You&apos;re all set!</h2>
                 <p className="text-white/50 text-base mb-10">
-                  Welcome to CreatorCore
+                  Welcome to Outreach AI
                   {orgName ? `, ${orgName}` : ""}. Your workspace is ready.
                 </p>
                 <motion.a

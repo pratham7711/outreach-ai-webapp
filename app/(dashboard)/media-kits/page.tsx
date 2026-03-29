@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Plus } from "lucide-react";
-import { Button, Modal, Input, EmptyState } from "@pratham7711/ui";
+import { Button, Modal, Input, EmptyState, Card, Badge, LoadingSpinner } from "@pratham7711/ui";
 
 interface MediaKit {
   id: string;
@@ -52,10 +52,10 @@ export default function MediaKitsPage() {
   }
 
   return (
-    <div style={{ padding: "32px 40px 40px" }}>
+    <div className="cc-page-content">
       <div style={{ marginBottom: 32, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div>
-          <h1 style={{ fontSize: 28, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Media Kits</h1>
+          <h1 style={{ fontSize: 26, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Media Kits</h1>
           <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>Build and share creator media kits</p>
         </div>
         <Button variant="primary" iconLeft={<Plus size={15} />} onClick={() => setOpen(true)}>
@@ -64,7 +64,9 @@ export default function MediaKitsPage() {
       </div>
 
       {loading ? (
-        <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>Loading...</p>
+        <div style={{ display: "flex", justifyContent: "center", padding: 48 }}>
+          <LoadingSpinner size={24} />
+        </div>
       ) : kits.length === 0 ? (
         <EmptyState
           icon="📁"
@@ -77,10 +79,10 @@ export default function MediaKitsPage() {
           }
         />
       ) : (
-        <div style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, overflow: "hidden" }}>
+        <Card variant="outlined" noPadding>
           <table style={{ width: "100%", fontSize: 14, borderCollapse: "collapse" }}>
             <thead>
-              <tr style={{ background: "#F9FAFB" }}>
+              <tr style={{ background: "var(--cc-hover-bg)" }}>
                 {["Title", "Creators", "Created", "Visibility", ""].map((h, i) => (
                   <th key={i} style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", color: "var(--cc-text-muted)", padding: "12px 20px", textAlign: "left", letterSpacing: "0.05em" }}>{h}</th>
                 ))}
@@ -88,23 +90,23 @@ export default function MediaKitsPage() {
             </thead>
             <tbody>
               {kits.map((k) => (
-                <tr key={k.id} style={{ borderTop: "1px solid var(--cc-border)" }}>
+                <tr key={k.id} className="cc-table-row" style={{ borderTop: "1px solid var(--cc-border)" }}>
                   <td style={{ padding: "12px 20px", fontWeight: 500, color: "var(--cc-text)" }}>{k.title}</td>
                   <td style={{ padding: "12px 20px", color: "var(--cc-text-muted)" }}>{k.creatorIds.length} creator{k.creatorIds.length !== 1 ? "s" : ""}</td>
                   <td style={{ padding: "12px 20px", color: "var(--cc-text-muted)" }}>{new Date(k.createdAt).toLocaleDateString()}</td>
                   <td style={{ padding: "12px 20px" }}>
-                    <span style={{ fontSize: 12, padding: "4px 8px", borderRadius: 9999, fontWeight: 500, background: k.isPublic ? "#dcfce7" : "#F3F4F6", color: k.isPublic ? "#16a34a" : "var(--cc-text-muted)" }}>
+                    <Badge variant={k.isPublic ? "success" : "neutral"} size="sm">
                       {k.isPublic ? "Public" : "Private"}
-                    </span>
+                    </Badge>
                   </td>
                   <td style={{ padding: "12px 20px", textAlign: "right" }}>
-                    <button onClick={() => deleteKit(k.id)} style={{ fontSize: 12, color: "#ef4444", background: "none", border: "none", cursor: "pointer" }}>Delete</button>
+                    <Button variant="danger" size="sm" onClick={() => deleteKit(k.id)}>Delete</Button>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </div>
+        </Card>
       )}
 
       <Modal
@@ -115,7 +117,15 @@ export default function MediaKitsPage() {
         footer={
           <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
             <Button variant="secondary" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button variant="primary" loading={creating} onClick={() => { document.getElementById("kit-form")?.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true })); }}>
+            <Button
+              variant="primary"
+              loading={creating}
+              onClick={() => {
+                document.getElementById("kit-form")?.dispatchEvent(
+                  new Event("submit", { cancelable: true, bubbles: true })
+                );
+              }}
+            >
               Create
             </Button>
           </div>

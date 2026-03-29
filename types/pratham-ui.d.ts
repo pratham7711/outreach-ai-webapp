@@ -61,6 +61,50 @@ declare module "@pratham7711/ui" {
   export const Footer: React.FC<{ children?: React.ReactNode }>
   export const Skeleton: React.FC<{ width?: string | number; height?: string | number; borderRadius?: string | number }>
   export const ConnectionStatus: React.FC<{ status: string; label?: string }>
+
+  // Tabs
+  export interface TabItem { label: string; value: string; icon?: React.ReactNode }
+  export type TabsVariant = "pills" | "underline" | "solid"
+  export interface TabsProps extends React.HTMLAttributes<HTMLDivElement> {
+    items: TabItem[]; activeTab: string; onChange: (value: string) => void; variant?: TabsVariant;
+  }
+  export const Tabs: React.ForwardRefExoticComponent<TabsProps & React.RefAttributes<HTMLDivElement>>
+
+  // Dropdown
+  export interface DropdownItem { label: string; icon?: React.ReactNode; onClick?: () => void; danger?: boolean }
+  export interface DropdownProps extends React.HTMLAttributes<HTMLDivElement> {
+    trigger: React.ReactNode; items: DropdownItem[]; align?: "left" | "right";
+  }
+  export const Dropdown: React.ForwardRefExoticComponent<DropdownProps & React.RefAttributes<HTMLDivElement>>
+
+  // ProgressBar
+  export type ProgressBarVariant = "accent" | "success" | "warning" | "danger"
+  export type ProgressBarSize = "sm" | "md"
+  export interface ProgressBarProps extends React.HTMLAttributes<HTMLDivElement> {
+    value: number; variant?: ProgressBarVariant; size?: ProgressBarSize; showLabel?: boolean; animated?: boolean;
+  }
+  export const ProgressBar: React.ForwardRefExoticComponent<ProgressBarProps & React.RefAttributes<HTMLDivElement>>
+
+  // Toggle
+  export type ToggleSize = "sm" | "md"
+  export interface ToggleProps extends Omit<React.HTMLAttributes<HTMLDivElement>, "onChange"> {
+    checked: boolean; onChange: (checked: boolean) => void; label?: string; size?: ToggleSize; disabled?: boolean;
+  }
+  export const Toggle: React.ForwardRefExoticComponent<ToggleProps & React.RefAttributes<HTMLDivElement>>
+
+  // Breadcrumb
+  export interface BreadcrumbItem { label: string; href?: string }
+  export interface BreadcrumbProps extends React.HTMLAttributes<HTMLElement> {
+    items: BreadcrumbItem[]; separator?: React.ReactNode;
+  }
+  export const Breadcrumb: React.ForwardRefExoticComponent<BreadcrumbProps & React.RefAttributes<HTMLElement>>
+
+  // Alert
+  export type AlertVariant = "info" | "success" | "warning" | "danger"
+  export interface AlertProps extends React.HTMLAttributes<HTMLDivElement> {
+    variant: AlertVariant; title?: string; children?: React.ReactNode; onClose?: () => void; icon?: React.ReactNode;
+  }
+  export const Alert: React.ForwardRefExoticComponent<AlertProps & React.RefAttributes<HTMLDivElement>>
 }
 
 declare module "@pratham7711/ui/styles" {}

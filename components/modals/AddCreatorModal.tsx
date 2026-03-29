@@ -92,8 +92,9 @@ export default function AddCreatorModal({ onClose }: { onClose: () => void }) {
           required
         />
         <div>
-          <label style={labelStyle}>Platform</label>
+          <label htmlFor="creator-platform" style={labelStyle}>Platform</label>
           <select
+            id="creator-platform"
             value={form.platform}
             onChange={(e) => setForm((f) => ({ ...f, platform: e.target.value }))}
             style={selectStyle}

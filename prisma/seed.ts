@@ -1,11 +1,10 @@
 import "dotenv/config";
 import { PrismaClient } from "../lib/generated/prisma";
-import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
+import { PrismaPg } from "@prisma/adapter-pg";
 import bcrypt from "bcryptjs";
 
-const url = process.env.DATABASE_URL ?? "file:./dev.db";
-const adapter = new PrismaBetterSqlite3({ url });
-const prisma = new PrismaClient({ adapter } as any);
+const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
+const prisma = new PrismaClient({ adapter });
 
 async function main() {
   const org = await prisma.organization.upsert({
@@ -28,6 +27,35 @@ async function main() {
       name: "Admin",
       password: hashed,
       role: "OWNER",
+    },
+  });
+
+  // ─── OrgPlanConfig ───
+  await prisma.orgPlanConfig.upsert({
+    where: { orgId: org.id },
+    update: {},
+    create: {
+      orgId: org.id,
+      planName: 'pro',
+      maxCampaigns: 50,
+      maxCreators: 500,
+      maxUsers: 10,
+      features: { soundTracker: true, reports: true, csvExport: true },
+    },
+  });
+
+  // ─── OrgUIConfig ───
+  await prisma.organization.update({
+    where: { id: org.id },
+    data: {
+      uiConfig: {
+        features: { soundTracker: true, creatorPortal: false, aiBriefings: false, reports: true, csvExport: true },
+        nav: ["campaigns", "creators", "payouts", "analytics", "trackers", "lists"],
+        branding: { primaryColor: "#6366f1", brandName: "Outreach AI" },
+        limits: { maxCampaigns: 50, maxCreators: 500, maxUsers: 10 },
+        platforms: { tiktok: true, instagram: true, youtube: true },
+        dashboard: ["kpi_grid", "views_over_time", "platform_breakdown", "top_posts", "financial_summary", "creator_performance"],
+      },
     },
   });
 
@@ -71,7 +99,7 @@ async function main() {
   });
 
   // ─── Plans ───
-  const starterFeatures = JSON.stringify({
+  const starterFeatures = {
     analytics: true,
     bulk_export: false,
     api_access: false,
@@ -82,9 +110,9 @@ async function main() {
     multi_currency: false,
     audit_log: false,
     media_kits: false,
-  });
+  };
 
-  const proFeatures = JSON.stringify({
+  const proFeatures = {
     analytics: true,
     bulk_export: true,
     api_access: true,
@@ -95,9 +123,9 @@ async function main() {
     multi_currency: true,
     audit_log: false,
     media_kits: true,
-  });
+  };
 
-  const enterpriseFeatures = JSON.stringify({
+  const enterpriseFeatures = {
     analytics: true,
     bulk_export: true,
     api_access: true,
@@ -108,7 +136,7 @@ async function main() {
     multi_currency: true,
     audit_log: true,
     media_kits: true,
-  });
+  };
 
   const planStarter = await prisma.plan.upsert({
     where: { id: "plan-starter" },
@@ -168,12 +196,12 @@ async function main() {
     }),
     prisma.client.upsert({
       where: { id: "client-4" },
-      update: { planId: planPro.id, featureOverrides: JSON.stringify({ api_access: false, media_kits: false }) },
+      update: { planId: planPro.id, featureOverrides: { api_access: false, media_kits: false } },
       create: {
         id: "client-4", orgId: org.id, name: "Atlantic Records", logoUrl: null,
         contactInfo: JSON.stringify({ email: "team@atlantic.com" }),
         planId: planPro.id,
-        featureOverrides: JSON.stringify({ api_access: false, media_kits: false }),
+        featureOverrides: { api_access: false, media_kits: false },
       },
     }),
     prisma.client.upsert({

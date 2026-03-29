@@ -16,7 +16,7 @@ export function CampaignList({ campaigns }: { campaigns: CampaignWithRelations[]
   }
 
   return (
-    <div className="grid gap-3">
+    <div className="grid gap-4">
       {campaigns.map((campaign) => (
         <CampaignCard key={campaign.id} campaign={campaign} />
       ))}

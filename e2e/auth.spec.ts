@@ -11,7 +11,7 @@ test.describe('Authentication', () => {
 
   test('shows brand name on login page', async ({ page }) => {
     await page.goto('/login');
-    await expect(page.locator('text=creatorcore')).toBeVisible();
+    await expect(page.locator('text=outreach ai')).toBeVisible();
   });
 
   test('shows error on invalid credentials', async ({ page }) => {

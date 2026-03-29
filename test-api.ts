@@ -1,5 +1,5 @@
 #!/usr/bin/env tsx
-// Full API test for CreatorCore (localhost:3009)
+// Full API test for Outreach AI (localhost:3009)
 import fetch from "node-fetch";
 
 const BASE = "http://localhost:3009";

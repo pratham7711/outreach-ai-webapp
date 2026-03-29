@@ -11,7 +11,7 @@ test.describe('Dashboard', () => {
   });
 
   test('shows sidebar navigation', async ({ page }) => {
-    await expect(page.locator('text=creatorcore').first()).toBeVisible();
+    await expect(page.locator('text=outreach ai').first()).toBeVisible();
   });
 
   test('shows stats cards on dashboard', async ({ page }) => {
@@ -20,7 +20,7 @@ test.describe('Dashboard', () => {
     await expect(main).toBeVisible();
   });
 
-  test('page title includes CreatorCore', async ({ page }) => {
+  test('page title includes Outreach AI', async ({ page }) => {
     const title = await page.title();
     // Page should have some content
     expect(title).toBeTruthy();

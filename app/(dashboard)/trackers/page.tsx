@@ -18,37 +18,47 @@ const STATUS_BADGE: Record<string, "success"|"accent"|"neutral"|"danger"> = {
 
 export default function TrackersPage() {
   return (
-    <div style={{ padding: "32px 40px 40px" }}>
-      <div className="flex items-center justify-between mb-8">
+    <div className="cc-page-content">
+      <div style={{ marginBottom: 32, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div>
-          <h1 style={{ fontSize: 26, fontWeight: 900, color: "var(--cc-text)" }}>Trackers</h1>
-          <p style={{ fontSize: 14, color: "var(--cc-text-muted)", marginTop: 4 }}>Track TikTok sounds and trends</p>
+          <h1 style={{ fontSize: 26, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Trackers</h1>
+          <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>Track TikTok sounds and trends</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 32 }}>
         <StatCard value="4" label="Active Trackers" />
         <StatCard value="249K" label="Total Uses" />
         <StatCard value="1" label="Viral Sounds" />
         <StatCard value="+12%" label="Avg. Growth" />
       </div>
 
-      <Card variant="glass" style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 16, overflow: "hidden" }}>
+      <Card variant="outlined" noPadding>
         <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--cc-border)" }}>
-          <span style={{ fontWeight: 800, fontSize: 15, color: "var(--cc-text)" }}>Sound Trackers</span>
+          <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)" }}>Sound Trackers</span>
         </div>
         {TRACKERS.map((t, i) => (
-          <div key={t.id} className="flex items-center gap-4 px-5 py-4" style={{ borderBottom: i < TRACKERS.length - 1 ? "1px solid var(--cc-border)" : "none" }}>
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "rgba(37,99,235,0.1)" }}>
-              <Music size={18} style={{ color: "#3b82f6" }} />
+          <div
+            key={t.id}
+            className="cc-table-row"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 16,
+              padding: "14px 20px",
+              borderBottom: i < TRACKERS.length - 1 ? "1px solid var(--cc-border)" : "none",
+            }}
+          >
+            <div style={{ width: 40, height: 40, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--cc-primary-light)" }}>
+              <Music size={18} style={{ color: "var(--cc-primary)" }} />
             </div>
-            <div className="flex-1">
-              <div style={{ fontWeight: 700, fontSize: 14, color: "var(--cc-text)" }}>{t.sound}</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 600, fontSize: 14, color: "var(--cc-text)" }}>{t.sound}</div>
               <div style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{t.platform}</div>
             </div>
             <Badge variant={STATUS_BADGE[t.status]} size="sm">{t.status}</Badge>
-            <div className="text-right">
-              <div style={{ fontWeight: 800, fontSize: 14, color: "var(--cc-text)" }}>{t.uses.toLocaleString()}</div>
+            <div style={{ textAlign: "right" }}>
+              <div style={{ fontWeight: 700, fontSize: 14, color: "var(--cc-text)" }}>{t.uses.toLocaleString()}</div>
               <div style={{ fontSize: 12, color: t.growth.startsWith("+") ? "#22c55e" : "#ef4444" }}>{t.growth}</div>
             </div>
           </div>

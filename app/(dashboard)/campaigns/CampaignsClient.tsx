@@ -1,24 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Search, MoreVertical, Share2, FolderOpen } from "lucide-react";
+import { Plus, Search, MoreVertical, Share2, FolderOpen, ChevronDown } from "lucide-react";
 import Link from "next/link";
-import { Button, Card, Badge, StatCard } from "@pratham7711/ui";
-
-const EmptyState = ({ icon, title, description, action }: { icon: string; title: string; description?: string; action?: React.ReactNode }) => (
-  <div style={{ textAlign: "center", padding: "48px 24px" }}>
-    <div style={{ fontSize: 36, marginBottom: 12 }}>{icon}</div>
-    <h3 style={{ fontSize: 16, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>{title}</h3>
-    {description && <p style={{ fontSize: 14, color: "var(--cc-text-muted)", marginBottom: 16 }}>{description}</p>}
-    {action}
-  </div>
-);
-const SearchInput = ({ value, onChange, placeholder }: { value: string; onChange: (e: React.ChangeEvent<HTMLInputElement>) => void; placeholder?: string }) => (
-  <div style={{ position: "relative" }}>
-    <Search size={16} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--cc-text-muted)", pointerEvents: "none" }} />
-    <input value={value} onChange={onChange} placeholder={placeholder} style={{ width: "100%", padding: "9px 12px 9px 36px", border: "1px solid var(--cc-border)", borderRadius: 8, fontSize: 14, background: "var(--cc-card)", color: "var(--cc-text)", outline: "none" }} />
-  </div>
-);
+import { Button, Card, Badge, Input, EmptyState, Avatar, Tooltip } from "@pratham7711/ui";
 import NewCampaignModal from "@/components/modals/NewCampaignModal";
 
 type Campaign = {
@@ -29,16 +14,17 @@ type Campaign = {
   currency: string;
   client?: { name: string } | null;
   _count: { activations: number; posts: number };
+  updatedAt?: string;
 };
 
 type Client = { id: string; name: string };
 
 const STATUS_TABS = [
-  { key: "ALL",         label: "All",      bg: "#F3F4F6", color: "#374151" },
-  { key: "PENDING",     label: "Pending",  bg: "#FEF3C7", color: "#D97706" },
-  { key: "IN_PROGRESS", label: "Active",   bg: "#EEF2FF", color: "#4F46E5" },
-  { key: "COMPLETE",    label: "Complete", bg: "#D1FAE5", color: "#059669" },
-  { key: "CANCELLED",   label: "Canceled", bg: "#FEE2E2", color: "#DC2626" },
+  { key: "ALL",         label: "All",       bg: "#F3F4F6", color: "#374151" },
+  { key: "PENDING",     label: "Pending",   bg: "#FEF3C7", color: "#D97706" },
+  { key: "IN_PROGRESS", label: "Active",    bg: "#EEF2FF", color: "#4F46E5" },
+  { key: "COMPLETE",    label: "Complete",   bg: "#D1FAE5", color: "#059669" },
+  { key: "CANCELLED",   label: "Canceled",  bg: "#FEE2E2", color: "#DC2626" },
 ];
 
 const STATUS_BADGE_VARIANT: Record<string, "warning" | "accent" | "success" | "danger" | "neutral"> = {
@@ -53,6 +39,17 @@ function formatCurrency(n: number) {
   if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `$${(n / 1_000).toFixed(0)}K`;
   return `$${n}`;
+}
+
+function timeAgo(date?: string) {
+  if (!date) return "Recently";
+  const diff = Date.now() - new Date(date).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
 }
 
 export default function CampaignsClient({
@@ -77,54 +74,97 @@ export default function CampaignsClient({
   });
 
   return (
-    <div style={{ padding: "32px 40px 40px" }}>
+    <div className="cc-page-content">
       {/* Header */}
-      <div style={{ marginBottom: 32, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+      <div style={{ marginBottom: 28, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div>
-          <h1 style={{ fontSize: 28, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Campaigns</h1>
-          <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>Manage and track your influencer campaigns</p>
+          <h1 style={{ fontSize: 26, fontWeight: 800, color: "var(--cc-text)", letterSpacing: "-0.02em", marginBottom: 4 }}>
+            Campaigns
+          </h1>
+          <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>
+            {stats.total} Active Campaign{stats.total !== 1 ? "s" : ""}
+          </p>
         </div>
-        <div style={{ display: "flex", gap: 12 }}>
-          <Button variant="secondary" iconLeft={<FolderOpen size={15} />}>Folders</Button>
-          <Button variant="primary" iconLeft={<Plus size={15} />} onClick={() => setShowModal(true)}>New Campaign</Button>
+        <div style={{ display: "flex", gap: 10 }}>
+          <Button variant="secondary" iconLeft={<FolderOpen size={15} />} size="sm">
+            Folders
+          </Button>
+          <Button variant="primary" iconLeft={<Plus size={15} />} size="sm" onClick={() => setShowModal(true)}>
+            New Campaign
+          </Button>
         </div>
       </div>
 
-      {/* Stats */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 32 }}>
-        <StatCard value={String(stats.total)} label="Total Campaigns" />
-        <StatCard value={String(stats.active)} label="Active" />
-        <StatCard value={String(stats.creatorCount)} label="Creator Reach" />
-        <StatCard value={stats.totalBudget ? formatCurrency(stats.totalBudget) : "$0"} label="Total Budget" />
+      {/* Search Bar */}
+      <div style={{ marginBottom: 20 }}>
+        <Input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search Campaigns"
+          iconLeft={<Search size={16} />}
+        />
       </div>
 
-      {/* Search + Filters */}
-      <div style={{ marginBottom: 24, display: "flex", gap: 12 }}>
-        <div style={{ flex: 1 }}>
-          <SearchInput value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search campaigns..." />
-        </div>
+      {/* Filter Dropdowns Row */}
+      <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
+        {["Campaign Status", "Team Member", "Tags", "Client", "Creation Date"].map((filter) => (
+          <button
+            key={filter}
+            className="cc-filter-tab"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "7px 14px",
+              fontSize: 13,
+              background: "var(--cc-card)",
+              border: "1px solid var(--cc-border)",
+              borderRadius: 8,
+              cursor: "pointer",
+            }}
+          >
+            {filter}
+            <ChevronDown size={13} />
+          </button>
+        ))}
       </div>
 
       {/* Status Tabs */}
-      <div style={{ marginBottom: 24, display: "flex", gap: 8 }}>
+      <div role="tablist" aria-label="Filter by campaign status" style={{ marginBottom: 24, display: "flex", gap: 6, borderBottom: "1px solid var(--cc-border)", overflowX: "auto" }}>
         {STATUS_TABS.map((tab) => {
           const isSelected = statusFilter === tab.key;
+          const count = tab.key === "ALL"
+            ? campaigns.length
+            : campaigns.filter(c => c.status === tab.key).length;
           return (
             <button
               key={tab.key}
+              role="tab"
+              aria-selected={isSelected}
               onClick={() => setStatusFilter(tab.key)}
+              className="cc-filter-tab"
               style={{
-                padding: "6px 14px",
-                borderRadius: 20,
-                background: isSelected ? tab.bg : "transparent",
-                color: isSelected ? tab.color : "#9CA3AF",
-                border: "none",
-                fontSize: 13,
+                padding: "10px 16px",
+                borderRadius: 0,
+                borderBottom: isSelected ? `2px solid ${tab.color}` : "2px solid transparent",
+                background: "transparent",
+                color: isSelected ? tab.color : undefined,
                 fontWeight: isSelected ? 600 : 500,
-                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                marginBottom: -1,
               }}
             >
+              {isSelected && (
+                <span style={{ width: 7, height: 7, borderRadius: "50%", background: tab.color }} />
+              )}
               {tab.label}
+              {count > 0 && (
+                <Badge variant={isSelected ? (STATUS_BADGE_VARIANT[tab.key] ?? "neutral") : "neutral"} size="sm">
+                  {count}
+                </Badge>
+              )}
             </button>
           );
         })}
@@ -133,76 +173,101 @@ export default function CampaignsClient({
       {/* Campaign List */}
       <Card variant="solid" noPadding>
         {filtered.length === 0 ? (
-          <div style={{ padding: "40px 0" }}>
+          <div style={{ padding: "48px 24px" }}>
             <EmptyState
               icon="🎯"
               title="No campaigns yet"
               description="Create your first campaign to get started"
               action={
-                <Button variant="primary" iconLeft={<Plus size={16} />} onClick={() => setShowModal(true)}>
+                <Button variant="primary" iconLeft={<Plus size={15} />} onClick={() => setShowModal(true)}>
                   New Campaign
                 </Button>
               }
             />
           </div>
         ) : (
-          <div>
-            {/* Table header */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 120px 100px 120px 100px 120px", gap: 16, padding: "12px 20px", borderBottom: "1px solid var(--cc-border)", background: "#F9FAFB" }}>
-              {["Campaign", "Status", "Budget", "Client", "Activations", "Actions"].map((h) => (
-                <span key={h} style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--cc-text-muted)" }}>{h}</span>
-              ))}
-            </div>
+          <div className="cc-stagger">
             {filtered.map((campaign, i) => (
               <Link key={campaign.id} href={`/campaigns/${campaign.id}`} style={{ textDecoration: "none" }}>
                 <div
+                  className="cc-table-row"
                   style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr 120px 100px 120px 100px 120px",
-                    gap: 16,
-                    padding: "14px 20px",
+                    display: "flex",
+                    flexWrap: "wrap",
                     alignItems: "center",
+                    padding: "14px 20px",
+                    gap: 16,
                     borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined,
-                    cursor: "pointer",
-                    transition: "background 0.15s",
                   }}
-                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "#F9FAFB"; }}
-                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
                 >
-                  {/* Campaign name */}
-                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                    <div style={{ width: 40, height: 40, borderRadius: 8, background: "linear-gradient(135deg, #5B5BD6 0%, #7B7DE8 100%)", flexShrink: 0 }} />
-                    <div>
-                      <p style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)", marginBottom: 2 }}>{campaign.title}</p>
-                      <p style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>Last updated 2 hours ago</p>
+                  {/* Campaign Avatar/Thumbnail */}
+                  <Avatar name={campaign.title} size="md" />
+
+                  {/* Campaign Name + Last Updated */}
+                  <div style={{ flex: 1, minWidth: 160 }}>
+                    <p style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)", marginBottom: 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {campaign.title}
+                    </p>
+                    <p style={{ fontSize: 12, color: "var(--cc-text-subtle)" }}>
+                      Last updated {timeAgo(campaign.updatedAt)}
+                    </p>
+                  </div>
+
+                  {/* Stats - wrap on mobile as a row of small stat blocks */}
+                  <div className="hidden sm:flex items-center gap-4" style={{ flexShrink: 0 }}>
+                    {/* Budget Column */}
+                    <div style={{ width: 80, textAlign: "center" }}>
+                      <p style={{ fontSize: 10, fontWeight: 600, color: "var(--cc-text-subtle)", letterSpacing: "0.5px", textTransform: "uppercase", marginBottom: 2 }}>
+                        Budget
+                      </p>
+                      <p style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>
+                        {campaign.budget ? formatCurrency(campaign.budget) : "N/A"}
+                      </p>
+                    </div>
+
+                    {/* Creators Column */}
+                    <div style={{ width: 80, textAlign: "center" }}>
+                      <p style={{ fontSize: 10, fontWeight: 600, color: "var(--cc-text-subtle)", letterSpacing: "0.5px", textTransform: "uppercase", marginBottom: 2 }}>
+                        Creators
+                      </p>
+                      <p style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>
+                        {campaign._count.activations}
+                      </p>
+                    </div>
+
+                    {/* Posts Column */}
+                    <div style={{ width: 60, textAlign: "center" }}>
+                      <p style={{ fontSize: 10, fontWeight: 600, color: "var(--cc-text-subtle)", letterSpacing: "0.5px", textTransform: "uppercase", marginBottom: 2 }}>
+                        Posts
+                      </p>
+                      <p style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>
+                        {campaign._count.posts}
+                      </p>
+                    </div>
+
+                    {/* Team Column */}
+                    <div style={{ width: 60, display: "flex", justifyContent: "center" }}>
+                      <div className="cc-avatar-group">
+                        <Avatar name="T" size="sm" />
+                      </div>
                     </div>
                   </div>
-                  {/* Status */}
-                  <Badge variant={STATUS_BADGE_VARIANT[campaign.status] ?? "neutral"} dot>
-                    {campaign.status.replace("_", " ")}
-                  </Badge>
-                  {/* Budget */}
-                  <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>
-                    {campaign.budget ? formatCurrency(campaign.budget) : "—"}
-                  </span>
-                  {/* Client */}
-                  <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>
-                    {campaign.client?.name ?? "—"}
-                  </span>
-                  {/* Activations */}
-                  <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>
-                    {campaign._count.activations}
-                  </span>
-                  {/* Actions */}
-                  <div style={{ display: "flex", gap: 8 }} onClick={(e) => e.preventDefault()}>
-                    <button
-                      style={{ padding: "5px 12px", borderRadius: 20, background: "#1E1B4B", color: "white", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 600 }}
-                    >
-                      <Share2 size={12} /> Share
-                    </button>
-                    <button style={{ padding: 6, borderRadius: 6, background: "transparent", border: "none", color: "var(--cc-text-muted)", cursor: "pointer" }}>
-                      <MoreVertical size={15} />
-                    </button>
+
+                  {/* Status Badge */}
+                  <div style={{ flexShrink: 0 }}>
+                    <Badge variant={STATUS_BADGE_VARIANT[campaign.status] ?? "neutral"} dot>
+                      {campaign.status.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())}
+                    </Badge>
+                  </div>
+
+                  {/* Share + More Actions */}
+                  <div className="hidden md:flex" style={{ gap: 8, flexShrink: 0 }} onClick={(e) => e.preventDefault()}>
+                    <Button variant="primary" size="sm" iconLeft={<Share2 size={12} />}>
+                      Share
+                    </Button>
+                    <Button variant="ghost" size="sm" aria-label="More actions">
+                      <MoreVertical size={16} />
+                    </Button>
                   </div>
                 </div>
               </Link>

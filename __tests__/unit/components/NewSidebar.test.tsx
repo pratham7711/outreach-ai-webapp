@@ -8,9 +8,9 @@ jest.mock('next-themes', () => ({
 import NewSidebar from '@/components/NewSidebar';
 
 describe('NewSidebar', () => {
-  it('renders creatorcore brand name', () => {
+  it('renders outreach ai brand name', () => {
     render(<NewSidebar />);
-    expect(screen.getByText('creatorcore')).toBeInTheDocument();
+    expect(screen.getByText('outreach ai')).toBeInTheDocument();
   });
 
   it('renders all main navigation links', () => {

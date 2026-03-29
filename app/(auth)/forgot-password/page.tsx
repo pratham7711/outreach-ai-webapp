@@ -4,90 +4,119 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
+import { Button, Input } from "@pratham7711/ui";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
 
   return (
-    <div className="min-h-screen bg-[#050A1F] flex items-center justify-center p-4">
+    <div
+      style={{
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "0 16px",
+        background: "linear-gradient(135deg, #6C3EF4 0%, #4A8EF0 100%)",
+      }}
+    >
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="w-full max-w-md"
+        style={{ width: "100%", maxWidth: 400 }}
       >
         {/* Logo */}
-        <div className="text-center mb-8">
-          <a href="/" className="inline-flex items-center gap-2">
-            <span className="text-2xl text-[#2563EB] font-black">✦</span>
-            <span className="text-2xl font-black text-white">creatorcore</span>
-          </a>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, justifyContent: "center", marginBottom: 40 }}>
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="10" stroke="white" strokeWidth="2.5"/>
+            <circle cx="12" cy="12" r="5.5" stroke="white" strokeWidth="2"/>
+            <circle cx="12" cy="12" r="2" fill="white"/>
+          </svg>
+          <span style={{ fontWeight: 800, fontSize: 20, color: "white", letterSpacing: "-0.5px" }}>
+            outreach ai
+          </span>
         </div>
 
         {/* Card */}
-        <div className="bg-[#0E0F1C] border border-white/[0.08] rounded-3xl p-10">
+        <div
+          style={{
+            background: "white",
+            borderRadius: 24,
+            boxShadow: "0 20px 60px rgba(0, 0, 0, 0.15)",
+            padding: 40,
+          }}
+        >
           {sent ? (
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="text-center py-4"
+              style={{ textAlign: "center", padding: "16px 0" }}
             >
-              <div className="w-14 h-14 rounded-full bg-[#2563EB]/20 flex items-center justify-center mx-auto mb-4 text-2xl">
+              <div style={{
+                width: 56, height: 56, borderRadius: "50%",
+                background: "var(--cc-primary-light)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                margin: "0 auto 16px", fontSize: 24,
+              }}>
                 ✉️
               </div>
-              <h1 className="text-2xl font-black text-white mb-2">Check your email</h1>
-              <p className="text-white/50 text-sm mb-8">
+              <h1 style={{ fontSize: 22, fontWeight: 700, color: "var(--cc-text)", marginBottom: 8 }}>Check your email</h1>
+              <p style={{ fontSize: 14, color: "var(--cc-text-muted)", marginBottom: 32 }}>
                 We sent a reset link to{" "}
-                <span className="text-white font-medium">{email}</span>
+                <span style={{ color: "var(--cc-text)", fontWeight: 500 }}>{email}</span>
               </p>
               <Link
                 href="/login"
-                className="inline-flex items-center gap-2 text-[#2563EB] hover:text-blue-400 text-sm font-semibold transition-colors"
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 8,
+                  color: "var(--cc-primary)", fontSize: 14, fontWeight: 600,
+                  textDecoration: "none",
+                }}
               >
-                <ArrowLeft className="w-4 h-4" />
+                <ArrowLeft size={16} />
                 Back to sign in
               </Link>
             </motion.div>
           ) : (
             <>
-              <h1 className="text-2xl font-black text-white mb-2">Reset your password</h1>
-              <p className="text-white/50 text-sm mb-8">
+              <h1 style={{ fontSize: 22, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Reset your password</h1>
+              <p style={{ fontSize: 14, color: "var(--cc-text-muted)", marginBottom: 24 }}>
                 Enter your email and we&apos;ll send you a reset link
               </p>
 
               <form
-                className="space-y-4"
                 onSubmit={(e) => {
                   e.preventDefault();
                   if (email) setSent(true);
                 }}
+                style={{ display: "flex", flexDirection: "column", gap: 16 }}
               >
-                <div>
-                  <label className="block text-white/70 text-sm font-medium mb-1.5">Email</label>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="you@company.com"
-                    className="w-full bg-white/5 border border-white/10 text-white placeholder-white/30 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#2563EB] focus:ring-1 focus:ring-[#2563EB] transition-colors"
-                  />
-                </div>
+                <Input
+                  label="Email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@company.com"
+                  required
+                />
 
-                <button
-                  type="submit"
-                  className="w-full bg-[#2563EB] hover:bg-[#1d4ed8] text-white font-bold py-3 rounded-full transition-colors"
-                >
+                <Button type="submit" variant="primary" fullWidth style={{ marginTop: 4 }}>
                   Send reset link
-                </button>
+                </Button>
               </form>
 
-              <div className="mt-6 text-center">
+              <div style={{ marginTop: 24, textAlign: "center" }}>
                 <Link
                   href="/login"
-                  className="inline-flex items-center gap-2 text-white/40 hover:text-white text-sm font-medium transition-colors"
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: 8,
+                    color: "var(--cc-text-muted)", fontSize: 14, fontWeight: 500,
+                    textDecoration: "none",
+                  }}
                 >
-                  <ArrowLeft className="w-4 h-4" />
+                  <ArrowLeft size={16} />
                   Back to sign in
                 </Link>
               </div>

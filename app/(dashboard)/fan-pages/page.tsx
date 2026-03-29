@@ -1,8 +1,18 @@
+"use client";
+import { EmptyState } from "@pratham7711/ui";
+
 export default function FanPagesPage() {
   return (
-    <div style={{ padding: "32px" }}>
-      <h1 style={{ fontSize: 28, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Fan Pages</h1>
-      <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>Coming soon</p>
+    <div className="cc-page-content">
+      <div style={{ marginBottom: 32 }}>
+        <h1 style={{ fontSize: 26, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Fan Pages</h1>
+        <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>Build custom fan pages for creators</p>
+      </div>
+      <EmptyState
+        icon="🎤"
+        title="Coming soon"
+        description="Fan page builder is under development."
+      />
     </div>
   );
 }

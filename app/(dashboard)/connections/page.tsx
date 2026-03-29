@@ -1,6 +1,5 @@
 "use client";
-import { Button, Card } from "@pratham7711/ui";
-import { Link2 } from "lucide-react";
+import { Button, Card, Badge } from "@pratham7711/ui";
 
 const INTEGRATIONS = [
   { name: "TikTok", description: "Import creator profiles and analytics from TikTok.", icon: "🎵", connected: true },
@@ -13,29 +12,26 @@ const INTEGRATIONS = [
 
 export default function ConnectionsPage() {
   return (
-    <div style={{ padding: "32px 40px 40px" }}>
-      <div className="flex items-center justify-between mb-8">
+    <div className="cc-page-content">
+      <div style={{ marginBottom: 32, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div>
-          <h1 style={{ fontSize: 26, fontWeight: 900, color: "var(--cc-text)" }}>Connections</h1>
-          <p style={{ fontSize: 14, color: "var(--cc-text-muted)", marginTop: 4 }}>Connect your platforms and payment providers</p>
+          <h1 style={{ fontSize: 26, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Connections</h1>
+          <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>Connect your platforms and payment providers</p>
         </div>
       </div>
 
-      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {INTEGRATIONS.map(int => (
-          <Card key={int.name} variant="glass" className="p-6" style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 16 }}>
-            <div className="flex items-start justify-between mb-4">
-              <div className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl" style={{ background: "#F3F4F6" }}>
+      <div className="cc-stagger" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
+        {INTEGRATIONS.map((int) => (
+          <Card key={int.name} variant="outlined" style={{ padding: 24 }}>
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 16 }}>
+              <div style={{ width: 48, height: 48, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, background: "var(--cc-hover-bg)" }}>
                 {int.icon}
               </div>
               {int.connected && (
-                <span className="flex items-center gap-1.5 text-xs font-medium" style={{ color: "#22c55e" }}>
-                  <span className="h-2 w-2 rounded-full" style={{ background: "#22c55e" }} />
-                  Connected
-                </span>
+                <Badge variant="success" size="sm" dot>Connected</Badge>
               )}
             </div>
-            <h3 style={{ fontWeight: 800, fontSize: 16, color: "var(--cc-text)", marginBottom: 4 }}>{int.name}</h3>
+            <h3 style={{ fontWeight: 700, fontSize: 16, color: "var(--cc-text)", marginBottom: 4 }}>{int.name}</h3>
             <p style={{ fontSize: 13, color: "var(--cc-text-muted)", lineHeight: 1.5, marginBottom: 16 }}>{int.description}</p>
             {int.connected ? (
               <Button variant="ghost" fullWidth>Disconnect</Button>

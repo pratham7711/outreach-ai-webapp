@@ -1,15 +1,25 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Search } from "lucide-react";
-import { Button, Card, Badge, StatCard, EmptyState, Input, Tag } from "@pratham7711/ui";
+import { useRouter } from "next/navigation";
+import { Plus, Search, ArrowRight, Check } from "lucide-react";
+import { Button, Card, Badge, StatCard, EmptyState, Input, Tag, Avatar } from "@pratham7711/ui";
+import { toast } from "sonner";
 import AddPayoutModal from "@/components/modals/AddPayoutModal";
+import PayoutDetailModal from "@/components/modals/PayoutDetailModal";
 
 type Payout = {
   id: string;
   amount: number;
+  currency: string;
   status: string;
+  paymentMethod: string;
+  recipientPaypalEmail: string | null;
+  transactionId: string | null;
+  failureReason: string | null;
   createdAt: string;
+  initiatedAt: string;
+  completedAt: string | null;
   creator: { id: string; name: string; handle: string; platform: string };
   campaign: { id: string; title: string } | null;
 };
@@ -19,11 +29,17 @@ type Campaign = { id: string; title: string };
 
 const STATUS_BADGE_VARIANT: Record<string, "warning" | "success" | "danger" | "neutral"> = {
   PENDING: "warning",
-  SENT: "success",
+  PROCESSING: "neutral",
+  SUCCESS: "success",
   FAILED: "danger",
 };
 
-const STATUS_TABS = ["All", "Pending", "Sent", "Failed"];
+const STATUS_TABS = ["All", "Pending", "Processing", "Success", "Failed"];
+
+const QUICK_ACTIONS: Record<string, { label: string; status: string }> = {
+  PENDING: { label: "→ Processing", status: "PROCESSING" },
+  PROCESSING: { label: "→ Success", status: "SUCCESS" },
+};
 
 function formatCurrency(n: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
@@ -31,13 +47,17 @@ function formatCurrency(n: number) {
 
 export default function PayoutsClient({ payouts, stats, creators, campaigns }: {
   payouts: Payout[];
-  stats: { total: number; sent: number; pending: number };
+  stats: { total: number; sent: number; pending: number; processing: number; failed: number };
   creators: Creator[];
   campaigns: Campaign[];
 }) {
+  const router = useRouter();
   const [showModal, setShowModal] = useState(false);
+  const [detailPayout, setDetailPayout] = useState<Payout | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [transitioning, setTransitioning] = useState<Set<string>>(new Set());
 
   const filtered = payouts.filter((p) => {
     const matchSearch =
@@ -48,24 +68,93 @@ export default function PayoutsClient({ payouts, stats, creators, campaigns }: {
     return matchSearch && matchStatus;
   });
 
+  const toggleSelect = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAll = () => {
+    if (selected.size === filtered.length) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(filtered.map((p) => p.id)));
+    }
+  };
+
+  const handleStatusChange = async (id: string, status: string) => {
+    if (!confirm(`Change status to ${status}?`)) return;
+    setTransitioning((prev) => new Set(prev).add(id));
+    try {
+      const res = await fetch(`/api/payouts/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      if (res.ok) {
+        toast.success(`Payout marked as ${status}`);
+        router.refresh();
+        setDetailPayout(null);
+      } else {
+        const err = await res.json();
+        toast.error(err.error || "Failed to update");
+      }
+    } catch {
+      toast.error("Network error");
+    } finally {
+      setTransitioning((prev) => { const n = new Set(prev); n.delete(id); return n; });
+    }
+  };
+
+  const handleBulkAction = async (status: string) => {
+    const ids = Array.from(selected);
+    if (!confirm(`Update ${ids.length} payouts to ${status}?`)) return;
+    try {
+      const res = await fetch("/api/payouts/bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids, status }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        toast.success(`Updated ${data.updated} payouts`);
+        if (data.errors?.length) toast.warning(`${data.errors.length} could not be updated`);
+        setSelected(new Set());
+        router.refresh();
+      } else {
+        toast.error("Bulk update failed");
+      }
+    } catch {
+      toast.error("Network error");
+    }
+  };
+
   return (
-    <div style={{ padding: "32px 40px 40px" }}>
+    <div className="cc-page-content">
       {/* Header */}
       <div style={{ marginBottom: 32, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div>
-          <h1 style={{ fontSize: 28, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Payouts</h1>
-          <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>Track and manage creator payments</p>
+          <h1 style={{ fontSize: 26, fontWeight: 800, color: "var(--cc-text)", letterSpacing: "-0.02em", marginBottom: 4 }}>
+            Payouts
+          </h1>
+          <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>
+            Track and manage creator payments
+          </p>
         </div>
-        <Button variant="primary" iconLeft={<Plus size={15} />} onClick={() => setShowModal(true)}>
+        <Button variant="primary" iconLeft={<Plus size={15} />} size="sm" onClick={() => setShowModal(true)}>
           Process Payout
         </Button>
       </div>
 
       {/* Stats */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 32 }}>
+      <div className="cc-stagger" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 32 }}>
         <StatCard value={formatCurrency(stats.sent)} label="Total Paid" />
-        <StatCard value={formatCurrency(stats.pending)} label="Pending Amount" />
-        <StatCard value={formatCurrency(stats.total)} label="Total Processed" />
+        <StatCard value={formatCurrency(stats.pending)} label="Pending" />
+        <StatCard value={formatCurrency(stats.processing)} label="Processing" />
+        <StatCard value={formatCurrency(stats.failed)} label="Failed" />
       </div>
 
       {/* Search + Status Filter */}
@@ -82,6 +171,7 @@ export default function PayoutsClient({ payouts, stats, creators, campaigns }: {
           {STATUS_TABS.map((tab) => (
             <Tag
               key={tab}
+              variant={statusFilter === tab ? "accent" : "neutral"}
               outlined={statusFilter !== tab}
               onClick={() => setStatusFilter(tab)}
               style={{ cursor: "pointer", fontWeight: statusFilter === tab ? 600 : 400 }}
@@ -92,16 +182,42 @@ export default function PayoutsClient({ payouts, stats, creators, campaigns }: {
         </div>
       </div>
 
+      {/* Bulk action bar */}
+      {selected.size > 0 && (
+        <div style={{
+          marginBottom: 16, padding: "10px 16px", background: "var(--cc-primary)", borderRadius: 10,
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+        }}>
+          <span style={{ color: "white", fontSize: 13, fontWeight: 600 }}>
+            {selected.size} selected
+          </span>
+          <div style={{ display: "flex", gap: 8 }}>
+            <Button size="sm" variant="secondary" onClick={() => handleBulkAction("PROCESSING")}>
+              Mark Processing
+            </Button>
+            <Button size="sm" variant="secondary" onClick={() => handleBulkAction("SUCCESS")}>
+              Mark Success
+            </Button>
+            <Button size="sm" variant="secondary" onClick={() => handleBulkAction("FAILED")}>
+              Mark Failed
+            </Button>
+            <Button size="sm" variant="secondary" onClick={() => setSelected(new Set())}>
+              Clear
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Table */}
       <Card variant="solid" noPadding>
         {filtered.length === 0 ? (
-          <div style={{ padding: "40px 0" }}>
+          <div style={{ padding: "48px 24px" }}>
             <EmptyState
               icon="💸"
               title="No payouts yet"
               description="Process your first creator payment to get started"
               action={
-                <Button variant="primary" iconLeft={<Plus size={16} />} onClick={() => setShowModal(true)}>
+                <Button variant="primary" iconLeft={<Plus size={15} />} onClick={() => setShowModal(true)}>
                   Process Payout
                 </Button>
               }
@@ -110,53 +226,95 @@ export default function PayoutsClient({ payouts, stats, creators, campaigns }: {
         ) : (
           <div>
             {/* Table header */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 140px 100px 100px 100px", gap: 16, padding: "12px 20px", borderBottom: "1px solid var(--cc-border)", background: "#F9FAFB" }}>
-              {["Creator", "Campaign", "Amount", "Status", "Date"].map((h) => (
-                <span key={h} style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--cc-text-muted)" }}>{h}</span>
+            <div style={{
+              display: "grid", gridTemplateColumns: "40px 1fr 140px 100px 100px 120px 100px",
+              gap: 12, padding: "12px 24px", borderBottom: "1px solid var(--cc-border)", background: "var(--cc-bg)",
+            }}>
+              <div style={{ display: "flex", alignItems: "center" }}>
+                <input
+                  type="checkbox"
+                  checked={selected.size === filtered.length && filtered.length > 0}
+                  onChange={toggleAll}
+                  style={{ accentColor: "var(--cc-primary)" }}
+                />
+              </div>
+              {["Creator", "Campaign", "Amount", "Status", "Date", "Action"].map((h) => (
+                <span key={h} style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--cc-text-subtle)" }}>{h}</span>
               ))}
             </div>
-            {filtered.map((p, i) => (
-              <div
-                key={p.id}
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 140px 100px 100px 100px",
-                  gap: 16,
-                  padding: "14px 20px",
-                  alignItems: "center",
-                  borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined,
-                  transition: "background 0.15s",
-                }}
-                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "#F9FAFB"; }}
-                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
-              >
-                {/* Creator */}
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <div style={{ width: 32, height: 32, borderRadius: "50%", background: "var(--cc-primary)", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontSize: 10, fontWeight: 700, flexShrink: 0 }}>
-                    {p.creator.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
+            <div className="cc-stagger">
+              {filtered.map((p, i) => (
+                <div
+                  key={p.id}
+                  className="cc-table-row"
+                  style={{
+                    display: "grid", gridTemplateColumns: "40px 1fr 140px 100px 100px 120px 100px",
+                    gap: 12, padding: "14px 24px", alignItems: "center",
+                    borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined,
+                    cursor: "pointer",
+                    background: selected.has(p.id) ? "var(--cc-bg)" : undefined,
+                  }}
+                  onClick={() => setDetailPayout(p)}
+                >
+                  {/* Checkbox */}
+                  <div style={{ display: "flex", alignItems: "center" }} onClick={(e) => e.stopPropagation()}>
+                    <input
+                      type="checkbox"
+                      checked={selected.has(p.id)}
+                      onChange={() => toggleSelect(p.id)}
+                      style={{ accentColor: "var(--cc-primary)" }}
+                    />
                   </div>
-                  <div>
-                    <p style={{ fontSize: 14, fontWeight: 500, color: "var(--cc-text)" }}>{p.creator.name}</p>
-                    <p style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>@{p.creator.handle}</p>
+                  {/* Creator */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <Avatar name={p.creator.name} size="sm" />
+                    <div>
+                      <p style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>{p.creator.name}</p>
+                      <p style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>@{p.creator.handle}</p>
+                    </div>
+                  </div>
+                  {/* Campaign */}
+                  <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{p.campaign?.title ?? "—"}</span>
+                  {/* Amount */}
+                  <span style={{ fontSize: 14, fontWeight: 700, color: "var(--cc-text)" }}>{formatCurrency(p.amount)}</span>
+                  {/* Status */}
+                  <Badge variant={STATUS_BADGE_VARIANT[p.status] ?? "neutral"} dot>
+                    {p.status}
+                  </Badge>
+                  {/* Date */}
+                  <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{new Date(p.createdAt).toLocaleDateString()}</span>
+                  {/* Quick action */}
+                  <div onClick={(e) => e.stopPropagation()}>
+                    {QUICK_ACTIONS[p.status] ? (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        disabled={transitioning.has(p.id)}
+                        onClick={() => handleStatusChange(p.id, QUICK_ACTIONS[p.status].status)}
+                      >
+                        {transitioning.has(p.id) ? "..." : QUICK_ACTIONS[p.status].label}
+                      </Button>
+                    ) : p.status === "SUCCESS" ? (
+                      <span style={{ fontSize: 12, color: "#10B981", fontWeight: 600 }}>
+                        <Check size={14} style={{ display: "inline", verticalAlign: "middle" }} /> Done
+                      </span>
+                    ) : null}
                   </div>
                 </div>
-                {/* Campaign */}
-                <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{p.campaign?.title ?? "—"}</span>
-                {/* Amount */}
-                <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>{formatCurrency(p.amount)}</span>
-                {/* Status */}
-                <Badge variant={STATUS_BADGE_VARIANT[p.status] ?? "neutral"} dot>
-                  {p.status}
-                </Badge>
-                {/* Date */}
-                <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{new Date(p.createdAt).toLocaleDateString()}</span>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         )}
       </Card>
 
       {showModal && <AddPayoutModal creators={creators} campaigns={campaigns} onClose={() => setShowModal(false)} />}
+      {detailPayout && (
+        <PayoutDetailModal
+          payout={detailPayout}
+          onClose={() => setDetailPayout(null)}
+          onStatusChange={handleStatusChange}
+        />
+      )}
     </div>
   );
 }

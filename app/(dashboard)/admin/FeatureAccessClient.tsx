@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search, ExternalLink } from "lucide-react";
 import Link from "next/link";
+import { Button, Input, Badge, EmptyState, Card, Avatar } from "@pratham7711/ui";
 import ClientFeatureModal from "@/components/modals/ClientFeatureModal";
 import { FEATURES, type FeatureKey } from "@/lib/features";
 
@@ -144,23 +145,20 @@ export default function FeatureAccessClient({ clients: initialClients, plans }: 
   ];
 
   return (
-    <div style={{ padding: "32px 40px 40px" }}>
+    <div className="cc-page-content">
       {/* Header */}
       <div style={{ marginBottom: 32, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div>
-          <h1 style={{ fontSize: 28, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>
+          <h1 style={{ fontSize: 26, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>
             Feature Access
           </h1>
           <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>
             Manage plan assignments and feature overrides per client
           </p>
         </div>
-        <span style={{
-          fontSize: 12, fontWeight: 600, padding: "4px 12px", borderRadius: 8,
-          background: "rgba(91,91,214,0.1)", color: "#5B5BD6",
-        }}>
+        <Badge variant="accent" size="md">
           {initialClients.length} clients
-        </span>
+        </Badge>
       </div>
 
       {/* Tabs */}
@@ -169,6 +167,7 @@ export default function FeatureAccessClient({ clients: initialClients, plans }: 
           <button
             key={t.key}
             onClick={() => { setTab(t.key); setSelected(new Set()); }}
+            className="cc-filter-tab"
             style={{
               padding: "8px 16px",
               borderRadius: 20,
@@ -187,35 +186,24 @@ export default function FeatureAccessClient({ clients: initialClients, plans }: 
       </div>
 
       {/* Search */}
-      <div style={{ marginBottom: 24, position: "relative" }}>
-        <Search size={16} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--cc-text-muted)", pointerEvents: "none" }} />
-        <input
+      <div style={{ marginBottom: 24 }}>
+        <Input
           placeholder="Search clients..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          style={{
-            width: "100%",
-            padding: "10px 12px 10px 36px",
-            border: "1px solid var(--cc-border)",
-            borderRadius: 8,
-            fontSize: 14,
-            background: "var(--cc-card)",
-            color: "var(--cc-text)",
-            outline: "none",
-            boxSizing: "border-box",
-          }}
+          iconLeft={<Search size={16} />}
         />
       </div>
 
       {/* Tab: All Clients */}
       {tab === "all" && (
-        <div style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, overflow: "hidden" }}>
+        <Card variant="outlined" noPadding>
           {filtered.length === 0 ? (
-            <div style={{ padding: 60, textAlign: "center" }}>
-              <div style={{ fontSize: 32, marginBottom: 12 }}>🔍</div>
-              <p style={{ fontSize: 15, fontWeight: 600, color: "var(--cc-text)" }}>No clients found</p>
-              <p style={{ fontSize: 13, color: "var(--cc-text-muted)", marginTop: 4 }}>Try adjusting your search</p>
-            </div>
+            <EmptyState
+              icon="🔍"
+              title="No clients found"
+              description="Try adjusting your search"
+            />
           ) : (
             <>
               {/* Table header */}
@@ -255,6 +243,7 @@ export default function FeatureAccessClient({ clients: initialClients, plans }: 
                 return (
                   <div
                     key={client.id}
+                    className="cc-table-row"
                     style={{
                       padding: "12px 20px",
                       borderBottom: "1px solid var(--cc-border)",
@@ -262,7 +251,7 @@ export default function FeatureAccessClient({ clients: initialClients, plans }: 
                       gridTemplateColumns: "32px 1fr 140px 130px 110px 120px",
                       gap: 12,
                       alignItems: "center",
-                      background: isSelected ? "rgba(91,91,214,0.04)" : "transparent",
+                      background: isSelected ? "var(--cc-row-hover)" : "transparent",
                       transition: "background 0.1s",
                     }}
                   >
@@ -276,56 +265,35 @@ export default function FeatureAccessClient({ clients: initialClients, plans }: 
                     </div>
 
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <div style={{
-                        width: 36, height: 36, borderRadius: "50%",
-                        background: "#EEF2FF", color: "#5B5BD6",
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        fontSize: 13, fontWeight: 700, flexShrink: 0,
-                      }}>
-                        {client.name.charAt(0).toUpperCase()}
-                      </div>
+                      <Avatar name={client.name} size="sm" />
                       <span style={{ fontSize: 14, fontWeight: 500, color: "var(--cc-text)" }}>{client.name}</span>
                     </div>
 
                     <div>
-                      <span style={{
-                        fontSize: 12, fontWeight: 600, padding: "3px 10px", borderRadius: 6,
-                        background: client.planName ? "rgba(91,91,214,0.1)" : "#F3F4F6",
-                        color: client.planName ? "#5B5BD6" : "var(--cc-text-muted)",
-                      }}>
+                      <Badge variant={client.planName ? "accent" : "neutral"} size="sm">
                         {client.planName || "No Plan"}
-                      </span>
+                      </Badge>
                     </div>
 
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{enabledCount}/{featureKeys.length}</span>
-                      <div style={{ flex: 1, maxWidth: 60, height: 4, borderRadius: 2, background: "#F3F4F6", overflow: "hidden" }}>
+                      <div style={{ flex: 1, maxWidth: 60, height: 4, borderRadius: 2, background: "var(--cc-hover-bg)", overflow: "hidden" }}>
                         <div style={{ width: `${(enabledCount / featureKeys.length) * 100}%`, height: "100%", borderRadius: 2, background: enabledCount > 7 ? "#22c55e" : enabledCount > 4 ? "#eab308" : "#ef4444", transition: "width 0.3s" }} />
                       </div>
                     </div>
 
                     <div>
                       {overrideCount > 0 && (
-                        <span style={{
-                          fontSize: 11, fontWeight: 600, padding: "3px 8px", borderRadius: 6,
-                          background: "rgba(234,179,8,0.1)", color: "#d97706",
-                        }}>
+                        <Badge variant="warning" size="sm">
                           {overrideCount} override{overrideCount > 1 ? "s" : ""}
-                        </span>
+                        </Badge>
                       )}
                     </div>
 
                     <div style={{ display: "flex", gap: 6 }}>
-                      <button
-                        onClick={() => openModal(client)}
-                        style={{
-                          padding: "5px 12px", borderRadius: 6, fontSize: 12, fontWeight: 500,
-                          background: "transparent", border: "1px solid var(--cc-border)",
-                          color: "var(--cc-text)", cursor: "pointer",
-                        }}
-                      >
+                      <Button variant="ghost" size="sm" onClick={() => openModal(client)}>
                         Manage
-                      </button>
+                      </Button>
                       <Link
                         href={`/clients/${client.id}`}
                         style={{
@@ -343,36 +311,31 @@ export default function FeatureAccessClient({ clients: initialClients, plans }: 
               })}
             </>
           )}
-        </div>
+        </Card>
       )}
 
       {/* Tab: By Plan */}
       {tab === "by-plan" && (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 20 }}>
+        <div className="cc-stagger" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 20 }}>
           {(() => {
             const noPlanClients = filtered.filter((c) => !c.planId);
             if (noPlanClients.length === 0) return null;
             return (
-              <div style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, padding: 20 }}>
+              <Card variant="outlined" style={{ padding: 20 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
                   <h3 style={{ fontSize: 16, fontWeight: 600, color: "var(--cc-text)", margin: 0 }}>No Plan</h3>
-                  <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 6, background: "#F3F4F6", color: "var(--cc-text-muted)" }}>
+                  <Badge variant="neutral" size="sm">
                     {noPlanClients.length} client{noPlanClients.length !== 1 ? "s" : ""}
-                  </span>
+                  </Badge>
                 </div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                   {noPlanClients.map((c) => (
-                    <div key={c.id} title={c.name} onClick={() => openModal(c)} style={{
-                      width: 28, height: 28, borderRadius: "50%",
-                      background: "#EEF2FF", color: "#5B5BD6",
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      fontSize: 10, fontWeight: 700, cursor: "pointer",
-                    }}>
-                      {c.name.charAt(0).toUpperCase()}
+                    <div key={c.id} title={c.name} onClick={() => openModal(c)} style={{ cursor: "pointer" }}>
+                      <Avatar name={c.name} size="sm" />
                     </div>
                   ))}
                 </div>
-              </div>
+              </Card>
             );
           })()}
 
@@ -380,29 +343,24 @@ export default function FeatureAccessClient({ clients: initialClients, plans }: 
             const clientsOnPlan = filtered.filter((c) => c.planId === plan.id);
             if (clientsOnPlan.length === 0) return null;
             return (
-              <div key={plan.id} style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, padding: 20 }}>
+              <Card key={plan.id} variant="outlined" style={{ padding: 20 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
                   <h3 style={{ fontSize: 16, fontWeight: 600, color: "var(--cc-text)", margin: 0 }}>{plan.name}</h3>
-                  <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 6, background: "rgba(91,91,214,0.1)", color: "#5B5BD6" }}>
+                  <Badge variant="accent" size="sm">
                     {clientsOnPlan.length} client{clientsOnPlan.length !== 1 ? "s" : ""}
-                  </span>
+                  </Badge>
                 </div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                   {clientsOnPlan.map((c) => (
-                    <div key={c.id} title={c.name} onClick={() => openModal(c)} style={{
-                      width: 28, height: 28, borderRadius: "50%",
-                      background: "#EEF2FF", color: "#5B5BD6",
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      fontSize: 10, fontWeight: 700, cursor: "pointer",
-                    }}>
-                      {c.name.charAt(0).toUpperCase()}
+                    <div key={c.id} title={c.name} onClick={() => openModal(c)} style={{ cursor: "pointer" }}>
+                      <Avatar name={c.name} size="sm" />
                     </div>
                   ))}
                 </div>
                 <Link href="/plans" style={{ display: "inline-block", marginTop: 12, fontSize: 12, color: "var(--cc-primary)", textDecoration: "none" }}>
                   View all →
                 </Link>
-              </div>
+              </Card>
             );
           })}
         </div>
@@ -410,13 +368,13 @@ export default function FeatureAccessClient({ clients: initialClients, plans }: 
 
       {/* Tab: Overrides Only */}
       {tab === "overrides" && (
-        <div style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, overflow: "hidden" }}>
+        <Card variant="outlined" noPadding>
           {clientsWithOverrides.length === 0 ? (
-            <div style={{ padding: 60, textAlign: "center" }}>
-              <div style={{ fontSize: 32, marginBottom: 12 }}>⚙️</div>
-              <p style={{ fontSize: 15, fontWeight: 600, color: "var(--cc-text)" }}>No overrides</p>
-              <p style={{ fontSize: 13, color: "var(--cc-text-muted)", marginTop: 4 }}>No clients have custom feature overrides</p>
-            </div>
+            <EmptyState
+              icon="⚙️"
+              title="No overrides"
+              description="No clients have custom feature overrides"
+            />
           ) : (
             <>
               <div style={{
@@ -432,62 +390,40 @@ export default function FeatureAccessClient({ clients: initialClients, plans }: 
               {clientsWithOverrides.map((client) => {
                 const overriddenKeys = featureKeys.filter((k) => client.featureOverrides?.[k] !== undefined);
                 return (
-                  <div key={client.id} style={{
+                  <div key={client.id} className="cc-table-row" style={{
                     padding: "12px 20px", borderBottom: "1px solid var(--cc-border)",
                     display: "grid", gridTemplateColumns: "1fr 140px 1fr 100px", gap: 12, alignItems: "center",
                   }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <div style={{
-                        width: 36, height: 36, borderRadius: "50%",
-                        background: "#EEF2FF", color: "#5B5BD6",
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        fontSize: 13, fontWeight: 700, flexShrink: 0,
-                      }}>
-                        {client.name.charAt(0).toUpperCase()}
-                      </div>
+                      <Avatar name={client.name} size="sm" />
                       <span style={{ fontSize: 14, fontWeight: 500, color: "var(--cc-text)" }}>{client.name}</span>
                     </div>
                     <div>
-                      <span style={{
-                        fontSize: 12, fontWeight: 600, padding: "3px 10px", borderRadius: 6,
-                        background: client.planName ? "rgba(91,91,214,0.1)" : "#F3F4F6",
-                        color: client.planName ? "#5B5BD6" : "var(--cc-text-muted)",
-                      }}>
+                      <Badge variant={client.planName ? "accent" : "neutral"} size="sm">
                         {client.planName || "No Plan"}
-                      </span>
+                      </Badge>
                     </div>
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
                       {overriddenKeys.map((key) => {
                         const isOn = client.featureOverrides![key];
                         return (
-                          <span key={key} style={{
-                            fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 4,
-                            background: isOn ? "rgba(34,197,94,0.1)" : "rgba(239,68,68,0.1)",
-                            color: isOn ? "#16a34a" : "#ef4444",
-                          }}>
+                          <Badge key={key} variant={isOn ? "success" : "danger"} size="sm">
                             {FEATURES[key].label}: {isOn ? "ON" : "OFF"}
-                          </span>
+                          </Badge>
                         );
                       })}
                     </div>
                     <div>
-                      <button
-                        onClick={() => openModal(client)}
-                        style={{
-                          padding: "5px 12px", borderRadius: 6, fontSize: 12, fontWeight: 500,
-                          background: "transparent", border: "1px solid var(--cc-border)",
-                          color: "var(--cc-text)", cursor: "pointer",
-                        }}
-                      >
+                      <Button variant="ghost" size="sm" onClick={() => openModal(client)}>
                         Manage
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 );
               })}
             </>
           )}
-        </div>
+        </Card>
       )}
 
       {/* Bulk action floating bar */}
@@ -526,38 +462,15 @@ export default function FeatureAccessClient({ clients: initialClients, plans }: 
               <option key={p.id} value={p.id}>{p.name}</option>
             ))}
           </select>
-          <button
-            onClick={handleBulkAssign}
-            disabled={bulkSaving}
-            style={{
-              padding: "6px 16px", borderRadius: 6, fontSize: 12, fontWeight: 600,
-              background: "var(--cc-primary)", border: "none", color: "white",
-              cursor: bulkSaving ? "not-allowed" : "pointer", opacity: bulkSaving ? 0.6 : 1,
-            }}
-          >
+          <Button variant="primary" size="sm" loading={bulkSaving} onClick={handleBulkAssign}>
             Assign Plan
-          </button>
-          <button
-            onClick={handleBulkClearOverrides}
-            disabled={bulkSaving}
-            style={{
-              padding: "6px 16px", borderRadius: 6, fontSize: 12, fontWeight: 600,
-              background: "#ef4444", border: "none", color: "white",
-              cursor: bulkSaving ? "not-allowed" : "pointer", opacity: bulkSaving ? 0.6 : 1,
-            }}
-          >
+          </Button>
+          <Button variant="danger" size="sm" loading={bulkSaving} onClick={handleBulkClearOverrides}>
             Clear Overrides
-          </button>
-          <button
-            onClick={() => setSelected(new Set())}
-            style={{
-              padding: "6px 12px", borderRadius: 6, fontSize: 12, fontWeight: 500,
-              background: "transparent", border: "1px solid rgba(255,255,255,0.3)",
-              color: "rgba(255,255,255,0.8)", cursor: "pointer",
-            }}
-          >
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => setSelected(new Set())} style={{ color: "rgba(255,255,255,0.8)" }}>
             Cancel
-          </button>
+          </Button>
         </div>
       )}
 

@@ -1,28 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Search, LayoutGrid, List as ListIcon } from "lucide-react";
-import { Button, Badge } from "@pratham7711/ui";
-
-const EmptyState = ({ icon, title, description, action }: { icon: string; title: string; description?: string; action?: React.ReactNode }) => (
-  <div style={{ textAlign: "center", padding: "64px 24px" }}>
-    <div style={{ fontSize: 40, marginBottom: 12 }}>{icon}</div>
-    <h3 style={{ fontSize: 17, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>{title}</h3>
-    {description && <p style={{ fontSize: 14, color: "var(--cc-text-muted)", marginBottom: 20 }}>{description}</p>}
-    {action}
-  </div>
-);
-const SearchInput = ({ value, onChange, placeholder }: { value: string; onChange: (e: React.ChangeEvent<HTMLInputElement>) => void; placeholder?: string }) => (
-  <div style={{ position: "relative" }}>
-    <Search size={16} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--cc-text-muted)", pointerEvents: "none" }} />
-    <input value={value} onChange={onChange} placeholder={placeholder} style={{ width: "100%", padding: "9px 12px 9px 36px", border: "1px solid var(--cc-border)", borderRadius: 8, fontSize: 14, background: "var(--cc-card)", color: "var(--cc-text)", outline: "none" }} />
-  </div>
-);
-const FilterTag = ({ children, active, onClick }: { children: React.ReactNode; active: boolean; onClick: () => void }) => (
-  <button onClick={onClick} style={{ padding: "6px 14px", borderRadius: 20, fontSize: 13, fontWeight: active ? 600 : 400, cursor: "pointer", border: `1px solid ${active ? "var(--cc-primary)" : "var(--cc-border)"}`, background: active ? "var(--cc-primary)" : "var(--cc-card)", color: active ? "white" : "var(--cc-text-muted)", transition: "all 0.15s" }}>
-    {children}
-  </button>
-);
+import { Plus, LayoutGrid, List as ListIcon } from "lucide-react";
+import { Button, Badge, Card, Input, Avatar, EmptyState, Tag } from "@pratham7711/ui";
+import { Search } from "lucide-react";
 import AddCreatorModal from "@/components/modals/AddCreatorModal";
 import Link from "next/link";
 
@@ -66,39 +47,54 @@ export default function CreatorsClient({ creators }: { creators: Creator[] }) {
   });
 
   return (
-    <div style={{ padding: "32px 40px 40px" }}>
+    <div className="cc-page-content">
       {/* Header */}
       <div style={{ marginBottom: 32, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div>
-          <h1 style={{ fontSize: 28, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Creators</h1>
-          <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>Discover and manage your creator roster</p>
+          <h1 style={{ fontSize: 26, fontWeight: 800, color: "var(--cc-text)", letterSpacing: "-0.02em", marginBottom: 4 }}>
+            Creators
+          </h1>
+          <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>
+            Discover and manage your creator roster
+          </p>
         </div>
-        <Button variant="primary" iconLeft={<Plus size={15} />} onClick={() => setShowModal(true)}>
+        <Button variant="primary" iconLeft={<Plus size={15} />} size="sm" onClick={() => setShowModal(true)}>
           Add Creator
         </Button>
       </div>
 
       {/* Filters */}
-      <div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 12 }}>
+      <div style={{ marginBottom: 24, display: "flex", alignItems: "center", gap: 12 }}>
         <div style={{ flex: 1 }}>
-          <SearchInput value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search creators..." />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search creators..."
+            iconLeft={<Search size={16} />}
+          />
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 4, background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 10, padding: 4 }}>
-          <button onClick={() => setView("grid")} style={{ padding: "6px 8px", borderRadius: 6, border: "none", cursor: "pointer", background: view === "grid" ? "rgba(91,91,214,0.12)" : "transparent", color: view === "grid" ? "var(--cc-primary)" : "var(--cc-text-muted)", display: "flex", alignItems: "center" }}>
+          <Button variant={view === "grid" ? "primary" : "ghost"} size="sm" onClick={() => setView("grid")} aria-label="Grid view">
             <LayoutGrid size={16} />
-          </button>
-          <button onClick={() => setView("table")} style={{ padding: "6px 8px", borderRadius: 6, border: "none", cursor: "pointer", background: view === "table" ? "rgba(91,91,214,0.12)" : "transparent", color: view === "table" ? "var(--cc-primary)" : "var(--cc-text-muted)", display: "flex", alignItems: "center" }}>
+          </Button>
+          <Button variant={view === "table" ? "primary" : "ghost"} size="sm" onClick={() => setView("table")} aria-label="Table view">
             <ListIcon size={16} />
-          </button>
+          </Button>
         </div>
       </div>
 
       {/* Platform filter tags */}
       <div style={{ marginBottom: 24, display: "flex", gap: 8 }}>
         {PLATFORMS.map((p) => (
-          <FilterTag key={p} active={platformFilter === p} onClick={() => setPlatformFilter(p)}>
+          <Tag
+            key={p}
+            variant={platformFilter === p ? "accent" : "neutral"}
+            outlined={platformFilter !== p}
+            onClick={() => setPlatformFilter(p)}
+            style={{ cursor: "pointer", fontWeight: platformFilter === p ? 600 : 400 }}
+          >
             {p}
-          </FilterTag>
+          </Tag>
         ))}
       </div>
 
@@ -108,87 +104,75 @@ export default function CreatorsClient({ creators }: { creators: Creator[] }) {
           title="No creators yet"
           description="Add creators to your roster to get started."
           action={
-            <Button variant="primary" iconLeft={<Plus size={16} />} onClick={() => setShowModal(true)}>
+            <Button variant="primary" iconLeft={<Plus size={15} />} onClick={() => setShowModal(true)}>
               Add Creator
             </Button>
           }
         />
       ) : view === "grid" ? (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
+        <div className="cc-stagger grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" style={{ gap: 20 }}>
           {filtered.map((creator) => (
             <Link key={creator.id} href={`/creators/${creator.id}`} style={{ textDecoration: "none" }}>
-              <div style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, padding: 20, cursor: "pointer", transition: "box-shadow 0.15s" }}
-                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.boxShadow = "0 4px 16px rgba(28,32,72,0.08)"; }}
-                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.boxShadow = "none"; }}
-              >
-                <div style={{ display: "flex", alignItems: "flex-start", gap: 12, marginBottom: 16 }}>
-                  <div style={{ position: "relative" }}>
-                    <div style={{ width: 48, height: 48, borderRadius: "50%", background: "var(--cc-primary)", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontWeight: 700, fontSize: 14 }}>
-                      {creator.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
-                    </div>
-                  </div>
+              <Card variant="solid" clickable style={{ padding: 24 }}>
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 14, marginBottom: 20 }}>
+                  <Avatar name={creator.name} size="lg" src={creator.avatarUrl ?? undefined} />
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontWeight: 600, color: "var(--cc-text)", marginBottom: 2 }}>{creator.name}</p>
+                    <p style={{ fontWeight: 700, fontSize: 16, color: "var(--cc-text)", marginBottom: 3 }}>{creator.name}</p>
                     <p style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>@{creator.handle}</p>
                   </div>
                   <Badge variant={PLATFORM_BADGE_VARIANT[creator.platform] ?? "neutral"}>
                     {creator.platform}
                   </Badge>
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 16 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>
                   <div>
-                    <p style={{ fontSize: 11, color: "var(--cc-text-subtle)", marginBottom: 2 }}>Followers</p>
-                    <p style={{ fontWeight: 600, fontSize: 14, color: "var(--cc-text)" }}>{creator.followerCount ? formatNumber(creator.followerCount) : "—"}</p>
+                    <p style={{ fontSize: 11, color: "var(--cc-text-subtle)", marginBottom: 3, fontWeight: 600, letterSpacing: "0.3px", textTransform: "uppercase" }}>Followers</p>
+                    <p style={{ fontWeight: 700, fontSize: 16, color: "var(--cc-text)" }}>{creator.followerCount ? formatNumber(creator.followerCount) : "—"}</p>
                   </div>
                   <div>
-                    <p style={{ fontSize: 11, color: "var(--cc-text-subtle)", marginBottom: 2 }}>Engagement</p>
-                    <p style={{ fontWeight: 600, fontSize: 14, color: "var(--cc-text)" }}>{creator.engagementRate ? `${creator.engagementRate}%` : "—"}</p>
+                    <p style={{ fontSize: 11, color: "var(--cc-text-subtle)", marginBottom: 3, fontWeight: 600, letterSpacing: "0.3px", textTransform: "uppercase" }}>Engagement</p>
+                    <p style={{ fontWeight: 700, fontSize: 16, color: "var(--cc-text)" }}>{creator.engagementRate ? `${creator.engagementRate}%` : "—"}</p>
                   </div>
                 </div>
                 <Button variant="ghost" size="sm" fullWidth>View Profile</Button>
-              </div>
+              </Card>
             </Link>
           ))}
         </div>
       ) : (
-        <div style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, overflow: "hidden" }}>
+        <Card variant="solid" noPadding>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
-              <tr style={{ background: "#F9FAFB" }}>
+              <tr style={{ background: "var(--cc-hover-bg)" }}>
                 {["Creator", "Platform", "Followers", "Engagement", "Rate", "Campaigns"].map((h) => (
-                  <th key={h} style={{ textAlign: "left", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--cc-text-muted)", fontWeight: 600, padding: "10px 20px" }}>{h}</th>
+                  <th key={h} style={{ textAlign: "left", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--cc-text-subtle)", padding: "12px 24px" }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {filtered.map((c) => (
-                <tr key={c.id} style={{ borderTop: "1px solid var(--cc-border)" }}
-                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "#F9FAFB"; }}
-                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
-                >
-                  <td style={{ padding: "12px 20px" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <div style={{ width: 32, height: 32, borderRadius: "50%", background: "var(--cc-primary)", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontSize: 10, fontWeight: 700, flexShrink: 0 }}>
-                        {c.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
-                      </div>
+                <tr key={c.id} className="cc-table-row" style={{ borderTop: "1px solid var(--cc-border)" }}>
+                  <td style={{ padding: "14px 24px" }}>
+                    <Link href={`/creators/${c.id}`} style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 12 }}>
+                      <Avatar name={c.name} size="sm" src={c.avatarUrl ?? undefined} />
                       <div>
-                        <p style={{ fontSize: 14, fontWeight: 500, color: "var(--cc-text)" }}>{c.name}</p>
+                        <p style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>{c.name}</p>
                         <p style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>@{c.handle}</p>
                       </div>
-                    </div>
+                    </Link>
                   </td>
-                  <td style={{ padding: "12px 20px" }}>
+                  <td style={{ padding: "14px 24px" }}>
                     <Badge variant={PLATFORM_BADGE_VARIANT[c.platform] ?? "neutral"}>{c.platform}</Badge>
                   </td>
-                  <td style={{ padding: "12px 20px", fontSize: 14, color: "var(--cc-text-muted)" }}>{c.followerCount ? formatNumber(c.followerCount) : "—"}</td>
-                  <td style={{ padding: "12px 20px", fontSize: 14, color: "var(--cc-text-muted)" }}>{c.engagementRate ? `${c.engagementRate}%` : "—"}</td>
-                  <td style={{ padding: "12px 20px", fontSize: 14, color: "var(--cc-text-muted)" }}>{c.rate ? `$${c.rate}` : "—"}</td>
-                  <td style={{ padding: "12px 20px", fontSize: 14, color: "var(--cc-text-muted)" }}>{c._count.activations}</td>
+                  <td style={{ padding: "14px 24px", fontSize: 14, fontWeight: 500, color: "var(--cc-text)" }}>{c.followerCount ? formatNumber(c.followerCount) : "—"}</td>
+                  <td style={{ padding: "14px 24px", fontSize: 14, fontWeight: 500, color: "var(--cc-text)" }}>{c.engagementRate ? `${c.engagementRate}%` : "—"}</td>
+                  <td style={{ padding: "14px 24px", fontSize: 14, fontWeight: 500, color: "var(--cc-text)" }}>{c.rate ? `$${c.rate}` : "—"}</td>
+                  <td style={{ padding: "14px 24px", fontSize: 14, fontWeight: 500, color: "var(--cc-text)" }}>{c._count.activations}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </div>
+        </Card>
       )}
 
       {showModal && <AddCreatorModal onClose={() => setShowModal(false)} />}

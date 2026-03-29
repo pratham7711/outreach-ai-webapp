@@ -76,7 +76,7 @@ export default function NewCampaignModal({ clients, onClose }: { clients: Client
         </div>
       }
     >
-      <form id="new-campaign-form" onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <form id="new-campaign-form" onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 20 }}>
         <Input
           label="Campaign Name"
           value={form.title}
@@ -85,8 +85,9 @@ export default function NewCampaignModal({ clients, onClose }: { clients: Client
           required
         />
         <div>
-          <label style={labelStyle}>Client</label>
+          <label htmlFor="campaign-client" style={labelStyle}>Client</label>
           <select
+            id="campaign-client"
             value={form.clientId}
             onChange={(e) => setForm((f) => ({ ...f, clientId: e.target.value }))}
             style={selectStyle}
@@ -98,8 +99,9 @@ export default function NewCampaignModal({ clients, onClose }: { clients: Client
           </select>
         </div>
         <div>
-          <label style={labelStyle}>Status</label>
+          <label htmlFor="campaign-status" style={labelStyle}>Status</label>
           <select
+            id="campaign-status"
             value={form.status}
             onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
             style={selectStyle}
@@ -121,8 +123,9 @@ export default function NewCampaignModal({ clients, onClose }: { clients: Client
             />
           </div>
           <div style={{ width: 110 }}>
-            <label style={labelStyle}>Currency</label>
+            <label htmlFor="campaign-currency" style={labelStyle}>Currency</label>
             <select
+              id="campaign-currency"
               value={form.currency}
               onChange={(e) => setForm((f) => ({ ...f, currency: e.target.value }))}
               style={selectStyle}

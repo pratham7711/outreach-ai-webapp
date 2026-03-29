@@ -1,9 +1,8 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button } from "@pratham7711/ui";
+import { Button, Input } from "@pratham7711/ui";
 import Link from "next/link";
-import ThemeToggle from "@/components/ThemeToggle";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -32,77 +31,92 @@ export default function SignupPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4" style={{ background: "var(--cc-bg)" }}>
-      <div className="fixed top-4 right-4"><ThemeToggle /></div>
-      <div className="w-full max-w-sm">
-        <div className="flex items-center gap-1.5 justify-center mb-8">
-          <span style={{ color: "#2563EB", fontSize: 20 }}>✦</span>
-          <span style={{ fontWeight: 900, fontSize: 20, color: "var(--cc-text)" }}>creatorcore</span>
+    <div
+      style={{
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "0 16px",
+        background: "linear-gradient(135deg, #6C3EF4 0%, #4A8EF0 100%)",
+      }}
+    >
+      <div style={{ width: "100%", maxWidth: 380 }}>
+        {/* Logo */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, justifyContent: "center", marginBottom: 40 }}>
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="10" stroke="white" strokeWidth="2.5"/>
+            <circle cx="12" cy="12" r="5.5" stroke="white" strokeWidth="2"/>
+            <circle cx="12" cy="12" r="2" fill="white"/>
+          </svg>
+          <span style={{ fontWeight: 800, fontSize: 20, color: "white", letterSpacing: "-0.5px" }}>
+            outreach ai
+          </span>
         </div>
-        <div className="p-8 rounded-2xl" style={{ background: "var(--cc-surface)", border: "1px solid var(--cc-border)", boxShadow: "var(--cc-shadow-lg)" }}>
-          <h1 style={{ fontSize: 22, fontWeight: 900, color: "var(--cc-text)", marginBottom: 6 }}>Create account</h1>
-          <p style={{ fontSize: 14, color: "var(--cc-text-muted)", marginBottom: 24 }}>Get started with CreatorCore</p>
+
+        {/* Card */}
+        <div
+          style={{
+            background: "white",
+            borderRadius: 24,
+            boxShadow: "0 20px 60px rgba(0, 0, 0, 0.15)",
+            padding: 40,
+          }}
+        >
+          <h1 style={{ fontSize: 24, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>
+            Create account
+          </h1>
+          <p style={{ fontSize: 14, color: "var(--cc-text-muted)", marginBottom: 24 }}>
+            Get started with Outreach AI
+          </p>
 
           {error && (
-            <div style={{ padding: "10px 14px", borderRadius: 8, background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", color: "#ef4444", fontSize: 13, marginBottom: 16 }}>
+            <div style={{
+              padding: "12px 16px",
+              borderRadius: 12,
+              background: "rgba(239, 68, 68, 0.1)",
+              border: "1px solid rgba(239, 68, 68, 0.3)",
+              color: "#DC2626",
+              fontSize: 13,
+              marginBottom: 16,
+            }}>
               {error}
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            <div>
-              <label style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text-muted)", display: "block", marginBottom: 6 }}>Full Name</label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Your name"
-                required
-                style={{
-                  width: "100%", padding: "10px 14px", borderRadius: 12, fontSize: 14,
-                  background: "var(--cc-bg)", border: "1px solid var(--cc-border)",
-                  color: "var(--cc-text)", outline: "none", boxSizing: "border-box",
-                }}
-              />
-            </div>
-            <div>
-              <label style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text-muted)", display: "block", marginBottom: 6 }}>Work Email</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@company.com"
-                required
-                style={{
-                  width: "100%", padding: "10px 14px", borderRadius: 12, fontSize: 14,
-                  background: "var(--cc-bg)", border: "1px solid var(--cc-border)",
-                  color: "var(--cc-text)", outline: "none", boxSizing: "border-box",
-                }}
-              />
-            </div>
-            <div>
-              <label style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text-muted)", display: "block", marginBottom: 6 }}>Password</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Min. 8 characters"
-                required
-                minLength={8}
-                style={{
-                  width: "100%", padding: "10px 14px", borderRadius: 12, fontSize: 14,
-                  background: "var(--cc-bg)", border: "1px solid var(--cc-border)",
-                  color: "var(--cc-text)", outline: "none", boxSizing: "border-box",
-                }}
-              />
-            </div>
-            <Button type="submit" variant="primary" size="lg" fullWidth loading={loading}>
+          <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <Input
+              label="Full Name"
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Your name"
+              required
+            />
+            <Input
+              label="Work Email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@company.com"
+              required
+            />
+            <Input
+              label="Password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Min. 8 characters"
+              required
+              minLength={8}
+            />
+            <Button type="submit" variant="primary" fullWidth loading={loading} style={{ marginTop: 8 }}>
               Create Account
             </Button>
           </form>
-          <p style={{ fontSize: 13, color: "var(--cc-text-muted)", textAlign: "center", marginTop: 16 }}>
+          <p style={{ fontSize: 13, color: "var(--cc-text-muted)", textAlign: "center", marginTop: 24 }}>
             {"Already have an account? "}
-            <Link href="/login" style={{ color: "#3b82f6", fontWeight: 600 }}>Sign in</Link>
+            <Link href="/login" style={{ color: "var(--cc-primary)", fontWeight: 600, textDecoration: "none" }}>Sign in</Link>
           </p>
         </div>
       </div>

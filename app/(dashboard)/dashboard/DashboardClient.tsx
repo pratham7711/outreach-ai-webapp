@@ -1,6 +1,6 @@
 "use client";
 
-import { StatCard, Badge, Card } from "@pratham7711/ui";
+import { Card, Badge, StatCard } from "@pratham7711/ui";
 import {
   AreaChart,
   Area,
@@ -18,6 +18,7 @@ import {
   TrendingUp,
   ArrowUpRight,
   Clock,
+  BarChart3,
 } from "lucide-react";
 
 function formatCurrency(n: number) {
@@ -53,77 +54,99 @@ const STATUS_BADGE_VARIANT: Record<string, "warning" | "accent" | "success" | "d
 export default function DashboardClient(props: Props) {
   const { recentCampaigns, chartData } = props;
 
-  const statItems = [
-    { label: "Total Campaigns", value: String(props.campaignCount), trend: 12, trendLabel: "+12% from last month" },
-    { label: "Active Creators", value: String(props.creatorCount), trend: 8, trendLabel: "+8% from last month" },
-    { label: "Pending Payouts", value: formatCurrency(props.pendingPayouts), trend: 0 },
-    { label: "Growth", value: "+24%", trend: 24, trendLabel: "from last month" },
-  ];
-
   return (
-    <div style={{ padding: "32px 40px 40px" }}>
+    <div className="cc-page-content">
       {/* Header */}
       <div style={{ marginBottom: 32 }}>
-        <h1 style={{ fontSize: 28, fontWeight: 700, color: "var(--cc-text)" }}>Dashboard</h1>
-        <p style={{ fontSize: 14, color: "var(--cc-text-muted)", marginTop: 4 }}>Welcome back. Here&apos;s what&apos;s happening.</p>
+        <h1 style={{ fontSize: 26, fontWeight: 800, color: "var(--cc-text)", letterSpacing: "-0.02em" }}>
+          Dashboard
+        </h1>
+        <p style={{ fontSize: 14, color: "var(--cc-text-muted)", marginTop: 4 }}>
+          Welcome back. Here&apos;s what&apos;s happening.
+        </p>
       </div>
 
-      {/* Stats */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 32 }}>
-        {statItems.map((stat) => (
-          <StatCard
-            key={stat.label}
-            value={stat.value}
-            label={stat.label}
-            trend={stat.trend}
-            trendLabel={stat.trendLabel}
-          />
-        ))}
+      {/* Stat Cards — using @pratham7711/ui StatCard with icons */}
+      <div className="cc-stagger grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4" style={{ gap: 20, marginBottom: 32 }}>
+        <StatCard
+          value={String(props.campaignCount)}
+          label="Total Campaigns"
+          trend={12}
+          trendLabel="+12% from last month"
+          icon={<Megaphone size={20} style={{ color: "#5B5BD6" }} />}
+        />
+        <StatCard
+          value={String(props.creatorCount)}
+          label="Active Creators"
+          trend={8}
+          trendLabel="+8% from last month"
+          icon={<Users size={20} style={{ color: "#059669" }} />}
+        />
+        <StatCard
+          value={formatCurrency(props.pendingPayouts)}
+          label="Pending Payouts"
+          icon={<Wallet size={20} style={{ color: "#D97706" }} />}
+        />
+        <StatCard
+          value="+24%"
+          label="Growth"
+          trend={24}
+          trendLabel="from last month"
+          icon={<TrendingUp size={20} style={{ color: "#7C3AED" }} />}
+        />
       </div>
 
-      {/* Two column */}
-      <div style={{ display: "grid", gridTemplateColumns: "3fr 2fr", gap: 24, marginBottom: 32 }}>
+      {/* Two column layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-5" style={{ gap: 24, marginBottom: 32 }}>
         {/* Recent Campaigns */}
-        <Card variant="solid" noPadding>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: "1px solid var(--cc-border)" }}>
-            <span style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>Recent Campaigns</span>
-            <Link href="/campaigns" style={{ fontSize: 12, color: "var(--cc-primary)", display: "flex", alignItems: "center", gap: 4 }}>
-              View all <ArrowUpRight size={12} />
+        <Card variant="solid" noPadding className="lg:col-span-3 overflow-x-auto">
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 24px", borderBottom: "1px solid var(--cc-border)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ width: 32, height: 32, borderRadius: 8, background: "#EEF2FF", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <Megaphone size={16} style={{ color: "#5B5BD6" }} />
+              </div>
+              <span style={{ fontSize: 15, fontWeight: 600, color: "var(--cc-text)" }}>Recent Campaigns</span>
+            </div>
+            <Link href="/campaigns" style={{ fontSize: 13, color: "var(--cc-primary)", display: "flex", alignItems: "center", gap: 4, fontWeight: 500, textDecoration: "none" }}>
+              View all <ArrowUpRight size={14} />
             </Link>
           </div>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
-              <tr style={{ background: "#F9FAFB" }}>
+              <tr style={{ background: "var(--cc-hover-bg)" }}>
                 {["Name", "Status", "Budget", "Client"].map((h) => (
-                  <th key={h} style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", color: "var(--cc-text-muted)", padding: "10px 20px", textAlign: "left", letterSpacing: "0.05em" }}>{h}</th>
+                  <th key={h} style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "var(--cc-text-subtle)", padding: "10px 24px", textAlign: "left", letterSpacing: "0.06em" }}>
+                    {h}
+                  </th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {recentCampaigns.map((c) => (
-                <tr
-                  key={c.id}
-                  style={{ borderTop: "1px solid var(--cc-border)" }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = "#F9FAFB")}
-                  onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-                >
-                  <td style={{ padding: "12px 20px" }}>
-                    <Link href={`/campaigns/${c.id}`} style={{ fontSize: 14, fontWeight: 500, color: "var(--cc-text)" }}>
+                <tr key={c.id} className="cc-table-row" style={{ borderTop: "1px solid var(--cc-border)" }}>
+                  <td style={{ padding: "14px 24px" }}>
+                    <Link href={`/campaigns/${c.id}`} style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)", textDecoration: "none" }}>
                       {c.title}
                     </Link>
                   </td>
-                  <td style={{ padding: "12px 20px" }}>
+                  <td style={{ padding: "14px 24px" }}>
                     <Badge variant={STATUS_BADGE_VARIANT[c.status] ?? "neutral"} dot>
                       {c.status.replace(/_/g, " ")}
                     </Badge>
                   </td>
-                  <td style={{ padding: "12px 20px", fontSize: 14, color: "var(--cc-text-muted)" }}>{c.budget ? formatCurrency(c.budget) : "—"}</td>
-                  <td style={{ padding: "12px 20px", fontSize: 14, color: "var(--cc-text-muted)" }}>{c.client?.name ?? "—"}</td>
+                  <td style={{ padding: "14px 24px", fontSize: 14, fontWeight: 500, color: "var(--cc-text-muted)" }}>
+                    {c.budget ? formatCurrency(c.budget) : "—"}
+                  </td>
+                  <td style={{ padding: "14px 24px", fontSize: 14, color: "var(--cc-text-muted)" }}>
+                    {c.client?.name ?? "—"}
+                  </td>
                 </tr>
               ))}
               {recentCampaigns.length === 0 && (
                 <tr>
-                  <td colSpan={4} style={{ fontSize: 14, color: "var(--cc-text-muted)", padding: "40px 0", textAlign: "center" }}>No campaigns yet</td>
+                  <td colSpan={4} style={{ fontSize: 14, color: "var(--cc-text-muted)", padding: "48px 0", textAlign: "center" }}>
+                    No campaigns yet
+                  </td>
                 </tr>
               )}
             </tbody>
@@ -131,68 +154,99 @@ export default function DashboardClient(props: Props) {
         </Card>
 
         {/* Activity Feed */}
-        <Card variant="solid" noPadding>
-          <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--cc-border)" }}>
-            <span style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>Activity Feed</span>
+        <Card variant="solid" noPadding className="lg:col-span-2">
+          <div style={{ padding: "18px 24px", borderBottom: "1px solid var(--cc-border)", display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ width: 32, height: 32, borderRadius: 8, background: "#F3E8FF", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Clock size={16} style={{ color: "#7C3AED" }} />
+            </div>
+            <span style={{ fontSize: 15, fontWeight: 600, color: "var(--cc-text)" }}>Activity Feed</span>
           </div>
-          <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 16 }}>
-            {recentCampaigns.slice(0, 5).map((c) => (
-              <div key={c.id} style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
-                <div style={{ width: 32, height: 32, borderRadius: "50%", background: "#F3F4F6", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 2 }}>
-                  <Clock size={14} style={{ color: "var(--cc-primary)" }} />
+          <div style={{ padding: 20, display: "flex", flexDirection: "column" }}>
+            {recentCampaigns.slice(0, 5).map((c, i) => (
+              <div
+                key={c.id}
+                className="cc-slide-up"
+                style={{
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: 14,
+                  padding: "14px 4px",
+                  borderBottom: i < Math.min(recentCampaigns.length, 5) - 1 ? "1px solid var(--cc-border)" : "none",
+                  animationDelay: `${i * 60}ms`,
+                }}
+              >
+                <div style={{ width: 34, height: 34, borderRadius: 8, background: "var(--cc-hover-bg)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <Clock size={15} style={{ color: "var(--cc-primary)" }} />
                 </div>
-                <div>
-                  <p style={{ fontSize: 14, color: "var(--cc-text)" }}>
-                    <span style={{ fontWeight: 500 }}>{c.title}</span>{" "}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontSize: 13, color: "var(--cc-text)", lineHeight: 1.5 }}>
+                    <span style={{ fontWeight: 600 }}>{c.title}</span>{" "}
                     <span style={{ color: "var(--cc-text-muted)" }}>status updated to</span>{" "}
-                    <span style={{ color: "var(--cc-primary)" }}>{c.status.replace(/_/g, " ")}</span>
+                    <Badge variant={STATUS_BADGE_VARIANT[c.status] ?? "neutral"} size="sm">
+                      {c.status.replace(/_/g, " ")}
+                    </Badge>
                   </p>
-                  <p style={{ fontSize: 12, color: "var(--cc-text-muted)", marginTop: 2 }}>Just now</p>
+                  <p style={{ fontSize: 12, color: "var(--cc-text-subtle)", marginTop: 3 }}>Just now</p>
                 </div>
               </div>
             ))}
             {recentCampaigns.length === 0 && (
-              <p style={{ fontSize: 14, color: "var(--cc-text-muted)", textAlign: "center", padding: "24px 0" }}>No recent activity</p>
+              <p style={{ fontSize: 14, color: "var(--cc-text-muted)", textAlign: "center", padding: "32px 0" }}>
+                No recent activity
+              </p>
             )}
           </div>
         </Card>
       </div>
 
       {/* Chart */}
-      <div style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, padding: 24 }}>
-        <span style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)", display: "block", marginBottom: 20 }}>Monthly Campaign Spend</span>
-        <div style={{ height: 220 }}>
-          <ResponsiveContainer width="100%" height={200} minWidth={0}>
+      <Card variant="solid" style={{ padding: 28 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ width: 32, height: 32, borderRadius: 8, background: "#EEF2FF", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <BarChart3 size={16} style={{ color: "#5B5BD6" }} />
+            </div>
+            <span style={{ fontSize: 15, fontWeight: 700, color: "var(--cc-text)", letterSpacing: "-0.01em" }}>
+              Monthly Campaign Spend
+            </span>
+          </div>
+        </div>
+        <div style={{ height: 260 }}>
+          <ResponsiveContainer width="100%" height={240} minWidth={0}>
             <AreaChart data={chartData}>
               <defs>
                 <linearGradient id="spendGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="var(--cc-primary)" stopOpacity={0.15} />
-                  <stop offset="95%" stopColor="var(--cc-primary)" stopOpacity={0} />
+                  <stop offset="5%" stopColor="#5B5BD6" stopOpacity={0.12} />
+                  <stop offset="95%" stopColor="#5B5BD6" stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#E4E6F0" />
-              <XAxis dataKey="month" tick={{ fill: "#9097B4", fontSize: 12 }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fill: "#9097B4", fontSize: 12 }} axisLine={false} tickLine={false} tickFormatter={(v) => `$${(v / 1000).toFixed(0)}K`} />
+              <CartesianGrid strokeDasharray="3 3" stroke="#E4E6F0" vertical={false} />
+              <XAxis dataKey="month" tick={{ fill: "#9097B4", fontSize: 12, fontWeight: 500 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: "#9097B4", fontSize: 12, fontWeight: 500 }} axisLine={false} tickLine={false} tickFormatter={(v) => `$${(v / 1000).toFixed(0)}K`} />
               <Tooltip
                 contentStyle={{
                   background: "white",
                   border: "1px solid #E4E6F0",
-                  borderRadius: 12,
+                  borderRadius: 10,
                   color: "#1C2048",
-                  boxShadow: "0 4px 24px rgba(0,0,0,0.08)",
+                  boxShadow: "0 4px 24px rgba(0,0,0,0.06)",
+                  fontSize: 13,
+                  padding: "10px 14px",
                 }}
               />
               <Area
                 type="monotone"
                 dataKey="spend"
-                stroke="var(--cc-primary)"
-                strokeWidth={2}
+                stroke="#5B5BD6"
+                strokeWidth={2.5}
                 fill="url(#spendGradient)"
+                dot={{ fill: "#5B5BD6", stroke: "#fff", strokeWidth: 2, r: 4 }}
+                activeDot={{ fill: "#5B5BD6", stroke: "#fff", strokeWidth: 2, r: 6 }}
               />
             </AreaChart>
           </ResponsiveContainer>
         </div>
-      </div>
+      </Card>
     </div>
   );
 }

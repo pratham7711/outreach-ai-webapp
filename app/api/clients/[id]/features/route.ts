@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { Prisma } from "@/lib/generated/prisma";
 import { auth } from "@/lib/auth";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -50,9 +51,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   }
 
   const featureOverrides =
-    parsed.data.featureOverrides === null || parsed.data.featureOverrides === undefined
-      ? null
-      : JSON.stringify(parsed.data.featureOverrides);
+    parsed.data.featureOverrides == null
+      ? Prisma.DbNull
+      : (parsed.data.featureOverrides as Record<string, boolean>);
 
   const updated = await db.client.update({
     where: { id },

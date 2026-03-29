@@ -110,7 +110,7 @@ async function runE2ETests() {
 
 (async () => {
   console.log('─────────────────────────────────────');
-  console.log('   CreatorCore Test Automation');
+  console.log('   Outreach AI Test Automation');
   console.log('─────────────────────────────────────\n');
 
   try {

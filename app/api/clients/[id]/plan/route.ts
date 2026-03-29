@@ -29,9 +29,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
 
   const featureOverrides =
-    parsed.data.featureOverrides === null || parsed.data.featureOverrides === undefined
-      ? null
-      : JSON.stringify(parsed.data.featureOverrides);
+    parsed.data.featureOverrides == null
+      ? Prisma.DbNull
+      : (parsed.data.featureOverrides as Record<string, boolean>);
 
   const updated = await db.client.update({
     where: { id },

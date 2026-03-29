@@ -1,70 +1,221 @@
 "use client";
-import { Card } from "@pratham7711/ui";
+import { useState, useEffect } from "react";
+import { Card, Button, Badge, Skeleton, EmptyState } from "@pratham7711/ui";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-
-const EVENTS = [
-  { day: 1, title: "Summer Glow kickoff", color: "#2563EB" },
-  { day: 5, title: "Creator onboarding call", color: "#7C3AED" },
-  { day: 8, title: "Content review deadline", color: "#f59e0b" },
-  { day: 13, title: "Mid-campaign check-in", color: "#22c55e" },
-  { day: 15, title: "Back to School launch", color: "#2563EB" },
-  { day: 20, title: "Payout processing", color: "#ef4444" },
-  { day: 25, title: "Sound Drop Vol. 3 wrap", color: "#7C3AED" },
-  { day: 30, title: "Monthly report due", color: "#f59e0b" },
-];
+import {
+  startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval,
+  format, isSameMonth, isSameDay, isToday, addMonths, subMonths,
+} from "date-fns";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
+const STATUS_COLORS: Record<string, string> = {
+  DRAFT: "#9CA3AF",
+  PENDING: "#F59E0B",
+  IN_PROGRESS: "var(--cc-primary)",
+  COMPLETE: "#10B981",
+  CANCELLED: "#EF4444",
+};
+
+type CalendarCampaign = {
+  id: string; title: string; status: string; createdAt: string;
+};
+
+type CalendarActivation = {
+  id: string; status: string; deliverableDueDate: string;
+  creator: { id: string; name: string };
+  campaign: { id: string; title: string };
+};
+
+type DayDetail = {
+  campaigns: CalendarCampaign[];
+  activations: CalendarActivation[];
+};
+
 export default function CalendarPage() {
-  const daysInMonth = 31;
-  const firstDayOffset = 0; // July 2026 starts on Wednesday actually, but for simplicity
-  const blanks = Array.from({ length: firstDayOffset });
-  const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [campaigns, setCampaigns] = useState<CalendarCampaign[]>([]);
+  const [activations, setActivations] = useState<CalendarActivation[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedDay, setSelectedDay] = useState<Date | null>(null);
+
+  const monthStr = format(currentMonth, "yyyy-MM");
+
+  useEffect(() => {
+    setLoading(true);
+    fetch(`/api/calendar?month=${monthStr}`)
+      .then(r => r.json())
+      .then(data => {
+        setCampaigns(data.campaigns ?? []);
+        setActivations(data.activations ?? []);
+      })
+      .finally(() => setLoading(false));
+  }, [monthStr]);
+
+  const monthStart = startOfMonth(currentMonth);
+  const monthEnd = endOfMonth(currentMonth);
+  const calStart = startOfWeek(monthStart);
+  const calEnd = endOfWeek(monthEnd);
+  const days = eachDayOfInterval({ start: calStart, end: calEnd });
+
+  const getDeliverables = (day: Date) =>
+    activations.filter(a => a.deliverableDueDate && isSameDay(new Date(a.deliverableDueDate), day));
+
+  const selectedDetail: DayDetail | null = selectedDay ? {
+    campaigns: campaigns.filter(c => {
+      const created = new Date(c.createdAt);
+      return isSameDay(created, selectedDay);
+    }),
+    activations: getDeliverables(selectedDay),
+  } : null;
 
   return (
-    <div style={{ padding: "32px 40px 40px" }}>
-      <div className="flex items-center justify-between mb-8">
+    <div className="cc-page-content">
+      <div style={{ marginBottom: 32, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div>
-          <h1 style={{ fontSize: 26, fontWeight: 900, color: "var(--cc-text)" }}>Calendar</h1>
-          <p style={{ fontSize: 14, color: "var(--cc-text-muted)", marginTop: 4 }}>Campaign schedule and deadlines</p>
+          <h1 style={{ fontSize: 26, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Calendar</h1>
+          <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>Campaign schedule and deadlines</p>
         </div>
-        <div className="flex items-center gap-3">
-          <button className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", color: "var(--cc-text-muted)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <Button variant="ghost" size="sm" onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}>
             <ChevronLeft size={16} />
-          </button>
-          <span style={{ fontWeight: 800, fontSize: 15, color: "var(--cc-text)" }}>July 2026</span>
-          <button className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", color: "var(--cc-text-muted)" }}>
+          </Button>
+          <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)", minWidth: 140, textAlign: "center" }}>
+            {format(currentMonth, "MMMM yyyy")}
+          </span>
+          <Button variant="ghost" size="sm" onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}>
             <ChevronRight size={16} />
-          </button>
+          </Button>
+          <Button variant="secondary" size="sm" onClick={() => setCurrentMonth(new Date())}>Today</Button>
         </div>
       </div>
 
-      <Card variant="glass" style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 16, overflow: "hidden" }}>
-        <div className="grid grid-cols-7" style={{ borderBottom: "1px solid var(--cc-border)" }}>
-          {DAYS.map(d => (
-            <div key={d} className="py-3 text-center" style={{ fontSize: 12, fontWeight: 600, color: "var(--cc-text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>{d}</div>
-          ))}
+      {/* Legend */}
+      <div style={{ display: "flex", gap: 16, marginBottom: 16, fontSize: 12, color: "var(--cc-text-muted)" }}>
+        {Object.entries(STATUS_COLORS).map(([status, color]) => (
+          <div key={status} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <div style={{ width: 8, height: 8, borderRadius: "50%", background: color }} />
+            {status.replace(/_/g, " ")}
+          </div>
+        ))}
+        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#7C3AED" }} />
+          Deliverable Due
         </div>
-        <div className="grid grid-cols-7">
-          {blanks.map((_, i) => <div key={`b-${i}`} className="min-h-[100px]" style={{ borderBottom: "1px solid var(--cc-border)", borderRight: "1px solid var(--cc-border)" }} />)}
-          {days.map(day => {
-            const event = EVENTS.find(e => e.day === day);
-            const isToday = day === 13;
-            return (
-              <div key={day} className="min-h-[100px] p-2" style={{ borderBottom: "1px solid var(--cc-border)", borderRight: "1px solid var(--cc-border)", background: isToday ? "rgba(37,99,235,0.06)" : "transparent" }}>
-                <span className="inline-flex w-7 h-7 items-center justify-center rounded-full text-xs" style={{ fontWeight: isToday ? 800 : 500, background: isToday ? "#2563EB" : "transparent", color: isToday ? "white" : "var(--cc-text-muted)" }}>
-                  {day}
-                </span>
-                {event && (
-                  <div className="mt-1 px-1.5 py-0.5 rounded text-[10px] font-medium truncate" style={{ background: `${event.color}20`, color: event.color }}>
-                    {event.title}
-                  </div>
-                )}
+      </div>
+
+      <div style={{ display: "flex", gap: 24 }}>
+        {/* Calendar grid */}
+        <div style={{ flex: 1 }}>
+          {loading ? (
+            <Skeleton width="100%" height="500px" borderRadius="12px" />
+          ) : (
+            <Card variant="outlined" noPadding>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", borderBottom: "1px solid var(--cc-border)" }}>
+                {DAYS.map(d => (
+                  <div key={d} style={{ padding: "12px 0", textAlign: "center", fontSize: 12, fontWeight: 600, color: "var(--cc-text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>{d}</div>
+                ))}
               </div>
-            );
-          })}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)" }}>
+                {days.map((day) => {
+                  const inMonth = isSameMonth(day, currentMonth);
+                  const today = isToday(day);
+                  const deliverables = getDeliverables(day);
+                  const isSelected = selectedDay && isSameDay(day, selectedDay);
+                  const campaignCreated = campaigns.filter(c => isSameDay(new Date(c.createdAt), day));
+
+                  return (
+                    <div
+                      key={day.toISOString()}
+                      onClick={() => setSelectedDay(day)}
+                      style={{
+                        minHeight: 90, padding: 6,
+                        borderBottom: "1px solid var(--cc-border)",
+                        borderRight: "1px solid var(--cc-border)",
+                        background: isSelected ? "var(--cc-bg)" : today ? "rgba(91,91,214,0.04)" : "transparent",
+                        opacity: inMonth ? 1 : 0.35,
+                        cursor: "pointer",
+                        transition: "background 0.1s",
+                      }}
+                    >
+                      <span style={{
+                        display: "inline-flex", width: 26, height: 26, alignItems: "center", justifyContent: "center",
+                        borderRadius: "50%", fontSize: 12, fontWeight: today ? 700 : 500,
+                        background: today ? "var(--cc-primary)" : "transparent",
+                        color: today ? "white" : "var(--cc-text-muted)",
+                      }}>
+                        {format(day, "d")}
+                      </span>
+                      {/* Campaign dots */}
+                      {campaignCreated.map(c => (
+                        <div key={c.id} style={{
+                          marginTop: 2, padding: "1px 4px", borderRadius: 3, fontSize: 9, fontWeight: 500,
+                          background: `${STATUS_COLORS[c.status] ?? "var(--cc-primary)"}20`,
+                          color: STATUS_COLORS[c.status] ?? "var(--cc-primary)",
+                          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                        }}>
+                          {c.title}
+                        </div>
+                      ))}
+                      {/* Deliverable dots */}
+                      {deliverables.length > 0 && (
+                        <div style={{ display: "flex", gap: 3, marginTop: 3 }}>
+                          {deliverables.map(d => (
+                            <div key={d.id} style={{ width: 6, height: 6, borderRadius: "50%", background: "#7C3AED" }} title={`${d.creator.name} - ${d.campaign.title}`} />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+          )}
         </div>
-      </Card>
+
+        {/* Side panel */}
+        {selectedDay && (
+          <div style={{ width: 280, flexShrink: 0 }}>
+            <Card variant="outlined" style={{ padding: 20, position: "sticky", top: 80 }}>
+              <h3 style={{ fontSize: 15, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>
+                {format(selectedDay, "EEEE, MMM d")}
+              </h3>
+              <p style={{ fontSize: 12, color: "var(--cc-text-muted)", marginBottom: 16 }}>{format(selectedDay, "yyyy")}</p>
+
+              {selectedDetail && selectedDetail.campaigns.length === 0 && selectedDetail.activations.length === 0 ? (
+                <p style={{ fontSize: 13, color: "var(--cc-text-muted)", textAlign: "center", padding: "20px 0" }}>Nothing scheduled</p>
+              ) : (
+                <>
+                  {selectedDetail!.campaigns.length > 0 && (
+                    <div style={{ marginBottom: 16 }}>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: "var(--cc-text-muted)", textTransform: "uppercase", letterSpacing: "0.06em" }}>Campaigns</span>
+                      {selectedDetail!.campaigns.map(c => (
+                        <div key={c.id} style={{ marginTop: 8, padding: 10, borderRadius: 8, background: "var(--cc-bg)" }}>
+                          <p style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)", margin: 0 }}>{c.title}</p>
+                          <Badge variant="neutral" style={{ marginTop: 4, fontSize: 10 }}>{c.status}</Badge>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {selectedDetail!.activations.length > 0 && (
+                    <div>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: "var(--cc-text-muted)", textTransform: "uppercase", letterSpacing: "0.06em" }}>Deliverables Due</span>
+                      {selectedDetail!.activations.map(a => (
+                        <div key={a.id} style={{ marginTop: 8, padding: 10, borderRadius: 8, background: "rgba(124,58,237,0.06)" }}>
+                          <p style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)", margin: 0 }}>{a.creator.name}</p>
+                          <p style={{ fontSize: 12, color: "var(--cc-text-muted)", margin: "2px 0 0" }}>{a.campaign.title}</p>
+                          <Badge variant="neutral" style={{ marginTop: 4, fontSize: 10 }}>{a.status.replace(/_/g, " ")}</Badge>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+            </Card>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
