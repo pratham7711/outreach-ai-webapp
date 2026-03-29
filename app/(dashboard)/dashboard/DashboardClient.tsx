@@ -35,12 +35,22 @@ type Campaign = {
   client?: { name: string } | null;
 };
 
+const DEFAULT_WIDGETS = [
+  "kpi_grid",
+  "views_over_time",
+  "platform_breakdown",
+  "top_posts",
+  "financial_summary",
+  "creator_performance",
+];
+
 type Props = {
   campaignCount: number;
   creatorCount: number;
   pendingPayouts: number;
   recentCampaigns: Campaign[];
   chartData: { month: string; spend: number }[];
+  dashboardWidgets: string[] | null;
 };
 
 const STATUS_BADGE_VARIANT: Record<string, "warning" | "accent" | "success" | "danger" | "neutral"> = {
@@ -51,8 +61,27 @@ const STATUS_BADGE_VARIANT: Record<string, "warning" | "accent" | "success" | "d
   DRAFT: "neutral",
 };
 
+function PlaceholderWidget({ title }: { title: string }) {
+  return (
+    <Card variant="solid" style={{ padding: 28 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+        <div style={{ width: 32, height: 32, borderRadius: 8, background: "#EEF2FF", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <BarChart3 size={16} style={{ color: "var(--cc-primary)" }} />
+        </div>
+        <span style={{ fontSize: 15, fontWeight: 700, color: "var(--cc-text)", letterSpacing: "-0.01em" }}>
+          {title}
+        </span>
+      </div>
+      <p data-testid="placeholder-coming-soon" style={{ fontSize: 14, color: "var(--cc-text-muted)", textAlign: "center", padding: "32px 0" }}>
+        Coming soon
+      </p>
+    </Card>
+  );
+}
+
 export default function DashboardClient(props: Props) {
   const { recentCampaigns, chartData } = props;
+  const widgets = props.dashboardWidgets ?? DEFAULT_WIDGETS;
 
   return (
     <div className="cc-page-content">
@@ -67,7 +96,7 @@ export default function DashboardClient(props: Props) {
       </div>
 
       {/* Stat Cards — using @pratham7711/ui StatCard with icons */}
-      <div className="cc-stagger grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4" style={{ gap: 20, marginBottom: 32 }}>
+      {widgets.includes("kpi_grid") && <div className="cc-stagger grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4" style={{ gap: 20, marginBottom: 32 }}>
         <StatCard
           value={String(props.campaignCount)}
           label="Total Campaigns"
@@ -94,7 +123,7 @@ export default function DashboardClient(props: Props) {
           trendLabel="from last month"
           icon={<TrendingUp size={20} style={{ color: "#7C3AED" }} />}
         />
-      </div>
+      </div>}
 
       {/* Two column layout */}
       <div className="grid grid-cols-1 lg:grid-cols-5" style={{ gap: 24, marginBottom: 32 }}>
@@ -200,53 +229,72 @@ export default function DashboardClient(props: Props) {
       </div>
 
       {/* Chart */}
-      <Card variant="solid" style={{ padding: 28 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{ width: 32, height: 32, borderRadius: 8, background: "#EEF2FF", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <BarChart3 size={16} style={{ color: "#5B5BD6" }} />
+      {widgets.includes("views_over_time") && (
+        <Card variant="solid" style={{ padding: 28, marginBottom: 24 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ width: 32, height: 32, borderRadius: 8, background: "#EEF2FF", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <BarChart3 size={16} style={{ color: "#5B5BD6" }} />
+              </div>
+              <span style={{ fontSize: 15, fontWeight: 700, color: "var(--cc-text)", letterSpacing: "-0.01em" }}>
+                Monthly Campaign Spend
+              </span>
             </div>
-            <span style={{ fontSize: 15, fontWeight: 700, color: "var(--cc-text)", letterSpacing: "-0.01em" }}>
-              Monthly Campaign Spend
-            </span>
           </div>
-        </div>
-        <div style={{ height: 260 }}>
-          <ResponsiveContainer width="100%" height={240} minWidth={0}>
-            <AreaChart data={chartData}>
-              <defs>
-                <linearGradient id="spendGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#5B5BD6" stopOpacity={0.12} />
-                  <stop offset="95%" stopColor="#5B5BD6" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#E4E6F0" vertical={false} />
-              <XAxis dataKey="month" tick={{ fill: "#9097B4", fontSize: 12, fontWeight: 500 }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fill: "#9097B4", fontSize: 12, fontWeight: 500 }} axisLine={false} tickLine={false} tickFormatter={(v) => `$${(v / 1000).toFixed(0)}K`} />
-              <Tooltip
-                contentStyle={{
-                  background: "white",
-                  border: "1px solid #E4E6F0",
-                  borderRadius: 10,
-                  color: "#1C2048",
-                  boxShadow: "0 4px 24px rgba(0,0,0,0.06)",
-                  fontSize: 13,
-                  padding: "10px 14px",
-                }}
-              />
-              <Area
-                type="monotone"
-                dataKey="spend"
-                stroke="#5B5BD6"
-                strokeWidth={2.5}
-                fill="url(#spendGradient)"
-                dot={{ fill: "#5B5BD6", stroke: "#fff", strokeWidth: 2, r: 4 }}
-                activeDot={{ fill: "#5B5BD6", stroke: "#fff", strokeWidth: 2, r: 6 }}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-      </Card>
+          <div style={{ height: 260 }}>
+            <ResponsiveContainer width="100%" height={240} minWidth={0}>
+              <AreaChart data={chartData}>
+                <defs>
+                  <linearGradient id="spendGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#5B5BD6" stopOpacity={0.12} />
+                    <stop offset="95%" stopColor="#5B5BD6" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#E4E6F0" vertical={false} />
+                <XAxis dataKey="month" tick={{ fill: "#9097B4", fontSize: 12, fontWeight: 500 }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fill: "#9097B4", fontSize: 12, fontWeight: 500 }} axisLine={false} tickLine={false} tickFormatter={(v) => `$${(v / 1000).toFixed(0)}K`} />
+                <Tooltip
+                  contentStyle={{
+                    background: "white",
+                    border: "1px solid #E4E6F0",
+                    borderRadius: 10,
+                    color: "#1C2048",
+                    boxShadow: "0 4px 24px rgba(0,0,0,0.06)",
+                    fontSize: 13,
+                    padding: "10px 14px",
+                  }}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="spend"
+                  stroke="#5B5BD6"
+                  strokeWidth={2.5}
+                  fill="url(#spendGradient)"
+                  dot={{ fill: "#5B5BD6", stroke: "#fff", strokeWidth: 2, r: 4 }}
+                  activeDot={{ fill: "#5B5BD6", stroke: "#fff", strokeWidth: 2, r: 6 }}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
+      )}
+
+      {/* Placeholder widgets driven by uiConfig */}
+      <div className="grid grid-cols-1 lg:grid-cols-3" style={{ gap: 24, marginBottom: 24 }}>
+        {widgets.includes("platform_breakdown") && (
+          <PlaceholderWidget title="Platform Breakdown" />
+        )}
+        {widgets.includes("top_posts") && (
+          <PlaceholderWidget title="Top Posts" />
+        )}
+        {widgets.includes("financial_summary") && (
+          <PlaceholderWidget title="Financial Summary" />
+        )}
+      </div>
+
+      {widgets.includes("creator_performance") && (
+        <PlaceholderWidget title="Creator Performance" />
+      )}
     </div>
   );
 }

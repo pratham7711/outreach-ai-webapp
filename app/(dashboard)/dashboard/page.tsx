@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { getOrgUiConfig } from "@/lib/orgConfig";
 import DashboardClient from "./DashboardClient";
 
 export default async function DashboardPage() {
@@ -8,7 +9,7 @@ export default async function DashboardPage() {
   if (!session?.user) redirect("/login");
   const orgId = (session.user as any).orgId;
 
-  const [campaignCount, creatorCount, pendingPayoutsAgg, recentCampaigns] = await Promise.all([
+  const [campaignCount, creatorCount, pendingPayoutsAgg, recentCampaigns, uiConfig] = await Promise.all([
     db.campaign.count({ where: { orgId, deletedAt: null } }),
     db.creator.count({ where: { orgId, deletedAt: null } }),
     db.payout.aggregate({ where: { orgId, status: "PENDING" }, _sum: { amount: true } }),
@@ -18,6 +19,7 @@ export default async function DashboardPage() {
       orderBy: { updatedAt: "desc" },
       take: 5,
     }),
+    getOrgUiConfig(orgId),
   ]);
 
   const pendingPayouts = pendingPayoutsAgg._sum.amount ?? 0;
@@ -51,6 +53,7 @@ export default async function DashboardPage() {
         client: c.client,
       }))}
       chartData={chartData}
+      dashboardWidgets={uiConfig?.dashboard ?? null}
     />
   );
 }

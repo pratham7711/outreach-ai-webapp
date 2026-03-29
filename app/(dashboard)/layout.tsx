@@ -4,12 +4,26 @@ import { TenantProvider } from "@/components/providers/TenantProvider";
 import { SidebarProvider } from "@/components/providers/SidebarProvider";
 import { DashboardContent } from "@/components/layout/DashboardContent";
 import { Toaster } from "sonner";
+import { auth } from "@/lib/auth";
+import { getOrgUiConfig } from "@/lib/orgConfig";
 
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
+  const session = await auth();
+  const orgId = (session?.user as any)?.orgId;
+  const uiConfig = orgId ? await getOrgUiConfig(orgId) : null;
+
+  const primaryColorOverride = uiConfig?.branding?.primaryColor ?? null;
+
   return (
     <TenantProvider>
       <SidebarProvider>
-        <div className="flex h-screen overflow-hidden" style={{ background: "var(--cc-bg)" }}>
+        <div
+          className="flex h-screen overflow-hidden"
+          style={{
+            background: "var(--cc-bg)",
+            ...(primaryColorOverride ? { "--cc-primary": primaryColorOverride } as React.CSSProperties : {}),
+          }}
+        >
           {/* Skip to content link for accessibility */}
           <a
             href="#main-content"
@@ -20,7 +34,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </a>
 
           <Toaster richColors position="bottom-right" />
-          <NewSidebar />
+          <NewSidebar navItems={uiConfig?.nav ?? null} brandName={uiConfig?.branding?.brandName ?? null} />
           <DashboardContent>
             <TopBar />
             <main id="main-content" className="flex-1 overflow-y-auto" role="main">

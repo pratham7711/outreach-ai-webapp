@@ -54,7 +54,32 @@ const NAV_SECTIONS = [
   },
 ];
 
-export default function NewSidebar() {
+// Map uiConfig nav keys to sidebar href paths
+const NAV_KEY_TO_HREF: Record<string, string> = {
+  campaigns: "/campaigns",
+  creators: "/creators",
+  payouts: "/payouts",
+  analytics: "/dashboard",
+  trackers: "/trackers",
+  lists: "/lists",
+  activations: "/activations",
+  calendar: "/calendar",
+  clients: "/clients",
+  discovery: "/discovery",
+  "fan-pages": "/fan-pages",
+  requests: "/requests",
+  recipients: "/recipients",
+};
+
+// Settings and Admin section labels that always show
+const ALWAYS_SHOW_SECTIONS = ["Settings", "Admin"];
+
+type SidebarProps = {
+  navItems?: string[] | null;
+  brandName?: string | null;
+};
+
+export default function NewSidebar({ navItems, brandName }: SidebarProps = {}) {
   const pathname = usePathname();
   const { collapsed, mobileOpen, toggle, setMobileOpen } = useSidebar();
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -188,7 +213,7 @@ export default function NewSidebar() {
                   whiteSpace: "nowrap",
                 }}
               >
-                outreach ai
+                {brandName ?? "outreach ai"}
               </span>
             )}
           </div>
@@ -261,7 +286,21 @@ export default function NewSidebar() {
 
         {/* Nav Sections */}
         <nav className="flex-1 overflow-y-auto py-2 px-2" aria-label="Main navigation">
-          {NAV_SECTIONS.map((section) => (
+          {NAV_SECTIONS.map((section) => {
+            // Always show Settings and Admin sections
+            const alwaysShow = ALWAYS_SHOW_SECTIONS.includes(section.label);
+            // Filter items based on navItems prop (if provided)
+            const filteredItems = (!navItems || alwaysShow)
+              ? section.items
+              : section.items.filter((item) => {
+                  // Find the nav key that maps to this href
+                  const navKey = Object.entries(NAV_KEY_TO_HREF).find(
+                    ([, href]) => href === item.href
+                  )?.[0];
+                  return navKey ? navItems.includes(navKey) : false;
+                });
+            if (filteredItems.length === 0) return null;
+            return (
             <div key={section.label} className="mb-1">
               {/* Section label — hidden when collapsed */}
               {!collapsed && (
@@ -285,7 +324,7 @@ export default function NewSidebar() {
                 <div style={{ height: 1, background: "var(--cc-border)", margin: "6px 8px" }} />
               )}
 
-              {section.items.map(
+              {filteredItems.map(
                 ({
                   href,
                   icon: Icon,
@@ -341,7 +380,8 @@ export default function NewSidebar() {
                 }
               )}
             </div>
-          ))}
+            );
+          })}
         </nav>
 
         {/* Footer - User Profile */}
