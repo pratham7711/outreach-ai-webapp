@@ -9,7 +9,7 @@ export default defineConfig({
   timeout: 120000,
   reporter: process.env.CI ? 'github' : 'list',
   use: {
-    baseURL: process.env.E2E_BASE_URL || 'http://localhost:3002',
+    baseURL: process.env.E2E_BASE_URL || 'http://localhost:3009',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
@@ -41,7 +41,7 @@ export default defineConfig({
   ],
   webServer: {
     command: 'npm run dev',
-    url: process.env.E2E_BASE_URL || 'http://localhost:3002',
+    url: process.env.E2E_BASE_URL || 'http://localhost:3009',
     reuseExistingServer: true,
   },
 });

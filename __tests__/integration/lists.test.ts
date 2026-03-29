@@ -11,6 +11,7 @@ jest.mock('@/lib/db', () => ({
       findMany: jest.fn(),
       create: jest.fn(),
       findUnique: jest.fn(),
+      findFirst: jest.fn(),
     },
   },
 }));
@@ -156,19 +157,19 @@ describe('GET /api/lists/[id]', () => {
       name: 'Top Creators',
       items: [{ id: 'item-1', creator: { id: 'c1', name: 'Alice' } }],
     };
-    mockDb.creatorList.findUnique.mockResolvedValue(list);
+    mockDb.creatorList.findFirst.mockResolvedValue(list);
 
     const req = new NextRequest('http://localhost/api/lists/list-1');
     const res = await GETById(req, makeParams('list-1'));
     const body = await res.json();
 
     expect(res.status).toBe(200);
-    expect(body.list.id).toBe('list-1');
-    expect(body.list.items).toHaveLength(1);
+    expect(body.id).toBe('list-1');
+    expect(body.items).toHaveLength(1);
   });
 
   it('returns 404 when list not found', async () => {
-    mockDb.creatorList.findUnique.mockResolvedValue(null);
+    mockDb.creatorList.findFirst.mockResolvedValue(null);
 
     const req = new NextRequest('http://localhost/api/lists/nonexistent');
     const res = await GETById(req, makeParams('nonexistent'));

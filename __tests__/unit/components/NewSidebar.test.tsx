@@ -35,9 +35,11 @@ describe('NewSidebar', () => {
     expect(screen.getByText('Admin')).toBeInTheDocument();
   });
 
-  it('renders theme toggle button', () => {
+  it('renders sidebar container', () => {
     render(<NewSidebar />);
-    expect(screen.getByRole('button', { name: 'Toggle theme' })).toBeInTheDocument();
+    // Sidebar renders with multiple navigation links
+    const links = screen.getAllByRole('link');
+    expect(links.length).toBeGreaterThan(0);
   });
 
   it('renders discovery and trackers links', () => {

@@ -12,6 +12,7 @@ jest.mock('@/lib/db', () => ({
       count: jest.fn(),
       create: jest.fn(),
       findUnique: jest.fn(),
+      findFirst: jest.fn(),
       update: jest.fn(),
     },
   },
@@ -213,7 +214,7 @@ describe('GET /api/creators/[id]', () => {
 
   it('returns creator by id', async () => {
     const creator = { id: 'creator-1', name: 'Alice', deletedAt: null, _count: { activations: 2, posts: 10 } };
-    mockDb.creator.findUnique.mockResolvedValue(creator);
+    mockDb.creator.findFirst.mockResolvedValue(creator);
 
     const req = makeRequest('http://localhost/api/creators/creator-1');
     const res = await GETById(req, makeParams('creator-1'));
@@ -224,7 +225,7 @@ describe('GET /api/creators/[id]', () => {
   });
 
   it('returns 404 when creator not found', async () => {
-    mockDb.creator.findUnique.mockResolvedValue(null);
+    mockDb.creator.findFirst.mockResolvedValue(null);
 
     const req = makeRequest('http://localhost/api/creators/nonexistent');
     const res = await GETById(req, makeParams('nonexistent'));
@@ -232,7 +233,7 @@ describe('GET /api/creators/[id]', () => {
   });
 
   it('returns 404 for soft-deleted creator', async () => {
-    mockDb.creator.findUnique.mockResolvedValue({ id: 'creator-1', deletedAt: new Date() });
+    mockDb.creator.findFirst.mockResolvedValue(null);
 
     const req = makeRequest('http://localhost/api/creators/creator-1');
     const res = await GETById(req, makeParams('creator-1'));

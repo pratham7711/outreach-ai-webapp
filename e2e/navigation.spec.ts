@@ -10,13 +10,16 @@ const PAGES = [
 ];
 
 test.describe('Navigation', () => {
-  test('sidebar nav links navigate to correct pages', async ({ page }) => {
+  test('sidebar renders with nav items', async ({ page }) => {
     await page.goto('/dashboard');
     await page.waitForLoadState('networkidle');
 
+    // Sidebar should render brand name
+    await expect(page.locator('text=outreach ai').first()).toBeVisible();
+
+    // All main nav links should be present
     for (const p of PAGES) {
       const link = page.locator(`a[href="${p.href}"]`).first();
-      // Check that the link exists in the page
       await expect(link).toBeVisible({ timeout: 5000 });
     }
   });
@@ -62,6 +65,15 @@ test.describe('Navigation', () => {
       await page.goto(p.href);
       await page.waitForLoadState('networkidle');
       await expect(page).not.toHaveURL(/login/, { timeout: 5000 });
+    }
+  });
+
+  test('pages render main content area', async ({ page }) => {
+    for (const p of PAGES) {
+      await page.goto(p.href);
+      await page.waitForLoadState('networkidle');
+      const main = page.locator('main').first();
+      await expect(main).toBeVisible({ timeout: 10000 });
     }
   });
 });
