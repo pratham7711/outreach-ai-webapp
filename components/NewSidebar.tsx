@@ -3,9 +3,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useEffect, useCallback } from "react";
 import {
-  Megaphone, Play, Calendar, Users, Radio, LineChart,
+  Megaphone, Play, Calendar, Users, Users2, Radio, LineChart,
   Search, List, Wallet, Inbox, UserCheck, Link2, CreditCard, Shield, Bell,
-  ChevronDown, Settings, LogOut, Menu, X, ChevronsLeft, ChevronsRight
+  ChevronDown, Settings, LogOut, Menu, X, ChevronsLeft, ChevronsRight, Key
 } from "lucide-react";
 import { useSidebar } from "@/components/providers/SidebarProvider";
 
@@ -41,6 +41,8 @@ const NAV_SECTIONS = [
     label: "Settings",
     items: [
       { href: "/connections", icon: Link2, label: "Connections" },
+      { href: "/settings/team", icon: Users2, label: "Team" },
+      { href: "/settings/api-keys", icon: Key, label: "API Keys" },
     ],
   },
   {
