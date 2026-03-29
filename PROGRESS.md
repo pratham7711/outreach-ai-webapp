@@ -7,11 +7,11 @@
 
 ## Current Status
 
-**Phase:** Phase 3 — Real Data Integration
-**Last updated:** 2026-03-20
+**Phase:** Phase 4 — Feature Completion
+**Last updated:** 2026-03-29
 **App URL:** http://localhost:3009
 **Login:** admin@demo.com / admin123
-**DB:** prisma/dev.db (SQLite — seeded with 3 clients, 5 creators, 5 campaigns, 4 activations, 3 payouts)
+**DB:** Neon PostgreSQL (serverless) — seeded with 5 clients, 10 creators, 5 campaigns, activations, payouts
 
 ---
 
@@ -21,7 +21,6 @@
 - [x] Prisma 7 schema — full multi-tenant data model
 - [x] NextAuth v5 credentials login
 - [x] Multi-tenant architecture (orgId on all models)
-- [x] SQLite local dev database (`prisma/dev.db`)
 - [x] Seed script (`prisma/seed.ts`) — creates admin@demo.com / admin123
 - [x] Auth middleware (`proxy.ts`)
 - [x] Basic page routing for all sections
@@ -84,32 +83,16 @@
 ## Phase 3 — Real Data Integration ✅ FORMS DONE
 
 ### Rich Seed Data ✅
-- [x] 3 clients: Sony Music, Universal Records, Warner Music
-- [x] 5 creators: Blessing Jolie, Alex Turner, Maria Santos, James Kim, Priya Patel
+- [x] 5 clients seeded
+- [x] 10 creators seeded
 - [x] 5 campaigns: LEAK IT (BTS), FUJI KAZE (2ND PHASE), Blessing Jolie, CRUEL WORLD, American Girls
-- [x] 4 activations + 3 payouts seeded
+- [x] Activations + payouts seeded
 
 ### Create/Edit Forms ✅
 - [x] **New Campaign modal** (`components/modals/NewCampaignModal.tsx`) — wired to campaigns page
 - [x] **Add Creator modal** (`components/modals/AddCreatorModal.tsx`) — wired to creators page
 - [x] **Add Client modal** (`components/modals/AddClientModal.tsx`) — wired to clients page
 - [x] **Add Payout modal** (`components/modals/AddPayoutModal.tsx`) — wired to payouts page
-
-### Database Setup (production — TODO)
-- [ ] **Choose production DB** — Neon (serverless PostgreSQL, generous free tier) ← **recommended**
-- [ ] Update `.env` `DATABASE_URL` to production DB
-- [ ] Run `npx prisma db push` on production DB
-
-### Organization Setup
-- [ ] **Create real organization** — replace "Demo Agency" in seed or via DB
-- [ ] **Create real user accounts** for team members
-
-### Authentication (production-ready)
-- [ ] **Add real user accounts** via seed or admin UI
-- [ ] **Optional: Google OAuth** — add to NextAuth config for easier login
-  - Needs: Google Cloud Console OAuth client
-  - Config: add to `lib/auth.ts` providers array
-- [ ] **Password reset flow** — currently not implemented
 
 ---
 
@@ -122,7 +105,7 @@
 - [ ] Add creator to campaign (activation creation)
 - [ ] Campaign edit form
 
-### Creator Detail Page  
+### Creator Detail Page
 - [ ] Creator stats display (followers, engagement rate)
 - [ ] Campaign history (which campaigns they've been in)
 - [ ] Edit creator form
@@ -158,13 +141,27 @@
 
 ---
 
-## Phase 5 — Production Deploy ⏳ TODO
+## Phase 5 — Production Infrastructure ✅ PARTIAL
 
-- [ ] Switch to PostgreSQL (Neon or Railway)
+- [x] Switch to Neon PostgreSQL (serverless)
+- [x] Prisma schema updated to `provider = "postgresql"`
+- [x] Prisma migrations set up (`prisma/migrations/`)
+- [x] Database seeded on Neon
 - [ ] Environment variables for production
 - [ ] Deploy to Vercel: `vercel --prod`
 - [ ] Custom domain setup
-- [ ] Production seed with real org data
+
+---
+
+## Foundation Models (ready but not wired into UI)
+
+These Prisma models exist in the schema and are migrated, but have no UI or API routes yet:
+
+- **OrgPlanConfig** — per-org plan configuration / feature tier
+- **UserInvite** — team invite system (invite by email, pending/accepted/expired)
+- **ApiKey** — org-scoped API keys for external integrations
+- **CreatorSocialAccount** — multi-platform social accounts linked to a creator
+- **CampaignType** — enum: BUDGET_BASED, VIEW_BASED, OPEN_COMMUNITY, PRIVATE_INVITE
 
 ---
 
@@ -194,10 +191,19 @@ All routes are multi-tenant (filter by orgId from session).
 | DELETE | `/api/campaigns/[id]` | ✅ Working | Soft delete |
 | GET | `/api/creators` | ✅ Working | Returns org creators |
 | POST | `/api/creators` | ✅ Working | Create creator |
+| GET | `/api/creators/[id]` | ✅ Working | Creator detail with activations, posts, payouts |
+| PATCH | `/api/creators/[id]` | ✅ Working | Update creator |
 | GET | `/api/clients` | ✅ Working | Returns org clients |
 | POST | `/api/clients` | ✅ Working | Create client |
+| PATCH | `/api/clients/[id]` | ✅ Working | Update client |
 | GET | `/api/payouts` | ✅ Working | Returns org payouts |
 | POST | `/api/payouts` | ✅ Working | Create payout |
+| PATCH | `/api/payouts/[id]` | ✅ Working | Update payout status (state machine) |
+| PATCH | `/api/activations/[id]` | ✅ Working | Update activation status (state machine) |
+| DELETE | `/api/activations/[id]` | ✅ Working | Soft delete activation |
+| GET | `/api/lists/[id]` | ✅ Working | List detail with creator items |
+| PATCH | `/api/lists/[id]` | ✅ Working | Update list name/description |
+| DELETE | `/api/lists/[id]` | ✅ Working | Delete list and items |
 | GET | `/api/plans` | ✅ Working | Returns org plans (custom feature) |
 | POST | `/api/plans` | ✅ Working | Create plan |
 | PATCH | `/api/clients/[id]/plan` | ✅ Working | Assign plan to client |
@@ -210,14 +216,20 @@ All routes are multi-tenant (filter by orgId from session).
 # Start dev server (MUST use port 3009)
 PORT=3009 npm run dev
 
-# Reset database (wipes all data, re-creates schema)
-rm prisma/dev.db && npx prisma db push && npx tsx prisma/seed.ts
+# Seed the database
+npx prisma db seed
+
+# Run migrations
+npx prisma migrate dev
 
 # Build check (run before committing)
 npm run build
 
 # Open Prisma Studio (visual DB browser)
-DATABASE_URL="file:./prisma/dev.db" npx prisma studio
+npx prisma studio
+
+# Run integration tests
+npx jest --config jest.integration.config.js
 ```
 
 ---
@@ -226,18 +238,14 @@ DATABASE_URL="file:./prisma/dev.db" npx prisma studio
 
 **Immediate priority (in order):**
 
-1. **Wire up create forms** so Pratham can add campaigns/creators/clients via the UI
-   - Start with: Campaign create modal (`components/CampaignModal.tsx`)
-   - Then: Creator add form
-   - Then: Client add form
-
-2. **Campaign detail page** — make the tabs functional
+1. **Campaign detail page** — make the tabs functional
    - Add creator to campaign (activation)
    - Show post deliverables
 
-3. **Choose + configure production database**
-   - Recommended: Neon (free, serverless PostgreSQL)
-   - Steps: sign up → copy DATABASE_URL → `prisma db push` → seed
+2. **Wire up foundation models** — build UI/API for:
+   - UserInvite (team invite flow)
+   - ApiKey (API key management page)
+   - CreatorSocialAccount (multi-platform profiles on creator detail)
 
-4. **Import real data** once DB is set up
-   - Build import scripts or use the UI forms once they exist
+3. **Import real data** once ready
+   - Build import scripts or use the UI forms
