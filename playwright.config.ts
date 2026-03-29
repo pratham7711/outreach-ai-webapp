@@ -24,9 +24,10 @@ export default defineConfig({
     },
     // Authenticated tests: reuse saved session
     {
-      name: 'chromium',
+      name: 'chrome',
       use: {
         ...devices['Desktop Chrome'],
+        channel: 'chrome',
         storageState: 'e2e/fixtures/.auth.json',
       },
       dependencies: ['setup'],
@@ -34,8 +35,8 @@ export default defineConfig({
     },
     // Unauthenticated tests: fresh browser, no session
     {
-      name: 'chromium-noauth',
-      use: { ...devices['Desktop Chrome'] },
+      name: 'chrome-noauth',
+      use: { ...devices['Desktop Chrome'], channel: 'chrome' },
       testMatch: /auth\.spec\.ts/,
     },
   ],

@@ -14,12 +14,12 @@ setup('authenticate as admin', async () => {
 
   const token = await encode({
     token: {
-      sub: 'cltest000000000000000001',
-      id: 'cltest000000000000000001',
+      sub: 'cmnbxspfv00016vfdz6yuds55',
+      id: 'cmnbxspfv00016vfdz6yuds55',
       email: 'admin@demo.com',
-      name: 'Admin User',
-      orgId: 'cltest000000000000000002',
-      role: 'ADMIN',
+      name: 'Admin',
+      orgId: 'cmnbxsoos00006vfd7jhdvusb',
+      role: 'OWNER',
     },
     secret,
     salt: cookieName,

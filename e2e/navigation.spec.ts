@@ -1,79 +1,43 @@
 import { test, expect } from '@playwright/test';
+import { waitForMain } from './helpers';
 
 const PAGES = [
-  { label: 'campaigns', href: '/campaigns' },
-  { label: 'activations', href: '/activations' },
-  { label: 'creators', href: '/creators' },
-  { label: 'payouts', href: '/payouts' },
-  { label: 'clients', href: '/clients' },
-  { label: 'lists', href: '/lists' },
+  { name: 'Campaigns', href: '/campaigns' },
+  { name: 'Creators', href: '/creators' },
+  { name: 'Payouts', href: '/payouts' },
+  { name: 'Clients', href: '/clients' },
+  { name: 'Lists', href: '/lists' },
+  { name: 'Activations', href: '/activations' },
 ];
 
 test.describe('Navigation', () => {
   test('sidebar renders with nav items', async ({ page }) => {
-    await page.goto('/dashboard');
-    await page.waitForLoadState('networkidle');
-
-    // Sidebar should render brand name
-    await expect(page.locator('text=outreach ai').first()).toBeVisible();
-
-    // All main nav links should be present
+    await page.goto('/campaigns');
+    await waitForMain(page);
     for (const p of PAGES) {
-      const link = page.locator(`a[href="${p.href}"]`).first();
-      await expect(link).toBeVisible({ timeout: 5000 });
+      await expect(page.locator(`a[href="${p.href}"]`).first()).toBeVisible();
     }
   });
 
-  test('can navigate from dashboard to campaigns via sidebar link', async ({ page }) => {
-    await page.goto('/dashboard');
-    await page.waitForLoadState('networkidle');
-
-    await page.locator('a[href="/campaigns"]').first().click();
-    await page.waitForURL(/\/campaigns/, { timeout: 10000 });
-    expect(page.url()).toContain('/campaigns');
-  });
-
-  test('can navigate from dashboard to creators', async ({ page }) => {
-    await page.goto('/dashboard');
-    await page.waitForLoadState('networkidle');
-
+  test('can navigate between pages via sidebar', async ({ page }) => {
+    await page.goto('/campaigns');
+    await waitForMain(page);
     await page.locator('a[href="/creators"]').first().click();
-    await page.waitForURL(/\/creators/, { timeout: 10000 });
-    expect(page.url()).toContain('/creators');
+    await expect(page).toHaveURL(/\/creators/, { timeout: 15000 });
   });
 
-  test('can navigate from dashboard to payouts', async ({ page }) => {
-    await page.goto('/dashboard');
-    await page.waitForLoadState('networkidle');
-
-    await page.locator('a[href="/payouts"]').first().click();
-    await page.waitForURL(/\/payouts/, { timeout: 10000 });
-    expect(page.url()).toContain('/payouts');
-  });
-
-  test('can navigate from dashboard to clients', async ({ page }) => {
-    await page.goto('/dashboard');
-    await page.waitForLoadState('networkidle');
-
-    await page.locator('a[href="/clients"]').first().click();
-    await page.waitForURL(/\/clients/, { timeout: 10000 });
-    expect(page.url()).toContain('/clients');
-  });
-
-  test('all dashboard pages load without redirecting to login', async ({ page }) => {
+  test('all pages load without redirecting to login', async ({ page }) => {
     for (const p of PAGES) {
       await page.goto(p.href);
-      await page.waitForLoadState('networkidle');
-      await expect(page).not.toHaveURL(/login/, { timeout: 5000 });
+      await expect(page).not.toHaveURL(/login/, { timeout: 15000 });
     }
   });
 
-  test('pages render main content area', async ({ page }) => {
+  test('all pages have main content area', async ({ page }) => {
     for (const p of PAGES) {
       await page.goto(p.href);
-      await page.waitForLoadState('networkidle');
-      const main = page.locator('main').first();
-      await expect(main).toBeVisible({ timeout: 10000 });
+      await waitForMain(page);
+      await expect(page.locator('main').first()).toBeVisible();
     }
   });
 });

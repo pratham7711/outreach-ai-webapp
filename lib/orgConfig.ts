@@ -27,10 +27,14 @@ export type OrgUiConfig = {
 };
 
 export async function getOrgUiConfig(orgId: string): Promise<OrgUiConfig | null> {
-  const org = await db.organization.findUnique({
-    where: { id: orgId },
-    select: { uiConfig: true, brandName: true },
-  });
-  if (!org) return null;
-  return (org.uiConfig as OrgUiConfig) ?? null;
+  try {
+    const org = await db.organization.findUnique({
+      where: { id: orgId },
+      select: { uiConfig: true, brandName: true },
+    });
+    if (!org) return null;
+    return (org.uiConfig as OrgUiConfig) ?? null;
+  } catch {
+    return null;
+  }
 }

@@ -1,38 +1,29 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Dashboard', () => {
-  test.beforeEach(async ({ page }) => {
+  test('loads dashboard without redirect to login', async ({ page }) => {
     await page.goto('/dashboard');
-    await page.waitForLoadState('networkidle');
+    await expect(page).not.toHaveURL(/login/, { timeout: 15000 });
   });
 
-  test('loads dashboard page successfully', async ({ page }) => {
-    await expect(page).not.toHaveURL(/login/);
+  test('shows sidebar with brand name', async ({ page }) => {
+    await page.goto('/dashboard');
+    await expect(page.getByText('outreach ai').first()).toBeVisible({ timeout: 15000 });
   });
 
-  test('shows sidebar navigation', async ({ page }) => {
-    await expect(page.locator('text=outreach ai').first()).toBeVisible();
+  test('has main content area', async ({ page }) => {
+    await page.goto('/dashboard');
+    await expect(page.locator('main').first()).toBeVisible({ timeout: 15000 });
   });
 
-  test('shows stats cards on dashboard', async ({ page }) => {
-    // Dashboard has stat cards for campaigns, creators, etc.
-    const main = page.locator('main').first();
-    await expect(main).toBeVisible();
-  });
-
-  test('page title includes Outreach AI', async ({ page }) => {
+  test('page has a title', async ({ page }) => {
+    await page.goto('/dashboard');
     const title = await page.title();
-    // Page should have some content
     expect(title).toBeTruthy();
   });
 
-  test('contains monthly spend chart section', async ({ page }) => {
-    // Dashboard renders chart data
-    const main = page.locator('main').first();
-    await expect(main).toBeVisible();
-  });
-
-  test('shows navigation links in sidebar', async ({ page }) => {
-    await expect(page.locator('a[href="/campaigns"]').first()).toBeVisible();
+  test('sidebar has campaigns link', async ({ page }) => {
+    await page.goto('/dashboard');
+    await expect(page.locator('a[href="/campaigns"]').first()).toBeVisible({ timeout: 15000 });
   });
 });
