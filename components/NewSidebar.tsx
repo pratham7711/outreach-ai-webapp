@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Megaphone, Play, Calendar, Users, Users2, Radio, LineChart,
   Search, List, Wallet, Inbox, UserCheck, Link2, CreditCard, Shield, Bell, FileText,
@@ -57,52 +57,19 @@ const NAV_SECTIONS = [
   },
 ];
 
-// Map uiConfig nav keys to sidebar href paths
-const NAV_KEY_TO_HREF: Record<string, string> = {
-  campaigns: "/campaigns",
-  creators: "/creators",
-  payouts: "/payouts",
-  analytics: "/dashboard",
-  trackers: "/trackers",
-  lists: "/lists",
-  activations: "/activations",
-  calendar: "/calendar",
-  clients: "/clients",
-  discovery: "/discovery",
-  "audit-log": "/audit-log",
-  "fan-pages": "/fan-pages",
-  requests: "/requests",
-  recipients: "/recipients",
-};
-
-// Settings and Admin section labels that always show
-const ALWAYS_SHOW_SECTIONS = ["Settings", "Admin"];
-
 type SidebarProps = {
-  navItems?: string[] | null;
+  allowedNavHrefs?: string[] | null;
   brandName?: string | null;
-  featureMap?: Record<string, boolean> | null;
 };
 
-const ROUTE_FEATURE_KEYS: Record<string, string[]> = {
-  "/audit-log": ["audit_log"],
-  "/media-kits": ["media_kits"],
-  "/reports": ["basic_reports", "advanced_reports"],
-};
-
-function isRouteEnabledByEntitlements(href: string, featureMap?: Record<string, boolean> | null) {
-  if (!featureMap) return true;
-
-  const featureKeys = ROUTE_FEATURE_KEYS[href];
-  if (!featureKeys || featureKeys.length === 0) return true;
-
-  return featureKeys.some((key) => featureMap[key] === true);
-}
-
-export default function NewSidebar({ navItems, brandName, featureMap }: SidebarProps = {}) {
+export default function NewSidebar({ allowedNavHrefs, brandName }: SidebarProps = {}) {
   const pathname = usePathname();
   const { collapsed, mobileOpen, toggle, setMobileOpen } = useSidebar();
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const allowedHrefSet = useMemo(
+    () => new Set(allowedNavHrefs ?? []),
+    [allowedNavHrefs]
+  );
 
   // Close mobile menu on route change
   useEffect(() => {
@@ -307,21 +274,9 @@ export default function NewSidebar({ navItems, brandName, featureMap }: SidebarP
         {/* Nav Sections */}
         <nav className="flex-1 overflow-y-auto py-2 px-2" aria-label="Main navigation">
           {NAV_SECTIONS.map((section) => {
-            // Always show Settings and Admin sections
-            const alwaysShow = ALWAYS_SHOW_SECTIONS.includes(section.label);
-            // Filter items based on navItems prop (if provided)
-            const entitlementFilteredItems = section.items.filter((item) =>
-              isRouteEnabledByEntitlements(item.href, featureMap)
-            );
-            const filteredItems = (!navItems || alwaysShow)
-              ? entitlementFilteredItems
-              : entitlementFilteredItems.filter((item) => {
-                  // Find the nav key that maps to this href
-                  const navKey = Object.entries(NAV_KEY_TO_HREF).find(
-                    ([, href]) => href === item.href
-                  )?.[0];
-                  return navKey ? navItems.includes(navKey) : false;
-                });
+            const filteredItems = allowedNavHrefs == null
+              ? section.items
+              : section.items.filter((item) => allowedHrefSet.has(item.href));
             if (filteredItems.length === 0) return null;
             return (
             <div key={section.label} className="mb-1">

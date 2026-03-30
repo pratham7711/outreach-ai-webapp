@@ -6,16 +6,17 @@ import { DashboardContent } from "@/components/layout/DashboardContent";
 import { Toaster } from "sonner";
 import { auth } from "@/lib/auth";
 import { getOrgEntitlements } from "@/lib/entitlements";
+import { resolveDashboardPolicy } from "@/lib/dashboardPolicy";
+import type { OrgUiConfig } from "@/lib/orgConfig";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
   const orgId = (session?.user as any)?.orgId;
-  const policy = orgId ? await getOrgEntitlements(orgId) : null;
-  const navItems = Array.isArray((policy?.uiConfig as { nav?: unknown } | null)?.nav)
-    ? ((policy?.uiConfig as { nav?: string[] } | null)?.nav ?? null)
-    : null;
+  const entitlements = orgId ? await getOrgEntitlements(orgId) : null;
+  const uiConfig = (entitlements?.uiConfig as OrgUiConfig | null) ?? null;
+  const policy = resolveDashboardPolicy({ entitlements, uiConfig });
 
-  const primaryColorOverride = policy?.branding?.primaryColor ?? null;
+  const primaryColorOverride = orgId ? policy.primaryColor : null;
 
   return (
     <TenantProvider>
@@ -38,9 +39,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
           <Toaster richColors position="bottom-right" />
           <NewSidebar
-            navItems={navItems}
-            featureMap={policy?.featureMap ?? null}
-            brandName={policy?.branding?.brandName ?? null}
+            allowedNavHrefs={orgId ? policy.allowedNavHrefs : null}
+            brandName={orgId ? policy.brandName : null}
           />
           <DashboardContent>
             <TopBar />

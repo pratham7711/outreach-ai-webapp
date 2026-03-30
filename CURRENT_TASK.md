@@ -25,25 +25,35 @@
   - `__tests__/integration/auditLogSettings.test.ts`
   - `e2e/audit-log.spec.ts`
 - Patched live dashboard sidebar (`components/NewSidebar.tsx`) to expose `Settings`, `Audit Log`, and `Billing`
+- Added shared hybrid runtime policy resolver:
+  - `lib/dashboardPolicy.ts`
+  - entitlement gating first, `uiConfig.nav` filtering second
+  - hard-required settings/admin routes always visible
+- Integrated hybrid policy into dashboard shell:
+  - `app/(dashboard)/layout.tsx` now resolves policy and passes allowed nav routes to sidebar
+  - `components/NewSidebar.tsx` now filters from policy output instead of local gating rules
+- Added/updated hybrid nav validation:
+  - `__tests__/unit/lib/dashboardPolicy.test.ts`
+  - `e2e/navigation.spec.ts` hardened for org-specific nav configuration
 
 ---
 
 ## Next:
-**Replace remaining direct plan consumers with canonical entitlement helpers**
+**Finish entitlement migration for non-sidebar org-level gates**
 
 ### Exact steps:
-1. Inventory all remaining reads of `Organization.plan` and `lib/plans.ts` in app + API routes.
-2. Migrate org-level feature/limit checks to `getOrgEntitlements(orgId)` and `featureMap`.
-3. Keep client-level `Plan` behavior isolated (only client feature access pages/use-cases).
-4. Add lean regression tests (`401`, `403`, happy path`) only for routes changed by migration.
-5. Confirm sidebar/nav gating rules should come from `uiConfig.nav` and/or entitlement feature flags, then codify in one place.
+1. Sweep remaining org-level checks (outside sidebar/layout) that still infer capability from legacy plan semantics.
+2. Standardize those checks on `getOrgEntitlements(orgId)` + `featureMap`.
+3. Keep client-level `Plan` model untouched (assignment, overrides, plan CRUD remain separate).
+4. Add lean regression tests (`401`, `403`, happy path`) only for routes/pages changed in this sweep.
+5. Remove duplicate local nav gating logic if any reappears, keeping `lib/dashboardPolicy.ts` as source of truth.
 
 ## Context Files:
 - `lib/entitlements.ts`
+- `lib/dashboardPolicy.ts`
 - `app/api/settings/audit-log/route.ts`
 - `app/api/audit-logs/route.ts`
-- `app/(dashboard)/settings/billing/AuditLogToggleCard.tsx`
-- `app/(dashboard)/audit-log/page.tsx`
+- `app/(dashboard)/layout.tsx`
 - `components/NewSidebar.tsx`
 
 ## Blocker:
