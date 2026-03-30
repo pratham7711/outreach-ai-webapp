@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
+import { createAuditActor, logAudit } from "@/lib/audit";
 
 const ALLOWED_TRANSITIONS: Record<string, string[]> = {
   PENDING: ["PROCESSING"],
@@ -43,6 +44,19 @@ export async function POST(req: NextRequest) {
       updateData.failureReason = null;
     }
     await db.payout.updateMany({ where: { id: { in: validIds } }, data: updateData });
+
+    for (const p of payouts.filter((p) => validIds.includes(p.id))) {
+      await logAudit({
+        orgId,
+        ...createAuditActor(session),
+        action: "payout.status_changed",
+        entityType: "payout",
+        entityId: p.id,
+        entityLabel: p.transactionId ?? p.id,
+        before: { id: p.id, status: p.status },
+        after: { id: p.id, status },
+      });
+    }
   }
 
   return NextResponse.json({ updated: validIds.length, errors });
