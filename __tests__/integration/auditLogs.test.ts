@@ -17,11 +17,17 @@ jest.mock("@/lib/auth", () => ({
   auth: jest.fn(),
 }));
 
+jest.mock("@/lib/entitlements", () => ({
+  getOrgEntitlements: jest.fn(),
+}));
+
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
+import { getOrgEntitlements } from "@/lib/entitlements";
 
 const mockDb = db as any;
 const mockAuth = auth as jest.Mock;
+const mockGetOrgEntitlements = getOrgEntitlements as jest.Mock;
 
 function makeRequest(url: string) {
   return new NextRequest(url);
@@ -30,6 +36,10 @@ function makeRequest(url: string) {
 beforeEach(() => {
   jest.clearAllMocks();
   mockAuth.mockResolvedValue({ user: { id: "user-1", orgId: "org-1", role: "ADMIN" } });
+  mockGetOrgEntitlements.mockResolvedValue({
+    planName: "pro",
+    featureMap: { audit_log: true },
+  });
 });
 
 describe("GET /api/audit-logs", () => {
@@ -49,6 +59,19 @@ describe("GET /api/audit-logs", () => {
     const res = await GET(req);
 
     expect(res.status).toBe(403);
+  });
+
+  it("returns 403 when audit log is disabled for the org", async () => {
+    mockGetOrgEntitlements.mockResolvedValue({
+      planName: "pro",
+      featureMap: { audit_log: false },
+    });
+
+    const req = makeRequest("http://localhost/api/audit-logs");
+    const res = await GET(req);
+
+    expect(res.status).toBe(403);
+    expect(mockDb.auditLog.findMany).not.toHaveBeenCalled();
   });
 
   it("returns org-scoped logs with filters and pagination metadata", async () => {

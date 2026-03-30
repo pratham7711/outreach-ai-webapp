@@ -1,4 +1,5 @@
 import { db } from "./db";
+import { getOrgEntitlements } from "@/lib/entitlements";
 
 function toJsonValue(value: Record<string, unknown> | null | undefined) {
   if (value == null) return undefined;
@@ -20,6 +21,12 @@ export async function logAudit(params: {
   after?: Record<string, unknown> | null;
 }) {
   try {
+    const organization = (db as any)?.organization;
+    if (!organization?.findUnique) return;
+
+    const entitlements = await getOrgEntitlements(params.orgId);
+    if (entitlements?.featureMap.audit_log === false) return;
+
     const auditLog = (db as any)?.auditLog;
     if (!auditLog?.create) return;
 

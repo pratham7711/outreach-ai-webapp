@@ -57,11 +57,14 @@ export async function getOrgEntitlements(orgId: string): Promise<OrgEntitlements
   const fallbackPlan = PLANS[fallbackPlanName];
   const planName = org.planConfig?.planName ?? org.plan ?? fallbackPlanName;
   const configFeatureMap = normalizeFeatureMap(org.planConfig?.features);
+  const fallbackFeatureMap = Object.fromEntries(fallbackPlan.features.map((feature) => [feature, true]));
 
-  const featureMap =
-    Object.keys(configFeatureMap).length > 0
-      ? configFeatureMap
-      : Object.fromEntries(fallbackPlan.features.map((feature) => [feature, true]));
+  const featureMap = {
+    ...fallbackFeatureMap,
+    ...configFeatureMap,
+    // Audit log starts enabled unless explicitly disabled by the org toggle.
+    audit_log: configFeatureMap.audit_log ?? true,
+  };
 
   return {
     orgId: org.id,
@@ -85,4 +88,3 @@ export async function getOrgEntitlements(orgId: string): Promise<OrgEntitlements
     uiConfig: (org.uiConfig as JsonObject | null) ?? null,
   };
 }
-
