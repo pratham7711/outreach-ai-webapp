@@ -3,6 +3,10 @@ import { useState, useEffect, use } from "react";
 import { motion } from "framer-motion";
 import { Card, Badge, Button, StatCard, EmptyState, Avatar, Skeleton, Modal } from "@pratham7711/ui";
 import PostsTab from "./PostsTab";
+import DepositsSection from "./DepositsSection";
+import PayoutRequestsSection from "./PayoutRequestsSection";
+import InvitesSection from "./InvitesSection";
+import NegotiationsSection from "./NegotiationsSection";
 import {
   ArrowLeft, Eye, Heart, MessageCircle, Share2, TrendingUp, Users,
   Calendar, Play, ChevronRight, ExternalLink, DollarSign, UserPlus,
@@ -450,6 +454,10 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                 </div>
               </Card>
             )}
+
+            {/* Invites & Negotiations Sections */}
+            <InvitesSection campaignId={id} />
+            <NegotiationsSection campaignId={id} />
           </div>
         )}
 
@@ -590,6 +598,10 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                 ))}
               </Card>
             )}
+
+            {/* Deposits & Payout Requests Sections */}
+            <DepositsSection campaignId={id} />
+            <PayoutRequestsSection campaignId={id} />
           </div>
         )}
 
