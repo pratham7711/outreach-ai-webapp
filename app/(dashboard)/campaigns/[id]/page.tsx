@@ -7,6 +7,7 @@ import DepositsSection from "./DepositsSection";
 import PayoutRequestsSection from "./PayoutRequestsSection";
 import InvitesSection from "./InvitesSection";
 import NegotiationsSection from "./NegotiationsSection";
+import ProposalsSection from "./ProposalsSection";
 import {
   ArrowLeft, Eye, Heart, MessageCircle, Share2, TrendingUp, Users,
   Calendar, Play, ChevronRight, ExternalLink, DollarSign, UserPlus,
@@ -455,7 +456,8 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
               </Card>
             )}
 
-            {/* Invites & Negotiations Sections */}
+            {/* Proposals, Invites & Negotiations */}
+            <ProposalsSection campaignId={id} />
             <InvitesSection campaignId={id} />
             <NegotiationsSection campaignId={id} />
           </div>
