@@ -75,6 +75,7 @@ const navSections: NavSection[] = [
     items: [
       { label: "Trackers", href: "/trackers", icon: <Activity className={ic} /> },
       { label: "Connections", href: "/connections", icon: <Network className={ic} /> },
+      { label: "Audit Log", href: "/audit-log", icon: <FileText className={ic} /> },
       { label: "Reports", href: "/reports", icon: <FileText className={ic} /> },
       { label: "Media Kits", href: "/media-kits", icon: <BookOpen className={ic} /> },
     ],

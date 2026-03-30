@@ -17,6 +17,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/clients": "Clients",
   "/trackers": "Trackers",
   "/connections": "Connections",
+  "/audit-log": "Audit Log",
   "/reports": "Reports",
   "/media-kits": "Media Kits",
   "/settings": "Settings",
