@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
+import { createAuditActor, logAudit } from "@/lib/audit";
+import { getRequestIp } from "@/lib/request";
 
 // DELETE /api/invites/[id] — Cancel/delete an invite
 export async function DELETE(
@@ -21,6 +23,25 @@ export async function DELETE(
     }
 
     await db.userInvite.delete({ where: { id } });
+
+    await logAudit({
+      orgId,
+      ...createAuditActor(session),
+      action: "invite.delete",
+      entityType: "user_invite",
+      entityId: invite.id,
+      entityLabel: invite.email,
+      ipAddress: getRequestIp(_request),
+      before: {
+        id: invite.id,
+        email: invite.email,
+        role: invite.role,
+      },
+      after: {
+        id: invite.id,
+        deleted: true,
+      },
+    });
 
     return NextResponse.json({ success: true });
   } catch (error) {

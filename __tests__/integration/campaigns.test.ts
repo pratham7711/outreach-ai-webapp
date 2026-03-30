@@ -13,6 +13,7 @@ jest.mock('@/lib/db', () => ({
       count: jest.fn(),
       create: jest.fn(),
       findUnique: jest.fn(),
+      findFirst: jest.fn(),
       update: jest.fn(),
     },
   },
@@ -197,8 +198,8 @@ describe('GET /api/campaigns/[id]', () => {
   });
 
   it('returns campaign by id', async () => {
-    const campaign = { id: 'camp-1', title: 'Test', deletedAt: null, _count: { activations: 0, posts: 0 } };
-    mockDb.campaign.findUnique.mockResolvedValue(campaign);
+    const campaign = { id: 'camp-1', orgId: 'org-1', title: 'Test', deletedAt: null, _count: { activations: 0, posts: 0 } };
+    mockDb.campaign.findFirst.mockResolvedValue(campaign);
 
     const req = makeRequest('http://localhost/api/campaigns/camp-1');
     const res = await GETById(req, makeParams('camp-1'));
@@ -206,27 +207,23 @@ describe('GET /api/campaigns/[id]', () => {
 
     expect(res.status).toBe(200);
     expect(body.id).toBe('camp-1');
+    expect(mockDb.campaign.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ id: 'camp-1', orgId: 'org-1', deletedAt: null }),
+      })
+    );
   });
 
   it('returns 404 when campaign not found', async () => {
-    mockDb.campaign.findUnique.mockResolvedValue(null);
+    mockDb.campaign.findFirst.mockResolvedValue(null);
 
     const req = makeRequest('http://localhost/api/campaigns/nonexistent');
     const res = await GETById(req, makeParams('nonexistent'));
     expect(res.status).toBe(404);
   });
 
-  it('returns 404 for soft-deleted campaign', async () => {
-    const campaign = { id: 'camp-1', title: 'Test', deletedAt: new Date() };
-    mockDb.campaign.findUnique.mockResolvedValue(campaign);
-
-    const req = makeRequest('http://localhost/api/campaigns/camp-1');
-    const res = await GETById(req, makeParams('camp-1'));
-    expect(res.status).toBe(404);
-  });
-
   it('returns 500 on database error', async () => {
-    mockDb.campaign.findUnique.mockRejectedValue(new Error('DB error'));
+    mockDb.campaign.findFirst.mockRejectedValue(new Error('DB error'));
 
     const req = makeRequest('http://localhost/api/campaigns/camp-1');
     const res = await GETById(req, makeParams('camp-1'));
@@ -249,6 +246,7 @@ describe('PATCH /api/campaigns/[id]', () => {
   });
 
   it('updates campaign successfully', async () => {
+    mockDb.campaign.findFirst.mockResolvedValue({ id: 'camp-1', orgId: 'org-1' });
     const updated = { id: 'camp-1', title: 'Updated Title', status: 'IN_PROGRESS', tags: [], teamMembers: [], _count: { activations: 0, posts: 0 } };
     mockDb.campaign.update.mockResolvedValue(updated);
 
@@ -264,7 +262,20 @@ describe('PATCH /api/campaigns/[id]', () => {
     expect(body.title).toBe('Updated Title');
   });
 
+  it('returns 404 for campaign not in org', async () => {
+    mockDb.campaign.findFirst.mockResolvedValue(null);
+
+    const req = makeRequest('http://localhost/api/campaigns/camp-1', {
+      method: 'PATCH',
+      body: JSON.stringify({ title: 'Updated Title' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const res = await PATCH(req, makeParams('camp-1'));
+    expect(res.status).toBe(404);
+  });
+
   it('returns 400 for invalid status value', async () => {
+    mockDb.campaign.findFirst.mockResolvedValue({ id: 'camp-1', orgId: 'org-1' });
     const req = makeRequest('http://localhost/api/campaigns/camp-1', {
       method: 'PATCH',
       body: JSON.stringify({ status: 'INVALID_STATUS' }),
@@ -286,6 +297,7 @@ describe('DELETE /api/campaigns/[id]', () => {
   });
 
   it('soft deletes campaign and returns success', async () => {
+    mockDb.campaign.findFirst.mockResolvedValue({ id: 'camp-1', orgId: 'org-1' });
     mockDb.campaign.update.mockResolvedValue({ id: 'camp-1', deletedAt: new Date() });
 
     const req = makeRequest('http://localhost/api/campaigns/camp-1', { method: 'DELETE' });
@@ -302,7 +314,16 @@ describe('DELETE /api/campaigns/[id]', () => {
     );
   });
 
+  it('returns 404 for campaign not in org', async () => {
+    mockDb.campaign.findFirst.mockResolvedValue(null);
+
+    const req = makeRequest('http://localhost/api/campaigns/camp-1', { method: 'DELETE' });
+    const res = await DELETE(req, makeParams('camp-1'));
+    expect(res.status).toBe(404);
+  });
+
   it('returns 500 on database error', async () => {
+    mockDb.campaign.findFirst.mockResolvedValue({ id: 'camp-1', orgId: 'org-1' });
     mockDb.campaign.update.mockRejectedValue(new Error('DB error'));
 
     const req = makeRequest('http://localhost/api/campaigns/camp-1', { method: 'DELETE' });

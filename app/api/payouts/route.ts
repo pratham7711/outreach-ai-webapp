@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
+import { createAuditActor, logAudit } from "@/lib/audit";
+import { getRequestIp } from "@/lib/request";
 
 export async function GET(req: NextRequest) {
   const session = await auth();
@@ -30,5 +32,23 @@ export async function POST(req: NextRequest) {
   const payout = await db.payout.create({
     data: { orgId, creatorId, campaignId: campaignId ?? null, amount, currency: currency ?? "USD", paymentMethod: paymentMethod ?? "PAYPAL", recipientPaypalEmail: recipientPaypalEmail ?? null },
   });
+
+  await logAudit({
+    orgId,
+    ...createAuditActor(session),
+    action: "payout.create",
+    entityType: "payout",
+    entityId: payout.id,
+    entityLabel: payout.transactionId ?? payout.id,
+    ipAddress: getRequestIp(req),
+    after: {
+      id: payout.id,
+      creatorId: payout.creatorId,
+      campaignId: payout.campaignId,
+      amount: payout.amount,
+      status: payout.status,
+    },
+  });
+
   return NextResponse.json(payout, { status: 201 });
 }

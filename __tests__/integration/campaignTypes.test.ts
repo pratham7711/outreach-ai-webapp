@@ -12,6 +12,7 @@ jest.mock('@/lib/db', () => ({
       count: jest.fn(),
       create: jest.fn(),
       findUnique: jest.fn(),
+      findFirst: jest.fn(),
       update: jest.fn(),
     },
   },
@@ -157,6 +158,7 @@ describe('PATCH /api/campaigns/[id] — campaignType', () => {
       teamMembers: [],
       _count: { activations: 0, posts: 0 },
     };
+    mockDb.campaign.findFirst.mockResolvedValue({ id: 'camp-1', orgId: 'org-1' });
     mockDb.campaign.update.mockResolvedValue(updated);
 
     const req = makeRequest('http://localhost/api/campaigns/camp-1', {
@@ -191,6 +193,7 @@ describe('PATCH /api/campaigns/[id] — campaignType', () => {
 
   it('updates typeConfig via PATCH', async () => {
     const typeConfig = { maxCreators: 50 };
+    mockDb.campaign.findFirst.mockResolvedValue({ id: 'camp-1', orgId: 'org-1' });
     mockDb.campaign.update.mockResolvedValue({
       id: 'camp-1',
       typeConfig,
@@ -227,7 +230,7 @@ describe('GET /api/campaigns/[id] — campaignType', () => {
       deletedAt: null,
       _count: { activations: 0, posts: 0 },
     };
-    mockDb.campaign.findUnique.mockResolvedValue(campaign);
+    mockDb.campaign.findFirst.mockResolvedValue(campaign);
 
     const req = makeRequest('http://localhost/api/campaigns/camp-1');
     const res = await GETById(req, makeParams('camp-1'));

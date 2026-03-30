@@ -1,4 +1,5 @@
 export type UserRole = "OWNER" | "ADMIN" | "MANAGER" | "MEMBER" | "VIEWER";
+export type PermissionOverrideMap = Record<string, boolean>;
 
 export const PERMISSIONS: Record<UserRole, string[]> = {
   OWNER: ["*"],
@@ -8,8 +9,28 @@ export const PERMISSIONS: Record<UserRole, string[]> = {
   VIEWER: ["campaigns:read", "creators:read", "reports:read", "media_kits:read", "analytics:read"],
 };
 
+export function resolvePermissions(
+  role: UserRole | string,
+  overrides?: PermissionOverrideMap | null
+): string[] {
+  const basePermissions = [...(PERMISSIONS[role as UserRole] ?? [])];
+  if (!overrides) return basePermissions;
+
+  const granted = Object.entries(overrides)
+    .filter(([, enabled]) => enabled)
+    .map(([permission]) => permission);
+
+  const denied = new Set(
+    Object.entries(overrides)
+      .filter(([, enabled]) => enabled === false)
+      .map(([permission]) => permission)
+  );
+
+  return [...new Set([...basePermissions, ...granted])].filter((permission) => !denied.has(permission));
+}
+
 export function hasPermission(role: UserRole | string, permission: string): boolean {
-  const perms = PERMISSIONS[role as UserRole] ?? [];
+  const perms = resolvePermissions(role);
   return perms.includes("*") ||
     perms.includes(permission) ||
     perms.includes(permission.split(":")[0] + ":*");

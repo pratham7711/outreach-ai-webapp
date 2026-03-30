@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
+import { createAuditActor, logAudit } from "@/lib/audit";
+import { getRequestIp } from "@/lib/request";
 import { z } from "zod";
 
 const CAMPAIGN_TYPES = ["BUDGET_BASED", "VIEW_BASED", "OPEN_COMMUNITY", "PRIVATE_INVITE"] as const;
@@ -26,11 +28,12 @@ export async function GET(
   try {
     const session = await auth();
     if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const orgId = (session.user as any).orgId;
 
     const { id } = await params;
 
-    const campaign = await db.campaign.findUnique({
-      where: { id },
+    const campaign = await db.campaign.findFirst({
+      where: { id, orgId, deletedAt: null },
       include: {
         tags: true,
         teamMembers: {
@@ -43,7 +46,13 @@ export async function GET(
         activations: {
           include: { creator: true },
         },
-        posts: true,
+        posts: {
+          include: {
+            creator: {
+              select: { id: true, name: true },
+            },
+          },
+        },
         brief: true,
         financials: true,
         _count: {
@@ -52,7 +61,7 @@ export async function GET(
       },
     });
 
-    if (!campaign || campaign.deletedAt) {
+    if (!campaign) {
       return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
     }
 
@@ -74,6 +83,7 @@ export async function PATCH(
   try {
     const session = await auth();
     if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const orgId = (session.user as any).orgId;
 
     const { id } = await params;
     const body = await request.json();
@@ -85,6 +95,9 @@ export async function PATCH(
         { status: 400 }
       );
     }
+
+    const existing = await db.campaign.findFirst({ where: { id, orgId, deletedAt: null } });
+    if (!existing) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
 
     const campaign = await db.campaign.update({
       where: { id },
@@ -104,6 +117,30 @@ export async function PATCH(
       },
     });
 
+    await logAudit({
+      orgId,
+      ...createAuditActor(session),
+      action: "campaign.update",
+      entityType: "campaign",
+      entityId: campaign.id,
+      entityLabel: campaign.title,
+      ipAddress: getRequestIp(request),
+      before: {
+        id: existing.id,
+        title: existing.title,
+        status: existing.status,
+        campaignType: existing.campaignType,
+        budget: existing.budget,
+      },
+      after: {
+        id: campaign.id,
+        title: campaign.title,
+        status: campaign.status,
+        campaignType: campaign.campaignType,
+        budget: campaign.budget,
+      },
+    });
+
     return NextResponse.json(campaign);
   } catch (error) {
     console.error("Failed to update campaign:", error);
@@ -116,18 +153,42 @@ export async function PATCH(
 
 // DELETE /api/campaigns/[id] - Soft delete
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth();
     if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const orgId = (session.user as any).orgId;
 
     const { id } = await params;
+
+    const existing = await db.campaign.findFirst({ where: { id, orgId, deletedAt: null } });
+    if (!existing) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
 
     await db.campaign.update({
       where: { id },
       data: { deletedAt: new Date() },
+    });
+
+    await logAudit({
+      orgId,
+      ...createAuditActor(session),
+      action: "campaign.delete",
+      entityType: "campaign",
+      entityId: existing.id,
+      entityLabel: existing.title,
+      ipAddress: getRequestIp(request),
+      before: {
+        id: existing.id,
+        title: existing.title,
+        status: existing.status,
+        deletedAt: existing.deletedAt,
+      },
+      after: {
+        id: existing.id,
+        deletedAt: new Date().toISOString(),
+      },
     });
 
     return NextResponse.json({ success: true });

@@ -36,9 +36,12 @@ const STATUS_BADGE_VARIANT: Record<string, "warning" | "success" | "danger" | "n
 
 const STATUS_TABS = ["All", "Pending", "Processing", "Success", "Failed"];
 
-const QUICK_ACTIONS: Record<string, { label: string; status: string }> = {
-  PENDING: { label: "→ Processing", status: "PROCESSING" },
-  PROCESSING: { label: "→ Success", status: "SUCCESS" },
+const QUICK_ACTIONS: Record<string, { label: string; status: string }[]> = {
+  PENDING: [
+    { label: "Mark Paid", status: "SUCCESS" },
+    { label: "→ Processing", status: "PROCESSING" },
+  ],
+  PROCESSING: [{ label: "→ Success", status: "SUCCESS" }],
 };
 
 function formatCurrency(n: number) {
@@ -285,15 +288,20 @@ export default function PayoutsClient({ payouts, stats, creators, campaigns }: {
                   <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{new Date(p.createdAt).toLocaleDateString()}</span>
                   {/* Quick action */}
                   <div onClick={(e) => e.stopPropagation()}>
-                    {QUICK_ACTIONS[p.status] ? (
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        disabled={transitioning.has(p.id)}
-                        onClick={() => handleStatusChange(p.id, QUICK_ACTIONS[p.status].status)}
-                      >
-                        {transitioning.has(p.id) ? "..." : QUICK_ACTIONS[p.status].label}
-                      </Button>
+                    {(QUICK_ACTIONS[p.status] ?? []).length > 0 ? (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                        {(QUICK_ACTIONS[p.status] ?? []).map((action) => (
+                          <Button
+                            key={action.status}
+                            size="sm"
+                            variant={action.label === "Mark Paid" ? "primary" : "secondary"}
+                            disabled={transitioning.has(p.id)}
+                            onClick={() => handleStatusChange(p.id, action.status)}
+                          >
+                            {transitioning.has(p.id) ? "..." : action.label}
+                          </Button>
+                        ))}
+                      </div>
                     ) : p.status === "SUCCESS" ? (
                       <span style={{ fontSize: 12, color: "#10B981", fontWeight: 600 }}>
                         <Check size={14} style={{ display: "inline", verticalAlign: "middle" }} /> Done

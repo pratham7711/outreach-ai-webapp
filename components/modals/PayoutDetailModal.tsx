@@ -27,9 +27,12 @@ const STATUS_VARIANT: Record<string, "warning" | "success" | "danger" | "neutral
 };
 
 const NEXT_STATUS: Record<string, { label: string; status: string; variant: "primary" | "success" | "danger" }[]> = {
-  PENDING: [{ label: "Mark Processing", status: "PROCESSING", variant: "primary" }],
+  PENDING: [
+    { label: "Mark Paid", status: "SUCCESS", variant: "success" },
+    { label: "Mark Processing", status: "PROCESSING", variant: "primary" },
+  ],
   PROCESSING: [
-    { label: "Mark Success", status: "SUCCESS", variant: "success" },
+    { label: "Mark Paid", status: "SUCCESS", variant: "success" },
     { label: "Mark Failed", status: "FAILED", variant: "danger" },
   ],
   FAILED: [{ label: "Retry (Back to Pending)", status: "PENDING", variant: "primary" }],

@@ -1,12 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
+import { createAuditActor, logAudit } from "@/lib/audit";
+import { getRequestIp } from "@/lib/request";
 
 const ALLOWED_TRANSITIONS: Record<string, string[]> = {
-  PENDING: ["PROCESSING"],
+  PENDING: ["PROCESSING", "SUCCESS"],
   PROCESSING: ["SUCCESS", "FAILED"],
   FAILED: ["PENDING"], // allow retry
 };
+
+const PayoutPatchSchema = z.object({
+  status: z.enum(["PENDING", "PROCESSING", "SUCCESS", "FAILED"]),
+  failureReason: z.string().optional(),
+});
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
@@ -18,9 +26,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (!payout) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const body = await req.json();
-  const { status } = body;
-
-  if (!status) return NextResponse.json({ error: "Status required" }, { status: 400 });
+  const parsed = PayoutPatchSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid request body" }, { status: 400 });
+  }
+  const { status, failureReason } = parsed.data;
 
   const allowed = ALLOWED_TRANSITIONS[payout.status] ?? [];
   if (!allowed.includes(status)) {
@@ -34,8 +44,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (status === "SUCCESS" || status === "FAILED") {
     updateData.completedAt = new Date();
   }
-  if (status === "FAILED" && body.failureReason) {
-    updateData.failureReason = body.failureReason;
+  if (status === "FAILED" && failureReason) {
+    updateData.failureReason = failureReason;
   }
   if (status === "PENDING") {
     // retry — clear completion
@@ -44,5 +54,28 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
 
   const updated = await db.payout.update({ where: { id }, data: updateData });
+
+  await logAudit({
+    orgId,
+    ...createAuditActor(session),
+    action: "payout.update_status",
+    entityType: "payout",
+    entityId: updated.id,
+    entityLabel: updated.transactionId ?? updated.id,
+    ipAddress: getRequestIp(req),
+    before: {
+      id: payout.id,
+      status: payout.status,
+      completedAt: payout.completedAt,
+      failureReason: payout.failureReason,
+    },
+    after: {
+      id: updated.id,
+      status: updated.status,
+      completedAt: updated.completedAt,
+      failureReason: updated.failureReason,
+    },
+  });
+
   return NextResponse.json(updated);
 }

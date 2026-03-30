@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
+import { createAuditActor, logAudit } from "@/lib/audit";
+import { getRequestIp } from "@/lib/request";
 import { z } from "zod";
 
 const createCreatorSchema = z.object({
@@ -19,6 +21,7 @@ export async function GET(request: NextRequest) {
   try {
     const session = await auth();
     if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const orgId = (session.user as any).orgId;
 
     const { searchParams } = request.nextUrl;
     const search = searchParams.get("search");
@@ -28,6 +31,7 @@ export async function GET(request: NextRequest) {
     const skip = (page - 1) * limit;
 
     const where = {
+      orgId,
       ...(search && {
         OR: [
           { name: { contains: search, mode: "insensitive" as const } },
@@ -71,6 +75,7 @@ export async function POST(request: NextRequest) {
   try {
     const session = await auth();
     if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const orgId = (session.user as any).orgId;
 
     const body = await request.json();
     const parsed = createCreatorSchema.safeParse(body);
@@ -94,7 +99,23 @@ export async function POST(request: NextRequest) {
         rate: rate ?? null,
         followersCount: followersCount ?? 0,
         averageViews: averageViews ?? 0,
-        orgId: (session.user as any).orgId,
+        orgId,
+      },
+    });
+
+    await logAudit({
+      orgId,
+      ...createAuditActor(session),
+      action: "creator.create",
+      entityType: "creator",
+      entityId: creator.id,
+      entityLabel: creator.name,
+      ipAddress: getRequestIp(request),
+      after: {
+        id: creator.id,
+        name: creator.name,
+        handle: creator.handle,
+        platform: creator.platform,
       },
     });
 

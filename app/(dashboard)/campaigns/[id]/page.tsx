@@ -1,17 +1,18 @@
 "use client";
 import { useState, useEffect, use } from "react";
 import { motion } from "framer-motion";
-import { Card, Badge, Button, StatCard, EmptyState, Avatar, Skeleton } from "@pratham7711/ui";
+import { Card, Badge, Button, StatCard, EmptyState, Avatar, Skeleton, Modal } from "@pratham7711/ui";
 import {
   ArrowLeft, Eye, Heart, MessageCircle, Share2, TrendingUp, Users,
-  Calendar, Play, ChevronRight, ExternalLink, DollarSign,
+  Calendar, Play, ChevronRight, ExternalLink, DollarSign, UserPlus,
 } from "lucide-react";
 import Link from "next/link";
 import {
   ResponsiveContainer, PieChart, Pie, Cell, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid,
 } from "recharts";
+import { toast } from "sonner";
 
-type Tab = "overview" | "posts" | "creators" | "analytics" | "financials";
+type Tab = "overview" | "posts" | "creators" | "analytics" | "financials" | "edit";
 
 function formatNumber(num: number): string {
   if (num >= 1000000) return (num / 1000000).toFixed(1) + "M";
@@ -94,6 +95,7 @@ type Campaign = {
   budget: number | null;
   currency: string;
   notes: string | null;
+  clientId: string | null;
   createdAt: string;
   updatedAt: string;
   teamMembers: { id: string; user: { id: string; name: string; avatarUrl: string | null } }[];
@@ -122,6 +124,16 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
   const [activeTab, setActiveTab] = useState<Tab>("overview");
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showAddCreator, setShowAddCreator] = useState(false);
+  const [addingCreator, setAddingCreator] = useState(false);
+  const [availableCreators, setAvailableCreators] = useState<{id: string; name: string; handle: string; platform: string}[]>([]);
+  const [selectedCreatorId, setSelectedCreatorId] = useState("");
+  const [clients, setClients] = useState<{ id: string; name: string }[]>([]);
+  const [clientsLoaded, setClientsLoaded] = useState(false);
+  const [editForm, setEditForm] = useState({
+    title: "", status: "", budget: "", currency: "USD", notes: "", clientId: "",
+  });
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     fetch(`/api/campaigns/${id}`)
@@ -130,12 +142,100 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
       .finally(() => setLoading(false));
   }, [id]);
 
+  useEffect(() => {
+    if (campaign) {
+      setEditForm({
+        title: campaign.title,
+        status: campaign.status,
+        budget: campaign.budget ? String(campaign.budget) : "",
+        currency: campaign.currency,
+        notes: campaign.notes ?? "",
+        clientId: campaign.clientId ?? "",
+      });
+    }
+  }, [campaign]);
+
+  useEffect(() => {
+    if (activeTab === "edit" && !clientsLoaded) {
+      fetchClients();
+    }
+  }, [activeTab]);
+
+  const fetchAvailableCreators = async () => {
+    const res = await fetch("/api/creators");
+    if (res.ok) {
+      const data = await res.json();
+      const assignedIds = new Set(campaign?.activations.map((a: Activation) => a.creator.id) ?? []);
+      setAvailableCreators((data.creators ?? data).filter((c: any) => !assignedIds.has(c.id)));
+    }
+  };
+
+  const fetchClients = async () => {
+    if (clientsLoaded) return;
+    const res = await fetch("/api/clients");
+    if (res.ok) {
+      const data = await res.json();
+      setClients(data.clients ?? []);
+      setClientsLoaded(true);
+    }
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const payload: Record<string, unknown> = {
+        title: editForm.title,
+        status: editForm.status,
+        currency: editForm.currency,
+        notes: editForm.notes || null,
+        clientId: editForm.clientId || null,
+      };
+      if (editForm.budget !== "") payload.budget = Number(editForm.budget);
+      const res = await fetch(`/api/campaigns/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setCampaign(updated);
+        toast.success("Campaign updated");
+      } else {
+        const err = await res.json().catch(() => null);
+        toast.error(err?.error ?? "Failed to save");
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleAddCreator = async () => {
+    if (!selectedCreatorId) return;
+    setAddingCreator(true);
+    try {
+      const res = await fetch("/api/activations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ campaignId: id, creatorId: selectedCreatorId }),
+      });
+      if (res.ok) {
+        const updated = await fetch(`/api/campaigns/${id}`).then(r => r.json());
+        setCampaign(updated);
+        setShowAddCreator(false);
+        setSelectedCreatorId("");
+      }
+    } finally {
+      setAddingCreator(false);
+    }
+  };
+
   const tabsList: { label: string; value: Tab; count?: number }[] = [
     { label: "Overview", value: "overview" },
     { label: "Posts", value: "posts", count: campaign?._count.posts },
     { label: "Creators", value: "creators", count: campaign?._count.activations },
     { label: "Analytics", value: "analytics" },
     { label: "Financials", value: "financials" },
+    { label: "Edit", value: "edit" as Tab },
   ];
 
   if (loading) return <LoadingSkeleton />;
@@ -343,42 +443,56 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
 
         {/* Creators Tab */}
         {activeTab === "creators" && (
-          campaign.activations.length === 0 ? (
-            <EmptyState icon="👥" title="No creators yet" description="Add creators to this campaign to get started." />
-          ) : (
-            <Card variant="solid" noPadding>
-              <div style={{
-                display: "grid", gridTemplateColumns: "1fr 120px 100px 100px 100px",
-                gap: 12, padding: "12px 24px", borderBottom: "1px solid var(--cc-border)", background: "var(--cc-bg)",
-              }}>
-                {["Creator", "Platform", "Followers", "Rate", "Status"].map(h => (
-                  <span key={h} style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--cc-text-subtle)" }}>{h}</span>
-                ))}
-              </div>
-              <div className="cc-stagger">
-                {campaign.activations.map((act, i) => (
-                  <Link
-                    key={act.id}
-                    href={`/creators/${act.creator.id}`}
-                    style={{ textDecoration: "none", display: "grid", gridTemplateColumns: "1fr 120px 100px 100px 100px", gap: 12, padding: "14px 24px", alignItems: "center", borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined }}
-                    className="cc-table-row"
-                  >
-                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                      <Avatar name={act.creator.name} size="sm" />
-                      <div>
-                        <p style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>{act.creator.name}</p>
-                        <p style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>@{act.creator.handle}</p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+              <button
+                onClick={() => { setShowAddCreator(true); fetchAvailableCreators(); }}
+                style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  background: "var(--cc-primary)", color: "white", border: "none",
+                  borderRadius: 8, padding: "9px 16px", fontSize: 14, fontWeight: 600, cursor: "pointer",
+                }}
+              >
+                <UserPlus size={14} /> Add Creator
+              </button>
+            </div>
+            {campaign.activations.length === 0 ? (
+              <EmptyState icon="👥" title="No creators yet" description="Add creators to this campaign to get started." />
+            ) : (
+              <Card variant="solid" noPadding>
+                <div style={{
+                  display: "grid", gridTemplateColumns: "1fr 120px 100px 100px 100px",
+                  gap: 12, padding: "12px 24px", borderBottom: "1px solid var(--cc-border)", background: "var(--cc-bg)",
+                }}>
+                  {["Creator", "Platform", "Followers", "Rate", "Status"].map(h => (
+                    <span key={h} style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--cc-text-subtle)" }}>{h}</span>
+                  ))}
+                </div>
+                <div className="cc-stagger">
+                  {campaign.activations.map((act, i) => (
+                    <Link
+                      key={act.id}
+                      href={`/creators/${act.creator.id}`}
+                      style={{ textDecoration: "none", display: "grid", gridTemplateColumns: "1fr 120px 100px 100px 100px", gap: 12, padding: "14px 24px", alignItems: "center", borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined }}
+                      className="cc-table-row"
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                        <Avatar name={act.creator.name} size="sm" />
+                        <div>
+                          <p style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>{act.creator.name}</p>
+                          <p style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>@{act.creator.handle}</p>
+                        </div>
                       </div>
-                    </div>
-                    <Badge variant="neutral">{act.creator.platform}</Badge>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>{formatNumber(act.creator.followersCount)}</span>
-                    <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{act.creator.rate ? formatCurrency(Number(act.creator.rate)) : "—"}</span>
-                    <Badge variant={ACTIVATION_STATUS[act.status] ?? "neutral"} dot>{act.status.replace(/_/g, " ")}</Badge>
-                  </Link>
-                ))}
-              </div>
-            </Card>
-          )
+                      <Badge variant="neutral">{act.creator.platform}</Badge>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>{formatNumber(act.creator.followersCount)}</span>
+                      <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{act.creator.rate ? formatCurrency(Number(act.creator.rate)) : "—"}</span>
+                      <Badge variant={ACTIVATION_STATUS[act.status] ?? "neutral"} dot>{act.status.replace(/_/g, " ")}</Badge>
+                    </Link>
+                  ))}
+                </div>
+              </Card>
+            )}
+          </div>
         )}
 
         {/* Analytics Tab */}
@@ -520,7 +634,142 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
             )}
           </div>
         )}
+
+        {/* Edit Tab */}
+        {activeTab === "edit" && (
+          <div style={{ maxWidth: 640 }}>
+            <div style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, padding: 24 }}>
+              <h3 style={{ fontSize: 15, fontWeight: 700, color: "var(--cc-text)", marginBottom: 20 }}>Edit Campaign</h3>
+              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                <div>
+                  <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Title</label>
+                  <input
+                    type="text"
+                    value={editForm.title}
+                    onChange={e => setEditForm(f => ({ ...f, title: e.target.value }))}
+                    style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-border)", fontSize: 14, color: "var(--cc-text)", background: "var(--cc-card)", outline: "none", boxSizing: "border-box" }}
+                  />
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <div>
+                    <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Status</label>
+                    <select
+                      value={editForm.status}
+                      onChange={e => setEditForm(f => ({ ...f, status: e.target.value }))}
+                      style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-border)", fontSize: 14, color: "var(--cc-text)", background: "var(--cc-card)", outline: "none" }}
+                    >
+                      {["DRAFT", "PENDING", "IN_PROGRESS", "COMPLETE", "CANCELLED"].map(s => (
+                        <option key={s} value={s}>{s.replace(/_/g, " ")}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Currency</label>
+                    <select
+                      value={editForm.currency}
+                      onChange={e => setEditForm(f => ({ ...f, currency: e.target.value }))}
+                      style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-border)", fontSize: 14, color: "var(--cc-text)", background: "var(--cc-card)", outline: "none" }}
+                    >
+                      {["USD", "EUR", "GBP", "INR"].map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Budget</label>
+                  <input
+                    type="number"
+                    value={editForm.budget}
+                    onChange={e => setEditForm(f => ({ ...f, budget: e.target.value }))}
+                    placeholder="e.g. 25000"
+                    style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-border)", fontSize: 14, color: "var(--cc-text)", background: "var(--cc-card)", outline: "none", boxSizing: "border-box" }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Client</label>
+                  <select
+                    value={editForm.clientId}
+                    onChange={e => setEditForm(f => ({ ...f, clientId: e.target.value }))}
+                    onFocus={fetchClients}
+                    style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-border)", fontSize: 14, color: "var(--cc-text)", background: "var(--cc-card)", outline: "none" }}
+                  >
+                    <option value="">No client</option>
+                    {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Notes</label>
+                  <textarea
+                    value={editForm.notes}
+                    onChange={e => setEditForm(f => ({ ...f, notes: e.target.value }))}
+                    rows={3}
+                    style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-border)", fontSize: 14, color: "var(--cc-text)", background: "var(--cc-card)", outline: "none", resize: "vertical", fontFamily: "inherit", boxSizing: "border-box" }}
+                  />
+                </div>
+                <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                  <button
+                    onClick={handleSave}
+                    disabled={saving}
+                    style={{
+                      padding: "9px 20px", borderRadius: 8, border: "none",
+                      background: saving ? "var(--cc-border)" : "var(--cc-primary)",
+                      color: "white", fontSize: 14, fontWeight: 600,
+                      cursor: saving ? "not-allowed" : "pointer",
+                    }}
+                  >
+                    {saving ? "Saving..." : "Save Changes"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </motion.div>
+
+      {showAddCreator && (
+        <Modal open onClose={() => { setShowAddCreator(false); setSelectedCreatorId(""); }} title="Add Creator to Campaign" size="md">
+          <div style={{ padding: 24, display: "flex", flexDirection: "column", gap: 16 }}>
+            {availableCreators.length === 0 ? (
+              <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>No available creators to add. All creators are already assigned.</p>
+            ) : (
+              <select
+                value={selectedCreatorId}
+                onChange={(e) => setSelectedCreatorId(e.target.value)}
+                style={{
+                  width: "100%", padding: "10px 12px", borderRadius: 8,
+                  border: "1px solid var(--cc-border)", fontSize: 14,
+                  color: "var(--cc-text)", background: "var(--cc-card)",
+                }}
+              >
+                <option value="">Select a creator...</option>
+                {availableCreators.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} (@{c.handle}) — {c.platform}
+                  </option>
+                ))}
+              </select>
+            )}
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+              <button
+                onClick={() => { setShowAddCreator(false); setSelectedCreatorId(""); }}
+                style={{ padding: "9px 16px", borderRadius: 8, border: "1px solid var(--cc-border)", background: "var(--cc-card)", fontSize: 14, cursor: "pointer", color: "var(--cc-text)" }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAddCreator}
+                disabled={!selectedCreatorId || addingCreator}
+                style={{
+                  padding: "9px 16px", borderRadius: 8, border: "none",
+                  background: selectedCreatorId && !addingCreator ? "var(--cc-primary)" : "var(--cc-border)",
+                  color: "white", fontSize: 14, fontWeight: 600, cursor: selectedCreatorId ? "pointer" : "not-allowed",
+                }}
+              >
+                {addingCreator ? "Adding..." : "Add Creator"}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

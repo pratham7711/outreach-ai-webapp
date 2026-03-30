@@ -31,13 +31,22 @@ type Creator = {
   _count: { activations: number; posts: number };
 };
 
+type CreatorList = {
+  id: string;
+  name: string;
+};
+
 export default function DiscoveryPage() {
   const [platform, setPlatform] = useState("All");
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState("followers");
   const [creators, setCreators] = useState<Creator[]>([]);
+  const [lists, setLists] = useState<CreatorList[]>([]);
   const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
+  const [selectedCreator, setSelectedCreator] = useState<Creator | null>(null);
+  const [selectedListId, setSelectedListId] = useState("");
+  const [adding, setAdding] = useState(false);
 
   const fetchCreators = useCallback(() => {
     setLoading(true);
@@ -56,10 +65,50 @@ export default function DiscoveryPage() {
       .finally(() => setLoading(false));
   }, [search, platform, sort]);
 
+  const fetchLists = useCallback(() => {
+    fetch("/api/lists")
+      .then((r) => r.json())
+      .then((data) => {
+        setLists(data.lists ?? []);
+      })
+      .catch(() => {
+        setLists([]);
+      });
+  }, []);
+
   useEffect(() => {
     const timer = setTimeout(fetchCreators, 300);
     return () => clearTimeout(timer);
   }, [fetchCreators]);
+
+  useEffect(() => {
+    fetchLists();
+  }, [fetchLists]);
+
+  async function handleAddToList() {
+    if (!selectedCreator || !selectedListId || adding) return;
+
+    setAdding(true);
+    try {
+      const res = await fetch(`/api/lists/${selectedListId}/creators`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ creatorId: selectedCreator.id }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        toast.error(data?.error ?? "Failed to add creator to list");
+        return;
+      }
+
+      toast.success(`${selectedCreator.name} added to list`);
+      setSelectedCreator(null);
+      setSelectedListId("");
+    } finally {
+      setAdding(false);
+    }
+  }
 
   return (
     <div className="cc-page-content">
@@ -157,10 +206,113 @@ export default function DiscoveryPage() {
                 <Link href={`/creators/${c.id}`} style={{ flex: 1, textDecoration: "none" }}>
                   <Button variant="secondary" fullWidth size="sm">View Profile</Button>
                 </Link>
-                <Button variant="primary" size="sm" iconLeft={<Plus size={14} />}>Add</Button>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  iconLeft={<Plus size={14} />}
+                  onClick={() => {
+                    if (lists.length === 0) {
+                      toast.error("Create a list first before adding creators");
+                      return;
+                    }
+                    setSelectedCreator(c);
+                    setSelectedListId(lists[0]?.id ?? "");
+                  }}
+                >
+                  Add
+                </Button>
               </div>
             </Card>
           ))}
+        </div>
+      )}
+
+      {selectedCreator && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(15, 23, 42, 0.35)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 100,
+            padding: 20,
+          }}
+          onClick={() => {
+            if (adding) return;
+            setSelectedCreator(null);
+            setSelectedListId("");
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: 420,
+              maxWidth: "100%",
+              borderRadius: 16,
+              background: "var(--cc-card)",
+              border: "1px solid var(--cc-border)",
+              boxShadow: "0 24px 64px rgba(15, 23, 42, 0.18)",
+              padding: 24,
+            }}
+          >
+            <h2 style={{ fontSize: 18, fontWeight: 700, color: "var(--cc-text)", marginBottom: 8 }}>
+              Add to List
+            </h2>
+            <p style={{ fontSize: 14, color: "var(--cc-text-muted)", marginBottom: 18 }}>
+              Choose which list should include <strong style={{ color: "var(--cc-text)" }}>{selectedCreator.name}</strong>.
+            </p>
+
+            <label
+              style={{
+                display: "block",
+                fontSize: 13,
+                fontWeight: 600,
+                color: "var(--cc-text)",
+                marginBottom: 8,
+              }}
+            >
+              List
+            </label>
+            <select
+              value={selectedListId}
+              onChange={(e) => setSelectedListId(e.target.value)}
+              style={{
+                width: "100%",
+                padding: "10px 12px",
+                borderRadius: 10,
+                border: "1px solid var(--cc-border)",
+                background: "var(--cc-card)",
+                color: "var(--cc-text)",
+                fontSize: 14,
+                marginBottom: 20,
+                outline: "none",
+              }}
+            >
+              {lists.map((list) => (
+                <option key={list.id} value={list.id}>
+                  {list.name}
+                </option>
+              ))}
+            </select>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setSelectedCreator(null);
+                  setSelectedListId("");
+                }}
+                disabled={adding}
+              >
+                Cancel
+              </Button>
+              <Button variant="primary" onClick={handleAddToList} loading={adding} disabled={!selectedListId}>
+                Add to List
+              </Button>
+            </div>
+          </div>
         </div>
       )}
     </div>

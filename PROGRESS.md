@@ -8,7 +8,7 @@
 ## Current Status
 
 **Phase:** Phase 4 — Feature Completion
-**Last updated:** 2026-03-29
+**Last updated:** 2026-03-30
 **App URL:** http://localhost:3009
 **Login:** admin@demo.com / admin123
 **DB:** Neon PostgreSQL (serverless) — seeded with 5 clients, 10 creators, 5 campaigns, activations, payouts
@@ -105,7 +105,7 @@
 - [x] Add creator to campaign (activation creation via modal)
 - [x] Multi-tenancy fix — orgId filter on GET/PATCH/DELETE
 - [x] Seed data: 9 posts + 4 campaign financials
-- [ ] Campaign edit form
+- [x] Campaign edit form (Edit tab: title, status, budget, currency, client, notes)
 
 ### Creator Detail Page
 - [x] Creator stats display (followers, engagement rate, total earnings, avg engagement)
@@ -117,25 +117,30 @@
 - [x] UI bug fixes (double @@ handle, stat overflow, modal padding)
 
 ### Client Detail Page
-- [ ] Edit client form ← partially done
-- [ ] Campaign history for client
+- [x] Edit client form (name, contactPerson, email, phone, industry, website, notes)
+- [x] Campaign history tab (fetches and displays linked campaigns)
+- [x] PATCH route hardened — Zod validation, try/catch, orgId filter
+- [x] 14 integration tests (clientDetail.test.ts)
 
 ### Payouts
-- [ ] Add payout form
-- [ ] Payout status management (Pending → Paid flow)
-- [ ] Bulk payout marking
+- [x] Add payout form (AddPayoutModal wired)
+- [x] Payout status management — "Mark Paid" (PENDING→SUCCESS direct), "→ Processing", bulk actions
+- [x] Bulk payout marking (bulk route + UI)
+- [x] PATCH route hardened with Zod validation
 
 ### Activations
-- [ ] List of all creator-campaign assignments
-- [ ] Assignment management
+- [x] List of all creator-campaign assignments (Kanban board)
+- [x] Assignment management (status state machine via PATCH)
+- [x] Security hardened — orgId filter on GET/POST, Zod on PATCH
+- [x] 19 integration tests (GET, POST, PATCH, DELETE)
 
 ### Discovery
-- [ ] Creator search/filter system
-- [ ] Add to list functionality
+- [x] Creator search/filter system
+- [x] Add to list functionality
 
 ### Lists
-- [ ] Create new list
-- [ ] Add creators to list
+- [x] Create new list
+- [x] Add creators to list
 
 ### Calendar
 - [ ] Campaign timeline view
@@ -143,7 +148,7 @@
 
 ### Connections
 - [ ] Platform OAuth connections (Instagram, TikTok, YouTube)
-- [ ] API key management
+- [x] API key management
 
 ---
 
@@ -159,15 +164,23 @@
 
 ---
 
-## Foundation Models (ready but not wired into UI)
+## Foundation Models (schema landed; some now wired into UI/API)
 
-These Prisma models exist in the schema and are migrated, but have no UI or API routes yet:
+These Prisma models exist in the schema and are migrated. Some now have route/UI coverage, while others are still schema-only:
 
-- **OrgPlanConfig** — per-org plan configuration / feature tier
-- **UserInvite** — team invite system (invite by email, pending/accepted/expired)
-- **ApiKey** — org-scoped API keys for external integrations
+- **OrgPlanConfig** — per-org plan configuration / feature tier, now read by tenant config endpoint
+- **UserInvite** — team invite system with dashboard UI + create/list/delete + accept route
+- **ApiKey** — org-scoped API keys with settings UI + create/list/delete routes
 - **CreatorSocialAccount** — multi-platform social accounts linked to a creator
-- **CampaignType** — enum: BUDGET_BASED, VIEW_BASED, OPEN_COMMUNITY, PRIVATE_INVITE
+- **CampaignType** — enum: BUDGET_BASED, VIEW_BASED, OPEN_COMMUNITY, PRIVATE_INVITE, now accepted by campaign APIs
+
+## Cross-Cutting Improvements
+
+- [x] Audit logging wired into major mutating routes (campaigns, creators, clients, payouts, activations, lists, invites, API keys, client plan assignment)
+- [x] Tenant config now resolves plan/limits/features through `OrgPlanConfig` first, with `Organization.plan` fallback
+- [x] RBAC helper now exposes `resolvePermissions()` for future override-aware checks
+- [x] `GET /api/creators` now filters by `orgId`
+- [x] `POST /api/lists/[id]/creators` now validates creator ownership within the org
 
 ---
 
@@ -202,6 +215,7 @@ All routes are multi-tenant (filter by orgId from session).
 | GET | `/api/clients` | ✅ Working | Returns org clients |
 | POST | `/api/clients` | ✅ Working | Create client |
 | PATCH | `/api/clients/[id]` | ✅ Working | Update client |
+| PUT | `/api/clients/[id]/features` | ✅ Working | Update plan + feature overrides |
 | GET | `/api/payouts` | ✅ Working | Returns org payouts |
 | POST | `/api/payouts` | ✅ Working | Create payout |
 | PATCH | `/api/payouts/[id]` | ✅ Working | Update payout status (state machine) |
@@ -210,9 +224,17 @@ All routes are multi-tenant (filter by orgId from session).
 | GET | `/api/lists/[id]` | ✅ Working | List detail with creator items |
 | PATCH | `/api/lists/[id]` | ✅ Working | Update list name/description |
 | DELETE | `/api/lists/[id]` | ✅ Working | Delete list and items |
+| POST | `/api/lists/[id]/creators` | ✅ Working | Add creator(s) to list with org validation |
 | GET | `/api/plans` | ✅ Working | Returns org plans (custom feature) |
 | POST | `/api/plans` | ✅ Working | Create plan |
 | PATCH | `/api/clients/[id]/plan` | ✅ Working | Assign plan to client |
+| GET | `/api/invites` | ✅ Working | List org invites |
+| POST | `/api/invites` | ✅ Working | Create invite |
+| DELETE | `/api/invites/[id]` | ✅ Working | Cancel invite |
+| POST | `/api/invites/accept` | ✅ Working | Accept invite and create user |
+| GET | `/api/keys` | ✅ Working | List org API keys |
+| POST | `/api/keys` | ✅ Working | Create API key |
+| DELETE | `/api/keys/[id]` | ✅ Working | Revoke API key |
 
 ---
 

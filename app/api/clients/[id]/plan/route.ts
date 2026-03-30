@@ -3,6 +3,8 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { Prisma } from "@/lib/generated/prisma/client";
+import { createAuditActor, logAudit } from "@/lib/audit";
+import { getRequestIp } from "@/lib/request";
 
 const AssignPlanSchema = z.object({
   planId: z.string().nullable(),
@@ -40,6 +42,26 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       featureOverrides,
     },
     include: { plan: true },
+  });
+
+  await logAudit({
+    orgId,
+    ...createAuditActor(session),
+    action: "client.plan.update",
+    entityType: "client",
+    entityId: updated.id,
+    entityLabel: updated.name,
+    ipAddress: getRequestIp(req),
+    before: {
+      id: client.id,
+      planId: client.planId,
+      featureOverrides: client.featureOverrides,
+    },
+    after: {
+      id: updated.id,
+      planId: updated.planId,
+      featureOverrides: updated.featureOverrides,
+    },
   });
 
   return NextResponse.json(updated);

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
+import { createAuditActor, logAudit } from "@/lib/audit";
+import { getRequestIp } from "@/lib/request";
 
 // DELETE /api/keys/[id] — Revoke (delete) an API key
 export async function DELETE(
@@ -21,6 +23,24 @@ export async function DELETE(
     }
 
     await db.apiKey.delete({ where: { id } });
+
+    await logAudit({
+      orgId,
+      ...createAuditActor(session),
+      action: "api_key.delete",
+      entityType: "api_key",
+      entityId: existing.id,
+      entityLabel: existing.name,
+      ipAddress: getRequestIp(request),
+      before: {
+        id: existing.id,
+        name: existing.name,
+      },
+      after: {
+        id: existing.id,
+        deleted: true,
+      },
+    });
 
     return NextResponse.json({ success: true });
   } catch (error) {

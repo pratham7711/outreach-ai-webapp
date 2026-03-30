@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import bcrypt from "bcryptjs";
+import { logAudit } from "@/lib/audit";
+import { getRequestIp } from "@/lib/request";
 
 // POST /api/invites/accept — Accept an invite by token
 export async function POST(request: NextRequest) {
@@ -62,6 +64,27 @@ export async function POST(request: NextRequest) {
       });
 
       return newUser;
+    });
+
+    await logAudit({
+      orgId: invite.orgId,
+      userId: user.id,
+      actorType: "user",
+      actorEmail: user.email,
+      action: "invite.accept",
+      entityType: "user_invite",
+      entityId: invite.id,
+      entityLabel: invite.email,
+      ipAddress: getRequestIp(request),
+      before: {
+        id: invite.id,
+        acceptedAt: invite.acceptedAt,
+      },
+      after: {
+        id: invite.id,
+        acceptedAt: new Date().toISOString(),
+        createdUserId: user.id,
+      },
     });
 
     return NextResponse.json(

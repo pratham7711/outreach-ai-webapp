@@ -82,13 +82,13 @@ describe('PATCH /api/payouts/[id]', () => {
     expect(body.status).toBe('PROCESSING');
   });
 
-  it('rejects invalid status transition (PENDING -> SUCCESS)', async () => {
-    const existing = { id: 'pay-1', status: 'PENDING', orgId: 'org-1' };
+  it('rejects invalid status transition (SUCCESS -> FAILED)', async () => {
+    const existing = { id: 'pay-1', status: 'SUCCESS', orgId: 'org-1' };
     mockDb.payout.findFirst.mockResolvedValue(existing);
 
     const req = makeRequest('http://localhost/api/payouts/pay-1', {
       method: 'PATCH',
-      body: JSON.stringify({ status: 'SUCCESS' }),
+      body: JSON.stringify({ status: 'FAILED' }),
       headers: { 'Content-Type': 'application/json' },
     });
     const res = await PATCH(req, makeParams('pay-1'));
@@ -151,7 +151,7 @@ describe('PATCH /api/payouts/[id]', () => {
     const res = await PATCH(req, makeParams('pay-1'));
     expect(res.status).toBe(400);
     const body = await res.json();
-    expect(body.error).toBe('Status required');
+    expect(body.error).toBeTruthy();
   });
 
   it('sets completedAt when transitioning to SUCCESS', async () => {
@@ -175,5 +175,36 @@ describe('PATCH /api/payouts/[id]', () => {
         }),
       })
     );
+  });
+
+  it('allows direct Mark Paid transition (PENDING -> SUCCESS)', async () => {
+    const existing = { id: 'pay-1', status: 'PENDING', orgId: 'org-1' };
+    const updated = { ...existing, status: 'SUCCESS', completedAt: new Date() };
+    mockDb.payout.findFirst.mockResolvedValue(existing);
+    mockDb.payout.update.mockResolvedValue(updated);
+
+    const req = makeRequest('http://localhost/api/payouts/pay-1', {
+      method: 'PATCH',
+      body: JSON.stringify({ status: 'SUCCESS' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const res = await PATCH(req, makeParams('pay-1'));
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.status).toBe('SUCCESS');
+  });
+
+  it('returns 400 for invalid status value (Zod validation)', async () => {
+    const existing = { id: 'pay-1', status: 'PENDING', orgId: 'org-1' };
+    mockDb.payout.findFirst.mockResolvedValue(existing);
+
+    const req = makeRequest('http://localhost/api/payouts/pay-1', {
+      method: 'PATCH',
+      body: JSON.stringify({ status: 'INVALID_STATUS' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const res = await PATCH(req, makeParams('pay-1'));
+    expect(res.status).toBe(400);
   });
 });

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
+import { createAuditActor, logAudit } from "@/lib/audit";
+import { getRequestIp } from "@/lib/request";
 
 const updateCreatorSchema = z.object({
   name: z.string().optional(),
@@ -71,6 +73,29 @@ export async function PATCH(
     const existing = await db.creator.findFirst({ where: { id, orgId, deletedAt: null } });
     if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
     const creator = await db.creator.update({ where: { id }, data: parsed.data });
+
+    await logAudit({
+      orgId,
+      ...createAuditActor(session),
+      action: "creator.update",
+      entityType: "creator",
+      entityId: creator.id,
+      entityLabel: creator.name,
+      ipAddress: getRequestIp(req),
+      before: {
+        id: existing.id,
+        name: existing.name,
+        handle: existing.handle,
+        platform: existing.platform,
+      },
+      after: {
+        id: creator.id,
+        name: creator.name,
+        handle: creator.handle,
+        platform: creator.platform,
+      },
+    });
+
     return NextResponse.json(creator);
   } catch (e) {
     return NextResponse.json({ error: "Failed" }, { status: 500 });

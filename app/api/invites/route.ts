@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
+import { createAuditActor, logAudit } from "@/lib/audit";
+import { getRequestIp } from "@/lib/request";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const VALID_ROLES = ["OWNER", "ADMIN", "MANAGER", "MEMBER", "VIEWER"] as const;
@@ -80,6 +82,22 @@ export async function POST(request: NextRequest) {
         email: email.toLowerCase(),
         role: role ?? "MEMBER",
         expiresAt,
+      },
+    });
+
+    await logAudit({
+      orgId,
+      ...createAuditActor(session),
+      action: "invite.create",
+      entityType: "user_invite",
+      entityId: invite.id,
+      entityLabel: invite.email,
+      ipAddress: getRequestIp(request),
+      after: {
+        id: invite.id,
+        email: invite.email,
+        role: invite.role,
+        expiresAt: invite.expiresAt,
       },
     });
 

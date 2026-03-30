@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
+import { createAuditActor, logAudit } from "@/lib/audit";
+import { getRequestIp } from "@/lib/request";
 import { z } from "zod";
 import type { CampaignStatus } from "@/lib/generated/prisma/client";
 
@@ -87,6 +89,7 @@ export async function POST(request: NextRequest) {
   try {
     const session = await auth();
     if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const orgId = (session.user as any).orgId;
 
     const body = await request.json();
     const parsed = createCampaignSchema.safeParse(body);
@@ -111,7 +114,7 @@ export async function POST(request: NextRequest) {
         notes: notes ?? null,
         clientId: clientId ?? null,
         folderId: folderId ?? null,
-        orgId: (session.user as any).orgId,
+        orgId,
         createdById: session.user.id!,
       },
       include: {
@@ -126,6 +129,22 @@ export async function POST(request: NextRequest) {
         _count: {
           select: { activations: true, posts: true },
         },
+      },
+    });
+
+    await logAudit({
+      orgId,
+      ...createAuditActor(session),
+      action: "campaign.create",
+      entityType: "campaign",
+      entityId: campaign.id,
+      entityLabel: campaign.title,
+      ipAddress: getRequestIp(request),
+      after: {
+        id: campaign.id,
+        title: campaign.title,
+        status: campaign.status,
+        campaignType: campaign.campaignType,
       },
     });
 

@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { db } from "@/lib/db";
-import { getPlanLimits } from "@/lib/plans";
+import { getOrgEntitlements } from "@/lib/entitlements";
 
 export async function GET() {
   const session = await auth();
@@ -9,24 +8,22 @@ export async function GET() {
 
   const orgId = (session.user as any).orgId as string;
 
-  const org = await db.organization.findUnique({ where: { id: orgId } });
-  if (!org) return NextResponse.json({ error: "Organization not found" }, { status: 404 });
-
-  const limits = getPlanLimits(org.plan);
+  const entitlements = await getOrgEntitlements(orgId);
+  if (!entitlements) return NextResponse.json({ error: "Organization not found" }, { status: 404 });
 
   return NextResponse.json({
-    orgId: org.id,
-    brandName: org.brandName ?? org.name,
-    logoUrl: org.logoUrl,
-    faviconUrl: org.faviconUrl,
-    primaryColor: org.primaryColor,
-    secondaryColor: org.secondaryColor,
-    accentColor: org.accentColor,
-    fontFamily: org.fontFamily,
-    plan: org.plan,
-    features: limits.features,
-    maxCampaigns: limits.max_campaigns,
-    maxCreators: limits.max_creators,
-    maxUsers: limits.max_users,
+    orgId: entitlements.orgId,
+    brandName: entitlements.branding.brandName,
+    logoUrl: entitlements.branding.logoUrl,
+    faviconUrl: entitlements.branding.faviconUrl,
+    primaryColor: entitlements.branding.primaryColor,
+    secondaryColor: entitlements.branding.secondaryColor,
+    accentColor: entitlements.branding.accentColor,
+    fontFamily: entitlements.branding.fontFamily,
+    plan: entitlements.planName,
+    features: entitlements.features,
+    maxCampaigns: entitlements.limits.maxCampaigns,
+    maxCreators: entitlements.limits.maxCreators,
+    maxUsers: entitlements.limits.maxUsers,
   });
 }

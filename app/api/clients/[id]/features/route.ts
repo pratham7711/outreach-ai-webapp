@@ -3,6 +3,8 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { Prisma } from "@/lib/generated/prisma";
 import { auth } from "@/lib/auth";
+import { createAuditActor, logAudit } from "@/lib/audit";
+import { getRequestIp } from "@/lib/request";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
@@ -60,6 +62,26 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     data: {
       planId: parsed.data.planId,
       featureOverrides,
+    },
+  });
+
+  await logAudit({
+    orgId,
+    ...createAuditActor(session),
+    action: "client.features.update",
+    entityType: "client",
+    entityId: updated.id,
+    entityLabel: updated.name,
+    ipAddress: getRequestIp(req),
+    before: {
+      id: client.id,
+      planId: client.planId,
+      featureOverrides: client.featureOverrides,
+    },
+    after: {
+      id: updated.id,
+      planId: updated.planId,
+      featureOverrides: updated.featureOverrides,
     },
   });
 

@@ -3,12 +3,18 @@
  */
 import { NextRequest } from 'next/server';
 import { GET, POST } from '@/app/api/activations/route';
+import { PATCH, DELETE } from '@/app/api/activations/[id]/route';
 
 jest.mock('@/lib/db', () => ({
   db: {
     activation: {
       findMany: jest.fn(),
       create: jest.fn(),
+      findFirst: jest.fn(),
+      update: jest.fn(),
+    },
+    campaign: {
+      findFirst: jest.fn(),
     },
   },
 }));
@@ -58,6 +64,11 @@ describe('GET /api/activations', () => {
 
     expect(res.status).toBe(200);
     expect(body.activations).toEqual(mockActivations);
+    expect(mockDb.activation.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ campaign: { orgId: 'org-1' } }),
+      })
+    );
   });
 
   it('filters by campaignId when provided', async () => {
@@ -113,6 +124,7 @@ describe('POST /api/activations', () => {
 
   it('creates activation and returns 201', async () => {
     const created = { id: 'act-new', campaignId: 'camp-1', creatorId: 'creator-1', status: 'ACTIVE' };
+    mockDb.campaign.findFirst.mockResolvedValue({ id: 'camp-1', orgId: 'org-1' });
     mockDb.activation.create.mockResolvedValue(created);
 
     const req = new NextRequest('http://localhost/api/activations', {
@@ -155,6 +167,7 @@ describe('POST /api/activations', () => {
       creatorId: 'creator-1',
       deliverableDueDate: new Date('2025-12-31'),
     };
+    mockDb.campaign.findFirst.mockResolvedValue({ id: 'camp-1', orgId: 'org-1' });
     mockDb.activation.create.mockResolvedValue(created);
 
     const req = new NextRequest('http://localhost/api/activations', {
@@ -168,5 +181,110 @@ describe('POST /api/activations', () => {
     });
     const res = await POST(req);
     expect(res.status).toBe(201);
+  });
+});
+
+// ─── PATCH /api/activations/[id] ─────────────────────────────────────────────
+
+describe('PATCH /api/activations/[id]', () => {
+  it('returns 401 when no session', async () => {
+    mockAuth.mockResolvedValue(null);
+    const req = new NextRequest('http://localhost/api/activations/act-1', {
+      method: 'PATCH',
+      body: JSON.stringify({ status: 'DRAFT_SUBMITTED' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const res = await PATCH(req, { params: Promise.resolve({ id: 'act-1' }) } as any);
+    expect(res.status).toBe(401);
+  });
+
+  it('returns 404 when activation not found', async () => {
+    mockDb.activation.findFirst.mockResolvedValue(null);
+    const req = new NextRequest('http://localhost/api/activations/act-1', {
+      method: 'PATCH',
+      body: JSON.stringify({ status: 'DRAFT_SUBMITTED' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const res = await PATCH(req, { params: Promise.resolve({ id: 'act-1' }) } as any);
+    expect(res.status).toBe(404);
+  });
+
+  it('returns 404 when activation belongs to different org', async () => {
+    mockDb.activation.findFirst.mockResolvedValue(null);
+    const req = new NextRequest('http://localhost/api/activations/act-1', {
+      method: 'PATCH',
+      body: JSON.stringify({ status: 'DRAFT_SUBMITTED' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const res = await PATCH(req, { params: Promise.resolve({ id: 'act-1' }) } as any);
+    expect(res.status).toBe(404);
+  });
+
+  it('returns 400 on invalid status value (Zod rejection)', async () => {
+    mockDb.activation.findFirst.mockResolvedValue({ id: 'act-1', status: 'AWAITING_DRAFT' });
+    const req = new NextRequest('http://localhost/api/activations/act-1', {
+      method: 'PATCH',
+      body: JSON.stringify({ status: 'INVALID_STATUS' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const res = await PATCH(req, { params: Promise.resolve({ id: 'act-1' }) } as any);
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 400 on invalid transition', async () => {
+    mockDb.activation.findFirst.mockResolvedValue({ id: 'act-1', status: 'COMPLETE' });
+    const req = new NextRequest('http://localhost/api/activations/act-1', {
+      method: 'PATCH',
+      body: JSON.stringify({ status: 'POSTING' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const res = await PATCH(req, { params: Promise.resolve({ id: 'act-1' }) } as any);
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 200 on valid status transition', async () => {
+    mockDb.activation.findFirst.mockResolvedValue({ id: 'act-1', status: 'AWAITING_DRAFT' });
+    mockDb.activation.update.mockResolvedValue({ id: 'act-1', status: 'DRAFT_SUBMITTED' });
+    const req = new NextRequest('http://localhost/api/activations/act-1', {
+      method: 'PATCH',
+      body: JSON.stringify({ status: 'DRAFT_SUBMITTED' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const res = await PATCH(req, { params: Promise.resolve({ id: 'act-1' }) } as any);
+    expect(res.status).toBe(200);
+  });
+});
+
+// ─── DELETE /api/activations/[id] ────────────────────────────────────────────
+
+describe('DELETE /api/activations/[id]', () => {
+  it('returns 401 when no session', async () => {
+    mockAuth.mockResolvedValue(null);
+    const req = new NextRequest('http://localhost/api/activations/act-1', {
+      method: 'DELETE',
+    });
+    const res = await DELETE(req, { params: Promise.resolve({ id: 'act-1' }) } as any);
+    expect(res.status).toBe(401);
+  });
+
+  it('returns 404 when activation not found', async () => {
+    mockDb.activation.findFirst.mockResolvedValue(null);
+    const req = new NextRequest('http://localhost/api/activations/act-1', {
+      method: 'DELETE',
+    });
+    const res = await DELETE(req, { params: Promise.resolve({ id: 'act-1' }) } as any);
+    expect(res.status).toBe(404);
+  });
+
+  it('soft deletes and returns success', async () => {
+    mockDb.activation.findFirst.mockResolvedValue({ id: 'act-1', status: 'APPROVED' });
+    mockDb.activation.update.mockResolvedValue({ id: 'act-1', deletedAt: new Date() });
+    const req = new NextRequest('http://localhost/api/activations/act-1', {
+      method: 'DELETE',
+    });
+    const res = await DELETE(req, { params: Promise.resolve({ id: 'act-1' }) } as any);
+    const body = await res.json();
+    expect(res.status).toBe(200);
+    expect(body.success).toBe(true);
   });
 });

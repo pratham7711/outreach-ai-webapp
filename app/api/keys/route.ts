@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { randomBytes, createHash } from "crypto";
+import { createAuditActor, logAudit } from "@/lib/audit";
+import { getRequestIp } from "@/lib/request";
 
 // GET /api/keys — List all API keys for the org (never return hash)
 export async function GET(request: NextRequest) {
@@ -58,6 +60,20 @@ export async function POST(request: NextRequest) {
         id: true,
         name: true,
         createdAt: true,
+      },
+    });
+
+    await logAudit({
+      orgId,
+      ...createAuditActor(session),
+      action: "api_key.create",
+      entityType: "api_key",
+      entityId: apiKey.id,
+      entityLabel: apiKey.name,
+      ipAddress: getRequestIp(request),
+      after: {
+        id: apiKey.id,
+        name: apiKey.name,
       },
     });
 

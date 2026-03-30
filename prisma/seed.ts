@@ -240,6 +240,201 @@ async function main() {
   await prisma.activation.upsert({ where: { id: "act-3" }, update: {}, create: { id: "act-3", campaignId: campaigns[1].id, creatorId: creators[4].id, status: "APPROVED" } });
   await prisma.activation.upsert({ where: { id: "act-4" }, update: {}, create: { id: "act-4", campaignId: campaigns[2].id, creatorId: creators[0].id, status: "COMPLETE" } });
 
+  // ─── Posts ───
+  await prisma.post.upsert({
+    where: { id: "post-1" },
+    update: {},
+    create: {
+      id: "post-1",
+      campaignId: campaigns[0].id,
+      creatorId: creators[0].id,
+      platform: "INSTAGRAM",
+      platformPostId: "ig-leak-1",
+      postUrl: "https://instagram.com/p/leak1",
+      caption: "LEAK IT behind the scenes 🎬",
+      postedAt: new Date("2026-01-20"),
+      viewsCount: 125000,
+      likesCount: 8400,
+      commentsCount: 320,
+      sharesCount: 1500,
+      engagementRate: 8.2,
+    },
+  });
+  await prisma.post.upsert({
+    where: { id: "post-2" },
+    update: {},
+    create: {
+      id: "post-2",
+      campaignId: campaigns[0].id,
+      creatorId: creators[0].id,
+      platform: "INSTAGRAM",
+      platformPostId: "ig-leak-2",
+      postUrl: "https://instagram.com/p/leak2",
+      caption: "Studio session vibes ✨",
+      postedAt: new Date("2026-01-25"),
+      viewsCount: 98000,
+      likesCount: 6200,
+      commentsCount: 210,
+      sharesCount: 890,
+      engagementRate: 7.4,
+    },
+  });
+  await prisma.post.upsert({
+    where: { id: "post-3" },
+    update: {},
+    create: {
+      id: "post-3",
+      campaignId: campaigns[0].id,
+      creatorId: creators[1].id,
+      platform: "TIKTOK",
+      platformPostId: "tt-leak-1",
+      postUrl: "https://tiktok.com/@alexturner/leak1",
+      caption: "Reacting to LEAK IT 🔥",
+      postedAt: new Date("2026-01-22"),
+      viewsCount: 340000,
+      likesCount: 28000,
+      commentsCount: 1200,
+      sharesCount: 4500,
+      engagementRate: 9.9,
+    },
+  });
+  await prisma.post.upsert({
+    where: { id: "post-4" },
+    update: {},
+    create: {
+      id: "post-4",
+      campaignId: campaigns[1].id,
+      creatorId: creators[4].id,
+      platform: "TIKTOK",
+      platformPostId: "tt-fuji-1",
+      postUrl: "https://tiktok.com/@priyapatel/fuji1",
+      caption: "Dancing to Fuji Kaze 💃",
+      postedAt: new Date("2026-02-10"),
+      viewsCount: 520000,
+      likesCount: 42000,
+      commentsCount: 3100,
+      sharesCount: 8900,
+      engagementRate: 10.4,
+    },
+  });
+  await prisma.post.upsert({
+    where: { id: "post-5" },
+    update: {},
+    create: {
+      id: "post-5",
+      campaignId: campaigns[1].id,
+      creatorId: creators[4].id,
+      platform: "TIKTOK",
+      platformPostId: "tt-fuji-2",
+      postUrl: "https://tiktok.com/@priyapatel/fuji2",
+      caption: "Part 2 choreography drop 🎶",
+      postedAt: new Date("2026-02-15"),
+      viewsCount: 410000,
+      likesCount: 35000,
+      commentsCount: 2400,
+      sharesCount: 7200,
+      engagementRate: 10.9,
+    },
+  });
+  await prisma.post.upsert({
+    where: { id: "post-6" },
+    update: {},
+    create: {
+      id: "post-6",
+      campaignId: campaigns[2].id,
+      creatorId: creators[0].id,
+      platform: "INSTAGRAM",
+      platformPostId: "ig-bj-1",
+      postUrl: "https://instagram.com/p/bj1",
+      caption: "New collab announcement 🌟",
+      postedAt: new Date("2026-02-15"),
+      viewsCount: 180000,
+      likesCount: 12000,
+      commentsCount: 540,
+      sharesCount: 2100,
+      engagementRate: 8.1,
+    },
+  });
+  await prisma.post.upsert({
+    where: { id: "post-7" },
+    update: {},
+    create: {
+      id: "post-7",
+      campaignId: campaigns[2].id,
+      creatorId: creators[0].id,
+      platform: "INSTAGRAM",
+      platformPostId: "ig-bj-2",
+      postUrl: "https://instagram.com/p/bj2",
+      caption: "Campaign photoshoot day 📸",
+      postedAt: new Date("2026-02-20"),
+      viewsCount: 145000,
+      likesCount: 9800,
+      commentsCount: 410,
+      sharesCount: 1600,
+      engagementRate: 8.1,
+    },
+  });
+  await prisma.post.upsert({
+    where: { id: "post-8" },
+    update: {},
+    create: {
+      id: "post-8",
+      campaignId: campaigns[3].id,
+      creatorId: creators[0].id,
+      platform: "INSTAGRAM",
+      platformPostId: "ig-cruel-1",
+      postUrl: "https://instagram.com/p/cruel1",
+      caption: "CRUEL WORLD final wrap 🎬",
+      postedAt: new Date("2025-12-15"),
+      viewsCount: 210000,
+      likesCount: 15000,
+      commentsCount: 680,
+      sharesCount: 3200,
+      engagementRate: 9.0,
+    },
+  });
+  await prisma.post.upsert({
+    where: { id: "post-9" },
+    update: {},
+    create: {
+      id: "post-9",
+      campaignId: campaigns[3].id,
+      creatorId: creators[1].id,
+      platform: "TIKTOK",
+      platformPostId: "tt-cruel-1",
+      postUrl: "https://tiktok.com/@alexturner/cruel1",
+      caption: "My take on CRUEL WORLD 🌍",
+      postedAt: new Date("2025-12-20"),
+      viewsCount: 280000,
+      likesCount: 22000,
+      commentsCount: 950,
+      sharesCount: 3800,
+      engagementRate: 9.6,
+    },
+  });
+
+  // ─── Campaign Financials ───
+  await prisma.campaignFinancials.upsert({
+    where: { campaignId: campaigns[0].id },
+    update: { spentAmount: 7000 },
+    create: { id: "fin-1", campaignId: campaigns[0].id, totalBudget: 25000, spentAmount: 7000 },
+  });
+  await prisma.campaignFinancials.upsert({
+    where: { campaignId: campaigns[1].id },
+    update: { spentAmount: 16000 },
+    create: { id: "fin-2", campaignId: campaigns[1].id, totalBudget: 40000, spentAmount: 16000 },
+  });
+  await prisma.campaignFinancials.upsert({
+    where: { campaignId: campaigns[2].id },
+    update: { spentAmount: 5000 },
+    create: { id: "fin-3", campaignId: campaigns[2].id, totalBudget: 15000, spentAmount: 5000 },
+  });
+  await prisma.campaignFinancials.upsert({
+    where: { campaignId: campaigns[3].id },
+    update: { spentAmount: 28500 },
+    create: { id: "fin-4", campaignId: campaigns[3].id, totalBudget: 30000, spentAmount: 28500 },
+  });
+
   // ─── Payouts ───
   await prisma.payout.upsert({ where: { id: "pay-1" }, update: {}, create: { id: "pay-1", orgId: org.id, creatorId: creators[0].id, campaignId: campaigns[2].id, amount: 5000, currency: "USD", status: "SUCCESS" } });
   await prisma.payout.upsert({ where: { id: "pay-2" }, update: {}, create: { id: "pay-2", orgId: org.id, creatorId: creators[1].id, campaignId: campaigns[0].id, amount: 2000, currency: "USD", status: "PENDING" } });
@@ -254,6 +449,8 @@ async function main() {
     clients: clients.length,
     creators: creators.length,
     campaigns: campaigns.length,
+    posts: 9,
+    financials: 4,
   });
 }
 

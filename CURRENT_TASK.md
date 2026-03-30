@@ -2,37 +2,45 @@
 
 ## Status: DONE
 
-## Task: Wire Creator Detail Page — stats, campaign history, edit form
+## Task: Discovery add-to-list flow + entitlement/audit foundation
 
 ---
 
 ## Completed:
-- Fixed PATCH `/api/creators/[id]` — added orgId filter (security fix), Zod validation, 404/400 responses
-- Added Edit Creator modal on profile tab (name, handle, platform, bio, email, rate, notes)
-- Expanded creatorsDetail.test.ts to 14 tests (was 6): cross-tenant, soft-delete, Zod validation, nullable fields
-- Fixed creators.test.ts PATCH tests (needed findFirst mock after orgId fix)
-- Fixed UI bugs: double @@ handle, stat card overflow ($5.0K compact format), modal bottom padding
-- Full responsive design: mobile cards, tablet intermediate, desktop table — 4 breakpoints
-- 203 integration tests passing, build clean
+- Discovery page already had live search/filter API; wired the missing "Add to list" modal and POST flow
+- Added org validation to `POST /api/lists/[id]/creators`
+- Fixed security: `GET /api/creators` now filters by `orgId`
+- Added shared org entitlement resolver and switched tenant config endpoint to read `OrgPlanConfig` first
+- Added audit logging payload support and wired audit writes into major mutating admin routes
+- Added lean integration coverage for `POST /api/lists/[id]/creators`
 
 ---
 
 ## Next:
-**Wire Client Detail page — edit form, campaign history**
+**Billing / audit-log / entitlement cleanup**
 
 ### Exact steps:
-1. Fix PATCH `/api/clients/[id]` — add orgId filter + Zod validation (same pattern as creators)
-2. Add Edit Client modal on client detail page
-3. Show campaign history (campaigns linked to this client)
-4. Write integration tests for client detail
+1. Add `/api/audit-logs` and `/audit-log` dashboard UI
+2. Build billing/settings page that reads canonical org entitlements and limits
+3. Replace remaining direct `Organization.plan`/`lib/plans.ts` consumers with shared entitlement helpers
+4. Decide whether client-level `Plan` stays a separate concept or folds into org entitlements
 
 ## Context Files:
-- `app/(dashboard)/clients/[id]/page.tsx`
-- `app/api/clients/[id]/route.ts`
-- `__tests__/integration/clients.test.ts`
+- `lib/entitlements.ts`
+- `lib/audit.ts`
+- `app/api/tenant/config/route.ts`
+- `app/(dashboard)/discovery/page.tsx`
 
 ## Blocker:
 None
 
 ## Test:
-Visit `/clients/client-1` → shows client info, click Edit, change name, save. Campaign history shows linked campaigns.
+Visit `/discovery` → search for a creator by name → filter by platform → add to a list.
+Visit `/settings/team` and `/settings/api-keys` → create/delete flows should now also emit audit writes.
+
+---
+
+## Testing Policy (updated 2026-03-30)
+**Lean tests only per feature:** 401 + 403 + happy path. No 8-case suites mid-session.
+Full test hardening is a dedicated later sprint.
+"Done" = feature works in browser + 3 lean tests pass + committed.

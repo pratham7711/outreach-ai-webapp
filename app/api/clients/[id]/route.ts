@@ -1,55 +1,99 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
+import { createAuditActor, logAudit } from "@/lib/audit";
+import { getRequestIp } from "@/lib/request";
+
+const updateClientSchema = z.object({
+  name: z.string().min(1).optional(),
+  logoUrl: z.string().url().nullable().optional(),
+  contactInfo: z.record(z.string(), z.string()).nullable().optional(),
+});
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const session = await auth();
-  if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const orgId = (session.user as any).orgId;
-  const { id } = await params;
+  try {
+    const session = await auth();
+    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const orgId = (session.user as any).orgId;
+    const { id } = await params;
 
-  const client = await db.client.findFirst({
-    where: { id, orgId },
-    include: {
-      plan: true,
-      campaigns: {
-        where: { deletedAt: null },
-        select: {
-          id: true, title: true, status: true, budget: true, currency: true,
-          createdAt: true, _count: { select: { activations: true } },
+    const client = await db.client.findFirst({
+      where: { id, orgId },
+      include: {
+        plan: true,
+        campaigns: {
+          where: { deletedAt: null },
+          select: {
+            id: true, title: true, status: true, budget: true, currency: true,
+            createdAt: true, _count: { select: { activations: true } },
+          },
+          orderBy: { createdAt: "desc" },
         },
-        orderBy: { createdAt: "desc" },
+        _count: { select: { campaigns: true } },
       },
-      _count: { select: { campaigns: true } },
-    },
-  });
+    });
 
-  if (!client) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  return NextResponse.json(client);
+    if (!client) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    return NextResponse.json(client);
+  } catch (error) {
+    console.error("GET /api/clients/[id] error:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const session = await auth();
-  if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const orgId = (session.user as any).orgId;
-  const { id } = await params;
+  try {
+    const session = await auth();
+    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const orgId = (session.user as any).orgId;
+    const { id } = await params;
 
-  const existing = await db.client.findFirst({ where: { id, orgId } });
-  if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    const existing = await db.client.findFirst({ where: { id, orgId } });
+    if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const body = await req.json();
-  const { name, logoUrl, contactInfo } = body;
+    const body = await req.json();
+    const parsed = updateClientSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: "Invalid input", details: parsed.error.flatten() }, { status: 400 });
+    }
 
-  const updateData: any = {};
-  if (name) updateData.name = name;
-  if (logoUrl !== undefined) updateData.logoUrl = logoUrl;
-  if (contactInfo) {
-    // Merge with existing contact info
-    let existingContact: any = {};
-    try { existingContact = JSON.parse(existing.contactInfo as string ?? "{}"); } catch {}
-    updateData.contactInfo = JSON.stringify({ ...existingContact, ...contactInfo });
+    const updateData: any = {};
+    if (parsed.data.name !== undefined) updateData.name = parsed.data.name;
+    if (parsed.data.logoUrl !== undefined) updateData.logoUrl = parsed.data.logoUrl;
+    if (parsed.data.contactInfo !== undefined) {
+      updateData.contactInfo = parsed.data.contactInfo !== null
+        ? JSON.stringify(parsed.data.contactInfo)
+        : null;
+    }
+
+    const updated = await db.client.update({ where: { id }, data: updateData });
+
+    await logAudit({
+      orgId,
+      ...createAuditActor(session),
+      action: "client.update",
+      entityType: "client",
+      entityId: updated.id,
+      entityLabel: updated.name,
+      ipAddress: getRequestIp(req),
+      before: {
+        id: existing.id,
+        name: existing.name,
+        logoUrl: existing.logoUrl,
+        contactInfo: existing.contactInfo,
+      },
+      after: {
+        id: updated.id,
+        name: updated.name,
+        logoUrl: updated.logoUrl,
+        contactInfo: updated.contactInfo,
+      },
+    });
+
+    return NextResponse.json(updated);
+  } catch (error) {
+    console.error("PATCH /api/clients/[id] error:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
-
-  const updated = await db.client.update({ where: { id }, data: updateData });
-  return NextResponse.json(updated);
 }
