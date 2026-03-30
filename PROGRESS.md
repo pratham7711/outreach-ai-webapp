@@ -96,7 +96,7 @@
 
 ---
 
-## Phase 4 — Feature Completion ⏳ TODO
+## Phase 4 — Feature Completion ⏳ IN PROGRESS
 
 ### Campaign Detail Page
 - [x] Wire up Creators tab — show assigned creators (activations)
@@ -137,6 +137,21 @@
 ### Discovery
 - [x] Creator search/filter system
 - [x] Add to list functionality
+- [x] Feature-gated behind `creator_discovery` entitlement (403 + disabled UI)
+
+### Campaign Payment & Posts System (Phase A schema landed)
+- [x] Schema: `PaymentMode`, `PaymentRelease`, `PostApprovalMode`, `DepositStatus` enums on Campaign
+- [x] Schema: `PostStatus`, `MediaType` on Post; `activationId` FK
+- [x] Schema: `CampaignDeposit` model (Razorpay/Stripe deposit tracking)
+- [x] Schema: `PayoutRequest` model (creator-initiated payout requests)
+- [x] Schema: `NegotiationOffer` model (negotiated rate campaigns)
+- [x] Schema: `CampaignInvite` model (invite creators via DM or link)
+- [x] Extended `PaymentMethod` enum: UPI, NEFT, IMPS, RTGS, ENACH, WIRE
+- [ ] Campaign creation wizard (5-step: basic → type → payment mode → payout model → settings)
+- [ ] Campaign posts tab (grid/list, URL submission, approve/reject workflow)
+- [ ] Payment deposit UI (Razorpay + Stripe checkout)
+- [ ] Creator invite system (IG DM + shareable link)
+- [ ] Creator portal (Phase F — magic link auth, post submission, payout requests)
 
 ### Lists
 - [x] Create new list

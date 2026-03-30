@@ -2,96 +2,132 @@
 
 ## Status: IN_PROGRESS
 
-## Task: Feature gating + audit coverage expansion
+## Task: Phase A schema done — Session 2: Campaign Wizard + Posts Tab (parallel)
 
 ---
 
-## Completed:
-- Added `GET /api/audit-logs` with auth/permission checks, org scoping, filters, and pagination
-- Added audit log dashboard at `/audit-log` (server page + interactive filter/pagination client)
-- Added billing/settings surfaces:
-  - `/settings` index page with Team / API Keys / Billing cards
-  - `/settings/billing` page backed by canonical `getOrgEntitlements(orgId)`
-- Added org-level audit toggle:
-  - `GET/PATCH /api/settings/audit-log`
-  - persisted in `OrgPlanConfig.features.audit_log`
-  - toggle UI card on Billing page using `@pratham7711/ui` `Toggle`
-- Enforced toggle behavior:
-  - `logAudit` skips writes when `audit_log` is disabled
-  - `GET /api/audit-logs` returns `403` when `audit_log` is disabled
-  - `/audit-log` page renders a disabled state with link to `/settings/billing`
-- Added coverage:
-  - `__tests__/integration/auditLogs.test.ts`
-  - `__tests__/integration/auditLogSettings.test.ts`
-  - `e2e/audit-log.spec.ts`
-- Patched live dashboard sidebar (`components/NewSidebar.tsx`) to expose `Settings`, `Audit Log`, and `Billing`
-- Added shared hybrid runtime policy resolver:
-  - `lib/dashboardPolicy.ts`
-  - entitlement gating first, `uiConfig.nav` filtering second
-  - hard-required settings/admin routes always visible
-- Integrated hybrid policy into dashboard shell:
-  - `app/(dashboard)/layout.tsx` now resolves policy and passes allowed nav routes to sidebar
-  - `components/NewSidebar.tsx` now filters from policy output instead of local gating rules
-- Added/updated hybrid nav validation:
-  - `__tests__/unit/lib/dashboardPolicy.test.ts`
-  - `e2e/navigation.spec.ts` hardened for org-specific nav configuration
-- Gated remaining org-level content APIs by canonical entitlements:
-  - `GET/POST /api/reports`
-  - `GET/PATCH/DELETE /api/reports/[id]`
-  - `GET/POST /api/media-kits`
-  - new `DELETE /api/media-kits/[id]`
-- Added lean route coverage for reports/media kits and the new delete route
-- Replaced dashboard widget config read with canonical entitlement-backed `uiConfig` access
-- Fixed `/settings` server-component warning by removing inline server event handlers
-- Centralized canonical org feature-key mapping in shared constants (`lib/featureKeys.ts`)
-- Refactored entitlement gates to consume shared feature constants across:
-  - dashboard policy
-  - audit log routes
-  - reports routes
-  - media-kits routes
-  - audit logging writer helper
-- Verified no behavior change while reducing gate-key drift risk across API/page/sidebar layers
-- Gated `GET /api/discovery` behind `creator_discovery` org entitlement (403 when disabled); added `DISCOVERY_FEATURE` to `lib/featureKeys.ts`
-- Added featureDisabled EmptyState to `/discovery` page (lock icon + billing CTA, matches reports pattern)
-- Added `__tests__/integration/discovery.test.ts` (401 + 403 + 200, 3/3 pass)
-- Added `logAudit` loop to `POST /api/payouts/bulk` — one audit entry per successfully updated payout (`action: payout.status_changed`)
-- Added `__tests__/integration/payoutAudit.test.ts` (401 + N-payout audit + single-PATCH 401, 3/3 pass)
-- Confirmed `app/(dashboard)/clients/[id]/page.tsx` already fully implemented — no changes needed
-- Documented `lib/orgConfig.ts` source-of-truth boundary (standalone raw uiConfig accessor, not entitlements-backed)
-- Aligned `GET /api/audit-logs` entitlement check to `hasOrgFeature()` helper (consistent with all other access gates)
-- Updated `auditLogs.test.ts` mock to spread `jest.requireActual` so `hasOrgFeature` is available alongside mocked `getOrgEntitlements`
-- Completed final org-level UI entitlement residual sweep:
-  - `/audit-log` page now uses `hasOrgFeature(..., AUDIT_LOG_FEATURE)`
-  - `/settings/billing` audit-toggle initial state now uses canonical entitlement helper/constants
-  - removed direct `entitlements.featureMap.audit_log` reads from dashboard pages
+## Completed (this session):
+- Schema Phase A migration landed (`b53d645`) — all new enums + models in one migration:
+  - New enums: `PaymentMode`, `PaymentRelease`, `PostApprovalMode`, `DepositStatus`, `MediaType`, `PostStatus`, `PaymentGateway`, `DepositPaymentMethod`, `InviteChannel`, `InviteStatus`, `NegotiationStatus`, `PayoutRequestStatus`
+  - Extended `PaymentMethod` enum: +UPI, NEFT, IMPS, RTGS, ENACH, WIRE
+  - Extended `Campaign`: `paymentMode`, `paymentRelease`, `postApprovalMode`, `depositStatus`
+  - Extended `Post`: `status` (PostStatus), `rejectionReason`, `mediaType`, `activationId`
+  - Extended `Activation`: `posts Post[]` relation
+  - New models: `CampaignDeposit`, `PayoutRequest`, `NegotiationOffer`, `CampaignInvite`
+- Discovery gating, payout audit, entitlement cleanup (see git log)
 
 ---
 
-## Next:
-**Feature gating is consistent across discovery, reports, media-kits, audit-log. Payout bulk now audited.**
+## Next: Session 2 — Run TWO parallel tracks
 
-### Options for next session:
-1. Discovery filter/search enhancements (genre, follower range, engagement rate filters)
-2. Payout workflow improvements (balance enforcement, per-creator caps, multi-currency gate)
-3. Client-plan feature flag UX (locked/disabled states for client-scoped features)
-4. Test hardening sprint (full suite for all routes)
+### Track B — Campaign Creation Wizard
+Replace `NewCampaignModal` with a 5-step wizard component.
+
+**Steps:**
+1. Basic info — title, client, thumbnail, notes
+2. Campaign type — BUDGET_BASED / VIEW_BASED / OPEN_COMMUNITY / PRIVATE_INVITE + inline typeConfig form
+3. Payment mode — toggle: Managed (we hold deposit) vs Self-managed (org tracks)
+4. Payout model — sets `typeConfig.model`: fixed rate per post / per-1K-views with cap / negotiated
+5. Settings — postApprovalMode (MANUAL/AUTO_APPROVED), paymentRelease (MANUAL/ON_POST_APPROVAL/ON_CREATOR_REQUEST), enrollmentOpen
+
+**typeConfig shapes:**
+```ts
+// fixed rate
+{ model: "fixed", ratePerPost: number, currency: string, maxPosts?: number }
+// per view
+{ model: "per_view", ratePerThousandViews: number, capAmount: number, currency: string, trackingWindowDays: number }
+// negotiated
+{ model: "negotiated", baseRate?: number, currency: string, allowCounterOffer: boolean }
+```
+
+**Files to create/edit:**
+- `components/modals/CampaignWizard.tsx` — new 5-step wizard (use `@pratham7711/ui` Modal, Button, Input, Badge)
+- `app/api/campaigns/route.ts` — accept `paymentMode`, `paymentRelease`, `postApprovalMode`
+- `app/api/campaigns/[id]/route.ts` — accept same on PATCH
+- Update `app/(dashboard)/campaigns/page.tsx` to use `CampaignWizard` instead of `NewCampaignModal` for new campaigns
+
+**Lean test:** `__tests__/integration/campaigns.test.ts` (already exists — add: POST creates campaign with paymentMode field, GET still works)
+
+---
+
+### Track C — Campaign Posts Tab
+Full posts view for a campaign: grid/list, approval workflow, URL submission.
+
+**UI features:**
+- Grid / list toggle
+- Platform filter: All / TikTok / Instagram / YouTube
+- Media type filter: All / Reel / Story / Post / Short
+- Status tabs: Pending Review / Approved / Rejected / All
+- Per-post card: thumbnail, creator name, platform icon, views, likes, comments, engagement rate, posted date, status badge
+- Approve button / Reject button + reason modal — only shown when campaign `postApprovalMode === "MANUAL"`
+- "Add Post" button → URL submission modal (URL, platform, media type, creator select)
+- On URL submit → call `lib/platforms/fetchPostMetrics.ts` to pull initial stats
+
+**URL → metrics helper (`lib/platforms/fetchPostMetrics.ts`):**
+- Detect platform from URL pattern (youtube.com/watch, tiktok.com/@, instagram.com/reel)
+- YouTube: YouTube Data API v3, `GET /videos?part=statistics,snippet&id=[videoId]&key=[YOUTUBE_API_KEY]`
+- TikTok/Instagram: try oEmbed endpoint for basic stats; fall back to stub zeros if API key not available
+- Returns: `{ platform, platformPostId, thumbnailUrl, caption, viewsCount, likesCount, commentsCount, engagementRate, postedAt }`
+
+**API routes:**
+- `app/api/campaigns/[id]/posts/route.ts` — GET (list posts), POST (submit URL → fetch metrics → create Post)
+- `app/api/campaigns/[id]/posts/[postId]/route.ts` — PATCH (approve: set status=APPROVED / reject: set status=REJECTED + rejectionReason)
+
+**Wire into campaign detail:**
+- `app/(dashboard)/campaigns/[id]/page.tsx` — replace stub Posts tab with `<PostsTab campaignId={id} postApprovalMode={campaign.postApprovalMode} />`
+- Create `app/(dashboard)/campaigns/[id]/PostsTab.tsx`
+
+**Lean tests:**
+- `__tests__/integration/campaignPosts.test.ts` — 401, POST creates post, PATCH approve/reject (3 cases)
+
+---
+
+## Execution for next agent
+
+Spawn two background agents simultaneously:
+
+**Agent 1 (Track B — Campaign Wizard):**
+- Read `components/modals/NewCampaignModal.tsx` + `app/(dashboard)/campaigns/page.tsx` first
+- Read `app/api/campaigns/route.ts` to understand current POST shape
+- Build `CampaignWizard.tsx`, update API routes, update page
+- Run `npm run build` — commit `feat: multi-step campaign creation wizard`
+
+**Agent 2 (Track C — Posts Tab):**
+- Read `app/(dashboard)/campaigns/[id]/page.tsx` (tab structure) first
+- Read `prisma/schema.prisma` Post model to understand new fields
+- Build `PostsTab.tsx`, `fetchPostMetrics.ts`, API routes
+- Run `npm run build` — commit `feat: campaign posts tab with approval workflow`
+
+After both: run `npm run build` final check, update this file.
+
+---
 
 ## Context Files:
-- `lib/featureKeys.ts` — all canonical feature key constants
-- `lib/entitlements.ts` — org capability source (hasOrgFeature pattern)
-- `app/api/discovery/route.ts` — reference for new 403 gate pattern
+- `prisma/schema.prisma` — all new models/enums are landed (Post, Campaign, CampaignDeposit, etc.)
+- `components/modals/NewCampaignModal.tsx` — existing modal to replace with wizard
+- `app/(dashboard)/campaigns/[id]/page.tsx` — tab structure to wire PostsTab into
+- `lib/entitlements.ts` + `lib/featureKeys.ts` — entitlement pattern reference
+- `docs/OUTREACH_AI_PLAN.md` — full roadmap (Phases A-F)
 
 ## Blocker:
-None
+None. Schema is live on Neon PostgreSQL.
 
 ## Test:
-Run:
-- `npx jest --config jest.integration.config.js --runInBand __tests__/integration/discovery.test.ts __tests__/integration/payoutAudit.test.ts __tests__/integration/auditLogs.test.ts __tests__/integration/auditLogSettings.test.ts`
-- `npm run build`
+```bash
+npx jest --config jest.integration.config.js --runInBand __tests__/integration/campaigns.test.ts __tests__/integration/campaignPosts.test.ts
+npm run build
+```
 
 ---
 
-## Testing Policy (updated 2026-03-30)
-**Lean tests only per feature:** 401 + 403 + happy path. No 8-case suites mid-session.
-Full test hardening is a dedicated later sprint.
-"Done" = feature works in browser + 3 lean tests pass + committed.
+## Architecture Decisions (locked — do not re-debate):
+- Payment gateway: Razorpay (Indian: UPI/ENACH/RTGS/IMPS/NEFT) + Stripe (international cards/wire)
+- All amounts displayed in USD; multi-currency deposit stored with `amountUsd` conversion
+- Post submission: creator pastes URL → platform API fetches metrics
+- Creator invite: Instagram DM automation + shareable link
+- Payout models: all three (fixed, per-view-with-cap, negotiated) — set per campaign in wizard
+- Post approval mode + payment release trigger: configurable per campaign at creation time
+
+## Testing Policy:
+Lean: 401 + happy path + one edge case per route. No 8-case suites until dedicated test sprint.
+"Done" = builds clean + 3 tests pass + committed.
