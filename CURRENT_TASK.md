@@ -51,6 +51,9 @@
   - media-kits routes
   - audit logging writer helper
 - Verified no behavior change while reducing gate-key drift risk across API/page/sidebar layers
+- Documented `lib/orgConfig.ts` source-of-truth boundary (standalone raw uiConfig accessor, not entitlements-backed)
+- Aligned `GET /api/audit-logs` entitlement check to `hasOrgFeature()` helper (consistent with all other access gates)
+- Updated `auditLogs.test.ts` mock to spread `jest.requireActual` so `hasOrgFeature` is available alongside mocked `getOrgEntitlements`
 - Completed final org-level UI entitlement residual sweep:
   - `/audit-log` page now uses `hasOrgFeature(..., AUDIT_LOG_FEATURE)`
   - `/settings/billing` audit-toggle initial state now uses canonical entitlement helper/constants
@@ -59,37 +62,33 @@
 ---
 
 ## Next:
-**Document source-of-truth boundaries and continue org-level entitlement cleanup (non-client-plan)**
+**Org-level entitlement cleanup is complete. Next: client-plan feature-flag UX polish or new feature.**
 
-### Exact steps:
-1. Decide and document whether `lib/orgConfig.ts` remains a standalone accessor or is treated as entitlements-backed legacy helper.
-2. Sweep remaining non-client-plan org capability checks for helper/constants conformance.
-3. Keep client-level `Plan` behavior untouched.
-4. Add lean regression coverage only where behavior changes.
-5. Keep `lib/dashboardPolicy.ts` as source of truth for hybrid nav gating.
+### Decisions made this session:
+- `lib/orgConfig.ts` stays as standalone raw uiConfig accessor (documented with boundary comment).
+  No entitlement logic lives there; dashboardPolicy merges entitlements + uiConfig for nav/branding.
+- `lib/audit.ts` intentionally keeps `featureMap[key] === false` (fail-open: log if org not found).
+- `app/api/settings/audit-log` GET intentionally reads `featureMap[key] !== false` (toggle value, not access gate).
+- All true access-control gates now use `hasOrgFeature()` / `hasAnyOrgFeature()` helpers.
+
+### Options for next session:
+1. Client-plan feature flag UX: show locked/disabled states for client-scoped features
+2. Discovery page: filter/search enhancements
+3. Payout workflow improvements
+4. Test hardening sprint (full suite for all routes)
 
 ## Context Files:
 - `lib/entitlements.ts`
 - `lib/featureKeys.ts`
 - `lib/dashboardPolicy.ts`
-- `app/api/settings/audit-log/route.ts`
-- `app/api/audit-logs/route.ts`
-- `app/(dashboard)/layout.tsx`
-- `components/NewSidebar.tsx`
-- `app/(dashboard)/dashboard/page.tsx`
 
 ## Blocker:
 None
 
 ## Test:
 Run:
-- `npx jest --config jest.integration.config.js --runInBand __tests__/integration/reports.test.ts __tests__/integration/media-kits.test.ts __tests__/integration/auditLogs.test.ts __tests__/integration/auditLogSettings.test.ts`
+- `npx jest --config jest.integration.config.js --runInBand __tests__/integration/auditLogs.test.ts __tests__/integration/auditLogSettings.test.ts`
 - `npm run build`
-- `PORT=3009 npx playwright test --config=playwright.config.ts`
-
-Manual smoke:
-- Visit `/reports` and `/media-kits` to ensure feature-gated actions are hidden when disabled
-- Visit `/settings` and confirm the billing card still loads
 
 ---
 
