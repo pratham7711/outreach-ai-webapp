@@ -257,6 +257,7 @@ describe('PATCH /api/creators/[id]', () => {
 
   it('updates creator successfully', async () => {
     const updated = { id: 'creator-1', name: 'Updated Name', handle: '@alice' };
+    mockDb.creator.findFirst.mockResolvedValue({ id: 'creator-1', orgId: 'org-1' });
     mockDb.creator.update.mockResolvedValue(updated);
 
     const req = makeRequest('http://localhost/api/creators/creator-1', {
@@ -272,6 +273,7 @@ describe('PATCH /api/creators/[id]', () => {
   });
 
   it('returns 500 on database error', async () => {
+    mockDb.creator.findFirst.mockResolvedValue({ id: 'creator-1', orgId: 'org-1' });
     mockDb.creator.update.mockRejectedValue(new Error('DB error'));
 
     const req = makeRequest('http://localhost/api/creators/creator-1', {

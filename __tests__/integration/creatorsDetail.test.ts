@@ -95,6 +95,29 @@ describe('GET /api/creators/[id]', () => {
     const res = await GET(req, makeParams('cr-1'));
     expect(res.status).toBe(500);
   });
+
+  it('filters by orgId from session (multi-tenancy)', async () => {
+    mockDb.creator.findFirst.mockResolvedValue(null);
+    const req = makeRequest('http://localhost/api/creators/cr-1');
+    await GET(req, makeParams('cr-1'));
+    expect(mockDb.creator.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ id: 'cr-1', orgId: 'org-1', deletedAt: null }),
+      })
+    );
+  });
+
+  it('returns 404 for soft-deleted creator', async () => {
+    mockDb.creator.findFirst.mockResolvedValue(null); // deletedAt filter means it won't be found
+    const req = makeRequest('http://localhost/api/creators/cr-1');
+    const res = await GET(req, makeParams('cr-1'));
+    expect(res.status).toBe(404);
+    expect(mockDb.creator.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ deletedAt: null }),
+      })
+    );
+  });
 });
 
 // ─── PATCH /api/creators/[id] ────────────────────────────────────────────────
@@ -114,6 +137,7 @@ describe('PATCH /api/creators/[id]', () => {
   });
 
   it('updates creator fields', async () => {
+    mockDb.creator.findFirst.mockResolvedValue({ id: 'cr-1', orgId: 'org-1' });
     const updated = { id: 'cr-1', name: 'Updated Name', handle: '@updated', platform: 'INSTAGRAM' };
     mockDb.creator.update.mockResolvedValue(updated);
 
@@ -136,6 +160,7 @@ describe('PATCH /api/creators/[id]', () => {
   });
 
   it('returns 500 on database error', async () => {
+    mockDb.creator.findFirst.mockResolvedValue({ id: 'cr-1', orgId: 'org-1' });
     mockDb.creator.update.mockRejectedValue(new Error('DB error'));
 
     const req = makeRequest('http://localhost/api/creators/cr-1', {
@@ -145,5 +170,73 @@ describe('PATCH /api/creators/[id]', () => {
     });
     const res = await PATCH(req, makeParams('cr-1'));
     expect(res.status).toBe(500);
+  });
+
+  it('returns 404 when creator not found or wrong org', async () => {
+    mockDb.creator.findFirst.mockResolvedValue(null);
+    const req = makeRequest('http://localhost/api/creators/cr-1', {
+      method: 'PATCH',
+      body: JSON.stringify({ name: 'New Name' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const res = await PATCH(req, makeParams('cr-1'));
+    expect(res.status).toBe(404);
+    expect(mockDb.creator.update).not.toHaveBeenCalled();
+  });
+
+  it('returns 400 for invalid fields', async () => {
+    const req = makeRequest('http://localhost/api/creators/cr-1', {
+      method: 'PATCH',
+      body: JSON.stringify({ contactEmail: 'not-an-email' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const res = await PATCH(req, makeParams('cr-1'));
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toBe('Invalid input');
+    expect(body).toHaveProperty('details');
+  });
+
+  it('returns 400 for invalid platform', async () => {
+    const req = makeRequest('http://localhost/api/creators/cr-1', {
+      method: 'PATCH',
+      body: JSON.stringify({ platform: 'SNAPCHAT' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const res = await PATCH(req, makeParams('cr-1'));
+    expect(res.status).toBe(400);
+  });
+
+  it('verifies orgId before updating (multi-tenancy)', async () => {
+    mockDb.creator.findFirst.mockResolvedValue({ id: 'cr-1', orgId: 'org-1' });
+    mockDb.creator.update.mockResolvedValue({ id: 'cr-1', name: 'Updated' });
+    const req = makeRequest('http://localhost/api/creators/cr-1', {
+      method: 'PATCH',
+      body: JSON.stringify({ name: 'Updated' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    await PATCH(req, makeParams('cr-1'));
+    expect(mockDb.creator.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ id: 'cr-1', orgId: 'org-1', deletedAt: null }),
+      })
+    );
+  });
+
+  it('allows setting nullable fields to null', async () => {
+    mockDb.creator.findFirst.mockResolvedValue({ id: 'cr-1', orgId: 'org-1' });
+    mockDb.creator.update.mockResolvedValue({ id: 'cr-1', rate: null, bio: null });
+    const req = makeRequest('http://localhost/api/creators/cr-1', {
+      method: 'PATCH',
+      body: JSON.stringify({ rate: null, bio: null }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const res = await PATCH(req, makeParams('cr-1'));
+    expect(res.status).toBe(200);
+    expect(mockDb.creator.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: { rate: null, bio: null },
+      })
+    );
   });
 });

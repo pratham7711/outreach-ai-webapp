@@ -1,58 +1,38 @@
 # Current Task
 
-## Status: TODO
+## Status: DONE
 
-## Task: Phase 4 — Wire Campaign Detail Tabs with Real Data
+## Task: Wire Creator Detail Page — stats, campaign history, edit form
 
 ---
 
-## Completed (previous session):
-- PostgreSQL migration (Neon), all foundation models, seed data
-- Campaign type selector (4 types), Team invites, API key management, SDUI dashboard
-- 393 tests passing (166 unit + 189 integration + 38 E2E), build clean
-- All 12 API routes return 200, all pages render with real data
+## Completed:
+- Fixed PATCH `/api/creators/[id]` — added orgId filter (security fix), Zod validation, 404/400 responses
+- Added Edit Creator modal on profile tab (name, handle, platform, bio, email, rate, notes)
+- Expanded creatorsDetail.test.ts to 14 tests (was 6): cross-tenant, soft-delete, Zod validation, nullable fields
+- Fixed creators.test.ts PATCH tests (needed findFirst mock after orgId fix)
+- Fixed UI bugs: double @@ handle, stat card overflow ($5.0K compact format), modal bottom padding
+- Full responsive design: mobile cards, tablet intermediate, desktop table — 4 breakpoints
+- 203 integration tests passing, build clean
 
 ---
 
 ## Next:
-**Wire the campaign detail page tabs to show real related data**
+**Wire Client Detail page — edit form, campaign history**
 
 ### Exact steps:
-
-#### 1. Creators tab (`/campaigns/[id]` → Creators tab)
-- Fetch activations for this campaign via `db.activation.findMany({ where: { campaignId } })` with creator includes
-- Display creator cards with: name, handle, platform, status badge, rate
-- Add "Add Creator" button that creates an activation (assign creator to campaign)
-- File: `app/(dashboard)/campaigns/[id]/page.tsx` — read the existing tab structure
-
-#### 2. Posts tab
-- Fetch posts for this campaign via `db.post.findMany({ where: { campaignId } })`
-- Display post cards with: platform, URL, views, likes, engagement rate, posted date
-- File: same as above
-
-#### 3. Budget/Financials tab
-- Fetch `CampaignFinancials` + payouts for this campaign
-- Show: total budget, spent, remaining, payout breakdown per creator
-- File: same as above
-
-#### 4. Write tests
-- `__tests__/integration/campaignDetail.test.ts` — test GET /api/campaigns/[id] returns activations, posts, financials
-- Update existing campaign detail tests if needed
-
-#### 5. Verify
-```bash
-npx jest --config jest.integration.config.js
-npm run build
-PORT=3009 npm run dev  # → /campaigns/camp-1 shows real creators, posts, financials
-```
+1. Fix PATCH `/api/clients/[id]` — add orgId filter + Zod validation (same pattern as creators)
+2. Add Edit Client modal on client detail page
+3. Show campaign history (campaigns linked to this client)
+4. Write integration tests for client detail
 
 ## Context Files:
-- `app/(dashboard)/campaigns/[id]/page.tsx` — campaign detail page with tabs
-- `app/api/campaigns/[id]/route.ts` — campaign detail API
-- `prisma/schema.prisma` — Activation, Post, CampaignFinancials models
+- `app/(dashboard)/clients/[id]/page.tsx`
+- `app/api/clients/[id]/route.ts`
+- `__tests__/integration/clients.test.ts`
 
 ## Blocker:
 None
 
 ## Test:
-Visit `/campaigns/camp-1` → Creators tab shows Blessing Jolie + Alex Turner (from seed activations) → Budget tab shows $25,000 budget
+Visit `/clients/client-1` → shows client info, click Edit, change name, save. Campaign history shows linked campaigns.

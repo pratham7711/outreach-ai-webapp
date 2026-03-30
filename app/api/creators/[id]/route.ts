@@ -1,6 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
+
+const updateCreatorSchema = z.object({
+  name: z.string().optional(),
+  handle: z.string().optional(),
+  platform: z.enum(["TIKTOK", "INSTAGRAM", "YOUTUBE", "TWITTER"]).optional(),
+  bio: z.string().nullable().optional(),
+  contactEmail: z.string().email().nullable().optional(),
+  rate: z.number().positive().nullable().optional(),
+  notes: z.string().nullable().optional(),
+  avatarUrl: z.string().url().nullable().optional(),
+  paymentInfo: z.string().nullable().optional(),
+});
 
 export async function GET(
   _req: NextRequest,
@@ -49,8 +62,15 @@ export async function PATCH(
     const session = await auth();
     if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const { id } = await params;
+    const orgId = (session.user as any).orgId;
     const body = await req.json();
-    const creator = await db.creator.update({ where: { id }, data: body });
+    const parsed = updateCreatorSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: "Invalid input", details: parsed.error.flatten() }, { status: 400 });
+    }
+    const existing = await db.creator.findFirst({ where: { id, orgId, deletedAt: null } });
+    if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    const creator = await db.creator.update({ where: { id }, data: parsed.data });
     return NextResponse.json(creator);
   } catch (e) {
     return NextResponse.json({ error: "Failed" }, { status: 500 });

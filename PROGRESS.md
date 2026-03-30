@@ -99,16 +99,22 @@
 ## Phase 4 — Feature Completion ⏳ TODO
 
 ### Campaign Detail Page
-- [ ] Wire up Creators tab — show assigned creators (activations)
-- [ ] Wire up Posts tab — show campaign deliverables
-- [ ] Wire up Budget tab — show budget breakdown
-- [ ] Add creator to campaign (activation creation)
+- [x] Wire up Creators tab — show assigned creators (activations)
+- [x] Wire up Posts tab — show campaign deliverables (with creator names)
+- [x] Wire up Budget tab — show budget breakdown (CampaignFinancials seeded)
+- [x] Add creator to campaign (activation creation via modal)
+- [x] Multi-tenancy fix — orgId filter on GET/PATCH/DELETE
+- [x] Seed data: 9 posts + 4 campaign financials
 - [ ] Campaign edit form
 
 ### Creator Detail Page
-- [ ] Creator stats display (followers, engagement rate)
-- [ ] Campaign history (which campaigns they've been in)
-- [ ] Edit creator form
+- [x] Creator stats display (followers, engagement rate, total earnings, avg engagement)
+- [x] Campaign history (which campaigns they've been in — via activations)
+- [x] Edit creator form (modal with name, handle, platform, bio, email, rate, notes)
+- [x] PATCH route security fix (orgId filter + Zod validation)
+- [x] 14 integration tests for creator detail (creatorsDetail.test.ts)
+- [x] Full responsive design (mobile/tablet/iPad/desktop breakpoints)
+- [x] UI bug fixes (double @@ handle, stat overflow, modal padding)
 
 ### Client Detail Page
 - [ ] Edit client form ← partially done
