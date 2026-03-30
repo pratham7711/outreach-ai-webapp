@@ -18,6 +18,7 @@ jest.mock("@/lib/auth", () => ({
 }));
 
 jest.mock("@/lib/entitlements", () => ({
+  ...jest.requireActual("@/lib/entitlements"),
   getOrgEntitlements: jest.fn(),
 }));
 
