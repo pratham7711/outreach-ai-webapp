@@ -41,18 +41,20 @@
   - `GET/POST /api/media-kits`
   - new `DELETE /api/media-kits/[id]`
 - Added lean route coverage for reports/media kits and the new delete route
+- Replaced dashboard widget config read with canonical entitlement-backed `uiConfig` access
+- Fixed `/settings` server-component warning by removing inline server event handlers
 
 ---
 
 ## Next:
-**Clean up remaining dashboard config consumers and UI warning**
+**Finalize entitlement migration residuals and stabilize mapping docs/tests**
 
 ### Exact steps:
-1. Replace remaining direct dashboard config reads with canonical entitlement helpers where appropriate.
-2. Fix the `/settings` server-component warning caused by inline event handlers.
-3. Keep client-level `Plan` behavior untouched.
-4. Add lean regression coverage only for pages/routes changed in that cleanup.
-5. Keep `lib/dashboardPolicy.ts` as the source of truth for hybrid nav gating.
+1. Sweep for any remaining non-client-plan org capability checks that are not using entitlement helpers.
+2. Keep client-level `Plan` behavior untouched.
+3. Consolidate feature-key mapping references to reduce drift risk between API/page/sidebar gates.
+4. Add lean regression coverage only where migration introduces behavior changes.
+5. Keep `lib/dashboardPolicy.ts` as source of truth for hybrid nav gating.
 
 ## Context Files:
 - `lib/entitlements.ts`
@@ -62,7 +64,6 @@
 - `app/(dashboard)/layout.tsx`
 - `components/NewSidebar.tsx`
 - `app/(dashboard)/dashboard/page.tsx`
-- `app/(dashboard)/settings/page.tsx`
 
 ## Blocker:
 None

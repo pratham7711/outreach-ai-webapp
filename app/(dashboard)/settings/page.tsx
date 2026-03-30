@@ -58,27 +58,7 @@ export default async function SettingsPage() {
                 color: "inherit",
               }}
             >
-              <div
-                style={{
-                  height: "100%",
-                  border: "1px solid var(--cc-border)",
-                  borderRadius: 16,
-                  background: "var(--cc-card)",
-                  padding: 20,
-                  boxShadow: "0 1px 0 rgba(15, 23, 42, 0.02)",
-                  transition: "transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = "translateY(-2px)";
-                  e.currentTarget.style.borderColor = "rgba(99, 102, 241, 0.35)";
-                  e.currentTarget.style.boxShadow = "0 12px 30px rgba(15, 23, 42, 0.06)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = "translateY(0)";
-                  e.currentTarget.style.borderColor = "var(--cc-border)";
-                  e.currentTarget.style.boxShadow = "0 1px 0 rgba(15, 23, 42, 0.02)";
-                }}
-              >
+              <div className="group h-full rounded-2xl border border-[var(--cc-border)] bg-[var(--cc-card)] p-5 shadow-[0_1px_0_rgba(15,23,42,0.02)] transition-[transform,border-color,box-shadow] duration-150 hover:-translate-y-0.5 hover:border-[rgba(99,102,241,0.35)] hover:shadow-[0_12px_30px_rgba(15,23,42,0.06)]">
                 <div
                   style={{
                     width: 44,
