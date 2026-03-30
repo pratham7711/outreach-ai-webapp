@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import { useState, useEffect, useCallback } from "react";
 import {
   Megaphone, Play, Calendar, Users, Users2, Radio, LineChart,
-  Search, List, Wallet, Inbox, UserCheck, Link2, CreditCard, Shield, Bell,
+  Search, List, Wallet, Inbox, UserCheck, Link2, CreditCard, Shield, Bell, FileText,
   ChevronDown, Settings, LogOut, Menu, X, ChevronsLeft, ChevronsRight, Key
 } from "lucide-react";
 import { useSidebar } from "@/components/providers/SidebarProvider";
@@ -40,9 +40,12 @@ const NAV_SECTIONS = [
   {
     label: "Settings",
     items: [
+      { href: "/settings", icon: Settings, label: "Settings" },
       { href: "/connections", icon: Link2, label: "Connections" },
+      { href: "/audit-log", icon: FileText, label: "Audit Log" },
       { href: "/settings/team", icon: Users2, label: "Team" },
       { href: "/settings/api-keys", icon: Key, label: "API Keys" },
+      { href: "/settings/billing", icon: CreditCard, label: "Billing" },
     ],
   },
   {
@@ -66,6 +69,7 @@ const NAV_KEY_TO_HREF: Record<string, string> = {
   calendar: "/calendar",
   clients: "/clients",
   discovery: "/discovery",
+  "audit-log": "/audit-log",
   "fan-pages": "/fan-pages",
   requests: "/requests",
   recipients: "/recipients",
