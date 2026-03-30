@@ -60,6 +60,90 @@ enum PayoutStatus {
 enum PaymentMethod {
   PAYPAL
   BANK_TRANSFER
+  UPI
+  NEFT
+  IMPS
+  RTGS
+  ENACH
+  WIRE
+}
+
+enum PaymentMode {
+  MANAGED
+  SELF_MANAGED
+}
+
+enum PaymentRelease {
+  MANUAL
+  ON_POST_APPROVAL
+  ON_CREATOR_REQUEST
+}
+
+enum PostApprovalMode {
+  MANUAL
+  AUTO_APPROVED
+}
+
+enum DepositStatus {
+  PENDING
+  HELD
+  PARTIALLY_RELEASED
+  FULLY_RELEASED
+  REFUNDED
+}
+
+enum MediaType {
+  REEL
+  STORY
+  POST
+  SHORT
+  VIDEO
+}
+
+enum PostStatus {
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+}
+
+enum PaymentGateway {
+  RAZORPAY
+  STRIPE
+}
+
+enum DepositPaymentMethod {
+  CARD
+  UPI
+  NEFT
+  IMPS
+  RTGS
+  ENACH
+  WIRE
+}
+
+enum InviteChannel {
+  INSTAGRAM_DM
+  LINK
+}
+
+enum InviteStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  EXPIRED
+}
+
+enum NegotiationStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  COUNTERED
+}
+
+enum PayoutRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 enum Currency {
@@ -129,24 +213,25 @@ model Organization {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  users          User[]
-  campaigns      Campaign[]
-  creators       Creator[]
-  creatorLists   CreatorList[]
-  clients        Client[]
-  folders        Folder[]
-  payoutBalances PayoutBalance[]
-  payouts        Payout[]
-  tiktokSounds   TikTokSound[]
-  connections    Connection[]    @relation("FromOrg")
-  connectionsTo  Connection[]    @relation("ToOrg")
-  reports        Report[]
-  mediakits      MediaKit[]
-  auditLogs      AuditLog[]
-  plans          Plan[]
-  planConfig     OrgPlanConfig?
-  invites        UserInvite[]
-  apiKeys        ApiKey[]
+  users            User[]
+  campaigns        Campaign[]
+  creators         Creator[]
+  creatorLists     CreatorList[]
+  clients          Client[]
+  folders          Folder[]
+  payoutBalances   PayoutBalance[]
+  payouts          Payout[]
+  tiktokSounds     TikTokSound[]
+  connections      Connection[]    @relation("FromOrg")
+  connectionsTo    Connection[]    @relation("ToOrg")
+  reports          Report[]
+  mediakits        MediaKit[]
+  auditLogs        AuditLog[]
+  plans            Plan[]
+  planConfig       OrgPlanConfig?
+  invites          UserInvite[]
+  apiKeys          ApiKey[]
+  campaignDeposits CampaignDeposit[]
 }
 
 model User {
@@ -216,39 +301,48 @@ model ApiKey {
 // ─── Campaigns ────────────────────────────────────────────────────────────────
 
 model Campaign {
-  id             String         @id @default(cuid())
-  orgId          String
-  title          String
-  status         CampaignStatus @default(DRAFT)
-  campaignType   CampaignType   @default(BUDGET_BASED)
-  typeConfig     Json?          // shape varies per CampaignType
-  enrollmentOpen Boolean        @default(false)
-  thumbnailUrl   String?
-  budget         Float?
-  currency       Currency       @default(USD)
-  notes          String?
-  clientId       String?
-  folderId       String?
-  createdById    String
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-  deletedAt      DateTime?
+  id               String           @id @default(cuid())
+  orgId            String
+  title            String
+  status           CampaignStatus   @default(DRAFT)
+  campaignType     CampaignType     @default(BUDGET_BASED)
+  typeConfig       Json?            // shape varies per CampaignType + payout model
+  enrollmentOpen   Boolean          @default(false)
+  thumbnailUrl     String?
+  budget           Float?
+  currency         Currency         @default(USD)
+  notes            String?
+  clientId         String?
+  folderId         String?
+  createdById      String
+  // Payment & approval config
+  paymentMode      PaymentMode      @default(SELF_MANAGED)
+  paymentRelease   PaymentRelease   @default(MANUAL)
+  postApprovalMode PostApprovalMode @default(MANUAL)
+  depositStatus    DepositStatus?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  deletedAt        DateTime?
 
-  org          Organization         @relation(fields: [orgId], references: [id])
-  client       Client?              @relation(fields: [clientId], references: [id])
-  folder       Folder?              @relation(fields: [folderId], references: [id])
-  teamMembers  CampaignTeamMember[]
-  tags         CampaignTag[]
-  posts        Post[]
-  activations  Activation[]
-  brief        CreativeBrief?
-  analytics    AnalyticsModule[]
-  financials   CampaignFinancials?
-  documents    Document[]
-  comments     CampaignComment[]
-  activityLogs ActivityLog[]
-  payouts      Payout[]
-  reports      Report[]
+  org            Organization         @relation(fields: [orgId], references: [id])
+  client         Client?              @relation(fields: [clientId], references: [id])
+  folder         Folder?              @relation(fields: [folderId], references: [id])
+  teamMembers    CampaignTeamMember[]
+  tags           CampaignTag[]
+  posts          Post[]
+  activations    Activation[]
+  brief          CreativeBrief?
+  analytics      AnalyticsModule[]
+  financials     CampaignFinancials?
+  documents      Document[]
+  comments       CampaignComment[]
+  activityLogs   ActivityLog[]
+  payouts        Payout[]
+  reports        Report[]
+  deposit        CampaignDeposit?
+  campaignInvites CampaignInvite[]
+  payoutRequests PayoutRequest[]
+  negotiations   NegotiationOffer[]
 }
 
 model CampaignTeamMember {
@@ -371,33 +465,39 @@ model Activation {
 
   campaign Campaign @relation(fields: [campaignId], references: [id])
   creator  Creator  @relation(fields: [creatorId], references: [id])
+  posts    Post[]
 }
 
 // ─── Posts & Social Metrics ───────────────────────────────────────────────────
 
 model Post {
-  id             String   @id @default(cuid())
+  id             String     @id @default(cuid())
   campaignId     String
   creatorId      String
+  activationId   String?
   platform       Platform
   platformPostId String
   postUrl        String
   thumbnailUrl   String?
   caption        String?
+  mediaType      MediaType?
   postedAt       DateTime
-  viewsCount     Int      @default(0)
-  likesCount     Int      @default(0)
-  commentsCount  Int      @default(0)
-  sharesCount    Int      @default(0)
-  downloadsCount Int      @default(0)
-  engagementRate Float    @default(0)
+  viewsCount     Int        @default(0)
+  likesCount     Int        @default(0)
+  commentsCount  Int        @default(0)
+  sharesCount    Int        @default(0)
+  downloadsCount Int        @default(0)
+  engagementRate Float      @default(0)
+  status         PostStatus @default(PENDING_REVIEW)
+  rejectionReason String?
   lastSyncedAt   DateTime?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
 
-  campaign  Campaign              @relation(fields: [campaignId], references: [id])
-  creator   Creator               @relation(fields: [creatorId], references: [id])
-  snapshots PostMetricSnapshot[]
+  campaign   Campaign              @relation(fields: [campaignId], references: [id])
+  creator    Creator               @relation(fields: [creatorId], references: [id])
+  activation Activation?           @relation(fields: [activationId], references: [id])
+  snapshots  PostMetricSnapshot[]
 }
 
 model PostMetricSnapshot {
@@ -637,6 +737,78 @@ model MediaKit {
   org Organization @relation(fields: [orgId], references: [id])
 
   @@unique([orgId, slug])
+}
+
+// ─── Payments ─────────────────────────────────────────────────────────────────
+
+model CampaignDeposit {
+  id               String                @id @default(cuid())
+  orgId            String
+  campaignId       String                @unique
+  amountRequested  Float
+  amountUsd        Float
+  currency         String
+  gateway          PaymentGateway
+  method           DepositPaymentMethod?
+  gatewayOrderId   String?
+  gatewayPaymentId String?
+  status           DepositStatus         @default(PENDING)
+  releasedAmount   Float                 @default(0)
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+
+  campaign Campaign      @relation(fields: [campaignId], references: [id])
+  org      Organization  @relation(fields: [orgId], references: [id])
+}
+
+model PayoutRequest {
+  id              String              @id @default(cuid())
+  orgId           String
+  campaignId      String
+  creatorId       String
+  requestedAmount Float
+  currency        String              @default("USD")
+  status          PayoutRequestStatus @default(PENDING)
+  rejectionReason String?
+  processedAt     DateTime?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  campaign Campaign @relation(fields: [campaignId], references: [id])
+}
+
+model NegotiationOffer {
+  id           String            @id @default(cuid())
+  campaignId   String
+  creatorId    String
+  orgId        String
+  offeredRate  Float
+  counterRate  Float?
+  currency     String            @default("USD")
+  status       NegotiationStatus @default(PENDING)
+  notes        String?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  campaign Campaign @relation(fields: [campaignId], references: [id])
+}
+
+// ─── Campaign Invites ─────────────────────────────────────────────────────────
+
+model CampaignInvite {
+  id          String        @id @default(cuid())
+  orgId       String
+  campaignId  String
+  creatorId   String
+  channel     InviteChannel @default(LINK)
+  inviteToken String        @unique @default(cuid())
+  status      InviteStatus  @default(PENDING)
+  sentAt      DateTime?
+  respondedAt DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  campaign Campaign @relation(fields: [campaignId], references: [id])
 }
 
 // ─── Audit ────────────────────────────────────────────────────────────────────
