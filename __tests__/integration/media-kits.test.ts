@@ -5,13 +5,16 @@
  */
 import { NextRequest } from "next/server";
 import { GET, POST } from "@/app/api/media-kits/route";
+import { DELETE as DELETE_MEDIA_KIT } from "@/app/api/media-kits/[id]/route";
 
 jest.mock("@/lib/db", () => ({
   db: {
     mediaKit: {
       findMany: jest.fn(),
       findUnique: jest.fn(),
+      findFirst: jest.fn(),
       create: jest.fn(),
+      delete: jest.fn(),
     },
   },
 }));
@@ -20,11 +23,18 @@ jest.mock("@/lib/auth", () => ({
   auth: jest.fn(),
 }));
 
+jest.mock("@/lib/entitlements", () => ({
+  getOrgEntitlements: jest.fn(),
+  hasOrgFeature: jest.fn((entitlements, feature) => entitlements?.featureMap?.[feature] === true),
+}));
+
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
+import { getOrgEntitlements } from "@/lib/entitlements";
 
 const mockAuth = auth as jest.Mock;
 const mockDb = db as any;
+const mockGetOrgEntitlements = getOrgEntitlements as jest.Mock;
 
 const authedSession = { user: { id: "user-1", orgId: "org-1" } };
 
@@ -36,6 +46,12 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockAuth.mockResolvedValue(authedSession);
   mockDb.mediaKit.findUnique.mockResolvedValue(null);
+  mockGetOrgEntitlements.mockResolvedValue({
+    planName: "pro",
+    featureMap: {
+      media_kits: true,
+    },
+  });
 });
 
 // ─── GET /api/media-kits ──────────────────────────────────────────────────────
@@ -70,6 +86,19 @@ describe("GET /api/media-kits", () => {
 
     expect(res.status).toBe(200);
     expect(body).toEqual(mockKits);
+  });
+
+  it("returns 403 when media kits are disabled for the org", async () => {
+    mockGetOrgEntitlements.mockResolvedValue({
+      planName: "starter",
+      featureMap: {
+        media_kits: false,
+      },
+    });
+
+    const res = await GET();
+    expect(res.status).toBe(403);
+    expect(mockDb.mediaKit.findMany).not.toHaveBeenCalled();
   });
 
   it("scopes query to authenticated org only", async () => {
@@ -146,6 +175,24 @@ describe("POST /api/media-kits", () => {
 
     expect(res.status).toBe(201);
     expect(body.title).toBe("Summer Creators");
+  });
+
+  it("returns 403 when media kits are disabled for the org", async () => {
+    mockGetOrgEntitlements.mockResolvedValue({
+      planName: "starter",
+      featureMap: {
+        media_kits: false,
+      },
+    });
+
+    const req = makeRequest("http://localhost/api/media-kits", {
+      method: "POST",
+      body: JSON.stringify({ title: "Summer Creators", creatorIds: ["creator-1", "creator-2"] }),
+      headers: { "Content-Type": "application/json" },
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(403);
+    expect(mockDb.mediaKit.create).not.toHaveBeenCalled();
   });
 
   it("returns 400 when title is missing", async () => {
@@ -288,5 +335,69 @@ describe("POST /api/media-kits", () => {
     expect(callArgs.data.slug).toMatch(/^[a-z0-9-]+$/);
     expect(callArgs.data.slug).not.toContain(":");
     expect(callArgs.data.slug).not.toContain("!");
+  });
+});
+
+// ─── DELETE /api/media-kits/[id] ────────────────────────────────────────────
+
+describe("DELETE /api/media-kits/[id]", () => {
+  beforeEach(() => {
+    mockDb.mediaKit.findFirst.mockResolvedValue({
+      id: "kit-1",
+      orgId: "org-1",
+      title: "Kit",
+      slug: "kit",
+      shareToken: "tok",
+      isPublic: false,
+      creatorIds: [],
+      config: {},
+      createdAt: new Date().toISOString(),
+    });
+    mockDb.mediaKit.delete.mockResolvedValue({});
+  });
+
+  it("returns 401 when not authenticated", async () => {
+    mockAuth.mockResolvedValue(null);
+    const res = await DELETE_MEDIA_KIT(new NextRequest("http://localhost/api/media-kits/kit-1"), {
+      params: Promise.resolve({ id: "kit-1" }),
+    } as any);
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 403 when media kits are disabled for the org", async () => {
+    mockGetOrgEntitlements.mockResolvedValue({
+      planName: "starter",
+      featureMap: {
+        media_kits: false,
+      },
+    });
+
+    const res = await DELETE_MEDIA_KIT(new NextRequest("http://localhost/api/media-kits/kit-1"), {
+      params: Promise.resolve({ id: "kit-1" }),
+    } as any);
+    expect(res.status).toBe(403);
+    expect(mockDb.mediaKit.findFirst).not.toHaveBeenCalled();
+  });
+
+  it("returns 404 for missing or foreign kits", async () => {
+    mockDb.mediaKit.findFirst.mockResolvedValueOnce(null);
+
+    const res = await DELETE_MEDIA_KIT(new NextRequest("http://localhost/api/media-kits/kit-1"), {
+      params: Promise.resolve({ id: "kit-1" }),
+    } as any);
+
+    expect(res.status).toBe(404);
+    expect(mockDb.mediaKit.delete).not.toHaveBeenCalled();
+  });
+
+  it("deletes the owned kit and returns success", async () => {
+    const res = await DELETE_MEDIA_KIT(new NextRequest("http://localhost/api/media-kits/kit-1"), {
+      params: Promise.resolve({ id: "kit-1" }),
+    } as any);
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.success).toBe(true);
+    expect(mockDb.mediaKit.delete).toHaveBeenCalledWith({ where: { id: "kit-1" } });
   });
 });

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { getOrgEntitlements, hasOrgFeature } from "@/lib/entitlements";
 
 function slugify(text: string): string {
   return text
@@ -16,6 +17,10 @@ export async function GET() {
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const orgId = (session.user as any).orgId as string;
+  const entitlements = await getOrgEntitlements(orgId);
+  if (!hasOrgFeature(entitlements, "media_kits")) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   const kits = await db.mediaKit.findMany({
     where: { orgId },
@@ -31,6 +36,10 @@ export async function POST(request: NextRequest) {
 
   const orgId = (session.user as any).orgId as string;
   const userId = session.user.id!;
+  const entitlements = await getOrgEntitlements(orgId);
+  if (!hasOrgFeature(entitlements, "media_kits")) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   const body = await request.json();
   const { title, creatorIds, config } = body;

@@ -35,18 +35,24 @@
 - Added/updated hybrid nav validation:
   - `__tests__/unit/lib/dashboardPolicy.test.ts`
   - `e2e/navigation.spec.ts` hardened for org-specific nav configuration
+- Gated remaining org-level content APIs by canonical entitlements:
+  - `GET/POST /api/reports`
+  - `GET/PATCH/DELETE /api/reports/[id]`
+  - `GET/POST /api/media-kits`
+  - new `DELETE /api/media-kits/[id]`
+- Added lean route coverage for reports/media kits and the new delete route
 
 ---
 
 ## Next:
-**Finish entitlement migration for non-sidebar org-level gates**
+**Clean up remaining dashboard config consumers and UI warning**
 
 ### Exact steps:
-1. Sweep remaining org-level checks (outside sidebar/layout) that still infer capability from legacy plan semantics.
-2. Standardize those checks on `getOrgEntitlements(orgId)` + `featureMap`.
-3. Keep client-level `Plan` model untouched (assignment, overrides, plan CRUD remain separate).
-4. Add lean regression tests (`401`, `403`, happy path`) only for routes/pages changed in this sweep.
-5. Remove duplicate local nav gating logic if any reappears, keeping `lib/dashboardPolicy.ts` as source of truth.
+1. Replace remaining direct dashboard config reads with canonical entitlement helpers where appropriate.
+2. Fix the `/settings` server-component warning caused by inline event handlers.
+3. Keep client-level `Plan` behavior untouched.
+4. Add lean regression coverage only for pages/routes changed in that cleanup.
+5. Keep `lib/dashboardPolicy.ts` as the source of truth for hybrid nav gating.
 
 ## Context Files:
 - `lib/entitlements.ts`
@@ -55,19 +61,21 @@
 - `app/api/audit-logs/route.ts`
 - `app/(dashboard)/layout.tsx`
 - `components/NewSidebar.tsx`
+- `app/(dashboard)/dashboard/page.tsx`
+- `app/(dashboard)/settings/page.tsx`
 
 ## Blocker:
 None
 
 ## Test:
 Run:
-- `npx jest --config jest.integration.config.js --runInBand __tests__/integration/auditLogs.test.ts __tests__/integration/auditLogSettings.test.ts`
+- `npx jest --config jest.integration.config.js --runInBand __tests__/integration/reports.test.ts __tests__/integration/media-kits.test.ts`
 - `npm run build`
 - `PORT=3009 npx playwright test --config=playwright.config.ts`
 
 Manual smoke:
-- Visit `/audit-log` and verify filters + pagination load
-- Visit `/settings` and open `/settings/billing`
+- Visit `/reports` and `/media-kits` to ensure feature-gated actions are hidden when disabled
+- Visit `/settings` and confirm the billing card still loads
 
 ---
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { getOrgEntitlements, hasAnyOrgFeature } from "@/lib/entitlements";
 import { hasPermission } from "@/lib/rbac";
 
 export async function GET(
@@ -11,6 +12,10 @@ export async function GET(
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const orgId = (session.user as any).orgId as string;
+  const entitlements = await getOrgEntitlements(orgId);
+  if (!hasAnyOrgFeature(entitlements, ["reports", "basic_reports", "advanced_reports"])) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
   const { id } = await params;
 
   const report = await db.report.findFirst({
@@ -31,6 +36,10 @@ export async function PATCH(
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const orgId = (session.user as any).orgId as string;
+  const entitlements = await getOrgEntitlements(orgId);
+  if (!hasAnyOrgFeature(entitlements, ["reports", "basic_reports", "advanced_reports"])) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
   const { id } = await params;
 
   const existing = await db.report.findFirst({ where: { id, orgId } });
@@ -62,6 +71,10 @@ export async function DELETE(
 
   const orgId = (session.user as any).orgId as string;
   const role = (session.user as any).role as string;
+  const entitlements = await getOrgEntitlements(orgId);
+  if (!hasAnyOrgFeature(entitlements, ["reports", "basic_reports", "advanced_reports"])) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
   const { id } = await params;
 
   if (!hasPermission(role, "reports:*")) {

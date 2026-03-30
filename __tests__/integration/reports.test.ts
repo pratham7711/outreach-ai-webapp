@@ -5,13 +5,17 @@
  */
 import { NextRequest } from "next/server";
 import { GET, POST } from "@/app/api/reports/route";
+import { GET as GET_REPORT, PATCH as PATCH_REPORT, DELETE as DELETE_REPORT } from "@/app/api/reports/[id]/route";
 
 jest.mock("@/lib/db", () => ({
   db: {
     report: {
       findMany: jest.fn(),
       findUnique: jest.fn(),
+      findFirst: jest.fn(),
       create: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
     },
   },
 }));
@@ -20,11 +24,21 @@ jest.mock("@/lib/auth", () => ({
   auth: jest.fn(),
 }));
 
+jest.mock("@/lib/entitlements", () => ({
+  getOrgEntitlements: jest.fn(),
+  hasAnyOrgFeature: jest.fn((entitlements, features) =>
+    Array.isArray(features) && features.some((feature) => entitlements?.featureMap?.[feature] === true)
+  ),
+  hasOrgFeature: jest.fn((entitlements, feature) => entitlements?.featureMap?.[feature] === true),
+}));
+
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
+import { getOrgEntitlements } from "@/lib/entitlements";
 
 const mockAuth = auth as jest.Mock;
 const mockDb = db as any;
+const mockGetOrgEntitlements = getOrgEntitlements as jest.Mock;
 
 const authedSession = { user: { id: "user-1", orgId: "org-1" } };
 
@@ -35,6 +49,14 @@ function makeRequest(url: string, options?: RequestInit) {
 beforeEach(() => {
   jest.clearAllMocks();
   mockAuth.mockResolvedValue(authedSession);
+  mockGetOrgEntitlements.mockResolvedValue({
+    planName: "pro",
+    featureMap: {
+      reports: true,
+      basic_reports: true,
+      advanced_reports: true,
+    },
+  });
 });
 
 // ─── GET /api/reports ─────────────────────────────────────────────────────────
@@ -74,6 +96,21 @@ describe("GET /api/reports", () => {
         where: { orgId: "org-1" },
       })
     );
+  });
+
+  it("returns 403 when reports are disabled for the org", async () => {
+    mockGetOrgEntitlements.mockResolvedValue({
+      planName: "starter",
+      featureMap: {
+        reports: false,
+        basic_reports: false,
+        advanced_reports: false,
+      },
+    });
+
+    const res = await GET();
+    expect(res.status).toBe(403);
+    expect(mockDb.report.findMany).not.toHaveBeenCalled();
   });
 
   it("scopes query to the authenticated org only", async () => {
@@ -154,6 +191,26 @@ describe("POST /api/reports", () => {
 
     expect(res.status).toBe(201);
     expect(body.title).toBe("Campaign Report");
+  });
+
+  it("returns 403 when report features are disabled for the org", async () => {
+    mockGetOrgEntitlements.mockResolvedValue({
+      planName: "starter",
+      featureMap: {
+        reports: false,
+        basic_reports: false,
+        advanced_reports: false,
+      },
+    });
+
+    const req = makeRequest("http://localhost/api/reports", {
+      method: "POST",
+      body: JSON.stringify({ title: "Campaign Report" }),
+      headers: { "Content-Type": "application/json" },
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(403);
+    expect(mockDb.report.create).not.toHaveBeenCalled();
   });
 
   it("returns 400 when title is missing", async () => {
@@ -306,5 +363,56 @@ describe("POST /api/reports", () => {
 
     const callArgs = mockDb.report.create.mock.calls[0][0];
     expect(callArgs.data.config).toEqual(customConfig);
+  });
+});
+
+// ─── GET /api/reports/[id] ───────────────────────────────────────────────────
+
+describe("GET /api/reports/[id]", () => {
+  it("returns 401 without a session", async () => {
+    mockAuth.mockResolvedValue(null);
+    const res = await GET_REPORT(new NextRequest("http://localhost/api/reports/rep-1"), {
+      params: Promise.resolve({ id: "rep-1" }),
+    } as any);
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 403 when reports are disabled for the org", async () => {
+    mockGetOrgEntitlements.mockResolvedValue({
+      planName: "starter",
+      featureMap: {
+        reports: false,
+        basic_reports: false,
+        advanced_reports: false,
+      },
+    });
+
+    const res = await GET_REPORT(new NextRequest("http://localhost/api/reports/rep-1"), {
+      params: Promise.resolve({ id: "rep-1" }),
+    } as any);
+    expect(res.status).toBe(403);
+    expect(mockDb.report.findFirst).not.toHaveBeenCalled();
+  });
+
+  it("returns the owned report for the org", async () => {
+    mockDb.report.findFirst.mockResolvedValue({
+      id: "rep-1",
+      orgId: "org-1",
+      title: "Q1 Report",
+      slug: "q1-report",
+      shareToken: "tok-1",
+      isPublic: false,
+      config: {},
+      createdAt: new Date().toISOString(),
+      campaign: { id: "camp-1", title: "Campaign" },
+    });
+
+    const res = await GET_REPORT(new NextRequest("http://localhost/api/reports/rep-1"), {
+      params: Promise.resolve({ id: "rep-1" }),
+    } as any);
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.id).toBe("rep-1");
   });
 });

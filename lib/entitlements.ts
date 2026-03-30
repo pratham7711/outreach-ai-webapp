@@ -25,6 +25,25 @@ export type OrgEntitlements = {
   uiConfig: JsonObject | null;
 };
 
+export function hasOrgFeature(
+  entitlements: OrgEntitlements | null,
+  featureKeys: string | string[]
+): boolean {
+  if (!entitlements) return false;
+
+  const keys = Array.isArray(featureKeys) ? featureKeys : [featureKeys];
+  return keys.some((key) => entitlements.featureMap[key] === true);
+}
+
+export function hasAnyOrgFeature(
+  entitlements: OrgEntitlements | null,
+  featureKeys: string[]
+): boolean {
+  return hasOrgFeature(entitlements, featureKeys);
+}
+
+const AUDIT_LOG_FEATURE = "audit_log";
+
 function isPlanName(value: string): value is PlanName {
   return value in PLANS;
 }
@@ -63,7 +82,7 @@ export async function getOrgEntitlements(orgId: string): Promise<OrgEntitlements
     ...fallbackFeatureMap,
     ...configFeatureMap,
     // Audit log starts enabled unless explicitly disabled by the org toggle.
-    audit_log: configFeatureMap.audit_log ?? true,
+    [AUDIT_LOG_FEATURE]: configFeatureMap[AUDIT_LOG_FEATURE] ?? true,
   };
 
   return {
