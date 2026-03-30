@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { REPORTS_FEATURE_KEYS } from "@/lib/featureKeys";
 import { getOrgEntitlements, hasAnyOrgFeature } from "@/lib/entitlements";
 import { hasPermission } from "@/lib/rbac";
 
@@ -13,7 +14,7 @@ export async function GET(
 
   const orgId = (session.user as any).orgId as string;
   const entitlements = await getOrgEntitlements(orgId);
-  if (!hasAnyOrgFeature(entitlements, ["reports", "basic_reports", "advanced_reports"])) {
+  if (!hasAnyOrgFeature(entitlements, [...REPORTS_FEATURE_KEYS])) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   const { id } = await params;
@@ -37,7 +38,7 @@ export async function PATCH(
 
   const orgId = (session.user as any).orgId as string;
   const entitlements = await getOrgEntitlements(orgId);
-  if (!hasAnyOrgFeature(entitlements, ["reports", "basic_reports", "advanced_reports"])) {
+  if (!hasAnyOrgFeature(entitlements, [...REPORTS_FEATURE_KEYS])) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   const { id } = await params;
@@ -72,7 +73,7 @@ export async function DELETE(
   const orgId = (session.user as any).orgId as string;
   const role = (session.user as any).role as string;
   const entitlements = await getOrgEntitlements(orgId);
-  if (!hasAnyOrgFeature(entitlements, ["reports", "basic_reports", "advanced_reports"])) {
+  if (!hasAnyOrgFeature(entitlements, [...REPORTS_FEATURE_KEYS])) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   const { id } = await params;

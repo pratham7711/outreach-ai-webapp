@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { PLANS, type PlanName } from "@/lib/plans";
+import { AUDIT_LOG_FEATURE } from "@/lib/featureKeys";
 
 type JsonObject = Record<string, unknown>;
 
@@ -41,8 +42,6 @@ export function hasAnyOrgFeature(
 ): boolean {
   return hasOrgFeature(entitlements, featureKeys);
 }
-
-const AUDIT_LOG_FEATURE = "audit_log";
 
 function isPlanName(value: string): value is PlanName {
   return value in PLANS;

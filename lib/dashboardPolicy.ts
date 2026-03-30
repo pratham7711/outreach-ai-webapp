@@ -1,5 +1,10 @@
 import type { OrgEntitlements } from "@/lib/entitlements";
 import type { OrgUiConfig } from "@/lib/orgConfig";
+import {
+  AUDIT_LOG_FEATURE,
+  MEDIA_KITS_FEATURE,
+  REPORTS_FEATURE_KEYS,
+} from "@/lib/featureKeys";
 
 export type DashboardPolicyInput = {
   entitlements: OrgEntitlements | null;
@@ -37,14 +42,14 @@ export const DASHBOARD_NAV_RULES: DashboardNavRule[] = [
   { href: "/payouts", key: "payouts" },
   { href: "/requests", key: "requests" },
   { href: "/recipients", key: "recipients" },
-  { href: "/reports", key: "reports", featureKeys: ["reports", "basic_reports", "advanced_reports"] },
-  { href: "/media-kits", key: "media-kits", featureKeys: ["media_kits"] },
+  { href: "/reports", key: "reports", featureKeys: [...REPORTS_FEATURE_KEYS] },
+  { href: "/media-kits", key: "media-kits", featureKeys: [MEDIA_KITS_FEATURE] },
   { href: "/settings", alwaysVisible: true },
   { href: "/connections", alwaysVisible: true },
   { href: "/settings/team", alwaysVisible: true },
   { href: "/settings/api-keys", alwaysVisible: true },
   { href: "/settings/billing", alwaysVisible: true },
-  { href: "/audit-log", key: "audit-log", featureKeys: ["audit_log"] },
+  { href: "/audit-log", key: "audit-log", featureKeys: [AUDIT_LOG_FEATURE] },
   { href: "/admin", alwaysVisible: true },
   { href: "/plans", alwaysVisible: true },
 ];

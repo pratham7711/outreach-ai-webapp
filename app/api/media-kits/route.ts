@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { MEDIA_KITS_FEATURE } from "@/lib/featureKeys";
 import { getOrgEntitlements, hasOrgFeature } from "@/lib/entitlements";
 
 function slugify(text: string): string {
@@ -18,7 +19,7 @@ export async function GET() {
 
   const orgId = (session.user as any).orgId as string;
   const entitlements = await getOrgEntitlements(orgId);
-  if (!hasOrgFeature(entitlements, "media_kits")) {
+  if (!hasOrgFeature(entitlements, MEDIA_KITS_FEATURE)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -37,7 +38,7 @@ export async function POST(request: NextRequest) {
   const orgId = (session.user as any).orgId as string;
   const userId = session.user.id!;
   const entitlements = await getOrgEntitlements(orgId);
-  if (!hasOrgFeature(entitlements, "media_kits")) {
+  if (!hasOrgFeature(entitlements, MEDIA_KITS_FEATURE)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

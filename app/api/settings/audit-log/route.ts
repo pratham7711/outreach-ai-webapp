@@ -3,6 +3,7 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getOrgEntitlements } from "@/lib/entitlements";
+import { AUDIT_LOG_FEATURE } from "@/lib/featureKeys";
 import { hasPermission } from "@/lib/rbac";
 
 const ToggleSchema = z.object({
@@ -12,7 +13,7 @@ const ToggleSchema = z.object({
 function buildFeatureMap(base: Record<string, boolean>, enabled: boolean) {
   return {
     ...base,
-    audit_log: enabled,
+    [AUDIT_LOG_FEATURE]: enabled,
   };
 }
 
@@ -34,7 +35,7 @@ export async function GET() {
   }
 
   return NextResponse.json({
-    enabled: entitlements.featureMap.audit_log !== false,
+    enabled: entitlements.featureMap[AUDIT_LOG_FEATURE] !== false,
     plan: entitlements.planName,
   });
 }

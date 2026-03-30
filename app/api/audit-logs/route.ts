@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { AUDIT_LOG_FEATURE } from "@/lib/featureKeys";
 import { getOrgEntitlements } from "@/lib/entitlements";
 import { hasPermission } from "@/lib/rbac";
 
@@ -21,7 +22,7 @@ export async function GET(request: NextRequest) {
 
     const orgId = (session.user as any).orgId as string;
     const entitlements = await getOrgEntitlements(orgId);
-    if (!entitlements?.featureMap.audit_log) {
+    if (!entitlements?.featureMap[AUDIT_LOG_FEATURE]) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
