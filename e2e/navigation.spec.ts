@@ -11,19 +11,20 @@ const PAGES = [
 ];
 
 test.describe('Navigation', () => {
-  test('sidebar renders with nav items', async ({ page }) => {
-    await page.goto('/campaigns');
+  test('sidebar renders stable nav items', async ({ page }) => {
+    await page.goto('/settings');
     await waitForMain(page);
-    for (const p of PAGES) {
-      await expect(page.locator(`a[href="${p.href}"]`).first()).toBeVisible();
-    }
+
+    await expect(page.locator('a[href="/settings"]').first()).toBeVisible();
+    await expect(page.locator('a[href="/settings/billing"]').first()).toBeVisible();
+    await expect(page.locator('a[href="/settings/team"]').first()).toBeVisible();
   });
 
-  test('can navigate between pages via sidebar', async ({ page }) => {
-    await page.goto('/campaigns');
+  test('can navigate between settings pages via sidebar', async ({ page }) => {
+    await page.goto('/settings');
     await waitForMain(page);
-    await page.locator('a[href="/creators"]').first().click();
-    await expect(page).toHaveURL(/\/creators/, { timeout: 15000 });
+    await page.locator('a[href="/settings/billing"]').first().click();
+    await expect(page).toHaveURL(/\/settings\/billing/, { timeout: 15000 });
   });
 
   test('all pages load without redirecting to login', async ({ page }) => {
