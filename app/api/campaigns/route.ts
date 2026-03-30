@@ -4,20 +4,29 @@ import { auth } from "@/lib/auth";
 import { createAuditActor, logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
 import { z } from "zod";
-import type { CampaignStatus } from "@/lib/generated/prisma/client";
+import type { CampaignStatus, PaymentMode, PaymentRelease, PostApprovalMode } from "@/lib/generated/prisma/client";
 
 const CAMPAIGN_TYPES = ["BUDGET_BASED", "VIEW_BASED", "OPEN_COMMUNITY", "PRIVATE_INVITE"] as const;
+
+const PAYMENT_MODES = ["MANAGED", "SELF_MANAGED"] as const;
+const PAYMENT_RELEASES = ["MANUAL", "ON_POST_APPROVAL", "ON_CREATOR_REQUEST"] as const;
+const POST_APPROVAL_MODES = ["MANUAL", "AUTO_APPROVED"] as const;
 
 const createCampaignSchema = z.object({
   title: z.string().min(1).max(200),
   status: z.enum(["DRAFT", "PENDING", "IN_PROGRESS", "COMPLETE", "CANCELLED"]).optional(),
   campaignType: z.enum(CAMPAIGN_TYPES).optional(),
   typeConfig: z.any().nullable().optional(),
-  budget: z.number().positive().optional(),
+  budget: z.number().positive().nullable().optional(),
   currency: z.enum(["USD", "EUR", "GBP", "INR"]).optional(),
-  notes: z.string().optional(),
-  clientId: z.string().optional(),
-  folderId: z.string().optional(),
+  notes: z.string().nullable().optional(),
+  clientId: z.string().nullable().optional(),
+  folderId: z.string().nullable().optional(),
+  thumbnailUrl: z.string().nullable().optional(),
+  paymentMode: z.enum(PAYMENT_MODES).optional(),
+  paymentRelease: z.enum(PAYMENT_RELEASES).optional(),
+  postApprovalMode: z.enum(POST_APPROVAL_MODES).optional(),
+  enrollmentOpen: z.boolean().optional(),
 });
 
 // GET /api/campaigns - List campaigns with filters and pagination
@@ -101,7 +110,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { title, status, campaignType, typeConfig, budget, currency, notes, clientId, folderId } = parsed.data;
+    const { title, status, campaignType, typeConfig, budget, currency, notes, clientId, folderId, thumbnailUrl, paymentMode, paymentRelease, postApprovalMode, enrollmentOpen } = parsed.data;
 
     const campaign = await db.campaign.create({
       data: {
@@ -114,6 +123,11 @@ export async function POST(request: NextRequest) {
         notes: notes ?? null,
         clientId: clientId ?? null,
         folderId: folderId ?? null,
+        thumbnailUrl: thumbnailUrl ?? null,
+        paymentMode: (paymentMode ?? "SELF_MANAGED") as PaymentMode,
+        paymentRelease: (paymentRelease ?? "MANUAL") as PaymentRelease,
+        postApprovalMode: (postApprovalMode ?? "MANUAL") as PostApprovalMode,
+        enrollmentOpen: enrollmentOpen ?? false,
         orgId,
         createdById: session.user.id!,
       },

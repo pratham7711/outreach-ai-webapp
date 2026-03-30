@@ -185,6 +185,41 @@ describe('POST /api/campaigns', () => {
     const res = await POST(req);
     expect(res.status).toBe(500);
   });
+
+  it('creates campaign with paymentMode field', async () => {
+    const campaign = {
+      id: 'camp-pm',
+      title: 'Managed Campaign',
+      status: 'DRAFT',
+      paymentMode: 'MANAGED',
+      tags: [],
+      teamMembers: [],
+      _count: { activations: 0, posts: 0 },
+    };
+    mockDb.campaign.create.mockResolvedValue(campaign);
+
+    const req = makeRequest('http://localhost/api/campaigns', {
+      method: 'POST',
+      body: JSON.stringify({
+        title: 'Managed Campaign',
+        paymentMode: 'MANAGED',
+        paymentRelease: 'ON_POST_APPROVAL',
+        postApprovalMode: 'AUTO_APPROVED',
+      }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(201);
+    expect(mockDb.campaign.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          paymentMode: 'MANAGED',
+          paymentRelease: 'ON_POST_APPROVAL',
+          postApprovalMode: 'AUTO_APPROVED',
+        }),
+      })
+    );
+  });
 });
 
 // ─── GET /api/campaigns/[id] ──────────────────────────────────────────────────

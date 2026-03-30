@@ -7,6 +7,10 @@ import { z } from "zod";
 
 const CAMPAIGN_TYPES = ["BUDGET_BASED", "VIEW_BASED", "OPEN_COMMUNITY", "PRIVATE_INVITE"] as const;
 
+const PAYMENT_MODES = ["MANAGED", "SELF_MANAGED"] as const;
+const PAYMENT_RELEASES = ["MANUAL", "ON_POST_APPROVAL", "ON_CREATOR_REQUEST"] as const;
+const POST_APPROVAL_MODES = ["MANUAL", "AUTO_APPROVED"] as const;
+
 const updateCampaignSchema = z.object({
   title: z.string().min(1).max(200).optional(),
   status: z.enum(["DRAFT", "PENDING", "IN_PROGRESS", "COMPLETE", "CANCELLED"]).optional(),
@@ -18,6 +22,10 @@ const updateCampaignSchema = z.object({
   clientId: z.string().nullable().optional(),
   folderId: z.string().nullable().optional(),
   thumbnailUrl: z.string().nullable().optional(),
+  paymentMode: z.enum(PAYMENT_MODES).optional(),
+  paymentRelease: z.enum(PAYMENT_RELEASES).optional(),
+  postApprovalMode: z.enum(POST_APPROVAL_MODES).optional(),
+  enrollmentOpen: z.boolean().optional(),
 });
 
 // GET /api/campaigns/[id]

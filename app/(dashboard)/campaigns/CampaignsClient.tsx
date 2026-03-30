@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Plus, Search, MoreVertical, Share2, FolderOpen, ChevronDown } from "lucide-react";
 import Link from "next/link";
 import { Button, Card, Badge, Input, EmptyState, Avatar, Tooltip } from "@pratham7711/ui";
-import NewCampaignModal from "@/components/modals/NewCampaignModal";
+import CampaignWizard from "@/components/modals/CampaignWizard";
 
 type Campaign = {
   id: string;
@@ -276,7 +276,7 @@ export default function CampaignsClient({
         )}
       </Card>
 
-      {showModal && <NewCampaignModal clients={clients} onClose={() => setShowModal(false)} />}
+      {showModal && <CampaignWizard clients={clients} onClose={() => setShowModal(false)} />}
     </div>
   );
 }

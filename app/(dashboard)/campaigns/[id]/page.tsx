@@ -2,6 +2,7 @@
 import { useState, useEffect, use } from "react";
 import { motion } from "framer-motion";
 import { Card, Badge, Button, StatCard, EmptyState, Avatar, Skeleton, Modal } from "@pratham7711/ui";
+import PostsTab from "./PostsTab";
 import {
   ArrowLeft, Eye, Heart, MessageCircle, Share2, TrendingUp, Users,
   Calendar, Play, ChevronRight, ExternalLink, DollarSign, UserPlus,
@@ -393,52 +394,9 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
           </div>
         )}
 
-        {/* Posts Tab — Real Data */}
+        {/* Posts Tab */}
         {activeTab === "posts" && (
-          campaign.posts.length === 0 ? (
-            <EmptyState icon="📹" title="No posts yet" description="Posts will appear here when synced from social platforms." />
-          ) : (
-            <Card variant="solid" noPadding>
-              <div style={{
-                display: "grid", gridTemplateColumns: "1fr 100px 90px 80px 80px 80px 70px",
-                gap: 12, padding: "12px 24px", borderBottom: "1px solid var(--cc-border)", background: "var(--cc-bg)",
-              }}>
-                {["Post", "Platform", "Views", "Likes", "Comments", "Shares", "Eng %"].map(h => (
-                  <span key={h} style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--cc-text-subtle)" }}>{h}</span>
-                ))}
-              </div>
-              <div className="cc-stagger">
-                {campaign.posts.map((post, i) => (
-                  <a
-                    key={post.id}
-                    href={post.postUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{
-                      textDecoration: "none", display: "grid",
-                      gridTemplateColumns: "1fr 100px 90px 80px 80px 80px 70px",
-                      gap: 12, padding: "14px 24px", alignItems: "center",
-                      borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined,
-                    }}
-                    className="cc-table-row"
-                  >
-                    <div>
-                      <p style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {post.caption?.slice(0, 50) ?? "Untitled"} <ExternalLink size={11} style={{ opacity: 0.4 }} />
-                      </p>
-                      <p style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{new Date(post.postedAt).toLocaleDateString()}</p>
-                    </div>
-                    <Badge variant="neutral" style={{ fontSize: 11 }}>{post.platform}</Badge>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>{formatNumber(post.viewsCount)}</span>
-                    <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{formatNumber(post.likesCount)}</span>
-                    <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{formatNumber(post.commentsCount)}</span>
-                    <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{formatNumber(post.sharesCount)}</span>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-primary)" }}>{post.engagementRate.toFixed(1)}%</span>
-                  </a>
-                ))}
-              </div>
-            </Card>
-          )
+          <PostsTab campaignId={id} postApprovalMode={(campaign as any).postApprovalMode ?? "MANUAL"} />
         )}
 
         {/* Creators Tab */}
