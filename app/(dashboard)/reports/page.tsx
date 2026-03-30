@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { Plus } from "lucide-react";
 import { Button, Modal, Input, Badge, EmptyState, Card, LoadingSpinner } from "@pratham7711/ui";
 
@@ -17,13 +18,32 @@ interface Report {
 export default function ReportsPage() {
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
+  const [featureDisabled, setFeatureDisabled] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [creating, setCreating] = useState(false);
 
   async function fetchReports() {
-    const res = await fetch("/api/reports");
-    if (res.ok) setReports(await res.json());
+    try {
+      const res = await fetch("/api/reports");
+      if (res.status === 403) {
+        setFeatureDisabled(true);
+        setError(null);
+        setReports([]);
+        setLoading(false);
+        return;
+      }
+      if (res.ok) {
+        setFeatureDisabled(false);
+        setError(null);
+        setReports(await res.json());
+      } else {
+        setError("We couldn't load reports right now.");
+      }
+    } catch {
+      setError("We couldn't load reports right now.");
+    }
     setLoading(false);
   }
 
@@ -32,32 +52,71 @@ export default function ReportsPage() {
   async function createReport(e: React.FormEvent) {
     e.preventDefault();
     setCreating(true);
-    const res = await fetch("/api/reports", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title }),
-    });
-    if (res.ok) {
-      setTitle("");
-      setOpen(false);
-      await fetchReports();
+    try {
+      const res = await fetch("/api/reports", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title }),
+      });
+      if (res.status === 403) {
+        setFeatureDisabled(true);
+        setError(null);
+        setOpen(false);
+        setCreating(false);
+        return;
+      }
+      if (res.ok) {
+        setTitle("");
+        setOpen(false);
+        await fetchReports();
+      } else {
+        setError("We couldn't create that report right now.");
+      }
+    } catch {
+      setError("We couldn't create that report right now.");
     }
     setCreating(false);
   }
 
   async function togglePublic(report: Report) {
-    await fetch(`/api/reports/${report.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ isPublic: !report.isPublic }),
-    });
-    await fetchReports();
+    try {
+      const res = await fetch(`/api/reports/${report.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isPublic: !report.isPublic }),
+      });
+      if (res.status === 403) {
+        setFeatureDisabled(true);
+        setError(null);
+        return;
+      }
+      if (!res.ok) {
+        setError("We couldn't update that report right now.");
+        return;
+      }
+      await fetchReports();
+    } catch {
+      setError("We couldn't update that report right now.");
+    }
   }
 
   async function deleteReport(id: string) {
     if (!confirm("Delete this report?")) return;
-    await fetch(`/api/reports/${id}`, { method: "DELETE" });
-    await fetchReports();
+    try {
+      const res = await fetch(`/api/reports/${id}`, { method: "DELETE" });
+      if (res.status === 403) {
+        setFeatureDisabled(true);
+        setError(null);
+        return;
+      }
+      if (!res.ok) {
+        setError("We couldn't delete that report right now.");
+        return;
+      }
+      await fetchReports();
+    } catch {
+      setError("We couldn't delete that report right now.");
+    }
   }
 
   return (
@@ -76,6 +135,57 @@ export default function ReportsPage() {
         <div style={{ display: "flex", justifyContent: "center", padding: 48 }}>
           <LoadingSpinner size={24} />
         </div>
+      ) : featureDisabled ? (
+        <Card variant="outlined" noPadding>
+          <div style={{ padding: 24 }}>
+            <EmptyState
+              icon="🔒"
+              title="Reports are disabled"
+              description="Enable the reports feature in Billing to create and manage reports for this organization."
+              action={
+                <Link
+                  href="/settings/billing"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: "10px 16px",
+                    borderRadius: 10,
+                    background: "var(--cc-primary)",
+                    color: "white",
+                    fontSize: 14,
+                    fontWeight: 600,
+                    textDecoration: "none",
+                  }}
+                >
+                  Open Billing
+                </Link>
+              }
+            />
+          </div>
+        </Card>
+      ) : error ? (
+        <Card variant="outlined" noPadding>
+          <div style={{ padding: 24 }}>
+            <EmptyState
+              icon="⚠️"
+              title="Reports couldn't load"
+              description={error}
+              action={
+                <Button
+                  variant="primary"
+                  onClick={() => {
+                    setError(null);
+                    setLoading(true);
+                    fetchReports();
+                  }}
+                >
+                  Try Again
+                </Button>
+              }
+            />
+          </div>
+        </Card>
       ) : reports.length === 0 ? (
         <EmptyState
           icon="📊"

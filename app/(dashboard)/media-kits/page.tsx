@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { Plus } from "lucide-react";
 import { Button, Modal, Input, EmptyState, Card, Badge, LoadingSpinner } from "@pratham7711/ui";
 
@@ -17,13 +18,32 @@ interface MediaKit {
 export default function MediaKitsPage() {
   const [kits, setKits] = useState<MediaKit[]>([]);
   const [loading, setLoading] = useState(true);
+  const [featureDisabled, setFeatureDisabled] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [creating, setCreating] = useState(false);
 
   async function fetchKits() {
-    const res = await fetch("/api/media-kits");
-    if (res.ok) setKits(await res.json());
+    try {
+      const res = await fetch("/api/media-kits");
+      if (res.status === 403) {
+        setFeatureDisabled(true);
+        setError(null);
+        setKits([]);
+        setLoading(false);
+        return;
+      }
+      if (res.ok) {
+        setFeatureDisabled(false);
+        setError(null);
+        setKits(await res.json());
+      } else {
+        setError("We couldn't load media kits right now.");
+      }
+    } catch {
+      setError("We couldn't load media kits right now.");
+    }
     setLoading(false);
   }
 
@@ -32,23 +52,49 @@ export default function MediaKitsPage() {
   async function createKit(e: React.FormEvent) {
     e.preventDefault();
     setCreating(true);
-    const res = await fetch("/api/media-kits", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title, creatorIds: [] }),
-    });
-    if (res.ok) {
-      setTitle("");
-      setOpen(false);
-      await fetchKits();
+    try {
+      const res = await fetch("/api/media-kits", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, creatorIds: [] }),
+      });
+      if (res.status === 403) {
+        setFeatureDisabled(true);
+        setError(null);
+        setOpen(false);
+        setCreating(false);
+        return;
+      }
+      if (res.ok) {
+        setTitle("");
+        setOpen(false);
+        await fetchKits();
+      } else {
+        setError("We couldn't create that media kit right now.");
+      }
+    } catch {
+      setError("We couldn't create that media kit right now.");
     }
     setCreating(false);
   }
 
   async function deleteKit(id: string) {
     if (!confirm("Delete this media kit?")) return;
-    await fetch(`/api/media-kits/${id}`, { method: "DELETE" });
-    await fetchKits();
+    try {
+      const res = await fetch(`/api/media-kits/${id}`, { method: "DELETE" });
+      if (res.status === 403) {
+        setFeatureDisabled(true);
+        setError(null);
+        return;
+      }
+      if (!res.ok) {
+        setError("We couldn't delete that media kit right now.");
+        return;
+      }
+      await fetchKits();
+    } catch {
+      setError("We couldn't delete that media kit right now.");
+    }
   }
 
   return (
@@ -67,6 +113,57 @@ export default function MediaKitsPage() {
         <div style={{ display: "flex", justifyContent: "center", padding: 48 }}>
           <LoadingSpinner size={24} />
         </div>
+      ) : featureDisabled ? (
+        <Card variant="outlined" noPadding>
+          <div style={{ padding: 24 }}>
+            <EmptyState
+              icon="🔒"
+              title="Media kits are disabled"
+              description="Enable the media kits feature in Billing to create and manage shareable media kits."
+              action={
+                <Link
+                  href="/settings/billing"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: "10px 16px",
+                    borderRadius: 10,
+                    background: "var(--cc-primary)",
+                    color: "white",
+                    fontSize: 14,
+                    fontWeight: 600,
+                    textDecoration: "none",
+                  }}
+                >
+                  Open Billing
+                </Link>
+              }
+            />
+          </div>
+        </Card>
+      ) : error ? (
+        <Card variant="outlined" noPadding>
+          <div style={{ padding: 24 }}>
+            <EmptyState
+              icon="⚠️"
+              title="Media kits couldn't load"
+              description={error}
+              action={
+                <Button
+                  variant="primary"
+                  onClick={() => {
+                    setError(null);
+                    setLoading(true);
+                    fetchKits();
+                  }}
+                >
+                  Try Again
+                </Button>
+              }
+            />
+          </div>
+        </Card>
       ) : kits.length === 0 ? (
         <EmptyState
           icon="📁"
