@@ -2,7 +2,8 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { getOrgEntitlements } from "@/lib/entitlements";
+import { getOrgEntitlements, hasOrgFeature } from "@/lib/entitlements";
+import { AUDIT_LOG_FEATURE } from "@/lib/featureKeys";
 import { Badge, Card, EmptyState } from "@pratham7711/ui";
 import AuditLogClient from "./AuditLogClient";
 
@@ -16,7 +17,7 @@ export default async function AuditLogPage() {
   const entitlements = await getOrgEntitlements(orgId);
   if (!entitlements) redirect("/login");
 
-  const auditLogEnabled = Boolean(entitlements.featureMap.audit_log);
+  const auditLogEnabled = hasOrgFeature(entitlements, AUDIT_LOG_FEATURE);
 
   if (!auditLogEnabled) {
     return (

@@ -51,17 +51,21 @@
   - media-kits routes
   - audit logging writer helper
 - Verified no behavior change while reducing gate-key drift risk across API/page/sidebar layers
+- Completed final org-level UI entitlement residual sweep:
+  - `/audit-log` page now uses `hasOrgFeature(..., AUDIT_LOG_FEATURE)`
+  - `/settings/billing` audit-toggle initial state now uses canonical entitlement helper/constants
+  - removed direct `entitlements.featureMap.audit_log` reads from dashboard pages
 
 ---
 
 ## Next:
-**Close final entitlement residuals and document source-of-truth boundaries**
+**Document source-of-truth boundaries and continue org-level entitlement cleanup (non-client-plan)**
 
 ### Exact steps:
-1. Final sweep for any non-client-plan org capability checks not yet routed through entitlement helpers/constants.
-2. Keep client-level `Plan` behavior untouched.
-3. Decide and document whether `lib/orgConfig.ts` remains a standalone accessor or is treated as entitlements-backed legacy helper.
-4. Add lean regression coverage only where behavior changes in this final sweep.
+1. Decide and document whether `lib/orgConfig.ts` remains a standalone accessor or is treated as entitlements-backed legacy helper.
+2. Sweep remaining non-client-plan org capability checks for helper/constants conformance.
+3. Keep client-level `Plan` behavior untouched.
+4. Add lean regression coverage only where behavior changes.
 5. Keep `lib/dashboardPolicy.ts` as source of truth for hybrid nav gating.
 
 ## Context Files:
@@ -79,7 +83,7 @@ None
 
 ## Test:
 Run:
-- `npx jest --config jest.integration.config.js --runInBand __tests__/integration/reports.test.ts __tests__/integration/media-kits.test.ts`
+- `npx jest --config jest.integration.config.js --runInBand __tests__/integration/reports.test.ts __tests__/integration/media-kits.test.ts __tests__/integration/auditLogs.test.ts __tests__/integration/auditLogSettings.test.ts`
 - `npm run build`
 - `PORT=3009 npx playwright test --config=playwright.config.ts`
 

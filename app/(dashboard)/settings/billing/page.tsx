@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
-import { getOrgEntitlements } from "@/lib/entitlements";
+import { getOrgEntitlements, hasOrgFeature } from "@/lib/entitlements";
+import { AUDIT_LOG_FEATURE } from "@/lib/featureKeys";
 import { BadgeDollarSign, CheckCircle2, Gauge, Layers3, Users } from "lucide-react";
 import type { ComponentType } from "react";
 import AuditLogToggleCard from "./AuditLogToggleCard";
@@ -90,7 +91,7 @@ export default async function BillingPage() {
 
       <div style={{ marginBottom: 20 }}>
         <AuditLogToggleCard
-          initialEnabled={Boolean(entitlements.featureMap.audit_log)}
+          initialEnabled={hasOrgFeature(entitlements, AUDIT_LOG_FEATURE)}
           planName={entitlements.planName}
         />
       </div>
