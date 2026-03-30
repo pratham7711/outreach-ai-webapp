@@ -210,6 +210,12 @@ model Organization {
   planExpiresAt  DateTime?
   currency       Currency  @default(USD)
   uiConfig       Json?     // OrgUIConfig — features, nav, branding, limits, dashboard widgets
+  // Bank account
+  bankAccountName   String?
+  bankAccountNumber String?
+  bankIFSC          String?
+  bankSwift         String?
+  bankRoutingNumber String?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
@@ -231,7 +237,9 @@ model Organization {
   planConfig       OrgPlanConfig?
   invites          UserInvite[]
   apiKeys          ApiKey[]
-  campaignDeposits CampaignDeposit[]
+  campaignDeposits    CampaignDeposit[]
+  creatorReviews      CreatorReview[]
+  creatorTestimonials CreatorTestimonial[]
 }
 
 model User {
@@ -307,7 +315,8 @@ model Campaign {
   status           CampaignStatus   @default(DRAFT)
   campaignType     CampaignType     @default(BUDGET_BASED)
   typeConfig       Json?            // shape varies per CampaignType + payout model
-  enrollmentOpen   Boolean          @default(false)
+  enrollmentOpen        Boolean               @default(false)
+  marketplaceVisibility MarketplaceVisibility @default(ROSTER_ONLY)
   thumbnailUrl     String?
   budget           Float?
   currency         Currency         @default(USD)
@@ -342,7 +351,10 @@ model Campaign {
   deposit        CampaignDeposit?
   campaignInvites CampaignInvite[]
   payoutRequests PayoutRequest[]
-  negotiations   NegotiationOffer[]
+  negotiations    NegotiationOffer[]
+  proposals       CampaignProposal[]
+  creatorReviews  CreatorReview[]
+  testimonials    CreatorTestimonial[]
 }
 
 model CampaignTeamMember {
@@ -394,6 +406,8 @@ model Creator {
   contactEmail   String?
   paymentInfo    String?
   rate           Float?
+  boostRate      Float?
+  niches         CreatorNiche[]
   notes          String?
   addedAt        DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
@@ -809,6 +823,119 @@ model CampaignInvite {
   updatedAt   DateTime      @updatedAt
 
   campaign Campaign @relation(fields: [campaignId], references: [id])
+}
+
+// ─── Marketplace: Creator Users (separate auth) ──────────────────────────────
+
+enum MarketplaceVisibility {
+  ROSTER_ONLY
+  PUBLIC
+}
+
+enum ProposalStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  WITHDRAWN
+}
+
+enum CreatorNiche {
+  MUSIC
+  FASHION
+  TECH
+  FITNESS
+  BEAUTY
+  FOOD
+  TRAVEL
+  GAMING
+  COMEDY
+  EDUCATION
+  LIFESTYLE
+  SPORTS
+}
+
+model CreatorUser {
+  id               String        @id @default(cuid())
+  email            String        @unique
+  passwordHash     String
+  name             String
+  handle           String        @unique
+  avatarUrl        String?
+  bio              String?
+  platform         Platform      @default(TIKTOK)
+  followersCount   Int           @default(0)
+  averageViews     Int           @default(0)
+  rate             Float?
+  boostRate        Float?
+  lifetimeEarnings Float         @default(0)
+  cpm              Float         @default(0)
+  averageRating    Float         @default(0)
+  reviewCount      Int           @default(0)
+  niches           CreatorNiche[]
+  // Bank account
+  bankAccountName   String?
+  bankAccountNumber String?
+  bankIFSC          String?
+  bankSwift         String?
+  bankRoutingNumber String?
+  // Lifecycle
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  sessions      CreatorSession[]
+  proposals     CampaignProposal[]
+  testimonials  CreatorTestimonial[]
+}
+
+model CreatorSession {
+  id             String   @id @default(cuid())
+  creatorUserId  String
+  token          String   @unique
+  expiresAt      DateTime
+  createdAt      DateTime @default(now())
+
+  creatorUser CreatorUser @relation(fields: [creatorUserId], references: [id])
+}
+
+model CampaignProposal {
+  id            String         @id @default(cuid())
+  campaignId    String
+  creatorUserId String
+  proposedRate  Float
+  currency      String         @default("USD")
+  status        ProposalStatus @default(PENDING)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  campaign    Campaign    @relation(fields: [campaignId], references: [id])
+  creatorUser CreatorUser @relation(fields: [creatorUserId], references: [id])
+}
+
+model CreatorReview {
+  id         String   @id @default(cuid())
+  orgId      String
+  campaignId String
+  creatorId  String   // references Creator (org-side), not CreatorUser
+  rating     Int      // 1-5
+  tags       Json?    // ["on_time", "high_quality", "creative", "responsive", "professional"]
+  comment    String?
+  createdAt  DateTime @default(now())
+
+  org      Organization @relation(fields: [orgId], references: [id])
+  campaign Campaign     @relation(fields: [campaignId], references: [id])
+}
+
+model CreatorTestimonial {
+  id            String   @id @default(cuid())
+  creatorUserId String
+  orgId         String
+  campaignId    String
+  content       String
+  createdAt     DateTime @default(now())
+
+  creatorUser CreatorUser  @relation(fields: [creatorUserId], references: [id])
+  org         Organization @relation(fields: [orgId], references: [id])
+  campaign    Campaign     @relation(fields: [campaignId], references: [id])
 }
 
 // ─── Audit ────────────────────────────────────────────────────────────────────
