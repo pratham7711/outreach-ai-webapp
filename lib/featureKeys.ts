@@ -1,5 +1,6 @@
 export const AUDIT_LOG_FEATURE = "audit_log" as const;
 export const MEDIA_KITS_FEATURE = "media_kits" as const;
+export const DISCOVERY_FEATURE = "creator_discovery" as const;
 
 export const REPORTS_FEATURE_KEYS = [
   "reports",

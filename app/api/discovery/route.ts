@@ -1,11 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
+import { getOrgEntitlements, hasOrgFeature } from "@/lib/entitlements";
+import { DISCOVERY_FEATURE } from "@/lib/featureKeys";
 
 export async function GET(req: NextRequest) {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const orgId = (session.user as any).orgId;
+
+  const entitlements = await getOrgEntitlements(orgId);
+  if (!hasOrgFeature(entitlements, DISCOVERY_FEATURE)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const { searchParams } = req.nextUrl;
 
   const search = searchParams.get("search") ?? "";

@@ -43,12 +43,13 @@ export default function DiscoveryPage() {
   const [creators, setCreators] = useState<Creator[]>([]);
   const [lists, setLists] = useState<CreatorList[]>([]);
   const [loading, setLoading] = useState(true);
+  const [featureDisabled, setFeatureDisabled] = useState(false);
   const [total, setTotal] = useState(0);
   const [selectedCreator, setSelectedCreator] = useState<Creator | null>(null);
   const [selectedListId, setSelectedListId] = useState("");
   const [adding, setAdding] = useState(false);
 
-  const fetchCreators = useCallback(() => {
+  const fetchCreators = useCallback(async () => {
     setLoading(true);
     const params = new URLSearchParams();
     if (search) params.set("search", search);
@@ -56,13 +57,12 @@ export default function DiscoveryPage() {
     params.set("sort", sort);
     params.set("limit", "30");
 
-    fetch(`/api/discovery?${params}`)
-      .then(r => r.json())
-      .then(data => {
-        setCreators(data.creators ?? []);
-        setTotal(data.pagination?.total ?? 0);
-      })
-      .finally(() => setLoading(false));
+    const r = await fetch(`/api/discovery?${params}`);
+    if (r.status === 403) { setFeatureDisabled(true); setLoading(false); return; }
+    const data = await r.json();
+    setCreators(data.creators ?? []);
+    setTotal(data.pagination?.total ?? 0);
+    setLoading(false);
   }, [search, platform, sort]);
 
   const fetchLists = useCallback(() => {
@@ -173,6 +173,22 @@ export default function DiscoveryPage() {
           {[1, 2, 3, 4, 5, 6].map(i => (
             <Skeleton key={i} height="220px" borderRadius="12px" />
           ))}
+        </div>
+      ) : featureDisabled ? (
+        <div style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, padding: 24 }}>
+          <EmptyState
+            icon="🔒"
+            title="Creator Discovery is disabled"
+            description="Enable the Creator Discovery feature in Billing to search and discover new creators."
+            action={
+              <Link
+                href="/settings/billing"
+                style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "10px 16px", borderRadius: 10, background: "var(--cc-primary)", color: "white", fontSize: 14, fontWeight: 600, textDecoration: "none" }}
+              >
+                Open Billing
+              </Link>
+            }
+          />
         </div>
       ) : creators.length === 0 ? (
         <EmptyState icon="🔍" title="No creators found" description="Try adjusting your search or filters" />
