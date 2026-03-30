@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { getOrgEntitlements } from "@/lib/entitlements";
 import { BadgeDollarSign, CheckCircle2, Gauge, Layers3, Users } from "lucide-react";
 import type { ComponentType } from "react";
+import AuditLogToggleCard from "./AuditLogToggleCard";
 
 function formatLabel(value: string) {
   return value
@@ -85,6 +86,13 @@ export default async function BillingPage() {
         {limitCard({ label: "Max campaigns", value: entitlements.limits.maxCampaigns, icon: Gauge })}
         {limitCard({ label: "Max creators", value: entitlements.limits.maxCreators, icon: Layers3 })}
         {limitCard({ label: "Max users", value: entitlements.limits.maxUsers, icon: Users })}
+      </div>
+
+      <div style={{ marginBottom: 20 }}>
+        <AuditLogToggleCard
+          initialEnabled={Boolean(entitlements.featureMap.audit_log)}
+          planName={entitlements.planName}
+        />
       </div>
 
       <div
