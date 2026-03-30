@@ -43,21 +43,30 @@
 - Added lean route coverage for reports/media kits and the new delete route
 - Replaced dashboard widget config read with canonical entitlement-backed `uiConfig` access
 - Fixed `/settings` server-component warning by removing inline server event handlers
+- Centralized canonical org feature-key mapping in shared constants (`lib/featureKeys.ts`)
+- Refactored entitlement gates to consume shared feature constants across:
+  - dashboard policy
+  - audit log routes
+  - reports routes
+  - media-kits routes
+  - audit logging writer helper
+- Verified no behavior change while reducing gate-key drift risk across API/page/sidebar layers
 
 ---
 
 ## Next:
-**Finalize entitlement migration residuals and stabilize mapping docs/tests**
+**Close final entitlement residuals and document source-of-truth boundaries**
 
 ### Exact steps:
-1. Sweep for any remaining non-client-plan org capability checks that are not using entitlement helpers.
+1. Final sweep for any non-client-plan org capability checks not yet routed through entitlement helpers/constants.
 2. Keep client-level `Plan` behavior untouched.
-3. Consolidate feature-key mapping references to reduce drift risk between API/page/sidebar gates.
-4. Add lean regression coverage only where migration introduces behavior changes.
+3. Decide and document whether `lib/orgConfig.ts` remains a standalone accessor or is treated as entitlements-backed legacy helper.
+4. Add lean regression coverage only where behavior changes in this final sweep.
 5. Keep `lib/dashboardPolicy.ts` as source of truth for hybrid nav gating.
 
 ## Context Files:
 - `lib/entitlements.ts`
+- `lib/featureKeys.ts`
 - `lib/dashboardPolicy.ts`
 - `app/api/settings/audit-log/route.ts`
 - `app/api/audit-logs/route.ts`
