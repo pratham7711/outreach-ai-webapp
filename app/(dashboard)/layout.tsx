@@ -5,14 +5,17 @@ import { SidebarProvider } from "@/components/providers/SidebarProvider";
 import { DashboardContent } from "@/components/layout/DashboardContent";
 import { Toaster } from "sonner";
 import { auth } from "@/lib/auth";
-import { getOrgUiConfig } from "@/lib/orgConfig";
+import { getOrgEntitlements } from "@/lib/entitlements";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
   const orgId = (session?.user as any)?.orgId;
-  const uiConfig = orgId ? await getOrgUiConfig(orgId) : null;
+  const policy = orgId ? await getOrgEntitlements(orgId) : null;
+  const navItems = Array.isArray((policy?.uiConfig as { nav?: unknown } | null)?.nav)
+    ? ((policy?.uiConfig as { nav?: string[] } | null)?.nav ?? null)
+    : null;
 
-  const primaryColorOverride = uiConfig?.branding?.primaryColor ?? null;
+  const primaryColorOverride = policy?.branding?.primaryColor ?? null;
 
   return (
     <TenantProvider>
@@ -34,7 +37,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
           </a>
 
           <Toaster richColors position="bottom-right" />
-          <NewSidebar navItems={uiConfig?.nav ?? null} brandName={uiConfig?.branding?.brandName ?? null} />
+          <NewSidebar
+            navItems={navItems}
+            featureMap={policy?.featureMap ?? null}
+            brandName={policy?.branding?.brandName ?? null}
+          />
           <DashboardContent>
             <TopBar />
             <main id="main-content" className="flex-1 overflow-y-auto" role="main">

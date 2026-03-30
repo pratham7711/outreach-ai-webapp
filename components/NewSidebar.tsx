@@ -81,9 +81,25 @@ const ALWAYS_SHOW_SECTIONS = ["Settings", "Admin"];
 type SidebarProps = {
   navItems?: string[] | null;
   brandName?: string | null;
+  featureMap?: Record<string, boolean> | null;
 };
 
-export default function NewSidebar({ navItems, brandName }: SidebarProps = {}) {
+const ROUTE_FEATURE_KEYS: Record<string, string[]> = {
+  "/audit-log": ["audit_log"],
+  "/media-kits": ["media_kits"],
+  "/reports": ["basic_reports", "advanced_reports"],
+};
+
+function isRouteEnabledByEntitlements(href: string, featureMap?: Record<string, boolean> | null) {
+  if (!featureMap) return true;
+
+  const featureKeys = ROUTE_FEATURE_KEYS[href];
+  if (!featureKeys || featureKeys.length === 0) return true;
+
+  return featureKeys.some((key) => featureMap[key] === true);
+}
+
+export default function NewSidebar({ navItems, brandName, featureMap }: SidebarProps = {}) {
   const pathname = usePathname();
   const { collapsed, mobileOpen, toggle, setMobileOpen } = useSidebar();
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -294,9 +310,12 @@ export default function NewSidebar({ navItems, brandName }: SidebarProps = {}) {
             // Always show Settings and Admin sections
             const alwaysShow = ALWAYS_SHOW_SECTIONS.includes(section.label);
             // Filter items based on navItems prop (if provided)
+            const entitlementFilteredItems = section.items.filter((item) =>
+              isRouteEnabledByEntitlements(item.href, featureMap)
+            );
             const filteredItems = (!navItems || alwaysShow)
-              ? section.items
-              : section.items.filter((item) => {
+              ? entitlementFilteredItems
+              : entitlementFilteredItems.filter((item) => {
                   // Find the nav key that maps to this href
                   const navKey = Object.entries(NAV_KEY_TO_HREF).find(
                     ([, href]) => href === item.href
