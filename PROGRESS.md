@@ -158,19 +158,42 @@
 - [x] Schema: `NegotiationOffer` model (negotiated rate campaigns)
 - [x] Schema: `CampaignInvite` model (invite creators via DM or link)
 - [x] Extended `PaymentMethod` enum: UPI, NEFT, IMPS, RTGS, ENACH, WIRE
-- [ ] Campaign creation wizard (5-step: basic → type → payment mode → payout model → settings)
-- [ ] Campaign posts tab (grid/list, URL submission, approve/reject workflow)
-- [ ] Payment deposit UI (Razorpay + Stripe checkout)
-- [ ] Creator invite system (IG DM + shareable link)
-- [ ] Creator portal (Phase F — magic link auth, post submission, payout requests)
+- [x] Campaign creation wizard (5-step: CampaignWizard.tsx — basic → type → payment → payout → settings)
+- [x] Campaign posts tab (PostsTab.tsx — grid/list, URL submission, approve/reject workflow)
+- [x] Payment deposit UI (DepositsSection.tsx — create deposits, release, status tracking)
+- [x] Creator invite system (InvitesSection.tsx — send invites, track acceptance)
+- [x] Creator portal — auth (login/register), dashboard, discover, proposals, settings, payout requests, nav bar
+
+### Trackers (TikTok Sounds)
+- [x] GET/POST `/api/trackers` + GET/DELETE `/api/trackers/[id]`
+- [x] Trackers page wired to real API (stat cards, track/delete, loading/empty states)
+- [x] Seed data: 3 sounds with 7-day snapshots
+- [x] 10 integration tests (trackers.test.ts)
+
+### Payout Requests (standalone)
+- [x] GET `/api/payout-requests` — org-level aggregate across campaigns
+- [x] Requests page wired to real API (stat cards, status tabs, approve/reject)
+- [x] 6 integration tests (payoutRequestsStandalone.test.ts)
+
+### Creator Portal
+- [x] Auth: login/register/logout with cookie-based sessions
+- [x] Dashboard page (stats, accepted proposals)
+- [x] Discover page (browse public campaigns)
+- [x] Proposals page (submit/withdraw proposals)
+- [x] Settings page (profile edit, niches, bank details) + PATCH `/api/portal/me`
+- [x] Payout Requests page + GET/POST `/api/portal/payout-requests`
+- [x] Portal nav bar (horizontal, active link highlighting, logout)
+- [x] Seed: 2 CreatorUser accounts (creator@demo.com / creator123)
+- [x] 9 integration tests (portalProfile + portalPayoutRequests)
 
 ### Lists
 - [x] Create new list
 - [x] Add creators to list
 
 ### Calendar
-- [ ] Campaign timeline view
-- [ ] Deadline tracking
+- [x] Calendar API (GET /api/calendar — campaigns + activations by month)
+- [x] Calendar UI (month view, event dots, sidebar details)
+- [ ] Deadline tracking (dedicated deadline management)
 
 ### Connections
 - [ ] Platform OAuth connections (Instagram, TikTok, YouTube)
@@ -267,6 +290,15 @@ All routes are multi-tenant (filter by orgId from session).
 | POST | `/api/campaigns/[id]/fraud-scan` | ✅ Working | Run fraud detection on campaign posts |
 | GET | `/api/campaigns/[id]/fraud-flags` | ✅ Working | List fraud flags (?resolved= filter) |
 | PATCH | `/api/fraud-flags/[id]` | ✅ Working | Resolve/unresolve fraud flag |
+| GET | `/api/trackers` | ✅ Working | List tracked TikTok sounds with latest snapshot |
+| POST | `/api/trackers` | ✅ Working | Create tracked sound |
+| GET | `/api/trackers/[id]` | ✅ Working | Sound detail with all snapshots |
+| DELETE | `/api/trackers/[id]` | ✅ Working | Remove tracked sound |
+| GET | `/api/payout-requests` | ✅ Working | Org-level aggregate payout requests |
+| GET | `/api/calendar` | ✅ Working | Campaigns + activations by month |
+| PATCH | `/api/portal/me` | ✅ Working | Update creator profile |
+| GET | `/api/portal/payout-requests` | ✅ Working | Creator's payout requests |
+| POST | `/api/portal/payout-requests` | ✅ Working | Creator creates payout request |
 
 ---
 
