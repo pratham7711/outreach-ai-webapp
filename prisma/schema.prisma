@@ -153,6 +153,20 @@ enum Currency {
   INR
 }
 
+enum FraudFlagType {
+  VIEW_SPIKE
+  LOW_ENGAGEMENT
+  BOT_PATTERN
+  GEOGRAPHIC_ANOMALY
+}
+
+enum FraudFlagSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
 model Account {
@@ -353,8 +367,10 @@ model Campaign {
   payoutRequests PayoutRequest[]
   negotiations    NegotiationOffer[]
   proposals       CampaignProposal[]
-  creatorReviews  CreatorReview[]
-  testimonials    CreatorTestimonial[]
+  creatorReviews      CreatorReview[]
+  testimonials        CreatorTestimonial[]
+  viewLedgerEntries   ViewLedger[]
+  fraudFlags          ViewFraudFlag[]
 }
 
 model CampaignTeamMember {
@@ -780,6 +796,7 @@ model PayoutRequest {
   orgId           String
   campaignId      String
   creatorId       String
+  creatorUserId   String?             // portal CreatorUser who initiated the request
   requestedAmount Float
   currency        String              @default("USD")
   status          PayoutRequestStatus @default(PENDING)
@@ -788,7 +805,8 @@ model PayoutRequest {
   createdAt       DateTime            @default(now())
   updatedAt       DateTime            @updatedAt
 
-  campaign Campaign @relation(fields: [campaignId], references: [id])
+  campaign    Campaign     @relation(fields: [campaignId], references: [id])
+  creatorUser CreatorUser? @relation(fields: [creatorUserId], references: [id])
 }
 
 model NegotiationOffer {
@@ -882,9 +900,10 @@ model CreatorUser {
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
 
-  sessions      CreatorSession[]
-  proposals     CampaignProposal[]
-  testimonials  CreatorTestimonial[]
+  sessions       CreatorSession[]
+  proposals      CampaignProposal[]
+  testimonials   CreatorTestimonial[]
+  payoutRequests PayoutRequest[]
 }
 
 model CreatorSession {
@@ -957,4 +976,51 @@ model AuditLog {
   createdAt   DateTime @default(now())
 
   org Organization @relation(fields: [orgId], references: [id])
+}
+
+// ─── View Ledger ──────────────────────────────────────────────────────────────
+
+model ViewLedger {
+  id               String   @id @default(cuid())
+  orgId            String
+  campaignId       String
+  creatorId        String
+  activationId     String
+  postId           String
+  viewsRecorded    Int      @default(0)
+  viewsDelta       Int      @default(0)
+  cpmRate          Float    @default(0)
+  amountEarned     Float    @default(0)
+  cumulativeEarned Float    @default(0)
+  cappedAt         Float?
+  isCapped         Boolean  @default(false)
+  recordedAt       DateTime @default(now())
+
+  campaign Campaign @relation(fields: [campaignId], references: [id])
+
+  @@index([campaignId, creatorId])
+  @@index([activationId])
+}
+
+// ─── View Fraud Detection ─────────────────────────────────────────────────────
+
+model ViewFraudFlag {
+  id           String            @id @default(cuid())
+  orgId        String
+  campaignId   String
+  creatorId    String
+  postId       String
+  flagType     FraudFlagType
+  severity     FraudFlagSeverity @default(MEDIUM)
+  description  String
+  evidence     Json
+  isResolved   Boolean           @default(false)
+  resolvedAt   DateTime?
+  resolvedBy   String?
+  createdAt    DateTime          @default(now())
+
+  campaign Campaign @relation(fields: [campaignId], references: [id])
+
+  @@index([campaignId])
+  @@index([orgId, isResolved])
 }
