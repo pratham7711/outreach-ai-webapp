@@ -139,6 +139,17 @@
 - [x] Add to list functionality
 - [x] Feature-gated behind `creator_discovery` entitlement (403 + disabled UI)
 
+### View-Based Campaigns (Ledger + Fraud Detection)
+- [x] Schema: `ViewLedger` model — per-post view snapshots with CPM, deltas, cumulative earnings, cap
+- [x] Schema: `ViewFraudFlag` model + `FraudFlagType`/`FraudFlagSeverity` enums
+- [x] `lib/fraud-detection.ts` — VIEW_SPIKE, LOW_ENGAGEMENT, BOT_PATTERN detection rules
+- [x] GET/POST `/api/campaigns/[id]/view-ledger` — record & retrieve view ledger entries
+- [x] GET `/api/campaigns/[id]/payout-calculator` — per-creator payout summaries for VIEW_BASED campaigns
+- [x] POST `/api/campaigns/[id]/fraud-scan` — automated fraud analysis
+- [x] GET `/api/campaigns/[id]/fraud-flags` — list flags with resolved filter
+- [x] PATCH `/api/fraud-flags/[id]` — resolve/unresolve fraud flags
+- [x] 18 integration tests (viewLedger.test.ts + viewFraudDetection.test.ts)
+
 ### Campaign Payment & Posts System (Phase A schema landed)
 - [x] Schema: `PaymentMode`, `PaymentRelease`, `PostApprovalMode`, `DepositStatus` enums on Campaign
 - [x] Schema: `PostStatus`, `MediaType` on Post; `activationId` FK
@@ -250,6 +261,12 @@ All routes are multi-tenant (filter by orgId from session).
 | GET | `/api/keys` | ✅ Working | List org API keys |
 | POST | `/api/keys` | ✅ Working | Create API key |
 | DELETE | `/api/keys/[id]` | ✅ Working | Revoke API key |
+| GET | `/api/campaigns/[id]/view-ledger` | ✅ Working | View ledger entries grouped by creator |
+| POST | `/api/campaigns/[id]/view-ledger` | ✅ Working | Record view snapshots for VIEW_BASED campaigns |
+| GET | `/api/campaigns/[id]/payout-calculator` | ✅ Working | Per-creator payout summaries |
+| POST | `/api/campaigns/[id]/fraud-scan` | ✅ Working | Run fraud detection on campaign posts |
+| GET | `/api/campaigns/[id]/fraud-flags` | ✅ Working | List fraud flags (?resolved= filter) |
+| PATCH | `/api/fraud-flags/[id]` | ✅ Working | Resolve/unresolve fraud flag |
 
 ---
 
