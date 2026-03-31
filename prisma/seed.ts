@@ -440,6 +440,88 @@ async function main() {
   await prisma.payout.upsert({ where: { id: "pay-2" }, update: {}, create: { id: "pay-2", orgId: org.id, creatorId: creators[1].id, campaignId: campaigns[0].id, amount: 2000, currency: "USD", status: "PENDING" } });
   await prisma.payout.upsert({ where: { id: "pay-3" }, update: {}, create: { id: "pay-3", orgId: org.id, creatorId: creators[4].id, campaignId: campaigns[1].id, amount: 8000, currency: "USD", status: "PENDING" } });
 
+  // ─── TikTok Sounds (Trackers) ───
+  const sounds = await Promise.all([
+    prisma.tikTokSound.upsert({
+      where: { id: "sound-1" },
+      update: {},
+      create: { id: "sound-1", orgId: org.id, tiktokSoundId: "7300001", title: "Original Sound — Summer Vibes", artist: "DJ Wave", coverImageUrl: null, trackedSince: new Date("2026-02-01") },
+    }),
+    prisma.tikTokSound.upsert({
+      where: { id: "sound-2" },
+      update: {},
+      create: { id: "sound-2", orgId: org.id, tiktokSoundId: "7300002", title: "Beat Drop Remix", artist: "Fuji Kaze", coverImageUrl: null, trackedSince: new Date("2026-01-15") },
+    }),
+    prisma.tikTokSound.upsert({
+      where: { id: "sound-3" },
+      update: {},
+      create: { id: "sound-3", orgId: org.id, tiktokSoundId: "7300003", title: "Dance Challenge Audio", artist: "Priya Beats", coverImageUrl: null, trackedSince: new Date("2026-03-01") },
+    }),
+  ]);
+
+  // Snapshots for each sound (last 7 days)
+  for (const [i, sound] of sounds.entries()) {
+    const baseUses = [45000, 128000, 67000][i];
+    for (let d = 6; d >= 0; d--) {
+      const date = new Date();
+      date.setDate(date.getDate() - d);
+      const growth = Math.floor(baseUses * (0.02 + Math.random() * 0.05));
+      const totalUses = baseUses + growth * (7 - d);
+      await prisma.soundTrackerSnapshot.upsert({
+        where: { id: `snap-${sound.id}-d${d}` },
+        update: {},
+        create: {
+          id: `snap-${sound.id}-d${d}`,
+          soundId: sound.id,
+          usesCount: totalUses,
+          videosAdded24h: Math.floor(growth * 0.3),
+          deltaUses24h: growth,
+          velocityScore: parseFloat((growth / baseUses * 100).toFixed(2)),
+          recordedAt: date,
+        },
+      });
+    }
+  }
+
+  // ─── Creator Users (Portal) ───
+  const creatorHash = await bcrypt.hash("creator123", 10);
+  await prisma.creatorUser.upsert({
+    where: { email: "creator@demo.com" },
+    update: {},
+    create: {
+      id: "cuser-1",
+      email: "creator@demo.com",
+      passwordHash: creatorHash,
+      name: "Blessing Jolie",
+      handle: "blessingjolie",
+      bio: "Lifestyle & fashion content creator",
+      platform: "INSTAGRAM",
+      followersCount: 2400000,
+      averageViews: 180000,
+      rate: 5000,
+      cpm: 3.5,
+      niches: ["FASHION", "LIFESTYLE"],
+    },
+  });
+  await prisma.creatorUser.upsert({
+    where: { email: "alex@demo.com" },
+    update: {},
+    create: {
+      id: "cuser-2",
+      email: "alex@demo.com",
+      passwordHash: creatorHash,
+      name: "Alex Turner",
+      handle: "alexturner",
+      bio: "Music & comedy shorts",
+      platform: "TIKTOK",
+      followersCount: 890000,
+      averageViews: 340000,
+      rate: 2000,
+      cpm: 2.8,
+      niches: ["MUSIC", "COMEDY"],
+    },
+  });
+
   console.log("Seeded:", {
     org: org.name,
     plan: org.plan,
@@ -451,6 +533,8 @@ async function main() {
     campaigns: campaigns.length,
     posts: 9,
     financials: 4,
+    sounds: sounds.length,
+    creatorUsers: 2,
   });
 }
 
