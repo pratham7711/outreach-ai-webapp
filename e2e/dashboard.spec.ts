@@ -1,29 +1,29 @@
 import { test, expect } from '@playwright/test';
+import { waitForMain, expectHeading, expectTextOnPage, navigateAndWait } from './helpers';
 
 test.describe('Dashboard', () => {
-  test('loads dashboard without redirect to login', async ({ page }) => {
-    await page.goto('/dashboard');
-    await expect(page).not.toHaveURL(/login/, { timeout: 15000 });
+  test.beforeEach(async ({ page }) => {
+    await navigateAndWait(page, '/dashboard');
   });
 
-  test('shows sidebar with brand name', async ({ page }) => {
-    await page.goto('/dashboard');
-    await expect(page.getByText('outreach ai').first()).toBeVisible({ timeout: 15000 });
+  test('renders page heading', async ({ page }) => {
+    await expectHeading(page, 'Dashboard');
   });
 
-  test('has main content area', async ({ page }) => {
-    await page.goto('/dashboard');
-    await expect(page.locator('main').first()).toBeVisible({ timeout: 15000 });
+  test('shows stat cards', async ({ page }) => {
+    // Dashboard has stat cards for spend, campaigns, payouts, creators
+    await expect(page.getByText('Active Campaigns').first()).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText('Pending Payouts').first()).toBeVisible({ timeout: 10000 });
   });
 
-  test('page has a title', async ({ page }) => {
-    await page.goto('/dashboard');
-    const title = await page.title();
-    expect(title).toBeTruthy();
+  test('shows recent campaigns from seed data', async ({ page }) => {
+    // Seed has campaigns like "LEAK IT (BTS)", "FUJI KAZE"
+    await expect(page.getByText(/LEAK IT/i).first()).toBeVisible({ timeout: 15000 });
   });
 
-  test('sidebar has campaigns link', async ({ page }) => {
-    await page.goto('/dashboard');
-    await expect(page.locator('a[href="/campaigns"]').first()).toBeVisible({ timeout: 15000 });
+  test('sidebar has navigation links', async ({ page }) => {
+    await expect(page.getByRole('link', { name: /campaigns/i }).first()).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('link', { name: /creators/i }).first()).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('link', { name: /payouts/i }).first()).toBeVisible({ timeout: 10000 });
   });
 });

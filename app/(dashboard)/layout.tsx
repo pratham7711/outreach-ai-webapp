@@ -45,7 +45,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           <DashboardContent>
             <TopBar />
             <main id="main-content" className="flex-1 overflow-y-auto" role="main">
-              <div className="cc-animate-in">
+              <div className="page-enter">
                 {children}
               </div>
             </main>

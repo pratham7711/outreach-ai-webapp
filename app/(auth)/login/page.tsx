@@ -56,10 +56,16 @@ export default function LoginPage() {
         justifyContent: "center",
         padding: "0 16px",
         background: "linear-gradient(135deg, #6C3EF4 0%, #4A8EF0 100%)",
+        position: "relative",
+        overflow: "hidden",
       }}
     >
+      {/* CSS-only animated background orbs */}
+      <div className="login-orb-1" aria-hidden="true" />
+      <div className="login-orb-2" aria-hidden="true" />
+      <div className="login-orb-3" aria-hidden="true" />
       <motion.div
-        style={{ width: "100%", maxWidth: 380 }}
+        style={{ width: "100%", maxWidth: 380, position: "relative", zIndex: 1 }}
         initial={{ opacity: 0, y: 24 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, ease: "easeOut" }}
@@ -116,18 +122,20 @@ export default function LoginPage() {
           )}
 
           <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 16 }} noValidate>
-            <Input
-              ref={emailRef}
-              label="Email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
-              required
-              autoComplete="email"
-            />
+            <div className="login-input-wrap">
+              <Input
+                ref={emailRef}
+                label="Email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@example.com"
+                required
+                autoComplete="email"
+              />
+            </div>
 
-            <div style={{ position: "relative" }}>
+            <div style={{ position: "relative" }} className="login-input-wrap">
               <Input
                 label="Password"
                 type={showPassword ? "text" : "password"}
@@ -163,15 +171,16 @@ export default function LoginPage() {
               </button>
             </div>
 
-            <Button
-              type="submit"
-              variant="primary"
-              fullWidth
-              loading={loading}
-              style={{ marginTop: 8 }}
-            >
-              Sign in
-            </Button>
+            <div className="login-btn-glow" style={{ marginTop: 8 }}>
+              <Button
+                type="submit"
+                variant="primary"
+                fullWidth
+                loading={loading}
+              >
+                Sign in
+              </Button>
+            </div>
           </form>
 
           <p style={{ fontSize: 12, color: "var(--cc-text-muted)", textAlign: "center", marginTop: 24 }}>

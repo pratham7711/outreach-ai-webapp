@@ -1,39 +1,37 @@
 import { test, expect } from '@playwright/test';
-import { waitForMain } from './helpers';
+import { waitForMain, expectHeading, navigateAndWait, searchFor } from './helpers';
 
 test.describe('Campaigns', () => {
-  test('loads campaigns page', async ({ page }) => {
-    await page.goto('/campaigns');
-    await expect(page).not.toHaveURL(/login/, { timeout: 15000 });
+  test.beforeEach(async ({ page }) => {
+    await navigateAndWait(page, '/campaigns');
   });
 
-  test('has main content area', async ({ page }) => {
-    await page.goto('/campaigns');
-    await waitForMain(page);
-    await expect(page.locator('main').first()).toBeVisible();
+  test('renders campaigns heading', async ({ page }) => {
+    await expectHeading(page, 'Campaigns');
   });
 
-  test('sidebar shows campaigns link', async ({ page }) => {
-    await page.goto('/campaigns');
-    await waitForMain(page);
-    await expect(page.locator('a[href="/campaigns"]').first()).toBeVisible();
+  test('lists seed campaigns', async ({ page }) => {
+    // 5 seed campaigns
+    await expect(page.getByText('LEAK IT').first()).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText('FUJI KAZE').first()).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText('CRUEL WORLD').first()).toBeVisible({ timeout: 10000 });
   });
 
-  test('page contains campaign content', async ({ page }) => {
-    await page.goto('/campaigns');
-    await waitForMain(page);
-    const content = await page.content();
-    expect(content.toLowerCase()).toContain('campaign');
+  test('shows status filter tabs', async ({ page }) => {
+    await expect(page.getByText('All').first()).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText('Active').first()).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText('Complete').first()).toBeVisible({ timeout: 10000 });
   });
 
-  test('can navigate to campaign detail if campaigns exist', async ({ page }) => {
-    await page.goto('/campaigns');
-    await waitForMain(page);
-    const links = page.locator('a[href^="/campaigns/"]');
-    const count = await links.count();
-    if (count > 0) {
-      await links.first().click();
-      await expect(page).toHaveURL(/\/campaigns\/.+/, { timeout: 15000 });
-    }
+  test('search filters campaigns', async ({ page }) => {
+    await searchFor(page, 'LEAK', 'Search Campaigns');
+    // Only LEAK IT should remain visible
+    await expect(page.getByText('LEAK IT').first()).toBeVisible({ timeout: 10000 });
+    // CRUEL WORLD should not be visible
+    await expect(page.getByText('CRUEL WORLD')).toBeHidden({ timeout: 5000 });
+  });
+
+  test('shows New Campaign button', async ({ page }) => {
+    await expect(page.getByText('New Campaign').first()).toBeVisible({ timeout: 15000 });
   });
 });

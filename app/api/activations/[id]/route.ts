@@ -21,6 +21,7 @@ const PatchSchema = z.object({
   status: z.enum(VALID_STATUSES).optional(),
   feedbackNotes: z.string().optional(),
   postedUrl: z.string().url().optional().nullable(),
+  deliverableDueDate: z.string().datetime().optional().nullable(),
 });
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -41,7 +42,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       return NextResponse.json({ error: "Invalid input", details: parsed.error.flatten() }, { status: 400 });
     }
 
-    const { status, feedbackNotes, postedUrl } = parsed.data;
+    const { status, feedbackNotes, postedUrl, deliverableDueDate } = parsed.data;
 
     if (status) {
       const allowed = ALLOWED_TRANSITIONS[activation.status] ?? [];
@@ -54,6 +55,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (status) updateData.status = status;
     if (feedbackNotes !== undefined) updateData.feedbackNotes = feedbackNotes;
     if (postedUrl !== undefined) updateData.postedUrl = postedUrl;
+    if (deliverableDueDate !== undefined) updateData.deliverableDueDate = deliverableDueDate ? new Date(deliverableDueDate) : null;
 
     const updated = await db.activation.update({ where: { id }, data: updateData });
 

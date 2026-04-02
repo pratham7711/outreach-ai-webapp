@@ -3,9 +3,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import {
-  Megaphone, Play, Calendar, Users, Users2, Radio, LineChart,
+  Megaphone, Play, Calendar, CalendarClock, Users, Users2, Radio, LineChart,
   Search, List, Wallet, Inbox, UserCheck, Link2, CreditCard, Shield, Bell, FileText,
-  ChevronDown, Settings, LogOut, Menu, X, ChevronsLeft, ChevronsRight, Key
+  ChevronDown, Settings, LogOut, Menu, X, ChevronsLeft, ChevronsRight, Key, PieChart
 } from "lucide-react";
 import { useSidebar } from "@/components/providers/SidebarProvider";
 
@@ -16,6 +16,7 @@ const NAV_SECTIONS = [
       { href: "/campaigns", icon: Megaphone, label: "Campaigns" },
       { href: "/activations", icon: Play, label: "Activations" },
       { href: "/calendar", icon: Calendar, label: "Calendar" },
+      { href: "/deadlines", icon: CalendarClock, label: "Deadlines" },
       { href: "/clients", icon: Users, label: "Clients" },
       { href: "/fan-pages", icon: Radio, label: "Fan Pages", badge: "NEW" },
       { href: "/trackers", icon: LineChart, label: "Trackers" },
@@ -34,6 +35,7 @@ const NAV_SECTIONS = [
     items: [
       { href: "/payouts", icon: Wallet, label: "Payouts" },
       { href: "/requests", icon: Inbox, label: "Requests" },
+      { href: "/financial-reports", icon: PieChart, label: "Financials" },
       { href: "/recipients", icon: UserCheck, label: "Recipients" },
     ],
   },
@@ -242,7 +244,7 @@ export default function NewSidebar({ allowedNavHrefs, brandName }: SidebarProps 
 
             {/* Desktop collapse toggle */}
             <button
-              className="hidden lg:flex"
+              className="hidden lg:flex btn-press"
               onClick={toggle}
               aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
               style={{
@@ -319,7 +321,7 @@ export default function NewSidebar({ allowedNavHrefs, brandName }: SidebarProps 
                     <Link
                       key={href}
                       href={href}
-                      className={`cc-nav-item ${active ? "active" : ""} cc-tooltip`}
+                      className={`cc-nav-item sidebar-link ${active ? "active btn-press" : ""} cc-tooltip`}
                       aria-current={active ? "page" : undefined}
                       data-tooltip={collapsed ? label : undefined}
                       style={{

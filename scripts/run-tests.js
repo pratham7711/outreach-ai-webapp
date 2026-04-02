@@ -1,17 +1,19 @@
 #!/usr/bin/env node
 
 /**
- * Master Test Runner
- * Runs all test suites: unit, integration, and e2e
+ * Master Test Runner — Outreach AI
  *
  * Usage: node scripts/run-tests.js [options]
- *   --unit-only        Run only unit/integration tests
- *   --e2e-only        Run only e2e tests (requires dev server)
- *   --coverage        Collect coverage (unit tests only)
- *   --ci              CI mode (skips starting dev server automatically, uses E2E_BASE_URL)
+ *   --unit-only          Run only unit tests (jest.config.js)
+ *   --integration-only   Run only integration tests (jest.integration.config.js)
+ *   --e2e-only           Run only E2E tests (requires dev server running)
+ *   --coverage           Collect coverage (unit tests only)
+ *   --ci                 CI mode (uses E2E_BASE_URL, skips manual server start)
  *
  * Examples:
- *   node scripts/run-tests.js          # Run all tests
+ *   node scripts/run-tests.js              # Run all tests
+ *   node scripts/run-tests.js --e2e-only   # Run only Playwright E2E
+ *   node scripts/run-tests.js --integration-only
  *   node scripts/run-tests.js --unit-only --coverage
  */
 
@@ -20,16 +22,25 @@ const path = require('path');
 
 const args = process.argv.slice(2);
 const isUnitOnly = args.includes('--unit-only');
+const isIntegrationOnly = args.includes('--integration-only');
 const isE2eOnly = args.includes('--e2e-only');
-const wantCoverage = args.includes('--coverage') || args.includes('--coverage');
+const wantCoverage = args.includes('--coverage');
 const isCI = args.includes('--ci') || process.env.CI === 'true';
 
 const rootDir = path.resolve(__dirname, '..');
-let exitCode = 0;
+const results = { unit: null, integration: null, e2e: null };
 
-function runCommand(cmd, args = [], options = {}) {
+// Clean shutdown on signals
+function cleanup() {
+  console.log('\nShutting down...');
+  process.exit(1);
+}
+process.on('SIGINT', cleanup);
+process.on('SIGTERM', cleanup);
+
+function runCommand(cmd, cmdArgs = [], options = {}) {
   return new Promise((resolve, reject) => {
-    const proc = spawn(cmd, args, {
+    const proc = spawn(cmd, cmdArgs, {
       cwd: rootDir,
       stdio: 'inherit',
       shell: process.platform === 'win32',
@@ -37,106 +48,85 @@ function runCommand(cmd, args = [], options = {}) {
     });
     proc.on('close', (code) => {
       if (code === 0) resolve();
-      else reject(new Error(`${cmd} exited with code ${code}`));
+      else reject(new Error(`${cmd} ${cmdArgs.join(' ')} exited with code ${code}`));
     });
     proc.on('error', reject);
   });
 }
 
-async function checkPrerequisites() {
-  // Check if DATABASE_URL is set for integration tests
-  const { env } = process;
-  if (!env.DATABASE_URL && !isE2eOnly) {
-    console.warn('⚠️  DATABASE_URL not set. Integration tests may fail or use mocks.');
-    console.warn('   Set DATABASE_URL in .env.test for full integration testing.');
+async function runUnitTests() {
+  console.log('\n--- Unit Tests ---\n');
+  try {
+    const unitArgs = ['jest', '--config', 'jest.config.js'];
+    if (wantCoverage) unitArgs.push('--coverage');
+    await runCommand('npx', unitArgs);
+    results.unit = 'PASS';
+  } catch {
+    results.unit = 'FAIL';
   }
 }
 
-async function runUnitTests() {
-  console.log('\n🧪 Running Unit & Integration Tests...\n');
+async function runIntegrationTests() {
+  console.log('\n--- Integration Tests ---\n');
+  if (!process.env.DATABASE_URL) {
+    console.warn('  DATABASE_URL not set. Integration tests may use mocks.\n');
+  }
   try {
-    const unitArgs = ['--config', 'jest.config.js'];
-    if (wantCoverage) unitArgs.push('--coverage');
-    await runCommand('npx', unitArgs);
-    console.log('✅ Unit & Integration tests passed');
-  } catch (err) {
-    console.error('❌ Unit & Integration tests failed');
-    exitCode = 1;
+    await runCommand('npx', ['jest', '--config', 'jest.integration.config.js']);
+    results.integration = 'PASS';
+  } catch {
+    results.integration = 'FAIL';
   }
 }
 
 async function runE2ETests() {
-  if (!isE2eOnly) {
-    // Start dev server in background for E2E tests
-    console.log('\n🚀 Starting dev server for E2E tests...\n');
-    const devServer = spawn('npm', ['run', 'dev'], {
-      cwd: rootDir,
-      stdio: 'pipe',
-      shell: process.platform === 'win32',
-    });
-
-    devServer.stdout?.on('data', (data) => {
-      const text = data.toString();
-      process.stdout.write(text);
-      if (text.includes('Ready in')) {
-        // Server is ready
-      }
-    });
-
-    devServer.stderr?.on('data', (data) => {
-      process.stderr.write(data);
-    });
-
-    // Wait a bit for server to be ready
-    await new Promise((resolve) => setTimeout(resolve, 5000));
-  }
-
-  console.log('\n🌐 Running E2E Tests with Playwright...\n');
+  console.log('\n--- E2E Tests (Playwright) ---\n');
   try {
-    const e2eArgs = ['test', '--config=playwright.config.ts'];
-    await runCommand('npx', e2eArgs);
-    console.log('✅ E2E tests passed');
-  } catch (err) {
-    console.error('❌ E2E tests failed');
-    exitCode = 1;
-  } finally {
-    if (!isE2eOnly && !isCI) {
-      // Kill dev server (best effort)
-      // In CI, dev server is managed by playwright webServer
-      console.log('\n🛑 Shutting down dev server...');
-    }
+    await runCommand('npx', ['playwright', 'test', '--config=playwright.config.ts']);
+    results.e2e = 'PASS';
+  } catch {
+    results.e2e = 'FAIL';
   }
 }
 
-(async () => {
-  console.log('─────────────────────────────────────');
-  console.log('   Outreach AI Test Automation');
-  console.log('─────────────────────────────────────\n');
-
-  try {
-    await checkPrerequisites();
-
-    if (!isE2eOnly) {
-      await runUnitTests();
-    }
-
-    if (!isUnitOnly) {
-      await runE2ETests();
-    }
-
-    if (exitCode === 0) {
-      console.log('\n─────────────────────────────────────');
-      console.log('   ✅ All tests passed!');
-      console.log('─────────────────────────────────────\n');
-    } else {
-      console.log('\n─────────────────────────────────────');
-      console.log('   ❌ Some tests failed');
-      console.log('─────────────────────────────────────\n');
-    }
-
-    process.exit(exitCode);
-  } catch (err) {
-    console.error('Test runner error:', err);
-    process.exit(1);
+function printSummary() {
+  console.log('\n========================================');
+  console.log('         Test Results Summary');
+  console.log('========================================');
+  for (const [suite, result] of Object.entries(results)) {
+    if (result === null) continue;
+    const icon = result === 'PASS' ? 'PASS' : 'FAIL';
+    console.log(`  ${suite.padEnd(15)} ${icon}`);
   }
+  console.log('========================================\n');
+
+  const failed = Object.values(results).some(r => r === 'FAIL');
+  if (failed) {
+    console.log('  Some test suites failed.\n');
+  } else {
+    console.log('  All test suites passed.\n');
+  }
+  return failed ? 1 : 0;
+}
+
+(async () => {
+  console.log('========================================');
+  console.log('   Outreach AI — Test Automation');
+  console.log('========================================');
+
+  if (isUnitOnly) {
+    await runUnitTests();
+  } else if (isIntegrationOnly) {
+    await runIntegrationTests();
+  } else if (isE2eOnly) {
+    await runE2ETests();
+  } else {
+    // Run all suites
+    await runUnitTests();
+    await runIntegrationTests();
+    await runE2ETests();
+  }
+
+  const exitCode = printSummary();
+  process.exit(exitCode);
 })();

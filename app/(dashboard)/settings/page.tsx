@@ -1,9 +1,15 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
-import { ArrowRight, BellRing, CreditCard, Users } from "lucide-react";
+import { ArrowRight, BellRing, Building2, CreditCard, Users } from "lucide-react";
 
 const cards = [
+  {
+    title: "Profile",
+    description: "Update your organization name, branding colors, and bank details.",
+    href: "/settings/profile",
+    icon: Building2,
+  },
   {
     title: "Team",
     description: "Manage members, invitations, and roles for your organization.",

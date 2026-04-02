@@ -38,20 +38,37 @@ export default function PortalDiscoverPage() {
   const [showPropose, setShowPropose] = useState<Campaign | null>(null);
   const [proposedRate, setProposedRate] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [campaignType, setCampaignType] = useState("ALL");
+  const [minBudget, setMinBudget] = useState("");
+  const [maxBudget, setMaxBudget] = useState("");
+  const [sort, setSort] = useState("newest");
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
 
   const fetchCampaigns = useCallback(async () => {
     const params = new URLSearchParams();
     if (search) params.set("search", search);
+    if (campaignType !== "ALL") params.set("campaignType", campaignType);
+    if (minBudget) params.set("minBudget", minBudget);
+    if (maxBudget) params.set("maxBudget", maxBudget);
+    params.set("sort", sort);
+    params.set("page", String(page));
+    params.set("limit", "20");
     const res = await fetch(`/api/portal/discover?${params}`);
     if (res.status === 401) { router.push("/portal/login"); return; }
     if (res.ok) {
       const data = await res.json();
       setCampaigns(data.campaigns);
+      setTotal(data.pagination.total ?? 0);
+      setTotalPages(data.pagination.totalPages ?? 1);
     }
     setLoading(false);
-  }, [search, router]);
+  }, [search, campaignType, minBudget, maxBudget, sort, page, router]);
 
   useEffect(() => { fetchCampaigns(); }, [fetchCampaigns]);
+
+  useEffect(() => { setPage(1); }, [search, campaignType, minBudget, maxBudget, sort]);
 
   const handlePropose = async () => {
     if (!showPropose || !proposedRate) return;
@@ -88,7 +105,9 @@ export default function PortalDiscoverPage() {
         <h1 style={{ fontSize: 24, fontWeight: 700, color: "var(--cc-text)" }}>Discover Campaigns</h1>
         <Button variant="secondary" onClick={() => router.push("/portal/dashboard")}>Dashboard</Button>
       </div>
-      <p style={{ fontSize: 14, color: "var(--cc-text-muted)", marginBottom: 24 }}>Browse open campaigns and submit proposals</p>
+      <p style={{ fontSize: 14, color: "var(--cc-text-muted)", marginBottom: 24 }}>
+        Browse open campaigns{total > 0 ? ` · ${total} opportunities` : ""}
+      </p>
 
       {/* Search */}
       <div style={{ marginBottom: 24 }}>
@@ -98,6 +117,63 @@ export default function PortalDiscoverPage() {
           placeholder="Search campaigns..."
           iconLeft={<Search size={16} />}
         />
+      </div>
+
+      {/* Type pills + sort row */}
+      {(() => {
+        const TYPE_LABELS: Record<string, string> = {
+          ALL: "All", BUDGET_BASED: "Budget", VIEW_BASED: "View-Based",
+          OPEN_COMMUNITY: "Community", PRIVATE_INVITE: "Private",
+        };
+        const TYPES = ["ALL", "BUDGET_BASED", "VIEW_BASED", "OPEN_COMMUNITY", "PRIVATE_INVITE"];
+        return (
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {TYPES.map(t => (
+                <button
+                  key={t}
+                  onClick={() => setCampaignType(t)}
+                  style={{
+                    padding: "5px 12px",
+                    borderRadius: 20,
+                    border: `1px solid ${campaignType === t ? "var(--cc-primary)" : "var(--cc-border)"}`,
+                    background: campaignType === t ? "var(--cc-primary)" : "var(--cc-card)",
+                    color: campaignType === t ? "white" : "var(--cc-text-muted)",
+                    fontSize: 13,
+                    fontWeight: campaignType === t ? 600 : 400,
+                    cursor: "pointer",
+                  }}
+                >
+                  {TYPE_LABELS[t]}
+                </button>
+              ))}
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>Sort:</span>
+              <select
+                value={sort}
+                onChange={e => setSort(e.target.value)}
+                style={{ padding: "7px 12px", borderRadius: 8, border: "1px solid var(--cc-border)", fontSize: 13, color: "var(--cc-text)", background: "var(--cc-card)", outline: "none" }}
+              >
+                <option value="newest">Newest First</option>
+                <option value="budget_desc">Highest Budget</option>
+                <option value="budget_asc">Lowest Budget</option>
+                <option value="proposals_desc">Most Proposals</option>
+              </select>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Budget range row */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
+        <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>Budget:</span>
+        <Input type="number" placeholder="Min $" value={minBudget} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setMinBudget(e.target.value)} style={{ width: 110 }} />
+        <span style={{ color: "var(--cc-text-muted)", fontSize: 13 }}>—</span>
+        <Input type="number" placeholder="Max $" value={maxBudget} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setMaxBudget(e.target.value)} style={{ width: 110 }} />
+        {(minBudget || maxBudget) && (
+          <button onClick={() => { setMinBudget(""); setMaxBudget(""); }} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, color: "var(--cc-text-muted)", textDecoration: "underline" }}>Clear</button>
+        )}
       </div>
 
       {/* Campaign Grid */}
@@ -149,6 +225,15 @@ export default function PortalDiscoverPage() {
               </div>
             </Card>
           ))}
+        </div>
+      )}
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 16, marginTop: 24 }}>
+          <Button variant="secondary" size="sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}>← Prev</Button>
+          <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>Page {page} of {totalPages}</span>
+          <Button variant="secondary" size="sm" disabled={page === totalPages} onClick={() => setPage(p => p + 1)}>Next →</Button>
         </div>
       )}
 

@@ -138,6 +138,14 @@
 - [x] Creator search/filter system
 - [x] Add to list functionality
 - [x] Feature-gated behind `creator_discovery` entitlement (403 + disabled UI)
+- [x] Advanced filters — niche multi-select, follower range, rate range, case-insensitive search, pagination, active filter chips (16 tests)
+
+### Portal Marketplace
+- [x] Campaign type filter pills (Budget/View-Based/Community/Private)
+- [x] Budget range filter (min/max)
+- [x] Sort options (newest, budget high/low, most proposals)
+- [x] Pagination controls
+- [x] 17 integration tests (portalDiscover.test.ts)
 
 ### View-Based Campaigns (Ledger + Fraud Detection)
 - [x] Schema: `ViewLedger` model — per-post view snapshots with CPM, deltas, cumulative earnings, cap
@@ -193,11 +201,18 @@
 ### Calendar
 - [x] Calendar API (GET /api/calendar — campaigns + activations by month)
 - [x] Calendar UI (month view, event dots, sidebar details)
-- [ ] Deadline tracking (dedicated deadline management)
+- [x] Deadline tracking — `/deadlines` page, GET `/api/deadlines`, inline date editing, 9 integration tests
+- [x] Org profile page — `/settings/profile`, GET/PATCH `/api/org`, 4 sections (General/Domain/Branding/Bank), 8 integration tests
+- [x] Org financial reports — `/financial-reports`, GET `/api/financial-reports`, period comparison (6 periods), monthly trend chart, CSV export, 8 integration tests
 
 ### Connections
-- [ ] Platform OAuth connections (Instagram, TikTok, YouTube)
+- [x] Platform connections page — wired to real data via `Organization.uiConfig`, connect/disconnect modals, 8 platforms (5 social + 3 payment), 10 integration tests
 - [x] API key management
+
+### Creator Social Accounts
+- [x] GET/POST/DELETE `/api/creators/[id]/social-accounts` — multi-platform accounts per creator
+- [x] Social Accounts tab on creator detail page — add/remove accounts, platform badges, stats
+- [x] 14 integration tests (creatorSocialAccounts.test.ts)
 
 ---
 

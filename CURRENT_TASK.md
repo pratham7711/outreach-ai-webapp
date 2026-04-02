@@ -1,56 +1,56 @@
 # Current Task
 
-## Status: COMPLETE
+## Status: IN PROGRESS
 
-## Task: Session 5B — Feature Sprint (Trackers, Requests, Portal, Polish)
-
----
-
-## Completed (this session):
-
-### Batch 1: Wire Stubs to Real Data
-- Trackers API: GET/POST `/api/trackers`, GET/DELETE `/api/trackers/[id]`
-- Payout Requests API: GET `/api/payout-requests` (org-level aggregate)
-- Trackers page: real data, stat cards, track/delete actions, loading/empty states
-- Requests page: real data, status filter tabs, approve/reject buttons
-- Seed: 3 TikTok sounds with 7-day snapshots, 2 CreatorUser accounts
-- 16 integration tests
-
-### Batch 2: Creator Portal Completion
-- PATCH `/api/portal/me`: profile update with Zod validation, handle uniqueness
-- GET/POST `/api/portal/payout-requests`: list + create portal-initiated requests
-- Portal layout: horizontal nav bar with active link highlighting, logout
-- Settings page: profile edit, niche selector, bank details
-- Payout requests page: list, stat cards, "Request Payout" modal
-- Schema: added `creatorUserId` to PayoutRequest
-- 9 integration tests
-
-### Batch 3: Housekeeping + Polish
-- Calendar integration tests (4 tests)
-- Responsive CSS utilities (cc-stat-grid, cc-form-grid, cc-portal-nav-label)
-- Toast feedback on all mutations
-- Error states on all pages
-- PROGRESS.md accuracy update (marked 5+ features as complete that were built but unchecked)
-
-### Also committed (from prior session)
-- ViewLedger + payout calculator + fraud detection (18 tests)
+## Task: Session 11 — Analytics & KPI Dashboard
 
 ---
 
-## Next Steps
+## Completed (prior sessions):
 
-### Remaining Work
-- `npm publish` for @pratham7711/ui v1.1.0 (manual)
-- Dedicated deadline tracking page
-- Platform OAuth connections (Instagram, TikTok, YouTube) — needs real API keys
-- Org financial reports (PDF export, period comparison)
-- Org profile page
-- Advanced marketplace features (filters, search, recommended creators)
-- Production deployment (Vercel, env vars, custom domain)
+### Session 10 — Connections + Creator Social Accounts (DONE)
+- Creator Social Accounts API + UI (14 tests)
+- Platform Connections API + UI, 8 platforms (10 tests)
+
+### Landing Site (DONE — uncommitted)
+- All 12 components complete: Navbar, Hero, Features, Stats, HowItWorks, Integrations, Testimonials, Pricing, FAQ, CTA, DashboardPreview, Footer
+- Dark theme with Framer Motion animations, scroll parallax, magnetic buttons, character-by-character text reveal
+- Build passes (`landing/` — `npm run build` ✓)
+- **Needs commit** in root repo
 
 ---
 
-## Context Files
-- `prisma/schema.prisma` — full schema with all models
-- `app/(portal)/portal/layout.tsx` — portal navigation
-- `app/api/trackers/route.ts` — trackers API
+## Next: Analytics & KPI Dashboard
+
+### What to build
+Per `docs/OUTREACH_AI_PLAN.md` Phase 4 — Analytics:
+- `/analytics` page — org-level KPI overview
+  - Stat cards: total reach, total spend, avg CPM, avg engagement rate
+  - Monthly trend chart (Recharts AreaChart) — campaigns launched per month
+  - Creator leaderboard — top 10 by total reach/earnings
+- Campaign detail analytics tab (already has Budget tab — add Analytics sub-tab)
+  - Per-campaign reach, views, engagement rate, ROAS
+  - View ledger chart (for VIEW_BASED campaigns — data already exists in `ViewLedger`)
+- API: `GET /api/analytics` — org-level aggregates
+
+### Context Files
+- `app/(dashboard)/` — dashboard pages directory
+- `app/api/campaigns/[id]/view-ledger/route.ts` — existing view data
+- `app/(dashboard)/campaigns/[id]/page.tsx` — campaign detail (add Analytics tab here)
+
+### Blocker
+None — all required data exists in DB (ViewLedger, Activation, Payout, Campaign models).
+
+### Test
+- Integration: `GET /api/analytics` — 401 unauthenticated, cross-tenant isolation, happy path
+- E2E: Playwright — visit `/analytics`, verify stat cards render with real data
+
+---
+
+## Remaining after Session 11
+1. Reports — PDF/Excel export with white-labeling
+2. Production deploy (Vercel + env vars + custom domain)
+3. `npm publish` @pratham7711/ui v1.1.0 (manual)
+4. Real OAuth flows for platform connections
+5. AI Integration (Phase 6)
+6. Communication channels (Phase 7)

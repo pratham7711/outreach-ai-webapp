@@ -1,21 +1,32 @@
 import { test, expect } from '@playwright/test';
-import { waitForMain } from './helpers';
+import { waitForMain, expectHeading, navigateAndWait, searchFor } from './helpers';
 
 test.describe('Creators', () => {
-  test('loads creators page', async ({ page }) => {
-    await page.goto('/creators');
-    await expect(page).not.toHaveURL(/login/, { timeout: 15000 });
+  test.beforeEach(async ({ page }) => {
+    await navigateAndWait(page, '/creators');
   });
 
-  test('has main content area', async ({ page }) => {
-    await page.goto('/creators');
-    await waitForMain(page);
-    await expect(page.locator('main').first()).toBeVisible();
+  test('renders creators heading', async ({ page }) => {
+    await expectHeading(page, 'Creators');
   });
 
-  test('sidebar has creators link', async ({ page }) => {
-    await page.goto('/creators');
+  test('lists seed creators', async ({ page }) => {
+    await expect(page.getByText('Blessing Jolie').first()).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText('Alex Turner').first()).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText('Priya Patel').first()).toBeVisible({ timeout: 10000 });
+  });
+
+  test('shows platform badges', async ({ page }) => {
+    // Seed has Instagram, TikTok, YouTube, Twitter creators
+    await expect(page.getByText(/instagram|tiktok|youtube/i).first()).toBeVisible({ timeout: 15000 });
+  });
+
+  test('can navigate to creator detail', async ({ page }) => {
+    // Click on a creator to go to their profile
+    const creatorLink = page.getByText('Blessing Jolie').first();
+    await creatorLink.click();
     await waitForMain(page);
-    await expect(page.locator('a[href="/creators"]').first()).toBeVisible();
+    await expect(page).toHaveURL(/\/creators\/creator-1/);
+    await expect(page.getByText('Blessing Jolie').first()).toBeVisible({ timeout: 15000 });
   });
 });

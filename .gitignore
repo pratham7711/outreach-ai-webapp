@@ -12,6 +12,8 @@
 
 # testing
 /coverage
+e2e/fixtures/.auth.json
+e2e/fixtures/.portal-auth.json
 
 # next.js
 /.next/

@@ -456,6 +456,129 @@ body {
   margin-left: 0;
 }
 
+/* ── UI Polish utilities ── */
+
+/* Page transition — fade + subtle slide up */
+.page-enter { animation: pageEnter 0.3s ease-out; }
+@keyframes pageEnter {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Card hover lift */
+.card-hover {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(28, 32, 72, 0.08);
+}
+
+/* Smooth focus ring (scoped — use alongside existing *:focus-visible for custom radius) */
+.focus-ring:focus-visible {
+  outline: 2px solid var(--cc-primary);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+/* Skeleton shimmer (alias pointing to existing cc-shimmer keyframe) */
+@keyframes skeleton-shimmer {
+  0%   { background-position: -200px 0; }
+  100% { background-position: calc(200px + 100%) 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, var(--cc-border) 25%, rgba(91,91,214,0.05) 50%, var(--cc-border) 75%);
+  background-size: 200px 100%;
+  animation: skeleton-shimmer 1.5s infinite;
+  border-radius: 6px;
+}
+
+/* Row hover (alias — cc-row-hover var already defined) */
+.row-hover {
+  transition: background-color 0.15s ease;
+}
+.row-hover:hover {
+  background-color: var(--cc-row-hover);
+}
+
+/* Button press micro-interaction */
+.btn-press:active {
+  transform: scale(0.97);
+}
+
+/* Sidebar link transition (additive — pairs with cc-nav-item) */
+.sidebar-link {
+  transition: all 0.15s ease;
+}
+
+/* Login page — animated background orbs (CSS only) */
+@keyframes orb-float-1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33%       { transform: translate(30px, -40px) scale(1.05); }
+  66%       { transform: translate(-20px, 20px) scale(0.97); }
+}
+@keyframes orb-float-2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33%       { transform: translate(-35px, 30px) scale(1.04); }
+  66%       { transform: translate(25px, -25px) scale(0.96); }
+}
+@keyframes orb-float-3 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50%       { transform: translate(20px, 15px) scale(1.03); }
+}
+
+.login-orb-1 {
+  position: absolute;
+  width: 340px;
+  height: 340px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(124, 58, 237, 0.55) 0%, transparent 70%);
+  top: -80px;
+  left: -60px;
+  animation: orb-float-1 12s ease-in-out infinite;
+  pointer-events: none;
+}
+.login-orb-2 {
+  position: absolute;
+  width: 280px;
+  height: 280px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.45) 0%, transparent 70%);
+  bottom: -60px;
+  right: -40px;
+  animation: orb-float-2 15s ease-in-out infinite;
+  pointer-events: none;
+}
+.login-orb-3 {
+  position: absolute;
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(91, 91, 214, 0.4) 0%, transparent 70%);
+  top: 40%;
+  right: 10%;
+  animation: orb-float-3 9s ease-in-out infinite;
+  pointer-events: none;
+}
+
+/* Login input focus glow */
+.login-input-wrap input:focus,
+.login-input-wrap input:focus-visible {
+  border-color: rgba(91, 91, 214, 0.6) !important;
+  box-shadow: 0 0 0 3px rgba(91, 91, 214, 0.15) !important;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* Login button hover glow */
+.login-btn-glow:hover:not(:disabled) {
+  box-shadow: 0 6px 20px rgba(91, 91, 214, 0.4) !important;
+  transform: translateY(-1px);
+  transition: box-shadow 0.2s ease, transform 0.15s ease;
+}
+.login-btn-glow:active:not(:disabled) {
+  transform: translateY(0) scale(0.98);
+}
+
 /* Skip-to-content helper */
 .sr-only {
   position: absolute;

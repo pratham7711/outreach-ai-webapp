@@ -1,21 +1,22 @@
 import { test, expect } from '@playwright/test';
-import { waitForMain } from './helpers';
+import { waitForMain, expectHeading, navigateAndWait } from './helpers';
 
 test.describe('Activations', () => {
-  test('loads activations page', async ({ page }) => {
-    await page.goto('/activations');
-    await expect(page).not.toHaveURL(/login/, { timeout: 15000 });
+  test.beforeEach(async ({ page }) => {
+    await navigateAndWait(page, '/activations');
   });
 
-  test('has main content area', async ({ page }) => {
-    await page.goto('/activations');
-    await waitForMain(page);
-    await expect(page.locator('main').first()).toBeVisible();
+  test('renders activations heading', async ({ page }) => {
+    await expectHeading(page, 'Activations');
   });
 
-  test('sidebar has activations link', async ({ page }) => {
-    await page.goto('/activations');
-    await waitForMain(page);
-    await expect(page.locator('a[href="/activations"]').first()).toBeVisible();
+  test('shows seed activations', async ({ page }) => {
+    // 4 seed activations linking creators to campaigns
+    await expect(page.getByText(/Blessing Jolie|Alex Turner|Priya Patel/i).first()).toBeVisible({ timeout: 15000 });
+  });
+
+  test('shows status badges', async ({ page }) => {
+    // Seed has APPROVED and COMPLETE statuses
+    await expect(page.getByText(/approved|complete/i).first()).toBeVisible({ timeout: 15000 });
   });
 });

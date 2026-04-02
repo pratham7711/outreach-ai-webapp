@@ -1,21 +1,18 @@
 import { test, expect } from '@playwright/test';
-import { waitForMain } from './helpers';
+import { waitForMain, expectHeading, navigateAndWait } from './helpers';
 
 test.describe('Clients', () => {
-  test('loads clients page', async ({ page }) => {
-    await page.goto('/clients');
-    await expect(page).not.toHaveURL(/login/, { timeout: 15000 });
+  test.beforeEach(async ({ page }) => {
+    await navigateAndWait(page, '/clients');
   });
 
-  test('has main content area', async ({ page }) => {
-    await page.goto('/clients');
-    await waitForMain(page);
-    await expect(page.locator('main').first()).toBeVisible();
+  test('renders clients heading', async ({ page }) => {
+    await expectHeading(page, 'Clients');
   });
 
-  test('sidebar has clients link', async ({ page }) => {
-    await page.goto('/clients');
-    await waitForMain(page);
-    await expect(page.locator('a[href="/clients"]').first()).toBeVisible();
+  test('lists seed clients', async ({ page }) => {
+    await expect(page.getByText('Sony Music').first()).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText('Universal Records').first()).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText('Warner Music').first()).toBeVisible({ timeout: 10000 });
   });
 });

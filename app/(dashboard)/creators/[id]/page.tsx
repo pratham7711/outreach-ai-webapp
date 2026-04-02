@@ -2,7 +2,7 @@
 import { useState, useEffect, use } from "react";
 import { motion } from "framer-motion";
 import {
-  ArrowLeft, Eye, Heart, MessageCircle, Share2, Play, ChevronRight, ExternalLink, DollarSign, Pencil,
+  ArrowLeft, Eye, Heart, MessageCircle, Share2, Play, ChevronRight, ExternalLink, DollarSign, Pencil, Plus, Trash2, Users,
 } from "lucide-react";
 import Link from "next/link";
 import { Card, Badge, Avatar, EmptyState, Skeleton, StatCard, Modal, Input } from "@pratham7711/ui";
@@ -37,7 +37,18 @@ const STATUS_VARIANT: Record<string, "warning" | "success" | "danger" | "neutral
   DECLINED: "danger",
 };
 
-type Tab = "profile" | "posts" | "campaigns" | "payouts";
+type Tab = "profile" | "posts" | "campaigns" | "payouts" | "social";
+
+type SocialAccount = {
+  id: string;
+  platform: string;
+  handle: string;
+  followersCount: number;
+  avgViews: number;
+  tokenExpiry: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
 
 type Post = {
   id: string;
@@ -160,6 +171,15 @@ const responsiveStyles = `
   .cd-payout-card:first-child { border-top: none; }
   .cd-campaign-row-budget { display: none; }
   .cd-campaign-row-chevron { display: none; }
+  .cd-social-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  @media (min-width: 480px) {
+    .cd-social-grid { grid-template-columns: repeat(2, 1fr); }
+  }
 
   @media (min-width: 640px) {
     .cd-stats-grid { grid-template-columns: repeat(2, 1fr); gap: 16px; }
@@ -187,6 +207,10 @@ const responsiveStyles = `
 
   @media (min-width: 768px) {
     .cd-stats-grid { grid-template-columns: repeat(4, 1fr); }
+  }
+
+  @media (min-width: 900px) {
+    .cd-social-grid { grid-template-columns: repeat(3, 1fr); }
   }
 
   @media (min-width: 1024px) {
@@ -359,6 +383,48 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
   const [creator, setCreator] = useState<Creator | null>(null);
   const [loading, setLoading] = useState(true);
   const [editOpen, setEditOpen] = useState(false);
+  const [socialAccounts, setSocialAccounts] = useState<SocialAccount[]>([]);
+  const [socialLoading, setSocialLoading] = useState(false);
+  const [showAddSocial, setShowAddSocial] = useState(false);
+  const [addSocialForm, setAddSocialForm] = useState({ platform: "INSTAGRAM", handle: "", followersCount: "", avgViews: "" });
+  const [addingSocial, setAddingSocial] = useState(false);
+
+  const fetchSocialAccounts = () => {
+    setSocialLoading(true);
+    fetch(`/api/creators/${id}/social-accounts`)
+      .then(r => r.json())
+      .then(data => { if (Array.isArray(data)) setSocialAccounts(data); })
+      .finally(() => setSocialLoading(false));
+  };
+
+  const handleAddSocial = async () => {
+    if (addingSocial || !addSocialForm.handle.trim()) return;
+    setAddingSocial(true);
+    try {
+      const res = await fetch(`/api/creators/${id}/social-accounts`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          platform: addSocialForm.platform,
+          handle: addSocialForm.handle.trim(),
+          followersCount: addSocialForm.followersCount ? Number(addSocialForm.followersCount) : 0,
+          avgViews: addSocialForm.avgViews ? Number(addSocialForm.avgViews) : 0,
+        }),
+      });
+      if (res.ok) {
+        setShowAddSocial(false);
+        setAddSocialForm({ platform: "INSTAGRAM", handle: "", followersCount: "", avgViews: "" });
+        fetchSocialAccounts();
+      }
+    } finally {
+      setAddingSocial(false);
+    }
+  };
+
+  const handleRemoveSocial = async (accountId: string) => {
+    const res = await fetch(`/api/creators/${id}/social-accounts?accountId=${accountId}`, { method: "DELETE" });
+    if (res.ok) fetchSocialAccounts();
+  };
 
   const refreshCreator = () => {
     fetch(`/api/creators/${id}`)
@@ -373,11 +439,16 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
       .finally(() => setLoading(false));
   }, [id]);
 
+  useEffect(() => {
+    if (activeTab === "social") fetchSocialAccounts();
+  }, [activeTab]);
+
   const tabsList: { label: string; value: Tab; count?: number }[] = [
     { label: "Profile", value: "profile" },
     { label: "Posts", value: "posts", count: creator?._count.posts },
     { label: "Campaigns", value: "campaigns", count: creator?._count.activations },
     { label: "Payouts", value: "payouts", count: creator?._count.payouts },
+    { label: "Social Accounts", value: "social" },
   ];
 
   if (loading) return <LoadingSkeleton />;
@@ -596,6 +667,138 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
               ))}
             </div>
           )
+        )}
+
+        {/* Social Accounts Tab */}
+        {activeTab === "social" && (
+          <div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <span style={{ fontWeight: 700, fontSize: 16, color: "var(--cc-text)" }}>Connected Accounts</span>
+              <button
+                onClick={() => setShowAddSocial(true)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  background: "var(--cc-primary)", color: "white", border: "none",
+                  borderRadius: 8, padding: "7px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer",
+                }}
+              >
+                <Plus size={14} /> Add Account
+              </button>
+            </div>
+
+            {/* Add form */}
+            {showAddSocial && (
+              <Card variant="outlined" style={{ padding: 20, marginBottom: 16 }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                    <div>
+                      <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--cc-text)", marginBottom: 4 }}>Platform</label>
+                      <select
+                        value={addSocialForm.platform}
+                        onChange={e => setAddSocialForm(prev => ({ ...prev, platform: e.target.value }))}
+                        style={{
+                          width: "100%", border: "1px solid var(--cc-border)", borderRadius: 8,
+                          padding: "8px 10px", fontSize: 13, color: "var(--cc-text)", background: "var(--cc-card)",
+                        }}
+                      >
+                        {["INSTAGRAM", "TIKTOK", "YOUTUBE", "TWITTER"].map(p => (
+                          <option key={p} value={p}>{p}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <Input
+                      label="Handle"
+                      value={addSocialForm.handle}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAddSocialForm(prev => ({ ...prev, handle: e.target.value }))}
+                      placeholder="@username"
+                    />
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                    <Input
+                      label="Followers"
+                      type="number"
+                      value={addSocialForm.followersCount}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAddSocialForm(prev => ({ ...prev, followersCount: e.target.value }))}
+                      placeholder="0"
+                    />
+                    <Input
+                      label="Avg Views"
+                      type="number"
+                      value={addSocialForm.avgViews}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAddSocialForm(prev => ({ ...prev, avgViews: e.target.value }))}
+                      placeholder="0"
+                    />
+                  </div>
+                  <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                    <button
+                      onClick={() => setShowAddSocial(false)}
+                      style={{
+                        padding: "7px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer",
+                        background: "var(--cc-card)", color: "var(--cc-text-muted)",
+                        border: "1px solid var(--cc-border)", borderRadius: 8,
+                      }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleAddSocial}
+                      disabled={addingSocial || !addSocialForm.handle.trim()}
+                      style={{
+                        padding: "7px 14px", fontSize: 13, fontWeight: 600, cursor: addingSocial ? "not-allowed" : "pointer",
+                        background: "var(--cc-primary)", color: "white", border: "none", borderRadius: 8,
+                        opacity: addingSocial || !addSocialForm.handle.trim() ? 0.5 : 1,
+                      }}
+                    >
+                      {addingSocial ? "Adding..." : "Add"}
+                    </button>
+                  </div>
+                </div>
+              </Card>
+            )}
+
+            {socialLoading ? (
+              <div className="cd-social-grid">
+                {[1, 2, 3].map(i => <Skeleton key={i} height="140px" borderRadius="12px" />)}
+              </div>
+            ) : socialAccounts.length === 0 ? (
+              <EmptyState icon="🔗" title="No social accounts" description="Link social media accounts to track cross-platform presence." />
+            ) : (
+              <div className="cd-social-grid">
+                {socialAccounts.map(acct => (
+                  <Card key={acct.id} variant="outlined" style={{ padding: 16 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+                      <Badge
+                        variant="neutral"
+                        style={{ background: `${PLATFORM_COLORS[acct.platform] ?? "var(--cc-primary)"}18`, color: PLATFORM_COLORS[acct.platform] ?? "var(--cc-primary)" }}
+                      >
+                        {acct.platform}
+                      </Badge>
+                      <button
+                        onClick={() => handleRemoveSocial(acct.id)}
+                        title="Remove account"
+                        style={{
+                          background: "none", border: "none", cursor: "pointer", padding: 4,
+                          color: "var(--cc-text-muted)", borderRadius: 4,
+                        }}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                    <div style={{ fontWeight: 600, fontSize: 14, color: "var(--cc-text)", marginBottom: 4 }}>
+                      {acct.handle.startsWith("@") ? acct.handle : `@${acct.handle}`}
+                    </div>
+                    <div style={{ display: "flex", gap: 16, fontSize: 13, color: "var(--cc-text-muted)", marginBottom: 8 }}>
+                      <span><Users size={12} style={{ marginRight: 4, verticalAlign: "middle" }} />{formatNumber(acct.followersCount)} followers</span>
+                      <span><Eye size={12} style={{ marginRight: 4, verticalAlign: "middle" }} />{formatNumber(acct.avgViews)} avg views</span>
+                    </div>
+                    <div style={{ fontSize: 11, color: "var(--cc-text-subtle)" }}>
+                      Connected {new Date(acct.createdAt).toLocaleDateString()}
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
         )}
 
         {/* Payouts Tab */}

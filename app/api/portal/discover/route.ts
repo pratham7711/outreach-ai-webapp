@@ -14,13 +14,33 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get("limit") ?? "20", 10);
     const skip = (page - 1) * limit;
 
-    const where = {
+    const campaignType = searchParams.get("campaignType");
+    const minBudget = parseFloat(searchParams.get("minBudget") ?? "");
+    const maxBudget = parseFloat(searchParams.get("maxBudget") ?? "");
+    const sort = searchParams.get("sort") ?? "newest";
+
+    const where: any = {
       enrollmentOpen: true,
       marketplaceVisibility: "PUBLIC" as const,
       status: "IN_PROGRESS" as const,
       deletedAt: null,
       ...(search && { title: { contains: search, mode: "insensitive" as const } }),
+      ...(campaignType && campaignType !== "ALL" && { campaignType }),
+      ...(!isNaN(minBudget) || !isNaN(maxBudget)
+        ? {
+            budget: {
+              ...(!isNaN(minBudget) && { gte: minBudget }),
+              ...(!isNaN(maxBudget) && { lte: maxBudget }),
+            },
+          }
+        : {}),
     };
+
+    const orderBy: any =
+      sort === "budget_desc"    ? { budget: "desc" } :
+      sort === "budget_asc"     ? { budget: "asc" }  :
+      sort === "proposals_desc" ? { proposals: { _count: "desc" } } :
+      { createdAt: "desc" };
 
     const [campaigns, total] = await Promise.all([
       db.campaign.findMany({
@@ -39,7 +59,7 @@ export async function GET(request: NextRequest) {
           org: { select: { id: true, name: true, logoUrl: true } },
           _count: { select: { activations: true, posts: true, proposals: true } },
         },
-        orderBy: { createdAt: "desc" },
+        orderBy,
         skip,
         take: limit,
       }),

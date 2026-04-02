@@ -17,12 +17,18 @@ export default defineConfig({
     navigationTimeout: 60000,
   },
   projects: [
-    // Auth setup: login once and save storage state
+    // Admin auth setup: generate JWT and save storage state
     {
       name: 'setup',
-      testMatch: /.*auth\.setup\.ts/,
+      testMatch: /auth\.setup\.ts/,
+      testIgnore: /portal-auth\.setup\.ts/,
     },
-    // Authenticated tests: reuse saved session
+    // Portal auth setup: login via API and save session cookie
+    {
+      name: 'portal-setup',
+      testMatch: /portal-auth\.setup\.ts/,
+    },
+    // Authenticated admin tests: reuse saved session
     {
       name: 'chrome',
       use: {
@@ -31,13 +37,24 @@ export default defineConfig({
         storageState: 'e2e/fixtures/.auth.json',
       },
       dependencies: ['setup'],
-      testIgnore: /auth\.spec\.ts/,
+      testIgnore: [/auth\.spec\.ts/, /portal-.*\.spec\.ts/],
     },
     // Unauthenticated tests: fresh browser, no session
     {
       name: 'chrome-noauth',
       use: { ...devices['Desktop Chrome'], channel: 'chrome' },
-      testMatch: /auth\.spec\.ts/,
+      testMatch: [/auth\.spec\.ts/, /portal-auth\.spec\.ts/],
+    },
+    // Portal authenticated tests: creator session
+    {
+      name: 'chrome-portal',
+      use: {
+        ...devices['Desktop Chrome'],
+        channel: 'chrome',
+        storageState: 'e2e/fixtures/.portal-auth.json',
+      },
+      dependencies: ['portal-setup'],
+      testMatch: /portal-(?!auth).*\.spec\.ts/,
     },
   ],
   webServer: {

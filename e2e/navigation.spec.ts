@@ -1,44 +1,40 @@
 import { test, expect } from '@playwright/test';
-import { waitForMain } from './helpers';
+import { waitForMain, navigateAndWait } from './helpers';
 
-const PAGES = [
-  { name: 'Campaigns', href: '/campaigns' },
-  { name: 'Creators', href: '/creators' },
-  { name: 'Payouts', href: '/payouts' },
-  { name: 'Clients', href: '/clients' },
-  { name: 'Lists', href: '/lists' },
-  { name: 'Activations', href: '/activations' },
+const ADMIN_PAGES = [
+  '/dashboard',
+  '/campaigns',
+  '/creators',
+  '/clients',
+  '/payouts',
+  '/activations',
+  '/lists',
+  '/discovery',
+  '/calendar',
+  '/connections',
+  '/deadlines',
+  '/financial-reports',
+  '/settings',
 ];
 
 test.describe('Navigation', () => {
-  test('sidebar renders stable nav items', async ({ page }) => {
-    await page.goto('/settings');
-    await waitForMain(page);
-
-    await expect(page.locator('a[href="/settings"]').first()).toBeVisible();
-    await expect(page.locator('a[href="/settings/billing"]').first()).toBeVisible();
-    await expect(page.locator('a[href="/settings/team"]').first()).toBeVisible();
-  });
-
-  test('can navigate between settings pages via sidebar', async ({ page }) => {
-    await page.goto('/settings');
-    await waitForMain(page);
-    await page.locator('a[href="/settings/billing"]').first().click();
-    await expect(page).toHaveURL(/\/settings\/billing/, { timeout: 15000 });
-  });
-
-  test('all pages load without redirecting to login', async ({ page }) => {
-    for (const p of PAGES) {
-      await page.goto(p.href);
-      await expect(page).not.toHaveURL(/login/, { timeout: 15000 });
+  test('all admin pages load without error', async ({ page }) => {
+    for (const path of ADMIN_PAGES) {
+      await page.goto(path);
+      await waitForMain(page, 30000);
+      // Verify we're not redirected to login
+      await expect(page).not.toHaveURL(/\/login/);
+      // Verify main content area exists
+      await expect(page.locator('main').first()).toBeVisible();
     }
   });
 
-  test('all pages have main content area', async ({ page }) => {
-    for (const p of PAGES) {
-      await page.goto(p.href);
-      await waitForMain(page);
-      await expect(page.locator('main').first()).toBeVisible();
+  test('sidebar navigation links are present', async ({ page }) => {
+    await navigateAndWait(page, '/dashboard');
+    // Check core sidebar links exist
+    const sidebarLinks = ['Campaigns', 'Creators', 'Payouts', 'Clients'];
+    for (const linkText of sidebarLinks) {
+      await expect(page.getByRole('link', { name: new RegExp(linkText, 'i') }).first()).toBeVisible({ timeout: 10000 });
     }
   });
 });

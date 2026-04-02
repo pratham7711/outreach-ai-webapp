@@ -21,17 +21,36 @@ export async function GET(req: NextRequest) {
   const sort = searchParams.get("sort") ?? "followers";
   const page = parseInt(searchParams.get("page") ?? "1");
   const limit = parseInt(searchParams.get("limit") ?? "20");
+  const niches = (searchParams.get("niches") ?? "").split(",").filter(Boolean);
+  const minFollowers = parseInt(searchParams.get("minFollowers") ?? "");
+  const maxFollowers = parseInt(searchParams.get("maxFollowers") ?? "");
+  const minRate = parseFloat(searchParams.get("minRate") ?? "");
+  const maxRate = parseFloat(searchParams.get("maxRate") ?? "");
 
   const where: any = { orgId, deletedAt: null };
 
   if (search) {
     where.OR = [
-      { name: { contains: search } },
-      { handle: { contains: search } },
+      { name: { contains: search, mode: "insensitive" } },
+      { handle: { contains: search, mode: "insensitive" } },
     ];
   }
   if (platform && platform !== "All") {
     where.platform = platform.toUpperCase();
+  }
+
+  if (niches.length > 0) where.niches = { hasSome: niches };
+
+  if (!isNaN(minFollowers) || !isNaN(maxFollowers)) {
+    where.followersCount = {};
+    if (!isNaN(minFollowers)) (where.followersCount as any).gte = minFollowers;
+    if (!isNaN(maxFollowers)) (where.followersCount as any).lte = maxFollowers;
+  }
+
+  if (!isNaN(minRate) || !isNaN(maxRate)) {
+    where.rate = {};
+    if (!isNaN(minRate)) (where.rate as any).gte = minRate;
+    if (!isNaN(maxRate)) (where.rate as any).lte = maxRate;
   }
 
   const orderBy: any = sort === "engagement" ? { averageViews: "desc" } :
