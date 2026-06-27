@@ -1,56 +1,26 @@
 # Current Task
 
-## Status: IN PROGRESS
+## Status: IN PROGRESS — Sprint 0 · Task 1 — Unit 1 of 3 DONE (verified + reviewed)
 
-## Task: Session 11 — Analytics & KPI Dashboard
+## Task: Sprint 0 · Task 1 — AES-256-GCM token crypto (P0 hard blocker)
 
----
+**Why first:** `CreatorSocialAccount` OAuth tokens are stored PLAINTEXT while the schema comment (`prisma/schema.prisma:445`) falsely claims AES. No real provider credential may be wired until this lands. #1 P0 in `docs/BUILD_TRACKER.md`.
 
-## Completed (prior sessions):
+## Completed — Unit 1 (the crypto utility):
+- `webapp/lib/crypto/encrypt.ts` — AES-256-GCM `encrypt(plaintext, context?)` / `decrypt(payload, context?)` / `isEncrypted(value)`. 12-byte random IV per call; 16-byte auth tag produced + verified (+ length-validated, so no truncated-tag forgery); 32-byte key from `process.env.TOKEN_ENCRYPTION_KEY` (lazy load, base64, all-zero rejected); versioned `enc:v1:iv:tag:ct` format; AAD bound to the version with an optional `context` for per-row/orgId binding in Unit 2.
+- `webapp/__tests__/unit/lib/crypto/encrypt.test.ts` — 14 tests: round-trip (ascii/unicode/empty/long), random-IV, tamper, wrong-key, wrong-length IV/tag, IV/tag bit-flip, AAD-context mismatch, non-string input, bad/missing/all-zero key.
+- **Evidence:** `npm run test:unit` → 14/14 green; `tsc --noEmit` → 0 errors in these files. Loop-5 adversarial review passed (GCM core sound; the two blockers — IV/tag length validation and AAD binding — fixed).
 
-### Session 10 — Connections + Creator Social Accounts (DONE)
-- Creator Social Accounts API + UI (14 tests)
-- Platform Connections API + UI, 8 platforms (10 tests)
+## Next — Unit 2 (wiring; unblocked; run with `/build-loop`):
+Wire `encrypt`/`decrypt` into EVERY read/write of `CreatorSocialAccount.accessToken` / `refreshToken`, passing the account id (or orgId) as the AAD `context`. Encrypt `refreshToken` only when non-null. Fix the false comment at `prisma/schema.prisma:445`. Exit: touched-route tests + `tsc` clean on touched files.
 
-### Landing Site (DONE — uncommitted)
-- All 12 components complete: Navbar, Hero, Features, Stats, HowItWorks, Integrations, Testimonials, Pricing, FAQ, CTA, DashboardPreview, Footer
-- Dark theme with Framer Motion animations, scroll parallax, magnetic buttons, character-by-character text reveal
-- Build passes (`landing/` — `npm run build` ✓)
-- **Needs commit** in root repo
+## Then — Unit 3 (BLOCKED on env key):
+One-shot backfill to encrypt existing plaintext rows + a CI assertion that fails if any persisted token is plaintext (`isEncrypted` over the column).
+**Blocker:** provision `TOKEN_ENCRYPTION_KEY` (`openssl rand -base64 32`) into prod/staging secrets before the backfill runs or any real token is stored.
 
----
+## Deferred (tracked in BUILD_TRACKER WS0 — not bugs):
+- Make the Stop-hook `tsc` gate a baseline-diff ("no NEW errors") — the repo has 170 pre-existing `tsc` errors, so a "zero errors" gate would always block. Or add a tsc-cleanup task.
+- Key rotation / keyring (the `v1` tag reserves the path); strict base64 re-encode validation.
 
-## Next: Analytics & KPI Dashboard
-
-### What to build
-Per `docs/OUTREACH_AI_PLAN.md` Phase 4 — Analytics:
-- `/analytics` page — org-level KPI overview
-  - Stat cards: total reach, total spend, avg CPM, avg engagement rate
-  - Monthly trend chart (Recharts AreaChart) — campaigns launched per month
-  - Creator leaderboard — top 10 by total reach/earnings
-- Campaign detail analytics tab (already has Budget tab — add Analytics sub-tab)
-  - Per-campaign reach, views, engagement rate, ROAS
-  - View ledger chart (for VIEW_BASED campaigns — data already exists in `ViewLedger`)
-- API: `GET /api/analytics` — org-level aggregates
-
-### Context Files
-- `app/(dashboard)/` — dashboard pages directory
-- `app/api/campaigns/[id]/view-ledger/route.ts` — existing view data
-- `app/(dashboard)/campaigns/[id]/page.tsx` — campaign detail (add Analytics tab here)
-
-### Blocker
-None — all required data exists in DB (ViewLedger, Activation, Payout, Campaign models).
-
-### Test
-- Integration: `GET /api/analytics` — 401 unauthenticated, cross-tenant isolation, happy path
-- E2E: Playwright — visit `/analytics`, verify stat cards render with real data
-
----
-
-## Remaining after Session 11
-1. Reports — PDF/Excel export with white-labeling
-2. Production deploy (Vercel + env vars + custom domain)
-3. `npm publish` @pratham7711/ui v1.1.0 (manual)
-4. Real OAuth flows for platform connections
-5. AI Integration (Phase 6)
-6. Communication channels (Phase 7)
+## Test (exit criteria — show evidence, per `docs/LOOPS.md`):
+Unit 1 ✅. Unit 2/3 exit: round-trip holds end-to-end through Prisma; `tsc` clean on touched files; no plaintext token persists (CI check). Paste output, don't assert.
