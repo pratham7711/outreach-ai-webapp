@@ -1,26 +1,25 @@
 # Current Task
 
-## Status: IN PROGRESS — Sprint 0 · Task 1 — Unit 1 of 3 DONE (verified + reviewed)
+## Status: Sprint 0 · Task 1 — CODE COMPLETE (all 3 units); only ops remains (blocked on env key)
 
 ## Task: Sprint 0 · Task 1 — AES-256-GCM token crypto (P0 hard blocker)
 
-**Why first:** `CreatorSocialAccount` OAuth tokens are stored PLAINTEXT while the schema comment (`prisma/schema.prisma:445`) falsely claims AES. No real provider credential may be wired until this lands. #1 P0 in `docs/BUILD_TRACKER.md`.
+**Why first:** `CreatorSocialAccount` OAuth tokens were stored PLAINTEXT while the schema comment falsely claimed AES. No real provider credential ships until this lands. #1 P0 in `docs/BUILD_TRACKER.md`.
 
-## Completed — Unit 1 (the crypto utility):
-- `webapp/lib/crypto/encrypt.ts` — AES-256-GCM `encrypt(plaintext, context?)` / `decrypt(payload, context?)` / `isEncrypted(value)`. 12-byte random IV per call; 16-byte auth tag produced + verified (+ length-validated, so no truncated-tag forgery); 32-byte key from `process.env.TOKEN_ENCRYPTION_KEY` (lazy load, base64, all-zero rejected); versioned `enc:v1:iv:tag:ct` format; AAD bound to the version with an optional `context` for per-row/orgId binding in Unit 2.
-- `webapp/__tests__/unit/lib/crypto/encrypt.test.ts` — 14 tests: round-trip (ascii/unicode/empty/long), random-IV, tamper, wrong-key, wrong-length IV/tag, IV/tag bit-flip, AAD-context mismatch, non-string input, bad/missing/all-zero key.
-- **Evidence:** `npm run test:unit` → 14/14 green; `tsc --noEmit` → 0 errors in these files. Loop-5 adversarial review passed (GCM core sound; the two blockers — IV/tag length validation and AAD binding — fixed).
+## Done — code complete + verified:
+- **Unit 1 (committed `bc016a2`):** `webapp/lib/crypto/encrypt.ts` — AES-256-GCM `encrypt`/`decrypt`/`isEncrypted` (12-byte IV, 16-byte tag verified + length-validated, key from `TOKEN_ENCRYPTION_KEY`, AAD = version + optional `context`). 14 unit tests; passed a Loop-5 adversarial review.
+- **Unit 2 (verified 16/16; lives in your working-tree WIP batch — NOT separately committed):** wired `encrypt()` into `POST /api/creators/[id]/social-accounts` (accessToken + refreshToken encrypted before `create`, AAD = `orgId` → cross-tenant-safe); fixed the false schema comment (`prisma/schema.prisma:445-446`). These edits are interleaved with your ~40-file WIP in `route.ts` + `schema.prisma` — **commit them with your batch**.
+- **Unit 3 (committed `958c284`):** `lib/crypto/token-backfill.ts` (`planReencrypt` + `findPlaintext`, pure, idempotent, AAD = orgId) + `scripts/backfill-encrypt-tokens.ts` `[--dry-run]` + `scripts/assert-no-plaintext-tokens.ts` (CI guard). 6 unit tests green.
 
-## Next — Unit 2 (wiring; unblocked; run with `/build-loop`):
-Wire `encrypt`/`decrypt` into EVERY read/write of `CreatorSocialAccount.accessToken` / `refreshToken`, passing the account id (or orgId) as the AAD `context`. Encrypt `refreshToken` only when non-null. Fix the false comment at `prisma/schema.prisma:445`. Exit: touched-route tests + `tsc` clean on touched files.
+## Remaining — operational only (BLOCKED on the env key):
+1. Provision `TOKEN_ENCRYPTION_KEY` (`openssl rand -base64 32`) in prod + staging secrets.
+2. Run the backfill: `npx tsx scripts/backfill-encrypt-tokens.ts --dry-run`, then again without `--dry-run`.
+3. Wire `npx tsx scripts/assert-no-plaintext-tokens.ts` into CI as a gate.
+Once 1–3 land, flip the WS0 / Sprint-0 task to `[x]` in `docs/BUILD_TRACKER.md`.
 
-## Then — Unit 3 (BLOCKED on env key):
-One-shot backfill to encrypt existing plaintext rows + a CI assertion that fails if any persisted token is plaintext (`isEncrypted` over the column).
-**Blocker:** provision `TOKEN_ENCRYPTION_KEY` (`openssl rand -base64 32`) into prod/staging secrets before the backfill runs or any real token is stored.
+## Deferred (tracked, not bugs):
+- Stop-hook `tsc` gate → baseline-diff ("no NEW errors"; repo has 170 pre-existing `tsc` errors).
+- Key rotation / keyring (the `v1` format tag reserves the path).
 
-## Deferred (tracked in BUILD_TRACKER WS0 — not bugs):
-- Make the Stop-hook `tsc` gate a baseline-diff ("no NEW errors") — the repo has 170 pre-existing `tsc` errors, so a "zero errors" gate would always block. Or add a tsc-cleanup task.
-- Key rotation / keyring (the `v1` tag reserves the path); strict base64 re-encode validation.
-
-## Test (exit criteria — show evidence, per `docs/LOOPS.md`):
-Unit 1 ✅. Unit 2/3 exit: round-trip holds end-to-end through Prisma; `tsc` clean on touched files; no plaintext token persists (CI check). Paste output, don't assert.
+## Next build task after this:
+WS0 item 2 — external intelligence catalog migration (CreatorProfile / AudienceProfile / ContentItem / ContentEmbedding / OrgMetricRollup / AuthenticitySnapshot) + pgvector. See `docs/BUILD_TRACKER.md`.
