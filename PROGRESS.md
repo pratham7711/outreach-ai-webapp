@@ -206,13 +206,79 @@
 - [x] Org financial reports — `/financial-reports`, GET `/api/financial-reports`, period comparison (6 periods), monthly trend chart, CSV export, 8 integration tests
 
 ### Connections
-- [x] Platform connections page — wired to real data via `Organization.uiConfig`, connect/disconnect modals, 8 platforms (5 social + 3 payment), 10 integration tests
-- [x] API key management
+- [x] Platform connections page — wired to real data via `Organization.uiConfig`, connect/disconnect modals, 11 platforms (5 social + 3 messaging: WhatsApp/Telegram/Discord + 3 payment), 10 integration tests
+- [x] API key management — create/list/revoke + usage instructions (curl, MCP config, Discord bot note)
+
+### API Key Authentication (Session 12)
+- [x] `lib/authenticate.ts` — shared auth utility: NextAuth session first, then `Bearer oai_*` API key (SHA-256 hash lookup + lastUsedAt update)
+- [x] All 24 org-scoped API routes updated to use `authenticateRequest(req)` — API keys work for every endpoint
+- [x] `getAuditActor(result)` helper for audit logging compatibility with API key requests
+- [x] 12 integration tests (`apiKeyAuth.test.ts`) — session auth, Bearer auth, invalid key rejection, length checks, lastUsedAt update
 
 ### Creator Social Accounts
 - [x] GET/POST/DELETE `/api/creators/[id]/social-accounts` — multi-platform accounts per creator
 - [x] Social Accounts tab on creator detail page — add/remove accounts, platform badges, stats
 - [x] 14 integration tests (creatorSocialAccounts.test.ts)
+
+### Analytics & KPI Dashboard
+- [x] GET `/api/analytics` — org-level: total views/likes/comments/spend, avg CPM, avg engagement rate, monthly trend (6 months), creator leaderboard (top 10 by views), platform breakdown
+- [x] `/analytics` page — 6 stat tiles, AreaChart monthly trend, creator leaderboard table, platform BarChart
+- [x] Analytics added to sidebar (Financial section)
+- [x] 4 integration tests (analytics.test.ts)
+
+### Reports — PDF/Excel Export (Session 13)
+- [x] `lib/reports/FinancialPDF.tsx` — react-pdf v4 Document: dark header, KPI boxes, monthly trend table, top campaigns table, branded footer
+- [x] `POST /api/financial-reports/generate` — accepts `{ period, format: "pdf" | "xlsx" }`, streams binary download
+- [x] Financial reports page updated with Export PDF and Export Excel buttons
+- [x] 6 integration tests (financialReportGenerate.test.ts)
+
+### MCP Server (Session 13)
+- [x] `lib/mcp/tools.ts` — 5 tools: `list_campaigns`, `list_creators`, `get_org_kpis`, `search_creators`, `get_campaign`
+- [x] `POST /api/mcp` — JSON-RPC handler implementing MCP protocol (initialize, tools/list, tools/call)
+- [x] Auth via `authenticateRequest()` — works with session + Bearer API keys
+- [x] `GET /api/mcp` — health check endpoint
+- [x] 10 integration tests (mcpServer.test.ts)
+
+### Audit Log API (Session 14)
+- [x] `GET /api/audit-logs` — filterable (`action`, `entityType`, `q`, `from`, `to`), paginated
+- [x] `GET /api/audit-logs/csv` — CSV streaming export, same filters, `Content-Disposition: attachment`
+- [x] `AuditLogClient.tsx` — added "Export CSV" download link applying active filters
+- [x] 9 integration tests (auditLog.test.ts)
+
+### AI Integration (Session 14)
+- [x] `POST /api/ai/briefing` — Claude Haiku org/campaign narrative summaries (requires `ANTHROPIC_API_KEY`)
+- [x] `POST /api/ai/nl-query` — NL → typed Prisma query via intent classifier (no SQL), 5 intent types
+- [x] 10 integration tests (aiBriefing.test.ts)
+
+### Creator Reviews UI — Org Side (Session 15)
+- [x] `ReviewsSection.tsx` — leave review modal (creator select, star picker, tag toggles, comment), review list with stars + tags
+- [x] Campaign detail page — added "Reviews" tab, wired ReviewsSection
+- [x] 7 integration tests (campaignReviews.test.ts)
+
+### Portal Reviews Page (Session 15)
+- [x] `GET /api/portal/reviews` — resolves CreatorUser → Creator via handle, returns reviews with org/campaign context
+- [x] `/portal/reviews` page — reviews table + testimonials section + Write Testimonial modal
+- [x] Portal nav — added "Reviews" link (Star icon)
+- [x] 4 integration tests (portalReviews.test.ts)
+
+### Metric Pipeline (Session 17)
+- [x] Schema: Post + PostMetricSnapshot — added `savesCount`, `reachCount`, `platformMetrics`, `storyExpiresAt`, `downloadsCount`, `impressionsCount`, `syncSource`, `isFinalSnapshot`
+- [x] GET `/api/campaigns/[id]/posts/[postId]` — post detail with creator + snapshots
+- [x] PATCH `/api/campaigns/[id]/posts/[postId]` — extended for manual metric entry (creates PostMetricSnapshot with `syncSource: "manual"`)
+- [x] GET `/api/campaigns/[id]/posts/[postId]/snapshots` — historical metric snapshots
+- [x] POST `/api/campaigns/[id]/posts/[postId]/sync` — trigger platform sync for a post
+- [x] "Update Metrics" modal in PostsTab (views/likes/comments/shares/saves)
+- [x] Post detail page (`/campaigns/[id]/posts/[postId]`) — metric cards, Recharts AreaChart, snapshot history table, Sync Now button
+- [x] `lib/platforms/fetchPostMetrics.ts` refactored — per-platform functions exported (`fetchYouTubeMetrics`, `fetchTikTokMetrics`, `fetchInstagramMetrics`)
+- [x] GET `/api/cron/sync-posts` — hourly cron job with variable cadence (<24h=always, 1-7d=6h, 7-30d=24h)
+- [x] `vercel.json` — cron config for hourly sync
+- [x] 10 integration tests (postMetrics.test.ts)
+
+### E2E Coverage (Session 15)
+- [x] `e2e/portal-proposals.spec.ts` — proposals page + discover (chrome-portal)
+- [x] `e2e/campaigns-proposals.spec.ts` — campaign proposals + reviews tab (chrome)
+- [x] `e2e/portal-reviews.spec.ts` — portal reviews page + nav (chrome-portal)
+- [x] `e2e/public-profile.spec.ts` — `/c/blessingjolie` public profile (chrome)
 
 ---
 
@@ -311,6 +377,7 @@ All routes are multi-tenant (filter by orgId from session).
 | DELETE | `/api/trackers/[id]` | ✅ Working | Remove tracked sound |
 | GET | `/api/payout-requests` | ✅ Working | Org-level aggregate payout requests |
 | GET | `/api/calendar` | ✅ Working | Campaigns + activations by month |
+| GET | `/api/analytics` | ✅ Working | Org-level KPI aggregates, leaderboard, trend |
 | PATCH | `/api/portal/me` | ✅ Working | Update creator profile |
 | GET | `/api/portal/payout-requests` | ✅ Working | Creator's payout requests |
 | POST | `/api/portal/payout-requests` | ✅ Working | Creator creates payout request |

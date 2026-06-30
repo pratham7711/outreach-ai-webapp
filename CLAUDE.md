@@ -1,6 +1,7 @@
-# CLAUDE.md — Agent Context File
+# CLAUDE.md — Legacy Agent Context File
 
-> **READ THIS FIRST before doing anything.** Then read `PROGRESS.md` to understand where we are.
+> Shared contract lives in `/Users/pratham/Documents/Repositories/outreach-ai/AGENTS.md`.
+> Use this file as project background, not as the source of workflow truth.
 
 ---
 
@@ -22,7 +23,7 @@ The real app account for visual reference: `sharmapratham290@gmail.com` at `http
 | Language | TypeScript |
 | Styling | Tailwind CSS + inline CSS vars |
 | UI Components | `@pratham7711/ui` (custom design system) |
-| Database | SQLite (dev) via `better-sqlite3` → production: PostgreSQL |
+| Database | PostgreSQL (Neon). Legacy notes in this file may mention SQLite. Prefer current schema/config in code. |
 | ORM | Prisma 7 with `@prisma/adapter-better-sqlite3` |
 | Auth | NextAuth v5 (credentials + session) |
 | Charts | Recharts |
@@ -31,7 +32,7 @@ The real app account for visual reference: `sharmapratham290@gmail.com` at `http
 
 ---
 
-## Design System — THE LAW
+## Design System
 
 These CSS variables are defined in `app/globals.css`. Use them **everywhere**. Never hardcode colors.
 
@@ -199,6 +200,7 @@ Built on top of the real app clone. Not in the real CreatorCore app.
 ## ALWAYS:
 
 - Read `PROGRESS.md` before starting work
+- Read root `AGENTS.md` before starting work (cross-agent rules)
 - Write descriptive git commit messages
 - Run `npm run build` before committing (catch TS errors)
 - Update `PROGRESS.md` after completing tasks
