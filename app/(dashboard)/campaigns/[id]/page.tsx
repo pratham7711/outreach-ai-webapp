@@ -8,6 +8,7 @@ import PayoutRequestsSection from "./PayoutRequestsSection";
 import InvitesSection from "./InvitesSection";
 import NegotiationsSection from "./NegotiationsSection";
 import ProposalsSection from "./ProposalsSection";
+import ReviewsSection from "./ReviewsSection";
 import {
   ArrowLeft, Eye, Heart, MessageCircle, Share2, TrendingUp, Users,
   Calendar, Play, ChevronRight, ExternalLink, DollarSign, UserPlus,
@@ -18,7 +19,7 @@ import {
 } from "recharts";
 import { toast } from "sonner";
 
-type Tab = "overview" | "posts" | "creators" | "analytics" | "financials" | "edit";
+type Tab = "overview" | "posts" | "creators" | "reviews" | "analytics" | "financials" | "edit";
 
 function formatNumber(num: number): string {
   if (num >= 1000000) return (num / 1000000).toFixed(1) + "M";
@@ -239,6 +240,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
     { label: "Overview", value: "overview" },
     { label: "Posts", value: "posts", count: campaign?._count.posts },
     { label: "Creators", value: "creators", count: campaign?._count.activations },
+    { label: "Reviews", value: "reviews" as Tab },
     { label: "Analytics", value: "analytics" },
     { label: "Financials", value: "financials" },
     { label: "Edit", value: "edit" as Tab },
@@ -461,6 +463,11 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
             <InvitesSection campaignId={id} />
             <NegotiationsSection campaignId={id} />
           </div>
+        )}
+
+        {/* Reviews Tab */}
+        {activeTab === "reviews" && (
+          <ReviewsSection campaignId={id} activations={campaign.activations} />
         )}
 
         {/* Analytics Tab */}

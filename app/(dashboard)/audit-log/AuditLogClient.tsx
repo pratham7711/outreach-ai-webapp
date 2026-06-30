@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Search, RefreshCw, ChevronLeft, ChevronRight, Filter } from "lucide-react";
+import { Search, RefreshCw, ChevronLeft, ChevronRight, Filter, Download } from "lucide-react";
 import { Card, EmptyState, LoadingSpinner } from "@pratham7711/ui";
 
 type AuditLogItem = {
@@ -127,9 +127,41 @@ export default function AuditLogClient({
             Track changes across your organization
           </p>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--cc-text-muted)", fontSize: 13 }}>
-          <Filter size={14} />
-          <span>{pagination.total} events</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 13, color: "var(--cc-text-muted)", display: "flex", alignItems: "center", gap: 6 }}>
+            <Filter size={14} />
+            {pagination.total} events
+          </span>
+          <a
+            href={`/api/audit-logs/csv?${new URLSearchParams(
+              Object.fromEntries(
+                [
+                  ["action", action],
+                  ["entityType", entityType],
+                  ["q", q],
+                ].filter(([, v]) => v) as [string, string][]
+              )
+            ).toString()}`}
+            download="audit-log.csv"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              height: 36,
+              padding: "0 14px",
+              borderRadius: 10,
+              border: "1px solid var(--cc-border)",
+              background: "var(--cc-card)",
+              color: "var(--cc-text)",
+              fontSize: 13,
+              fontWeight: 500,
+              textDecoration: "none",
+              cursor: "pointer",
+            }}
+          >
+            <Download size={14} />
+            Export CSV
+          </a>
         </div>
       </div>
 

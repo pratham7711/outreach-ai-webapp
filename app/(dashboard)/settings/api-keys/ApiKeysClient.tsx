@@ -412,6 +412,61 @@ export default function ApiKeysClient() {
         </div>
       )}
 
+      {/* Usage Instructions */}
+      <div
+        style={{
+          background: "var(--cc-card)",
+          border: "1px solid var(--cc-border)",
+          borderRadius: 12,
+          padding: 24,
+          marginBottom: 24,
+        }}
+      >
+        <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>
+          How to use your API key
+        </h2>
+        <p style={{ fontSize: 13, color: "var(--cc-text-muted)", marginBottom: 16 }}>
+          Pass the key in the <code style={{ fontFamily: "monospace", background: "var(--cc-bg)", padding: "1px 5px", borderRadius: 4 }}>Authorization</code> header of any API request.
+        </p>
+        <div style={{ marginBottom: 16 }}>
+          <p style={{ fontSize: 12, fontWeight: 600, color: "var(--cc-text-muted)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 6 }}>
+            REST / cURL
+          </p>
+          <div style={{ background: "#1C2048", borderRadius: 8, padding: "12px 16px" }}>
+            <code style={{ fontFamily: "monospace", fontSize: 12, color: "#A5B4FC", whiteSpace: "pre" }}>
+              {`curl -H "Authorization: Bearer oai_YOUR_KEY_HERE" \\
+  https://your-domain.com/api/campaigns`}
+            </code>
+          </div>
+        </div>
+        <div style={{ marginBottom: 16 }}>
+          <p style={{ fontSize: 12, fontWeight: 600, color: "var(--cc-text-muted)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 6 }}>
+            MCP Server config
+          </p>
+          <div style={{ background: "#1C2048", borderRadius: 8, padding: "12px 16px" }}>
+            <code style={{ fontFamily: "monospace", fontSize: 12, color: "#A5B4FC", whiteSpace: "pre" }}>
+              {`{
+  "headers": {
+    "Authorization": "Bearer oai_YOUR_KEY_HERE"
+  }
+}`}
+            </code>
+          </div>
+        </div>
+        <div
+          style={{
+            background: "#EEF2FF",
+            border: "1px solid #C7D2FE",
+            borderRadius: 8,
+            padding: "10px 14px",
+            fontSize: 13,
+            color: "#3730A3",
+          }}
+        >
+          For Discord bots, use this key in your bot&apos;s HTTP client when calling campaign, creator, or payout endpoints.
+        </div>
+      </div>
+
       {/* Keys Table */}
       <div
         style={{

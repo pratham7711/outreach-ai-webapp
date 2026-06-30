@@ -81,6 +81,7 @@ export default function ConnectionsPage() {
   };
 
   const socialPlatforms = platforms.filter(p => p.category === "social");
+  const messagingPlatforms = platforms.filter(p => p.category === "messaging");
   const paymentPlatforms = platforms.filter(p => p.category === "payment");
   const connectedCount = platforms.filter(p => p.connected).length;
 
@@ -178,6 +179,23 @@ export default function ConnectionsPage() {
           {socialPlatforms.map(renderPlatformCard)}
         </div>
       </div>
+
+      {/* Messaging Channels */}
+      {messagingPlatforms.length > 0 && (
+        <div style={{ marginBottom: 32 }}>
+          <div style={{ marginBottom: 16 }}>
+            <h2 style={{ fontSize: 18, fontWeight: 600, color: "var(--cc-text)", marginBottom: 4 }}>Messaging Channels</h2>
+            <p style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>
+              Connect messaging apps to notify creators and run automated campaign flows.
+              Discord can be connected using an{" "}
+              <a href="/settings/api-keys" style={{ color: "var(--cc-primary)", textDecoration: "underline" }}>API key</a>.
+            </p>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 16 }}>
+            {messagingPlatforms.map(renderPlatformCard)}
+          </div>
+        </div>
+      )}
 
       {/* Payment Providers */}
       <div style={{ marginBottom: 32 }}>

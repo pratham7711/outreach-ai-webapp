@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Card, Badge, Button, Input, Modal, EmptyState, Skeleton } from "@pratham7711/ui";
-import { Grid3X3, List, Plus, Check, X, Eye, Heart, MessageCircle, TrendingUp } from "lucide-react";
+import { Grid3X3, List, Plus, Check, X, Eye, Heart, MessageCircle, TrendingUp, BarChart3, ExternalLink } from "lucide-react";
+import Link from "next/link";
 
 type PostData = {
   id: string;
@@ -59,6 +60,9 @@ export default function PostsTab({ campaignId, postApprovalMode }: { campaignId:
   const [submitting, setSubmitting] = useState(false);
   const [addForm, setAddForm] = useState({ postUrl: "", creatorId: "", mediaType: "" });
   const [creators, setCreators] = useState<Creator[]>([]);
+  const [metricsPost, setMetricsPost] = useState<PostData | null>(null);
+  const [metricsForm, setMetricsForm] = useState({ viewsCount: 0, likesCount: 0, commentsCount: 0, sharesCount: 0, savesCount: 0 });
+  const [metricsSubmitting, setMetricsSubmitting] = useState(false);
 
   const fetchPosts = useCallback(async () => {
     const params = new URLSearchParams();
@@ -118,6 +122,35 @@ export default function PostsTab({ campaignId, postApprovalMode }: { campaignId:
     setShowRejectModal(null);
     setRejectionReason("");
     fetchPosts();
+  };
+
+  const openMetrics = (post: PostData) => {
+    setMetricsPost(post);
+    setMetricsForm({
+      viewsCount: post.viewsCount,
+      likesCount: post.likesCount,
+      commentsCount: post.commentsCount,
+      sharesCount: 0,
+      savesCount: 0,
+    });
+  };
+
+  const handleUpdateMetrics = async () => {
+    if (!metricsPost) return;
+    setMetricsSubmitting(true);
+    try {
+      const res = await fetch(`/api/campaigns/${campaignId}/posts/${metricsPost.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(metricsForm),
+      });
+      if (res.ok) {
+        setMetricsPost(null);
+        fetchPosts();
+      }
+    } finally {
+      setMetricsSubmitting(false);
+    }
   };
 
   const openAddPost = async () => {
@@ -208,10 +241,10 @@ export default function PostsTab({ campaignId, postApprovalMode }: { campaignId:
       ) : viewMode === "list" ? (
         <Card variant="solid" noPadding>
           <div style={{
-            display: "grid", gridTemplateColumns: "1fr 100px 90px 80px 80px 80px 90px" + (postApprovalMode === "MANUAL" ? " 120px" : ""),
+            display: "grid", gridTemplateColumns: "1fr 100px 90px 80px 80px 80px 90px 140px",
             gap: 12, padding: "12px 24px", borderBottom: "1px solid var(--cc-border)", background: "var(--cc-bg)",
           }}>
-            {["Post", "Platform", "Views", "Likes", "Comments", "Eng %", "Status", ...(postApprovalMode === "MANUAL" ? ["Actions"] : [])].map(h => (
+            {["Post", "Platform", "Views", "Likes", "Comments", "Eng %", "Status", "Actions"].map(h => (
               <span key={h} style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--cc-text-subtle)" }}>{h}</span>
             ))}
           </div>
@@ -220,15 +253,15 @@ export default function PostsTab({ campaignId, postApprovalMode }: { campaignId:
               key={post.id}
               style={{
                 display: "grid",
-                gridTemplateColumns: "1fr 100px 90px 80px 80px 80px 90px" + (postApprovalMode === "MANUAL" ? " 120px" : ""),
+                gridTemplateColumns: "1fr 100px 90px 80px 80px 80px 90px 140px",
                 gap: 12, padding: "14px 24px", alignItems: "center",
                 borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined,
               }}
             >
               <div>
-                <a href={post.postUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)", textDecoration: "none" }}>
+                <Link href={`/campaigns/${campaignId}/posts/${post.id}`} style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)", textDecoration: "none" }}>
                   {post.caption?.slice(0, 50) ?? "Untitled"}
-                </a>
+                </Link>
                 <p style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>by {post.creator.name} · {new Date(post.postedAt).toLocaleDateString()}</p>
               </div>
               <Badge variant="neutral" style={{ fontSize: 11 }}>{post.platform}</Badge>
@@ -237,16 +270,21 @@ export default function PostsTab({ campaignId, postApprovalMode }: { campaignId:
               <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{formatNumber(post.commentsCount)}</span>
               <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-primary)" }}>{post.engagementRate.toFixed(1)}%</span>
               <Badge variant={STATUS_BADGE[post.status] ?? "neutral"}>{post.status.replace(/_/g, " ")}</Badge>
-              {postApprovalMode === "MANUAL" && post.status === "PENDING_REVIEW" && (
-                <div style={{ display: "flex", gap: 4 }}>
-                  <button onClick={() => handleApprove(post.id)} style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid #059669", background: "#D1FAE5", color: "#059669", cursor: "pointer", fontSize: 12, display: "flex", alignItems: "center", gap: 2 }}>
-                    <Check size={12} /> Approve
-                  </button>
-                  <button onClick={() => setShowRejectModal(post.id)} style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid #DC2626", background: "#FEE2E2", color: "#DC2626", cursor: "pointer", fontSize: 12, display: "flex", alignItems: "center", gap: 2 }}>
-                    <X size={12} /> Reject
-                  </button>
-                </div>
-              )}
+              <div style={{ display: "flex", gap: 4 }}>
+                <button onClick={() => openMetrics(post)} style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid var(--cc-primary)", background: "white", color: "var(--cc-primary)", cursor: "pointer", fontSize: 12, display: "flex", alignItems: "center", gap: 2 }}>
+                  <BarChart3 size={12} /> Metrics
+                </button>
+                {postApprovalMode === "MANUAL" && post.status === "PENDING_REVIEW" && (
+                  <>
+                    <button onClick={() => handleApprove(post.id)} style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid #059669", background: "#D1FAE5", color: "#059669", cursor: "pointer", fontSize: 12, display: "flex", alignItems: "center", gap: 2 }}>
+                      <Check size={12} />
+                    </button>
+                    <button onClick={() => setShowRejectModal(post.id)} style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid #DC2626", background: "#FEE2E2", color: "#DC2626", cursor: "pointer", fontSize: 12, display: "flex", alignItems: "center", gap: 2 }}>
+                      <X size={12} />
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
           ))}
         </Card>
@@ -274,12 +312,17 @@ export default function PostsTab({ campaignId, postApprovalMode }: { campaignId:
                   <span style={{ display: "flex", alignItems: "center", gap: 3 }}><MessageCircle size={12} />{formatNumber(post.commentsCount)}</span>
                   <span style={{ display: "flex", alignItems: "center", gap: 3 }}><TrendingUp size={12} />{post.engagementRate.toFixed(1)}%</span>
                 </div>
-                {postApprovalMode === "MANUAL" && post.status === "PENDING_REVIEW" && (
-                  <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-                    <Button variant="primary" onClick={() => handleApprove(post.id)} style={{ flex: 1, fontSize: 12 }}>Approve</Button>
-                    <Button variant="secondary" onClick={() => setShowRejectModal(post.id)} style={{ flex: 1, fontSize: 12 }}>Reject</Button>
-                  </div>
-                )}
+                <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                  <Button variant="secondary" onClick={() => openMetrics(post)} style={{ flex: 1, fontSize: 12 }}>
+                    <span style={{ display: "flex", alignItems: "center", gap: 4 }}><BarChart3 size={12} /> Metrics</span>
+                  </Button>
+                  {postApprovalMode === "MANUAL" && post.status === "PENDING_REVIEW" && (
+                    <>
+                      <Button variant="primary" onClick={() => handleApprove(post.id)} style={{ flex: 1, fontSize: 12 }}>Approve</Button>
+                      <Button variant="secondary" onClick={() => setShowRejectModal(post.id)} style={{ flex: 1, fontSize: 12 }}>Reject</Button>
+                    </>
+                  )}
+                </div>
               </div>
             </Card>
           ))}
@@ -314,6 +357,31 @@ export default function PostsTab({ campaignId, postApprovalMode }: { campaignId:
                 <option value="VIDEO">Video</option>
               </select>
             </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Update Metrics Modal */}
+      {metricsPost && (
+        <Modal open={true} onClose={() => setMetricsPost(null)} title="Update Metrics" size="md" footer={
+          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+            <Button variant="secondary" onClick={() => setMetricsPost(null)}>Cancel</Button>
+            <Button variant="primary" loading={metricsSubmitting} onClick={handleUpdateMetrics}>Save Metrics</Button>
+          </div>
+        }>
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <p style={{ fontSize: 13, color: "var(--cc-text-muted)", margin: 0 }}>
+              Manually update metrics for <strong>{metricsPost.caption?.slice(0, 40) ?? "this post"}</strong>
+            </p>
+            {(["viewsCount", "likesCount", "commentsCount", "sharesCount", "savesCount"] as const).map((field) => (
+              <Input
+                key={field}
+                label={field.replace("Count", "").replace(/([A-Z])/g, " $1").trim()}
+                type="number"
+                value={String(metricsForm[field])}
+                onChange={(e) => setMetricsForm((f) => ({ ...f, [field]: parseInt(e.target.value) || 0 }))}
+              />
+            ))}
           </div>
         </Modal>
       )}

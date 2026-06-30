@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Megaphone, Play, Calendar, CalendarClock, Users, Users2, Radio, LineChart,
   Search, List, Wallet, Inbox, UserCheck, Link2, CreditCard, Shield, Bell, FileText,
-  ChevronDown, Settings, LogOut, Menu, X, ChevronsLeft, ChevronsRight, Key, PieChart
+  ChevronDown, Settings, LogOut, Menu, X, ChevronsLeft, ChevronsRight, Key, PieChart, BarChart2
 } from "lucide-react";
 import { useSidebar } from "@/components/providers/SidebarProvider";
 
@@ -36,6 +36,7 @@ const NAV_SECTIONS = [
       { href: "/payouts", icon: Wallet, label: "Payouts" },
       { href: "/requests", icon: Inbox, label: "Requests" },
       { href: "/financial-reports", icon: PieChart, label: "Financials" },
+      { href: "/analytics", icon: BarChart2, label: "Analytics" },
       { href: "/recipients", icon: UserCheck, label: "Recipients" },
     ],
   },

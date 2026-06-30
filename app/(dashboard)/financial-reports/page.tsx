@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Card, Badge, Skeleton, EmptyState, Button } from "@pratham7711/ui";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
-import { TrendingUp, TrendingDown, Minus, DollarSign, Wallet, BarChart2, Clock, Download } from "lucide-react";
+import { TrendingUp, TrendingDown, Minus, DollarSign, Wallet, BarChart2, Clock, Download, FileText, Table } from "lucide-react";
 
 const PERIODS = [
   { key: "THIS_MONTH", label: "This Month" },
@@ -145,6 +145,8 @@ export default function FinancialReportsPage() {
   const [data, setData] = useState<ReportData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [exportingPdf, setExportingPdf] = useState(false);
+  const [exportingXlsx, setExportingXlsx] = useState(false);
 
   const load = useCallback(async (p: string) => {
     setLoading(true);
@@ -162,6 +164,30 @@ export default function FinancialReportsPage() {
 
   useEffect(() => { load(period); }, [period, load]);
 
+  const exportGenerated = async (format: "pdf" | "xlsx") => {
+    if (!data) return;
+    const setter = format === "pdf" ? setExportingPdf : setExportingXlsx;
+    setter(true);
+    try {
+      const res = await fetch("/api/financial-reports/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ period, format }),
+      });
+      if (res.ok) {
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `financial-report-${data.period.replace(/\s+/g, "-").toLowerCase()}.${format}`;
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+    } finally {
+      setter(false);
+    }
+  };
+
   return (
     <div className="cc-page-content">
       {/* Header */}
@@ -174,10 +200,20 @@ export default function FinancialReportsPage() {
         </div>
         <div style={{ display: "flex", gap: 10 }}>
           {data && (
-            <Button variant="secondary" size="sm" onClick={() => exportCSV(data)}>
-              <Download size={14} style={{ marginRight: 6 }} />
-              Export CSV
-            </Button>
+            <>
+              <Button variant="secondary" size="sm" onClick={() => exportGenerated("pdf")} disabled={exportingPdf}>
+                <FileText size={14} style={{ marginRight: 6 }} />
+                {exportingPdf ? "Generating..." : "Export PDF"}
+              </Button>
+              <Button variant="secondary" size="sm" onClick={() => exportGenerated("xlsx")} disabled={exportingXlsx}>
+                <Table size={14} style={{ marginRight: 6 }} />
+                {exportingXlsx ? "Generating..." : "Export Excel"}
+              </Button>
+              <Button variant="secondary" size="sm" onClick={() => exportCSV(data)}>
+                <Download size={14} style={{ marginRight: 6 }} />
+                Export CSV
+              </Button>
+            </>
           )}
         </div>
       </div>
