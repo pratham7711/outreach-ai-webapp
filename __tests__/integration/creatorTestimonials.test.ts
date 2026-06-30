@@ -19,7 +19,7 @@ const mockGetCreatorSession = getCreatorSession as jest.Mock;
 const mockDb = db as any;
 const creatorSession = { creatorUserId: 'cu-1' };
 
-function makeRequest(url: string, options?: RequestInit) {
+function makeRequest(url: string, options?: ConstructorParameters<typeof NextRequest>[1]) {
   return new NextRequest(url, options);
 }
 

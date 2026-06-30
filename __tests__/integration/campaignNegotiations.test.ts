@@ -23,7 +23,7 @@ const mockDb = db as any;
 const session = { user: { id: 'user-1', orgId: 'org-1' } };
 const mockCampaign = { id: 'camp-1', orgId: 'org-1', deletedAt: null };
 
-function makeRequest(url: string, options?: RequestInit) { return new NextRequest(url, options); }
+function makeRequest(url: string, options?: ConstructorParameters<typeof NextRequest>[1]) { return new NextRequest(url, options); }
 function makeParams(id: string) { return { params: Promise.resolve({ id }) }; }
 function makeOfferParams(id: string, offerId: string) { return { params: Promise.resolve({ id, offerId }) }; }
 

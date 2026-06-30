@@ -23,7 +23,7 @@ const mockDb = db as any;
 
 const session = { id: 'sess-1', creatorUserId: 'cu-1', email: 'test@x.com', name: 'Test', handle: 'test' };
 
-function makeRequest(url: string, options?: RequestInit) {
+function makeRequest(url: string, options?: ConstructorParameters<typeof NextRequest>[1]) {
   return new NextRequest(url, options);
 }
 

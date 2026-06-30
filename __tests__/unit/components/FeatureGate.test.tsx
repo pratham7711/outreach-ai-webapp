@@ -3,7 +3,6 @@
  */
 import { render, screen } from "@testing-library/react";
 import { FeatureGate } from "@/components/providers/FeatureGate";
-import { TenantContext } from "@/components/providers/TenantProvider";
 import type { ReactNode } from "react";
 
 // Re-export TenantContext if not exported — if FeatureGate uses useTenant internally,

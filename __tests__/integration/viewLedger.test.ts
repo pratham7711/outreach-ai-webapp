@@ -47,7 +47,7 @@ const viewBasedCampaign = {
   deletedAt: null,
 };
 
-function makeRequest(url: string, options?: RequestInit) {
+function makeRequest(url: string, options?: ConstructorParameters<typeof NextRequest>[1]) {
   return new NextRequest(url, options);
 }
 

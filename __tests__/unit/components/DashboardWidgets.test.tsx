@@ -1,17 +1,24 @@
+/**
+ * @jest-environment jsdom
+ */
 import { render, screen } from "@testing-library/react";
 
-// Mock @pratham7711/ui
 jest.mock("@pratham7711/ui", () => ({
   Card: ({ children, ...props }: any) => <div data-testid="card" {...props}>{children}</div>,
   Badge: ({ children }: any) => <span>{children}</span>,
   StatCard: ({ label, value }: any) => <div><span>{label}</span><span>{value}</span></div>,
+  Skeleton: () => <div data-testid="skeleton" />,
 }), { virtual: true });
 
-// Mock recharts to avoid canvas/SVG issues in jsdom
 jest.mock("recharts", () => ({
   ResponsiveContainer: ({ children }: any) => <div data-testid="responsive-container">{children}</div>,
   AreaChart: ({ children }: any) => <div data-testid="area-chart">{children}</div>,
   Area: () => <div data-testid="area" />,
+  PieChart: ({ children }: any) => <div data-testid="pie-chart">{children}</div>,
+  Pie: ({ children }: any) => <div data-testid="pie">{children}</div>,
+  Cell: () => <div data-testid="cell" />,
+  BarChart: ({ children }: any) => <div data-testid="bar-chart">{children}</div>,
+  Bar: () => <div data-testid="bar" />,
   XAxis: () => null,
   YAxis: () => null,
   CartesianGrid: () => null,
@@ -30,80 +37,84 @@ const baseProps = {
   chartData: [{ month: "Jan", spend: 500 }],
 };
 
-describe("DashboardClient — widget rendering based on dashboardWidgets", () => {
-  it("renders all widgets when all keys are present in dashboard array", () => {
-    const allWidgets = [
-      "kpi_grid",
-      "views_over_time",
-      "platform_breakdown",
-      "top_posts",
-      "financial_summary",
-      "creator_performance",
-    ];
-    render(<DashboardClient {...baseProps} dashboardWidgets={allWidgets} />);
+const ALL_WIDGETS = [
+  "kpi_grid",
+  "views_over_time",
+  "platform_breakdown",
+  "top_posts",
+  "financial_summary",
+  "creator_performance",
+];
 
-    // kpi_grid: stat cards
-    expect(screen.getByText("Total Campaigns")).toBeInTheDocument();
-    expect(screen.getByText("Active Creators")).toBeInTheDocument();
+const emptyFinancials = {
+  summary: {
+    totalSpend: 0,
+    totalBudget: 0,
+    budgetUtilization: 0,
+    activeCampaigns: 0,
+    totalCreators: 0,
+    avgCampaignSpend: 0,
+    pendingPayouts: 0,
+    totalDeposits: 0,
+    releasedDeposits: 0,
+  },
+  spendOverTime: [],
+  spendByCampaign: [],
+  platformBreakdown: [],
+  creatorPerformance: [],
+  topPosts: [],
+};
 
-    // views_over_time: chart
-    expect(screen.getByText("Monthly Campaign Spend")).toBeInTheDocument();
+beforeEach(() => {
+  global.fetch = jest.fn().mockResolvedValue({
+    ok: true,
+    json: async () => emptyFinancials,
+  }) as unknown as typeof fetch;
+});
 
-    // placeholder widgets
+afterEach(() => {
+  jest.clearAllMocks();
+});
+
+describe("DashboardClient — widget gating via dashboardWidgets", () => {
+  it("renders every widget section when all keys are present", async () => {
+    render(<DashboardClient {...baseProps} dashboardWidgets={ALL_WIDGETS} />);
+    expect(await screen.findByText("Total Spend")).toBeInTheDocument();
+    expect(screen.getByText("Active Campaigns")).toBeInTheDocument();
+    expect(screen.getByText("Spend & Views Over Time")).toBeInTheDocument();
     expect(screen.getByText("Platform Breakdown")).toBeInTheDocument();
     expect(screen.getByText("Top Posts")).toBeInTheDocument();
-    expect(screen.getByText("Financial Summary")).toBeInTheDocument();
+    expect(screen.getByText("Spend by Campaign")).toBeInTheDocument();
     expect(screen.getByText("Creator Performance")).toBeInTheDocument();
   });
 
-  it("hides kpi_grid when its key is removed from dashboard array", () => {
-    const widgets = ["views_over_time"];
-    render(<DashboardClient {...baseProps} dashboardWidgets={widgets} />);
-
-    expect(screen.queryByText("Total Campaigns")).not.toBeInTheDocument();
-    expect(screen.queryByText("Active Creators")).not.toBeInTheDocument();
-    // Chart should still show
-    expect(screen.getByText("Monthly Campaign Spend")).toBeInTheDocument();
+  it("hides the KPI grid when kpi_grid is absent", async () => {
+    render(<DashboardClient {...baseProps} dashboardWidgets={["views_over_time"]} />);
+    expect(await screen.findByText("Spend & Views Over Time")).toBeInTheDocument();
+    expect(screen.queryByText("Total Spend")).not.toBeInTheDocument();
+    expect(screen.queryByText("Active Campaigns")).not.toBeInTheDocument();
   });
 
-  it("hides views_over_time chart when its key is removed", () => {
-    const widgets = ["kpi_grid"];
-    render(<DashboardClient {...baseProps} dashboardWidgets={widgets} />);
-
-    expect(screen.getByText("Total Campaigns")).toBeInTheDocument();
-    expect(screen.queryByText("Monthly Campaign Spend")).not.toBeInTheDocument();
+  it("hides the spend-over-time chart when views_over_time is absent", async () => {
+    render(<DashboardClient {...baseProps} dashboardWidgets={["kpi_grid"]} />);
+    expect(await screen.findByText("Total Spend")).toBeInTheDocument();
+    expect(screen.queryByText("Spend & Views Over Time")).not.toBeInTheDocument();
   });
 
-  it("renders placeholder widgets with 'Coming soon' text", () => {
-    const widgets = ["platform_breakdown", "top_posts", "financial_summary", "creator_performance"];
-    render(<DashboardClient {...baseProps} dashboardWidgets={widgets} />);
-
-    const comingSoonElements = screen.getAllByTestId("placeholder-coming-soon");
-    expect(comingSoonElements.length).toBe(4);
-    comingSoonElements.forEach((el) => {
-      expect(el).toHaveTextContent("Coming soon");
-    });
-  });
-
-  it("handles null dashboardWidgets gracefully (shows all widgets as default)", () => {
+  it("falls back to all default widgets when dashboardWidgets is null", async () => {
     render(<DashboardClient {...baseProps} dashboardWidgets={null} />);
-
-    // All default widgets should render
-    expect(screen.getByText("Total Campaigns")).toBeInTheDocument();
-    expect(screen.getByText("Monthly Campaign Spend")).toBeInTheDocument();
+    expect(await screen.findByText("Total Spend")).toBeInTheDocument();
+    expect(screen.getByText("Spend & Views Over Time")).toBeInTheDocument();
     expect(screen.getByText("Platform Breakdown")).toBeInTheDocument();
     expect(screen.getByText("Top Posts")).toBeInTheDocument();
-    expect(screen.getByText("Financial Summary")).toBeInTheDocument();
     expect(screen.getByText("Creator Performance")).toBeInTheDocument();
   });
 
-  it("renders empty dashboard when dashboardWidgets is an empty array", () => {
+  it("renders only the header chrome when dashboardWidgets is an empty array", async () => {
     render(<DashboardClient {...baseProps} dashboardWidgets={[]} />);
-
-    expect(screen.queryByText("Total Campaigns")).not.toBeInTheDocument();
-    expect(screen.queryByText("Monthly Campaign Spend")).not.toBeInTheDocument();
+    expect(await screen.findByText("Dashboard")).toBeInTheDocument();
+    expect(screen.queryByText("Total Spend")).not.toBeInTheDocument();
+    expect(screen.queryByText("Spend & Views Over Time")).not.toBeInTheDocument();
     expect(screen.queryByText("Platform Breakdown")).not.toBeInTheDocument();
-    // Header should still render
-    expect(screen.getByText("Dashboard")).toBeInTheDocument();
   });
 });

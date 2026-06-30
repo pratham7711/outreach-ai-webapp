@@ -2,7 +2,11 @@
  * @jest-environment node
  */
 import { NextRequest } from "next/server";
+import { randomBytes } from "crypto";
 import { GET, POST, DELETE } from "@/app/api/creators/[id]/social-accounts/route";
+import { decrypt, isEncrypted } from "@/lib/crypto/encrypt";
+
+process.env.TOKEN_ENCRYPTION_KEY = randomBytes(32).toString("base64");
 
 jest.mock("@/lib/db", () => ({
   db: {
@@ -27,7 +31,7 @@ const mockDb = db as any;
 const authedSession = { user: { id: "user-1", orgId: "org-1" } };
 const fakeCreator = { id: "cr-1", orgId: "org-1", deletedAt: null };
 
-function makeRequest(url: string, options?: RequestInit) {
+function makeRequest(url: string, options?: ConstructorParameters<typeof NextRequest>[1]) {
   return new NextRequest(url, options);
 }
 
@@ -187,6 +191,57 @@ describe("POST /api/creators/[id]/social-accounts", () => {
       makeParams("cr-1"),
     );
     expect(res.status).toBe(409);
+  });
+
+  it("encrypts accessToken + refreshToken before persisting, bound to orgId", async () => {
+    mockDb.creatorSocialAccount.create.mockImplementation(async ({ data }: any) => ({
+      id: "sa-enc",
+      tokenExpiry: null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      ...data,
+    }));
+    const res = await POST(
+      makeRequest("http://localhost/api/creators/cr-1/social-accounts", {
+        method: "POST",
+        body: JSON.stringify({
+          platform: "INSTAGRAM",
+          handle: "@enc",
+          accessToken: "plain-access",
+          refreshToken: "plain-refresh",
+        }),
+      }),
+      makeParams("cr-1"),
+    );
+    expect(res.status).toBe(201);
+
+    const { data } = mockDb.creatorSocialAccount.create.mock.calls[0][0];
+    expect(data.accessToken).not.toBe("plain-access");
+    expect(isEncrypted(data.accessToken)).toBe(true);
+    expect(isEncrypted(data.refreshToken)).toBe(true);
+    expect(decrypt(data.accessToken, "org-1")).toBe("plain-access");
+    expect(decrypt(data.refreshToken, "org-1")).toBe("plain-refresh");
+    expect(() => decrypt(data.accessToken, "org-2")).toThrow();
+  });
+
+  it("does not encrypt an absent refreshToken", async () => {
+    mockDb.creatorSocialAccount.create.mockImplementation(async ({ data }: any) => ({
+      id: "sa-noref",
+      tokenExpiry: null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      ...data,
+    }));
+    await POST(
+      makeRequest("http://localhost/api/creators/cr-1/social-accounts", {
+        method: "POST",
+        body: JSON.stringify({ platform: "TIKTOK", handle: "@noref", accessToken: "a-tok" }),
+      }),
+      makeParams("cr-1"),
+    );
+    const { data } = mockDb.creatorSocialAccount.create.mock.calls[0][0];
+    expect(isEncrypted(data.accessToken)).toBe(true);
+    expect(data.refreshToken ?? null).toBeNull();
   });
 });
 
