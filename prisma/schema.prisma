@@ -442,8 +442,8 @@ model CreatorSocialAccount {
   creatorId      String
   platform       Platform
   handle         String
-  accessToken    String    // encrypted at rest via lib/crypto/encrypt.ts
-  refreshToken   String?
+  accessToken    String    // AES-256-GCM ciphertext at rest — lib/crypto/encrypt.ts (AAD = orgId)
+  refreshToken   String?   // AES-256-GCM ciphertext at rest — lib/crypto/encrypt.ts (AAD = orgId)
   tokenExpiry    DateTime?
   followersCount Int       @default(0)
   avgViews       Int       @default(0)
@@ -512,17 +512,21 @@ model Post {
   caption        String?
   mediaType      MediaType?
   postedAt       DateTime
-  viewsCount     Int        @default(0)
-  likesCount     Int        @default(0)
-  commentsCount  Int        @default(0)
-  sharesCount    Int        @default(0)
-  downloadsCount Int        @default(0)
-  engagementRate Float      @default(0)
-  status         PostStatus @default(PENDING_REVIEW)
+  viewsCount      Int        @default(0)
+  likesCount      Int        @default(0)
+  commentsCount   Int        @default(0)
+  sharesCount     Int        @default(0)
+  downloadsCount  Int        @default(0)
+  savesCount      Int        @default(0)
+  reachCount      Int        @default(0)
+  engagementRate  Float      @default(0)
+  platformMetrics Json?
+  storyExpiresAt  DateTime?
+  status          PostStatus @default(PENDING_REVIEW)
   rejectionReason String?
-  lastSyncedAt   DateTime?
-  createdAt      DateTime   @default(now())
-  updatedAt      DateTime   @updatedAt
+  lastSyncedAt    DateTime?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
 
   campaign   Campaign              @relation(fields: [campaignId], references: [id])
   creator    Creator               @relation(fields: [creatorId], references: [id])
@@ -531,14 +535,21 @@ model Post {
 }
 
 model PostMetricSnapshot {
-  id             String   @id @default(cuid())
-  postId         String
-  viewsCount     Int      @default(0)
-  likesCount     Int      @default(0)
-  commentsCount  Int      @default(0)
-  sharesCount    Int      @default(0)
-  engagementRate Float    @default(0)
-  recordedAt     DateTime @default(now())
+  id               String   @id @default(cuid())
+  postId           String
+  viewsCount       Int      @default(0)
+  likesCount       Int      @default(0)
+  commentsCount    Int      @default(0)
+  sharesCount      Int      @default(0)
+  downloadsCount   Int      @default(0)
+  savesCount       Int      @default(0)
+  reachCount       Int      @default(0)
+  impressionsCount Int      @default(0)
+  engagementRate   Float    @default(0)
+  platformMetrics  Json?
+  syncSource       String?
+  isFinalSnapshot  Boolean  @default(false)
+  recordedAt       DateTime @default(now())
 
   post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
 }
