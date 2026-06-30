@@ -1,18 +1,14 @@
-"use client";
-import { EmptyState } from "@pratham7711/ui";
+import { redirect } from "next/navigation";
+import { auth } from "@/lib/auth";
+import { getRecipients } from "@/lib/recipients/query";
+import RecipientsClient from "./RecipientsClient";
 
-export default function RecipientsPage() {
-  return (
-    <div className="cc-page-content">
-      <div style={{ marginBottom: 32 }}>
-        <h1 style={{ fontSize: 26, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Recipients</h1>
-        <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>Manage your payment recipients</p>
-      </div>
-      <EmptyState
-        icon="📬"
-        title="Coming soon"
-        description="Recipient management is under development."
-      />
-    </div>
-  );
+export default async function RecipientsPage() {
+  const session = await auth();
+  if (!session?.user) redirect("/login");
+  const orgId = (session.user as any).orgId as string;
+
+  const { recipients, stats } = await getRecipients(orgId);
+
+  return <RecipientsClient recipients={recipients} stats={stats} />;
 }
