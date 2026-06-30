@@ -1,18 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { authenticateRequest, getAuditActor } from "@/lib/authenticate";
+import { encrypt } from "@/lib/crypto/encrypt";
 
 // ─── GET — list social accounts (secrets excluded) ───────────────────────────
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const session = await auth();
-  if (!session?.user)
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const orgId = (session.user as any).orgId;
+  const result = await authenticateRequest(req);
+  if (!result)
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { orgId } = result;
   const { id } = await params;
 
   const creator = await db.creator.findFirst({
@@ -54,10 +55,10 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const session = await auth();
-  if (!session?.user)
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const orgId = (session.user as any).orgId;
+  const result = await authenticateRequest(req);
+  if (!result)
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { orgId } = result;
   const { id } = await params;
 
   const creator = await db.creator.findFirst({
@@ -76,7 +77,17 @@ export async function POST(
       );
 
     const account = await db.creatorSocialAccount.create({
-      data: { creatorId: id, ...parsed.data },
+      data: {
+        creatorId: id,
+        platform: parsed.data.platform,
+        handle: parsed.data.handle,
+        followersCount: parsed.data.followersCount,
+        avgViews: parsed.data.avgViews,
+        accessToken: encrypt(parsed.data.accessToken, orgId),
+        refreshToken: parsed.data.refreshToken
+          ? encrypt(parsed.data.refreshToken, orgId)
+          : parsed.data.refreshToken,
+      },
     });
 
     // Strip secrets before returning
@@ -102,10 +113,10 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const session = await auth();
-  if (!session?.user)
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const orgId = (session.user as any).orgId;
+  const result = await authenticateRequest(req);
+  if (!result)
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { orgId } = result;
   const { id } = await params;
 
   const creator = await db.creator.findFirst({

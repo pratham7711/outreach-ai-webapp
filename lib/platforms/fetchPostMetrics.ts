@@ -1,4 +1,4 @@
-type PostMetrics = {
+export type PostMetrics = {
   platform: "TIKTOK" | "INSTAGRAM" | "YOUTUBE";
   platformPostId: string;
   thumbnailUrl: string | null;
@@ -6,11 +6,12 @@ type PostMetrics = {
   viewsCount: number;
   likesCount: number;
   commentsCount: number;
+  sharesCount: number;
   engagementRate: number;
   postedAt: Date;
 };
 
-function detectPlatform(url: string): { platform: PostMetrics["platform"]; id: string } | null {
+export function detectPlatform(url: string): { platform: PostMetrics["platform"]; id: string } | null {
   // YouTube: youtube.com/watch?v=ID or youtu.be/ID or youtube.com/shorts/ID
   const ytMatch = url.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/)([\w-]+)/);
   if (ytMatch) return { platform: "YOUTUBE", id: ytMatch[1] };
@@ -26,7 +27,7 @@ function detectPlatform(url: string): { platform: PostMetrics["platform"]; id: s
   return null;
 }
 
-async function fetchYouTubeMetrics(videoId: string): Promise<Partial<PostMetrics>> {
+export async function fetchYouTubeMetrics(videoId: string): Promise<Partial<PostMetrics>> {
   const apiKey = process.env.YOUTUBE_API_KEY;
   if (!apiKey) return stubMetrics();
 
@@ -52,6 +53,7 @@ async function fetchYouTubeMetrics(videoId: string): Promise<Partial<PostMetrics
       viewsCount: views,
       likesCount: likes,
       commentsCount: comments,
+      sharesCount: 0,
       engagementRate: views > 0 ? ((likes + comments) / views) * 100 : 0,
       postedAt: item.snippet?.publishedAt ? new Date(item.snippet.publishedAt) : new Date(),
     };
@@ -60,39 +62,35 @@ async function fetchYouTubeMetrics(videoId: string): Promise<Partial<PostMetrics
   }
 }
 
-async function fetchOEmbedMetrics(url: string): Promise<Partial<PostMetrics>> {
-  // Try Instagram oEmbed
-  if (url.includes("instagram.com")) {
-    try {
-      const res = await fetch(`https://api.instagram.com/oembed?url=${encodeURIComponent(url)}`);
-      if (res.ok) {
-        const data = await res.json();
-        return {
-          thumbnailUrl: data.thumbnail_url ?? null,
-          caption: data.title ?? null,
-        };
-      }
-    } catch {
-      // fall through
+export async function fetchTikTokMetrics(url: string): Promise<Partial<PostMetrics>> {
+  try {
+    const res = await fetch(`https://www.tiktok.com/oembed?url=${encodeURIComponent(url)}`);
+    if (res.ok) {
+      const data = await res.json();
+      return {
+        thumbnailUrl: data.thumbnail_url ?? null,
+        caption: data.title ?? null,
+      };
     }
+  } catch {
+    // fall through
   }
+  return stubMetrics();
+}
 
-  // Try TikTok oEmbed
-  if (url.includes("tiktok.com")) {
-    try {
-      const res = await fetch(`https://www.tiktok.com/oembed?url=${encodeURIComponent(url)}`);
-      if (res.ok) {
-        const data = await res.json();
-        return {
-          thumbnailUrl: data.thumbnail_url ?? null,
-          caption: data.title ?? null,
-        };
-      }
-    } catch {
-      // fall through
+export async function fetchInstagramMetrics(url: string): Promise<Partial<PostMetrics>> {
+  try {
+    const res = await fetch(`https://api.instagram.com/oembed?url=${encodeURIComponent(url)}`);
+    if (res.ok) {
+      const data = await res.json();
+      return {
+        thumbnailUrl: data.thumbnail_url ?? null,
+        caption: data.title ?? null,
+      };
     }
+  } catch {
+    // fall through
   }
-
   return stubMetrics();
 }
 
@@ -103,6 +101,7 @@ function stubMetrics(): Partial<PostMetrics> {
     viewsCount: 0,
     likesCount: 0,
     commentsCount: 0,
+    sharesCount: 0,
     engagementRate: 0,
     postedAt: new Date(),
   };
@@ -114,10 +113,16 @@ export async function fetchPostMetrics(url: string): Promise<PostMetrics | null>
 
   let metrics: Partial<PostMetrics>;
 
-  if (detected.platform === "YOUTUBE") {
-    metrics = await fetchYouTubeMetrics(detected.id);
-  } else {
-    metrics = await fetchOEmbedMetrics(url);
+  switch (detected.platform) {
+    case "YOUTUBE":
+      metrics = await fetchYouTubeMetrics(detected.id);
+      break;
+    case "TIKTOK":
+      metrics = await fetchTikTokMetrics(url);
+      break;
+    case "INSTAGRAM":
+      metrics = await fetchInstagramMetrics(url);
+      break;
   }
 
   return {
@@ -128,6 +133,7 @@ export async function fetchPostMetrics(url: string): Promise<PostMetrics | null>
     viewsCount: metrics.viewsCount ?? 0,
     likesCount: metrics.likesCount ?? 0,
     commentsCount: metrics.commentsCount ?? 0,
+    sharesCount: metrics.sharesCount ?? 0,
     engagementRate: metrics.engagementRate ?? 0,
     postedAt: metrics.postedAt ?? new Date(),
   };

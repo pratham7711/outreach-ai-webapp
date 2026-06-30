@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
-import { createAuditActor, logAudit } from "@/lib/audit";
+import { authenticateRequest, getAuditActor } from "@/lib/authenticate";
+import { logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
 import { z } from "zod";
 
@@ -19,9 +19,9 @@ const createCreatorSchema = z.object({
 // GET /api/creators
 export async function GET(request: NextRequest) {
   try {
-    const session = await auth();
-    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    const orgId = (session.user as any).orgId;
+    const result = await authenticateRequest(request);
+    if (!result) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const { orgId } = result;
 
     const { searchParams } = request.nextUrl;
     const search = searchParams.get("search");
@@ -73,9 +73,9 @@ export async function GET(request: NextRequest) {
 // POST /api/creators
 export async function POST(request: NextRequest) {
   try {
-    const session = await auth();
-    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    const orgId = (session.user as any).orgId;
+    const result = await authenticateRequest(request);
+    if (!result) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const { orgId } = result;
 
     const body = await request.json();
     const parsed = createCreatorSchema.safeParse(body);
@@ -105,7 +105,7 @@ export async function POST(request: NextRequest) {
 
     await logAudit({
       orgId,
-      ...createAuditActor(session),
+      ...getAuditActor(result),
       action: "creator.create",
       entityType: "creator",
       entityId: creator.id,

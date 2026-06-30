@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
-import { createAuditActor, logAudit } from "@/lib/audit";
+import { authenticateRequest, getAuditActor } from "@/lib/authenticate";
+import { logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
 
 export async function GET(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const orgId = (session.user as any).orgId;
+  const result = await authenticateRequest(req);
+  if (!result) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { orgId } = result;
   const { searchParams } = req.nextUrl;
   const status = searchParams.get("status");
   const page = parseInt(searchParams.get("page") ?? "1");
@@ -23,9 +23,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const orgId = (session.user as any).orgId;
+  const result = await authenticateRequest(req);
+  if (!result) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { orgId } = result;
   const body = await req.json();
   const { creatorId, campaignId, amount, currency, paymentMethod, recipientPaypalEmail } = body;
   if (!creatorId || !amount) return NextResponse.json({ error: "Missing fields" }, { status: 400 });
@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
 
   await logAudit({
     orgId,
-    ...createAuditActor(session),
+    ...getAuditActor(result),
     action: "payout.create",
     entityType: "payout",
     entityId: payout.id,

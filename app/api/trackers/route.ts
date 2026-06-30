@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { authenticateRequest } from "@/lib/authenticate";
 import { z } from "zod";
-
-// ---------- Status helpers ----------
 
 function computeStatus(velocityScore: number): string {
   if (velocityScore >= 100) return "viral";
@@ -22,12 +20,12 @@ function computeGrowthPercentage(
 }
 
 // ---------- GET /api/trackers ----------
-export async function GET(_request: NextRequest) {
+export async function GET(req: NextRequest) {
   try {
-    const session = await auth();
-    if (!session?.user)
+    const result = await authenticateRequest(req);
+    if (!result)
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    const orgId = (session.user as any).orgId;
+    const { orgId } = result;
 
     const sounds = await db.tikTokSound.findMany({
       where: { orgId },
@@ -40,7 +38,7 @@ export async function GET(_request: NextRequest) {
       orderBy: { createdAt: "desc" },
     });
 
-    const result = sounds.map((sound) => {
+    const mapped = sounds.map((sound) => {
       const latest = sound.snapshots[0] ?? null;
       return {
         ...sound,
@@ -50,7 +48,7 @@ export async function GET(_request: NextRequest) {
       };
     });
 
-    return NextResponse.json({ sounds: result });
+    return NextResponse.json({ sounds: mapped });
   } catch (error) {
     console.error("Failed to fetch trackers:", error);
     return NextResponse.json(
@@ -61,7 +59,6 @@ export async function GET(_request: NextRequest) {
 }
 
 // ---------- POST /api/trackers ----------
-
 const createSoundSchema = z.object({
   tiktokSoundId: z.string().min(1),
   title: z.string().min(1),
@@ -69,14 +66,14 @@ const createSoundSchema = z.object({
   coverImageUrl: z.string().nullable().optional(),
 });
 
-export async function POST(request: NextRequest) {
+export async function POST(req: NextRequest) {
   try {
-    const session = await auth();
-    if (!session?.user)
+    const result = await authenticateRequest(req);
+    if (!result)
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    const orgId = (session.user as any).orgId;
+    const { orgId } = result;
 
-    const body = await request.json();
+    const body = await req.json();
     const parsed = createSoundSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(

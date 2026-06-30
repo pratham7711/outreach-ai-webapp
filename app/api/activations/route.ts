@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
-import { createAuditActor, logAudit } from "@/lib/audit";
+import { authenticateRequest, getAuditActor } from "@/lib/authenticate";
+import { logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
 
 export async function GET(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const orgId = (session.user as any).orgId;
+  const result = await authenticateRequest(req);
+  if (!result) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { orgId } = result;
   const { searchParams } = req.nextUrl;
   const campaignId = searchParams.get("campaignId");
   const where = { deletedAt: null, campaign: { orgId }, ...(campaignId && { campaignId }) };
@@ -16,9 +16,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const orgId = (session.user as any).orgId;
+  const result = await authenticateRequest(req);
+  if (!result) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { orgId } = result;
   const { campaignId, creatorId, deliverableDueDate } = await req.json();
   if (!campaignId || !creatorId) return NextResponse.json({ error: "Missing fields" }, { status: 400 });
   const campaign = await db.campaign.findFirst({ where: { id: campaignId, orgId, deletedAt: null } });
@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
 
     await logAudit({
       orgId,
-      ...createAuditActor(session),
+      ...getAuditActor(result),
       action: "activation.create",
       entityType: "activation",
       entityId: activation.id,

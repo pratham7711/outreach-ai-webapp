@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { authenticateRequest, getAuditActor } from "@/lib/authenticate";
 
 // ---------- GET /api/payout-requests ----------
 export async function GET(request: NextRequest) {
   try {
-    const session = await auth();
-    if (!session?.user)
+    const authResult = await authenticateRequest(request);
+    if (!authResult)
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    const orgId = (session.user as any).orgId;
+    const orgId = authResult.orgId;
 
     const url = new URL(request.url);
     const statusFilter = url.searchParams.get("status");

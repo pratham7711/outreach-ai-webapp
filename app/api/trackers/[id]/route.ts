@@ -1,17 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { authenticateRequest } from "@/lib/authenticate";
 
 // ---------- GET /api/trackers/[id] ----------
 export async function GET(
-  _request: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user)
+    const result = await authenticateRequest(req);
+    if (!result)
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    const orgId = (session.user as any).orgId;
+    const { orgId } = result;
     const { id } = await params;
 
     const sound = await db.tikTokSound.findFirst({
@@ -41,14 +41,14 @@ export async function GET(
 
 // ---------- DELETE /api/trackers/[id] ----------
 export async function DELETE(
-  _request: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user)
+    const result = await authenticateRequest(req);
+    if (!result)
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    const orgId = (session.user as any).orgId;
+    const { orgId } = result;
     const { id } = await params;
 
     const sound = await db.tikTokSound.findFirst({

@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
-import { createAuditActor, logAudit } from "@/lib/audit";
+import { authenticateRequest, getAuditActor } from "@/lib/authenticate";
+import { logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
 
 const updateCreatorSchema = z.object({
@@ -18,14 +18,14 @@ const updateCreatorSchema = z.object({
 });
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const result = await authenticateRequest(req);
+    if (!result) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const { id } = await params;
-    const orgId = (session.user as any).orgId;
+    const { orgId } = result;
     const creator = await db.creator.findFirst({
       where: { id, orgId, deletedAt: null },
       include: {
@@ -61,10 +61,10 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const result = await authenticateRequest(req);
+    if (!result) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const { id } = await params;
-    const orgId = (session.user as any).orgId;
+    const { orgId } = result;
     const body = await req.json();
     const parsed = updateCreatorSchema.safeParse(body);
     if (!parsed.success) {
@@ -76,7 +76,7 @@ export async function PATCH(
 
     await logAudit({
       orgId,
-      ...createAuditActor(session),
+      ...getAuditActor(result),
       action: "creator.update",
       entityType: "creator",
       entityId: creator.id,

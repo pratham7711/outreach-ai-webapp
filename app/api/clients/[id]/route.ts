@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
-import { createAuditActor, logAudit } from "@/lib/audit";
+import { authenticateRequest, getAuditActor } from "@/lib/authenticate";
+import { logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
 
 const updateClientSchema = z.object({
@@ -11,11 +11,11 @@ const updateClientSchema = z.object({
   contactInfo: z.record(z.string(), z.string()).nullable().optional(),
 });
 
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const session = await auth();
-    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    const orgId = (session.user as any).orgId;
+    const result = await authenticateRequest(req);
+    if (!result) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const { orgId } = result;
     const { id } = await params;
 
     const client = await db.client.findFirst({
@@ -44,9 +44,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const session = await auth();
-    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    const orgId = (session.user as any).orgId;
+    const result = await authenticateRequest(req);
+    if (!result) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const { orgId } = result;
     const { id } = await params;
 
     const existing = await db.client.findFirst({ where: { id, orgId } });
@@ -71,7 +71,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     await logAudit({
       orgId,
-      ...createAuditActor(session),
+      ...getAuditActor(result),
       action: "client.update",
       entityType: "client",
       entityId: updated.id,

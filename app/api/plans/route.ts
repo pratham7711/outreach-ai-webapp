@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { authenticateRequest, getAuditActor } from "@/lib/authenticate";
 
 const CreatePlanSchema = z.object({
   name: z.string().min(1),
@@ -10,10 +10,10 @@ const CreatePlanSchema = z.object({
   isCustom: z.boolean().optional().default(true),
 });
 
-export async function GET() {
-  const session = await auth();
-  if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const orgId = (session.user as any).orgId as string;
+export async function GET(req: NextRequest) {
+  const result = await authenticateRequest(req);
+  if (!result) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { orgId } = result;
 
   const plans = await db.plan.findMany({
     where: { orgId },
@@ -25,9 +25,9 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const orgId = (session.user as any).orgId as string;
+  const result = await authenticateRequest(req);
+  if (!result) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { orgId } = result;
 
   const body = await req.json();
   const parsed = CreatePlanSchema.safeParse(body);

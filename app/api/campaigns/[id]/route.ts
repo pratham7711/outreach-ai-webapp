@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
-import { createAuditActor, logAudit } from "@/lib/audit";
+import { authenticateRequest, getAuditActor } from "@/lib/authenticate";
+import { logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
 import { z } from "zod";
 
@@ -30,13 +30,13 @@ const updateCampaignSchema = z.object({
 
 // GET /api/campaigns/[id]
 export async function GET(
-  _request: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    const orgId = (session.user as any).orgId;
+    const result = await authenticateRequest(req);
+    if (!result) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const { orgId } = result;
 
     const { id } = await params;
 
@@ -89,9 +89,9 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    const orgId = (session.user as any).orgId;
+    const result = await authenticateRequest(request);
+    if (!result) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const { orgId } = result;
 
     const { id } = await params;
     const body = await request.json();
@@ -127,7 +127,7 @@ export async function PATCH(
 
     await logAudit({
       orgId,
-      ...createAuditActor(session),
+      ...getAuditActor(result),
       action: "campaign.update",
       entityType: "campaign",
       entityId: campaign.id,
@@ -165,9 +165,9 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    const orgId = (session.user as any).orgId;
+    const result = await authenticateRequest(request);
+    if (!result) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const { orgId } = result;
 
     const { id } = await params;
 
@@ -181,7 +181,7 @@ export async function DELETE(
 
     await logAudit({
       orgId,
-      ...createAuditActor(session),
+      ...getAuditActor(result),
       action: "campaign.delete",
       entityType: "campaign",
       entityId: existing.id,

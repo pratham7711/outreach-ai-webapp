@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
-import { createAuditActor, logAudit } from "@/lib/audit";
+import { authenticateRequest, getAuditActor } from "@/lib/authenticate";
+import { logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
 import { z } from "zod";
 import type { CampaignStatus, PaymentMode, PaymentRelease, PostApprovalMode } from "@/lib/generated/prisma/client";
@@ -32,9 +32,9 @@ const createCampaignSchema = z.object({
 // GET /api/campaigns - List campaigns with filters and pagination
 export async function GET(request: NextRequest) {
   try {
-    const session = await auth();
-    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    const orgId = (session.user as any).orgId;
+    const result = await authenticateRequest(request);
+    if (!result) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const { orgId } = result;
 
     const { searchParams } = request.nextUrl;
     const status = searchParams.get("status") as CampaignStatus | null;
@@ -96,9 +96,9 @@ export async function GET(request: NextRequest) {
 // POST /api/campaigns - Create a new campaign
 export async function POST(request: NextRequest) {
   try {
-    const session = await auth();
-    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    const orgId = (session.user as any).orgId;
+    const result = await authenticateRequest(request);
+    if (!result) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const { orgId } = result;
 
     const body = await request.json();
     const parsed = createCampaignSchema.safeParse(body);
@@ -129,7 +129,7 @@ export async function POST(request: NextRequest) {
         postApprovalMode: (postApprovalMode ?? "MANUAL") as PostApprovalMode,
         enrollmentOpen: enrollmentOpen ?? false,
         orgId,
-        createdById: session.user.id!,
+        createdById: result.userId ?? "api",
       },
       include: {
         tags: true,
@@ -148,7 +148,7 @@ export async function POST(request: NextRequest) {
 
     await logAudit({
       orgId,
-      ...createAuditActor(session),
+      ...getAuditActor(result),
       action: "campaign.create",
       entityType: "campaign",
       entityId: campaign.id,

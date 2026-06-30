@@ -1,95 +1,83 @@
-import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
-import { AUDIT_LOG_FEATURE } from "@/lib/featureKeys";
-import { getOrgEntitlements, hasOrgFeature } from "@/lib/entitlements";
-import { hasPermission } from "@/lib/rbac";
+import { auth } from "@/lib/auth";
+import { getOrgEntitlements } from "@/lib/entitlements";
 
-const DEFAULT_PAGE_SIZE = 20;
-const MAX_PAGE_SIZE = 100;
+export async function GET(req: NextRequest) {
+  const session = await auth();
+  if (!session?.user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  const orgId = (session.user as any).orgId as string;
 
-export async function GET(request: NextRequest) {
-  try {
-    const session = await auth();
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+  // Role check — only ADMIN and MEMBER can access audit logs
+  const role = (session.user as any).role;
+  if (role === "VIEWER") return Response.json({ error: "Forbidden" }, { status: 403 });
 
-    const role = (session.user as any).role as string;
-    if (!hasPermission(role, "settings:*") && !hasPermission(role, "reports:*")) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
+  // Entitlement check
+  const entitlements = await getOrgEntitlements(orgId);
+  if (!entitlements?.featureMap.audit_log) return Response.json({ error: "Audit log not enabled for this plan" }, { status: 403 });
 
-    const orgId = (session.user as any).orgId as string;
-    const entitlements = await getOrgEntitlements(orgId);
-    if (!hasOrgFeature(entitlements, AUDIT_LOG_FEATURE)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
+  const { searchParams } = new URL(req.url);
+  const page = Math.max(1, parseInt(searchParams.get("page") ?? "1", 10));
+  const pageSize = Math.min(100, Math.max(1, parseInt(searchParams.get("pageSize") ?? "20", 10)));
+  const action = searchParams.get("action")?.trim() || undefined;
+  const entityType = searchParams.get("entityType")?.trim() || undefined;
+  const actorEmail = searchParams.get("actorEmail")?.trim() || undefined;
+  const q = searchParams.get("q")?.trim() || undefined;
+  const from = searchParams.get("from") ? new Date(searchParams.get("from")!) : undefined;
+  const to = searchParams.get("to") ? new Date(searchParams.get("to")!) : undefined;
 
-    const { searchParams } = request.nextUrl;
-
-    const page = Math.max(1, parseInt(searchParams.get("page") ?? "1", 10) || 1);
-    const pageSize = Math.min(
-      MAX_PAGE_SIZE,
-      Math.max(1, parseInt(searchParams.get("pageSize") ?? String(DEFAULT_PAGE_SIZE), 10) || DEFAULT_PAGE_SIZE)
-    );
-    const skip = (page - 1) * pageSize;
-
-    const action = searchParams.get("action")?.trim();
-    const entityType = searchParams.get("entityType")?.trim();
-    const actorEmail = searchParams.get("actorEmail")?.trim();
-    const q = searchParams.get("q")?.trim();
-
-    const where: any = { orgId };
-    if (action) where.action = action;
-    if (entityType) where.entityType = entityType;
-    if (actorEmail) {
-      where.actorEmail = { contains: actorEmail, mode: "insensitive" as const };
-    }
-    if (q) {
-      where.OR = [
-        { action: { contains: q, mode: "insensitive" as const } },
-        { entityType: { contains: q, mode: "insensitive" as const } },
-        { entityLabel: { contains: q, mode: "insensitive" as const } },
-        { actorEmail: { contains: q, mode: "insensitive" as const } },
-      ];
-    }
-
-    const [logs, total] = await Promise.all([
-      db.auditLog.findMany({
-        where,
-        select: {
-          id: true,
-          action: true,
-          entityType: true,
-          entityId: true,
-          entityLabel: true,
-          actorType: true,
-          actorEmail: true,
-          ipAddress: true,
-          metadata: true,
-          before: true,
-          after: true,
-          createdAt: true,
-        },
-        orderBy: { createdAt: "desc" },
-        skip,
-        take: pageSize,
-      }),
-      db.auditLog.count({ where }),
-    ]);
-
-    return NextResponse.json({
-      logs,
-      pagination: {
-        page,
-        pageSize,
-        total,
-        totalPages: Math.max(1, Math.ceil(total / pageSize)),
+  const where: any = {
+    orgId,
+    ...(action && { action }),
+    ...(entityType && { entityType }),
+    ...(actorEmail && { actorEmail: { contains: actorEmail, mode: "insensitive" } }),
+    ...(q && {
+      OR: [
+        { entityLabel: { contains: q, mode: "insensitive" } },
+        { actorEmail: { contains: q, mode: "insensitive" } },
+        { ipAddress: { contains: q } },
+        ...(actorEmail ? [{ actorEmail: { contains: actorEmail, mode: "insensitive" } }] : []),
+      ],
+    }),
+    ...((from || to) && {
+      createdAt: {
+        ...(from && { gte: from }),
+        ...(to && { lte: to }),
       },
-    });
-  } catch (error) {
-    console.error("GET /api/audit-logs error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
-  }
+    }),
+  };
+
+  const [logs, total] = await Promise.all([
+    db.auditLog.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+      select: {
+        id: true,
+        action: true,
+        entityType: true,
+        entityId: true,
+        entityLabel: true,
+        actorType: true,
+        actorEmail: true,
+        ipAddress: true,
+        metadata: true,
+        before: true,
+        after: true,
+        createdAt: true,
+      },
+    }),
+    db.auditLog.count({ where }),
+  ]);
+
+  return Response.json({
+    logs: logs.map((l) => ({ ...l, createdAt: l.createdAt.toISOString() })),
+    pagination: {
+      page,
+      pageSize,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / pageSize)),
+    },
+  });
 }

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { authenticateRequest } from "@/lib/authenticate";
 
 const PLATFORMS = [
   { platform: "TIKTOK", name: "TikTok", description: "Import creator profiles and analytics.", icon: "🎵", category: "social" },
@@ -9,6 +9,11 @@ const PLATFORMS = [
   { platform: "YOUTUBE", name: "YouTube", description: "Connect channels and track video performance.", icon: "▶️", category: "social" },
   { platform: "TWITTER", name: "Twitter/X", description: "Monitor tweets and audience analytics.", icon: "🐦", category: "social" },
   { platform: "SPOTIFY", name: "Spotify", description: "Track music streams and artist analytics.", icon: "🎧", category: "social" },
+  // Messaging channels
+  { platform: "WHATSAPP", name: "WhatsApp", description: "Send campaign updates and creator messages via WhatsApp Business.", icon: "💬", category: "messaging" },
+  { platform: "TELEGRAM", name: "Telegram", description: "Notify creators and manage campaign flows through a Telegram bot.", icon: "✈️", category: "messaging" },
+  { platform: "DISCORD", name: "Discord", description: "Connect your Discord bot using an API key to manage campaigns from any server.", icon: "🎮", category: "messaging" },
+  // Payment gateways
   { platform: "PAYPAL", name: "PayPal", description: "Process creator payouts via PayPal.", icon: "💳", category: "payment" },
   { platform: "STRIPE", name: "Stripe", description: "Accept deposits and manage payments.", icon: "💸", category: "payment" },
   { platform: "RAZORPAY", name: "Razorpay", description: "Indian payment processing for payouts.", icon: "🏦", category: "payment" },
@@ -21,29 +26,29 @@ const ConnectSchema = z.object({
   accountName: z.string().max(200).optional(),
 });
 
-export async function GET() {
-  const session = await auth();
-  if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const orgId = (session.user as any).orgId;
+export async function GET(req: NextRequest) {
+  const auth = await authenticateRequest(req);
+  if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { orgId } = auth;
 
   const org = await db.organization.findUnique({ where: { id: orgId }, select: { uiConfig: true } });
   const uiConfig = (org?.uiConfig as any) ?? {};
   const connections: Record<string, any> = uiConfig.platformConnections ?? {};
 
-  const result = PLATFORMS.map(p => ({
+  const platforms = PLATFORMS.map(p => ({
     ...p,
     connected: connections[p.platform]?.connected ?? false,
     connectedAt: connections[p.platform]?.connectedAt ?? null,
     accountName: connections[p.platform]?.accountName ?? null,
   }));
 
-  return NextResponse.json(result);
+  return NextResponse.json(platforms);
 }
 
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const orgId = (session.user as any).orgId;
+  const auth = await authenticateRequest(req);
+  if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { orgId } = auth;
 
   const body = await req.json();
   const parsed = ConnectSchema.safeParse(body);
@@ -68,9 +73,9 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const orgId = (session.user as any).orgId;
+  const auth = await authenticateRequest(req);
+  if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { orgId } = auth;
 
   const platform = req.nextUrl.searchParams.get("platform");
   if (!platform) return NextResponse.json({ error: "platform required" }, { status: 400 });

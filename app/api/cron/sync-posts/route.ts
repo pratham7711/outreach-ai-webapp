@@ -1,0 +1,98 @@
+import { NextRequest, NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { fetchPostMetrics } from "@/lib/platforms/fetchPostMetrics";
+
+// GET /api/cron/sync-posts — Hourly cron job to sync post metrics
+export async function GET(request: NextRequest) {
+  // Verify cron secret
+  const authHeader = request.headers.get("authorization");
+  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const now = new Date();
+  let synced = 0;
+  let failed = 0;
+
+  try {
+    // Get posts from active campaigns that need syncing
+    const posts = await db.post.findMany({
+      where: {
+        campaign: {
+          status: { in: ["IN_PROGRESS", "PENDING"] },
+          deletedAt: null,
+        },
+      },
+      select: {
+        id: true,
+        postUrl: true,
+        postedAt: true,
+        lastSyncedAt: true,
+        viewsCount: true,
+      },
+      orderBy: { lastSyncedAt: { sort: "asc", nulls: "first" } },
+    });
+
+    for (const post of posts) {
+      // Variable cadence based on post age
+      const ageMs = now.getTime() - new Date(post.postedAt).getTime();
+      const ageHours = ageMs / (1000 * 60 * 60);
+      const lastSyncMs = post.lastSyncedAt
+        ? now.getTime() - new Date(post.lastSyncedAt).getTime()
+        : Infinity;
+      const lastSyncHours = lastSyncMs / (1000 * 60 * 60);
+
+      // Skip based on cadence: <24h always, 1-7d if >6h stale, 7-30d if >24h stale, >30d skip
+      if (ageHours > 30 * 24) continue;
+      if (ageHours > 7 * 24 && lastSyncHours < 24) continue;
+      if (ageHours > 24 && lastSyncHours < 6) continue;
+
+      try {
+        const metrics = await fetchPostMetrics(post.postUrl);
+        if (!metrics) continue;
+
+        const views = metrics.viewsCount;
+        const likes = metrics.likesCount;
+        const comments = metrics.commentsCount;
+        const engagementRate = views > 0 ? ((likes + comments) / views) * 100 : 0;
+
+        await db.$transaction([
+          db.post.update({
+            where: { id: post.id },
+            data: {
+              viewsCount: views,
+              likesCount: likes,
+              commentsCount: comments,
+              sharesCount: metrics.sharesCount,
+              engagementRate,
+              thumbnailUrl: metrics.thumbnailUrl,
+              caption: metrics.caption,
+              lastSyncedAt: now,
+            },
+          }),
+          db.postMetricSnapshot.create({
+            data: {
+              postId: post.id,
+              viewsCount: views,
+              likesCount: likes,
+              commentsCount: comments,
+              sharesCount: metrics.sharesCount,
+              engagementRate,
+              syncSource: "cron",
+            },
+          }),
+        ]);
+        synced++;
+      } catch (err) {
+        console.error(`Failed to sync post ${post.id}:`, err);
+        failed++;
+        // Continue with other posts
+      }
+    }
+
+    return NextResponse.json({ ok: true, synced, failed, total: posts.length });
+  } catch (error) {
+    console.error("Cron sync-posts failed:", error);
+    return NextResponse.json({ error: "Sync failed" }, { status: 500 });
+  }
+}
