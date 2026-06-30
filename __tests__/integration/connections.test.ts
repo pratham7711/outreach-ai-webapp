@@ -25,7 +25,7 @@ const mockDb = db as any;
 
 const authedSession = { user: { id: "user-1", orgId: "org-1" } };
 
-function makeRequest(url: string, options?: RequestInit) {
+function makeRequest(url: string, options?: ConstructorParameters<typeof NextRequest>[1]) {
   return new NextRequest(url, options);
 }
 
@@ -39,17 +39,17 @@ beforeEach(() => {
 describe("GET /api/connections", () => {
   it("returns 401 without session", async () => {
     mockAuth.mockResolvedValue(null);
-    const res = await GET();
+    const res = await GET(makeRequest("http://localhost/api/connections"));
     expect(res.status).toBe(401);
   });
 
   it("returns all platforms with defaults when no connections stored", async () => {
     mockDb.organization.findUnique.mockResolvedValue({ uiConfig: null });
-    const res = await GET();
+    const res = await GET(makeRequest("http://localhost/api/connections"));
     const body = await res.json();
 
     expect(res.status).toBe(200);
-    expect(body).toHaveLength(8);
+    expect(body).toHaveLength(11); // 5 social + 3 messaging (WhatsApp, Telegram, Discord) + 3 payment
     expect(body[0].platform).toBe("TIKTOK");
     expect(body[0].connected).toBe(false);
     expect(body[0].connectedAt).toBeNull();
@@ -66,7 +66,7 @@ describe("GET /api/connections", () => {
       },
     });
 
-    const res = await GET();
+    const res = await GET(makeRequest("http://localhost/api/connections"));
     const body = await res.json();
 
     expect(res.status).toBe(200);

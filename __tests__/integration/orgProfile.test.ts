@@ -62,13 +62,13 @@ beforeEach(() => {
 describe("GET /api/org", () => {
   it("returns 401 when unauthenticated", async () => {
     mockAuth.mockResolvedValue(null);
-    const res = await getOrg();
+    const res = await getOrg(new NextRequest("http://localhost/api/org"));
     expect(res.status).toBe(401);
   });
 
   it("returns org data for authenticated user", async () => {
     mockDb.organization.findUnique.mockResolvedValue(sampleOrg);
-    const res = await getOrg();
+    const res = await getOrg(new NextRequest("http://localhost/api/org"));
     const body = await res.json();
 
     expect(res.status).toBe(200);
@@ -82,7 +82,7 @@ describe("GET /api/org", () => {
 
   it("returns 404 when org not found", async () => {
     mockDb.organization.findUnique.mockResolvedValue(null);
-    const res = await getOrg();
+    const res = await getOrg(new NextRequest("http://localhost/api/org"));
     expect(res.status).toBe(404);
   });
 });
