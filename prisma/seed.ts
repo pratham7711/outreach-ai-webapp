@@ -239,6 +239,8 @@ async function main() {
   await prisma.activation.upsert({ where: { id: "act-2" }, update: {}, create: { id: "act-2", campaignId: campaigns[0].id, creatorId: creators[1].id, status: "APPROVED" } });
   await prisma.activation.upsert({ where: { id: "act-3" }, update: {}, create: { id: "act-3", campaignId: campaigns[1].id, creatorId: creators[4].id, status: "APPROVED" } });
   await prisma.activation.upsert({ where: { id: "act-4" }, update: {}, create: { id: "act-4", campaignId: campaigns[2].id, creatorId: creators[0].id, status: "COMPLETE" } });
+  await prisma.activation.upsert({ where: { id: "act-5" }, update: {}, create: { id: "act-5", campaignId: campaigns[0].id, creatorId: creators[2].id, status: "APPROVED" } });
+  await prisma.activation.upsert({ where: { id: "act-6" }, update: {}, create: { id: "act-6", campaignId: campaigns[1].id, creatorId: creators[8].id, status: "APPROVED" } });
 
   // ─── Posts ───
   await prisma.post.upsert({
@@ -412,6 +414,44 @@ async function main() {
       engagementRate: 9.6,
     },
   });
+  await prisma.post.upsert({
+    where: { id: "post-10" },
+    update: {},
+    create: {
+      id: "post-10",
+      campaignId: campaigns[0].id,
+      creatorId: creators[2].id,
+      platform: "YOUTUBE",
+      platformPostId: "dQw4w9WgXcQ",
+      postUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+      caption: "LEAK IT — official visualizer reaction",
+      postedAt: new Date("2026-01-28"),
+      viewsCount: 890000,
+      likesCount: 54000,
+      commentsCount: 4200,
+      sharesCount: 0,
+      engagementRate: 6.5,
+    },
+  });
+  await prisma.post.upsert({
+    where: { id: "post-11" },
+    update: {},
+    create: {
+      id: "post-11",
+      campaignId: campaigns[1].id,
+      creatorId: creators[8].id,
+      platform: "YOUTUBE",
+      platformPostId: "9bZkp7q19f0",
+      postUrl: "https://www.youtube.com/watch?v=9bZkp7q19f0",
+      caption: "Fuji Kaze cover — full band arrangement",
+      postedAt: new Date("2026-02-18"),
+      viewsCount: 640000,
+      likesCount: 41000,
+      commentsCount: 2900,
+      sharesCount: 0,
+      engagementRate: 6.9,
+    },
+  });
 
   // ─── Campaign Financials ───
   await prisma.campaignFinancials.upsert({
@@ -522,6 +562,12 @@ async function main() {
     },
   });
 
+  const postsByPlatform = await prisma.post.groupBy({
+    by: ["platform"],
+    where: { campaign: { orgId: org.id } },
+    _count: { id: true },
+  });
+
   console.log("Seeded:", {
     org: org.name,
     plan: org.plan,
@@ -531,7 +577,8 @@ async function main() {
     clients: clients.length,
     creators: creators.length,
     campaigns: campaigns.length,
-    posts: 9,
+    posts: 11,
+    postsByPlatform: Object.fromEntries(postsByPlatform.map((p) => [p.platform, p._count.id])),
     financials: 4,
     sounds: sounds.length,
     creatorUsers: 2,
