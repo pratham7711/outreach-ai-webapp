@@ -51,7 +51,7 @@ export default function PayoutRequestsSection({ campaignId }: { campaignId: stri
     const res = await fetch(`/api/campaigns/${campaignId}/payout-requests?${params}`);
     if (res.ok) {
       const data = await res.json();
-      setRequests(data.payoutRequests);
+      setRequests(Array.isArray(data.payoutRequests) ? data.payoutRequests : []);
     }
     setLoading(false);
   }, [campaignId, statusFilter]);

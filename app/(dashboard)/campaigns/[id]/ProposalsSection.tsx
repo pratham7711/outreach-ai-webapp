@@ -63,7 +63,7 @@ export default function ProposalsSection({ campaignId }: { campaignId: string })
     const res = await fetch(`/api/campaigns/${campaignId}/proposals?${params}`);
     if (res.ok) {
       const data = await res.json();
-      setProposals(data.proposals);
+      setProposals(Array.isArray(data.proposals) ? data.proposals : []);
     }
     setLoading(false);
   }, [campaignId, statusFilter]);

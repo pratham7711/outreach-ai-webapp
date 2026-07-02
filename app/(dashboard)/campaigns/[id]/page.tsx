@@ -144,8 +144,9 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
 
   useEffect(() => {
     fetch(`/api/campaigns/${id}`)
-      .then((r) => r.json())
-      .then((data) => { setCampaign(data.error ? null : data); })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => { setCampaign(data && !data.error ? data : null); })
+      .catch(() => setCampaign(null))
       .finally(() => setLoading(false));
   }, [id]);
 
@@ -204,8 +205,8 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
         body: JSON.stringify(payload),
       });
       if (res.ok) {
-        const updated = await res.json();
-        setCampaign(updated);
+        const refreshed = await fetch(`/api/campaigns/${id}`).then((r) => (r.ok ? r.json() : null));
+        if (refreshed && !refreshed.error) setCampaign(refreshed);
         toast.success("Campaign updated");
       } else {
         const err = await res.json().catch(() => null);

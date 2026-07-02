@@ -102,7 +102,10 @@ export default function AnalyticsPage() {
   useEffect(() => {
     fetch("/api/analytics")
       .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then(setData)
+      .then((d) => {
+        if (d && d.kpis) setData(d);
+        else setError(true);
+      })
       .catch(() => setError(true))
       .finally(() => setLoading(false));
   }, []);

@@ -37,7 +37,7 @@ export default function InvitesSection({ campaignId }: { campaignId: string }) {
     const res = await fetch(`/api/campaigns/${campaignId}/invites`);
     if (res.ok) {
       const data = await res.json();
-      setInvites(data.invites);
+      setInvites(Array.isArray(data.invites) ? data.invites : []);
     }
     setLoading(false);
   }, [campaignId]);

@@ -174,7 +174,7 @@ export default function DeadlinesPage() {
       const res = await fetch(`/api/deadlines?filter=${f}`);
       if (!res.ok) throw new Error("Failed to load deadlines");
       const data = await res.json();
-      setActivations(data.activations);
+      setActivations(Array.isArray(data.activations) ? data.activations : []);
       setStats(data.stats);
     } catch (e: any) {
       setError(e.message);

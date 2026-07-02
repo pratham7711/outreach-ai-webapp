@@ -42,7 +42,7 @@ export default function NegotiationsSection({ campaignId }: { campaignId: string
     const res = await fetch(`/api/campaigns/${campaignId}/negotiations`);
     if (res.ok) {
       const data = await res.json();
-      setOffers(data.negotiations);
+      setOffers(Array.isArray(data.negotiations) ? data.negotiations : []);
     }
     setLoading(false);
   }, [campaignId]);

@@ -73,7 +73,7 @@ export default function PostsTab({ campaignId, postApprovalMode }: { campaignId:
     const res = await fetch(`/api/campaigns/${campaignId}/posts?${params}`);
     if (res.ok) {
       const data = await res.json();
-      setPosts(data.posts);
+      setPosts(Array.isArray(data.posts) ? data.posts : []);
     }
     setLoading(false);
   }, [campaignId, statusFilter, platformFilter, mediaTypeFilter]);

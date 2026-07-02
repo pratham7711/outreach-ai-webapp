@@ -51,7 +51,7 @@ export default function ReviewsSection({
     const res = await fetch(`/api/campaigns/${campaignId}/reviews`);
     if (res.ok) {
       const data = await res.json();
-      setReviews(data.reviews);
+      setReviews(Array.isArray(data.reviews) ? data.reviews : []);
     }
     setLoading(false);
   }, [campaignId]);
