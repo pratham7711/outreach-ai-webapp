@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { db } from "@/lib/db";
 import { planReencrypt } from "@/lib/crypto/token-backfill";
 
