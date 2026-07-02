@@ -60,30 +60,34 @@ export async function POST(req: NextRequest) {
 
   let intent: Intent = { type: "unknown" };
   try {
-    const raw = classifyRes.content[0].type === "text" ? classifyRes.content[0].text : "{}";
+    const first = classifyRes.content[0];
+    const raw = first?.type === "text" ? first.text : "{}";
     intent = JSON.parse(raw) as Intent;
   } catch {
     intent = { type: "unknown" };
   }
 
+  const clampLimit = (limit: unknown): number =>
+    typeof limit === "number" && Number.isInteger(limit) && limit > 0 ? Math.min(limit, 50) : 10;
+
   // Execute typed Prisma query based on intent
   if (intent.type === "list_campaigns") {
-    const { status, limit = 10 } = intent;
+    const { status, limit } = intent;
     const campaigns = await db.campaign.findMany({
       where: { orgId, deletedAt: null, ...(status && { status: status as any }) },
       orderBy: { createdAt: "desc" },
-      take: Math.min(limit, 50),
+      take: clampLimit(limit),
       select: { id: true, title: true, status: true, budget: true, currency: true, createdAt: true },
     });
     return NextResponse.json({ intent, results: campaigns, count: campaigns.length });
   }
 
   if (intent.type === "list_creators") {
-    const { platform, limit = 10 } = intent;
+    const { platform, limit } = intent;
     const creators = await db.creator.findMany({
       where: { orgId, ...(platform && { platform: platform as any }) },
       orderBy: { followersCount: "desc" },
-      take: Math.min(limit, 50),
+      take: clampLimit(limit),
       select: { id: true, name: true, handle: true, platform: true, followersCount: true },
     });
     return NextResponse.json({ intent, results: creators, count: creators.length });
@@ -106,11 +110,11 @@ export async function POST(req: NextRequest) {
   }
 
   if (intent.type === "list_payouts") {
-    const { status, limit = 10 } = intent;
+    const { status, limit } = intent;
     const payouts = await db.payout.findMany({
       where: { orgId, ...(status && { status: status as any }) },
       orderBy: { createdAt: "desc" },
-      take: Math.min(limit, 50),
+      take: clampLimit(limit),
       select: { id: true, amount: true, currency: true, status: true, createdAt: true },
     });
     return NextResponse.json({ intent, results: payouts, count: payouts.length });

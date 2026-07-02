@@ -63,7 +63,8 @@ Be professional, highlight trends, and keep it under 200 words.`;
       messages: [{ role: "user", content: prompt }],
     });
 
-    const summary = message.content[0].type === "text" ? message.content[0].text : "";
+    const first = message.content[0];
+    const summary = first?.type === "text" ? first.text : "";
     return NextResponse.json({ summary, generatedAt: new Date().toISOString() });
   }
 
@@ -108,6 +109,7 @@ Summarize the campaign's current state, progress, and any notable points. Keep i
     messages: [{ role: "user", content: prompt }],
   });
 
-  const summary = message.content[0].type === "text" ? message.content[0].text : "";
+  const first = message.content[0];
+  const summary = first?.type === "text" ? first.text : "";
   return NextResponse.json({ summary, generatedAt: new Date().toISOString() });
 }
