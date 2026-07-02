@@ -78,6 +78,14 @@ export async function POST(
 
     const { postUrl, creatorId, mediaType, activationId } = parsed.data;
 
+    const creator = await db.creator.findFirst({ where: { id: creatorId, orgId, deletedAt: null } });
+    if (!creator) return NextResponse.json({ error: "Creator not found" }, { status: 404 });
+
+    if (activationId) {
+      const activation = await db.activation.findFirst({ where: { id: activationId, campaignId } });
+      if (!activation) return NextResponse.json({ error: "Activation not found" }, { status: 404 });
+    }
+
     // Fetch metrics from platform
     const metrics = await fetchPostMetrics(postUrl);
 

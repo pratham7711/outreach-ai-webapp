@@ -8,6 +8,8 @@ import { PATCH } from '@/app/api/campaigns/[id]/posts/[postId]/route';
 jest.mock('@/lib/db', () => ({
   db: {
     campaign: { findFirst: jest.fn() },
+    creator: { findFirst: jest.fn() },
+    activation: { findFirst: jest.fn() },
     post: { findMany: jest.fn(), create: jest.fn(), findFirst: jest.fn(), update: jest.fn() },
   },
 }));
@@ -53,6 +55,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockAuth.mockResolvedValue(authedSession);
   mockDb.campaign.findFirst.mockResolvedValue(mockCampaign);
+  mockDb.creator.findFirst.mockResolvedValue({ id: 'c1', orgId: 'org-1', deletedAt: null });
 });
 
 describe('GET /api/campaigns/[id]/posts', () => {

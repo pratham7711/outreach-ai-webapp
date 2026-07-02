@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { fetchPostMetrics } from "@/lib/platforms/fetchPostMetrics";
+import { fetchPostMetrics, hasMetricCounts } from "@/lib/platforms/fetchPostMetrics";
 
 // GET /api/cron/sync-posts — Hourly cron job to sync post metrics
 export async function GET(request: NextRequest) {
@@ -51,37 +51,40 @@ export async function GET(request: NextRequest) {
         const metrics = await fetchPostMetrics(post.postUrl);
         if (!metrics) continue;
 
-        const views = metrics.viewsCount;
-        const likes = metrics.likesCount;
-        const comments = metrics.commentsCount;
-        const engagementRate = views > 0 ? ((likes + comments) / views) * 100 : 0;
+        const postData: Record<string, unknown> = { lastSyncedAt: now };
+        if (metrics.thumbnailUrl !== null) postData.thumbnailUrl = metrics.thumbnailUrl;
+        if (metrics.caption !== null) postData.caption = metrics.caption;
 
-        await db.$transaction([
-          db.post.update({
-            where: { id: post.id },
-            data: {
-              viewsCount: views,
-              likesCount: likes,
-              commentsCount: comments,
-              sharesCount: metrics.sharesCount,
-              engagementRate,
-              thumbnailUrl: metrics.thumbnailUrl,
-              caption: metrics.caption,
-              lastSyncedAt: now,
-            },
-          }),
-          db.postMetricSnapshot.create({
-            data: {
-              postId: post.id,
-              viewsCount: views,
-              likesCount: likes,
-              commentsCount: comments,
-              sharesCount: metrics.sharesCount,
-              engagementRate,
-              syncSource: "cron",
-            },
-          }),
-        ]);
+        if (hasMetricCounts(metrics)) {
+          const views = metrics.viewsCount ?? 0;
+          const likes = metrics.likesCount ?? 0;
+          const comments = metrics.commentsCount ?? 0;
+          const shares = metrics.sharesCount ?? 0;
+          const engagementRate =
+            metrics.engagementRate ?? (views > 0 ? ((likes + comments) / views) * 100 : 0);
+          postData.viewsCount = views;
+          postData.likesCount = likes;
+          postData.commentsCount = comments;
+          postData.sharesCount = shares;
+          postData.engagementRate = engagementRate;
+
+          await db.$transaction([
+            db.post.update({ where: { id: post.id }, data: postData }),
+            db.postMetricSnapshot.create({
+              data: {
+                postId: post.id,
+                viewsCount: views,
+                likesCount: likes,
+                commentsCount: comments,
+                sharesCount: shares,
+                engagementRate,
+                syncSource: "cron",
+              },
+            }),
+          ]);
+        } else {
+          await db.post.update({ where: { id: post.id }, data: postData });
+        }
         synced++;
       } catch (err) {
         console.error(`Failed to sync post ${post.id}:`, err);

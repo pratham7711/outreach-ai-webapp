@@ -30,6 +30,7 @@ jest.mock('@/lib/platforms/fetchPostMetrics', () => ({
     engagementRate: 5.0,
     postedAt: new Date('2026-01-01'),
   }),
+  hasMetricCounts: jest.requireActual('@/lib/platforms/fetchPostMetrics').hasMetricCounts,
 }));
 
 import { db } from '@/lib/db';

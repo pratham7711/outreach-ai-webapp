@@ -3,13 +3,17 @@ export type PostMetrics = {
   platformPostId: string;
   thumbnailUrl: string | null;
   caption: string | null;
-  viewsCount: number;
-  likesCount: number;
-  commentsCount: number;
-  sharesCount: number;
-  engagementRate: number;
+  viewsCount?: number;
+  likesCount?: number;
+  commentsCount?: number;
+  sharesCount?: number;
+  engagementRate?: number;
   postedAt: Date;
 };
+
+export function hasMetricCounts(m: PostMetrics): boolean {
+  return typeof m.viewsCount === "number";
+}
 
 export function detectPlatform(url: string): { platform: PostMetrics["platform"]; id: string } | null {
   // YouTube: youtube.com/watch?v=ID or youtu.be/ID or youtube.com/shorts/ID
@@ -98,11 +102,6 @@ function stubMetrics(): Partial<PostMetrics> {
   return {
     thumbnailUrl: null,
     caption: null,
-    viewsCount: 0,
-    likesCount: 0,
-    commentsCount: 0,
-    sharesCount: 0,
-    engagementRate: 0,
     postedAt: new Date(),
   };
 }
@@ -125,16 +124,26 @@ export async function fetchPostMetrics(url: string): Promise<PostMetrics | null>
       break;
   }
 
-  return {
+  const result: PostMetrics = {
     platform: detected.platform,
     platformPostId: detected.id,
     thumbnailUrl: metrics.thumbnailUrl ?? null,
     caption: metrics.caption ?? null,
-    viewsCount: metrics.viewsCount ?? 0,
-    likesCount: metrics.likesCount ?? 0,
-    commentsCount: metrics.commentsCount ?? 0,
-    sharesCount: metrics.sharesCount ?? 0,
-    engagementRate: metrics.engagementRate ?? 0,
     postedAt: metrics.postedAt ?? new Date(),
   };
+
+  const finite = (v: unknown): number | undefined =>
+    typeof v === "number" && Number.isFinite(v) ? v : undefined;
+  const views = finite(metrics.viewsCount);
+  const likes = finite(metrics.likesCount);
+  const comments = finite(metrics.commentsCount);
+  const shares = finite(metrics.sharesCount);
+  const engagement = finite(metrics.engagementRate);
+  if (views !== undefined) result.viewsCount = views;
+  if (likes !== undefined) result.likesCount = likes;
+  if (comments !== undefined) result.commentsCount = comments;
+  if (shares !== undefined) result.sharesCount = shares;
+  if (engagement !== undefined) result.engagementRate = engagement;
+
+  return result;
 }

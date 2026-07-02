@@ -23,6 +23,8 @@ export async function POST(req: NextRequest) {
   if (!campaignId || !creatorId) return NextResponse.json({ error: "Missing fields" }, { status: 400 });
   const campaign = await db.campaign.findFirst({ where: { id: campaignId, orgId, deletedAt: null } });
   if (!campaign) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
+  const creator = await db.creator.findFirst({ where: { id: creatorId, orgId, deletedAt: null } });
+  if (!creator) return NextResponse.json({ error: "Creator not found" }, { status: 404 });
   try {
     const activation = await db.activation.create({
       data: { campaignId, creatorId, deliverableDueDate: deliverableDueDate ? new Date(deliverableDueDate) : null },

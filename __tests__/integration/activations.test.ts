@@ -16,6 +16,9 @@ jest.mock('@/lib/db', () => ({
     campaign: {
       findFirst: jest.fn(),
     },
+    creator: {
+      findFirst: jest.fn(),
+    },
   },
 }));
 
@@ -34,6 +37,7 @@ const authedSession = { user: { id: 'user-1', orgId: 'org-1' } };
 beforeEach(() => {
   jest.clearAllMocks();
   mockAuth.mockResolvedValue(authedSession);
+  mockDb.creator.findFirst.mockResolvedValue({ id: 'creator-1', orgId: 'org-1', deletedAt: null });
 });
 
 // ─── GET /api/activations ─────────────────────────────────────────────────────

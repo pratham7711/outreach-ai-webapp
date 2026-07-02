@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
-import { fetchPostMetrics } from "@/lib/platforms/fetchPostMetrics";
+import { fetchPostMetrics, hasMetricCounts } from "@/lib/platforms/fetchPostMetrics";
 
 // POST /api/campaigns/[id]/posts/[postId]/sync — Trigger manual sync for a post
 export async function POST(
@@ -25,35 +25,42 @@ export async function POST(
       return NextResponse.json({ error: "Could not fetch metrics for this post URL" }, { status: 422 });
     }
 
-    const views = metrics.viewsCount;
-    const likes = metrics.likesCount;
-    const comments = metrics.commentsCount;
-    const engagementRate = views > 0 ? ((likes + comments) / views) * 100 : 0;
+    const postData: Record<string, unknown> = {
+      thumbnailUrl: metrics.thumbnailUrl ?? post.thumbnailUrl,
+      caption: metrics.caption ?? post.caption,
+      lastSyncedAt: new Date(),
+    };
+    const include = {
+      creator: { select: { id: true, name: true, handle: true, avatarUrl: true } },
+      snapshots: { orderBy: { recordedAt: "desc" as const }, take: 50 },
+    };
+
+    if (!hasMetricCounts(metrics)) {
+      const updated = await db.post.update({ where: { id: postId }, data: postData, include });
+      return NextResponse.json(updated);
+    }
+
+    const views = metrics.viewsCount ?? 0;
+    const likes = metrics.likesCount ?? 0;
+    const comments = metrics.commentsCount ?? 0;
+    const shares = metrics.sharesCount ?? 0;
+    const engagementRate =
+      metrics.engagementRate ?? (views > 0 ? ((likes + comments) / views) * 100 : 0);
+    postData.viewsCount = views;
+    postData.likesCount = likes;
+    postData.commentsCount = comments;
+    postData.sharesCount = shares;
+    postData.engagementRate = engagementRate;
 
     const [updated] = await db.$transaction([
-      db.post.update({
-        where: { id: postId },
-        data: {
-          viewsCount: views,
-          likesCount: likes,
-          commentsCount: comments,
-          engagementRate,
-          thumbnailUrl: metrics.thumbnailUrl ?? post.thumbnailUrl,
-          caption: metrics.caption ?? post.caption,
-          lastSyncedAt: new Date(),
-        },
-        include: {
-          creator: { select: { id: true, name: true, handle: true, avatarUrl: true } },
-          snapshots: { orderBy: { recordedAt: "desc" }, take: 50 },
-        },
-      }),
+      db.post.update({ where: { id: postId }, data: postData, include }),
       db.postMetricSnapshot.create({
         data: {
           postId,
           viewsCount: views,
           likesCount: likes,
           commentsCount: comments,
-          sharesCount: 0,
+          sharesCount: shares,
           engagementRate,
           syncSource: "api",
         },

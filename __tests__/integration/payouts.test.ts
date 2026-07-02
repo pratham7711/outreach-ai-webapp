@@ -14,6 +14,12 @@ jest.mock('@/lib/db', () => ({
     payoutBalance: {
       findFirst: jest.fn(),
     },
+    creator: {
+      findFirst: jest.fn(),
+    },
+    campaign: {
+      findFirst: jest.fn(),
+    },
   },
 }));
 
@@ -33,6 +39,8 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockAuth.mockResolvedValue(authedSession);
   mockDb.payoutBalance.findFirst.mockResolvedValue(null);
+  mockDb.creator.findFirst.mockResolvedValue({ id: 'c1', orgId: 'org-1', deletedAt: null });
+  mockDb.campaign.findFirst.mockResolvedValue({ id: 'camp-1', orgId: 'org-1', deletedAt: null });
 });
 
 // ─── GET /api/payouts ─────────────────────────────────────────────────────────

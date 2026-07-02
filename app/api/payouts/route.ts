@@ -28,7 +28,27 @@ export async function POST(req: NextRequest) {
   const { orgId } = result;
   const body = await req.json();
   const { creatorId, campaignId, amount, currency, paymentMethod, recipientPaypalEmail } = body;
-  if (!creatorId || !amount) return NextResponse.json({ error: "Missing fields" }, { status: 400 });
+  if (!creatorId) return NextResponse.json({ error: "Missing fields" }, { status: 400 });
+  if (typeof amount !== "number" || !Number.isFinite(amount) || amount <= 0) {
+    return NextResponse.json({ error: "Amount must be a positive number" }, { status: 400 });
+  }
+
+  const CURRENCIES = ["USD", "EUR", "GBP", "INR"] as const;
+  const PAYMENT_METHODS = ["PAYPAL", "BANK_TRANSFER", "UPI", "NEFT", "IMPS", "RTGS", "ENACH", "WIRE"] as const;
+  if (currency != null && !CURRENCIES.includes(currency)) {
+    return NextResponse.json({ error: "Invalid currency" }, { status: 400 });
+  }
+  if (paymentMethod != null && !PAYMENT_METHODS.includes(paymentMethod)) {
+    return NextResponse.json({ error: "Invalid payment method" }, { status: 400 });
+  }
+
+  const creator = await db.creator.findFirst({ where: { id: creatorId, orgId, deletedAt: null } });
+  if (!creator) return NextResponse.json({ error: "Creator not found" }, { status: 404 });
+  if (campaignId != null) {
+    const campaign = await db.campaign.findFirst({ where: { id: campaignId, orgId, deletedAt: null } });
+    if (!campaign) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
+  }
+
   const payout = await db.payout.create({
     data: { orgId, creatorId, campaignId: campaignId ?? null, amount, currency: currency ?? "USD", paymentMethod: paymentMethod ?? "PAYPAL", recipientPaypalEmail: recipientPaypalEmail ?? null },
   });
