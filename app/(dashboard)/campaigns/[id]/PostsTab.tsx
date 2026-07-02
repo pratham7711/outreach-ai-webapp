@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Card, Badge, Button, Input, Modal, EmptyState, Skeleton } from "@pratham7711/ui";
+import { StatusTabs } from "@/components/ds";
 import { Grid3X3, List, Plus, Check, X, Eye, Heart, MessageCircle, TrendingUp, BarChart3, ExternalLink } from "lucide-react";
 import Link from "next/link";
 
@@ -189,24 +190,13 @@ export default function PostsTab({ campaignId, postApprovalMode }: { campaignId:
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           {/* Status tabs */}
-          {STATUS_TABS.map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setStatusFilter(tab.key)}
-              style={{
-                padding: "6px 14px",
-                borderRadius: 20,
-                border: "none",
-                fontSize: 13,
-                fontWeight: 600,
-                cursor: "pointer",
-                background: statusFilter === tab.key ? tab.bg : "transparent",
-                color: statusFilter === tab.key ? tab.color : "var(--cc-text-muted)",
-              }}
-            >
-              {tab.label}
-            </button>
-          ))}
+          <StatusTabs
+            variant="pill"
+            ariaLabel="Filter posts by status"
+            tabs={STATUS_TABS}
+            active={statusFilter}
+            onChange={setStatusFilter}
+          />
         </div>
 
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>

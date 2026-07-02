@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { Button, Badge, Card, StatCard, Avatar, Skeleton, EmptyState } from "@pratham7711/ui";
+import { StatusTabs } from "@/components/ds";
 import { Inbox } from "lucide-react";
 
 interface PayoutRequest {
@@ -118,32 +119,24 @@ export default function RequestsPage() {
       )}
 
       {/* Status Tabs */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 24 }}>
-        {STATUS_TABS.map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
-            style={{
-              padding: "6px 14px",
-              borderRadius: 8,
-              fontSize: 13,
-              fontWeight: 600,
-              border: "none",
-              cursor: "pointer",
-              background: activeTab === tab.key ? tab.bg : "transparent",
-              color: activeTab === tab.key ? tab.color : "var(--cc-text-muted)",
-              transition: "all 0.15s",
-            }}
-          >
-            {tab.label}
-            {tab.key !== "ALL" && (
-              <span style={{ marginLeft: 6, fontSize: 11, opacity: 0.8 }}>
-                {tab.key === "PENDING" ? pendingCount : tab.key === "APPROVED" ? requests.filter((r) => r.status === "APPROVED").length : rejectedCount}
-              </span>
-            )}
-          </button>
-        ))}
-      </div>
+      <StatusTabs
+        variant="pill"
+        ariaLabel="Filter by request status"
+        style={{ marginBottom: 24 }}
+        tabs={STATUS_TABS.map((tab) => ({
+          ...tab,
+          count:
+            tab.key === "PENDING"
+              ? pendingCount
+              : tab.key === "APPROVED"
+                ? requests.filter((r) => r.status === "APPROVED").length
+                : tab.key === "REJECTED"
+                  ? rejectedCount
+                  : undefined,
+        }))}
+        active={activeTab}
+        onChange={setActiveTab}
+      />
 
       {/* Request List */}
       {loading ? (

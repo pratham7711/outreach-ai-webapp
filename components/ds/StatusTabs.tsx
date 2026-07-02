@@ -18,19 +18,21 @@ export type StatusTabsProps = {
   tabs: StatusTab[];
   active: string;
   onChange: (key: string) => void;
+  variant?: "underline" | "pill";
   ariaLabel?: string;
   style?: React.CSSProperties;
 };
 
-export function StatusTabs({ tabs, active, onChange, ariaLabel = "Filter by status", style }: StatusTabsProps) {
+export function StatusTabs({ tabs, active, onChange, variant = "underline", ariaLabel = "Filter by status", style }: StatusTabsProps) {
+  const isPill = variant === "pill";
   return (
     <div
       role="tablist"
       aria-label={ariaLabel}
       style={{
         display: "flex",
-        gap: 6,
-        borderBottom: "1px solid var(--cc-border)",
+        gap: isPill ? 8 : 6,
+        borderBottom: isPill ? undefined : "1px solid var(--cc-border)",
         overflowX: "auto",
         ...style,
       }}
@@ -38,6 +40,35 @@ export function StatusTabs({ tabs, active, onChange, ariaLabel = "Filter by stat
       {tabs.map((tab) => {
         const isSelected = active === tab.key;
         const color = tab.color ?? "var(--cc-primary)";
+        const showCount = typeof tab.count === "number" && tab.count > 0;
+        if (isPill) {
+          return (
+            <button
+              key={tab.key}
+              type="button"
+              role="tab"
+              aria-selected={isSelected}
+              onClick={() => onChange(tab.key)}
+              style={{
+                padding: "6px 14px",
+                borderRadius: 8,
+                fontSize: 13,
+                fontWeight: 600,
+                border: "none",
+                cursor: "pointer",
+                background: isSelected ? (tab.bg ?? "var(--cc-bg)") : "transparent",
+                color: isSelected ? color : "var(--cc-text-muted)",
+                transition: "all 0.15s",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {tab.label}
+              {showCount && (
+                <span style={{ marginLeft: 6, fontSize: 11, opacity: 0.8 }}>{tab.count}</span>
+              )}
+            </button>
+          );
+        }
         return (
           <button
             key={tab.key}
@@ -64,7 +95,7 @@ export function StatusTabs({ tabs, active, onChange, ariaLabel = "Filter by stat
               <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: "50%", background: color }} />
             )}
             {tab.label}
-            {typeof tab.count === "number" && tab.count > 0 && (
+            {showCount && (
               <Badge variant={isSelected ? (tab.badgeVariant ?? "accent") : "neutral"} size="sm">
                 {tab.count}
               </Badge>

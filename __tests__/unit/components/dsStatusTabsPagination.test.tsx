@@ -42,6 +42,17 @@ describe("StatusTabs", () => {
     const badges = screen.getAllByTestId("badge");
     expect(badges.map((b) => b.textContent)).toEqual(["12", "3"]);
   });
+
+  it("pill variant keeps tab semantics and inline counts without Badge", () => {
+    const onChange = jest.fn();
+    render(<StatusTabs variant="pill" tabs={TABS} active="PENDING" onChange={onChange} />);
+    expect(screen.getAllByRole("tab")).toHaveLength(3);
+    expect(screen.getByRole("tab", { name: /Pending/ })).toHaveAttribute("aria-selected", "true");
+    expect(screen.queryAllByTestId("badge")).toHaveLength(0);
+    expect(screen.getByRole("tab", { name: /All/ }).textContent).toContain("12");
+    fireEvent.click(screen.getByRole("tab", { name: /Complete/ }));
+    expect(onChange).toHaveBeenCalledWith("COMPLETE");
+  });
 });
 
 describe("Pagination", () => {

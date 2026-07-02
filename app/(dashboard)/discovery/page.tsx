@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Plus, Search, SlidersHorizontal, X } from "lucide-react";
 import { Button, Card, EmptyState, Input, Avatar, Badge, Skeleton, StatCard } from "@pratham7711/ui";
+import { Pagination } from "@/components/ds";
 import Link from "next/link";
 import { toast } from "sonner";
 
@@ -461,27 +462,12 @@ export default function DiscoveryPage() {
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, marginTop: 24 }}>
-          <Button
-            variant="secondary"
-            size="sm"
-            disabled={page === 1}
-            onClick={() => setPage((p) => p - 1)}
-          >
-            ← Prev
-          </Button>
-          <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>
-            Page {page} of {totalPages}
-          </span>
-          <Button
-            variant="secondary"
-            size="sm"
-            disabled={page === totalPages}
-            onClick={() => setPage((p) => p + 1)}
-          >
-            Next →
-          </Button>
-        </div>
+        <Pagination
+          page={page}
+          totalPages={totalPages}
+          onPageChange={setPage}
+          style={{ justifyContent: "center", marginTop: 24 }}
+        />
       )}
 
       {selectedCreator && (

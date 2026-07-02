@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Card, Badge, Button, Input, Modal, EmptyState, Skeleton } from "@pratham7711/ui";
+import { StatusTabs } from "@/components/ds";
 import { Banknote, Check, X } from "lucide-react";
 
 type PayoutReq = {
@@ -139,21 +140,14 @@ export default function PayoutRequestsSection({ campaignId }: { campaignId: stri
       </div>
 
       {/* Status filter tabs */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-        {STATUS_TABS.map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => setStatusFilter(tab.key)}
-            style={{
-              padding: "6px 14px", borderRadius: 20, border: "none", fontSize: 13, fontWeight: 600, cursor: "pointer",
-              background: statusFilter === tab.key ? tab.bg : "transparent",
-              color: statusFilter === tab.key ? tab.color : "var(--cc-text-muted)",
-            }}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      <StatusTabs
+        variant="pill"
+        ariaLabel="Filter payout requests by status"
+        style={{ marginBottom: 16 }}
+        tabs={STATUS_TABS}
+        active={statusFilter}
+        onChange={setStatusFilter}
+      />
 
       {requests.length === 0 ? (
         <Card variant="outlined" style={{ padding: 24 }}>
