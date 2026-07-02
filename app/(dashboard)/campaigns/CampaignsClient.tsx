@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Plus, Search, MoreVertical, Share2, FolderOpen, ChevronDown } from "lucide-react";
 import Link from "next/link";
 import { Button, Card, Badge, Input, EmptyState, Avatar, Tooltip } from "@pratham7711/ui";
+import { StatusTabs } from "@/components/ds";
 import CampaignWizard from "@/components/modals/CampaignWizard";
 
 type Campaign = {
@@ -130,45 +131,17 @@ export default function CampaignsClient({
       </div>
 
       {/* Status Tabs */}
-      <div role="tablist" aria-label="Filter by campaign status" style={{ marginBottom: 24, display: "flex", gap: 6, borderBottom: "1px solid var(--cc-border)", overflowX: "auto" }}>
-        {STATUS_TABS.map((tab) => {
-          const isSelected = statusFilter === tab.key;
-          const count = tab.key === "ALL"
-            ? campaigns.length
-            : campaigns.filter(c => c.status === tab.key).length;
-          return (
-            <button
-              key={tab.key}
-              role="tab"
-              aria-selected={isSelected}
-              onClick={() => setStatusFilter(tab.key)}
-              className="cc-filter-tab"
-              style={{
-                padding: "10px 16px",
-                borderRadius: 0,
-                borderBottom: isSelected ? `2px solid ${tab.color}` : "2px solid transparent",
-                background: "transparent",
-                color: isSelected ? tab.color : undefined,
-                fontWeight: isSelected ? 600 : 500,
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                marginBottom: -1,
-              }}
-            >
-              {isSelected && (
-                <span style={{ width: 7, height: 7, borderRadius: "50%", background: tab.color }} />
-              )}
-              {tab.label}
-              {count > 0 && (
-                <Badge variant={isSelected ? (STATUS_BADGE_VARIANT[tab.key] ?? "neutral") : "neutral"} size="sm">
-                  {count}
-                </Badge>
-              )}
-            </button>
-          );
-        })}
-      </div>
+      <StatusTabs
+        ariaLabel="Filter by campaign status"
+        style={{ marginBottom: 24 }}
+        tabs={STATUS_TABS.map((tab) => ({
+          ...tab,
+          count: tab.key === "ALL" ? campaigns.length : campaigns.filter((c) => c.status === tab.key).length,
+          badgeVariant: STATUS_BADGE_VARIANT[tab.key] ?? "neutral",
+        }))}
+        active={statusFilter}
+        onChange={setStatusFilter}
+      />
 
       {/* Campaign List */}
       <Card variant="solid" noPadding>

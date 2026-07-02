@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Search, RefreshCw, ChevronLeft, ChevronRight, Filter, Download } from "lucide-react";
+import { Search, RefreshCw, Filter, Download } from "lucide-react";
+import { Pagination } from "@/components/ds";
 import { Card, EmptyState, LoadingSpinner } from "@pratham7711/ui";
 
 type AuditLogItem = {
@@ -110,8 +111,6 @@ export default function AuditLogClient({
     };
   }, [filters, initialPagination]);
 
-  const totalRangeStart = pagination.total === 0 ? 0 : (pagination.page - 1) * pagination.pageSize + 1;
-  const totalRangeEnd = Math.min(pagination.page * pagination.pageSize, pagination.total);
 
   const actions = Array.from(new Set(logs.map((log) => log.action))).sort();
   const entityTypes = Array.from(new Set(logs.map((log) => log.entityType))).sort();
@@ -282,32 +281,15 @@ export default function AuditLogClient({
               </table>
             </div>
 
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: 16, borderTop: "1px solid var(--cc-border)", gap: 12, flexWrap: "wrap" }}>
-              <div style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>
-                Showing {totalRangeStart}-{totalRangeEnd} of {pagination.total}
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <button
-                  disabled={pagination.page <= 1 || loading}
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  style={{ height: 36, padding: "0 12px", borderRadius: 10, border: "1px solid var(--cc-border)", background: "transparent", color: "var(--cc-text)", cursor: pagination.page <= 1 || loading ? "not-allowed" : "pointer", opacity: pagination.page <= 1 || loading ? 0.5 : 1, display: "flex", alignItems: "center", gap: 6 }}
-                >
-                  <ChevronLeft size={14} />
-                  Prev
-                </button>
-                <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>
-                  Page {pagination.page} of {pagination.totalPages}
-                </span>
-                <button
-                  disabled={pagination.page >= pagination.totalPages || loading}
-                  onClick={() => setPage((p) => Math.min(pagination.totalPages, p + 1))}
-                  style={{ height: 36, padding: "0 12px", borderRadius: 10, border: "1px solid var(--cc-border)", background: "transparent", color: "var(--cc-text)", cursor: pagination.page >= pagination.totalPages || loading ? "not-allowed" : "pointer", opacity: pagination.page >= pagination.totalPages || loading ? 0.5 : 1, display: "flex", alignItems: "center", gap: 6 }}
-                >
-                  Next
-                  <ChevronRight size={14} />
-                </button>
-              </div>
-            </div>
+            <Pagination
+              page={pagination.page}
+              totalPages={pagination.totalPages}
+              total={pagination.total}
+              pageSize={pagination.pageSize}
+              loading={loading}
+              onPageChange={setPage}
+              style={{ padding: 16, borderTop: "1px solid var(--cc-border)" }}
+            />
           </>
         )}
       </Card>
