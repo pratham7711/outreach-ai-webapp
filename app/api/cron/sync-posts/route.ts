@@ -11,8 +11,10 @@ export async function GET(request: NextRequest) {
   }
 
   const now = new Date();
+  const deadline = Date.now() + 4 * 60 * 1000;
   let synced = 0;
   let failed = 0;
+  let skippedForBudget = 0;
 
   try {
     // Get posts from active campaigns that need syncing
@@ -31,9 +33,15 @@ export async function GET(request: NextRequest) {
         viewsCount: true,
       },
       orderBy: { lastSyncedAt: { sort: "asc", nulls: "first" } },
+      take: 300,
     });
 
-    for (const post of posts) {
+    for (let i = 0; i < posts.length; i++) {
+      const post = posts[i];
+      if (Date.now() > deadline) {
+        skippedForBudget = posts.length - i;
+        break;
+      }
       // Variable cadence based on post age
       const ageMs = now.getTime() - new Date(post.postedAt).getTime();
       const ageHours = ageMs / (1000 * 60 * 60);
@@ -93,7 +101,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ ok: true, synced, failed, total: posts.length });
+    return NextResponse.json({ ok: true, synced, failed, skippedForBudget, total: posts.length });
   } catch (error) {
     console.error("Cron sync-posts failed:", error);
     return NextResponse.json({ error: "Sync failed" }, { status: 500 });

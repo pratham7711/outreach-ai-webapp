@@ -15,6 +15,12 @@ export function hasMetricCounts(m: PostMetrics): boolean {
   return typeof m.viewsCount === "number";
 }
 
+function fetchTimeoutSignal(): AbortSignal | undefined {
+  return typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function"
+    ? AbortSignal.timeout(8000)
+    : undefined;
+}
+
 export function detectPlatform(url: string): { platform: PostMetrics["platform"]; id: string } | null {
   // YouTube: youtube.com/watch?v=ID or youtu.be/ID or youtube.com/shorts/ID
   const ytMatch = url.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/)([\w-]+)/);
@@ -38,7 +44,7 @@ export async function fetchYouTubeMetrics(videoId: string): Promise<Partial<Post
   try {
     const res = await fetch(
       `https://www.googleapis.com/youtube/v3/videos?part=statistics,snippet&id=${videoId}&key=${apiKey}`,
-      { next: { revalidate: 3600 } }
+      { next: { revalidate: 3600 }, signal: fetchTimeoutSignal() }
     );
     if (!res.ok) return stubMetrics();
 
@@ -68,7 +74,9 @@ export async function fetchYouTubeMetrics(videoId: string): Promise<Partial<Post
 
 export async function fetchTikTokMetrics(url: string): Promise<Partial<PostMetrics>> {
   try {
-    const res = await fetch(`https://www.tiktok.com/oembed?url=${encodeURIComponent(url)}`);
+    const res = await fetch(`https://www.tiktok.com/oembed?url=${encodeURIComponent(url)}`, {
+      signal: fetchTimeoutSignal(),
+    });
     if (res.ok) {
       const data = await res.json();
       return {
@@ -84,7 +92,9 @@ export async function fetchTikTokMetrics(url: string): Promise<Partial<PostMetri
 
 export async function fetchInstagramMetrics(url: string): Promise<Partial<PostMetrics>> {
   try {
-    const res = await fetch(`https://api.instagram.com/oembed?url=${encodeURIComponent(url)}`);
+    const res = await fetch(`https://api.instagram.com/oembed?url=${encodeURIComponent(url)}`, {
+      signal: fetchTimeoutSignal(),
+    });
     if (res.ok) {
       const data = await res.json();
       return {
