@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+      - name: Typecheck (zero-error baseline)
+        run: npx tsc --noEmit
+      - name: Unit tests
+        run: npx jest --config jest.config.js --maxWorkers=2
+      - name: Integration tests
+        run: npx jest --config jest.integration.config.js --maxWorkers=2
+      - name: Plaintext-token guard (runs when DATABASE_URL secret is set)
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          if [ -n "$DATABASE_URL" ]; then
+            npx tsx scripts/assert-no-plaintext-tokens.ts
+          else
+            echo "skipped: no DATABASE_URL secret configured"
+          fi
+
+  e2e:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npx playwright install --with-deps chromium
+      - name: E2E tests
+        env:
+          DATABASE_URL: ${{ secrets.TEST_DATABASE_URL }}
+        run: npm run test:e2e
