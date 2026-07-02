@@ -23,8 +23,8 @@ The real app account for visual reference: `sharmapratham290@gmail.com` at `http
 | Language | TypeScript |
 | Styling | Tailwind CSS + inline CSS vars |
 | UI Components | `@pratham7711/ui` (custom design system) |
-| Database | PostgreSQL (Neon). Legacy notes in this file may mention SQLite. Prefer current schema/config in code. |
-| ORM | Prisma 7 with `@prisma/adapter-better-sqlite3` |
+| Database | PostgreSQL (Neon, serverless) |
+| ORM | Prisma 7 with `@prisma/adapter-pg` |
 | Auth | NextAuth v5 (credentials + session) |
 | Charts | Recharts |
 | Icons | lucide-react |
@@ -121,14 +121,13 @@ webapp/
 │   └── layout/
 │       └── TopBar.tsx              — Light top bar with breadcrumb
 ├── lib/
-│   ├── db.ts                       — Prisma client (better-sqlite3 adapter)
+│   ├── db.ts                       — Prisma client (@prisma/adapter-pg → Neon)
 │   ├── auth.ts                     — NextAuth config
 │   ├── auth.config.ts              — Auth middleware config
 │   └── features.ts                 — Feature flag system for plans
 ├── prisma/
-│   ├── schema.prisma               — Database schema (SQLite)
-│   ├── seed.ts                     — Seeds admin@demo.com / admin123
-│   └── dev.db                      — Local SQLite database
+│   ├── schema.prisma               — Database schema (PostgreSQL)
+│   └── seed.ts                     — Seeds admin@demo.com / admin123
 └── PROGRESS.md                     — ← READ THIS NEXT
 ```
 
@@ -136,8 +135,8 @@ webapp/
 
 ## Database
 
-**Local dev:** SQLite at `prisma/dev.db`
-**Connection:** `better-sqlite3` adapter (NOT PrismaClient directly, NOT PrismaPg)
+**All envs:** PostgreSQL on Neon — `DATABASE_URL` in `.env` (dev branch seeded; `TEST_DATABASE_URL` for tests)
+**Connection:** `@prisma/adapter-pg` via `lib/db.ts` (never instantiate `PrismaClient` directly)
 
 ```ts
 // lib/db.ts — how to get db client
@@ -195,7 +194,7 @@ Built on top of the real app clone. Not in the real CreatorCore app.
 - Touch `proxy.ts` (it's the auth middleware)
 - Start `npm run dev` without `PORT=3009` (port 3000 is taken)
 - Use `PrismaClient` directly — always import `db` from `@/lib/db`
-- Push to production with `DATABASE_URL=file:./prisma/dev.db`
+- Point production at the Neon dev branch — prod gets its own Neon branch (Phase 4)
 
 ## ALWAYS:
 
