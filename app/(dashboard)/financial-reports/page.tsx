@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Card, Badge, Skeleton, EmptyState, Button } from "@pratham7711/ui";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
-import { TrendingUp, TrendingDown, Minus, DollarSign, Wallet, BarChart2, Clock, Download, FileText, Table } from "lucide-react";
+import { TrendingUp, TrendingDown, Minus, DollarSign, Wallet, BarChart2, Clock, Download, FileText, Table, TriangleAlert } from "lucide-react";
 
 const PERIODS = [
   { key: "THIS_MONTH", label: "This Month" },
@@ -47,6 +47,9 @@ type Balance = { label: string; currentBalance: number; currency: string };
 type ReportData = {
   period: string;
   previousPeriod: string;
+  reportCurrency: string;
+  currenciesPresent?: string[];
+  hasMixedCurrencies?: boolean;
   current: Stats;
   previous: Stats;
   comparison: {
@@ -252,28 +255,45 @@ export default function FinancialReportsPage() {
         </div>
       ) : data ? (
         <>
+          {data.hasMixedCurrencies && (
+            <div
+              role="note"
+              style={{
+                display: "flex", alignItems: "center", gap: 8, marginBottom: 16, padding: "10px 14px",
+                borderRadius: 10, background: "#FEF3C7", border: "1px solid #FDE68A",
+                fontSize: 13, color: "#92400E",
+              }}
+            >
+              <TriangleAlert size={15} />
+              <span>
+                Summary totals are shown in {data.reportCurrency}. This org also holds amounts in{" "}
+                {(data.currenciesPresent ?? []).filter((c) => c !== data.reportCurrency).join(", ")} — those are
+                not converted; see per-currency balances and campaigns below.
+              </span>
+            </div>
+          )}
           {/* Stat Cards */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 16, marginBottom: 24 }}>
             <StatCard
               icon={Wallet}
               label="Paid Payouts"
-              value={fmt(data.current.paidPayouts)}
-              sub={`${fmt(data.previous.paidPayouts)} last period`}
+              value={fmt(data.current.paidPayouts, data.reportCurrency)}
+              sub={`${fmt(data.previous.paidPayouts, data.reportCurrency)} last period`}
               change={data.comparison.payoutsChange}
               color="#059669"
             />
             <StatCard
               icon={Clock}
               label="Pending Payouts"
-              value={fmt(data.current.pendingPayouts)}
-              sub={`${data.current.approvedRequests > 0 ? fmt(data.current.approvedRequests) + " approved requests" : "No pending requests"}`}
+              value={fmt(data.current.pendingPayouts, data.reportCurrency)}
+              sub={`${data.current.approvedRequests > 0 ? fmt(data.current.approvedRequests, data.reportCurrency) + " approved requests" : "No pending requests"}`}
               color="#D97706"
             />
             <StatCard
               icon={DollarSign}
               label="Total Budget"
-              value={fmt(data.current.totalBudget)}
-              sub={`${fmt(data.previous.totalBudget)} last period`}
+              value={fmt(data.current.totalBudget, data.reportCurrency)}
+              sub={`${fmt(data.previous.totalBudget, data.reportCurrency)} last period`}
               change={data.comparison.budgetChange}
               color="var(--cc-primary)"
             />

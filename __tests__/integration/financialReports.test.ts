@@ -6,6 +6,9 @@ import { GET as getFinancials } from "@/app/api/financial-reports/route";
 
 jest.mock("@/lib/db", () => ({
   db: {
+    organization: {
+      findUnique: jest.fn(),
+    },
     payout: {
       findMany: jest.fn(),
     },
@@ -59,6 +62,7 @@ beforeEach(() => {
   mockAuth.mockResolvedValue(authedSession);
 
   // Default: all db calls return empty for stats + monthly trend
+  mockDb.organization.findUnique.mockResolvedValue({ currency: "USD" });
   mockDb.payout.findMany.mockResolvedValue([]);
   mockDb.campaign.findMany.mockResolvedValue([]);
   mockDb.payoutRequest.findMany.mockResolvedValue([]);
@@ -165,5 +169,44 @@ describe("GET /api/financial-reports", () => {
       const res = await getFinancials(makeRequest(p));
       expect(res.status).toBe(200);
     }
+  });
+
+  it("compares LAST_MONTH against a distinct earlier month, not itself", async () => {
+    await getFinancials(makeRequest("LAST_MONTH"));
+    const current = mockDb.payout.findMany.mock.calls[0][0].where.createdAt;
+    const previous = mockDb.payout.findMany.mock.calls[1][0].where.createdAt;
+    expect(new Date(previous.gte).getTime()).toBeLessThan(new Date(current.gte).getTime());
+  });
+
+  it("queries top campaigns ordered by budget and scoped to the period", async () => {
+    await getFinancials(makeRequest("THIS_MONTH"));
+    const topCall = mockDb.campaign.findMany.mock.calls[2][0];
+    expect(topCall.orderBy).toEqual({ budget: "desc" });
+    expect(topCall.where.createdAt).toBeDefined();
+    expect(topCall.take).toBe(5);
+  });
+
+  it("exposes the report currency and flags mixed currencies", async () => {
+    mockDb.payoutBalance.findMany.mockResolvedValue([
+      { label: "Main", currentBalance: 100, currency: "EUR" },
+    ]);
+    const res = await getFinancials(makeRequest("THIS_MONTH"));
+    const body = await res.json();
+    expect(res.status).toBe(200);
+    expect(body.reportCurrency).toBe("USD");
+    expect(body.hasMixedCurrencies).toBe(true);
+    expect(body.currenciesPresent).toContain("EUR");
+  });
+
+  it("buckets payout amounts by their own currency (no cross-currency sum)", async () => {
+    mockDb.payout.findMany.mockResolvedValueOnce([
+      { amount: 100, status: "SUCCESS", currency: "USD", createdAt: new Date() },
+      { amount: 50, status: "PENDING", currency: "EUR", createdAt: new Date() },
+    ]);
+    const res = await getFinancials(makeRequest("THIS_MONTH"));
+    const body = await res.json();
+    expect(body.current.byCurrency.USD.paid).toBe(100);
+    expect(body.current.byCurrency.EUR.pending).toBe(50);
+    expect(body.current.byCurrency.EUR.paid).toBe(0);
   });
 });

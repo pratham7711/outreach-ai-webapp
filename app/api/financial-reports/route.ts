@@ -35,7 +35,7 @@ function getPeriodRange(period: PeriodKey): { start: Date; end: Date; label: str
 function getPreviousPeriodRange(period: PeriodKey): { start: Date; end: Date; label: string } {
   switch (period) {
     case "THIS_MONTH":     return getPeriodRange("LAST_MONTH");
-    case "LAST_MONTH":     { const d = new Date(); d.setMonth(d.getMonth() - 2); return getPeriodRange("LAST_MONTH"); }
+    case "LAST_MONTH":     { const now = new Date(); const y = now.getFullYear(); const m = now.getMonth(); return { start: new Date(y, m - 2, 1), end: new Date(y, m - 1, 0, 23, 59, 59), label: new Date(y, m - 2).toLocaleString("default", { month: "long", year: "numeric" }) }; }
     case "THIS_QUARTER":   return getPeriodRange("LAST_QUARTER");
     case "LAST_QUARTER":   { const now = new Date(); const q = Math.floor(now.getMonth() / 3) - 2; const y = q < 0 ? now.getFullYear() - 1 : now.getFullYear(); const qm = ((q % 4) + 4) % 4; return { start: new Date(y, qm * 3, 1), end: new Date(y, qm * 3 + 3, 0, 23, 59, 59), label: `Q${qm + 1} ${y}` }; }
     case "THIS_YEAR":      { const y = new Date().getFullYear() - 1; return { start: new Date(y, 0, 1), end: new Date(y, 11, 31, 23, 59, 59), label: `${y}` }; }
@@ -51,7 +51,7 @@ async function getPeriodStats(orgId: string, start: Date, end: Date) {
     }),
     db.campaign.findMany({
       where: { orgId, deletedAt: null, createdAt: { gte: start, lte: end } },
-      select: { id: true, budget: true, status: true },
+      select: { id: true, budget: true, status: true, currency: true },
     }),
     db.payoutRequest.findMany({
       where: { orgId, createdAt: { gte: start, lte: end } },
@@ -68,7 +68,19 @@ async function getPeriodStats(orgId: string, start: Date, end: Date) {
   const approvedRequests = payoutRequests.filter(r => r.status === "APPROVED").reduce((s, r) => s + r.requestedAmount, 0);
   const pendingRequests = payoutRequests.filter(r => r.status === "PENDING").reduce((s, r) => s + r.requestedAmount, 0);
 
-  return { paidPayouts, pendingPayouts, totalPayouts, totalBudget, campaignCount, activeCampaigns, approvedRequests, pendingRequests };
+  const byCurrency: Record<string, { paid: number; pending: number; total: number; budget: number }> = {};
+  const bucket = (cur: string) => (byCurrency[cur] ??= { paid: 0, pending: 0, total: 0, budget: 0 });
+  for (const p of payouts) {
+    const b = bucket(p.currency);
+    b.total += p.amount;
+    if (p.status === "SUCCESS") b.paid += p.amount;
+    else if (p.status === "PENDING") b.pending += p.amount;
+  }
+  for (const c of campaigns) {
+    if (c.budget) bucket(c.currency).budget += c.budget;
+  }
+
+  return { paidPayouts, pendingPayouts, totalPayouts, totalBudget, campaignCount, activeCampaigns, approvedRequests, pendingRequests, byCurrency };
 }
 
 function pctChange(current: number, previous: number): number | null {
@@ -90,7 +102,8 @@ export async function GET(req: NextRequest) {
   const currentRange = getPeriodRange(periodParam);
   const previousRange = getPreviousPeriodRange(periodParam);
 
-  const [currentStats, previousStats, balances, monthlyPayouts, topCampaigns] = await Promise.all([
+  const [org, currentStats, previousStats, balances, monthlyPayouts, topCampaigns] = await Promise.all([
+    db.organization.findUnique({ where: { id: orgId }, select: { currency: true } }),
     getPeriodStats(orgId, currentRange.start, currentRange.end),
     getPeriodStats(orgId, previousRange.start, previousRange.end),
     db.payoutBalance.findMany({
@@ -108,7 +121,7 @@ export async function GET(req: NextRequest) {
     }),
     // Top 5 campaigns by budget in current period
     db.campaign.findMany({
-      where: { orgId, deletedAt: null },
+      where: { orgId, deletedAt: null, createdAt: { gte: currentRange.start, lte: currentRange.end } },
       select: {
         id: true,
         title: true,
@@ -117,7 +130,7 @@ export async function GET(req: NextRequest) {
         currency: true,
         financials: { select: { totalBudget: true, spentAmount: true } },
       },
-      orderBy: { createdAt: "desc" },
+      orderBy: { budget: "desc" },
       take: 5,
     }),
   ]);
@@ -141,9 +154,22 @@ export async function GET(req: NextRequest) {
     requestsChange: pctChange(currentStats.approvedRequests, previousStats.approvedRequests),
   };
 
+  const reportCurrency = org?.currency ?? "USD";
+  const currenciesPresent = Array.from(
+    new Set([
+      ...Object.keys(currentStats.byCurrency),
+      ...balances.map(b => b.currency),
+      ...topCampaigns.map(c => c.currency),
+    ])
+  );
+  const hasMixedCurrencies = currenciesPresent.filter(c => c !== reportCurrency).length > 0;
+
   return NextResponse.json({
     period: currentRange.label,
     previousPeriod: previousRange.label,
+    reportCurrency,
+    currenciesPresent,
+    hasMixedCurrencies,
     current: currentStats,
     previous: previousStats,
     comparison,

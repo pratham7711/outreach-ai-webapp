@@ -71,9 +71,14 @@ function getPreviousPeriodRange(period: PeriodKey): { start: Date; end: Date; la
     case "THIS_MONTH":
       return getPeriodRange("LAST_MONTH");
     case "LAST_MONTH": {
-      const d = new Date();
-      d.setMonth(d.getMonth() - 2);
-      return getPeriodRange("LAST_MONTH");
+      const now = new Date();
+      const y = now.getFullYear();
+      const m = now.getMonth();
+      return {
+        start: new Date(y, m - 2, 1),
+        end: new Date(y, m - 1, 0, 23, 59, 59),
+        label: new Date(y, m - 2).toLocaleString("default", { month: "long", year: "numeric" }),
+      };
     }
     case "THIS_QUARTER":
       return getPeriodRange("LAST_QUARTER");
