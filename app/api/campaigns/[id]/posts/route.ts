@@ -45,6 +45,11 @@ export async function GET(
       where,
       include: {
         creator: { select: { id: true, name: true, handle: true, avatarUrl: true } },
+        snapshots: {
+          orderBy: { recordedAt: "desc" },
+          take: 2,
+          select: { id: true, viewsCount: true, recordedAt: true },
+        },
       },
       orderBy: { createdAt: "desc" },
     });
