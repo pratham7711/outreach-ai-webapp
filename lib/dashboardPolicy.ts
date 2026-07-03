@@ -49,6 +49,7 @@ export const DASHBOARD_NAV_RULES: DashboardNavRule[] = [
   { href: "/settings/team", alwaysVisible: true },
   { href: "/settings/api-keys", alwaysVisible: true },
   { href: "/settings/billing", alwaysVisible: true },
+  { href: "/settings/ingestion", alwaysVisible: true },
   { href: "/audit-log", key: "audit-log", featureKeys: [AUDIT_LOG_FEATURE] },
   { href: "/admin", alwaysVisible: true },
   { href: "/plans", alwaysVisible: true },
