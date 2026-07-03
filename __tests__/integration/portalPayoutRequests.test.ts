@@ -10,6 +10,7 @@ jest.mock('@/lib/db', () => ({
     campaignProposal: { findFirst: jest.fn() },
     campaign: { findUnique: jest.fn() },
     creator: { findFirst: jest.fn() },
+    activation: { findFirst: jest.fn() },
   },
 }));
 
@@ -93,8 +94,11 @@ describe('POST /api/portal/payout-requests', () => {
     expect(body.requestedAmount).toBe(500);
   });
 
-  it('returns 403 when no accepted proposal', async () => {
+  it('returns 403 when no accepted proposal and not joined', async () => {
     mockDb.campaignProposal.findFirst.mockResolvedValue(null);
+    mockDb.campaign.findUnique.mockResolvedValue({ orgId: 'org-1' });
+    mockDb.creator.findFirst.mockResolvedValue({ id: 'creator-1' });
+    mockDb.activation.findFirst.mockResolvedValue(null);
 
     const res = await POST(makeRequest('http://localhost/api/portal/payout-requests', {
       method: 'POST',
@@ -104,5 +108,28 @@ describe('POST /api/portal/payout-requests', () => {
     expect(res.status).toBe(403);
     const body = await res.json();
     expect(body.error).toBe('No accepted proposal for this campaign');
+  });
+
+  it('creates payout request when joined via marketplace activation', async () => {
+    mockDb.campaignProposal.findFirst.mockResolvedValue(null);
+    mockDb.campaign.findUnique.mockResolvedValue({ orgId: 'org-1' });
+    mockDb.creator.findFirst.mockResolvedValue({ id: 'creator-1' });
+    mockDb.activation.findFirst.mockResolvedValue({ id: 'act-1' });
+    mockDb.payoutRequest.create.mockResolvedValue({
+      id: 'pr-2',
+      requestedAmount: 300,
+      currency: 'USD',
+      status: 'PENDING',
+      campaign: { title: 'Marketplace Camp' },
+    });
+
+    const res = await POST(makeRequest('http://localhost/api/portal/payout-requests', {
+      method: 'POST',
+      body: JSON.stringify({ campaignId: 'c-1', requestedAmount: 300 }),
+      headers: { 'Content-Type': 'application/json' },
+    }));
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    expect(body.requestedAmount).toBe(300);
   });
 });
