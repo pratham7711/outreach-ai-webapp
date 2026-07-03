@@ -1,23 +1,43 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { fetchPostMetrics, hasMetricCounts } from "@/lib/platforms/fetchPostMetrics";
+import { decideSyncAction, SyncAction } from "@/lib/sync/cadence";
 
-// GET /api/cron/sync-posts — Hourly cron job to sync post metrics
+const MAX_SYNC_FAILURES = 5;
+const DEFAULT_PLATFORM_BUDGET = 100;
+
+type Decision = { postId: string; platform: string; action: SyncAction; reason: string };
+
+function parseBudget(raw: string | undefined): number {
+  const parsed = Number(raw);
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : DEFAULT_PLATFORM_BUDGET;
+}
+
 export async function GET(request: NextRequest) {
-  // Verify cron secret
   const authHeader = request.headers.get("authorization");
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const dryRun = request.nextUrl.searchParams.get("dryRun") === "1";
   const now = new Date();
   const deadline = Date.now() + 4 * 60 * 1000;
+
+  const budgets: Record<string, number> = {
+    YOUTUBE: parseBudget(process.env.SYNC_BUDGET_YOUTUBE),
+    TIKTOK: parseBudget(process.env.SYNC_BUDGET_TIKTOK),
+    INSTAGRAM: parseBudget(process.env.SYNC_BUDGET_INSTAGRAM),
+  };
+  const attempts: Record<string, number> = {};
+
   let synced = 0;
+  let sealed = 0;
   let failed = 0;
+  let deadLettered = 0;
   let skippedForBudget = 0;
+  const decisions: Decision[] = [];
 
   try {
-    // Get posts from active campaigns that need syncing
     const posts = await db.post.findMany({
       where: {
         campaign: {
@@ -27,10 +47,18 @@ export async function GET(request: NextRequest) {
       },
       select: {
         id: true,
+        platform: true,
         postUrl: true,
         postedAt: true,
         lastSyncedAt: true,
         viewsCount: true,
+        likesCount: true,
+        commentsCount: true,
+        sharesCount: true,
+        engagementRate: true,
+        syncFailCount: true,
+        syncDisabledAt: true,
+        snapshots: { where: { isFinalSnapshot: true }, take: 1, select: { id: true } },
       },
       orderBy: { lastSyncedAt: { sort: "asc", nulls: "first" } },
       take: 300,
@@ -38,28 +66,71 @@ export async function GET(request: NextRequest) {
 
     for (let i = 0; i < posts.length; i++) {
       const post = posts[i];
-      if (Date.now() > deadline) {
-        skippedForBudget = posts.length - i;
+      if (!dryRun && Date.now() > deadline) {
+        skippedForBudget += posts.length - i;
         break;
       }
-      // Variable cadence based on post age
-      const ageMs = now.getTime() - new Date(post.postedAt).getTime();
-      const ageHours = ageMs / (1000 * 60 * 60);
-      const lastSyncMs = post.lastSyncedAt
-        ? now.getTime() - new Date(post.lastSyncedAt).getTime()
-        : Infinity;
-      const lastSyncHours = lastSyncMs / (1000 * 60 * 60);
 
-      // Skip based on cadence: <24h always, 1-7d if >6h stale, 7-30d if >24h stale, >30d skip
-      if (ageHours > 30 * 24) continue;
-      if (ageHours > 7 * 24 && lastSyncHours < 24) continue;
-      if (ageHours > 24 && lastSyncHours < 6) continue;
+      let { action, reason } = decideSyncAction({
+        postedAt: new Date(post.postedAt),
+        lastSyncedAt: post.lastSyncedAt ? new Date(post.lastSyncedAt) : null,
+        syncFailCount: post.syncFailCount,
+        syncDisabledAt: post.syncDisabledAt ? new Date(post.syncDisabledAt) : null,
+        hasFinalSnapshot: post.snapshots.length > 0,
+        now,
+      });
+
+      if (action === "sync") {
+        const platform = post.platform as string;
+        const budget = budgets[platform] ?? DEFAULT_PLATFORM_BUDGET;
+        const used = attempts[platform] ?? 0;
+        if (used >= budget) {
+          action = "skip";
+          reason = "budget";
+        } else {
+          attempts[platform] = used + 1;
+        }
+      }
+
+      decisions.push({ postId: post.id, platform: post.platform as string, action, reason });
+
+      if (dryRun) continue;
+
+      if (action === "skip") {
+        if (reason === "budget") skippedForBudget++;
+        continue;
+      }
+
+      if (action === "seal") {
+        try {
+          await db.$transaction([
+            db.postMetricSnapshot.create({
+              data: {
+                postId: post.id,
+                viewsCount: post.viewsCount,
+                likesCount: post.likesCount,
+                commentsCount: post.commentsCount,
+                sharesCount: post.sharesCount,
+                engagementRate: post.engagementRate,
+                isFinalSnapshot: true,
+                syncSource: "cron-seal",
+              },
+            }),
+            db.post.update({ where: { id: post.id }, data: { lastSyncedAt: now } }),
+          ]);
+          sealed++;
+        } catch (err) {
+          console.error(`Failed to seal post ${post.id}:`, err);
+          failed++;
+        }
+        continue;
+      }
 
       try {
         const metrics = await fetchPostMetrics(post.postUrl);
         if (!metrics) continue;
 
-        const postData: Record<string, unknown> = { lastSyncedAt: now };
+        const postData: Record<string, unknown> = { lastSyncedAt: now, syncFailCount: 0 };
         if (metrics.thumbnailUrl !== null) postData.thumbnailUrl = metrics.thumbnailUrl;
         if (metrics.caption !== null) postData.caption = metrics.caption;
 
@@ -97,11 +168,45 @@ export async function GET(request: NextRequest) {
       } catch (err) {
         console.error(`Failed to sync post ${post.id}:`, err);
         failed++;
-        // Continue with other posts
+        const nextFailCount = post.syncFailCount + 1;
+        const failData: Record<string, unknown> = { syncFailCount: nextFailCount };
+        if (nextFailCount >= MAX_SYNC_FAILURES) {
+          failData.syncDisabledAt = now;
+          deadLettered++;
+        }
+        try {
+          await db.post.update({ where: { id: post.id }, data: failData });
+        } catch (updateErr) {
+          console.error(`Failed to record sync failure for post ${post.id}:`, updateErr);
+        }
       }
     }
 
-    return NextResponse.json({ ok: true, synced, failed, skippedForBudget, total: posts.length });
+    if (dryRun) {
+      const byAction: Record<string, number> = {};
+      const byReason: Record<string, number> = {};
+      for (const d of decisions) {
+        byAction[d.action] = (byAction[d.action] ?? 0) + 1;
+        byReason[d.reason] = (byReason[d.reason] ?? 0) + 1;
+      }
+      return NextResponse.json({
+        ok: true,
+        dryRun: true,
+        total: posts.length,
+        decisions,
+        summary: { byAction, byReason },
+      });
+    }
+
+    return NextResponse.json({
+      ok: true,
+      synced,
+      sealed,
+      failed,
+      deadLettered,
+      skippedForBudget,
+      total: posts.length,
+    });
   } catch (error) {
     console.error("Cron sync-posts failed:", error);
     return NextResponse.json({ error: "Sync failed" }, { status: 500 });

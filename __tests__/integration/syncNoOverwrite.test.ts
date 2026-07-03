@@ -114,10 +114,18 @@ describe("cron sync — never overwrites real counts with unknowns", () => {
     mockDb.post.findMany.mockResolvedValue([
       {
         id: "post-1",
+        platform: "TIKTOK",
         postUrl: "https://www.tiktok.com/@u/video/1",
         postedAt: new Date(),
         lastSyncedAt: null,
         viewsCount: 9999,
+        likesCount: 10,
+        commentsCount: 2,
+        sharesCount: 1,
+        engagementRate: 0.5,
+        syncFailCount: 0,
+        syncDisabledAt: null,
+        snapshots: [],
       },
     ]);
     mockFetch.mockResolvedValue({
