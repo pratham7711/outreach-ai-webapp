@@ -12,11 +12,16 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [registered, setRegistered] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const emailRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     emailRef.current?.focus();
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      setRegistered(params.get("registered") === "1");
+    }
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -100,6 +105,26 @@ export default function LoginPage() {
           <p style={{ fontSize: 14, color: "var(--cc-text-muted)", marginBottom: 24 }}>
             Sign in to outreach ai
           </p>
+
+          {registered && !error && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.2 }}
+              role="status"
+              style={{
+                padding: "12px 16px",
+                borderRadius: 12,
+                background: "rgba(5, 150, 105, 0.1)",
+                border: "1px solid rgba(5, 150, 105, 0.3)",
+                color: "#059669",
+                fontSize: 13,
+                marginBottom: 16,
+              }}
+            >
+              Account created. Sign in to get started.
+            </motion.div>
+          )}
 
           {error && (
             <motion.div

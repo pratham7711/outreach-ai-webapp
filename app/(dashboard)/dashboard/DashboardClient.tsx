@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Card, Badge, StatCard, Skeleton } from "@pratham7711/ui";
+import { Card, Badge, StatCard, Skeleton, Button } from "@pratham7711/ui";
 import {
   AreaChart,
   Area,
@@ -30,6 +30,9 @@ import {
   Eye,
   DollarSign,
   Activity,
+  Rocket,
+  CreditCard,
+  ArrowRight,
 } from "lucide-react";
 
 function formatCurrency(n: number) {
@@ -118,6 +121,7 @@ const DEFAULT_WIDGETS = [
 export default function DashboardClient(props: Props) {
   const { recentCampaigns } = props;
   const widgets = props.dashboardWidgets ?? DEFAULT_WIDGETS;
+  const isNewOrg = props.campaignCount === 0 && props.creatorCount === 0;
 
   const [financials, setFinancials] = useState<FinancialData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -219,6 +223,77 @@ export default function DashboardClient(props: Props) {
           </div>
         </div>
       </div>
+
+      {/* Getting started — only for a brand-new org with no data yet */}
+      {isNewOrg && (
+        <Card variant="solid" style={{ padding: 32, marginBottom: 32 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
+            <div style={{ width: 40, height: 40, borderRadius: 10, background: "#EEF2FF", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Rocket size={20} style={{ color: "var(--cc-primary)" }} />
+            </div>
+            <h2 style={{ fontSize: 20, fontWeight: 800, color: "var(--cc-text)", letterSpacing: "-0.01em" }}>
+              Welcome to outreach ai
+            </h2>
+          </div>
+          <p style={{ fontSize: 14, color: "var(--cc-text-muted)", marginBottom: 24, maxWidth: 560, lineHeight: 1.6 }}>
+            Your workspace is ready. Set up your first campaign and add the creators you work with to
+            start tracking activations, posts, and payouts. Here are a few things to get you going.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-3" style={{ gap: 16 }}>
+            <Link href="/campaigns" style={{ textDecoration: "none" }}>
+              <Card variant="outlined" style={{ padding: 20, height: "100%", display: "flex", flexDirection: "column", gap: 8 }}>
+                <div style={{ width: 32, height: 32, borderRadius: 8, background: "#EEF2FF", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <Megaphone size={16} style={{ color: "#5B5BD6" }} />
+                </div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: "var(--cc-text)" }}>Create your first campaign</div>
+                <p style={{ fontSize: 13, color: "var(--cc-text-muted)", lineHeight: 1.5, flex: 1 }}>
+                  Launch a brief and start assigning creators to your campaign.
+                </p>
+                <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 13, fontWeight: 600, color: "var(--cc-primary)" }}>
+                  Go to campaigns <ArrowRight size={14} />
+                </span>
+              </Card>
+            </Link>
+
+            <Link href="/creators" style={{ textDecoration: "none" }}>
+              <Card variant="outlined" style={{ padding: 20, height: "100%", display: "flex", flexDirection: "column", gap: 8 }}>
+                <div style={{ width: 32, height: 32, borderRadius: 8, background: "#F3E8FF", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <Users size={16} style={{ color: "#7C3AED" }} />
+                </div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: "var(--cc-text)" }}>Add creators</div>
+                <p style={{ fontSize: 13, color: "var(--cc-text-muted)", lineHeight: 1.5, flex: 1 }}>
+                  Build your roster of influencers with handles, platforms, and rates.
+                </p>
+                <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 13, fontWeight: 600, color: "var(--cc-primary)" }}>
+                  Go to creators <ArrowRight size={14} />
+                </span>
+              </Card>
+            </Link>
+
+            <Link href="/settings" style={{ textDecoration: "none" }}>
+              <Card variant="outlined" style={{ padding: 20, height: "100%", display: "flex", flexDirection: "column", gap: 8 }}>
+                <div style={{ width: 32, height: 32, borderRadius: 8, background: "#D1FAE5", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <CreditCard size={16} style={{ color: "#059669" }} />
+                </div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: "var(--cc-text)" }}>Connect billing later</div>
+                <p style={{ fontSize: 13, color: "var(--cc-text-muted)", lineHeight: 1.5, flex: 1 }}>
+                  You can set up payouts and billing when you are ready to pay creators.
+                </p>
+                <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 13, fontWeight: 600, color: "var(--cc-text-muted)" }}>
+                  Open settings <ArrowRight size={14} />
+                </span>
+              </Card>
+            </Link>
+          </div>
+          <div style={{ marginTop: 24 }}>
+            <Link href="/campaigns" style={{ textDecoration: "none" }}>
+              <Button variant="primary" iconLeft={<Megaphone size={15} />}>
+                Create your first campaign
+              </Button>
+            </Link>
+          </div>
+        </Card>
+      )}
 
       {/* KPI Grid — enhanced with financial data */}
       {widgets.includes("kpi_grid") && (
