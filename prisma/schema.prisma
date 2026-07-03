@@ -330,7 +330,21 @@ model Campaign {
   campaignType     CampaignType     @default(BUDGET_BASED)
   typeConfig       Json?            // shape varies per CampaignType + payout model
   enrollmentOpen        Boolean               @default(false)
-  marketplaceVisibility MarketplaceVisibility @default(ROSTER_ONLY)
+  // ─── Whop-style marketplace (Phase 2M) ───────────────────────────────────
+  // NOTE: All *Minor amounts below are integer MINOR units (cents/paise) per the
+  // P3.1 payments convention — never floats. ratePerThousand is per-platform
+  // minor units per 1k verified views, e.g. {"TIKTOK":150,"INSTAGRAM":150,"YOUTUBE":200}.
+  marketplaceVisibility MarketplaceVisibility @default(PRIVATE)
+  publicSlug             String?              @unique // url-safe, generated server-side from title + nanoid on first publish to GLOBAL
+  guidelines             String?              @db.Text // marketplace brief — creative guidelines
+  requirements           String?              @db.Text // marketplace brief — participation requirements
+  contentAssetsUrl       String?              // link to downloadable assets (logos, footage, etc.)
+  ratePerThousand        Json?                // per-platform minor units per 1k verified views
+  minPayoutMinor         Int?                 // minimum accrued (minor units) before a creator can request payout
+  marketplaceBudgetCapMinor Int?              // hard cap (minor units) on total marketplace accrual
+  submissionDeadline     DateTime?            // last date creators can submit posts
+  autoApproveHours       Int                  @default(48) // hours before a PENDING submission auto-approves
+  inviteCode             String?              // shared join code for INVITE_ONLY campaigns (regenerated server-side only)
   thumbnailUrl     String?
   budget           Float?
   currency         Currency         @default(USD)
@@ -859,8 +873,9 @@ model CampaignInvite {
 // ─── Marketplace: Creator Users (separate auth) ──────────────────────────────
 
 enum MarketplaceVisibility {
-  ROSTER_ONLY
-  PUBLIC
+  PRIVATE     // org-only — not listed publicly (default)
+  GLOBAL      // listed on the public /explore marketplace across orgs
+  INVITE_ONLY // reachable only with an invite code
 }
 
 enum ProposalStatus {

@@ -60,7 +60,7 @@ describe("GET /api/portal/discover", () => {
       await getDiscover(makeRequest());
       const call = mockDb.campaign.findMany.mock.calls[0][0];
       expect(call.where.enrollmentOpen).toBe(true);
-      expect(call.where.marketplaceVisibility).toBe("PUBLIC");
+      expect(call.where.marketplaceVisibility).toBe("GLOBAL");
       expect(call.where.status).toBe("IN_PROGRESS");
     });
   });

@@ -47,6 +47,10 @@ yarn-error.log*
 next-env.d.ts
 
 /lib/generated/prisma
+/lib/generated/_tmp_prisma
+/prisma/_gen_tmp.prisma
+# stray dirs left by sandboxed builds where unlink/rmdir is blocked by the mount
+/sessions
 
 # machine-local agent settings
 .claude/settings.local.json

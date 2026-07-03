@@ -1,4 +1,5 @@
 "use client";
+import type { CSSProperties } from "react";
 import { useState, useEffect, use } from "react";
 import { motion } from "framer-motion";
 import { Card, Badge, Button, StatCard, EmptyState, Avatar, Skeleton, Modal } from "@pratham7711/ui";
@@ -94,6 +95,42 @@ const CAMPAIGN_TYPE_BADGE: Record<string, "accent" | "success" | "warning" | "ne
   PRIVATE_INVITE: "neutral",
 };
 
+// ─── Marketplace (Phase 2M) ────────────────────────────────────────────────
+const MARKETPLACE_PLATFORMS = ["TIKTOK", "INSTAGRAM", "YOUTUBE", "TWITTER"] as const;
+
+const VISIBILITY_OPTIONS: { value: "PRIVATE" | "GLOBAL" | "INVITE_ONLY"; label: string; desc: string }[] = [
+  { value: "PRIVATE", label: "Private", desc: "Managed by your team only — not listed anywhere public." },
+  { value: "GLOBAL", label: "Public marketplace", desc: "Listed on the public /explore page. Any creator can discover and join." },
+  { value: "INVITE_ONLY", label: "Invite only", desc: "Reachable only by creators who have your invite code." },
+];
+
+const mktLabel: CSSProperties = {
+  display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6,
+};
+const mktInput: CSSProperties = {
+  width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-border)",
+  fontSize: 14, color: "var(--cc-text)", background: "var(--cc-card)", outline: "none", boxSizing: "border-box",
+};
+const mktTextarea: CSSProperties = {
+  ...mktInput, resize: "vertical", fontFamily: "inherit",
+};
+
+// Amounts are stored as integer MINOR units (cents/paise). UI works in major units.
+function minorToMajor(minor: number | null | undefined): string {
+  if (minor == null) return "";
+  return (minor / 100).toString();
+}
+function majorToMinor(major: string): number | null {
+  const trimmed = major.trim();
+  if (trimmed === "") return null;
+  const n = Number(trimmed);
+  if (!Number.isFinite(n) || n < 0) return null;
+  return Math.round(n * 100);
+}
+
+type MarketplaceVisibility = "PRIVATE" | "GLOBAL" | "INVITE_ONLY";
+type MarketplacePlatform = "TIKTOK" | "INSTAGRAM" | "YOUTUBE" | "TWITTER";
+
 type Campaign = {
   id: string;
   title: string;
@@ -106,6 +143,18 @@ type Campaign = {
   clientId: string | null;
   createdAt: string;
   updatedAt: string;
+  // Marketplace (Phase 2M)
+  marketplaceVisibility?: MarketplaceVisibility;
+  publicSlug?: string | null;
+  guidelines?: string | null;
+  requirements?: string | null;
+  contentAssetsUrl?: string | null;
+  ratePerThousand?: Partial<Record<MarketplacePlatform, number>> | null;
+  minPayoutMinor?: number | null;
+  marketplaceBudgetCapMinor?: number | null;
+  submissionDeadline?: string | null;
+  autoApproveHours?: number;
+  inviteCode?: string | null;
   teamMembers: { id: string; user: { id: string; name: string; avatarUrl: string | null } }[];
   activations: Activation[];
   posts: Post[];
@@ -143,6 +192,21 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
   });
   const [saving, setSaving] = useState(false);
 
+  // ─── Marketplace form state (major units in UI; converted to minor on save) ──
+  const [mkt, setMkt] = useState({
+    marketplaceVisibility: "PRIVATE" as "PRIVATE" | "GLOBAL" | "INVITE_ONLY",
+    guidelines: "",
+    requirements: "",
+    contentAssetsUrl: "",
+    rates: {} as Partial<Record<(typeof MARKETPLACE_PLATFORMS)[number], string>>,
+    minPayoutMajor: "",
+    budgetCapMajor: "",
+    submissionDeadline: "",
+    autoApproveHours: "48",
+  });
+  const [savingMkt, setSavingMkt] = useState(false);
+  const [rotatingCode, setRotatingCode] = useState(false);
+
   useEffect(() => {
     fetch(`/api/campaigns/${id}`)
       .then((r) => (r.ok ? r.json() : null))
@@ -160,6 +224,25 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
         currency: campaign.currency,
         notes: campaign.notes ?? "",
         clientId: campaign.clientId ?? "",
+      });
+      const rates: Partial<Record<(typeof MARKETPLACE_PLATFORMS)[number], string>> = {};
+      const src = campaign.ratePerThousand ?? {};
+      for (const p of MARKETPLACE_PLATFORMS) {
+        const v = src[p];
+        if (v != null) rates[p] = minorToMajor(v);
+      }
+      setMkt({
+        marketplaceVisibility: campaign.marketplaceVisibility ?? "PRIVATE",
+        guidelines: campaign.guidelines ?? "",
+        requirements: campaign.requirements ?? "",
+        contentAssetsUrl: campaign.contentAssetsUrl ?? "",
+        rates,
+        minPayoutMajor: minorToMajor(campaign.minPayoutMinor),
+        budgetCapMajor: minorToMajor(campaign.marketplaceBudgetCapMinor),
+        submissionDeadline: campaign.submissionDeadline
+          ? campaign.submissionDeadline.slice(0, 10)
+          : "",
+        autoApproveHours: campaign.autoApproveHours != null ? String(campaign.autoApproveHours) : "48",
       });
     }
   }, [campaign]);
@@ -215,6 +298,79 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
       }
     } finally {
       setSaving(false);
+    }
+  };
+
+  const refreshCampaign = async () => {
+    const refreshed = await fetch(`/api/campaigns/${id}`).then((r) => (r.ok ? r.json() : null));
+    if (refreshed && !refreshed.error) setCampaign(refreshed);
+    return refreshed;
+  };
+
+  const buildRatePayload = () => {
+    const out: Record<string, number> = {};
+    for (const p of MARKETPLACE_PLATFORMS) {
+      const minor = majorToMinor(mkt.rates[p] ?? "");
+      if (minor != null && minor > 0) out[p] = minor;
+    }
+    return out;
+  };
+
+  const handleSaveMarketplace = async () => {
+    // Client-side guard mirrors the server gate for GLOBAL publishing.
+    if (mkt.marketplaceVisibility === "GLOBAL") {
+      const hasRate = Object.keys(buildRatePayload()).length > 0;
+      if (!editForm.title.trim() || !mkt.guidelines.trim() || !hasRate) {
+        toast.error("Public marketplace needs a title, guidelines, and at least one platform rate.");
+        return;
+      }
+    }
+    setSavingMkt(true);
+    try {
+      const payload: Record<string, unknown> = {
+        marketplaceVisibility: mkt.marketplaceVisibility,
+        guidelines: mkt.guidelines || null,
+        requirements: mkt.requirements || null,
+        contentAssetsUrl: mkt.contentAssetsUrl || "",
+        ratePerThousand: buildRatePayload(),
+        minPayoutMinor: majorToMinor(mkt.minPayoutMajor),
+        marketplaceBudgetCapMinor: majorToMinor(mkt.budgetCapMajor),
+        submissionDeadline: mkt.submissionDeadline ? new Date(mkt.submissionDeadline).toISOString() : null,
+        autoApproveHours: mkt.autoApproveHours ? Number(mkt.autoApproveHours) : 48,
+      };
+      const res = await fetch(`/api/campaigns/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        await refreshCampaign();
+        toast.success("Marketplace settings saved");
+      } else {
+        const err = await res.json().catch(() => null);
+        toast.error(err?.error ?? "Failed to save marketplace settings");
+      }
+    } finally {
+      setSavingMkt(false);
+    }
+  };
+
+  const handleRotateInviteCode = async () => {
+    setRotatingCode(true);
+    try {
+      const res = await fetch(`/api/campaigns/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ regenerateInviteCode: true }),
+      });
+      if (res.ok) {
+        await refreshCampaign();
+        toast.success("Invite code regenerated");
+      } else {
+        toast.error("Failed to regenerate invite code");
+      }
+    } finally {
+      setRotatingCode(false);
     }
   };
 
@@ -704,6 +860,200 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                     }}
                   >
                     {saving ? "Saving..." : "Save Changes"}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* ─── Marketplace section (Phase 2M) ─── */}
+            <div style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, padding: 24, marginTop: 24 }}>
+              <h3 style={{ fontSize: 15, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Marketplace</h3>
+              <p style={{ fontSize: 13, color: "var(--cc-text-muted)", marginBottom: 20 }}>
+                Control how creators discover and join this campaign. Rates are shown in {campaign.currency} and stored to the cent.
+              </p>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+                {/* Visibility picker */}
+                <div>
+                  <label style={mktLabel}>Visibility</label>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {VISIBILITY_OPTIONS.map((opt) => {
+                      const selected = mkt.marketplaceVisibility === opt.value;
+                      return (
+                        <div
+                          key={opt.value}
+                          onClick={() => setMkt((m) => ({ ...m, marketplaceVisibility: opt.value }))}
+                          style={{
+                            padding: 14, borderRadius: 10, cursor: "pointer",
+                            border: `2px solid ${selected ? "var(--cc-primary)" : "var(--cc-border)"}`,
+                            background: selected ? "rgba(91, 91, 214, 0.04)" : "var(--cc-card)",
+                          }}
+                        >
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <span style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>{opt.label}</span>
+                            {selected && <Badge variant="accent">Selected</Badge>}
+                          </div>
+                          <p style={{ fontSize: 12, color: "var(--cc-text-muted)", marginTop: 4 }}>{opt.desc}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Invite code (INVITE_ONLY only) */}
+                {mkt.marketplaceVisibility === "INVITE_ONLY" && (
+                  <div>
+                    <label style={mktLabel}>Invite code</label>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                      <code style={{
+                        flex: 1, padding: "10px 14px", borderRadius: 10, fontSize: 15, letterSpacing: "0.08em",
+                        border: "1px solid var(--cc-border)", background: "var(--cc-bg)", color: "var(--cc-text)", fontWeight: 700,
+                      }}>
+                        {campaign.inviteCode ?? "— saved on first save —"}
+                      </code>
+                      <button
+                        onClick={handleRotateInviteCode}
+                        disabled={rotatingCode || !campaign.inviteCode}
+                        style={{
+                          padding: "9px 16px", borderRadius: 8, border: "1px solid var(--cc-border)",
+                          background: "var(--cc-card)", color: "var(--cc-text)", fontSize: 13, fontWeight: 600,
+                          cursor: rotatingCode || !campaign.inviteCode ? "not-allowed" : "pointer", whiteSpace: "nowrap",
+                        }}
+                      >
+                        {rotatingCode ? "Rotating…" : "Regenerate"}
+                      </button>
+                    </div>
+                    <p style={{ fontSize: 12, color: "var(--cc-text-muted)", marginTop: 6 }}>
+                      Share this code with invited creators. A new code is generated when you first save; regenerating invalidates the old one.
+                    </p>
+                  </div>
+                )}
+
+                {/* Brief editor */}
+                <div>
+                  <label style={mktLabel}>Guidelines {mkt.marketplaceVisibility === "GLOBAL" && <span style={{ color: "#DC2626" }}>*</span>}</label>
+                  <textarea
+                    value={mkt.guidelines}
+                    onChange={(e) => setMkt((m) => ({ ...m, guidelines: e.target.value }))}
+                    rows={4}
+                    placeholder="What should creators make? Tone, hooks, must-include beats…"
+                    style={mktTextarea}
+                  />
+                </div>
+                <div>
+                  <label style={mktLabel}>Requirements</label>
+                  <textarea
+                    value={mkt.requirements}
+                    onChange={(e) => setMkt((m) => ({ ...m, requirements: e.target.value }))}
+                    rows={3}
+                    placeholder="Minimum length, hashtags, disclosure, do's and don'ts…"
+                    style={mktTextarea}
+                  />
+                </div>
+                <div>
+                  <label style={mktLabel}>Content assets URL</label>
+                  <input
+                    type="url"
+                    value={mkt.contentAssetsUrl}
+                    onChange={(e) => setMkt((m) => ({ ...m, contentAssetsUrl: e.target.value }))}
+                    placeholder="https://drive.google.com/…"
+                    style={mktInput}
+                  />
+                </div>
+
+                {/* Per-platform rates (major units → stored minor) */}
+                <div>
+                  <label style={mktLabel}>
+                    Rate per 1,000 verified views {mkt.marketplaceVisibility === "GLOBAL" && <span style={{ color: "#DC2626" }}>*</span>}
+                  </label>
+                  <p style={{ fontSize: 12, color: "var(--cc-text-muted)", marginBottom: 10 }}>
+                    Set a payout rate per platform (in {campaign.currency}). Leave blank to exclude a platform.
+                  </p>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                    {MARKETPLACE_PLATFORMS.map((p) => (
+                      <div key={p}>
+                        <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--cc-text-muted)", marginBottom: 4 }}>{p}</label>
+                        <input
+                          type="number" min="0" step="0.01"
+                          value={mkt.rates[p] ?? ""}
+                          onChange={(e) => setMkt((m) => ({ ...m, rates: { ...m.rates, [p]: e.target.value } }))}
+                          placeholder="e.g. 1.50"
+                          style={mktInput}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Payout thresholds + deadline + auto-approve */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <div>
+                    <label style={mktLabel}>Minimum payout ({campaign.currency})</label>
+                    <input
+                      type="number" min="0" step="0.01"
+                      value={mkt.minPayoutMajor}
+                      onChange={(e) => setMkt((m) => ({ ...m, minPayoutMajor: e.target.value }))}
+                      placeholder="e.g. 20"
+                      style={mktInput}
+                    />
+                  </div>
+                  <div>
+                    <label style={mktLabel}>Budget cap ({campaign.currency})</label>
+                    <input
+                      type="number" min="0" step="0.01"
+                      value={mkt.budgetCapMajor}
+                      onChange={(e) => setMkt((m) => ({ ...m, budgetCapMajor: e.target.value }))}
+                      placeholder="e.g. 5000"
+                      style={mktInput}
+                    />
+                  </div>
+                  <div>
+                    <label style={mktLabel}>Submission deadline</label>
+                    <input
+                      type="date"
+                      value={mkt.submissionDeadline}
+                      onChange={(e) => setMkt((m) => ({ ...m, submissionDeadline: e.target.value }))}
+                      style={mktInput}
+                    />
+                  </div>
+                  <div>
+                    <label style={mktLabel}>Auto-approve after (hours)</label>
+                    <input
+                      type="number" min="1" max="720"
+                      value={mkt.autoApproveHours}
+                      onChange={(e) => setMkt((m) => ({ ...m, autoApproveHours: e.target.value }))}
+                      placeholder="48"
+                      style={mktInput}
+                    />
+                  </div>
+                </div>
+
+                {/* Public URL preview */}
+                <div>
+                  <label style={mktLabel}>Public page</label>
+                  <div style={{ padding: "10px 14px", borderRadius: 10, border: "1px dashed var(--cc-border)", background: "var(--cc-bg)", fontSize: 13, color: "var(--cc-text-muted)" }}>
+                    {campaign.publicSlug ? (
+                      <span style={{ color: "var(--cc-text)" }}>/explore/{campaign.publicSlug}</span>
+                    ) : mkt.marketplaceVisibility === "GLOBAL" ? (
+                      <span>A public URL like <code>/explore/your-campaign-abc123</code> is created when you first publish.</span>
+                    ) : (
+                      <span>Set visibility to <strong>Public marketplace</strong> and save to generate a public URL.</span>
+                    )}
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                  <button
+                    onClick={handleSaveMarketplace}
+                    disabled={savingMkt}
+                    style={{
+                      padding: "9px 20px", borderRadius: 8, border: "none",
+                      background: savingMkt ? "var(--cc-border)" : "var(--cc-primary)",
+                      color: "white", fontSize: 14, fontWeight: 600,
+                      cursor: savingMkt ? "not-allowed" : "pointer",
+                    }}
+                  >
+                    {savingMkt ? "Saving…" : "Save Marketplace Settings"}
                   </button>
                 </div>
               </div>

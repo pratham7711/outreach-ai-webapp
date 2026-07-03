@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
 
     const where: any = {
       enrollmentOpen: true,
-      marketplaceVisibility: "PUBLIC" as const,
+      marketplaceVisibility: "GLOBAL" as const,
       status: "IN_PROGRESS" as const,
       deletedAt: null,
       ...(search && { title: { contains: search, mode: "insensitive" as const } }),

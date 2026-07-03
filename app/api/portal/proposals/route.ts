@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
 
     // Verify campaign is open for proposals
     const campaign = await db.campaign.findFirst({
-      where: { id: campaignId, enrollmentOpen: true, marketplaceVisibility: "PUBLIC", status: "IN_PROGRESS", deletedAt: null },
+      where: { id: campaignId, enrollmentOpen: true, marketplaceVisibility: "GLOBAL", status: "IN_PROGRESS", deletedAt: null },
     });
     if (!campaign) {
       return NextResponse.json({ error: "Campaign not available for proposals" }, { status: 404 });
