@@ -11,6 +11,7 @@ jest.mock('@/lib/db', () => ({
     creator: { findFirst: jest.fn() },
     activation: { findFirst: jest.fn() },
     post: { findMany: jest.fn(), create: jest.fn(), findFirst: jest.fn(), update: jest.fn() },
+    viewFraudFlag: { findMany: jest.fn() },
   },
 }));
 
@@ -56,6 +57,7 @@ beforeEach(() => {
   mockAuth.mockResolvedValue(authedSession);
   mockDb.campaign.findFirst.mockResolvedValue(mockCampaign);
   mockDb.creator.findFirst.mockResolvedValue({ id: 'c1', orgId: 'org-1', deletedAt: null });
+  mockDb.viewFraudFlag.findMany.mockResolvedValue([]);
 });
 
 describe('GET /api/campaigns/[id]/posts', () => {
@@ -75,7 +77,8 @@ describe('GET /api/campaigns/[id]/posts', () => {
     const body = await res.json();
 
     expect(res.status).toBe(200);
-    expect(body.posts).toEqual(mockPosts);
+    // GET enriches each post with an unresolved-fraud-flag presence flag (M4).
+    expect(body.posts).toEqual(mockPosts.map((p) => ({ ...p, hasOpenFraudFlag: false })));
   });
 });
 

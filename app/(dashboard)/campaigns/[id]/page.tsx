@@ -567,7 +567,21 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
 
         {/* Posts Tab */}
         {activeTab === "posts" && (
-          <PostsTab campaignId={id} postApprovalMode={(campaign as any).postApprovalMode ?? "MANUAL"} />
+          <PostsTab
+            campaignId={id}
+            postApprovalMode={(campaign as any).postApprovalMode ?? "MANUAL"}
+            marketplace={
+              campaign.marketplaceVisibility && campaign.marketplaceVisibility !== "PRIVATE"
+                ? {
+                    currency: campaign.currency,
+                    ratePerThousand: campaign.ratePerThousand ?? null,
+                    budgetCapMinor: campaign.marketplaceBudgetCapMinor ?? null,
+                    autoApproveHours: campaign.autoApproveHours ?? 48,
+                    submissionDeadline: campaign.submissionDeadline ?? null,
+                  }
+                : null
+            }
+          />
         )}
 
         {/* Creators Tab */}

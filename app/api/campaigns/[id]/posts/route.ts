@@ -54,7 +54,18 @@ export async function GET(
       orderBy: { createdAt: "desc" },
     });
 
-    return NextResponse.json({ posts });
+    // Merge unresolved fraud-flag presence (ViewFraudFlag has no Post relation).
+    const openFlags = await db.viewFraudFlag.findMany({
+      where: { campaignId, isResolved: false },
+      select: { postId: true },
+    });
+    const flaggedPostIds = new Set(openFlags.map((f) => f.postId));
+    const postsWithFlags = posts.map((p) => ({
+      ...p,
+      hasOpenFraudFlag: flaggedPostIds.has(p.id),
+    }));
+
+    return NextResponse.json({ posts: postsWithFlags });
   } catch (error) {
     console.error("Failed to fetch posts:", error);
     return NextResponse.json({ error: "Failed to fetch posts" }, { status: 500 });

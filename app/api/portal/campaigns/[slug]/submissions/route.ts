@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { getCreatorSession } from "@/lib/creator-auth";
 import { detectPlatform, fetchPostMetrics } from "@/lib/platforms/fetchPostMetrics";
 import { parseRatePerThousand } from "@/lib/marketplace/earnings";
+import { computeCampaignAccrual } from "@/lib/marketplace/cap";
 import { z } from "zod";
 
 const submitSchema = z.object({
@@ -44,6 +45,7 @@ export async function POST(
         ratePerThousand: true,
         submissionDeadline: true,
         marketplaceVisibility: true,
+        marketplaceBudgetCapMinor: true,
       },
     });
     if (!campaign || campaign.deletedAt) {
@@ -53,6 +55,19 @@ export async function POST(
     // Deadline gate
     if (campaign.submissionDeadline && campaign.submissionDeadline.getTime() < Date.now()) {
       return NextResponse.json({ error: "The submission deadline has passed" }, { status: 409 });
+    }
+
+    // Budget-cap hard stop — no new submissions once the campaign's marketplace
+    // budget cap has been reached (accrued from APPROVED posts).
+    const { capReached } = await computeCampaignAccrual(campaign.id, {
+      ratePerThousand: campaign.ratePerThousand,
+      marketplaceBudgetCapMinor: campaign.marketplaceBudgetCapMinor,
+    });
+    if (capReached) {
+      return NextResponse.json(
+        { error: "This campaign has reached its budget cap and is no longer accepting submissions" },
+        { status: 409 }
+      );
     }
 
     // Campaign must have a rate for the detected platform
