@@ -3,6 +3,7 @@ import { useState, useEffect, use } from "react";
 import { motion } from "framer-motion";
 import { Card, Badge, Button, StatCard, EmptyState, Avatar, Skeleton, Modal } from "@pratham7711/ui";
 import PostsTab from "./PostsTab";
+import PerformanceTab from "./PerformanceTab";
 import DepositsSection from "./DepositsSection";
 import PayoutRequestsSection from "./PayoutRequestsSection";
 import InvitesSection from "./InvitesSection";
@@ -19,7 +20,7 @@ import {
 } from "recharts";
 import { toast } from "sonner";
 
-type Tab = "overview" | "posts" | "creators" | "reviews" | "analytics" | "financials" | "edit";
+type Tab = "performance" | "overview" | "posts" | "creators" | "reviews" | "analytics" | "financials" | "edit";
 
 function formatNumber(num: number): string {
   if (num >= 1000000) return (num / 1000000).toFixed(1) + "M";
@@ -128,7 +129,7 @@ function LoadingSkeleton() {
 
 export default function CampaignDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const [activeTab, setActiveTab] = useState<Tab>("overview");
+  const [activeTab, setActiveTab] = useState<Tab>("performance");
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [loading, setLoading] = useState(true);
   const [showAddCreator, setShowAddCreator] = useState(false);
@@ -238,6 +239,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
   };
 
   const tabsList: { label: string; value: Tab; count?: number }[] = [
+    { label: "Performance", value: "performance" },
     { label: "Overview", value: "overview" },
     { label: "Posts", value: "posts", count: campaign?._count.posts },
     { label: "Creators", value: "creators", count: campaign?._count.activations },
@@ -357,6 +359,11 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
       </div>
 
       <motion.div key={activeTab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+        {/* Performance */}
+        {activeTab === "performance" && (
+          <PerformanceTab campaignId={id} />
+        )}
+
         {/* Overview */}
         {activeTab === "overview" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
