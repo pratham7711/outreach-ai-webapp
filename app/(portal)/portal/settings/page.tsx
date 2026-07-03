@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Card, Input, Button, Skeleton, Textarea } from "@pratham7711/ui";
+import { Card, Input, Button, Skeleton, Textarea, Badge, Tag } from "@pratham7711/ui";
 import { toast } from "sonner";
 import { Save } from "lucide-react";
 
@@ -16,6 +16,23 @@ const PLATFORMS = [
 const NICHES = [
   "MUSIC", "FASHION", "TECH", "FITNESS", "BEAUTY", "FOOD",
   "TRAVEL", "GAMING", "COMEDY", "EDUCATION", "LIFESTYLE", "SPORTS",
+];
+
+type Connection = {
+  id: string;
+  platform: string;
+  handle: string;
+  tokenExpiry: string | null;
+  connected: boolean;
+  encrypted: boolean;
+};
+
+type ProviderFlags = { instagram: boolean; tiktok: boolean; youtube: boolean };
+
+const CONNECT_PLATFORMS: { key: keyof ProviderFlags; enumValue: string; label: string }[] = [
+  { key: "instagram", enumValue: "INSTAGRAM", label: "Instagram" },
+  { key: "tiktok", enumValue: "TIKTOK", label: "TikTok" },
+  { key: "youtube", enumValue: "YOUTUBE", label: "YouTube" },
 ];
 
 type Profile = {
@@ -47,6 +64,64 @@ export default function PortalSettingsPage() {
     bankSwift: null,
     bankRoutingNumber: null,
   });
+  const [connections, setConnections] = useState<Connection[]>([]);
+  const [providers, setProviders] = useState<ProviderFlags | null>(null);
+  const [connectionsLoading, setConnectionsLoading] = useState(true);
+  const [connectionsError, setConnectionsError] = useState(false);
+  const [disconnectingId, setDisconnectingId] = useState<string | null>(null);
+
+  const loadConnections = useCallback(async () => {
+    setConnectionsLoading(true);
+    setConnectionsError(false);
+    try {
+      const res = await fetch("/api/portal/connections");
+      if (res.status === 401) {
+        router.push("/portal/login");
+        return;
+      }
+      if (!res.ok) throw new Error("Failed to load connections");
+      const data = await res.json();
+      setConnections(data.accounts ?? []);
+      setProviders(data.providers ?? null);
+    } catch {
+      setConnectionsError(true);
+    } finally {
+      setConnectionsLoading(false);
+    }
+  }, [router]);
+
+  useEffect(() => {
+    loadConnections();
+  }, [loadConnections]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const connected = params.get("connected");
+    const failed = params.get("error");
+    if (connected) toast.success(`${connected.charAt(0).toUpperCase()}${connected.slice(1)} connected`);
+    if (failed) toast.error(`Failed to connect ${failed}`);
+    if (connected || failed) window.history.replaceState(null, "", "/portal/settings");
+  }, []);
+
+  const handleDisconnect = async (id: string) => {
+    setDisconnectingId(id);
+    try {
+      const res = await fetch(`/api/portal/connections?id=${encodeURIComponent(id)}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        toast.success("Account disconnected");
+        await loadConnections();
+      } else {
+        const data = await res.json();
+        toast.error(data.error ?? "Failed to disconnect");
+      }
+    } catch {
+      toast.error("Network error");
+    } finally {
+      setDisconnectingId(null);
+    }
+  };
 
   useEffect(() => {
     fetch("/api/portal/me")
@@ -188,6 +263,91 @@ export default function PortalSettingsPage() {
               ))}
             </select>
           </div>
+        </Card>
+
+        <Card variant="outlined" style={{ padding: 24 }}>
+          <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--cc-text)", marginBottom: 8 }}>
+            Connected Accounts
+          </h2>
+          <p style={{ fontSize: 13, color: "var(--cc-text-muted)", marginBottom: 16 }}>
+            Link your social accounts so brands can verify your reach
+          </p>
+          {connectionsLoading ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {[1, 2, 3].map((i) => (
+                <Skeleton key={i} width="100%" height="56px" borderRadius="10px" />
+              ))}
+            </div>
+          ) : connectionsError ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <p style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>
+                Failed to load connected accounts
+              </p>
+              <Button variant="ghost" size="sm" onClick={loadConnections}>
+                Retry
+              </Button>
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {CONNECT_PLATFORMS.map(({ key, enumValue, label }) => {
+                const account = connections.find((c) => c.platform === enumValue);
+                const configured = providers?.[key] ?? false;
+                return (
+                  <div
+                    key={key}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 12,
+                      padding: "12px 16px",
+                      border: "1px solid var(--cc-border)",
+                      borderRadius: 10,
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                      <span style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)", minWidth: 80 }}>
+                        {label}
+                      </span>
+                      {account ? (
+                        <>
+                          <Badge variant="success" size="sm">Connected</Badge>
+                          <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>
+                            {account.handle}
+                          </span>
+                          {!configured && (
+                            <Tag variant="warning" outlined>Dev mode</Tag>
+                          )}
+                        </>
+                      ) : (
+                        <Badge variant="neutral" size="sm">Not connected</Badge>
+                      )}
+                    </div>
+                    {account ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        loading={disconnectingId === account.id}
+                        onClick={() => handleDisconnect(account.id)}
+                      >
+                        Disconnect
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => {
+                          window.location.href = `/api/portal/connections/${key}/start`;
+                        }}
+                      >
+                        Connect
+                      </Button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </Card>
 
         {/* Niches Section */}
