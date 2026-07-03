@@ -140,7 +140,7 @@ export default function PostDetailPage() {
   if (error) {
     return (
       <div style={{ padding: 32, textAlign: "center" }}>
-        <p style={{ color: "#B91C1C", marginBottom: 12 }}>{error}</p>
+        <p style={{ color: "var(--cc-text-muted)", marginBottom: 12 }}>{error}</p>
         <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
           <Button variant="secondary" onClick={() => router.back()}>Go Back</Button>
           <Button variant="primary" onClick={fetchPost}>Retry</Button>
@@ -191,7 +191,6 @@ export default function PostDetailPage() {
 
   return (
     <div style={{ padding: 32, maxWidth: 1200, margin: "0 auto" }}>
-      {/* Header */}
       <div style={{ marginBottom: 24 }}>
         <button
           onClick={() => router.back()}
@@ -208,7 +207,7 @@ export default function PostDetailPage() {
           )}
           <div style={{ flex: 1 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
-              <h1 style={{ fontSize: 22, fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>
+              <h1 style={{ fontSize: 28, fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>
                 {post.caption?.slice(0, 80) ?? "Untitled Post"}
               </h1>
               <Badge variant={STATUS_BADGE[post.status] ?? "neutral"}>{post.status.replace(/_/g, " ")}</Badge>
@@ -240,7 +239,6 @@ export default function PostDetailPage() {
         </div>
       </div>
 
-      {/* Metric Cards */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 12, marginBottom: 24 }}>
         {metricCards.map(({ key, label, icon: Icon, color }) => (
           <Card key={key} variant="outlined" style={{ padding: "16px 20px" }}>
@@ -273,7 +271,6 @@ export default function PostDetailPage() {
         </Card>
       </div>
 
-      {/* Historical Chart */}
       {chartData.length > 1 && (
         <Card variant="outlined" style={{ padding: 24, marginBottom: 24 }}>
           <h3 style={{ fontSize: 16, fontWeight: 700, color: "var(--cc-text)", marginBottom: 16, marginTop: 0 }}>Performance Over Time</h3>
@@ -283,7 +280,7 @@ export default function PostDetailPage() {
               <XAxis dataKey="date" tick={{ fontSize: 12, fill: "var(--cc-text-muted)" }} />
               <YAxis tick={{ fontSize: 12, fill: "var(--cc-text-muted)" }} />
               <Tooltip
-                contentStyle={{ background: "white", border: "1px solid var(--cc-border)", borderRadius: 8, fontSize: 13 }}
+                contentStyle={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 8, fontSize: 13 }}
               />
               <Area type="monotone" dataKey="views" name="Views" stroke="#5B5BD6" fill="#5B5BD6" fillOpacity={0.1} />
               <Area type="monotone" dataKey="likes" name="Likes" stroke="#EC4899" fill="#EC4899" fillOpacity={0.1} />
@@ -293,7 +290,6 @@ export default function PostDetailPage() {
         </Card>
       )}
 
-      {/* Snapshot History */}
       {post.snapshots.length > 0 ? (
         <Card variant="solid" noPadding style={{ overflowX: "auto" }}>
           <div style={{ padding: "16px 24px", borderBottom: "1px solid var(--cc-border)" }}>

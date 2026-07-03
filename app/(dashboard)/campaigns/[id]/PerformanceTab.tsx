@@ -93,8 +93,8 @@ function ErrorState({ onRetry }: { onRetry: () => void }) {
           <button
             onClick={onRetry}
             style={{
-              background: "var(--cc-primary)", color: "white", border: "none",
-              borderRadius: 8, padding: "9px 16px", fontSize: 14, fontWeight: 600, cursor: "pointer",
+              background: "var(--cc-primary)", color: "var(--cc-card)", border: "none",
+              borderRadius: 8, padding: "8px 16px", fontSize: 14, fontWeight: 600, cursor: "pointer",
             }}
           >
             Retry
@@ -193,14 +193,14 @@ function ShareModal({ campaignId, onClose }: { campaignId: string; onClose: () =
                 style={{
                   flex: 1, minWidth: 0, fontSize: 13, color: "var(--cc-text)",
                   background: "var(--cc-bg)", border: "1px solid var(--cc-border)",
-                  borderRadius: 8, padding: "9px 12px",
+                  borderRadius: 8, padding: "8px 12px",
                 }}
               />
               <button
                 onClick={copy}
                 style={{
-                  background: "var(--cc-primary)", color: "white", border: "none",
-                  borderRadius: 8, padding: "9px 16px", fontSize: 14, fontWeight: 600, cursor: "pointer",
+                  background: "var(--cc-primary)", color: "var(--cc-card)", border: "none",
+                  borderRadius: 8, padding: "8px 16px", fontSize: 14, fontWeight: 600, cursor: "pointer",
                   whiteSpace: "nowrap",
                 }}
               >
@@ -211,8 +211,8 @@ function ShareModal({ campaignId, onClose }: { campaignId: string; onClose: () =
               onClick={revoke}
               disabled={busy}
               style={{
-                background: "white", color: "#DC2626", border: "1.5px solid #DC2626",
-                borderRadius: 8, padding: "9px 16px", fontSize: 14, fontWeight: 600,
+                background: "var(--cc-card)", color: "#DC2626", border: "1.5px solid #DC2626",
+                borderRadius: 8, padding: "8px 16px", fontSize: 14, fontWeight: 600,
                 cursor: busy ? "default" : "pointer", opacity: busy ? 0.6 : 1, alignSelf: "flex-start",
               }}
             >
@@ -224,8 +224,8 @@ function ShareModal({ campaignId, onClose }: { campaignId: string; onClose: () =
             onClick={create}
             disabled={busy}
             style={{
-              background: "var(--cc-primary)", color: "white", border: "none",
-              borderRadius: 8, padding: "9px 16px", fontSize: 14, fontWeight: 600,
+              background: "var(--cc-primary)", color: "var(--cc-card)", border: "none",
+              borderRadius: 8, padding: "8px 16px", fontSize: 14, fontWeight: 600,
               cursor: busy ? "default" : "pointer", opacity: busy ? 0.6 : 1, alignSelf: "flex-start",
             }}
           >
@@ -277,8 +277,8 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
       onClick={() => setShowShare(true)}
       style={{
         display: "inline-flex", alignItems: "center", gap: 8,
-        background: "white", color: "var(--cc-primary)", border: "1.5px solid var(--cc-primary)",
-        borderRadius: 8, padding: "8px 14px", fontSize: 14, fontWeight: 600, cursor: "pointer",
+        background: "var(--cc-card)", color: "var(--cc-primary)", border: "1.5px solid var(--cc-primary)",
+        borderRadius: 8, padding: "8px 16px", fontSize: 14, fontWeight: 600, cursor: "pointer",
       }}
     >
       <Share2 size={15} /> Share report

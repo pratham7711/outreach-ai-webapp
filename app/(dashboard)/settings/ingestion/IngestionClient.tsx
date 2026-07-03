@@ -1,6 +1,6 @@
 "use client";
-import { useEffect, useState } from "react";
-import { Card, Badge, StatCard, EmptyState, Skeleton } from "@pratham7711/ui";
+import { useCallback, useEffect, useState } from "react";
+import { Card, Badge, Button, StatCard, EmptyState, Skeleton } from "@pratham7711/ui";
 
 type PlatformStats = {
   platform: string;
@@ -46,7 +46,9 @@ export default function IngestionClient() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const load = useCallback(() => {
+    setLoading(true);
+    setError(null);
     fetch("/api/ingestion/status")
       .then((r) => {
         if (!r.ok) throw new Error("Failed to load ingestion status");
@@ -61,6 +63,8 @@ export default function IngestionClient() {
       .finally(() => setLoading(false));
   }, []);
 
+  useEffect(() => { load(); }, [load]);
+
   return (
     <div className="cc-page-content">
       <div style={{ marginBottom: 32 }}>
@@ -69,8 +73,9 @@ export default function IngestionClient() {
       </div>
 
       {error && (
-        <div style={{ background: "#FEE2E2", border: "1px solid #FECACA", borderRadius: 8, padding: "12px 16px", marginBottom: 20, fontSize: 13, color: "#DC2626" }}>
-          {error}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, border: "1px solid var(--cc-border)", borderRadius: 8, padding: "12px 16px", marginBottom: 20, fontSize: 13, color: "var(--cc-text-muted)" }}>
+          <span>{error}</span>
+          <Button variant="secondary" size="sm" onClick={load}>Retry</Button>
         </div>
       )}
 

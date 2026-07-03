@@ -200,9 +200,8 @@ export default function PortalSettingsPage() {
 
   return (
     <div style={{ maxWidth: 720, margin: "0 auto", padding: 32 }}>
-      {/* Header */}
       <div style={{ marginBottom: 32 }}>
-        <h1 style={{ fontSize: 24, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>
+        <h1 style={{ fontSize: 28, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>
           Settings
         </h1>
         <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>
@@ -211,7 +210,6 @@ export default function PortalSettingsPage() {
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-        {/* Profile Section */}
         <Card variant="outlined" style={{ padding: 24 }}>
           <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--cc-text)", marginBottom: 20 }}>
             Profile
@@ -248,7 +246,7 @@ export default function PortalSettingsPage() {
               onChange={(e) => set({ platform: e.target.value || null })}
               style={{
                 width: "100%",
-                padding: "9px 12px",
+                padding: "8px 12px",
                 borderRadius: 8,
                 border: "1px solid var(--cc-border)",
                 background: "var(--cc-card)",
@@ -350,7 +348,6 @@ export default function PortalSettingsPage() {
           )}
         </Card>
 
-        {/* Niches Section */}
         <Card variant="outlined" style={{ padding: 24 }}>
           <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--cc-text)", marginBottom: 8 }}>
             Niches
@@ -386,7 +383,6 @@ export default function PortalSettingsPage() {
           </div>
         </Card>
 
-        {/* Bank Details Section */}
         <Card variant="outlined" style={{ padding: 24 }}>
           <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--cc-text)", marginBottom: 20 }}>
             Bank Details
@@ -429,7 +425,6 @@ export default function PortalSettingsPage() {
           </div>
         </Card>
 
-        {/* Save Button */}
         <div style={{ display: "flex", justifyContent: "flex-end" }}>
           <Button variant="primary" loading={saving} onClick={handleSave}>
             <span style={{ display: "flex", alignItems: "center", gap: 6 }}>

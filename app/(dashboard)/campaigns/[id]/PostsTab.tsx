@@ -326,7 +326,7 @@ export default function PostsTab({ campaignId, postApprovalMode }: { campaignId:
     border: "1px solid var(--cc-border)",
     fontSize: 13,
     color: "var(--cc-text)",
-    background: "white",
+    background: "var(--cc-card)",
     outline: "none",
   };
 
@@ -364,7 +364,6 @@ export default function PostsTab({ campaignId, postApprovalMode }: { campaignId:
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      {/* Toolbar */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <StatusTabs
@@ -400,10 +399,10 @@ export default function PostsTab({ campaignId, postApprovalMode }: { campaignId:
           </select>
 
           <div style={{ display: "flex", border: "1px solid var(--cc-border)", borderRadius: 8, overflow: "hidden" }}>
-            <button onClick={() => setViewMode("list")} style={{ padding: "6px 10px", background: viewMode === "list" ? "var(--cc-bg)" : "white", border: "none", cursor: "pointer" }}>
+            <button onClick={() => setViewMode("list")} style={{ padding: "6px 10px", background: viewMode === "list" ? "var(--cc-bg)" : "var(--cc-card)", border: "none", cursor: "pointer" }}>
               <List size={16} color={viewMode === "list" ? "var(--cc-primary)" : "var(--cc-text-muted)"} />
             </button>
-            <button onClick={() => setViewMode("grid")} style={{ padding: "6px 10px", background: viewMode === "grid" ? "var(--cc-bg)" : "white", border: "none", cursor: "pointer" }}>
+            <button onClick={() => setViewMode("grid")} style={{ padding: "6px 10px", background: viewMode === "grid" ? "var(--cc-bg)" : "var(--cc-card)", border: "none", cursor: "pointer" }}>
               <Grid3X3 size={16} color={viewMode === "grid" ? "var(--cc-primary)" : "var(--cc-text-muted)"} />
             </button>
           </div>
@@ -416,17 +415,15 @@ export default function PostsTab({ campaignId, postApprovalMode }: { campaignId:
         </div>
       </div>
 
-      {/* Error */}
       {error && (
-        <Card variant="outlined" style={{ padding: 16, borderColor: "#FCA5A5", background: "#FEF2F2" }}>
+        <Card variant="outlined" style={{ padding: 16 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-            <span style={{ fontSize: 13, color: "#B91C1C" }}>{error}</span>
+            <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{error}</span>
             <Button variant="secondary" onClick={fetchPosts}>Retry</Button>
           </div>
         </Card>
       )}
 
-      {/* Posts */}
       {!error && filteredSorted.length === 0 ? (
         <EmptyState
           icon="📹"
@@ -489,10 +486,10 @@ export default function PostsTab({ campaignId, postApprovalMode }: { campaignId:
                   <Badge variant={STATUS_BADGE[post.status] ?? "neutral"}>{post.status.replace(/_/g, " ")}</Badge>
                   <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{formatSince(post.lastSyncedAt)}</span>
                   <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-                    <button onClick={() => openMetrics(post)} title="Update metrics" style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid var(--cc-primary)", background: "white", color: "var(--cc-primary)", cursor: "pointer", fontSize: 12, display: "flex", alignItems: "center", gap: 2 }}>
+                    <button onClick={() => openMetrics(post)} title="Update metrics" style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid var(--cc-primary)", background: "var(--cc-card)", color: "var(--cc-primary)", cursor: "pointer", fontSize: 12, display: "flex", alignItems: "center", gap: 2 }}>
                       <BarChart3 size={12} />
                     </button>
-                    <button onClick={() => handleSyncNow(post.id)} disabled={syncingId === post.id} title="Sync now" style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid var(--cc-border)", background: "white", color: "var(--cc-text-muted)", cursor: syncingId === post.id ? "wait" : "pointer", fontSize: 12, display: "flex", alignItems: "center", gap: 2, opacity: syncingId === post.id ? 0.6 : 1 }}>
+                    <button onClick={() => handleSyncNow(post.id)} disabled={syncingId === post.id} title="Sync now" style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid var(--cc-border)", background: "var(--cc-card)", color: "var(--cc-text-muted)", cursor: syncingId === post.id ? "wait" : "pointer", fontSize: 12, display: "flex", alignItems: "center", gap: 2, opacity: syncingId === post.id ? 0.6 : 1 }}>
                       <TrendingUp size={12} />
                     </button>
                     {postApprovalMode === "MANUAL" && post.status === "PENDING_REVIEW" && (
@@ -577,7 +574,6 @@ export default function PostsTab({ campaignId, postApprovalMode }: { campaignId:
         </>
       ) : null}
 
-      {/* Add Post Modal */}
       {showAddPost && (
         <Modal open={true} onClose={() => setShowAddPost(false)} title="Add Post" size="md" footer={
           <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
@@ -609,7 +605,6 @@ export default function PostsTab({ campaignId, postApprovalMode }: { campaignId:
         </Modal>
       )}
 
-      {/* Update Metrics Modal */}
       {metricsPost && (
         <Modal open={true} onClose={() => setMetricsPost(null)} title="Update Metrics" size="md" footer={
           <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
@@ -617,7 +612,7 @@ export default function PostsTab({ campaignId, postApprovalMode }: { campaignId:
             <Button variant="primary" loading={metricsSubmitting} onClick={handleUpdateMetrics}>Save Metrics</Button>
           </div>
         }>
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <p style={{ fontSize: 13, color: "var(--cc-text-muted)", margin: 0 }}>
               Manually update metrics for <strong>{metricsPost.caption?.slice(0, 40) ?? "this post"}</strong>
             </p>
@@ -634,7 +629,6 @@ export default function PostsTab({ campaignId, postApprovalMode }: { campaignId:
         </Modal>
       )}
 
-      {/* Reject Modal */}
       {showRejectModal && (
         <Modal open={true} onClose={() => { setShowRejectModal(null); setRejectionReason(""); }} title="Reject Post" size="sm" footer={
           <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>

@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect, useCallback } from "react";
-import { Card, Skeleton, EmptyState } from "@pratham7711/ui";
+import { Button, Card, Skeleton, EmptyState } from "@pratham7711/ui";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar,
 } from "recharts";
@@ -167,7 +167,12 @@ export default function AnalyticsPage() {
       {loading ? (
         <SkeletonGrid />
       ) : error || !data ? (
-        <EmptyState icon="📊" title="Failed to load analytics" description="Adjust your filters or refresh to try again." />
+        <EmptyState
+          icon="📊"
+          title="Failed to load analytics"
+          description="Adjust your filters or refresh to try again."
+          action={<Button variant="secondary" onClick={load}>Retry</Button>}
+        />
       ) : (
         <>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 24 }}>

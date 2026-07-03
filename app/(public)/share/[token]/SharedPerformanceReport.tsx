@@ -53,7 +53,7 @@ function StatTile({ value, label }: { value: string; label: string }) {
         background: "var(--cc-card)",
         border: "1px solid var(--cc-border)",
         borderRadius: 12,
-        padding: "16px 18px",
+        padding: "16px 20px",
       }}
     >
       <div style={{ fontSize: 22, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>{value}</div>
@@ -106,10 +106,10 @@ export default function SharedPerformanceReport({
               href={`/api/share/${token}/pdf`}
               style={{
                 background: "var(--cc-primary)",
-                color: "white",
+                color: "var(--cc-card)",
                 border: "none",
                 borderRadius: 8,
-                padding: "9px 16px",
+                padding: "8px 16px",
                 fontSize: 14,
                 fontWeight: 600,
                 textDecoration: "none",
