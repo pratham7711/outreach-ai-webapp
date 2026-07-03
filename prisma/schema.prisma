@@ -1015,6 +1015,33 @@ model ViewLedger {
   @@index([activationId])
 }
 
+// ─── Payments Abstraction (P3.1) ──────────────────────────────────────────────
+
+model PaymentIdempotencyKey {
+  id           String   @id @default(cuid())
+  key          String   @unique
+  orgId        String
+  purpose      String
+  requestHash  String
+  responseJson Json
+  createdAt    DateTime @default(now())
+
+  @@index([orgId])
+}
+
+model PaymentWebhookEvent {
+  id            String    @id @default(cuid())
+  provider      String
+  eventId       String
+  type          String
+  payloadJson   Json
+  signatureValid Boolean
+  receivedAt    DateTime  @default(now())
+  processedAt   DateTime?
+
+  @@unique([provider, eventId])
+}
+
 // ─── View Fraud Detection ─────────────────────────────────────────────────────
 
 model ViewFraudFlag {
