@@ -50,3 +50,4 @@ next-env.d.ts
 
 # machine-local agent settings
 .claude/settings.local.json
+.claude/worktrees/
