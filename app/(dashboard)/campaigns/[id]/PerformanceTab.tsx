@@ -1,11 +1,11 @@
 "use client";
 import React, { useState, useEffect, useCallback } from "react";
-import { Card, StatCard, Badge, EmptyState, Skeleton, Avatar } from "@pratham7711/ui";
+import { Card, StatCard, Badge, EmptyState, Skeleton, Avatar, Modal } from "@pratham7711/ui";
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   PieChart, Pie, Cell, Legend,
 } from "recharts";
-import { Eye, Heart, Percent, DollarSign, Target, TrendingUp } from "lucide-react";
+import { Eye, Heart, Percent, DollarSign, Target, TrendingUp, Share2 } from "lucide-react";
 
 type Kpis = {
   views: number;
@@ -105,10 +105,149 @@ function ErrorState({ onRetry }: { onRetry: () => void }) {
   );
 }
 
+type ShareLink = { token: string; isPublic: boolean; createdAt: string; path: string };
+
+function ShareModal({ campaignId, onClose }: { campaignId: string; onClose: () => void }) {
+  const [link, setLink] = useState<ShareLink | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(false);
+    try {
+      const res = await fetch(`/api/campaigns/${campaignId}/share`);
+      if (!res.ok) throw new Error("failed");
+      const json = await res.json();
+      setLink(json.link ?? null);
+    } catch {
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
+  }, [campaignId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const shareUrl = link ? `${typeof window !== "undefined" ? window.location.origin : ""}${link.path}` : "";
+
+  const create = async () => {
+    setBusy(true);
+    setError(false);
+    try {
+      const res = await fetch(`/api/campaigns/${campaignId}/share`, { method: "POST" });
+      if (!res.ok) throw new Error("failed");
+      const json = await res.json();
+      setLink(json.link ?? null);
+    } catch {
+      setError(true);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const revoke = async () => {
+    setBusy(true);
+    setError(false);
+    try {
+      const res = await fetch(`/api/campaigns/${campaignId}/share`, { method: "DELETE" });
+      if (!res.ok) throw new Error("failed");
+      setLink(null);
+    } catch {
+      setError(true);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const copy = async () => {
+    if (!shareUrl) return;
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setError(true);
+    }
+  };
+
+  return (
+    <Modal open onClose={onClose} title="Share report" size="sm">
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        <p style={{ fontSize: 14, color: "var(--cc-text-muted)", margin: 0, lineHeight: 1.6 }}>
+          Generate a read-only link to this campaign&apos;s performance report. Anyone with the link
+          can view it — no login required. Revoke it anytime.
+        </p>
+
+        {loading ? (
+          <Skeleton width="100%" height="44px" borderRadius="8px" />
+        ) : link ? (
+          <>
+            <div style={{ display: "flex", gap: 8 }}>
+              <input
+                readOnly
+                value={shareUrl}
+                onFocus={(e) => e.currentTarget.select()}
+                style={{
+                  flex: 1, minWidth: 0, fontSize: 13, color: "var(--cc-text)",
+                  background: "var(--cc-bg)", border: "1px solid var(--cc-border)",
+                  borderRadius: 8, padding: "9px 12px",
+                }}
+              />
+              <button
+                onClick={copy}
+                style={{
+                  background: "var(--cc-primary)", color: "white", border: "none",
+                  borderRadius: 8, padding: "9px 16px", fontSize: 14, fontWeight: 600, cursor: "pointer",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {copied ? "Copied" : "Copy"}
+              </button>
+            </div>
+            <button
+              onClick={revoke}
+              disabled={busy}
+              style={{
+                background: "white", color: "#DC2626", border: "1.5px solid #DC2626",
+                borderRadius: 8, padding: "9px 16px", fontSize: 14, fontWeight: 600,
+                cursor: busy ? "default" : "pointer", opacity: busy ? 0.6 : 1, alignSelf: "flex-start",
+              }}
+            >
+              {busy ? "Revoking…" : "Revoke link"}
+            </button>
+          </>
+        ) : (
+          <button
+            onClick={create}
+            disabled={busy}
+            style={{
+              background: "var(--cc-primary)", color: "white", border: "none",
+              borderRadius: 8, padding: "9px 16px", fontSize: 14, fontWeight: 600,
+              cursor: busy ? "default" : "pointer", opacity: busy ? 0.6 : 1, alignSelf: "flex-start",
+            }}
+          >
+            {busy ? "Creating…" : "Create share link"}
+          </button>
+        )}
+
+        {error && (
+          <p style={{ fontSize: 13, color: "#DC2626", margin: 0 }}>
+            Something went wrong. Please try again.
+          </p>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
 export default function PerformanceTab({ campaignId }: { campaignId: string }) {
   const [data, setData] = useState<PerformanceData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [showShare, setShowShare] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -133,15 +272,32 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
 
   const { kpis, timeSeries, platformSplit, leaderboard, currency, spendSource } = data;
 
+  const shareButton = (
+    <button
+      onClick={() => setShowShare(true)}
+      style={{
+        display: "inline-flex", alignItems: "center", gap: 8,
+        background: "white", color: "var(--cc-primary)", border: "1.5px solid var(--cc-primary)",
+        borderRadius: 8, padding: "8px 14px", fontSize: 14, fontWeight: 600, cursor: "pointer",
+      }}
+    >
+      <Share2 size={15} /> Share report
+    </button>
+  );
+
   if (kpis.views === 0 && leaderboard.length === 0 && timeSeries.length === 0) {
     return (
-      <Card variant="outlined" style={{ padding: 32 }}>
-        <EmptyState
-          icon="📊"
-          title="No posts yet — add posts to see performance"
-          description="Once creators publish content for this campaign, performance metrics will appear here."
-        />
-      </Card>
+      <>
+        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}>{shareButton}</div>
+        <Card variant="outlined" style={{ padding: 32 }}>
+          <EmptyState
+            icon="📊"
+            title="No posts yet — add posts to see performance"
+            description="Once creators publish content for this campaign, performance metrics will appear here."
+          />
+        </Card>
+        {showShare && <ShareModal campaignId={campaignId} onClose={() => setShowShare(false)} />}
+      </>
     );
   }
 
@@ -149,6 +305,7 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+      <div style={{ display: "flex", justifyContent: "flex-end" }}>{shareButton}</div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 16 }}>
         <StatCard value={formatNumber(kpis.views)} label="Views" icon={<Eye size={16} />} />
         <StatCard value={formatNumber(kpis.engagements)} label="Engagements" icon={<Heart size={16} />} />
@@ -287,6 +444,8 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
           )}
         </Card>
       </div>
+
+      {showShare && <ShareModal campaignId={campaignId} onClose={() => setShowShare(false)} />}
     </div>
   );
 }
