@@ -209,7 +209,7 @@ export default function NegotiationsSection({
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 12 }}>
         <span
           style={{
             fontWeight: 700,
@@ -222,7 +222,7 @@ export default function NegotiationsSection({
         >
           <Handshake size={16} /> Negotiations
         </span>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <Button variant="secondary" onClick={openBatch}>
             <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
               <Sparkles size={14} /> Start AI negotiation
@@ -280,11 +280,12 @@ export default function NegotiationsSection({
           <EmptyState icon="🤝" title="No negotiations" description="Start by making an offer to a creator." />
         </Card>
       ) : (
-        <Card variant="solid" noPadding>
+        <Card variant="solid" noPadding style={{ overflowX: "auto" }}>
           <div
             style={{
               display: "grid",
               gridTemplateColumns: "1.4fr 100px 110px 120px 120px 90px 110px 160px",
+              minWidth: 940,
               gap: 8,
               padding: "12px 16px",
               borderBottom: "1px solid var(--cc-border)",
@@ -312,6 +313,7 @@ export default function NegotiationsSection({
               style={{
                 display: "grid",
                 gridTemplateColumns: "1.4fr 100px 110px 120px 120px 90px 110px 160px",
+                minWidth: 940,
                 gap: 8,
                 padding: "12px 16px",
                 alignItems: "center",

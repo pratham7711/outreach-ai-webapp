@@ -114,9 +114,9 @@ export default function PortalPayoutRequestsPage() {
 
   if (loading) {
     return (
-      <div style={{ maxWidth: 960, margin: "0 auto", padding: 32 }}>
+      <div className="rsp-page" style={{ maxWidth: 960 }}>
         <Skeleton width="200px" height="32px" />
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginTop: 24 }}>
+        <div className="rsp-grid-tiles" style={{ marginTop: 24 }}>
           {[1, 2, 3, 4].map((i) => (
             <Skeleton key={i} height="80px" borderRadius="10px" />
           ))}
@@ -127,9 +127,9 @@ export default function PortalPayoutRequestsPage() {
   }
 
   return (
-    <div style={{ maxWidth: 960, margin: "0 auto", padding: 32 }}>
+    <div className="rsp-page" style={{ maxWidth: 960 }}>
       {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 32 }}>
+      <div className="rsp-header">
         <div>
           <h1 style={{ fontSize: 24, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>
             Payout Requests
@@ -146,7 +146,7 @@ export default function PortalPayoutRequestsPage() {
       </div>
 
       {/* Stats */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 32 }}>
+      <div className="rsp-grid-tiles" style={{ marginBottom: 32 }}>
         <StatCard
           value={formatCurrency(totalRequested)}
           label="Total Requested"
@@ -185,6 +185,8 @@ export default function PortalPayoutRequestsPage() {
         </Card>
       ) : (
         <Card variant="solid" noPadding>
+          <div className="rsp-table-wrap">
+          <div style={{ minWidth: 560 }}>
           <div
             style={{
               display: "grid",
@@ -236,6 +238,8 @@ export default function PortalPayoutRequestsPage() {
               </span>
             </div>
           ))}
+          </div>
+          </div>
         </Card>
       )}
 

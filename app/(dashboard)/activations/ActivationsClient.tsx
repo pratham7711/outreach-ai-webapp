@@ -106,9 +106,9 @@ export default function ActivationsClient({ activations, stats, creators, campai
   };
 
   return (
-    <div className="cc-page-content">
+    <div className="rsp-page">
       {/* Header */}
-      <div style={{ marginBottom: 32, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+      <div className="rsp-header">
         <div>
           <h1 style={{ fontSize: 26, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Activations</h1>
           <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>Track creator deliverables and posts</p>
@@ -117,7 +117,7 @@ export default function ActivationsClient({ activations, stats, creators, campai
       </div>
 
       {/* Stats */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 32 }}>
+      <div className="rsp-grid-tiles" style={{ marginBottom: 32 }}>
         <StatCard value={String(stats.total)} label="Total" />
         <StatCard value={String(stats.active)} label="Active" />
         <StatCard value={String(activations.filter(a => a.status === "AWAITING_DRAFT" || a.status === "AWAITING_APPROVAL").length)} label="Pending" />

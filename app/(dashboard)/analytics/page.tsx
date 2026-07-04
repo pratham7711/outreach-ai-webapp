@@ -156,7 +156,8 @@ export default function AnalyticsPage() {
   useEffect(() => { load(); }, [load]);
 
   return (
-    <div className="cc-page-content">
+    <div className="rsp-page page-enter">
+      <style>{`.an-chart{height:220px}@media(min-width:768px){.an-chart{height:300px}}`}</style>
       <div style={{ marginBottom: 24 }}>
         <h1 style={{ fontSize: 28, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Analytics</h1>
         <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>Org-wide performance across all campaigns and creators</p>
@@ -175,7 +176,7 @@ export default function AnalyticsPage() {
         />
       ) : (
         <>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 24 }}>
+          <div className="rsp-grid-tiles" style={{ marginBottom: 24 }}>
             <StatTile label="Total Views" value={formatNumber(data.kpis.totalViews)} sub={`${formatNumber(data.kpis.totalPosts)} posts`} icon={Eye} color="var(--cc-primary)" />
             <StatTile label="Total Likes" value={formatNumber(data.kpis.totalLikes)} icon={ThumbsUp} color="#E4405F" />
             <StatTile label="Total Comments" value={formatNumber(data.kpis.totalComments)} icon={MessageCircle} color="#F59E0B" />
@@ -191,7 +192,7 @@ export default function AnalyticsPage() {
             {data.monthlyTrend.every((m) => m.campaigns === 0) ? (
               <EmptyState icon="📅" title="No campaign data" description="Launch campaigns to see monthly trends." />
             ) : (
-              <div style={{ height: 240 }}>
+              <div className="an-chart">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={data.monthlyTrend} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
                     <defs>
@@ -217,10 +218,12 @@ export default function AnalyticsPage() {
 
           <CampaignComparison campaigns={data.campaigns} range={range} platform={platform} />
 
-          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 24, marginBottom: 24 }}>
-            <CreatorLeaderboard creators={data.leaderboard} />
+          <div className="rsp-split" style={{ gap: 24, marginBottom: 24 }}>
+            <div style={{ flex: 2, minWidth: 0 }}>
+              <CreatorLeaderboard creators={data.leaderboard} />
+            </div>
 
-            <Card variant="outlined" style={{ padding: 24 }}>
+            <Card variant="outlined" style={{ padding: 24, flex: 1, minWidth: 0 }}>
               <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)", display: "block", marginBottom: 20 }}>
                 Views by Platform
               </span>

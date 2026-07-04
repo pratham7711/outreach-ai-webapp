@@ -47,8 +47,8 @@ export default function ListsClient({ lists }: { lists: List[] }) {
   };
 
   return (
-    <div className="cc-page-content">
-      <div style={{ marginBottom: 32, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+    <div className="rsp-page">
+      <div className="rsp-header">
         <div>
           <h1 style={{ fontSize: 26, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Lists</h1>
           <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>Organize creators into curated lists</p>
@@ -65,7 +65,7 @@ export default function ListsClient({ lists }: { lists: List[] }) {
           action={<Button variant="primary" iconLeft={<Plus size={16} />} onClick={() => setShowCreate(true)}>New List</Button>}
         />
       ) : (
-        <div className="cc-stagger" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
+        <div className="cc-stagger rsp-grid-3">
           {filtered.map((list, i) => (
             <Link key={list.id} href={`/lists/${list.id}`} style={{ textDecoration: "none" }}>
               <Card variant="outlined" noPadding clickable>

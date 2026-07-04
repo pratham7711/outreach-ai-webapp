@@ -65,7 +65,7 @@ export default async function BillingPage() {
   const enabledFeatures = [...entitlements.features].sort((a, b) => a.localeCompare(b));
 
   return (
-    <div className="cc-page-content">
+    <div className="rsp-page page-enter">
       <div style={{ marginBottom: 32 }}>
         <h1 style={{ fontSize: 26, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>
           Billing
@@ -104,7 +104,7 @@ export default async function BillingPage() {
           padding: 20,
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, marginBottom: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, marginBottom: 16, flexWrap: "wrap" }}>
           <div>
             <h2 style={{ fontSize: 18, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>
               Enabled features

@@ -32,7 +32,8 @@ export default function CreatorLeaderboard({ creators }: { creators: Leaderboard
           <EmptyState icon="👤" title="No post data yet" description="Sync posts to see creator rankings." />
         </div>
       ) : (
-        <div>
+        <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+          <div style={{ minWidth: 460 }}>
           <div
             style={{
               display: "grid",
@@ -89,6 +90,7 @@ export default function CreatorLeaderboard({ creators }: { creators: Leaderboard
               <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)", textAlign: "right" }}>{formatCurrency(creator.emv)}</span>
             </Link>
           ))}
+          </div>
         </div>
       )}
     </Card>

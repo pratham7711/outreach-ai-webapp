@@ -58,3 +58,6 @@ next-env.d.ts
 .next-build/
 .next-m4build/
 tmp/
+
+/test-results/
+/playwright-report/

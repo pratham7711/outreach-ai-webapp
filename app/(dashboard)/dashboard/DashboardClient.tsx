@@ -166,7 +166,7 @@ export default function DashboardClient(props: Props) {
   const s = financials?.summary;
 
   return (
-    <div className="cc-page-content">
+    <div className="cc-page-content rsp-page">
       {/* Header with date range */}
       <div style={{ marginBottom: 32, display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 16 }}>
         <div>
@@ -177,9 +177,9 @@ export default function DashboardClient(props: Props) {
             Welcome back. Here&apos;s what&apos;s happening.
           </p>
         </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           {/* Date presets */}
-          <div style={{ display: "flex", gap: 4, background: "var(--cc-bg)", borderRadius: 10, padding: 3 }}>
+          <div style={{ display: "flex", gap: 4, background: "var(--cc-bg)", borderRadius: 10, padding: 3, flexWrap: "wrap" }}>
             {DATE_PRESETS.map(p => (
               <button
                 key={p.label}

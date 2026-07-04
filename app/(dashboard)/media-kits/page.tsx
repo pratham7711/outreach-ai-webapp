@@ -98,8 +98,8 @@ export default function MediaKitsPage() {
   }
 
   return (
-    <div className="cc-page-content">
-      <div style={{ marginBottom: 32, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+    <div className="rsp-page">
+      <div className="rsp-header">
         <div>
           <h1 style={{ fontSize: 26, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Media Kits</h1>
           <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>Build and share creator media kits</p>
@@ -177,6 +177,7 @@ export default function MediaKitsPage() {
         />
       ) : (
         <Card variant="outlined" noPadding>
+          <div className="rsp-table-wrap">
           <table style={{ width: "100%", fontSize: 14, borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ background: "var(--cc-hover-bg)" }}>
@@ -203,6 +204,7 @@ export default function MediaKitsPage() {
               ))}
             </tbody>
           </table>
+          </div>
         </Card>
       )}
 

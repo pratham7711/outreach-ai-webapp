@@ -120,8 +120,8 @@ export default function ReportsPage() {
   }
 
   return (
-    <div className="cc-page-content">
-      <div style={{ marginBottom: 32, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+    <div className="rsp-page page-enter">
+      <div className="rsp-header">
         <div>
           <h1 style={{ fontSize: 26, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Reports</h1>
           <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>Create and share campaign reports</p>
@@ -199,6 +199,7 @@ export default function ReportsPage() {
         />
       ) : (
         <Card variant="outlined" noPadding>
+          <div className="rsp-table-wrap">
           <table style={{ width: "100%", fontSize: 14, borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ background: "var(--cc-hover-bg)" }}>
@@ -230,6 +231,7 @@ export default function ReportsPage() {
               ))}
             </tbody>
           </table>
+          </div>
         </Card>
       )}
 

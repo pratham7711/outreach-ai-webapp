@@ -192,16 +192,16 @@ export default function FinancialReportsPage() {
   };
 
   return (
-    <div className="cc-page-content">
+    <div className="rsp-page page-enter">
       {/* Header */}
-      <div style={{ marginBottom: 28, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+      <div className="rsp-header">
         <div>
           <h1 style={{ fontSize: 26, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Financial Reports</h1>
           <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>
             {data ? `${data.period} vs ${data.previousPeriod}` : "Payout and budget summary with period comparison"}
           </p>
         </div>
-        <div style={{ display: "flex", gap: 10 }}>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           {data && (
             <>
               <Button variant="secondary" size="sm" onClick={() => exportGenerated("pdf")} disabled={exportingPdf}>
@@ -330,7 +330,8 @@ export default function FinancialReportsPage() {
                 description="Payouts will appear here as they are recorded."
               />
             ) : (
-              <ResponsiveContainer width="100%" height={240} minWidth={0}>
+              <div style={{ width: "100%", height: 240 }}>
+              <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                 <BarChart data={data.monthlyTrend} margin={{ top: 4, right: 8, left: 8, bottom: 4 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--cc-border)" />
                   <XAxis dataKey="month" tick={{ fontSize: 11, fill: "var(--cc-text-muted)" }} />
@@ -344,6 +345,7 @@ export default function FinancialReportsPage() {
                   <Bar dataKey="pending" name="Pending" fill="#F59E0B" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
+              </div>
             )}
           </Card>
 
@@ -358,6 +360,7 @@ export default function FinancialReportsPage() {
                 <EmptyState icon={<BarChart2 size={32} color="var(--cc-text-subtle)" />} title="No campaigns" description="Campaigns will appear here once created." />
               </div>
             ) : (
+              <div className="rsp-table-wrap">
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
                   <tr style={{ borderBottom: "1px solid var(--cc-border)" }}>
@@ -399,6 +402,7 @@ export default function FinancialReportsPage() {
                   ))}
                 </tbody>
               </table>
+              </div>
             )}
           </Card>
         </>

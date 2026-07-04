@@ -96,9 +96,9 @@ export default function TrackersPage() {
   const newToday = sounds.reduce((sum, s) => sum + (s.latestSnapshot?.videosAdded24h ?? 0), 0);
 
   return (
-    <div className="cc-page-content">
+    <div className="rsp-page">
       {/* Header */}
-      <div style={{ marginBottom: 32, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+      <div className="rsp-header">
         <div>
           <h1 style={{ fontSize: 26, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Trackers</h1>
           <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>Track TikTok sounds and trends</p>
@@ -111,7 +111,7 @@ export default function TrackersPage() {
 
       {/* Stat Cards */}
       {loading ? (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 32 }}>
+        <div className="rsp-grid-tiles" style={{ marginBottom: 32 }}>
           {[1, 2, 3, 4].map((i) => (
             <div key={i} style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, padding: 20 }}>
               <Skeleton width={80} height={14} />
@@ -120,7 +120,7 @@ export default function TrackersPage() {
           ))}
         </div>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 32 }}>
+        <div className="rsp-grid-tiles" style={{ marginBottom: 32 }}>
           <StatCard value={String(totalTrackers)} label="Active Trackers" />
           <StatCard value={formatCount(totalUses)} label="Total Uses" />
           <StatCard value={String(trendingCount)} label="Trending" />
@@ -171,6 +171,7 @@ export default function TrackersPage() {
                   alignItems: "center",
                   gap: 16,
                   padding: "14px 20px",
+                  flexWrap: "wrap",
                   borderBottom: i < sounds.length - 1 ? "1px solid var(--cc-border)" : "none",
                 }}
               >

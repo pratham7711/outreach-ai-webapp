@@ -61,14 +61,14 @@ export default function PortalProposalsPage() {
   useEffect(() => { fetchProposals(); }, [fetchProposals]);
 
   if (loading) return (
-    <div style={{ maxWidth: 960, margin: "0 auto", padding: 32 }}>
+    <div className="rsp-page" style={{ maxWidth: 960 }}>
       <Skeleton width="200px" height="32px" />
       <Skeleton width="100%" height="300px" borderRadius="12px" />
     </div>
   );
 
   return (
-    <div style={{ maxWidth: 960, margin: "0 auto", padding: 32 }}>
+    <div className="rsp-page" style={{ maxWidth: 960 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
         <Link href="/portal/dashboard" style={{ color: "var(--cc-text-muted)", textDecoration: "none", display: "flex", alignItems: "center" }}>
           <ArrowLeft size={16} />
@@ -78,7 +78,7 @@ export default function PortalProposalsPage() {
       <p style={{ fontSize: 14, color: "var(--cc-text-muted)", marginBottom: 24 }}>Track all your campaign proposals</p>
 
       {/* Status filter tabs */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 24 }}>
+      <div style={{ display: "flex", gap: 8, marginBottom: 24, flexWrap: "wrap" }}>
         {STATUS_TABS.map(tab => (
           <button
             key={tab.key}
@@ -100,6 +100,8 @@ export default function PortalProposalsPage() {
         } />
       ) : (
         <Card variant="solid" noPadding>
+          <div className="rsp-table-wrap">
+          <div style={{ minWidth: 680 }}>
           <div style={{
             display: "grid", gridTemplateColumns: "1fr 120px 100px 100px 100px 120px",
             gap: 12, padding: "12px 24px", borderBottom: "1px solid var(--cc-border)", background: "var(--cc-bg)",
@@ -122,6 +124,8 @@ export default function PortalProposalsPage() {
               <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{new Date(p.createdAt).toLocaleDateString()}</span>
             </div>
           ))}
+          </div>
+          </div>
         </Card>
       )}
     </div>

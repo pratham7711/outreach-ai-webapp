@@ -25,9 +25,9 @@ export default function ClientsClient({ clients, stats }: {
   );
 
   return (
-    <div className="cc-page-content">
+    <div className="rsp-page">
       {/* Header */}
-      <div style={{ marginBottom: 32, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+      <div className="rsp-header">
         <div>
           <h1 style={{ fontSize: 26, fontWeight: 800, color: "var(--cc-text)", letterSpacing: "-0.02em", marginBottom: 4 }}>
             Clients

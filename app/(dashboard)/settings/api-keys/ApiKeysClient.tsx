@@ -82,16 +82,9 @@ export default function ApiKeysClient() {
     });
 
   return (
-    <div style={{ padding: "32px 32px 64px" }}>
+    <div className="rsp-page page-enter" style={{ paddingBottom: 64 }}>
       {/* Page Header */}
-      <div
-        style={{
-          marginBottom: 32,
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "flex-start",
-        }}
-      >
+      <div className="rsp-header">
         <div>
           <h1
             style={{
@@ -535,7 +528,8 @@ export default function ApiKeysClient() {
             </button>
           </div>
         ) : (
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 480 }}>
             <thead>
               <tr
                 style={{
@@ -633,6 +627,7 @@ export default function ApiKeysClient() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
     </div>

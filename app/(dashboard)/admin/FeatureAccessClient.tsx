@@ -145,9 +145,9 @@ export default function FeatureAccessClient({ clients: initialClients, plans }: 
   ];
 
   return (
-    <div className="cc-page-content">
+    <div className="rsp-page page-enter">
       {/* Header */}
-      <div style={{ marginBottom: 32, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+      <div className="rsp-header">
         <div>
           <h1 style={{ fontSize: 26, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>
             Feature Access
@@ -162,7 +162,7 @@ export default function FeatureAccessClient({ clients: initialClients, plans }: 
       </div>
 
       {/* Tabs */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 24 }}>
+      <div style={{ display: "flex", gap: 8, marginBottom: 24, flexWrap: "wrap" }}>
         {tabs.map((t) => (
           <button
             key={t.key}
@@ -205,7 +205,8 @@ export default function FeatureAccessClient({ clients: initialClients, plans }: 
               description="Try adjusting your search"
             />
           ) : (
-            <>
+            <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+            <div style={{ minWidth: 720 }}>
               {/* Table header */}
               <div style={{
                 padding: "12px 20px",
@@ -309,7 +310,8 @@ export default function FeatureAccessClient({ clients: initialClients, plans }: 
                   </div>
                 );
               })}
-            </>
+            </div>
+            </div>
           )}
         </Card>
       )}
@@ -376,7 +378,8 @@ export default function FeatureAccessClient({ clients: initialClients, plans }: 
               description="No clients have custom feature overrides"
             />
           ) : (
-            <>
+            <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+            <div style={{ minWidth: 640 }}>
               <div style={{
                 padding: "12px 20px", borderBottom: "1px solid var(--cc-border)",
                 display: "grid", gridTemplateColumns: "1fr 140px 1fr 100px", gap: 12,
@@ -421,7 +424,8 @@ export default function FeatureAccessClient({ clients: initialClients, plans }: 
                   </div>
                 );
               })}
-            </>
+            </div>
+            </div>
           )}
         </Card>
       )}
@@ -435,7 +439,9 @@ export default function FeatureAccessClient({ clients: initialClients, plans }: 
           transform: "translateX(-50%)",
           display: "flex",
           alignItems: "center",
-          gap: 16,
+          justifyContent: "center",
+          flexWrap: "wrap",
+          gap: 12,
           padding: "12px 24px",
           borderRadius: 12,
           background: "var(--cc-text)",
@@ -443,11 +449,12 @@ export default function FeatureAccessClient({ clients: initialClients, plans }: 
           boxShadow: "0 8px 32px rgba(0,0,0,0.2)",
           zIndex: 100,
           fontSize: 13,
+          maxWidth: "calc(100vw - 24px)",
         }}>
           <span style={{ fontWeight: 600 }}>
             {selected.size} client{selected.size > 1 ? "s" : ""} selected
           </span>
-          <div style={{ width: 1, height: 20, background: "rgba(255,255,255,0.2)" }} />
+          <div className="rsp-hide-mobile" style={{ width: 1, height: 20, background: "rgba(255,255,255,0.2)" }} />
           <select
             value={bulkPlanId}
             onChange={(e) => setBulkPlanId(e.target.value)}

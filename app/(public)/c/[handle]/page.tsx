@@ -226,10 +226,8 @@ export default async function CreatorProfilePage({
 
       {/* ── Stats Grid ───────────────────────────────────────────────── */}
       <div
+        className="rsp-grid-tiles"
         style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(4, 1fr)",
-          gap: 12,
           marginBottom: 32,
         }}
       >

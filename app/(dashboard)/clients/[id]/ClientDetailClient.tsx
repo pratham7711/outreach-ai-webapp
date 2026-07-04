@@ -112,7 +112,7 @@ export default function ClientDetailClient({ client, plans }: Props) {
   ];
 
   return (
-    <div style={{ padding: "32px 40px 40px" }}>
+    <div className="rsp-page">
       <Link href="/clients" style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 14, color: "var(--cc-text-muted)", textDecoration: "none", marginBottom: 24 }}>
         <ArrowLeft size={14} /> Back to Clients
       </Link>
@@ -131,20 +131,20 @@ export default function ClientDetailClient({ client, plans }: Props) {
       </div>
 
       {/* Stats */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 32 }}>
+      <div className="rsp-grid-3" style={{ marginBottom: 32 }}>
         <StatCard value={String(client.campaignCount)} label="Campaigns" />
         <StatCard value={contact.email || "—"} label="Contact Email" />
         <StatCard value={contact.contactPerson || "—"} label="Contact Person" />
       </div>
 
       {/* Tab nav */}
-      <div style={{ display: "flex", gap: 4, marginBottom: 24, borderBottom: "1px solid var(--cc-border)" }}>
+      <div style={{ display: "flex", gap: 4, marginBottom: 24, borderBottom: "1px solid var(--cc-border)", overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
         {tabs.map((t) => {
           const Icon = t.icon;
           const active = activeTab === t.key;
           return (
             <button key={t.key} onClick={() => setActiveTab(t.key)} style={{
-              display: "flex", alignItems: "center", gap: 6,
+              display: "flex", alignItems: "center", gap: 6, whiteSpace: "nowrap", flexShrink: 0,
               padding: "10px 16px", fontSize: 13, fontWeight: active ? 600 : 500,
               color: active ? "var(--cc-primary)" : "var(--cc-text-muted)",
               background: "none", border: "none", cursor: "pointer",
@@ -189,20 +189,24 @@ export default function ClientDetailClient({ client, plans }: Props) {
           <EmptyState icon="📋" title="No campaigns" description="This client has no campaigns yet." />
         ) : (
           <Card variant="solid" noPadding>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 100px 100px 100px 80px", gap: 12, padding: "12px 24px", borderBottom: "1px solid var(--cc-border)", background: "var(--cc-bg)" }}>
-              {["Campaign", "Status", "Budget", "Date", "Creators"].map(h => (
-                <span key={h} style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--cc-text-subtle)" }}>{h}</span>
-              ))}
+            <div className="rsp-table-wrap">
+              <div style={{ minWidth: 560 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 100px 100px 100px 80px", gap: 12, padding: "12px 24px", borderBottom: "1px solid var(--cc-border)", background: "var(--cc-bg)" }}>
+                  {["Campaign", "Status", "Budget", "Date", "Creators"].map(h => (
+                    <span key={h} style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--cc-text-subtle)" }}>{h}</span>
+                  ))}
+                </div>
+                {campaigns.map((c, i) => (
+                  <Link key={c.id} href={`/campaigns/${c.id}`} style={{ textDecoration: "none", display: "grid", gridTemplateColumns: "1fr 100px 100px 100px 80px", gap: 12, padding: "14px 24px", alignItems: "center", borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined }} className="cc-table-row">
+                    <span style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>{c.title}</span>
+                    <Badge variant={STATUS_BADGE[c.status] ?? "neutral"} dot>{c.status.replace(/_/g, " ")}</Badge>
+                    <span style={{ fontSize: 13, color: "var(--cc-text)" }}>{c.budget ? formatCurrency(Number(c.budget), c.currency) : "—"}</span>
+                    <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{new Date(c.createdAt).toLocaleDateString()}</span>
+                    <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{c._count.activations}</span>
+                  </Link>
+                ))}
+              </div>
             </div>
-            {campaigns.map((c, i) => (
-              <Link key={c.id} href={`/campaigns/${c.id}`} style={{ textDecoration: "none", display: "grid", gridTemplateColumns: "1fr 100px 100px 100px 80px", gap: 12, padding: "14px 24px", alignItems: "center", borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined }} className="cc-table-row">
-                <span style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>{c.title}</span>
-                <Badge variant={STATUS_BADGE[c.status] ?? "neutral"} dot>{c.status.replace(/_/g, " ")}</Badge>
-                <span style={{ fontSize: 13, color: "var(--cc-text)" }}>{c.budget ? formatCurrency(Number(c.budget), c.currency) : "—"}</span>
-                <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{new Date(c.createdAt).toLocaleDateString()}</span>
-                <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{c._count.activations}</span>
-              </Link>
-            ))}
           </Card>
         )
       )}
@@ -215,11 +219,11 @@ export default function ClientDetailClient({ client, plans }: Props) {
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               <Input label="Company Name" value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} />
               <Input label="Contact Person" value={editForm.contactPerson} onChange={e => setEditForm(f => ({ ...f, contactPerson: e.target.value }))} />
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div className="rsp-grid-2">
                 <Input label="Email" type="email" value={editForm.email} onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))} />
                 <Input label="Phone" value={editForm.phone} onChange={e => setEditForm(f => ({ ...f, phone: e.target.value }))} />
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div className="rsp-grid-2">
                 <Input label="Industry" value={editForm.industry} onChange={e => setEditForm(f => ({ ...f, industry: e.target.value }))} />
                 <Input label="Website" value={editForm.website} onChange={e => setEditForm(f => ({ ...f, website: e.target.value }))} />
               </div>

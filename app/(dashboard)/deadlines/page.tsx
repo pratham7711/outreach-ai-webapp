@@ -200,9 +200,9 @@ export default function DeadlinesPage() {
   };
 
   return (
-    <div className="cc-page-content">
+    <div className="rsp-page">
       {/* Header */}
-      <div style={{ marginBottom: 32, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+      <div className="rsp-header">
         <div>
           <h1 style={{ fontSize: 26, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Deadlines</h1>
           <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>Track deliverable due dates across all campaigns</p>
@@ -309,6 +309,7 @@ export default function DeadlinesPage() {
         />
       ) : (
         <Card variant="outlined" noPadding>
+          <div className="rsp-table-wrap">
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ borderBottom: "1px solid var(--cc-border)" }}>
@@ -386,6 +387,7 @@ export default function DeadlinesPage() {
               })}
             </tbody>
           </table>
+          </div>
         </Card>
       )}
     </div>

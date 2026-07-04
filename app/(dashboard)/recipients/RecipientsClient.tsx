@@ -50,7 +50,7 @@ export default function RecipientsClient({
   }, [recipients, search]);
 
   return (
-    <div className="cc-page-content">
+    <div className="rsp-page">
       <div style={{ marginBottom: 32 }}>
         <h1 style={{ fontSize: 26, fontWeight: 800, color: "var(--cc-text)", letterSpacing: "-0.02em", marginBottom: 4 }}>
           Recipients
@@ -60,7 +60,7 @@ export default function RecipientsClient({
         </p>
       </div>
 
-      <div className="cc-stagger" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 32 }}>
+      <div className="cc-stagger rsp-grid-tiles" style={{ marginBottom: 32 }}>
         <StatCard value={String(stats.recipientCount)} label="Recipients" />
         <StatCard value={formatCurrency(stats.totalPaid)} label="Total Paid" />
         <StatCard value={formatCurrency(stats.totalPending)} label="Pending" />
@@ -90,7 +90,8 @@ export default function RecipientsClient({
             <EmptyState icon="🔍" title="No matches" description="No recipients match your search." />
           </div>
         ) : (
-          <div>
+          <div className="rsp-table-wrap">
+            <div style={{ minWidth: 730 }}>
             <div
               style={{
                 display: "grid",
@@ -158,6 +159,7 @@ export default function RecipientsClient({
                   <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>{r.payoutCount}</span>
                 </div>
               ))}
+            </div>
             </div>
           </div>
         )}

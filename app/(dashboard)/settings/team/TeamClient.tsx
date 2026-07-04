@@ -97,9 +97,9 @@ export default function TeamClient({ users, invites }: { users: User[]; invites:
   }
 
   return (
-    <div className="cc-page-content">
+    <div className="rsp-page page-enter">
       {/* Header */}
-      <div style={{ marginBottom: 32, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+      <div className="rsp-header">
         <div>
           <h1 style={{ fontSize: 26, fontWeight: 800, color: "var(--cc-text)", letterSpacing: "-0.02em", marginBottom: 4 }}>
             Team Members
@@ -153,7 +153,8 @@ export default function TeamClient({ users, invites }: { users: User[]; invites:
             />
           </div>
         ) : (
-          <div>
+          <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+            <div style={{ minWidth: 560 }}>
             {/* Table header */}
             <div style={{
               display: "grid",
@@ -197,6 +198,7 @@ export default function TeamClient({ users, invites }: { users: User[]; invites:
                 </div>
               );
             })}
+            </div>
           </div>
         )}
       </Card>
@@ -207,7 +209,8 @@ export default function TeamClient({ users, invites }: { users: User[]; invites:
           <div style={{ padding: "14px 24px", borderBottom: "1px solid var(--cc-border)", background: "var(--cc-hover-bg)" }}>
             <span style={{ fontWeight: 700, fontSize: 14, color: "var(--cc-text)" }}>Pending Invites</span>
           </div>
-          <div>
+          <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+            <div style={{ minWidth: 640 }}>
             {/* Table header */}
             <div style={{
               display: "grid",
@@ -273,6 +276,7 @@ export default function TeamClient({ users, invites }: { users: User[]; invites:
                 </div>
               );
             })}
+            </div>
           </div>
         </Card>
       )}

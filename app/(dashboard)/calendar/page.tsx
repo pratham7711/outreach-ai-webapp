@@ -70,13 +70,13 @@ export default function CalendarPage() {
   } : null;
 
   return (
-    <div className="cc-page-content">
-      <div style={{ marginBottom: 32, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+    <div className="rsp-page">
+      <div className="rsp-header">
         <div>
           <h1 style={{ fontSize: 26, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Calendar</h1>
           <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>Campaign schedule and deadlines</p>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
           <Button variant="ghost" size="sm" onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}>
             <ChevronLeft size={16} />
           </Button>
@@ -91,7 +91,7 @@ export default function CalendarPage() {
       </div>
 
       {/* Legend */}
-      <div style={{ display: "flex", gap: 16, marginBottom: 16, fontSize: 12, color: "var(--cc-text-muted)" }}>
+      <div style={{ display: "flex", gap: 16, marginBottom: 16, fontSize: 12, color: "var(--cc-text-muted)", flexWrap: "wrap" }}>
         {Object.entries(STATUS_COLORS).map(([status, color]) => (
           <div key={status} style={{ display: "flex", alignItems: "center", gap: 4 }}>
             <div style={{ width: 8, height: 8, borderRadius: "50%", background: color }} />
@@ -104,9 +104,9 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      <div style={{ display: "flex", gap: 24 }}>
+      <div className="rsp-split" style={{ gap: 24 }}>
         {/* Calendar grid */}
-        <div style={{ flex: 1 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
           {loading ? (
             <Skeleton width="100%" height="500px" borderRadius="12px" />
           ) : (
@@ -175,8 +175,9 @@ export default function CalendarPage() {
 
         {/* Side panel */}
         {selectedDay && (
-          <div style={{ width: 280, flexShrink: 0 }}>
-            <Card variant="outlined" style={{ padding: 20, position: "sticky", top: 80 }}>
+          <div style={{ width: "100%", maxWidth: 320, flexShrink: 0 }} className="cal-side-panel">
+            <style>{`@media (min-width: 1024px){ .cal-side-panel{ width:280px !important; } }`}</style>
+            <Card variant="outlined" style={{ padding: 20 }}>
               <h3 style={{ fontSize: 15, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>
                 {format(selectedDay, "EEEE, MMM d")}
               </h3>

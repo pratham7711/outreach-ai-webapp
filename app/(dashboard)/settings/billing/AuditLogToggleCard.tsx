@@ -88,8 +88,8 @@ export default function AuditLogToggleCard({ initialEnabled, planName }: AuditLo
   return (
     <Card variant="outlined" noPadding>
       <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 16 }}>
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 20 }}>
-          <div style={{ minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 20, flexWrap: "wrap" }}>
+          <div style={{ minWidth: 0, flex: "1 1 240px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, flexWrap: "wrap" }}>
               <div
                 style={{

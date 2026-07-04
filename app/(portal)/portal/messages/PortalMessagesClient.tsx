@@ -146,16 +146,25 @@ export default function PortalMessagesClient() {
   };
 
   return (
-    <div style={{ maxWidth: 1100, margin: "0 auto", padding: "32px 24px", display: "flex", flexDirection: "column", height: "calc(100vh - 56px)" }}>
+    <div className="rsp-page portal-messages" style={{ maxWidth: 1100, display: "flex", flexDirection: "column", height: "calc(100vh - 56px)" }}>
+      <style>{`
+        .portal-messages .pm-panes { display: flex; flex-direction: column; min-height: 0; }
+        .portal-messages .pm-list { border-bottom: 1px solid var(--cc-border); max-height: 38vh; }
+        .portal-messages .pm-thread { min-height: 0; }
+        @media (min-width: 1024px) {
+          .portal-messages .pm-panes { flex-direction: row; }
+          .portal-messages .pm-list { width: 300px; flex-shrink: 0; border-bottom: none; border-right: 1px solid var(--cc-border); max-height: none; }
+          .portal-messages .pm-thread { flex: 1; }
+        }
+      `}</style>
       <div style={{ marginBottom: 24 }}>
         <h1 style={{ fontSize: 28, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Messages</h1>
         <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>Chat with the brands you work with</p>
       </div>
 
       <div
+        className="pm-panes"
         style={{
-          display: "grid",
-          gridTemplateColumns: "300px 1fr",
           flex: 1,
           minHeight: 0,
           background: "var(--cc-card)",
@@ -164,7 +173,7 @@ export default function PortalMessagesClient() {
           overflow: "hidden",
         }}
       >
-        <div style={{ borderRight: "1px solid var(--cc-border)", overflowY: "auto" }}>
+        <div className="pm-list" style={{ overflowY: "auto" }}>
           {conversations === null ? (
             <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
               {[1, 2, 3].map((i) => (
@@ -221,7 +230,7 @@ export default function PortalMessagesClient() {
           )}
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", minHeight: 0 }}>
+        <div className="pm-thread" style={{ display: "flex", flexDirection: "column", minHeight: 0 }}>
           {!activeId ? (
             <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
               <EmptyState icon="✉️" title="Select a conversation" description="Choose a brand from the list to view messages" />

@@ -117,13 +117,14 @@ export default function NewSidebar({ allowedNavHrefs, brandName }: SidebarProps 
         className="lg:hidden"
         onClick={() => setMobileOpen(true)}
         aria-label="Open navigation menu"
+        aria-expanded={mobileOpen}
         style={{
           position: "fixed",
-          top: 14,
-          left: 14,
+          top: 6,
+          left: 8,
           zIndex: 50,
-          width: 40,
-          height: 40,
+          width: 44,
+          height: 44,
           borderRadius: 10,
           background: "var(--cc-card)",
           border: "1px solid var(--cc-border)",

@@ -116,8 +116,9 @@ export default function AuditLogClient({
   const entityTypes = Array.from(new Set(logs.map((log) => log.entityType))).sort();
 
   return (
-    <div className="cc-page-content">
-      <div style={{ marginBottom: 28, display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16 }}>
+    <div className="rsp-page page-enter">
+      <style>{`.audit-filters{display:grid;grid-template-columns:minmax(0,1fr);gap:12px}@media(min-width:768px){.audit-filters{grid-template-columns:1.2fr 1fr 1.4fr auto}}`}</style>
+      <div className="rsp-header">
         <div>
           <h1 style={{ fontSize: 26, fontWeight: 800, color: "var(--cc-text)", marginBottom: 4 }}>
             Audit Log
@@ -126,7 +127,7 @@ export default function AuditLogClient({
             Track changes across your organization
           </p>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           <span style={{ fontSize: 13, color: "var(--cc-text-muted)", display: "flex", alignItems: "center", gap: 6 }}>
             <Filter size={14} />
             {pagination.total} events
@@ -165,7 +166,7 @@ export default function AuditLogClient({
       </div>
 
       <Card variant="outlined" noPadding>
-        <div style={{ padding: 16, display: "grid", gridTemplateColumns: "1.2fr 1fr 1.4fr auto", gap: 12, borderBottom: "1px solid var(--cc-border)" }}>
+        <div className="audit-filters" style={{ padding: 16, borderBottom: "1px solid var(--cc-border)" }}>
           <div>
             <label style={{ display: "block", fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--cc-text-subtle)", marginBottom: 6 }}>Action</label>
             <select
@@ -239,8 +240,8 @@ export default function AuditLogClient({
           </div>
         ) : (
           <>
-            <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+            <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14, minWidth: 720 }}>
                 <thead>
                   <tr style={{ background: "var(--cc-hover-bg)" }}>
                     {["Time", "Action", "Entity", "Actor", "IP"].map((heading) => (

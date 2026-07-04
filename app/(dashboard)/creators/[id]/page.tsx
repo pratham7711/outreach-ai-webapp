@@ -237,7 +237,7 @@ const responsiveStyles = `
 
 function LoadingSkeleton() {
   return (
-    <div className="cc-page-content" style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+    <div className="rsp-page" style={{ display: "flex", flexDirection: "column", gap: 24 }}>
       <Skeleton width="120px" height="16px" />
       <Skeleton width="100%" height="220px" borderRadius="12px" />
       <div className="cd-stats-grid">
@@ -479,7 +479,7 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
 
   if (loading) return <LoadingSkeleton />;
   if (!creator) return (
-    <div className="cc-page-content">
+    <div className="rsp-page">
       <EmptyState icon="👤" title="Creator not found" description="This creator doesn't exist or has been removed." />
     </div>
   );
@@ -493,7 +493,7 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
     : 0;
 
   return (
-    <div className="cc-page-content">
+    <div className="rsp-page">
       <style>{responsiveStyles}</style>
 
       {/* Breadcrumb */}

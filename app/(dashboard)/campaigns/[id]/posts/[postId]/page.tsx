@@ -294,7 +294,7 @@ export default function PostDetailPage() {
   }));
 
   return (
-    <div style={{ padding: 32, maxWidth: 1200, margin: "0 auto" }}>
+    <div className="rsp-page" style={{ maxWidth: 1200 }}>
       <div style={{ marginBottom: 24 }}>
         <button
           onClick={() => router.back()}
@@ -303,15 +303,15 @@ export default function PostDetailPage() {
           <ArrowLeft size={16} /> Back to Posts
         </button>
 
-        <div style={{ display: "flex", gap: 20, alignItems: "flex-start" }}>
+        <div style={{ display: "flex", gap: 20, alignItems: "flex-start", flexWrap: "wrap" }}>
           {post.thumbnailUrl && (
             <div style={{ width: 120, height: 80, borderRadius: 10, overflow: "hidden", flexShrink: 0, border: "1px solid var(--cc-border)" }}>
               <img src={post.thumbnailUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
             </div>
           )}
-          <div style={{ flex: 1 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
-              <h1 style={{ fontSize: 28, fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4, flexWrap: "wrap" }}>
+              <h1 style={{ fontSize: 28, fontWeight: 700, color: "var(--cc-text)", margin: 0, minWidth: 0, overflowWrap: "anywhere" }}>
                 {post.caption?.slice(0, 80) ?? "Untitled Post"}
               </h1>
               <Badge variant={STATUS_BADGE[post.status] ?? "neutral"}>{post.status.replace(/_/g, " ")}</Badge>

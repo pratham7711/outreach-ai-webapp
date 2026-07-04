@@ -86,9 +86,9 @@ export default function PortalEarningsPage() {
 
   if (loading) {
     return (
-      <div style={{ maxWidth: 960, margin: "0 auto", padding: 32 }}>
+      <div className="rsp-page" style={{ maxWidth: 960 }}>
         <Skeleton width="200px" height="32px" />
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 16, marginTop: 24 }}>
+        <div className="rsp-grid-2" style={{ marginTop: 24 }}>
           {[1, 2].map((i) => (
             <Skeleton key={i} height="80px" borderRadius="10px" />
           ))}
@@ -99,7 +99,7 @@ export default function PortalEarningsPage() {
   }
 
   return (
-    <div style={{ maxWidth: 960, margin: "0 auto", padding: 32 }}>
+    <div className="rsp-page" style={{ maxWidth: 960 }}>
       <div style={{ marginBottom: 32 }}>
         <h1 style={{ fontSize: 24, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Earnings</h1>
         <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>Your accrued marketplace earnings across campaigns.</p>
@@ -120,7 +120,7 @@ export default function PortalEarningsPage() {
       )}
 
       {/* Totals */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 16, marginBottom: 32 }}>
+      <div className="rsp-grid-2" style={{ marginBottom: 32 }}>
         <StatCard value={fmtMoney(totalApprovedMinor)} label="Available balance (approved)" icon={<Wallet size={18} />} />
         <StatCard value={fmtMoney(totalPendingMinor)} label="Pending review" icon={<Clock size={18} />} />
       </div>
@@ -145,9 +145,9 @@ export default function PortalEarningsPage() {
             const pct = threshold && threshold > 0 ? Math.min(100, (c.approvedMinor / threshold) * 100) : 100;
             return (
               <Card key={c.campaignId} variant="solid" style={{ padding: 20 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
+                  <div style={{ flex: "1 1 180px", minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                       {c.slug ? (
                         <Link href={`/portal/campaigns/${c.slug}`} style={{ fontSize: 16, fontWeight: 700, color: "var(--cc-text)", textDecoration: "none" }}>
                           {c.title}

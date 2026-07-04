@@ -90,18 +90,18 @@ export default function PortalDiscoverPage() {
   };
 
   if (loading) return (
-    <div style={{ maxWidth: 960, margin: "0 auto", padding: 32 }}>
+    <div className="rsp-page" style={{ maxWidth: 960 }}>
       <Skeleton width="300px" height="40px" />
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 16, marginTop: 24 }}>
+      <div className="rsp-grid-2" style={{ marginTop: 24 }}>
         {[1, 2, 3, 4].map(i => <Skeleton key={i} height="200px" borderRadius="12px" />)}
       </div>
     </div>
   );
 
   return (
-    <div style={{ maxWidth: 960, margin: "0 auto", padding: 32 }}>
+    <div className="rsp-page" style={{ maxWidth: 960 }}>
       {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, gap: 12, flexWrap: "wrap" }}>
         <h1 style={{ fontSize: 24, fontWeight: 700, color: "var(--cc-text)" }}>Discover Campaigns</h1>
         <Button variant="secondary" onClick={() => router.push("/portal/dashboard")}>Dashboard</Button>
       </div>
@@ -180,7 +180,7 @@ export default function PortalDiscoverPage() {
       {campaigns.length === 0 ? (
         <EmptyState icon="🔍" title="No open campaigns" description="Check back later for new opportunities." />
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 16 }}>
+        <div className="rsp-grid-3">
           {campaigns.map(c => (
             <Card key={c.id} variant="outlined" style={{ padding: 0, overflow: "hidden" }}>
               {c.thumbnailUrl && (

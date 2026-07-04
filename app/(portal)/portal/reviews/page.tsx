@@ -91,7 +91,7 @@ export default function PortalReviewsPage() {
 
   if (reviewsLoading) {
     return (
-      <div style={{ maxWidth: 960, margin: "0 auto", padding: 32 }}>
+      <div className="rsp-page" style={{ maxWidth: 960 }}>
         <Skeleton width="200px" height="32px" />
         <Skeleton width="100%" height="300px" borderRadius="12px" />
       </div>
@@ -99,7 +99,7 @@ export default function PortalReviewsPage() {
   }
 
   return (
-    <div style={{ maxWidth: 960, margin: "0 auto", padding: 32 }}>
+    <div className="rsp-page" style={{ maxWidth: 960 }}>
       {/* Page header */}
       <div style={{ marginBottom: 32 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
@@ -129,6 +129,8 @@ export default function PortalReviewsPage() {
         />
       ) : (
         <Card variant="solid" noPadding>
+          <div className="rsp-table-wrap">
+          <div style={{ minWidth: 620 }}>
           {/* Table header */}
           <div
             style={{
@@ -192,6 +194,8 @@ export default function PortalReviewsPage() {
               </span>
             </div>
           ))}
+          </div>
+          </div>
         </Card>
       )}
 

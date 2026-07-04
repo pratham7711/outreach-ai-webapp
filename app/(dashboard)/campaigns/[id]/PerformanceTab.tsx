@@ -70,11 +70,15 @@ function formatDate(iso: string): string {
 function LoadingState() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 16 }}>
+      <style>{`
+        .perf-split { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; }
+        @media (min-width: 1024px) { .perf-split { grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); } }
+      `}</style>
+      <div className="rsp-grid-tiles">
         {[1, 2, 3, 4, 5, 6].map((i) => <Skeleton key={i} height="88px" borderRadius="12px" />)}
       </div>
       <Skeleton width="100%" height="320px" borderRadius="12px" />
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1.4fr", gap: 24 }}>
+      <div className="perf-split">
         <Skeleton width="100%" height="300px" borderRadius="12px" />
         <Skeleton width="100%" height="300px" borderRadius="12px" />
       </div>
@@ -305,8 +309,12 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+      <style>{`
+        .perf-split { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; }
+        @media (min-width: 1024px) { .perf-split { grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); } }
+      `}</style>
       <div style={{ display: "flex", justifyContent: "flex-end" }}>{shareButton}</div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 16 }}>
+      <div className="rsp-grid-tiles">
         <StatCard value={formatNumber(kpis.views)} label="Views" icon={<Eye size={16} />} />
         <StatCard value={formatNumber(kpis.engagements)} label="Engagements" icon={<Heart size={16} />} />
         <StatCard value={engRateDisplay} label="Eng. Rate" icon={<Percent size={16} />} />
@@ -367,7 +375,7 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
         )}
       </Card>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1.4fr", gap: 24 }}>
+      <div className="perf-split">
         <Card variant="outlined" style={{ padding: 24 }}>
           <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)", display: "block", marginBottom: 16 }}>
             Platform Split
@@ -403,12 +411,12 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
           )}
         </Card>
 
-        <Card variant="solid" noPadding>
+        <Card variant="solid" noPadding style={{ overflowX: "auto" }}>
           <div style={{ padding: "16px 24px", borderBottom: "1px solid var(--cc-border)" }}>
             <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)" }}>Top Creators</span>
           </div>
           {leaderboard.length > 0 ? (
-            <div>
+            <div style={{ minWidth: 480 }}>
               <div style={{
                 display: "grid", gridTemplateColumns: "1fr 70px 90px 80px 90px",
                 gap: 12, padding: "10px 24px", borderBottom: "1px solid var(--cc-border)", background: "var(--cc-bg)",

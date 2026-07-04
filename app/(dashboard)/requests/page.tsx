@@ -90,9 +90,9 @@ export default function RequestsPage() {
   };
 
   return (
-    <div className="cc-page-content">
+    <div className="rsp-page">
       {/* Header */}
-      <div style={{ marginBottom: 32, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+      <div className="rsp-header">
         <div>
           <h1 style={{ fontSize: 26, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Requests</h1>
           <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>View and manage payout requests</p>
@@ -101,7 +101,7 @@ export default function RequestsPage() {
 
       {/* Stat Cards */}
       {loading ? (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 32 }}>
+        <div className="rsp-grid-tiles" style={{ marginBottom: 32 }}>
           {[1, 2, 3, 4].map((i) => (
             <div key={i} style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, padding: 20 }}>
               <Skeleton width={80} height={14} />
@@ -110,7 +110,7 @@ export default function RequestsPage() {
           ))}
         </div>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 32 }}>
+        <div className="rsp-grid-tiles" style={{ marginBottom: 32 }}>
           <StatCard value={String(totalRequests)} label="Total Requests" />
           <StatCard value={String(pendingCount)} label="Pending" />
           <StatCard value={formatCurrency(approvedTotal)} label="Approved Amount" />
@@ -181,6 +181,7 @@ export default function RequestsPage() {
                   alignItems: "center",
                   gap: 16,
                   padding: "14px 20px",
+                  flexWrap: "wrap",
                   borderBottom: i < filtered.length - 1 ? "1px solid var(--cc-border)" : "none",
                 }}
               >

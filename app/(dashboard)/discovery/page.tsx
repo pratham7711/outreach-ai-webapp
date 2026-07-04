@@ -159,7 +159,7 @@ export default function DiscoveryPage() {
   }
 
   return (
-    <div className="cc-page-content">
+    <div className="rsp-page">
       {/* Header */}
       <div style={{ marginBottom: 32 }}>
         <h1 style={{ fontSize: 26, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Discovery</h1>
@@ -180,7 +180,7 @@ export default function DiscoveryPage() {
 
       {/* Filters Row */}
       <div style={{ marginBottom: 12, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {PLATFORMS.map((p) => (
             <button
               key={p}
@@ -275,7 +275,7 @@ export default function DiscoveryPage() {
           </div>
 
           {/* Range filters */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
+          <div className="rsp-grid-2" style={{ marginBottom: 16 }}>
             {/* Followers range */}
             <div>
               <div style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 8 }}>Followers</div>
@@ -285,7 +285,7 @@ export default function DiscoveryPage() {
                   placeholder="Min"
                   value={minFollowers}
                   onChange={(e) => setMinFollowers(e.target.value)}
-                  style={{ width: 100 }}
+                  style={{ flex: 1, minWidth: 0 }}
                 />
                 <span style={{ color: "var(--cc-text-muted)", fontSize: 14 }}>–</span>
                 <Input
@@ -293,7 +293,7 @@ export default function DiscoveryPage() {
                   placeholder="Max"
                   value={maxFollowers}
                   onChange={(e) => setMaxFollowers(e.target.value)}
-                  style={{ width: 100 }}
+                  style={{ flex: 1, minWidth: 0 }}
                 />
               </div>
             </div>
@@ -307,7 +307,7 @@ export default function DiscoveryPage() {
                   placeholder="Min"
                   value={minRate}
                   onChange={(e) => setMinRate(e.target.value)}
-                  style={{ width: 100 }}
+                  style={{ flex: 1, minWidth: 0 }}
                 />
                 <span style={{ color: "var(--cc-text-muted)", fontSize: 14 }}>–</span>
                 <Input
@@ -315,7 +315,7 @@ export default function DiscoveryPage() {
                   placeholder="Max"
                   value={maxRate}
                   onChange={(e) => setMaxRate(e.target.value)}
-                  style={{ width: 100 }}
+                  style={{ flex: 1, minWidth: 0 }}
                 />
               </div>
             </div>
@@ -386,7 +386,7 @@ export default function DiscoveryPage() {
 
       {/* Results */}
       {loading ? (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
+        <div className="rsp-grid-3">
           {[1, 2, 3, 4, 5, 6].map(i => (
             <Skeleton key={i} height="220px" borderRadius="12px" />
           ))}
@@ -410,7 +410,7 @@ export default function DiscoveryPage() {
       ) : creators.length === 0 ? (
         <EmptyState icon="🔍" title="No creators found" description="Try adjusting your search or filters" />
       ) : (
-        <div className="cc-stagger" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
+        <div className="cc-stagger rsp-grid-3">
           {creators.map((c) => (
             <Card key={c.id} variant="outlined" style={{ padding: 20 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>

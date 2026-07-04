@@ -66,7 +66,7 @@ export default function IngestionClient() {
   useEffect(() => { load(); }, [load]);
 
   return (
-    <div className="cc-page-content">
+    <div className="rsp-page page-enter">
       <div style={{ marginBottom: 32 }}>
         <h1 style={{ fontSize: 28, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Ingestion Health</h1>
         <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>Sync status per platform, dead-lettered posts, and snapshot sources</p>
@@ -98,7 +98,7 @@ export default function IngestionClient() {
                     {` · ${p.sealed} sealed`}
                   </span>
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
+                <div className="rsp-grid-tiles">
                   <StatCard value={String(p.total)} label="Total posts" />
                   <StatCard value={String(p.syncedLast24h)} label="Synced last 24h" />
                   <StatCard value={String(p.neverSynced)} label="Never synced" />
@@ -116,8 +116,8 @@ export default function IngestionClient() {
                   description="Posts that repeatedly fail to sync will appear here."
                 />
               ) : (
-                <div style={{ overflowX: "auto" }}>
-                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 560 }}>
                     <thead>
                       <tr>
                         {["Post URL", "Platform", "Fail count", "Disabled"].map((h) => (

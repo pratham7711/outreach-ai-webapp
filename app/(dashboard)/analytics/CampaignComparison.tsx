@@ -89,6 +89,7 @@ export default function CampaignComparison({
 
   return (
     <Card variant="outlined" style={{ padding: 24, marginBottom: 24 }}>
+      <style>{`.cmp-chart{height:220px;margin-bottom:24px}@media(min-width:768px){.cmp-chart{height:300px}}`}</style>
       <div style={{ marginBottom: 16 }}>
         <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)", display: "block" }}>Campaign Comparison</span>
         <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>Select 2–5 campaigns to overlay views over time.</span>
@@ -142,7 +143,7 @@ export default function CampaignComparison({
             <EmptyState icon="📉" title="No time-series data" description="These campaigns have no posts in the selected range." />
           ) : (
             <>
-              <div style={{ height: 280, marginBottom: 24 }}>
+              <div className="cmp-chart">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={resp.series} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--cc-border)" />
@@ -167,7 +168,7 @@ export default function CampaignComparison({
                 </ResponsiveContainer>
               </div>
 
-              <div style={{ overflowX: "auto" }}>
+              <div className="rsp-table-wrap">
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                   <thead>
                     <tr style={{ borderBottom: "1px solid var(--cc-border)" }}>

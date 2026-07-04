@@ -92,12 +92,12 @@ export default function ConnectionsPage() {
 
   if (loading) {
     return (
-      <div className="cc-page-content">
+      <div className="rsp-page">
         <div style={{ marginBottom: 32 }}>
           <div style={{ marginBottom: 8 }}><Skeleton width={200} height={28} /></div>
           <Skeleton width={320} height={16} />
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 16 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 280px), 1fr))", gap: 16 }}>
           {Array.from({ length: 6 }).map((_, i) => (
             <Skeleton key={i} height={180} borderRadius={12} />
           ))}
@@ -145,7 +145,7 @@ export default function ConnectionsPage() {
   );
 
   return (
-    <div className="cc-page-content">
+    <div className="rsp-page">
       {/* Toast */}
       {toast && (
         <div style={{
@@ -159,7 +159,7 @@ export default function ConnectionsPage() {
       )}
 
       {/* Header */}
-      <div style={{ marginBottom: 32, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+      <div className="rsp-header">
         <div>
           <h1 style={{ fontSize: 28, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Connections</h1>
           <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>
@@ -175,7 +175,7 @@ export default function ConnectionsPage() {
       {/* Social Platforms */}
       <div style={{ marginBottom: 32 }}>
         <h2 style={{ fontSize: 18, fontWeight: 600, color: "var(--cc-text)", marginBottom: 16 }}>Social Platforms</h2>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 16 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 280px), 1fr))", gap: 16 }}>
           {socialPlatforms.map(renderPlatformCard)}
         </div>
       </div>
@@ -191,7 +191,7 @@ export default function ConnectionsPage() {
               <a href="/settings/api-keys" style={{ color: "var(--cc-primary)", textDecoration: "underline" }}>API key</a>.
             </p>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 16 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 280px), 1fr))", gap: 16 }}>
             {messagingPlatforms.map(renderPlatformCard)}
           </div>
         </div>
@@ -200,7 +200,7 @@ export default function ConnectionsPage() {
       {/* Payment Providers */}
       <div style={{ marginBottom: 32 }}>
         <h2 style={{ fontSize: 18, fontWeight: 600, color: "var(--cc-text)", marginBottom: 16 }}>Payment Providers</h2>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 16 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 280px), 1fr))", gap: 16 }}>
           {paymentPlatforms.map(renderPlatformCard)}
         </div>
       </div>

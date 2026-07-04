@@ -125,7 +125,7 @@ export default function PortalOffersClient() {
 
   if (loading) {
     return (
-      <div style={{ maxWidth: 960, margin: "0 auto", padding: 32 }}>
+      <div className="rsp-page" style={{ maxWidth: 960 }}>
         <Skeleton width="200px" height="32px" />
         <div style={{ display: "flex", flexDirection: "column", gap: 16, marginTop: 24 }}>
           {[1, 2, 3].map((i) => (
@@ -137,7 +137,7 @@ export default function PortalOffersClient() {
   }
 
   return (
-    <div style={{ maxWidth: 960, margin: "0 auto", padding: 32 }}>
+    <div className="rsp-page" style={{ maxWidth: 960 }}>
       <div style={{ marginBottom: 32 }}>
         <h1 style={{ fontSize: 24, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Offers</h1>
         <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>
@@ -168,10 +168,10 @@ export default function PortalOffersClient() {
             const actionable = canAct && offer.aiRound < 1;
             return (
               <Card key={offer.id} variant="solid" style={{ padding: 20 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
-                  <div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12, gap: 8, flexWrap: "wrap" }}>
+                  <div style={{ minWidth: 0 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                      <Handshake size={16} color="var(--cc-primary)" />
+                      <Handshake size={16} color="var(--cc-primary)" style={{ flexShrink: 0 }} />
                       <span style={{ fontSize: 16, fontWeight: 700, color: "var(--cc-text)" }}>{offer.campaignTitle}</span>
                     </div>
                     <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>from {offer.orgName}</span>

@@ -136,9 +136,9 @@ export default function PayoutsClient({ payouts, stats, creators, campaigns }: {
   };
 
   return (
-    <div className="cc-page-content">
+    <div className="rsp-page page-enter">
       {/* Header */}
-      <div style={{ marginBottom: 32, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+      <div className="rsp-header">
         <div>
           <h1 style={{ fontSize: 26, fontWeight: 800, color: "var(--cc-text)", letterSpacing: "-0.02em", marginBottom: 4 }}>
             Payouts
@@ -153,7 +153,7 @@ export default function PayoutsClient({ payouts, stats, creators, campaigns }: {
       </div>
 
       {/* Stats */}
-      <div className="cc-stagger" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 32 }}>
+      <div className="cc-stagger rsp-grid-tiles" style={{ marginBottom: 32 }}>
         <StatCard value={formatCurrency(stats.sent)} label="Total Paid" />
         <StatCard value={formatCurrency(stats.pending)} label="Pending" />
         <StatCard value={formatCurrency(stats.processing)} label="Processing" />
@@ -161,8 +161,8 @@ export default function PayoutsClient({ payouts, stats, creators, campaigns }: {
       </div>
 
       {/* Search + Status Filter */}
-      <div style={{ marginBottom: 24, display: "flex", gap: 12, alignItems: "center" }}>
-        <div style={{ flex: 1 }}>
+      <div style={{ marginBottom: 24, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+        <div style={{ flex: 1, minWidth: 180 }}>
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -170,7 +170,7 @@ export default function PayoutsClient({ payouts, stats, creators, campaigns }: {
             iconLeft={<Search size={16} />}
           />
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {STATUS_TABS.map((tab) => (
             <Tag
               key={tab}
@@ -189,12 +189,12 @@ export default function PayoutsClient({ payouts, stats, creators, campaigns }: {
       {selected.size > 0 && (
         <div style={{
           marginBottom: 16, padding: "10px 16px", background: "var(--cc-primary)", borderRadius: 10,
-          display: "flex", alignItems: "center", justifyContent: "space-between",
+          display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap",
         }}>
           <span style={{ color: "white", fontSize: 13, fontWeight: 600 }}>
             {selected.size} selected
           </span>
-          <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <Button size="sm" variant="secondary" onClick={() => handleBulkAction("PROCESSING")}>
               Mark Processing
             </Button>
@@ -227,7 +227,8 @@ export default function PayoutsClient({ payouts, stats, creators, campaigns }: {
             />
           </div>
         ) : (
-          <div>
+          <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+            <div style={{ minWidth: 720 }}>
             {/* Table header */}
             <div style={{
               display: "grid", gridTemplateColumns: "40px 1fr 140px 100px 100px 120px 100px",
@@ -310,6 +311,7 @@ export default function PayoutsClient({ payouts, stats, creators, campaigns }: {
                   </div>
                 </div>
               ))}
+            </div>
             </div>
           </div>
         )}

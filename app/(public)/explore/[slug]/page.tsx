@@ -404,7 +404,7 @@ export default async function CampaignLandingPage({
             flexWrap: "wrap",
           }}
         >
-          <div style={{ flex: "1 1 160px", minWidth: 140 }}>
+          <div style={{ flex: "1 1 160px", minWidth: 0 }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>
               Ready to start earning?
             </div>
@@ -415,7 +415,7 @@ export default async function CampaignLandingPage({
           <Link href={joinLoginHref} style={secondaryCtaStyle}>
             Log in
           </Link>
-          <Link href={joinRegisterHref} style={primaryCtaStyle}>
+          <Link href={joinRegisterHref} style={{ ...primaryCtaStyle, flex: "1 1 auto", textAlign: "center" }}>
             Join campaign
           </Link>
         </div>

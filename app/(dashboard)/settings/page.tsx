@@ -35,7 +35,7 @@ export default async function SettingsPage() {
   if (!session?.user) redirect("/login");
 
   return (
-    <div className="cc-page-content">
+    <div className="rsp-page page-enter">
       <div style={{ marginBottom: 32 }}>
         <h1 style={{ fontSize: 26, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>
           Settings

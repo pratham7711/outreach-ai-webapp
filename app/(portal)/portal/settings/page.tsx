@@ -187,7 +187,7 @@ export default function PortalSettingsPage() {
 
   if (loading) {
     return (
-      <div style={{ maxWidth: 720, margin: "0 auto", padding: 32 }}>
+      <div className="rsp-page" style={{ maxWidth: 720 }}>
         <Skeleton width="200px" height="32px" />
         <div style={{ marginTop: 24, display: "flex", flexDirection: "column", gap: 16 }}>
           {[1, 2, 3].map((i) => (
@@ -199,7 +199,7 @@ export default function PortalSettingsPage() {
   }
 
   return (
-    <div style={{ maxWidth: 720, margin: "0 auto", padding: 32 }}>
+    <div className="rsp-page" style={{ maxWidth: 720 }}>
       <div style={{ marginBottom: 32 }}>
         <h1 style={{ fontSize: 28, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>
           Settings
@@ -214,7 +214,7 @@ export default function PortalSettingsPage() {
           <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--cc-text)", marginBottom: 20 }}>
             Profile
           </h2>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+          <div className="rsp-grid-2">
             <Input
               label="Name"
               value={form.name}
@@ -387,7 +387,7 @@ export default function PortalSettingsPage() {
           <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--cc-text)", marginBottom: 20 }}>
             Bank Details
           </h2>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+          <div className="rsp-grid-2">
             <Input
               label="Account Name"
               value={form.bankAccountName ?? ""}

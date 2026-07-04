@@ -47,9 +47,9 @@ export default function CreatorsClient({ creators }: { creators: Creator[] }) {
   });
 
   return (
-    <div className="cc-page-content">
+    <div className="rsp-page">
       {/* Header */}
-      <div style={{ marginBottom: 32, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+      <div className="rsp-header">
         <div>
           <h1 style={{ fontSize: 26, fontWeight: 800, color: "var(--cc-text)", letterSpacing: "-0.02em", marginBottom: 4 }}>
             Creators
@@ -64,8 +64,8 @@ export default function CreatorsClient({ creators }: { creators: Creator[] }) {
       </div>
 
       {/* Filters */}
-      <div style={{ marginBottom: 24, display: "flex", alignItems: "center", gap: 12 }}>
-        <div style={{ flex: 1 }}>
+      <div style={{ marginBottom: 24, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -84,7 +84,7 @@ export default function CreatorsClient({ creators }: { creators: Creator[] }) {
       </div>
 
       {/* Platform filter tags */}
-      <div style={{ marginBottom: 24, display: "flex", gap: 8 }}>
+      <div style={{ marginBottom: 24, display: "flex", gap: 8, flexWrap: "wrap" }}>
         {PLATFORMS.map((p) => (
           <Tag
             key={p}
@@ -141,6 +141,7 @@ export default function CreatorsClient({ creators }: { creators: Creator[] }) {
         </div>
       ) : (
         <Card variant="solid" noPadding>
+          <div className="rsp-table-wrap">
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ background: "var(--cc-hover-bg)" }}>
@@ -172,6 +173,7 @@ export default function CreatorsClient({ creators }: { creators: Creator[] }) {
               ))}
             </tbody>
           </table>
+          </div>
         </Card>
       )}
 

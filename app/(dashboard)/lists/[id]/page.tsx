@@ -72,7 +72,7 @@ export default function ListDetailPage({ params }: { params: Promise<{ id: strin
   };
 
   if (loading) return (
-    <div className="cc-page-content" style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+    <div className="rsp-page" style={{ display: "flex", flexDirection: "column", gap: 24 }}>
       <Skeleton width="120px" height="16px" />
       <Skeleton width="300px" height="32px" />
       <Skeleton width="100%" height="400px" borderRadius="12px" />
@@ -80,13 +80,13 @@ export default function ListDetailPage({ params }: { params: Promise<{ id: strin
   );
 
   if (!list) return (
-    <div className="cc-page-content">
+    <div className="rsp-page">
       <EmptyState icon="📋" title="List not found" />
     </div>
   );
 
   return (
-    <div className="cc-page-content">
+    <div className="rsp-page">
       {/* Breadcrumb */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, marginBottom: 24, color: "var(--cc-text-muted)" }}>
         <Link href="/lists" style={{ display: "flex", alignItems: "center", gap: 4, color: "var(--cc-text-muted)", textDecoration: "none" }}>
@@ -97,7 +97,7 @@ export default function ListDetailPage({ params }: { params: Promise<{ id: strin
       </div>
 
       {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 32 }}>
+      <div className="rsp-header">
         <div>
           <h1 style={{ fontSize: 26, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>{list.name}</h1>
           {list.description && <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>{list.description}</p>}
@@ -115,6 +115,8 @@ export default function ListDetailPage({ params }: { params: Promise<{ id: strin
         <EmptyState icon="👥" title="No creators in this list" description="Add creators from the Discovery page or creator profiles." />
       ) : (
         <Card variant="solid" noPadding>
+          <div className="rsp-table-wrap">
+          <div style={{ minWidth: 640 }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 120px 100px 100px 100px 60px", gap: 12, padding: "12px 24px", borderBottom: "1px solid var(--cc-border)", background: "var(--cc-bg)" }}>
             {["Creator", "Platform", "Followers", "Avg Views", "Added", ""].map(h => (
               <span key={h} style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--cc-text-subtle)" }}>{h}</span>
@@ -147,6 +149,8 @@ export default function ListDetailPage({ params }: { params: Promise<{ id: strin
                 </button>
               </div>
             ))}
+          </div>
+          </div>
           </div>
         </Card>
       )}

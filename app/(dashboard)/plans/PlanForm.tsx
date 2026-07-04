@@ -64,7 +64,7 @@ export default function PlanForm({ initial }: PlanFormProps) {
   }
 
   return (
-    <div className="cc-page-content" style={{ maxWidth: 640, margin: "0 auto" }}>
+    <div className="rsp-page page-enter" style={{ maxWidth: 640 }}>
       <div style={{ marginBottom: 32 }}>
         <h1 style={{ fontSize: 26, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>
           {isEdit ? "Edit Plan" : "New Plan"}

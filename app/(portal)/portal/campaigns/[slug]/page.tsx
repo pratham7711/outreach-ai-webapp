@@ -128,7 +128,7 @@ function CampaignDetailInner() {
 
   if (loading) {
     return (
-      <div style={{ maxWidth: 860, margin: "0 auto", padding: 32 }}>
+      <div className="rsp-page" style={{ maxWidth: 860 }}>
         <Skeleton width="240px" height="32px" />
         <Skeleton width="100%" height="200px" borderRadius="12px" />
         <Skeleton width="100%" height="300px" borderRadius="12px" />
@@ -138,7 +138,7 @@ function CampaignDetailInner() {
 
   if (error || !detail) {
     return (
-      <div style={{ maxWidth: 860, margin: "0 auto", padding: 32 }}>
+      <div className="rsp-page" style={{ maxWidth: 860 }}>
         <Card variant="outlined" style={{ padding: 24 }}>
           <EmptyState
             icon="⚠️"
@@ -160,11 +160,11 @@ function CampaignDetailInner() {
 
   return (
     <div style={{ maxWidth: 860, margin: "0 auto", padding: 32 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
         <Link href="/portal/campaigns" style={{ color: "var(--cc-text-muted)", textDecoration: "none", display: "flex", alignItems: "center" }}>
           <ArrowLeft size={16} />
         </Link>
-        <h1 style={{ fontSize: 24, fontWeight: 700, color: "var(--cc-text)" }}>{detail.title}</h1>
+        <h1 style={{ fontSize: 24, fontWeight: 700, color: "var(--cc-text)", minWidth: 0 }}>{detail.title}</h1>
         <Badge variant="neutral">{detail.orgName}</Badge>
       </div>
 
@@ -279,6 +279,8 @@ function CampaignDetailInner() {
         </Card>
       ) : (
         <Card variant="solid" noPadding>
+          <div className="rsp-table-wrap">
+          <div style={{ minWidth: 560 }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 100px 100px 100px 100px", gap: 12, padding: "12px 20px", borderBottom: "1px solid var(--cc-border)", background: "var(--cc-bg)" }}>
             {["Post", "Platform", "Views", "Status", "Earned"].map((h) => (
               <span key={h} style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--cc-text-subtle)" }}>{h}</span>
@@ -295,6 +297,8 @@ function CampaignDetailInner() {
               <span style={{ fontSize: 13, fontWeight: 700, color: "var(--cc-text)" }}>{fmtMoney(s.earnedMinor, detail.currency)}</span>
             </div>
           ))}
+          </div>
+          </div>
         </Card>
       )}
     </div>

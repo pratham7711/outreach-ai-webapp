@@ -60,9 +60,9 @@ export default function PortalMyCampaignsPage() {
 
   if (loading) {
     return (
-      <div style={{ maxWidth: 960, margin: "0 auto", padding: 32 }}>
+      <div className="rsp-page" style={{ maxWidth: 960 }}>
         <Skeleton width="220px" height="32px" />
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 16, marginTop: 24 }}>
+        <div className="rsp-grid-3" style={{ marginTop: 24 }}>
           {[1, 2, 3].map((i) => (
             <Skeleton key={i} height="200px" borderRadius="12px" />
           ))}
@@ -72,7 +72,7 @@ export default function PortalMyCampaignsPage() {
   }
 
   return (
-    <div style={{ maxWidth: 960, margin: "0 auto", padding: 32 }}>
+    <div className="rsp-page" style={{ maxWidth: 960 }}>
       <div style={{ marginBottom: 32 }}>
         <h1 style={{ fontSize: 24, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>My Campaigns</h1>
         <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>Campaigns you&apos;ve joined — submit content and track earnings.</p>
@@ -98,7 +98,7 @@ export default function PortalMyCampaignsPage() {
           />
         </Card>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 16 }}>
+        <div className="rsp-grid-3">
           {campaigns.map((c) => {
             const rateEntries = Object.entries(c.rates) as [string, number][];
             return (

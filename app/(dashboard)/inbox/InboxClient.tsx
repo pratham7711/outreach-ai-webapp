@@ -2,7 +2,48 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Avatar, Badge, Tag, EmptyState, Skeleton } from "@pratham7711/ui";
-import { Send } from "lucide-react";
+import { Send, ArrowLeft } from "lucide-react";
+
+const inboxStyles = `
+  .inbox-panes {
+    display: grid;
+    grid-template-columns: 1fr;
+    flex: 1;
+    min-height: 0;
+    background: var(--cc-card);
+    border: 1px solid var(--cc-border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .inbox-list {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .inbox-list-scroll { flex: 1; overflow-y: auto; }
+  .inbox-thread {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    border-top: 1px solid var(--cc-border);
+  }
+  .inbox-back { display: inline-flex; }
+  .inbox-panes[data-active="false"] .inbox-thread { display: none; }
+  .inbox-panes[data-active="true"] .inbox-list { display: none; }
+
+  @media (min-width: 1024px) {
+    .inbox-panes {
+      grid-template-columns: 320px 1fr;
+    }
+    .inbox-list {
+      border-right: 1px solid var(--cc-border);
+    }
+    .inbox-thread { border-top: none; }
+    .inbox-back { display: none; }
+    .inbox-panes[data-active="false"] .inbox-thread,
+    .inbox-panes[data-active="true"] .inbox-list { display: flex; }
+  }
+`;
 
 type SenderType = "ORG" | "CREATOR" | "AI_AGENT";
 
@@ -125,6 +166,11 @@ export default function InboxClient() {
     router.replace(`/inbox?c=${id}`);
   };
 
+  const deselectConversation = () => {
+    setActiveId(null);
+    router.replace(`/inbox`);
+  };
+
   const handleSend = async () => {
     const body = draft.trim();
     if (!body || !activeId || sending) return;
@@ -153,27 +199,16 @@ export default function InboxClient() {
   };
 
   return (
-    <div className="cc-page-content" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+    <div className="rsp-page" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+      <style>{inboxStyles}</style>
       <div style={{ marginBottom: 24 }}>
         <h1 style={{ fontSize: 28, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Inbox</h1>
         <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>Direct messages with your creators</p>
       </div>
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "320px 1fr",
-          gap: 0,
-          flex: 1,
-          minHeight: 0,
-          background: "var(--cc-card)",
-          border: "1px solid var(--cc-border)",
-          borderRadius: 12,
-          overflow: "hidden",
-        }}
-      >
-        <div style={{ borderRight: "1px solid var(--cc-border)", display: "flex", flexDirection: "column", minHeight: 0 }}>
-          <div style={{ flex: 1, overflowY: "auto" }}>
+      <div className="inbox-panes" data-active={activeId ? "true" : "false"}>
+        <div className="inbox-list">
+          <div className="inbox-list-scroll">
             {conversations === null ? (
               <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
                 {[1, 2, 3, 4].map((i) => (
@@ -255,7 +290,7 @@ export default function InboxClient() {
           </div>
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", minHeight: 0 }}>
+        <div className="inbox-thread">
           {!activeId ? (
             <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
               <EmptyState icon="✉️" title="Select a conversation" description="Choose a creator from the list to view messages" />
@@ -282,6 +317,25 @@ export default function InboxClient() {
                   flexShrink: 0,
                 }}
               >
+                <button
+                  onClick={deselectConversation}
+                  aria-label="Back to conversations"
+                  className="inbox-back"
+                  style={{
+                    alignItems: "center",
+                    justifyContent: "center",
+                    width: 36,
+                    height: 36,
+                    borderRadius: 8,
+                    border: "none",
+                    background: "transparent",
+                    color: "var(--cc-text-muted)",
+                    cursor: "pointer",
+                    flexShrink: 0,
+                  }}
+                >
+                  <ArrowLeft size={18} />
+                </button>
                 <Avatar name={thread.conversation.creatorUser.name} src={thread.conversation.creatorUser.avatarUrl ?? undefined} size="sm" />
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontSize: 15, fontWeight: 700, color: "var(--cc-text)" }}>

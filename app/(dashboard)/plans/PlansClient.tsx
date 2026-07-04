@@ -215,9 +215,10 @@ export default function PlansClient({ plans: initialPlans }: { plans: Plan[] }) 
   }
 
   return (
-    <div className="cc-page-content">
+    <div className="rsp-page page-enter">
+      <style>{`.plan-feat-grid{display:grid;grid-template-columns:1fr;gap:8px 16px}@media(min-width:480px){.plan-feat-grid{grid-template-columns:1fr 1fr}}`}</style>
       {/* Page Header */}
-      <div style={{ marginBottom: 32, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+      <div className="rsp-header">
         <div>
           <h1 style={{ fontSize: 26, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Plans & Feature Access</h1>
           <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>Manage subscription plans and feature access for clients</p>
@@ -239,7 +240,7 @@ export default function PlansClient({ plans: initialPlans }: { plans: Plan[] }) 
           }
         />
       ) : (
-        <div className="cc-stagger" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))", gap: 20 }}>
+        <div className="cc-stagger" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 300px), 1fr))", gap: 20 }}>
           {plans.map((plan) => {
             const enabledCount = featureKeys.filter((k) => plan.features[k]).length;
             return (
@@ -262,7 +263,7 @@ export default function PlansClient({ plans: initialPlans }: { plans: Plan[] }) 
                   <div style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--cc-text-muted)", marginBottom: 12 }}>
                     Feature Access ({enabledCount}/{featureKeys.length})
                   </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 16px" }}>
+                  <div className="plan-feat-grid">
                     {featureKeys.map((key) => {
                       const on = plan.features[key] === true;
                       return (

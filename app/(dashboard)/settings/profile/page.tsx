@@ -46,9 +46,9 @@ function SectionHeader({ icon: Icon, title, description }: { icon: React.Element
 
 function FormRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "200px 1fr", gap: 16, alignItems: "start", paddingBottom: 16, borderBottom: "1px solid var(--cc-border)" }}>
-      <label style={{ fontSize: 13, fontWeight: 500, color: "var(--cc-text)", paddingTop: 8 }}>{label}</label>
-      <div>{children}</div>
+    <div className="settings-form-row" style={{ display: "grid", gap: 8, alignItems: "start", paddingBottom: 16, borderBottom: "1px solid var(--cc-border)" }}>
+      <label style={{ fontSize: 13, fontWeight: 500, color: "var(--cc-text)" }}>{label}</label>
+      <div style={{ minWidth: 0 }}>{children}</div>
     </div>
   );
 }
@@ -144,7 +144,8 @@ export default function OrgProfilePage() {
   };
 
   return (
-    <div className="cc-page-content">
+    <div className="rsp-page page-enter">
+      <style>{`@media(min-width:768px){.settings-form-row{grid-template-columns:200px 1fr;gap:16px}.settings-form-row>label{padding-top:8px}}`}</style>
       {/* Toast */}
       {toast && (
         <div style={{
@@ -157,7 +158,7 @@ export default function OrgProfilePage() {
         </div>
       )}
 
-      <div style={{ marginBottom: 32, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+      <div className="rsp-header">
         <div>
           <h1 style={{ fontSize: 26, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Organization Profile</h1>
           <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>Manage your workspace settings, branding, and bank details</p>

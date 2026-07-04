@@ -39,11 +39,13 @@ export function TopBar() {
 
   return (
     <header
+      className="cc-topbar"
       style={{
         height: 56,
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
+        gap: 12,
         paddingLeft: 32,
         paddingRight: 24,
         borderBottom: "1px solid var(--cc-border)",
@@ -51,8 +53,16 @@ export function TopBar() {
         flexShrink: 0,
       }}
     >
+      <style>{`
+        @media (max-width: 1023px) {
+          .cc-topbar { padding-left: 60px; padding-right: 16px; }
+        }
+        @media (max-width: 520px) {
+          .cc-topbar .cc-topbar-search { display: none; }
+        }
+      `}</style>
       {/* Breadcrumb */}
-      <nav aria-label="Breadcrumb" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+      <nav aria-label="Breadcrumb" style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, overflow: "hidden" }}>
         <Link
           href="/dashboard"
           style={{
@@ -95,9 +105,10 @@ export function TopBar() {
       </nav>
 
       {/* Right side: Search + Actions */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
         {/* Inline search */}
         <div
+          className="cc-topbar-search"
           style={{
             position: "relative",
             width: searchFocused ? 260 : 180,

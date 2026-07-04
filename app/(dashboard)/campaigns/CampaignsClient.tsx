@@ -75,9 +75,9 @@ export default function CampaignsClient({
   });
 
   return (
-    <div className="cc-page-content">
+    <div className="cc-page-content rsp-page">
       {/* Header */}
-      <div style={{ marginBottom: 28, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <div className="rsp-header">
         <div>
           <h1 style={{ fontSize: 26, fontWeight: 800, color: "var(--cc-text)", letterSpacing: "-0.02em", marginBottom: 4 }}>
             Campaigns
@@ -86,7 +86,7 @@ export default function CampaignsClient({
             {stats.total} Active Campaign{stats.total !== 1 ? "s" : ""}
           </p>
         </div>
-        <div style={{ display: "flex", gap: 10 }}>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           <Button variant="secondary" iconLeft={<FolderOpen size={15} />} size="sm">
             Folders
           </Button>
