@@ -74,8 +74,15 @@ export async function POST(request: NextRequest) {
         },
       });
 
+      const bareHandle = creator.handle.replace(/^@/, "");
       const creatorUser = await db.creatorUser.findFirst({
-        where: { handle: creator.handle },
+        where: {
+          OR: [
+            { handle: creator.handle },
+            { handle: `@${bareHandle}` },
+            { handle: bareHandle },
+          ],
+        },
         select: { id: true },
       });
 

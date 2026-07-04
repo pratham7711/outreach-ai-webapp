@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { Button, Input } from "@pratham7711/ui";
@@ -15,7 +14,6 @@ const ORG_TYPE_OPTIONS: { value: OrgTypeChoice; title: string; description: stri
 ];
 
 export default function SignupPage() {
-  const router = useRouter();
   const [orgName, setOrgName] = useState("");
   const [orgType, setOrgType] = useState<OrgTypeChoice>("AGENCY");
   const [name, setName] = useState("");
@@ -70,7 +68,7 @@ export default function SignupPage() {
         setLoading(false);
         return;
       }
-      router.push("/login?registered=1");
+      window.location.href = "/login?registered=1";
     } catch {
       setError("Something went wrong. Please try again.");
       setLoading(false);

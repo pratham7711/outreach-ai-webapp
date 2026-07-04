@@ -557,6 +557,7 @@ export default function NegotiationsSection({
                         key={c.id}
                         variant={selected ? "accent" : "neutral"}
                         outlined={!selected}
+                        clickable
                         onClick={() => toggleBatchCreator(c.id)}
                         style={{ cursor: "pointer", fontWeight: selected ? 600 : 400 }}
                       >
