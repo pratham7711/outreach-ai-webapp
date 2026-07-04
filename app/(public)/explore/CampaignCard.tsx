@@ -13,6 +13,8 @@ export default function CampaignCard({ campaign }: { campaign: MarketplaceCardDT
   const deadline = formatDeadline(campaign.submissionDeadline);
   const typeLabel = CAMPAIGN_TYPE_LABEL[campaign.campaignType] ?? campaign.campaignType;
   const topRates = campaign.rates.slice(0, 3);
+  const showDaysLeft = campaign.daysLeft != null && campaign.daysLeft <= 7;
+  const showClaimed = campaign.budgetClaimedPct != null && campaign.budgetClaimedPct >= 60;
 
   return (
     <Link
@@ -91,6 +93,40 @@ export default function CampaignCard({ campaign }: { campaign: MarketplaceCardDT
         >
           {campaign.title}
         </h3>
+
+        {/* Urgency chips */}
+        {(showDaysLeft || showClaimed) && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {showDaysLeft && (
+              <span
+                style={{
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: "#B45309",
+                  background: "#FEF3C7",
+                  borderRadius: 6,
+                  padding: "3px 8px",
+                }}
+              >
+                {campaign.daysLeft === 1 ? "1 day left" : `${campaign.daysLeft} days left`}
+              </span>
+            )}
+            {showClaimed && (
+              <span
+                style={{
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: "#DC2626",
+                  background: "#FEE2E2",
+                  borderRadius: 6,
+                  padding: "3px 8px",
+                }}
+              >
+                {campaign.budgetClaimedPct}% claimed
+              </span>
+            )}
+          </div>
+        )}
 
         {/* Rates */}
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>

@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { Card, Badge, Button, StatCard, EmptyState, Avatar, Skeleton, Modal } from "@pratham7711/ui";
 import PostsTab from "./PostsTab";
 import PerformanceTab from "./PerformanceTab";
+import MarketplaceAnalytics from "./MarketplaceAnalytics";
 import DepositsSection from "./DepositsSection";
 import PayoutRequestsSection from "./PayoutRequestsSection";
 import InvitesSection from "./InvitesSection";
@@ -650,7 +651,14 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
 
         {/* Analytics Tab */}
         {activeTab === "analytics" && (
-          campaign.posts.length === 0 ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+            {campaign.marketplaceVisibility && campaign.marketplaceVisibility !== "PRIVATE" && (
+              <div>
+                <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)", display: "block", marginBottom: 16 }}>Marketplace</span>
+                <MarketplaceAnalytics campaignId={id} currency={campaign.currency ?? "USD"} />
+              </div>
+            )}
+            {(campaign.posts.length === 0 ? (
             <EmptyState icon="📈" title="No analytics yet" description="Analytics will be available once posts are synced." />
           ) : (
             <div className="rsp-grid-2">
@@ -715,7 +723,8 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                 </div>
               </Card>
             </div>
-          )
+          ))}
+          </div>
         )}
 
         {/* Financials Tab */}

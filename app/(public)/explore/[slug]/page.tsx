@@ -34,7 +34,6 @@ export async function generateMetadata({
       title,
       description,
       type: "website",
-      images: campaign.orgLogoUrl ? [{ url: campaign.orgLogoUrl }] : undefined,
     },
     twitter: {
       card: "summary_large_image",
@@ -64,6 +63,15 @@ export default async function CampaignLandingPage({
     budget.capMinor && budget.capMinor > 0
       ? Math.min(100, Math.round((budget.earnedMinor / budget.capMinor) * 100))
       : null;
+
+  const daysLeft = (() => {
+    if (!campaign.submissionDeadline) return null;
+    const ms = new Date(campaign.submissionDeadline).getTime() - Date.now();
+    if (Number.isNaN(ms) || ms <= 0) return null;
+    return Math.ceil(ms / 86_400_000);
+  })();
+  const showDaysLeft = daysLeft != null && daysLeft <= 7;
+  const showClaimed = pct != null && pct >= 60;
 
   const joinRegisterHref = `/portal/register?join=${encodeURIComponent(campaign.slug)}`;
   const joinLoginHref = `/portal/login?join=${encodeURIComponent(campaign.slug)}`;
@@ -140,6 +148,14 @@ export default async function CampaignLandingPage({
           </h1>
 
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            {showDaysLeft && (
+              <span style={urgentChipStyle}>
+                {daysLeft === 1 ? "1 day left" : `${daysLeft} days left`}
+              </span>
+            )}
+            {showClaimed && (
+              <span style={claimedChipStyle}>{pct}% of pool claimed</span>
+            )}
             {deadline && (
               <span style={chipStyle}>Submit by {deadline}</span>
             )}
@@ -296,85 +312,101 @@ export default async function CampaignLandingPage({
         {leaderboard.length > 0 && (
           <Section title="Top creators">
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              {leaderboard.map((entry, i) => (
-                <div
-                  key={`${entry.handle}-${i}`}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 12,
-                    padding: "10px 4px",
-                    borderBottom:
-                      i < leaderboard.length - 1 ? "1px solid var(--cc-border)" : "none",
-                  }}
-                >
-                  <span
-                    style={{
-                      width: 22,
-                      fontSize: 13,
-                      fontWeight: 700,
-                      color: i < 3 ? "var(--cc-primary)" : "var(--cc-text-muted)",
-                      textAlign: "center",
-                    }}
+              {leaderboard.map((entry, i) => {
+                const displayHandle = entry.handle.replace(/^@+/, "");
+                const rowStyle: React.CSSProperties = {
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                  padding: "10px 4px",
+                  borderBottom:
+                    i < leaderboard.length - 1 ? "1px solid var(--cc-border)" : "none",
+                  textDecoration: "none",
+                  color: "inherit",
+                };
+                const inner = (
+                  <>
+                    <span
+                      style={{
+                        width: 22,
+                        fontSize: 13,
+                        fontWeight: 700,
+                        color: i < 3 ? "var(--cc-primary)" : "var(--cc-text-muted)",
+                        textAlign: "center",
+                      }}
+                    >
+                      {i + 1}
+                    </span>
+                    <div
+                      style={{
+                        width: 32,
+                        height: 32,
+                        borderRadius: "50%",
+                        overflow: "hidden",
+                        flexShrink: 0,
+                        background: "var(--cc-primary)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color: "white",
+                        fontSize: 13,
+                        fontWeight: 700,
+                      }}
+                    >
+                      {entry.avatarUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={entry.avatarUrl}
+                          alt={displayHandle}
+                          style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                        />
+                      ) : (
+                        displayHandle.charAt(0).toUpperCase()
+                      )}
+                    </div>
+                    <span
+                      style={{
+                        flex: 1,
+                        fontSize: 13,
+                        fontWeight: 600,
+                        color: entry.profileHandle ? "var(--cc-primary)" : "var(--cc-text)",
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                      }}
+                    >
+                      @{displayHandle}
+                    </span>
+                    <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>
+                      {formatCount(entry.verifiedViews)} views
+                    </span>
+                    <span
+                      style={{
+                        fontSize: 13,
+                        fontWeight: 700,
+                        color: "var(--cc-text)",
+                        minWidth: 60,
+                        textAlign: "right",
+                      }}
+                    >
+                      {formatMoney(entry.earnedMajor, sym)}
+                    </span>
+                  </>
+                );
+                return entry.profileHandle ? (
+                  <Link
+                    key={`${entry.handle}-${i}`}
+                    href={`/c/${encodeURIComponent(entry.profileHandle)}`}
+                    style={rowStyle}
                   >
-                    {i + 1}
-                  </span>
-                  <div
-                    style={{
-                      width: 32,
-                      height: 32,
-                      borderRadius: "50%",
-                      overflow: "hidden",
-                      flexShrink: 0,
-                      background: "var(--cc-primary)",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      color: "white",
-                      fontSize: 13,
-                      fontWeight: 700,
-                    }}
-                  >
-                    {entry.avatarUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={entry.avatarUrl}
-                        alt={entry.handle}
-                        style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                      />
-                    ) : (
-                      entry.handle.charAt(0).toUpperCase()
-                    )}
+                    {inner}
+                  </Link>
+                ) : (
+                  <div key={`${entry.handle}-${i}`} style={rowStyle}>
+                    {inner}
                   </div>
-                  <span
-                    style={{
-                      flex: 1,
-                      fontSize: 13,
-                      fontWeight: 600,
-                      color: "var(--cc-text)",
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                    }}
-                  >
-                    @{entry.handle}
-                  </span>
-                  <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>
-                    {formatCount(entry.verifiedViews)} views
-                  </span>
-                  <span
-                    style={{
-                      fontSize: 13,
-                      fontWeight: 700,
-                      color: "var(--cc-text)",
-                      minWidth: 60,
-                      textAlign: "right",
-                    }}
-                  >
-                    {formatMoney(entry.earnedMajor, sym)}
-                  </span>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </Section>
         )}
@@ -458,6 +490,26 @@ const chipStyle: React.CSSProperties = {
   color: "var(--cc-text-muted)",
   background: "var(--cc-card)",
   border: "1px solid var(--cc-border)",
+  borderRadius: 20,
+  padding: "5px 12px",
+};
+
+const urgentChipStyle: React.CSSProperties = {
+  fontSize: 12,
+  fontWeight: 700,
+  color: "#B45309",
+  background: "#FEF3C7",
+  border: "1px solid #FDE68A",
+  borderRadius: 20,
+  padding: "5px 12px",
+};
+
+const claimedChipStyle: React.CSSProperties = {
+  fontSize: 12,
+  fontWeight: 700,
+  color: "#DC2626",
+  background: "#FEE2E2",
+  border: "1px solid #FECACA",
   borderRadius: 20,
   padding: "5px 12px",
 };

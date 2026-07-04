@@ -64,6 +64,7 @@ export type SortKey = "newest" | "rate" | "budget";
  * budgets in currency, or other financial internals ever selected here.
  */
 export const MARKETPLACE_LIST_SELECT = {
+  id: true,
   publicSlug: true,
   title: true,
   campaignType: true,
@@ -101,6 +102,7 @@ export const MARKETPLACE_DETAIL_SELECT = {
 } as const;
 
 export type MarketplaceListRow = {
+  id: string;
   publicSlug: string | null;
   title: string;
   campaignType: string;
@@ -126,7 +128,19 @@ export type MarketplaceCardDTO = {
   budgetCapMajor: number | null;
   submissionDeadline: string | null;
   creatorCount: number;
+  daysLeft: number | null;
+  budgetClaimedPct: number | null;
 };
+
+/** Whole days from now until an ISO deadline; null if past or absent. */
+export function daysUntil(iso: string | null): number | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  const ms = d.getTime() - Date.now();
+  if (ms <= 0) return null;
+  return Math.ceil(ms / 86_400_000);
+}
 
 /** Shape a whitelisted row into the wire DTO. Never receives a raw Campaign object. */
 export function toCardDTO(row: MarketplaceListRow): MarketplaceCardDTO {
@@ -146,6 +160,8 @@ export function toCardDTO(row: MarketplaceListRow): MarketplaceCardDTO {
         : null,
     submissionDeadline: row.submissionDeadline ? row.submissionDeadline.toISOString() : null,
     creatorCount: row._count.activations,
+    daysLeft: daysUntil(row.submissionDeadline ? row.submissionDeadline.toISOString() : null),
+    budgetClaimedPct: null,
   };
 }
 
@@ -212,6 +228,7 @@ export async function fetchMarketplaceList(
     take: 500,
   })) as unknown as MarketplaceListRow[];
 
+  const idBySlug = new Map(rows.map((r) => [r.publicSlug ?? "", r.id]));
   let cards = rows.map(toCardDTO);
 
   if (platform && VALID_PLATFORMS.has(platform)) {
@@ -230,6 +247,28 @@ export async function fetchMarketplaceList(
   const start = (page - 1) * pageSize;
   const paged = cards.slice(start, start + pageSize);
 
+  // Enrich only the paged cards with a DERIVED budget-claimed percentage. We
+  // never expose raw earned amounts — only the % of the (already-public) cap.
+  const cappedIds = paged
+    .map((c) => (c.budgetCapMinor != null && c.budgetCapMinor > 0 ? idBySlug.get(c.slug) : undefined))
+    .filter((id): id is string => Boolean(id));
+  if (cappedIds.length > 0) {
+    const grouped = await db.viewLedger.groupBy({
+      by: ["campaignId"],
+      where: { campaignId: { in: cappedIds } },
+      _sum: { amountEarned: true },
+    });
+    const earnedByCampaign = new Map(
+      grouped.map((g) => [g.campaignId, majorToMinor(g._sum.amountEarned ?? 0)])
+    );
+    for (const c of paged) {
+      const id = idBySlug.get(c.slug);
+      if (!id || c.budgetCapMinor == null || c.budgetCapMinor <= 0) continue;
+      const earnedMinor = earnedByCampaign.get(id) ?? 0;
+      c.budgetClaimedPct = Math.min(100, Math.round((earnedMinor / c.budgetCapMinor) * 100));
+    }
+  }
+
   return {
     campaigns: paged,
     pagination: {
@@ -247,6 +286,8 @@ export type LeaderboardEntry = {
   avatarUrl: string | null;
   verifiedViews: number;
   earnedMajor: number;
+  /** Public profile handle (/c/[handle]) — only set when a portal creator exists. */
+  profileHandle: string | null;
 };
 
 export type MarketplaceDetailResult = {
@@ -325,14 +366,33 @@ export async function fetchMarketplaceDetail(
       : [];
   const creatorLookup = new Map(creators.map((c) => [c.id, c]));
 
+  // A leaderboard entry links to /c/[handle] only when a portal creator with
+  // that handle exists. Org-side Creator.handle may carry a leading "@" that
+  // the portal CreatorUser.handle does not — normalize before matching.
+  const normalizeHandle = (h: string | null | undefined) =>
+    (h ?? "").replace(/^@+/, "").trim();
+  const normalizedHandles = Array.from(
+    new Set(creators.map((c) => normalizeHandle(c.handle)).filter(Boolean))
+  );
+  const portalUsers =
+    normalizedHandles.length > 0
+      ? await db.creatorUser.findMany({
+          where: { handle: { in: normalizedHandles } },
+          select: { handle: true },
+        })
+      : [];
+  const portalHandleSet = new Set(portalUsers.map((u) => u.handle));
+
   const leaderboard: LeaderboardEntry[] = grouped.map((g) => {
     const c = creatorLookup.get(g.creatorId);
+    const normalized = normalizeHandle(c?.handle);
     return {
       handle: c?.handle ?? "creator",
       name: c?.name ?? "Creator",
       avatarUrl: c?.avatarUrl ?? null,
       verifiedViews: g._sum.viewsDelta ?? 0,
       earnedMajor: g._sum.amountEarned ?? 0,
+      profileHandle: normalized && portalHandleSet.has(normalized) ? normalized : null,
     };
   });
 

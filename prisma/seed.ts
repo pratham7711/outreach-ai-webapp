@@ -562,6 +562,105 @@ async function main() {
     },
   });
 
+  // ─── Marketplace campaign (Phase 2M) — GLOBAL, always populated ───
+  // Deterministic slug so /explore and /explore/[slug] are never empty in dev/CI.
+  const marketplaceSlug = "summer-drop-creator-rewards";
+  const deadline = new Date();
+  deadline.setDate(deadline.getDate() + 30);
+
+  const marketplaceCampaign = await prisma.campaign.upsert({
+    where: { id: "camp-mkt" },
+    update: {
+      marketplaceVisibility: "GLOBAL",
+      publicSlug: marketplaceSlug,
+      submissionDeadline: deadline,
+    },
+    create: {
+      id: "camp-mkt",
+      orgId: org.id,
+      clientId: clients[0].id,
+      createdById: user.id,
+      title: "Summer Drop — Creator Rewards",
+      status: "IN_PROGRESS",
+      campaignType: "VIEW_BASED",
+      budget: null,
+      currency: "USD",
+      createdAt: new Date("2026-06-20"),
+      marketplaceVisibility: "GLOBAL",
+      publicSlug: marketplaceSlug,
+      enrollmentOpen: true,
+      postApprovalMode: "AUTO_APPROVED",
+      autoApproveHours: 48,
+      guidelines:
+        "Create short-form content featuring the Summer Drop track. Hook in the first 3 seconds, tag the official account, and use the campaign hashtag. Original edits and creative interpretations are encouraged — the more views your clip earns, the more you get paid.",
+      requirements:
+        "Public account, no follower minimum. One submission per platform. Content must stay live for at least 30 days. No reposting other creators' clips.",
+      contentAssetsUrl: "https://example.com/assets/summer-drop-kit.zip",
+      ratePerThousand: { TIKTOK: 150, INSTAGRAM: 200, YOUTUBE: 120 },
+      minPayoutMinor: 2000,
+      marketplaceBudgetCapMinor: 500000,
+      submissionDeadline: deadline,
+    },
+  });
+
+  const marketplaceActivations = await Promise.all([
+    prisma.activation.upsert({ where: { id: "act-mkt-1" }, update: {}, create: { id: "act-mkt-1", campaignId: marketplaceCampaign.id, creatorId: creators[0].id, status: "APPROVED" } }),
+    prisma.activation.upsert({ where: { id: "act-mkt-2" }, update: {}, create: { id: "act-mkt-2", campaignId: marketplaceCampaign.id, creatorId: creators[1].id, status: "APPROVED" } }),
+    prisma.activation.upsert({ where: { id: "act-mkt-3" }, update: {}, create: { id: "act-mkt-3", campaignId: marketplaceCampaign.id, creatorId: creators[8].id, status: "APPROVED" } }),
+  ]);
+
+  const marketplacePostSpecs = [
+    { id: "post-mkt-1", activationId: marketplaceActivations[0].id, creatorId: creators[0].id, platform: "INSTAGRAM" as const, views: 240000, likes: 18000, comments: 620, shares: 3100, rate: 200 },
+    { id: "post-mkt-2", activationId: marketplaceActivations[1].id, creatorId: creators[1].id, platform: "TIKTOK" as const, views: 610000, likes: 52000, comments: 3400, shares: 9800, rate: 150 },
+    { id: "post-mkt-3", activationId: marketplaceActivations[2].id, creatorId: creators[8].id, platform: "YOUTUBE" as const, views: 430000, likes: 31000, comments: 2100, shares: 0, rate: 120 },
+  ];
+
+  for (const [i, spec] of marketplacePostSpecs.entries()) {
+    const postedAt = new Date();
+    postedAt.setDate(postedAt.getDate() - (10 - i * 3));
+    await prisma.post.upsert({
+      where: { id: spec.id },
+      update: { viewsCount: spec.views, status: "APPROVED" },
+      create: {
+        id: spec.id,
+        campaignId: marketplaceCampaign.id,
+        creatorId: spec.creatorId,
+        activationId: spec.activationId,
+        platform: spec.platform,
+        platformPostId: `mkt-${spec.id}`,
+        postUrl: `https://example.com/${spec.platform.toLowerCase()}/${spec.id}`,
+        caption: "Summer Drop content 🎵",
+        postedAt,
+        viewsCount: spec.views,
+        likesCount: spec.likes,
+        commentsCount: spec.comments,
+        sharesCount: spec.shares,
+        engagementRate: parseFloat((((spec.likes + spec.comments) / spec.views) * 100).toFixed(1)),
+        status: "APPROVED",
+      },
+    });
+
+    const amountEarned = Math.floor((spec.views / 1000) * spec.rate) / 100;
+    await prisma.viewLedger.upsert({
+      where: { id: `vl-mkt-${i + 1}` },
+      update: { viewsRecorded: spec.views, viewsDelta: spec.views, amountEarned, cumulativeEarned: amountEarned },
+      create: {
+        id: `vl-mkt-${i + 1}`,
+        orgId: org.id,
+        campaignId: marketplaceCampaign.id,
+        creatorId: spec.creatorId,
+        activationId: spec.activationId,
+        postId: spec.id,
+        viewsRecorded: spec.views,
+        viewsDelta: spec.views,
+        cpmRate: spec.rate / 100,
+        amountEarned,
+        cumulativeEarned: amountEarned,
+        recordedAt: postedAt,
+      },
+    });
+  }
+
   const postsByPlatform = await prisma.post.groupBy({
     by: ["platform"],
     where: { campaign: { orgId: org.id } },
@@ -582,6 +681,7 @@ async function main() {
     financials: 4,
     sounds: sounds.length,
     creatorUsers: 2,
+    marketplaceCampaign: { slug: marketplaceCampaign.publicSlug, visibility: marketplaceCampaign.marketplaceVisibility },
   });
 }
 

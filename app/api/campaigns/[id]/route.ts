@@ -17,7 +17,7 @@ const MARKETPLACE_PLATFORMS = ["TIKTOK", "INSTAGRAM", "YOUTUBE", "TWITTER"] as c
 
 // Per-platform rate per 1k views, stored as integer MINOR units (cents/paise) — P3.1 convention.
 const ratePerThousandSchema = z
-  .record(z.enum(MARKETPLACE_PLATFORMS), z.number().int().nonnegative())
+  .partialRecord(z.enum(MARKETPLACE_PLATFORMS), z.number().int().nonnegative())
   .nullable()
   .optional();
 
