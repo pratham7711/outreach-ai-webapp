@@ -5,6 +5,7 @@ import { Prisma } from "@/lib/generated/prisma";
 import { auth } from "@/lib/auth";
 import { createAuditActor, logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
+import { asFeatureMap } from "@/lib/features";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
@@ -23,9 +24,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     name: client.name,
     planId: client.planId,
     plan: client.plan
-      ? { id: client.plan.id, name: client.plan.name, features: JSON.parse(client.plan.features as string) }
+      ? { id: client.plan.id, name: client.plan.name, features: asFeatureMap(client.plan.features) ?? {} }
       : null,
-    featureOverrides: client.featureOverrides ? JSON.parse(client.featureOverrides as string) : null,
+    featureOverrides: asFeatureMap(client.featureOverrides),
   });
 }
 

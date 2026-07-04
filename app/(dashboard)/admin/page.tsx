@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import FeatureAccessClient from "./FeatureAccessClient";
+import { asFeatureMap } from "@/lib/features";
 
 export default async function AdminPage() {
   const session = await auth();
@@ -29,14 +30,14 @@ export default async function AdminPage() {
         logoUrl: c.logoUrl,
         planId: c.planId,
         planName: c.plan?.name ?? null,
-        planFeatures: c.plan ? (JSON.parse(c.plan.features as string) as Record<string, boolean>) : null,
-        featureOverrides: c.featureOverrides ? (JSON.parse(c.featureOverrides as string) as Record<string, boolean>) : null,
+        planFeatures: c.plan ? asFeatureMap(c.plan.features) : null,
+        featureOverrides: asFeatureMap(c.featureOverrides),
         campaignCount: c._count.campaigns,
       }))}
       plans={plans.map((p) => ({
         id: p.id,
         name: p.name,
-        features: JSON.parse(p.features as string) as Record<string, boolean>,
+        features: asFeatureMap(p.features) ?? {},
         clientCount: p._count.clients,
       }))}
     />

@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import PlansClient from "./PlansClient";
+import { asFeatureMap } from "@/lib/features";
 
 export default async function PlansPage() {
   const session = await auth();
@@ -20,7 +21,7 @@ export default async function PlansPage() {
         id: p.id,
         name: p.name,
         description: p.description,
-        features: JSON.parse(p.features as string) as Record<string, boolean>,
+        features: asFeatureMap(p.features) ?? {},
         isCustom: p.isCustom,
         clientCount: p._count.clients,
         createdAt: p.createdAt.toISOString(),

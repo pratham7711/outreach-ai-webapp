@@ -22,3 +22,16 @@ export function clientHasFeature(
   const override = overrides?.[feature];
   return override !== undefined ? override : planVal;
 }
+
+export function asFeatureMap(value: unknown): Record<string, boolean> | null {
+  if (value == null) return null;
+  if (typeof value === "string") {
+    try {
+      return JSON.parse(value) as Record<string, boolean>;
+    } catch {
+      return null;
+    }
+  }
+  if (typeof value === "object") return value as Record<string, boolean>;
+  return null;
+}

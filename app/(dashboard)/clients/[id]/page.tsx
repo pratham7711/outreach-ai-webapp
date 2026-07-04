@@ -2,6 +2,7 @@ import { redirect, notFound } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import ClientDetailClient from "./ClientDetailClient";
+import { asFeatureMap } from "@/lib/features";
 
 export default async function ClientDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
@@ -33,20 +34,20 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
         logoUrl: client.logoUrl,
         contactInfo: client.contactInfo,
         planId: client.planId,
-        featureOverrides: client.featureOverrides ? (JSON.parse(client.featureOverrides as string) as Record<string, boolean>) : null,
+        featureOverrides: asFeatureMap(client.featureOverrides),
         campaignCount: client._count.campaigns,
         plan: client.plan
           ? {
               id: client.plan.id,
               name: client.plan.name,
-              features: JSON.parse(client.plan.features as string) as Record<string, boolean>,
+              features: asFeatureMap(client.plan.features) ?? {},
             }
           : null,
       }}
       plans={plans.map((p) => ({
         id: p.id,
         name: p.name,
-        features: JSON.parse(p.features as string) as Record<string, boolean>,
+        features: asFeatureMap(p.features) ?? {},
       }))}
     />
   );

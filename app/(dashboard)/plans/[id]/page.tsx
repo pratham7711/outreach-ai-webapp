@@ -2,6 +2,7 @@ import { redirect, notFound } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import PlanForm from "../PlanForm";
+import { asFeatureMap } from "@/lib/features";
 
 export default async function EditPlanPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
@@ -18,7 +19,7 @@ export default async function EditPlanPage({ params }: { params: Promise<{ id: s
         id: plan.id,
         name: plan.name,
         description: plan.description,
-        features: JSON.parse(plan.features as string) as Record<string, boolean>,
+        features: asFeatureMap(plan.features) ?? {},
         isCustom: plan.isCustom,
       }}
     />
