@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { fetchPostMetrics, hasMetricCounts } from "@/lib/platforms/fetchPostMetrics";
 import { decideSyncAction, SyncAction } from "@/lib/sync/cadence";
+import { createLogger } from "@/lib/observability/logger";
 
 const MAX_SYNC_FAILURES = 5;
 const DEFAULT_PLATFORM_BUDGET = 100;
@@ -14,9 +15,12 @@ function parseBudget(raw: string | undefined): number {
 }
 
 export async function GET(request: NextRequest) {
+  const log = createLogger({ context: { route: "cron/sync-posts" } });
+
   const authHeader = request.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET;
   if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+    log.warn("auth failed", { reason: "bad-or-missing-cron-secret" });
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -125,7 +129,7 @@ export async function GET(request: NextRequest) {
           ]);
           sealed++;
         } catch (err) {
-          console.error(`Failed to seal post ${post.id}:`, err);
+          log.error("failed to seal post", { postId: post.id, error: String(err) });
           failed++;
         }
         continue;
@@ -171,7 +175,7 @@ export async function GET(request: NextRequest) {
         }
         synced++;
       } catch (err) {
-        console.error(`Failed to sync post ${post.id}:`, err);
+        log.error("failed to sync post", { postId: post.id, error: String(err) });
         failed++;
         const nextFailCount = post.syncFailCount + 1;
         const failData: Record<string, unknown> = { syncFailCount: nextFailCount };
@@ -182,7 +186,7 @@ export async function GET(request: NextRequest) {
         try {
           await db.post.update({ where: { id: post.id }, data: failData });
         } catch (updateErr) {
-          console.error(`Failed to record sync failure for post ${post.id}:`, updateErr);
+          log.error("failed to record sync failure", { postId: post.id, error: String(updateErr) });
         }
       }
     }
@@ -194,6 +198,7 @@ export async function GET(request: NextRequest) {
         byAction[d.action] = (byAction[d.action] ?? 0) + 1;
         byReason[d.reason] = (byReason[d.reason] ?? 0) + 1;
       }
+      log.info("dry-run complete", { total: posts.length, byAction, byReason });
       return NextResponse.json({
         ok: true,
         dryRun: true,
@@ -203,6 +208,7 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    log.info("sync complete", { synced, sealed, failed, deadLettered, skippedForBudget, total: posts.length });
     return NextResponse.json({
       ok: true,
       synced,
@@ -213,7 +219,7 @@ export async function GET(request: NextRequest) {
       total: posts.length,
     });
   } catch (error) {
-    console.error("Cron sync-posts failed:", error);
+    log.error("cron run failed", { error: String(error) });
     return NextResponse.json({ error: "Sync failed" }, { status: 500 });
   }
 }

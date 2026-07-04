@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { logAudit } from "@/lib/audit";
 import { computeCampaignAccrual } from "@/lib/marketplace/cap";
 import type { CampaignStatus } from "@/lib/generated/prisma/client";
+import { createLogger } from "@/lib/observability/logger";
 
 type Skip =
   | "not-marketplace"
@@ -35,9 +36,12 @@ const HOUR_MS = 60 * 60 * 1000;
  * (fail-closed on missing/wrong CRON_SECRET).
  */
 export async function GET(request: NextRequest) {
+  const log = createLogger({ context: { route: "cron/auto-approve-submissions" } });
+
   const authHeader = request.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET;
   if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+    log.warn("auth failed", { reason: "bad-or-missing-cron-secret" });
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -191,7 +195,7 @@ export async function GET(request: NextRequest) {
           campaignsCompleted++;
         }
       } catch (err) {
-        console.error(`Failed to auto-approve post ${post.id}:`, err);
+        log.error("failed to auto-approve post", { postId: post.id, error: String(err) });
         failed++;
       }
     }
@@ -219,13 +223,14 @@ export async function GET(request: NextRequest) {
       total: posts.length,
     });
   } catch (error) {
-    console.error("Cron auto-approve-submissions failed:", error);
+    log.error("cron run failed", { error: String(error) });
     return NextResponse.json({ error: "Auto-approve failed" }, { status: 500 });
   }
 }
 
 /** Mark a campaign COMPLETE because it reached its marketplace budget cap. */
 async function markCampaignCapped(campaignId: string, orgId: string, title: string) {
+  const log = createLogger({ context: { route: "cron/auto-approve-submissions" } });
   try {
     await db.campaign.update({
       where: { id: campaignId },
@@ -242,6 +247,6 @@ async function markCampaignCapped(campaignId: string, orgId: string, title: stri
       after: { status: "COMPLETE" },
     });
   } catch (err) {
-    console.error(`Failed to complete capped campaign ${campaignId}:`, err);
+    log.error("failed to complete capped campaign", { campaignId, error: String(err) });
   }
 }

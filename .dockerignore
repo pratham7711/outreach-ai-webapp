@@ -1,0 +1,26 @@
+node_modules
+.next
+.next-build
+.next-m4build
+.git
+.gitignore
+
+# Secrets — never baked into the image
+.env
+.env.*
+
+# Test / e2e artefacts
+e2e
+test-results
+playwright-report
+.playwright-mcp
+
+# Temp / local tooling
+tmp
+.tmp
+.claude
+*.log
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
