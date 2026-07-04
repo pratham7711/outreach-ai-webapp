@@ -4,7 +4,7 @@ import React from "react";
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { Card, Badge, Button, Input, Modal, EmptyState, Skeleton, Avatar } from "@pratham7711/ui";
 import { StatusTabs, Pagination } from "@/components/ds";
-import { Grid3X3, List, Plus, Check, X, Eye, Heart, MessageCircle, TrendingUp, BarChart3, ArrowUp, ArrowDown, ArrowUpDown, Flag } from "lucide-react";
+import { Grid3X3, List, Plus, Check, X, Eye, Heart, MessageCircle, TrendingUp, BarChart3, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
 import Link from "next/link";
 import { computePostEmv, computeEngagementRate } from "@/lib/metrics";
 
@@ -28,23 +28,11 @@ type PostData = {
   status: string;
   rejectionReason: string | null;
   lastSyncedAt: string | null;
-  createdAt?: string;
-  hasOpenFraudFlag?: boolean;
   creator: { id: string; name: string; handle: string; avatarUrl: string | null };
   snapshots?: SnapshotLite[];
 };
 
 type Creator = { id: string; name: string; handle: string };
-
-type MarketplacePlatform = "TIKTOK" | "INSTAGRAM" | "YOUTUBE" | "TWITTER";
-
-type MarketplaceCtx = {
-  currency: string;
-  ratePerThousand: Partial<Record<MarketplacePlatform, number>> | null;
-  budgetCapMinor: number | null;
-  autoApproveHours: number;
-  submissionDeadline: string | null;
-};
 
 const STATUS_TABS = [
   { key: "ALL", label: "All", bg: "#F3F4F6", color: "#374151" },
@@ -131,46 +119,7 @@ function deltaViews(post: PostData): number | null {
 
 const GRID_COLS = "1.6fr 96px 88px 84px 84px 88px 90px 90px 96px 100px 120px 150px";
 
-function earnedMinorForPost(
-  views: number,
-  platform: string,
-  rates: Partial<Record<MarketplacePlatform, number>> | null
-): number {
-  if (!rates) return 0;
-  const rate = rates[platform as MarketplacePlatform];
-  if (!rate || views <= 0) return 0;
-  return Math.floor((views / 1000) * rate);
-}
-
-function formatMinor(minor: number, currency: string): string {
-  const major = minor / 100;
-  try {
-    return new Intl.NumberFormat(undefined, { style: "currency", currency, maximumFractionDigits: 0 }).format(major);
-  } catch {
-    return `${currency} ${major.toFixed(0)}`;
-  }
-}
-
-function timeRemaining(createdAt: string | undefined, autoApproveHours: number): string {
-  if (!createdAt) return "—";
-  const dueMs = new Date(createdAt).getTime() + autoApproveHours * 3600_000;
-  const diff = dueMs - Date.now();
-  if (diff <= 0) return "Due now";
-  const hrs = Math.floor(diff / 3600_000);
-  if (hrs >= 24) return `${Math.floor(hrs / 24)}d ${hrs % 24}h`;
-  if (hrs >= 1) return `${hrs}h`;
-  return `${Math.max(1, Math.floor(diff / 60_000))}m`;
-}
-
-export default function PostsTab({
-  campaignId,
-  postApprovalMode,
-  marketplace = null,
-}: {
-  campaignId: string;
-  postApprovalMode: string | null;
-  marketplace?: MarketplaceCtx | null;
-}) {
+export default function PostsTab({ campaignId, postApprovalMode }: { campaignId: string; postApprovalMode: string | null }) {
   const [posts, setPosts] = useState<PostData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -264,21 +213,6 @@ export default function PostsTab({
     fetchPosts();
   };
 
-  const [flaggingId, setFlaggingId] = useState<string | null>(null);
-  const handleFlagSuspicious = async (postId: string) => {
-    setFlaggingId(postId);
-    try {
-      const res = await fetch(`/api/campaigns/${campaignId}/posts/${postId}/flag`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
-      });
-      if (res.ok) fetchPosts();
-    } finally {
-      setFlaggingId(null);
-    }
-  };
-
   const handleSyncNow = async (postId: string) => {
     setSyncingId(postId);
     try {
@@ -362,18 +296,6 @@ export default function PostsTab({
   }, [posts, minViews, creatorSearch, sortKey, sortDir]);
 
   const anyDelta = useMemo(() => posts.some((p) => (p.snapshots?.length ?? 0) >= 2), [posts]);
-
-  const accruedMinor = useMemo(() => {
-    if (!marketplace) return 0;
-    return posts
-      .filter((p) => p.status === "APPROVED")
-      .reduce((sum, p) => sum + earnedMinorForPost(p.viewsCount, p.platform, marketplace.ratePerThousand), 0);
-  }, [posts, marketplace]);
-
-  const pendingCount = useMemo(() => posts.filter((p) => p.status === "PENDING_REVIEW").length, [posts]);
-  const capMinor = marketplace?.budgetCapMinor ?? null;
-  const capFraction = capMinor && capMinor > 0 ? Math.min(1, accruedMinor / capMinor) : null;
-  const capReached = capMinor != null && capMinor > 0 && accruedMinor >= capMinor;
   const totalPages = Math.max(1, Math.ceil(filteredSorted.length / PAGE_SIZE));
   const pageRows = useMemo(
     () => filteredSorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
@@ -442,40 +364,6 @@ export default function PostsTab({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      {marketplace && (
-        <Card variant="outlined" style={{ padding: 16 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: capMinor ? 12 : 0 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: "var(--cc-text)" }}>Marketplace budget</span>
-              {capReached && <Badge variant="danger" style={{ fontSize: 11 }}>Cap reached</Badge>}
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-              <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>
-                {pendingCount} pending &middot; auto-approve in {marketplace.autoApproveHours}h
-              </span>
-              <span style={{ fontSize: 14, fontWeight: 700, color: "var(--cc-text)" }}>
-                {formatMinor(accruedMinor, marketplace.currency)}
-                {capMinor != null && capMinor > 0 && (
-                  <span style={{ color: "var(--cc-text-muted)", fontWeight: 500 }}> / {formatMinor(capMinor, marketplace.currency)}</span>
-                )}
-              </span>
-            </div>
-          </div>
-          {capMinor != null && capMinor > 0 && capFraction != null && (
-            <div style={{ height: 8, borderRadius: 999, background: "var(--cc-bg)", overflow: "hidden" }}>
-              <div
-                style={{
-                  width: `${Math.round(capFraction * 100)}%`,
-                  height: "100%",
-                  borderRadius: 999,
-                  background: capReached ? "#DC2626" : "var(--cc-primary)",
-                  transition: "width 0.3s ease",
-                }}
-              />
-            </div>
-          )}
-        </Card>
-      )}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <StatusTabs
@@ -595,15 +483,7 @@ export default function PostsTab({
                       {dv === null ? "—" : `${dv >= 0 ? "+" : ""}${formatNumber(dv)}`}
                     </span>
                   )}
-                  <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-start" }}>
-                    <Badge variant={STATUS_BADGE[post.status] ?? "neutral"}>{post.status.replace(/_/g, " ")}</Badge>
-                    {post.hasOpenFraudFlag && <Badge variant="danger" style={{ fontSize: 10 }}>⚠ Flagged</Badge>}
-                    {marketplace && post.status === "PENDING_REVIEW" && !post.hasOpenFraudFlag && (
-                      <span style={{ fontSize: 11, color: "var(--cc-text-muted)" }}>
-                        auto in {timeRemaining(post.createdAt, marketplace.autoApproveHours)}
-                      </span>
-                    )}
-                  </div>
+                  <Badge variant={STATUS_BADGE[post.status] ?? "neutral"}>{post.status.replace(/_/g, " ")}</Badge>
                   <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{formatSince(post.lastSyncedAt)}</span>
                   <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
                     <button onClick={() => openMetrics(post)} title="Update metrics" style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid var(--cc-primary)", background: "var(--cc-card)", color: "var(--cc-primary)", cursor: "pointer", fontSize: 12, display: "flex", alignItems: "center", gap: 2 }}>
@@ -612,7 +492,7 @@ export default function PostsTab({
                     <button onClick={() => handleSyncNow(post.id)} disabled={syncingId === post.id} title="Sync now" style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid var(--cc-border)", background: "var(--cc-card)", color: "var(--cc-text-muted)", cursor: syncingId === post.id ? "wait" : "pointer", fontSize: 12, display: "flex", alignItems: "center", gap: 2, opacity: syncingId === post.id ? 0.6 : 1 }}>
                       <TrendingUp size={12} />
                     </button>
-                    {(postApprovalMode === "MANUAL" || marketplace) && post.status === "PENDING_REVIEW" && (
+                    {postApprovalMode === "MANUAL" && post.status === "PENDING_REVIEW" && (
                       <>
                         <button onClick={() => handleApprove(post.id)} title="Approve" style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid #059669", background: "#D1FAE5", color: "#059669", cursor: "pointer", fontSize: 12, display: "flex", alignItems: "center", gap: 2 }}>
                           <Check size={12} />
@@ -621,11 +501,6 @@ export default function PostsTab({
                           <X size={12} />
                         </button>
                       </>
-                    )}
-                    {marketplace && !post.hasOpenFraudFlag && post.status !== "REJECTED" && (
-                      <button onClick={() => handleFlagSuspicious(post.id)} disabled={flaggingId === post.id} title="Flag as suspicious" style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid #D97706", background: "#FEF3C7", color: "#D97706", cursor: flaggingId === post.id ? "wait" : "pointer", fontSize: 12, display: "flex", alignItems: "center", gap: 2, opacity: flaggingId === post.id ? 0.6 : 1 }}>
-                        <Flag size={12} />
-                      </button>
                     )}
                   </div>
                 </div>

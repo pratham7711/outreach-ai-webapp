@@ -140,6 +140,17 @@ enum NegotiationStatus {
   COUNTERED
 }
 
+enum OrgType {
+  AGENCY
+  BRAND
+}
+
+enum MessageSenderType {
+  ORG
+  CREATOR
+  AI_AGENT
+}
+
 enum PayoutRequestStatus {
   PENDING
   APPROVED
@@ -223,6 +234,7 @@ model Organization {
   plan           String    @default("starter")
   planExpiresAt  DateTime?
   currency       Currency  @default(USD)
+  orgType        OrgType   @default(AGENCY)
   uiConfig       Json?     // OrgUIConfig — features, nav, branding, limits, dashboard widgets
   // Bank account
   bankAccountName   String?
@@ -254,6 +266,7 @@ model Organization {
   campaignDeposits    CampaignDeposit[]
   creatorReviews      CreatorReview[]
   creatorTestimonials CreatorTestimonial[]
+  conversations       Conversation[]
 }
 
 model User {
@@ -329,6 +342,8 @@ model Campaign {
   status           CampaignStatus   @default(DRAFT)
   campaignType     CampaignType     @default(BUDGET_BASED)
   typeConfig       Json?            // shape varies per CampaignType + payout model
+  selfServe        Boolean          @default(false)
+  platformFeeMinor Int              @default(0)
   enrollmentOpen        Boolean               @default(false)
   // ─── Whop-style marketplace (Phase 2M) ───────────────────────────────────
   // NOTE: All *Minor amounts below are integer MINOR units (cents/paise) per the
@@ -385,6 +400,7 @@ model Campaign {
   testimonials        CreatorTestimonial[]
   viewLedgerEntries   ViewLedger[]
   fraudFlags          ViewFraudFlag[]
+  conversations       Conversation[]
 }
 
 model CampaignTeamMember {
@@ -541,6 +557,8 @@ model Post {
   lastSyncedAt    DateTime?
   syncFailCount   Int        @default(0)
   syncDisabledAt  DateTime?
+  trackingEnabled   Boolean  @default(false)
+  trackingStartedAt DateTime?
   createdAt       DateTime   @default(now())
   updatedAt       DateTime   @updatedAt
 
@@ -846,6 +864,10 @@ model NegotiationOffer {
   currency     String            @default("USD")
   status       NegotiationStatus @default(PENDING)
   notes        String?
+  aiRound        Int     @default(0)
+  aiCounterRate  Float?
+  finalRate      Float?
+  conversationId String?
   createdAt    DateTime          @default(now())
   updatedAt    DateTime          @updatedAt
 
@@ -932,6 +954,7 @@ model CreatorUser {
   proposals      CampaignProposal[]
   testimonials   CreatorTestimonial[]
   payoutRequests PayoutRequest[]
+  conversations  Conversation[]
 }
 
 model CreatorSession {
@@ -956,6 +979,42 @@ model CampaignProposal {
 
   campaign    Campaign    @relation(fields: [campaignId], references: [id])
   creatorUser CreatorUser @relation(fields: [creatorUserId], references: [id])
+}
+
+// ─── Messaging (org ↔ creator DMs, AI negotiation) ───────────────────────────
+
+model Conversation {
+  id            String    @id @default(cuid())
+  orgId         String
+  creatorUserId String
+  campaignId    String?
+  lastMessageAt DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  org         Organization @relation(fields: [orgId], references: [id])
+  creatorUser CreatorUser  @relation(fields: [creatorUserId], references: [id])
+  campaign    Campaign?    @relation(fields: [campaignId], references: [id])
+  messages    Message[]
+
+  @@unique([orgId, creatorUserId, campaignId])
+  @@index([orgId, lastMessageAt])
+  @@index([creatorUserId, lastMessageAt])
+}
+
+model Message {
+  id                 String            @id @default(cuid())
+  conversationId     String
+  senderType         MessageSenderType
+  senderUserId       String?
+  body               String            @db.Text
+  negotiationOfferId String?
+  readAt             DateTime?
+  createdAt          DateTime          @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id])
+
+  @@index([conversationId, createdAt])
 }
 
 model CreatorReview {

@@ -4,14 +4,12 @@ import { useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { Toaster } from "sonner";
 import Link from "next/link";
-import { LayoutDashboard, Compass, Send, DollarSign, Settings, LogOut, Star, Briefcase, Wallet } from "lucide-react";
+import { LayoutDashboard, Compass, Send, DollarSign, Settings, LogOut, Star } from "lucide-react";
 
 const NAV_LINKS = [
   { href: "/portal/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/portal/discover", label: "Discover", icon: Compass },
-  { href: "/portal/campaigns", label: "My Campaigns", icon: Briefcase },
   { href: "/portal/proposals", label: "Proposals", icon: Send },
-  { href: "/portal/earnings", label: "Earnings", icon: Wallet },
   { href: "/portal/reviews", label: "Reviews", icon: Star },
   { href: "/portal/payout-requests", label: "Payouts", icon: DollarSign },
   { href: "/portal/settings", label: "Settings", icon: Settings },
@@ -143,7 +141,7 @@ function PortalNav() {
 
 export default function PortalLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const isLoginPage = pathname === "/portal/login" || pathname === "/portal/register";
+  const isLoginPage = pathname === "/portal/login";
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--cc-bg)" }}>
