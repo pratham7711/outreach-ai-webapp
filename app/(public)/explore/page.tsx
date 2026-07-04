@@ -167,6 +167,11 @@ export default async function ExplorePage({
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--cc-bg)" }}>
+      <style>{`
+        .explore-container { max-width: 1200px; margin: 0 auto; width: 100%; padding-left: 16px; padding-right: 16px; }
+        @media (min-width: 768px) { .explore-container { padding-left: 24px; padding-right: 24px; } }
+        @media (min-width: 1024px) { .explore-container { padding-left: 32px; padding-right: 32px; } }
+      `}</style>
       {/* Hero */}
       <div
         style={{
@@ -174,7 +179,7 @@ export default async function ExplorePage({
           borderBottom: "1px solid var(--cc-border)",
         }}
       >
-        <div style={{ maxWidth: 1120, margin: "0 auto", padding: "56px 20px 40px" }}>
+        <div className="explore-container" style={{ paddingTop: 56, paddingBottom: 40 }}>
           <span
             style={{
               display: "inline-block",
@@ -218,7 +223,7 @@ export default async function ExplorePage({
       </div>
 
       {/* Body */}
-      <div style={{ maxWidth: 1120, margin: "0 auto", padding: "32px 20px 80px" }}>
+      <div className="explore-container" style={{ paddingTop: 32, paddingBottom: 80 }}>
         <Suspense fallback={<div style={{ height: 48, marginBottom: 24 }} />}>
           <MarketplaceFilters />
         </Suspense>

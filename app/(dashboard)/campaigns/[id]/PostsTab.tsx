@@ -129,7 +129,7 @@ function deltaViews(post: PostData): number | null {
   return post.viewsCount - previous.viewsCount;
 }
 
-const GRID_COLS = "1.6fr 96px 88px 84px 84px 88px 90px 90px 96px 100px 120px 150px";
+const GRID_COLS = "1.6fr 96px 88px 84px 84px 88px 90px 90px 96px 140px 90px 150px";
 
 function earnedMinorForPost(
   views: number,
@@ -544,9 +544,9 @@ export default function PostsTab({
         />
       ) : !error && viewMode === "list" ? (
         <>
-          <Card variant="solid" noPadding style={{ overflowX: "auto" }}>
+          <Card variant="solid" noPadding style={{ overflowX: "auto", maxWidth: "100%" }}>
             <div style={{
-              display: "grid", gridTemplateColumns: GRID_COLS, minWidth: 1180,
+              display: "grid", gridTemplateColumns: GRID_COLS, minWidth: 1200,
               gap: 12, padding: "12px 24px", borderBottom: "1px solid var(--cc-border)", background: "var(--cc-bg)", alignItems: "center",
             }}>
               <PlainHeader label="Creator" />
@@ -571,7 +571,7 @@ export default function PostsTab({
                   key={post.id}
                   style={{
                     display: "grid",
-                    gridTemplateColumns: GRID_COLS, minWidth: 1180,
+                    gridTemplateColumns: GRID_COLS, minWidth: 1200,
                     gap: 12, padding: "14px 24px", alignItems: "center",
                     borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined,
                   }}

@@ -425,7 +425,7 @@ export default function ApiKeysClient() {
           <p style={{ fontSize: 12, fontWeight: 600, color: "var(--cc-text-muted)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 6 }}>
             REST / cURL
           </p>
-          <div style={{ background: "#1C2048", borderRadius: 8, padding: "12px 16px" }}>
+          <div style={{ background: "#1C2048", borderRadius: 8, padding: "12px 16px", overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
             <code style={{ fontFamily: "monospace", fontSize: 12, color: "#A5B4FC", whiteSpace: "pre" }}>
               {`curl -H "Authorization: Bearer oai_YOUR_KEY_HERE" \\
   https://your-domain.com/api/campaigns`}
@@ -436,7 +436,7 @@ export default function ApiKeysClient() {
           <p style={{ fontSize: 12, fontWeight: 600, color: "var(--cc-text-muted)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 6 }}>
             MCP Server config
           </p>
-          <div style={{ background: "#1C2048", borderRadius: 8, padding: "12px 16px" }}>
+          <div style={{ background: "#1C2048", borderRadius: 8, padding: "12px 16px", overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
             <code style={{ fontFamily: "monospace", fontSize: 12, color: "#A5B4FC", whiteSpace: "pre" }}>
               {`{
   "headers": {

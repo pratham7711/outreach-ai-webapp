@@ -71,6 +71,13 @@ export default function CalendarPage() {
 
   return (
     <div className="rsp-page">
+      <style>{`
+        .cal-more { display: none; }
+        @media (max-width: 767px) {
+          .cal-chip-extra { display: none; }
+          .cal-more { display: block; }
+        }
+      `}</style>
       <div className="rsp-header">
         <div>
           <h1 style={{ fontSize: 26, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Calendar</h1>
@@ -128,7 +135,9 @@ export default function CalendarPage() {
                     <div
                       key={day.toISOString()}
                       onClick={() => setSelectedDay(day)}
+                      className="cal-day-cell"
                       style={{
+                        minWidth: 0, overflow: "hidden",
                         minHeight: 90, padding: 6,
                         borderBottom: "1px solid var(--cc-border)",
                         borderRight: "1px solid var(--cc-border)",
@@ -146,9 +155,9 @@ export default function CalendarPage() {
                       }}>
                         {format(day, "d")}
                       </span>
-                      {/* Campaign dots */}
-                      {campaignCreated.map(c => (
-                        <div key={c.id} style={{
+                      {campaignCreated.map((c, ci) => (
+                        <div key={c.id} className={ci >= 2 ? "cal-chip cal-chip-extra" : "cal-chip"} style={{
+                          minWidth: 0,
                           marginTop: 2, padding: "1px 4px", borderRadius: 3, fontSize: 9, fontWeight: 500,
                           background: `${STATUS_COLORS[c.status] ?? "var(--cc-primary)"}20`,
                           color: STATUS_COLORS[c.status] ?? "var(--cc-primary)",
@@ -157,6 +166,13 @@ export default function CalendarPage() {
                           {c.title}
                         </div>
                       ))}
+                      {campaignCreated.length > 2 && (
+                        <div className="cal-more" style={{
+                          marginTop: 2, fontSize: 9, fontWeight: 600, color: "var(--cc-text-muted)",
+                        }}>
+                          +{campaignCreated.length - 2} more
+                        </div>
+                      )}
                       {/* Deliverable dots */}
                       {deliverables.length > 0 && (
                         <div style={{ display: "flex", gap: 3, marginTop: 3 }}>

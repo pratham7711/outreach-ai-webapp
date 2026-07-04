@@ -312,9 +312,11 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
       <style>{`
         .perf-split { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; }
         @media (min-width: 1024px) { .perf-split { grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); } }
+        .perf-tiles .ui-statcard { min-width: 0; }
+        .perf-tiles .ui-statcard-value { overflow-wrap: anywhere; font-size: clamp(17px, 5vw, 30px); }
       `}</style>
       <div style={{ display: "flex", justifyContent: "flex-end" }}>{shareButton}</div>
-      <div className="rsp-grid-tiles">
+      <div className="rsp-grid-tiles perf-tiles">
         <StatCard value={formatNumber(kpis.views)} label="Views" icon={<Eye size={16} />} />
         <StatCard value={formatNumber(kpis.engagements)} label="Engagements" icon={<Heart size={16} />} />
         <StatCard value={engRateDisplay} label="Eng. Rate" icon={<Percent size={16} />} />

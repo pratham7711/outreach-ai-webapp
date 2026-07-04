@@ -251,7 +251,9 @@ export default function SharedPerformanceReport({
                     </ResponsiveContainer>
                   </div>
                 ) : (
-                  <p style={{ fontSize: 14, color: "var(--cc-text-muted)", margin: 0 }}>No platform data.</p>
+                  <div style={{ height: 260, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <p style={{ fontSize: 14, color: "var(--cc-text-muted)", margin: 0, textAlign: "center" }}>No platform data yet</p>
+                  </div>
                 )}
               </div>
 

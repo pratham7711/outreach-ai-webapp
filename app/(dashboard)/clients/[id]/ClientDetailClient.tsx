@@ -131,7 +131,11 @@ export default function ClientDetailClient({ client, plans }: Props) {
       </div>
 
       {/* Stats */}
-      <div className="rsp-grid-3" style={{ marginBottom: 32 }}>
+      <style>{`
+        .client-stats .ui-statcard { min-width: 0; }
+        .client-stats .ui-statcard-value { font-size: clamp(20px, 4vw, 30px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      `}</style>
+      <div className="rsp-grid-3 client-stats" style={{ marginBottom: 32 }}>
         <StatCard value={String(client.campaignCount)} label="Campaigns" />
         <StatCard value={contact.email || "—"} label="Contact Email" />
         <StatCard value={contact.contactPerson || "—"} label="Contact Person" />

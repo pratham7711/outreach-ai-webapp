@@ -153,7 +153,13 @@ export default function PayoutsClient({ payouts, stats, creators, campaigns }: {
       </div>
 
       {/* Stats */}
-      <div className="cc-stagger rsp-grid-tiles" style={{ marginBottom: 32 }}>
+      <style>{`
+        .payout-tiles { display: grid; gap: 12px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        @media (min-width: 640px) { .payout-tiles { gap: 16px; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); } }
+        .payout-tiles .ui-statcard { min-width: 0; }
+        .payout-tiles .ui-statcard-value { overflow-wrap: anywhere; font-size: clamp(17px, 5vw, 30px); }
+      `}</style>
+      <div className="cc-stagger payout-tiles" style={{ marginBottom: 32 }}>
         <StatCard value={formatCurrency(stats.sent)} label="Total Paid" />
         <StatCard value={formatCurrency(stats.pending)} label="Pending" />
         <StatCard value={formatCurrency(stats.processing)} label="Processing" />
@@ -228,10 +234,10 @@ export default function PayoutsClient({ payouts, stats, creators, campaigns }: {
           </div>
         ) : (
           <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
-            <div style={{ minWidth: 720 }}>
+            <div style={{ minWidth: 780 }}>
             {/* Table header */}
             <div style={{
-              display: "grid", gridTemplateColumns: "40px 1fr 140px 100px 100px 120px 100px",
+              display: "grid", gridTemplateColumns: "40px 1fr 140px 100px 100px 120px 160px",
               gap: 12, padding: "12px 24px", borderBottom: "1px solid var(--cc-border)", background: "var(--cc-bg)",
             }}>
               <div style={{ display: "flex", alignItems: "center" }}>
@@ -252,7 +258,7 @@ export default function PayoutsClient({ payouts, stats, creators, campaigns }: {
                   key={p.id}
                   className="cc-table-row"
                   style={{
-                    display: "grid", gridTemplateColumns: "40px 1fr 140px 100px 100px 120px 100px",
+                    display: "grid", gridTemplateColumns: "40px 1fr 140px 100px 100px 120px 160px",
                     gap: 12, padding: "14px 24px", alignItems: "center",
                     borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined,
                     cursor: "pointer",

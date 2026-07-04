@@ -205,7 +205,7 @@ export default function FeatureAccessClient({ clients: initialClients, plans }: 
               description="Try adjusting your search"
             />
           ) : (
-            <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+            <div className="rsp-table-wrap">
             <div style={{ minWidth: 720 }}>
               {/* Table header */}
               <div style={{
@@ -378,7 +378,7 @@ export default function FeatureAccessClient({ clients: initialClients, plans }: 
               description="No clients have custom feature overrides"
             />
           ) : (
-            <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+            <div className="rsp-table-wrap">
             <div style={{ minWidth: 640 }}>
               <div style={{
                 padding: "12px 20px", borderBottom: "1px solid var(--cc-border)",

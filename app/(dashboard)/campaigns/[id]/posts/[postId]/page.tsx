@@ -325,7 +325,7 @@ export default function PostDetailPage() {
               </p>
             )}
           </div>
-          <div style={{ display: "flex", gap: 8, flexShrink: 0, flexWrap: "wrap", justifyContent: "flex-end" }}>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
             <Button variant="secondary" onClick={handleFlag} loading={flagging} disabled={flagged}>
               <span style={{ display: "flex", alignItems: "center", gap: 4, color: flagged ? "#DC2626" : undefined }}>
                 <Flag size={14} /> {flagged ? "Flagged" : "Flag Suspicious"}

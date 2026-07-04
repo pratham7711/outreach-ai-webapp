@@ -75,6 +75,15 @@ async function checkRoute(
     }
 
     await page.waitForTimeout(400);
+
+    // Fail loudly if the rendered page is Next.js's 404 (a PRIVATE campaign's
+    // landing 404s by design — screenshotting that must not count as a pass).
+    const h1Text = ((await page.locator('h1').first().textContent().catch(() => '')) ?? '').trim();
+    if (/404|not found|page could not be found|this page could not be found/i.test(h1Text)) {
+      await page.close();
+      throw new Error(`${route.name}@${w}: rendered the 404 page (h1="${h1Text}") — route not actually reachable`);
+    }
+
     try {
       await assertNoHScroll(page, `${route.name}@${w}`);
     } catch (err: unknown) {
@@ -145,20 +154,33 @@ test.describe('Responsive D — public marketplace + auth', () => {
     }
 
     // Fallback: promote a seed campaign to GLOBAL (mirrors marketplace-funnel setup).
+    // A PRIVATE campaign's landing 404s by design, so we must confirm the promotion
+    // actually succeeded AND that the slug is really listed publicly before proceeding.
     if (!slug) {
       const adminContext = await browser.newContext({ storageState: 'e2e/fixtures/.auth.json' });
       const adminPage = await adminContext.newPage();
-      await adminPage.request.patch('/api/campaigns/camp-1', {
+      const patchRes = await adminPage.request.patch('/api/campaigns/camp-1', {
         data: {
           ratePerThousand: { TIKTOK: 150, INSTAGRAM: 150, YOUTUBE: 200 },
           marketplaceVisibility: 'GLOBAL',
           guidelines: 'Responsive-D landing test guidelines.',
         },
       });
-      const verify = await adminPage.request.get('/api/campaigns/camp-1');
-      if (verify.ok()) {
-        const d = await verify.json();
-        slug = d?.publicSlug ?? null;
+
+      if (patchRes.ok()) {
+        // Re-query the PUBLIC marketplace: only trust a slug that actually shows up
+        // there (the source of truth for "renders without a 404").
+        const listRes = await publicPage.request.get('/api/public/marketplace?page=1&pageSize=50');
+        if (listRes.ok()) {
+          const listData = await listRes.json();
+          const camps: { id?: string; slug?: string }[] = listData?.campaigns ?? [];
+          const promoted = camps.find((c) => c.id === 'camp-1') ?? null;
+          slug = promoted?.slug ?? null;
+        }
+      } else {
+        // Leave slug null — the fixme below carries the reason.
+        // eslint-disable-next-line no-console
+        console.warn(`explore-slug: PATCH camp-1 → GLOBAL failed with status ${patchRes.status()}`);
       }
       await adminContext.close();
     }
@@ -166,7 +188,7 @@ test.describe('Responsive D — public marketplace + auth', () => {
     await publicPage.close();
 
     if (!slug) {
-      test.fixme(true, 'No GLOBAL marketplace campaign exists to render /explore/[slug]');
+      test.fixme(true, 'No GLOBAL marketplace campaign is listed to render /explore/[slug] (promotion failed or slug not published)');
       await publicContext.close();
       return;
     }

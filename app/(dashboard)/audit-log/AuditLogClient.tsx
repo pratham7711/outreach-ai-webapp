@@ -240,7 +240,7 @@ export default function AuditLogClient({
           </div>
         ) : (
           <>
-            <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+            <div className="rsp-table-wrap">
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14, minWidth: 720 }}>
                 <thead>
                   <tr style={{ background: "var(--cc-hover-bg)" }}>
