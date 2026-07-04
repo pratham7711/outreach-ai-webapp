@@ -37,7 +37,24 @@ export async function GET(
       orderBy: { createdAt: "desc" },
     });
 
-    return NextResponse.json({ negotiations });
+    let acceptedTotal = 0;
+    let pendingEstimate = 0;
+    for (const n of negotiations as Array<{
+      status?: string;
+      offeredRate?: number;
+      counterRate?: number | null;
+      aiCounterRate?: number | null;
+      finalRate?: number | null;
+    }>) {
+      const standing = n.aiCounterRate ?? n.counterRate ?? n.offeredRate ?? 0;
+      if (n.status === "ACCEPTED") {
+        acceptedTotal += n.finalRate ?? standing;
+      } else if (n.status === "PENDING" || n.status === "COUNTERED") {
+        pendingEstimate += standing;
+      }
+    }
+
+    return NextResponse.json({ negotiations, aggregate: { acceptedTotal, pendingEstimate } });
   } catch (error) {
     console.error("Failed to fetch negotiations:", error);
     return NextResponse.json({ error: "Failed to fetch negotiations" }, { status: 500 });

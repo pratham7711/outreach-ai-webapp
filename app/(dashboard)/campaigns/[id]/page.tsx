@@ -639,7 +639,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
             {/* Proposals, Invites & Negotiations */}
             <ProposalsSection campaignId={id} />
             <InvitesSection campaignId={id} />
-            <NegotiationsSection campaignId={id} />
+            <NegotiationsSection campaignId={id} platformFeeMinor={(campaign as any).platformFeeMinor ?? 0} />
           </div>
         )}
 

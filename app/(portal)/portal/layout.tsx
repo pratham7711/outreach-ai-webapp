@@ -4,12 +4,14 @@ import { useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { Toaster } from "sonner";
 import Link from "next/link";
-import { LayoutDashboard, Compass, Send, DollarSign, Settings, LogOut, Star, Briefcase, Wallet } from "lucide-react";
+import { LayoutDashboard, Compass, Send, DollarSign, Settings, LogOut, Star, Briefcase, Wallet, MessageSquare, Handshake } from "lucide-react";
 
 const NAV_LINKS = [
   { href: "/portal/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/portal/discover", label: "Discover", icon: Compass },
   { href: "/portal/campaigns", label: "My Campaigns", icon: Briefcase },
+  { href: "/portal/messages", label: "Messages", icon: MessageSquare },
+  { href: "/portal/offers", label: "Offers", icon: Handshake },
   { href: "/portal/proposals", label: "Proposals", icon: Send },
   { href: "/portal/earnings", label: "Earnings", icon: Wallet },
   { href: "/portal/reviews", label: "Reviews", icon: Star },
