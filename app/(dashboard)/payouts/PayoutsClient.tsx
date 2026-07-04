@@ -243,6 +243,7 @@ export default function PayoutsClient({ payouts, stats, creators, campaigns }: {
               <div style={{ display: "flex", alignItems: "center" }}>
                 <input
                   type="checkbox"
+                  aria-label="Select all payouts"
                   checked={selected.size === filtered.length && filtered.length > 0}
                   onChange={toggleAll}
                   style={{ accentColor: "var(--cc-primary)" }}
@@ -270,6 +271,7 @@ export default function PayoutsClient({ payouts, stats, creators, campaigns }: {
                   <div style={{ display: "flex", alignItems: "center" }} onClick={(e) => e.stopPropagation()}>
                     <input
                       type="checkbox"
+                      aria-label={`Select payout for ${p.creator.name}`}
                       checked={selected.has(p.id)}
                       onChange={() => toggleSelect(p.id)}
                       style={{ accentColor: "var(--cc-primary)" }}

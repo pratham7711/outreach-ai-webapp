@@ -80,6 +80,12 @@ export default function SharedPerformanceReport({
   const kpiColumns = isMobile ? "repeat(2, 1fr)" : "repeat(3, 1fr)";
   const lowerColumns = isMobile ? "1fr" : "1fr 1.4fr";
 
+  const kpiGridStyle: React.CSSProperties = {
+    display: "grid",
+    gridTemplateColumns: kpiColumns,
+    gap: 16,
+  };
+
   return (
     <div style={{ minHeight: "100vh", background: "var(--cc-bg)" }}>
       <div style={{ maxWidth: 960, margin: "0 auto", padding: isMobile ? "24px 16px 64px" : "40px 24px 80px" }}>
@@ -141,7 +147,8 @@ export default function SharedPerformanceReport({
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-            <div style={{ display: "grid", gridTemplateColumns: kpiColumns, gap: 16 }}>
+            <style>{".spr-stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 16px; } @media (min-width: 1280px) { .spr-stat-grid { grid-template-columns: repeat(6, 1fr); } }"}</style>
+            <div className="spr-stat-grid">
               <StatTile value={formatNumber(kpis.views)} label="Views" />
               <StatTile value={formatNumber(kpis.engagements)} label="Engagements" />
               <StatTile value={engRateDisplay} label="Eng. Rate" />

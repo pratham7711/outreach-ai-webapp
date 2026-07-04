@@ -255,7 +255,7 @@ export default function TeamClient({ users, invites }: { users: User[]; invites:
                   </Badge>
                   <button
                     onClick={() => handleCancel(invite.id)}
-                    title="Cancel invite"
+                    aria-label="Cancel invite"
                     style={{
                       background: "none",
                       border: "none",

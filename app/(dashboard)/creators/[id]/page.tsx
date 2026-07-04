@@ -117,10 +117,23 @@ const responsiveStyles = `
     flex-wrap: wrap;
   }
   .cd-banner-inner { padding: 0 16px 20px; margin-top: -32px; }
+  .cd-tabs-bar-wrap {
+    position: relative;
+    margin-bottom: 24px;
+  }
+  .cd-tabs-bar-wrap::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 1px;
+    width: 48px;
+    pointer-events: none;
+    background: linear-gradient(to right, transparent, var(--cc-card));
+  }
   .cd-tabs-bar {
     display: flex;
     gap: 4px;
-    margin-bottom: 24px;
     border-bottom: 1px solid var(--cc-border);
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
@@ -326,8 +339,9 @@ function EditCreatorModal({ open, onClose, creator, onSaved }: { open: boolean; 
         <Input label="Name" value={form.name} onChange={(e: React.ChangeEvent<HTMLInputElement>) => set("name", e.target.value)} required />
         <Input label="Handle" value={form.handle} onChange={(e: React.ChangeEvent<HTMLInputElement>) => set("handle", e.target.value)} required />
         <div>
-          <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Platform</label>
+          <label htmlFor="edit-creator-platform" style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Platform</label>
           <select
+            id="edit-creator-platform"
             value={form.platform}
             onChange={e => set("platform", e.target.value)}
             style={{
@@ -347,14 +361,14 @@ function EditCreatorModal({ open, onClose, creator, onSaved }: { open: boolean; 
           </select>
         </div>
         <div>
-          <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Bio</label>
-          <textarea value={form.bio} onChange={e => set("bio", e.target.value)} style={textareaStyle} />
+          <label htmlFor="edit-creator-bio" style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Bio</label>
+          <textarea id="edit-creator-bio" value={form.bio} onChange={e => set("bio", e.target.value)} style={textareaStyle} />
         </div>
         <Input label="Contact Email" type="email" value={form.contactEmail} onChange={(e: React.ChangeEvent<HTMLInputElement>) => set("contactEmail", e.target.value)} />
         <Input label="Rate per Post (USD)" type="number" value={form.rate} onChange={(e: React.ChangeEvent<HTMLInputElement>) => set("rate", e.target.value)} />
         <div>
-          <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Notes</label>
-          <textarea value={form.notes} onChange={e => set("notes", e.target.value)} style={textareaStyle} />
+          <label htmlFor="edit-creator-notes" style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Notes</label>
+          <textarea id="edit-creator-notes" value={form.notes} onChange={e => set("notes", e.target.value)} style={textareaStyle} />
         </div>
         <button
           type="submit"
@@ -571,25 +585,29 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
       </Card>
 
       {/* Tabs */}
-      <div className="cd-tabs-bar">
-        {tabsList.map(tab => (
-          <button
-            key={tab.value}
-            onClick={() => setActiveTab(tab.value)}
-            style={{
-              padding: "10px 16px", fontSize: 14, fontWeight: 500,
-              background: "none", border: "none", cursor: "pointer",
-              borderBottom: activeTab === tab.value ? "2px solid var(--cc-primary)" : "2px solid transparent",
-              color: activeTab === tab.value ? "var(--cc-primary)" : "var(--cc-text-muted)",
-              display: "flex", alignItems: "center", gap: 6,
-            }}
-          >
-            {tab.label}
-            {tab.count !== undefined && (
-              <span style={{ fontSize: 11, background: "var(--cc-bg)", borderRadius: 10, padding: "1px 7px", color: "var(--cc-text-muted)" }}>{tab.count}</span>
-            )}
-          </button>
-        ))}
+      <div className="cd-tabs-bar-wrap">
+        <div className="cd-tabs-bar" role="tablist">
+          {tabsList.map(tab => (
+            <button
+              key={tab.value}
+              role="tab"
+              aria-selected={activeTab === tab.value}
+              onClick={() => setActiveTab(tab.value)}
+              style={{
+                padding: "10px 16px", fontSize: 14, fontWeight: 500,
+                background: "none", border: "none", cursor: "pointer",
+                borderBottom: activeTab === tab.value ? "2px solid var(--cc-primary)" : "2px solid transparent",
+                color: activeTab === tab.value ? "var(--cc-primary)" : "var(--cc-text-muted)",
+                display: "flex", alignItems: "center", gap: 6,
+              }}
+            >
+              {tab.label}
+              {tab.count !== undefined && (
+                <span style={{ fontSize: 11, background: "var(--cc-bg)", borderRadius: 10, padding: "1px 7px", color: "var(--cc-text-muted)" }}>{tab.count}</span>
+              )}
+            </button>
+          ))}
+        </div>
       </div>
 
       <motion.div key={activeTab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
@@ -735,8 +753,9 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
                 <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                     <div>
-                      <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--cc-text)", marginBottom: 4 }}>Platform</label>
+                      <label htmlFor="add-social-platform" style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--cc-text)", marginBottom: 4 }}>Platform</label>
                       <select
+                        id="add-social-platform"
                         value={addSocialForm.platform}
                         onChange={e => setAddSocialForm(prev => ({ ...prev, platform: e.target.value }))}
                         style={{
@@ -818,7 +837,7 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
                       </Badge>
                       <button
                         onClick={() => handleRemoveSocial(acct.id)}
-                        title="Remove account"
+                        aria-label={`Remove ${acct.platform} account ${acct.handle}`}
                         style={{
                           background: "none", border: "none", cursor: "pointer", padding: 4,
                           color: "var(--cc-text-muted)", borderRadius: 4,

@@ -442,6 +442,7 @@ export default function PostsTab({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <style>{".posts-min-views { display: none; } @media (min-width: 768px) { .posts-min-views { display: block; } }"}</style>
       {marketplace && (
         <Card variant="outlined" style={{ padding: 16 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: capMinor ? 12 : 0 }}>
@@ -493,7 +494,8 @@ export default function PostsTab({
             value={creatorSearch}
             onChange={(e) => setCreatorSearch(e.target.value)}
             placeholder="Search creator..."
-            style={{ ...selectStyle, width: 150 }}
+            aria-label="Search creator"
+            style={{ ...selectStyle, flexGrow: 1, minWidth: 140, width: "auto" }}
           />
           <input
             type="number"
@@ -501,20 +503,22 @@ export default function PostsTab({
             value={minViews}
             onChange={(e) => setMinViews(e.target.value)}
             placeholder="Min views"
+            aria-label="Minimum views filter"
+            className="posts-min-views"
             style={{ ...selectStyle, width: 110 }}
           />
-          <select value={platformFilter} onChange={(e) => setPlatformFilter(e.target.value)} style={selectStyle}>
+          <select value={platformFilter} onChange={(e) => setPlatformFilter(e.target.value)} aria-label="Filter by platform" style={selectStyle}>
             {PLATFORM_FILTERS.map((p) => <option key={p} value={p}>{p === "ALL" ? "All Platforms" : p}</option>)}
           </select>
-          <select value={mediaTypeFilter} onChange={(e) => setMediaTypeFilter(e.target.value)} style={selectStyle}>
+          <select value={mediaTypeFilter} onChange={(e) => setMediaTypeFilter(e.target.value)} aria-label="Filter by media type" style={selectStyle}>
             {MEDIA_TYPE_FILTERS.map((m) => <option key={m} value={m}>{m === "ALL" ? "All Types" : m}</option>)}
           </select>
 
           <div style={{ display: "flex", border: "1px solid var(--cc-border)", borderRadius: 8, overflow: "hidden" }}>
-            <button onClick={() => setViewMode("list")} style={{ padding: "6px 10px", background: viewMode === "list" ? "var(--cc-bg)" : "var(--cc-card)", border: "none", cursor: "pointer" }}>
+            <button onClick={() => setViewMode("list")} aria-label="List view" aria-pressed={viewMode === "list"} style={{ padding: "6px 10px", background: viewMode === "list" ? "var(--cc-bg)" : "var(--cc-card)", border: "none", cursor: "pointer" }}>
               <List size={16} color={viewMode === "list" ? "var(--cc-primary)" : "var(--cc-text-muted)"} />
             </button>
-            <button onClick={() => setViewMode("grid")} style={{ padding: "6px 10px", background: viewMode === "grid" ? "var(--cc-bg)" : "var(--cc-card)", border: "none", cursor: "pointer" }}>
+            <button onClick={() => setViewMode("grid")} aria-label="Grid view" aria-pressed={viewMode === "grid"} style={{ padding: "6px 10px", background: viewMode === "grid" ? "var(--cc-bg)" : "var(--cc-card)", border: "none", cursor: "pointer" }}>
               <Grid3X3 size={16} color={viewMode === "grid" ? "var(--cc-primary)" : "var(--cc-text-muted)"} />
             </button>
           </div>
@@ -606,24 +610,24 @@ export default function PostsTab({
                   </div>
                   <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{formatSince(post.lastSyncedAt)}</span>
                   <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-                    <button onClick={() => openMetrics(post)} title="Update metrics" style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid var(--cc-primary)", background: "var(--cc-card)", color: "var(--cc-primary)", cursor: "pointer", fontSize: 12, display: "flex", alignItems: "center", gap: 2 }}>
+                    <button onClick={() => openMetrics(post)} aria-label="Update metrics" style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid var(--cc-primary)", background: "var(--cc-card)", color: "var(--cc-primary)", cursor: "pointer", fontSize: 12, display: "flex", alignItems: "center", gap: 2 }}>
                       <BarChart3 size={12} />
                     </button>
-                    <button onClick={() => handleSyncNow(post.id)} disabled={syncingId === post.id} title="Sync now" style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid var(--cc-border)", background: "var(--cc-card)", color: "var(--cc-text-muted)", cursor: syncingId === post.id ? "wait" : "pointer", fontSize: 12, display: "flex", alignItems: "center", gap: 2, opacity: syncingId === post.id ? 0.6 : 1 }}>
+                    <button onClick={() => handleSyncNow(post.id)} disabled={syncingId === post.id} aria-label="Sync post metrics now" style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid var(--cc-border)", background: "var(--cc-card)", color: "var(--cc-text-muted)", cursor: syncingId === post.id ? "wait" : "pointer", fontSize: 12, display: "flex", alignItems: "center", gap: 2, opacity: syncingId === post.id ? 0.6 : 1 }}>
                       <TrendingUp size={12} />
                     </button>
                     {(postApprovalMode === "MANUAL" || marketplace) && post.status === "PENDING_REVIEW" && (
                       <>
-                        <button onClick={() => handleApprove(post.id)} title="Approve" style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid #059669", background: "#D1FAE5", color: "#059669", cursor: "pointer", fontSize: 12, display: "flex", alignItems: "center", gap: 2 }}>
+                        <button onClick={() => handleApprove(post.id)} aria-label="Approve post" style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid #059669", background: "#D1FAE5", color: "#059669", cursor: "pointer", fontSize: 12, display: "flex", alignItems: "center", gap: 2 }}>
                           <Check size={12} />
                         </button>
-                        <button onClick={() => setShowRejectModal(post.id)} title="Reject" style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid #DC2626", background: "#FEE2E2", color: "#DC2626", cursor: "pointer", fontSize: 12, display: "flex", alignItems: "center", gap: 2 }}>
+                        <button onClick={() => setShowRejectModal(post.id)} aria-label="Reject post" style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid #DC2626", background: "#FEE2E2", color: "#DC2626", cursor: "pointer", fontSize: 12, display: "flex", alignItems: "center", gap: 2 }}>
                           <X size={12} />
                         </button>
                       </>
                     )}
                     {marketplace && !post.hasOpenFraudFlag && post.status !== "REJECTED" && (
-                      <button onClick={() => handleFlagSuspicious(post.id)} disabled={flaggingId === post.id} title="Flag as suspicious" style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid #D97706", background: "#FEF3C7", color: "#D97706", cursor: flaggingId === post.id ? "wait" : "pointer", fontSize: 12, display: "flex", alignItems: "center", gap: 2, opacity: flaggingId === post.id ? 0.6 : 1 }}>
+                      <button onClick={() => handleFlagSuspicious(post.id)} disabled={flaggingId === post.id} aria-label="Flag post as suspicious" style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid #D97706", background: "#FEF3C7", color: "#D97706", cursor: flaggingId === post.id ? "wait" : "pointer", fontSize: 12, display: "flex", alignItems: "center", gap: 2, opacity: flaggingId === post.id ? 0.6 : 1 }}>
                         <Flag size={12} />
                       </button>
                     )}
@@ -709,15 +713,15 @@ export default function PostsTab({
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <Input label="Post URL" value={addForm.postUrl} onChange={(e) => setAddForm((f) => ({ ...f, postUrl: e.target.value }))} placeholder="https://youtube.com/watch?v=..." required />
             <div>
-              <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Creator</label>
-              <select value={addForm.creatorId} onChange={(e) => setAddForm((f) => ({ ...f, creatorId: e.target.value }))} style={{ ...selectStyle, width: "100%" }}>
+              <label htmlFor="add-post-creator" style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Creator</label>
+              <select id="add-post-creator" value={addForm.creatorId} onChange={(e) => setAddForm((f) => ({ ...f, creatorId: e.target.value }))} style={{ ...selectStyle, width: "100%" }}>
                 <option value="">Select creator...</option>
                 {creators.map((c) => <option key={c.id} value={c.id}>{c.name} (@{c.handle})</option>)}
               </select>
             </div>
             <div>
-              <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Media Type</label>
-              <select value={addForm.mediaType} onChange={(e) => setAddForm((f) => ({ ...f, mediaType: e.target.value }))} style={{ ...selectStyle, width: "100%" }}>
+              <label htmlFor="add-post-mediatype" style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Media Type</label>
+              <select id="add-post-mediatype" value={addForm.mediaType} onChange={(e) => setAddForm((f) => ({ ...f, mediaType: e.target.value }))} style={{ ...selectStyle, width: "100%" }}>
                 <option value="">Auto-detect</option>
                 <option value="REEL">Reel</option>
                 <option value="STORY">Story</option>
@@ -762,8 +766,9 @@ export default function PostsTab({
           </div>
         }>
           <div>
-            <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Reason (optional)</label>
+            <label htmlFor="reject-reason" style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Reason (optional)</label>
             <textarea
+              id="reject-reason"
               value={rejectionReason}
               onChange={(e) => setRejectionReason(e.target.value)}
               placeholder="Why is this post being rejected?"

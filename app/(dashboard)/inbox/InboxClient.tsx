@@ -400,6 +400,7 @@ export default function InboxClient() {
                   onChange={(e) => setDraft(e.target.value)}
                   onKeyDown={handleKeyDown}
                   placeholder="Type a message…"
+                  aria-label="Message"
                   rows={1}
                   style={{
                     flex: 1,

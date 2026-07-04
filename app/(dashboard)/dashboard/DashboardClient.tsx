@@ -199,6 +199,7 @@ export default function DashboardClient(props: Props) {
           <select
             value={granularity}
             onChange={e => setGranularity(e.target.value as "daily" | "weekly" | "monthly")}
+            aria-label="Chart granularity"
             style={{
               padding: "6px 10px", borderRadius: 8, border: "1px solid var(--cc-border)",
               fontSize: 12, fontWeight: 600, color: "var(--cc-text)", background: "var(--cc-card)", cursor: "pointer",

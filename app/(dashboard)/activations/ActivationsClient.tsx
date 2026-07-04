@@ -136,7 +136,7 @@ export default function ActivationsClient({ activations, stats, creators, campai
             {COLUMNS.map((col) => {
               const items = grouped.get(col) ?? [];
               return (
-                <div key={col} style={{ width: 280, display: "flex", flexDirection: "column", background: "var(--cc-bg)", borderRadius: 12, border: "1px solid var(--cc-border)" }}>
+                <div key={col} style={{ width: 280, minWidth: 200, display: "flex", flexDirection: "column", background: "var(--cc-bg)", borderRadius: 12, border: "1px solid var(--cc-border)" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 16px", borderBottom: "1px solid var(--cc-border)" }}>
                     <span style={{ width: 8, height: 8, borderRadius: "50%", background: COLUMN_COLORS[col], flexShrink: 0 }} />
                     <span style={{ fontSize: 12, fontWeight: 600, color: "var(--cc-text)", flex: 1 }}>{COLUMN_LABELS[col]}</span>
@@ -197,15 +197,15 @@ export default function ActivationsClient({ activations, stats, creators, campai
         >
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <div>
-              <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Campaign *</label>
-              <select required value={createForm.campaignId} onChange={e => setCreateForm(f => ({ ...f, campaignId: e.target.value }))} style={selectStyle}>
+              <label htmlFor="act-campaign" style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Campaign *</label>
+              <select id="act-campaign" required value={createForm.campaignId} onChange={e => setCreateForm(f => ({ ...f, campaignId: e.target.value }))} style={selectStyle}>
                 <option value="">Select campaign...</option>
                 {campaigns.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}
               </select>
             </div>
             <div>
-              <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Creator *</label>
-              <select required value={createForm.creatorId} onChange={e => setCreateForm(f => ({ ...f, creatorId: e.target.value }))} style={selectStyle}>
+              <label htmlFor="act-creator" style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Creator *</label>
+              <select id="act-creator" required value={createForm.creatorId} onChange={e => setCreateForm(f => ({ ...f, creatorId: e.target.value }))} style={selectStyle}>
                 <option value="">Select creator...</option>
                 {creators.map(c => <option key={c.id} value={c.id}>{c.name} (@{c.handle})</option>)}
               </select>

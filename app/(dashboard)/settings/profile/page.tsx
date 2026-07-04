@@ -206,6 +206,7 @@ export default function OrgProfilePage() {
                 <select
                   value={timezone}
                   onChange={e => setTimezone(e.target.value)}
+                  aria-label="Timezone"
                   style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid var(--cc-border)", fontSize: 13, color: "var(--cc-text)", background: "var(--cc-card)", outline: "none" }}
                 >
                   {TIMEZONES.map(tz => <option key={tz} value={tz}>{tz}</option>)}
@@ -215,6 +216,7 @@ export default function OrgProfilePage() {
                 <select
                   value={currency}
                   onChange={e => setCurrency(e.target.value)}
+                  aria-label="Default currency"
                   style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid var(--cc-border)", fontSize: 13, color: "var(--cc-text)", background: "var(--cc-card)", outline: "none" }}
                 >
                   {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
@@ -269,6 +271,7 @@ export default function OrgProfilePage() {
                       type="color"
                       value={value}
                       onChange={e => set(e.target.value)}
+                      aria-label={label}
                       style={{ width: 40, height: 36, borderRadius: 6, border: "1px solid var(--cc-border)", cursor: "pointer", padding: 2, background: "var(--cc-card)" }}
                     />
                     <Input

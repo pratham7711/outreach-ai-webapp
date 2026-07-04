@@ -222,17 +222,19 @@ export default function FinancialReportsPage() {
       </div>
 
       {/* Period Tabs */}
-      <div style={{ display: "flex", gap: 6, marginBottom: 24, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: 4, marginBottom: 24, flexWrap: "wrap" }}>
         {PERIODS.map(p => (
           <button
             key={p.key}
             onClick={() => setPeriod(p.key)}
+            aria-pressed={period === p.key}
             style={{
-              padding: "6px 14px", borderRadius: 20, fontSize: 13, fontWeight: 500, cursor: "pointer",
+              padding: "0 10px", height: 40, borderRadius: 20, fontSize: 13, fontWeight: 500, cursor: "pointer",
               border: period === p.key ? "1.5px solid var(--cc-primary)" : "1.5px solid var(--cc-border)",
               background: period === p.key ? "var(--cc-primary)" : "var(--cc-card)",
               color: period === p.key ? "white" : "var(--cc-text-muted)",
               transition: "all 0.1s",
+              whiteSpace: "nowrap",
             }}
           >
             {p.label}
