@@ -12,12 +12,14 @@ export const authConfig = {
       const isLoggedIn = !!auth?.user;
       const isPortalPage = nextUrl.pathname.startsWith("/portal");
       const isPublicCreatorPage = nextUrl.pathname.startsWith("/c/");
+      // Public marketplace (Phase 2M) — unauthenticated /explore browsing.
+      const isPublicMarketplacePage = nextUrl.pathname.startsWith("/explore");
       const isAuthPage =
         nextUrl.pathname.startsWith("/login") ||
         nextUrl.pathname.startsWith("/signup") ||
         nextUrl.pathname.startsWith("/forgot-password");
-      // Portal and public creator pages have their own auth — skip org auth
-      if (isPortalPage || isPublicCreatorPage) return true;
+      // Portal, public creator pages, and public marketplace skip org auth
+      if (isPortalPage || isPublicCreatorPage || isPublicMarketplacePage) return true;
       if (!isLoggedIn && !isAuthPage) {
         return Response.redirect(new URL("/login", nextUrl));
       }

@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/sync-posts",
       "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/auto-approve-submissions",
+      "schedule": "0 * * * *"
     }
   ]
 }

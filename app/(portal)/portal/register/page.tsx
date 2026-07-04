@@ -8,7 +8,7 @@ import { Eye, EyeOff } from "lucide-react";
 
 /**
  * Run the join funnel after successful auth when ?join=[slug] is present.
- * Lands on the campaign portal page with ?joined=1, else "My campaigns".
+ * Lands on the campaign portal page with ?joined=1, else the dashboard.
  */
 async function runJoinAndRedirect(
   router: ReturnType<typeof useRouter>,
@@ -16,7 +16,7 @@ async function runJoinAndRedirect(
   inviteCode: string | null
 ) {
   if (!joinSlug) {
-    router.push("/portal/dashboard");
+    router.push("/portal/campaigns");
     return;
   }
   try {
@@ -29,6 +29,7 @@ async function runJoinAndRedirect(
       router.push(`/portal/campaigns/${joinSlug}?joined=1`);
       return;
     }
+    // Joined-auth succeeded but join failed (deadline/invite/private) — surface on the campaign page.
     const data = await res.json().catch(() => ({}));
     router.push(
       `/portal/campaigns/${joinSlug}?joinError=${encodeURIComponent(data.error ?? "Could not join")}`
@@ -38,7 +39,7 @@ async function runJoinAndRedirect(
   }
 }
 
-function LoginInner() {
+function RegisterInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const joinSlug = searchParams.get("join");
@@ -47,10 +48,10 @@ function LoginInner() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [form, setForm] = useState({ email: "", password: "" });
+  const [form, setForm] = useState({ email: "", password: "", name: "", handle: "" });
   const set = (patch: Partial<typeof form>) => setForm((f) => ({ ...f, ...patch }));
 
-  const registerHref = `/portal/register${
+  const loginHref = `/portal/login${
     joinSlug ? `?join=${encodeURIComponent(joinSlug)}${inviteCode ? `&invite=${encodeURIComponent(inviteCode)}` : ""}` : ""
   }`;
 
@@ -59,10 +60,15 @@ function LoginInner() {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch("/api/portal/auth/login", {
+      const res = await fetch("/api/portal/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          email: form.email,
+          password: form.password,
+          name: form.name,
+          handle: form.handle,
+        }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -99,10 +105,10 @@ function LoginInner() {
         }}
       >
         <h1 style={{ fontSize: 24, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4, textAlign: "center" }}>
-          Creator Portal
+          Create your creator account
         </h1>
         <p style={{ fontSize: 14, color: "var(--cc-text-muted)", marginBottom: 24, textAlign: "center" }}>
-          {joinSlug ? "Sign in to join this campaign" : "Sign in to your creator account"}
+          {joinSlug ? "Sign up to join this campaign" : "Join the marketplace and start earning"}
         </p>
 
         {error && (
@@ -112,6 +118,8 @@ function LoginInner() {
         )}
 
         <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <Input label="Full Name" value={form.name} onChange={(e) => set({ name: e.target.value })} placeholder="Your name" required />
+          <Input label="Handle" value={form.handle} onChange={(e) => set({ handle: e.target.value })} placeholder="yourhandle (no spaces)" required />
           <Input label="Email" type="email" value={form.email} onChange={(e) => set({ email: e.target.value })} placeholder="creator@example.com" required />
           <div style={{ position: "relative" }}>
             <Input
@@ -119,7 +127,7 @@ function LoginInner() {
               type={showPassword ? "text" : "password"}
               value={form.password}
               onChange={(e) => set({ password: e.target.value })}
-              placeholder="Enter password"
+              placeholder="Min 8 characters"
               required
             />
             <button
@@ -131,14 +139,14 @@ function LoginInner() {
             </button>
           </div>
           <Button variant="primary" loading={loading} style={{ width: "100%", marginTop: 8 }}>
-            Sign In
+            Create Account
           </Button>
         </form>
 
         <div style={{ textAlign: "center", marginTop: 20, fontSize: 14, color: "var(--cc-text-muted)" }}>
-          Don&apos;t have an account?{" "}
-          <Link href={registerHref} style={{ color: "var(--cc-primary)", fontWeight: 600, textDecoration: "none" }}>
-            Register
+          Already have an account?{" "}
+          <Link href={loginHref} style={{ color: "var(--cc-primary)", fontWeight: 600, textDecoration: "none" }}>
+            Sign In
           </Link>
         </div>
       </div>
@@ -146,10 +154,10 @@ function LoginInner() {
   );
 }
 
-export default function PortalLoginPage() {
+export default function PortalRegisterPage() {
   return (
     <Suspense fallback={null}>
-      <LoginInner />
+      <RegisterInner />
     </Suspense>
   );
 }

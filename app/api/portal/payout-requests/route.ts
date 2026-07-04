@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
 
     const { campaignId, requestedAmount, currency } = parsed.data;
 
-    // Verify creator has an ACCEPTED proposal for this campaign
+    // Authorize: an ACCEPTED proposal (negotiated flow) grants access outright.
     const proposal = await db.campaignProposal.findFirst({
       where: {
         campaignId,
@@ -52,10 +52,6 @@ export async function POST(req: NextRequest) {
         status: "ACCEPTED",
       },
     });
-
-    if (!proposal) {
-      return NextResponse.json({ error: "No accepted proposal for this campaign" }, { status: 403 });
-    }
 
     // Get campaign to find orgId
     const campaign = await db.campaign.findUnique({
@@ -72,6 +68,23 @@ export async function POST(req: NextRequest) {
       where: { orgId: campaign.orgId, handle: session.handle },
       select: { id: true },
     });
+
+    // Fallback authorization: a joined marketplace Activation (Whop-style
+    // content-rewards flow) also grants access.
+    const activation =
+      !proposal && creator && typeof db.activation?.findFirst === "function"
+        ? await db.activation.findFirst({
+            where: { campaignId, creatorId: creator.id, deletedAt: null },
+            select: { id: true },
+          })
+        : null;
+
+    if (!proposal && !activation) {
+      return NextResponse.json(
+        { error: "No accepted proposal for this campaign" },
+        { status: 403 }
+      );
+    }
 
     // Use found creator or a placeholder
     const creatorId = creator?.id ?? session.creatorUserId;
