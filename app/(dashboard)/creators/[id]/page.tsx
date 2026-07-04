@@ -5,7 +5,8 @@ import {
   ArrowLeft, Eye, Heart, MessageCircle, Share2, Play, ChevronRight, ExternalLink, DollarSign, Pencil, Plus, Trash2, Users,
 } from "lucide-react";
 import Link from "next/link";
-import { Card, Badge, Avatar, EmptyState, Skeleton, StatCard, Modal, Input } from "@pratham7711/ui";
+import { useRouter } from "next/navigation";
+import { Card, Badge, Avatar, EmptyState, Skeleton, StatCard, Modal, Input, Tooltip } from "@pratham7711/ui";
 
 function formatNumber(num: number): string {
   if (num >= 1000000) return (num / 1000000).toFixed(1) + "M";
@@ -379,10 +380,13 @@ function EditCreatorModal({ open, onClose, creator, onSaved }: { open: boolean; 
 
 export default function CreatorProfilePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<Tab>("profile");
   const [creator, setCreator] = useState<Creator | null>(null);
   const [loading, setLoading] = useState(true);
   const [editOpen, setEditOpen] = useState(false);
+  const [messaging, setMessaging] = useState(false);
+  const [notOnPortal, setNotOnPortal] = useState(false);
   const [socialAccounts, setSocialAccounts] = useState<SocialAccount[]>([]);
   const [socialLoading, setSocialLoading] = useState(false);
   const [showAddSocial, setShowAddSocial] = useState(false);
@@ -430,6 +434,28 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
     fetch(`/api/creators/${id}`)
       .then((r) => r.json())
       .then((data) => { if (!data.error) setCreator(data); });
+  };
+
+  const handleMessage = async () => {
+    if (messaging || notOnPortal) return;
+    setMessaging(true);
+    try {
+      const res = await fetch(`/api/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ creatorId: id, body: "👋" }),
+      });
+      if (res.status === 404) {
+        setNotOnPortal(true);
+        return;
+      }
+      if (res.ok) {
+        const data = await res.json();
+        if (data.conversationId) router.push(`/inbox?c=${data.conversationId}`);
+      }
+    } finally {
+      setMessaging(false);
+    }
   };
 
   useEffect(() => {
@@ -502,6 +528,23 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
                   <div style={{ fontSize: 18, fontWeight: 700, color: "var(--cc-primary)" }}>{formatCurrency(Number(creator.rate))}</div>
                 </div>
               )}
+              <Tooltip content={notOnPortal ? "Not on portal yet" : "Message this creator"}>
+                <button
+                  onClick={handleMessage}
+                  disabled={messaging || notOnPortal}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 6,
+                    padding: "6px 14px", fontSize: 13, fontWeight: 600,
+                    color: "white", background: "var(--cc-primary)",
+                    border: "none", borderRadius: 8,
+                    cursor: messaging || notOnPortal ? "not-allowed" : "pointer",
+                    opacity: messaging || notOnPortal ? 0.6 : 1,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  <MessageCircle size={14} /> {messaging ? "Opening…" : "Message"}
+                </button>
+              </Tooltip>
               <button
                 onClick={() => setEditOpen(true)}
                 style={{

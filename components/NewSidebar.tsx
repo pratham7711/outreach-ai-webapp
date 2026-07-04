@@ -14,6 +14,7 @@ const NAV_SECTIONS = [
     label: "Campaigns & Reporting",
     items: [
       { href: "/campaigns", icon: Megaphone, label: "Campaigns" },
+      { href: "/inbox", icon: Inbox, label: "Inbox" },
       { href: "/activations", icon: Play, label: "Activations" },
       { href: "/calendar", icon: Calendar, label: "Calendar" },
       { href: "/deadlines", icon: CalendarClock, label: "Deadlines" },
