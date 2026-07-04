@@ -161,3 +161,39 @@ campaignVsOrgAverage({ campaignValue: 8432.70, orgValues: [6000, 9000, 7500] })
   delta  = 8,432.70 - 7,500 = 932.70
   pct    = 932.70 / 7,500 x 100 = 12.436%
 ```
+
+## Bot / Botted-view signals
+
+Reference for `lib/fraud/botSignals.ts`. Meta and Instagram give only lifetime (cumulative) counts, never a per-post time series, so this product builds its own history from `PostMetricSnapshot` polling (hourly for the first 72h a post is tracked). `detectBotSignals` reads that ordered snapshot series and surfaces suspicious growth patterns; every function is pure and deterministic (no I/O, no clock reads). These signals are advisory — they feed the human fraud review and can be promoted to a `ViewFraudFlag` via the manual flag endpoint.
+
+### Velocities
+
+`computeVelocities(series)` derives per-interval rates between consecutive snapshots:
+
+```
+hours          = (to.recordedAt - from.recordedAt) / 3,600,000
+viewsPerHour       = max(0, to.views  - from.views)                       / hours
+engagementPerHour  = max(0, (to.likes + to.comments) - (from.likes + from.comments)) / hours
+```
+
+Deltas are floored at 0 so a corrected/decremented count never produces a negative rate. Intervals with a non-finite timestamp or `hours <= 0` are dropped. A series of N snapshots yields at most N-1 velocity rows.
+
+### Signal detection
+
+`detectBotSignals(series)` returns `[]` unless there are at least **3 snapshots** and at least one valid velocity interval. All arithmetic guards against non-finite inputs (missing counts are treated as 0; a 0 median/mean disables the ratio checks rather than dividing by zero). Three heuristics run:
+
+| Signal | Condition | Rationale |
+|---|---|---|
+| `VIEW_SPIKE` | On any interval, `viewsPerHour > 5 x median(viewsPerHour)` **and** `engagementPerHour < 1.5 x median(engagementPerHour)` | Real virality drags likes/comments up with views. Views surging while engagement stays flat is the fingerprint of purchased/botted impressions. |
+| `LOW_ENGAGEMENT` | Latest cumulative engagement rate `(likes + comments) / views < 0.5%` **and** `views > 10,000` | Above ~10k views a genuinely-seen post accrues engagement; a sub-0.5% rate at that scale indicates views without humans behind them. The view floor avoids flagging tiny early samples. |
+| `BOT_PATTERN` | `stddev(viewsPerHour) / mean(viewsPerHour) < 0.1` across `>= 6` intervals with `views > 5,000` | Organic reach decays — velocity falls over time. A near-constant drip (coefficient of variation under 0.1) over 6+ intervals is mechanical, the signature of a steady bot feed rather than a decay curve. |
+
+### Threshold choices
+
+- **5x median / 1.5x median** (VIEW_SPIKE): median (not mean) as the baseline so a single spike does not inflate its own reference. 5x is well outside normal interval-to-interval variance; the 1.5x engagement gate ensures we only fire when engagement fails to keep pace.
+- **0.5% rate, 10k views** (LOW_ENGAGEMENT): 0.5% sits below the low end of healthy short-form engagement (typically 1-6%); 10k views is the sample size where the rate is statistically meaningful.
+- **CV < 0.1, >= 6 intervals, > 5k views** (BOT_PATTERN): 6 intervals is the minimum for a stddev/mean judgement to be stable; a coefficient of variation under 0.1 (velocity within +/-10% of its mean) is far tighter than any organic decay.
+
+### Severity
+
+Each signal is graded `LOW | MEDIUM | HIGH` by how far past its threshold it sits: VIEW_SPIKE by the view/median ratio (>=10x HIGH, >=7x MEDIUM, else LOW), LOW_ENGAGEMENT by the rate (<0.1% HIGH, <0.25% MEDIUM, else LOW), BOT_PATTERN by the coefficient of variation (<0.03 HIGH, <0.06 MEDIUM, else LOW).

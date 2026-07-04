@@ -59,6 +59,8 @@ export async function GET(request: NextRequest) {
         engagementRate: true,
         syncFailCount: true,
         syncDisabledAt: true,
+        trackingEnabled: true,
+        trackingStartedAt: true,
         snapshots: { where: { isFinalSnapshot: true }, take: 1, select: { id: true } },
       },
       orderBy: { lastSyncedAt: { sort: "asc", nulls: "first" } },
@@ -78,6 +80,8 @@ export async function GET(request: NextRequest) {
         syncFailCount: post.syncFailCount,
         syncDisabledAt: post.syncDisabledAt ? new Date(post.syncDisabledAt) : null,
         hasFinalSnapshot: post.snapshots.length > 0,
+        trackingEnabled: post.trackingEnabled ?? false,
+        trackingStartedAt: post.trackingStartedAt ? new Date(post.trackingStartedAt) : null,
         now,
       });
 

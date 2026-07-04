@@ -8,10 +8,13 @@ export type SyncDecisionInput = {
   syncFailCount: number;
   syncDisabledAt: Date | null;
   hasFinalSnapshot: boolean;
+  trackingEnabled: boolean;
+  trackingStartedAt: Date | null;
   now: Date;
 };
 
 const HOUR_MS = 1000 * 60 * 60;
+const TRACKING_WINDOW_HOURS = 72;
 
 export function decideSyncAction(input: SyncDecisionInput): SyncDecision {
   if (input.syncDisabledAt) {
@@ -29,6 +32,17 @@ export function decideSyncAction(input: SyncDecisionInput): SyncDecision {
   if (ageHours > 30 * 24) {
     return { action: "seal", reason: "age-over-30d" };
   }
+
+  if (input.trackingEnabled && input.trackingStartedAt) {
+    const trackingHours = (input.now.getTime() - input.trackingStartedAt.getTime()) / HOUR_MS;
+    if (trackingHours < TRACKING_WINDOW_HOURS) {
+      if (lastSyncHours >= 1) {
+        return { action: "sync", reason: "tracking-hourly" };
+      }
+      return { action: "skip", reason: "tracking-throttle" };
+    }
+  }
+
   if (ageHours > 7 * 24 && lastSyncHours < 24) {
     return { action: "skip", reason: "cadence-7-30d" };
   }

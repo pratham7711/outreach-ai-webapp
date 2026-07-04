@@ -13,6 +13,8 @@ function input(overrides: Partial<SyncDecisionInput> = {}): SyncDecisionInput {
     syncFailCount: 0,
     syncDisabledAt: null,
     hasFinalSnapshot: false,
+    trackingEnabled: false,
+    trackingStartedAt: null,
     now: NOW,
     ...overrides,
   };
@@ -78,6 +80,125 @@ describe("decideSyncAction", () => {
         input({ postedAt: hoursAgo(35 * 24), lastSyncedAt: hoursAgo(1) })
       );
       expect(decision.action).toBe("seal");
+    });
+  });
+
+  describe("tracking window (72h)", () => {
+    it("syncs hourly when tracking is on and last sync is 1h or older", () => {
+      expect(
+        decideSyncAction(
+          input({
+            postedAt: hoursAgo(2 * 24),
+            lastSyncedAt: hoursAgo(1),
+            trackingEnabled: true,
+            trackingStartedAt: hoursAgo(2),
+          })
+        )
+      ).toEqual({ action: "sync", reason: "tracking-hourly" });
+    });
+
+    it("syncs a fresh tracked post that was never synced", () => {
+      expect(
+        decideSyncAction(
+          input({
+            postedAt: hoursAgo(2 * 24),
+            lastSyncedAt: null,
+            trackingEnabled: true,
+            trackingStartedAt: hoursAgo(1),
+          })
+        )
+      ).toEqual({ action: "sync", reason: "tracking-hourly" });
+    });
+
+    it("throttles a tracked post synced under 1h ago (does not fall through to normal cadence)", () => {
+      expect(
+        decideSyncAction(
+          input({
+            postedAt: hoursAgo(2 * 24),
+            lastSyncedAt: hoursAgo(0.5),
+            trackingEnabled: true,
+            trackingStartedAt: hoursAgo(2),
+          })
+        )
+      ).toEqual({ action: "skip", reason: "tracking-throttle" });
+    });
+
+    it("stops boosting after 72h — falls through to normal age cadence", () => {
+      expect(
+        decideSyncAction(
+          input({
+            postedAt: hoursAgo(5 * 24),
+            lastSyncedAt: hoursAgo(2),
+            trackingEnabled: true,
+            trackingStartedAt: hoursAgo(73),
+          })
+        )
+      ).toEqual({ action: "skip", reason: "cadence-1-7d" });
+    });
+
+    it("does not boost at exactly 72h into tracking", () => {
+      expect(
+        decideSyncAction(
+          input({
+            postedAt: hoursAgo(5 * 24),
+            lastSyncedAt: hoursAgo(2),
+            trackingEnabled: true,
+            trackingStartedAt: hoursAgo(72),
+          })
+        )
+      ).toEqual({ action: "skip", reason: "cadence-1-7d" });
+    });
+
+    it("ignores tracking flag when trackingStartedAt is null", () => {
+      expect(
+        decideSyncAction(
+          input({
+            postedAt: hoursAgo(3 * 24),
+            lastSyncedAt: hoursAgo(0.5),
+            trackingEnabled: true,
+            trackingStartedAt: null,
+          })
+        )
+      ).toEqual({ action: "skip", reason: "cadence-1-7d" });
+    });
+
+    it("dead-letter still wins over tracking", () => {
+      expect(
+        decideSyncAction(
+          input({
+            syncDisabledAt: hoursAgo(1),
+            trackingEnabled: true,
+            trackingStartedAt: hoursAgo(1),
+            lastSyncedAt: hoursAgo(2),
+          })
+        )
+      ).toEqual({ action: "skip", reason: "dead-letter" });
+    });
+
+    it("sealed still wins over tracking", () => {
+      expect(
+        decideSyncAction(
+          input({
+            hasFinalSnapshot: true,
+            trackingEnabled: true,
+            trackingStartedAt: hoursAgo(1),
+            lastSyncedAt: hoursAgo(2),
+          })
+        )
+      ).toEqual({ action: "skip", reason: "sealed" });
+    });
+
+    it("30d seal still wins over tracking", () => {
+      expect(
+        decideSyncAction(
+          input({
+            postedAt: hoursAgo(31 * 24),
+            trackingEnabled: true,
+            trackingStartedAt: hoursAgo(1),
+            lastSyncedAt: hoursAgo(2),
+          })
+        ).action
+      ).toBe("seal");
     });
   });
 

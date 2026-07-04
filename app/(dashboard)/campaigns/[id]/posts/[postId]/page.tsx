@@ -3,9 +3,9 @@
 import React from "react";
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Card, Badge, Button, Skeleton, Tag } from "@pratham7711/ui";
-import { ArrowLeft, ExternalLink, RefreshCw, Eye, Heart, MessageCircle, Share2, Download, Bookmark, DollarSign, TrendingUp, Flag, Lock } from "lucide-react";
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { Card, Badge, Button, Skeleton, Tag, EmptyState } from "@pratham7711/ui";
+import { ArrowLeft, ExternalLink, RefreshCw, Eye, Heart, MessageCircle, Share2, Download, Bookmark, DollarSign, TrendingUp, Flag, Lock, Activity, ShieldAlert } from "lucide-react";
+import { AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { computePostEmv, computeEngagementRate } from "@/lib/metrics";
 
 type PostDetail = {
@@ -44,6 +44,42 @@ type Snapshot = {
   recordedAt: string;
 };
 
+type BotSignal = {
+  type: "VIEW_SPIKE" | "LOW_ENGAGEMENT" | "BOT_PATTERN";
+  severity: "LOW" | "MEDIUM" | "HIGH";
+  detail: string;
+  at: string;
+};
+
+type TimeseriesSnapshot = {
+  id: string;
+  recordedAt: string;
+  viewsCount: number;
+  likesCount: number;
+  commentsCount: number;
+  sharesCount: number;
+  engagementRate: number;
+};
+
+type Timeseries = {
+  trackingEnabled: boolean;
+  trackingStartedAt: string | null;
+  snapshots: TimeseriesSnapshot[];
+  botSignals: BotSignal[];
+};
+
+const SIGNAL_LABEL: Record<BotSignal["type"], string> = {
+  VIEW_SPIKE: "View spike",
+  LOW_ENGAGEMENT: "Low engagement",
+  BOT_PATTERN: "Bot pattern",
+};
+
+const SEVERITY_STYLE: Record<BotSignal["severity"], { bg: string; color: string }> = {
+  HIGH: { bg: "#FEE2E2", color: "#DC2626" },
+  MEDIUM: { bg: "#FEF3C7", color: "#D97706" },
+  LOW: { bg: "#EEF2FF", color: "#4F46E5" },
+};
+
 const STATUS_BADGE: Record<string, "warning" | "success" | "danger" | "neutral"> = {
   PENDING_REVIEW: "warning",
   APPROVED: "success",
@@ -76,6 +112,17 @@ export default function PostDetailPage() {
   const [syncing, setSyncing] = useState(false);
   const [flagging, setFlagging] = useState(false);
   const [flagged, setFlagged] = useState(false);
+  const [timeseries, setTimeseries] = useState<Timeseries | null>(null);
+  const [trackToggling, setTrackToggling] = useState(false);
+
+  const fetchTimeseries = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/campaigns/${params.id}/posts/${params.postId}/timeseries`);
+      if (res.ok) setTimeseries(await res.json());
+    } catch {
+      // non-blocking: the tracking panel simply shows no data
+    }
+  }, [params.id, params.postId]);
 
   const fetchPost = useCallback(async () => {
     setError(null);
@@ -96,6 +143,55 @@ export default function PostDetailPage() {
   }, [params.id, params.postId]);
 
   useEffect(() => { fetchPost(); }, [fetchPost]);
+  useEffect(() => { fetchTimeseries(); }, [fetchTimeseries]);
+
+  const handleToggleTracking = async () => {
+    const enable = !(timeseries?.trackingEnabled ?? false);
+    setTrackToggling(true);
+    setTimeseries((prev) =>
+      prev
+        ? { ...prev, trackingEnabled: enable, trackingStartedAt: enable ? new Date().toISOString() : null }
+        : prev
+    );
+    try {
+      const res = await fetch(`/api/campaigns/${params.id}/posts/${params.postId}/track`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: enable }),
+      });
+      if (res.ok) {
+        await fetchTimeseries();
+      } else {
+        setTimeseries((prev) =>
+          prev
+            ? { ...prev, trackingEnabled: !enable, trackingStartedAt: !enable ? new Date().toISOString() : null }
+            : prev
+        );
+      }
+    } catch {
+      setTimeseries((prev) =>
+        prev
+          ? { ...prev, trackingEnabled: !enable, trackingStartedAt: !enable ? new Date().toISOString() : null }
+          : prev
+      );
+    } finally {
+      setTrackToggling(false);
+    }
+  };
+
+  const handleFlagFromSignal = async (signal: BotSignal) => {
+    setFlagging(true);
+    try {
+      const res = await fetch(`/api/campaigns/${params.id}/posts/${params.postId}/flag`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ flagType: signal.type, severity: signal.severity, note: signal.detail }),
+      });
+      if (res.ok) setFlagged(true);
+    } finally {
+      setFlagging(false);
+    }
+  };
 
   const handleSync = async () => {
     setSyncing(true);
@@ -187,6 +283,14 @@ export default function PostDetailPage() {
     views: s.viewsCount,
     likes: s.likesCount,
     comments: s.commentsCount,
+  }));
+
+  const trackingEnabled = timeseries?.trackingEnabled ?? false;
+  const botSignals = timeseries?.botSignals ?? [];
+  const trackingSeries = (timeseries?.snapshots ?? []).map((s) => ({
+    ts: new Date(s.recordedAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric" }),
+    views: s.viewsCount,
+    engagement: s.likesCount + s.commentsCount,
   }));
 
   return (
@@ -289,6 +393,87 @@ export default function PostDetailPage() {
           </ResponsiveContainer>
         </Card>
       )}
+
+      <Card variant="outlined" style={{ padding: 24, marginBottom: 24 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, marginBottom: trackingSeries.length > 1 ? 20 : 0 }}>
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+              <Activity size={18} color="var(--cc-primary)" />
+              <h3 style={{ fontSize: 16, fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>Tracking</h3>
+            </div>
+            <p style={{ fontSize: 13, color: "var(--cc-text-muted)", margin: 0 }}>
+              {trackingEnabled
+                ? "Tracking on — hourly snapshots for 72h build this post's time series."
+                : "Tracking off. Meta and IG only return lifetime totals, so enable tracking to record a real time series."}
+            </p>
+          </div>
+          <Button variant={trackingEnabled ? "secondary" : "primary"} onClick={handleToggleTracking} loading={trackToggling}>
+            {trackingEnabled ? "Untrack" : "Track"}
+          </Button>
+        </div>
+
+        {trackingSeries.length > 1 && (
+          <ResponsiveContainer width="100%" height={280}>
+            <LineChart data={trackingSeries} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--cc-border)" />
+              <XAxis dataKey="ts" tick={{ fontSize: 11, fill: "var(--cc-text-muted)" }} />
+              <YAxis yAxisId="left" tick={{ fontSize: 11, fill: "var(--cc-text-muted)" }} />
+              <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: "var(--cc-text-muted)" }} />
+              <Tooltip contentStyle={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 8, fontSize: 13 }} />
+              <Legend wrapperStyle={{ fontSize: 12 }} />
+              <Line yAxisId="left" type="monotone" dataKey="views" name="Views" stroke="#5B5BD6" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+              <Line yAxisId="right" type="monotone" dataKey="engagement" name="Engagement" stroke="#EC4899" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+            </LineChart>
+          </ResponsiveContainer>
+        )}
+        {trackingSeries.length <= 1 && trackingEnabled && (
+          <p style={{ fontSize: 13, color: "var(--cc-text-subtle)", margin: "12px 0 0" }}>
+            Collecting snapshots. The time series appears once at least two have been recorded.
+          </p>
+        )}
+
+        <div style={{ marginTop: 20, paddingTop: 20, borderTop: "1px solid var(--cc-border)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+            <ShieldAlert size={16} color={botSignals.length > 0 ? "#DC2626" : "var(--cc-text-muted)"} />
+            <h4 style={{ fontSize: 14, fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>Bot Signals</h4>
+          </div>
+          {botSignals.length === 0 ? (
+            <EmptyState
+              icon="🛡️"
+              title="No bot signals detected"
+              description="Botted-view heuristics run over this post's snapshot history. Flags will appear here if suspicious growth is detected."
+            />
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {botSignals.map((s, i) => {
+                const sev = SEVERITY_STYLE[s.severity];
+                return (
+                  <div key={`${s.type}-${i}`} style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: 12, borderRadius: 8, border: "1px solid var(--cc-border)", background: "var(--cc-bg)" }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", padding: "3px 8px", borderRadius: 6, background: sev.bg, color: sev.color, flexShrink: 0 }}>
+                      {s.severity}
+                    </span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>{SIGNAL_LABEL[s.type]}</div>
+                      <div style={{ fontSize: 13, color: "var(--cc-text-muted)", marginTop: 2 }}>{s.detail}</div>
+                      <div style={{ fontSize: 11, color: "var(--cc-text-subtle)", marginTop: 4 }}>Detected {new Date(s.at).toLocaleString()}</div>
+                    </div>
+                  </div>
+                );
+              })}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginTop: 4 }}>
+                <p style={{ fontSize: 12, color: "var(--cc-text-muted)", margin: 0 }}>
+                  These signals are advisory. Flagging a post routes it into the existing fraud review queue.
+                </p>
+                <Button variant="secondary" onClick={() => handleFlagFromSignal(botSignals[0])} loading={flagging} disabled={flagged}>
+                  <span style={{ display: "flex", alignItems: "center", gap: 4, color: flagged ? "#DC2626" : undefined }}>
+                    <Flag size={14} /> {flagged ? "Flagged" : "Flag post"}
+                  </span>
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      </Card>
 
       {post.snapshots.length > 0 ? (
         <Card variant="solid" noPadding style={{ overflowX: "auto" }}>
