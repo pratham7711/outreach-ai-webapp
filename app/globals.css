@@ -456,6 +456,53 @@ body {
   margin-left: 0;
 }
 
+/* ── Responsive system — see docs/RESPONSIVE_GUIDE.md ── */
+
+.rsp-page {
+  padding: 16px;
+  max-width: 1440px;
+  margin: 0 auto;
+  width: 100%;
+}
+@media (min-width: 768px) { .rsp-page { padding: 24px; } }
+@media (min-width: 1024px) { .rsp-page { padding: 32px; } }
+
+.rsp-grid-tiles { display: grid; gap: 12px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (min-width: 640px) { .rsp-grid-tiles { gap: 16px; grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (min-width: 1280px) { .rsp-grid-tiles { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
+
+.rsp-grid-2 { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 768px) { .rsp-grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+.rsp-grid-3 { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 768px) { .rsp-grid-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 1024px) { .rsp-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+.rsp-split { display: flex; flex-direction: column; gap: 16px; }
+@media (min-width: 1024px) { .rsp-split { flex-direction: row; } .rsp-split > * { min-width: 0; } }
+
+.rsp-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; }
+.rsp-table-wrap > table { min-width: 720px; }
+
+.rsp-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+@media (min-width: 768px) { .rsp-header { margin-bottom: 32px; } }
+
+.rsp-hide-mobile { display: none; }
+@media (min-width: 768px) { .rsp-hide-mobile { display: initial; } }
+.rsp-only-mobile { display: initial; }
+@media (min-width: 768px) { .rsp-only-mobile { display: none; } }
+
+@media (max-width: 767px) {
+  .rsp-touch button, .rsp-touch a[role="button"], button.rsp-touch, a.rsp-touch { min-height: 44px; }
+}
+
 /* ── UI Polish utilities ── */
 
 /* Page transition — fade + subtle slide up */
