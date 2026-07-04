@@ -2,6 +2,13 @@ import "dotenv/config";
 import { db } from "@/lib/db";
 
 async function main() {
+  const cols = await db.$queryRawUnsafe<any[]>(
+    `SELECT 1 FROM information_schema.columns WHERE table_name = 'Campaign' AND column_name = 'marketplaceVisibility'`,
+  );
+  if (cols.length === 0) {
+    console.log("stale column already cleared; nothing to do — run: npx prisma db push --accept-data-loss");
+    return;
+  }
   const usage = await db.$queryRawUnsafe<any[]>(
     `SELECT "marketplaceVisibility"::text AS v, count(*)::int AS n FROM "Campaign" GROUP BY 1`,
   );
