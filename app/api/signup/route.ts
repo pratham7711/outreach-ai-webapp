@@ -2,12 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
+import type { OrgType } from "@/lib/generated/prisma/client";
 
 const signupSchema = z.object({
   orgName: z.string().trim().min(1, "Organization name is required").max(120),
   name: z.string().trim().min(1, "Your name is required").max(120),
   email: z.string().trim().toLowerCase().email("Enter a valid email address").max(200),
   password: z.string().min(8, "Password must be at least 8 characters").max(200),
+  orgType: z.enum(["AGENCY", "BRAND"]).default("AGENCY"),
 });
 
 function slugify(input: string): string {
@@ -38,7 +40,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: message }, { status: 400 });
     }
 
-    const { orgName, name, email, password } = parsed.data;
+    const { orgName, name, email, password, orgType } = parsed.data;
 
     const existing = await db.user.findUnique({ where: { email }, select: { id: true } });
     if (existing) {
@@ -55,6 +57,7 @@ export async function POST(req: NextRequest) {
           subdomain,
           brandName: orgName,
           plan: "starter",
+          orgType: orgType as OrgType,
         },
       });
 

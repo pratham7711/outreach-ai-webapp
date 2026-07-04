@@ -5,11 +5,19 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { Button, Input } from "@pratham7711/ui";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, Building2, Sparkles } from "lucide-react";
+
+type OrgTypeChoice = "AGENCY" | "BRAND";
+
+const ORG_TYPE_OPTIONS: { value: OrgTypeChoice; title: string; description: string; icon: typeof Building2 }[] = [
+  { value: "AGENCY", title: "Marketing Agency", description: "Manage campaigns for your brand clients", icon: Building2 },
+  { value: "BRAND", title: "Brand", description: "Run your own campaigns", icon: Sparkles },
+];
 
 export default function SignupPage() {
   const router = useRouter();
   const [orgName, setOrgName] = useState("");
+  const [orgType, setOrgType] = useState<OrgTypeChoice>("AGENCY");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -54,7 +62,7 @@ export default function SignupPage() {
       const res = await fetch("/api/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orgName, name, email, password }),
+        body: JSON.stringify({ orgName, name, email, password, orgType }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -152,6 +160,58 @@ export default function SignupPage() {
                 required
                 autoComplete="organization"
               />
+            </div>
+
+            <div>
+              <span style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 8 }}>
+                What kind of organization is this?
+              </span>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }} role="radiogroup" aria-label="Organization type">
+                {ORG_TYPE_OPTIONS.map(({ value, title, description, icon: Icon }) => {
+                  const selected = orgType === value;
+                  return (
+                    <button
+                      key={value}
+                      type="button"
+                      role="radio"
+                      aria-checked={selected}
+                      onClick={() => setOrgType(value)}
+                      style={{
+                        display: "flex",
+                        alignItems: "flex-start",
+                        gap: 12,
+                        textAlign: "left",
+                        padding: 14,
+                        borderRadius: 12,
+                        border: `2px solid ${selected ? "var(--cc-primary)" : "var(--cc-border)"}`,
+                        background: selected ? "rgba(91, 91, 214, 0.05)" : "white",
+                        cursor: "pointer",
+                        transition: "all 0.15s",
+                      }}
+                    >
+                      <span
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          width: 34,
+                          height: 34,
+                          borderRadius: 8,
+                          flexShrink: 0,
+                          background: selected ? "var(--cc-primary)" : "var(--cc-bg)",
+                          color: selected ? "white" : "var(--cc-text-muted)",
+                        }}
+                      >
+                        <Icon size={18} />
+                      </span>
+                      <span>
+                        <span style={{ display: "block", fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>{title}</span>
+                        <span style={{ display: "block", fontSize: 12, color: "var(--cc-text-muted)", marginTop: 2 }}>{description}</span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             <div className="login-input-wrap">
