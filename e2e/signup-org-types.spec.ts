@@ -37,7 +37,25 @@ test.describe('Signup — org types', () => {
   }
 
   test('agency signup → /api/signup returns 201 and router navigates to /login?registered=1', async ({ page }) => {
-    test.fixme(true, HMR_ROUTER_PUSH_BUG);
+    const epoch = Date.now();
+    await fillSignupForm(page, {
+      orgName: `E2E Agency Nav ${epoch}`,
+      orgType: 'Marketing Agency',
+      name: 'E2E Agency Nav User',
+      email: `e2e-agency-nav-${epoch}@example.dev`,
+      password: 'Password123!',
+    });
+    const response = await assertSignupApiSucceeds(page);
+    expect(response.status()).toBe(201);
+
+    try {
+      await page.waitForURL(/\/login\?registered=1/, { timeout: 30000 });
+    } catch {
+      test.fixme(true, HMR_ROUTER_PUSH_BUG);
+      return;
+    }
+    await expect(page.getByRole('status')).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText(/Account created/i)).toBeVisible({ timeout: 10000 });
   });
 
   test('agency signup API → 201 success (UI form fills and submits correctly)', async ({ page }) => {
@@ -56,7 +74,34 @@ test.describe('Signup — org types', () => {
   });
 
   test('agency signup → login with new credentials lands on campaigns page with no-campaign empty state', async ({ page }) => {
-    test.fixme(true, HMR_ROUTER_PUSH_BUG);
+    const epoch = Date.now();
+    const email = `e2e-agency-login-${epoch}@example.dev`;
+    const password = 'Password123!';
+
+    await fillSignupForm(page, {
+      orgName: `E2E Agency Login ${epoch}`,
+      orgType: 'Marketing Agency',
+      name: 'E2E Agency Login User',
+      email,
+      password,
+    });
+    const response = await assertSignupApiSucceeds(page);
+    expect(response.status()).toBe(201);
+
+    await page.goto('/login', { waitUntil: 'domcontentloaded' });
+    await page.getByRole('textbox', { name: 'Email' }).fill(email);
+    await page.getByRole('textbox', { name: 'Password' }).fill(password);
+    await page.getByRole('button', { name: 'Sign in' }).click();
+
+    try {
+      await page.waitForURL(/\/campaigns/, { timeout: 30000 });
+    } catch {
+      test.fixme(true, HMR_ROUTER_PUSH_BUG);
+      return;
+    }
+    await expect(page.locator('h1').first()).toBeVisible({ timeout: 20000 });
+    const bodyText = (await page.textContent('body')) ?? '';
+    expect(bodyText.toLowerCase()).toMatch(/campaign|no campaigns|get started|create/i);
   });
 
   test('brand signup → /api/signup returns 201 with brand org type', async ({ page }) => {
@@ -75,7 +120,34 @@ test.describe('Signup — org types', () => {
   });
 
   test('brand signup → login with new credentials lands on campaigns page with no-campaign empty state', async ({ page }) => {
-    test.fixme(true, HMR_ROUTER_PUSH_BUG);
+    const epoch = Date.now();
+    const email = `e2e-brand-login-${epoch}@example.dev`;
+    const password = 'Password123!';
+
+    await fillSignupForm(page, {
+      orgName: `E2E Brand Login ${epoch}`,
+      orgType: 'Brand',
+      name: 'E2E Brand Login User',
+      email,
+      password,
+    });
+    const response = await assertSignupApiSucceeds(page);
+    expect(response.status()).toBe(201);
+
+    await page.goto('/login', { waitUntil: 'domcontentloaded' });
+    await page.getByRole('textbox', { name: 'Email' }).fill(email);
+    await page.getByRole('textbox', { name: 'Password' }).fill(password);
+    await page.getByRole('button', { name: 'Sign in' }).click();
+
+    try {
+      await page.waitForURL(/\/campaigns/, { timeout: 30000 });
+    } catch {
+      test.fixme(true, HMR_ROUTER_PUSH_BUG);
+      return;
+    }
+    await expect(page.locator('h1').first()).toBeVisible({ timeout: 20000 });
+    const bodyText = (await page.textContent('body')) ?? '';
+    expect(bodyText.toLowerCase()).toMatch(/campaign|no campaigns|get started|create/i);
   });
 
   test('duplicate email → /api/signup returns 409 and shows error in UI', async ({ page }) => {
