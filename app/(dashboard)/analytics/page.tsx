@@ -1,13 +1,21 @@
 "use client";
 import React, { useState, useEffect, useCallback } from "react";
+import dynamic from "next/dynamic";
 import { Button, Card, Skeleton, EmptyState } from "@pratham7711/ui";
-import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar,
-} from "recharts";
 import { Eye, ThumbsUp, DollarSign, TrendingUp, MessageCircle, BarChart2 } from "lucide-react";
 import CampaignComparison from "./CampaignComparison";
 import CreatorLeaderboard, { LeaderboardCreator } from "./CreatorLeaderboard";
 import { formatNumber, formatCurrency, RANGE_PRESETS, PLATFORM_FILTERS, rangeToFrom } from "./shared";
+
+const MonthlyTrendArea = dynamic(() => import("./AnalyticsCharts").then((m) => m.MonthlyTrendArea), {
+  ssr: false,
+  loading: () => <Skeleton width="100%" height="100%" borderRadius="8px" />,
+});
+
+const PlatformBreakdownBar = dynamic(() => import("./AnalyticsCharts").then((m) => m.PlatformBreakdownBar), {
+  ssr: false,
+  loading: () => <Skeleton width="100%" height="100%" borderRadius="8px" />,
+});
 
 type KPIs = {
   totalViews: number;
@@ -193,25 +201,7 @@ export default function AnalyticsPage() {
               <EmptyState icon="📅" title="No campaign data" description="Launch campaigns to see monthly trends." />
             ) : (
               <div className="an-chart">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={data.monthlyTrend} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="analyticsGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="var(--cc-primary)" stopOpacity={0.25} />
-                        <stop offset="95%" stopColor="var(--cc-primary)" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--cc-border)" />
-                    <XAxis dataKey="month" tick={{ fontSize: 12, fill: "var(--cc-text-muted)" }} />
-                    <YAxis tick={{ fontSize: 12, fill: "var(--cc-text-muted)" }} allowDecimals={false} />
-                    <Tooltip
-                      contentStyle={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, fontSize: 13 }}
-                      formatter={(v: any, name: any) => [v, name === "campaigns" ? "Total" : "Active"]}
-                    />
-                    <Area type="monotone" dataKey="campaigns" stroke="var(--cc-primary)" fill="url(#analyticsGradient)" strokeWidth={2} dot={false} />
-                    <Area type="monotone" dataKey="active" stroke="#10B981" fill="none" strokeWidth={2} strokeDasharray="4 2" dot={false} />
-                  </AreaChart>
-                </ResponsiveContainer>
+                <MonthlyTrendArea data={data.monthlyTrend} />
               </div>
             )}
           </Card>
@@ -231,18 +221,7 @@ export default function AnalyticsPage() {
                 <EmptyState icon="📱" title="No data" />
               ) : (
                 <div style={{ height: 200 }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={data.platformBreakdown} layout="vertical" margin={{ left: 8, right: 8 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="var(--cc-border)" horizontal={false} />
-                      <XAxis type="number" tick={{ fontSize: 11, fill: "var(--cc-text-muted)" }} tickFormatter={(v) => formatNumber(v)} />
-                      <YAxis type="category" dataKey="platform" tick={{ fontSize: 11, fill: "var(--cc-text-muted)" }} width={70} />
-                      <Tooltip
-                        contentStyle={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, fontSize: 13 }}
-                        formatter={(v: any) => [formatNumber(Number(v)), "Views"]}
-                      />
-                      <Bar dataKey="views" radius={[0, 4, 4, 0]} fill="var(--cc-primary)" />
-                    </BarChart>
-                  </ResponsiveContainer>
+                  <PlatformBreakdownBar data={data.platformBreakdown} />
                 </div>
               )}
               {data.platformBreakdown.length > 0 && (

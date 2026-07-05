@@ -1,22 +1,24 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import dynamic from "next/dynamic";
 import { Card, Badge, StatCard, Skeleton, Button } from "@pratham7711/ui";
-import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  BarChart,
-  Bar,
-} from "recharts";
 import Link from "next/link";
+
+const SpendOverTimeArea = dynamic(() => import("./DashboardCharts").then((m) => m.SpendOverTimeArea), {
+  ssr: false,
+  loading: () => <Skeleton width="100%" height="240px" borderRadius="8px" />,
+});
+
+const PlatformBreakdownPie = dynamic(() => import("./DashboardCharts").then((m) => m.PlatformBreakdownPie), {
+  ssr: false,
+  loading: () => <Skeleton width="100%" height="200px" borderRadius="8px" />,
+});
+
+const SpendByCampaignBar = dynamic(() => import("./DashboardCharts").then((m) => m.SpendByCampaignBar), {
+  ssr: false,
+  loading: () => <Skeleton width="100%" height="200px" borderRadius="8px" />,
+});
 import {
   Megaphone,
   Users,
@@ -462,36 +464,11 @@ export default function DashboardClient(props: Props) {
             <Skeleton width="100%" height="240px" borderRadius="8px" />
           ) : (
             <div style={{ height: 260 }}>
-              <ResponsiveContainer width="100%" height={240} minWidth={0}>
-                <AreaChart data={financials?.spendOverTime ?? props.chartData.map(d => ({ date: d.month, spend: d.spend, views: 0 }))}>
-                  <defs>
-                    <linearGradient id="spendGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#5B5BD6" stopOpacity={0.12} />
-                      <stop offset="95%" stopColor="#5B5BD6" stopOpacity={0} />
-                    </linearGradient>
-                    <linearGradient id="viewsGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#059669" stopOpacity={0.12} />
-                      <stop offset="95%" stopColor="#059669" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#E4E6F0" vertical={false} />
-                  <XAxis dataKey="date" tick={{ fill: "#9097B4", fontSize: 12, fontWeight: 500 }} axisLine={false} tickLine={false} />
-                  <YAxis yAxisId="spend" tick={{ fill: "#9097B4", fontSize: 12, fontWeight: 500 }} axisLine={false} tickLine={false} tickFormatter={(v) => `$${(v / 1000).toFixed(0)}K`} />
-                  <YAxis yAxisId="views" orientation="right" tick={{ fill: "#9097B4", fontSize: 12, fontWeight: 500 }} axisLine={false} tickLine={false} tickFormatter={(v) => formatNumber(v)} />
-                  <Tooltip
-                    contentStyle={{
-                      background: "white", border: "1px solid #E4E6F0", borderRadius: 10,
-                      color: "#1C2048", boxShadow: "0 4px 24px rgba(0,0,0,0.06)", fontSize: 13, padding: "10px 14px",
-                    }}
-                    formatter={(value, name) => [
-                      name === "spend" ? formatCurrency(Number(value)) : formatNumber(Number(value)),
-                      name === "spend" ? "Spend" : "Views",
-                    ]}
-                  />
-                  <Area yAxisId="spend" type="monotone" dataKey="spend" stroke="#5B5BD6" strokeWidth={2.5} fill="url(#spendGradient)" dot={{ fill: "#5B5BD6", stroke: "#fff", strokeWidth: 2, r: 4 }} activeDot={{ fill: "#5B5BD6", stroke: "#fff", strokeWidth: 2, r: 6 }} />
-                  <Area yAxisId="views" type="monotone" dataKey="views" stroke="#059669" strokeWidth={2} fill="url(#viewsGradient)" dot={{ fill: "#059669", stroke: "#fff", strokeWidth: 2, r: 3 }} />
-                </AreaChart>
-              </ResponsiveContainer>
+              <SpendOverTimeArea
+                data={financials?.spendOverTime ?? props.chartData.map(d => ({ date: d.month, spend: d.spend, views: 0 }))}
+                formatNumber={formatNumber}
+                formatCurrency={formatCurrency}
+              />
             </div>
           )}
         </Card>
@@ -513,24 +490,11 @@ export default function DashboardClient(props: Props) {
             ) : financials?.platformBreakdown && financials.platformBreakdown.length > 0 ? (
               <>
                 <div style={{ height: 200 }}>
-                  <ResponsiveContainer width="100%" height={200}>
-                    <PieChart>
-                      <Pie
-                        data={financials.platformBreakdown}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={50}
-                        outerRadius={80}
-                        dataKey="views"
-                        nameKey="platform"
-                      >
-                        {financials.platformBreakdown.map((entry, i) => (
-                          <Cell key={entry.platform} fill={PLATFORM_COLORS[entry.platform] ?? PIE_COLORS[i % PIE_COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip formatter={(v) => formatNumber(Number(v))} />
-                    </PieChart>
-                  </ResponsiveContainer>
+                  <PlatformBreakdownPie
+                    data={financials.platformBreakdown}
+                    colors={financials.platformBreakdown.map((entry, i) => PLATFORM_COLORS[entry.platform] ?? PIE_COLORS[i % PIE_COLORS.length])}
+                    formatNumber={formatNumber}
+                  />
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 12 }}>
                   {financials.platformBreakdown.map((p, i) => (
@@ -564,15 +528,7 @@ export default function DashboardClient(props: Props) {
             ) : financials?.spendByCampaign && financials.spendByCampaign.length > 0 ? (
               <>
                 <div style={{ height: 200 }}>
-                  <ResponsiveContainer width="100%" height={200}>
-                    <BarChart data={financials.spendByCampaign.slice(0, 5)} layout="vertical">
-                      <CartesianGrid strokeDasharray="3 3" stroke="#E4E6F0" horizontal={false} />
-                      <XAxis type="number" tick={{ fill: "#9097B4", fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => formatCurrency(v)} />
-                      <YAxis dataKey="title" type="category" tick={{ fill: "#9097B4", fontSize: 11 }} axisLine={false} tickLine={false} width={100} />
-                      <Tooltip formatter={(v) => formatCurrency(Number(v))} />
-                      <Bar dataKey="spend" fill="#5B5BD6" radius={[0, 4, 4, 0]} barSize={20} />
-                    </BarChart>
-                  </ResponsiveContainer>
+                  <SpendByCampaignBar data={financials.spendByCampaign.slice(0, 5)} formatCurrency={formatCurrency} />
                 </div>
                 <div style={{ fontSize: 12, color: "var(--cc-text-muted)", marginTop: 8 }}>
                   Top {Math.min(5, financials.spendByCampaign.length)} campaigns by spend

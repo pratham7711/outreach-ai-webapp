@@ -1,11 +1,10 @@
 "use client";
 import type { CSSProperties } from "react";
 import { useState, useEffect, use } from "react";
+import dynamic from "next/dynamic";
 import { motion } from "framer-motion";
 import { Card, Badge, Button, StatCard, EmptyState, Avatar, Skeleton, Modal } from "@pratham7711/ui";
 import PostsTab from "./PostsTab";
-import PerformanceTab from "./PerformanceTab";
-import MarketplaceAnalytics from "./MarketplaceAnalytics";
 import DepositsSection from "./DepositsSection";
 import PayoutRequestsSection from "./PayoutRequestsSection";
 import InvitesSection from "./InvitesSection";
@@ -17,10 +16,43 @@ import {
   Calendar, Play, ChevronRight, ExternalLink, DollarSign, UserPlus,
 } from "lucide-react";
 import Link from "next/link";
-import {
-  ResponsiveContainer, PieChart, Pie, Cell, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid,
-} from "recharts";
 import { toast } from "sonner";
+
+const ChartSkeleton = ({ height }: { height: number }) => (
+  <Skeleton width="100%" height={`${height}px`} borderRadius="12px" />
+);
+
+const PerformanceTab = dynamic(() => import("./PerformanceTab"), {
+  ssr: false,
+  loading: () => (
+    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+      <div className="rsp-grid-tiles">
+        {[1, 2, 3, 4, 5, 6].map((i) => <Skeleton key={i} height="88px" borderRadius="12px" />)}
+      </div>
+      <Skeleton width="100%" height="320px" borderRadius="12px" />
+    </div>
+  ),
+});
+
+const MarketplaceAnalytics = dynamic(() => import("./MarketplaceAnalytics"), {
+  ssr: false,
+  loading: () => <Skeleton width="100%" height="240px" borderRadius="12px" />,
+});
+
+const PlatformViewsPie = dynamic(() => import("./CampaignTabCharts").then((m) => m.PlatformViewsPie), {
+  ssr: false,
+  loading: () => <ChartSkeleton height={240} />,
+});
+
+const CreatorPerformanceBar = dynamic(() => import("./CampaignTabCharts").then((m) => m.CreatorPerformanceBar), {
+  ssr: false,
+  loading: () => <ChartSkeleton height={240} />,
+});
+
+const BudgetBreakdownPie = dynamic(() => import("./CampaignTabCharts").then((m) => m.BudgetBreakdownPie), {
+  ssr: false,
+  loading: () => <ChartSkeleton height={200} />,
+});
 
 type Tab = "performance" | "overview" | "posts" | "creators" | "reviews" | "analytics" | "financials" | "edit";
 
@@ -666,16 +698,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
               <Card variant="outlined" style={{ padding: 24 }}>
                 <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)", display: "block", marginBottom: 16 }}>Views by Platform</span>
                 <div style={{ height: 240 }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie data={platformPieData} cx="50%" cy="50%" innerRadius={60} outerRadius={90} dataKey="value" paddingAngle={2} label={({ name, percent }: any) => `${name ?? ""} ${((percent ?? 0) * 100).toFixed(0)}%`}>
-                        {platformPieData.map((entry, i) => (
-                          <Cell key={i} fill={entry.fill} />
-                        ))}
-                      </Pie>
-                      <Tooltip formatter={(v: any) => formatNumber(Number(v ?? 0))} contentStyle={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12 }} />
-                    </PieChart>
-                  </ResponsiveContainer>
+                  <PlatformViewsPie data={platformPieData} formatNumber={formatNumber} />
                 </div>
               </Card>
 
@@ -684,16 +707,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                 <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)", display: "block", marginBottom: 16 }}>Creator Performance</span>
                 {creatorBarData.length > 0 ? (
                   <div style={{ height: 240 }}>
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={creatorBarData}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="var(--cc-border)" />
-                        <XAxis dataKey="name" tick={{ fontSize: 12, fill: "var(--cc-text-muted)" }} />
-                        <YAxis tick={{ fontSize: 12, fill: "var(--cc-text-muted)" }} tickFormatter={(v) => formatNumber(v)} />
-                        <Tooltip formatter={(v: any) => formatNumber(Number(v ?? 0))} contentStyle={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12 }} />
-                        <Bar dataKey="views" fill="var(--cc-primary)" radius={[4, 4, 0, 0]} />
-                        <Bar dataKey="likes" fill="#10B981" radius={[4, 4, 0, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
+                    <CreatorPerformanceBar data={creatorBarData} formatNumber={formatNumber} />
                   </div>
                 ) : (
                   <EmptyState icon="📊" title="No creator data" />
@@ -752,15 +766,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                 <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)", display: "block", marginBottom: 12 }}>Budget Breakdown</span>
                 {budget > 0 ? (
                   <div style={{ height: 200 }}>
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie data={pieData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} dataKey="value" paddingAngle={2}>
-                          <Cell fill="var(--cc-primary)" />
-                          <Cell fill="var(--cc-bg)" />
-                        </Pie>
-                        <Tooltip formatter={(v: any) => formatCurrency(Number(v ?? 0), campaign.currency)} contentStyle={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12 }} />
-                      </PieChart>
-                    </ResponsiveContainer>
+                    <BudgetBreakdownPie data={pieData} formatCurrency={formatCurrency} currency={campaign.currency} />
                   </div>
                 ) : (
                   <EmptyState icon="💰" title="No budget set" />

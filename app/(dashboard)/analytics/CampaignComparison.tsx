@@ -1,11 +1,14 @@
 "use client";
 import React, { useState, useEffect, useCallback } from "react";
+import dynamic from "next/dynamic";
 import { Card, EmptyState, Skeleton } from "@pratham7711/ui";
-import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-} from "recharts";
 import { ArrowUpRight, ArrowDownRight } from "lucide-react";
 import { formatNumber, formatCurrency, formatPercent, rangeToFrom, SERIES_COLORS } from "./shared";
+
+const CampaignComparisonLine = dynamic(() => import("./AnalyticsCharts").then((m) => m.CampaignComparisonLine), {
+  ssr: false,
+  loading: () => <Skeleton width="100%" height="100%" borderRadius="8px" />,
+});
 
 type CampaignOption = { id: string; title: string; status: string };
 
@@ -144,28 +147,7 @@ export default function CampaignComparison({
           ) : (
             <>
               <div className="cmp-chart">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={resp.series} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--cc-border)" />
-                    <XAxis dataKey="date" tick={{ fontSize: 11, fill: "var(--cc-text-muted)" }} />
-                    <YAxis tick={{ fontSize: 11, fill: "var(--cc-text-muted)" }} tickFormatter={(v) => formatNumber(Number(v))} />
-                    <Tooltip
-                      contentStyle={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, fontSize: 13 }}
-                      formatter={(v: any, name: any) => [formatNumber(Number(v)), titleById[name] ?? name]}
-                    />
-                    <Legend formatter={(value: any) => titleById[value] ?? value} wrapperStyle={{ fontSize: 12 }} />
-                    {selected.map((id, i) => (
-                      <Line
-                        key={id}
-                        type="monotone"
-                        dataKey={id}
-                        stroke={SERIES_COLORS[i % SERIES_COLORS.length]}
-                        strokeWidth={2}
-                        dot={false}
-                      />
-                    ))}
-                  </LineChart>
-                </ResponsiveContainer>
+                <CampaignComparisonLine series={resp.series} selected={selected} titleById={titleById} />
               </div>
 
               <div className="rsp-table-wrap">

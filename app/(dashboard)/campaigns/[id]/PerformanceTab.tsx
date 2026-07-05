@@ -62,6 +62,16 @@ function formatCurrency(n: number, currency = "USD"): string {
   return new Intl.NumberFormat("en-US", { style: "currency", currency, maximumFractionDigits: 2 }).format(n);
 }
 
+function formatCurrencyCompact(n: number, currency = "USD"): string {
+  if (Math.abs(n) < 10000) return formatCurrency(n, currency);
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency,
+    notation: "compact",
+    maximumFractionDigits: 1,
+  }).format(n);
+}
+
 function formatDate(iso: string): string {
   const d = new Date(iso + "T00:00:00Z");
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
@@ -313,7 +323,7 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
         .perf-split { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; }
         @media (min-width: 1024px) { .perf-split { grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); } }
         .perf-tiles .ui-statcard { min-width: 0; }
-        .perf-tiles .ui-statcard-value { overflow-wrap: anywhere; font-size: clamp(17px, 5vw, 30px); }
+        .perf-tiles .ui-statcard-value { overflow-wrap: anywhere; font-size: clamp(16px, 1.5vw, 22px); }
       `}</style>
       <div style={{ display: "flex", justifyContent: "flex-end" }}>{shareButton}</div>
       <div className="rsp-grid-tiles perf-tiles">
@@ -321,7 +331,7 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
         <StatCard value={formatNumber(kpis.engagements)} label="Engagements" icon={<Heart size={16} />} />
         <StatCard value={engRateDisplay} label="Eng. Rate" icon={<Percent size={16} />} />
         <StatCard
-          value={formatCurrency(kpis.spend, currency)}
+          value={formatCurrencyCompact(kpis.spend, currency)}
           label={spendSource === "PAID_PAYOUTS" ? "Spend (paid)" : "Spend (budget)"}
           icon={<DollarSign size={16} />}
         />
@@ -330,7 +340,7 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
           label="CPM / CPE"
           icon={<Target size={16} />}
         />
-        <StatCard value={formatCurrency(kpis.emv, currency)} label="EMV" icon={<TrendingUp size={16} />} />
+        <StatCard value={formatCurrencyCompact(kpis.emv, currency)} label="EMV" icon={<TrendingUp size={16} />} />
       </div>
 
       <Card variant="outlined" style={{ padding: 24 }}>
