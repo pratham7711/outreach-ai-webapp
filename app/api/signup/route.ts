@@ -3,6 +3,8 @@ import { db } from "@/lib/db";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import type { OrgType } from "@/lib/generated/prisma/client";
+import { rateLimit, rateLimitKey } from "@/lib/rateLimit";
+import { requestLogger } from "@/lib/observability/requestLogger";
 
 const signupSchema = z.object({
   orgName: z.string().trim().min(1, "Organization name is required").max(120),
@@ -32,7 +34,18 @@ async function uniqueSubdomain(base: string): Promise<string> {
 }
 
 export async function POST(req: NextRequest) {
+  const { logger } = requestLogger("signup");
   try {
+    logger.info("signup.start");
+    const rl = rateLimit({ key: rateLimitKey("signup", req), limit: 5, windowMs: 60 * 60 * 1000 });
+    if (!rl.allowed) {
+      logger.warn("signup.rate_limited", { retryAfterSeconds: rl.retryAfterSeconds });
+      return NextResponse.json(
+        { error: "Too many requests" },
+        { status: 429, headers: { "Retry-After": String(rl.retryAfterSeconds) } }
+      );
+    }
+
     const body = await req.json().catch(() => null);
     const parsed = signupSchema.safeParse(body);
     if (!parsed.success) {
@@ -79,6 +92,7 @@ export async function POST(req: NextRequest) {
       });
     });
 
+    logger.info("signup.done", { status: 201 });
     return NextResponse.json({ success: true }, { status: 201 });
   } catch (error) {
     if (typeof error === "object" && error !== null && (error as { code?: string }).code === "P2002") {

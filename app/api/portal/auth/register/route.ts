@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { z } from "zod";
 import { hashPassword, createCreatorSession } from "@/lib/creator-auth";
+import { rateLimit, rateLimitKey } from "@/lib/rateLimit";
+import { requestLogger } from "@/lib/observability/requestLogger";
 
 const registerSchema = z.object({
   email: z.string().email(),
@@ -14,7 +16,18 @@ const registerSchema = z.object({
 
 // POST /api/portal/auth/register
 export async function POST(request: NextRequest) {
+  const { logger } = requestLogger("portal/auth/register");
   try {
+    logger.info("portal.register.start");
+    const rl = rateLimit({ key: rateLimitKey("portal/auth/register", request), limit: 5, windowMs: 60 * 60 * 1000 });
+    if (!rl.allowed) {
+      logger.warn("portal.register.rate_limited", { retryAfterSeconds: rl.retryAfterSeconds });
+      return NextResponse.json(
+        { error: "Too many requests" },
+        { status: 429, headers: { "Retry-After": String(rl.retryAfterSeconds) } }
+      );
+    }
+
     const body = await request.json();
     const parsed = registerSchema.safeParse(body);
     if (!parsed.success) {
@@ -50,6 +63,7 @@ export async function POST(request: NextRequest) {
 
     await createCreatorSession(creatorUser.id);
 
+    logger.info("portal.register.done", { status: 201 });
     return NextResponse.json(creatorUser, { status: 201 });
   } catch (error) {
     console.error("Creator registration failed:", error);
