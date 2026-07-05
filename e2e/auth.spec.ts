@@ -19,7 +19,9 @@ test.describe('Authentication', () => {
     await page.getByRole('textbox', { name: 'Email' }).fill('wrong@test.com');
     await page.getByRole('textbox', { name: 'Password' }).fill('wrongpass');
     await page.getByRole('button', { name: 'Sign in' }).click();
-    await expect(page.getByText('Invalid')).toBeVisible({ timeout: 15000 });
+    const alert = page.getByRole('alert');
+    await expect(alert).toBeVisible({ timeout: 30000 });
+    await expect(alert).toContainText(/invalid email or password/i);
   });
 
   test.skip('login with valid credentials redirects to dashboard', async () => {

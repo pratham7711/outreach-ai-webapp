@@ -11,6 +11,7 @@ async function main() {
     where: { subdomain: "demo-agency" },
     update: { plan: "pro" },
     create: {
+      id: "cmnbxsoos00006vfd7jhdvusb",
       name: "Demo Agency",
       subdomain: "demo-agency",
       plan: "pro",
@@ -22,6 +23,7 @@ async function main() {
     where: { email: "admin@demo.com" },
     update: { role: "OWNER" },
     create: {
+      id: "cmnbxspfv00016vfdz6yuds55",
       orgId: org.id,
       email: "admin@demo.com",
       name: "Admin",
