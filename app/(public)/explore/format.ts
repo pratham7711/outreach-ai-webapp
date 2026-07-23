@@ -1,4 +1,5 @@
 import type { PlatformRate } from "@/lib/marketplace/public";
+import { formatCompact } from "@/lib/format";
 
 export const PLATFORM_META: Record<string, { label: string; bg: string; color: string }> = {
   TIKTOK: { label: "TikTok", bg: "#EEF2FF", color: "#4F46E5" },
@@ -24,9 +25,7 @@ export function formatMoney(amount: number, symbol: string): string {
 }
 
 export function formatCount(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-  return n.toLocaleString("en-US");
+  return formatCompact(n);
 }
 
 export function formatDeadline(iso: string | null): string | null {

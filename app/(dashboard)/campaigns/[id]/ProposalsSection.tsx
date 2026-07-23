@@ -3,8 +3,9 @@
 import { useState, useEffect, useCallback } from "react";
 import { Card, Badge, Button, EmptyState, Skeleton, Avatar } from "@pratham7711/ui";
 import { StatusTabs } from "@/components/ds";
-import { Check, X, Users, Star, TrendingUp } from "lucide-react";
+import { Check, X, Users, Star, TrendingUp, Inbox } from "lucide-react";
 import { toast } from "sonner";
+import { formatCompact, stripAt, formatDateAbs } from "@/lib/format";
 
 type Proposal = {
   id: string;
@@ -43,9 +44,7 @@ const STATUS_BADGE: Record<string, "warning" | "success" | "danger" | "neutral">
 };
 
 function formatNumber(num: number): string {
-  if (num >= 1000000) return (num / 1000000).toFixed(1) + "M";
-  if (num >= 1000) return (num / 1000).toFixed(1) + "K";
-  return num.toString();
+  return formatCompact(num);
 }
 
 function formatCurrency(n: number, currency = "USD") {
@@ -120,7 +119,7 @@ export default function ProposalsSection({ campaignId }: { campaignId: string })
 
       {proposals.length === 0 ? (
         <Card variant="outlined" style={{ padding: 24 }}>
-          <EmptyState icon="📩" title="No proposals" description="Creators will submit proposals when this campaign is listed on the marketplace." />
+          <EmptyState icon={<Inbox size={32} color="var(--cc-text-subtle)" />} title="No proposals" description="Creators will submit proposals when this campaign is listed on the marketplace." />
         </Card>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -132,7 +131,7 @@ export default function ProposalsSection({ campaignId }: { campaignId: string })
                   <div>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
                       <span style={{ fontSize: 15, fontWeight: 700, color: "var(--cc-text)" }}>{p.creatorUser.name}</span>
-                      <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>@{p.creatorUser.handle}</span>
+                      <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>@{stripAt(p.creatorUser.handle)}</span>
                       <Badge variant="neutral" style={{ fontSize: 10 }}>{p.creatorUser.platform}</Badge>
                       <Badge variant={STATUS_BADGE[p.status] ?? "neutral"}>{p.status}</Badge>
                     </div>
@@ -174,7 +173,7 @@ export default function ProposalsSection({ campaignId }: { campaignId: string })
                         </span>
                       )}
                       <span style={{ color: "var(--cc-text-muted)" }}>
-                        {new Date(p.createdAt).toLocaleDateString()}
+                        {formatDateAbs(p.createdAt)}
                       </span>
                     </div>
                   </div>

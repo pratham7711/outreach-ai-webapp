@@ -1,5 +1,6 @@
 "use client";
 import { EmptyState } from "@pratham7711/ui";
+import { Mic } from "lucide-react";
 
 export default function FanPagesPage() {
   return (
@@ -9,7 +10,7 @@ export default function FanPagesPage() {
         <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>Build custom fan pages for creators</p>
       </div>
       <EmptyState
-        icon="🎤"
+        icon={<Mic size={32} color="var(--cc-text-subtle)" />}
         title="Coming soon"
         description="Fan page builder is under development."
       />

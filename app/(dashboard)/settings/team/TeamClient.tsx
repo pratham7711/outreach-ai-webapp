@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Mail, Trash2, Users, Clock } from "lucide-react";
+import { Plus, Mail, Trash2, Users, Clock, User } from "lucide-react";
 import { Button, Card, Badge, Avatar, EmptyState, Modal, Input } from "@pratham7711/ui";
 
 type User = {
@@ -147,7 +147,7 @@ export default function TeamClient({ users, invites }: { users: User[]; invites:
         {users.length === 0 ? (
           <div style={{ padding: "48px 24px" }}>
             <EmptyState
-              icon="👤"
+              icon={<User size={32} color="var(--cc-text-subtle)" />}
               title="No team members"
               description="Invite your first team member"
             />
@@ -321,7 +321,7 @@ export default function TeamClient({ users, invites }: { users: User[]; invites:
             </select>
           </div>
           {error && (
-            <div style={{ fontSize: 13, color: "#DC2626", background: "#FEE2E2", padding: "8px 12px", borderRadius: 8 }}>
+            <div style={{ fontSize: 13, color: "var(--cc-danger)", background: "color-mix(in srgb, var(--cc-danger) 14%, transparent)", padding: "8px 12px", borderRadius: 8 }}>
               {error}
             </div>
           )}

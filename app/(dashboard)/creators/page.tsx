@@ -23,7 +23,7 @@ export default async function CreatorsPage() {
         platform: c.platform,
         avatarUrl: c.avatarUrl,
         followerCount: c.followersCount,
-        engagementRate: c.averageViews ? Number(c.averageViews) : null,
+        avgViews: c.averageViews ? Number(c.averageViews) : null,
         rate: c.rate ? Number(c.rate) : null,
         _count: c._count,
       }))}

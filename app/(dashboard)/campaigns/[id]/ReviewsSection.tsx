@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Card, Badge, Button, EmptyState, Skeleton, Avatar, Modal } from "@pratham7711/ui";
 import { Star } from "lucide-react";
 import { toast } from "sonner";
+import { stripAt, formatDateAbs } from "@/lib/format";
 
 type Activation = {
   id: string;
@@ -150,7 +151,7 @@ export default function ReviewsSection({
       {/* Empty */}
       {!loading && reviews.length === 0 && (
         <EmptyState
-          icon="⭐"
+          icon={<Star size={32} color="var(--cc-text-subtle)" />}
           title="No reviews yet"
           description="Review creators after they complete their deliverables."
         />
@@ -181,7 +182,7 @@ export default function ReviewsSection({
                   {review.creator?.name ?? "Unknown"}
                 </span>
                 <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>
-                  @{review.creator?.handle ?? ""}
+                  @{stripAt(review.creator?.handle ?? "")}
                 </span>
                 <span
                   style={{
@@ -190,7 +191,7 @@ export default function ReviewsSection({
                     marginLeft: "auto",
                   }}
                 >
-                  {new Date(review.createdAt).toLocaleDateString()}
+                  {formatDateAbs(review.createdAt)}
                 </span>
               </div>
 
@@ -271,7 +272,7 @@ export default function ReviewsSection({
             <option value="">Select a creator...</option>
             {unreviewedActivations.map((act) => (
               <option key={act.creator.id} value={act.creator.id}>
-                {act.creator.name} (@{act.creator.handle})
+                {act.creator.name} (@{stripAt(act.creator.handle)})
               </option>
             ))}
           </select>
@@ -329,7 +330,7 @@ export default function ReviewsSection({
                       padding: "4px 12px",
                       fontSize: 12,
                       fontWeight: 500,
-                      background: selected ? "rgba(91,91,214,0.12)" : "var(--cc-bg)",
+                      background: selected ? "var(--cc-primary-light)" : "var(--cc-bg)",
                       color: selected ? "var(--cc-primary)" : "var(--cc-text-muted)",
                       border: selected
                         ? "1.5px solid var(--cc-primary)"

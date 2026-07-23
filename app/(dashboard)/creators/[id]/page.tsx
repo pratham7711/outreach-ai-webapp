@@ -3,15 +3,15 @@ import { useState, useEffect, use } from "react";
 import { motion } from "framer-motion";
 import {
   ArrowLeft, Eye, Heart, MessageCircle, Share2, Play, ChevronRight, ExternalLink, DollarSign, Pencil, Plus, Trash2, Users,
+  User, Video, ClipboardList, Link2, Banknote,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Card, Badge, Avatar, EmptyState, Skeleton, StatCard, Modal, Input, Tooltip } from "@pratham7711/ui";
+import { formatCompact, formatDateAbs, platformLabel } from "@/lib/format";
 
 function formatNumber(num: number): string {
-  if (num >= 1000000) return (num / 1000000).toFixed(1) + "M";
-  if (num >= 1000) return (num / 1000).toFixed(1) + "K";
-  return num.toString();
+  return formatCompact(num);
 }
 
 function formatCurrency(n: number, currency = "USD") {
@@ -494,7 +494,7 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
   if (loading) return <LoadingSkeleton />;
   if (!creator) return (
     <div className="rsp-page">
-      <EmptyState icon="👤" title="Creator not found" description="This creator doesn't exist or has been removed." />
+      <EmptyState icon={<User size={32} color="var(--cc-text-subtle)" />} title="Creator not found" description="This creator doesn't exist or has been removed." />
     </div>
   );
 
@@ -528,7 +528,7 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
             <div className="cd-profile-info">
               <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                 <h1 style={{ fontSize: 20, fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>{creator.name}</h1>
-                <Badge variant="neutral">{creator.platform}</Badge>
+                <Badge variant="neutral">{platformLabel(creator.platform)}</Badge>
               </div>
               <div style={{ fontSize: 14, color: "var(--cc-text-muted)", marginTop: 2 }}>
                 {creator.handle.startsWith("@") ? creator.handle : `@${creator.handle}`}
@@ -564,7 +564,7 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
                 style={{
                   display: "flex", alignItems: "center", gap: 6,
                   padding: "6px 14px", fontSize: 13, fontWeight: 600,
-                  color: "var(--cc-primary)", background: "white",
+                  color: "var(--cc-primary)", background: "var(--cc-card)",
                   border: "1.5px solid var(--cc-primary)", borderRadius: 8, cursor: "pointer",
                   whiteSpace: "nowrap",
                 }}
@@ -617,7 +617,7 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
             <Card variant="outlined" style={{ padding: 24 }}>
               <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)", display: "block", marginBottom: 12 }}>About</span>
               <p style={{ fontSize: 14, color: "var(--cc-text-muted)", lineHeight: 1.6 }}>
-                {creator.bio ?? `${creator.platform} content creator. Open to brand partnerships and collaborations.`}
+                {creator.bio ?? `${platformLabel(creator.platform)} content creator. Open to brand partnerships and collaborations.`}
               </p>
               {creator.contactEmail && (
                 <div style={{ marginTop: 16, fontSize: 13, color: "var(--cc-text-muted)" }}>
@@ -637,7 +637,7 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
         {/* Posts Tab */}
         {activeTab === "posts" && (
           creator.posts.length === 0 ? (
-            <EmptyState icon="📹" title="No posts yet" description="Posts will appear here when synced from social platforms." />
+            <EmptyState icon={<Video size={32} color="var(--cc-text-subtle)" />} title="No posts yet" description="Posts will appear here when synced from social platforms." />
           ) : (
             <Card variant="solid" noPadding>
               {/* Desktop table header */}
@@ -661,7 +661,7 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
                         <p style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                           {post.caption?.slice(0, 60) ?? "Untitled Post"} <ExternalLink size={11} style={{ opacity: 0.4 }} />
                         </p>
-                        <p style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{new Date(post.postedAt).toLocaleDateString()}</p>
+                        <p style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{formatDateAbs(post.postedAt)}</p>
                       </div>
                       <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{post.campaign?.title ?? "—"}</span>
                       <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>{formatNumber(post.viewsCount)}</span>
@@ -678,7 +678,7 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
                             {post.caption?.slice(0, 50) ?? "Untitled Post"} <ExternalLink size={11} style={{ opacity: 0.4 }} />
                           </p>
                           <p style={{ fontSize: 12, color: "var(--cc-text-muted)", margin: "2px 0 0" }}>
-                            {post.campaign?.title ?? "—"} · {new Date(post.postedAt).toLocaleDateString()}
+                            {post.campaign?.title ?? "—"} · {formatDateAbs(post.postedAt)}
                           </p>
                         </div>
                         <span style={{ fontSize: 14, fontWeight: 700, color: "var(--cc-primary)", flexShrink: 0 }}>{post.engagementRate.toFixed(1)}%</span>
@@ -700,7 +700,7 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
         {/* Campaigns Tab */}
         {activeTab === "campaigns" && (
           creator.activations.length === 0 ? (
-            <EmptyState icon="📋" title="No campaigns yet" description="This creator has not been assigned to any campaigns." />
+            <EmptyState icon={<ClipboardList size={32} color="var(--cc-text-subtle)" />} title="No campaigns yet" description="This creator has not been assigned to any campaigns." />
           ) : (
             <div className="cc-stagger" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               {creator.activations.map(act => (
@@ -710,7 +710,7 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
                       <div style={{ flex: 1, minWidth: 140 }}>
                         <div style={{ fontWeight: 700, fontSize: 14, color: "var(--cc-text)" }}>{act.campaign.title}</div>
                         <div style={{ fontSize: 12, color: "var(--cc-text-muted)", marginTop: 2 }}>
-                          {act.deliverableDueDate ? `Due: ${new Date(act.deliverableDueDate).toLocaleDateString()}` : "No due date"}
+                          {act.deliverableDueDate ? `Due: ${formatDateAbs(act.deliverableDueDate)}` : "No due date"}
                         </div>
                       </div>
                       <Badge variant={STATUS_VARIANT[act.status] ?? "neutral"} dot>{act.status.replace(/_/g, " ")}</Badge>
@@ -823,7 +823,7 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
                 {[1, 2, 3].map(i => <Skeleton key={i} height="140px" borderRadius="12px" />)}
               </div>
             ) : socialAccounts.length === 0 ? (
-              <EmptyState icon="🔗" title="No social accounts" description="Link social media accounts to track cross-platform presence." />
+              <EmptyState icon={<Link2 size={32} color="var(--cc-text-subtle)" />} title="No social accounts" description="Link social media accounts to track cross-platform presence." />
             ) : (
               <div className="cd-social-grid">
                 {socialAccounts.map(acct => (
@@ -854,7 +854,7 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
                       <span><Eye size={12} style={{ marginRight: 4, verticalAlign: "middle" }} />{formatNumber(acct.avgViews)} avg views</span>
                     </div>
                     <div style={{ fontSize: 11, color: "var(--cc-text-subtle)" }}>
-                      Connected {new Date(acct.createdAt).toLocaleDateString()}
+                      Connected {formatDateAbs(acct.createdAt)}
                     </div>
                   </Card>
                 ))}
@@ -866,7 +866,7 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
         {/* Payouts Tab */}
         {activeTab === "payouts" && (
           creator.payouts.length === 0 ? (
-            <EmptyState icon="💸" title="No payouts yet" description="Payment history will appear here." />
+            <EmptyState icon={<Banknote size={32} color="var(--cc-text-subtle)" />} title="No payouts yet" description="Payment history will appear here." />
           ) : (
             <Card variant="solid" noPadding>
               {/* Desktop header */}
@@ -886,7 +886,7 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
                       <span style={{ fontSize: 14, color: "var(--cc-text)" }}>{p.campaign?.title ?? "—"}</span>
                       <span style={{ fontSize: 14, fontWeight: 700, color: "var(--cc-text)" }}>{formatCurrency(Number(p.amount), p.currency)}</span>
                       <Badge variant={STATUS_VARIANT[p.status] ?? "neutral"} dot>{p.status}</Badge>
-                      <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{new Date(p.createdAt).toLocaleDateString()}</span>
+                      <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{formatDateAbs(p.createdAt)}</span>
                     </div>
                     {/* Mobile card */}
                     <div className="cd-payout-card">
@@ -896,7 +896,7 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
                       </div>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                         <Badge variant={STATUS_VARIANT[p.status] ?? "neutral"} dot>{p.status}</Badge>
-                        <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{new Date(p.createdAt).toLocaleDateString()}</span>
+                        <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{formatDateAbs(p.createdAt)}</span>
                       </div>
                     </div>
                   </div>

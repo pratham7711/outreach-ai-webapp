@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Card, Badge, Button, Input, Modal, EmptyState, Skeleton } from "@pratham7711/ui";
 import { DollarSign, CreditCard } from "lucide-react";
+import { formatDateAbs } from "@/lib/format";
 
 type Deposit = {
   id: string;
@@ -99,7 +100,7 @@ export default function DepositsSection({ campaignId }: { campaignId: string }) 
     border: "1px solid var(--cc-border)",
     fontSize: 14,
     color: "var(--cc-text)",
-    background: "white",
+    background: "var(--cc-card)",
     outline: "none",
     boxSizing: "border-box" as const,
   };
@@ -121,7 +122,7 @@ export default function DepositsSection({ campaignId }: { campaignId: string }) 
 
       {!deposit ? (
         <Card variant="outlined" style={{ padding: 24 }}>
-          <EmptyState icon="💳" title="No deposit" description="Create a deposit to hold funds for this campaign." />
+          <EmptyState icon={<CreditCard size={32} color="var(--cc-text-subtle)" />} title="No deposit" description="Create a deposit to hold funds for this campaign." />
         </Card>
       ) : (
         <Card variant="outlined" style={{ padding: 24 }}>
@@ -134,7 +135,7 @@ export default function DepositsSection({ campaignId }: { campaignId: string }) 
               <div style={{ display: "flex", gap: 16, fontSize: 13, color: "var(--cc-text-muted)" }}>
                 <span>Gateway: <strong>{deposit.gateway}</strong></span>
                 {deposit.method && <span>Method: <strong>{deposit.method}</strong></span>}
-                <span>Created: {new Date(deposit.createdAt).toLocaleDateString()}</span>
+                <span>Created: {formatDateAbs(deposit.createdAt)}</span>
               </div>
             </div>
             {deposit.status !== "FULLY_RELEASED" && deposit.status !== "REFUNDED" && (
@@ -153,7 +154,7 @@ export default function DepositsSection({ campaignId }: { campaignId: string }) 
                 height: "100%",
                 borderRadius: 4,
                 width: `${deposit.amountUsd > 0 ? Math.min(100, (deposit.releasedAmount / deposit.amountUsd) * 100) : 0}%`,
-                background: "linear-gradient(90deg, var(--cc-primary), #7C3AED)",
+                background: "var(--cc-primary)",
                 transition: "width 0.4s",
               }} />
             </div>

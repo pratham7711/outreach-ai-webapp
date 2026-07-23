@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { Plus, Search } from "lucide-react";
+import { Plus, Search, Building2 } from "lucide-react";
 import Link from "next/link";
 import { Button, Card, StatCard, Input, Avatar, EmptyState } from "@pratham7711/ui";
 import AddClientModal from "@/components/modals/AddClientModal";
@@ -66,7 +66,7 @@ export default function ClientsClient({ clients, stats }: {
         {filtered.length === 0 ? (
           <div style={{ padding: "48px 24px" }}>
             <EmptyState
-              icon="🏢"
+              icon={<Building2 size={32} color="var(--cc-text-subtle)" />}
               title="No clients yet"
               description="Add your first client to start managing campaigns"
               action={

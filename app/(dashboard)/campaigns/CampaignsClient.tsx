@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Search, MoreVertical, Share2, FolderOpen, ChevronDown, Sparkles } from "lucide-react";
+import { Plus, Search, FolderOpen, ChevronDown, Sparkles, Target } from "lucide-react";
 import Link from "next/link";
 import { Button, Card, Badge, Input, EmptyState, Avatar, Tooltip } from "@pratham7711/ui";
 import { StatusTabs } from "@/components/ds";
 import CampaignWizard from "@/components/modals/CampaignWizard";
+import { formatCompactCurrency } from "@/lib/format";
 
 type Campaign = {
   id: string;
@@ -37,9 +38,7 @@ const STATUS_BADGE_VARIANT: Record<string, "warning" | "accent" | "success" | "d
 };
 
 function formatCurrency(n: number) {
-  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `$${(n / 1_000).toFixed(0)}K`;
-  return `$${n}`;
+  return formatCompactCurrency(n);
 }
 
 function timeAgo(date?: string) {
@@ -83,7 +82,7 @@ export default function CampaignsClient({
             Campaigns
           </h1>
           <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>
-            {stats.total} Active Campaign{stats.total !== 1 ? "s" : ""}
+            {stats.total} Campaign{stats.total !== 1 ? "s" : ""}
           </p>
         </div>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
@@ -153,7 +152,7 @@ export default function CampaignsClient({
         {filtered.length === 0 ? (
           <div style={{ padding: "48px 24px" }}>
             <EmptyState
-              icon="🎯"
+              icon={<Target size={32} color="var(--cc-text-subtle)" />}
               title="No campaigns yet"
               description="Create your first campaign to get started"
               action={
@@ -238,15 +237,6 @@ export default function CampaignsClient({
                     </Badge>
                   </div>
 
-                  {/* Share + More Actions */}
-                  <div className="hidden md:flex" style={{ gap: 8, flexShrink: 0 }} onClick={(e) => e.preventDefault()}>
-                    <Button variant="primary" size="sm" iconLeft={<Share2 size={12} />}>
-                      Share
-                    </Button>
-                    <Button variant="ghost" size="sm" aria-label="More actions">
-                      <MoreVertical size={16} />
-                    </Button>
-                  </div>
                 </div>
               </Link>
             ))}

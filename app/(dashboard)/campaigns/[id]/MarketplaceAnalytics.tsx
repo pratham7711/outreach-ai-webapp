@@ -1,9 +1,11 @@
 "use client";
 import React, { useState, useEffect, useCallback } from "react";
 import { Card, EmptyState, Skeleton } from "@pratham7711/ui";
+import { AlertTriangle, Users } from "lucide-react";
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
 } from "recharts";
+import { formatCompact } from "@/lib/format";
 
 type Analytics = {
   visibility: "PRIVATE" | "GLOBAL" | "INVITE_ONLY";
@@ -26,9 +28,7 @@ const STATUS_META: Record<string, { label: string; color: string; bg: string }> 
 };
 
 function formatNumber(num: number): string {
-  if (num >= 1000000) return (num / 1000000).toFixed(1) + "M";
-  if (num >= 1000) return (num / 1000).toFixed(1) + "K";
-  return String(num);
+  return formatCompact(num);
 }
 
 function formatCurrency(n: number, currency: string): string {
@@ -87,7 +87,7 @@ export default function MarketplaceAnalytics({
     return (
       <Card variant="outlined" style={{ padding: 32 }}>
         <EmptyState
-          icon="⚠️"
+          icon={<AlertTriangle size={32} color="var(--cc-text-subtle)" />}
           title="Couldn't load marketplace analytics"
           description="Something went wrong while fetching marketplace analytics."
           action={
@@ -167,7 +167,7 @@ export default function MarketplaceAnalytics({
               </ResponsiveContainer>
             </div>
           ) : (
-            <EmptyState icon="👥" title="No joins yet" description="Creator joins will appear here once they enroll." />
+            <EmptyState icon={<Users size={32} color="var(--cc-text-subtle)" />} title="No joins yet" description="Creator joins will appear here once they enroll." />
           )}
         </Card>
 

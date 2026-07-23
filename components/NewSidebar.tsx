@@ -1,10 +1,11 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { signOut } from "next-auth/react";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import {
-  Megaphone, Play, Calendar, CalendarClock, Users, Users2, Radio, LineChart,
-  Search, List, Wallet, Inbox, UserCheck, Link2, CreditCard, Shield, Bell, FileText,
+  LayoutDashboard, Megaphone, Play, Calendar, CalendarClock, Users, Users2, Radio, LineChart,
+  Search, List, Wallet, Inbox, UserCheck, Link2, CreditCard, Shield, FileText,
   ChevronDown, Settings, LogOut, Menu, X, ChevronsLeft, ChevronsRight, Key, PieChart, BarChart2, Activity
 } from "lucide-react";
 import { useSidebar } from "@/components/providers/SidebarProvider";
@@ -13,13 +14,14 @@ const NAV_SECTIONS = [
   {
     label: "Campaigns & Reporting",
     items: [
+      { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
       { href: "/campaigns", icon: Megaphone, label: "Campaigns" },
       { href: "/inbox", icon: Inbox, label: "Inbox" },
       { href: "/activations", icon: Play, label: "Activations" },
       { href: "/calendar", icon: Calendar, label: "Calendar" },
       { href: "/deadlines", icon: CalendarClock, label: "Deadlines" },
       { href: "/clients", icon: Users, label: "Clients" },
-      { href: "/fan-pages", icon: Radio, label: "Fan Pages", badge: "NEW" },
+      { href: "/fan-pages", icon: Radio, label: "Fan Pages", badge: "Soon" },
       { href: "/trackers", icon: LineChart, label: "Trackers" },
     ],
   },
@@ -65,9 +67,20 @@ const NAV_SECTIONS = [
 type SidebarProps = {
   allowedNavHrefs?: string[] | null;
   brandName?: string | null;
+  user?: { name: string | null; email: string | null } | null;
 };
 
-export default function NewSidebar({ allowedNavHrefs, brandName }: SidebarProps = {}) {
+function sidebarInitials(name?: string | null, email?: string | null): string {
+  const src = (name || email || "").trim();
+  if (!src) return "?";
+  const parts = src.split(/[\s@._-]+/).filter(Boolean);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return src.slice(0, 2).toUpperCase();
+}
+
+export default function NewSidebar({ allowedNavHrefs, brandName, user }: SidebarProps = {}) {
+  const userName = user?.name || user?.email || "Account";
+  const userInitial = sidebarInitials(user?.name, user?.email);
   const pathname = usePathname();
   const { collapsed, mobileOpen, toggle, setMobileOpen } = useSidebar();
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -183,7 +196,7 @@ export default function NewSidebar({ allowedNavHrefs, brandName }: SidebarProps 
                 width: 32,
                 height: 32,
                 borderRadius: 8,
-                background: "linear-gradient(135deg, #5B5BD6 0%, #7B7DE8 100%)",
+                background: "var(--cc-primary)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -230,7 +243,7 @@ export default function NewSidebar({ allowedNavHrefs, brandName }: SidebarProps 
 
             {/* Mobile close */}
             <button
-              className="lg:hidden"
+              className="lg:hidden flex items-center"
               onClick={() => setMobileOpen(false)}
               aria-label="Close navigation menu"
               style={{
@@ -239,8 +252,6 @@ export default function NewSidebar({ allowedNavHrefs, brandName }: SidebarProps 
                 cursor: "pointer",
                 padding: 4,
                 color: "var(--cc-text-muted)",
-                display: "flex",
-                alignItems: "center",
               }}
             >
               <X size={18} />
@@ -248,7 +259,7 @@ export default function NewSidebar({ allowedNavHrefs, brandName }: SidebarProps 
 
             {/* Desktop collapse toggle */}
             <button
-              className="hidden lg:flex btn-press"
+              className="hidden lg:flex items-center justify-center btn-press"
               onClick={toggle}
               aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
               style={{
@@ -257,9 +268,6 @@ export default function NewSidebar({ allowedNavHrefs, brandName }: SidebarProps 
                 cursor: "pointer",
                 padding: 4,
                 color: "var(--cc-text-muted)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
                 borderRadius: 6,
                 transition: "all 0.15s",
               }}
@@ -327,7 +335,7 @@ export default function NewSidebar({ allowedNavHrefs, brandName }: SidebarProps 
                       href={href}
                       className={`cc-nav-item sidebar-link ${active ? "active btn-press" : ""} cc-tooltip`}
                       aria-current={active ? "page" : undefined}
-                      data-tooltip={collapsed ? label : undefined}
+                      title={collapsed ? label : undefined}
                       style={{
                         justifyContent: collapsed ? "center" : undefined,
                         padding: collapsed ? "10px" : undefined,
@@ -347,7 +355,7 @@ export default function NewSidebar({ allowedNavHrefs, brandName }: SidebarProps 
                         <span
                           style={{
                             marginLeft: "auto",
-                            background: "linear-gradient(135deg, #5B5BD6, #7C3AED)",
+                            background: "var(--cc-primary)",
                             color: "#fff",
                             fontSize: 9,
                             fontWeight: 700,
@@ -413,6 +421,7 @@ export default function NewSidebar({ allowedNavHrefs, brandName }: SidebarProps 
                   color: "var(--cc-danger)",
                 }}
                 aria-label="Sign out of your account"
+                onClick={() => { setShowUserMenu(false); signOut({ callbackUrl: "/login" }); }}
               >
                 <LogOut size={15} aria-hidden="true" />
                 <span style={{ fontSize: 13 }}>Sign out</span>
@@ -452,7 +461,7 @@ export default function NewSidebar({ allowedNavHrefs, brandName }: SidebarProps 
                   width: 32,
                   height: 32,
                   borderRadius: "50%",
-                  background: "linear-gradient(135deg, #5B5BD6, #7B7DE8)",
+                  background: "var(--cc-primary)",
                   color: "#fff",
                   display: "flex",
                   alignItems: "center",
@@ -463,7 +472,7 @@ export default function NewSidebar({ allowedNavHrefs, brandName }: SidebarProps 
                 }}
                 aria-hidden="true"
               >
-                P
+                {userInitial}
               </div>
               {!collapsed && (
                 <span
@@ -472,17 +481,17 @@ export default function NewSidebar({ allowedNavHrefs, brandName }: SidebarProps 
                     fontWeight: 600,
                     color: "var(--cc-text)",
                     whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    maxWidth: 140,
                   }}
                 >
-                  Pratham
+                  {userName}
                 </span>
               )}
             </div>
             {!collapsed && (
               <div className="flex items-center gap-2">
-                <div className="cc-notification-dot">
-                  <Bell size={16} style={{ color: "var(--cc-text-muted)" }} aria-hidden="true" />
-                </div>
                 <ChevronDown
                   size={14}
                   aria-hidden="true"

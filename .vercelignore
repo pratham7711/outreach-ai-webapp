@@ -1,0 +1,10 @@
+node_modules
+.next
+.git
+.claude
+coverage
+.playwright-mcp
+e2e
+__tests__
+*.log
+*.png

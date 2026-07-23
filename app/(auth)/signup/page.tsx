@@ -78,32 +78,29 @@ export default function SignupPage() {
   return (
     <div
       style={{
-        minHeight: "100vh",
+        minHeight: "100dvh",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        padding: "0 16px",
-        background: "linear-gradient(135deg, #6C3EF4 0%, #4A8EF0 100%)",
+        padding: "40px 16px",
+        background: "var(--cc-bg)",
         position: "relative",
         overflow: "hidden",
       }}
     >
-      <div className="login-orb-1" aria-hidden="true" />
-      <div className="login-orb-2" aria-hidden="true" />
-      <div className="login-orb-3" aria-hidden="true" />
       <motion.div
         style={{ width: "100%", maxWidth: 380, position: "relative", zIndex: 1 }}
         initial={{ opacity: 0, y: 24 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, ease: "easeOut" }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 10, justifyContent: "center", marginBottom: 40 }}>
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <circle cx="12" cy="12" r="10" stroke="white" strokeWidth="2.5" />
-            <circle cx="12" cy="12" r="5.5" stroke="white" strokeWidth="2" />
-            <circle cx="12" cy="12" r="2" fill="white" />
+        <div style={{ display: "flex", alignItems: "center", gap: 10, justifyContent: "center", marginBottom: 32 }}>
+          <svg width="30" height="30" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <circle cx="12" cy="12" r="10" stroke="var(--cc-primary)" strokeWidth="2.5" />
+            <circle cx="12" cy="12" r="5.5" stroke="var(--cc-primary)" strokeWidth="2" />
+            <circle cx="12" cy="12" r="2" fill="var(--cc-primary)" />
           </svg>
-          <span style={{ fontWeight: 800, fontSize: 20, color: "white", letterSpacing: "-0.5px" }}>
+          <span style={{ fontWeight: 800, fontSize: 20, color: "var(--cc-text)", letterSpacing: "-0.02em" }}>
             outreach ai
           </span>
         </div>
@@ -113,9 +110,10 @@ export default function SignupPage() {
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.4, delay: 0.15, ease: "easeOut" }}
           style={{
-            background: "white",
-            borderRadius: 24,
-            boxShadow: "0 20px 60px rgba(0, 0, 0, 0.15)",
+            background: "var(--cc-card)",
+            border: "1px solid var(--cc-border)",
+            borderRadius: 20,
+            boxShadow: "var(--ui-shadow-lg)",
             padding: 40,
           }}
         >
@@ -135,9 +133,9 @@ export default function SignupPage() {
               style={{
                 padding: "12px 16px",
                 borderRadius: 12,
-                background: "rgba(239, 68, 68, 0.1)",
-                border: "1px solid rgba(239, 68, 68, 0.3)",
-                color: "#DC2626",
+                background: "color-mix(in srgb, var(--cc-danger) 12%, transparent)",
+                border: "1px solid color-mix(in srgb, var(--cc-danger) 32%, transparent)",
+                color: "var(--cc-danger)",
                 fontSize: 13,
                 marginBottom: 16,
               }}
@@ -147,7 +145,7 @@ export default function SignupPage() {
           )}
 
           <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 16 }} noValidate>
-            <div className="login-input-wrap">
+            <div>
               <Input
                 ref={orgRef}
                 label="Organization name"
@@ -182,7 +180,7 @@ export default function SignupPage() {
                         padding: 14,
                         borderRadius: 12,
                         border: `2px solid ${selected ? "var(--cc-primary)" : "var(--cc-border)"}`,
-                        background: selected ? "rgba(91, 91, 214, 0.05)" : "white",
+                        background: selected ? "var(--cc-primary-light)" : "var(--cc-card)",
                         cursor: "pointer",
                         transition: "all 0.15s",
                       }}
@@ -212,7 +210,7 @@ export default function SignupPage() {
               </div>
             </div>
 
-            <div className="login-input-wrap">
+            <div>
               <Input
                 label="Your name"
                 type="text"
@@ -224,7 +222,7 @@ export default function SignupPage() {
               />
             </div>
 
-            <div className="login-input-wrap">
+            <div>
               <Input
                 label="Email"
                 type="email"
@@ -236,7 +234,7 @@ export default function SignupPage() {
               />
             </div>
 
-            <div style={{ position: "relative" }} className="login-input-wrap">
+            <div style={{ position: "relative" }}>
               <Input
                 label="Password"
                 type={showPassword ? "text" : "password"}
@@ -273,7 +271,7 @@ export default function SignupPage() {
               </button>
             </div>
 
-            <div className="login-input-wrap">
+            <div>
               <Input
                 label="Confirm password"
                 type={showPassword ? "text" : "password"}
@@ -286,7 +284,7 @@ export default function SignupPage() {
               />
             </div>
 
-            <div className="login-btn-glow" style={{ marginTop: 8 }}>
+            <div style={{ marginTop: 8 }}>
               <Button type="submit" variant="primary" fullWidth loading={loading}>
                 Create account
               </Button>

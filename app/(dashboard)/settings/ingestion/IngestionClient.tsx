@@ -1,6 +1,8 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
+import { CheckCircle2 } from "lucide-react";
 import { Card, Badge, Button, StatCard, EmptyState, Skeleton } from "@pratham7711/ui";
+import { formatDateAbs, formatDateTimeAbs } from "@/lib/format";
 
 type PlatformStats = {
   platform: string;
@@ -94,7 +96,7 @@ export default function IngestionClient() {
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
                   <Badge variant="neutral" size="sm">{PLATFORM_LABELS[p.platform] ?? p.platform}</Badge>
                   <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>
-                    {p.lastSyncAt ? `Last sync ${new Date(p.lastSyncAt).toLocaleString()}` : "No syncs yet"}
+                    {p.lastSyncAt ? `Last sync ${formatDateTimeAbs(p.lastSyncAt)}` : "No syncs yet"}
                     {` · ${p.sealed} sealed`}
                   </span>
                 </div>
@@ -111,7 +113,7 @@ export default function IngestionClient() {
               <h2 style={{ fontSize: 15, fontWeight: 700, color: "var(--cc-text)", margin: "0 0 16px" }}>Dead-lettered posts</h2>
               {deadLetter.length === 0 ? (
                 <EmptyState
-                  icon="✅"
+                  icon={<CheckCircle2 size={32} color="var(--cc-text-subtle)" />}
                   title="No failed posts — ingestion healthy"
                   description="Posts that repeatedly fail to sync will appear here."
                 />
@@ -148,7 +150,7 @@ export default function IngestionClient() {
                           </td>
                           <td style={cellStyle}>{p.syncFailCount}</td>
                           <td style={cellStyle}>
-                            {p.syncDisabledAt ? new Date(p.syncDisabledAt).toLocaleDateString() : "—"}
+                            {p.syncDisabledAt ? formatDateAbs(p.syncDisabledAt) : "—"}
                           </td>
                         </tr>
                       ))}

@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Card, Badge, Button, Modal, EmptyState, Skeleton } from "@pratham7711/ui";
-import { Send, Copy, RotateCcw, X } from "lucide-react";
+import { Send, Copy, RotateCcw, X, Mail } from "lucide-react";
+import { stripAt, formatDateAbs } from "@/lib/format";
 
 type Invite = {
   id: string;
@@ -96,7 +97,7 @@ export default function InvitesSection({ campaignId }: { campaignId: string }) {
     border: "1px solid var(--cc-border)",
     fontSize: 14,
     color: "var(--cc-text)",
-    background: "white",
+    background: "var(--cc-card)",
     outline: "none",
     boxSizing: "border-box" as const,
   };
@@ -116,7 +117,7 @@ export default function InvitesSection({ campaignId }: { campaignId: string }) {
 
       {invites.length === 0 ? (
         <Card variant="outlined" style={{ padding: 24 }}>
-          <EmptyState icon="✉️" title="No invites sent" description="Invite creators to join this campaign." />
+          <EmptyState icon={<Mail size={32} color="var(--cc-text-subtle)" />} title="No invites sent" description="Invite creators to join this campaign." />
         </Card>
       ) : (
         <Card variant="solid" noPadding>
@@ -137,18 +138,18 @@ export default function InvitesSection({ campaignId }: { campaignId: string }) {
               <span style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>{inv.creatorId.slice(0, 8)}...</span>
               <Badge variant="neutral" style={{ fontSize: 11 }}>{inv.channel}</Badge>
               <Badge variant={STATUS_BADGE[inv.status] ?? "neutral"}>{inv.status}</Badge>
-              <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{inv.sentAt ? new Date(inv.sentAt).toLocaleDateString() : "—"}</span>
-              <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{inv.respondedAt ? new Date(inv.respondedAt).toLocaleDateString() : "—"}</span>
+              <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{inv.sentAt ? formatDateAbs(inv.sentAt) : "—"}</span>
+              <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{inv.respondedAt ? formatDateAbs(inv.respondedAt) : "—"}</span>
               <div style={{ display: "flex", gap: 4 }}>
-                <button onClick={() => copyLink(inv.inviteToken)} title="Copy link" style={{ padding: "4px 6px", borderRadius: 6, border: "1px solid var(--cc-border)", background: "white", cursor: "pointer", fontSize: 11, display: "flex", alignItems: "center", gap: 2, color: "var(--cc-text-muted)" }}>
+                <button onClick={() => copyLink(inv.inviteToken)} title="Copy link" style={{ padding: "4px 6px", borderRadius: 6, border: "1px solid var(--cc-border)", background: "var(--cc-card)", cursor: "pointer", fontSize: 11, display: "flex", alignItems: "center", gap: 2, color: "var(--cc-text-muted)" }}>
                   <Copy size={12} /> {copied === inv.inviteToken ? "Copied!" : "Link"}
                 </button>
                 {inv.status === "PENDING" && (
                   <>
-                    <button onClick={() => handleAction(inv.id, "RESEND")} style={{ padding: "4px 6px", borderRadius: 6, border: "1px solid var(--cc-border)", background: "white", cursor: "pointer", fontSize: 11, display: "flex", alignItems: "center", gap: 2, color: "var(--cc-text-muted)" }}>
+                    <button onClick={() => handleAction(inv.id, "RESEND")} style={{ padding: "4px 6px", borderRadius: 6, border: "1px solid var(--cc-border)", background: "var(--cc-card)", cursor: "pointer", fontSize: 11, display: "flex", alignItems: "center", gap: 2, color: "var(--cc-text-muted)" }}>
                       <RotateCcw size={12} /> Resend
                     </button>
-                    <button onClick={() => handleAction(inv.id, "CANCEL")} style={{ padding: "4px 6px", borderRadius: 6, border: "1px solid #DC2626", background: "#FEE2E2", cursor: "pointer", fontSize: 11, display: "flex", alignItems: "center", gap: 2, color: "#DC2626" }}>
+                    <button onClick={() => handleAction(inv.id, "CANCEL")} style={{ padding: "4px 6px", borderRadius: 6, border: "1px solid var(--cc-danger)", background: "color-mix(in srgb, var(--cc-danger) 14%, transparent)", cursor: "pointer", fontSize: 11, display: "flex", alignItems: "center", gap: 2, color: "var(--cc-danger)" }}>
                       <X size={12} />
                     </button>
                   </>
@@ -172,7 +173,7 @@ export default function InvitesSection({ campaignId }: { campaignId: string }) {
               <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Creator</label>
               <select value={form.creatorId} onChange={(e) => setForm(f => ({ ...f, creatorId: e.target.value }))} style={selectStyle}>
                 <option value="">Select creator...</option>
-                {creators.map(c => <option key={c.id} value={c.id}>{c.name} (@{c.handle})</option>)}
+                {creators.map(c => <option key={c.id} value={c.id}>{c.name} (@{stripAt(c.handle)})</option>)}
               </select>
             </div>
             <div>

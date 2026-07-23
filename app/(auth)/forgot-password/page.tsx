@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Mail } from "lucide-react";
 import Link from "next/link";
 import { Button, Input } from "@pratham7711/ui";
 
@@ -13,12 +13,12 @@ export default function ForgotPasswordPage() {
   return (
     <div
       style={{
-        minHeight: "100vh",
+        minHeight: "100dvh",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         padding: "0 16px",
-        background: "linear-gradient(135deg, #6C3EF4 0%, #4A8EF0 100%)",
+        background: "var(--cc-bg)",
       }}
     >
       <motion.div
@@ -30,11 +30,11 @@ export default function ForgotPasswordPage() {
         {/* Logo */}
         <div style={{ display: "flex", alignItems: "center", gap: 10, justifyContent: "center", marginBottom: 40 }}>
           <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
-            <circle cx="12" cy="12" r="10" stroke="white" strokeWidth="2.5"/>
-            <circle cx="12" cy="12" r="5.5" stroke="white" strokeWidth="2"/>
-            <circle cx="12" cy="12" r="2" fill="white"/>
+            <circle cx="12" cy="12" r="10" stroke="var(--cc-primary)" strokeWidth="2.5"/>
+            <circle cx="12" cy="12" r="5.5" stroke="var(--cc-primary)" strokeWidth="2"/>
+            <circle cx="12" cy="12" r="2" fill="var(--cc-primary)"/>
           </svg>
-          <span style={{ fontWeight: 800, fontSize: 20, color: "white", letterSpacing: "-0.5px" }}>
+          <span style={{ fontWeight: 800, fontSize: 20, color: "var(--cc-text)", letterSpacing: "-0.5px" }}>
             outreach ai
           </span>
         </div>
@@ -42,9 +42,10 @@ export default function ForgotPasswordPage() {
         {/* Card */}
         <div
           style={{
-            background: "white",
+            background: "var(--cc-card)",
+            border: "1px solid var(--cc-border)",
             borderRadius: 24,
-            boxShadow: "0 20px 60px rgba(0, 0, 0, 0.15)",
+            boxShadow: "var(--ui-shadow-lg)",
             padding: 40,
           }}
         >
@@ -58,9 +59,9 @@ export default function ForgotPasswordPage() {
                 width: 56, height: 56, borderRadius: "50%",
                 background: "var(--cc-primary-light)",
                 display: "flex", alignItems: "center", justifyContent: "center",
-                margin: "0 auto 16px", fontSize: 24,
+                margin: "0 auto 16px",
               }}>
-                ✉️
+                <Mail size={24} color="var(--cc-primary)" strokeWidth={2} />
               </div>
               <h1 style={{ fontSize: 22, fontWeight: 700, color: "var(--cc-text)", marginBottom: 8 }}>Check your email</h1>
               <p style={{ fontSize: 14, color: "var(--cc-text-muted)", marginBottom: 32 }}>

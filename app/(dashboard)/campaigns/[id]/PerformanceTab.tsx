@@ -5,7 +5,9 @@ import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   PieChart, Pie, Cell, Legend,
 } from "recharts";
-import { Eye, Heart, Percent, DollarSign, Target, TrendingUp, Share2 } from "lucide-react";
+import { Eye, Heart, Percent, DollarSign, Target, TrendingUp, Share2, AlertTriangle, BarChart3, PieChart as PieChartIcon, Trophy } from "lucide-react";
+import { formatCompact } from "@/lib/format";
+import { platformColor } from "@/app/(dashboard)/analytics/shared";
 
 type Kpis = {
   views: number;
@@ -39,23 +41,14 @@ type PerformanceData = {
   leaderboard: LeaderboardRow[];
 };
 
-const PLATFORM_COLORS: Record<string, string> = {
-  TIKTOK: "#000000",
-  INSTAGRAM: "#E4405F",
-  YOUTUBE: "#FF0000",
-  TWITTER: "#1DA1F2",
-};
-
 const SERIES = [
-  { key: "TIKTOK", color: PLATFORM_COLORS.TIKTOK },
-  { key: "INSTAGRAM", color: PLATFORM_COLORS.INSTAGRAM },
-  { key: "YOUTUBE", color: PLATFORM_COLORS.YOUTUBE },
+  { key: "TIKTOK", color: platformColor("TIKTOK") },
+  { key: "INSTAGRAM", color: platformColor("INSTAGRAM") },
+  { key: "YOUTUBE", color: platformColor("YOUTUBE") },
 ] as const;
 
 function formatNumber(num: number): string {
-  if (num >= 1000000) return (num / 1000000).toFixed(1) + "M";
-  if (num >= 1000) return (num / 1000).toFixed(1) + "K";
-  return String(num);
+  return formatCompact(num);
 }
 
 function formatCurrency(n: number, currency = "USD"): string {
@@ -69,6 +62,15 @@ function formatCurrencyCompact(n: number, currency = "USD"): string {
     currency,
     notation: "compact",
     maximumFractionDigits: 1,
+  }).format(n);
+}
+
+function formatCostMetric(n: number | null, currency = "USD"): string {
+  if (n === null || n <= 0) return "—";
+  return new Intl.NumberFormat("en-US", {
+    style: "currency", currency,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: n < 0.01 ? 4 : 2,
   }).format(n);
 }
 
@@ -100,7 +102,7 @@ function ErrorState({ onRetry }: { onRetry: () => void }) {
   return (
     <Card variant="outlined" style={{ padding: 32 }}>
       <EmptyState
-        icon="⚠️"
+        icon={<AlertTriangle size={32} color="var(--cc-text-subtle)" />}
         title="Couldn't load performance"
         description="Something went wrong while fetching campaign performance."
         action={
@@ -305,7 +307,7 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
         <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}>{shareButton}</div>
         <Card variant="outlined" style={{ padding: 32 }}>
           <EmptyState
-            icon="📊"
+            icon={<BarChart3 size={32} color="var(--cc-text-subtle)" />}
             title="No posts yet — add posts to see performance"
             description="Once creators publish content for this campaign, performance metrics will appear here."
           />
@@ -316,6 +318,7 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
   }
 
   const engRateDisplay = kpis.engagementRate !== null ? (kpis.engagementRate * 100).toFixed(2) + "%" : "—";
+  const pieData = platformSplit.filter((p) => p.views > 0);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
@@ -336,7 +339,7 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
           icon={<DollarSign size={16} />}
         />
         <StatCard
-          value={`${kpis.cpm !== null ? formatCurrency(kpis.cpm, currency) : "—"} / ${kpis.cpe !== null ? formatCurrency(kpis.cpe, currency) : "—"}`}
+          value={`${formatCostMetric(kpis.cpm, currency)} / ${formatCostMetric(kpis.cpe, currency)}`}
           label="CPM / CPE"
           icon={<Target size={16} />}
         />
@@ -347,7 +350,7 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
         <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)", display: "block", marginBottom: 16 }}>
           Views Over Time by Platform
         </span>
-        {timeSeries.length > 0 ? (
+        {timeSeries.length >= 3 ? (
           <div style={{ height: 320 }}>
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={timeSeries} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
@@ -383,34 +386,37 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
             </ResponsiveContainer>
           </div>
         ) : (
-          <EmptyState icon="📈" title="No time-series data" description="Views over time will appear as posts accumulate metrics." />
+          <EmptyState icon={<TrendingUp size={32} color="var(--cc-text-subtle)" />} title="Not enough data yet" description="Views over time will appear once posts accumulate a few days of metrics." />
         )}
       </Card>
 
       <div className="perf-split">
         <Card variant="outlined" style={{ padding: 24 }}>
           <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)", display: "block", marginBottom: 16 }}>
-            Platform Split
+            Views by Platform
           </span>
-          {platformSplit.length > 0 ? (
+          {pieData.length > 0 ? (
             <div style={{ height: 260 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
-                    data={platformSplit}
+                    data={pieData}
                     cx="50%"
                     cy="50%"
-                    innerRadius={60}
-                    outerRadius={90}
+                    innerRadius={55}
+                    outerRadius={85}
                     dataKey="views"
                     nameKey="platform"
                     paddingAngle={2}
-                    label={({ name, percent }: { name?: string; percent?: number }) => `${name ?? ""} ${((percent ?? 0) * 100).toFixed(0)}%`}
+                    label={false}
+                    stroke="var(--cc-card)"
+                    strokeWidth={2}
                   >
-                    {platformSplit.map((entry) => (
-                      <Cell key={entry.platform} fill={PLATFORM_COLORS[entry.platform] ?? "var(--cc-primary)"} />
+                    {pieData.map((entry) => (
+                      <Cell key={entry.platform} fill={platformColor(entry.platform)} />
                     ))}
                   </Pie>
+                  <Legend verticalAlign="bottom" height={24} wrapperStyle={{ fontSize: 12 }} formatter={(value: any) => <span style={{ color: "var(--cc-text-muted)" }}>{value}</span>} />
                   <Tooltip
                     formatter={(v: any, _n: any, item: any) => [`${formatNumber(Number(v ?? 0))} views · ${(item?.payload as PlatformSplit)?.posts ?? 0} posts`, (item?.payload as PlatformSplit)?.platform ?? ""]}
                     contentStyle={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, fontSize: 13 }}
@@ -419,7 +425,7 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
               </ResponsiveContainer>
             </div>
           ) : (
-            <EmptyState icon="🥧" title="No platform data" />
+            <EmptyState icon={<PieChartIcon size={32} color="var(--cc-text-subtle)" />} title="No platform data" />
           )}
         </Card>
 
@@ -459,7 +465,7 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
             </div>
           ) : (
             <div style={{ padding: 24 }}>
-              <EmptyState icon="🏆" title="No creators yet" />
+              <EmptyState icon={<Trophy size={32} color="var(--cc-text-subtle)" />} title="No creators yet" />
             </div>
           )}
         </Card>

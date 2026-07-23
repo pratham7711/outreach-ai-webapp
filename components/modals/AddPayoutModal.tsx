@@ -57,7 +57,7 @@ export default function AddPayoutModal({
     fontSize: 14,
     color: "var(--cc-text)",
     outline: "none",
-    background: "white",
+    background: "var(--cc-card)",
     boxSizing: "border-box" as const,
   };
 

@@ -75,7 +75,7 @@ export default function PlanForm({ initial }: PlanFormProps) {
       </div>
 
       {error && (
-        <div style={{ marginBottom: 24, padding: "12px 16px", borderRadius: 10, fontSize: 14, background: "rgba(239,68,68,0.08)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)" }}>
+        <div style={{ marginBottom: 24, padding: "12px 16px", borderRadius: 10, fontSize: 14, background: "color-mix(in srgb, var(--cc-danger) 12%, transparent)", color: "var(--cc-danger)", border: "1px solid color-mix(in srgb, var(--cc-danger) 28%, transparent)" }}>
           {error}
         </div>
       )}

@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { Plus, Lock, AlertTriangle, BarChart3 } from "lucide-react";
 import { Button, Modal, Input, Badge, EmptyState, Card, LoadingSpinner } from "@pratham7711/ui";
+import { formatDateAbs } from "@/lib/format";
 
 interface Report {
   id: string;
@@ -139,7 +140,7 @@ export default function ReportsPage() {
         <Card variant="outlined" noPadding>
           <div style={{ padding: 24 }}>
             <EmptyState
-              icon="🔒"
+              icon={<Lock size={32} color="var(--cc-text-subtle)" />}
               title="Reports are disabled"
               description="Enable the reports feature in Billing to create and manage reports for this organization."
               action={
@@ -168,7 +169,7 @@ export default function ReportsPage() {
         <Card variant="outlined" noPadding>
           <div style={{ padding: 24 }}>
             <EmptyState
-              icon="⚠️"
+              icon={<AlertTriangle size={32} color="var(--cc-text-subtle)" />}
               title="Reports couldn't load"
               description={error}
               action={
@@ -188,7 +189,7 @@ export default function ReportsPage() {
         </Card>
       ) : reports.length === 0 ? (
         <EmptyState
-          icon="📊"
+          icon={<BarChart3 size={32} color="var(--cc-text-subtle)" />}
           title="No reports yet"
           description="Create a report to get started"
           action={
@@ -213,7 +214,7 @@ export default function ReportsPage() {
                 <tr key={r.id} className="cc-table-row" style={{ borderTop: "1px solid var(--cc-border)" }}>
                   <td style={{ padding: "12px 20px", fontWeight: 500, color: "var(--cc-text)" }}>{r.title}</td>
                   <td style={{ padding: "12px 20px", color: "var(--cc-text-muted)" }}>{r.campaign?.title ?? "—"}</td>
-                  <td style={{ padding: "12px 20px", color: "var(--cc-text-muted)" }}>{new Date(r.createdAt).toLocaleDateString()}</td>
+                  <td style={{ padding: "12px 20px", color: "var(--cc-text-muted)" }}>{formatDateAbs(r.createdAt)}</td>
                   <td style={{ padding: "12px 20px" }}>
                     <Badge
                       variant={r.isPublic ? "success" : "neutral"}

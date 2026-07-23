@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Card, EmptyState, Skeleton, Button, Modal } from "@pratham7711/ui";
-import { ArrowLeft, Star } from "lucide-react";
+import { ArrowLeft, Star, MessageSquare } from "lucide-react";
+import { formatDateAbs } from "@/lib/format";
 import { toast } from "sonner";
 
 type Review = {
@@ -123,7 +124,7 @@ export default function PortalReviewsPage() {
 
       {reviews.length === 0 ? (
         <EmptyState
-          icon="⭐"
+          icon={<Star size={32} color="var(--cc-text-subtle)" />}
           title="No reviews yet"
           description="Orgs will review you after campaigns are completed."
         />
@@ -190,7 +191,7 @@ export default function PortalReviewsPage() {
                 {review.tags.slice(0, 2).join(", ")}
               </span>
               <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>
-                {new Date(review.createdAt).toLocaleDateString()}
+                {formatDateAbs(review.createdAt)}
               </span>
             </div>
           ))}
@@ -219,7 +220,7 @@ export default function PortalReviewsPage() {
           <Skeleton width="100%" height="120px" borderRadius="12px" />
         ) : testimonials.length === 0 ? (
           <EmptyState
-            icon="💬"
+            icon={<MessageSquare size={32} color="var(--cc-text-subtle)" />}
             title="No testimonials yet"
             description="Share your experience working with orgs."
           />
@@ -255,7 +256,7 @@ export default function PortalReviewsPage() {
                 &quot;{testimonial.content}&quot;
               </p>
               <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>
-                {new Date(testimonial.createdAt).toLocaleDateString()}
+                {formatDateAbs(testimonial.createdAt)}
               </span>
             </div>
           ))

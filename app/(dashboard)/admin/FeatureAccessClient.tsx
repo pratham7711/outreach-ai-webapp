@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, ExternalLink } from "lucide-react";
+import { Search, ExternalLink, ArrowRight, Settings } from "lucide-react";
 import Link from "next/link";
 import { Button, Input, Badge, EmptyState, Card, Avatar } from "@pratham7711/ui";
 import ClientFeatureModal from "@/components/modals/ClientFeatureModal";
@@ -200,7 +200,7 @@ export default function FeatureAccessClient({ clients: initialClients, plans }: 
         <Card variant="outlined" noPadding>
           {filtered.length === 0 ? (
             <EmptyState
-              icon="🔍"
+              icon={<Search size={32} color="var(--cc-text-subtle)" />}
               title="No clients found"
               description="Try adjusting your search"
             />
@@ -279,7 +279,7 @@ export default function FeatureAccessClient({ clients: initialClients, plans }: 
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{enabledCount}/{featureKeys.length}</span>
                       <div style={{ flex: 1, maxWidth: 60, height: 4, borderRadius: 2, background: "var(--cc-hover-bg)", overflow: "hidden" }}>
-                        <div style={{ width: `${(enabledCount / featureKeys.length) * 100}%`, height: "100%", borderRadius: 2, background: enabledCount > 7 ? "#22c55e" : enabledCount > 4 ? "#eab308" : "#ef4444", transition: "width 0.3s" }} />
+                        <div style={{ width: `${(enabledCount / featureKeys.length) * 100}%`, height: "100%", borderRadius: 2, background: enabledCount > 7 ? "var(--cc-success)" : enabledCount > 4 ? "var(--cc-warning)" : "var(--cc-danger)", transition: "width 0.3s" }} />
                       </div>
                     </div>
 
@@ -359,8 +359,8 @@ export default function FeatureAccessClient({ clients: initialClients, plans }: 
                     </div>
                   ))}
                 </div>
-                <Link href="/plans" style={{ display: "inline-block", marginTop: 12, fontSize: 12, color: "var(--cc-primary)", textDecoration: "none" }}>
-                  View all →
+                <Link href="/plans" style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 12, fontSize: 12, color: "var(--cc-primary)", textDecoration: "none" }}>
+                  View all <ArrowRight size={14} />
                 </Link>
               </Card>
             );
@@ -373,7 +373,7 @@ export default function FeatureAccessClient({ clients: initialClients, plans }: 
         <Card variant="outlined" noPadding>
           {clientsWithOverrides.length === 0 ? (
             <EmptyState
-              icon="⚙️"
+              icon={<Settings size={32} color="var(--cc-text-subtle)" />}
               title="No overrides"
               description="No clients have custom feature overrides"
             />
@@ -444,9 +444,9 @@ export default function FeatureAccessClient({ clients: initialClients, plans }: 
           gap: 12,
           padding: "12px 24px",
           borderRadius: 12,
-          background: "var(--cc-text)",
+          background: "#1E1B4B",
           color: "white",
-          boxShadow: "0 8px 32px rgba(0,0,0,0.2)",
+          boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
           zIndex: 100,
           fontSize: 13,
           maxWidth: "calc(100vw - 24px)",

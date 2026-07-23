@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { Card, Badge, Button, Input, Modal, EmptyState, Skeleton, Tag } from "@pratham7711/ui";
-import { Handshake, Check, X, ArrowRightLeft, Sparkles } from "lucide-react";
+import { Handshake, Check, X, ArrowRightLeft, Sparkles, AlertTriangle } from "lucide-react";
+import { stripAt } from "@/lib/format";
 
 type Offer = {
   id: string;
@@ -192,14 +193,14 @@ export default function NegotiationsSection({
     border: "1px solid var(--cc-border)",
     fontSize: 14,
     color: "var(--cc-text)",
-    background: "white",
+    background: "var(--cc-card)",
     outline: "none",
     boxSizing: "border-box" as const,
   };
 
   const creatorName = (id: string) => {
     const c = creators.find((x) => x.id === id);
-    return c ? `${c.name} (@${c.handle})` : `${id.slice(0, 8)}...`;
+    return c ? `${c.name} (@${stripAt(c.handle)})` : `${id.slice(0, 8)}...`;
   };
 
   const platformFee = platformFeeMinor > 0 ? platformFeeMinor / 100 : 0;
@@ -268,7 +269,7 @@ export default function NegotiationsSection({
 
       {error ? (
         <Card variant="outlined" style={{ padding: 24 }}>
-          <EmptyState icon="⚠️" title="Couldn't load negotiations" description={error} />
+          <EmptyState icon={<AlertTriangle size={32} color="var(--cc-text-subtle)" />} title="Couldn't load negotiations" description={error} />
           <div style={{ display: "flex", justifyContent: "center", marginTop: 12 }}>
             <Button variant="secondary" onClick={fetchOffers}>
               Retry
@@ -277,7 +278,7 @@ export default function NegotiationsSection({
         </Card>
       ) : offers.length === 0 ? (
         <Card variant="outlined" style={{ padding: 24 }}>
-          <EmptyState icon="🤝" title="No negotiations" description="Start by making an offer to a creator." />
+          <EmptyState icon={<Handshake size={32} color="var(--cc-text-subtle)" />} title="No negotiations" description="Start by making an offer to a creator." />
         </Card>
       ) : (
         <Card variant="solid" noPadding style={{ overflowX: "auto" }}>
@@ -358,9 +359,9 @@ export default function NegotiationsSection({
                       style={{
                         padding: "4px 8px",
                         borderRadius: 6,
-                        border: "1px solid #059669",
-                        background: "#D1FAE5",
-                        color: "#059669",
+                        border: "1px solid var(--cc-success)",
+                        background: "color-mix(in srgb, var(--cc-success) 14%, transparent)",
+                        color: "var(--cc-success)",
                         cursor: acting === offer.id ? "wait" : "pointer",
                         fontSize: 11,
                         display: "flex",
@@ -376,9 +377,9 @@ export default function NegotiationsSection({
                       style={{
                         padding: "4px 8px",
                         borderRadius: 6,
-                        border: "1px solid #DC2626",
-                        background: "#FEE2E2",
-                        color: "#DC2626",
+                        border: "1px solid var(--cc-danger)",
+                        background: "color-mix(in srgb, var(--cc-danger) 14%, transparent)",
+                        color: "var(--cc-danger)",
                         cursor: acting === offer.id ? "wait" : "pointer",
                         fontSize: 11,
                         display: "flex",
@@ -432,7 +433,7 @@ export default function NegotiationsSection({
                 <option value="">Select creator...</option>
                 {creators.map((c) => (
                   <option key={c.id} value={c.id}>
-                    {c.name} (@{c.handle})
+                    {c.name} (@{stripAt(c.handle)})
                   </option>
                 ))}
               </select>

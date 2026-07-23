@@ -1,7 +1,7 @@
+import { formatCompact } from "@/lib/format";
+
 export function formatNumber(n: number): string {
-  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
-  if (n >= 1_000) return (n / 1_000).toFixed(1) + "K";
-  return n.toFixed(0);
+  return formatCompact(n);
 }
 
 export function formatCurrency(n: number): string {
@@ -36,3 +36,18 @@ export function rangeToFrom(range: string): string | null {
 }
 
 export const SERIES_COLORS = ["#5B5BD6", "#E4405F", "#10B981", "#F59E0B", "#06B6D4"];
+
+export const PLATFORM_PALETTE: Record<string, string> = {
+  TIKTOK: "#5B5BD6",
+  INSTAGRAM: "#F59E0B",
+  YOUTUBE: "#06B6D4",
+  TWITTER: "#10B981",
+  X: "#10B981",
+};
+
+const PLATFORM_FALLBACK = ["#5B5BD6", "#F59E0B", "#06B6D4", "#10B981", "#8B5CF6"];
+
+export function platformColor(platform: string | null | undefined, index = 0): string {
+  const key = (platform ?? "").toUpperCase();
+  return PLATFORM_PALETTE[key] ?? PLATFORM_FALLBACK[index % PLATFORM_FALLBACK.length];
+}

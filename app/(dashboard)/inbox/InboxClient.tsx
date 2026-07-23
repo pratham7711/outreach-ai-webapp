@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Avatar, Badge, Tag, EmptyState, Skeleton } from "@pratham7711/ui";
-import { Send, ArrowLeft } from "lucide-react";
+import { Send, ArrowLeft, MessageSquare, Mail, AlertTriangle } from "lucide-react";
 
 const inboxStyles = `
   .inbox-panes {
@@ -218,7 +218,7 @@ export default function InboxClient() {
             ) : conversations.length === 0 ? (
               <div style={{ padding: 24 }}>
                 <EmptyState
-                  icon="💬"
+                  icon={<MessageSquare size={32} color="var(--cc-text-subtle)" />}
                   title="No conversations yet"
                   description="Message a creator from their profile"
                 />
@@ -293,7 +293,7 @@ export default function InboxClient() {
         <div className="inbox-thread">
           {!activeId ? (
             <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
-              <EmptyState icon="✉️" title="Select a conversation" description="Choose a creator from the list to view messages" />
+              <EmptyState icon={<Mail size={32} color="var(--cc-text-subtle)" />} title="Select a conversation" description="Choose a creator from the list to view messages" />
             </div>
           ) : threadLoading ? (
             <div style={{ padding: 24, display: "flex", flexDirection: "column", gap: 12 }}>
@@ -303,7 +303,7 @@ export default function InboxClient() {
             </div>
           ) : threadError ? (
             <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
-              <EmptyState icon="⚠️" title="Couldn't load conversation" description="Try selecting it again" />
+              <EmptyState icon={<AlertTriangle size={32} color="var(--cc-text-subtle)" />} title="Couldn't load conversation" description="Try selecting it again" />
             </div>
           ) : thread ? (
             <>

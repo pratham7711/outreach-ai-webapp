@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { fetchPostMetrics, hasMetricCounts } from "@/lib/platforms/fetchPostMetrics";
+import { getInstagramAccountForCreator } from "@/lib/platforms/instagramToken";
 
 // POST /api/campaigns/[id]/posts/[postId]/sync — Trigger manual sync for a post
 export async function POST(
@@ -20,7 +21,14 @@ export async function POST(
     const post = await db.post.findFirst({ where: { id: postId, campaignId } });
     if (!post) return NextResponse.json({ error: "Post not found" }, { status: 404 });
 
-    const metrics = await fetchPostMetrics(post.postUrl);
+    const instagram =
+      post.platform === "INSTAGRAM"
+        ? await getInstagramAccountForCreator(post.creatorId, orgId)
+        : undefined;
+    const metrics = await fetchPostMetrics(post.postUrl, {
+      instagramToken: instagram?.token,
+      instagramHandle: instagram?.handle,
+    });
     if (!metrics) {
       return NextResponse.json({ error: "Could not fetch metrics for this post URL" }, { status: 422 });
     }

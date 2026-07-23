@@ -2,10 +2,11 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
-import { ArrowLeft, Save, Building2, Settings2, Briefcase, Edit3 } from "lucide-react";
+import { ArrowLeft, Save, Building2, Settings2, Briefcase, Edit3, ClipboardList } from "lucide-react";
 import { Card, Button, Badge, StatCard, Avatar, EmptyState, Input } from "@pratham7711/ui";
 import { FEATURES, type FeatureKey, clientHasFeature } from "@/lib/features";
 import ClientFeatureModal from "@/components/modals/ClientFeatureModal";
+import { formatDateAbs } from "@/lib/format";
 import { toast } from "sonner";
 
 type Plan = { id: string; name: string; features: Record<string, boolean> };
@@ -190,7 +191,7 @@ export default function ClientDetailClient({ client, plans }: Props) {
         loadingCampaigns ? (
           <div style={{ padding: 48, textAlign: "center", color: "var(--cc-text-muted)" }}>Loading campaigns...</div>
         ) : campaigns.length === 0 ? (
-          <EmptyState icon="📋" title="No campaigns" description="This client has no campaigns yet." />
+          <EmptyState icon={<ClipboardList size={32} color="var(--cc-text-subtle)" />} title="No campaigns" description="This client has no campaigns yet." />
         ) : (
           <Card variant="solid" noPadding>
             <div className="rsp-table-wrap">
@@ -205,7 +206,7 @@ export default function ClientDetailClient({ client, plans }: Props) {
                     <span style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>{c.title}</span>
                     <Badge variant={STATUS_BADGE[c.status] ?? "neutral"} dot>{c.status.replace(/_/g, " ")}</Badge>
                     <span style={{ fontSize: 13, color: "var(--cc-text)" }}>{c.budget ? formatCurrency(Number(c.budget), c.currency) : "—"}</span>
-                    <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{new Date(c.createdAt).toLocaleDateString()}</span>
+                    <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{formatDateAbs(c.createdAt)}</span>
                     <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{c._count.activations}</span>
                   </Link>
                 ))}
@@ -260,7 +261,7 @@ export default function ClientDetailClient({ client, plans }: Props) {
               <Button variant="primary" size="sm" iconLeft={<Settings2 size={14} />} onClick={() => setShowFeatureModal(true)}>Manage Access</Button>
             </div>
             {client.featureOverrides && Object.keys(client.featureOverrides).length > 0 && (
-              <div style={{ fontSize: 12, padding: "6px 12px", borderRadius: 6, background: "rgba(234,179,8,0.08)", color: "#d97706", border: "1px solid rgba(234,179,8,0.15)" }}>
+              <div style={{ fontSize: 12, padding: "6px 12px", borderRadius: 6, background: "color-mix(in srgb, var(--cc-warning) 12%, transparent)", color: "var(--cc-warning)", border: "1px solid color-mix(in srgb, var(--cc-warning) 25%, transparent)" }}>
                 {Object.keys(client.featureOverrides).length} override{Object.keys(client.featureOverrides).length > 1 ? "s" : ""} active
               </div>
             )}
@@ -276,14 +277,14 @@ export default function ClientDetailClient({ client, plans }: Props) {
               const effective = clientHasFeature(client.plan ? { features: client.plan.features } : null, client.featureOverrides, key);
               const isOverridden = overrideVal !== undefined;
               return (
-                <div key={key} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 20px", borderBottom: i < featureKeys.length - 1 ? "1px solid var(--cc-border)" : "none", background: isOverridden ? "rgba(91,91,214,0.02)" : "transparent" }}>
+                <div key={key} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 20px", borderBottom: i < featureKeys.length - 1 ? "1px solid var(--cc-border)" : "none", background: isOverridden ? "var(--cc-primary-light)" : "transparent" }}>
                   <div style={{ width: 8, height: 8, borderRadius: "50%", flexShrink: 0, background: effective ? "#22c55e" : "#D1D5DB" }} />
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 13, fontWeight: 500, color: effective ? "var(--cc-text)" : "var(--cc-text-muted)" }}>{FEATURES[key].label}</div>
                     <div style={{ fontSize: 11, color: "var(--cc-text-muted)" }}>{FEATURES[key].description}</div>
                   </div>
                   {isOverridden ? (
-                    <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 6px", borderRadius: 4, background: overrideVal ? "rgba(34,197,94,0.1)" : "rgba(239,68,68,0.1)", color: overrideVal ? "#16a34a" : "#ef4444" }}>
+                    <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 6px", borderRadius: 4, background: overrideVal ? "color-mix(in srgb, var(--cc-success) 14%, transparent)" : "color-mix(in srgb, var(--cc-danger) 14%, transparent)", color: overrideVal ? "var(--cc-success)" : "var(--cc-danger)" }}>
                       Override: {overrideVal ? "ON" : "OFF"}
                     </span>
                   ) : (

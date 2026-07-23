@@ -14,9 +14,12 @@ import ReviewsSection from "./ReviewsSection";
 import {
   ArrowLeft, Eye, Heart, MessageCircle, Share2, TrendingUp, Users,
   Calendar, Play, ChevronRight, ExternalLink, DollarSign, UserPlus,
+  ClipboardList, BarChart3, Wallet,
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
+import { formatCompact, stripAt, formatCompactCurrency, formatDateAbs } from "@/lib/format";
+import { platformColor } from "@/app/(dashboard)/analytics/shared";
 
 const ChartSkeleton = ({ height }: { height: number }) => (
   <Skeleton width="100%" height={`${height}px`} borderRadius="12px" />
@@ -57,9 +60,7 @@ const BudgetBreakdownPie = dynamic(() => import("./CampaignTabCharts").then((m) 
 type Tab = "performance" | "overview" | "posts" | "creators" | "reviews" | "analytics" | "financials" | "edit";
 
 function formatNumber(num: number): string {
-  if (num >= 1000000) return (num / 1000000).toFixed(1) + "M";
-  if (num >= 1000) return (num / 1000).toFixed(1) + "K";
-  return num.toString();
+  return formatCompact(num);
 }
 
 function formatCurrency(n: number, currency = "USD") {
@@ -81,13 +82,6 @@ const ACTIVATION_STATUS: Record<string, "success" | "warning" | "danger" | "neut
   POSTED: "success",
   COMPLETE: "success",
   DECLINED: "danger",
-};
-
-const PLATFORM_COLORS: Record<string, string> = {
-  TIKTOK: "#000000",
-  INSTAGRAM: "#E4405F",
-  YOUTUBE: "#FF0000",
-  TWITTER: "#1DA1F2",
 };
 
 type Post = {
@@ -441,7 +435,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
   if (loading) return <LoadingSkeleton />;
   if (!campaign) return (
     <div className="cc-page-content">
-      <EmptyState icon="📋" title="Campaign not found" description="This campaign may have been deleted." />
+      <EmptyState icon={<ClipboardList size={32} color="var(--cc-text-subtle)" />} title="Campaign not found" description="This campaign may have been deleted." />
     </div>
   );
 
@@ -462,9 +456,11 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
     return acc;
   }, {} as Record<string, { views: number; likes: number; posts: number }>);
 
-  const platformPieData = Object.entries(platformStats).map(([platform, stats]) => ({
-    name: platform, value: stats.views, fill: PLATFORM_COLORS[platform] ?? "var(--cc-primary)",
-  }));
+  const platformPieData = Object.entries(platformStats)
+    .filter(([, stats]) => stats.views > 0)
+    .map(([platform, stats]) => ({
+      name: platform, value: stats.views, fill: platformColor(platform),
+    }));
 
   // Per-creator breakdown for analytics
   const creatorStats = campaign.posts.reduce((acc, p) => {
@@ -514,11 +510,11 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
         )}
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 32, fontSize: 14, color: "var(--cc-text-muted)", flexWrap: "wrap" }}>
-        <span style={{ display: "flex", alignItems: "center", gap: 4 }}><Calendar size={14} />{new Date(campaign.createdAt).toLocaleDateString()}</span>
+        <span style={{ display: "flex", alignItems: "center", gap: 4 }}><Calendar size={14} />{formatDateAbs(campaign.createdAt)}</span>
         {budget > 0 && (
           <>
             <span>·</span>
-            <span style={{ fontWeight: 700 }}>{formatCurrency(budget, campaign.currency)} budget</span>
+            <span style={{ fontWeight: 700 }}>{formatCompactCurrency(budget, campaign.currency)} budget</span>
           </>
         )}
         <span>·</span>
@@ -633,7 +629,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
               </button>
             </div>
             {campaign.activations.length === 0 ? (
-              <EmptyState icon="👥" title="No creators yet" description="Add creators to this campaign to get started." />
+              <EmptyState icon={<Users size={32} color="var(--cc-text-subtle)" />} title="No creators yet" description="Add creators to this campaign to get started." />
             ) : (
               <Card variant="solid" noPadding style={{ overflowX: "auto" }}>
                 <div style={{
@@ -656,7 +652,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                         <Avatar name={act.creator.name} size="sm" />
                         <div>
                           <p style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>{act.creator.name}</p>
-                          <p style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>@{act.creator.handle}</p>
+                          <p style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>@{stripAt(act.creator.handle)}</p>
                         </div>
                       </div>
                       <Badge variant="neutral">{act.creator.platform}</Badge>
@@ -691,7 +687,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
               </div>
             )}
             {(campaign.posts.length === 0 ? (
-            <EmptyState icon="📈" title="No analytics yet" description="Analytics will be available once posts are synced." />
+            <EmptyState icon={<TrendingUp size={32} color="var(--cc-text-subtle)" />} title="No analytics yet" description="Analytics will be available once posts are synced." />
           ) : (
             <div className="rsp-grid-2">
               {/* Platform breakdown */}
@@ -710,7 +706,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                     <CreatorPerformanceBar data={creatorBarData} formatNumber={formatNumber} />
                   </div>
                 ) : (
-                  <EmptyState icon="📊" title="No creator data" />
+                  <EmptyState icon={<BarChart3 size={32} color="var(--cc-text-subtle)" />} title="No creator data" />
                 )}
               </Card>
 
@@ -754,7 +750,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                 {budget > 0 && (
                   <>
                     <div style={{ height: 12, borderRadius: 6, marginBottom: 8, background: "var(--cc-bg)" }}>
-                      <div style={{ height: "100%", borderRadius: 6, width: `${Math.min(100, (spent / budget) * 100)}%`, background: "linear-gradient(90deg, var(--cc-primary), #7C3AED)", transition: "width 0.5s" }} />
+                      <div style={{ height: "100%", borderRadius: 6, width: `${Math.min(100, (spent / budget) * 100)}%`, background: "var(--cc-primary)", transition: "width 0.5s" }} />
                     </div>
                     <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>
                       {Math.round((spent / budget) * 100)}% used · {formatCurrency(budget - spent, campaign.currency)} remaining
@@ -769,7 +765,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                     <BudgetBreakdownPie data={pieData} formatCurrency={formatCurrency} currency={campaign.currency} />
                   </div>
                 ) : (
-                  <EmptyState icon="💰" title="No budget set" />
+                  <EmptyState icon={<Wallet size={32} color="var(--cc-text-subtle)" />} title="No budget set" />
                 )}
               </Card>
             </div>
@@ -915,7 +911,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                           style={{
                             padding: 14, borderRadius: 10, cursor: "pointer",
                             border: `2px solid ${selected ? "var(--cc-primary)" : "var(--cc-border)"}`,
-                            background: selected ? "rgba(91, 91, 214, 0.04)" : "var(--cc-card)",
+                            background: selected ? "var(--cc-primary-light)" : "var(--cc-card)",
                           }}
                         >
                           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -1109,7 +1105,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                 <option value="">Select a creator...</option>
                 {availableCreators.map((c) => (
                   <option key={c.id} value={c.id}>
-                    {c.name} (@{c.handle}) — {c.platform}
+                    {c.name} (@{stripAt(c.handle)}) — {c.platform}
                   </option>
                 ))}
               </select>

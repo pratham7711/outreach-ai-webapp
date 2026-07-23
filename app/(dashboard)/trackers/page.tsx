@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Badge, Card, StatCard, Button, Modal, Input, Skeleton, EmptyState } from "@pratham7711/ui";
 import { Music, Plus, Trash2, TrendingUp } from "lucide-react";
+import { formatCompact, formatDateAbs } from "@/lib/format";
 
 interface SoundSnapshot {
   usesCount: number;
@@ -22,9 +23,7 @@ interface TrackedSound {
 }
 
 function formatCount(n: number): string {
-  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1).replace(/\.0$/, "") + "M";
-  if (n >= 1_000) return (n / 1_000).toFixed(1).replace(/\.0$/, "") + "K";
-  return n.toLocaleString();
+  return formatCompact(n);
 }
 
 function getVelocityBadge(score: number): { label: string; variant: "success" | "accent" | "neutral" | "danger" } {
@@ -124,7 +123,7 @@ export default function TrackersPage() {
           <StatCard value={String(totalTrackers)} label="Active Trackers" />
           <StatCard value={formatCount(totalUses)} label="Total Uses" />
           <StatCard value={String(trendingCount)} label="Trending" />
-          <StatCard value={String(newToday)} label="New Today" />
+          <StatCard value={formatCompact(newToday)} label="New Today" />
         </div>
       )}
 
@@ -194,7 +193,7 @@ export default function TrackersPage() {
                   </div>
                 </div>
                 <div style={{ fontSize: 12, color: "var(--cc-text-muted)", minWidth: 80, textAlign: "right" }}>
-                  {new Date(s.trackedSince).toLocaleDateString()}
+                  {formatDateAbs(s.trackedSince)}
                 </div>
                 <button
                   onClick={() => handleDelete(s.id)}

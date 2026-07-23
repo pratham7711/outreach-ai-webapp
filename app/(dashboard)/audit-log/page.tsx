@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { getOrgEntitlements, hasOrgFeature } from "@/lib/entitlements";
 import { AUDIT_LOG_FEATURE } from "@/lib/featureKeys";
 import { Badge, Card, EmptyState } from "@pratham7711/ui";
+import { Lock } from "lucide-react";
 import AuditLogClient from "./AuditLogClient";
 
 const PAGE_SIZE = 20;
@@ -43,7 +44,7 @@ export default async function AuditLogPage() {
             </div>
 
             <EmptyState
-              icon="🔒"
+              icon={<Lock size={32} color="var(--cc-text-subtle)" />}
               title="Audit log is turned off"
               description="Enable audit logging in Billing to start capturing workspace changes and viewing them here."
               action={

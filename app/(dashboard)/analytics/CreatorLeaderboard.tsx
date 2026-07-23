@@ -2,7 +2,9 @@
 import React from "react";
 import Link from "next/link";
 import { Card, Avatar, EmptyState } from "@pratham7711/ui";
+import { User } from "lucide-react";
 import { formatNumber, formatCurrency, formatPercent } from "./shared";
+import { stripAt } from "@/lib/format";
 
 export type LeaderboardCreator = {
   id: string;
@@ -29,7 +31,7 @@ export default function CreatorLeaderboard({ creators }: { creators: Leaderboard
       </div>
       {creators.length === 0 ? (
         <div style={{ padding: 24 }}>
-          <EmptyState icon="👤" title="No post data yet" description="Sync posts to see creator rankings." />
+          <EmptyState icon={<User size={32} color="var(--cc-text-subtle)" />} title="No post data yet" description="Sync posts to see creator rankings." />
         </div>
       ) : (
         <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
@@ -81,7 +83,7 @@ export default function CreatorLeaderboard({ creators }: { creators: Leaderboard
                 <Avatar name={creator.name} src={creator.avatarUrl ?? undefined} size="sm" />
                 <div style={{ minWidth: 0 }}>
                   <p style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)", lineHeight: 1.3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{creator.name}</p>
-                  <p style={{ fontSize: 11, color: "var(--cc-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>@{creator.handle}</p>
+                  <p style={{ fontSize: 11, color: "var(--cc-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>@{stripAt(creator.handle)}</p>
                 </div>
               </div>
               <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)", textAlign: "right" }}>{creator.campaigns}</span>

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Card, Badge, Button, Input, Modal, EmptyState, Skeleton } from "@pratham7711/ui";
 import { StatusTabs } from "@/components/ds";
 import { Banknote, Check, X } from "lucide-react";
+import { stripAt, formatDateAbs } from "@/lib/format";
 
 type PayoutReq = {
   id: string;
@@ -121,7 +122,7 @@ export default function PayoutRequestsSection({ campaignId }: { campaignId: stri
     border: "1px solid var(--cc-border)",
     fontSize: 14,
     color: "var(--cc-text)",
-    background: "white",
+    background: "var(--cc-card)",
     outline: "none",
     boxSizing: "border-box" as const,
   };
@@ -151,7 +152,7 @@ export default function PayoutRequestsSection({ campaignId }: { campaignId: stri
 
       {requests.length === 0 ? (
         <Card variant="outlined" style={{ padding: 24 }}>
-          <EmptyState icon="💸" title="No payout requests" description="Payout requests from creators will appear here." />
+          <EmptyState icon={<Banknote size={32} color="var(--cc-text-subtle)" />} title="No payout requests" description="Payout requests from creators will appear here." />
         </Card>
       ) : (
         <Card variant="solid" noPadding>
@@ -173,14 +174,14 @@ export default function PayoutRequestsSection({ campaignId }: { campaignId: stri
               <span style={{ fontSize: 14, fontWeight: 700, color: "var(--cc-text)" }}>{formatCurrency(req.requestedAmount, req.currency)}</span>
               <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{req.currency}</span>
               <Badge variant={STATUS_BADGE[req.status] ?? "neutral"}>{req.status}</Badge>
-              <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{new Date(req.createdAt).toLocaleDateString()}</span>
+              <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{formatDateAbs(req.createdAt)}</span>
               <div style={{ display: "flex", gap: 4 }}>
                 {req.status === "PENDING" && (
                   <>
-                    <button onClick={() => handleApprove(req.id)} style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid #059669", background: "#D1FAE5", color: "#059669", cursor: "pointer", fontSize: 11, display: "flex", alignItems: "center", gap: 2 }}>
+                    <button onClick={() => handleApprove(req.id)} style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid var(--cc-success)", background: "color-mix(in srgb, var(--cc-success) 14%, transparent)", color: "var(--cc-success)", cursor: "pointer", fontSize: 11, display: "flex", alignItems: "center", gap: 2 }}>
                       <Check size={12} /> Approve
                     </button>
-                    <button onClick={() => setShowReject(req.id)} style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid #DC2626", background: "#FEE2E2", color: "#DC2626", cursor: "pointer", fontSize: 11, display: "flex", alignItems: "center", gap: 2 }}>
+                    <button onClick={() => setShowReject(req.id)} style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid var(--cc-danger)", background: "color-mix(in srgb, var(--cc-danger) 14%, transparent)", color: "var(--cc-danger)", cursor: "pointer", fontSize: 11, display: "flex", alignItems: "center", gap: 2 }}>
                       <X size={12} /> Reject
                     </button>
                   </>
@@ -204,7 +205,7 @@ export default function PayoutRequestsSection({ campaignId }: { campaignId: stri
               <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Creator</label>
               <select value={form.creatorId} onChange={(e) => setForm(f => ({ ...f, creatorId: e.target.value }))} style={selectStyle}>
                 <option value="">Select creator...</option>
-                {creators.map(c => <option key={c.id} value={c.id}>{c.name} (@{c.handle})</option>)}
+                {creators.map(c => <option key={c.id} value={c.id}>{c.name} (@{stripAt(c.handle)})</option>)}
               </select>
             </div>
             <div style={{ display: "flex", gap: 12 }}>

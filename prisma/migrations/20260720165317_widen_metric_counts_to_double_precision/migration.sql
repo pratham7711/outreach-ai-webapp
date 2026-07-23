@@ -1,0 +1,63 @@
+-- Any cumulative view/engagement/follower/impression/uses metric can exceed
+-- INT4 max (2,147,483,647) as accounts and posts scale past ~2.1B.
+-- Widen all such columns to DOUBLE PRECISION (lossless for integers < 2^53).
+-- Companion to 20260720150902 which did Post/PostMetricSnapshot.viewsCount.
+-- Deliberately left as INT4 (physically bounded well below 2.1B): Post.syncFailCount,
+-- SoundTrackerSnapshot.videosAdded24h/deltaUses24h, CreatorUser.reviewCount.
+
+-- AlterTable
+ALTER TABLE "Creator" ALTER COLUMN "followersCount" SET DEFAULT 0,
+ALTER COLUMN "followersCount" SET DATA TYPE DOUBLE PRECISION,
+ALTER COLUMN "averageViews" SET DEFAULT 0,
+ALTER COLUMN "averageViews" SET DATA TYPE DOUBLE PRECISION;
+
+-- AlterTable
+ALTER TABLE "CreatorSocialAccount" ALTER COLUMN "followersCount" SET DEFAULT 0,
+ALTER COLUMN "followersCount" SET DATA TYPE DOUBLE PRECISION,
+ALTER COLUMN "avgViews" SET DEFAULT 0,
+ALTER COLUMN "avgViews" SET DATA TYPE DOUBLE PRECISION;
+
+-- AlterTable
+ALTER TABLE "CreatorUser" ALTER COLUMN "followersCount" SET DEFAULT 0,
+ALTER COLUMN "followersCount" SET DATA TYPE DOUBLE PRECISION,
+ALTER COLUMN "averageViews" SET DEFAULT 0,
+ALTER COLUMN "averageViews" SET DATA TYPE DOUBLE PRECISION;
+
+-- AlterTable
+ALTER TABLE "Post" ALTER COLUMN "likesCount" SET DEFAULT 0,
+ALTER COLUMN "likesCount" SET DATA TYPE DOUBLE PRECISION,
+ALTER COLUMN "commentsCount" SET DEFAULT 0,
+ALTER COLUMN "commentsCount" SET DATA TYPE DOUBLE PRECISION,
+ALTER COLUMN "sharesCount" SET DEFAULT 0,
+ALTER COLUMN "sharesCount" SET DATA TYPE DOUBLE PRECISION,
+ALTER COLUMN "downloadsCount" SET DEFAULT 0,
+ALTER COLUMN "downloadsCount" SET DATA TYPE DOUBLE PRECISION,
+ALTER COLUMN "reachCount" SET DEFAULT 0,
+ALTER COLUMN "reachCount" SET DATA TYPE DOUBLE PRECISION,
+ALTER COLUMN "savesCount" SET DEFAULT 0,
+ALTER COLUMN "savesCount" SET DATA TYPE DOUBLE PRECISION;
+
+-- AlterTable
+ALTER TABLE "PostMetricSnapshot" ALTER COLUMN "likesCount" SET DEFAULT 0,
+ALTER COLUMN "likesCount" SET DATA TYPE DOUBLE PRECISION,
+ALTER COLUMN "commentsCount" SET DEFAULT 0,
+ALTER COLUMN "commentsCount" SET DATA TYPE DOUBLE PRECISION,
+ALTER COLUMN "sharesCount" SET DEFAULT 0,
+ALTER COLUMN "sharesCount" SET DATA TYPE DOUBLE PRECISION,
+ALTER COLUMN "downloadsCount" SET DEFAULT 0,
+ALTER COLUMN "downloadsCount" SET DATA TYPE DOUBLE PRECISION,
+ALTER COLUMN "impressionsCount" SET DEFAULT 0,
+ALTER COLUMN "impressionsCount" SET DATA TYPE DOUBLE PRECISION,
+ALTER COLUMN "reachCount" SET DEFAULT 0,
+ALTER COLUMN "reachCount" SET DATA TYPE DOUBLE PRECISION,
+ALTER COLUMN "savesCount" SET DEFAULT 0,
+ALTER COLUMN "savesCount" SET DATA TYPE DOUBLE PRECISION;
+
+-- AlterTable
+ALTER TABLE "SoundTrackerSnapshot" ALTER COLUMN "usesCount" SET DATA TYPE DOUBLE PRECISION;
+
+-- AlterTable
+ALTER TABLE "ViewLedger" ALTER COLUMN "viewsRecorded" SET DEFAULT 0,
+ALTER COLUMN "viewsRecorded" SET DATA TYPE DOUBLE PRECISION,
+ALTER COLUMN "viewsDelta" SET DEFAULT 0,
+ALTER COLUMN "viewsDelta" SET DATA TYPE DOUBLE PRECISION;

@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { Card, Button, Input, Skeleton } from "@pratham7711/ui";
 import { Building2, Palette, Landmark, Globe, Save } from "lucide-react";
+import { formatDateAbs } from "@/lib/format";
 
 type OrgProfile = {
   id: string;
@@ -33,7 +34,7 @@ const TIMEZONES = ["UTC", "Asia/Kolkata", "America/New_York", "America/Los_Angel
 function SectionHeader({ icon: Icon, title, description }: { icon: React.ElementType; title: string; description: string }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
-      <div style={{ width: 40, height: 40, borderRadius: 10, background: "rgba(91,91,214,0.08)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+      <div style={{ width: 40, height: 40, borderRadius: 10, background: "var(--cc-primary-light)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
         <Icon size={18} color="var(--cc-primary)" />
       </div>
       <div>
@@ -170,7 +171,7 @@ export default function OrgProfilePage() {
       </div>
 
       {error && (
-        <div style={{ background: "#FEE2E2", border: "1px solid #FECACA", borderRadius: 8, padding: "12px 16px", marginBottom: 20, fontSize: 13, color: "#DC2626" }}>
+        <div style={{ background: "color-mix(in srgb, var(--cc-danger) 14%, transparent)", border: "1px solid color-mix(in srgb, var(--cc-danger) 30%, transparent)", borderRadius: 8, padding: "12px 16px", marginBottom: 20, fontSize: 13, color: "var(--cc-danger)" }}>
           {error}
         </div>
       )}
@@ -224,12 +225,12 @@ export default function OrgProfilePage() {
               </FormRow>
               <FormRow label="Current Plan">
                 <div style={{ display: "flex", alignItems: "center", gap: 8, paddingTop: 6 }}>
-                  <span style={{ fontSize: 12, fontWeight: 600, padding: "3px 10px", borderRadius: 12, background: "#EEF2FF", color: "#4F46E5", textTransform: "capitalize" }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, padding: "3px 10px", borderRadius: 12, background: "var(--cc-primary-light)", color: "var(--cc-primary)", textTransform: "capitalize" }}>
                     {org?.plan ?? "starter"}
                   </span>
                   {org?.planExpiresAt && (
                     <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>
-                      Expires {new Date(org.planExpiresAt).toLocaleDateString()}
+                      Expires {formatDateAbs(org.planExpiresAt)}
                     </span>
                   )}
                 </div>

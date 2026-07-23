@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus } from "lucide-react";
+import { Plus, Zap } from "lucide-react";
 import { Button, Badge, StatCard, EmptyState, Card, Avatar, Modal, Input } from "@pratham7711/ui";
 import { toast } from "sonner";
+import { stripAt } from "@/lib/format";
 
 type Activation = {
   id: string;
@@ -102,7 +103,7 @@ export default function ActivationsClient({ activations, stats, creators, campai
   const selectStyle = {
     width: "100%", padding: "10px 14px", borderRadius: 10,
     border: "1px solid var(--cc-border)", fontSize: 14,
-    color: "var(--cc-text)", outline: "none", background: "white",
+    color: "var(--cc-text)", outline: "none", background: "var(--cc-card)",
   };
 
   return (
@@ -126,7 +127,7 @@ export default function ActivationsClient({ activations, stats, creators, campai
 
       {activations.length === 0 ? (
         <EmptyState
-          icon="⚡" title="No activations yet"
+          icon={<Zap size={32} color="var(--cc-text-subtle)" />} title="No activations yet"
           description="Activations will appear here once creators are assigned to campaigns."
           action={<Button variant="primary" iconLeft={<Plus size={16} />} onClick={() => setShowCreate(true)}>Add Activation</Button>}
         />
@@ -152,7 +153,7 @@ export default function ActivationsClient({ activations, stats, creators, campai
                             <Avatar name={a.creator.name} size="sm" />
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <p style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.creator.name}</p>
-                              <p style={{ fontSize: 11, color: "var(--cc-text-muted)", margin: 0 }}>@{a.creator.handle}</p>
+                              <p style={{ fontSize: 11, color: "var(--cc-text-muted)", margin: 0 }}>@{stripAt(a.creator.handle)}</p>
                             </div>
                           </div>
                           <p style={{ fontSize: 12, color: "var(--cc-text-muted)", margin: "0 0 8px" }}>{a.campaign.title}</p>
@@ -165,7 +166,7 @@ export default function ActivationsClient({ activations, stats, creators, campai
                                   style={{
                                     flex: 1, padding: "4px 8px", borderRadius: 6, fontSize: 11, fontWeight: 600,
                                     border: "1px solid var(--cc-border)", background: "var(--cc-card)",
-                                    color: act.status === "DECLINED" ? "#ef4444" : "var(--cc-primary)",
+                                    color: act.status === "DECLINED" ? "var(--cc-danger)" : "var(--cc-primary)",
                                     cursor: "pointer", transition: "all 0.15s",
                                   }}
                                 >
@@ -207,7 +208,7 @@ export default function ActivationsClient({ activations, stats, creators, campai
               <label htmlFor="act-creator" style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Creator *</label>
               <select id="act-creator" required value={createForm.creatorId} onChange={e => setCreateForm(f => ({ ...f, creatorId: e.target.value }))} style={selectStyle}>
                 <option value="">Select creator...</option>
-                {creators.map(c => <option key={c.id} value={c.id}>{c.name} (@{c.handle})</option>)}
+                {creators.map(c => <option key={c.id} value={c.id}>{c.name} (@{stripAt(c.handle)})</option>)}
               </select>
             </div>
           </div>

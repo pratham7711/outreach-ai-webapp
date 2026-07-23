@@ -12,6 +12,9 @@ import type { OrgUiConfig } from "@/lib/orgConfig";
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
   const orgId = (session?.user as any)?.orgId;
+  const user = session?.user
+    ? { name: session.user.name ?? null, email: session.user.email ?? null }
+    : null;
   const entitlements = orgId ? await getOrgEntitlements(orgId) : null;
   const uiConfig = (entitlements?.uiConfig as OrgUiConfig | null) ?? null;
   const policy = resolveDashboardPolicy({ entitlements, uiConfig });
@@ -41,9 +44,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
           <NewSidebar
             allowedNavHrefs={orgId ? policy.allowedNavHrefs : null}
             brandName={orgId ? policy.brandName : null}
+            user={user}
           />
           <DashboardContent>
-            <TopBar />
+            <TopBar user={user} />
             <main id="main-content" className="flex-1 overflow-y-auto" role="main">
               <div className="page-enter">
                 {children}

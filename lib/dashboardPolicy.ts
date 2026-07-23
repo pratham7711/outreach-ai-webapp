@@ -30,6 +30,7 @@ type DashboardNavRule = {
 const DEFAULT_PRIMARY_COLOR = "#4F46E5";
 
 export const DASHBOARD_NAV_RULES: DashboardNavRule[] = [
+  { href: "/dashboard", alwaysVisible: true },
   { href: "/campaigns", key: "campaigns" },
   { href: "/inbox", alwaysVisible: true },
   { href: "/activations", key: "activations" },

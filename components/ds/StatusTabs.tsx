@@ -23,6 +23,20 @@ export type StatusTabsProps = {
   style?: React.CSSProperties;
 };
 
+const STATUS_COLOR_TOKENS: Record<string, string> = {
+  "#374151": "var(--cc-text)",
+  "#d97706": "var(--cc-warning)",
+  "#059669": "var(--cc-success)",
+  "#dc2626": "var(--cc-danger)",
+  "#4f46e5": "var(--cc-primary)",
+  "#4338ca": "var(--cc-primary)",
+};
+
+function resolveStatusColor(color?: string): string {
+  if (!color) return "var(--cc-primary)";
+  return STATUS_COLOR_TOKENS[color.trim().toLowerCase()] ?? color;
+}
+
 export function StatusTabs({ tabs, active, onChange, variant = "underline", ariaLabel = "Filter by status", style }: StatusTabsProps) {
   const isPill = variant === "pill";
   return (
@@ -39,7 +53,7 @@ export function StatusTabs({ tabs, active, onChange, variant = "underline", aria
     >
       {tabs.map((tab) => {
         const isSelected = active === tab.key;
-        const color = tab.color ?? "var(--cc-primary)";
+        const color = resolveStatusColor(tab.color);
         const showCount = typeof tab.count === "number" && tab.count > 0;
         if (isPill) {
           return (
@@ -56,7 +70,7 @@ export function StatusTabs({ tabs, active, onChange, variant = "underline", aria
                 fontWeight: 600,
                 border: "none",
                 cursor: "pointer",
-                background: isSelected ? (tab.bg ?? "var(--cc-bg)") : "transparent",
+                background: isSelected ? `color-mix(in srgb, ${color} 16%, transparent)` : "transparent",
                 color: isSelected ? color : "var(--cc-text-muted)",
                 transition: "all 0.15s",
                 whiteSpace: "nowrap",

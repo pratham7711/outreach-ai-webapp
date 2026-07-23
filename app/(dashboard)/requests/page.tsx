@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Button, Badge, Card, StatCard, Avatar, Skeleton, EmptyState } from "@pratham7711/ui";
 import { StatusTabs } from "@/components/ds";
+import { formatDateAbs } from "@/lib/format";
 import { Inbox } from "lucide-react";
 
 interface PayoutRequest {
@@ -195,7 +196,7 @@ export default function RequestsPage() {
                 <Badge variant={STATUS_BADGE[r.status] ?? "neutral"} size="sm">{r.status.toLowerCase()}</Badge>
                 <div style={{ textAlign: "right", minWidth: 80 }}>
                   <div style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)" }}>{formatCurrency(r.requestedAmount, r.currency)}</div>
-                  <div style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{new Date(r.createdAt).toLocaleDateString()}</div>
+                  <div style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{formatDateAbs(r.createdAt)}</div>
                 </div>
                 {r.status === "PENDING" && (
                   <div style={{ display: "flex", gap: 8 }}>

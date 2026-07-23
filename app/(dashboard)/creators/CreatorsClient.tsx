@@ -1,11 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, LayoutGrid, List as ListIcon } from "lucide-react";
-import { Button, Badge, Card, Input, Avatar, EmptyState, Tag } from "@pratham7711/ui";
+import { Plus, LayoutGrid, List as ListIcon, Users } from "lucide-react";
+import { Button, Badge, Card, Input, Avatar, EmptyState } from "@pratham7711/ui";
+import { StatusTabs } from "@/components/ds";
 import { Search } from "lucide-react";
 import AddCreatorModal from "@/components/modals/AddCreatorModal";
 import Link from "next/link";
+import { formatCompact, stripAt, platformLabel } from "@/lib/format";
 
 type Creator = {
   id: string;
@@ -14,18 +16,22 @@ type Creator = {
   platform: string;
   avatarUrl: string | null;
   followerCount: number | null;
-  engagementRate: number | null;
+  avgViews: number | null;
   rate: number | null;
   _count: { activations: number };
 };
 
 function formatNumber(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-  return String(n);
+  return formatCompact(n);
 }
 
-const PLATFORMS = ["All", "Instagram", "YouTube", "TikTok", "Twitter"];
+const PLATFORM_TABS = [
+  { key: "All", label: "All" },
+  { key: "INSTAGRAM", label: "Instagram" },
+  { key: "YOUTUBE", label: "YouTube" },
+  { key: "TIKTOK", label: "TikTok" },
+  { key: "TWITTER", label: "Twitter" },
+];
 
 const PLATFORM_BADGE_VARIANT: Record<string, "accent" | "danger" | "neutral" | "warning" | "success"> = {
   Instagram: "accent",
@@ -42,7 +48,7 @@ export default function CreatorsClient({ creators }: { creators: Creator[] }) {
 
   const filtered = creators.filter((c) => {
     const matchSearch = c.name.toLowerCase().includes(search.toLowerCase()) || c.handle.toLowerCase().includes(search.toLowerCase());
-    const matchPlatform = platformFilter === "All" || c.platform === platformFilter;
+    const matchPlatform = platformFilter === "All" || c.platform.toUpperCase() === platformFilter;
     return matchSearch && matchPlatform;
   });
 
@@ -83,24 +89,20 @@ export default function CreatorsClient({ creators }: { creators: Creator[] }) {
         </div>
       </div>
 
-      {/* Platform filter tags */}
-      <div style={{ marginBottom: 24, display: "flex", gap: 8, flexWrap: "wrap" }}>
-        {PLATFORMS.map((p) => (
-          <Tag
-            key={p}
-            variant={platformFilter === p ? "accent" : "neutral"}
-            outlined={platformFilter !== p}
-            onClick={() => setPlatformFilter(p)}
-            style={{ cursor: "pointer", fontWeight: platformFilter === p ? 600 : 400 }}
-          >
-            {p}
-          </Tag>
-        ))}
-      </div>
+      <StatusTabs
+        ariaLabel="Filter creators by platform"
+        style={{ marginBottom: 24 }}
+        tabs={PLATFORM_TABS.map((t) => ({
+          ...t,
+          count: t.key === "All" ? creators.length : creators.filter((c) => c.platform.toUpperCase() === t.key).length,
+        }))}
+        active={platformFilter}
+        onChange={setPlatformFilter}
+      />
 
       {filtered.length === 0 ? (
         <EmptyState
-          icon="👥"
+          icon={<Users size={32} color="var(--cc-text-subtle)" />}
           title="No creators yet"
           description="Add creators to your roster to get started."
           action={
@@ -113,15 +115,15 @@ export default function CreatorsClient({ creators }: { creators: Creator[] }) {
         <div className="cc-stagger grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" style={{ gap: 20 }}>
           {filtered.map((creator) => (
             <Link key={creator.id} href={`/creators/${creator.id}`} style={{ textDecoration: "none" }}>
-              <Card variant="solid" clickable style={{ padding: 24 }}>
+              <Card variant="solid" className="ui-card-clickable" style={{ padding: 24 }}>
                 <div style={{ display: "flex", alignItems: "flex-start", gap: 14, marginBottom: 20 }}>
                   <Avatar name={creator.name} size="lg" src={creator.avatarUrl ?? undefined} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <p style={{ fontWeight: 700, fontSize: 16, color: "var(--cc-text)", marginBottom: 3 }}>{creator.name}</p>
-                    <p style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>@{creator.handle}</p>
+                    <p style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>@{stripAt(creator.handle)}</p>
                   </div>
                   <Badge variant={PLATFORM_BADGE_VARIANT[creator.platform] ?? "neutral"}>
-                    {creator.platform}
+                    {platformLabel(creator.platform)}
                   </Badge>
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>
@@ -130,11 +132,11 @@ export default function CreatorsClient({ creators }: { creators: Creator[] }) {
                     <p style={{ fontWeight: 700, fontSize: 16, color: "var(--cc-text)" }}>{creator.followerCount ? formatNumber(creator.followerCount) : "—"}</p>
                   </div>
                   <div>
-                    <p style={{ fontSize: 11, color: "var(--cc-text-subtle)", marginBottom: 3, fontWeight: 600, letterSpacing: "0.3px", textTransform: "uppercase" }}>Engagement</p>
-                    <p style={{ fontWeight: 700, fontSize: 16, color: "var(--cc-text)" }}>{creator.engagementRate ? `${creator.engagementRate}%` : "—"}</p>
+                    <p style={{ fontSize: 11, color: "var(--cc-text-subtle)", marginBottom: 3, fontWeight: 600, letterSpacing: "0.3px", textTransform: "uppercase" }}>Avg. Views</p>
+                    <p style={{ fontWeight: 700, fontSize: 16, color: "var(--cc-text)" }}>{creator.avgViews ? formatNumber(creator.avgViews) : "—"}</p>
                   </div>
                 </div>
-                <Button variant="ghost" size="sm" fullWidth>View Profile</Button>
+                <div className="ui-btn ui-btn-ghost ui-btn-sm" style={{ width: "100%", justifyContent: "center", pointerEvents: "none" }} aria-hidden="true">View Profile</div>
               </Card>
             </Link>
           ))}
@@ -145,7 +147,7 @@ export default function CreatorsClient({ creators }: { creators: Creator[] }) {
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ background: "var(--cc-hover-bg)" }}>
-                {["Creator", "Platform", "Followers", "Engagement", "Rate", "Campaigns"].map((h) => (
+                {["Creator", "Platform", "Followers", "Avg. Views", "Rate", "Campaigns"].map((h) => (
                   <th key={h} style={{ textAlign: "left", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--cc-text-subtle)", padding: "12px 24px" }}>{h}</th>
                 ))}
               </tr>
@@ -158,15 +160,15 @@ export default function CreatorsClient({ creators }: { creators: Creator[] }) {
                       <Avatar name={c.name} size="sm" src={c.avatarUrl ?? undefined} />
                       <div>
                         <p style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>{c.name}</p>
-                        <p style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>@{c.handle}</p>
+                        <p style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>@{stripAt(c.handle)}</p>
                       </div>
                     </Link>
                   </td>
                   <td style={{ padding: "14px 24px" }}>
-                    <Badge variant={PLATFORM_BADGE_VARIANT[c.platform] ?? "neutral"}>{c.platform}</Badge>
+                    <Badge variant={PLATFORM_BADGE_VARIANT[c.platform] ?? "neutral"}>{platformLabel(c.platform)}</Badge>
                   </td>
                   <td style={{ padding: "14px 24px", fontSize: 14, fontWeight: 500, color: "var(--cc-text)" }}>{c.followerCount ? formatNumber(c.followerCount) : "—"}</td>
-                  <td style={{ padding: "14px 24px", fontSize: 14, fontWeight: 500, color: "var(--cc-text)" }}>{c.engagementRate ? `${c.engagementRate}%` : "—"}</td>
+                  <td style={{ padding: "14px 24px", fontSize: 14, fontWeight: 500, color: "var(--cc-text)" }}>{c.avgViews ? formatNumber(c.avgViews) : "—"}</td>
                   <td style={{ padding: "14px 24px", fontSize: 14, fontWeight: 500, color: "var(--cc-text)" }}>{c.rate ? `$${c.rate}` : "—"}</td>
                   <td style={{ padding: "14px 24px", fontSize: 14, fontWeight: 500, color: "var(--cc-text)" }}>{c._count.activations}</td>
                 </tr>

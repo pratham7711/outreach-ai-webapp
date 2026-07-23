@@ -5,7 +5,8 @@ import { useRouter, useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Card, Badge, Button, Input, EmptyState, Skeleton } from "@pratham7711/ui";
 import { toast } from "sonner";
-import { ArrowLeft, ExternalLink, CheckCircle2, Download } from "lucide-react";
+import { ArrowLeft, ExternalLink, CheckCircle2, Download, AlertTriangle, Video } from "lucide-react";
+import { formatDateAbs } from "@/lib/format";
 
 type Rates = Partial<Record<"TIKTOK" | "INSTAGRAM" | "YOUTUBE", number>>;
 
@@ -141,7 +142,7 @@ function CampaignDetailInner() {
       <div className="rsp-page" style={{ maxWidth: 860 }}>
         <Card variant="outlined" style={{ padding: 24 }}>
           <EmptyState
-            icon="⚠️"
+            icon={<AlertTriangle size={32} color="var(--cc-text-subtle)" />}
             title="Campaign unavailable"
             description={error || "This campaign could not be found."}
             action={
@@ -205,7 +206,7 @@ function CampaignDetailInner() {
               Submission deadline
             </p>
             <p style={{ fontSize: 14, color: detail.deadlinePassed ? "#DC2626" : "var(--cc-text)" }}>
-              {new Date(detail.submissionDeadline).toLocaleDateString()} {detail.deadlinePassed ? "(passed)" : ""}
+              {formatDateAbs(detail.submissionDeadline)} {detail.deadlinePassed ? "(passed)" : ""}
             </p>
           </div>
         )}
@@ -275,7 +276,7 @@ function CampaignDetailInner() {
       <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--cc-text)", marginBottom: 12 }}>My submissions</h2>
       {submissions.length === 0 ? (
         <Card variant="outlined" style={{ padding: 24 }}>
-          <EmptyState icon="📹" title="No submissions yet" description="Submit your first post above to start earning." />
+          <EmptyState icon={<Video size={32} color="var(--cc-text-subtle)" />} title="No submissions yet" description="Submit your first post above to start earning." />
         </Card>
       ) : (
         <Card variant="solid" noPadding>

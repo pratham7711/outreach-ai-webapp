@@ -3,8 +3,9 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Card, Badge, StatCard, Skeleton, EmptyState, Button, Avatar } from "@pratham7711/ui";
-import { DollarSign, Send, CheckCircle, TrendingUp, Search, LogOut } from "lucide-react";
+import { DollarSign, Send, CheckCircle, TrendingUp, Search, LogOut, Inbox } from "lucide-react";
 import Link from "next/link";
+import { stripAt, formatDateAbs } from "@/lib/format";
 
 type DashboardData = {
   user: { name: string; handle: string; avatarUrl: string | null; lifetimeEarnings: number; averageRating: number; reviewCount: number; cpm: number };
@@ -59,7 +60,7 @@ export default function PortalDashboardPage() {
           <Avatar name={data.user.name} size="lg" />
           <div style={{ minWidth: 0 }}>
             <h1 style={{ fontSize: 24, fontWeight: 700, color: "var(--cc-text)" }}>Welcome, {data.user.name}</h1>
-            <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>@{data.user.handle}</p>
+            <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>@{stripAt(data.user.handle)}</p>
           </div>
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -90,7 +91,7 @@ export default function PortalDashboardPage() {
 
       {data.recentProposals.length === 0 ? (
         <Card variant="outlined" style={{ padding: 24 }}>
-          <EmptyState icon="📨" title="No proposals yet" description="Browse open campaigns and submit your first proposal." action={
+          <EmptyState icon={<Inbox size={32} color="var(--cc-text-subtle)" />} title="No proposals yet" description="Browse open campaigns and submit your first proposal." action={
             <Link href="/portal/discover"><Button variant="primary">Discover Campaigns</Button></Link>
           } />
         </Card>
@@ -116,7 +117,7 @@ export default function PortalDashboardPage() {
               <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{p.campaign.org.name}</span>
               <span style={{ fontSize: 13, fontWeight: 700, color: "var(--cc-text)" }}>{formatCurrency(p.proposedRate, p.currency)}</span>
               <Badge variant={STATUS_BADGE[p.status] ?? "neutral"}>{p.status}</Badge>
-              <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{new Date(p.createdAt).toLocaleDateString()}</span>
+              <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{formatDateAbs(p.createdAt)}</span>
             </div>
           ))}
           </div>

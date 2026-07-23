@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import dynamic from "next/dynamic";
 import { Button, Card, Skeleton, EmptyState } from "@pratham7711/ui";
-import { Eye, ThumbsUp, DollarSign, TrendingUp, MessageCircle, BarChart2 } from "lucide-react";
+import { Eye, ThumbsUp, DollarSign, TrendingUp, MessageCircle, BarChart2, BarChart3, Calendar, Smartphone } from "lucide-react";
 import CampaignComparison from "./CampaignComparison";
 import CreatorLeaderboard, { LeaderboardCreator } from "./CreatorLeaderboard";
 import { formatNumber, formatCurrency, RANGE_PRESETS, PLATFORM_FILTERS, rangeToFrom } from "./shared";
@@ -38,13 +38,7 @@ type AnalyticsData = {
   campaigns: CampaignOption[];
 };
 
-const PLATFORM_COLORS: Record<string, string> = {
-  TIKTOK: "#000000",
-  INSTAGRAM: "#E4405F",
-  YOUTUBE: "#FF0000",
-  TWITTER: "#1DA1F2",
-  SPOTIFY: "#1DB954",
-};
+import { platformColor } from "./shared";
 
 function StatTile({
   label, value, sub, icon: Icon, color,
@@ -177,7 +171,7 @@ export default function AnalyticsPage() {
         <SkeletonGrid />
       ) : error || !data ? (
         <EmptyState
-          icon="📊"
+          icon={<BarChart3 size={32} color="var(--cc-text-subtle)" />}
           title="Failed to load analytics"
           description="Adjust your filters or refresh to try again."
           action={<Button variant="secondary" onClick={load}>Retry</Button>}
@@ -198,7 +192,7 @@ export default function AnalyticsPage() {
               Campaigns Launched — Last 6 Months
             </span>
             {data.monthlyTrend.every((m) => m.campaigns === 0) ? (
-              <EmptyState icon="📅" title="No campaign data" description="Launch campaigns to see monthly trends." />
+              <EmptyState icon={<Calendar size={32} color="var(--cc-text-subtle)" />} title="No campaign data" description="Launch campaigns to see monthly trends." />
             ) : (
               <div className="an-chart">
                 <MonthlyTrendArea data={data.monthlyTrend} />
@@ -218,7 +212,7 @@ export default function AnalyticsPage() {
                 Views by Platform
               </span>
               {data.platformBreakdown.length === 0 ? (
-                <EmptyState icon="📱" title="No data" />
+                <EmptyState icon={<Smartphone size={32} color="var(--cc-text-subtle)" />} title="No data" />
               ) : (
                 <div style={{ height: 200 }}>
                   <PlatformBreakdownBar data={data.platformBreakdown} />
@@ -229,7 +223,7 @@ export default function AnalyticsPage() {
                   {data.platformBreakdown.map((p) => (
                     <div key={p.platform} style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <span style={{ width: 8, height: 8, borderRadius: "50%", background: PLATFORM_COLORS[p.platform] ?? "var(--cc-primary)", flexShrink: 0 }} />
+                        <span style={{ width: 8, height: 8, borderRadius: "50%", background: platformColor(p.platform), flexShrink: 0 }} />
                         <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{p.platform}</span>
                       </div>
                       <span style={{ fontSize: 12, fontWeight: 600, color: "var(--cc-text)" }}>{p.posts} posts</span>

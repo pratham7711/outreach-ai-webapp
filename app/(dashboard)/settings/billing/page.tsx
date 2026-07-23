@@ -2,15 +2,18 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { getOrgEntitlements, hasOrgFeature } from "@/lib/entitlements";
 import { AUDIT_LOG_FEATURE } from "@/lib/featureKeys";
+import { FEATURES, type FeatureKey } from "@/lib/features";
 import { BadgeDollarSign, CheckCircle2, Gauge, Layers3, Users } from "lucide-react";
 import type { ComponentType } from "react";
 import AuditLogToggleCard from "./AuditLogToggleCard";
 
+const LABEL_ACRONYMS: Record<string, string> = { csv: "CSV", api: "API", sso: "SSO", ai: "AI" };
 function formatLabel(value: string) {
   return value
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
     .split(/[_\-. ]+/)
     .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .map((part) => LABEL_ACRONYMS[part.toLowerCase()] ?? part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
 }
 
@@ -154,7 +157,7 @@ export default async function BillingPage() {
               >
                 <CheckCircle2 size={16} style={{ color: "#059669", flexShrink: 0 }} />
                 <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>
-                  {formatLabel(feature)}
+                  {FEATURES[feature as FeatureKey]?.label ?? formatLabel(feature)}
                 </span>
               </div>
             ))}

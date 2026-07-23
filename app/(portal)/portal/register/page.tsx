@@ -86,22 +86,23 @@ function RegisterInner() {
   return (
     <div
       style={{
-        minHeight: "100vh",
+        minHeight: "100dvh",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        padding: "0 16px",
-        background: "linear-gradient(135deg, #6C3EF4 0%, #4A8EF0 100%)",
+        padding: "40px 16px",
+        background: "var(--cc-bg)",
       }}
     >
       <div
         style={{
           width: "100%",
           maxWidth: 420,
-          background: "white",
-          borderRadius: 16,
+          background: "var(--cc-card)",
+          border: "1px solid var(--cc-border)",
+          borderRadius: 20,
           padding: 32,
-          boxShadow: "0 20px 60px rgba(0,0,0,0.15)",
+          boxShadow: "var(--ui-shadow-lg)",
         }}
       >
         <h1 style={{ fontSize: 24, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4, textAlign: "center" }}>
@@ -112,7 +113,7 @@ function RegisterInner() {
         </p>
 
         {error && (
-          <div style={{ padding: "10px 14px", borderRadius: 8, background: "#FEE2E2", color: "#DC2626", fontSize: 13, marginBottom: 16 }}>
+          <div style={{ padding: "10px 14px", borderRadius: 8, background: "color-mix(in srgb, var(--cc-danger) 12%, transparent)", color: "var(--cc-danger)", fontSize: 13, marginBottom: 16 }}>
             {error}
           </div>
         )}

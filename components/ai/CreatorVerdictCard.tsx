@@ -1,4 +1,5 @@
 import { Badge, Card } from "@pratham7711/ui";
+import { XCircle } from "lucide-react";
 
 type Recommendation = "strong" | "consider" | "avoid";
 
@@ -197,7 +198,7 @@ export function CreatorVerdictCard({ creatorName, handle, verdict }: CreatorVerd
                   aria-hidden="true"
                   style={{ color: "var(--cc-danger)", fontSize: 12, lineHeight: "18px" }}
                 >
-                  ✕
+                  <XCircle size={14} color="var(--cc-danger)" />
                 </span>
                 <span style={{ fontSize: 13, color: "var(--cc-text)" }}>{blocker}</span>
               </li>

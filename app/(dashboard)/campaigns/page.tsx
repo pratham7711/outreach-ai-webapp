@@ -34,6 +34,7 @@ export default async function CampaignsPage() {
         currency: c.currency,
         client: c.client,
         _count: c._count,
+        updatedAt: c.updatedAt.toISOString(),
       }))}
       stats={{
         total,

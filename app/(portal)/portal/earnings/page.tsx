@@ -128,7 +128,7 @@ export default function PortalEarningsPage() {
       {campaigns.length === 0 && !error ? (
         <Card variant="outlined" style={{ padding: 24 }}>
           <EmptyState
-            icon="💰"
+            icon={<Wallet size={32} color="var(--cc-text-subtle)" />}
             title="No earnings yet"
             description="Join a campaign and submit content to start accruing earnings."
             action={

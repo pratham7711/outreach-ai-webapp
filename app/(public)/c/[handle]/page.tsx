@@ -1,6 +1,8 @@
 import { db } from "@/lib/db";
 import { notFound } from "next/navigation";
 import { Card, Badge, Avatar } from "@pratham7711/ui";
+import { Star } from "lucide-react";
+import { formatCompact, stripAt } from "@/lib/format";
 
 /* ── Helpers ─────────────────────────────────────────────────────────────── */
 
@@ -8,21 +10,19 @@ function StarRating({ rating }: { rating: number }) {
   return (
     <span style={{ display: "inline-flex", gap: 2 }}>
       {[1, 2, 3, 4, 5].map((i) => (
-        <span
+        <Star
           key={i}
-          style={{ color: i <= rating ? "#F59E0B" : "#E4E6F0", fontSize: 18 }}
-        >
-          ★
-        </span>
+          size={18}
+          fill={i <= rating ? "#F59E0B" : "#E4E6F0"}
+          color={i <= rating ? "#F59E0B" : "#E4E6F0"}
+        />
       ))}
     </span>
   );
 }
 
 function formatNumber(n: number) {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-  return n.toString();
+  return formatCompact(n);
 }
 
 function formatDate(d: Date) {
@@ -173,7 +173,7 @@ export default async function CreatorProfilePage({
             margin: "0 0 12px",
           }}
         >
-          @{user.handle}
+          @{stripAt(user.handle)}
         </p>
 
         <div style={{ display: "flex", justifyContent: "center", gap: 8, marginBottom: 16 }}>
@@ -204,7 +204,7 @@ export default async function CreatorProfilePage({
                 color: "#D97706",
               }}
             >
-              <span style={{ fontSize: 14 }}>★</span> {avgRating.toFixed(1)}
+              <Star size={14} fill="var(--cc-warning)" color="var(--cc-warning)" /> {avgRating.toFixed(1)}
             </span>
           )}
         </div>

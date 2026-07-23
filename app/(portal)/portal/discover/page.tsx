@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Card, Badge, Button, Input, Modal, EmptyState, Skeleton } from "@pratham7711/ui";
-import { Search, DollarSign, Users, FileText, Send } from "lucide-react";
+import { Search, DollarSign, Users, FileText, Send, ArrowLeft, ArrowRight } from "lucide-react";
 
 type Campaign = {
   id: string;
@@ -178,7 +178,7 @@ export default function PortalDiscoverPage() {
 
       {/* Campaign Grid */}
       {campaigns.length === 0 ? (
-        <EmptyState icon="🔍" title="No open campaigns" description="Check back later for new opportunities." />
+        <EmptyState icon={<Search size={32} color="var(--cc-text-subtle)" />} title="No open campaigns" description="Check back later for new opportunities." />
       ) : (
         <div className="rsp-grid-3">
           {campaigns.map(c => (
@@ -231,9 +231,9 @@ export default function PortalDiscoverPage() {
       {/* Pagination */}
       {totalPages > 1 && (
         <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 16, marginTop: 24 }}>
-          <Button variant="secondary" size="sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}>← Prev</Button>
+          <Button variant="secondary" size="sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}><span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><ArrowLeft size={16} /> Prev</span></Button>
           <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>Page {page} of {totalPages}</span>
-          <Button variant="secondary" size="sm" disabled={page === totalPages} onClick={() => setPage(p => p + 1)}>Next →</Button>
+          <Button variant="secondary" size="sm" disabled={page === totalPages} onClick={() => setPage(p => p + 1)}><span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>Next <ArrowRight size={16} /></span></Button>
         </div>
       )}
 

@@ -1,12 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Search, ArrowRight, Check } from "lucide-react";
-import { Button, Card, Badge, StatCard, EmptyState, Input, Tag, Avatar } from "@pratham7711/ui";
+import { Plus, Search, ArrowRight, Check, Banknote } from "lucide-react";
+import { Button, Card, Badge, StatCard, EmptyState, Input, Avatar } from "@pratham7711/ui";
+import { StatusTabs } from "@/components/ds";
 import { toast } from "sonner";
 import AddPayoutModal from "@/components/modals/AddPayoutModal";
 import PayoutDetailModal from "@/components/modals/PayoutDetailModal";
+import { stripAt, formatDateAbs } from "@/lib/format";
 
 type Payout = {
   id: string;
@@ -36,12 +38,12 @@ const STATUS_BADGE_VARIANT: Record<string, "warning" | "success" | "danger" | "n
 
 const STATUS_TABS = ["All", "Pending", "Processing", "Success", "Failed"];
 
-const QUICK_ACTIONS: Record<string, { label: string; status: string }[]> = {
+const QUICK_ACTIONS: Record<string, { label: ReactNode; status: string }[]> = {
   PENDING: [
     { label: "Mark Paid", status: "SUCCESS" },
-    { label: "→ Processing", status: "PROCESSING" },
+    { label: <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><ArrowRight size={14} /> Processing</span>, status: "PROCESSING" },
   ],
-  PROCESSING: [{ label: "→ Success", status: "SUCCESS" }],
+  PROCESSING: [{ label: <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><ArrowRight size={14} /> Success</span>, status: "SUCCESS" }],
 };
 
 function formatCurrency(n: number) {
@@ -158,6 +160,21 @@ export default function PayoutsClient({ payouts, stats, creators, campaigns }: {
         @media (min-width: 640px) { .payout-tiles { gap: 16px; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); } }
         .payout-tiles .ui-statcard { min-width: 0; }
         .payout-tiles .ui-statcard-value { overflow-wrap: anywhere; font-size: clamp(17px, 5vw, 30px); }
+        .payout-inner { min-width: 780px; }
+        .payout-head, .payout-row { display: grid; grid-template-columns: 40px 1fr 140px 100px 100px 120px 160px; gap: 12px; align-items: center; }
+        .payout-head { padding: 12px 24px; border-bottom: 1px solid var(--cc-border); background: var(--cc-bg); }
+        .payout-row { padding: 14px 24px; }
+        @media (max-width: 767px) {
+          .payout-inner { min-width: 0; }
+          .payout-head { display: none; }
+          .payout-row { display: flex; flex-wrap: wrap; align-items: center; column-gap: 12px; row-gap: 8px; padding: 14px 16px; }
+          .payout-row > [data-col="creator"] { order: 1; flex: 1 1 auto; min-width: 0; }
+          .payout-row > [data-col="amount"] { order: 2; margin-left: auto; }
+          .payout-row > [data-col="campaign"] { order: 3; flex-basis: 100%; }
+          .payout-row > [data-col="status"] { order: 4; }
+          .payout-row > [data-col="date"] { order: 5; margin-left: auto; }
+          .payout-row > [data-col="action"] { order: 6; flex-basis: 100%; }
+        }
       `}</style>
       <div className="cc-stagger payout-tiles" style={{ marginBottom: 32 }}>
         <StatCard value={formatCurrency(stats.sent)} label="Total Paid" />
@@ -176,19 +193,16 @@ export default function PayoutsClient({ payouts, stats, creators, campaigns }: {
             iconLeft={<Search size={16} />}
           />
         </div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {STATUS_TABS.map((tab) => (
-            <Tag
-              key={tab}
-              variant={statusFilter === tab ? "accent" : "neutral"}
-              outlined={statusFilter !== tab}
-              onClick={() => setStatusFilter(tab)}
-              style={{ cursor: "pointer", fontWeight: statusFilter === tab ? 600 : 400 }}
-            >
-              {tab}
-            </Tag>
-          ))}
-        </div>
+        <StatusTabs
+          ariaLabel="Filter payouts by status"
+          tabs={STATUS_TABS.map((s) => ({
+            key: s,
+            label: s,
+            count: s === "All" ? payouts.length : payouts.filter((p) => p.status.toUpperCase() === s.toUpperCase()).length,
+          }))}
+          active={statusFilter}
+          onChange={setStatusFilter}
+        />
       </div>
 
       {/* Bulk action bar */}
@@ -222,7 +236,7 @@ export default function PayoutsClient({ payouts, stats, creators, campaigns }: {
         {filtered.length === 0 ? (
           <div style={{ padding: "48px 24px" }}>
             <EmptyState
-              icon="💸"
+              icon={<Banknote size={32} color="var(--cc-text-subtle)" />}
               title="No payouts yet"
               description="Process your first creator payment to get started"
               action={
@@ -234,12 +248,9 @@ export default function PayoutsClient({ payouts, stats, creators, campaigns }: {
           </div>
         ) : (
           <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
-            <div style={{ minWidth: 780 }}>
+            <div className="payout-inner">
             {/* Table header */}
-            <div style={{
-              display: "grid", gridTemplateColumns: "40px 1fr 140px 100px 100px 120px 160px",
-              gap: 12, padding: "12px 24px", borderBottom: "1px solid var(--cc-border)", background: "var(--cc-bg)",
-            }}>
+            <div className="payout-head">
               <div style={{ display: "flex", alignItems: "center" }}>
                 <input
                   type="checkbox"
@@ -257,10 +268,8 @@ export default function PayoutsClient({ payouts, stats, creators, campaigns }: {
               {filtered.map((p, i) => (
                 <div
                   key={p.id}
-                  className="cc-table-row"
+                  className="cc-table-row payout-row"
                   style={{
-                    display: "grid", gridTemplateColumns: "40px 1fr 140px 100px 100px 120px 160px",
-                    gap: 12, padding: "14px 24px", alignItems: "center",
                     borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined,
                     cursor: "pointer",
                     background: selected.has(p.id) ? "var(--cc-bg)" : undefined,
@@ -268,7 +277,7 @@ export default function PayoutsClient({ payouts, stats, creators, campaigns }: {
                   onClick={() => setDetailPayout(p)}
                 >
                   {/* Checkbox */}
-                  <div style={{ display: "flex", alignItems: "center" }} onClick={(e) => e.stopPropagation()}>
+                  <div data-col="check" style={{ display: "flex", alignItems: "center" }} onClick={(e) => e.stopPropagation()}>
                     <input
                       type="checkbox"
                       aria-label={`Select payout for ${p.creator.name}`}
@@ -277,26 +286,34 @@ export default function PayoutsClient({ payouts, stats, creators, campaigns }: {
                       style={{ accentColor: "var(--cc-primary)" }}
                     />
                   </div>
-                  {/* Creator */}
-                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  {/* Creator — keyboard-accessible entry point to the detail view */}
+                  <button
+                    type="button"
+                    data-col="creator"
+                    onClick={(e) => { e.stopPropagation(); setDetailPayout(p); }}
+                    aria-label={`View payout details for ${p.creator.name}`}
+                    style={{ display: "flex", alignItems: "center", gap: 12, background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left", font: "inherit", minWidth: 0 }}
+                  >
                     <Avatar name={p.creator.name} size="sm" />
-                    <div>
+                    <div style={{ minWidth: 0 }}>
                       <p style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>{p.creator.name}</p>
-                      <p style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>@{p.creator.handle}</p>
+                      <p style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>@{stripAt(p.creator.handle)}</p>
                     </div>
-                  </div>
+                  </button>
                   {/* Campaign */}
-                  <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{p.campaign?.title ?? "—"}</span>
+                  <span data-col="campaign" style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{p.campaign?.title ?? "—"}</span>
                   {/* Amount */}
-                  <span style={{ fontSize: 14, fontWeight: 700, color: "var(--cc-text)" }}>{formatCurrency(p.amount)}</span>
+                  <span data-col="amount" style={{ fontSize: 14, fontWeight: 700, color: "var(--cc-text)" }}>{formatCurrency(p.amount)}</span>
                   {/* Status */}
-                  <Badge variant={STATUS_BADGE_VARIANT[p.status] ?? "neutral"} dot>
-                    {p.status}
-                  </Badge>
+                  <div data-col="status">
+                    <Badge variant={STATUS_BADGE_VARIANT[p.status] ?? "neutral"} dot>
+                      {p.status}
+                    </Badge>
+                  </div>
                   {/* Date */}
-                  <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{new Date(p.createdAt).toLocaleDateString()}</span>
+                  <span data-col="date" style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{formatDateAbs(p.createdAt)}</span>
                   {/* Quick action */}
-                  <div onClick={(e) => e.stopPropagation()}>
+                  <div data-col="action" onClick={(e) => e.stopPropagation()}>
                     {(QUICK_ACTIONS[p.status] ?? []).length > 0 ? (
                       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                         {(QUICK_ACTIONS[p.status] ?? []).map((action) => (

@@ -1,7 +1,7 @@
 "use client";
 
 import { Modal, Button, Badge, Avatar } from "@pratham7711/ui";
-import { ArrowRight, ExternalLink } from "lucide-react";
+import { ArrowRight, CheckCircle2, ExternalLink } from "lucide-react";
 
 type Payout = {
   id: string;
@@ -106,7 +106,7 @@ export default function PayoutDetailModal({
                 background: isActive ? "var(--cc-primary)" : isPast ? "#10B981" : isFailed ? "#DC2626" : "var(--cc-border)",
                 color: isActive || isPast || isFailed ? "white" : "var(--cc-text-muted)",
               }}>
-                {isPast ? "✓" : i + 1}
+                {isPast ? <CheckCircle2 size={16} color="currentColor" /> : i + 1}
               </div>
               <span style={{ fontSize: 11, color: isActive ? "var(--cc-text)" : "var(--cc-text-muted)", fontWeight: isActive ? 600 : 400 }}>{s}</span>
               {i < 2 && <ArrowRight size={14} style={{ color: "var(--cc-text-subtle)" }} />}

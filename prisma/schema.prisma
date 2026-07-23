@@ -446,8 +446,8 @@ model Creator {
   platform       Platform  @default(TIKTOK)
   platformUserId String?
   avatarUrl      String?
-  followersCount Int       @default(0)
-  averageViews   Int       @default(0)
+  followersCount Float     @default(0)
+  averageViews   Float     @default(0)
   bio            String?
   contactEmail   String?
   paymentInfo    String?
@@ -475,8 +475,8 @@ model CreatorSocialAccount {
   accessToken    String    // AES-256-GCM ciphertext at rest — lib/crypto/encrypt.ts (AAD = orgId)
   refreshToken   String?   // AES-256-GCM ciphertext at rest — lib/crypto/encrypt.ts (AAD = orgId)
   tokenExpiry    DateTime?
-  followersCount Int       @default(0)
-  avgViews       Int       @default(0)
+  followersCount Float     @default(0)
+  avgViews       Float     @default(0)
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
@@ -542,13 +542,13 @@ model Post {
   caption        String?
   mediaType      MediaType?
   postedAt       DateTime
-  viewsCount      Int        @default(0)
-  likesCount      Int        @default(0)
-  commentsCount   Int        @default(0)
-  sharesCount     Int        @default(0)
-  downloadsCount  Int        @default(0)
-  savesCount      Int        @default(0)
-  reachCount      Int        @default(0)
+  viewsCount      Float      @default(0)
+  likesCount      Float      @default(0)
+  commentsCount   Float      @default(0)
+  sharesCount     Float      @default(0)
+  downloadsCount  Float      @default(0)
+  savesCount      Float      @default(0)
+  reachCount      Float      @default(0)
   engagementRate  Float      @default(0)
   platformMetrics Json?
   storyExpiresAt  DateTime?
@@ -571,14 +571,14 @@ model Post {
 model PostMetricSnapshot {
   id               String   @id @default(cuid())
   postId           String
-  viewsCount       Int      @default(0)
-  likesCount       Int      @default(0)
-  commentsCount    Int      @default(0)
-  sharesCount      Int      @default(0)
-  downloadsCount   Int      @default(0)
-  savesCount       Int      @default(0)
-  reachCount       Int      @default(0)
-  impressionsCount Int      @default(0)
+  viewsCount       Float    @default(0)
+  likesCount       Float    @default(0)
+  commentsCount    Float    @default(0)
+  sharesCount      Float    @default(0)
+  downloadsCount   Float    @default(0)
+  savesCount       Float    @default(0)
+  reachCount       Float    @default(0)
+  impressionsCount Float    @default(0)
   engagementRate   Float    @default(0)
   platformMetrics  Json?
   syncSource       String?
@@ -605,7 +605,7 @@ model TikTokSound {
 model SoundTrackerSnapshot {
   id             String   @id @default(cuid())
   soundId        String
-  usesCount      Int
+  usesCount      Float
   videosAdded24h Int      @default(0)
   deltaUses24h   Int      @default(0)
   velocityScore  Float    @default(0)
@@ -931,8 +931,8 @@ model CreatorUser {
   avatarUrl        String?
   bio              String?
   platform         Platform      @default(TIKTOK)
-  followersCount   Int           @default(0)
-  averageViews     Int           @default(0)
+  followersCount   Float         @default(0)
+  averageViews     Float         @default(0)
   rate             Float?
   boostRate        Float?
   lifetimeEarnings Float         @default(0)
@@ -1074,8 +1074,8 @@ model ViewLedger {
   creatorId        String
   activationId     String
   postId           String
-  viewsRecorded    Int      @default(0)
-  viewsDelta       Int      @default(0)
+  viewsRecorded    Float    @default(0)
+  viewsDelta       Float    @default(0)
   cpmRate          Float    @default(0)
   amountEarned     Float    @default(0)
   cumulativeEarned Float    @default(0)

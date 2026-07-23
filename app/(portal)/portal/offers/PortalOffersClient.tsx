@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Card, Badge, Button, Input, Modal, EmptyState, Skeleton, Tag } from "@pratham7711/ui";
 import { toast } from "sonner";
-import { Handshake } from "lucide-react";
+import { Handshake, AlertTriangle } from "lucide-react";
 
 type Offer = {
   id: string;
@@ -147,7 +147,7 @@ export default function PortalOffersClient() {
 
       {error ? (
         <Card variant="outlined" style={{ padding: 24 }}>
-          <EmptyState icon="⚠️" title="Couldn't load offers" description={error} />
+          <EmptyState icon={<AlertTriangle size={32} color="var(--cc-text-subtle)" />} title="Couldn't load offers" description={error} />
           <div style={{ display: "flex", justifyContent: "center", marginTop: 12 }}>
             <Button variant="secondary" onClick={fetchOffers}>
               Retry
@@ -156,7 +156,7 @@ export default function PortalOffersClient() {
         </Card>
       ) : offers.length === 0 ? (
         <Card variant="outlined" style={{ padding: 24 }}>
-          <EmptyState icon="🤝" title="No offers yet" description="Brand offers will show up here when they reach out." />
+          <EmptyState icon={<Handshake size={32} color="var(--cc-text-subtle)" />} title="No offers yet" description="Brand offers will show up here when they reach out." />
         </Card>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>

@@ -6,6 +6,7 @@ import { Button, Input, Badge, Card, EmptyState } from "@pratham7711/ui";
 import { toast } from "sonner";
 import { ChevronLeft, ChevronRight, Check, Search, Users, Info } from "lucide-react";
 import { computeSelfServeBudget } from "@/lib/campaigns/selfServeBudget";
+import { stripAt, formatCompact } from "@/lib/format";
 
 type Currency = "USD" | "EUR" | "GBP" | "INR";
 type Platform = "TIKTOK" | "INSTAGRAM" | "YOUTUBE" | "TWITTER";
@@ -48,7 +49,7 @@ const controlStyle: React.CSSProperties = {
   fontSize: 14,
   color: "var(--cc-text)",
   outline: "none",
-  background: "white",
+  background: "var(--cc-card)",
   boxSizing: "border-box",
 };
 
@@ -58,9 +59,7 @@ function money(currency: Currency, amount: number): string {
 }
 
 function formatFollowers(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-  return `${n}`;
+  return formatCompact(n);
 }
 
 export default function SelfServeWizard({
@@ -315,11 +314,11 @@ export default function SelfServeWizard({
             {loadingCreators ? (
               <p style={{ fontSize: 14, color: "var(--cc-text-muted)", padding: "24px 0", textAlign: "center" }}>Loading creators…</p>
             ) : creatorError ? (
-              <p style={{ fontSize: 14, color: "#DC2626", padding: "24px 0", textAlign: "center" }}>{creatorError}</p>
+              <p style={{ fontSize: 14, color: "var(--cc-danger)", padding: "24px 0", textAlign: "center" }}>{creatorError}</p>
             ) : filteredCreators.length === 0 ? (
               <div style={{ padding: "24px 0" }}>
                 <EmptyState
-                  icon="🔍"
+                  icon={<Search size={32} color="var(--cc-text-subtle)" />}
                   title={creators.length === 0 ? "No creators yet" : "No creators match your filters"}
                   description={creators.length === 0 ? "Add creators to your organization first." : "Try adjusting your filters."}
                 />
@@ -341,7 +340,7 @@ export default function SelfServeWizard({
                         gap: 12,
                         padding: "12px 14px",
                         textAlign: "left",
-                        background: isSelected ? "rgba(91, 91, 214, 0.05)" : "white",
+                        background: isSelected ? "var(--cc-primary-light)" : "var(--cc-card)",
                         border: "none",
                         borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined,
                         cursor: "pointer",
@@ -354,7 +353,7 @@ export default function SelfServeWizard({
                           borderRadius: 6,
                           flexShrink: 0,
                           border: `2px solid ${isSelected ? "var(--cc-primary)" : "var(--cc-border)"}`,
-                          background: isSelected ? "var(--cc-primary)" : "white",
+                          background: isSelected ? "var(--cc-primary)" : "var(--cc-card)",
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
@@ -368,7 +367,7 @@ export default function SelfServeWizard({
                           {c.name}
                         </span>
                         <span style={{ display: "block", fontSize: 12, color: "var(--cc-text-muted)" }}>
-                          @{c.handle} · {c.platform} · {formatFollowers(c.followersCount)} followers
+                          @{stripAt(c.handle)} · {c.platform} · {formatFollowers(c.followersCount)} followers
                         </span>
                       </span>
                       <span style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)", flexShrink: 0 }}>
@@ -417,7 +416,7 @@ export default function SelfServeWizard({
                   <div key={c.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px", borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined }}>
                     <div style={{ minWidth: 0 }}>
                       <p style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>{c.name}</p>
-                      <p style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>@{c.handle} · {c.platform}</p>
+                      <p style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>@{stripAt(c.handle)} · {c.platform}</p>
                     </div>
                     <p style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>{rate > 0 ? money(currency, rate) : "No rate"}</p>
                   </div>
@@ -429,18 +428,18 @@ export default function SelfServeWizard({
               </div>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px", borderTop: "1px solid var(--cc-border)" }}>
                 <p style={{ fontSize: 15, fontWeight: 700, color: "var(--cc-text)" }}>Total</p>
-                <p style={{ fontSize: 15, fontWeight: 800, color: overBudget ? "#DC2626" : "var(--cc-text)" }}>{money(currency, budgetSummary.total)}</p>
+                <p style={{ fontSize: 15, fontWeight: 800, color: overBudget ? "var(--cc-danger)" : "var(--cc-text)" }}>{money(currency, budgetSummary.total)}</p>
               </div>
             </div>
 
             {overBudget && (
-              <div role="alert" style={{ display: "flex", gap: 8, alignItems: "flex-start", padding: "10px 14px", borderRadius: 10, background: "rgba(220, 38, 38, 0.08)", border: "1px solid rgba(220, 38, 38, 0.25)" }}>
-                <Info size={16} color="#DC2626" style={{ flexShrink: 0, marginTop: 1 }} />
-                <span style={{ fontSize: 13, color: "#DC2626" }}>The total exceeds your budget target. You can still proceed.</span>
+              <div role="alert" style={{ display: "flex", gap: 8, alignItems: "flex-start", padding: "10px 14px", borderRadius: 10, background: "color-mix(in srgb, var(--cc-danger) 12%, transparent)", border: "1px solid color-mix(in srgb, var(--cc-danger) 28%, transparent)" }}>
+                <Info size={16} color="var(--cc-danger)" style={{ flexShrink: 0, marginTop: 1 }} />
+                <span style={{ fontSize: 13, color: "var(--cc-danger)" }}>The total exceeds your budget target. You can still proceed.</span>
               </div>
             )}
 
-            <div style={{ display: "flex", gap: 8, alignItems: "flex-start", padding: "10px 14px", borderRadius: 10, background: "rgba(91, 91, 214, 0.06)" }}>
+            <div style={{ display: "flex", gap: 8, alignItems: "flex-start", padding: "10px 14px", borderRadius: 10, background: "var(--cc-primary-light)" }}>
               <Users size={16} color="var(--cc-primary)" style={{ flexShrink: 0, marginTop: 1 }} />
               <span style={{ fontSize: 13, color: "var(--cc-text)" }}>
                 Selected creators are added as pending invites. <strong>Invite &amp; negotiate from the campaign page.</strong>
@@ -515,7 +514,7 @@ function RunningTotal({
             style={{
               height: "100%",
               width: `${progressPct}%`,
-              background: overBudget ? "#DC2626" : "var(--cc-primary)",
+              background: overBudget ? "var(--cc-danger)" : "var(--cc-primary)",
               transition: "width 0.2s",
             }}
           />
@@ -526,7 +525,7 @@ function RunningTotal({
         <span>Platform fee {money(currency, platformFee)}</span>
       </div>
       {overBudget && (
-        <p style={{ fontSize: 12, color: "#DC2626", marginTop: 8 }}>Over budget target</p>
+        <p style={{ fontSize: 12, color: "var(--cc-danger)", marginTop: 8 }}>Over budget target</p>
       )}
     </div>
   );

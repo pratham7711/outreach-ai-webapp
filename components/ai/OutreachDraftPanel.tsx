@@ -1,4 +1,5 @@
 import { Badge, Card } from "@pratham7711/ui";
+import { AlertTriangle, CheckCircle2, Lock, XCircle } from "lucide-react";
 
 export interface OutreachGrounding {
   ok: boolean;
@@ -54,7 +55,7 @@ export function OutreachDraftPanel({
         }}
       >
         <span aria-hidden="true" style={{ color: "var(--cc-warning)", fontSize: 14, fontWeight: 700 }}>
-          ⚠
+          <AlertTriangle size={14} color="var(--cc-warning)" />
         </span>
         <Badge variant="warning">Draft only</Badge>
         <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>
@@ -112,7 +113,7 @@ export function OutreachDraftPanel({
             }}
           >
             <span aria-hidden="true" style={{ color: "var(--cc-success)", fontSize: 12 }}>
-              ✓
+              <CheckCircle2 size={14} color="var(--cc-success)" />
             </span>
             <span
               aria-label={`Grounded in ${factCount} facts`}
@@ -151,7 +152,7 @@ export function OutreachDraftPanel({
                     style={{ display: "flex", alignItems: "center", gap: 8 }}
                   >
                     <span aria-hidden="true" style={{ color: "var(--cc-danger)", fontSize: 12 }}>
-                      ✕
+                      <XCircle size={14} color="var(--cc-danger)" />
                     </span>
                     <span
                       aria-label={`Unsupported number ${token}`}
@@ -237,7 +238,7 @@ export function OutreachDraftPanel({
           }}
         >
           <span aria-hidden="true" style={{ color: "var(--cc-text-muted)", fontSize: 12 }}>
-            🔒
+            <Lock size={14} color="var(--cc-text-muted)" />
           </span>
           Requires approval
         </button>

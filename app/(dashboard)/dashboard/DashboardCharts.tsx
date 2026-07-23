@@ -10,6 +10,16 @@ type CampaignSpend = { campaignId: string; title: string; spend: number; budget:
 
 type Fmt = (n: number) => string;
 
+const chartTooltipStyle: React.CSSProperties = {
+  background: "var(--cc-card)",
+  border: "1px solid var(--cc-border)",
+  borderRadius: 10,
+  color: "var(--cc-text)",
+  boxShadow: "var(--ui-shadow-md)",
+  fontSize: 13,
+  padding: "10px 14px",
+};
+
 export function SpendOverTimeArea({
   data,
   formatNumber,
@@ -32,15 +42,12 @@ export function SpendOverTimeArea({
             <stop offset="95%" stopColor="#059669" stopOpacity={0} />
           </linearGradient>
         </defs>
-        <CartesianGrid strokeDasharray="3 3" stroke="#E4E6F0" vertical={false} />
-        <XAxis dataKey="date" tick={{ fill: "#9097B4", fontSize: 12, fontWeight: 500 }} axisLine={false} tickLine={false} />
-        <YAxis yAxisId="spend" tick={{ fill: "#9097B4", fontSize: 12, fontWeight: 500 }} axisLine={false} tickLine={false} tickFormatter={(v) => `$${(v / 1000).toFixed(0)}K`} />
-        <YAxis yAxisId="views" orientation="right" tick={{ fill: "#9097B4", fontSize: 12, fontWeight: 500 }} axisLine={false} tickLine={false} tickFormatter={(v) => formatNumber(v)} />
+        <CartesianGrid strokeDasharray="3 3" stroke="var(--cc-border)" vertical={false} />
+        <XAxis dataKey="date" tick={{ fill: "var(--cc-text-muted)", fontSize: 12, fontWeight: 500 }} axisLine={false} tickLine={false} />
+        <YAxis yAxisId="spend" tick={{ fill: "var(--cc-text-muted)", fontSize: 12, fontWeight: 500 }} axisLine={false} tickLine={false} tickFormatter={(v) => `$${(v / 1000).toFixed(0)}K`} />
+        <YAxis yAxisId="views" orientation="right" tick={{ fill: "var(--cc-text-muted)", fontSize: 12, fontWeight: 500 }} axisLine={false} tickLine={false} tickFormatter={(v) => formatNumber(v)} />
         <Tooltip
-          contentStyle={{
-            background: "white", border: "1px solid #E4E6F0", borderRadius: 10,
-            color: "#1C2048", boxShadow: "0 4px 24px rgba(0,0,0,0.06)", fontSize: 13, padding: "10px 14px",
-          }}
+          contentStyle={chartTooltipStyle}
           formatter={(value, name) => [
             name === "spend" ? formatCurrency(Number(value)) : formatNumber(Number(value)),
             name === "spend" ? "Spend" : "Views",
@@ -78,7 +85,7 @@ export function PlatformBreakdownPie({
             <Cell key={entry.platform} fill={colors[i]} />
           ))}
         </Pie>
-        <Tooltip formatter={(v) => formatNumber(Number(v))} />
+        <Tooltip contentStyle={chartTooltipStyle} formatter={(v) => formatNumber(Number(v))} />
       </PieChart>
     </ResponsiveContainer>
   );
@@ -94,10 +101,10 @@ export function SpendByCampaignBar({
   return (
     <ResponsiveContainer width="100%" height={200}>
       <BarChart data={data} layout="vertical">
-        <CartesianGrid strokeDasharray="3 3" stroke="#E4E6F0" horizontal={false} />
-        <XAxis type="number" tick={{ fill: "#9097B4", fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => formatCurrency(v)} />
-        <YAxis dataKey="title" type="category" tick={{ fill: "#9097B4", fontSize: 11 }} axisLine={false} tickLine={false} width={100} />
-        <Tooltip formatter={(v) => formatCurrency(Number(v))} />
+        <CartesianGrid strokeDasharray="3 3" stroke="var(--cc-border)" horizontal={false} />
+        <XAxis type="number" tick={{ fill: "var(--cc-text-muted)", fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => formatCurrency(v)} />
+        <YAxis dataKey="title" type="category" tick={{ fill: "var(--cc-text-muted)", fontSize: 11 }} axisLine={false} tickLine={false} width={100} />
+        <Tooltip contentStyle={chartTooltipStyle} formatter={(v) => formatCurrency(Number(v))} />
         <Bar dataKey="spend" fill="#5B5BD6" radius={[0, 4, 4, 0]} barSize={20} />
       </BarChart>
     </ResponsiveContainer>

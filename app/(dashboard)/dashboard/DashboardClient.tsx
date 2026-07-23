@@ -36,17 +36,14 @@ import {
   CreditCard,
   ArrowRight,
 } from "lucide-react";
+import { formatCompact, formatCompactCurrency, stripAt } from "@/lib/format";
 
 function formatCurrency(n: number) {
-  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `$${(n / 1_000).toFixed(1)}K`;
-  return `$${n.toFixed(0)}`;
+  return formatCompactCurrency(n);
 }
 
 function formatNumber(n: number) {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-  return n.toString();
+  return formatCompact(n);
 }
 
 type Campaign = {
@@ -76,13 +73,7 @@ type FinancialData = {
   topPosts: { id: string; postUrl: string; platform: string; viewsCount: number; likesCount: number; engagementRate: number; creatorName: string | null; campaignTitle: string | null }[];
 };
 
-const PLATFORM_COLORS: Record<string, string> = {
-  TIKTOK: "#00F2EA",
-  YOUTUBE: "#FF0000",
-  INSTAGRAM: "#E4405F",
-  TWITTER: "#1DA1F2",
-  FACEBOOK: "#1877F2",
-};
+import { platformColor } from "@/app/(dashboard)/analytics/shared";
 
 const PIE_COLORS = ["#5B5BD6", "#059669", "#D97706", "#DC2626", "#7C3AED", "#1DA1F2"];
 
@@ -231,7 +222,7 @@ export default function DashboardClient(props: Props) {
       {isNewOrg && (
         <Card variant="solid" style={{ padding: 32, marginBottom: 32 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
-            <div style={{ width: 40, height: 40, borderRadius: 10, background: "#EEF2FF", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <div style={{ width: 40, height: 40, borderRadius: 10, background: "var(--cc-primary-light)", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <Rocket size={20} style={{ color: "var(--cc-primary)" }} />
             </div>
             <h2 style={{ fontSize: 20, fontWeight: 800, color: "var(--cc-text)", letterSpacing: "-0.01em" }}>
@@ -245,8 +236,8 @@ export default function DashboardClient(props: Props) {
           <div className="grid grid-cols-1 sm:grid-cols-3" style={{ gap: 16 }}>
             <Link href="/campaigns" style={{ textDecoration: "none" }}>
               <Card variant="outlined" style={{ padding: 20, height: "100%", display: "flex", flexDirection: "column", gap: 8 }}>
-                <div style={{ width: 32, height: 32, borderRadius: 8, background: "#EEF2FF", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <Megaphone size={16} style={{ color: "#5B5BD6" }} />
+                <div style={{ width: 32, height: 32, borderRadius: 8, background: "var(--cc-primary-light)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <Megaphone size={16} style={{ color: "var(--cc-primary)" }} />
                 </div>
                 <div style={{ fontSize: 15, fontWeight: 700, color: "var(--cc-text)" }}>Create your first campaign</div>
                 <p style={{ fontSize: 13, color: "var(--cc-text-muted)", lineHeight: 1.5, flex: 1 }}>
@@ -260,8 +251,8 @@ export default function DashboardClient(props: Props) {
 
             <Link href="/creators" style={{ textDecoration: "none" }}>
               <Card variant="outlined" style={{ padding: 20, height: "100%", display: "flex", flexDirection: "column", gap: 8 }}>
-                <div style={{ width: 32, height: 32, borderRadius: 8, background: "#F3E8FF", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <Users size={16} style={{ color: "#7C3AED" }} />
+                <div style={{ width: 32, height: 32, borderRadius: 8, background: "var(--cc-primary-light)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <Users size={16} style={{ color: "var(--cc-primary)" }} />
                 </div>
                 <div style={{ fontSize: 15, fontWeight: 700, color: "var(--cc-text)" }}>Add creators</div>
                 <p style={{ fontSize: 13, color: "var(--cc-text-muted)", lineHeight: 1.5, flex: 1 }}>
@@ -275,8 +266,8 @@ export default function DashboardClient(props: Props) {
 
             <Link href="/settings" style={{ textDecoration: "none" }}>
               <Card variant="outlined" style={{ padding: 20, height: "100%", display: "flex", flexDirection: "column", gap: 8 }}>
-                <div style={{ width: 32, height: 32, borderRadius: 8, background: "#D1FAE5", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <CreditCard size={16} style={{ color: "#059669" }} />
+                <div style={{ width: 32, height: 32, borderRadius: 8, background: "var(--cc-primary-light)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <CreditCard size={16} style={{ color: "var(--cc-primary)" }} />
                 </div>
                 <div style={{ fontSize: 15, fontWeight: 700, color: "var(--cc-text)" }}>Connect billing later</div>
                 <p style={{ fontSize: 13, color: "var(--cc-text-muted)", lineHeight: 1.5, flex: 1 }}>
@@ -300,28 +291,28 @@ export default function DashboardClient(props: Props) {
 
       {/* KPI Grid — enhanced with financial data */}
       {widgets.includes("kpi_grid") && (
-        <div className="cc-stagger grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4" style={{ gap: 20, marginBottom: 32 }}>
+        <div className="cc-stagger grid grid-cols-2 lg:grid-cols-4" style={{ gap: 20, marginBottom: 32 }}>
           <StatCard
             value={s ? formatCurrency(s.totalSpend) : String(props.campaignCount)}
             label="Total Spend"
             trend={s ? Math.round(s.budgetUtilization) : undefined}
             trendLabel={s ? `${s.budgetUtilization.toFixed(1)}% of budget` : undefined}
-            icon={<DollarSign size={20} style={{ color: "#5B5BD6" }} />}
+            icon={<DollarSign size={20} style={{ color: "var(--cc-primary)" }} />}
           />
           <StatCard
             value={s ? String(s.activeCampaigns) : String(props.campaignCount)}
             label="Active Campaigns"
-            icon={<Megaphone size={20} style={{ color: "#059669" }} />}
+            icon={<Megaphone size={20} style={{ color: "var(--cc-primary)" }} />}
           />
           <StatCard
             value={s ? formatCurrency(s.pendingPayouts) : formatCurrency(props.pendingPayouts)}
             label="Pending Payouts"
-            icon={<Wallet size={20} style={{ color: "#D97706" }} />}
+            icon={<Wallet size={20} style={{ color: "var(--cc-primary)" }} />}
           />
           <StatCard
             value={s ? String(s.totalCreators) : String(props.creatorCount)}
             label="Paid Creators"
-            icon={<Users size={20} style={{ color: "#7C3AED" }} />}
+            icon={<Users size={20} style={{ color: "var(--cc-primary)" }} />}
           />
         </div>
       )}
@@ -353,8 +344,8 @@ export default function DashboardClient(props: Props) {
         <Card variant="solid" noPadding className="lg:col-span-3 overflow-x-auto">
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 24px", borderBottom: "1px solid var(--cc-border)" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <div style={{ width: 32, height: 32, borderRadius: 8, background: "#EEF2FF", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <Megaphone size={16} style={{ color: "#5B5BD6" }} />
+              <div style={{ width: 32, height: 32, borderRadius: 8, background: "var(--cc-primary-light)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <Megaphone size={16} style={{ color: "var(--cc-primary)" }} />
               </div>
               <span style={{ fontSize: 15, fontWeight: 600, color: "var(--cc-text)" }}>Recent Campaigns</span>
             </div>
@@ -407,8 +398,8 @@ export default function DashboardClient(props: Props) {
         {/* Activity Feed */}
         <Card variant="solid" noPadding className="lg:col-span-2">
           <div style={{ padding: "18px 24px", borderBottom: "1px solid var(--cc-border)", display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{ width: 32, height: 32, borderRadius: 8, background: "#F3E8FF", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Clock size={16} style={{ color: "#7C3AED" }} />
+            <div style={{ width: 32, height: 32, borderRadius: 8, background: "var(--cc-primary-light)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Clock size={16} style={{ color: "var(--cc-primary)" }} />
             </div>
             <span style={{ fontSize: 15, fontWeight: 600, color: "var(--cc-text)" }}>Activity Feed</span>
           </div>
@@ -452,8 +443,8 @@ export default function DashboardClient(props: Props) {
         <Card variant="solid" style={{ padding: 28, marginBottom: 24 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <div style={{ width: 32, height: 32, borderRadius: 8, background: "#EEF2FF", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <BarChart3 size={16} style={{ color: "#5B5BD6" }} />
+              <div style={{ width: 32, height: 32, borderRadius: 8, background: "var(--cc-primary-light)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <BarChart3 size={16} style={{ color: "var(--cc-primary)" }} />
               </div>
               <span style={{ fontSize: 15, fontWeight: 700, color: "var(--cc-text)", letterSpacing: "-0.01em" }}>
                 Spend & Views Over Time
@@ -480,7 +471,7 @@ export default function DashboardClient(props: Props) {
         {widgets.includes("platform_breakdown") && (
           <Card variant="solid" style={{ padding: 28 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
-              <div style={{ width: 32, height: 32, borderRadius: 8, background: "#EEF2FF", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <div style={{ width: 32, height: 32, borderRadius: 8, background: "var(--cc-primary-light)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <Activity size={16} style={{ color: "var(--cc-primary)" }} />
               </div>
               <span style={{ fontSize: 15, fontWeight: 700, color: "var(--cc-text)" }}>Platform Breakdown</span>
@@ -492,7 +483,7 @@ export default function DashboardClient(props: Props) {
                 <div style={{ height: 200 }}>
                   <PlatformBreakdownPie
                     data={financials.platformBreakdown}
-                    colors={financials.platformBreakdown.map((entry, i) => PLATFORM_COLORS[entry.platform] ?? PIE_COLORS[i % PIE_COLORS.length])}
+                    colors={financials.platformBreakdown.map((entry, i) => platformColor(entry.platform, i))}
                     formatNumber={formatNumber}
                   />
                 </div>
@@ -500,7 +491,7 @@ export default function DashboardClient(props: Props) {
                   {financials.platformBreakdown.map((p, i) => (
                     <div key={p.platform} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13 }}>
                       <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <span style={{ width: 10, height: 10, borderRadius: "50%", background: PLATFORM_COLORS[p.platform] ?? PIE_COLORS[i % PIE_COLORS.length] }} />
+                        <span style={{ width: 10, height: 10, borderRadius: "50%", background: platformColor(p.platform, i) }} />
                         <span style={{ color: "var(--cc-text)", fontWeight: 600 }}>{p.platform}</span>
                       </span>
                       <span style={{ color: "var(--cc-text-muted)" }}>{formatNumber(p.views)} views · {p.postsCount} posts</span>
@@ -518,8 +509,8 @@ export default function DashboardClient(props: Props) {
         {widgets.includes("financial_summary") && (
           <Card variant="solid" style={{ padding: 28 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
-              <div style={{ width: 32, height: 32, borderRadius: 8, background: "#FEF3C7", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <DollarSign size={16} style={{ color: "#D97706" }} />
+              <div style={{ width: 32, height: 32, borderRadius: 8, background: "var(--cc-primary-light)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <DollarSign size={16} style={{ color: "var(--cc-primary)" }} />
               </div>
               <span style={{ fontSize: 15, fontWeight: 700, color: "var(--cc-text)" }}>Spend by Campaign</span>
             </div>
@@ -544,8 +535,8 @@ export default function DashboardClient(props: Props) {
         {widgets.includes("top_posts") && (
           <Card variant="solid" style={{ padding: 28 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
-              <div style={{ width: 32, height: 32, borderRadius: 8, background: "#D1FAE5", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <Eye size={16} style={{ color: "#059669" }} />
+              <div style={{ width: 32, height: 32, borderRadius: 8, background: "var(--cc-primary-light)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <Eye size={16} style={{ color: "var(--cc-primary)" }} />
               </div>
               <span style={{ fontSize: 15, fontWeight: 700, color: "var(--cc-text)" }}>Top Posts</span>
             </div>
@@ -582,8 +573,8 @@ export default function DashboardClient(props: Props) {
         <Card variant="solid" noPadding style={{ marginBottom: 24 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 24px", borderBottom: "1px solid var(--cc-border)" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <div style={{ width: 32, height: 32, borderRadius: 8, background: "#F3E8FF", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <TrendingUp size={16} style={{ color: "#7C3AED" }} />
+              <div style={{ width: 32, height: 32, borderRadius: 8, background: "var(--cc-primary-light)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <TrendingUp size={16} style={{ color: "var(--cc-primary)" }} />
               </div>
               <span style={{ fontSize: 15, fontWeight: 700, color: "var(--cc-text)" }}>Creator Performance</span>
             </div>
@@ -615,7 +606,7 @@ export default function DashboardClient(props: Props) {
                     <tr key={c.creatorId} className="cc-table-row" style={{ borderTop: "1px solid var(--cc-border)" }}>
                       <td style={{ padding: "14px 24px" }}>
                         <div style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>{c.name}</div>
-                        <div style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>@{c.handle}</div>
+                        <div style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>@{stripAt(c.handle)}</div>
                       </td>
                       <td style={{ padding: "14px 24px", fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>
                         {formatCurrency(c.totalPaid)}

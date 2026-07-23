@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { z } from "zod";
-import { fetchPostMetrics } from "@/lib/platforms/fetchPostMetrics";
+import { detectPlatform, fetchPostMetrics } from "@/lib/platforms/fetchPostMetrics";
+import { getInstagramAccountForCreator } from "@/lib/platforms/instagramToken";
 import type { PostStatus, Platform } from "@/lib/generated/prisma/client";
 
 const PLATFORMS = ["TIKTOK", "INSTAGRAM", "YOUTUBE", "TWITTER"] as const;
@@ -103,7 +104,14 @@ export async function POST(
     }
 
     // Fetch metrics from platform
-    const metrics = await fetchPostMetrics(postUrl);
+    const instagram =
+      detectPlatform(postUrl)?.platform === "INSTAGRAM"
+        ? await getInstagramAccountForCreator(creatorId, orgId)
+        : undefined;
+    const metrics = await fetchPostMetrics(postUrl, {
+      instagramToken: instagram?.token,
+      instagramHandle: instagram?.handle,
+    });
 
     const initialStatus: PostStatus = campaign.postApprovalMode === "AUTO_APPROVED" ? "APPROVED" : "PENDING_REVIEW";
 

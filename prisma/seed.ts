@@ -35,14 +35,14 @@ async function main() {
   // ─── OrgPlanConfig ───
   await prisma.orgPlanConfig.upsert({
     where: { orgId: org.id },
-    update: {},
+    update: { features: { soundTracker: true, reports: true, csvExport: true, creator_discovery: true } },
     create: {
       orgId: org.id,
       planName: 'pro',
       maxCampaigns: 50,
       maxCreators: 500,
       maxUsers: 10,
-      features: { soundTracker: true, reports: true, csvExport: true },
+      features: { soundTracker: true, reports: true, csvExport: true, creator_discovery: true },
     },
   });
 
@@ -237,12 +237,23 @@ async function main() {
   ]);
 
   // ─── Activations ───
-  await prisma.activation.upsert({ where: { id: "act-1" }, update: {}, create: { id: "act-1", campaignId: campaigns[0].id, creatorId: creators[0].id, status: "APPROVED" } });
-  await prisma.activation.upsert({ where: { id: "act-2" }, update: {}, create: { id: "act-2", campaignId: campaigns[0].id, creatorId: creators[1].id, status: "APPROVED" } });
-  await prisma.activation.upsert({ where: { id: "act-3" }, update: {}, create: { id: "act-3", campaignId: campaigns[1].id, creatorId: creators[4].id, status: "APPROVED" } });
-  await prisma.activation.upsert({ where: { id: "act-4" }, update: {}, create: { id: "act-4", campaignId: campaigns[2].id, creatorId: creators[0].id, status: "COMPLETE" } });
-  await prisma.activation.upsert({ where: { id: "act-5" }, update: {}, create: { id: "act-5", campaignId: campaigns[0].id, creatorId: creators[2].id, status: "APPROVED" } });
-  await prisma.activation.upsert({ where: { id: "act-6" }, update: {}, create: { id: "act-6", campaignId: campaigns[1].id, creatorId: creators[8].id, status: "APPROVED" } });
+  // deliverableDueDate spread relative to seed time so the calendar always shows current + upcoming deliverables
+  const dueIn = (days: number) => { const d = new Date(); d.setDate(d.getDate() + days); d.setHours(12, 0, 0, 0); return d; };
+  const activationSeed = [
+    { id: "act-1", campaignId: campaigns[0].id, creatorId: creators[0].id, status: "APPROVED" as const, deliverableDueDate: dueIn(5) },
+    { id: "act-2", campaignId: campaigns[0].id, creatorId: creators[1].id, status: "APPROVED" as const, deliverableDueDate: dueIn(9) },
+    { id: "act-3", campaignId: campaigns[1].id, creatorId: creators[4].id, status: "APPROVED" as const, deliverableDueDate: dueIn(14) },
+    { id: "act-4", campaignId: campaigns[2].id, creatorId: creators[0].id, status: "COMPLETE" as const, deliverableDueDate: dueIn(-20) },
+    { id: "act-5", campaignId: campaigns[0].id, creatorId: creators[2].id, status: "APPROVED" as const, deliverableDueDate: dueIn(22) },
+    { id: "act-6", campaignId: campaigns[1].id, creatorId: creators[8].id, status: "APPROVED" as const, deliverableDueDate: dueIn(30) },
+  ];
+  for (const a of activationSeed) {
+    await prisma.activation.upsert({
+      where: { id: a.id },
+      update: { deliverableDueDate: a.deliverableDueDate },
+      create: a,
+    });
+  }
 
   // ─── Posts ───
   await prisma.post.upsert({
@@ -606,9 +617,9 @@ async function main() {
   });
 
   const marketplaceActivations = await Promise.all([
-    prisma.activation.upsert({ where: { id: "act-mkt-1" }, update: {}, create: { id: "act-mkt-1", campaignId: marketplaceCampaign.id, creatorId: creators[0].id, status: "APPROVED" } }),
-    prisma.activation.upsert({ where: { id: "act-mkt-2" }, update: {}, create: { id: "act-mkt-2", campaignId: marketplaceCampaign.id, creatorId: creators[1].id, status: "APPROVED" } }),
-    prisma.activation.upsert({ where: { id: "act-mkt-3" }, update: {}, create: { id: "act-mkt-3", campaignId: marketplaceCampaign.id, creatorId: creators[8].id, status: "APPROVED" } }),
+    prisma.activation.upsert({ where: { id: "act-mkt-1" }, update: { deliverableDueDate: dueIn(7) }, create: { id: "act-mkt-1", campaignId: marketplaceCampaign.id, creatorId: creators[0].id, status: "APPROVED", deliverableDueDate: dueIn(7) } }),
+    prisma.activation.upsert({ where: { id: "act-mkt-2" }, update: { deliverableDueDate: dueIn(18) }, create: { id: "act-mkt-2", campaignId: marketplaceCampaign.id, creatorId: creators[1].id, status: "APPROVED", deliverableDueDate: dueIn(18) } }),
+    prisma.activation.upsert({ where: { id: "act-mkt-3" }, update: { deliverableDueDate: dueIn(26) }, create: { id: "act-mkt-3", campaignId: marketplaceCampaign.id, creatorId: creators[8].id, status: "APPROVED", deliverableDueDate: dueIn(26) } }),
   ]);
 
   const marketplacePostSpecs = [

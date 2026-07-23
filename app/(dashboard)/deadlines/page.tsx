@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { Card, Badge, Skeleton, EmptyState, Button } from "@pratham7711/ui";
 import { CalendarClock, AlertTriangle, CheckCircle2, Clock, CalendarOff, Edit2, X, Check } from "lucide-react";
 import { format, isAfter, isBefore, differenceInDays } from "date-fns";
+import { stripAt } from "@/lib/format";
 
 type DeadlineActivation = {
   id: string;
@@ -343,7 +344,7 @@ export default function DeadlinesPage() {
                       <p style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)", margin: 0 }}>{a.creator.name}</p>
                       {a.creator.handle && (
                         <p style={{ fontSize: 12, color: "var(--cc-text-muted)", margin: "2px 0 0" }}>
-                          @{a.creator.handle} · {a.creator.platform}
+                          @{stripAt(a.creator.handle)} · {a.creator.platform}
                         </p>
                       )}
                     </td>

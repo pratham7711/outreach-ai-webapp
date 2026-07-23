@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import dynamic from "next/dynamic";
 import { Card, EmptyState, Skeleton } from "@pratham7711/ui";
-import { ArrowUpRight, ArrowDownRight } from "lucide-react";
+import { ArrowUpRight, ArrowDownRight, Folder, TrendingUp, AlertTriangle, TrendingDown } from "lucide-react";
 import { formatNumber, formatCurrency, formatPercent, rangeToFrom, SERIES_COLORS } from "./shared";
 
 const CampaignComparisonLine = dynamic(() => import("./AnalyticsCharts").then((m) => m.CampaignComparisonLine), {
@@ -99,7 +99,7 @@ export default function CampaignComparison({
       </div>
 
       {campaigns.length === 0 ? (
-        <EmptyState icon="📁" title="No campaigns" description="Create campaigns to compare their performance." />
+        <EmptyState icon={<Folder size={32} color="var(--cc-text-subtle)" />} title="No campaigns" description="Create campaigns to compare their performance." />
       ) : (
         <>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 20 }}>
@@ -134,16 +134,16 @@ export default function CampaignComparison({
           </div>
 
           {selected.length < 2 ? (
-            <EmptyState icon="📈" title="Pick at least 2 campaigns" description="Choose campaigns above to see the comparison." />
+            <EmptyState icon={<TrendingUp size={32} color="var(--cc-text-subtle)" />} title="Pick at least 2 campaigns" description="Choose campaigns above to see the comparison." />
           ) : loading ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               <Skeleton height="260px" borderRadius="12px" />
               <Skeleton height="120px" borderRadius="12px" />
             </div>
           ) : error || !resp ? (
-            <EmptyState icon="⚠️" title="Failed to load comparison" description="Try changing your selection or filters." />
+            <EmptyState icon={<AlertTriangle size={32} color="var(--cc-text-subtle)" />} title="Failed to load comparison" description="Try changing your selection or filters." />
           ) : resp.series.length === 0 ? (
-            <EmptyState icon="📉" title="No time-series data" description="These campaigns have no posts in the selected range." />
+            <EmptyState icon={<TrendingDown size={32} color="var(--cc-text-subtle)" />} title="No time-series data" description="These campaigns have no posts in the selected range." />
           ) : (
             <>
               <div className="cmp-chart">

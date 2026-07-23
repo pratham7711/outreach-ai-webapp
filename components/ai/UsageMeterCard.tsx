@@ -1,4 +1,5 @@
 import { Badge, Card } from "@pratham7711/ui";
+import { CheckCircle2, XCircle } from "lucide-react";
 
 export interface UsageTotals {
   totalTokens: number;
@@ -239,7 +240,7 @@ export function UsageMeterCard({
             }}
           >
             <span aria-hidden="true" style={{ color: "var(--cc-success)", fontSize: 14, lineHeight: "18px" }}>
-              ✓
+              <CheckCircle2 size={14} color="var(--cc-success)" />
             </span>
             <Badge variant="success">Within limits</Badge>
             <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>
@@ -263,7 +264,7 @@ export function UsageMeterCard({
           >
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <span aria-hidden="true" style={{ color: "var(--cc-danger)", fontSize: 14, lineHeight: "18px" }}>
-                ✕
+                <XCircle size={14} color="var(--cc-danger)" />
               </span>
               <Badge variant="danger">Blocked</Badge>
             </div>

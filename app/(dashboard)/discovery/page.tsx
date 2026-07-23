@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Search, SlidersHorizontal, X } from "lucide-react";
+import { Plus, Search, SlidersHorizontal, X, Lock } from "lucide-react";
 import { Button, Card, EmptyState, Input, Avatar, Badge, Skeleton, StatCard } from "@pratham7711/ui";
 import { Pagination } from "@/components/ds";
 import Link from "next/link";
 import { toast } from "sonner";
+import { formatCompact, stripAt, platformLabel } from "@/lib/format";
 
 const PLATFORMS = ["All", "TIKTOK", "INSTAGRAM", "YOUTUBE", "TWITTER"];
 const SORT_OPTIONS = [
@@ -19,9 +20,7 @@ const NICHE_OPTIONS = [
 ];
 
 function formatNumber(n: number) {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(0)}K`;
-  return String(n);
+  return formatCompact(n);
 }
 
 type Creator = {
@@ -194,7 +193,7 @@ export default function DiscoveryPage() {
                 transition: "all 0.15s",
               }}
             >
-              {p === "All" ? "All" : p.charAt(0) + p.slice(1).toLowerCase()}
+              {p === "All" ? "All" : platformLabel(p)}
             </button>
           ))}
         </div>
@@ -394,7 +393,7 @@ export default function DiscoveryPage() {
       ) : featureDisabled ? (
         <div style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, padding: 24 }}>
           <EmptyState
-            icon="🔒"
+            icon={<Lock size={32} color="var(--cc-text-subtle)" />}
             title="Creator Discovery is disabled"
             description="Enable the Creator Discovery feature in Billing to search and discover new creators."
             action={
@@ -408,7 +407,7 @@ export default function DiscoveryPage() {
           />
         </div>
       ) : creators.length === 0 ? (
-        <EmptyState icon="🔍" title="No creators found" description="Try adjusting your search or filters" />
+        <EmptyState icon={<Search size={32} color="var(--cc-text-subtle)" />} title="No creators found" description="Try adjusting your search or filters" />
       ) : (
         <div className="cc-stagger rsp-grid-3">
           {creators.map((c) => (
@@ -417,9 +416,9 @@ export default function DiscoveryPage() {
                 <Avatar name={c.name} size="md" />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 700, fontSize: 14, color: "var(--cc-text)" }}>{c.name}</div>
-                  <div style={{ fontSize: 13, color: "var(--cc-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>@{c.handle}</div>
+                  <div style={{ fontSize: 13, color: "var(--cc-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>@{stripAt(c.handle)}</div>
                 </div>
-                <Badge variant="neutral" style={{ fontSize: 10 }}>{c.platform}</Badge>
+                <Badge variant="neutral" style={{ fontSize: 10 }}>{platformLabel(c.platform)}</Badge>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
                 <div>

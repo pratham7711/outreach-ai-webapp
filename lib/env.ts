@@ -18,6 +18,7 @@ const envSchema = z.object({
   NEXTAUTH_SECRET: requiredString("NEXTAUTH_SECRET"),
   TOKEN_ENCRYPTION_KEY: tokenEncryptionKey,
   YOUTUBE_API_KEY: z.string().optional(),
+  SOCIALKIT_API_KEY: z.string().optional(),
   CRON_SECRET: z.string().optional(),
   NODE_ENV: z
     .enum(["development", "test", "production"])

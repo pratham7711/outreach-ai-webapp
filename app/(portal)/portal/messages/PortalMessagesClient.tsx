@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Avatar, Badge, Tag, EmptyState, Skeleton } from "@pratham7711/ui";
-import { Send } from "lucide-react";
+import { Send, MessageSquare, Mail, AlertTriangle } from "lucide-react";
 
 type SenderType = "ORG" | "CREATOR" | "AI_AGENT";
 
@@ -182,7 +182,7 @@ export default function PortalMessagesClient() {
             </div>
           ) : conversations.length === 0 ? (
             <div style={{ padding: 24 }}>
-              <EmptyState icon="💬" title="No messages yet" description="Brands you collaborate with will appear here" />
+              <EmptyState icon={<MessageSquare size={32} color="var(--cc-text-subtle)" />} title="No messages yet" description="Brands you collaborate with will appear here" />
             </div>
           ) : (
             conversations.map((c) => {
@@ -233,7 +233,7 @@ export default function PortalMessagesClient() {
         <div className="pm-thread" style={{ display: "flex", flexDirection: "column", minHeight: 0 }}>
           {!activeId ? (
             <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
-              <EmptyState icon="✉️" title="Select a conversation" description="Choose a brand from the list to view messages" />
+              <EmptyState icon={<Mail size={32} color="var(--cc-text-subtle)" />} title="Select a conversation" description="Choose a brand from the list to view messages" />
             </div>
           ) : threadLoading ? (
             <div style={{ padding: 24, display: "flex", flexDirection: "column", gap: 12 }}>
@@ -243,7 +243,7 @@ export default function PortalMessagesClient() {
             </div>
           ) : threadError ? (
             <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
-              <EmptyState icon="⚠️" title="Couldn't load conversation" description="Try selecting it again" />
+              <EmptyState icon={<AlertTriangle size={32} color="var(--cc-text-subtle)" />} title="Couldn't load conversation" description="Try selecting it again" />
             </div>
           ) : thread ? (
             <>

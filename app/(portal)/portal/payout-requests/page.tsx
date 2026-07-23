@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Card, Badge, Button, StatCard, Skeleton, EmptyState, Input, Modal } from "@pratham7711/ui";
 import { toast } from "sonner";
-import { DollarSign, Clock, CheckCircle, XCircle, Plus } from "lucide-react";
+import { DollarSign, Clock, CheckCircle, XCircle, Plus, Banknote } from "lucide-react";
+import { formatDateAbs } from "@/lib/format";
 
 type PayoutRequest = {
   id: string;
@@ -173,7 +174,7 @@ export default function PortalPayoutRequestsPage() {
       {requests.length === 0 ? (
         <Card variant="outlined" style={{ padding: 24 }}>
           <EmptyState
-            icon="💸"
+            icon={<Banknote size={32} color="var(--cc-text-subtle)" />}
             title="No payout requests"
             description="Submit a payout request for your accepted campaigns."
             action={
@@ -234,7 +235,7 @@ export default function PortalPayoutRequestsPage() {
                 {req.status}
               </Badge>
               <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>
-                {new Date(req.createdAt).toLocaleDateString()}
+                {formatDateAbs(req.createdAt)}
               </span>
             </div>
           ))}

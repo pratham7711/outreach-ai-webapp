@@ -4,9 +4,10 @@ import React from "react";
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { Card, Badge, Button, Input, Modal, EmptyState, Skeleton, Avatar } from "@pratham7711/ui";
 import { StatusTabs, Pagination } from "@/components/ds";
-import { Grid3X3, List, Plus, Check, X, Eye, Heart, MessageCircle, TrendingUp, BarChart3, ArrowUp, ArrowDown, ArrowUpDown, Flag } from "lucide-react";
+import { Grid3X3, List, Plus, Check, X, Eye, Heart, MessageCircle, TrendingUp, BarChart3, ArrowUp, ArrowDown, ArrowUpDown, Flag, Video, AlertTriangle } from "lucide-react";
 import Link from "next/link";
 import { computePostEmv, computeEngagementRate } from "@/lib/metrics";
+import { formatCompact, formatCompactCurrency, stripAt, formatDateAbs } from "@/lib/format";
 
 type SnapshotLite = { id: string; viewsCount: number; recordedAt: string };
 
@@ -74,15 +75,11 @@ type SortKey = "posted" | "views" | "likes" | "comments" | "engRate" | "emv" | "
 type SortDir = "asc" | "desc";
 
 function formatNumber(num: number): string {
-  if (num >= 1000000) return (num / 1000000).toFixed(1) + "M";
-  if (num >= 1000) return (num / 1000).toFixed(1) + "K";
-  return num.toString();
+  return formatCompact(num);
 }
 
 function formatMoney(num: number): string {
-  if (num >= 1000000) return "$" + (num / 1000000).toFixed(1) + "M";
-  if (num >= 1000) return "$" + (num / 1000).toFixed(1) + "K";
-  return "$" + num.toFixed(0);
+  return formatCompactCurrency(num);
 }
 
 function formatSince(iso: string | null): string {
@@ -469,7 +466,7 @@ export default function PostsTab({
                   width: `${Math.round(capFraction * 100)}%`,
                   height: "100%",
                   borderRadius: 999,
-                  background: capReached ? "#DC2626" : "var(--cc-primary)",
+                  background: capReached ? "var(--cc-danger)" : "var(--cc-primary)",
                   transition: "width 0.3s ease",
                 }}
               />
@@ -542,7 +539,7 @@ export default function PostsTab({
 
       {!error && filteredSorted.length === 0 ? (
         <EmptyState
-          icon="📹"
+          icon={<Video size={32} color="var(--cc-text-subtle)" />}
           title={posts.length === 0 ? "No posts yet" : "No posts match your filters"}
           description={posts.length === 0 ? "Submit post URLs to track performance and manage approvals." : "Adjust the filters or search to see more posts."}
         />
@@ -584,24 +581,24 @@ export default function PostsTab({
                     <Avatar name={post.creator.name} size="sm" src={post.creator.avatarUrl ?? undefined} />
                     <div style={{ minWidth: 0 }}>
                       <div style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{post.creator.name}</div>
-                      <div style={{ fontSize: 12, color: "var(--cc-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>@{post.creator.handle}</div>
+                      <div style={{ fontSize: 12, color: "var(--cc-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>@{stripAt(post.creator.handle)}</div>
                     </div>
                   </Link>
                   <Badge variant={PLATFORM_BADGE[post.platform] ?? "neutral"} style={{ fontSize: 11 }}>{post.platform}</Badge>
-                  <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{new Date(post.postedAt).toLocaleDateString()}</span>
+                  <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{formatDateAbs(post.postedAt)}</span>
                   <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)", textAlign: "right" }}>{formatNumber(post.viewsCount)}</span>
                   <span style={{ fontSize: 13, color: "var(--cc-text-muted)", textAlign: "right" }}>{formatNumber(post.likesCount)}</span>
                   <span style={{ fontSize: 13, color: "var(--cc-text-muted)", textAlign: "right" }}>{formatNumber(post.commentsCount)}</span>
                   <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-primary)", textAlign: "right" }}>{er === null ? "—" : `${er.toFixed(1)}%`}</span>
                   <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)", textAlign: "right" }}>{formatMoney(emv)}</span>
                   {anyDelta && (
-                    <span style={{ fontSize: 13, fontWeight: 600, textAlign: "right", color: dv === null ? "var(--cc-text-subtle)" : dv >= 0 ? "#059669" : "#DC2626" }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, textAlign: "right", color: dv === null ? "var(--cc-text-subtle)" : dv >= 0 ? "var(--cc-success)" : "var(--cc-danger)" }}>
                       {dv === null ? "—" : `${dv >= 0 ? "+" : ""}${formatNumber(dv)}`}
                     </span>
                   )}
                   <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-start" }}>
                     <Badge variant={STATUS_BADGE[post.status] ?? "neutral"}>{post.status.replace(/_/g, " ")}</Badge>
-                    {post.hasOpenFraudFlag && <Badge variant="danger" style={{ fontSize: 10 }}>⚠ Flagged</Badge>}
+                    {post.hasOpenFraudFlag && <Badge variant="danger" style={{ fontSize: 10, display: "inline-flex", alignItems: "center", gap: 4 }}><AlertTriangle size={14} color="var(--cc-danger)" /> Flagged</Badge>}
                     {marketplace && post.status === "PENDING_REVIEW" && !post.hasOpenFraudFlag && (
                       <span style={{ fontSize: 11, color: "var(--cc-text-muted)" }}>
                         auto in {timeRemaining(post.createdAt, marketplace.autoApproveHours)}
@@ -618,16 +615,16 @@ export default function PostsTab({
                     </button>
                     {(postApprovalMode === "MANUAL" || marketplace) && post.status === "PENDING_REVIEW" && (
                       <>
-                        <button onClick={() => handleApprove(post.id)} aria-label="Approve post" style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid #059669", background: "#D1FAE5", color: "#059669", cursor: "pointer", fontSize: 12, display: "flex", alignItems: "center", gap: 2 }}>
+                        <button onClick={() => handleApprove(post.id)} aria-label="Approve post" style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid var(--cc-success)", background: "color-mix(in srgb, var(--cc-success) 14%, transparent)", color: "var(--cc-success)", cursor: "pointer", fontSize: 12, display: "flex", alignItems: "center", gap: 2 }}>
                           <Check size={12} />
                         </button>
-                        <button onClick={() => setShowRejectModal(post.id)} aria-label="Reject post" style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid #DC2626", background: "#FEE2E2", color: "#DC2626", cursor: "pointer", fontSize: 12, display: "flex", alignItems: "center", gap: 2 }}>
+                        <button onClick={() => setShowRejectModal(post.id)} aria-label="Reject post" style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid var(--cc-danger)", background: "color-mix(in srgb, var(--cc-danger) 14%, transparent)", color: "var(--cc-danger)", cursor: "pointer", fontSize: 12, display: "flex", alignItems: "center", gap: 2 }}>
                           <X size={12} />
                         </button>
                       </>
                     )}
                     {marketplace && !post.hasOpenFraudFlag && post.status !== "REJECTED" && (
-                      <button onClick={() => handleFlagSuspicious(post.id)} disabled={flaggingId === post.id} aria-label="Flag post as suspicious" style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid #D97706", background: "#FEF3C7", color: "#D97706", cursor: flaggingId === post.id ? "wait" : "pointer", fontSize: 12, display: "flex", alignItems: "center", gap: 2, opacity: flaggingId === post.id ? 0.6 : 1 }}>
+                      <button onClick={() => handleFlagSuspicious(post.id)} disabled={flaggingId === post.id} aria-label="Flag post as suspicious" style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid var(--cc-warning)", background: "color-mix(in srgb, var(--cc-warning) 14%, transparent)", color: "var(--cc-warning)", cursor: flaggingId === post.id ? "wait" : "pointer", fontSize: 12, display: "flex", alignItems: "center", gap: 2, opacity: flaggingId === post.id ? 0.6 : 1 }}>
                         <Flag size={12} />
                       </button>
                     )}
@@ -716,7 +713,7 @@ export default function PostsTab({
               <label htmlFor="add-post-creator" style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Creator</label>
               <select id="add-post-creator" value={addForm.creatorId} onChange={(e) => setAddForm((f) => ({ ...f, creatorId: e.target.value }))} style={{ ...selectStyle, width: "100%" }}>
                 <option value="">Select creator...</option>
-                {creators.map((c) => <option key={c.id} value={c.id}>{c.name} (@{c.handle})</option>)}
+                {creators.map((c) => <option key={c.id} value={c.id}>{c.name} (@{stripAt(c.handle)})</option>)}
               </select>
             </div>
             <div>

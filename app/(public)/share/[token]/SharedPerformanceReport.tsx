@@ -4,25 +4,19 @@ import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   PieChart, Pie, Cell, Legend,
 } from "recharts";
+import { BarChart3 } from "lucide-react";
 import type { CampaignPerformance } from "@/lib/reports/campaignPerformance";
-
-const PLATFORM_COLORS: Record<string, string> = {
-  TIKTOK: "#000000",
-  INSTAGRAM: "#E4405F",
-  YOUTUBE: "#FF0000",
-  TWITTER: "#1DA1F2",
-};
+import { formatCompact } from "@/lib/format";
+import { platformColor } from "@/app/(dashboard)/analytics/shared";
 
 const SERIES = [
-  { key: "TIKTOK", color: PLATFORM_COLORS.TIKTOK },
-  { key: "INSTAGRAM", color: PLATFORM_COLORS.INSTAGRAM },
-  { key: "YOUTUBE", color: PLATFORM_COLORS.YOUTUBE },
+  { key: "TIKTOK", color: platformColor("TIKTOK") },
+  { key: "INSTAGRAM", color: platformColor("INSTAGRAM") },
+  { key: "YOUTUBE", color: platformColor("YOUTUBE") },
 ] as const;
 
 function formatNumber(num: number): string {
-  if (num >= 1000000) return (num / 1000000).toFixed(1) + "M";
-  if (num >= 1000) return (num / 1000).toFixed(1) + "K";
-  return String(num);
+  return formatCompact(num);
 }
 
 function formatCurrency(n: number, currency = "USD"): string {
@@ -137,7 +131,7 @@ export default function SharedPerformanceReport({
               textAlign: "center",
             }}
           >
-            <div style={{ fontSize: 40, marginBottom: 12 }}>📊</div>
+            <div style={{ marginBottom: 12 }}><BarChart3 size={40} color="var(--cc-text-subtle)" /></div>
             <h2 style={{ fontSize: 18, fontWeight: 700, color: "var(--cc-text)", margin: "0 0 6px" }}>
               No performance data yet
             </h2>
@@ -174,7 +168,7 @@ export default function SharedPerformanceReport({
               <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)", display: "block", marginBottom: 16 }}>
                 Views Over Time by Platform
               </span>
-              {timeSeries.length > 0 ? (
+              {timeSeries.length >= 3 ? (
                 <div style={{ height: 320 }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={timeSeries} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
@@ -226,27 +220,30 @@ export default function SharedPerformanceReport({
                 }}
               >
                 <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)", display: "block", marginBottom: 16 }}>
-                  Platform Split
+                  Views by Platform
                 </span>
                 {platformSplit.length > 0 ? (
                   <div style={{ height: 260 }}>
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
                         <Pie
-                          data={platformSplit}
+                          data={platformSplit.filter((p) => p.views > 0)}
                           cx="50%"
                           cy="50%"
-                          innerRadius={60}
-                          outerRadius={90}
+                          innerRadius={55}
+                          outerRadius={85}
                           dataKey="views"
                           nameKey="platform"
                           paddingAngle={2}
-                          label={({ name, percent }: { name?: string; percent?: number }) => `${name ?? ""} ${((percent ?? 0) * 100).toFixed(0)}%`}
+                          label={false}
+                          stroke="var(--cc-card)"
+                          strokeWidth={2}
                         >
-                          {platformSplit.map((entry) => (
-                            <Cell key={entry.platform} fill={PLATFORM_COLORS[entry.platform] ?? "var(--cc-primary)"} />
+                          {platformSplit.filter((p) => p.views > 0).map((entry) => (
+                            <Cell key={entry.platform} fill={platformColor(entry.platform)} />
                           ))}
                         </Pie>
+                        <Legend verticalAlign="bottom" height={24} wrapperStyle={{ fontSize: 12 }} formatter={(value: unknown) => <span style={{ color: "var(--cc-text-muted)" }}>{String(value)}</span>} />
                         <Tooltip
                           formatter={(v: unknown, _n: unknown, item: { payload?: { posts?: number; platform?: string } }) => [
                             `${formatNumber(Number(v ?? 0))} views · ${item?.payload?.posts ?? 0} posts`,

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Building2, User, Music, Zap, Plus, X } from "lucide-react";
+import { Building2, User, Music, Zap, Plus, X, Sparkles, ArrowRight, PartyPopper } from "lucide-react";
 
 type OrgType = "Agency" | "Manager" | "Music Label" | "Brand";
 
@@ -73,7 +73,7 @@ export default function OnboardingPage() {
         {/* Logo */}
         <div className="text-center mb-8">
           <a href="/" className="inline-flex items-center gap-2">
-            <span className="text-2xl text-[#2563EB] font-black">✦</span>
+            <Sparkles className="text-[#2563EB]" />
             <span className="text-2xl font-black text-white">outreach ai</span>
           </a>
         </div>
@@ -153,9 +153,9 @@ export default function OnboardingPage() {
                 <button
                   onClick={() => orgName && orgType && setStep(1)}
                   disabled={!orgName || !orgType}
-                  className="w-full bg-[#2563EB] hover:bg-[#1d4ed8] disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-3 rounded-full transition-colors"
+                  className="w-full bg-[#2563EB] hover:bg-[#1d4ed8] disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-3 rounded-full transition-colors flex items-center justify-center gap-2"
                 >
-                  Continue →
+                  Continue <ArrowRight className="w-4 h-4" />
                 </button>
               </motion.div>
             )}
@@ -221,9 +221,9 @@ export default function OnboardingPage() {
                   </button>
                   <button
                     onClick={handleContinue2}
-                    className="flex-1 bg-[#2563EB] hover:bg-[#1d4ed8] text-white font-bold py-3 rounded-full transition-colors"
+                    className="flex-1 bg-[#2563EB] hover:bg-[#1d4ed8] text-white font-bold py-3 rounded-full transition-colors flex items-center justify-center gap-2"
                   >
-                    Continue →
+                    Continue <ArrowRight className="w-4 h-4" />
                   </button>
                 </div>
               </motion.div>
@@ -244,9 +244,9 @@ export default function OnboardingPage() {
                   initial={{ scale: 0.5, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   transition={{ duration: 0.5, type: "spring" }}
-                  className="text-5xl mb-6"
+                  className="mb-6"
                 >
-                  🎉
+                  <PartyPopper className="w-12 h-12 inline-block text-[#2563EB]" />
                 </motion.div>
                 <h2 className="text-3xl font-black text-white mb-3">You&apos;re all set!</h2>
                 <p className="text-white/50 text-base mb-10">
@@ -257,9 +257,9 @@ export default function OnboardingPage() {
                   href="/dashboard"
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
-                  className="inline-block bg-[#2563EB] hover:bg-[#1d4ed8] text-white font-bold py-3.5 px-10 rounded-full transition-colors"
+                  className="inline-flex items-center justify-center gap-2 bg-[#2563EB] hover:bg-[#1d4ed8] text-white font-bold py-3.5 px-10 rounded-full transition-colors"
                 >
-                  Go to your dashboard →
+                  Go to your dashboard <ArrowRight className="w-4 h-4" />
                 </motion.a>
               </motion.div>
             )}

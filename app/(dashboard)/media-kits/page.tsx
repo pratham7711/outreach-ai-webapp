@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { Plus, Lock, AlertTriangle, Folder } from "lucide-react";
 import { Button, Modal, Input, EmptyState, Card, Badge, LoadingSpinner } from "@pratham7711/ui";
+import { formatDateAbs } from "@/lib/format";
 
 interface MediaKit {
   id: string;
@@ -117,7 +118,7 @@ export default function MediaKitsPage() {
         <Card variant="outlined" noPadding>
           <div style={{ padding: 24 }}>
             <EmptyState
-              icon="🔒"
+              icon={<Lock size={32} color="var(--cc-text-subtle)" />}
               title="Media kits are disabled"
               description="Enable the media kits feature in Billing to create and manage shareable media kits."
               action={
@@ -146,7 +147,7 @@ export default function MediaKitsPage() {
         <Card variant="outlined" noPadding>
           <div style={{ padding: 24 }}>
             <EmptyState
-              icon="⚠️"
+              icon={<AlertTriangle size={32} color="var(--cc-text-subtle)" />}
               title="Media kits couldn't load"
               description={error}
               action={
@@ -166,7 +167,7 @@ export default function MediaKitsPage() {
         </Card>
       ) : kits.length === 0 ? (
         <EmptyState
-          icon="📁"
+          icon={<Folder size={32} color="var(--cc-text-subtle)" />}
           title="No media kits yet"
           description="Create a media kit to share creator profiles"
           action={
@@ -191,7 +192,7 @@ export default function MediaKitsPage() {
                 <tr key={k.id} className="cc-table-row" style={{ borderTop: "1px solid var(--cc-border)" }}>
                   <td style={{ padding: "12px 20px", fontWeight: 500, color: "var(--cc-text)" }}>{k.title}</td>
                   <td style={{ padding: "12px 20px", color: "var(--cc-text-muted)" }}>{k.creatorIds.length} creator{k.creatorIds.length !== 1 ? "s" : ""}</td>
-                  <td style={{ padding: "12px 20px", color: "var(--cc-text-muted)" }}>{new Date(k.createdAt).toLocaleDateString()}</td>
+                  <td style={{ padding: "12px 20px", color: "var(--cc-text-muted)" }}>{formatDateAbs(k.createdAt)}</td>
                   <td style={{ padding: "12px 20px" }}>
                     <Badge variant={k.isPublic ? "success" : "neutral"} size="sm">
                       {k.isPublic ? "Public" : "Private"}

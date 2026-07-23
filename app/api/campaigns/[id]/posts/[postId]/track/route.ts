@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { authenticateRequest } from "@/lib/authenticate";
 import { fetchPostMetrics, hasMetricCounts } from "@/lib/platforms/fetchPostMetrics";
+import { getInstagramAccountForCreator } from "@/lib/platforms/instagramToken";
 import { z } from "zod";
 
 const trackSchema = z.object({ enabled: z.boolean() });
@@ -40,7 +41,14 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     if (enabled) {
       try {
-        const metrics = await fetchPostMetrics(post.postUrl);
+        const instagram =
+          post.platform === "INSTAGRAM"
+            ? await getInstagramAccountForCreator(post.creatorId, orgId)
+            : undefined;
+        const metrics = await fetchPostMetrics(post.postUrl, {
+          instagramToken: instagram?.token,
+          instagramHandle: instagram?.handle,
+        });
         if (metrics && hasMetricCounts(metrics)) {
           const views = metrics.viewsCount ?? 0;
           const likes = metrics.likesCount ?? 0;

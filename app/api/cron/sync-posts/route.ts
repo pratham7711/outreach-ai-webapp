@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { fetchPostMetrics, hasMetricCounts } from "@/lib/platforms/fetchPostMetrics";
+import {
+  detectPlatform,
+  fetchPostMetrics,
+  fetchYouTubeMetricsBatch,
+  hasMetricCounts,
+  type PostMetrics,
+} from "@/lib/platforms/fetchPostMetrics";
+import { decryptInstagramToken } from "@/lib/platforms/instagramToken";
 import { decideSyncAction, SyncAction } from "@/lib/sync/cadence";
 import { createLogger } from "@/lib/observability/logger";
 
@@ -66,10 +73,30 @@ export async function GET(request: NextRequest) {
         trackingEnabled: true,
         trackingStartedAt: true,
         snapshots: { where: { isFinalSnapshot: true }, take: 1, select: { id: true } },
+        creator: {
+          select: {
+            orgId: true,
+            handle: true,
+            socialAccounts: {
+              where: { platform: "INSTAGRAM" },
+              select: { accessToken: true, handle: true },
+            },
+          },
+        },
       },
       orderBy: { lastSyncedAt: { sort: "asc", nulls: "first" } },
       take: 300,
     });
+
+    const youtubeIds: string[] = [];
+    for (const p of posts) {
+      if (p.platform !== "YOUTUBE") continue;
+      const d = detectPlatform(p.postUrl);
+      if (d?.platform === "YOUTUBE") youtubeIds.push(d.id);
+    }
+    const youtubeCache: Map<string, PostMetrics> = dryRun
+      ? new Map()
+      : await fetchYouTubeMetricsBatch(youtubeIds);
 
     for (let i = 0; i < posts.length; i++) {
       const post = posts[i];
@@ -136,7 +163,18 @@ export async function GET(request: NextRequest) {
       }
 
       try {
-        const metrics = await fetchPostMetrics(post.postUrl);
+        const instagramToken =
+          post.platform === "INSTAGRAM"
+            ? decryptInstagramToken(post.creator.socialAccounts[0]?.accessToken, post.creator.orgId)
+            : undefined;
+        const instagramHandle =
+          post.platform === "INSTAGRAM"
+            ? (post.creator.socialAccounts[0]?.handle ?? post.creator.handle ?? undefined)
+            : undefined;
+        const detected = post.platform === "YOUTUBE" ? detectPlatform(post.postUrl) : null;
+        const cached = detected ? youtubeCache.get(detected.id) : undefined;
+        const metrics =
+          cached ?? (await fetchPostMetrics(post.postUrl, { instagramToken, instagramHandle }));
         if (!metrics) continue;
 
         const postData: Record<string, unknown> = { lastSyncedAt: now, syncFailCount: 0 };

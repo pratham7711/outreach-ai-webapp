@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getCreatorSession } from "@/lib/creator-auth";
 import { detectPlatform, fetchPostMetrics } from "@/lib/platforms/fetchPostMetrics";
+import { getInstagramAccountForCreator } from "@/lib/platforms/instagramToken";
 import { parseRatePerThousand } from "@/lib/marketplace/earnings";
 import { computeCampaignAccrual } from "@/lib/marketplace/cap";
 import { z } from "zod";
@@ -111,7 +112,14 @@ export async function POST(
     // Best-effort metrics fetch (thumbnail / caption / views). Never blocks submission.
     let metrics = null;
     try {
-      metrics = await fetchPostMetrics(postUrl);
+      const instagram =
+        detected.platform === "INSTAGRAM"
+          ? await getInstagramAccountForCreator(creator.id, campaign.orgId)
+          : undefined;
+      metrics = await fetchPostMetrics(postUrl, {
+        instagramToken: instagram?.token,
+        instagramHandle: instagram?.handle,
+      });
     } catch {
       metrics = null;
     }

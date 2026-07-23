@@ -130,8 +130,8 @@ export default function ApiKeysClient() {
         <div
           style={{
             marginBottom: 24,
-            background: "#FFFBEB",
-            border: "1px solid #FCD34D",
+            background: "color-mix(in srgb, var(--cc-warning) 14%, transparent)",
+            border: "1px solid color-mix(in srgb, var(--cc-warning) 35%, transparent)",
             borderRadius: 12,
             padding: "16px 20px",
           }}
@@ -144,9 +144,9 @@ export default function ApiKeysClient() {
               marginBottom: 8,
             }}
           >
-            <AlertTriangle size={16} style={{ color: "#D97706" }} />
+            <AlertTriangle size={16} style={{ color: "var(--cc-warning)" }} />
             <span
-              style={{ fontSize: 14, fontWeight: 600, color: "#92400E" }}
+              style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-warning)" }}
             >
               Save this key — it won&apos;t be shown again
             </span>
@@ -156,7 +156,7 @@ export default function ApiKeysClient() {
               display: "flex",
               alignItems: "center",
               gap: 8,
-              background: "white",
+              background: "var(--cc-card)",
               border: "1px solid var(--cc-border)",
               borderRadius: 8,
               padding: "10px 12px",
@@ -190,7 +190,7 @@ export default function ApiKeysClient() {
             >
               {copied ? (
                 <>
-                  <Check size={14} style={{ color: "#059669" }} />
+                  <Check size={14} style={{ color: "var(--cc-success)" }} />
                   Copied
                 </>
               ) : (
@@ -265,7 +265,7 @@ export default function ApiKeysClient() {
                 border: "1px solid var(--cc-border)",
                 outline: "none",
                 color: "var(--cc-text)",
-                background: "white",
+                background: "var(--cc-card)",
                 boxSizing: "border-box",
               }}
             />
@@ -285,7 +285,7 @@ export default function ApiKeysClient() {
                   fontWeight: 600,
                   borderRadius: 8,
                   border: "1px solid var(--cc-border)",
-                  background: "white",
+                  background: "var(--cc-card)",
                   color: "var(--cc-text)",
                   cursor: "pointer",
                 }}
@@ -376,7 +376,7 @@ export default function ApiKeysClient() {
                   fontWeight: 600,
                   borderRadius: 8,
                   border: "1px solid var(--cc-border)",
-                  background: "white",
+                  background: "var(--cc-card)",
                   color: "var(--cc-text)",
                   cursor: "pointer",
                 }}
@@ -448,12 +448,12 @@ export default function ApiKeysClient() {
         </div>
         <div
           style={{
-            background: "#EEF2FF",
-            border: "1px solid #C7D2FE",
+            background: "var(--cc-primary-light)",
+            border: "1px solid var(--cc-primary-medium)",
             borderRadius: 8,
             padding: "10px 14px",
             fontSize: 13,
-            color: "#3730A3",
+            color: "var(--cc-primary)",
           }}
         >
           For Discord bots, use this key in your bot&apos;s HTTP client when calling campaign, creator, or payout endpoints.
@@ -607,12 +607,12 @@ export default function ApiKeysClient() {
                       onClick={() => setConfirmRevoke(k.id)}
                       style={{
                         background: "none",
-                        border: "1px solid #FECACA",
+                        border: "1px solid color-mix(in srgb, var(--cc-danger) 30%, transparent)",
                         borderRadius: 6,
                         padding: "5px 10px",
                         fontSize: 12,
                         fontWeight: 600,
-                        color: "#DC2626",
+                        color: "var(--cc-danger)",
                         cursor: "pointer",
                         display: "flex",
                         alignItems: "center",

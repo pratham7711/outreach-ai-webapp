@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Card, Badge, Button, EmptyState, Skeleton } from "@pratham7711/ui";
-import { FileText, DollarSign, Clock } from "lucide-react";
+import { FileText, DollarSign, Clock, Clapperboard } from "lucide-react";
 
 type JoinedCampaign = {
   campaignId: string;
@@ -87,7 +87,7 @@ export default function PortalMyCampaignsPage() {
       {campaigns.length === 0 && !error ? (
         <Card variant="outlined" style={{ padding: 24 }}>
           <EmptyState
-            icon="🎬"
+            icon={<Clapperboard size={32} color="var(--cc-text-subtle)" />}
             title="No campaigns yet"
             description="Browse the marketplace to find campaigns to join and start earning."
             action={

@@ -4,9 +4,10 @@ import React from "react";
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Card, Badge, Button, Skeleton, Tag, EmptyState } from "@pratham7711/ui";
-import { ArrowLeft, ExternalLink, RefreshCw, Eye, Heart, MessageCircle, Share2, Download, Bookmark, DollarSign, TrendingUp, Flag, Lock, Activity, ShieldAlert } from "lucide-react";
+import { ArrowLeft, ExternalLink, RefreshCw, Eye, Heart, MessageCircle, Share2, Download, Bookmark, DollarSign, TrendingUp, Flag, Lock, Activity, ShieldAlert, Shield } from "lucide-react";
 import dynamic from "next/dynamic";
 import { computePostEmv, computeEngagementRate } from "@/lib/metrics";
+import { formatCompact, stripAt, formatDateAbs, formatDateTimeAbs } from "@/lib/format";
 
 const PerformanceOverTimeArea = dynamic(() => import("./PostCharts").then((m) => m.PerformanceOverTimeArea), {
   ssr: false,
@@ -97,9 +98,7 @@ const STATUS_BADGE: Record<string, "warning" | "success" | "danger" | "neutral">
 };
 
 function formatNumber(num: number): string {
-  if (num >= 1000000) return (num / 1000000).toFixed(1) + "M";
-  if (num >= 1000) return (num / 1000).toFixed(1) + "K";
-  return num.toString();
+  return formatCompact(num);
 }
 
 function formatMoney(num: number): string {
@@ -327,11 +326,11 @@ export default function PostDetailPage() {
               <Badge variant={STATUS_BADGE[post.status] ?? "neutral"}>{post.status.replace(/_/g, " ")}</Badge>
             </div>
             <p style={{ fontSize: 13, color: "var(--cc-text-muted)", margin: 0 }}>
-              by <strong>{post.creator.name}</strong> (@{post.creator.handle}) · {post.platform} · Posted {new Date(post.postedAt).toLocaleDateString()}
+              by <strong>{post.creator.name}</strong> (@{stripAt(post.creator.handle)}) · {post.platform} · Posted {formatDateAbs(post.postedAt)}
             </p>
             {post.lastSyncedAt && (
               <p style={{ fontSize: 12, color: "var(--cc-text-subtle)", margin: "4px 0 0" }}>
-                Last synced: {new Date(post.lastSyncedAt).toLocaleString()}
+                Last synced: {formatDateTimeAbs(post.lastSyncedAt)}
               </p>
             )}
           </div>
@@ -426,7 +425,7 @@ export default function PostDetailPage() {
           </div>
           {botSignals.length === 0 ? (
             <EmptyState
-              icon="🛡️"
+              icon={<Shield size={32} color="var(--cc-text-subtle)" />}
               title="No bot signals detected"
               description="Botted-view heuristics run over this post's snapshot history. Flags will appear here if suspicious growth is detected."
             />
@@ -442,7 +441,7 @@ export default function PostDetailPage() {
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>{SIGNAL_LABEL[s.type]}</div>
                       <div style={{ fontSize: 13, color: "var(--cc-text-muted)", marginTop: 2 }}>{s.detail}</div>
-                      <div style={{ fontSize: 11, color: "var(--cc-text-subtle)", marginTop: 4 }}>Detected {new Date(s.at).toLocaleString()}</div>
+                      <div style={{ fontSize: 11, color: "var(--cc-text-subtle)", marginTop: 4 }}>Detected {formatDateTimeAbs(s.at)}</div>
                     </div>
                   </div>
                 );
@@ -484,7 +483,7 @@ export default function PostDetailPage() {
                 borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined,
               }}
             >
-              <span style={{ fontSize: 13, color: "var(--cc-text)" }}>{new Date(s.recordedAt).toLocaleString()}</span>
+              <span style={{ fontSize: 13, color: "var(--cc-text)" }}>{formatDateTimeAbs(s.recordedAt)}</span>
               <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>{formatNumber(s.viewsCount)}</span>
               <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{formatNumber(s.likesCount)}</span>
               <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{formatNumber(s.commentsCount)}</span>

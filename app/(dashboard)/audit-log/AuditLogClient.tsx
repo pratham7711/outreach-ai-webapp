@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Search, RefreshCw, Filter, Download } from "lucide-react";
+import { Search, RefreshCw, Filter, Download, Receipt } from "lucide-react";
 import { Pagination } from "@/components/ds";
 import { Card, EmptyState, LoadingSpinner } from "@pratham7711/ui";
 
@@ -233,7 +233,7 @@ export default function AuditLogClient({
         ) : logs.length === 0 ? (
           <div style={{ padding: 24 }}>
             <EmptyState
-              icon="🧾"
+              icon={<Receipt size={32} color="var(--cc-text-subtle)" />}
               title="No audit events"
               description="Changes made in this organization will appear here."
             />

@@ -1,10 +1,11 @@
 "use client";
 import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ChevronRight, Plus, Trash2, Users } from "lucide-react";
+import { ArrowLeft, ChevronRight, Plus, Trash2, Users, ClipboardList } from "lucide-react";
 import Link from "next/link";
 import { Card, Button, Badge, Avatar, EmptyState, Skeleton, Input } from "@pratham7711/ui";
 import { toast } from "sonner";
+import { formatCompact, stripAt, formatDateAbs } from "@/lib/format";
 
 type CreatorItem = {
   id: string;
@@ -24,9 +25,7 @@ type ListDetail = {
 };
 
 function formatNumber(n: number) {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(0)}K`;
-  return String(n);
+  return formatCompact(n);
 }
 
 export default function ListDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -81,7 +80,7 @@ export default function ListDetailPage({ params }: { params: Promise<{ id: strin
 
   if (!list) return (
     <div className="rsp-page">
-      <EmptyState icon="📋" title="List not found" />
+      <EmptyState icon={<ClipboardList size={32} color="var(--cc-text-subtle)" />} title="List not found" />
     </div>
   );
 
@@ -112,7 +111,7 @@ export default function ListDetailPage({ params }: { params: Promise<{ id: strin
 
       {/* Creators table */}
       {list.items.length === 0 ? (
-        <EmptyState icon="👥" title="No creators in this list" description="Add creators from the Discovery page or creator profiles." />
+        <EmptyState icon={<Users size={32} color="var(--cc-text-subtle)" />} title="No creators in this list" description="Add creators from the Discovery page or creator profiles." />
       ) : (
         <Card variant="solid" noPadding>
           <div className="rsp-table-wrap">
@@ -133,13 +132,13 @@ export default function ListDetailPage({ params }: { params: Promise<{ id: strin
                   <Avatar name={item.creator.name} size="sm" />
                   <div>
                     <p style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>{item.creator.name}</p>
-                    <p style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>@{item.creator.handle}</p>
+                    <p style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>@{stripAt(item.creator.handle)}</p>
                   </div>
                 </Link>
                 <Badge variant="neutral">{item.creator.platform}</Badge>
                 <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>{formatNumber(item.creator.followersCount)}</span>
                 <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{formatNumber(item.creator.averageViews)}</span>
-                <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{new Date(item.addedAt).toLocaleDateString()}</span>
+                <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{formatDateAbs(item.addedAt)}</span>
                 <button
                   onClick={() => handleRemoveCreator(item.id, item.creator.id)}
                   style={{ background: "none", border: "none", cursor: "pointer", color: "var(--cc-text-muted)", padding: 4 }}

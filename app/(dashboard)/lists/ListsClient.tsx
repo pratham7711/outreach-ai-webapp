@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Users, Search } from "lucide-react";
+import { Plus, Users, Search, ClipboardList } from "lucide-react";
 import { Button, Card, EmptyState, Input, Avatar, Modal } from "@pratham7711/ui";
+import { formatDateAbs } from "@/lib/format";
 import { toast } from "sonner";
 import Link from "next/link";
 
@@ -61,7 +62,7 @@ export default function ListsClient({ lists }: { lists: List[] }) {
       </div>
 
       {filtered.length === 0 && lists.length === 0 ? (
-        <EmptyState icon="📋" title="No lists yet" description="Create your first list to organize creators"
+        <EmptyState icon={<ClipboardList size={32} color="var(--cc-text-subtle)" />} title="No lists yet" description="Create your first list to organize creators"
           action={<Button variant="primary" iconLeft={<Plus size={16} />} onClick={() => setShowCreate(true)}>New List</Button>}
         />
       ) : (
@@ -75,7 +76,7 @@ export default function ListsClient({ lists }: { lists: List[] }) {
                   {list.description && <p style={{ fontSize: 13, color: "var(--cc-text-muted)", marginBottom: 8 }}>{list.description}</p>}
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 12, color: "var(--cc-text-muted)" }}>
                     <span style={{ display: "flex", alignItems: "center", gap: 4 }}><Users size={13} /> {list._count.items} creators</span>
-                    <span>{new Date(list.createdAt).toLocaleDateString()}</span>
+                    <span>{formatDateAbs(list.createdAt)}</span>
                   </div>
                 </div>
               </Card>

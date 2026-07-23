@@ -1,5 +1,6 @@
 import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
 import type { CampaignPerformance } from "@/lib/reports/campaignPerformance";
+import { formatCompact } from "@/lib/format";
 
 const styles = StyleSheet.create({
   page: {
@@ -107,9 +108,7 @@ const styles = StyleSheet.create({
 });
 
 function fmtNumber(num: number): string {
-  if (num >= 1000000) return (num / 1000000).toFixed(1) + "M";
-  if (num >= 1000) return (num / 1000).toFixed(1) + "K";
-  return String(num);
+  return formatCompact(num);
 }
 
 function fmtCurrency(n: number, currency: string): string {

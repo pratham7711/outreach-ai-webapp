@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Card, Badge, Button, EmptyState, Skeleton } from "@pratham7711/ui";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Inbox } from "lucide-react";
+import { formatDateAbs } from "@/lib/format";
 import Link from "next/link";
 
 type Proposal = {
@@ -95,7 +96,7 @@ export default function PortalProposalsPage() {
       </div>
 
       {proposals.length === 0 ? (
-        <EmptyState icon="📨" title="No proposals" description="You haven't submitted any proposals yet." action={
+        <EmptyState icon={<Inbox size={32} color="var(--cc-text-subtle)" />} title="No proposals" description="You haven't submitted any proposals yet." action={
           <Link href="/portal/discover"><Button variant="primary">Discover Campaigns</Button></Link>
         } />
       ) : (
@@ -121,7 +122,7 @@ export default function PortalProposalsPage() {
               <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{p.campaign.budget ? formatCurrency(p.campaign.budget, p.campaign.currency) : "—"}</span>
               <span style={{ fontSize: 13, fontWeight: 700, color: "var(--cc-text)" }}>{formatCurrency(p.proposedRate, p.currency)}</span>
               <Badge variant={STATUS_BADGE[p.status] ?? "neutral"}>{p.status}</Badge>
-              <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{new Date(p.createdAt).toLocaleDateString()}</span>
+              <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{formatDateAbs(p.createdAt)}</span>
             </div>
           ))}
           </div>

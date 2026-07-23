@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { Card, Button, Badge, Skeleton, EmptyState } from "@pratham7711/ui";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from "lucide-react";
 import {
   startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval,
   format, isSameMonth, isSameDay, isToday, addMonths, subMonths,
@@ -57,6 +57,11 @@ export default function CalendarPage() {
   const calStart = startOfWeek(monthStart);
   const calEnd = endOfWeek(monthEnd);
   const days = eachDayOfInterval({ start: calStart, end: calEnd });
+  const monthHasContent = days.some((day) =>
+    campaigns.some((c) => isSameDay(new Date(c.createdAt), day)) ||
+    activations.some((a) => a.deliverableDueDate && isSameDay(new Date(a.deliverableDueDate), day)),
+  );
+  const monthEmpty = !loading && !monthHasContent;
 
   const getDeliverables = (day: Date) =>
     activations.filter(a => a.deliverableDueDate && isSameDay(new Date(a.deliverableDueDate), day));
@@ -123,6 +128,15 @@ export default function CalendarPage() {
                   <div key={d} style={{ padding: "12px 0", textAlign: "center", fontSize: 12, fontWeight: 600, color: "var(--cc-text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>{d}</div>
                 ))}
               </div>
+              {monthEmpty ? (
+                <div style={{ padding: "56px 24px" }}>
+                  <EmptyState
+                    icon={<CalendarIcon size={32} color="var(--cc-text-subtle)" />}
+                    title="Nothing scheduled"
+                    description={`No campaigns or deliverable due dates in ${format(currentMonth, "MMMM yyyy")}.`}
+                  />
+                </div>
+              ) : (
               <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)" }}>
                 {days.map((day) => {
                   const inMonth = isSameMonth(day, currentMonth);
@@ -185,6 +199,7 @@ export default function CalendarPage() {
                   );
                 })}
               </div>
+              )}
             </Card>
           )}
         </div>

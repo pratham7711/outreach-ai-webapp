@@ -55,20 +55,16 @@ export default function LoginPage() {
   return (
     <div
       style={{
-        minHeight: "100vh",
+        minHeight: "100dvh",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         padding: "0 16px",
-        background: "linear-gradient(135deg, #6C3EF4 0%, #4A8EF0 100%)",
+        background: "var(--cc-bg)",
         position: "relative",
         overflow: "hidden",
       }}
     >
-      {/* CSS-only animated background orbs */}
-      <div className="login-orb-1" aria-hidden="true" />
-      <div className="login-orb-2" aria-hidden="true" />
-      <div className="login-orb-3" aria-hidden="true" />
       <motion.div
         style={{ width: "100%", maxWidth: 380, position: "relative", zIndex: 1 }}
         initial={{ opacity: 0, y: 24 }}
@@ -76,13 +72,13 @@ export default function LoginPage() {
         transition={{ duration: 0.5, ease: "easeOut" }}
       >
         {/* Logo */}
-        <div style={{ display: "flex", alignItems: "center", gap: 10, justifyContent: "center", marginBottom: 40 }}>
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <circle cx="12" cy="12" r="10" stroke="white" strokeWidth="2.5"/>
-            <circle cx="12" cy="12" r="5.5" stroke="white" strokeWidth="2"/>
-            <circle cx="12" cy="12" r="2" fill="white"/>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, justifyContent: "center", marginBottom: 32 }}>
+          <svg width="30" height="30" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <circle cx="12" cy="12" r="10" stroke="var(--cc-primary)" strokeWidth="2.5"/>
+            <circle cx="12" cy="12" r="5.5" stroke="var(--cc-primary)" strokeWidth="2"/>
+            <circle cx="12" cy="12" r="2" fill="var(--cc-primary)"/>
           </svg>
-          <span style={{ fontWeight: 800, fontSize: 20, color: "white", letterSpacing: "-0.5px" }}>
+          <span style={{ fontWeight: 800, fontSize: 20, color: "var(--cc-text)", letterSpacing: "-0.02em" }}>
             outreach ai
           </span>
         </div>
@@ -93,9 +89,10 @@ export default function LoginPage() {
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.4, delay: 0.15, ease: "easeOut" }}
           style={{
-            background: "white",
-            borderRadius: 24,
-            boxShadow: "0 20px 60px rgba(0, 0, 0, 0.15)",
+            background: "var(--cc-card)",
+            border: "1px solid var(--cc-border)",
+            borderRadius: 20,
+            boxShadow: "var(--ui-shadow-lg)",
             padding: 40,
           }}
         >
@@ -115,9 +112,9 @@ export default function LoginPage() {
               style={{
                 padding: "12px 16px",
                 borderRadius: 12,
-                background: "rgba(5, 150, 105, 0.1)",
-                border: "1px solid rgba(5, 150, 105, 0.3)",
-                color: "#059669",
+                background: "color-mix(in srgb, var(--cc-success) 12%, transparent)",
+                border: "1px solid color-mix(in srgb, var(--cc-success) 32%, transparent)",
+                color: "var(--cc-success)",
                 fontSize: 13,
                 marginBottom: 16,
               }}
@@ -135,9 +132,9 @@ export default function LoginPage() {
               style={{
                 padding: "12px 16px",
                 borderRadius: 12,
-                background: "rgba(239, 68, 68, 0.1)",
-                border: "1px solid rgba(239, 68, 68, 0.3)",
-                color: "#DC2626",
+                background: "color-mix(in srgb, var(--cc-danger) 12%, transparent)",
+                border: "1px solid color-mix(in srgb, var(--cc-danger) 32%, transparent)",
+                color: "var(--cc-danger)",
                 fontSize: 13,
                 marginBottom: 16,
               }}
@@ -147,7 +144,7 @@ export default function LoginPage() {
           )}
 
           <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 16 }} noValidate>
-            <div className="login-input-wrap">
+            <div>
               <Input
                 ref={emailRef}
                 label="Email"
@@ -160,7 +157,7 @@ export default function LoginPage() {
               />
             </div>
 
-            <div style={{ position: "relative" }} className="login-input-wrap">
+            <div style={{ position: "relative" }}>
               <Input
                 label="Password"
                 type={showPassword ? "text" : "password"}
@@ -196,7 +193,7 @@ export default function LoginPage() {
               </button>
             </div>
 
-            <div className="login-btn-glow" style={{ marginTop: 8 }}>
+            <div style={{ marginTop: 8 }}>
               <Button
                 type="submit"
                 variant="primary"

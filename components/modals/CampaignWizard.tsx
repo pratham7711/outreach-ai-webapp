@@ -62,7 +62,7 @@ const selectStyle = {
   fontSize: 14,
   color: "var(--cc-text)",
   outline: "none",
-  background: "white",
+  background: "var(--cc-card)",
   boxSizing: "border-box" as const,
 };
 
@@ -78,7 +78,7 @@ const cardOptionStyle = (selected: boolean) => ({
   padding: 16,
   borderRadius: 10,
   border: `2px solid ${selected ? "var(--cc-primary)" : "var(--cc-border)"}`,
-  background: selected ? "rgba(91, 91, 214, 0.04)" : "white",
+  background: selected ? "var(--cc-primary-light)" : "var(--cc-card)",
   cursor: "pointer",
   transition: "all 0.15s",
 });

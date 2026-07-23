@@ -1,4 +1,5 @@
 import React from "react";
+import { Link2 } from "lucide-react";
 import { db } from "@/lib/db";
 import { computeCampaignPerformance } from "@/lib/reports/campaignPerformance";
 import SharedPerformanceReport from "./SharedPerformanceReport";
@@ -27,7 +28,7 @@ function RevokedState() {
           textAlign: "center",
         }}
       >
-        <div style={{ fontSize: 40, marginBottom: 16 }}>🔗</div>
+        <div style={{ marginBottom: 16 }}><Link2 size={40} color="var(--cc-text-subtle)" /></div>
         <h1 style={{ fontSize: 20, fontWeight: 700, color: "var(--cc-text)", margin: "0 0 8px" }}>
           Link unavailable
         </h1>

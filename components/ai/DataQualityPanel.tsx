@@ -1,4 +1,5 @@
 import { Badge, Card } from "@pratham7711/ui";
+import { CheckCircle2 } from "lucide-react";
 
 export interface DataQualityResult {
   score: number;
@@ -116,7 +117,7 @@ export function DataQualityPanel({ result, source, recordLabel }: DataQualityPan
           style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--cc-success)" }}
         >
           <span aria-hidden="true" style={{ fontSize: 16, lineHeight: "20px" }}>
-            ✓
+            <CheckCircle2 size={16} color="var(--cc-success)" />
           </span>
           <span style={{ fontSize: 13, fontWeight: 600 }}>No data-quality issues</span>
         </div>
