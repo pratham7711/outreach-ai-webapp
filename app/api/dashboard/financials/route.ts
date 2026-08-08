@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
+import { z } from "zod";
+import { dateParam, parseQuery } from "@/lib/http/queryParams";
+
+const financialsQuerySchema = z.object({
+  from: dateParam.optional(),
+  to: dateParam.optional(),
+  granularity: z.enum(["daily", "weekly", "monthly"]).default("monthly"),
+});
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -36,9 +44,11 @@ export async function GET(req: NextRequest) {
     const sixMonthsAgo = new Date(now);
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
 
-    const from = searchParams.get("from") ? new Date(searchParams.get("from")!) : sixMonthsAgo;
-    const to = searchParams.get("to") ? new Date(searchParams.get("to")!) : now;
-    const granularity = searchParams.get("granularity") ?? "monthly";
+    const parsedQuery = parseQuery(financialsQuerySchema, searchParams);
+    if (!parsedQuery.ok) return parsedQuery.response;
+    const from = parsedQuery.data.from ?? sixMonthsAgo;
+    const to = parsedQuery.data.to ?? now;
+    const granularity = parsedQuery.data.granularity;
 
     // ── Parallel data fetches ───────────────────────────────────────────────
 

@@ -4,6 +4,14 @@ import { authenticateRequest, getAuditActor } from "@/lib/authenticate";
 import { logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
 import { z } from "zod";
+import { pageParam, pageSizeParam, parseQuery } from "@/lib/http/queryParams";
+
+const listCreatorsQuerySchema = z.object({
+  search: z.string().optional(),
+  platform: z.enum(["TIKTOK", "INSTAGRAM", "YOUTUBE", "TWITTER"]).optional(),
+  page: pageParam,
+  limit: pageSizeParam(20, 200),
+});
 
 const createCreatorSchema = z.object({
   name: z.string().min(1).max(200),
@@ -23,11 +31,9 @@ export async function GET(request: NextRequest) {
     if (!result) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const { orgId } = result;
 
-    const { searchParams } = request.nextUrl;
-    const search = searchParams.get("search");
-    const platform = searchParams.get("platform");
-    const page = parseInt(searchParams.get("page") ?? "1", 10);
-    const limit = parseInt(searchParams.get("limit") ?? "20", 10);
+    const parsedQuery = parseQuery(listCreatorsQuerySchema, request.nextUrl.searchParams);
+    if (!parsedQuery.ok) return parsedQuery.response;
+    const { search, platform, page, limit } = parsedQuery.data;
     const skip = (page - 1) * limit;
 
     const where = {

@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
+import { z } from "zod";
+import { dateParam, parseQuery } from "@/lib/http/queryParams";
+
+const financialsExportQuerySchema = z.object({
+  from: dateParam.optional(),
+  to: dateParam.optional(),
+  type: z.enum(["payouts", "campaigns", "creators"]).default("payouts"),
+});
 
 type ExportType = "payouts" | "campaigns" | "creators";
 
@@ -32,13 +40,11 @@ export async function GET(request: NextRequest) {
     const sixMonthsAgo = new Date(now);
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
 
-    const from = searchParams.get("from")
-      ? new Date(searchParams.get("from")!)
-      : sixMonthsAgo;
-    const to = searchParams.get("to")
-      ? new Date(searchParams.get("to")!)
-      : now;
-    const type = (searchParams.get("type") || "payouts") as ExportType;
+    const parsedQuery = parseQuery(financialsExportQuerySchema, searchParams);
+    if (!parsedQuery.ok) return parsedQuery.response;
+    const from = parsedQuery.data.from ?? sixMonthsAgo;
+    const to = parsedQuery.data.to ?? now;
+    const type: ExportType = parsedQuery.data.type;
 
     let csvContent: string;
 

@@ -1,6 +1,16 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { authenticateRequest } from "@/lib/authenticate";
+import { z } from "zod";
+import { dateParam, parseQuery } from "@/lib/http/queryParams";
+
+const auditLogsCsvQuerySchema = z.object({
+  action: z.string().trim().optional(),
+  entityType: z.string().trim().optional(),
+  q: z.string().trim().optional(),
+  from: dateParam.optional(),
+  to: dateParam.optional(),
+});
 
 function escapeCSV(val: unknown): string {
   if (val == null) return "";
@@ -16,12 +26,9 @@ export async function GET(req: NextRequest) {
   if (!auth) return Response.json({ error: "Unauthorized" }, { status: 401 });
   const { orgId } = auth;
 
-  const { searchParams } = new URL(req.url);
-  const action = searchParams.get("action")?.trim() || undefined;
-  const entityType = searchParams.get("entityType")?.trim() || undefined;
-  const q = searchParams.get("q")?.trim() || undefined;
-  const from = searchParams.get("from") ? new Date(searchParams.get("from")!) : undefined;
-  const to = searchParams.get("to") ? new Date(searchParams.get("to")!) : undefined;
+  const parsedQuery = parseQuery(auditLogsCsvQuerySchema, new URL(req.url).searchParams);
+  if (!parsedQuery.ok) return parsedQuery.response;
+  const { action, entityType, q, from, to } = parsedQuery.data;
 
   const where: any = {
     orgId,

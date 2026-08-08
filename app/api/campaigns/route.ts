@@ -4,9 +4,19 @@ import { authenticateRequest, getAuditActor } from "@/lib/authenticate";
 import { logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
 import { z } from "zod";
+import { pageParam, pageSizeParam, parseQuery } from "@/lib/http/queryParams";
 import type { CampaignStatus, PaymentMode, PaymentRelease, PostApprovalMode } from "@/lib/generated/prisma/client";
 
 const CAMPAIGN_TYPES = ["BUDGET_BASED", "VIEW_BASED", "OPEN_COMMUNITY", "PRIVATE_INVITE"] as const;
+
+const CAMPAIGN_STATUSES = ["DRAFT", "PENDING", "IN_PROGRESS", "COMPLETE", "CANCELLED"] as const;
+
+const listCampaignsQuerySchema = z.object({
+  status: z.enum(CAMPAIGN_STATUSES).optional(),
+  search: z.string().optional(),
+  page: pageParam,
+  limit: pageSizeParam(),
+});
 
 const PAYMENT_MODES = ["MANAGED", "SELF_MANAGED"] as const;
 const PAYMENT_RELEASES = ["MANUAL", "ON_POST_APPROVAL", "ON_CREATOR_REQUEST"] as const;
@@ -36,11 +46,10 @@ export async function GET(request: NextRequest) {
     if (!result) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const { orgId } = result;
 
-    const { searchParams } = request.nextUrl;
-    const status = searchParams.get("status") as CampaignStatus | null;
-    const search = searchParams.get("search");
-    const page = parseInt(searchParams.get("page") ?? "1", 10);
-    const limit = parseInt(searchParams.get("limit") ?? "20", 10);
+    const parsedQuery = parseQuery(listCampaignsQuerySchema, request.nextUrl.searchParams);
+    if (!parsedQuery.ok) return parsedQuery.response;
+    const { search, page, limit } = parsedQuery.data;
+    const status = (parsedQuery.data.status ?? null) as CampaignStatus | null;
     const skip = (page - 1) * limit;
 
     const where = {

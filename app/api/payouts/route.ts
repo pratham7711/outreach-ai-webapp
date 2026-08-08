@@ -3,15 +3,22 @@ import { db } from "@/lib/db";
 import { authenticateRequest, getAuditActor } from "@/lib/authenticate";
 import { logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
+import { z } from "zod";
+import { pageParam, pageSizeParam, parseQuery } from "@/lib/http/queryParams";
+
+const listPayoutsQuerySchema = z.object({
+  status: z.enum(["PENDING", "PROCESSING", "SUCCESS", "FAILED"]).optional(),
+  page: pageParam,
+  limit: pageSizeParam(),
+});
 
 export async function GET(req: NextRequest) {
   const result = await authenticateRequest(req);
   if (!result) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { orgId } = result;
-  const { searchParams } = req.nextUrl;
-  const status = searchParams.get("status");
-  const page = parseInt(searchParams.get("page") ?? "1");
-  const limit = parseInt(searchParams.get("limit") ?? "20");
+  const parsedQuery = parseQuery(listPayoutsQuerySchema, req.nextUrl.searchParams);
+  if (!parsedQuery.ok) return parsedQuery.response;
+  const { status, page, limit } = parsedQuery.data;
   const skip = (page - 1) * limit;
   const where = { orgId, ...(status && { status: status as any }) };
   const [payouts, total, balance] = await Promise.all([

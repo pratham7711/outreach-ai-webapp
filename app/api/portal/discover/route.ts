@@ -1,6 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getCreatorSession } from "@/lib/creator-auth";
+import { z } from "zod";
+import { moneyParam, pageParam, pageSizeParam, parseQuery } from "@/lib/http/queryParams";
+
+const portalDiscoverQuerySchema = z.object({
+  search: z.string().optional(),
+  page: pageParam,
+  limit: pageSizeParam(),
+  campaignType: z.enum(["ALL", "BUDGET_BASED", "VIEW_BASED", "OPEN_COMMUNITY", "PRIVATE_INVITE"]).optional(),
+  minBudget: moneyParam.optional(),
+  maxBudget: moneyParam.optional(),
+  sort: z.string().default("newest"),
+});
 
 // GET /api/portal/discover — List open campaigns (marketplace gigs)
 export async function GET(request: NextRequest) {
@@ -8,16 +20,10 @@ export async function GET(request: NextRequest) {
     const session = await getCreatorSession();
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const { searchParams } = request.nextUrl;
-    const search = searchParams.get("search");
-    const page = parseInt(searchParams.get("page") ?? "1", 10);
-    const limit = parseInt(searchParams.get("limit") ?? "20", 10);
+    const parsedQuery = parseQuery(portalDiscoverQuerySchema, request.nextUrl.searchParams);
+    if (!parsedQuery.ok) return parsedQuery.response;
+    const { search, page, limit, campaignType, minBudget, maxBudget, sort } = parsedQuery.data;
     const skip = (page - 1) * limit;
-
-    const campaignType = searchParams.get("campaignType");
-    const minBudget = parseFloat(searchParams.get("minBudget") ?? "");
-    const maxBudget = parseFloat(searchParams.get("maxBudget") ?? "");
-    const sort = searchParams.get("sort") ?? "newest";
 
     const where: any = {
       enrollmentOpen: true,
@@ -26,11 +32,11 @@ export async function GET(request: NextRequest) {
       deletedAt: null,
       ...(search && { title: { contains: search, mode: "insensitive" as const } }),
       ...(campaignType && campaignType !== "ALL" && { campaignType }),
-      ...(!isNaN(minBudget) || !isNaN(maxBudget)
+      ...(minBudget !== undefined || maxBudget !== undefined
         ? {
             budget: {
-              ...(!isNaN(minBudget) && { gte: minBudget }),
-              ...(!isNaN(maxBudget) && { lte: maxBudget }),
+              ...(minBudget !== undefined && { gte: minBudget }),
+              ...(maxBudget !== undefined && { lte: maxBudget }),
             },
           }
         : {}),

@@ -2,6 +2,19 @@ import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { getOrgEntitlements } from "@/lib/entitlements";
+import { z } from "zod";
+import { dateParam, pageParam, pageSizeParam, parseQuery } from "@/lib/http/queryParams";
+
+const auditLogsQuerySchema = z.object({
+  page: pageParam,
+  pageSize: pageSizeParam(),
+  action: z.string().trim().optional(),
+  entityType: z.string().trim().optional(),
+  actorEmail: z.string().trim().optional(),
+  q: z.string().trim().optional(),
+  from: dateParam.optional(),
+  to: dateParam.optional(),
+});
 
 export async function GET(req: NextRequest) {
   const session = await auth();
@@ -16,15 +29,9 @@ export async function GET(req: NextRequest) {
   const entitlements = await getOrgEntitlements(orgId);
   if (!entitlements?.featureMap.audit_log) return Response.json({ error: "Audit log not enabled for this plan" }, { status: 403 });
 
-  const { searchParams } = new URL(req.url);
-  const page = Math.max(1, parseInt(searchParams.get("page") ?? "1", 10));
-  const pageSize = Math.min(100, Math.max(1, parseInt(searchParams.get("pageSize") ?? "20", 10)));
-  const action = searchParams.get("action")?.trim() || undefined;
-  const entityType = searchParams.get("entityType")?.trim() || undefined;
-  const actorEmail = searchParams.get("actorEmail")?.trim() || undefined;
-  const q = searchParams.get("q")?.trim() || undefined;
-  const from = searchParams.get("from") ? new Date(searchParams.get("from")!) : undefined;
-  const to = searchParams.get("to") ? new Date(searchParams.get("to")!) : undefined;
+  const parsedQuery = parseQuery(auditLogsQuerySchema, new URL(req.url).searchParams);
+  if (!parsedQuery.ok) return parsedQuery.response;
+  const { page, pageSize, action, entityType, actorEmail, q, from, to } = parsedQuery.data;
 
   const where: any = {
     orgId,
