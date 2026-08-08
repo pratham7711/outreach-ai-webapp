@@ -1,8 +1,9 @@
 "use client";
 import React from "react";
 import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar,
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, LabelList,
 } from "recharts";
+import { MetricHint } from "@/components/ds";
 
 type SpendPoint = { date: string; spend: number; views: number };
 type PlatformSlice = { platform: string; spend: number; views: number; postsCount: number };
@@ -11,14 +12,27 @@ type CampaignSpend = { campaignId: string; title: string; spend: number; budget:
 type Fmt = (n: number) => string;
 
 const chartTooltipStyle: React.CSSProperties = {
-  background: "var(--cc-card)",
-  border: "1px solid var(--cc-border)",
+  background: "var(--popover)",
+  border: "1px solid var(--border)",
   borderRadius: 10,
-  color: "var(--cc-text)",
+  color: "var(--popover-foreground)",
   boxShadow: "var(--ui-shadow-md)",
   fontSize: 13,
   padding: "10px 14px",
 };
+
+const axisTick = { fill: "var(--muted-foreground)", fontSize: 12, fontWeight: 500 } as const;
+
+function PanelHeading({ title, metric }: { title: string; metric: "monthlySpend" | "views" }) {
+  return (
+    <div className="mb-1 flex items-center gap-1.5">
+      <span className="text-[11px] font-medium tracking-[0.06em] text-muted-foreground uppercase">
+        {title}
+      </span>
+      <MetricHint metric={metric} />
+    </div>
+  );
+}
 
 export function SpendOverTimeArea({
   data,
@@ -30,33 +44,83 @@ export function SpendOverTimeArea({
   formatCurrency: Fmt;
 }) {
   return (
-    <ResponsiveContainer width="100%" height={240} minWidth={0}>
-      <AreaChart data={data}>
-        <defs>
-          <linearGradient id="spendGradient" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="5%" stopColor="#5B5BD6" stopOpacity={0.12} />
-            <stop offset="95%" stopColor="#5B5BD6" stopOpacity={0} />
-          </linearGradient>
-          <linearGradient id="viewsGradient" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="5%" stopColor="#059669" stopOpacity={0.12} />
-            <stop offset="95%" stopColor="#059669" stopOpacity={0} />
-          </linearGradient>
-        </defs>
-        <CartesianGrid strokeDasharray="3 3" stroke="var(--cc-border)" vertical={false} />
-        <XAxis dataKey="date" tick={{ fill: "var(--cc-text-muted)", fontSize: 12, fontWeight: 500 }} axisLine={false} tickLine={false} />
-        <YAxis yAxisId="spend" tick={{ fill: "var(--cc-text-muted)", fontSize: 12, fontWeight: 500 }} axisLine={false} tickLine={false} tickFormatter={(v) => `$${(v / 1000).toFixed(0)}K`} />
-        <YAxis yAxisId="views" orientation="right" tick={{ fill: "var(--cc-text-muted)", fontSize: 12, fontWeight: 500 }} axisLine={false} tickLine={false} tickFormatter={(v) => formatNumber(v)} />
-        <Tooltip
-          contentStyle={chartTooltipStyle}
-          formatter={(value, name) => [
-            name === "spend" ? formatCurrency(Number(value)) : formatNumber(Number(value)),
-            name === "spend" ? "Spend" : "Views",
-          ]}
-        />
-        <Area yAxisId="spend" type="monotone" dataKey="spend" stroke="#5B5BD6" strokeWidth={2.5} fill="url(#spendGradient)" dot={{ fill: "#5B5BD6", stroke: "#fff", strokeWidth: 2, r: 4 }} activeDot={{ fill: "#5B5BD6", stroke: "#fff", strokeWidth: 2, r: 6 }} />
-        <Area yAxisId="views" type="monotone" dataKey="views" stroke="#059669" strokeWidth={2} fill="url(#viewsGradient)" dot={{ fill: "#059669", stroke: "#fff", strokeWidth: 2, r: 3 }} />
-      </AreaChart>
-    </ResponsiveContainer>
+    <div className="flex h-full flex-col gap-4">
+      <div className="flex min-h-0 flex-1 flex-col">
+        <PanelHeading title="Spend" metric="monthlySpend" />
+        <div className="min-h-0 flex-1">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+            <AreaChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+              <defs>
+                <linearGradient id="spendGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="var(--chart-1)" stopOpacity={0.18} />
+                  <stop offset="95%" stopColor="var(--chart-1)" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
+              <XAxis dataKey="date" tick={axisTick} axisLine={false} tickLine={false} />
+              <YAxis
+                tick={axisTick}
+                axisLine={false}
+                tickLine={false}
+                width={56}
+                tickFormatter={(v) => formatCurrency(Number(v))}
+              />
+              <Tooltip
+                contentStyle={chartTooltipStyle}
+                formatter={(value) => [formatCurrency(Number(value)), "Spend"]}
+              />
+              <Area
+                type="monotone"
+                dataKey="spend"
+                stroke="var(--chart-1)"
+                strokeWidth={2}
+                fill="url(#spendGradient)"
+                dot={false}
+                activeDot={{ fill: "var(--chart-1)", stroke: "var(--card)", strokeWidth: 2, r: 5 }}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      <div className="flex min-h-0 flex-1 flex-col">
+        <PanelHeading title="Views" metric="views" />
+        <div className="min-h-0 flex-1">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+            <AreaChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+              <defs>
+                <linearGradient id="viewsGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="var(--chart-3)" stopOpacity={0.18} />
+                  <stop offset="95%" stopColor="var(--chart-3)" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
+              <XAxis dataKey="date" tick={axisTick} axisLine={false} tickLine={false} />
+              <YAxis
+                tick={axisTick}
+                axisLine={false}
+                tickLine={false}
+                width={56}
+                tickFormatter={(v) => formatNumber(Number(v))}
+              />
+              <Tooltip
+                contentStyle={chartTooltipStyle}
+                formatter={(value) => [formatNumber(Number(value)), "Views"]}
+              />
+              <Area
+                type="monotone"
+                dataKey="views"
+                stroke="var(--chart-3)"
+                strokeWidth={2}
+                fill="url(#viewsGradient)"
+                dot={false}
+                activeDot={{ fill: "var(--chart-3)", stroke: "var(--card)", strokeWidth: 2, r: 5 }}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -76,16 +140,22 @@ export function PlatformBreakdownPie({
           data={data}
           cx="50%"
           cy="50%"
-          innerRadius={50}
+          innerRadius={52}
           outerRadius={80}
+          paddingAngle={2}
           dataKey="views"
           nameKey="platform"
+          stroke="var(--card)"
+          strokeWidth={2}
         >
           {data.map((entry, i) => (
             <Cell key={entry.platform} fill={colors[i]} />
           ))}
         </Pie>
-        <Tooltip contentStyle={chartTooltipStyle} formatter={(v) => formatNumber(Number(v))} />
+        <Tooltip
+          contentStyle={chartTooltipStyle}
+          formatter={(v, name) => [`${formatNumber(Number(v))} views`, String(name)]}
+        />
       </PieChart>
     </ResponsiveContainer>
   );
@@ -100,12 +170,22 @@ export function SpendByCampaignBar({
 }) {
   return (
     <ResponsiveContainer width="100%" height={200}>
-      <BarChart data={data} layout="vertical">
-        <CartesianGrid strokeDasharray="3 3" stroke="var(--cc-border)" horizontal={false} />
-        <XAxis type="number" tick={{ fill: "var(--cc-text-muted)", fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => formatCurrency(v)} />
-        <YAxis dataKey="title" type="category" tick={{ fill: "var(--cc-text-muted)", fontSize: 11 }} axisLine={false} tickLine={false} width={100} />
-        <Tooltip contentStyle={chartTooltipStyle} formatter={(v) => formatCurrency(Number(v))} />
-        <Bar dataKey="spend" fill="#5B5BD6" radius={[0, 4, 4, 0]} barSize={20} />
+      <BarChart data={data} layout="vertical" margin={{ top: 0, right: 48, bottom: 0, left: 0 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" horizontal={false} />
+        <XAxis type="number" tick={axisTick} axisLine={false} tickLine={false} tickFormatter={(v) => formatCurrency(Number(v))} />
+        <YAxis dataKey="title" type="category" tick={axisTick} axisLine={false} tickLine={false} width={104} />
+        <Tooltip
+          contentStyle={chartTooltipStyle}
+          formatter={(v) => [formatCurrency(Number(v)), "Spend"]}
+        />
+        <Bar dataKey="spend" fill="var(--chart-1)" radius={[0, 4, 4, 0]} barSize={18}>
+          <LabelList
+            dataKey="spend"
+            position="right"
+            formatter={(v: React.ReactNode) => formatCurrency(Number(v))}
+            style={{ fill: "var(--muted-foreground)", fontSize: 11, fontWeight: 600 }}
+          />
+        </Bar>
       </BarChart>
     </ResponsiveContainer>
   );

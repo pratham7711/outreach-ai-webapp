@@ -54,6 +54,7 @@ export default async function DashboardPage() {
         status: c.status,
         budget: c.budget ? Number(c.budget) : null,
         client: c.client,
+        updatedAt: c.updatedAt?.toISOString() ?? null,
       }))}
       chartData={chartData}
       dashboardWidgets={dashboardWidgets}
