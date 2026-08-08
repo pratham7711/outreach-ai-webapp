@@ -2,3 +2,8 @@ export { StatusTabs } from "./StatusTabs";
 export type { StatusTab, StatusTabsProps } from "./StatusTabs";
 export { Pagination } from "./Pagination";
 export type { PaginationProps } from "./Pagination";
+export { MetricHint } from "./MetricHint";
+export { MetricTile } from "./MetricTile";
+export { SectionCard } from "./SectionCard";
+export { ConfirmProvider, useConfirm } from "./ConfirmDialog";
+export type { ConfirmOptions } from "./ConfirmDialog";

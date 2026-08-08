@@ -1,7 +1,7 @@
 "use client";
 
 const STATUS_STYLES: Record<string, string> = {
-  DRAFT: "bg-[#1E1E2A] text-[#8888AA] border border-[#2A2A3A]",
+  DRAFT: "bg-muted text-muted-foreground border border-border",
   IN_PROGRESS: "bg-[var(--color-primary)]/10 text-[var(--color-primary)]",
   COMPLETE: "bg-emerald-500/10 text-emerald-400",
   COMPLETED: "bg-emerald-500/10 text-emerald-400",
@@ -23,7 +23,7 @@ const STATUS_STYLES: Record<string, string> = {
 const PULSE_STATUSES = new Set(["IN_PROGRESS", "POSTING", "PROCESSING"]);
 
 export function StatusBadge({ status }: { status: string }) {
-  const style = STATUS_STYLES[status] ?? "bg-[#1E1E2A] text-[#8888AA] border border-[#2A2A3A]";
+  const style = STATUS_STYLES[status] ?? "bg-muted text-muted-foreground border border-border";
   const showPulse = PULSE_STATUSES.has(status);
 
   return (

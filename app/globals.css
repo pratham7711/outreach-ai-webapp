@@ -1,51 +1,146 @@
 @import "tailwindcss";
-@import '@pratham7711/ui/styles';
+@import '@pratham7711/ui/styles' layer(components);
 
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  --color-status-good: var(--status-good);
+  --color-status-warning: var(--status-warning);
+  --color-status-serious: var(--status-serious);
+  --color-status-critical: var(--status-critical);
+
+  --radius-sm: calc(var(--radius) * 0.5);
+  --radius-md: calc(var(--radius) * 0.75);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.5);
+
+  --font-sans: satoshi, "satoshi Fallback", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+/*
+  ONE source of truth. The shadcn token contract holds the raw values; --cc-* and
+  --ui-* are aliases so all existing surfaces inherit the palette without edits.
+  Palette validated with the dataviz validator (categorical, both modes):
+  worst adjacent CVD ΔE 9.1 light / 8.4 dark, normal-vision 19.6 / 19.3.
+*/
 :root {
-  --cc-bg: #EFF0F8;
-  --cc-sidebar: #FFFFFF;
-  --cc-card: #FFFFFF;
-  --cc-border: #E4E6F0;
-  --cc-primary: #5B5BD6;
-  --cc-primary-hover: #4A4AC8;
-  --cc-primary-light: rgba(91, 91, 214, 0.08);
-  --cc-primary-medium: rgba(91, 91, 214, 0.15);
-  --cc-text: #1C2048;
-  --cc-text-muted: #5C6285;
-  --cc-text-subtle: #6E7499;
-  --cc-success: #10B981;
-  --cc-warning: #F59E0B;
-  --cc-danger: #EF4444;
-  --cc-hover-bg: #F7F8FC;
-  --cc-row-hover: rgba(91, 91, 214, 0.03);
-  --font-family: var(--font-geist), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --radius: 0.75rem;
+  --app-font: var(--font-satoshi), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+
+  --background: #F7F7F5;
+  --foreground: #0B0B0B;
+  --card: #FFFFFF;
+  --card-foreground: #0B0B0B;
+  --popover: #FFFFFF;
+  --popover-foreground: #0B0B0B;
+  --primary: #2A78D6;
+  --primary-foreground: #FFFFFF;
+  --secondary: #F0F0EC;
+  --secondary-foreground: #0B0B0B;
+  --muted: #F0F0EC;
+  --muted-foreground: #52514E;
+  --accent: #EAF2FC;
+  --accent-foreground: #1C5CAB;
+  --destructive: #D03B3B;
+  --destructive-foreground: #FFFFFF;
+  --border: #E4E3DD;
+  --input: #E4E3DD;
+  --ring: #2A78D6;
+
+  /* Categorical series — fixed order IS the CVD-safety mechanism, never cycled */
+  --chart-1: #2a78d6;
+  --chart-2: #eb6834;
+  --chart-3: #1baf7a;
+  --chart-4: #eda100;
+  --chart-5: #e87ba4;
+
+  /* Status is RESERVED — never reused as a series colour, always with icon + label */
+  --status-good: #0CA30C;
+  --status-warning: #FAB219;
+  --status-serious: #EC835A;
+  --status-critical: #D03B3B;
+
+  /* Chart chrome */
+  --chart-grid: #E1E0D9;
+  --chart-axis: #C3C2B7;
+
+  --cc-bg: var(--background);
+  --cc-sidebar: var(--card);
+  --cc-card: var(--card);
+  --cc-border: var(--border);
+  --cc-primary: var(--primary);
+  --cc-primary-hover: #1C5CAB;
+  --cc-primary-light: rgba(42, 120, 214, 0.08);
+  --cc-primary-medium: rgba(42, 120, 214, 0.15);
+  --cc-text: var(--foreground);
+  --cc-text-muted: var(--muted-foreground);
+  --cc-text-subtle: #898781;
+  --cc-success: var(--status-good);
+  --cc-warning: var(--status-warning);
+  --cc-danger: var(--status-critical);
+  --cc-hover-bg: #F2F2EF;
+  --cc-row-hover: rgba(42, 120, 214, 0.03);
+  --font-family: var(--app-font);
 
   /* ── @pratham7711/ui token overrides for light theme ── */
-  --ui-accent: #5B5BD6;
-  --ui-accent-dim: rgba(91, 91, 214, 0.25);
-  --ui-accent-glow: rgba(91, 91, 214, 0.12);
+  --ui-accent: var(--primary);
+  --ui-accent-dim: rgba(42, 120, 214, 0.25);
+  --ui-accent-glow: rgba(42, 120, 214, 0.12);
 
-  --ui-bg-0: #EFF0F8;
-  --ui-bg-1: #FFFFFF;
-  --ui-bg-2: #F3F4F8;
-  --ui-bg-3: #E8EAF4;
+  --ui-bg-0: var(--background);
+  --ui-bg-1: var(--card);
+  --ui-bg-2: #F0F0EC;
+  --ui-bg-3: #E8E7E1;
 
-  --ui-text-0: #1C2048;
-  --ui-text-1: rgba(28, 32, 72, 0.75);
-  --ui-text-2: rgba(28, 32, 72, 0.45);
+  --ui-text-0: var(--foreground);
+  --ui-text-1: rgba(11, 11, 11, 0.75);
+  --ui-text-2: rgba(11, 11, 11, 0.45);
 
-  --ui-border: #E4E6F0;
-  --ui-border-strong: #D0D3E8;
+  --ui-border: var(--border);
+  --ui-border-strong: #C9C8C0;
 
   --ui-glass: rgba(255, 255, 255, 0.9);
-  --ui-glass-border: #E4E6F0;
+  --ui-glass-border: var(--border);
 
-  --ui-shadow-sm: 0 1px 4px rgba(28, 32, 72, 0.06);
-  --ui-shadow-md: 0 4px 16px rgba(28, 32, 72, 0.08);
-  --ui-shadow-lg: 0 8px 32px rgba(28, 32, 72, 0.12);
-  --ui-glow: 0 2px 12px rgba(28, 32, 72, 0.10);
+  --ui-shadow-sm: 0 1px 4px rgba(11, 11, 11, 0.05);
+  --ui-shadow-md: 0 4px 16px rgba(11, 11, 11, 0.07);
+  --ui-shadow-lg: 0 8px 32px rgba(11, 11, 11, 0.10);
+  --ui-glow: 0 2px 12px rgba(11, 11, 11, 0.08);
 
-  --ui-font: var(--font-geist), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --ui-font: var(--app-font);
+
+  --ui-success: var(--status-good);
+  --ui-success-dim: rgba(12, 163, 12, 0.14);
+  --ui-warning: var(--status-warning);
+  --ui-warning-dim: rgba(250, 178, 25, 0.16);
+  --ui-danger: var(--status-critical);
+  --ui-danger-dim: rgba(208, 59, 59, 0.14);
+  --ui-neutral: var(--muted-foreground);
+  --ui-neutral-dim: rgba(11, 11, 11, 0.06);
 
   --ui-space-xs: 6px;
   --ui-space-sm: 10px;
@@ -54,48 +149,72 @@
   --ui-space-xl: 32px;
 }
 
-/* ── Dark theme (next-themes .dark on <html>) — shadcn-inspired navy surfaces, purple accent ── */
+/*
+  Dark theme (next-themes .dark on <html>). Dark steps are SELECTED for the dark
+  surface from the same ramps — not an automatic inversion. Status colours are
+  deliberately NOT redefined here: they are fixed and inherit from :root.
+*/
 .dark {
-  --cc-bg: #0D0E17;
-  --cc-sidebar: #12131F;
-  --cc-card: #171826;
-  --cc-border: #262838;
-  --cc-primary: #8385F0;
-  --cc-primary-hover: #9698F5;
-  --cc-primary-light: rgba(131, 133, 240, 0.14);
-  --cc-primary-medium: rgba(131, 133, 240, 0.22);
-  --cc-text: #ECEDF6;
-  --cc-text-muted: #9DA1C4;
-  --cc-text-subtle: #6F7498;
-  --cc-success: #34D399;
-  --cc-warning: #FBBF24;
-  --cc-danger: #F87171;
-  --cc-hover-bg: #1C1D2C;
-  --cc-row-hover: rgba(131, 133, 240, 0.06);
+  --background: #0D0D0D;
+  --foreground: #FFFFFF;
+  --card: #1A1A19;
+  --card-foreground: #FFFFFF;
+  --popover: #1A1A19;
+  --popover-foreground: #FFFFFF;
+  --primary: #3987E5;
+  --primary-foreground: #FFFFFF;
+  --secondary: #222220;
+  --secondary-foreground: #FFFFFF;
+  --muted: #222220;
+  --muted-foreground: #C3C2B7;
+  --accent: #16283C;
+  --accent-foreground: #86B6EF;
+  --destructive: #D03B3B;
+  --destructive-foreground: #FFFFFF;
+  --border: #2C2C2A;
+  --input: #2C2C2A;
+  --ring: #3987E5;
 
-  --ui-accent: #8385F0;
-  --ui-accent-dim: rgba(131, 133, 240, 0.28);
-  --ui-accent-glow: rgba(131, 133, 240, 0.16);
+  --chart-1: #3987e5;
+  --chart-2: #d95926;
+  --chart-3: #199e70;
+  --chart-4: #c98500;
+  --chart-5: #d55181;
 
-  --ui-bg-0: #0D0E17;
-  --ui-bg-1: #171826;
-  --ui-bg-2: #1C1D2C;
-  --ui-bg-3: #24263A;
+  --chart-grid: #2C2C2A;
+  --chart-axis: #383835;
 
-  --ui-text-0: #ECEDF6;
-  --ui-text-1: rgba(236, 237, 246, 0.72);
-  --ui-text-2: rgba(236, 237, 246, 0.45);
+  --cc-sidebar: #131312;
+  --cc-primary-hover: #5598E7;
+  --cc-primary-light: rgba(57, 135, 229, 0.14);
+  --cc-primary-medium: rgba(57, 135, 229, 0.22);
+  --cc-text-subtle: #898781;
+  --cc-hover-bg: #222220;
+  --cc-row-hover: rgba(57, 135, 229, 0.06);
 
-  --ui-border: #262838;
-  --ui-border-strong: #343650;
+  --ui-accent-dim: rgba(57, 135, 229, 0.28);
+  --ui-accent-glow: rgba(57, 135, 229, 0.16);
 
-  --ui-glass: rgba(23, 24, 38, 0.85);
-  --ui-glass-border: #2C2E42;
+  --ui-bg-2: #222220;
+  --ui-bg-3: #2C2C2A;
+
+  --ui-text-1: rgba(255, 255, 255, 0.72);
+  --ui-text-2: rgba(255, 255, 255, 0.45);
+
+  --ui-border-strong: #383835;
+
+  --ui-glass: rgba(26, 26, 25, 0.85);
+  --ui-glass-border: #2C2C2A;
 
   --ui-shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.4);
   --ui-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.5);
   --ui-shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.6);
   --ui-glow: 0 2px 12px rgba(0, 0, 0, 0.5);
+
+  --ui-success-dim: rgba(12, 163, 12, 0.22);
+  --ui-warning-dim: rgba(250, 178, 25, 0.22);
+  --ui-danger-dim: rgba(208, 59, 59, 0.22);
+  --ui-neutral-dim: rgba(255, 255, 255, 0.08);
 
   color-scheme: dark;
 }
@@ -129,7 +248,7 @@ h1, h2, h3, h4, h5, h6 {
 ::-webkit-scrollbar-thumb { background: var(--ui-border-strong); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--cc-text-subtle); }
 
-::selection { background: rgba(91,91,214,0.15); color: var(--cc-text); }
+::selection { background: rgba(42,120,214,0.18); color: var(--cc-text); }
 
 *:focus-visible {
   outline: 2px solid var(--cc-primary);
@@ -444,8 +563,8 @@ h1, h2, h3, h4, h5, h6 {
   left: calc(100% + 10px);
   top: 50%;
   transform: translateY(-50%) translateX(-4px);
-  background: #1C2048;
-  color: white;
+  background: var(--foreground);
+  color: var(--background);
   padding: 6px 12px;
   border-radius: 8px;
   font-size: 12px;
@@ -607,6 +726,52 @@ h1, h2, h3, h4, h5, h6 {
 /* Sidebar link transition (additive — pairs with cc-nav-item) */
 .sidebar-link {
   transition: all 0.15s ease;
+}
+
+/* Sidebar geometry — single source of truth for the rail and the content offset.
+   Both read the same var so they can never desync mid-transition. */
+:root {
+  --cc-sidebar-w: 264px;
+  --cc-sidebar-w-collapsed: 72px;
+}
+
+.cc-sidebar-rail {
+  width: var(--cc-sidebar-w);
+}
+.cc-sidebar-rail[data-collapsed="true"] {
+  width: var(--cc-sidebar-w-collapsed);
+}
+.cc-dashboard-content {
+  margin-left: 0;
+}
+@media (min-width: 1024px) {
+  .cc-dashboard-content {
+    margin-left: var(--cc-sidebar-w);
+  }
+  .cc-dashboard-content[data-collapsed="true"] {
+    margin-left: var(--cc-sidebar-w-collapsed);
+  }
+}
+/* Animate only after hydration has settled the persisted state, so the
+   restored width does not slide in on every page load. */
+.cc-sidebar-rail[data-ready="true"] {
+  transition: width 0.2s ease, transform 0.2s ease;
+}
+.cc-dashboard-content[data-ready="true"] {
+  transition: margin-left 0.2s ease;
+}
+
+/* Collapsed rail: reclaim the scrollbar gutter that eats a 72px column. */
+.cc-sidebar-nav {
+  scrollbar-width: thin;
+  scrollbar-color: var(--cc-border) transparent;
+}
+.cc-sidebar-rail[data-collapsed="true"] .cc-sidebar-nav {
+  scrollbar-width: none;
+}
+.cc-sidebar-rail[data-collapsed="true"] .cc-sidebar-nav::-webkit-scrollbar {
+  width: 0;
+  height: 0;
 }
 
 
