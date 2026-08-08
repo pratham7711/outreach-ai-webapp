@@ -16,7 +16,7 @@ function dateKey(d: Date): string {
 
 export type CampaignPerformance = {
   currency: string;
-  spendSource: "PAID_PAYOUTS" | "BUDGET";
+  spendSource: "PAID_PAYOUTS" | "ACCRUED_LEDGER" | "BUDGET";
   kpis: {
     views: number;
     engagements: number;
@@ -58,10 +58,14 @@ export async function computeCampaignPerformance(
     },
   });
 
-  const [paidPayouts, snapshots] = await Promise.all([
+  const [paidPayouts, accruedLedger, snapshots] = await Promise.all([
     db.payout.aggregate({
       where: { campaignId: campaign.id, orgId: campaign.orgId, status: "SUCCESS" },
       _sum: { amount: true },
+    }),
+    db.viewLedger.aggregate({
+      where: { campaignId: campaign.id, orgId: campaign.orgId },
+      _sum: { amountEarned: true },
     }),
     posts.length > 0
       ? db.postMetricSnapshot.findMany({
@@ -73,7 +77,9 @@ export async function computeCampaignPerformance(
   ]);
 
   const paidSpend = paidPayouts._sum.amount ?? 0;
-  const spend = paidSpend > 0 ? paidSpend : campaign.budget ?? 0;
+  const accruedSpend = accruedLedger._sum.amountEarned ?? 0;
+  const settledSpend = Math.max(paidSpend, accruedSpend);
+  const spend = settledSpend > 0 ? settledSpend : campaign.budget ?? 0;
 
   const views = posts.reduce((s, p) => s + (p.viewsCount ?? 0), 0);
   const engagements = posts.reduce(
@@ -207,7 +213,12 @@ export async function computeCampaignPerformance(
 
   return {
     currency: campaign.currency,
-    spendSource: paidSpend > 0 ? "PAID_PAYOUTS" : "BUDGET",
+    spendSource:
+      settledSpend === 0
+        ? "BUDGET"
+        : accruedSpend > paidSpend
+          ? "ACCRUED_LEDGER"
+          : "PAID_PAYOUTS",
     kpis,
     timeSeries,
     platformSplit,
