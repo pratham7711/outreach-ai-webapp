@@ -24,6 +24,8 @@ jobs:
         run: npx jest --config jest.config.js --maxWorkers=2
       - name: Integration tests
         run: npx jest --config jest.integration.config.js --maxWorkers=2
+      - name: Production build
+        run: npm run build
       - name: Plaintext-token guard (runs when DATABASE_URL secret is set)
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
