@@ -176,7 +176,7 @@ describe("POST /api/mcp", () => {
     expect(body.error.code).toBe(-32601);
   });
 
-  it("get_campaign returns campaign not found for wrong org", async () => {
+  it("get_campaign reports not found for an id that does not exist", async () => {
     mockDb.campaign.findFirst.mockResolvedValue(null);
     const req = makeJsonRpcRequest("tools/call", {
       name: "get_campaign",
@@ -187,5 +187,75 @@ describe("POST /api/mcp", () => {
     const body = await res.json();
     const data = JSON.parse(body.result.content[0].text);
     expect(data.error).toBe("Campaign not found");
+  });
+
+  describe("get_campaign cross-tenant isolation", () => {
+    const OWNED_CAMPAIGN = {
+      id: "camp-owned-by-org-1",
+      orgId: "org-1",
+      title: "Org 1 confidential launch",
+      status: "IN_PROGRESS",
+      deletedAt: null,
+      tags: [],
+      _count: { activations: 2, posts: 3 },
+    };
+
+    beforeEach(() => {
+      mockDb.campaign.findFirst.mockImplementation(async (args: any) =>
+        args?.where?.id === OWNED_CAMPAIGN.id &&
+        args?.where?.orgId === OWNED_CAMPAIGN.orgId
+          ? OWNED_CAMPAIGN
+          : null,
+      );
+    });
+
+    function requestOwnedCampaign() {
+      return makeJsonRpcRequest("tools/call", {
+        name: "get_campaign",
+        arguments: { id: OWNED_CAMPAIGN.id },
+      });
+    }
+
+    it("denies a real campaign id belonging to another org, and leaks none of its fields", async () => {
+      mockAuth.mockResolvedValue({ user: { id: "user-2", orgId: "org-2" } });
+
+      const res = await POST(requestOwnedCampaign());
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      const data = JSON.parse(body.result.content[0].text);
+
+      expect(data.error).toBe("Campaign not found");
+      expect(JSON.stringify(body)).not.toContain(OWNED_CAMPAIGN.title);
+      expect(JSON.stringify(body)).not.toContain(OWNED_CAMPAIGN.status);
+      expect(mockDb.campaign.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            id: OWNED_CAMPAIGN.id,
+            orgId: "org-2",
+          }),
+        }),
+      );
+    });
+
+    it("serves the identical request to the owning org, so the denial above is tenancy and not a missing row", async () => {
+      mockAuth.mockResolvedValue({ user: { id: "user-1", orgId: "org-1" } });
+
+      const res = await POST(requestOwnedCampaign());
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      const data = JSON.parse(body.result.content[0].text);
+
+      expect(data.error).toBeUndefined();
+      expect(data.id).toBe(OWNED_CAMPAIGN.id);
+      expect(data.title).toBe(OWNED_CAMPAIGN.title);
+      expect(mockDb.campaign.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            id: OWNED_CAMPAIGN.id,
+            orgId: "org-1",
+          }),
+        }),
+      );
+    });
   });
 });
