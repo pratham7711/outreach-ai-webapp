@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authenticateRequest } from "@/lib/authenticate";
 import { getMcpToolDefinitions, executeMcpTool } from "@/lib/mcp/tools";
+import { getOrgEntitlements, hasOrgFeature } from "@/lib/entitlements";
+import { API_ACCESS_FEATURE } from "@/lib/featureKeys";
 
 const SERVER_INFO = {
   name: "Outreach AI",
@@ -21,6 +23,11 @@ export async function POST(req: NextRequest) {
   const authResult = await authenticateRequest(req);
   if (!authResult) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const entitlements = await getOrgEntitlements(authResult.orgId);
+  if (!hasOrgFeature(entitlements, API_ACCESS_FEATURE)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   let body: any;

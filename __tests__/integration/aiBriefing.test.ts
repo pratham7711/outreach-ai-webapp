@@ -16,6 +16,11 @@ jest.mock("@/lib/db", () => ({
 
 jest.mock("@/lib/auth", () => ({ auth: jest.fn() }));
 
+jest.mock("@/lib/entitlements", () => ({
+  ...jest.requireActual("@/lib/entitlements"),
+  getOrgEntitlements: jest.fn(),
+}));
+
 // Hoist-safe: mockMessagesCreate is defined at module scope so jest.mock factory can close over it
 const mockMessagesCreate = jest.fn().mockResolvedValue({
   content: [{ type: "text", text: "This is an AI-generated summary." }],
@@ -30,8 +35,11 @@ jest.mock("@anthropic-ai/sdk", () => ({
 
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
+import { getOrgEntitlements } from "@/lib/entitlements";
+import { AI_ASSISTANT_FEATURE } from "@/lib/featureKeys";
 
 const mockAuth = auth as jest.Mock;
+const mockGetEntitlements = getOrgEntitlements as jest.Mock;
 const mockDb = db as any;
 const mockAnthropicCreate = mockMessagesCreate;
 
@@ -48,6 +56,7 @@ function makeRequest(url: string, body: object) {
 beforeEach(() => {
   jest.clearAllMocks();
   mockAuth.mockResolvedValue(authedSession);
+  mockGetEntitlements.mockResolvedValue({ featureMap: { [AI_ASSISTANT_FEATURE]: true } });
   process.env.ANTHROPIC_API_KEY = "sk-test-key";
 
   // Default DB mocks for briefing

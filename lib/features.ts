@@ -1,14 +1,29 @@
+import {
+  ADVANCED_REPORTS_FEATURE,
+  AI_ASSISTANT_FEATURE,
+  ANALYTICS_FEATURE,
+  API_ACCESS_FEATURE,
+  AUDIT_LOG_FEATURE,
+  BULK_EXPORT_FEATURE,
+  CAMPAIGN_BUDGET_FEATURE,
+  CUSTOM_BRANDING_FEATURE,
+  DISCOVERY_FEATURE,
+  MEDIA_KITS_FEATURE,
+  MULTI_CURRENCY_FEATURE,
+} from "@/lib/featureKeys";
+
 export const FEATURES = {
-  analytics:         { label: "Analytics Dashboard",     description: "View campaign analytics and reports" },
-  bulk_export:       { label: "Bulk Export",             description: "Export data in bulk (CSV/XLSX)" },
-  api_access:        { label: "API Access",              description: "Access Outreach AI REST API" },
-  custom_branding:   { label: "Custom Branding",         description: "White-label with own logo & colors" },
-  advanced_reports:  { label: "Advanced Reports",        description: "Advanced reporting & custom dashboards" },
-  creator_discovery: { label: "Creator Discovery",       description: "Search & discover new creators" },
-  campaign_budget:   { label: "Campaign Budget Tools",   description: "Budget tracking & forecasting" },
-  multi_currency:    { label: "Multi-Currency Payouts",  description: "Pay creators in multiple currencies" },
-  audit_log:         { label: "Audit Log",               description: "Full audit trail of all actions" },
-  media_kits:        { label: "Media Kits",              description: "Generate creator media kits" },
+  [ANALYTICS_FEATURE]:        { label: "Analytics Dashboard",     description: "View campaign analytics and reports" },
+  [BULK_EXPORT_FEATURE]:      { label: "Bulk Export",             description: "Export data in bulk (CSV/XLSX)" },
+  [API_ACCESS_FEATURE]:       { label: "API Access",              description: "Access Outreach AI REST API and the MCP tool surface" },
+  [CUSTOM_BRANDING_FEATURE]:  { label: "Custom Branding",         description: "White-label with own logo & colors" },
+  [ADVANCED_REPORTS_FEATURE]: { label: "Advanced Reports",        description: "Advanced reporting & custom dashboards" },
+  [DISCOVERY_FEATURE]:        { label: "Creator Discovery",       description: "Search & discover new creators" },
+  [CAMPAIGN_BUDGET_FEATURE]:  { label: "Campaign Budget Tools",   description: "Budget tracking & forecasting" },
+  [MULTI_CURRENCY_FEATURE]:   { label: "Multi-Currency Payouts",  description: "Pay creators in multiple currencies" },
+  [AUDIT_LOG_FEATURE]:        { label: "Audit Log",               description: "Full audit trail of all actions" },
+  [MEDIA_KITS_FEATURE]:       { label: "Media Kits",              description: "Generate creator media kits" },
+  [AI_ASSISTANT_FEATURE]:     { label: "AI Assistant",            description: "AI briefings and natural-language analytics (billed per request)" },
 } as const;
 
 export type FeatureKey = keyof typeof FEATURES;

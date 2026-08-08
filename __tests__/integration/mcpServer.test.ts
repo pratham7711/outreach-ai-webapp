@@ -16,10 +16,18 @@ jest.mock("@/lib/db", () => ({
 
 jest.mock("@/lib/auth", () => ({ auth: jest.fn() }));
 
+jest.mock("@/lib/entitlements", () => ({
+  ...jest.requireActual("@/lib/entitlements"),
+  getOrgEntitlements: jest.fn(),
+}));
+
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
+import { getOrgEntitlements } from "@/lib/entitlements";
+import { API_ACCESS_FEATURE } from "@/lib/featureKeys";
 
 const mockAuth = auth as jest.Mock;
+const mockGetEntitlements = getOrgEntitlements as jest.Mock;
 const mockDb = db as any;
 
 function makeJsonRpcRequest(method: string, params: Record<string, unknown> = {}, id = 1) {
@@ -33,6 +41,7 @@ function makeJsonRpcRequest(method: string, params: Record<string, unknown> = {}
 beforeEach(() => {
   jest.clearAllMocks();
   mockAuth.mockResolvedValue({ user: { id: "user-1", orgId: "org-1" } });
+  mockGetEntitlements.mockResolvedValue({ featureMap: { [API_ACCESS_FEATURE]: true } });
   mockDb.campaign.findMany.mockResolvedValue([]);
   mockDb.campaign.findFirst.mockResolvedValue(null);
   mockDb.creator.findMany.mockResolvedValue([]);
@@ -239,6 +248,7 @@ describe("POST /api/mcp", () => {
 
     it("serves the identical request to the owning org, so the denial above is tenancy and not a missing row", async () => {
       mockAuth.mockResolvedValue({ user: { id: "user-1", orgId: "org-1" } });
+  mockGetEntitlements.mockResolvedValue({ featureMap: { [API_ACCESS_FEATURE]: true } });
 
       const res = await POST(requestOwnedCampaign());
       expect(res.status).toBe(200);

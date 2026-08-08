@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { db } from "@/lib/db";
 import { authenticateRequest } from "@/lib/authenticate";
+import { getOrgEntitlements, hasOrgFeature } from "@/lib/entitlements";
+import { AI_ASSISTANT_FEATURE } from "@/lib/featureKeys";
 
 // POST /api/ai/briefing
 // Body: { type: "campaign" | "org", id?: string }
@@ -9,6 +11,11 @@ export async function POST(req: NextRequest) {
   const auth = await authenticateRequest(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { orgId } = auth;
+
+  const entitlements = await getOrgEntitlements(orgId);
+  if (!hasOrgFeature(entitlements, AI_ASSISTANT_FEATURE)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   if (!process.env.ANTHROPIC_API_KEY) {
     return NextResponse.json({ error: "AI not configured" }, { status: 503 });
