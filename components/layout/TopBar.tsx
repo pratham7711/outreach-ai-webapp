@@ -173,7 +173,7 @@ export function TopBar({ user }: { user?: TopBarUser }) {
               {title}
             </Link>
             <ChevronRight size={13} style={{ color: "var(--cc-text-subtle)" }} />
-            <span style={{ fontSize: 13, color: "var(--cc-text)", fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            <span title={leafLabel} style={{ fontSize: 13, color: "var(--cc-text)", fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
               {leafLabel}
             </span>
           </>

@@ -6,9 +6,10 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   LayoutDashboard, Megaphone, Play, Calendar, CalendarClock, Users, Users2, Radio, LineChart,
   Search, List, Wallet, Inbox, UserCheck, Link2, CreditCard, Shield, FileText,
-  ChevronDown, Settings, LogOut, Menu, X, ChevronsLeft, ChevronsRight, Key, PieChart, BarChart2, Activity
+  ChevronDown, Settings, LogOut, Menu, X, ChevronsLeft, Key, PieChart, BarChart2, Activity
 } from "lucide-react";
 import { useSidebar } from "@/components/providers/SidebarProvider";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 const NAV_SECTIONS = [
   {
@@ -78,11 +79,31 @@ function sidebarInitials(name?: string | null, email?: string | null): string {
   return src.slice(0, 2).toUpperCase();
 }
 
+function UserMenuTooltip({
+  label,
+  enabled,
+  children,
+}: {
+  label: string;
+  enabled: boolean;
+  children: React.ReactElement;
+}) {
+  if (!enabled) return children;
+  return (
+    <Tooltip>
+      <TooltipTrigger render={children} />
+      <TooltipContent side="right" sideOffset={8}>
+        {label}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
 export default function NewSidebar({ allowedNavHrefs, brandName, user }: SidebarProps = {}) {
   const userName = user?.name || user?.email || "Account";
   const userInitial = sidebarInitials(user?.name, user?.email);
   const pathname = usePathname();
-  const { collapsed, mobileOpen, toggle, setMobileOpen } = useSidebar();
+  const { collapsed, mobileOpen, ready, toggle, setMobileOpen } = useSidebar();
   const [showUserMenu, setShowUserMenu] = useState(false);
   const allowedHrefSet = useMemo(
     () => new Set(allowedNavHrefs ?? []),
@@ -121,34 +142,41 @@ export default function NewSidebar({ allowedNavHrefs, brandName, user }: Sidebar
     if (collapsed) setShowUserMenu(false);
   }, [collapsed]);
 
-  const sidebarWidth = collapsed ? 68 : 256;
+  const isRail = collapsed && !mobileOpen;
+
+  const logoMark = (
+    <div
+      style={{
+        width: 32,
+        height: 32,
+        borderRadius: 8,
+        background: "var(--cc-primary)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        flexShrink: 0,
+      }}
+    >
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <circle cx="12" cy="12" r="8" stroke="white" strokeWidth="2.5" />
+        <circle cx="12" cy="12" r="4" stroke="white" strokeWidth="1.5" />
+        <circle cx="12" cy="12" r="1.5" fill="white" />
+      </svg>
+    </div>
+  );
 
   return (
     <>
       {/* Mobile hamburger button */}
       <button
-        className="lg:hidden"
+        className={`fixed top-1.5 left-2 z-50 size-11 cursor-pointer items-center justify-center rounded-[10px] border border-border bg-card shadow-sm lg:hidden ${
+          mobileOpen ? "hidden" : "flex"
+        }`}
         onClick={() => setMobileOpen(true)}
         aria-label="Open navigation menu"
         aria-expanded={mobileOpen}
-        style={{
-          position: "fixed",
-          top: 6,
-          left: 8,
-          zIndex: 50,
-          width: 44,
-          height: 44,
-          borderRadius: 10,
-          background: "var(--cc-card)",
-          border: "1px solid var(--cc-border)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          cursor: "pointer",
-          boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-        }}
       >
-        <Menu size={20} style={{ color: "var(--cc-text)" }} />
+        <Menu size={20} aria-hidden="true" className="text-foreground" />
       </button>
 
       {/* Mobile overlay backdrop */}
@@ -169,124 +197,96 @@ export default function NewSidebar({ allowedNavHrefs, brandName, user }: Sidebar
 
       {/* Sidebar */}
       <aside
-        className={`fixed left-0 top-0 bottom-0 flex flex-col z-40 ${
+        className={`cc-sidebar-rail fixed top-0 bottom-0 left-0 z-40 flex flex-col overflow-hidden ${
           mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         }`}
+        data-collapsed={mobileOpen ? false : collapsed}
+        data-ready={ready}
         style={{
-          width: mobileOpen ? 256 : sidebarWidth,
           background: "var(--cc-sidebar)",
           borderRight: "1px solid var(--cc-border)",
-          transition: "width 0.2s ease, transform 0.2s ease",
-          overflow: "hidden",
         }}
         role="navigation"
         aria-label="Main sidebar"
       >
         {/* Header: Logo + Org + Collapse Toggle */}
         <div
-          className="h-14 flex items-center justify-between shrink-0"
+          className={`h-14 flex items-center shrink-0 ${isRail ? "justify-center" : "justify-between"}`}
           style={{
             borderBottom: "1px solid var(--cc-border)",
-            padding: collapsed ? "0 12px" : "0 16px",
+            padding: isRail ? "0 8px" : "0 16px",
           }}
         >
-          <div className="flex items-center gap-2.5" style={{ overflow: "hidden" }}>
-            <div
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: 8,
-                background: "var(--cc-primary)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                flexShrink: 0,
-              }}
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <circle cx="12" cy="12" r="8" stroke="white" strokeWidth="2.5" />
-                <circle cx="12" cy="12" r="4" stroke="white" strokeWidth="1.5" />
-                <circle cx="12" cy="12" r="1.5" fill="white" />
-              </svg>
-            </div>
-            {!collapsed && (
-              <span
-                style={{
-                  fontWeight: 800,
-                  fontSize: 15,
-                  color: "var(--cc-text)",
-                  letterSpacing: "-0.4px",
-                  whiteSpace: "nowrap",
-                }}
+          {isRail ? (
+            <Tooltip>
+              <TooltipTrigger
+                onClick={toggle}
+                aria-label="Expand sidebar"
+                className="btn-press flex cursor-pointer items-center justify-center rounded-lg border-0 bg-transparent p-0"
               >
-                {brandName ?? "outreach ai"}
-              </span>
-            )}
-          </div>
-
-          <div className="flex items-center gap-1.5" style={{ flexShrink: 0 }}>
-            {!collapsed && (
-              <div
-                style={{
-                  background: "var(--cc-primary)",
-                  color: "#fff",
-                  fontSize: 10,
-                  fontWeight: 700,
-                  padding: "3px 10px",
-                  borderRadius: 6,
-                  letterSpacing: "0.5px",
-                }}
-              >
-                LKM
+                {logoMark}
+              </TooltipTrigger>
+              <TooltipContent side="right" sideOffset={8}>
+                Expand sidebar
+              </TooltipContent>
+            </Tooltip>
+          ) : (
+            <>
+              <div className="flex min-w-0 items-center gap-2.5">
+                {logoMark}
+                <span
+                  className="truncate"
+                  title={brandName ?? "outreach ai"}
+                  style={{
+                    fontWeight: 800,
+                    fontSize: 15,
+                    color: "var(--cc-text)",
+                    letterSpacing: "-0.4px",
+                  }}
+                >
+                  {brandName ?? "outreach ai"}
+                </span>
               </div>
-            )}
 
-            {/* Mobile close */}
-            <button
-              className="lg:hidden flex items-center"
-              onClick={() => setMobileOpen(false)}
-              aria-label="Close navigation menu"
-              style={{
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                padding: 4,
-                color: "var(--cc-text-muted)",
-              }}
-            >
-              <X size={18} />
-            </button>
+              <div className="flex items-center gap-1.5" style={{ flexShrink: 0 }}>
+                <div
+                  style={{
+                    background: "var(--cc-primary)",
+                    color: "var(--primary-foreground)",
+                    fontSize: 10,
+                    fontWeight: 700,
+                    padding: "3px 10px",
+                    borderRadius: 6,
+                    letterSpacing: "0.5px",
+                  }}
+                >
+                  LKM
+                </div>
 
-            {/* Desktop collapse toggle */}
-            <button
-              className="hidden lg:flex items-center justify-center btn-press"
-              onClick={toggle}
-              aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-              style={{
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                padding: 4,
-                color: "var(--cc-text-muted)",
-                borderRadius: 6,
-                transition: "all 0.15s",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = "var(--cc-primary-light)";
-                e.currentTarget.style.color = "var(--cc-primary)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = "none";
-                e.currentTarget.style.color = "var(--cc-text-muted)";
-              }}
-            >
-              {collapsed ? <ChevronsRight size={16} /> : <ChevronsLeft size={16} />}
-            </button>
-          </div>
+                {/* Mobile close */}
+                <button
+                  className="flex cursor-pointer items-center rounded-md border-0 bg-transparent p-1 text-muted-foreground hover:text-foreground lg:hidden"
+                  onClick={() => setMobileOpen(false)}
+                  aria-label="Close navigation menu"
+                >
+                  <X size={18} aria-hidden="true" />
+                </button>
+
+                {/* Desktop collapse toggle */}
+                <button
+                  className="btn-press hidden cursor-pointer items-center justify-center rounded-md border-0 bg-transparent p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-primary lg:flex"
+                  onClick={toggle}
+                  aria-label="Collapse sidebar"
+                >
+                  <ChevronsLeft size={16} aria-hidden="true" />
+                </button>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Nav Sections */}
-        <nav className="flex-1 overflow-y-auto py-2 px-2" aria-label="Main navigation">
+        <nav className="cc-sidebar-nav flex-1 overflow-y-auto px-2 py-2" aria-label="Main navigation">
           {NAV_SECTIONS.map((section) => {
             const filteredItems = allowedNavHrefs == null
               ? section.items
@@ -295,7 +295,7 @@ export default function NewSidebar({ allowedNavHrefs, brandName, user }: Sidebar
             return (
             <div key={section.label} className="mb-1">
               {/* Section label — hidden when collapsed */}
-              {!collapsed && (
+              {!isRail && (
                 <div
                   style={{
                     fontSize: 10,
@@ -312,7 +312,7 @@ export default function NewSidebar({ allowedNavHrefs, brandName, user }: Sidebar
                 </div>
               )}
               {/* Thin separator when collapsed */}
-              {collapsed && (
+              {isRail && (
                 <div style={{ height: 1, background: "var(--cc-border)", margin: "6px 8px" }} />
               )}
 
@@ -329,34 +329,32 @@ export default function NewSidebar({ allowedNavHrefs, brandName, user }: Sidebar
                   badge?: string;
                 }) => {
                   const active = pathname === href || pathname.startsWith(href + "/");
-                  return (
+                  const navLink = (
                     <Link
-                      key={href}
                       href={href}
-                      className={`cc-nav-item sidebar-link ${active ? "active btn-press" : ""} cc-tooltip`}
+                      className={`cc-nav-item sidebar-link ${active ? "active btn-press" : ""}`}
                       aria-current={active ? "page" : undefined}
-                      title={collapsed ? label : undefined}
                       style={{
-                        justifyContent: collapsed ? "center" : undefined,
-                        padding: collapsed ? "10px" : undefined,
+                        justifyContent: isRail ? "center" : undefined,
+                        padding: isRail ? "10px" : undefined,
                       }}
                     >
                       <Icon
-                        size={collapsed ? 19 : 17}
+                        size={isRail ? 19 : 17}
                         style={{ flexShrink: 0, opacity: active ? 1 : 0.7 }}
                         aria-hidden="true"
                       />
-                      {!collapsed && (
+                      {!isRail && (
                         <span style={{ fontSize: 13.5, whiteSpace: "nowrap", overflow: "hidden" }}>
                           {label}
                         </span>
                       )}
-                      {!collapsed && badge && !active && (
+                      {!isRail && badge && !active && (
                         <span
                           style={{
                             marginLeft: "auto",
                             background: "var(--cc-primary)",
-                            color: "#fff",
+                            color: "var(--primary-foreground)",
                             fontSize: 9,
                             fontWeight: 700,
                             padding: "2px 7px",
@@ -368,6 +366,20 @@ export default function NewSidebar({ allowedNavHrefs, brandName, user }: Sidebar
                         </span>
                       )}
                     </Link>
+                  );
+
+                  // The rail clips its own overflow, so a CSS tooltip can never
+                  // escape it — the portalled Tooltip is what makes icon-only
+                  // navigation readable.
+                  if (!isRail) return <div key={href}>{navLink}</div>;
+
+                  return (
+                    <Tooltip key={href}>
+                      <TooltipTrigger render={navLink} />
+                      <TooltipContent side="right" sideOffset={8}>
+                        {label}
+                      </TooltipContent>
+                    </Tooltip>
                   );
                 }
               )}
@@ -382,7 +394,7 @@ export default function NewSidebar({ allowedNavHrefs, brandName, user }: Sidebar
           style={{ borderTop: "1px solid var(--cc-border)", position: "relative" }}
         >
           {/* User menu dropdown */}
-          {showUserMenu && !collapsed && (
+          {showUserMenu && !isRail && (
             <div
               className="cc-scale-in"
               style={{
@@ -429,25 +441,24 @@ export default function NewSidebar({ allowedNavHrefs, brandName, user }: Sidebar
             </div>
           )}
 
+          <UserMenuTooltip label={userName} enabled={isRail}>
           <button
             onClick={() => {
-              if (collapsed) {
-                // If collapsed, expand first then show menu
+              if (isRail) {
                 toggle();
-                setTimeout(() => setShowUserMenu(true), 200);
-              } else {
-                setShowUserMenu(!showUserMenu);
+                return;
               }
+              setShowUserMenu(!showUserMenu);
             }}
             className="cc-table-row"
             aria-expanded={showUserMenu}
-            aria-label="User menu"
+            aria-label={isRail ? `${userName} — expand sidebar` : "User menu"}
             style={{
               width: "100%",
               display: "flex",
               alignItems: "center",
-              justifyContent: collapsed ? "center" : "space-between",
-              padding: collapsed ? "8px" : "8px 10px",
+              justifyContent: isRail ? "center" : "space-between",
+              padding: isRail ? "8px" : "8px 10px",
               borderRadius: 10,
               border: "none",
               background: showUserMenu ? "var(--cc-primary-light)" : "transparent",
@@ -474,8 +485,9 @@ export default function NewSidebar({ allowedNavHrefs, brandName, user }: Sidebar
               >
                 {userInitial}
               </div>
-              {!collapsed && (
+              {!isRail && (
                 <span
+                  title={userName}
                   style={{
                     fontSize: 13,
                     fontWeight: 600,
@@ -490,7 +502,7 @@ export default function NewSidebar({ allowedNavHrefs, brandName, user }: Sidebar
                 </span>
               )}
             </div>
-            {!collapsed && (
+            {!isRail && (
               <div className="flex items-center gap-2">
                 <ChevronDown
                   size={14}
@@ -504,6 +516,7 @@ export default function NewSidebar({ allowedNavHrefs, brandName, user }: Sidebar
               </div>
             )}
           </button>
+          </UserMenuTooltip>
         </div>
       </aside>
     </>

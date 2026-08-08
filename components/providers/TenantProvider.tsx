@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { customBrandingValue } from "@/lib/brandingDefaults";
 
 type TenantConfig = {
   primaryColor?: string;
@@ -30,10 +31,14 @@ export function TenantProvider({ children }: { children: ReactNode }) {
         if (!data) return;
         setConfig(data);
         const root = document.documentElement;
-        if (data.primaryColor) root.style.setProperty("--color-primary", data.primaryColor);
-        if (data.secondaryColor) root.style.setProperty("--color-secondary", data.secondaryColor);
-        if (data.accentColor) root.style.setProperty("--color-accent", data.accentColor);
-        if (data.fontFamily) root.style.setProperty("--font-family", data.fontFamily);
+        const primaryColor = customBrandingValue("primaryColor", data.primaryColor);
+        const secondaryColor = customBrandingValue("secondaryColor", data.secondaryColor);
+        const accentColor = customBrandingValue("accentColor", data.accentColor);
+        const fontFamily = customBrandingValue("fontFamily", data.fontFamily);
+        if (primaryColor) root.style.setProperty("--color-primary", primaryColor);
+        if (secondaryColor) root.style.setProperty("--color-secondary", secondaryColor);
+        if (accentColor) root.style.setProperty("--color-accent", accentColor);
+        if (fontFamily) root.style.setProperty("--font-family", fontFamily);
       })
       .catch(() => {
         // Tenant config endpoint not available — use defaults

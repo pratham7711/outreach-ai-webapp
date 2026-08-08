@@ -3,10 +3,12 @@ import { TopBar } from "@/components/layout/TopBar";
 import { TenantProvider } from "@/components/providers/TenantProvider";
 import { SidebarProvider } from "@/components/providers/SidebarProvider";
 import { DashboardContent } from "@/components/layout/DashboardContent";
+import { ConfirmProvider } from "@/components/ds";
 import { Toaster } from "sonner";
 import { auth } from "@/lib/auth";
 import { getOrgEntitlements } from "@/lib/entitlements";
 import { resolveDashboardPolicy } from "@/lib/dashboardPolicy";
+import { customBrandingValue } from "@/lib/brandingDefaults";
 import type { OrgUiConfig } from "@/lib/orgConfig";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -19,11 +21,14 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const uiConfig = (entitlements?.uiConfig as OrgUiConfig | null) ?? null;
   const policy = resolveDashboardPolicy({ entitlements, uiConfig });
 
-  const primaryColorOverride = orgId ? policy.primaryColor : null;
+  const primaryColorOverride = orgId
+    ? customBrandingValue("primaryColor", policy.primaryColor)
+    : null;
 
   return (
     <TenantProvider>
       <SidebarProvider>
+       <ConfirmProvider>
         <div
           className="flex h-screen overflow-hidden"
           style={{
@@ -55,6 +60,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
             </main>
           </DashboardContent>
         </div>
+       </ConfirmProvider>
       </SidebarProvider>
     </TenantProvider>
   );

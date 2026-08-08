@@ -5,6 +5,7 @@ import { createContext, useContext, useState, useCallback, useEffect, type React
 type SidebarContextType = {
   collapsed: boolean;
   mobileOpen: boolean;
+  ready: boolean;
   toggle: () => void;
   setMobileOpen: (open: boolean) => void;
 };
@@ -12,6 +13,7 @@ type SidebarContextType = {
 const SidebarContext = createContext<SidebarContextType>({
   collapsed: false,
   mobileOpen: false,
+  ready: false,
   toggle: () => {},
   setMobileOpen: () => {},
 });
@@ -25,11 +27,14 @@ const STORAGE_KEY = "cc-sidebar-collapsed";
 export function SidebarProvider({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [ready, setReady] = useState(false);
 
   // Persist collapse preference
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored === "true") setCollapsed(true);
+    const frame = requestAnimationFrame(() => setReady(true));
+    return () => cancelAnimationFrame(frame);
   }, []);
 
   const toggle = useCallback(() => {
@@ -40,7 +45,7 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <SidebarContext.Provider value={{ collapsed, mobileOpen, toggle, setMobileOpen }}>
+    <SidebarContext.Provider value={{ collapsed, mobileOpen, ready, toggle, setMobileOpen }}>
       {children}
     </SidebarContext.Provider>
   );

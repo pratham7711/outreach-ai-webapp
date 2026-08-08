@@ -1,5 +1,6 @@
 import type { OrgEntitlements } from "@/lib/entitlements";
 import type { OrgUiConfig } from "@/lib/orgConfig";
+import { PLATFORM_DEFAULT_BRANDING } from "@/lib/brandingDefaults";
 import {
   AUDIT_LOG_FEATURE,
   MEDIA_KITS_FEATURE,
@@ -27,7 +28,7 @@ type DashboardNavRule = {
   alwaysVisible?: boolean;
 };
 
-const DEFAULT_PRIMARY_COLOR = "#4F46E5";
+const DEFAULT_PRIMARY_COLOR = PLATFORM_DEFAULT_BRANDING.primaryColor;
 
 export const DASHBOARD_NAV_RULES: DashboardNavRule[] = [
   { href: "/dashboard", alwaysVisible: true },
