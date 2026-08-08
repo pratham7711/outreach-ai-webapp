@@ -101,6 +101,9 @@ jobs:
       - name: Seed database
         run: npx prisma db seed
 
+      - name: Plaintext-token guard (throwaway DB, no secrets required)
+        run: npx tsx scripts/assert-no-plaintext-tokens.ts
+
       - name: Build (production)
         env:
           NODE_ENV: production
