@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import { motion } from "framer-motion";
 import { ArrowLeft, Mail } from "lucide-react";
 import Link from "next/link";
@@ -9,6 +9,36 @@ import { Button, Input } from "@pratham7711/ui";
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function requestReset(e: React.FormEvent) {
+    e.preventDefault();
+    if (!email) return;
+    setError(null);
+    setBusy(true);
+    try {
+      const res = await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      if (res.status === 429) {
+        setError("Too many attempts. Wait a minute and try again.");
+        return;
+      }
+      const json = await res.json().catch(() => null);
+      if (!res.ok) {
+        setError(json?.error ?? "Could not send the reset link");
+        return;
+      }
+      setSent(true);
+    } catch {
+      setError("Could not reach the server");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
     <div
@@ -88,10 +118,7 @@ export default function ForgotPasswordPage() {
               </p>
 
               <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  if (email) setSent(true);
-                }}
+                onSubmit={requestReset}
                 style={{ display: "flex", flexDirection: "column", gap: 16 }}
               >
                 <Input
@@ -103,8 +130,14 @@ export default function ForgotPasswordPage() {
                   required
                 />
 
-                <Button type="submit" variant="primary" fullWidth style={{ marginTop: 4 }}>
-                  Send reset link
+                {error && (
+                  <p role="alert" style={{ fontSize: 13, color: "var(--cc-danger, #DC2626)", margin: 0 }}>
+                    {error}
+                  </p>
+                )}
+
+                <Button type="submit" variant="primary" fullWidth disabled={busy} style={{ marginTop: 4 }}>
+                  {busy ? "Sending…" : "Send reset link"}
                 </Button>
               </form>
 
