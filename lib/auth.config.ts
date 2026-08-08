@@ -15,12 +15,20 @@ export const authConfig = {
       const isPublicCreatorPage = nextUrl.pathname.startsWith("/c/");
       // Public marketplace (Phase 2M) — unauthenticated /explore browsing.
       const isPublicMarketplacePage = nextUrl.pathname.startsWith("/explore");
+      const isPublicSharePage = nextUrl.pathname.startsWith("/share/");
       const isAuthPage =
         nextUrl.pathname.startsWith("/login") ||
         nextUrl.pathname.startsWith("/signup") ||
-        nextUrl.pathname.startsWith("/forgot-password");
+        nextUrl.pathname.startsWith("/forgot-password") ||
+        nextUrl.pathname.startsWith("/reset-password");
       // Portal, public creator pages, and public marketplace skip org auth
-      if (isPortalPage || isPublicCreatorPage || isPublicMarketplacePage) return true;
+      if (
+        isPortalPage ||
+        isPublicCreatorPage ||
+        isPublicMarketplacePage ||
+        isPublicSharePage
+      )
+        return true;
       if (!isLoggedIn && !isAuthPage) {
         return Response.redirect(new URL("/login", nextUrl));
       }
