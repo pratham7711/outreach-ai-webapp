@@ -1,8 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { getOrgEntitlements, hasOrgFeature } from "@/lib/entitlements";
 import { DISCOVERY_FEATURE } from "@/lib/featureKeys";
+
+const MAX_PAGE_SIZE = 100;
+
+const discoveryQuerySchema = z.object({
+  search: z.string().default(""),
+  platform: z.string().optional(),
+  sort: z.enum(["followers", "engagement", "name"]).default("followers"),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).default(20),
+  niches: z.string().default(""),
+  minFollowers: z.coerce.number().int().nonnegative().optional(),
+  maxFollowers: z.coerce.number().int().nonnegative().optional(),
+  minRate: z.coerce.number().nonnegative().optional(),
+  maxRate: z.coerce.number().nonnegative().optional(),
+});
 
 export async function GET(req: NextRequest) {
   const session = await auth();
@@ -14,18 +30,29 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { searchParams } = req.nextUrl;
+  const rawQuery = Object.fromEntries(
+    [...req.nextUrl.searchParams.entries()].filter(([, value]) => value !== ""),
+  );
+  const parsed = discoveryQuerySchema.safeParse(rawQuery);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: "Invalid input", details: parsed.error.flatten() },
+      { status: 400 },
+    );
+  }
 
-  const search = searchParams.get("search") ?? "";
-  const platform = searchParams.get("platform");
-  const sort = searchParams.get("sort") ?? "followers";
-  const page = parseInt(searchParams.get("page") ?? "1");
-  const limit = parseInt(searchParams.get("limit") ?? "20");
-  const niches = (searchParams.get("niches") ?? "").split(",").filter(Boolean);
-  const minFollowers = parseInt(searchParams.get("minFollowers") ?? "");
-  const maxFollowers = parseInt(searchParams.get("maxFollowers") ?? "");
-  const minRate = parseFloat(searchParams.get("minRate") ?? "");
-  const maxRate = parseFloat(searchParams.get("maxRate") ?? "");
+  const {
+    search,
+    platform,
+    sort,
+    page,
+    limit,
+    minFollowers,
+    maxFollowers,
+    minRate,
+    maxRate,
+  } = parsed.data;
+  const niches = parsed.data.niches.split(",").filter(Boolean);
 
   const where: any = { orgId, deletedAt: null };
 
@@ -41,16 +68,16 @@ export async function GET(req: NextRequest) {
 
   if (niches.length > 0) where.niches = { hasSome: niches };
 
-  if (!isNaN(minFollowers) || !isNaN(maxFollowers)) {
+  if (minFollowers !== undefined || maxFollowers !== undefined) {
     where.followersCount = {};
-    if (!isNaN(minFollowers)) (where.followersCount as any).gte = minFollowers;
-    if (!isNaN(maxFollowers)) (where.followersCount as any).lte = maxFollowers;
+    if (minFollowers !== undefined) (where.followersCount as any).gte = minFollowers;
+    if (maxFollowers !== undefined) (where.followersCount as any).lte = maxFollowers;
   }
 
-  if (!isNaN(minRate) || !isNaN(maxRate)) {
+  if (minRate !== undefined || maxRate !== undefined) {
     where.rate = {};
-    if (!isNaN(minRate)) (where.rate as any).gte = minRate;
-    if (!isNaN(maxRate)) (where.rate as any).lte = maxRate;
+    if (minRate !== undefined) (where.rate as any).gte = minRate;
+    if (maxRate !== undefined) (where.rate as any).lte = maxRate;
   }
 
   const orderBy: any = sort === "engagement" ? { averageViews: "desc" } :

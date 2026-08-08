@@ -36,11 +36,12 @@ jest.mock("@anthropic-ai/sdk", () => ({
 
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
-import { getOrgEntitlements } from "@/lib/entitlements";
+import { getOrgEntitlements, hasOrgFeature } from "@/lib/entitlements";
 
 const mockAuth = auth as jest.Mock;
 const mockDb = db as any;
 const mockEntitlements = getOrgEntitlements as jest.Mock;
+const mockHasFeature = hasOrgFeature as jest.Mock;
 
 const session = { user: { id: "user-1", orgId: "org-1", email: "u@org-1.test" } };
 
@@ -82,6 +83,7 @@ beforeEach(() => {
   process.env.ANTHROPIC_API_KEY = "sk-test-key";
   mockAuth.mockResolvedValue(session);
   mockEntitlements.mockResolvedValue({ features: ["creator_discovery"] });
+  mockHasFeature.mockReturnValue(true);
   mockDb.campaign.findMany.mockResolvedValue([]);
   mockDb.campaign.findFirst.mockResolvedValue(null);
   mockDb.campaign.count.mockResolvedValue(0);
@@ -170,19 +172,67 @@ describe("POST /api/ai/nl-query input validation", () => {
   });
 });
 
-describe("GET /api/discovery query-parameter handling (hand-rolled, no zod on this route)", () => {
+describe("GET /api/discovery zod query validation", () => {
   function discovery(query: string) {
     return getDiscovery(new NextRequest(`http://localhost/api/discovery${query}`));
   }
 
-  it("ignores non-numeric range filters instead of passing NaN to the query", async () => {
-    const res = await discovery(
-      "?minFollowers=abc&maxFollowers=abc&minRate=abc&maxRate=abc",
+  async function expectRejected(query: string) {
+    const res = await discovery(query);
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toBe("Invalid input");
+    expect(body.details).toBeDefined();
+    expect(mockDb.creator.findMany).not.toHaveBeenCalled();
+    expect(mockDb.creator.count).not.toHaveBeenCalled();
+    return body;
+  }
+
+  it.each([
+    ["a non-numeric page", "?page=abc"],
+    ["a non-numeric limit", "?limit=abc"],
+    ["a negative page", "?page=-5"],
+    ["a zero page", "?page=0"],
+    ["a fractional page", "?page=1.5"],
+    ["a limit over the cap", "?limit=100000"],
+    ["a zero limit", "?limit=0"],
+    ["a non-numeric follower bound", "?minFollowers=abc"],
+    ["a non-numeric rate bound", "?maxRate=abc"],
+    ["a negative follower bound", "?minFollowers=-1"],
+    ["an unknown sort key", "?sort=chaos"],
+  ])("rejects %s with 400 and never touches the database", async (_label, query) => {
+    await expectRejected(query);
+  });
+
+  it("names the offending field in the details so the caller can fix it", async () => {
+    const body = await expectRejected("?page=abc&limit=abc");
+    expect(Object.keys(body.details.fieldErrors)).toEqual(
+      expect.arrayContaining(["page", "limit"]),
     );
+  });
+
+  it("accepts a limit exactly at the cap", async () => {
+    const res = await discovery("?limit=100");
+    expect(res.status).toBe(200);
+    expect(mockDb.creator.findMany.mock.calls[0][0].take).toBe(100);
+  });
+
+  it("applies the documented defaults when nothing is supplied", async () => {
+    const res = await discovery("");
+    expect(res.status).toBe(200);
+    const args = mockDb.creator.findMany.mock.calls[0][0];
+    expect(args.take).toBe(20);
+    expect(args.skip).toBe(0);
+    expect(args.orderBy).toEqual({ followersCount: "desc" });
+  });
+
+  it("treats a blank parameter as absent rather than as zero", async () => {
+    const res = await discovery("?minFollowers=&maxRate=&search=");
     expect(res.status).toBe(200);
     const where = mockDb.creator.findMany.mock.calls[0][0].where;
     expect(where).not.toHaveProperty("followersCount");
     expect(where).not.toHaveProperty("rate");
+    expect(where).not.toHaveProperty("OR");
   });
 
   it("drops empty niche values rather than filtering on an empty string", async () => {
@@ -191,33 +241,37 @@ describe("GET /api/discovery query-parameter handling (hand-rolled, no zod on th
     expect(where).not.toHaveProperty("niches");
   });
 
-  it("falls back to the default sort for an unknown sort key", async () => {
-    await discovery("?sort=chaos");
-    expect(mockDb.creator.findMany.mock.calls[0][0].orderBy).toEqual({
-      followersCount: "desc",
-    });
+  it.each([
+    ["engagement", { averageViews: "desc" }],
+    ["name", { name: "asc" }],
+    ["followers", { followersCount: "desc" }],
+  ])("honours the %s sort key", async (sort, orderBy) => {
+    await discovery(`?sort=${sort}`);
+    expect(mockDb.creator.findMany.mock.calls[0][0].orderBy).toEqual(orderBy);
   });
 
-  it("DEFECT, pinned not endorsed: a non-numeric page reaches the query as skip: NaN, and answers 500 on the live server", async () => {
-    await discovery("?page=abc");
+  it("still passes a valid full query through to a scoped query", async () => {
+    const res = await discovery(
+      "?search=ana&platform=tiktok&sort=name&page=2&limit=30&niches=MUSIC,TECH&minFollowers=1000&maxFollowers=50000&minRate=10&maxRate=99.5",
+    );
+    expect(res.status).toBe(200);
     const args = mockDb.creator.findMany.mock.calls[0][0];
-    expect(Number.isNaN(args.skip)).toBe(true);
+    expect(args.skip).toBe(30);
+    expect(args.take).toBe(30);
+    expect(args.where.orgId).toBe("org-1");
+    expect(args.where.platform).toBe("TIKTOK");
+    expect(args.where.niches).toEqual({ hasSome: ["MUSIC", "TECH"] });
+    expect(args.where.followersCount).toEqual({ gte: 1000, lte: 50000 });
+    expect(args.where.rate).toEqual({ gte: 10, lte: 99.5 });
   });
 
-  it("DEFECT, pinned not endorsed: a non-numeric limit reaches the query as take: NaN, and answers 500 on the live server", async () => {
-    await discovery("?limit=abc");
-    const args = mockDb.creator.findMany.mock.calls[0][0];
-    expect(Number.isNaN(args.take)).toBe(true);
-  });
+  it("checks auth and entitlement before it validates the query", async () => {
+    mockAuth.mockResolvedValue(null);
+    expect((await discovery("?page=abc")).status).toBe(401);
 
-  it("DEFECT, pinned not endorsed: a negative page produces a negative skip, and answers 500 on the live server", async () => {
-    await discovery("?page=-5");
-    expect(mockDb.creator.findMany.mock.calls[0][0].skip).toBeLessThan(0);
-  });
-
-  it("DEFECT, pinned not endorsed: limit is unbounded, so one request can ask the database for 100000 rows", async () => {
-    await discovery("?limit=100000");
-    expect(mockDb.creator.findMany.mock.calls[0][0].take).toBe(100000);
+    mockAuth.mockResolvedValue(session);
+    mockHasFeature.mockReturnValue(false);
+    expect((await discovery("?page=abc")).status).toBe(403);
   });
 });
 
