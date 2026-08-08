@@ -17,8 +17,12 @@ jest.mock("@/lib/db", () => ({
 jest.mock("@/lib/auth", () => ({ auth: jest.fn() }));
 
 jest.mock("@/lib/platforms/fetchPostMetrics", () => ({
+  ...jest.requireActual("@/lib/platforms/fetchPostMetrics"),
   fetchPostMetrics: jest.fn(),
-  hasMetricCounts: jest.requireActual("@/lib/platforms/fetchPostMetrics").hasMetricCounts,
+  fetchYouTubeMetrics: jest.fn(),
+  fetchYouTubeMetricsBatch: jest.fn().mockResolvedValue(new Map()),
+  fetchTikTokMetrics: jest.fn(),
+  fetchInstagramMetrics: jest.fn(),
 }));
 
 import { db } from "@/lib/db";

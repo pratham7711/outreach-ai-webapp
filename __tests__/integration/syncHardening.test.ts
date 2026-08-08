@@ -13,8 +13,12 @@ jest.mock("@/lib/db", () => ({
 }));
 
 jest.mock("@/lib/platforms/fetchPostMetrics", () => ({
+  ...jest.requireActual("@/lib/platforms/fetchPostMetrics"),
   fetchPostMetrics: jest.fn(),
-  hasMetricCounts: jest.requireActual("@/lib/platforms/fetchPostMetrics").hasMetricCounts,
+  fetchYouTubeMetrics: jest.fn(),
+  fetchYouTubeMetricsBatch: jest.fn().mockResolvedValue(new Map()),
+  fetchTikTokMetrics: jest.fn(),
+  fetchInstagramMetrics: jest.fn(),
 }));
 
 import { db } from "@/lib/db";
@@ -256,10 +260,11 @@ describe("cron sync hardening — per-platform budgets", () => {
     const res = await cronSync(cronReq());
     const body = await res.json();
 
+    const fetchedUrls = mockFetch.mock.calls.map((call) => call[0]);
     expect(mockFetch).toHaveBeenCalledTimes(2);
-    expect(mockFetch).toHaveBeenCalledWith("https://www.tiktok.com/@u/video/1");
-    expect(mockFetch).toHaveBeenCalledWith("https://www.youtube.com/watch?v=abc123");
-    expect(mockFetch).not.toHaveBeenCalledWith("https://www.tiktok.com/@u/video/2");
+    expect(fetchedUrls).toContain("https://www.tiktok.com/@u/video/1");
+    expect(fetchedUrls).toContain("https://www.youtube.com/watch?v=abc123");
+    expect(fetchedUrls).not.toContain("https://www.tiktok.com/@u/video/2");
     expect(body.skippedForBudget).toBe(1);
     expect(body.synced).toBe(2);
   });

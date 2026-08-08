@@ -18,6 +18,11 @@ jest.mock('@/lib/db', () => ({
 jest.mock('@/lib/auth', () => ({ auth: jest.fn() }));
 
 jest.mock('@/lib/platforms/fetchPostMetrics', () => ({
+  ...jest.requireActual('@/lib/platforms/fetchPostMetrics'),
+  fetchYouTubeMetrics: jest.fn(),
+  fetchYouTubeMetricsBatch: jest.fn().mockResolvedValue(new Map()),
+  fetchTikTokMetrics: jest.fn(),
+  fetchInstagramMetrics: jest.fn(),
   fetchPostMetrics: jest.fn().mockResolvedValue({
     platform: 'YOUTUBE',
     platformPostId: 'abc123',
