@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Card, Badge, Button, StatCard, Skeleton, EmptyState, Input, Modal } from "@pratham7711/ui";
+import { Card, Badge, Button, Skeleton, EmptyState, Input, Modal } from "@pratham7711/ui";
+import { MetricTile } from "@/components/ds";
 import { toast } from "sonner";
 import { DollarSign, Clock, CheckCircle, XCircle, Plus, Banknote } from "lucide-react";
 import { formatDateAbs } from "@/lib/format";
@@ -148,26 +149,10 @@ export default function PortalPayoutRequestsPage() {
 
       {/* Stats */}
       <div className="rsp-grid-tiles" style={{ marginBottom: 32 }}>
-        <StatCard
-          value={formatCurrency(totalRequested)}
-          label="Total Requested"
-          icon={<DollarSign size={18} />}
-        />
-        <StatCard
-          value={String(pendingCount)}
-          label="Pending"
-          icon={<Clock size={18} />}
-        />
-        <StatCard
-          value={String(approvedCount)}
-          label="Approved"
-          icon={<CheckCircle size={18} />}
-        />
-        <StatCard
-          value={String(rejectedCount)}
-          label="Rejected"
-          icon={<XCircle size={18} />}
-        />
+        <MetricTile metric="portalTotalRequested" value={formatCurrency(totalRequested)} />
+        <MetricTile metric="requestsPending" label="Pending" value={String(pendingCount)} />
+        <MetricTile metric="portalApproved" value={String(approvedCount)} />
+        <MetricTile metric="portalRejected" value={String(rejectedCount)} />
       </div>
 
       {/* Requests List */}

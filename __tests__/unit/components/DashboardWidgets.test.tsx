@@ -1,7 +1,7 @@
 /**
  * @jest-environment jsdom
  */
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 
 jest.mock("@pratham7711/ui", () => ({
   Card: ({ children, ...props }: any) => <div data-testid="card" {...props}>{children}</div>,
@@ -79,42 +79,47 @@ afterEach(() => {
 describe("DashboardClient — widget gating via dashboardWidgets", () => {
   it("renders every widget section when all keys are present", async () => {
     render(<DashboardClient {...baseProps} dashboardWidgets={ALL_WIDGETS} />);
-    expect(await screen.findByText("Total Spend")).toBeInTheDocument();
-    expect(screen.getByText("Active Campaigns")).toBeInTheDocument();
-    expect(screen.getByText("Spend & Views Over Time")).toBeInTheDocument();
-    expect(screen.getByText("Platform Breakdown")).toBeInTheDocument();
-    expect(screen.getByText("Top Posts")).toBeInTheDocument();
-    expect(screen.getByText("Spend by Campaign")).toBeInTheDocument();
-    expect(screen.getByText("Creator Performance")).toBeInTheDocument();
+    expect(await screen.findByText("Total spend")).toBeInTheDocument();
+    expect(screen.getByText("Active campaigns")).toBeInTheDocument();
+    expect(screen.getByText("Spend and views over time")).toBeInTheDocument();
+
+    // Performance widgets live behind the Performance tab.
+    fireEvent.click(screen.getByRole("tab", { name: /Performance/i }));
+    expect(await screen.findByText("Views by platform")).toBeInTheDocument();
+    expect(screen.getByText("Top posts")).toBeInTheDocument();
+    expect(screen.getByText("Spend by campaign")).toBeInTheDocument();
+    expect(screen.getByText("Creator performance")).toBeInTheDocument();
   });
 
   it("hides the KPI grid when kpi_grid is absent", async () => {
     render(<DashboardClient {...baseProps} dashboardWidgets={["views_over_time"]} />);
-    expect(await screen.findByText("Spend & Views Over Time")).toBeInTheDocument();
-    expect(screen.queryByText("Total Spend")).not.toBeInTheDocument();
-    expect(screen.queryByText("Active Campaigns")).not.toBeInTheDocument();
+    expect(await screen.findByText("Spend and views over time")).toBeInTheDocument();
+    expect(screen.queryByText("Total spend")).not.toBeInTheDocument();
+    expect(screen.queryByText("Active campaigns")).not.toBeInTheDocument();
   });
 
   it("hides the spend-over-time chart when views_over_time is absent", async () => {
     render(<DashboardClient {...baseProps} dashboardWidgets={["kpi_grid"]} />);
-    expect(await screen.findByText("Total Spend")).toBeInTheDocument();
-    expect(screen.queryByText("Spend & Views Over Time")).not.toBeInTheDocument();
+    expect(await screen.findByText("Total spend")).toBeInTheDocument();
+    expect(screen.queryByText("Spend and views over time")).not.toBeInTheDocument();
   });
 
   it("falls back to all default widgets when dashboardWidgets is null", async () => {
     render(<DashboardClient {...baseProps} dashboardWidgets={null} />);
-    expect(await screen.findByText("Total Spend")).toBeInTheDocument();
-    expect(screen.getByText("Spend & Views Over Time")).toBeInTheDocument();
-    expect(screen.getByText("Platform Breakdown")).toBeInTheDocument();
-    expect(screen.getByText("Top Posts")).toBeInTheDocument();
-    expect(screen.getByText("Creator Performance")).toBeInTheDocument();
+    expect(await screen.findByText("Total spend")).toBeInTheDocument();
+    expect(screen.getByText("Spend and views over time")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: /Performance/i }));
+    expect(await screen.findByText("Views by platform")).toBeInTheDocument();
+    expect(screen.getByText("Top posts")).toBeInTheDocument();
+    expect(screen.getByText("Creator performance")).toBeInTheDocument();
   });
 
   it("renders only the header chrome when dashboardWidgets is an empty array", async () => {
     render(<DashboardClient {...baseProps} dashboardWidgets={[]} />);
     expect(await screen.findByText("Dashboard")).toBeInTheDocument();
-    expect(screen.queryByText("Total Spend")).not.toBeInTheDocument();
-    expect(screen.queryByText("Spend & Views Over Time")).not.toBeInTheDocument();
-    expect(screen.queryByText("Platform Breakdown")).not.toBeInTheDocument();
+    expect(screen.queryByText("Total spend")).not.toBeInTheDocument();
+    expect(screen.queryByText("Spend and views over time")).not.toBeInTheDocument();
+    expect(screen.queryByText("Views by platform")).not.toBeInTheDocument();
   });
 });

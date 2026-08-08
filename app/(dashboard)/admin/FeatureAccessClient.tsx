@@ -7,6 +7,7 @@ import Link from "next/link";
 import { Button, Input, Badge, EmptyState, Card, Avatar } from "@pratham7711/ui";
 import ClientFeatureModal from "@/components/modals/ClientFeatureModal";
 import { FEATURES, type FeatureKey } from "@/lib/features";
+import { useConfirm } from "@/components/ds";
 
 const featureKeys = Object.keys(FEATURES) as FeatureKey[];
 
@@ -51,6 +52,7 @@ function getOverrideCount(client: ClientData): number {
 
 export default function FeatureAccessClient({ clients: initialClients, plans }: FeatureAccessClientProps) {
   const router = useRouter();
+  const confirm = useConfirm();
   const [tab, setTab] = useState<"all" | "by-plan" | "overrides">("all");
   const [search, setSearch] = useState("");
   const [selectedClient, setSelectedClient] = useState<ClientData | null>(null);
@@ -117,7 +119,12 @@ export default function FeatureAccessClient({ clients: initialClients, plans }: 
 
   async function handleBulkClearOverrides() {
     if (selected.size === 0) return;
-    if (!confirm(`Clear all feature overrides for ${selected.size} client(s)?`)) return;
+    const ok = await confirm({
+      title: `Clear overrides for ${selected.size} ${selected.size === 1 ? "client" : "clients"}?`,
+      description: `Each selected client falls back to whatever their assigned plan allows. Any per-client exceptions you set are lost. This cannot be undone.`,
+      confirmLabel: "Clear overrides",
+    });
+    if (!ok) return;
     setBulkSaving(true);
     try {
       const res = await fetch("/api/clients/bulk-plan", {

@@ -247,6 +247,7 @@ export default function InboxClient() {
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
                         <span
+                          title={c.creatorUser.name}
                           style={{
                             fontSize: 14,
                             fontWeight: 600,
@@ -264,6 +265,7 @@ export default function InboxClient() {
                       </div>
                       <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
                         <span
+                          title={c.lastMessage?.body ?? undefined}
                           style={{
                             flex: 1,
                             fontSize: 12,

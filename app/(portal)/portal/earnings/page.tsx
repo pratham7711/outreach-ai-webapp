@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Card, Badge, Button, StatCard, EmptyState, Skeleton } from "@pratham7711/ui";
+import { Card, Badge, Button, EmptyState, Skeleton } from "@pratham7711/ui";
+import { MetricTile } from "@/components/ds";
 import { toast } from "sonner";
 import { Wallet, Clock, Info } from "lucide-react";
 
@@ -121,8 +122,8 @@ export default function PortalEarningsPage() {
 
       {/* Totals */}
       <div className="rsp-grid-2" style={{ marginBottom: 32 }}>
-        <StatCard value={fmtMoney(totalApprovedMinor)} label="Available balance (approved)" icon={<Wallet size={18} />} />
-        <StatCard value={fmtMoney(totalPendingMinor)} label="Pending review" icon={<Clock size={18} />} />
+        <MetricTile metric="portalAvailableBalance" label="Available balance (approved)" value={fmtMoney(totalApprovedMinor)} />
+        <MetricTile metric="portalPendingReview" value={fmtMoney(totalPendingMinor)} />
       </div>
 
       {campaigns.length === 0 && !error ? (

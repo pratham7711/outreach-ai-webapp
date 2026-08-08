@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
-import { Button, Badge, Card, StatCard, Avatar, Skeleton, EmptyState } from "@pratham7711/ui";
+import { Button, Badge, Card, Avatar, Skeleton, EmptyState } from "@pratham7711/ui";
+import { MetricTile } from "@/components/ds";
 import { StatusTabs } from "@/components/ds";
 import { formatDateAbs } from "@/lib/format";
 import { Inbox } from "lucide-react";
@@ -112,10 +113,10 @@ export default function RequestsPage() {
         </div>
       ) : (
         <div className="rsp-grid-tiles" style={{ marginBottom: 32 }}>
-          <StatCard value={String(totalRequests)} label="Total Requests" />
-          <StatCard value={String(pendingCount)} label="Pending" />
-          <StatCard value={formatCurrency(approvedTotal)} label="Approved Amount" />
-          <StatCard value={String(rejectedCount)} label="Rejected" />
+          <MetricTile metric="requestsTotal" value={String(totalRequests)} />
+          <MetricTile metric="requestsPending" value={String(pendingCount)} />
+          <MetricTile metric="requestsApprovedAmount" value={formatCurrency(approvedTotal)} />
+          <MetricTile metric="requestsRejected" value={String(rejectedCount)} />
         </div>
       )}
 
@@ -189,7 +190,7 @@ export default function RequestsPage() {
                 <Avatar name={creatorName} size="sm" />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 600, fontSize: 14, color: "var(--cc-text)" }}>{creatorName}</div>
-                  <div style={{ fontSize: 12, color: "var(--cc-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  <div title={r.campaign?.title ?? undefined} style={{ fontSize: 12, color: "var(--cc-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {r.campaign?.title ?? "Unknown campaign"}
                   </div>
                 </div>

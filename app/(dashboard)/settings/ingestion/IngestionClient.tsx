@@ -1,7 +1,8 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { CheckCircle2 } from "lucide-react";
-import { Card, Badge, Button, StatCard, EmptyState, Skeleton } from "@pratham7711/ui";
+import { Card, Badge, Button, EmptyState, Skeleton } from "@pratham7711/ui";
+import { MetricTile } from "@/components/ds";
 import { formatDateAbs, formatDateTimeAbs } from "@/lib/format";
 
 type PlatformStats = {
@@ -101,10 +102,10 @@ export default function IngestionClient() {
                   </span>
                 </div>
                 <div className="rsp-grid-tiles">
-                  <StatCard value={String(p.total)} label="Total posts" />
-                  <StatCard value={String(p.syncedLast24h)} label="Synced last 24h" />
-                  <StatCard value={String(p.neverSynced)} label="Never synced" />
-                  <StatCard value={String(p.deadLettered)} label="Dead-lettered" />
+                  <MetricTile metric="ingestionTotalPosts" value={String(p.total)} />
+                  <MetricTile metric="ingestionSynced24h" value={String(p.syncedLast24h)} />
+                  <MetricTile metric="ingestionNeverSynced" value={String(p.neverSynced)} />
+                  <MetricTile metric="ingestionDeadLettered" value={String(p.deadLettered)} />
                 </div>
               </div>
             ))}
@@ -137,6 +138,7 @@ export default function IngestionClient() {
                               href={p.postUrl}
                               target="_blank"
                               rel="noreferrer"
+                              title={p.postUrl}
                               style={{ color: "var(--cc-primary)", textDecoration: "none", display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
                             >
                               {p.postUrl}

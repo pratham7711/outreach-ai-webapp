@@ -6,7 +6,7 @@ import Link from "next/link";
 import { Button, Card, Badge, Input, EmptyState, Avatar, Tooltip } from "@pratham7711/ui";
 import { StatusTabs } from "@/components/ds";
 import CampaignWizard from "@/components/modals/CampaignWizard";
-import { formatCompactCurrency } from "@/lib/format";
+import { formatCompactCurrency, timeAgo } from "@/lib/format";
 
 type Campaign = {
   id: string;
@@ -39,17 +39,6 @@ const STATUS_BADGE_VARIANT: Record<string, "warning" | "accent" | "success" | "d
 
 function formatCurrency(n: number) {
   return formatCompactCurrency(n);
-}
-
-function timeAgo(date?: string) {
-  if (!date) return "Recently";
-  const diff = Date.now() - new Date(date).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 60) return `${mins}m ago`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
 }
 
 export default function CampaignsClient({
@@ -182,7 +171,7 @@ export default function CampaignsClient({
 
                   {/* Campaign Name + Last Updated */}
                   <div style={{ flex: 1, minWidth: 160 }}>
-                    <p style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)", marginBottom: 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    <p title={campaign.title} style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)", marginBottom: 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                       {campaign.title}
                     </p>
                     <p style={{ fontSize: 12, color: "var(--cc-text-subtle)" }}>

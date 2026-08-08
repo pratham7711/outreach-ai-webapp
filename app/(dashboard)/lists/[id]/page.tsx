@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Card, Button, Badge, Avatar, EmptyState, Skeleton, Input } from "@pratham7711/ui";
 import { toast } from "sonner";
 import { formatCompact, stripAt, formatDateAbs } from "@/lib/format";
+import { useConfirm } from "@/components/ds";
 
 type CreatorItem = {
   id: string;
@@ -31,6 +32,7 @@ function formatNumber(n: number) {
 export default function ListDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
+  const confirm = useConfirm();
   const [list, setList] = useState<ListDetail | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -45,7 +47,12 @@ export default function ListDetailPage({ params }: { params: Promise<{ id: strin
   useEffect(() => { fetchList(); }, [id]);
 
   const handleRemoveCreator = async (itemId: string, creatorId: string) => {
-    if (!confirm("Remove this creator from the list?")) return;
+    const ok = await confirm({
+      title: "Remove this creator from the list?",
+      description: "The creator stays in your roster — only their place on this list is removed.",
+      confirmLabel: "Remove",
+    });
+    if (!ok) return;
     try {
       const res = await fetch(`/api/lists/${id}/creators/${creatorId}`, { method: "DELETE" });
       if (res.ok) {
@@ -58,7 +65,13 @@ export default function ListDetailPage({ params }: { params: Promise<{ id: strin
   };
 
   const handleDeleteList = async () => {
-    if (!confirm("Delete this entire list? This cannot be undone.")) return;
+    const ok = await confirm({
+      title: "Delete this entire list?",
+      description:
+        "The list and its ordering are deleted permanently. The creators on it stay in your roster. This cannot be undone.",
+      confirmLabel: "Delete list",
+    });
+    if (!ok) return;
     try {
       const res = await fetch(`/api/lists/${id}`, { method: "DELETE" });
       if (res.ok) {

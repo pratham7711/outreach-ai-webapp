@@ -90,6 +90,14 @@ export default function CampaignComparison({
 
   const titleById = Object.fromEntries((resp?.campaigns ?? []).map((c) => [c.id, c.title]));
 
+  const colorById = React.useMemo(
+    () =>
+      Object.fromEntries(
+        campaigns.map((c, i) => [c.id, SERIES_COLORS[i % SERIES_COLORS.length]])
+      ) as Record<string, string>,
+    [campaigns]
+  );
+
   return (
     <Card variant="outlined" style={{ padding: 24, marginBottom: 24 }}>
       <style>{`.cmp-chart{height:220px;margin-bottom:24px}@media(min-width:768px){.cmp-chart{height:300px}}`}</style>
@@ -112,6 +120,7 @@ export default function CampaignComparison({
                   type="button"
                   disabled={atLimit}
                   onClick={() => toggle(c.id)}
+                  title={c.title}
                   style={{
                     border: isSel ? "1.5px solid var(--cc-primary)" : "1px solid var(--cc-border)",
                     background: isSel ? "var(--cc-primary)" : "var(--cc-card)",
@@ -147,7 +156,12 @@ export default function CampaignComparison({
           ) : (
             <>
               <div className="cmp-chart">
-                <CampaignComparisonLine series={resp.series} selected={selected} titleById={titleById} />
+                <CampaignComparisonLine
+                  series={resp.series}
+                  selected={selected}
+                  titleById={titleById}
+                  colorById={colorById}
+                />
               </div>
 
               <div className="rsp-table-wrap">
@@ -177,7 +191,7 @@ export default function CampaignComparison({
                       <tr key={row.id} style={{ borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined }}>
                         <td style={{ padding: "10px 12px" }}>
                           <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                            <span style={{ width: 10, height: 10, borderRadius: 3, background: SERIES_COLORS[i % SERIES_COLORS.length], flexShrink: 0 }} />
+                            <span style={{ width: 10, height: 10, borderRadius: 3, background: colorById[row.id] ?? SERIES_COLORS[0], flexShrink: 0 }} />
                             <span style={{ fontWeight: 600, color: "var(--cc-text)" }}>{row.title}</span>
                           </span>
                         </td>

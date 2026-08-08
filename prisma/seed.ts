@@ -53,7 +53,7 @@ async function main() {
       uiConfig: {
         features: { soundTracker: true, creatorPortal: false, aiBriefings: false, reports: true, csvExport: true },
         nav: ["campaigns", "creators", "payouts", "analytics", "trackers", "lists", "activations", "calendar", "clients", "discovery", "fan-pages", "requests", "recipients"],
-        branding: { primaryColor: "#6366f1", brandName: "Outreach AI" },
+        branding: { brandName: "Outreach AI" },
         limits: { maxCampaigns: 50, maxCreators: 500, maxUsers: 10 },
         platforms: { tiktok: true, instagram: true, youtube: true },
         dashboard: ["kpi_grid", "views_over_time", "platform_breakdown", "top_posts", "financial_summary", "creator_performance"],

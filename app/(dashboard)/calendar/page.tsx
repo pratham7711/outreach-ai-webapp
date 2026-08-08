@@ -170,7 +170,7 @@ export default function CalendarPage() {
                         {format(day, "d")}
                       </span>
                       {campaignCreated.map((c, ci) => (
-                        <div key={c.id} className={ci >= 2 ? "cal-chip cal-chip-extra" : "cal-chip"} style={{
+                        <div key={c.id} title={c.title} className={ci >= 2 ? "cal-chip cal-chip-extra" : "cal-chip"} style={{
                           minWidth: 0,
                           marginTop: 2, padding: "1px 4px", borderRadius: 3, fontSize: 9, fontWeight: 500,
                           background: `${STATUS_COLORS[c.status] ?? "var(--cc-primary)"}20`,

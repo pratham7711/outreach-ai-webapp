@@ -7,6 +7,16 @@ import {
 type PieDatum = { name?: string; value: number; fill?: string };
 type BarDatum = { name: string; views: number; likes: number };
 
+const axisTick = { fontSize: 12, fill: "var(--muted-foreground)" } as const;
+
+const chartTooltipStyle: React.CSSProperties = {
+  background: "var(--popover)",
+  border: "1px solid var(--border)",
+  borderRadius: 12,
+  color: "var(--popover-foreground)",
+  fontSize: 13,
+};
+
 export function PlatformViewsPie({
   data,
   formatNumber,
@@ -22,6 +32,10 @@ export function PlatformViewsPie({
             <Cell key={i} fill={entry.fill} />
           ))}
         </Pie>
+        <Tooltip
+          contentStyle={chartTooltipStyle}
+          formatter={(v: any, name: any) => [`${formatNumber(Number(v ?? 0))} views`, String(name)]}
+        />
         <Legend verticalAlign="bottom" height={24} wrapperStyle={{ fontSize: 12 }} formatter={(value: any) => <span style={{ color: "var(--cc-text-muted)" }}>{value}</span>} />
       </PieChart>
     </ResponsiveContainer>
@@ -37,13 +51,33 @@ export function CreatorPerformanceBar({
 }) {
   return (
     <ResponsiveContainer width="100%" height="100%">
-      <BarChart data={data}>
-        <CartesianGrid strokeDasharray="3 3" stroke="var(--cc-border)" />
-        <XAxis dataKey="name" tick={{ fontSize: 12, fill: "var(--cc-text-muted)" }} />
-        <YAxis tick={{ fontSize: 12, fill: "var(--cc-text-muted)" }} tickFormatter={(v) => formatNumber(v)} />
-        <Tooltip formatter={(v: any) => formatNumber(Number(v ?? 0))} contentStyle={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12 }} />
-        <Bar dataKey="views" fill="var(--cc-primary)" radius={[4, 4, 0, 0]} />
-        <Bar dataKey="likes" fill="#10B981" radius={[4, 4, 0, 0]} />
+      <BarChart data={data} margin={{ top: 4, right: 0, bottom: 0, left: -8 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
+        <XAxis dataKey="name" tick={axisTick} axisLine={false} tickLine={false} />
+        <YAxis
+          yAxisId="views"
+          tick={{ ...axisTick, fill: "var(--chart-1)" }}
+          axisLine={false}
+          tickLine={false}
+          width={52}
+          tickFormatter={(v) => formatNumber(v)}
+        />
+        <YAxis
+          yAxisId="likes"
+          orientation="right"
+          tick={{ ...axisTick, fill: "var(--chart-3)" }}
+          axisLine={false}
+          tickLine={false}
+          width={44}
+          tickFormatter={(v) => formatNumber(v)}
+        />
+        <Tooltip
+          contentStyle={chartTooltipStyle}
+          formatter={(v: any, name: any) => [formatNumber(Number(v ?? 0)), String(name)]}
+        />
+        <Legend verticalAlign="top" height={24} wrapperStyle={{ fontSize: 12 }} />
+        <Bar yAxisId="views" dataKey="views" name="Views" fill="var(--chart-1)" radius={[4, 4, 0, 0]} />
+        <Bar yAxisId="likes" dataKey="likes" name="Likes" fill="var(--chart-3)" radius={[4, 4, 0, 0]} />
       </BarChart>
     </ResponsiveContainer>
   );

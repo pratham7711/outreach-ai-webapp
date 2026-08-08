@@ -416,7 +416,7 @@ export default function DiscoveryPage() {
                 <Avatar name={c.name} size="md" />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 700, fontSize: 14, color: "var(--cc-text)" }}>{c.name}</div>
-                  <div style={{ fontSize: 13, color: "var(--cc-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>@{stripAt(c.handle)}</div>
+                  <div title={`@${stripAt(c.handle)}`} style={{ fontSize: 13, color: "var(--cc-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>@{stripAt(c.handle)}</div>
                 </div>
                 <Badge variant="neutral" style={{ fontSize: 10 }}>{platformLabel(c.platform)}</Badge>
               </div>

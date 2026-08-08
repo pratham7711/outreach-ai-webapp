@@ -207,13 +207,13 @@ export default function PortalMessagesClient() {
                   <Avatar name={c.org.name} src={c.org.logoUrl ?? undefined} size="sm" />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                      <span style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      <span title={c.org.name} style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {c.org.name}
                       </span>
                       <span style={{ fontSize: 11, color: "var(--cc-text-muted)", flexShrink: 0 }}>{formatTime(c.lastMessageAt)}</span>
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
-                      <span style={{ flex: 1, fontSize: 12, color: "var(--cc-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      <span title={c.lastMessage?.body ?? undefined} style={{ flex: 1, fontSize: 12, color: "var(--cc-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {c.lastMessage?.body ?? "No messages yet"}
                       </span>
                       {c.unreadCount > 0 && <Badge variant="accent">{c.unreadCount}</Badge>}

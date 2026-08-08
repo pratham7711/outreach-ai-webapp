@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Plus, Lock, AlertTriangle, Folder } from "lucide-react";
 import { Button, Modal, Input, EmptyState, Card, Badge, LoadingSpinner } from "@pratham7711/ui";
 import { formatDateAbs } from "@/lib/format";
+import { useConfirm } from "@/components/ds";
 
 interface MediaKit {
   id: string;
@@ -17,6 +18,7 @@ interface MediaKit {
 }
 
 export default function MediaKitsPage() {
+  const confirm = useConfirm();
   const [kits, setKits] = useState<MediaKit[]>([]);
   const [loading, setLoading] = useState(true);
   const [featureDisabled, setFeatureDisabled] = useState(false);
@@ -80,7 +82,13 @@ export default function MediaKitsPage() {
   }
 
   async function deleteKit(id: string) {
-    if (!confirm("Delete this media kit?")) return;
+    const ok = await confirm({
+      title: "Delete this media kit?",
+      description:
+        "Anyone holding a share link to this kit will no longer be able to open it. This cannot be undone.",
+      confirmLabel: "Delete kit",
+    });
+    if (!ok) return;
     try {
       const res = await fetch(`/api/media-kits/${id}`, { method: "DELETE" });
       if (res.status === 403) {

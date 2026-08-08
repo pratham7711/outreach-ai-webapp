@@ -3,7 +3,8 @@
 import { useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Search, ArrowRight, Check, Banknote } from "lucide-react";
-import { Button, Card, Badge, StatCard, EmptyState, Input, Avatar } from "@pratham7711/ui";
+import { Button, Card, Badge, EmptyState, Input, Avatar } from "@pratham7711/ui";
+import { MetricTile, useConfirm } from "@/components/ds";
 import { StatusTabs } from "@/components/ds";
 import { toast } from "sonner";
 import AddPayoutModal from "@/components/modals/AddPayoutModal";
@@ -57,6 +58,7 @@ export default function PayoutsClient({ payouts, stats, creators, campaigns }: {
   campaigns: Campaign[];
 }) {
   const router = useRouter();
+  const confirm = useConfirm();
   const [showModal, setShowModal] = useState(false);
   const [detailPayout, setDetailPayout] = useState<Payout | null>(null);
   const [search, setSearch] = useState("");
@@ -91,7 +93,13 @@ export default function PayoutsClient({ payouts, stats, creators, campaigns }: {
   };
 
   const handleStatusChange = async (id: string, status: string) => {
-    if (!confirm(`Change status to ${status}?`)) return;
+    const ok = await confirm({
+      title: `Change status to ${status.toLowerCase()}?`,
+      description: "This updates the payout record for everyone in your organisation.",
+      confirmLabel: "Change status",
+      tone: "default",
+    });
+    if (!ok) return;
     setTransitioning((prev) => new Set(prev).add(id));
     try {
       const res = await fetch(`/api/payouts/${id}`, {
@@ -116,7 +124,13 @@ export default function PayoutsClient({ payouts, stats, creators, campaigns }: {
 
   const handleBulkAction = async (status: string) => {
     const ids = Array.from(selected);
-    if (!confirm(`Update ${ids.length} payouts to ${status}?`)) return;
+    const ok = await confirm({
+      title: `Update ${ids.length} ${ids.length === 1 ? "payout" : "payouts"}?`,
+      description: `All ${ids.length} selected ${ids.length === 1 ? "payout" : "payouts"} will be set to ${status.toLowerCase()}.`,
+      confirmLabel: "Update all",
+      tone: "default",
+    });
+    if (!ok) return;
     try {
       const res = await fetch("/api/payouts/bulk", {
         method: "POST",
@@ -177,10 +191,10 @@ export default function PayoutsClient({ payouts, stats, creators, campaigns }: {
         }
       `}</style>
       <div className="cc-stagger payout-tiles" style={{ marginBottom: 32 }}>
-        <StatCard value={formatCurrency(stats.sent)} label="Total Paid" />
-        <StatCard value={formatCurrency(stats.pending)} label="Pending" />
-        <StatCard value={formatCurrency(stats.processing)} label="Processing" />
-        <StatCard value={formatCurrency(stats.failed)} label="Failed" />
+        <MetricTile metric="totalPaid" value={formatCurrency(stats.sent)} />
+        <MetricTile metric="pendingPayouts" value={formatCurrency(stats.pending)} />
+        <MetricTile metric="processingPayouts" value={formatCurrency(stats.processing)} />
+        <MetricTile metric="failedPayouts" value={formatCurrency(stats.failed)} />
       </div>
 
       {/* Search + Status Filter */}

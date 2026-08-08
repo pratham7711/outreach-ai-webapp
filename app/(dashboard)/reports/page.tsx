@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Plus, Lock, AlertTriangle, BarChart3 } from "lucide-react";
 import { Button, Modal, Input, Badge, EmptyState, Card, LoadingSpinner } from "@pratham7711/ui";
 import { formatDateAbs } from "@/lib/format";
+import { useConfirm } from "@/components/ds";
 
 interface Report {
   id: string;
@@ -17,6 +18,7 @@ interface Report {
 }
 
 export default function ReportsPage() {
+  const confirm = useConfirm();
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
   const [featureDisabled, setFeatureDisabled] = useState(false);
@@ -102,7 +104,13 @@ export default function ReportsPage() {
   }
 
   async function deleteReport(id: string) {
-    if (!confirm("Delete this report?")) return;
+    const ok = await confirm({
+      title: "Delete this report?",
+      description:
+        "Any share link to this report stops working immediately. The underlying campaign data is not affected. This cannot be undone.",
+      confirmLabel: "Delete report",
+    });
+    if (!ok) return;
     try {
       const res = await fetch(`/api/reports/${id}`, { method: "DELETE" });
       if (res.status === 403) {

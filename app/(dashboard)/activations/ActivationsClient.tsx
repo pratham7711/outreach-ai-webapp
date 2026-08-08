@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Zap } from "lucide-react";
-import { Button, Badge, StatCard, EmptyState, Card, Avatar, Modal, Input } from "@pratham7711/ui";
+import { Button, Badge, EmptyState, Card, Avatar, Modal, Input } from "@pratham7711/ui";
+import { MetricTile } from "@/components/ds";
 import { toast } from "sonner";
 import { stripAt } from "@/lib/format";
 
@@ -119,10 +120,10 @@ export default function ActivationsClient({ activations, stats, creators, campai
 
       {/* Stats */}
       <div className="rsp-grid-tiles" style={{ marginBottom: 32 }}>
-        <StatCard value={String(stats.total)} label="Total" />
-        <StatCard value={String(stats.active)} label="Active" />
-        <StatCard value={String(activations.filter(a => a.status === "AWAITING_DRAFT" || a.status === "AWAITING_APPROVAL").length)} label="Pending" />
-        <StatCard value={String(activations.filter(a => a.status === "COMPLETE").length)} label="Complete" />
+        <MetricTile metric="activationsTotal" value={String(stats.total)} />
+        <MetricTile metric="activationsActive" value={String(stats.active)} />
+        <MetricTile metric="activationsPending" value={String(activations.filter(a => a.status === "AWAITING_DRAFT" || a.status === "AWAITING_APPROVAL").length)} />
+        <MetricTile metric="activationsComplete" value={String(activations.filter(a => a.status === "COMPLETE").length)} />
       </div>
 
       {activations.length === 0 ? (
@@ -152,7 +153,7 @@ export default function ActivationsClient({ activations, stats, creators, campai
                           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
                             <Avatar name={a.creator.name} size="sm" />
                             <div style={{ flex: 1, minWidth: 0 }}>
-                              <p style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.creator.name}</p>
+                              <p title={a.creator.name} style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.creator.name}</p>
                               <p style={{ fontSize: 11, color: "var(--cc-text-muted)", margin: 0 }}>@{stripAt(a.creator.handle)}</p>
                             </div>
                           </div>

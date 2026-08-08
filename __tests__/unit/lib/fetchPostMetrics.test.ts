@@ -14,9 +14,9 @@ describe("detectPlatform", () => {
   });
 
   it("detects YouTube watch, shorts and youtu.be URLs", () => {
-    expect(detectPlatform("https://youtube.com/watch?v=abc123")?.platform).toBe("YOUTUBE");
-    expect(detectPlatform("https://youtube.com/shorts/xyz789")?.platform).toBe("YOUTUBE");
-    expect(detectPlatform("https://youtu.be/def456")?.platform).toBe("YOUTUBE");
+    expect(detectPlatform("https://youtube.com/watch?v=abc123XYZ_1")?.platform).toBe("YOUTUBE");
+    expect(detectPlatform("https://youtube.com/shorts/xyz789ABC-2")?.platform).toBe("YOUTUBE");
+    expect(detectPlatform("https://youtu.be/def456GHI_3")?.platform).toBe("YOUTUBE");
   });
 
   it("detects Instagram reel and post URLs", () => {
@@ -85,7 +85,7 @@ describe("fetchPostMetrics — unknown vs known counts", () => {
       }),
     }) as unknown as typeof fetch;
 
-    const m = (await fetchPostMetrics("https://youtu.be/abc123")) as PostMetrics;
+    const m = (await fetchPostMetrics("https://youtu.be/abc123XYZ_1")) as PostMetrics;
     expect(hasMetricCounts(m)).toBe(true);
     expect(m.viewsCount).toBe(1000);
     expect(m.likesCount).toBe(50);
@@ -94,7 +94,7 @@ describe("fetchPostMetrics — unknown vs known counts", () => {
 
   it("YouTube without an API key falls back to a no-counts stub", async () => {
     delete process.env.YOUTUBE_API_KEY;
-    const m = (await fetchPostMetrics("https://youtu.be/abc123")) as PostMetrics;
+    const m = (await fetchPostMetrics("https://youtu.be/abc123XYZ_1")) as PostMetrics;
     expect(hasMetricCounts(m)).toBe(false);
   });
 });

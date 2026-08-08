@@ -1,12 +1,14 @@
 "use client";
 import React, { useState, useEffect, useCallback } from "react";
-import { Card, StatCard, Badge, EmptyState, Skeleton, Avatar, Modal } from "@pratham7711/ui";
+import { Card, Badge, EmptyState, Skeleton, Avatar, Modal, Button } from "@pratham7711/ui";
+import { MetricTile } from "@/components/ds";
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   PieChart, Pie, Cell, Legend,
 } from "recharts";
-import { Eye, Heart, Percent, DollarSign, Target, TrendingUp, Share2, AlertTriangle, BarChart3, PieChart as PieChartIcon, Trophy } from "lucide-react";
+import { Eye, Heart, Percent, DollarSign, Target, TrendingUp, Share2, AlertTriangle, BarChart3, PieChart as PieChartIcon, Trophy, Download } from "lucide-react";
 import { formatCompact } from "@/lib/format";
+import { SPEND_METRIC_BY_SOURCE } from "@/lib/metric-definitions";
 import { platformColor } from "@/app/(dashboard)/analytics/shared";
 
 type Kpis = {
@@ -34,7 +36,7 @@ type LeaderboardRow = {
 
 type PerformanceData = {
   currency: string;
-  spendSource: "PAID_PAYOUTS" | "BUDGET";
+  spendSource: "PAID_PAYOUTS" | "ACCRUED_LEDGER" | "BUDGET";
   kpis: Kpis;
   timeSeries: TimeSeriesPoint[];
   platformSplit: PlatformSplit[];
@@ -227,7 +229,7 @@ function ShareModal({ campaignId, onClose }: { campaignId: string; onClose: () =
               onClick={revoke}
               disabled={busy}
               style={{
-                background: "var(--cc-card)", color: "#DC2626", border: "1.5px solid #DC2626",
+                background: "var(--cc-card)", color: "var(--status-critical)", border: "1.5px solid var(--status-critical)",
                 borderRadius: 8, padding: "8px 16px", fontSize: 14, fontWeight: 600,
                 cursor: busy ? "default" : "pointer", opacity: busy ? 0.6 : 1, alignSelf: "flex-start",
               }}
@@ -250,10 +252,66 @@ function ShareModal({ campaignId, onClose }: { campaignId: string; onClose: () =
         )}
 
         {error && (
-          <p style={{ fontSize: 13, color: "#DC2626", margin: 0 }}>
+          <p style={{ fontSize: 13, color: "var(--status-critical)", margin: 0 }}>
             Something went wrong. Please try again.
           </p>
         )}
+      </div>
+    </Modal>
+  );
+}
+
+type ExportFormat = "xlsx" | "csv" | "pdf";
+
+const EXPORT_FORMATS: { key: ExportFormat; label: string; hint: string }[] = [
+  { key: "xlsx", label: "Excel (.xlsx)", hint: "Summary, posts, creators and payouts as separate sheets" },
+  { key: "csv", label: "CSV (.csv)", hint: "Same sections in one plain-text file" },
+  { key: "pdf", label: "PDF (.pdf)", hint: "Formatted performance report" },
+];
+
+function ExportModal({ campaignId, onClose }: { campaignId: string; onClose: () => void }) {
+  const [format, setFormat] = useState<ExportFormat>("xlsx");
+
+  const download = () => {
+    window.location.assign(`/api/campaigns/${campaignId}/export?format=${format}`);
+    onClose();
+  };
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title="Export campaign data"
+      size="sm"
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button variant="primary" iconLeft={<Download size={15} />} onClick={download}>Download</Button>
+        </>
+      }
+    >
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <p style={{ fontSize: 14, color: "var(--cc-text-muted)", margin: 0, lineHeight: 1.6 }}>
+          Download the latest data for this campaign in your preferred format.
+        </p>
+        {EXPORT_FORMATS.map((f) => {
+          const selected = f.key === format;
+          return (
+            <button
+              key={f.key}
+              onClick={() => setFormat(f.key)}
+              aria-pressed={selected}
+              style={{
+                textAlign: "left", cursor: "pointer", borderRadius: 8, padding: 12,
+                background: selected ? "var(--cc-bg)" : "var(--cc-card)",
+                border: selected ? "1.5px solid var(--cc-primary)" : "1px solid var(--cc-border)",
+              }}
+            >
+              <span style={{ display: "block", fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>{f.label}</span>
+              <span style={{ display: "block", fontSize: 12, color: "var(--cc-text-muted)", marginTop: 4 }}>{f.hint}</span>
+            </button>
+          );
+        })}
       </div>
     </Modal>
   );
@@ -264,6 +322,7 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [showShare, setShowShare] = useState(false);
+  const [showExport, setShowExport] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -288,23 +347,28 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
 
   const { kpis, timeSeries, platformSplit, leaderboard, currency, spendSource } = data;
 
-  const shareButton = (
-    <button
-      onClick={() => setShowShare(true)}
-      style={{
-        display: "inline-flex", alignItems: "center", gap: 8,
-        background: "var(--cc-card)", color: "var(--cc-primary)", border: "1.5px solid var(--cc-primary)",
-        borderRadius: 8, padding: "8px 16px", fontSize: 14, fontWeight: 600, cursor: "pointer",
-      }}
-    >
-      <Share2 size={15} /> Share report
-    </button>
+  const headerActions = (
+    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <Button variant="secondary" iconLeft={<Download size={15} />} onClick={() => setShowExport(true)}>
+        Export
+      </Button>
+      <button
+        onClick={() => setShowShare(true)}
+        style={{
+          display: "inline-flex", alignItems: "center", gap: 8,
+          background: "var(--cc-card)", color: "var(--cc-primary)", border: "1.5px solid var(--cc-primary)",
+          borderRadius: 8, padding: "8px 16px", fontSize: 14, fontWeight: 600, cursor: "pointer",
+        }}
+      >
+        <Share2 size={15} /> Share report
+      </button>
+    </div>
   );
 
   if (kpis.views === 0 && leaderboard.length === 0 && timeSeries.length === 0) {
     return (
       <>
-        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}>{shareButton}</div>
+        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}>{headerActions}</div>
         <Card variant="outlined" style={{ padding: 32 }}>
           <EmptyState
             icon={<BarChart3 size={32} color="var(--cc-text-subtle)" />}
@@ -313,6 +377,7 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
           />
         </Card>
         {showShare && <ShareModal campaignId={campaignId} onClose={() => setShowShare(false)} />}
+        {showExport && <ExportModal campaignId={campaignId} onClose={() => setShowExport(false)} />}
       </>
     );
   }
@@ -328,22 +393,20 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
         .perf-tiles .ui-statcard { min-width: 0; }
         .perf-tiles .ui-statcard-value { overflow-wrap: anywhere; font-size: clamp(16px, 1.5vw, 22px); }
       `}</style>
-      <div style={{ display: "flex", justifyContent: "flex-end" }}>{shareButton}</div>
+      <div style={{ display: "flex", justifyContent: "flex-end" }}>{headerActions}</div>
       <div className="rsp-grid-tiles perf-tiles">
-        <StatCard value={formatNumber(kpis.views)} label="Views" icon={<Eye size={16} />} />
-        <StatCard value={formatNumber(kpis.engagements)} label="Engagements" icon={<Heart size={16} />} />
-        <StatCard value={engRateDisplay} label="Eng. Rate" icon={<Percent size={16} />} />
-        <StatCard
+        <MetricTile metric="views" value={formatNumber(kpis.views)} />
+        <MetricTile metric="engagements" value={formatNumber(kpis.engagements)} />
+        <MetricTile metric="engagementRate" label="Eng. rate" value={engRateDisplay} />
+        <MetricTile
+          metric={SPEND_METRIC_BY_SOURCE[spendSource]}
           value={formatCurrencyCompact(kpis.spend, currency)}
-          label={spendSource === "PAID_PAYOUTS" ? "Spend (paid)" : "Spend (budget)"}
-          icon={<DollarSign size={16} />}
         />
-        <StatCard
+        <MetricTile
+          metric="cpmCpe"
           value={`${formatCostMetric(kpis.cpm, currency)} / ${formatCostMetric(kpis.cpe, currency)}`}
-          label="CPM / CPE"
-          icon={<Target size={16} />}
         />
-        <StatCard value={formatCurrencyCompact(kpis.emv, currency)} label="EMV" icon={<TrendingUp size={16} />} />
+        <MetricTile metric="emv" value={formatCurrencyCompact(kpis.emv, currency)} />
       </div>
 
       <Card variant="outlined" style={{ padding: 24 }}>
@@ -454,7 +517,7 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
                 >
                   <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
                     <Avatar name={row.name} src={row.avatarUrl ?? undefined} size="sm" />
-                    <span style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.name}</span>
+                    <span title={row.name} style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.name}</span>
                   </div>
                   <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{row.posts}</span>
                   <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>{formatNumber(row.views)}</span>
@@ -472,6 +535,7 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
       </div>
 
       {showShare && <ShareModal campaignId={campaignId} onClose={() => setShowShare(false)} />}
+      {showExport && <ExportModal campaignId={campaignId} onClose={() => setShowExport(false)} />}
     </div>
   );
 }

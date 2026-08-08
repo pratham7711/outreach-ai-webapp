@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Plus, Pencil, Trash2, Users, ClipboardList } from "lucide-react";
 import { Button, Card, Modal, Input, Textarea, EmptyState, Badge } from "@pratham7711/ui";
 import { FEATURES, type FeatureKey } from "@/lib/features";
+import { useConfirm } from "@/components/ds";
 
 type Plan = {
   id: string;
@@ -167,17 +168,27 @@ function PlanModal({
 
 export default function PlansClient({ plans: initialPlans }: { plans: Plan[] }) {
   const router = useRouter();
+  const confirm = useConfirm();
   const [plans, setPlans] = useState(initialPlans);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [editingPlan, setEditingPlan] = useState<Plan | null>(null);
 
   async function handleDelete(id: string, clientCount: number) {
-    if (clientCount > 0) {
-      if (!confirm(`This plan has ${clientCount} client(s) assigned. They will be unassigned. Continue?`)) return;
-    } else {
-      if (!confirm("Delete this plan?")) return;
-    }
+    const ok = await confirm(
+      clientCount > 0
+        ? {
+            title: `Delete this plan and unassign ${clientCount} ${clientCount === 1 ? "client" : "clients"}?`,
+            description: `${clientCount === 1 ? "That client" : "Those clients"} will be left with no plan, so ${clientCount === 1 ? "their" : "their"} feature access falls back to the defaults until you assign a new plan. This cannot be undone.`,
+            confirmLabel: "Delete and unassign",
+          }
+        : {
+            title: "Delete this plan?",
+            description: "No clients are assigned to it, so nothing else changes. This cannot be undone.",
+            confirmLabel: "Delete plan",
+          },
+    );
+    if (!ok) return;
     setDeleting(id);
     try {
       const res = await fetch(`/api/plans/${id}`, { method: "DELETE" });

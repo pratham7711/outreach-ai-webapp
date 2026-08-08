@@ -7,6 +7,7 @@ import {
 import { BarChart3 } from "lucide-react";
 import type { CampaignPerformance } from "@/lib/reports/campaignPerformance";
 import { formatCompact } from "@/lib/format";
+import { METRIC_DEFINITIONS, SPEND_METRIC_BY_SOURCE } from "@/lib/metric-definitions";
 import { platformColor } from "@/app/(dashboard)/analytics/shared";
 
 const SERIES = [
@@ -148,7 +149,7 @@ export default function SharedPerformanceReport({
               <StatTile value={engRateDisplay} label="Eng. Rate" />
               <StatTile
                 value={formatCurrency(kpis.spend, currency)}
-                label={spendSource === "PAID_PAYOUTS" ? "Spend (paid)" : "Spend (budget)"}
+                label={METRIC_DEFINITIONS[SPEND_METRIC_BY_SOURCE[spendSource]].label}
               />
               <StatTile
                 value={`${kpis.cpm !== null ? formatCurrency(kpis.cpm, currency) : "—"} / ${kpis.cpe !== null ? formatCurrency(kpis.cpe, currency) : "—"}`}
@@ -307,7 +308,7 @@ export default function SharedPerformanceReport({
                                 row.name.charAt(0).toUpperCase()
                               )}
                             </div>
-                            <span style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.name}</span>
+                            <span title={row.name} style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.name}</span>
                           </div>
                           <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{row.posts}</span>
                           <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>{formatNumber(row.views)}</span>

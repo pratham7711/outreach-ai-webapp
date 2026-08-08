@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from "react";
 import dynamic from "next/dynamic";
 import { Card, Badge, Skeleton, EmptyState, Button } from "@pratham7711/ui";
+import { MetricTile } from "@/components/ds";
 import { TrendingUp, TrendingDown, Minus, DollarSign, Wallet, BarChart2, Clock, Download, FileText, Table, TriangleAlert } from "lucide-react";
 
 const PayoutTrendChart = dynamic(() => import("./PayoutTrendChart"), {
@@ -67,6 +68,16 @@ type ReportData = {
   topCampaigns: Campaign[];
   balances: Balance[];
 };
+
+function toDelta(change: number | null | undefined) {
+  if (change === null || change === undefined) return undefined;
+  const trend: "up" | "down" | "flat" = change === 0 ? "flat" : change > 0 ? "up" : "down";
+  return {
+    value: change === 0 ? "No change" : `${Math.abs(change)}%`,
+    trend,
+    label: change === 0 ? undefined : "vs last period",
+  };
+}
 
 function ChangeChip({ value }: { value: number | null }) {
   if (value === null) return <span style={{ fontSize: 11, color: "var(--cc-text-subtle)" }}>—</span>;
@@ -281,36 +292,28 @@ export default function FinancialReportsPage() {
           )}
           {/* Stat Cards */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 16, marginBottom: 24 }}>
-            <StatCard
-              icon={Wallet}
-              label="Paid Payouts"
+            <MetricTile
+              metric="paidPayouts"
               value={fmt(data.current.paidPayouts, data.reportCurrency)}
-              sub={`${fmt(data.previous.paidPayouts, data.reportCurrency)} last period`}
-              change={data.comparison.payoutsChange}
-              color="#059669"
+              footer={`${fmt(data.previous.paidPayouts, data.reportCurrency)} last period`}
+              delta={toDelta(data.comparison.payoutsChange)}
             />
-            <StatCard
-              icon={Clock}
-              label="Pending Payouts"
+            <MetricTile
+              metric="pendingPayouts"
               value={fmt(data.current.pendingPayouts, data.reportCurrency)}
-              sub={`${data.current.approvedRequests > 0 ? fmt(data.current.approvedRequests, data.reportCurrency) + " approved requests" : "No pending requests"}`}
-              color="#D97706"
+              footer={`${data.current.approvedRequests > 0 ? fmt(data.current.approvedRequests, data.reportCurrency) + " approved requests" : "No pending requests"}`}
             />
-            <StatCard
-              icon={DollarSign}
-              label="Total Budget"
+            <MetricTile
+              metric="totalBudget"
               value={fmt(data.current.totalBudget, data.reportCurrency)}
-              sub={`${fmt(data.previous.totalBudget, data.reportCurrency)} last period`}
-              change={data.comparison.budgetChange}
-              color="var(--cc-primary)"
+              footer={`${fmt(data.previous.totalBudget, data.reportCurrency)} last period`}
+              delta={toDelta(data.comparison.budgetChange)}
             />
-            <StatCard
-              icon={BarChart2}
-              label="Campaigns"
+            <MetricTile
+              metric="campaigns"
               value={String(data.current.campaignCount)}
-              sub={`${data.current.activeCampaigns} active`}
-              change={data.comparison.campaignCountChange}
-              color="#7C3AED"
+              footer={`${data.current.activeCampaigns} active`}
+              delta={toDelta(data.comparison.campaignCountChange)}
             />
           </div>
 

@@ -1,11 +1,21 @@
 "use client";
 import React, { useState, useEffect, useCallback } from "react";
 import dynamic from "next/dynamic";
-import { Button, Card, Skeleton, EmptyState } from "@pratham7711/ui";
-import { Eye, ThumbsUp, DollarSign, TrendingUp, MessageCircle, BarChart2, BarChart3, Calendar, Smartphone } from "lucide-react";
+import { Skeleton, EmptyState } from "@pratham7711/ui";
+import { Activity, BarChart3, Calendar, Smartphone, Users } from "lucide-react";
 import CampaignComparison from "./CampaignComparison";
 import CreatorLeaderboard, { LeaderboardCreator } from "./CreatorLeaderboard";
-import { formatNumber, formatCurrency, RANGE_PRESETS, PLATFORM_FILTERS, rangeToFrom } from "./shared";
+import { MetricTile, SectionCard } from "@/components/ds";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  formatNumber,
+  formatCurrency,
+  RANGE_PRESETS,
+  PLATFORM_FILTERS,
+  rangeToFrom,
+  platformColor,
+} from "./shared";
 
 const MonthlyTrendArea = dynamic(() => import("./AnalyticsCharts").then((m) => m.MonthlyTrendArea), {
   ssr: false,
@@ -38,80 +48,41 @@ type AnalyticsData = {
   campaigns: CampaignOption[];
 };
 
-import { platformColor } from "./shared";
-
-function StatTile({
-  label, value, sub, icon: Icon, color,
+function PillGroup({
+  legend,
+  options,
+  active,
+  onChange,
 }: {
-  label: string;
-  value: string;
-  sub?: string;
-  icon: React.ElementType;
-  color: string;
+  legend: string;
+  options: { key: string; label: string }[];
+  active: string;
+  onChange: (v: string) => void;
 }) {
   return (
-    <Card variant="outlined" style={{ padding: 24 }}>
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 12 }}>
-        <span style={{ fontSize: 13, color: "var(--cc-text-muted)", fontWeight: 500 }}>{label}</span>
-        <div style={{ width: 32, height: 32, borderRadius: 8, background: color + "18", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <Icon size={15} color={color} />
-        </div>
-      </div>
-      <div style={{ fontSize: 26, fontWeight: 700, color: "var(--cc-text)", lineHeight: 1.1 }}>{value}</div>
-      {sub && <div style={{ fontSize: 12, color: "var(--cc-text-muted)", marginTop: 4 }}>{sub}</div>}
-    </Card>
-  );
-}
-
-function FilterBar({
-  range, platform, onRange, onPlatform,
-}: {
-  range: string;
-  platform: string;
-  onRange: (v: string) => void;
-  onPlatform: (v: string) => void;
-}) {
-  const pillGroup = (
-    options: { key: string; label: string }[],
-    active: string,
-    onChange: (v: string) => void,
-  ) => (
-    <div style={{ display: "inline-flex", background: "var(--cc-bg)", border: "1px solid var(--cc-border)", borderRadius: 8, padding: 4, gap: 4 }}>
-      {options.map((o) => {
-        const isActive = o.key === active;
-        return (
-          <button
-            key={o.key}
-            type="button"
-            onClick={() => onChange(o.key)}
-            style={{
-              border: "none",
-              cursor: "pointer",
-              borderRadius: 6,
-              padding: "6px 12px",
-              fontSize: 13,
-              fontWeight: 600,
-              background: isActive ? "var(--cc-primary)" : "transparent",
-              color: isActive ? "#fff" : "var(--cc-text-muted)",
-              transition: "background 0.12s",
-            }}
-          >
-            {o.label}
-          </button>
-        );
-      })}
-    </div>
-  );
-
-  return (
-    <div style={{ display: "flex", flexWrap: "wrap", gap: 16, alignItems: "center", marginBottom: 24 }}>
-      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        <span style={{ fontSize: 11, fontWeight: 600, color: "var(--cc-text-subtle)", textTransform: "uppercase", letterSpacing: 0.4 }}>Date range</span>
-        {pillGroup(RANGE_PRESETS, range, onRange)}
-      </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        <span style={{ fontSize: 11, fontWeight: 600, color: "var(--cc-text-subtle)", textTransform: "uppercase", letterSpacing: 0.4 }}>Platform</span>
-        {pillGroup(PLATFORM_FILTERS, platform, onPlatform)}
+    <div className="flex flex-col gap-1.5">
+      <span className="text-[11px] font-semibold tracking-[0.06em] text-muted-foreground uppercase">
+        {legend}
+      </span>
+      <div role="group" aria-label={legend} className="inline-flex gap-1 rounded-lg bg-muted p-[3px]">
+        {options.map((o) => {
+          const isActive = o.key === active;
+          return (
+            <button
+              key={o.key}
+              type="button"
+              onClick={() => onChange(o.key)}
+              aria-pressed={isActive}
+              className={`rounded-md px-3 py-1.5 text-[13px] font-semibold transition-colors ${
+                isActive
+                  ? "bg-card text-primary shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {o.label}
+            </button>
+          );
+        })}
       </div>
     </div>
   );
@@ -119,13 +90,13 @@ function FilterBar({
 
 function SkeletonGrid() {
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-      <Skeleton height="60px" borderRadius="12px" />
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
-        {[1, 2, 3, 4, 5, 6].map((i) => <Skeleton key={i} height="96px" borderRadius="12px" />)}
+    <div className="flex flex-col gap-6">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
+        {[1, 2, 3, 4, 5, 6].map((i) => (
+          <Skeleton key={i} height="96px" borderRadius="12px" />
+        ))}
       </div>
       <Skeleton height="280px" borderRadius="12px" />
-      <Skeleton height="320px" borderRadius="12px" />
     </div>
   );
 }
@@ -155,85 +126,147 @@ export default function AnalyticsPage() {
       .finally(() => setLoading(false));
   }, [range, platform]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const k = data?.kpis;
 
   return (
     <div className="rsp-page page-enter">
-      <style>{`.an-chart{height:220px}@media(min-width:768px){.an-chart{height:300px}}`}</style>
-      <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 28, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Analytics</h1>
-        <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>Org-wide performance across all campaigns and creators</p>
+      <div className="mb-6">
+        <h1 className="text-[26px] font-extrabold tracking-[-0.02em] text-foreground">Analytics</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          How every campaign and creator performed across your whole account.
+        </p>
       </div>
 
-      <FilterBar range={range} platform={platform} onRange={setRange} onPlatform={setPlatform} />
+      <div className="mb-6 flex flex-wrap items-start gap-5">
+        <PillGroup legend="Date range" options={RANGE_PRESETS} active={range} onChange={setRange} />
+        <PillGroup legend="Platform" options={PLATFORM_FILTERS} active={platform} onChange={setPlatform} />
+      </div>
 
       {loading ? (
         <SkeletonGrid />
-      ) : error || !data ? (
+      ) : error || !data || !k ? (
         <EmptyState
           icon={<BarChart3 size={32} color="var(--cc-text-subtle)" />}
           title="Failed to load analytics"
           description="Adjust your filters or refresh to try again."
-          action={<Button variant="secondary" onClick={load}>Retry</Button>}
+          action={
+            <Button variant="secondary" onClick={load}>
+              Retry
+            </Button>
+          }
         />
       ) : (
-        <>
-          <div className="rsp-grid-tiles" style={{ marginBottom: 24 }}>
-            <StatTile label="Total Views" value={formatNumber(data.kpis.totalViews)} sub={`${formatNumber(data.kpis.totalPosts)} posts`} icon={Eye} color="var(--cc-primary)" />
-            <StatTile label="Total Likes" value={formatNumber(data.kpis.totalLikes)} icon={ThumbsUp} color="#E4405F" />
-            <StatTile label="Total Comments" value={formatNumber(data.kpis.totalComments)} icon={MessageCircle} color="#F59E0B" />
-            <StatTile label="Total Spend" value={formatCurrency(data.kpis.totalSpend)} sub={`${data.kpis.totalPayouts} payouts`} icon={DollarSign} color="#10B981" />
-            <StatTile label="Avg Engagement Rate" value={data.kpis.avgEngagementRate.toFixed(1) + "%"} icon={TrendingUp} color="#8B5CF6" />
-            <StatTile label="Avg CPM" value={data.kpis.avgCPM > 0 ? formatCurrency(data.kpis.avgCPM) : "—"} sub="per 1K views" icon={BarChart2} color="#06B6D4" />
-          </div>
+        <Tabs defaultValue="overview" className="gap-6">
+          <TabsList variant="line">
+            <TabsTrigger value="overview">
+              <BarChart3 aria-hidden="true" />
+              Overview
+            </TabsTrigger>
+            <TabsTrigger value="comparison">
+              <Activity aria-hidden="true" />
+              Compare campaigns
+            </TabsTrigger>
+            <TabsTrigger value="creators">
+              <Users aria-hidden="true" />
+              Creators &amp; platforms
+            </TabsTrigger>
+          </TabsList>
 
-          <Card variant="outlined" style={{ padding: 24, marginBottom: 24 }}>
-            <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)", display: "block", marginBottom: 20 }}>
-              Campaigns Launched — Last 6 Months
-            </span>
-            {data.monthlyTrend.every((m) => m.campaigns === 0) ? (
-              <EmptyState icon={<Calendar size={32} color="var(--cc-text-subtle)" />} title="No campaign data" description="Launch campaigns to see monthly trends." />
-            ) : (
-              <div className="an-chart">
-                <MonthlyTrendArea data={data.monthlyTrend} />
+          <TabsContent value="overview">
+            <div className="flex flex-col gap-6">
+              <div className="grid grid-cols-2 gap-5 lg:grid-cols-3">
+                <MetricTile
+                  metric="totalViews"
+                  value={formatNumber(k.totalViews)}
+                  footer={`${formatNumber(k.totalPosts)} posts`}
+                />
+                <MetricTile metric="totalLikes" value={formatNumber(k.totalLikes)} />
+                <MetricTile metric="totalComments" value={formatNumber(k.totalComments)} />
+                <MetricTile
+                  metric="totalSpend"
+                  value={formatCurrency(k.totalSpend)}
+                  footer={`${k.totalPayouts} payouts`}
+                />
+                <MetricTile
+                  metric="avgEngagementRate"
+                  value={`${k.avgEngagementRate.toFixed(1)}%`}
+                />
+                <MetricTile
+                  metric="avgCPM"
+                  value={k.avgCPM > 0 ? formatCurrency(k.avgCPM) : "—"}
+                />
               </div>
-            )}
-          </Card>
 
-          <CampaignComparison campaigns={data.campaigns} range={range} platform={platform} />
-
-          <div className="rsp-split" style={{ gap: 24, marginBottom: 24 }}>
-            <div style={{ flex: 2, minWidth: 0 }}>
-              <CreatorLeaderboard creators={data.leaderboard} />
+              <SectionCard
+                icon={Calendar}
+                title="Campaigns launched"
+                description="How many campaigns you started each month over the last six months."
+              >
+                {data.monthlyTrend.every((m) => m.campaigns === 0) ? (
+                  <EmptyState
+                    icon={<Calendar size={32} color="var(--cc-text-subtle)" />}
+                    title="No campaign data"
+                    description="Launch campaigns to see monthly trends."
+                  />
+                ) : (
+                  <div className="h-[220px] md:h-[300px]">
+                    <MonthlyTrendArea data={data.monthlyTrend} />
+                  </div>
+                )}
+              </SectionCard>
             </div>
+          </TabsContent>
 
-            <Card variant="outlined" style={{ padding: 24, flex: 1, minWidth: 0 }}>
-              <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)", display: "block", marginBottom: 20 }}>
-                Views by Platform
-              </span>
-              {data.platformBreakdown.length === 0 ? (
-                <EmptyState icon={<Smartphone size={32} color="var(--cc-text-subtle)" />} title="No data" />
-              ) : (
-                <div style={{ height: 200 }}>
-                  <PlatformBreakdownBar data={data.platformBreakdown} />
-                </div>
-              )}
-              {data.platformBreakdown.length > 0 && (
-                <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 8 }}>
-                  {data.platformBreakdown.map((p) => (
-                    <div key={p.platform} style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <span style={{ width: 8, height: 8, borderRadius: "50%", background: platformColor(p.platform), flexShrink: 0 }} />
-                        <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{p.platform}</span>
-                      </div>
-                      <span style={{ fontSize: 12, fontWeight: 600, color: "var(--cc-text)" }}>{p.posts} posts</span>
+          <TabsContent value="comparison">
+            <CampaignComparison campaigns={data.campaigns} range={range} platform={platform} />
+          </TabsContent>
+
+          <TabsContent value="creators">
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+              <div className="lg:col-span-2">
+                <CreatorLeaderboard creators={data.leaderboard} />
+              </div>
+
+              <SectionCard
+                icon={Smartphone}
+                title="Views by platform"
+                description="Which platforms your views came from."
+                metric="totalViews"
+              >
+                {data.platformBreakdown.length === 0 ? (
+                  <EmptyState icon={<Smartphone size={32} color="var(--cc-text-subtle)" />} title="No data" />
+                ) : (
+                  <>
+                    <div className="h-[200px]">
+                      <PlatformBreakdownBar data={data.platformBreakdown} />
                     </div>
-                  ))}
-                </div>
-              )}
-            </Card>
-          </div>
-        </>
+                    <ul className="mt-4 flex flex-col gap-2">
+                      {data.platformBreakdown.map((p) => (
+                        <li key={p.platform} className="flex items-center justify-between">
+                          <span className="flex items-center gap-2">
+                            <span
+                              aria-hidden="true"
+                              className="size-2 shrink-0 rounded-full"
+                              style={{ background: platformColor(p.platform) }}
+                            />
+                            <span className="text-xs text-muted-foreground">{p.platform}</span>
+                          </span>
+                          <span className="text-xs font-semibold text-foreground tabular-nums">
+                            {p.posts} posts
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+              </SectionCard>
+            </div>
+          </TabsContent>
+        </Tabs>
       )}
     </div>
   );

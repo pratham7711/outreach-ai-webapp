@@ -363,7 +363,7 @@ export default function SelfServeWizard({
                         {isSelected && <Check size={13} />}
                       </span>
                       <span style={{ flex: 1, minWidth: 0 }}>
-                        <span style={{ display: "block", fontSize: 14, fontWeight: 600, color: "var(--cc-text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        <span title={c.name} style={{ display: "block", fontSize: 14, fontWeight: 600, color: "var(--cc-text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                           {c.name}
                         </span>
                         <span style={{ display: "block", fontSize: 12, color: "var(--cc-text-muted)" }}>

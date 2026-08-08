@@ -2,7 +2,8 @@
 import { useState } from "react";
 import { Plus, Search, Building2 } from "lucide-react";
 import Link from "next/link";
-import { Button, Card, StatCard, Input, Avatar, EmptyState } from "@pratham7711/ui";
+import { Button, Card, Input, Avatar, EmptyState } from "@pratham7711/ui";
+import { MetricTile } from "@/components/ds";
 import AddClientModal from "@/components/modals/AddClientModal";
 
 type Client = {
@@ -43,8 +44,8 @@ export default function ClientsClient({ clients, stats }: {
 
       {/* Stats */}
       <div className="cc-stagger grid grid-cols-1 sm:grid-cols-2" style={{ gap: 20, marginBottom: 32, maxWidth: 480 }}>
-        <StatCard value={String(stats.total)} label="Total Clients" />
-        <StatCard value={String(stats.totalCampaigns)} label="Total Campaigns" />
+        <MetricTile metric="clientsTotal" value={String(stats.total)} />
+        <MetricTile metric="campaigns" label="Total campaigns" value={String(stats.totalCampaigns)} />
       </div>
 
       {/* Search */}

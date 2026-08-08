@@ -3,7 +3,8 @@ import type { CSSProperties } from "react";
 import { useState, useEffect, use } from "react";
 import dynamic from "next/dynamic";
 import { motion } from "framer-motion";
-import { Card, Badge, Button, StatCard, EmptyState, Avatar, Skeleton, Modal } from "@pratham7711/ui";
+import { Card, Badge, Button, EmptyState, Avatar, Skeleton, Modal } from "@pratham7711/ui";
+import { MetricTile } from "@/components/ds";
 import PostsTab from "./PostsTab";
 import DepositsSection from "./DepositsSection";
 import PayoutRequestsSection from "./PayoutRequestsSection";
@@ -553,10 +554,10 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
         {activeTab === "overview" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
             <div className="rsp-grid-tiles">
-              <StatCard value={formatNumber(totalViews)} label="Total Views" />
-              <StatCard value={avgEngagement > 0 ? avgEngagement.toFixed(1) + "%" : "—"} label="Avg Engagement" />
-              <StatCard value={String(campaign._count.activations)} label="Creators" />
-              <StatCard value={budget > 0 ? `${Math.round((spent / budget) * 100)}%` : "—"} label="Budget Used" />
+              <MetricTile metric="totalViews" value={formatNumber(totalViews)} />
+              <MetricTile metric="engagementRate" label="Avg engagement" value={avgEngagement > 0 ? avgEngagement.toFixed(1) + "%" : "—"} />
+              <MetricTile metric="campaignCreators" value={String(campaign._count.activations)} />
+              <MetricTile metric="budgetUsed" value={budget > 0 ? `${Math.round((spent / budget) * 100)}%` : "—"} />
             </div>
 
             {/* Brief */}

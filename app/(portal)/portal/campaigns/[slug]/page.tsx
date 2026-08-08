@@ -289,7 +289,7 @@ function CampaignDetailInner() {
           </div>
           {submissions.map((s, i) => (
             <div key={s.id} style={{ display: "grid", gridTemplateColumns: "1fr 100px 100px 100px 100px", gap: 12, padding: "14px 20px", alignItems: "center", borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined }}>
-              <a href={s.postUrl} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 600, color: "var(--cc-primary)", textDecoration: "none", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              <a href={s.postUrl} target="_blank" rel="noopener noreferrer" title={s.caption || s.postUrl} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 600, color: "var(--cc-primary)", textDecoration: "none", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {s.caption || s.postUrl} <ExternalLink size={12} />
               </a>
               <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{s.platform}</span>

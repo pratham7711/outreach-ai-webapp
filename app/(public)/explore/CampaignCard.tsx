@@ -66,6 +66,7 @@ export default function CampaignCard({ campaign }: { campaign: MarketplaceCardDT
           </div>
           <div style={{ minWidth: 0 }}>
             <div
+              title={campaign.orgName}
               style={{
                 fontSize: 13,
                 fontWeight: 600,

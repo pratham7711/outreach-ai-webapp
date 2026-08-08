@@ -35,17 +35,23 @@ export function rangeToFrom(range: string): string | null {
   return from.toISOString();
 }
 
-export const SERIES_COLORS = ["#5B5BD6", "#E4405F", "#10B981", "#F59E0B", "#06B6D4"];
+export const SERIES_COLORS = [
+  "var(--chart-1)",
+  "var(--chart-2)",
+  "var(--chart-3)",
+  "var(--chart-4)",
+  "var(--chart-5)",
+];
 
 export const PLATFORM_PALETTE: Record<string, string> = {
-  TIKTOK: "#5B5BD6",
-  INSTAGRAM: "#F59E0B",
-  YOUTUBE: "#06B6D4",
-  TWITTER: "#10B981",
-  X: "#10B981",
+  TIKTOK: "var(--chart-1)",
+  INSTAGRAM: "var(--chart-2)",
+  YOUTUBE: "var(--chart-3)",
+  TWITTER: "var(--chart-4)",
+  X: "var(--chart-4)",
 };
 
-const PLATFORM_FALLBACK = ["#5B5BD6", "#F59E0B", "#06B6D4", "#10B981", "#8B5CF6"];
+const PLATFORM_FALLBACK = SERIES_COLORS;
 
 export function platformColor(platform: string | null | undefined, index = 0): string {
   const key = (platform ?? "").toUpperCase();

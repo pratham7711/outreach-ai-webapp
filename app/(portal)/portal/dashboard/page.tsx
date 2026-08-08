@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Card, Badge, StatCard, Skeleton, EmptyState, Button, Avatar } from "@pratham7711/ui";
+import { Card, Badge, Skeleton, EmptyState, Button, Avatar } from "@pratham7711/ui";
+import { MetricTile } from "@/components/ds";
 import { DollarSign, Send, CheckCircle, TrendingUp, Search, LogOut, Inbox } from "lucide-react";
 import Link from "next/link";
 import { stripAt, formatDateAbs } from "@/lib/format";
@@ -77,10 +78,15 @@ export default function PortalDashboardPage() {
 
       {/* Stats */}
       <div className="rsp-grid-tiles" style={{ marginBottom: 32 }}>
-        <StatCard value={formatCurrency(data.stats.lifetimeEarnings)} label="Lifetime Earnings" icon={<DollarSign size={18} />} />
-        <StatCard value={String(data.stats.totalProposals)} label="Total Proposals" icon={<Send size={18} />} />
-        <StatCard value={String(data.stats.acceptedProposals)} label="Accepted" icon={<CheckCircle size={18} />} />
-        <StatCard value={data.user.averageRating > 0 ? `${data.user.averageRating.toFixed(1)} / 5` : "—"} label={`Rating (${data.user.reviewCount} reviews)`} icon={<TrendingUp size={18} />} />
+        <MetricTile metric="portalLifetimeEarnings" value={formatCurrency(data.stats.lifetimeEarnings)} />
+        <MetricTile metric="portalProposals" value={String(data.stats.totalProposals)} />
+        <MetricTile metric="portalAccepted" value={String(data.stats.acceptedProposals)} />
+        <MetricTile
+          label={`Rating (${data.user.reviewCount} reviews)`}
+          what="Your average score from campaign managers you have worked with. A higher rating makes you easier to book."
+          how="Averages every rating left on your completed activations."
+          value={data.user.averageRating > 0 ? `${data.user.averageRating.toFixed(1)} / 5` : "—"}
+        />
       </div>
 
       {/* Recent Proposals */}

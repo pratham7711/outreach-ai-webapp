@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { Search, Mailbox } from "lucide-react";
-import { Card, Badge, StatCard, EmptyState, Input, Tag, Avatar } from "@pratham7711/ui";
+import { Card, Badge, EmptyState, Input, Tag, Avatar } from "@pratham7711/ui";
+import { MetricTile } from "@/components/ds";
 import type { Recipient, RecipientStats } from "@/lib/recipients/aggregate";
 import { stripAt } from "@/lib/format";
 
@@ -82,10 +83,10 @@ export default function RecipientsClient({
       </div>
 
       <div className="cc-stagger rsp-grid-tiles" style={{ marginBottom: 32 }}>
-        <StatCard value={String(stats.recipientCount)} label="Recipients" />
-        <StatCard value={formatCurrency(stats.totalPaid)} label="Total Paid" />
-        <StatCard value={formatCurrency(stats.totalPending)} label="Pending" />
-        <StatCard value={formatCurrency(stats.totalFailed)} label="Failed" />
+        <MetricTile metric="recipients" value={String(stats.recipientCount)} />
+        <MetricTile metric="totalPaid" value={formatCurrency(stats.totalPaid)} />
+        <MetricTile metric="pendingPayouts" label="Pending" value={formatCurrency(stats.totalPending)} />
+        <MetricTile metric="failedPayouts" value={formatCurrency(stats.totalFailed)} />
       </div>
 
       <div style={{ marginBottom: 24 }}>

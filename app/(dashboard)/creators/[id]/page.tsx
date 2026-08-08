@@ -7,7 +7,8 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Card, Badge, Avatar, EmptyState, Skeleton, StatCard, Modal, Input, Tooltip } from "@pratham7711/ui";
+import { Card, Badge, Avatar, EmptyState, Skeleton, Modal, Input, Tooltip } from "@pratham7711/ui";
+import { MetricTile } from "@/components/ds";
 import { formatCompact, formatDateAbs, platformLabel } from "@/lib/format";
 
 function formatNumber(num: number): string {
@@ -516,7 +517,7 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
           <ArrowLeft size={16} /> Creators
         </Link>
         <ChevronRight size={12} />
-        <span style={{ color: "var(--cc-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{creator.name}</span>
+        <span title={creator.name} style={{ color: "var(--cc-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{creator.name}</span>
       </div>
 
       {/* Banner + Profile */}
@@ -576,10 +577,10 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
 
           {/* Stats row */}
           <div className="cd-stats-grid">
-            <StatCard value={formatNumber(creator.followersCount)} label="Followers" />
-            <StatCard value={String(creator._count.activations)} label="Campaigns" />
-            <StatCard value={totalEarnings > 0 ? "$" + formatNumber(totalEarnings) : "—"} label="Total Earnings" />
-            <StatCard value={avgEngagement > 0 ? avgEngagement.toFixed(1) + "%" : "—"} label="Avg Engagement" />
+            <MetricTile metric="followers" value={formatNumber(creator.followersCount)} />
+            <MetricTile metric="creatorCampaigns" value={String(creator._count.activations)} />
+            <MetricTile metric="creatorEarnings" value={totalEarnings > 0 ? "$" + formatNumber(totalEarnings) : "—"} />
+            <MetricTile metric="engagementRate" label="Avg engagement" value={avgEngagement > 0 ? avgEngagement.toFixed(1) + "%" : "—"} />
           </div>
         </div>
       </Card>
@@ -658,7 +659,7 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
                       style={{ borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined }}
                     >
                       <div>
-                        <p style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        <p title={post.caption ?? undefined} style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                           {post.caption?.slice(0, 60) ?? "Untitled Post"} <ExternalLink size={11} style={{ opacity: 0.4 }} />
                         </p>
                         <p style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{formatDateAbs(post.postedAt)}</p>
@@ -674,7 +675,7 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
                     <a href={post.postUrl} target="_blank" rel="noopener noreferrer" className="cd-post-card">
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <p style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", margin: 0 }}>
+                          <p title={post.caption ?? undefined} style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", margin: 0 }}>
                             {post.caption?.slice(0, 50) ?? "Untitled Post"} <ExternalLink size={11} style={{ opacity: 0.4 }} />
                           </p>
                           <p style={{ fontSize: 12, color: "var(--cc-text-muted)", margin: "2px 0 0" }}>

@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
-import { Badge, Card, StatCard, Button, Modal, Input, Skeleton, EmptyState } from "@pratham7711/ui";
+import { Badge, Card, Button, Modal, Input, Skeleton, EmptyState } from "@pratham7711/ui";
+import { MetricTile } from "@/components/ds";
 import { Music, Plus, Trash2, TrendingUp } from "lucide-react";
 import { formatCompact, formatDateAbs } from "@/lib/format";
 
@@ -120,10 +121,10 @@ export default function TrackersPage() {
         </div>
       ) : (
         <div className="rsp-grid-tiles" style={{ marginBottom: 32 }}>
-          <StatCard value={String(totalTrackers)} label="Active Trackers" />
-          <StatCard value={formatCount(totalUses)} label="Total Uses" />
-          <StatCard value={String(trendingCount)} label="Trending" />
-          <StatCard value={formatCompact(newToday)} label="New Today" />
+          <MetricTile metric="trackersActive" value={String(totalTrackers)} />
+          <MetricTile metric="trackerUses" value={formatCount(totalUses)} />
+          <MetricTile metric="trackersTrending" value={String(trendingCount)} />
+          <MetricTile metric="trackersNewToday" value={formatCompact(newToday)} />
         </div>
       )}
 
@@ -182,7 +183,7 @@ export default function TrackersPage() {
                   )}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 600, fontSize: 14, color: "var(--cc-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title}</div>
+                  <div title={s.title} style={{ fontWeight: 600, fontSize: 14, color: "var(--cc-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title}</div>
                   <div style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{s.artist || "Unknown artist"}</div>
                 </div>
                 <Badge variant={badge.variant} size="sm">{badge.label}</Badge>

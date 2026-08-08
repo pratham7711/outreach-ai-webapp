@@ -365,6 +365,7 @@ export default async function CampaignLandingPage({
                       )}
                     </div>
                     <span
+                      title={`@${displayHandle}`}
                       style={{
                         flex: 1,
                         fontSize: 13,

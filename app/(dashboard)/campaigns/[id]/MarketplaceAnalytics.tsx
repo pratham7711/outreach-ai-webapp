@@ -22,9 +22,9 @@ type Analytics = {
 };
 
 const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
-  PENDING_REVIEW: { label: "Pending", color: "#D97706", bg: "#FEF3C7" },
-  APPROVED: { label: "Approved", color: "#059669", bg: "#D1FAE5" },
-  REJECTED: { label: "Rejected", color: "#DC2626", bg: "#FEE2E2" },
+  PENDING_REVIEW: { label: "Pending", color: "var(--status-warning)", bg: "color-mix(in srgb, var(--status-warning) 12%, transparent)" },
+  APPROVED: { label: "Approved", color: "var(--status-good)", bg: "color-mix(in srgb, var(--status-good) 12%, transparent)" },
+  REJECTED: { label: "Rejected", color: "var(--status-critical)", bg: "color-mix(in srgb, var(--status-critical) 12%, transparent)" },
 };
 
 function formatNumber(num: number): string {
@@ -155,12 +155,13 @@ export default function MarketplaceAnalytics({
                       <stop offset="100%" stopColor="var(--cc-primary)" stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--cc-border)" />
-                  <XAxis dataKey="date" tickFormatter={formatDate} tick={{ fontSize: 12, fill: "var(--cc-text-muted)" }} />
-                  <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "var(--cc-text-muted)" }} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
+                  <XAxis dataKey="date" tickFormatter={formatDate} tick={{ fontSize: 12, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} />
+                  <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} />
                   <Tooltip
                     labelFormatter={(l) => formatDate(String(l))}
-                    contentStyle={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12 }}
+                    formatter={(v: any, name: any) => [formatNumber(Number(v ?? 0)), String(name)]}
+                    contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 12, color: "var(--popover-foreground)", fontSize: 13 }}
                   />
                   <Area type="monotone" dataKey="cumulative" name="Total joined" stroke="var(--cc-primary)" strokeWidth={2} fill="url(#mktJoins)" />
                 </AreaChart>
@@ -196,7 +197,7 @@ export default function MarketplaceAnalytics({
           {pct != null ? (
             <>
               <div style={{ height: 10, borderRadius: 6, background: "var(--cc-border)", overflow: "hidden" }}>
-                <div style={{ width: `${pct}%`, height: "100%", background: budget.capReached ? "#DC2626" : "var(--cc-primary)", borderRadius: 6 }} />
+                <div style={{ width: `${pct}%`, height: "100%", background: budget.capReached ? "var(--status-critical)" : "var(--cc-primary)", borderRadius: 6 }} />
               </div>
               <div style={{ fontSize: 12, color: "var(--cc-text-muted)", marginTop: 6 }}>
                 {pct}% of pool {budget.capReached ? "— cap reached" : "claimed"}

@@ -82,8 +82,8 @@ export default function CreatorLeaderboard({ creators }: { creators: Leaderboard
               <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
                 <Avatar name={creator.name} src={creator.avatarUrl ?? undefined} size="sm" />
                 <div style={{ minWidth: 0 }}>
-                  <p style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)", lineHeight: 1.3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{creator.name}</p>
-                  <p style={{ fontSize: 11, color: "var(--cc-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>@{stripAt(creator.handle)}</p>
+                  <p title={creator.name} style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)", lineHeight: 1.3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{creator.name}</p>
+                  <p title={`@${stripAt(creator.handle)}`} style={{ fontSize: 11, color: "var(--cc-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>@{stripAt(creator.handle)}</p>
                 </div>
               </div>
               <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)", textAlign: "right" }}>{creator.campaigns}</span>

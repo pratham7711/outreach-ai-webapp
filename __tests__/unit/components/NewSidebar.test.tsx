@@ -30,7 +30,7 @@ describe('NewSidebar', () => {
   });
 
   it('renders user section with name Pratham', () => {
-    render(<NewSidebar />);
+    render(<NewSidebar user={{ name: 'Pratham', email: 'pratham@example.com' }} />);
     expect(screen.getByText('Pratham')).toBeInTheDocument();
     expect(screen.getByText('Admin')).toBeInTheDocument();
   });
