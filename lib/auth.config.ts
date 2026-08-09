@@ -16,6 +16,9 @@ export const authConfig = {
       // Public marketplace (Phase 2M) — unauthenticated /explore browsing.
       const isPublicMarketplacePage = nextUrl.pathname.startsWith("/explore");
       const isPublicSharePage = nextUrl.pathname.startsWith("/share/");
+      const isPublicLegalPage =
+        nextUrl.pathname.startsWith("/privacy") ||
+        nextUrl.pathname.startsWith("/terms");
       const isAuthPage =
         nextUrl.pathname.startsWith("/login") ||
         nextUrl.pathname.startsWith("/signup") ||
@@ -26,7 +29,8 @@ export const authConfig = {
         isPortalPage ||
         isPublicCreatorPage ||
         isPublicMarketplacePage ||
-        isPublicSharePage
+        isPublicSharePage ||
+        isPublicLegalPage
       )
         return true;
       if (!isLoggedIn && !isAuthPage) {
