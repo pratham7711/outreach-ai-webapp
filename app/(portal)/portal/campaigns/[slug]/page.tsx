@@ -7,6 +7,7 @@ import { Card, Badge, Button, Input, EmptyState, Skeleton } from "@pratham7711/u
 import { toast } from "sonner";
 import { ArrowLeft, ExternalLink, CheckCircle2, Download, AlertTriangle, Video } from "lucide-react";
 import { formatDateAbs } from "@/lib/format";
+import { ConnectPrompt } from "@/components/portal/ConnectPrompt";
 
 type Rates = Partial<Record<"TIKTOK" | "INSTAGRAM" | "YOUTUBE", number>>;
 
@@ -256,19 +257,24 @@ function CampaignDetailInner() {
             The submission deadline has passed.
           </div>
         ) : (
-          <form onSubmit={handleSubmit} style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
-            <div style={{ flex: 1 }}>
-              <Input
-                label="Post URL"
-                value={postUrl}
-                onChange={(e) => setPostUrl(e.target.value)}
-                placeholder="https://www.tiktok.com/@you/video/123..."
-              />
+          <>
+            <form onSubmit={handleSubmit} style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
+              <div style={{ flex: 1 }}>
+                <Input
+                  label="Post URL"
+                  value={postUrl}
+                  onChange={(e) => setPostUrl(e.target.value)}
+                  placeholder="https://www.tiktok.com/@you/video/123..."
+                />
+              </div>
+              <Button variant="primary" loading={submitting} disabled={!canSubmit}>
+                Submit
+              </Button>
+            </form>
+            <div style={{ marginTop: 16 }}>
+              <ConnectPrompt variant="inline" />
             </div>
-            <Button variant="primary" loading={submitting} disabled={!canSubmit}>
-              Submit
-            </Button>
-          </form>
+          </>
         )}
       </Card>
 

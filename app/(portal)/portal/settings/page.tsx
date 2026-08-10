@@ -267,9 +267,31 @@ export default function PortalSettingsPage() {
           <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--cc-text)", marginBottom: 8 }}>
             Connected Accounts
           </h2>
-          <p style={{ fontSize: 13, color: "var(--cc-text-muted)", marginBottom: 16 }}>
-            Link your social accounts so brands can verify your reach
+          <p style={{ fontSize: 13, color: "var(--cc-text-muted)", marginBottom: 12 }}>
+            Link your accounts and your posts report themselves — no screenshots, no pasting
+            links, and brands can verify your reach.
           </p>
+          <div
+            style={{
+              padding: "12px 14px",
+              borderRadius: 10,
+              background: "var(--cc-bg)",
+              fontSize: 12,
+              lineHeight: 1.7,
+              color: "var(--cc-text-muted)",
+              marginBottom: 16,
+            }}
+          >
+            <strong style={{ color: "var(--cc-text)" }}>What we read:</strong> your public
+            profile, follower count, and the view, like, comment and share counts on your public
+            posts.
+            <br />
+            <strong style={{ color: "var(--cc-text)" }}>What we never touch:</strong> direct
+            messages, private or unpublished videos, and we never post, edit or delete anything.
+            <br />
+            <strong style={{ color: "var(--cc-text)" }}>Revoke anytime</strong> with Disconnect
+            below — we delete the stored tokens immediately.
+          </div>
           {connectionsLoading ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               {[1, 2, 3].map((i) => (

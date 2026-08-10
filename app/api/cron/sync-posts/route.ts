@@ -8,6 +8,7 @@ import {
   type PostMetrics,
 } from "@/lib/platforms/fetchPostMetrics";
 import { decryptInstagramToken } from "@/lib/platforms/instagramToken";
+import { ensureFreshTikTokToken } from "@/lib/platforms/tiktokToken";
 import { decideSyncAction, SyncAction } from "@/lib/sync/cadence";
 import { createLogger } from "@/lib/observability/logger";
 
@@ -78,8 +79,15 @@ export async function GET(request: NextRequest) {
             orgId: true,
             handle: true,
             socialAccounts: {
-              where: { platform: "INSTAGRAM" },
-              select: { accessToken: true, handle: true },
+              where: { platform: { in: ["INSTAGRAM", "TIKTOK"] } },
+              select: {
+                id: true,
+                platform: true,
+                accessToken: true,
+                refreshToken: true,
+                handle: true,
+                tokenExpiry: true,
+              },
             },
           },
         },
@@ -163,18 +171,29 @@ export async function GET(request: NextRequest) {
       }
 
       try {
+        const igAccount = post.creator.socialAccounts.find((a) => a.platform === "INSTAGRAM");
+        const ttAccount = post.creator.socialAccounts.find((a) => a.platform === "TIKTOK");
         const instagramToken =
           post.platform === "INSTAGRAM"
-            ? decryptInstagramToken(post.creator.socialAccounts[0]?.accessToken, post.creator.orgId)
+            ? decryptInstagramToken(igAccount?.accessToken, post.creator.orgId)
             : undefined;
         const instagramHandle =
           post.platform === "INSTAGRAM"
-            ? (post.creator.socialAccounts[0]?.handle ?? post.creator.handle ?? undefined)
+            ? (igAccount?.handle ?? post.creator.handle ?? undefined)
+            : undefined;
+        const tiktokToken =
+          post.platform === "TIKTOK"
+            ? await ensureFreshTikTokToken(ttAccount, post.creator.orgId)
             : undefined;
         const detected = post.platform === "YOUTUBE" ? detectPlatform(post.postUrl) : null;
         const cached = detected ? youtubeCache.get(detected.id) : undefined;
         const metrics =
-          cached ?? (await fetchPostMetrics(post.postUrl, { instagramToken, instagramHandle }));
+          cached ??
+          (await fetchPostMetrics(post.postUrl, {
+            instagramToken,
+            instagramHandle,
+            tiktokToken,
+          }));
         if (!metrics) continue;
 
         const postData: Record<string, unknown> = { lastSyncedAt: now, syncFailCount: 0 };

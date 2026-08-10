@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { fetchPostMetrics, hasMetricCounts } from "@/lib/platforms/fetchPostMetrics";
 import { getInstagramAccountForCreator } from "@/lib/platforms/instagramToken";
+import { getTikTokTokenForCreator } from "@/lib/platforms/tiktokToken";
 
 // POST /api/campaigns/[id]/posts/[postId]/sync — Trigger manual sync for a post
 export async function POST(
@@ -25,9 +26,14 @@ export async function POST(
       post.platform === "INSTAGRAM"
         ? await getInstagramAccountForCreator(post.creatorId, orgId)
         : undefined;
+    const tiktokToken =
+      post.platform === "TIKTOK"
+        ? await getTikTokTokenForCreator(post.creatorId, orgId)
+        : undefined;
     const metrics = await fetchPostMetrics(post.postUrl, {
       instagramToken: instagram?.token,
       instagramHandle: instagram?.handle,
+      tiktokToken,
     });
     if (!metrics) {
       return NextResponse.json({ error: "Could not fetch metrics for this post URL" }, { status: 422 });

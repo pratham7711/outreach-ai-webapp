@@ -5,37 +5,29 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button, Input } from "@pratham7711/ui";
 import { Eye, EyeOff } from "lucide-react";
+import { ConnectPrompt } from "@/components/portal/ConnectPrompt";
 
 /**
  * Run the join funnel after successful auth when ?join=[slug] is present.
- * Lands on the campaign portal page with ?joined=1, else the dashboard.
+ * Returns where the creator should land once onboarding finishes.
  */
-async function runJoinAndRedirect(
-  router: ReturnType<typeof useRouter>,
+async function runJoin(
   joinSlug: string | null,
   inviteCode: string | null
-) {
-  if (!joinSlug) {
-    router.push("/portal/campaigns");
-    return;
-  }
+): Promise<string> {
+  if (!joinSlug) return "/portal/campaigns";
   try {
     const res = await fetch("/api/portal/campaigns/join", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ slug: joinSlug, ...(inviteCode ? { inviteCode } : {}) }),
     });
-    if (res.ok) {
-      router.push(`/portal/campaigns/${joinSlug}?joined=1`);
-      return;
-    }
+    if (res.ok) return `/portal/campaigns/${joinSlug}?joined=1`;
     // Joined-auth succeeded but join failed (deadline/invite/private) — surface on the campaign page.
     const data = await res.json().catch(() => ({}));
-    router.push(
-      `/portal/campaigns/${joinSlug}?joinError=${encodeURIComponent(data.error ?? "Could not join")}`
-    );
+    return `/portal/campaigns/${joinSlug}?joinError=${encodeURIComponent(data.error ?? "Could not join")}`;
   } catch {
-    router.push(`/portal/campaigns/${joinSlug}?joinError=${encodeURIComponent("Network error")}`);
+    return `/portal/campaigns/${joinSlug}?joinError=${encodeURIComponent("Network error")}`;
   }
 }
 
@@ -49,6 +41,7 @@ function RegisterInner() {
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [form, setForm] = useState({ email: "", password: "", name: "", handle: "" });
+  const [nextPath, setNextPath] = useState<string | null>(null);
   const set = (patch: Partial<typeof form>) => setForm((f) => ({ ...f, ...patch }));
 
   const loginHref = `/portal/login${
@@ -72,7 +65,8 @@ function RegisterInner() {
       });
       const data = await res.json();
       if (res.ok) {
-        await runJoinAndRedirect(router, joinSlug, inviteCode);
+        setNextPath(await runJoin(joinSlug, inviteCode));
+        setLoading(false);
       } else {
         setError(data.error ?? "Something went wrong");
         setLoading(false);
@@ -106,11 +100,24 @@ function RegisterInner() {
         }}
       >
         <h1 style={{ fontSize: 24, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4, textAlign: "center" }}>
-          Create your creator account
+          {nextPath ? "One last step" : "Create your creator account"}
         </h1>
         <p style={{ fontSize: 14, color: "var(--cc-text-muted)", marginBottom: 24, textAlign: "center" }}>
-          {joinSlug ? "Sign up to join this campaign" : "Join the marketplace and start earning"}
+          {nextPath
+            ? "Your account is ready"
+            : joinSlug
+              ? "Sign up to join this campaign"
+              : "Join the marketplace and start earning"}
         </p>
+
+        {nextPath && (
+          <ConnectPrompt
+            variant="step"
+            returnTo={nextPath}
+            onSkip={() => router.push(nextPath)}
+            skipLabel="Skip for now"
+          />
+        )}
 
         {error && (
           <div style={{ padding: "10px 14px", borderRadius: 8, background: "color-mix(in srgb, var(--cc-danger) 12%, transparent)", color: "var(--cc-danger)", fontSize: 13, marginBottom: 16 }}>
@@ -118,7 +125,10 @@ function RegisterInner() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        <form
+          onSubmit={handleSubmit}
+          style={{ display: nextPath ? "none" : "flex", flexDirection: "column", gap: 16 }}
+        >
           <Input label="Full Name" value={form.name} onChange={(e) => set({ name: e.target.value })} placeholder="Your name" required />
           <Input label="Handle" value={form.handle} onChange={(e) => set({ handle: e.target.value })} placeholder="yourhandle (no spaces)" required />
           <Input label="Email" type="email" value={form.email} onChange={(e) => set({ email: e.target.value })} placeholder="creator@example.com" required />
@@ -144,12 +154,14 @@ function RegisterInner() {
           </Button>
         </form>
 
-        <div style={{ textAlign: "center", marginTop: 20, fontSize: 14, color: "var(--cc-text-muted)" }}>
-          Already have an account?{" "}
-          <Link href={loginHref} style={{ color: "var(--cc-primary)", fontWeight: 600, textDecoration: "none" }}>
-            Sign In
-          </Link>
-        </div>
+        {!nextPath && (
+          <div style={{ textAlign: "center", marginTop: 20, fontSize: 14, color: "var(--cc-text-muted)" }}>
+            Already have an account?{" "}
+            <Link href={loginHref} style={{ color: "var(--cc-primary)", fontWeight: 600, textDecoration: "none" }}>
+              Sign In
+            </Link>
+          </div>
+        )}
       </div>
     </div>
   );

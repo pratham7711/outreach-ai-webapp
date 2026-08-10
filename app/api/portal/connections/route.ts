@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getCreatorSession } from "@/lib/creator-auth";
-import { isEncrypted } from "@/lib/crypto/encrypt";
+import { decrypt, isEncrypted } from "@/lib/crypto/encrypt";
 import { isProviderConfigured } from "@/lib/oauth/providers";
+import { revokeTikTokToken } from "@/lib/platforms/tiktokDisplay";
 
 async function findSessionCreators(handle: string) {
   const bare = handle.replace(/^@/, "");
@@ -75,14 +76,24 @@ export async function DELETE(req: NextRequest) {
 
     const account = await db.creatorSocialAccount.findFirst({
       where: { id },
-      select: { id: true, creatorId: true },
+      select: { id: true, creatorId: true, platform: true, accessToken: true },
     });
     if (!account)
       return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-    const creators = await findSessionCreators(session.handle);
-    if (!creators.some((c) => c.id === account.creatorId))
+    const creator = (await findSessionCreators(session.handle)).find(
+      (c) => c.id === account.creatorId,
+    );
+    if (!creator)
       return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+    if (account.platform === "TIKTOK") {
+      try {
+        await revokeTikTokToken(decrypt(account.accessToken, creator.orgId));
+      } catch {
+        // A revoke that fails must not block the creator from disconnecting.
+      }
+    }
 
     await db.creatorSocialAccount.delete({ where: { id: account.id } });
     return NextResponse.json({ success: true });

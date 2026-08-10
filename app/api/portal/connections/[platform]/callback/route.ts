@@ -9,6 +9,8 @@ import {
   toPlatformEnum,
   type OAuthPlatform,
 } from "@/lib/oauth/providers";
+import { fetchTikTokUserInfo } from "@/lib/platforms/tiktokDisplay";
+import { returnToWithQuery } from "@/lib/oauth/returnTo";
 
 const STATE_COOKIE = "portal_oauth_state";
 
@@ -24,12 +26,18 @@ async function findSessionCreator(handle: string) {
   });
 }
 
-function failureRedirect(req: NextRequest, platform: OAuthPlatform) {
-  const res = NextResponse.redirect(
-    new URL(`/portal/settings?error=${platform}`, req.url),
-  );
+const RETURN_COOKIE = "portal_oauth_return";
+
+function finishRedirect(req: NextRequest, query: string) {
+  const target = returnToWithQuery(req.cookies.get(RETURN_COOKIE)?.value, query);
+  const res = NextResponse.redirect(new URL(target, req.url));
   res.cookies.delete(STATE_COOKIE);
+  res.cookies.delete(RETURN_COOKIE);
   return res;
+}
+
+function failureRedirect(req: NextRequest, platform: OAuthPlatform) {
+  return finishRedirect(req, `error=${platform}`);
 }
 
 export async function GET(
@@ -106,11 +114,32 @@ export async function GET(
       },
     });
 
-    const res = NextResponse.redirect(
-      new URL(`/portal/settings?connected=${platform}`, req.url),
-    );
-    res.cookies.delete(STATE_COOKIE);
-    return res;
+    if (platform === "tiktok") {
+      const info = await fetchTikTokUserInfo(accessToken);
+      if (info) {
+        const handle = info.username || session.handle;
+        await db.creatorSocialAccount.update({
+          where: {
+            creatorId_platform: {
+              creatorId: creator.id,
+              platform: platformEnum,
+            },
+          },
+          data: { handle, followersCount: info.followerCount },
+        });
+        await db.creator.update({
+          where: { id: creator.id },
+          data: {
+            platformUserId: info.openId,
+            followersCount: info.followerCount,
+            ...(info.avatarUrl ? { avatarUrl: info.avatarUrl } : {}),
+            ...(info.bio ? { bio: info.bio } : {}),
+          },
+        });
+      }
+    }
+
+    return finishRedirect(req, `connected=${platform}`);
   } catch {
     console.error(`OAuth callback failed for ${platform}`);
     return failureRedirect(req, platform);

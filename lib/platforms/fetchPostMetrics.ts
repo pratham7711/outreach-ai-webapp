@@ -3,11 +3,13 @@ import {
   businessDiscoveryToken,
   fetchInstagramPublicPostMetrics,
 } from "./instagramBusinessDiscovery";
+import { fetchTikTokVideosByIds } from "./tiktokDisplay";
 import { createLogger } from "../observability/logger";
 
 export type FetchMetricsContext = {
   instagramToken?: string;
   instagramHandle?: string;
+  tiktokToken?: string;
 };
 
 export type PostMetrics = {
@@ -152,10 +154,43 @@ export async function fetchYouTubeMetricsBatch(videoIds: string[]): Promise<Map<
   return out;
 }
 
-export async function fetchTikTokMetrics(url: string): Promise<Partial<PostMetrics>> {
+export async function fetchTikTokMetrics(
+  url: string,
+  videoId?: string,
+  accessToken?: string,
+): Promise<Partial<PostMetrics>> {
+  if (videoId && accessToken) {
+    const viaDisplay = await fetchTikTokMetricsDisplay(videoId, accessToken);
+    if (viaDisplay) return viaDisplay;
+  }
   const viaSocialKit = await fetchTikTokMetricsSocialKit(url);
   if (viaSocialKit) return viaSocialKit;
   return fetchTikTokOEmbed(url);
+}
+
+// video.query only returns posts owned by the token's account, so a post by a
+// different creator falls through to the paid/oEmbed paths below.
+async function fetchTikTokMetricsDisplay(
+  videoId: string,
+  accessToken: string,
+): Promise<Partial<PostMetrics> | null> {
+  const videos = await fetchTikTokVideosByIds(accessToken, [videoId]);
+  const video = videos.find((v) => v.id === videoId);
+  if (!video) return null;
+
+  const views = video.viewsCount;
+  const likes = video.likesCount;
+  const comments = video.commentsCount;
+  return {
+    thumbnailUrl: video.coverImageUrl,
+    caption: video.description || video.title || null,
+    viewsCount: views,
+    likesCount: likes,
+    commentsCount: comments,
+    sharesCount: video.sharesCount,
+    engagementRate: views > 0 ? ((likes + comments) / views) * 100 : 0,
+    postedAt: new Date(video.postedAt),
+  };
 }
 
 async function fetchTikTokMetricsSocialKit(url: string): Promise<Partial<PostMetrics> | null> {
@@ -304,7 +339,7 @@ export async function fetchPostMetrics(
       metrics = await fetchYouTubeMetrics(detected.id);
       break;
     case "TIKTOK":
-      metrics = await fetchTikTokMetrics(url);
+      metrics = await fetchTikTokMetrics(url, detected.id, context?.tiktokToken);
       break;
     case "INSTAGRAM":
       metrics = await fetchInstagramMetrics(url, context?.instagramToken, context?.instagramHandle);

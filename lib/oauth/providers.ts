@@ -86,8 +86,14 @@ export function buildAuthorizeUrl(
   url.searchParams.set(provider.clientIdParam, clientId);
   url.searchParams.set("redirect_uri", redirectUri(platform));
   url.searchParams.set("response_type", "code");
-  url.searchParams.set("scope", provider.scopes.join(provider.scopeSeparator));
+  const scopeOverride =
+    platform === "tiktok" ? process.env.TIKTOK_SCOPES?.trim() : undefined;
+  url.searchParams.set(
+    "scope",
+    scopeOverride || provider.scopes.join(provider.scopeSeparator),
+  );
   url.searchParams.set("state", state);
+  if (platform === "tiktok") url.searchParams.set("disable_auto_auth", "1");
   return url.toString();
 }
 

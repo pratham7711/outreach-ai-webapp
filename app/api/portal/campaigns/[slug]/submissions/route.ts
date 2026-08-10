@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { getCreatorSession } from "@/lib/creator-auth";
 import { detectPlatform, fetchPostMetrics } from "@/lib/platforms/fetchPostMetrics";
 import { getInstagramAccountForCreator } from "@/lib/platforms/instagramToken";
+import { getTikTokTokenForCreator } from "@/lib/platforms/tiktokToken";
 import { parseRatePerThousand } from "@/lib/marketplace/earnings";
 import { computeCampaignAccrual } from "@/lib/marketplace/cap";
 import { z } from "zod";
@@ -116,9 +117,14 @@ export async function POST(
         detected.platform === "INSTAGRAM"
           ? await getInstagramAccountForCreator(creator.id, campaign.orgId)
           : undefined;
+      const tiktokToken =
+        detected.platform === "TIKTOK"
+          ? await getTikTokTokenForCreator(creator.id, campaign.orgId)
+          : undefined;
       metrics = await fetchPostMetrics(postUrl, {
         instagramToken: instagram?.token,
         instagramHandle: instagram?.handle,
+        tiktokToken,
       });
     } catch {
       metrics = null;

@@ -52,6 +52,21 @@ type SocialAccount = {
   updatedAt: string;
 };
 
+type TikTokVideo = {
+  id: string;
+  title: string;
+  description: string;
+  durationSeconds: number;
+  coverImageUrl: string | null;
+  shareUrl: string | null;
+  embedLink: string | null;
+  postedAt: string;
+  viewsCount: number;
+  likesCount: number;
+  commentsCount: number;
+  sharesCount: number;
+};
+
 type Post = {
   id: string;
   platform: string;
@@ -408,12 +423,34 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
   const [addSocialForm, setAddSocialForm] = useState({ platform: "INSTAGRAM", handle: "", followersCount: "", avgViews: "" });
   const [addingSocial, setAddingSocial] = useState(false);
 
+  const [tiktokVideos, setTiktokVideos] = useState<TikTokVideo[]>([]);
+  const [tiktokLoading, setTiktokLoading] = useState(false);
+  const [tiktokError, setTiktokError] = useState<string | null>(null);
+
   const fetchSocialAccounts = () => {
     setSocialLoading(true);
     fetch(`/api/creators/${id}/social-accounts`)
       .then(r => r.json())
-      .then(data => { if (Array.isArray(data)) setSocialAccounts(data); })
+      .then(data => {
+        if (Array.isArray(data)) {
+          setSocialAccounts(data);
+          if (data.some((a: SocialAccount) => a.platform === "TIKTOK")) fetchTikTokVideos();
+        }
+      })
       .finally(() => setSocialLoading(false));
+  };
+
+  const fetchTikTokVideos = () => {
+    setTiktokLoading(true);
+    setTiktokError(null);
+    fetch(`/api/creators/${id}/tiktok-videos`)
+      .then(r => r.json())
+      .then(data => {
+        setTiktokVideos(Array.isArray(data.videos) ? data.videos : []);
+        if (data.error) setTiktokError(data.error);
+      })
+      .catch(() => setTiktokError("Request failed"))
+      .finally(() => setTiktokLoading(false));
   };
 
   const handleAddSocial = async () => {
@@ -859,6 +896,73 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
                     </div>
                   </Card>
                 ))}
+              </div>
+            )}
+
+            {socialAccounts.some(a => a.platform === "TIKTOK") && (
+              <div style={{ marginTop: 32 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                  <span style={{ fontWeight: 700, fontSize: 16, color: "var(--cc-text)" }}>TikTok posts</span>
+                  <button
+                    onClick={fetchTikTokVideos}
+                    disabled={tiktokLoading}
+                    style={{
+                      background: "var(--cc-card)", color: "var(--cc-primary)",
+                      border: "1.5px solid var(--cc-primary)", borderRadius: 8,
+                      padding: "6px 12px", fontSize: 13, fontWeight: 600,
+                      cursor: tiktokLoading ? "not-allowed" : "pointer",
+                      opacity: tiktokLoading ? 0.5 : 1,
+                    }}
+                  >
+                    {tiktokLoading ? "Refreshing..." : "Refresh"}
+                  </button>
+                </div>
+                <p style={{ fontSize: 13, color: "var(--cc-text-muted)", marginBottom: 16 }}>
+                  Public posts and their performance, read from TikTok with the creator&rsquo;s permission.
+                </p>
+                {tiktokLoading ? (
+                  <div className="cd-social-grid">
+                    {[1, 2, 3].map(i => <Skeleton key={i} height="200px" borderRadius="12px" />)}
+                  </div>
+                ) : tiktokError ? (
+                  <EmptyState icon={<Video size={32} color="var(--cc-text-subtle)" />} title="Could not load TikTok posts" description={tiktokError} />
+                ) : tiktokVideos.length === 0 ? (
+                  <EmptyState icon={<Video size={32} color="var(--cc-text-subtle)" />} title="No public posts yet" description="This creator has not published any public TikTok videos." />
+                ) : (
+                  <div className="cd-social-grid">
+                    {tiktokVideos.map(video => (
+                      <Card key={video.id} variant="outlined" style={{ padding: 0, overflow: "hidden" }}>
+                        {video.coverImageUrl && (
+                          /* eslint-disable-next-line @next/next/no-img-element */
+                          <img
+                            src={video.coverImageUrl}
+                            alt=""
+                            style={{ width: "100%", height: 160, objectFit: "cover", display: "block" }}
+                          />
+                        )}
+                        <div style={{ padding: 16 }}>
+                          <div style={{ fontWeight: 600, fontSize: 14, color: "var(--cc-text)", marginBottom: 8 }}>
+                            {video.description || video.title || "Untitled post"}
+                          </div>
+                          <div className="cd-post-stats" style={{ marginBottom: 8 }}>
+                            <span className="cd-post-stat"><Eye size={12} />{formatNumber(video.viewsCount)}</span>
+                            <span className="cd-post-stat"><Heart size={12} />{formatNumber(video.likesCount)}</span>
+                            <span className="cd-post-stat"><MessageCircle size={12} />{formatNumber(video.commentsCount)}</span>
+                            <span className="cd-post-stat"><Share2 size={12} />{formatNumber(video.sharesCount)}</span>
+                          </div>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11, color: "var(--cc-text-subtle)" }}>
+                            <span>{formatDateAbs(video.postedAt)}</span>
+                            {video.shareUrl && (
+                              <a href={video.shareUrl} target="_blank" rel="noreferrer" style={{ color: "var(--cc-primary)", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                                View <ExternalLink size={11} />
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>

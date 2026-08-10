@@ -4,8 +4,8 @@ import Link from "next/link";
 export const LEGAL = {
   name: "Outreach AI",
   entity: "Outreach AI",
-  privacyEmail: "privacy@prathamsharma.in",
-  contactEmail: "hello@prathamsharma.in",
+  privacyEmail: "prathamsharma7711@gmail.com",
+  contactEmail: "prathamsharma7711@gmail.com",
   updated: "10 August 2026",
 };
 

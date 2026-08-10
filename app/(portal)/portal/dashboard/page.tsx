@@ -7,6 +7,7 @@ import { MetricTile } from "@/components/ds";
 import { DollarSign, Send, CheckCircle, TrendingUp, Search, LogOut, Inbox } from "lucide-react";
 import Link from "next/link";
 import { stripAt, formatDateAbs } from "@/lib/format";
+import { MyPerformance } from "@/components/portal/MyPerformance";
 
 type DashboardData = {
   user: { name: string; handle: string; avatarUrl: string | null; lifetimeEarnings: number; averageRating: number; reviewCount: number; cpm: number };
@@ -87,6 +88,10 @@ export default function PortalDashboardPage() {
           how="Averages every rating left on your completed activations."
           value={data.user.averageRating > 0 ? `${data.user.averageRating.toFixed(1)} / 5` : "—"}
         />
+      </div>
+
+      <div style={{ marginBottom: 32 }}>
+        <MyPerformance />
       </div>
 
       {/* Recent Proposals */}

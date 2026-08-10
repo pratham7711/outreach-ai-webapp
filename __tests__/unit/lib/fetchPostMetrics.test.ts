@@ -97,4 +97,56 @@ describe("fetchPostMetrics — unknown vs known counts", () => {
     const m = (await fetchPostMetrics("https://youtu.be/abc123XYZ_1")) as PostMetrics;
     expect(hasMetricCounts(m)).toBe(false);
   });
+
+  it("TikTok with a creator token returns real counts from video.query", async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        data: {
+          videos: [
+            {
+              id: "7672247264642993430",
+              title: "t",
+              video_description: "campaign clip",
+              cover_image_url: "cover.jpg",
+              create_time: 1786334308,
+              view_count: 28,
+              like_count: 4,
+              comment_count: 1,
+              share_count: 2,
+            },
+          ],
+        },
+      }),
+    }) as unknown as typeof fetch;
+
+    const m = (await fetchPostMetrics(
+      "https://www.tiktok.com/@clipvault6260/video/7672247264642993430",
+      { tiktokToken: "tok" },
+    )) as PostMetrics;
+
+    expect(hasMetricCounts(m)).toBe(true);
+    expect(m.viewsCount).toBe(28);
+    expect(m.likesCount).toBe(4);
+    expect(m.commentsCount).toBe(1);
+    expect(m.sharesCount).toBe(2);
+    expect(m.caption).toBe("campaign clip");
+  });
+
+  it("TikTok falls back to oembed when video.query does not own the post", async () => {
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ data: { videos: [] } }) })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ thumbnail_url: "thumb.jpg", title: "someone else" }),
+      }) as unknown as typeof fetch;
+
+    const m = (await fetchPostMetrics("https://www.tiktok.com/@other/video/999", {
+      tiktokToken: "tok",
+    })) as PostMetrics;
+
+    expect(hasMetricCounts(m)).toBe(false);
+    expect(m.caption).toBe("someone else");
+  });
 });

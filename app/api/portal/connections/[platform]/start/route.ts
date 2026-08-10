@@ -9,8 +9,10 @@ import {
   isProviderConfigured,
   toPlatformEnum,
 } from "@/lib/oauth/providers";
+import { safeReturnTo, returnToWithQuery } from "@/lib/oauth/returnTo";
 
 const STATE_COOKIE = "portal_oauth_state";
+const RETURN_COOKIE = "portal_oauth_return";
 
 async function findSessionCreator(handle: string) {
   const bare = handle.replace(/^@/, "");
@@ -45,13 +47,16 @@ export async function GET(
         { status: 503 },
       );
     const res = NextResponse.redirect(authorizeUrl);
-    res.cookies.set(STATE_COOKIE, state, {
+    const cookieOptions = {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
+      sameSite: "lax" as const,
       path: "/",
       maxAge: 600,
-    });
+    };
+    res.cookies.set(STATE_COOKIE, state, cookieOptions);
+    const returnTo = safeReturnTo(req.nextUrl.searchParams.get("returnTo"));
+    if (returnTo) res.cookies.set(RETURN_COOKIE, returnTo, cookieOptions);
     return res;
   }
 
@@ -61,11 +66,13 @@ export async function GET(
       { status: 503 },
     );
 
+  const devReturnTo = req.nextUrl.searchParams.get("returnTo");
+
   try {
     const creator = await findSessionCreator(session.handle);
     if (!creator)
       return NextResponse.redirect(
-        new URL(`/portal/settings?error=${platform}`, req.url),
+        new URL(returnToWithQuery(devReturnTo, `error=${platform}`), req.url),
       );
 
     const platformEnum = toPlatformEnum(platform);
@@ -91,12 +98,12 @@ export async function GET(
     });
 
     return NextResponse.redirect(
-      new URL(`/portal/settings?connected=${platform}`, req.url),
+      new URL(returnToWithQuery(devReturnTo, `connected=${platform}`), req.url),
     );
   } catch (error) {
     console.error(`Dev connect failed for ${platform}:`, error);
     return NextResponse.redirect(
-      new URL(`/portal/settings?error=${platform}`, req.url),
+      new URL(returnToWithQuery(devReturnTo, `error=${platform}`), req.url),
     );
   }
 }

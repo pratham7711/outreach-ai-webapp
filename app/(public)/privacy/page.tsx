@@ -93,10 +93,18 @@ export default function PrivacyPage() {
         </p>
         <p>
           You can disconnect a TikTok account at any time from the connections screen inside{" "}
-          {LEGAL.name}, or by revoking access in your TikTok account settings. On disconnection we
-          delete the stored access and refresh tokens immediately and stop all further collection.
-          Previously collected post metrics can be deleted on request to{" "}
+          {LEGAL.name}, or by revoking access in your{" "}
+          <a href="https://www.tiktok.com/setting">TikTok account settings</a>. On disconnection we
+          revoke the token with TikTok, delete the stored access and refresh tokens immediately, and
+          stop all further collection. Previously collected post metrics can be deleted on request to{" "}
           <a href={`mailto:${LEGAL.privacyEmail}`}>{LEGAL.privacyEmail}</a>.
+        </p>
+        <p>
+          TikTok&rsquo;s own handling of your information is described in the{" "}
+          <a href="https://www.tiktok.com/legal/page/row/privacy-policy/en">
+            TikTok Privacy Policy
+          </a>
+          .
         </p>
       </LegalSection>
 
