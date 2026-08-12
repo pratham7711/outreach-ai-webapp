@@ -164,8 +164,10 @@ Protection, which exempts custom domains and so does not affect
 `campaign.madeboring.com`:
 
 ```
-madeboring-rebrand-1sfzjj3yo-prathams-projects-371c8ade.vercel.app
+madeboring-rebrand-pfql2o9n4-prathams-projects-371c8ade.vercel.app
 ```
+
+Branch is pushed: `origin/worktree-madeboring-rebrand`.
 
 ```bash
 cd webapp/.claude/worktrees/madeboring-rebrand
