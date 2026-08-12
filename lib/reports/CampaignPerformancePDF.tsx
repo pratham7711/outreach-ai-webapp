@@ -1,6 +1,7 @@
 import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
 import type { CampaignPerformance } from "@/lib/reports/campaignPerformance";
 import { formatCompact } from "@/lib/format";
+import { POWERED_BY } from "@/lib/brand";
 
 const styles = StyleSheet.create({
   page: {
@@ -201,7 +202,7 @@ export function CampaignPerformancePDF({
         </View>
 
         <View style={styles.footer}>
-          <Text style={styles.footerText}>Powered by Outreach AI</Text>
+          <Text style={styles.footerText}>{POWERED_BY}</Text>
         </View>
       </Page>
     </Document>

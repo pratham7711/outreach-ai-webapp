@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Building2, User, Music, Zap, Plus, X, Sparkles, ArrowRight, PartyPopper } from "lucide-react";
+import { BRAND } from "@/lib/brand";
 
 type OrgType = "Agency" | "Manager" | "Music Label" | "Brand";
 
@@ -250,7 +251,7 @@ export default function OnboardingPage() {
                 </motion.div>
                 <h2 className="text-3xl font-black text-white mb-3">You&apos;re all set!</h2>
                 <p className="text-white/50 text-base mb-10">
-                  Welcome to Outreach AI
+                  Welcome to {BRAND.name}
                   {orgName ? `, ${orgName}` : ""}. Your workspace is ready.
                 </p>
                 <motion.a

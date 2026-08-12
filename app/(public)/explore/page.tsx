@@ -5,9 +5,10 @@ import { EmptyState, Skeleton } from "@pratham7711/ui";
 import { fetchMarketplaceList, type SortKey } from "@/lib/marketplace/public";
 import MarketplaceFilters from "./MarketplaceFilters";
 import CampaignCard from "./CampaignCard";
+import { BRAND, POWERED_BY } from "@/lib/brand";
 
 export const metadata: Metadata = {
-  title: "Creator Marketplace — Get paid per view | Outreach AI",
+  title: `Creator Marketplace — Get paid per view | ${BRAND.name}`,
   description:
     "Browse open campaigns from top brands and get paid for every verified view. Join content-reward campaigns on TikTok, Instagram, and YouTube.",
   openGraph: {
@@ -236,7 +237,7 @@ export default async function ExplorePage({
         </Suspense>
 
         <div style={{ textAlign: "center", padding: "48px 0 0" }}>
-          <p style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>Powered by Outreach AI</p>
+          <p style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{POWERED_BY}</p>
         </div>
       </div>
     </div>

@@ -3,6 +3,7 @@ import localFont from "next/font/local";
 import "./globals.css";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { BRAND } from "@/lib/brand";
 
 const satoshi = localFont({
   src: [
@@ -16,7 +17,7 @@ const satoshi = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Outreach AI",
+  title: BRAND.name,
   description: "Run creator campaigns from pitch to payout — discovery, activations, deliverables and payouts in one place.",
 };
 

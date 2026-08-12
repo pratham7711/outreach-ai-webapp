@@ -4,6 +4,7 @@ import React from "react";
 import Link from "next/link";
 import { ArrowRight, Rocket } from "lucide-react";
 import { SectionCard } from "@/components/ds";
+import { BRAND } from "@/lib/brand";
 
 const STEPS = [
   {
@@ -30,7 +31,7 @@ export function GettingStarted() {
   return (
     <SectionCard
       icon={Rocket}
-      title="Welcome to Outreach AI"
+      title={`Welcome to ${BRAND.name}`}
       description="Your workspace is ready. Three steps to get the first numbers on this dashboard."
       padded={false}
     >

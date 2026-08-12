@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { BRAND } from '../lib/brand';
 
 test.describe('Public Creator Profile', () => {
   test('public profile does not redirect to login', async ({ page }) => {
@@ -29,13 +30,12 @@ test.describe('Public Creator Profile', () => {
     ).toBeVisible({ timeout: 15000 });
   });
 
-  test('public profile shows Outreach AI branding', async ({ page }) => {
+  test('public profile shows product branding', async ({ page }) => {
     await page.goto('/c/blessingjolie');
     await page.waitForLoadState('networkidle', { timeout: 30000 });
     await expect(page.getByText(/blessingjolie|blessing jolie/i).first()).toBeVisible({ timeout: 30000 });
-    // Footer or anywhere on page should have Outreach AI branding
     await expect(
-      page.getByText(/powered by outreach ai|outreach ai/i).first()
+      page.getByText(new RegExp(BRAND.name, 'i')).first()
     ).toBeVisible({ timeout: 15000 });
   });
 });

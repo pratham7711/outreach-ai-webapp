@@ -19,6 +19,9 @@ export const authConfig = {
       const isPublicLegalPage =
         nextUrl.pathname.startsWith("/privacy") ||
         nextUrl.pathname.startsWith("/terms");
+      if (nextUrl.pathname === "/") {
+        return isLoggedIn ? Response.redirect(new URL("/campaigns", nextUrl)) : true;
+      }
       const isAuthPage =
         nextUrl.pathname.startsWith("/login") ||
         nextUrl.pathname.startsWith("/signup") ||
