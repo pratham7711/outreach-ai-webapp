@@ -1,3 +1,5 @@
+import { BRAND } from "@/lib/brand";
+
 export const OAUTH_PLATFORMS = ["instagram", "tiktok", "youtube"] as const;
 
 export type OAuthPlatform = (typeof OAUTH_PLATFORMS)[number];
@@ -60,7 +62,7 @@ function appBaseUrl(): string {
   const base =
     process.env.APP_URL ||
     process.env.NEXT_PUBLIC_APP_URL ||
-    "http://localhost:3009";
+    (process.env.NODE_ENV === "production" ? BRAND.url : "http://localhost:3009");
   return base.replace(/\/+$/, "");
 }
 
