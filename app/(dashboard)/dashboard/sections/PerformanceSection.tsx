@@ -24,6 +24,11 @@ const PlatformBreakdownPie = dynamic(
   { ssr: false, loading: () => <Skeleton className="h-[200px] w-full rounded-lg" /> }
 );
 
+const CpmTrendLine = dynamic(
+  () => import("../DashboardCharts").then((m) => m.CpmTrendLine),
+  { ssr: false, loading: () => <Skeleton className="h-[200px] w-full rounded-lg" /> }
+);
+
 const SpendByCampaignBar = dynamic(
   () => import("../DashboardCharts").then((m) => m.SpendByCampaignBar),
   { ssr: false, loading: () => <Skeleton className="h-[200px] w-full rounded-lg" /> }
@@ -114,6 +119,26 @@ export function PerformanceSection({
               </div>
             ) : (
               <Empty>No campaign spend data</Empty>
+            )}
+          </SectionCard>
+        )}
+
+        {widgets.includes("views_over_time") && (
+          <SectionCard
+            icon={TrendingUp}
+            title="Cost per thousand views"
+            description="Spend read against reach. Lower is better, and the dashed line marks your best period so far."
+            metric="monthlySpend"
+          >
+            {loading ? (
+              <Skeleton className="h-[200px] w-full rounded-lg" />
+            ) : (
+              <div className="h-[200px]">
+                <CpmTrendLine
+                  data={financials?.spendOverTime ?? []}
+                  formatCurrency={formatCurrency}
+                />
+              </div>
             )}
           </SectionCard>
         )}

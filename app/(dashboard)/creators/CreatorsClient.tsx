@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Plus, LayoutGrid, List as ListIcon, Users } from "lucide-react";
 import { Button, Badge, Card, Input, Avatar, EmptyState } from "@pratham7711/ui";
-import { StatusTabs } from "@/components/ds";
+import { StatusTabs, SortableTh, useTableSort, numericCell, type SortAccessors } from "@/components/ds";
 import { Search } from "lucide-react";
 import AddCreatorModal from "@/components/modals/AddCreatorModal";
 import Link from "next/link";
@@ -33,6 +33,16 @@ const PLATFORM_TABS = [
   { key: "TWITTER", label: "Twitter" },
 ];
 
+// Module scope keeps this referentially stable, so useTableSort's memo holds.
+const CREATOR_SORT: SortAccessors<Creator> = {
+  name: (c) => c.name,
+  platform: (c) => platformLabel(c.platform),
+  followerCount: (c) => c.followerCount,
+  avgViews: (c) => c.avgViews,
+  rate: (c) => c.rate,
+  activations: (c) => c._count.activations,
+};
+
 const PLATFORM_BADGE_VARIANT: Record<string, "accent" | "danger" | "neutral" | "warning" | "success"> = {
   Instagram: "accent",
   YouTube: "danger",
@@ -51,6 +61,8 @@ export default function CreatorsClient({ creators }: { creators: Creator[] }) {
     const matchPlatform = platformFilter === "All" || c.platform.toUpperCase() === platformFilter;
     return matchSearch && matchPlatform;
   });
+
+  const { sorted, sort, toggle } = useTableSort(filtered, CREATOR_SORT);
 
   return (
     <div className="rsp-page">
@@ -147,13 +159,16 @@ export default function CreatorsClient({ creators }: { creators: Creator[] }) {
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ background: "var(--cc-hover-bg)" }}>
-                {["Creator", "Platform", "Followers", "Avg. Views", "Rate", "Campaigns"].map((h) => (
-                  <th key={h} style={{ textAlign: "left", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--cc-text-subtle)", padding: "12px 24px" }}>{h}</th>
-                ))}
+                <SortableTh label="Creator" sortKey="name" sort={sort} onToggle={toggle} />
+                <SortableTh label="Platform" sortKey="platform" sort={sort} onToggle={toggle} />
+                <SortableTh label="Followers" sortKey="followerCount" sort={sort} onToggle={toggle} align="right" />
+                <SortableTh label="Avg. Views" sortKey="avgViews" sort={sort} onToggle={toggle} align="right" />
+                <SortableTh label="Rate" sortKey="rate" sort={sort} onToggle={toggle} align="right" />
+                <SortableTh label="Campaigns" sortKey="activations" sort={sort} onToggle={toggle} align="right" />
               </tr>
             </thead>
             <tbody>
-              {filtered.map((c) => (
+              {sorted.map((c) => (
                 <tr key={c.id} className="cc-table-row" style={{ borderTop: "1px solid var(--cc-border)" }}>
                   <td style={{ padding: "14px 24px" }}>
                     <Link href={`/creators/${c.id}`} style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 12 }}>
@@ -167,10 +182,10 @@ export default function CreatorsClient({ creators }: { creators: Creator[] }) {
                   <td style={{ padding: "14px 24px" }}>
                     <Badge variant={PLATFORM_BADGE_VARIANT[c.platform] ?? "neutral"}>{platformLabel(c.platform)}</Badge>
                   </td>
-                  <td style={{ padding: "14px 24px", fontSize: 14, fontWeight: 500, color: "var(--cc-text)" }}>{c.followerCount ? formatNumber(c.followerCount) : "—"}</td>
-                  <td style={{ padding: "14px 24px", fontSize: 14, fontWeight: 500, color: "var(--cc-text)" }}>{c.avgViews ? formatNumber(c.avgViews) : "—"}</td>
-                  <td style={{ padding: "14px 24px", fontSize: 14, fontWeight: 500, color: "var(--cc-text)" }}>{c.rate ? `$${c.rate}` : "—"}</td>
-                  <td style={{ padding: "14px 24px", fontSize: 14, fontWeight: 500, color: "var(--cc-text)" }}>{c._count.activations}</td>
+                  <td style={numericCell}>{c.followerCount ? formatNumber(c.followerCount) : "—"}</td>
+                  <td style={numericCell}>{c.avgViews ? formatNumber(c.avgViews) : "—"}</td>
+                  <td style={numericCell}>{c.rate ? `$${c.rate}` : "—"}</td>
+                  <td style={numericCell}>{c._count.activations}</td>
                 </tr>
               ))}
             </tbody>

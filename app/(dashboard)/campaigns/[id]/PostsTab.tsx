@@ -7,7 +7,7 @@ import { StatusTabs, Pagination } from "@/components/ds";
 import { Grid3X3, List, Plus, Check, X, Eye, Heart, MessageCircle, TrendingUp, ArrowUp, ArrowDown, ArrowUpDown, Flag, Video, AlertTriangle, RefreshCw, Image as ImageIcon } from "lucide-react";
 import Link from "next/link";
 import { computePostEmv, computeEngagementRate } from "@/lib/metrics";
-import { formatCompact, formatCompactCurrency, stripAt, formatDateAbs } from "@/lib/format";
+import { formatCompact, formatCompactCurrency, stripAt, formatDateAbs, timeAgo } from "@/lib/format";
 
 type SnapshotLite = { id: string; viewsCount: number; recordedAt: string };
 
@@ -82,18 +82,10 @@ function formatMoney(num: number): string {
   return formatCompactCurrency(num);
 }
 
+// Never-synced is a fact worth stating; timeAgo's "Recently" fallback would
+// claim the opposite.
 function formatSince(iso: string | null): string {
-  if (!iso) return "Never";
-  const then = new Date(iso).getTime();
-  if (Number.isNaN(then)) return "Never";
-  const diff = Date.now() - then;
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "Just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  const days = Math.floor(hrs / 24);
-  return `${days}d ago`;
+  return iso ? timeAgo(iso) : "Never";
 }
 
 function engRatePct(post: PostData): number | null {

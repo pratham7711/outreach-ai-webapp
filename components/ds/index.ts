@@ -7,3 +7,5 @@ export { MetricTile } from "./MetricTile";
 export { SectionCard } from "./SectionCard";
 export { ConfirmProvider, useConfirm } from "./ConfirmDialog";
 export type { ConfirmOptions } from "./ConfirmDialog";
+export { SortableTh, useTableSort, numericCell } from "./SortableTh";
+export type { SortAccessors, SortDir, SortState, SortValue } from "./SortableTh";
