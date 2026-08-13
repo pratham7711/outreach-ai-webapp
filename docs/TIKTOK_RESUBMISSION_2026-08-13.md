@@ -240,7 +240,18 @@ be accepted.
 Complication: **`madeboring.com` DNS is on Cloudflare**
 (`annalise`/`bradley.ns.cloudflare.com`), not Hostinger. `hapi` returns an
 empty zone for it and there are no Cloudflare credentials in these sessions,
-so publishing the TXT needs a Cloudflare login.
+so publishing a TXT needs a Cloudflare login.
+
+What did change: because `/` is now a real public page, **the Website URL can
+be `https://campaign.madeboring.com` exactly**. The earlier plan of putting a
+landing site on the `madeboring.com` apex — purely to dodge the login wall at
+the app root — is off the critical path. Verifying the property is still
+required; only the apex build is not.
+
+Unresolved: whether TikTok will accept a file-based URL-property verification
+served from the app, which needs no DNS at all, or insists on a DNS TXT, which
+needs the Cloudflare login. Check the portal's URL-properties tab before
+assuming Cloudflare access is required.
 
 ### 5.7 Untick Android and iOS in the submission
 
@@ -277,10 +288,17 @@ Send **after** 5.2 and 5.3, because it states that the site changes are live.
 Channel: the developer support portal at
 `developers.tiktok.com/portal/support` (needs the same login as 5.1).
 
-**There is a second, competing draft.** A parallel session composed a ticket
-directly in the portal (category `support`, `enter_from_appId=7578018492050753548`,
-topic Display API) and it is still **unsubmitted, pending Pratham's
-go-ahead**. Pick one before sending; do not send both.
+**There is a second, competing draft, and it is the better-informed one:**
+`webapp/docs/TIKTOK_SUPPORT_TICKET_DRAFT.md` (untracked, shared checkout). It
+carries every portal field value and the topic-dropdown options. Still
+**unsubmitted, pending Pratham's go-ahead**. Pick one; do not send both.
+
+One caveat recorded on that draft: its Question 1 asks whether the
+demo-video-domain rule accepts a subdomain, which was written on the
+assumption that the app root was a login wall and the apex would have to be
+submitted. **That assumption no longer holds** now `/` is public, so Question 1
+may be moot. Question 2 (Display API vs the Accounts API) is unaffected and is
+the half worth asking.
 
 **Question 2 is already partly answered** — do not re-derive it. See
 `TIKTOK_OFFICIAL_METRICS_ROUTES_2026-08-12.md` (untracked, in the shared

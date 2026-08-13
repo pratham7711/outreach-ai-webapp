@@ -32,20 +32,51 @@ candidates, told to carry on:
 The git working tree survives — that session works in the shared checkout in
 place, so the WIP in §2 sits on disk regardless. Three things are perishable:
 
-1. **A logged-in Playwright Chrome on `developers.tiktok.com`.** Pratham typed
-   that password by hand. `.secrets/tiktok.env` is **stale and was rejected**,
-   with **2 of 6 login attempts already burned**. Closing the session means he
-   retypes it; there is no way around that.
-2. **A fully composed, unsubmitted support ticket** in that browser
-   (category `support`, `enter_from_appId=7578018492050753548`, topic Display
-   API). The text existed nowhere on disk; that session was asked to dump it
-   to `docs/TIKTOK_SUPPORT_TICKET_DRAFT.md` before closing.
+1. ~~A logged-in Playwright Chrome on `developers.tiktok.com`.~~ **Already
+   gone**, and it went before the consolidation started, not because of it.
+   Playwright is at `about:blank`; Proton had dropped, the AWS tunnel came
+   back up, egress flipped to India (Delhi) and the portal now answers **503**.
+   Re-entry costs a fresh login either way: `.secrets/tiktok.env` is **stale
+   and was rejected**, with **2 of 6 attempts already burned**, so Pratham
+   retypes the password by hand.
+2. **The composed support ticket is saved**, reconstructed verbatim from that
+   session's transcript rather than scraped from the dead page:
+   `webapp/docs/TIKTOK_SUPPORT_TICKET_DRAFT.md` (untracked, shared checkout).
+   It carries the body, every field value, the topic-dropdown options, and the
+   two access prerequisites. Cost of the lost browser is retyping into a fresh
+   form, not rewriting the text.
 3. **Two pending approvals** that are Pratham's alone to give: whether to
-   submit that ticket, and whether to proceed with the website-URL fix.
+   submit that ticket, and which Website URL to resubmit.
+
+### Credential exposure — his call, not ours
+
+The transcript `/Users/pratham/.claude/projects/-Users-pratham/fa8e7ca9-*.jsonl`
+contains the **TikTok developer password in plaintext**, captured in a
+Playwright accessibility snapshot that echoed the filled password field. It
+was flagged to him when it happened and nobody has touched it since.
+**Do not paste or excerpt that file anywhere.** Rotating the password is his
+decision.
+
+### VPN ordering, learned the hard way
+
+The AWS Leegality tunnel was deliberately left **up** — it is the day-job
+connection and yanking it cuts his work connectivity. For TikTok work the
+order is `vpn aws` off → `vpn on` → confirm ProtonVPN.app is actually running.
+Stacked tunnels kill DNS outright.
 
 Safe to delete on cleanup: `webapp/.tmp-tt-assisted.mjs`. Worth keeping:
-`webapp/.seed-drafts-qa.ts`, an idempotent sandbox re-seed, run from `webapp/`
-as `DATABASE_URL="$SBX_DIRECT" npx tsx ./.seed-drafts-qa.ts`.
+`webapp/.seed-drafts-qa.ts`, an idempotent sandbox re-seed:
+
+```bash
+cd webapp
+set -a; . ~/.config/madeboring/neon-urls.env; set +a
+DATABASE_URL="$SBX_DIRECT" npx tsx ./.seed-drafts-qa.ts
+```
+
+That env file is also the likely fix for §6's dead `DATABASE_URL`: the working
+Neon URLs live in `~/.config/madeboring/neon-urls.env`, not in `webapp/.env`.
+Note `SBX_DIRECT` is the **sandbox** branch, so it would not by itself answer
+a question about production data.
 
 Work that session already completed and verified: the drafts approval feature
 (creator submits → agency approves/declines), deployed to the sandbox and
