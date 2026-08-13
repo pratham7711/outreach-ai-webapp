@@ -187,6 +187,32 @@ Plus, newly surfaced and submission-critical — full detail in
 - **Demo video attachment unconfirmed** — upload slots render empty.
 - **Scopes are already correct.** Do not "fix" them.
 
+### The production database is empty — this blocks the resubmission
+
+`campaign.madeboring.com` is live and correct as a signed-out surface, but
+there is nothing behind the login. Queried directly against `PROD_DIRECT`
+(`ep-green-breeze`) on 13 August 2026:
+
+```
+ORGS: 1        Fresh Test Co (cmsp5ajby000004kyklqcosgg)
+USERS: 2       freshorg@test.com (OWNER), mgr3@test.com (MANAGER)  — both 2026-08-11
+ROW COUNTS: {"campaigns":0,"creators":0,"clients":0,"posts":0,"socialAccounts":0}
+```
+
+Those two users are leftovers from a signup smoke test. `admin@demo.com` /
+`admin123` **does not exist in production** — signing in with it on the live
+site returns "Invalid email or password" (driven in a real browser, verified).
+
+So a TikTok reviewer given a demo account today would land in an empty app:
+no campaign, no creator, no connected TikTok account, no views. The seeded
+data (2 TikTok connections, 7 posts) lives only on the **sandbox** branch
+`ep-late-cloud`, and those posts are fixtures with fake URLs like
+`example.com/tiktok/post-mkt-2` whose stored tokens return **401** from
+TikTok.
+
+Before resubmitting, production needs a demo org with a working login, at
+least one campaign, and ideally one genuinely connected TikTok account.
+
 ### Vercel refuses to build commits authored by the bot
 
 Production deploys from this worktree sat at CLI status `UNKNOWN` with a `?`
