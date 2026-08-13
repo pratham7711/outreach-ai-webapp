@@ -715,12 +715,13 @@ export default function PostsTab({
                       position: "absolute",
                       insetInline: 0,
                       bottom: 0,
-                      padding: "52px 14px 10px",
-                      // Reaches near-opaque before the first line of text so counts
-                      // stay legible over a busy frame.
-                      background: "linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(0,0,0,0.45) 28%, rgba(0,0,0,0.82) 52%, rgba(0,0,0,0.94) 100%)",
+                      padding: "48px 14px 10px",
+                      // Fades in over the frame, then goes fully solid behind the
+                      // counts — the same treatment CreatorCore uses, so numbers
+                      // never fight the artwork.
+                      background:
+                        "linear-gradient(to bottom, rgba(28,32,72,0) 0%, rgba(28,32,72,0.72) 30%, var(--cc-text) 48%, var(--cc-text) 100%)",
                       color: "white",
-                      textShadow: "0 1px 2px rgba(0,0,0,0.55)",
                     }}
                   >
                     <div title={post.creator.name} style={{ fontSize: 14, fontWeight: 700, marginBottom: 6, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
