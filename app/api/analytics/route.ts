@@ -190,5 +190,13 @@ export async function GET(req: NextRequest) {
     leaderboard,
     platformBreakdown,
     campaigns: orgCampaigns,
+    // Just the three fields the posting-time analysis buckets on. Bucketing
+    // happens client-side because the useful timezone is the viewer's, and the
+    // server has no way to know it.
+    postingTimes: posts.map((p) => ({
+      postedAt: p.postedAt,
+      platform: p.platform,
+      viewsCount: p.viewsCount,
+    })),
   });
 }

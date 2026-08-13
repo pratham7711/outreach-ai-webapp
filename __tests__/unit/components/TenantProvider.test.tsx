@@ -117,7 +117,11 @@ describe("TenantProvider", () => {
   });
 
   describe("CSS variable injection", () => {
-    it("sets --color-primary CSS variable from config", async () => {
+    // These assert --primary/--secondary, not --color-primary/--color-secondary.
+    // globals.css defines both --cc-primary and --color-primary as var(--primary),
+    // so writing an alias leaves it reading the token it derives from and the
+    // tenant colour never paints. The root token is the only override that works.
+    it("sets the --primary root token from config", async () => {
       (global.fetch as jest.Mock) = jest.fn().mockResolvedValue({
         ok: true,
         json: async () => ({ primaryColor: "#ABCDEF" }),
@@ -130,11 +134,11 @@ describe("TenantProvider", () => {
       );
 
       await waitFor(() => {
-        expect(document.documentElement.style.getPropertyValue("--color-primary")).toBe("#ABCDEF");
+        expect(document.documentElement.style.getPropertyValue("--primary")).toBe("#ABCDEF");
       });
     });
 
-    it("sets --color-secondary CSS variable from config", async () => {
+    it("sets the --secondary root token from config", async () => {
       (global.fetch as jest.Mock) = jest.fn().mockResolvedValue({
         ok: true,
         json: async () => ({ secondaryColor: "#111222" }),
@@ -143,7 +147,7 @@ describe("TenantProvider", () => {
       render(<TenantProvider><div>test</div></TenantProvider>);
 
       await waitFor(() => {
-        expect(document.documentElement.style.getPropertyValue("--color-secondary")).toBe("#111222");
+        expect(document.documentElement.style.getPropertyValue("--secondary")).toBe("#111222");
       });
     });
 
