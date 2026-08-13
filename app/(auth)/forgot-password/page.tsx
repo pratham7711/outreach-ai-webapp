@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { motion } from "framer-motion";
 import { ArrowLeft, Mail } from "lucide-react";
 import Link from "next/link";
+import { BRAND } from "@/lib/brand";
 import { Button, Input } from "@pratham7711/ui";
 
 export default function ForgotPasswordPage() {
@@ -65,7 +66,7 @@ export default function ForgotPasswordPage() {
             <circle cx="12" cy="12" r="2" fill="var(--cc-primary)"/>
           </svg>
           <span style={{ fontWeight: 800, fontSize: 20, color: "var(--cc-text)", letterSpacing: "-0.5px" }}>
-            outreach ai
+            {BRAND.name}
           </span>
         </div>
 

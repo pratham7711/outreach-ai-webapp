@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { BRAND } from "@/lib/brand";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { useState, useEffect, useCallback, useMemo } from "react";
@@ -236,7 +237,7 @@ export default function NewSidebar({ allowedNavHrefs, brandName, user }: Sidebar
                 {logoMark}
                 <span
                   className="truncate"
-                  title={brandName ?? "outreach ai"}
+                  title={brandName ?? BRAND.name}
                   style={{
                     fontWeight: 800,
                     fontSize: 15,
@@ -244,7 +245,7 @@ export default function NewSidebar({ allowedNavHrefs, brandName, user }: Sidebar
                     letterSpacing: "-0.4px",
                   }}
                 >
-                  {brandName ?? "outreach ai"}
+                  {brandName ?? BRAND.name}
                 </span>
               </div>
 

@@ -75,7 +75,7 @@ export default function OnboardingPage() {
         <div className="text-center mb-8">
           <a href="/" className="inline-flex items-center gap-2">
             <Sparkles className="text-[#2563EB]" />
-            <span className="text-2xl font-black text-white">outreach ai</span>
+            <span className="text-2xl font-black text-white">{BRAND.name}</span>
           </a>
         </div>
 

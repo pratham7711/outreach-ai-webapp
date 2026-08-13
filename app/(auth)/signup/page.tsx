@@ -5,6 +5,7 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { Button, Input } from "@pratham7711/ui";
 import { Eye, EyeOff, Building2, Sparkles } from "lucide-react";
+import { BRAND } from "@/lib/brand";
 
 type OrgTypeChoice = "AGENCY" | "BRAND";
 
@@ -101,7 +102,7 @@ export default function SignupPage() {
             <circle cx="12" cy="12" r="2" fill="var(--cc-primary)" />
           </svg>
           <span style={{ fontWeight: 800, fontSize: 20, color: "var(--cc-text)", letterSpacing: "-0.02em" }}>
-            outreach ai
+            {BRAND.name}
           </span>
         </div>
 
@@ -121,7 +122,7 @@ export default function SignupPage() {
             Create your account
           </h1>
           <p style={{ fontSize: 14, color: "var(--cc-text-muted)", marginBottom: 24 }}>
-            Set up your workspace on outreach ai
+            Set up your workspace on {BRAND.name}
           </p>
 
           {error && (
