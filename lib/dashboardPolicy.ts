@@ -5,7 +5,6 @@ import {
   AUDIT_LOG_FEATURE,
   MEDIA_KITS_FEATURE,
   REPORTS_FEATURE_KEYS,
-  SONGS_FEATURE,
 } from "@/lib/featureKeys";
 
 export type DashboardPolicyInput = {
@@ -33,11 +32,15 @@ const DEFAULT_PRIMARY_COLOR = PLATFORM_DEFAULT_BRANDING.primaryColor;
 
 export const DASHBOARD_NAV_RULES: DashboardNavRule[] = [
   { href: "/dashboard", alwaysVisible: true },
-  // Gated on the feature, not on uiConfig.nav. A nav allowlist is a snapshot of
-  // the routes that existed when it was written, so keying off it would make every
-  // newly shipped feature permanently invisible to any org that ever customised
-  // its nav — silently. The feature flag is the gate that can actually be managed.
-  { href: "/songs", alwaysVisible: true, featureKeys: [SONGS_FEATURE] },
+  // Deliberately not keyed off uiConfig.nav: that allowlist is a snapshot of the
+  // routes that existed when it was written, so keying off it makes every newly
+  // shipped feature permanently invisible to any org that ever customised its nav.
+  // Not gated on SONGS_FEATURE either — the org-level feature map has no UI (Feature
+  // Access manages per-client overrides, not the org's own), so gating here would
+  // hide Songs with no supported way to switch it on. The real access control is at
+  // the data layer, where every song query is orgId-scoped. Add the gate here once
+  // org-level features are editable.
+  { href: "/songs", alwaysVisible: true },
   { href: "/campaigns", key: "campaigns" },
   { href: "/inbox", alwaysVisible: true },
   { href: "/activations", key: "activations" },
