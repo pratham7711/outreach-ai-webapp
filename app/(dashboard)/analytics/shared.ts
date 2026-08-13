@@ -1,4 +1,5 @@
 import { formatCompact } from "@/lib/format";
+import { PLATFORM_FILTER_OPTIONS } from "@/lib/platforms/constants";
 
 export function formatNumber(n: number): string {
   return formatCompact(n);
@@ -19,12 +20,7 @@ export const RANGE_PRESETS = [
   { key: "all", label: "All" },
 ];
 
-export const PLATFORM_FILTERS = [
-  { key: "ALL", label: "All" },
-  { key: "TIKTOK", label: "TikTok" },
-  { key: "INSTAGRAM", label: "Instagram" },
-  { key: "YOUTUBE", label: "YouTube" },
-];
+export const PLATFORM_FILTERS = PLATFORM_FILTER_OPTIONS;
 
 export function rangeToFrom(range: string): string | null {
   const days: Record<string, number> = { "7d": 7, "30d": 30, "90d": 90 };
@@ -49,6 +45,8 @@ export const PLATFORM_PALETTE: Record<string, string> = {
   YOUTUBE: "var(--chart-3)",
   TWITTER: "var(--chart-4)",
   X: "var(--chart-4)",
+  LINKEDIN: "var(--chart-5)",
+  SNAPCHAT: "var(--chart-2)",
 };
 
 const PLATFORM_FALLBACK = SERIES_COLORS;

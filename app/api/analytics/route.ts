@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { authenticateRequest } from "@/lib/authenticate";
 import { computeCampaignEmv, computeEngagementRate, sumEngagements } from "@/lib/metrics";
+import { PLATFORM_VALUES } from "@/lib/platforms/constants";
 
-const PLATFORMS = ["TIKTOK", "INSTAGRAM", "YOUTUBE", "TWITTER"] as const;
+const PLATFORMS = PLATFORM_VALUES;
 
 function parseFrom(req: NextRequest): Date | null {
   const raw = req.nextUrl.searchParams.get("from");

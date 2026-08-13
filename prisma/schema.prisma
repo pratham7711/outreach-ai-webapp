@@ -37,6 +37,8 @@ enum Platform {
   INSTAGRAM
   YOUTUBE
   TWITTER
+  LINKEDIN
+  SNAPCHAT
 }
 
 enum ActivationStatus {
@@ -267,6 +269,52 @@ model Organization {
   creatorReviews      CreatorReview[]
   creatorTestimonials CreatorTestimonial[]
   conversations       Conversation[]
+  songs               Song[]
+}
+
+/// A release that campaigns promote. One song runs across many campaigns, but a
+/// campaign does not need one — Campaign.songId stays nullable so brand work and
+/// one-off campaigns keep working exactly as before.
+model Song {
+  id          String    @id @default(cuid())
+  orgId       String
+  title       String
+  artist      String
+  isrc        String?
+  releaseDate DateTime?
+  coverUrl    String?
+  notes       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  org       Organization @relation(fields: [orgId], references: [id])
+  campaigns Campaign[]
+
+  @@index([orgId])
+  @@index([orgId, deletedAt])
+}
+
+/// A campaign can run in waves — "4 phases of 10 posts each". Posts point at a
+/// phase optionally, so campaigns that never use phases are unaffected and every
+/// post predating this model keeps a null phaseId.
+model CampaignPhase {
+  id          String    @id @default(cuid())
+  campaignId  String
+  name        String
+  /// 1-based running order within the campaign.
+  sequence    Int
+  startDate   DateTime?
+  endDate     DateTime?
+  targetPosts Int?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  posts    Post[]
+
+  @@unique([campaignId, sequence])
+  @@index([campaignId])
 }
 
 model User {
@@ -365,6 +413,7 @@ model Campaign {
   currency         Currency         @default(USD)
   notes            String?
   clientId         String?
+  songId           String?
   folderId         String?
   createdById      String
   // Payment & approval config
@@ -378,6 +427,8 @@ model Campaign {
 
   org            Organization         @relation(fields: [orgId], references: [id])
   client         Client?              @relation(fields: [clientId], references: [id])
+  song           Song?                @relation(fields: [songId], references: [id])
+  phases         CampaignPhase[]
   folder         Folder?              @relation(fields: [folderId], references: [id])
   teamMembers    CampaignTeamMember[]
   tags           CampaignTag[]
@@ -535,6 +586,7 @@ model Post {
   campaignId     String
   creatorId      String
   activationId   String?
+  phaseId        String?
   platform       Platform
   platformPostId String
   postUrl        String
@@ -565,7 +617,10 @@ model Post {
   campaign   Campaign              @relation(fields: [campaignId], references: [id])
   creator    Creator               @relation(fields: [creatorId], references: [id])
   activation Activation?           @relation(fields: [activationId], references: [id])
+  phase      CampaignPhase?        @relation(fields: [phaseId], references: [id], onDelete: SetNull)
   snapshots  PostMetricSnapshot[]
+
+  @@index([phaseId])
 }
 
 model PostMetricSnapshot {

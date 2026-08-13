@@ -11,6 +11,7 @@ import {
   DISCOVERY_FEATURE,
   MEDIA_KITS_FEATURE,
   MULTI_CURRENCY_FEATURE,
+  SONGS_FEATURE,
 } from "@/lib/featureKeys";
 
 export const FEATURES = {
@@ -24,6 +25,7 @@ export const FEATURES = {
   [MULTI_CURRENCY_FEATURE]:   { label: "Multi-Currency Payouts",  description: "Pay creators in multiple currencies" },
   [AUDIT_LOG_FEATURE]:        { label: "Audit Log",               description: "Full audit trail of all actions" },
   [MEDIA_KITS_FEATURE]:       { label: "Media Kits",              description: "Generate creator media kits" },
+  [SONGS_FEATURE]:            { label: "Songs",                 description: "Group campaigns under a release and roll up its performance" },
   [AI_ASSISTANT_FEATURE]:     { label: "AI Assistant",            description: "AI briefings and natural-language analytics (billed per request)" },
 } as const;
 
