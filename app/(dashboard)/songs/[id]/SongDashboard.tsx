@@ -7,6 +7,7 @@ import { PostAnalysisTable, type AnalysisPost } from "@/components/posts/PostAna
 import { PostingTimeHeatmap } from "@/app/(dashboard)/analytics/PostingTimeHeatmap";
 import { formatCompact, platformLabel } from "@/lib/format";
 import { platformColor } from "@/app/(dashboard)/analytics/shared";
+import AttachCampaigns, { type AttachableCampaign } from "./AttachCampaigns";
 
 type Summary = {
   campaignCount: number;
@@ -102,7 +103,13 @@ function DistributionRow({
   );
 }
 
-export default function SongDashboard({ data }: { data: SongDashboardData }) {
+export default function SongDashboard({
+  data,
+  attachable = [],
+}: {
+  data: SongDashboardData;
+  attachable?: AttachableCampaign[];
+}) {
   const { song, summary, campaigns, phases, platformBreakdown, posts } = data;
   const [tab, setTab] = useState<"posts" | "timing">("posts");
 
@@ -206,6 +213,9 @@ export default function SongDashboard({ data }: { data: SongDashboardData }) {
 
       <div style={{ ...card, marginBottom: 20 }}>
         <h2 style={{ fontSize: 13, fontWeight: 700, color: "var(--cc-text)", marginBottom: 16 }}>Campaigns</h2>
+        <div style={{ marginBottom: 16 }}>
+          <AttachCampaigns songId={song.id} campaigns={attachable} />
+        </div>
         {campaigns.length === 0 ? (
           <Empty>No campaigns attached to this song yet.</Empty>
         ) : (

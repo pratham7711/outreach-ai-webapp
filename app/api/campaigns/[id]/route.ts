@@ -30,6 +30,9 @@ const updateCampaignSchema = z.object({
   currency: z.enum(["USD", "EUR", "GBP", "INR"]).optional(),
   notes: z.string().nullable().optional(),
   clientId: z.string().nullable().optional(),
+  // null detaches the campaign from its song and is a supported state, not an
+  // error — campaigns are allowed to stand alone.
+  songId: z.string().nullable().optional(),
   folderId: z.string().nullable().optional(),
   thumbnailUrl: z.string().nullable().optional(),
   paymentMode: z.enum(PAYMENT_MODES).optional(),
@@ -159,6 +162,17 @@ export async function PATCH(
 
     const { regenerateInviteCode, contentAssetsUrl, submissionDeadline, ratePerThousand, ...rest } =
       parsed.data;
+
+    // songId arrives in the body, so it has to be proven to belong to this org.
+    // Without this a caller could attach their campaign to another org's song and
+    // have their numbers show up on that org's song dashboard.
+    if (rest.songId) {
+      const song = await db.song.findFirst({
+        where: { id: rest.songId, orgId, deletedAt: null },
+        select: { id: true },
+      });
+      if (!song) return NextResponse.json({ error: "Song not found" }, { status: 404 });
+    }
 
     // Build the update payload; marketplace side-effects (slug, invite code) are
     // derived server-side only — never trusted from the request body.

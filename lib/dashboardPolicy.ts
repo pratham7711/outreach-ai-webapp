@@ -32,6 +32,7 @@ const DEFAULT_PRIMARY_COLOR = PLATFORM_DEFAULT_BRANDING.primaryColor;
 
 export const DASHBOARD_NAV_RULES: DashboardNavRule[] = [
   { href: "/dashboard", alwaysVisible: true },
+  { href: "/songs", key: "songs" },
   { href: "/campaigns", key: "campaigns" },
   { href: "/inbox", alwaysVisible: true },
   { href: "/activations", key: "activations" },

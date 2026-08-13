@@ -42,6 +42,12 @@ export default async function SongPage({ params }: { params: Promise<{ id: strin
 
   if (!song) notFound();
 
+  const orgCampaigns = await db.campaign.findMany({
+    where: { orgId, deletedAt: null },
+    select: { id: true, title: true, songId: true },
+    orderBy: { createdAt: "desc" },
+  });
+
   const allPosts = song.campaigns.flatMap((c) =>
     c.posts.map((p) => ({ ...p, campaignId: c.id, campaignTitle: c.title })),
   );
@@ -77,6 +83,7 @@ export default async function SongPage({ params }: { params: Promise<{ id: strin
 
   return (
     <SongDashboard
+      attachable={orgCampaigns}
       data={{
         song: {
           id: song.id,
