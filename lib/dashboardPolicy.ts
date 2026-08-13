@@ -5,6 +5,7 @@ import {
   AUDIT_LOG_FEATURE,
   MEDIA_KITS_FEATURE,
   REPORTS_FEATURE_KEYS,
+  SONGS_FEATURE,
 } from "@/lib/featureKeys";
 
 export type DashboardPolicyInput = {
@@ -32,7 +33,11 @@ const DEFAULT_PRIMARY_COLOR = PLATFORM_DEFAULT_BRANDING.primaryColor;
 
 export const DASHBOARD_NAV_RULES: DashboardNavRule[] = [
   { href: "/dashboard", alwaysVisible: true },
-  { href: "/songs", key: "songs" },
+  // Gated on the feature, not on uiConfig.nav. A nav allowlist is a snapshot of
+  // the routes that existed when it was written, so keying off it would make every
+  // newly shipped feature permanently invisible to any org that ever customised
+  // its nav — silently. The feature flag is the gate that can actually be managed.
+  { href: "/songs", alwaysVisible: true, featureKeys: [SONGS_FEATURE] },
   { href: "/campaigns", key: "campaigns" },
   { href: "/inbox", alwaysVisible: true },
   { href: "/activations", key: "activations" },
