@@ -17,44 +17,54 @@ subject *"Your app status update"*. Body, in full:
 That is the whole message. **No reasons are given in the email** — they sit
 behind the "View App Details" link, which needs a portal login.
 
-**The specific rejection reasons have not been read yet.** The persistent
-Playwright profile at `~/.cache/outreach-ai/tiktok-profile` has expired: a
-headless dump of `developers.tiktok.com/apps` returns the "No access — you
-need to login to access this page" screen. Reading them needs one manual
-step, §5.1.
+**The reason is now known.** It was read off the portal by a parallel session
+that still holds a logged-in browser there, and it is one field, verbatim:
 
-Everything in §2 below was found independently, by checking the site against
-TikTok's published review guidelines. It is not a summary of their feedback.
+> Update the following fields and resubmit changes to your app: **Website
+> URL**. Note from reviewer: *Website is not accessible., Invalid Website
+> URL.*
+
+App ID `7578018492050753548`. **Website URL is the only field cited.**
+
+The persistent Playwright profile at `~/.cache/outreach-ai/tiktok-profile` is
+still expired, so this session cannot re-read the portal itself; §5.1 stands
+if it needs checking again.
 
 ---
 
-## 2. Two published review rules the site was breaking
+## 2. Why the Website URL failed
 
-Both come from `developers.tiktok.com/doc/app-review-guidelines`, and both
-were true of the submitted website URL at the moment of review.
+### 2.1 The cited cause
 
-### 2.1 The website URL resolved to a login page
-
-The rule: the website URL must be a *"Valid, fully developed official
-website"*, and explicitly **not a landing page or a login page**.
-
-What we submitted resolved to `/`, and `/` redirected straight to `/login`:
+The submitted Website URL was `https://app.prathamsharma.in`. It 302'd
+cross-domain to `https://campaign.madeboring.com/login`. The chain, traced in
+code and confirmed by curl:
 
 ```
-https://campaign.madeboring.com/   302  ->  /login
+app/page.tsx  redirect("/campaigns")  ->  proxy.ts auth middleware  ->  /login
 ```
 
-Both shapes the rule names by name. This was already flagged as a live risk
-in `TIKTOK_SUBMISSION_PACKAGE.md` §4 and was never closed.
+`/` was **not in the public-route whitelist** in `lib/auth.config.ts`, so an
+unauthenticated reviewer never saw anything but a login screen on another
+domain. That is both halves of *"Website is not accessible., Invalid Website
+URL."*
 
-### 2.2 Neither legal link was visible on that page
+`app.prathamsharma.in` has since been removed outright (Vercel alias removed,
+`app` CNAME deleted from the `prathamsharma.in` zone), so the submitted URL
+now 404s. It cannot be resubmitted as-is.
 
-The rule: *"Your Privacy Policy and Terms of Service links must be visible on
-the website URL without having to open a menu."*
+### 2.2 What was fixed, and one thing that was not a cited reason
 
-`app/(auth)/login/page.tsx` and `app/(auth)/signup/page.tsx` contained no
-occurrence of `privacy` or `terms` in any form. The pages exist and return
-200, but a reviewer landing on the website URL saw neither link.
+The fix on this branch addresses the cited cause directly: `/` is whitelisted
+in `lib/auth.config.ts` and serves a real public product page returning 200,
+with signed-in users still redirected to `/campaigns`.
+
+Legal links were also added to all four auth pages, because the guidelines say
+Privacy and Terms *"must be visible on the website URL without having to open
+a menu"* and none of those pages carried either link. **This was not one of
+the reviewer's reasons** — the reviewer cited Website URL only. It is
+defensible hardening, not a diagnosed defect, and should not be described as
+the latter.
 
 ### 2.3 A third rule will fail on resubmission unless the demo is re-recorded
 
@@ -204,11 +214,51 @@ DEMO_CREATOR_ID=cmsmctt4v000304jr8qg3oi7o node scripts/record-tiktok-demo.mjs
 
 Do 5.2 and 5.3 first, or the recording captures the old brand.
 
-### 5.5 Update the redirect URI in the TikTok app before testing OAuth
+### 5.5 Re-register OAuth redirect URIs on all three providers
 
-`https://campaign.madeboring.com/api/portal/connections/tiktok/callback` has
-to be registered on the app page. The old `app.prathamsharma.in` URI should be
-removed in the same pass.
+Every callback is still registered on the deleted host. **TikTok, Google and
+Instagram are all broken** until re-registered on `campaign.madeboring.com`:
+
+```
+https://campaign.madeboring.com/api/portal/connections/tiktok/callback
+```
+
+Remove the `app.prathamsharma.in` URIs in the same pass.
+
+### 5.6 Re-verify the URL property — this gates the whole resubmission
+
+The TikTok site-verification TXT
+`tiktok-developers-site-verification=4ThqNhPvZWaXnlMiddWsbo-SB1jHOzvRt` sits
+on the **`prathamsharma.in` apex**, i.e. the domain that was just deleted.
+`madeboring.com` has no such record.
+
+The four submitted URLs previously passed *because* `prathamsharma.in` was a
+verified URL property. A fresh TXT has to be issued from the portal's
+URL-properties tab and published on `madeboring.com` before the new URLs will
+be accepted.
+
+Complication: **`madeboring.com` DNS is on Cloudflare**
+(`annalise`/`bradley.ns.cloudflare.com`), not Hostinger. `hapi` returns an
+empty zone for it and there are no Cloudflare credentials in these sessions,
+so publishing the TXT needs a Cloudflare login.
+
+### 5.7 Untick Android and iOS in the submission
+
+Both platform checkboxes are ticked and there are no mobile apps. The
+guidelines say unneeded products delay review. Web only.
+
+### 5.8 Confirm the demo video is still attached
+
+The upload slots render empty in the portal, so it could not be confirmed that
+the previously uploaded video is still there. Whatever is attached must have
+been recorded on the domain being resubmitted as the Website URL — see §5.4.
+
+### 5.9 Do not touch the scopes
+
+All four (`user.info.basic`, `user.info.profile`, `user.info.stats`,
+`video.list`) are already on the submission. No scope increase is needed and
+none was asked for. This is noted because "fix the scopes" is a tempting wrong
+turn on a rejected app.
 
 ### 5.6 Decide the contact address
 
@@ -226,6 +276,21 @@ to an off-domain address that answers. Route mail for the domain, then flip
 Send **after** 5.2 and 5.3, because it states that the site changes are live.
 Channel: the developer support portal at
 `developers.tiktok.com/portal/support` (needs the same login as 5.1).
+
+**There is a second, competing draft.** A parallel session composed a ticket
+directly in the portal (category `support`, `enter_from_appId=7578018492050753548`,
+topic Display API) and it is still **unsubmitted, pending Pratham's
+go-ahead**. Pick one before sending; do not send both.
+
+**Question 2 is already partly answered** — do not re-derive it. See
+`TIKTOK_OFFICIAL_METRICS_ROUTES_2026-08-12.md` (untracked, in the shared
+checkout): the richer post-metrics route is the **Accounts API on
+`business-api.tiktok.com`** (reach, watch-time, impression sources, 24–48h
+latency), gated behind a Lark application form, and on a **separate plane**
+from `developers.tiktok.com` — separate account, separate app, separate
+review. Research API is ineligible (non-profit), Commercial Content API is
+ads and EU only. That file also documents how Whop does it via official OAuth
+connections, and carries an 11-field form map with drafted answers.
 
 ---
 

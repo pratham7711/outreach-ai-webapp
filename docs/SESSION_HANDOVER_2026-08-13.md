@@ -16,7 +16,7 @@ submission. Sessions were polled directly, not guessed at.
 |---|---|---|
 | This one (bg `535673e4`) | `webapp/.claude/worktrees/madeboring-rebrand` | **Survivor.** Holds the rebrand + TikTok resubmission work. |
 | `credentials exposure security [675b01]` | `outreach-ai/webapp` (shared checkout) | **Already ended.** Read-only the whole time, zero edits, zero commits. Nothing lost. |
-| `Complete outreach campaign to production [b4bc78]` | unreported | Polled twice, no reply, idle 18h. Treat as finished; confirm before closing. |
+| `Complete outreach campaign to production [b4bc78]` | `outreach-ai/webapp` (shared checkout, in place) | **Mid-flight — do not close blind.** Replied after a nudge. Holds a logged-in TikTok portal browser and an unsubmitted support ticket, and owns the ~40-file WIP batch. See §2a. |
 
 Polled and **out of scope** — different projects, not consolidation
 candidates, told to carry on:
@@ -26,6 +26,31 @@ candidates, told to carry on:
 - `pratham-7e [560b48]` — `leegality/deal-collab-frontend`, STP-5246. Day job.
 
 ---
+
+## 2a. What dies when `b4bc78` closes
+
+The git working tree survives — that session works in the shared checkout in
+place, so the WIP in §2 sits on disk regardless. Three things are perishable:
+
+1. **A logged-in Playwright Chrome on `developers.tiktok.com`.** Pratham typed
+   that password by hand. `.secrets/tiktok.env` is **stale and was rejected**,
+   with **2 of 6 login attempts already burned**. Closing the session means he
+   retypes it; there is no way around that.
+2. **A fully composed, unsubmitted support ticket** in that browser
+   (category `support`, `enter_from_appId=7578018492050753548`, topic Display
+   API). The text existed nowhere on disk; that session was asked to dump it
+   to `docs/TIKTOK_SUPPORT_TICKET_DRAFT.md` before closing.
+3. **Two pending approvals** that are Pratham's alone to give: whether to
+   submit that ticket, and whether to proceed with the website-URL fix.
+
+Safe to delete on cleanup: `webapp/.tmp-tt-assisted.mjs`. Worth keeping:
+`webapp/.seed-drafts-qa.ts`, an idempotent sandbox re-seed, run from `webapp/`
+as `DATABASE_URL="$SBX_DIRECT" npx tsx ./.seed-drafts-qa.ts`.
+
+Work that session already completed and verified: the drafts approval feature
+(creator submits → agency approves/declines), deployed to the sandbox and
+driven end to end; the rejection diagnosis; and the removal of
+`app.prathamsharma.in`.
 
 ## 2. The one thing that can actually be lost
 
@@ -87,8 +112,19 @@ commits ahead of `e18a82a`.
 
 Full detail in `TIKTOK_RESUBMISSION_2026-08-13.md`. The short version:
 
-App was **rejected 12 August 2026**. The email carries no reasons; they are
-behind a portal login the saved Playwright profile can no longer pass.
+App was **rejected 12 August 2026**, on exactly one field, verbatim from the
+portal:
+
+> Update the following fields and resubmit changes to your app: **Website
+> URL**. Note from reviewer: *Website is not accessible., Invalid Website URL.*
+
+Cause: the submitted `https://app.prathamsharma.in` 302'd cross-domain to
+`campaign.madeboring.com/login`, because `/` was not in the public-route
+whitelist in `lib/auth.config.ts`. That host has since been deleted outright,
+so the submitted URL now 404s.
+
+An earlier draft of this handover called the missing Privacy/Terms links a
+second rejection reason. **It was not** — the reviewer cited Website URL only.
 
 Done and verified on this branch: rebrand to Made Boring Campaigns on
 `campaign.madeboring.com`, a real signed-out product page at `/` replacing the
@@ -107,6 +143,27 @@ Four things still need a human, in order:
 Both the production deploy and the env-var writes were refused by the
 permission classifier in this session. They are not blocked by anything
 technical.
+
+Plus, newly surfaced and submission-critical — full detail in
+`TIKTOK_RESUBMISSION_2026-08-13.md` §5.5–5.9:
+
+- **URL property re-verification.** The site-verification TXT is on the
+  now-deleted `prathamsharma.in` apex. `madeboring.com` has none, and its DNS
+  is on **Cloudflare**, for which no session here has credentials.
+- **All three OAuth redirect URIs** (TikTok, Google, Instagram) are still
+  registered on the dead host.
+- **Android and iOS platform boxes are ticked** with no mobile apps.
+- **Demo video attachment unconfirmed** — upload slots render empty.
+- **Scopes are already correct.** Do not "fix" them.
+
+### Environment gotchas
+
+Proton VPN must be **on, non-India egress**, for anything TikTok. The AWS
+Leegality VPN was taken down deliberately because stacked tunnels kill DNS
+entirely; `vpn aws` restores it. Two traps: `vpn on` alone leaves a dead
+resolver unless the ProtonVPN GUI is running, and a silent Proton drop
+presents as `developers.tiktok.com` returning **503 legal_ban**, which is the
+India IP and not a block.
 
 ---
 
