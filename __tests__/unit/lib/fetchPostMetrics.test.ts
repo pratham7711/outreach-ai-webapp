@@ -139,6 +139,10 @@ describe("fetchPostMetrics — unknown vs known counts", () => {
       .mockResolvedValueOnce({ ok: true, json: async () => ({ data: { videos: [] } }) })
       .mockResolvedValueOnce({
         ok: true,
+        text: async () => "<html><body>no rehydration payload</body></html>",
+      })
+      .mockResolvedValueOnce({
+        ok: true,
         json: async () => ({ thumbnail_url: "thumb.jpg", title: "someone else" }),
       }) as unknown as typeof fetch;
 
