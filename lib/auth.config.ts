@@ -22,11 +22,17 @@ export const authConfig = {
       // Files under public/ are served to anyone by definition, but the proxy
       // matcher only exempts _next and favicon, so without this every image
       // redirects to /login — including the og:image a social crawler fetches.
-      const isStaticAsset =
-        /\.(?:jpg|jpeg|png|gif|svg|webp|avif|ico|woff2?|txt|xml|webmanifest)$/i.test(
+      //
+      // Match where the files actually live, not "any path with an image
+      // extension": a bare extension test also matches /campaigns/<id>.png,
+      // which hands an unauthenticated visitor a dashboard route. Adding a new
+      // directory under public/ means adding it here — the failure mode is a
+      // missing image, which you see, rather than a silent auth bypass.
+      const isPublicFile =
+        /^\/(?:[^/]+|(?:fonts|landing)\/[^/]+)\.(?:jpg|jpeg|png|gif|svg|webp|avif|ico|woff2?|txt|xml|webmanifest)$/i.test(
           nextUrl.pathname
         );
-      if (isStaticAsset) return true;
+      if (isPublicFile) return true;
       if (nextUrl.pathname === "/") {
         return isLoggedIn ? Response.redirect(new URL("/campaigns", nextUrl)) : true;
       }

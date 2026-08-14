@@ -24,6 +24,24 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * A session can expire while a tab sits open. Middleware only runs on a
+ * navigation, so every later fetch 401s and the page just stops filling in —
+ * which reads as "the app is broken", not "you are signed out". The portal has
+ * always redirected on 401; this does the same for every other surface.
+ */
+export function redirectToSignIn(pathname: string): string | null {
+  const target = pathname.startsWith("/portal") ? "/portal/login" : "/login";
+  if (pathname.startsWith(target)) return null;
+  return target;
+}
+
+function handleUnauthorized(): void {
+  if (typeof window === "undefined") return;
+  const target = redirectToSignIn(window.location.pathname);
+  if (target) window.location.href = target;
+}
+
 async function readError(res: Response): Promise<{ message: string; details: unknown }> {
   try {
     const body = await res.json();
@@ -58,6 +76,7 @@ export async function apiFetch<T>(input: string, init?: RequestInit): Promise<T>
 
   if (!res.ok) {
     const { message, details } = await readError(res);
+    if (res.status === 401) handleUnauthorized();
     throw new ApiError(message, res.status, details);
   }
 

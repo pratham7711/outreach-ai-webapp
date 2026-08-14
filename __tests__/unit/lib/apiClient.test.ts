@@ -1,4 +1,4 @@
-import { ApiError, apiFetch, apiPost } from "@/lib/api/client";
+import { ApiError, apiFetch, apiPost, redirectToSignIn } from "@/lib/api/client";
 import { errorMessage } from "@/lib/api/errorMessage";
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -61,6 +61,19 @@ describe("apiFetch", () => {
 
     await apiFetch("/api/y");
     expect(spy.mock.calls[1][1].headers).not.toHaveProperty("Content-Type");
+  });
+});
+
+describe("redirectToSignIn", () => {
+  it("sends a creator to the portal sign-in and everyone else to the app one", () => {
+    expect(redirectToSignIn("/portal/proposals")).toBe("/portal/login");
+    expect(redirectToSignIn("/campaigns")).toBe("/login");
+    expect(redirectToSignIn("/")).toBe("/login");
+  });
+
+  it("does not redirect a sign-in page to itself", () => {
+    expect(redirectToSignIn("/login")).toBeNull();
+    expect(redirectToSignIn("/portal/login")).toBeNull();
   });
 });
 
