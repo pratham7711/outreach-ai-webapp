@@ -10,6 +10,7 @@ import {
   toPlatformEnum,
 } from "@/lib/oauth/providers";
 import { safeReturnTo, returnToWithQuery } from "@/lib/oauth/returnTo";
+import { resolvePlatformCapability } from "@/lib/capabilities";
 
 const STATE_COOKIE = "portal_oauth_state";
 const RETURN_COOKIE = "portal_oauth_return";
@@ -37,6 +38,13 @@ export async function GET(
   const { platform } = await params;
   if (!isOAuthPlatform(platform))
     return NextResponse.json({ error: "Unknown platform" }, { status: 400 });
+
+  const capability = resolvePlatformCapability(platform);
+  if (capability.connect === "coming_soon")
+    return NextResponse.json(
+      { error: capability.connectNote, status: "coming_soon" },
+      { status: 503 },
+    );
 
   if (isProviderConfigured(platform)) {
     const state = randomBytes(16).toString("hex");

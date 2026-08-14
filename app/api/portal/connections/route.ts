@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { getCreatorSession } from "@/lib/creator-auth";
 import { decrypt, isEncrypted } from "@/lib/crypto/encrypt";
 import { isProviderConfigured } from "@/lib/oauth/providers";
+import { resolveCapabilities } from "@/lib/capabilities";
 import { revokeTikTokToken } from "@/lib/platforms/tiktokDisplay";
 
 async function findSessionCreators(handle: string) {
@@ -54,6 +55,7 @@ export async function GET() {
         tiktok: isProviderConfigured("tiktok"),
         youtube: isProviderConfigured("youtube"),
       },
+      capabilities: resolveCapabilities().platforms,
     });
   } catch (error) {
     console.error("Failed to list portal connections:", error);
