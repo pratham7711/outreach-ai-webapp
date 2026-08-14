@@ -638,6 +638,8 @@ h1, h2, h3, h4, h5, h6 {
 @media (min-width: 640px) { .rsp-grid-tiles { gap: 16px; grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (min-width: 1280px) { .rsp-grid-tiles { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
 
+@media (min-width: 900px) { .rsp-hero { grid-template-columns: minmax(0, 1fr) minmax(0, 0.85fr) !important; gap: 48px !important; } }
+
 .rsp-grid-2 { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); }
 @media (min-width: 768px) { .rsp-grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 

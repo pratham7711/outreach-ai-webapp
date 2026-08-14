@@ -34,10 +34,10 @@ describe("apiFetch", () => {
 
   it("treats a network failure as status 0 so it stays retryable", async () => {
     global.fetch = jest.fn().mockRejectedValue(new Error("boom")) as unknown as typeof fetch;
-    const error = await apiFetch("/api/x").catch((e) => e);
+    const error: unknown = await apiFetch("/api/x").catch((e) => e);
     expect(error).toBeInstanceOf(ApiError);
-    expect(error.status).toBe(0);
-    expect(error.isRetryable).toBe(true);
+    expect((error as ApiError).status).toBe(0);
+    expect((error as ApiError).isRetryable).toBe(true);
   });
 
   it("returns undefined for 204 rather than trying to parse a body", async () => {

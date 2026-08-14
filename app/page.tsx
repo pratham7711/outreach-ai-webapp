@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { BRAND } from "@/lib/brand";
+import { LandingHeroVisual } from "./LandingHeroVisual";
 
 export const metadata: Metadata = {
   title: `${BRAND.name} — creator campaigns from pitch to payout`,
@@ -99,13 +100,23 @@ export default function Home() {
             </span>
             <a
               href={BRAND.umbrellaUrl}
-              style={{ fontSize: 12, color: "var(--cc-text-muted)", textDecoration: "none" }}
+              className="rsp-hide-mobile"
+              style={{
+                fontSize: 12,
+                color: "var(--cc-text-muted)",
+                textDecoration: "none",
+                whiteSpace: "nowrap",
+              }}
             >
               by {BRAND.umbrella}
             </a>
           </div>
           <nav style={{ display: "flex", alignItems: "center", gap: 20, fontSize: 14 }}>
-            <Link href="/explore" style={{ color: "var(--cc-text-muted)", textDecoration: "none" }}>
+            <Link
+              href="/explore"
+              className="rsp-hide-mobile"
+              style={{ color: "var(--cc-text-muted)", textDecoration: "none", whiteSpace: "nowrap" }}
+            >
               Marketplace
             </Link>
             <Link href="/login" style={{ color: "var(--cc-text)", textDecoration: "none", fontWeight: 600 }}>
@@ -129,7 +140,19 @@ export default function Home() {
         </div>
       </header>
 
-      <section style={{ ...shell, paddingTop: 80, paddingBottom: 64 }}>
+      <section
+        style={{
+          ...shell,
+          paddingTop: 80,
+          paddingBottom: 64,
+          display: "grid",
+          gridTemplateColumns: "minmax(0, 1fr)",
+          gap: 40,
+          alignItems: "center",
+        }}
+        className="rsp-hero"
+      >
+        <div>
         <p style={sectionLabel}>Campaign management for agencies and labels</p>
         <h1
           style={{
@@ -187,6 +210,8 @@ export default function Home() {
             Browse open campaigns
           </Link>
         </div>
+        </div>
+        <LandingHeroVisual />
       </section>
 
       <section style={{ ...shell, paddingBottom: 72 }}>
