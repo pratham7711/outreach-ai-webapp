@@ -211,6 +211,70 @@ const TIKTOK_REHYDRATION_RE =
 const TIKTOK_DIRECT_UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
 
+export type RateGateOptions = {
+  minGapMs: number;
+  jitterMs: number;
+  breakerThreshold: number;
+  breakerCooldownMs: number;
+};
+
+export type RateGate = {
+  acquire: () => Promise<boolean>;
+  recordSuccess: () => void;
+  recordBlocked: () => void;
+  isOpen: (now?: number) => boolean;
+};
+
+export function createRateGate(options: RateGateOptions): RateGate {
+  let nextAllowedAt = 0;
+  let consecutiveBlocked = 0;
+  let breakerUntil = 0;
+
+  function isOpen(now = Date.now()): boolean {
+    return now < breakerUntil;
+  }
+
+  return {
+    isOpen,
+    async acquire() {
+      const now = Date.now();
+      if (isOpen(now)) return false;
+
+      const waitMs = Math.max(0, nextAllowedAt - now);
+      const gap = options.minGapMs + Math.floor(Math.random() * options.jitterMs);
+      nextAllowedAt = Math.max(now, nextAllowedAt) + gap;
+      if (waitMs > 0) await new Promise((resolve) => setTimeout(resolve, waitMs));
+      return true;
+    },
+    recordSuccess() {
+      consecutiveBlocked = 0;
+    },
+    recordBlocked() {
+      consecutiveBlocked += 1;
+      if (consecutiveBlocked >= options.breakerThreshold) {
+        breakerUntil = Date.now() + options.breakerCooldownMs;
+        consecutiveBlocked = 0;
+      }
+    },
+  };
+}
+
+function envInt(name: string, fallback: number): number {
+  const parsed = Number(process.env[name]);
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : fallback;
+}
+
+const tiktokGate = createRateGate({
+  minGapMs: envInt("TIKTOK_FETCH_MIN_GAP_MS", 1500),
+  jitterMs: envInt("TIKTOK_FETCH_JITTER_MS", 600),
+  breakerThreshold: envInt("TIKTOK_FETCH_BREAKER_THRESHOLD", 5),
+  breakerCooldownMs: envInt("TIKTOK_FETCH_BREAKER_COOLDOWN_MS", 15 * 60 * 1000),
+});
+
+export function isBlockedStatus(status: number): boolean {
+  return status === 403 || status === 429 || status >= 500;
+}
+
 function pickCount(...values: unknown[]): number {
   let best = 0;
   for (const value of values) {
@@ -256,6 +320,11 @@ export function parseTikTokRehydration(html: string): TikTokDirectMetrics | null
 async function fetchTikTokMetricsDirect(url: string): Promise<Partial<PostMetrics> | null> {
   const log = createLogger({ context: { platform: "TIKTOK", url } });
 
+  if (!(await tiktokGate.acquire())) {
+    log.warn("TikTok direct fetch skipped; breaker open");
+    return null;
+  }
+
   try {
     const res = await fetch(url, {
       headers: {
@@ -266,15 +335,19 @@ async function fetchTikTokMetricsDirect(url: string): Promise<Partial<PostMetric
       signal: fetchTimeoutSignal(15000),
     });
     if (!res.ok) {
+      if (isBlockedStatus(res.status)) tiktokGate.recordBlocked();
+      else tiktokGate.recordSuccess();
       log.warn("TikTok direct fetch returned non-OK", { status: res.status });
       return null;
     }
 
     const parsed = parseTikTokRehydration(await res.text());
     if (!parsed) {
+      tiktokGate.recordBlocked();
       log.warn("TikTok direct fetch could not parse rehydration payload");
       return null;
     }
+    tiktokGate.recordSuccess();
 
     const views = parsed.viewsCount;
     const likes = parsed.likesCount;
@@ -290,6 +363,7 @@ async function fetchTikTokMetricsDirect(url: string): Promise<Partial<PostMetric
       postedAt: parsed.postedAt ?? undefined,
     };
   } catch (err) {
+    tiktokGate.recordBlocked();
     log.error("TikTok direct fetch threw", {
       error: err instanceof Error ? err.message : String(err),
     });

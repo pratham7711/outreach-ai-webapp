@@ -1,4 +1,8 @@
-import { parseTikTokRehydration } from "@/lib/platforms/fetchPostMetrics";
+import {
+  createRateGate,
+  isBlockedStatus,
+  parseTikTokRehydration,
+} from "@/lib/platforms/fetchPostMetrics";
 
 function page(scope: unknown): string {
   return [
@@ -108,5 +112,72 @@ describe("parseTikTokRehydration", () => {
     });
 
     expect(parseTikTokRehydration(html)).toBeNull();
+  });
+});
+
+describe("isBlockedStatus", () => {
+  it("treats throttling and server faults as blocking", () => {
+    expect(isBlockedStatus(403)).toBe(true);
+    expect(isBlockedStatus(429)).toBe(true);
+    expect(isBlockedStatus(503)).toBe(true);
+  });
+
+  it("does not treat a removed video as blocking", () => {
+    expect(isBlockedStatus(404)).toBe(false);
+    expect(isBlockedStatus(410)).toBe(false);
+  });
+});
+
+describe("createRateGate", () => {
+  function gate(over: Partial<Parameters<typeof createRateGate>[0]> = {}) {
+    return createRateGate({
+      minGapMs: 0,
+      jitterMs: 0,
+      breakerThreshold: 3,
+      breakerCooldownMs: 60_000,
+      ...over,
+    });
+  }
+
+  it("allows the first acquire", async () => {
+    expect(await gate().acquire()).toBe(true);
+  });
+
+  it("spaces consecutive acquires by at least the minimum gap", async () => {
+    const g = gate({ minGapMs: 60 });
+    const startedAt = Date.now();
+    await g.acquire();
+    await g.acquire();
+    expect(Date.now() - startedAt).toBeGreaterThanOrEqual(55);
+  });
+
+  it("opens the breaker after consecutive blocks and refuses to acquire", async () => {
+    const g = gate();
+    g.recordBlocked();
+    g.recordBlocked();
+    expect(g.isOpen()).toBe(false);
+
+    g.recordBlocked();
+    expect(g.isOpen()).toBe(true);
+    expect(await g.acquire()).toBe(false);
+  });
+
+  it("resets the failure run on a success", () => {
+    const g = gate();
+    g.recordBlocked();
+    g.recordBlocked();
+    g.recordSuccess();
+    g.recordBlocked();
+    g.recordBlocked();
+    expect(g.isOpen()).toBe(false);
+  });
+
+  it("closes the breaker once the cooldown elapses", () => {
+    const g = gate();
+    g.recordBlocked();
+    g.recordBlocked();
+    g.recordBlocked();
+    expect(g.isOpen()).toBe(true);
+    expect(g.isOpen(Date.now() + 60_001)).toBe(false);
   });
 });
