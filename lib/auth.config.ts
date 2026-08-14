@@ -19,6 +19,14 @@ export const authConfig = {
       const isPublicLegalPage =
         nextUrl.pathname.startsWith("/privacy") ||
         nextUrl.pathname.startsWith("/terms");
+      // Files under public/ are served to anyone by definition, but the proxy
+      // matcher only exempts _next and favicon, so without this every image
+      // redirects to /login — including the og:image a social crawler fetches.
+      const isStaticAsset =
+        /\.(?:jpg|jpeg|png|gif|svg|webp|avif|ico|woff2?|txt|xml|webmanifest)$/i.test(
+          nextUrl.pathname
+        );
+      if (isStaticAsset) return true;
       if (nextUrl.pathname === "/") {
         return isLoggedIn ? Response.redirect(new URL("/campaigns", nextUrl)) : true;
       }

@@ -3,10 +3,25 @@ import type { Metadata } from "next";
 import { BRAND } from "@/lib/brand";
 import { LandingHeroVisual } from "./LandingHeroVisual";
 
+const TITLE = `${BRAND.name} — creator campaigns from pitch to payout`;
+const DESCRIPTION =
+  "Campaign management for talent agencies and record labels. Brief creators, track the posts they publish, reconcile payouts against verified performance.";
+
 export const metadata: Metadata = {
-  title: `${BRAND.name} — creator campaigns from pitch to payout`,
-  description:
-    "Campaign management for talent agencies and record labels. Brief creators, track the posts they publish, reconcile payouts against verified performance.",
+  title: TITLE,
+  description: DESCRIPTION,
+  openGraph: {
+    title: TITLE,
+    description: DESCRIPTION,
+    type: "website",
+    images: [{ url: "/landing/og.jpg", width: 1200, height: 630, alt: BRAND.name }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: TITLE,
+    description: DESCRIPTION,
+    images: ["/landing/og.jpg"],
+  },
 };
 
 const STAGES = [
