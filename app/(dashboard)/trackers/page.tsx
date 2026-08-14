@@ -13,6 +13,15 @@ interface SoundSnapshot {
   recordedAt: string;
 }
 
+interface WindowChange {
+  from: number;
+  to: number;
+  added: number;
+  percent: number | null;
+  velocityPerHour: number | null;
+  spanHours: number;
+}
+
 interface TrackedSound {
   id: string;
   tiktokSoundId: string;
@@ -21,17 +30,43 @@ interface TrackedSound {
   coverImageUrl: string | null;
   trackedSince: string;
   latestSnapshot: SoundSnapshot | null;
+  change: WindowChange | null;
+  status: "viral" | "trending" | "stable" | "declining" | "unknown";
+  growthPercentage: number | null;
+  addedInPeriod: number | null;
+  snapshotCount: number;
 }
+
+const PERIODS: { key: string; label: string }[] = [
+  { key: "24h", label: "24hr" },
+  { key: "7d", label: "7d" },
+  { key: "14d", label: "14d" },
+  { key: "30d", label: "30d" },
+];
+
+const SORTS: { key: string; label: string }[] = [
+  { key: "velocity", label: "Velocity" },
+  { key: "uses", label: "Uses" },
+  { key: "added", label: "Added" },
+];
 
 function formatCount(n: number): string {
   return formatCompact(n);
 }
 
-function getVelocityBadge(score: number): { label: string; variant: "success" | "accent" | "neutral" | "danger" } {
-  if (score > 10) return { label: "viral", variant: "success" };
-  if (score > 5) return { label: "trending", variant: "accent" };
-  if (score > 0) return { label: "stable", variant: "neutral" };
-  return { label: "declining", variant: "danger" };
+const STATUS_VARIANTS: Record<
+  TrackedSound["status"],
+  "success" | "accent" | "neutral" | "danger"
+> = {
+  viral: "success",
+  trending: "accent",
+  stable: "neutral",
+  declining: "danger",
+  unknown: "neutral",
+};
+
+function periodLabel(key: string): string {
+  return PERIODS.find((p) => p.key === key)?.label ?? key;
 }
 
 export default function TrackersPage() {
@@ -40,20 +75,26 @@ export default function TrackersPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [formData, setFormData] = useState({ tiktokSoundId: "", title: "", artist: "" });
   const [submitting, setSubmitting] = useState(false);
+  const [period, setPeriod] = useState("24h");
+  const [sort, setSort] = useState("velocity");
+  const [loadError, setLoadError] = useState(false);
 
   const fetchSounds = useCallback(async () => {
+    setLoadError(false);
     try {
-      const res = await fetch("/api/trackers");
+      const res = await fetch(`/api/trackers?period=${period}&sort=${sort}`);
       if (res.ok) {
         const data = await res.json();
         setSounds(data.sounds ?? []);
+      } else {
+        setLoadError(true);
       }
     } catch {
-      // silent
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [period, sort]);
 
   useEffect(() => { fetchSounds(); }, [fetchSounds]);
 
@@ -92,8 +133,8 @@ export default function TrackersPage() {
   // Stats
   const totalTrackers = sounds.length;
   const totalUses = sounds.reduce((sum, s) => sum + (s.latestSnapshot?.usesCount ?? 0), 0);
-  const trendingCount = sounds.filter((s) => (s.latestSnapshot?.velocityScore ?? 0) > 5).length;
-  const newToday = sounds.reduce((sum, s) => sum + (s.latestSnapshot?.videosAdded24h ?? 0), 0);
+  const trendingCount = sounds.filter((s) => s.status === "viral" || s.status === "trending").length;
+  const newToday = sounds.reduce((sum, s) => sum + (s.addedInPeriod ?? 0), 0);
 
   return (
     <div className="rsp-page">
@@ -146,6 +187,13 @@ export default function TrackersPage() {
             </div>
           ))}
         </Card>
+      ) : loadError ? (
+        <EmptyState
+          icon={<TrendingUp size={40} />}
+          title="Could not load trackers"
+          description="Something went wrong fetching your sound trackers."
+          action={<Button variant="primary" onClick={fetchSounds}>Retry</Button>}
+        />
       ) : sounds.length === 0 ? (
         <EmptyState
           icon={<TrendingUp size={40} />}
@@ -155,13 +203,68 @@ export default function TrackersPage() {
         />
       ) : (
         <Card variant="outlined" noPadding>
-          <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--cc-border)" }}>
+          <div
+            style={{
+              padding: "16px 20px",
+              borderBottom: "1px solid var(--cc-border)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 16,
+              flexWrap: "wrap",
+            }}
+          >
             <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)" }}>Sound Trackers</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+              <div style={{ display: "flex", gap: 4 }}>
+                {PERIODS.map((p) => (
+                  <button
+                    key={p.key}
+                    onClick={() => setPeriod(p.key)}
+                    style={{
+                      padding: "5px 12px",
+                      borderRadius: 8,
+                      fontSize: 13,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      border: "1px solid",
+                      borderColor: period === p.key ? "var(--cc-primary)" : "var(--cc-border)",
+                      background: period === p.key ? "var(--cc-primary)" : "var(--cc-card)",
+                      color: period === p.key ? "white" : "var(--cc-text-muted)",
+                    }}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>Sort</span>
+                {SORTS.map((s) => (
+                  <button
+                    key={s.key}
+                    onClick={() => setSort(s.key)}
+                    style={{
+                      padding: "5px 10px",
+                      borderRadius: 8,
+                      fontSize: 13,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      border: "1px solid",
+                      borderColor: sort === s.key ? "var(--cc-primary)" : "var(--cc-border)",
+                      background: "var(--cc-card)",
+                      color: sort === s.key ? "var(--cc-primary)" : "var(--cc-text-muted)",
+                    }}
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
           {sounds.map((s, i) => {
             const snap = s.latestSnapshot;
-            const velocity = snap?.velocityScore ?? 0;
-            const badge = getVelocityBadge(velocity);
+            const added = s.addedInPeriod;
+            const measured = s.change !== null;
             return (
               <div
                 key={s.id}
@@ -186,12 +289,33 @@ export default function TrackersPage() {
                   <div title={s.title} style={{ fontWeight: 600, fontSize: 14, color: "var(--cc-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title}</div>
                   <div style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{s.artist || "Unknown artist"}</div>
                 </div>
-                <Badge variant={badge.variant} size="sm">{badge.label}</Badge>
-                <div style={{ textAlign: "right", minWidth: 80 }}>
-                  <div style={{ fontWeight: 700, fontSize: 14, color: "var(--cc-text)" }}>{formatCount(snap?.usesCount ?? 0)}</div>
-                  <div style={{ fontSize: 12, color: (snap?.deltaUses24h ?? 0) >= 0 ? "var(--cc-primary)" : "#ef4444" }}>
-                    {(snap?.deltaUses24h ?? 0) >= 0 ? "+" : ""}{formatCount(snap?.deltaUses24h ?? 0)} / 24h
+                <Badge variant={STATUS_VARIANTS[s.status]} size="sm">
+                  {s.status === "unknown" ? "no data" : s.status}
+                </Badge>
+                <div style={{ textAlign: "right", minWidth: 96 }}>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: "var(--cc-text)" }}>
+                    {snap ? formatCount(snap.usesCount) : "—"}
                   </div>
+                  {measured && added !== null ? (
+                    <div style={{ fontSize: 12, color: added >= 0 ? "var(--cc-primary)" : "#ef4444" }}>
+                      {added >= 0 ? "+" : ""}
+                      {formatCount(added)} / {periodLabel(period)}
+                      {s.growthPercentage !== null
+                        ? ` (${s.growthPercentage >= 0 ? "+" : ""}${s.growthPercentage.toFixed(1)}%)`
+                        : ""}
+                    </div>
+                  ) : (
+                    <div
+                      style={{ fontSize: 12, color: "var(--cc-text-muted)" }}
+                      title={
+                        s.snapshotCount < 2
+                          ? "Needs a second reading before change can be measured"
+                          : "No readings inside this period"
+                      }
+                    >
+                      — / {periodLabel(period)}
+                    </div>
+                  )}
                 </div>
                 <div style={{ fontSize: 12, color: "var(--cc-text-muted)", minWidth: 80, textAlign: "right" }}>
                   {formatDateAbs(s.trackedSince)}
