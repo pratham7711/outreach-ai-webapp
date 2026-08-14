@@ -9,6 +9,7 @@ const CURRENCIES = ["USD", "EUR", "GBP", "INR"] as const;
 
 const PatchSchema = z.object({
   name:              z.string().min(1).max(100).optional(),
+  orgType:           z.enum(["AGENCY", "BRAND"]).optional(),
   brandName:         z.string().max(100).optional().nullable(),
   timezone:          z.string().max(50).optional(),
   currency:          z.enum(CURRENCIES).optional(),
@@ -36,6 +37,7 @@ export async function GET(req: NextRequest) {
     select: {
       id: true,
       name: true,
+      orgType: true,
       subdomain: true,
       brandName: true,
       timezone: true,

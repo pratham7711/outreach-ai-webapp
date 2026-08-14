@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { getCreatorSession } from "@/lib/creator-auth";
 import { fetchTikTokVideos } from "@/lib/platforms/tiktokDisplay";
 import { ensureFreshTikTokToken } from "@/lib/platforms/tiktokToken";
+import { findCreatorsForHandle } from "@/lib/portal/creatorLookup";
 
 export const dynamic = "force-dynamic";
 
@@ -19,11 +20,7 @@ export async function GET() {
     const session = await getCreatorSession();
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const bare = session.handle.replace(/^@/, "");
-    const creators = await db.creator.findMany({
-      where: { deletedAt: null, OR: [{ handle: bare }, { handle: `@${bare}` }] },
-      select: { id: true, orgId: true },
-    });
+    const creators = await findCreatorsForHandle(session.handle);
     if (creators.length === 0) return NextResponse.json({ connected: false, posts: [] });
 
     const account = await db.creatorSocialAccount.findFirst({

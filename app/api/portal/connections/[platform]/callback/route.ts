@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getCreatorSession } from "@/lib/creator-auth";
+import { findCreatorForHandle } from "@/lib/portal/creatorLookup";
 import { encrypt } from "@/lib/crypto/encrypt";
 import {
   buildTokenRequest,
@@ -13,18 +14,6 @@ import { fetchTikTokUserInfo } from "@/lib/platforms/tiktokDisplay";
 import { returnToWithQuery } from "@/lib/oauth/returnTo";
 
 const STATE_COOKIE = "portal_oauth_state";
-
-async function findSessionCreator(handle: string) {
-  const bare = handle.replace(/^@/, "");
-  return db.creator.findFirst({
-    where: {
-      deletedAt: null,
-      OR: [{ handle: bare }, { handle: `@${bare}` }],
-    },
-    orderBy: { addedAt: "asc" },
-    select: { id: true, orgId: true },
-  });
-}
 
 const RETURN_COOKIE = "portal_oauth_return";
 
@@ -81,7 +70,7 @@ export async function GET(
     if (typeof accessToken !== "string" || !accessToken)
       return failureRedirect(req, platform);
 
-    const creator = await findSessionCreator(session.handle);
+    const creator = await findCreatorForHandle(session.handle);
     if (!creator) return failureRedirect(req, platform);
 
     const platformEnum = toPlatformEnum(platform);

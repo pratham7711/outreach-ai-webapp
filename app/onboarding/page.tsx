@@ -2,46 +2,72 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Building2, User, Music, Zap, Plus, X, Sparkles, ArrowRight, PartyPopper } from "lucide-react";
+import { Building2, Zap, Plus, X, ArrowRight, Check } from "lucide-react";
+import { Button, Input } from "@pratham7711/ui";
+import { apiPatch, apiPost } from "@/lib/api/client";
+import { errorMessage } from "@/lib/api/errorMessage";
 import { BRAND } from "@/lib/brand";
 
-type OrgType = "Agency" | "Manager" | "Music Label" | "Brand";
+type OrgType = "AGENCY" | "BRAND";
 
-const orgTypes: { type: OrgType; icon: typeof Building2; description: string }[] = [
-  { type: "Agency", icon: Building2, description: "Manage multiple clients" },
-  { type: "Manager", icon: User, description: "Represent creators" },
-  { type: "Music Label", icon: Music, description: "Music & audio campaigns" },
-  { type: "Brand", icon: Zap, description: "Direct brand campaigns" },
+const ORG_TYPES: { type: OrgType; icon: typeof Building2; label: string; description: string }[] = [
+  {
+    type: "AGENCY",
+    icon: Building2,
+    label: "Agency or label",
+    description: "You run campaigns on behalf of clients.",
+  },
+  {
+    type: "BRAND",
+    icon: Zap,
+    label: "Brand",
+    description: "You run campaigns for your own brand.",
+  },
 ];
 
-const slideVariants = {
-  enter: { x: 40, opacity: 0 },
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const slide = {
+  enter: { x: 32, opacity: 0 },
   center: { x: 0, opacity: 1 },
-  exit: { x: -40, opacity: 0 },
+  exit: { x: -32, opacity: 0 },
 };
 
-function Confetti() {
-  const colors = ["#2563EB", "#7C3AED", "#60A5FA", "#34D399", "#F59E0B"];
+const label: React.CSSProperties = {
+  display: "block",
+  fontSize: 13,
+  fontWeight: 600,
+  color: "var(--cc-text)",
+  marginBottom: 6,
+};
+
+const stepLabel: React.CSSProperties = {
+  fontSize: 11,
+  fontWeight: 700,
+  letterSpacing: 1,
+  textTransform: "uppercase",
+  color: "var(--cc-text-muted)",
+  marginBottom: 12,
+};
+
+function Notice({ tone, children }: { tone: "error" | "info"; children: React.ReactNode }) {
+  const error = tone === "error";
   return (
-    <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-3xl">
-      {Array.from({ length: 24 }).map((_, i) => (
-        <motion.div
-          key={i}
-          className="absolute w-2 h-2 rounded-sm"
-          style={{
-            backgroundColor: colors[i % colors.length],
-            left: `${15 + (i * 3.2) % 70}%`,
-          }}
-          initial={{ y: -20, opacity: 1, rotate: 0 }}
-          animate={{ y: 350, opacity: [1, 1, 0], rotate: (i % 2 === 0 ? 1 : -1) * (180 + i * 30) }}
-          transition={{
-            duration: 2 + (i % 3) * 0.4,
-            delay: (i % 8) * 0.1,
-            ease: "easeIn",
-          }}
-        />
-      ))}
-    </div>
+    <p
+      role={error ? "alert" : "status"}
+      style={{
+        fontSize: 13,
+        lineHeight: 1.5,
+        color: error ? "#DC2626" : "var(--cc-text-muted)",
+        background: error ? "#FEE2E2" : "var(--cc-bg)",
+        border: `1px solid ${error ? "#FECACA" : "var(--cc-border)"}`,
+        borderRadius: 8,
+        padding: "10px 12px",
+        marginBottom: 16,
+      }}
+    >
+      {children}
+    </p>
   );
 }
 
@@ -51,217 +77,301 @@ export default function OnboardingPage() {
   const [orgType, setOrgType] = useState<OrgType | null>(null);
   const [teammates, setTeammates] = useState<string[]>([]);
   const [newEmail, setNewEmail] = useState("");
-  const [showConfetti, setShowConfetti] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [inviteNote, setInviteNote] = useState("");
 
   const totalSteps = 3;
   const progress = ((step + 1) / totalSteps) * 100;
 
-  const handleContinue2 = () => {
-    setStep(2);
-    setShowConfetti(true);
-  };
-
-  const addTeammate = () => {
-    if (newEmail.trim()) {
-      setTeammates([...teammates, newEmail.trim()]);
-      setNewEmail("");
+  const saveOrg = async () => {
+    if (!orgName.trim() || !orgType) return;
+    setSaving(true);
+    setError("");
+    try {
+      await apiPatch("/api/org", { name: orgName.trim(), orgType });
+      setStep(1);
+    } catch (err) {
+      setError(errorMessage(err, "Could not save your workspace. Try again."));
+    } finally {
+      setSaving(false);
     }
   };
 
+  const addTeammate = () => {
+    const email = newEmail.trim().toLowerCase();
+    if (!EMAIL_RE.test(email)) {
+      setError("That does not look like an email address.");
+      return;
+    }
+    if (teammates.includes(email)) {
+      setError("You already added that address.");
+      return;
+    }
+    setError("");
+    setTeammates([...teammates, email]);
+    setNewEmail("");
+  };
+
+  const sendInvites = async () => {
+    if (teammates.length === 0) {
+      setStep(2);
+      return;
+    }
+    setSaving(true);
+    setError("");
+
+    const results = await Promise.allSettled(
+      teammates.map((email) => apiPost("/api/invites", { email, role: "MEMBER" })),
+    );
+    const failed = results.filter((r) => r.status === "rejected").length;
+
+    setSaving(false);
+    if (failed === teammates.length) {
+      setError(
+        errorMessage(
+          (results[0] as PromiseRejectedResult).reason,
+          "None of the invites went out. Try again, or invite from Settings later.",
+        ),
+      );
+      return;
+    }
+    setInviteNote(
+      failed === 0
+        ? `${teammates.length} invite${teammates.length === 1 ? "" : "s"} sent.`
+        : `${teammates.length - failed} of ${teammates.length} invites sent. Send the rest from Settings → Team.`,
+    );
+    setStep(2);
+  };
+
   return (
-    <div className="min-h-screen bg-[#050A1F] flex items-center justify-center p-4">
-      <div className="w-full max-w-lg">
-        {/* Logo */}
-        <div className="text-center mb-8">
-          <a href="/" className="inline-flex items-center gap-2">
-            <Sparkles className="text-[#2563EB]" />
-            <span className="text-2xl font-black text-white">{BRAND.name}</span>
-          </a>
+    <div
+      style={{
+        minHeight: "100dvh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "40px 16px",
+        background: "var(--cc-bg)",
+      }}
+    >
+      <div style={{ width: "100%", maxWidth: 480 }}>
+        <div style={{ textAlign: "center", marginBottom: 24 }}>
+          <span style={{ fontWeight: 800, fontSize: 20, color: "var(--cc-text)", letterSpacing: "-0.02em" }}>
+            {BRAND.name}
+          </span>
         </div>
 
-        {/* Card */}
-        <div className="bg-[#0E0F1C] border border-white/[0.08] rounded-3xl p-10 relative overflow-hidden">
-          {showConfetti && step === 2 && <Confetti />}
-
-          {/* Progress bar */}
-          <div className="w-full bg-white/10 rounded-full h-1 mb-8">
+        <div
+          style={{
+            background: "var(--cc-card)",
+            border: "1px solid var(--cc-border)",
+            borderRadius: 20,
+            boxShadow: "var(--ui-shadow-lg)",
+            padding: 32,
+          }}
+        >
+          <div
+            style={{ height: 3, borderRadius: 999, background: "var(--cc-bg)", marginBottom: 24 }}
+            role="presentation"
+          >
             <motion.div
-              className="h-full bg-[#2563EB] rounded-full"
+              style={{ height: "100%", borderRadius: 999, background: "var(--cc-primary)" }}
               animate={{ width: `${progress}%` }}
-              transition={{ duration: 0.5 }}
+              transition={{ duration: 0.4 }}
             />
           </div>
 
           <AnimatePresence mode="wait">
-            {/* ── Step 1: Organization ── */}
             {step === 0 && (
-              <motion.div
-                key="step0"
-                variants={slideVariants}
-                initial="enter"
-                animate="center"
-                exit="exit"
-                transition={{ duration: 0.3 }}
-              >
-                <p className="text-white/40 text-xs uppercase tracking-widest mb-6 font-semibold">
-                  Step 1 of 3
-                </p>
-                <h2 className="text-2xl font-black text-white mb-2">
-                  Tell us about your organization
-                </h2>
-                <p className="text-white/50 text-sm mb-8">
-                  We&apos;ll personalize your experience based on your team type.
+              <motion.div key="step0" variants={slide} initial="enter" animate="center" exit="exit" transition={{ duration: 0.25 }}>
+                <p style={stepLabel}>Step 1 of 3</p>
+                <h1 style={{ fontSize: 22, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>
+                  Name your workspace
+                </h1>
+                <p style={{ fontSize: 14, color: "var(--cc-text-muted)", marginBottom: 24 }}>
+                  This is what your team and your creators will see.
                 </p>
 
-                <div className="space-y-4 mb-6">
-                  <div>
-                    <label className="block text-white/70 text-sm font-medium mb-1.5">
-                      Organization Name
-                    </label>
-                    <input
-                      type="text"
-                      value={orgName}
-                      onChange={(e) => setOrgName(e.target.value)}
-                      placeholder="Your Agency Name"
-                      className="w-full bg-white/5 border border-white/10 text-white placeholder-white/30 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#2563EB] focus:ring-1 focus:ring-[#2563EB] transition-colors"
-                    />
-                  </div>
+                {error && <Notice tone="error">{error}</Notice>}
 
-                  <div>
-                    <label className="block text-white/70 text-sm font-medium mb-3">
-                      What best describes your team?
-                    </label>
-                    <div className="grid grid-cols-2 gap-3">
-                      {orgTypes.map(({ type, icon: Icon, description }) => (
+                <div style={{ marginBottom: 20 }}>
+                  <label htmlFor="orgName" style={label}>
+                    Organization name
+                  </label>
+                  <Input
+                    id="orgName"
+                    value={orgName}
+                    onChange={(e) => setOrgName(e.target.value)}
+                    placeholder="Your agency name"
+                    onKeyDown={(e) => e.key === "Enter" && saveOrg()}
+                  />
+                </div>
+
+                <div style={{ marginBottom: 24 }}>
+                  <span style={label}>Which one are you?</span>
+                  <div style={{ display: "grid", gap: 8 }}>
+                    {ORG_TYPES.map(({ type, icon: Icon, label: name, description }) => {
+                      const selected = orgType === type;
+                      return (
                         <button
                           key={type}
+                          type="button"
                           onClick={() => setOrgType(type)}
-                          className={`p-4 rounded-xl border text-left transition-all ${
-                            orgType === type
-                              ? "border-[#2563EB] bg-[#2563EB]/10 text-white"
-                              : "border-white/10 bg-white/5 text-white/60 hover:border-white/20 hover:text-white/80"
-                          }`}
+                          aria-pressed={selected}
+                          style={{
+                            display: "flex",
+                            alignItems: "flex-start",
+                            gap: 12,
+                            textAlign: "left",
+                            padding: 14,
+                            borderRadius: 10,
+                            cursor: "pointer",
+                            background: selected ? "var(--cc-bg)" : "var(--cc-card)",
+                            border: `1.5px solid ${selected ? "var(--cc-primary)" : "var(--cc-border)"}`,
+                          }}
                         >
-                          <Icon className="w-5 h-5 mb-2" />
-                          <p className="font-bold text-sm">{type}</p>
-                          <p className="text-xs opacity-60 mt-0.5">{description}</p>
+                          <Icon size={18} color={selected ? "var(--cc-primary)" : "var(--cc-text-muted)"} />
+                          <span>
+                            <span style={{ display: "block", fontSize: 14, fontWeight: 700, color: "var(--cc-text)" }}>
+                              {name}
+                            </span>
+                            <span style={{ display: "block", fontSize: 13, color: "var(--cc-text-muted)" }}>
+                              {description}
+                            </span>
+                          </span>
                         </button>
-                      ))}
-                    </div>
+                      );
+                    })}
                   </div>
                 </div>
 
-                <button
-                  onClick={() => orgName && orgType && setStep(1)}
-                  disabled={!orgName || !orgType}
-                  className="w-full bg-[#2563EB] hover:bg-[#1d4ed8] disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-3 rounded-full transition-colors flex items-center justify-center gap-2"
+                <Button
+                  variant="primary"
+                  fullWidth
+                  disabled={!orgName.trim() || !orgType || saving}
+                  onClick={saveOrg}
                 >
-                  Continue <ArrowRight className="w-4 h-4" />
-                </button>
+                  {saving ? "Saving…" : "Continue"}
+                </Button>
               </motion.div>
             )}
 
-            {/* ── Step 2: Team ── */}
             {step === 1 && (
-              <motion.div
-                key="step1"
-                variants={slideVariants}
-                initial="enter"
-                animate="center"
-                exit="exit"
-                transition={{ duration: 0.3 }}
-              >
-                <p className="text-white/40 text-xs uppercase tracking-widest mb-6 font-semibold">
-                  Step 2 of 3
-                </p>
-                <h2 className="text-2xl font-black text-white mb-2">Invite your team</h2>
-                <p className="text-white/50 text-sm mb-8">
-                  Collaborate from day one. You can always do this later.
+              <motion.div key="step1" variants={slide} initial="enter" animate="center" exit="exit" transition={{ duration: 0.25 }}>
+                <p style={stepLabel}>Step 2 of 3</p>
+                <h1 style={{ fontSize: 22, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>
+                  Invite your team
+                </h1>
+                <p style={{ fontSize: 14, color: "var(--cc-text-muted)", marginBottom: 24 }}>
+                  They get an email with a link that joins them to {orgName || "your workspace"}. You can
+                  skip this and do it from Settings later.
                 </p>
 
-                <div className="space-y-3 mb-6">
+                {error && <Notice tone="error">{error}</Notice>}
+
+                <div style={{ display: "grid", gap: 8, marginBottom: 20 }}>
                   {teammates.map((email) => (
-                    <div key={email} className="flex items-center gap-3 bg-white/5 rounded-xl px-4 py-3">
-                      <div className="w-7 h-7 rounded-full bg-[#2563EB]/20 flex items-center justify-center text-[#2563EB] text-xs font-bold">
-                        {email[0].toUpperCase()}
-                      </div>
-                      <span className="text-white text-sm flex-1">{email}</span>
+                    <div
+                      key={email}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 10,
+                        background: "var(--cc-bg)",
+                        border: "1px solid var(--cc-border)",
+                        borderRadius: 8,
+                        padding: "9px 12px",
+                      }}
+                    >
+                      <span style={{ flex: 1, fontSize: 14, color: "var(--cc-text)" }}>{email}</span>
                       <button
+                        type="button"
+                        aria-label={`Remove ${email}`}
                         onClick={() => setTeammates(teammates.filter((e) => e !== email))}
-                        className="text-white/30 hover:text-white/70 transition-colors"
+                        style={{ background: "none", border: "none", cursor: "pointer", color: "var(--cc-text-muted)", display: "flex" }}
                       >
-                        <X className="w-4 h-4" />
+                        <X size={16} />
                       </button>
                     </div>
                   ))}
 
-                  <div className="flex gap-2">
-                    <input
-                      type="email"
-                      value={newEmail}
-                      onChange={(e) => setNewEmail(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && addTeammate()}
-                      placeholder="colleague@company.com"
-                      className="flex-1 bg-white/5 border border-white/10 text-white placeholder-white/30 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#2563EB] focus:ring-1 focus:ring-[#2563EB] transition-colors"
-                    />
-                    <button
-                      onClick={addTeammate}
-                      className="bg-white/10 hover:bg-white/15 text-white px-4 rounded-xl transition-colors"
-                    >
-                      <Plus className="w-4 h-4" />
-                    </button>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <div style={{ flex: 1 }}>
+                      <Input
+                        type="email"
+                        value={newEmail}
+                        onChange={(e) => setNewEmail(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            addTeammate();
+                          }
+                        }}
+                        placeholder="colleague@company.com"
+                      />
+                    </div>
+                    <Button variant="secondary" onClick={addTeammate} aria-label="Add teammate">
+                      <Plus size={16} />
+                    </Button>
                   </div>
                 </div>
 
-                <div className="flex gap-3">
-                  <button
-                    onClick={handleContinue2}
-                    className="flex-1 text-white/40 hover:text-white font-medium text-sm py-3 rounded-full border border-white/10 hover:border-white/20 transition-colors"
-                  >
+                <div style={{ display: "flex", gap: 8 }}>
+                  <Button variant="secondary" fullWidth disabled={saving} onClick={() => setStep(2)}>
                     Skip
-                  </button>
-                  <button
-                    onClick={handleContinue2}
-                    className="flex-1 bg-[#2563EB] hover:bg-[#1d4ed8] text-white font-bold py-3 rounded-full transition-colors flex items-center justify-center gap-2"
-                  >
-                    Continue <ArrowRight className="w-4 h-4" />
-                  </button>
+                  </Button>
+                  <Button variant="primary" fullWidth disabled={saving} onClick={sendInvites}>
+                    {saving ? "Sending…" : teammates.length ? "Send invites" : "Continue"}
+                  </Button>
                 </div>
               </motion.div>
             )}
 
-            {/* ── Step 3: Done ── */}
             {step === 2 && (
               <motion.div
                 key="step2"
-                variants={slideVariants}
+                variants={slide}
                 initial="enter"
                 animate="center"
                 exit="exit"
-                transition={{ duration: 0.3 }}
-                className="text-center py-4"
+                transition={{ duration: 0.25 }}
+                style={{ textAlign: "center" }}
               >
-                <motion.div
-                  initial={{ scale: 0.5, opacity: 0 }}
+                <motion.span
+                  initial={{ scale: 0.6, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
-                  transition={{ duration: 0.5, type: "spring" }}
-                  className="mb-6"
+                  transition={{ type: "spring", duration: 0.5 }}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    width: 48,
+                    height: 48,
+                    borderRadius: 999,
+                    background: "var(--cc-primary)",
+                    marginBottom: 16,
+                  }}
                 >
-                  <PartyPopper className="w-12 h-12 inline-block text-[#2563EB]" />
-                </motion.div>
-                <h2 className="text-3xl font-black text-white mb-3">You&apos;re all set!</h2>
-                <p className="text-white/50 text-base mb-10">
-                  Welcome to {BRAND.name}
-                  {orgName ? `, ${orgName}` : ""}. Your workspace is ready.
+                  <Check size={24} color="white" />
+                </motion.span>
+
+                <h1 style={{ fontSize: 22, fontWeight: 700, color: "var(--cc-text)", marginBottom: 8 }}>
+                  {orgName || "Your workspace"} is ready
+                </h1>
+                <p style={{ fontSize: 14, lineHeight: 1.6, color: "var(--cc-text-muted)", marginBottom: 24 }}>
+                  {inviteNote ? `${inviteNote} ` : ""}
+                  The dashboard has a checklist that walks you through the rest — a client, a campaign,
+                  the creators on it, and the first payout.
                 </p>
-                <motion.a
-                  href="/dashboard"
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  className="inline-flex items-center justify-center gap-2 bg-[#2563EB] hover:bg-[#1d4ed8] text-white font-bold py-3.5 px-10 rounded-full transition-colors"
-                >
-                  Go to your dashboard <ArrowRight className="w-4 h-4" />
-                </motion.a>
+
+                <a href="/dashboard" style={{ textDecoration: "none", display: "block" }}>
+                  <Button variant="primary" fullWidth>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                      Go to the dashboard <ArrowRight size={15} />
+                    </span>
+                  </Button>
+                </a>
               </motion.div>
             )}
           </AnimatePresence>
