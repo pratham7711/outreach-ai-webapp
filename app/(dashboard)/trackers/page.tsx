@@ -1,9 +1,13 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { Badge, Card, Button, Modal, Input, Skeleton, EmptyState } from "@pratham7711/ui";
 import { MetricTile } from "@/components/ds";
 import { Music, Plus, Trash2, TrendingUp } from "lucide-react";
 import { formatCompact, formatDateAbs } from "@/lib/format";
+import { apiDelete, apiFetch, apiPost } from "@/lib/api/client";
+import { errorMessage } from "@/lib/api/errorMessage";
 
 interface SoundSnapshot {
   usesCount: number;
@@ -70,71 +74,73 @@ function periodLabel(key: string): string {
 }
 
 export default function TrackersPage() {
-  const [sounds, setSounds] = useState<TrackedSound[]>([]);
-  const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [formData, setFormData] = useState({ tiktokSoundId: "", title: "", artist: "" });
-  const [submitting, setSubmitting] = useState(false);
   const [period, setPeriod] = useState("24h");
   const [sort, setSort] = useState("velocity");
-  const [loadError, setLoadError] = useState(false);
 
-  const fetchSounds = useCallback(async () => {
-    setLoadError(false);
-    try {
-      const res = await fetch(`/api/trackers?period=${period}&sort=${sort}`);
-      if (res.ok) {
-        const data = await res.json();
-        setSounds(data.sounds ?? []);
-      } else {
-        setLoadError(true);
-      }
-    } catch {
-      setLoadError(true);
-    } finally {
-      setLoading(false);
-    }
-  }, [period, sort]);
+  const queryClient = useQueryClient();
+  const queryKey = ["trackers", period, sort] as const;
 
-  useEffect(() => { fetchSounds(); }, [fetchSounds]);
+  const {
+    data,
+    isPending: loading,
+    isError: loadError,
+    refetch,
+  } = useQuery({
+    queryKey,
+    queryFn: () =>
+      apiFetch<{ sounds: TrackedSound[] }>(`/api/trackers?period=${period}&sort=${sort}`),
+  });
 
-  const handleCreate = async () => {
+  const sounds = useMemo(() => data?.sounds ?? [], [data]);
+
+  const invalidate = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ["trackers"] });
+  }, [queryClient]);
+
+  const createMutation = useMutation({
+    mutationFn: (payload: typeof formData) => apiPost("/api/trackers", payload),
+    onSuccess: () => {
+      setModalOpen(false);
+      setFormData({ tiktokSoundId: "", title: "", artist: "" });
+      invalidate();
+      toast.success("Sound tracked");
+    },
+    onError: (error) => toast.error(errorMessage(error, "Could not track that sound")),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => apiDelete(`/api/trackers/${id}`),
+    onSuccess: () => {
+      invalidate();
+      toast.success("Tracker removed");
+    },
+    onError: (error) => toast.error(errorMessage(error, "Could not remove that tracker")),
+  });
+
+  const submitting = createMutation.isPending;
+
+  const handleCreate = useCallback(() => {
     if (!formData.tiktokSoundId || !formData.title) return;
-    setSubmitting(true);
-    try {
-      const res = await fetch("/api/trackers", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
-      });
-      if (res.ok) {
-        setModalOpen(false);
-        setFormData({ tiktokSoundId: "", title: "", artist: "" });
-        await fetchSounds();
-      }
-    } catch {
-      // silent
-    } finally {
-      setSubmitting(false);
-    }
-  };
+    createMutation.mutate(formData);
+  }, [createMutation, formData]);
 
-  const handleDelete = async (id: string) => {
-    try {
-      const res = await fetch(`/api/trackers/${id}`, { method: "DELETE" });
-      if (res.ok) {
-        setSounds((prev) => prev.filter((s) => s.id !== id));
-      }
-    } catch {
-      // silent
-    }
-  };
+  const handleDelete = useCallback(
+    (id: string) => deleteMutation.mutate(id),
+    [deleteMutation]
+  );
 
-  // Stats
-  const totalTrackers = sounds.length;
-  const totalUses = sounds.reduce((sum, s) => sum + (s.latestSnapshot?.usesCount ?? 0), 0);
-  const trendingCount = sounds.filter((s) => s.status === "viral" || s.status === "trending").length;
-  const newToday = sounds.reduce((sum, s) => sum + (s.addedInPeriod ?? 0), 0);
+  const stats = useMemo(
+    () => ({
+      totalTrackers: sounds.length,
+      totalUses: sounds.reduce((sum, s) => sum + (s.latestSnapshot?.usesCount ?? 0), 0),
+      trendingCount: sounds.filter((s) => s.status === "viral" || s.status === "trending").length,
+      newToday: sounds.reduce((sum, s) => sum + (s.addedInPeriod ?? 0), 0),
+    }),
+    [sounds]
+  );
+  const { totalTrackers, totalUses, trendingCount, newToday } = stats;
 
   return (
     <div className="rsp-page">
@@ -192,7 +198,7 @@ export default function TrackersPage() {
           icon={<TrendingUp size={40} />}
           title="Could not load trackers"
           description="Something went wrong fetching your sound trackers."
-          action={<Button variant="primary" onClick={fetchSounds}>Retry</Button>}
+          action={<Button variant="primary" onClick={() => refetch()}>Retry</Button>}
         />
       ) : sounds.length === 0 ? (
         <EmptyState
