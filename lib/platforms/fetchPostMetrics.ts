@@ -163,6 +163,8 @@ export async function fetchTikTokMetrics(
     const viaDisplay = await fetchTikTokMetricsDisplay(videoId, accessToken);
     if (viaDisplay) return viaDisplay;
   }
+  const viaDirect = await fetchTikTokMetricsDirect(url);
+  if (viaDirect) return viaDirect;
   const viaSocialKit = await fetchTikTokMetricsSocialKit(url);
   if (viaSocialKit) return viaSocialKit;
   return fetchTikTokOEmbed(url);
@@ -191,6 +193,108 @@ async function fetchTikTokMetricsDisplay(
     engagementRate: views > 0 ? ((likes + comments) / views) * 100 : 0,
     postedAt: new Date(video.postedAt),
   };
+}
+
+export type TikTokDirectMetrics = {
+  viewsCount: number;
+  likesCount: number;
+  commentsCount: number;
+  sharesCount: number;
+  caption: string | null;
+  thumbnailUrl: string | null;
+  postedAt: Date | null;
+};
+
+const TIKTOK_REHYDRATION_RE =
+  /<script id="__UNIVERSAL_DATA_FOR_REHYDRATION__"[^>]*>([\s\S]*?)<\/script>/;
+
+const TIKTOK_DIRECT_UA =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
+
+function pickCount(...values: unknown[]): number {
+  let best = 0;
+  for (const value of values) {
+    const n = Number(value);
+    if (Number.isFinite(n) && n > best) best = n;
+  }
+  return best;
+}
+
+export function parseTikTokRehydration(html: string): TikTokDirectMetrics | null {
+  const match = html.match(TIKTOK_REHYDRATION_RE);
+  if (!match) return null;
+
+  let payload: any;
+  try {
+    payload = JSON.parse(match[1]);
+  } catch {
+    return null;
+  }
+
+  const detail = payload?.__DEFAULT_SCOPE__?.["webapp.video-detail"];
+  if (!detail) return null;
+  if (typeof detail.statusCode === "number" && detail.statusCode !== 0) return null;
+
+  const item = detail.itemInfo?.itemStruct;
+  const stats = item?.stats;
+  const statsV2 = item?.statsV2;
+  if (!item || (!stats && !statsV2)) return null;
+
+  const createTime = Number(item.createTime);
+
+  return {
+    viewsCount: pickCount(stats?.playCount, statsV2?.playCount),
+    likesCount: pickCount(stats?.diggCount, statsV2?.diggCount),
+    commentsCount: pickCount(stats?.commentCount, statsV2?.commentCount),
+    sharesCount: pickCount(stats?.shareCount, statsV2?.shareCount),
+    caption: typeof item.desc === "string" && item.desc.length > 0 ? item.desc : null,
+    thumbnailUrl: item.video?.cover ?? item.video?.originCover ?? null,
+    postedAt: Number.isFinite(createTime) && createTime > 0 ? new Date(createTime * 1000) : null,
+  };
+}
+
+async function fetchTikTokMetricsDirect(url: string): Promise<Partial<PostMetrics> | null> {
+  const log = createLogger({ context: { platform: "TIKTOK", url } });
+
+  try {
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent": TIKTOK_DIRECT_UA,
+        "Accept-Language": "en-US,en;q=0.9",
+        Accept: "text/html,application/xhtml+xml",
+      },
+      signal: fetchTimeoutSignal(15000),
+    });
+    if (!res.ok) {
+      log.warn("TikTok direct fetch returned non-OK", { status: res.status });
+      return null;
+    }
+
+    const parsed = parseTikTokRehydration(await res.text());
+    if (!parsed) {
+      log.warn("TikTok direct fetch could not parse rehydration payload");
+      return null;
+    }
+
+    const views = parsed.viewsCount;
+    const likes = parsed.likesCount;
+    const comments = parsed.commentsCount;
+    return {
+      thumbnailUrl: parsed.thumbnailUrl,
+      caption: parsed.caption,
+      viewsCount: views,
+      likesCount: likes,
+      commentsCount: comments,
+      sharesCount: parsed.sharesCount,
+      engagementRate: views > 0 ? ((likes + comments) / views) * 100 : 0,
+      postedAt: parsed.postedAt ?? undefined,
+    };
+  } catch (err) {
+    log.error("TikTok direct fetch threw", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return null;
+  }
 }
 
 async function fetchTikTokMetricsSocialKit(url: string): Promise<Partial<PostMetrics> | null> {
