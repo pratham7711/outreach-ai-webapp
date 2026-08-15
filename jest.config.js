@@ -9,6 +9,8 @@ const customJestConfig = {
   setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
   testEnvironment: 'jest-environment-jsdom',
   testMatch: ['**/__tests__/unit/**/*.test.(ts|tsx|js|jsx)'],
+  modulePathIgnorePatterns: ['<rootDir>/.claude/worktrees/'],
+  testPathIgnorePatterns: ['/node_modules/', '<rootDir>/.claude/worktrees/'],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/$1',
   },

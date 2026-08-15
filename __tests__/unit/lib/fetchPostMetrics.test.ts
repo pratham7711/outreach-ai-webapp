@@ -137,6 +137,7 @@ describe("fetchPostMetrics — unknown vs known counts", () => {
     global.fetch = jest
       .fn()
       .mockResolvedValueOnce({ ok: true, json: async () => ({ data: { videos: [] } }) })
+      .mockResolvedValueOnce({ ok: true, text: async () => "<html><body>no payload</body></html>" })
       .mockResolvedValueOnce({
         ok: true,
         json: async () => ({ thumbnail_url: "thumb.jpg", title: "someone else" }),
