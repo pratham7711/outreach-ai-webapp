@@ -6,10 +6,11 @@ import { getInstagramAccountForCreator } from "@/lib/platforms/instagramToken";
 import { getTikTokTokenForCreator } from "@/lib/platforms/tiktokToken";
 import { parseRatePerThousand } from "@/lib/marketplace/earnings";
 import { computeCampaignAccrual } from "@/lib/marketplace/cap";
+import { httpUrl } from "@/lib/validation/url";
 import { z } from "zod";
 
 const submitSchema = z.object({
-  postUrl: z.string().url(),
+  postUrl: httpUrl(),
 });
 
 // POST /api/portal/campaigns/[slug]/submissions — submit a post to a joined campaign

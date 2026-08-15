@@ -26,7 +26,7 @@ import { auth } from "@/lib/auth";
 const mockAuth = auth as jest.Mock;
 const mockDb = db as any;
 
-const authedSession = { user: { id: "user-1", orgId: "org-1" } };
+const authedSession = { user: { id: "user-1", orgId: "org-1", role: "OWNER" } };
 
 function makeRequest(url: string, options?: ConstructorParameters<typeof NextRequest>[1]) {
   return new NextRequest(url, options);
@@ -71,6 +71,17 @@ describe("POST /api/keys", () => {
     expect(createCall.data.keyHash).toBeDefined();
     expect(createCall.data.keyHash).not.toContain("oai_");
     expect(createCall.data.keyHash).toHaveLength(64); // SHA-256 hex
+  });
+
+  it("returns 403 when a VIEWER tries to mint a key (RBAC: settings:manage — closes the key-mint bypass)", async () => {
+    mockAuth.mockResolvedValue({ user: { id: "viewer-1", orgId: "org-1", role: "VIEWER" } });
+    const req = makeRequest("http://localhost/api/keys", {
+      method: "POST",
+      body: JSON.stringify({ name: "sneaky" }),
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(403);
+    expect(mockDb.apiKey.create).not.toHaveBeenCalled();
   });
 
   it("returns 401 without session", async () => {

@@ -24,7 +24,7 @@ import { auth } from '@/lib/auth';
 const mockAuth = auth as jest.Mock;
 const mockDb = (db as any);
 
-const authedSession = { user: { id: 'user-1', orgId: 'org-1' } };
+const authedSession = { user: { id: 'user-1', orgId: 'org-1', role: 'OWNER' } };
 
 function makeRequest(url: string, options?: ConstructorParameters<typeof NextRequest>[1]) {
   return new NextRequest(url, options);
@@ -252,6 +252,50 @@ describe('PATCH /api/campaigns/[id] full coverage', () => {
     });
     const res = await PATCH(req, makeParams('camp-1'));
     expect(res.status).toBe(500);
+  });
+});
+
+// ─── PATCH /api/campaigns/[id] — RBAC edit_own ownership ──────────────────────
+
+describe('PATCH /api/campaigns/[id] RBAC edit_own', () => {
+  it('MEMBER can edit a campaign they created', async () => {
+    mockAuth.mockResolvedValue({ user: { id: 'member-1', orgId: 'org-1', role: 'MEMBER' } });
+    const existing = { id: 'camp-1', orgId: 'org-1', title: 'Mine', createdById: 'member-1', deletedAt: null };
+    mockDb.campaign.findFirst.mockResolvedValue(existing);
+    mockDb.campaign.update.mockResolvedValue({ ...existing, title: 'Mine Edited', tags: [], teamMembers: [], _count: { activations: 0, posts: 0 } });
+
+    const req = makeRequest('http://localhost/api/campaigns/camp-1', {
+      method: 'PATCH',
+      body: JSON.stringify({ title: 'Mine Edited' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const res = await PATCH(req, makeParams('camp-1'));
+    expect(res.status).toBe(200);
+  });
+
+  it('MEMBER cannot edit a campaign created by someone else (403, no write)', async () => {
+    mockAuth.mockResolvedValue({ user: { id: 'member-1', orgId: 'org-1', role: 'MEMBER' } });
+    mockDb.campaign.findFirst.mockResolvedValue({ id: 'camp-1', orgId: 'org-1', title: 'Theirs', createdById: 'other-user', deletedAt: null });
+
+    const req = makeRequest('http://localhost/api/campaigns/camp-1', {
+      method: 'PATCH',
+      body: JSON.stringify({ title: 'Hijack' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const res = await PATCH(req, makeParams('camp-1'));
+    expect(res.status).toBe(403);
+    expect(mockDb.campaign.update).not.toHaveBeenCalled();
+  });
+
+  it('VIEWER cannot edit any campaign (403 at the RBAC gate)', async () => {
+    mockAuth.mockResolvedValue({ user: { id: 'viewer-1', orgId: 'org-1', role: 'VIEWER' } });
+    const req = makeRequest('http://localhost/api/campaigns/camp-1', {
+      method: 'PATCH',
+      body: JSON.stringify({ title: 'x' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const res = await PATCH(req, makeParams('camp-1'));
+    expect(res.status).toBe(403);
   });
 });
 

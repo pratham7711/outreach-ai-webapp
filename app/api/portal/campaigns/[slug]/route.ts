@@ -47,7 +47,15 @@ export async function GET(
     const activation = creator
       ? await db.activation.findFirst({
           where: { campaignId: campaign.id, creatorId: creator.id, deletedAt: null },
-          select: { id: true },
+          select: {
+            id: true,
+            status: true,
+            draftUrl: true,
+            draftCaption: true,
+            draftMediaType: true,
+            draftSubmittedAt: true,
+            feedbackNotes: true,
+          },
         })
       : null;
 
@@ -110,6 +118,16 @@ export async function GET(
         orgLogoUrl: campaign.org.logoUrl,
       },
       joined: !!activation,
+      draft: activation
+        ? {
+            status: activation.status,
+            draftUrl: activation.draftUrl,
+            draftCaption: activation.draftCaption,
+            draftMediaType: activation.draftMediaType,
+            draftSubmittedAt: activation.draftSubmittedAt,
+            feedbackNotes: activation.feedbackNotes,
+          }
+        : null,
       submissions,
     });
   } catch (error) {

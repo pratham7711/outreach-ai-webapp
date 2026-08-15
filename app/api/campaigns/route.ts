@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { authenticateRequest, getAuditActor } from "@/lib/authenticate";
+import { requirePermission } from "@/lib/authz";
 import { logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
 import { z } from "zod";
@@ -105,8 +106,9 @@ export async function GET(request: NextRequest) {
 // POST /api/campaigns - Create a new campaign
 export async function POST(request: NextRequest) {
   try {
-    const result = await authenticateRequest(request);
-    if (!result) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const gate = await requirePermission(request, "campaigns:create");
+    if (!gate.ok) return gate.response;
+    const result = gate.auth;
     const { orgId } = result;
 
     const body = await request.json();

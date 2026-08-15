@@ -37,8 +37,12 @@ export async function PATCH(
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const orgId = (session.user as any).orgId as string;
+  const role = (session.user as any).role as string;
   const entitlements = await getOrgEntitlements(orgId);
   if (!hasAnyOrgFeature(entitlements, [...REPORTS_FEATURE_KEYS])) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  if (!hasPermission(role, "reports:*")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   const { id } = await params;

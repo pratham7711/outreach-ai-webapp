@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { httpUrl } from "@/lib/validation/url";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { authenticateRequest, getAuditActor } from "@/lib/authenticate";
@@ -7,7 +8,7 @@ import { getRequestIp } from "@/lib/request";
 
 const updateClientSchema = z.object({
   name: z.string().min(1).optional(),
-  logoUrl: z.string().url().nullable().optional(),
+  logoUrl: httpUrl().nullable().optional(),
   contactInfo: z.record(z.string(), z.string()).nullable().optional(),
 });
 

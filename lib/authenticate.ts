@@ -2,12 +2,14 @@ import { NextRequest } from "next/server";
 import { createHash } from "crypto";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import type { UserRole } from "@/lib/rbac";
 
 export type AuthResult = {
   orgId: string;
   userId: string | null;
   actorEmail: string | null;
   actorType: "user" | "api_key";
+  role: UserRole | null;
 };
 
 /**
@@ -29,6 +31,7 @@ export async function authenticateRequest(req?: NextRequest): Promise<AuthResult
       userId: session.user.id ?? null,
       actorEmail: (session.user as any).email ?? null,
       actorType: "user",
+      role: ((session.user as any).role as UserRole) ?? null,
     };
   }
 
@@ -53,6 +56,7 @@ export async function authenticateRequest(req?: NextRequest): Promise<AuthResult
           userId: null,
           actorEmail: null,
           actorType: "api_key",
+          role: null,
         };
       }
     }

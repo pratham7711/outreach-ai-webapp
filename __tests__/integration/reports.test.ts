@@ -40,7 +40,7 @@ const mockAuth = auth as jest.Mock;
 const mockDb = db as any;
 const mockGetOrgEntitlements = getOrgEntitlements as jest.Mock;
 
-const authedSession = { user: { id: "user-1", orgId: "org-1" } };
+const authedSession = { user: { id: "user-1", orgId: "org-1", role: "OWNER" } };
 
 function makeRequest(url: string, options?: ConstructorParameters<typeof NextRequest>[1]) {
   return new NextRequest(url, options);
@@ -191,6 +191,18 @@ describe("POST /api/reports", () => {
 
     expect(res.status).toBe(201);
     expect(body.title).toBe("Campaign Report");
+  });
+
+  it("returns 403 when a VIEWER tries to create a report (RBAC: reports:*)", async () => {
+    mockAuth.mockResolvedValue({ user: { id: "viewer-1", orgId: "org-1", role: "VIEWER" } });
+    const req = makeRequest("http://localhost/api/reports", {
+      method: "POST",
+      body: JSON.stringify({ title: "Sneaky Public Report", isPublic: true }),
+      headers: { "Content-Type": "application/json" },
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(403);
+    expect(mockDb.report.create).not.toHaveBeenCalled();
   });
 
   it("returns 403 when report features are disabled for the org", async () => {
@@ -414,5 +426,38 @@ describe("GET /api/reports/[id]", () => {
 
     expect(res.status).toBe(200);
     expect(body.id).toBe("rep-1");
+  });
+});
+
+describe("PATCH /api/reports/[id] RBAC", () => {
+  const existing = { id: "rep-1", orgId: "org-1", title: "Q1", slug: "q1", isPublic: false, config: {} };
+
+  it("lets an OWNER flip isPublic", async () => {
+    mockDb.report.findFirst.mockResolvedValue(existing);
+    mockDb.report.update.mockResolvedValue({ ...existing, isPublic: true, campaign: null });
+    const res = await PATCH_REPORT(
+      new NextRequest("http://localhost/api/reports/rep-1", {
+        method: "PATCH",
+        body: JSON.stringify({ isPublic: true }),
+        headers: { "Content-Type": "application/json" },
+      }),
+      { params: Promise.resolve({ id: "rep-1" }) } as any
+    );
+    expect(res.status).toBe(200);
+  });
+
+  it("blocks a VIEWER from flipping isPublic to expose a report (403, no write)", async () => {
+    mockAuth.mockResolvedValue({ user: { id: "viewer-1", orgId: "org-1", role: "VIEWER" } });
+    mockDb.report.findFirst.mockResolvedValue(existing);
+    const res = await PATCH_REPORT(
+      new NextRequest("http://localhost/api/reports/rep-1", {
+        method: "PATCH",
+        body: JSON.stringify({ isPublic: true }),
+        headers: { "Content-Type": "application/json" },
+      }),
+      { params: Promise.resolve({ id: "rep-1" }) } as any
+    );
+    expect(res.status).toBe(403);
+    expect(mockDb.report.update).not.toHaveBeenCalled();
   });
 });

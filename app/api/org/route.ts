@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { httpUrl } from "@/lib/validation/url";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { authenticateRequest, getAuditActor } from "@/lib/authenticate";
@@ -12,8 +13,8 @@ const PatchSchema = z.object({
   brandName:         z.string().max(100).optional().nullable(),
   timezone:          z.string().max(50).optional(),
   currency:          z.enum(CURRENCIES).optional(),
-  logoUrl:           z.string().url().optional().nullable(),
-  faviconUrl:        z.string().url().optional().nullable(),
+  logoUrl:           httpUrl().optional().nullable(),
+  faviconUrl:        httpUrl().optional().nullable(),
   customDomain:      z.string().max(255).optional().nullable(),
   primaryColor:      z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
   secondaryColor:    z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),

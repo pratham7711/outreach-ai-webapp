@@ -1,13 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { authenticateRequest, getAuditActor } from "@/lib/authenticate";
+import { requirePermission } from "@/lib/authz";
+import { hasPermission } from "@/lib/rbac";
+import { httpUrl } from "@/lib/validation/url";
+import { getAuditActor } from "@/lib/authenticate";
 import { logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
 
 const ALLOWED_TRANSITIONS: Record<string, string[]> = {
   AWAITING_DRAFT: ["DRAFT_SUBMITTED", "DECLINED"],
-  DRAFT_SUBMITTED: ["AWAITING_APPROVAL", "AWAITING_DRAFT"],
+  // A submitted draft can be reviewed, sent back for a redo, or approved/declined outright.
+  DRAFT_SUBMITTED: ["AWAITING_APPROVAL", "AWAITING_DRAFT", "APPROVED", "DECLINED"],
   AWAITING_APPROVAL: ["APPROVED", "AWAITING_DRAFT", "DECLINED"],
   APPROVED: ["POSTING"],
   POSTING: ["POSTED"],
@@ -19,22 +23,40 @@ const VALID_STATUSES = ["AWAITING_DRAFT", "DRAFT_SUBMITTED", "AWAITING_APPROVAL"
 
 const PatchSchema = z.object({
   status: z.enum(VALID_STATUSES).optional(),
-  feedbackNotes: z.string().optional(),
-  postedUrl: z.string().url().optional().nullable(),
+  feedbackNotes: z.string().nullable().optional(),
+  postedUrl: httpUrl().optional().nullable(),
   deliverableDueDate: z.string().datetime().optional().nullable(),
 });
 
+// Approving/declining a creator's draft is a campaign-edit action: managers/owners
+// (campaigns:*) on any campaign, members only on campaigns they created.
+function canEditCampaign(
+  result: { actorType: string; role: string | null; userId: string | null },
+  campaignCreatedById: string
+) {
+  const canEditAny =
+    result.actorType === "api_key" ||
+    (result.role != null && hasPermission(result.role, "campaigns:edit"));
+  return canEditAny || campaignCreatedById === result.userId;
+}
+
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const result = await authenticateRequest(req);
-  if (!result) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const gate = await requirePermission(req, "campaigns:edit_own");
+  if (!gate.ok) return gate.response;
+  const result = gate.auth;
   const { orgId } = result;
   const { id } = await params;
 
   try {
     const activation = await db.activation.findFirst({
       where: { id, campaign: { orgId } },
+      include: { campaign: { select: { createdById: true } } },
     });
     if (!activation) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+    if (!canEditCampaign(result, activation.campaign.createdById)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
 
     const body = await req.json();
     const parsed = PatchSchema.safeParse(body);
@@ -89,13 +111,21 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const result = await authenticateRequest(req);
-  if (!result) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const gate = await requirePermission(req, "campaigns:edit_own");
+  if (!gate.ok) return gate.response;
+  const result = gate.auth;
   const { orgId } = result;
   const { id } = await params;
 
-  const activation = await db.activation.findFirst({ where: { id, campaign: { orgId } } });
+  const activation = await db.activation.findFirst({
+    where: { id, campaign: { orgId } },
+    include: { campaign: { select: { createdById: true } } },
+  });
   if (!activation) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  if (!canEditCampaign(result, activation.campaign.createdById)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   await db.activation.update({ where: { id }, data: { deletedAt: new Date() } });
 

@@ -27,7 +27,7 @@ import { auth } from "@/lib/auth";
 const mockAuth = auth as jest.Mock;
 const mockDb = db as any;
 
-const authedSession = { user: { id: "user-1", orgId: "org-1" } };
+const authedSession = { user: { id: "user-1", orgId: "org-1", role: "OWNER" } };
 const otherOrgSession = { user: { id: "user-2", orgId: "org-other" } };
 const mockCampaign = { id: "camp-1", orgId: "org-1", deletedAt: null };
 
@@ -198,5 +198,17 @@ describe("PATCH /api/fraud-flags/[id]", () => {
     expect(res.status).toBe(200);
     expect(body.isResolved).toBe(true);
     expect(body.resolvedBy).toBe("user-1");
+  });
+
+  it("blocks a VIEWER from resolving a fraud flag (403, no write)", async () => {
+    mockAuth.mockResolvedValue({ user: { id: "viewer-1", orgId: "org-1", role: "VIEWER" } });
+    const req = makeRequest("http://localhost/api/fraud-flags/flag-1", {
+      method: "PATCH",
+      body: JSON.stringify({ isResolved: true }),
+      headers: { "Content-Type": "application/json" },
+    });
+    const res = await patchFraudFlag(req, makeParams("flag-1"));
+    expect(res.status).toBe(403);
+    expect(mockDb.viewFraudFlag.update).not.toHaveBeenCalled();
   });
 });

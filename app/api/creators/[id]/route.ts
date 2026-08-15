@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { httpUrl } from "@/lib/validation/url";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { authenticateRequest, getAuditActor } from "@/lib/authenticate";
@@ -13,7 +14,7 @@ const updateCreatorSchema = z.object({
   contactEmail: z.string().email().nullable().optional(),
   rate: z.number().positive().nullable().optional(),
   notes: z.string().nullable().optional(),
-  avatarUrl: z.string().url().nullable().optional(),
+  avatarUrl: httpUrl().nullable().optional(),
   paymentInfo: z.string().nullable().optional(),
 });
 

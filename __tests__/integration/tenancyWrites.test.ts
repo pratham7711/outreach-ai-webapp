@@ -34,7 +34,7 @@ function jsonReq(url: string, payload: unknown) {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  mockAuth.mockResolvedValue({ orgId: "org-1", userId: "u1", actorEmail: "a@b.com", actorType: "USER" });
+  mockAuth.mockResolvedValue({ orgId: "org-1", userId: "u1", actorEmail: "a@b.com", actorType: "USER", role: "OWNER" });
 });
 
 describe("POST /api/activations — creator tenancy", () => {

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requirePermission } from "@/lib/authz";
 import { z } from "zod";
 
 const updateFlagSchema = z.object({
@@ -13,12 +13,9 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-    const orgId = (session.user as any).orgId;
-    const userId = (session.user as any).id;
+    const gate = await requirePermission(request, "campaigns:edit");
+    if (!gate.ok) return gate.response;
+    const { orgId, userId } = gate.auth;
     const { id } = await params;
 
     const body = await request.json();

@@ -8,6 +8,9 @@ export async function POST(req: NextRequest) {
     if (!name || !email || !password) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
+    if (typeof password !== "string" || password.length < 10) {
+      return NextResponse.json({ error: "Password must be at least 10 characters" }, { status: 400 });
+    }
     const existing = await db.user.findUnique({ where: { email } });
     if (existing) return NextResponse.json({ error: "Email already in use" }, { status: 400 });
     const org = await db.organization.create({

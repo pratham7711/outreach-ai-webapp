@@ -83,7 +83,7 @@ describe('GET /api/campaigns/[id]/posts', () => {
 
     expect(res.status).toBe(200);
     // GET enriches each post with an unresolved-fraud-flag presence flag (M4).
-    expect(body.posts).toEqual(mockPosts.map((p) => ({ ...p, hasOpenFraudFlag: false })));
+    expect(body.posts).toEqual(mockPosts.map((p) => ({ ...p, hasOpenFraudFlag: false, complianceFlags: [] })));
   });
 });
 

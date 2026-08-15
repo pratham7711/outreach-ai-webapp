@@ -23,7 +23,7 @@ import { auth } from '@/lib/auth';
 const mockAuth = auth as jest.Mock;
 const mockDb = db as any;
 
-const authedSession = { user: { id: 'user-1', orgId: 'org-1' } };
+const authedSession = { user: { id: 'user-1', orgId: 'org-1', role: 'OWNER' } };
 
 function makeRequest(url: string, options?: ConstructorParameters<typeof NextRequest>[1]) {
   return new NextRequest(url, options);
@@ -65,7 +65,7 @@ describe('PATCH /api/activations/[id]', () => {
   });
 
   it('updates activation status with valid transition', async () => {
-    const existing = { id: 'act-1', status: 'AWAITING_DRAFT', campaignId: 'camp-1' };
+    const existing = { id: 'act-1', status: 'AWAITING_DRAFT', campaignId: 'camp-1', campaign: { createdById: 'user-1' } };
     const updated = { ...existing, status: 'DRAFT_SUBMITTED' };
     mockDb.activation.findFirst.mockResolvedValue(existing);
     mockDb.activation.update.mockResolvedValue(updated);
@@ -83,7 +83,7 @@ describe('PATCH /api/activations/[id]', () => {
   });
 
   it('rejects invalid status transition', async () => {
-    const existing = { id: 'act-1', status: 'AWAITING_DRAFT', campaignId: 'camp-1' };
+    const existing = { id: 'act-1', status: 'AWAITING_DRAFT', campaignId: 'camp-1', campaign: { createdById: 'user-1' } };
     mockDb.activation.findFirst.mockResolvedValue(existing);
 
     const req = makeRequest('http://localhost/api/activations/act-1', {
@@ -98,7 +98,7 @@ describe('PATCH /api/activations/[id]', () => {
   });
 
   it('updates feedbackNotes without changing status', async () => {
-    const existing = { id: 'act-1', status: 'AWAITING_DRAFT', campaignId: 'camp-1' };
+    const existing = { id: 'act-1', status: 'AWAITING_DRAFT', campaignId: 'camp-1', campaign: { createdById: 'user-1' } };
     const updated = { ...existing, feedbackNotes: 'Looks good' };
     mockDb.activation.findFirst.mockResolvedValue(existing);
     mockDb.activation.update.mockResolvedValue(updated);
@@ -140,7 +140,7 @@ describe('DELETE /api/activations/[id]', () => {
   });
 
   it('soft-deletes activation', async () => {
-    const existing = { id: 'act-1', status: 'AWAITING_DRAFT', campaignId: 'camp-1' };
+    const existing = { id: 'act-1', status: 'AWAITING_DRAFT', campaignId: 'camp-1', campaign: { createdById: 'user-1' } };
     mockDb.activation.findFirst.mockResolvedValue(existing);
     mockDb.activation.update.mockResolvedValue({ ...existing, deletedAt: new Date() });
 

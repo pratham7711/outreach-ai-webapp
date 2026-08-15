@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { authenticateRequest, getAuditActor } from "@/lib/authenticate";
+import { requirePermission } from "@/lib/authz";
+import { hasPermission } from "@/lib/rbac";
 import { logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
 import { generatePublicSlug, generateInviteCode } from "@/lib/marketplace";
+import { httpUrlMax } from "@/lib/validation/url";
 import { z } from "zod";
 import { Prisma } from "@/lib/generated/prisma/client";
 
@@ -40,7 +43,7 @@ const updateCampaignSchema = z.object({
   marketplaceVisibility: z.enum(MARKETPLACE_VISIBILITIES).optional(),
   guidelines: z.string().max(20000).nullable().optional(),
   requirements: z.string().max(20000).nullable().optional(),
-  contentAssetsUrl: z.string().url().max(2000).nullable().optional().or(z.literal("")),
+  contentAssetsUrl: httpUrlMax(2000).nullable().optional().or(z.literal("")),
   ratePerThousand: ratePerThousandSchema,
   minPayoutMinor: z.number().int().nonnegative().nullable().optional(),
   marketplaceBudgetCapMinor: z.number().int().nonnegative().nullable().optional(),
@@ -139,8 +142,9 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const result = await authenticateRequest(request);
-    if (!result) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const gate = await requirePermission(request, "campaigns:edit_own");
+    if (!gate.ok) return gate.response;
+    const result = gate.auth;
     const { orgId } = result;
 
     const { id } = await params;
@@ -156,6 +160,13 @@ export async function PATCH(
 
     const existing = await db.campaign.findFirst({ where: { id, orgId, deletedAt: null } });
     if (!existing) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
+
+    const canEditAny =
+      result.actorType === "api_key" ||
+      (result.role != null && hasPermission(result.role, "campaigns:edit"));
+    if (!canEditAny && existing.createdById !== result.userId) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
 
     const { regenerateInviteCode, contentAssetsUrl, submissionDeadline, ratePerThousand, ...rest } =
       parsed.data;
@@ -259,8 +270,9 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const result = await authenticateRequest(request);
-    if (!result) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const gate = await requirePermission(request, "campaigns:delete");
+    if (!gate.ok) return gate.response;
+    const result = gate.auth;
     const { orgId } = result;
 
     const { id } = await params;

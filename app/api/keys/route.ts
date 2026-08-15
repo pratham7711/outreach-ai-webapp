@@ -1,16 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requirePermission } from "@/lib/authz";
+import { getAuditActor } from "@/lib/authenticate";
 import { randomBytes, createHash } from "crypto";
-import { createAuditActor, logAudit } from "@/lib/audit";
+import { logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
 
 // GET /api/keys — List all API keys for the org (never return hash)
 export async function GET(request: NextRequest) {
   try {
-    const session = await auth();
-    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    const orgId = (session.user as any).orgId;
+    const gate = await requirePermission(request, "settings:manage");
+    if (!gate.ok) return gate.response;
+    const { orgId } = gate.auth;
 
     const keys = await db.apiKey.findMany({
       where: { orgId },
@@ -33,9 +34,10 @@ export async function GET(request: NextRequest) {
 // POST /api/keys — Create a new API key
 export async function POST(request: NextRequest) {
   try {
-    const session = await auth();
-    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    const orgId = (session.user as any).orgId;
+    const gate = await requirePermission(request, "settings:manage");
+    if (!gate.ok) return gate.response;
+    const result = gate.auth;
+    const { orgId } = result;
 
     const body = await request.json();
     const name = typeof body.name === "string" ? body.name.trim() : "";
@@ -65,7 +67,7 @@ export async function POST(request: NextRequest) {
 
     await logAudit({
       orgId,
-      ...createAuditActor(session),
+      ...getAuditActor(result),
       action: "api_key.create",
       entityType: "api_key",
       entityId: apiKey.id,

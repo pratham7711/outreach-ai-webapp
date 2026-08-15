@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
+import { httpUrl } from "@/lib/validation/url";
 import { z } from "zod";
 import { detectPlatform, fetchPostMetrics } from "@/lib/platforms/fetchPostMetrics";
 import { getInstagramAccountForCreator } from "@/lib/platforms/instagramToken";
 import { getTikTokTokenForCreator } from "@/lib/platforms/tiktokToken";
+import { checkPostCompliance } from "@/lib/compliance/postCompliance";
 import type { PostStatus, Platform } from "@/lib/generated/prisma/client";
 
 const PLATFORMS = ["TIKTOK", "INSTAGRAM", "YOUTUBE", "TWITTER"] as const;
@@ -12,7 +14,7 @@ const MEDIA_TYPES = ["REEL", "STORY", "POST", "SHORT", "VIDEO"] as const;
 const POST_STATUSES = ["PENDING_REVIEW", "APPROVED", "REJECTED"] as const;
 
 const createPostSchema = z.object({
-  postUrl: z.string().url(),
+  postUrl: httpUrl(),
   creatorId: z.string().min(1),
   mediaType: z.enum(MEDIA_TYPES).optional(),
   activationId: z.string().nullable().optional(),
@@ -65,6 +67,7 @@ export async function GET(
     const postsWithFlags = posts.map((p) => ({
       ...p,
       hasOpenFraudFlag: flaggedPostIds.has(p.id),
+      complianceFlags: checkPostCompliance(p, campaign),
     }));
 
     return NextResponse.json({ posts: postsWithFlags });

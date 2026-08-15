@@ -28,7 +28,7 @@ import { auth } from "@/lib/auth";
 const mockAuth = auth as jest.Mock;
 const mockDb = db as any;
 
-const authedSession = { user: { id: "user-1", orgId: "org-1" } };
+const authedSession = { user: { id: "user-1", orgId: "org-1", role: "OWNER" } };
 
 const futureDate = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000); // 3 days from now
 const pastDate = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);   // 2 days ago
@@ -158,6 +158,7 @@ describe("PATCH /api/activations/[id] — deliverableDueDate", () => {
     deliverableDueDate: null,
     feedbackNotes: null,
     postedUrl: null,
+    campaign: { createdById: "user-1" },
   };
 
   it("sets deliverableDueDate when provided as ISO string", async () => {

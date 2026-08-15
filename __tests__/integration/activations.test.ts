@@ -32,7 +32,7 @@ import { auth } from '@/lib/auth';
 const mockAuth = auth as jest.Mock;
 const mockDb = (db as any);
 
-const authedSession = { user: { id: 'user-1', orgId: 'org-1' } };
+const authedSession = { user: { id: 'user-1', orgId: 'org-1', role: 'OWNER' } };
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -225,7 +225,7 @@ describe('PATCH /api/activations/[id]', () => {
   });
 
   it('returns 400 on invalid status value (Zod rejection)', async () => {
-    mockDb.activation.findFirst.mockResolvedValue({ id: 'act-1', status: 'AWAITING_DRAFT' });
+    mockDb.activation.findFirst.mockResolvedValue({ id: 'act-1', status: 'AWAITING_DRAFT', campaign: { createdById: 'user-1' } });
     const req = new NextRequest('http://localhost/api/activations/act-1', {
       method: 'PATCH',
       body: JSON.stringify({ status: 'INVALID_STATUS' }),
@@ -236,7 +236,7 @@ describe('PATCH /api/activations/[id]', () => {
   });
 
   it('returns 400 on invalid transition', async () => {
-    mockDb.activation.findFirst.mockResolvedValue({ id: 'act-1', status: 'COMPLETE' });
+    mockDb.activation.findFirst.mockResolvedValue({ id: 'act-1', status: 'COMPLETE', campaign: { createdById: 'user-1' } });
     const req = new NextRequest('http://localhost/api/activations/act-1', {
       method: 'PATCH',
       body: JSON.stringify({ status: 'POSTING' }),
@@ -247,7 +247,7 @@ describe('PATCH /api/activations/[id]', () => {
   });
 
   it('returns 200 on valid status transition', async () => {
-    mockDb.activation.findFirst.mockResolvedValue({ id: 'act-1', status: 'AWAITING_DRAFT' });
+    mockDb.activation.findFirst.mockResolvedValue({ id: 'act-1', status: 'AWAITING_DRAFT', campaign: { createdById: 'user-1' } });
     mockDb.activation.update.mockResolvedValue({ id: 'act-1', status: 'DRAFT_SUBMITTED' });
     const req = new NextRequest('http://localhost/api/activations/act-1', {
       method: 'PATCH',
@@ -281,7 +281,7 @@ describe('DELETE /api/activations/[id]', () => {
   });
 
   it('soft deletes and returns success', async () => {
-    mockDb.activation.findFirst.mockResolvedValue({ id: 'act-1', status: 'APPROVED' });
+    mockDb.activation.findFirst.mockResolvedValue({ id: 'act-1', status: 'APPROVED', campaign: { createdById: 'user-1' } });
     mockDb.activation.update.mockResolvedValue({ id: 'act-1', deletedAt: new Date() });
     const req = new NextRequest('http://localhost/api/activations/act-1', {
       method: 'DELETE',

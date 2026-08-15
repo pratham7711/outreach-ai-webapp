@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { REPORTS_FEATURE_KEYS } from "@/lib/featureKeys";
 import { getOrgEntitlements, hasAnyOrgFeature } from "@/lib/entitlements";
+import { hasPermission } from "@/lib/rbac";
 
 function slugify(text: string): string {
   return text
@@ -38,8 +39,12 @@ export async function POST(request: NextRequest) {
 
   const orgId = (session.user as any).orgId as string;
   const userId = session.user.id!;
+  const role = (session.user as any).role as string;
   const entitlements = await getOrgEntitlements(orgId);
   if (!hasAnyOrgFeature(entitlements, [...REPORTS_FEATURE_KEYS])) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  if (!hasPermission(role, "reports:*")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
