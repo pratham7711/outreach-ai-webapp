@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { authenticateRequest } from "@/lib/authenticate";
 import { computeCampaignEmv, computeEngagementRate, sumEngagements } from "@/lib/metrics";
+import { PLATFORM_VALUES } from "@/lib/platforms/constants";
 
-const PLATFORMS = ["TIKTOK", "INSTAGRAM", "YOUTUBE", "TWITTER"] as const;
+const PLATFORMS = PLATFORM_VALUES;
 
 function parseFrom(req: NextRequest): Date | null {
   const raw = req.nextUrl.searchParams.get("from");
@@ -190,5 +191,13 @@ export async function GET(req: NextRequest) {
     leaderboard,
     platformBreakdown,
     campaigns: orgCampaigns,
+    // Just the three fields the posting-time analysis buckets on. Bucketing
+    // happens client-side because the useful timezone is the viewer's, and the
+    // server has no way to know it.
+    postingTimes: posts.map((p) => ({
+      postedAt: p.postedAt,
+      platform: p.platform,
+      viewsCount: p.viewsCount,
+    })),
   });
 }

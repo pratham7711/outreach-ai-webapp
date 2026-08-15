@@ -9,6 +9,7 @@ import type { CampaignPerformance } from "@/lib/reports/campaignPerformance";
 import { formatCompact } from "@/lib/format";
 import { METRIC_DEFINITIONS, SPEND_METRIC_BY_SOURCE } from "@/lib/metric-definitions";
 import { platformColor } from "@/app/(dashboard)/analytics/shared";
+import { BRAND, POWERED_BY } from "@/lib/brand";
 
 const SERIES = [
   { key: "TIKTOK", color: platformColor("TIKTOK") },
@@ -327,7 +328,7 @@ export default function SharedPerformanceReport({
         )}
 
         <div style={{ textAlign: "center", padding: "32px 0 0" }}>
-          <p style={{ fontSize: 12, color: "var(--cc-text-muted)", margin: 0 }}>Powered by Outreach AI</p>
+          <p style={{ fontSize: 12, color: "var(--cc-text-muted)", margin: 0 }}>{POWERED_BY}</p>
         </div>
       </div>
     </div>

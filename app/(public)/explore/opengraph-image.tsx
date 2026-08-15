@@ -1,7 +1,8 @@
 import { ImageResponse } from "next/og";
+import { BRAND } from "@/lib/brand";
 
 export const runtime = "nodejs";
-export const alt = "Creator Marketplace — Get paid per view | Outreach AI";
+export const alt = `Creator Marketplace — Get paid per view | ${BRAND.name}`;
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -37,7 +38,7 @@ export default function Image() {
           >
             O
           </div>
-          <div style={{ fontSize: 26, fontWeight: 700, color: "#1C2048" }}>Outreach AI</div>
+          <div style={{ fontSize: 26, fontWeight: 700, color: "#1C2048" }}>{BRAND.name}</div>
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>

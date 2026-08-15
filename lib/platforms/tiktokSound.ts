@@ -1,94 +1,88 @@
-import { createLogger } from "../observability/logger";
+import { createLogger } from "@/lib/observability/logger";
+import {
+  TIKTOK_DIRECT_UA,
+  TIKTOK_REHYDRATION_RE,
+  pickCount,
+} from "@/lib/platforms/fetchPostMetrics";
 
-const API_BASE = "https://api.scrapecreators.com/v1/tiktok";
-
-export type SoundStats = {
+export type TikTokSoundStats = {
   usesCount: number;
   title: string | null;
   artist: string | null;
   coverImageUrl: string | null;
 };
 
-function num(value: unknown): number {
-  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+export function soundUrl(tiktokSoundId: string): string {
+  return `https://www.tiktok.com/music/x-${encodeURIComponent(tiktokSoundId)}`;
 }
 
-function str(value: unknown): string | null {
-  return typeof value === "string" && value.length > 0 ? value : null;
-}
+export function parseTikTokSoundRehydration(html: string): TikTokSoundStats | null {
+  const match = html.match(TIKTOK_REHYDRATION_RE);
+  if (!match) return null;
 
-function timeoutSignal(ms = 12000): AbortSignal | undefined {
-  return typeof AbortSignal !== "undefined" &&
-    typeof AbortSignal.timeout === "function"
-    ? AbortSignal.timeout(ms)
-    : undefined;
-}
-
-// ScrapeCreators nests the music object differently across responses, and TikTok
-// itself names the use-count field inconsistently (video_count vs user_count vs
-// stats.*). Pull the first plausible one rather than assume a single shape.
-function extractUseCount(music: Record<string, unknown>): number {
-  const stats = (music.stats ?? {}) as Record<string, unknown>;
-  const candidates = [
-    music.video_count,
-    music.user_count,
-    music.videoCount,
-    music.userCount,
-    stats.videoCount,
-    stats.video_count,
-    stats.userCount,
-    stats.user_count,
-  ];
-  for (const c of candidates) {
-    const n = num(c);
-    if (n > 0) return n;
-  }
-  return 0;
-}
-
-// Returns the aggregate "videos using this sound" count for a TikTok music/clip id,
-// or null when the provider is unconfigured or the call fails. Off by default:
-// with SCRAPECREATORS_API_KEY unset the Sound Tracker simply records no snapshot,
-// exactly like the SocialKit path in fetchPostMetrics.
-export async function fetchSoundStats(clipId: string): Promise<SoundStats | null> {
-  const log = createLogger({ context: { platform: "TIKTOK", call: "sound.details" } });
-  const key = process.env.SCRAPECREATORS_API_KEY;
-  if (!key) return null;
-  if (!/^\d+$/.test(clipId)) {
-    log.warn("Sound id is not numeric; skipping", { clipId });
+  let payload: any;
+  try {
+    payload = JSON.parse(match[1]);
+  } catch {
     return null;
   }
 
+  const scope = payload?.__DEFAULT_SCOPE__;
+  const detail = scope?.["webapp.music-detail"] ?? scope?.["webapp.music-page"];
+  if (!detail) return null;
+  if (typeof detail.statusCode === "number" && detail.statusCode !== 0) return null;
+
+  const info = detail.musicInfo ?? detail.musicDetail;
+  const music = info?.music ?? info;
+  if (!music) return null;
+
+  const rawUses = info?.stats?.videoCount ?? music?.videoCount ?? music?.userCount;
+  if (rawUses === undefined || rawUses === null) return null;
+
+  const usesCount = pickCount(rawUses);
+  if (!Number.isFinite(usesCount)) return null;
+
+  return {
+    usesCount,
+    title: typeof music.title === "string" && music.title.length > 0 ? music.title : null,
+    artist:
+      typeof music.authorName === "string" && music.authorName.length > 0
+        ? music.authorName
+        : null,
+    coverImageUrl: music.coverLarge ?? music.coverMedium ?? music.coverThumb ?? null,
+  };
+}
+
+export async function fetchTikTokSoundStats(
+  tiktokSoundId: string,
+  timeoutMs = 15000
+): Promise<TikTokSoundStats | null> {
+  const log = createLogger({ context: { platform: "TIKTOK", soundId: tiktokSoundId } });
+  const url = soundUrl(tiktokSoundId);
+
   try {
-    const res = await fetch(`${API_BASE}/song?id=${encodeURIComponent(clipId)}`, {
-      headers: { "x-api-key": key },
-      cache: "no-store",
-      signal: timeoutSignal(),
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent": TIKTOK_DIRECT_UA,
+        "Accept-Language": "en-US,en;q=0.9",
+        Accept: "text/html,application/xhtml+xml",
+      },
+      signal: AbortSignal.timeout(timeoutMs),
     });
     if (!res.ok) {
-      log.error("ScrapeCreators song request failed", { status: res.status });
+      log.warn("TikTok sound page request failed", { status: res.status });
       return null;
     }
-    const json = (await res.json()) as Record<string, unknown>;
-    // Response envelope varies; the music object may be at the root or nested.
-    const music = (json.music ??
-      json.musicInfo ??
-      json.music_info ??
-      json.data ??
-      json) as Record<string, unknown>;
 
-    return {
-      usesCount: extractUseCount(music),
-      title: str(music.title) ?? str(music.music_name),
-      artist: str(music.author) ?? str(music.authorName) ?? str(music.artist),
-      coverImageUrl:
-        str(music.cover_large) ??
-        str(music.coverLarge) ??
-        str(music.cover_medium) ??
-        str(music.coverThumb),
-    };
+    const html = await res.text();
+    const parsed = parseTikTokSoundRehydration(html);
+    if (!parsed) {
+      log.warn("TikTok sound page carried no parsable music payload");
+      return null;
+    }
+    return parsed;
   } catch (err) {
-    log.error("ScrapeCreators song fetch threw", {
+    log.error("TikTok sound fetch threw", {
       error: err instanceof Error ? err.message : String(err),
     });
     return null;

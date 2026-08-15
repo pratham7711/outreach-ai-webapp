@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { Card, Badge, Avatar } from "@pratham7711/ui";
 import { Star } from "lucide-react";
 import { formatCompact, stripAt } from "@/lib/format";
+import { POWERED_BY } from "@/lib/brand";
 
 /* ── Helpers ─────────────────────────────────────────────────────────────── */
 
@@ -577,7 +578,7 @@ export default async function CreatorProfilePage({
       {/* ── Footer ───────────────────────────────────────────────────── */}
       <div style={{ textAlign: "center", padding: "24px 0" }}>
         <p style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>
-          Powered by Outreach AI
+          {POWERED_BY}
         </p>
       </div>
     </div>

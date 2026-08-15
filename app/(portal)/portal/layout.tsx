@@ -5,6 +5,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { Toaster } from "sonner";
 import Link from "next/link";
 import { LayoutDashboard, Compass, Send, DollarSign, Settings, LogOut, Star, Briefcase, Wallet, MessageSquare, Handshake, Menu, X } from "lucide-react";
+import { BRAND } from "@/lib/brand";
 
 const NAV_LINKS = [
   { href: "/portal/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -109,7 +110,7 @@ function PortalNav() {
             style={{ display: "flex", alignItems: "center", gap: 8, textDecoration: "none" }}
           >
             <span style={{ fontSize: 16, fontWeight: 700, color: "var(--cc-text)", whiteSpace: "nowrap" }}>
-              Outreach AI
+              {BRAND.name}
             </span>
             <span
               style={{

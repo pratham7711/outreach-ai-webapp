@@ -6,11 +6,12 @@ jest.mock('next-themes', () => ({
 }));
 
 import NewSidebar from '@/components/NewSidebar';
+import { BRAND } from '@/lib/brand';
 
 describe('NewSidebar', () => {
-  it('renders outreach ai brand name', () => {
+  it('falls back to the product brand name', () => {
     render(<NewSidebar />);
-    expect(screen.getByText('outreach ai')).toBeInTheDocument();
+    expect(screen.getByText(BRAND.name)).toBeInTheDocument();
   });
 
   it('renders all main navigation links', () => {

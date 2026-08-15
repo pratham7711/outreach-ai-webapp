@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { authenticateRequest } from "@/lib/authenticate";
+import { PLATFORM_VALUES } from "@/lib/platforms/constants";
 
-const PLATFORMS = ["TIKTOK", "INSTAGRAM", "YOUTUBE"] as const;
+const PLATFORMS = PLATFORM_VALUES;
 
 export async function GET(req: NextRequest) {
   const result = await authenticateRequest(req);

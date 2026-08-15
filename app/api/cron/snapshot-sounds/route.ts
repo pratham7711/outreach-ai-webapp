@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { fetchSoundStats } from "@/lib/platforms/tiktokSound";
+import { fetchTikTokSoundStats } from "@/lib/platforms/tiktokSound";
 import { createLogger } from "@/lib/observability/logger";
 
 // velocityScore is a same-interval growth percentage: the /api/trackers route reads
@@ -18,10 +18,6 @@ export async function GET(request: NextRequest) {
   if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
     log.warn("auth failed", { reason: "bad-or-missing-cron-secret" });
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  if (!process.env.SCRAPECREATORS_API_KEY) {
-    return NextResponse.json({ skipped: "provider not configured", snapshots: 0 });
   }
 
   const dryRun = request.nextUrl.searchParams.get("dryRun") === "1";
@@ -53,7 +49,7 @@ export async function GET(request: NextRequest) {
         break;
       }
 
-      const stats = await fetchSoundStats(sound.tiktokSoundId);
+      const stats = await fetchTikTokSoundStats(sound.tiktokSoundId);
       if (!stats) {
         failed++;
         continue;

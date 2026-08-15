@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomBytes } from "crypto";
 import { db } from "@/lib/db";
 import { getCreatorSession } from "@/lib/creator-auth";
+import { findCreatorForHandle } from "@/lib/portal/creatorLookup";
 import { encrypt } from "@/lib/crypto/encrypt";
 import {
   buildAuthorizeUrl,
@@ -10,21 +11,10 @@ import {
   toPlatformEnum,
 } from "@/lib/oauth/providers";
 import { safeReturnTo, returnToWithQuery } from "@/lib/oauth/returnTo";
+import { resolvePlatformCapability } from "@/lib/capabilities";
 
 const STATE_COOKIE = "portal_oauth_state";
 const RETURN_COOKIE = "portal_oauth_return";
-
-async function findSessionCreator(handle: string) {
-  const bare = handle.replace(/^@/, "");
-  return db.creator.findFirst({
-    where: {
-      deletedAt: null,
-      OR: [{ handle: bare }, { handle: `@${bare}` }],
-    },
-    orderBy: { addedAt: "asc" },
-    select: { id: true, orgId: true },
-  });
-}
 
 export async function GET(
   req: NextRequest,
@@ -37,6 +27,13 @@ export async function GET(
   const { platform } = await params;
   if (!isOAuthPlatform(platform))
     return NextResponse.json({ error: "Unknown platform" }, { status: 400 });
+
+  const capability = resolvePlatformCapability(platform);
+  if (capability.connect === "coming_soon")
+    return NextResponse.json(
+      { error: capability.connectNote, status: "coming_soon" },
+      { status: 503 },
+    );
 
   if (isProviderConfigured(platform)) {
     const state = randomBytes(16).toString("hex");
@@ -69,7 +66,7 @@ export async function GET(
   const devReturnTo = req.nextUrl.searchParams.get("returnTo");
 
   try {
-    const creator = await findSessionCreator(session.handle);
+    const creator = await findCreatorForHandle(session.handle);
     if (!creator)
       return NextResponse.redirect(
         new URL(returnToWithQuery(devReturnTo, `error=${platform}`), req.url),

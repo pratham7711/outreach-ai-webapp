@@ -1,12 +1,13 @@
 "use client";
 import Link from "next/link";
+import { BRAND } from "@/lib/brand";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   LayoutDashboard, Megaphone, Play, Calendar, CalendarClock, Users, Users2, Radio, LineChart,
   Search, List, Wallet, Inbox, UserCheck, Link2, CreditCard, Shield, FileText,
-  ChevronDown, Settings, LogOut, Menu, X, ChevronsLeft, Key, PieChart, BarChart2, Activity
+  ChevronDown, Settings, LogOut, Menu, X, ChevronsLeft, Key, PieChart, BarChart2, Activity, Music
 } from "lucide-react";
 import { useSidebar } from "@/components/providers/SidebarProvider";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -16,6 +17,7 @@ const NAV_SECTIONS = [
     label: "Campaigns & Reporting",
     items: [
       { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
+      { href: "/songs", icon: Music, label: "Songs" },
       { href: "/campaigns", icon: Megaphone, label: "Campaigns" },
       { href: "/inbox", icon: Inbox, label: "Inbox" },
       { href: "/activations", icon: Play, label: "Activations" },
@@ -236,7 +238,7 @@ export default function NewSidebar({ allowedNavHrefs, brandName, user }: Sidebar
                 {logoMark}
                 <span
                   className="truncate"
-                  title={brandName ?? "outreach ai"}
+                  title={brandName ?? BRAND.name}
                   style={{
                     fontWeight: 800,
                     fontSize: 15,
@@ -244,7 +246,7 @@ export default function NewSidebar({ allowedNavHrefs, brandName, user }: Sidebar
                     letterSpacing: "-0.4px",
                   }}
                 >
-                  {brandName ?? "outreach ai"}
+                  {brandName ?? BRAND.name}
                 </span>
               </div>
 

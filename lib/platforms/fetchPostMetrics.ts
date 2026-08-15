@@ -205,10 +205,10 @@ export type TikTokDirectMetrics = {
   postedAt: Date | null;
 };
 
-const TIKTOK_REHYDRATION_RE =
+export const TIKTOK_REHYDRATION_RE =
   /<script id="__UNIVERSAL_DATA_FOR_REHYDRATION__"[^>]*>([\s\S]*?)<\/script>/;
 
-const TIKTOK_DIRECT_UA =
+export const TIKTOK_DIRECT_UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
 
 export type RateGateOptions = {
@@ -275,7 +275,7 @@ export function isBlockedStatus(status: number): boolean {
   return status === 403 || status === 429 || status >= 500;
 }
 
-function pickCount(...values: unknown[]): number {
+export function pickCount(...values: unknown[]): number {
   let best = 0;
   for (const value of values) {
     const n = Number(value);

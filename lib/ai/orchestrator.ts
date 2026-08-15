@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { MODELS } from "@/lib/ai/models";
 import { TOOL_REGISTRY } from "@/lib/ai/tools/registry";
+import { BRAND } from "@/lib/brand";
 import {
   executeTool,
   type ExecuteDeps,
@@ -49,7 +50,7 @@ export interface AgentRunResult {
 const DEFAULT_MAX_STEPS = 8;
 const MAX_TOKENS = 4096;
 const DEFAULT_SYSTEM =
-  "You are the Outreach AI orchestrator. Plan with the provided tools to accomplish the goal. Write and financial actions require human approval.";
+  `You are the ${BRAND.name} orchestrator. Plan with the provided tools to accomplish the goal. Write and financial actions require human approval.`;
 
 export function buildToolSchemas(): AnthropicToolSchema[] {
   return Object.values(TOOL_REGISTRY).map((tool) => ({

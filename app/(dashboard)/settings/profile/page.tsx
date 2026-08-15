@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { Card, Button, Input, Skeleton } from "@pratham7711/ui";
 import { Building2, Palette, Landmark, Globe, Save } from "lucide-react";
 import { formatDateAbs } from "@/lib/format";
+import { PLATFORM_DEFAULT_BRANDING } from "@/lib/brandingDefaults";
 
 type OrgProfile = {
   id: string;
@@ -69,10 +70,16 @@ export default function OrgProfilePage() {
   const [logoUrl, setLogoUrl] = useState("");
   const [faviconUrl, setFaviconUrl] = useState("");
   const [customDomain, setCustomDomain] = useState("");
-  const [primaryColor, setPrimaryColor] = useState("#5B5BD6");
-  const [secondaryColor, setSecondaryColor] = useState("#1E1B4B");
-  const [accentColor, setAccentColor] = useState("#F59E0B");
-  const [fontFamily, setFontFamily] = useState("Inter");
+  const [primaryColor, setPrimaryColor] = useState<string>(PLATFORM_DEFAULT_BRANDING.primaryColor);
+  const [secondaryColor, setSecondaryColor] = useState<string>(PLATFORM_DEFAULT_BRANDING.secondaryColor);
+  const [accentColor, setAccentColor] = useState<string>(PLATFORM_DEFAULT_BRANDING.accentColor);
+  const [fontFamily, setFontFamily] = useState<string>(PLATFORM_DEFAULT_BRANDING.fontFamily);
+  const isDefaultBranding =
+    primaryColor === PLATFORM_DEFAULT_BRANDING.primaryColor &&
+    secondaryColor === PLATFORM_DEFAULT_BRANDING.secondaryColor &&
+    accentColor === PLATFORM_DEFAULT_BRANDING.accentColor &&
+    fontFamily === PLATFORM_DEFAULT_BRANDING.fontFamily;
+
   const [bankAccountName, setBankAccountName] = useState("");
   const [bankAccountNumber, setBankAccountNumber] = useState("");
   const [bankIFSC, setBankIFSC] = useState("");
@@ -288,6 +295,27 @@ export default function OrgProfilePage() {
               <FormRow label="Font Family">
                 <Input value={fontFamily} onChange={e => setFontFamily(e.target.value)} placeholder="Inter" />
               </FormRow>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", borderTop: "1px solid var(--cc-border)", paddingTop: 16 }}>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  type="button"
+                  disabled={isDefaultBranding}
+                  onClick={() => {
+                    setPrimaryColor(PLATFORM_DEFAULT_BRANDING.primaryColor);
+                    setSecondaryColor(PLATFORM_DEFAULT_BRANDING.secondaryColor);
+                    setAccentColor(PLATFORM_DEFAULT_BRANDING.accentColor);
+                    setFontFamily(PLATFORM_DEFAULT_BRANDING.fontFamily);
+                  }}
+                >
+                  Reset to default
+                </Button>
+                <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>
+                  {isDefaultBranding
+                    ? "Using the default palette."
+                    : "Restores the default palette. Save to apply."}
+                </span>
+              </div>
             </div>
           </Card>
 

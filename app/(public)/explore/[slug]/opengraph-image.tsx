@@ -1,9 +1,10 @@
 import { ImageResponse } from "next/og";
 import { fetchMarketplaceDetail } from "@/lib/marketplace/public";
 import { formatMoney } from "../format";
+import { BRAND, POWERED_BY } from "@/lib/brand";
 
 export const runtime = "nodejs";
-export const alt = "Creator campaign on Outreach AI";
+export const alt = `Creator campaign on ${BRAND.name}`;
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -12,7 +13,7 @@ export default async function Image({ params }: { params: Promise<{ slug: string
   const data = await fetchMarketplaceDetail(slug);
 
   const title = data?.campaign.title ?? "Creator Marketplace";
-  const orgName = data?.campaign.orgName ?? "Outreach AI";
+  const orgName = data?.campaign.orgName ?? BRAND.name;
   const sym = data?.campaign.currencySymbol ?? "$";
   const topRate = data
     ? data.campaign.rates.reduce((m, r) => Math.max(m, r.ratePerThousand), 0)
@@ -75,7 +76,7 @@ export default async function Image({ params }: { params: Promise<{ slug: string
         </div>
 
         <div style={{ fontSize: 26, fontWeight: 600, color: "#9097B4" }}>
-          Powered by Outreach AI
+          {POWERED_BY}
         </div>
       </div>
     ),

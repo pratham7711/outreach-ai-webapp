@@ -3,18 +3,9 @@ import { db } from "@/lib/db";
 import { getCreatorSession } from "@/lib/creator-auth";
 import { decrypt, isEncrypted } from "@/lib/crypto/encrypt";
 import { isProviderConfigured } from "@/lib/oauth/providers";
+import { resolveCapabilities } from "@/lib/capabilities";
 import { revokeTikTokToken } from "@/lib/platforms/tiktokDisplay";
-
-async function findSessionCreators(handle: string) {
-  const bare = handle.replace(/^@/, "");
-  return db.creator.findMany({
-    where: {
-      deletedAt: null,
-      OR: [{ handle: bare }, { handle: `@${bare}` }],
-    },
-    select: { id: true, orgId: true },
-  });
-}
+import { findCreatorsForHandle } from "@/lib/portal/creatorLookup";
 
 export async function GET() {
   try {
@@ -22,7 +13,7 @@ export async function GET() {
     if (!session)
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const creators = await findSessionCreators(session.handle);
+    const creators = await findCreatorsForHandle(session.handle);
     const creatorIds = creators.map((c) => c.id);
 
     const accounts =
@@ -54,6 +45,7 @@ export async function GET() {
         tiktok: isProviderConfigured("tiktok"),
         youtube: isProviderConfigured("youtube"),
       },
+      capabilities: resolveCapabilities().platforms,
     });
   } catch (error) {
     console.error("Failed to list portal connections:", error);
@@ -81,7 +73,7 @@ export async function DELETE(req: NextRequest) {
     if (!account)
       return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-    const creator = (await findSessionCreators(session.handle)).find(
+    const creator = (await findCreatorsForHandle(session.handle)).find(
       (c) => c.id === account.creatorId,
     );
     if (!creator)

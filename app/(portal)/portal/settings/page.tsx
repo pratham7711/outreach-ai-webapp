@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Card, Input, Button, Skeleton, Textarea, Badge, Tag } from "@pratham7711/ui";
 import { toast } from "sonner";
 import { Save } from "lucide-react";
+import type { PlatformCapability } from "@/lib/capabilities";
 
 const PLATFORMS = [
   { value: "TIKTOK", label: "TikTok" },
@@ -66,6 +67,7 @@ export default function PortalSettingsPage() {
   });
   const [connections, setConnections] = useState<Connection[]>([]);
   const [providers, setProviders] = useState<ProviderFlags | null>(null);
+  const [capabilities, setCapabilities] = useState<PlatformCapability[]>([]);
   const [connectionsLoading, setConnectionsLoading] = useState(true);
   const [connectionsError, setConnectionsError] = useState(false);
   const [disconnectingId, setDisconnectingId] = useState<string | null>(null);
@@ -83,6 +85,7 @@ export default function PortalSettingsPage() {
       const data = await res.json();
       setConnections(data.accounts ?? []);
       setProviders(data.providers ?? null);
+      setCapabilities(data.capabilities ?? []);
     } catch {
       setConnectionsError(true);
     } finally {
@@ -312,6 +315,8 @@ export default function PortalSettingsPage() {
               {CONNECT_PLATFORMS.map(({ key, enumValue, label }) => {
                 const account = connections.find((c) => c.platform === enumValue);
                 const configured = providers?.[key] ?? false;
+                const capability = capabilities.find((c) => c.platform === key);
+                const connectStatus = capability?.connect ?? "gated";
                 return (
                   <div
                     key={key}
@@ -339,6 +344,13 @@ export default function PortalSettingsPage() {
                             <Tag variant="warning" outlined>Dev mode</Tag>
                           )}
                         </>
+                      ) : connectStatus === "coming_soon" ? (
+                        <>
+                          <Badge variant="neutral" size="sm">Coming soon</Badge>
+                          <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>
+                            {capability?.connectNote}
+                          </span>
+                        </>
                       ) : (
                         <Badge variant="neutral" size="sm">Not connected</Badge>
                       )}
@@ -352,7 +364,7 @@ export default function PortalSettingsPage() {
                       >
                         Disconnect
                       </Button>
-                    ) : (
+                    ) : connectStatus === "coming_soon" ? null : (
                       <Button
                         variant="secondary"
                         size="sm"

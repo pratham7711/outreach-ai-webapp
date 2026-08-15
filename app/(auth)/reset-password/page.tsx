@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { ArrowLeft, CheckCircle2, KeyRound } from "lucide-react";
 import Link from "next/link";
+import { BRAND } from "@/lib/brand";
 import { Button, Input } from "@pratham7711/ui";
 
 function Shell({ children }: { children: React.ReactNode }) {
@@ -32,7 +33,7 @@ function Shell({ children }: { children: React.ReactNode }) {
             <circle cx="12" cy="12" r="2" fill="var(--cc-primary)" />
           </svg>
           <span style={{ fontWeight: 800, fontSize: 20, color: "var(--cc-text)", letterSpacing: "-0.5px" }}>
-            outreach ai
+            {BRAND.name}
           </span>
         </div>
         <div

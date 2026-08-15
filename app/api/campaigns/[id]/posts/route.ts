@@ -8,8 +8,9 @@ import { getInstagramAccountForCreator } from "@/lib/platforms/instagramToken";
 import { getTikTokTokenForCreator } from "@/lib/platforms/tiktokToken";
 import { checkPostCompliance } from "@/lib/compliance/postCompliance";
 import type { PostStatus, Platform } from "@/lib/generated/prisma/client";
+import { PLATFORM_VALUES } from "@/lib/platforms/constants";
 
-const PLATFORMS = ["TIKTOK", "INSTAGRAM", "YOUTUBE", "TWITTER"] as const;
+const PLATFORMS = PLATFORM_VALUES;
 const MEDIA_TYPES = ["REEL", "STORY", "POST", "SHORT", "VIDEO"] as const;
 const POST_STATUSES = ["PENDING_REVIEW", "APPROVED", "REJECTED"] as const;
 
