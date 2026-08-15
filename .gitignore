@@ -61,3 +61,7 @@ tmp/
 
 /test-results/
 /playwright-report/
+
+# session scratch — reads .secrets/, never commit
+.tmp-tt-assisted.mjs
+.seed-drafts-qa.ts
