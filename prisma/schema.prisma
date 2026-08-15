@@ -37,6 +37,12 @@ enum Platform {
   INSTAGRAM
   YOUTUBE
   TWITTER
+  FACEBOOK
+  TWITCH
+  THREADS
+  PINTEREST
+  SNAPCHAT
+  LINKEDIN
 }
 
 enum ActivationStatus {
@@ -519,6 +525,10 @@ model Activation {
   deliverableDueDate DateTime?
   postedUrl          String?
   feedbackNotes      String?
+  draftUrl           String?
+  draftCaption       String?
+  draftMediaType     MediaType?
+  draftSubmittedAt   DateTime?
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt
   deletedAt          DateTime?

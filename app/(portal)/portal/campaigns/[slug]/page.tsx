@@ -53,6 +53,41 @@ const STATUS_LABEL: Record<string, string> = {
   REJECTED: "Rejected",
 };
 
+type Draft = {
+  status: string;
+  draftUrl: string | null;
+  draftCaption: string | null;
+  draftMediaType: string | null;
+  draftSubmittedAt: string | null;
+  feedbackNotes: string | null;
+};
+
+const MEDIA_TYPES = ["REEL", "STORY", "POST", "SHORT", "VIDEO"] as const;
+
+const DRAFT_BADGE: Record<string, "warning" | "success" | "danger" | "neutral"> = {
+  AWAITING_DRAFT: "neutral",
+  DRAFT_SUBMITTED: "warning",
+  AWAITING_APPROVAL: "warning",
+  APPROVED: "success",
+  POSTING: "success",
+  POSTED: "success",
+  COMPLETE: "success",
+  DECLINED: "danger",
+};
+
+const DRAFT_LABEL: Record<string, string> = {
+  AWAITING_DRAFT: "Awaiting your draft",
+  DRAFT_SUBMITTED: "Submitted — under review",
+  AWAITING_APPROVAL: "Under review",
+  APPROVED: "Draft approved",
+  POSTING: "Approved",
+  POSTED: "Approved",
+  COMPLETE: "Approved",
+  DECLINED: "Changes requested",
+};
+
+const CAN_SUBMIT_DRAFT = ["AWAITING_DRAFT", "DECLINED", "DRAFT_SUBMITTED"];
+
 function fmtMoney(minor: number, currency: string) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(minor / 100);
 }
@@ -72,6 +107,11 @@ function CampaignDetailInner() {
   const [error, setError] = useState("");
   const [postUrl, setPostUrl] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [draft, setDraft] = useState<Draft | null>(null);
+  const [draftUrl, setDraftUrl] = useState("");
+  const [draftCaption, setDraftCaption] = useState("");
+  const [draftMediaType, setDraftMediaType] = useState("");
+  const [submittingDraft, setSubmittingDraft] = useState(false);
 
   const fetchDetail = useCallback(async () => {
     try {
@@ -85,6 +125,12 @@ function CampaignDetailInner() {
         setDetail(data.campaign);
         setSubmissions(data.submissions ?? []);
         setJoined(data.joined);
+        setDraft(data.draft ?? null);
+        if (data.draft?.draftUrl) {
+          setDraftUrl(data.draft.draftUrl);
+          setDraftCaption(data.draft.draftCaption ?? "");
+          setDraftMediaType(data.draft.draftMediaType ?? "");
+        }
       } else {
         const data = await res.json().catch(() => ({}));
         setError(data.error ?? "Failed to load campaign");
@@ -125,6 +171,37 @@ function CampaignDetailInner() {
       toast.error("Network error");
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleSubmitDraft = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!draftUrl.trim()) {
+      toast.error("Enter a link to your draft");
+      return;
+    }
+    setSubmittingDraft(true);
+    try {
+      const res = await fetch(`/api/portal/campaigns/${slug}/draft`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          draftUrl: draftUrl.trim(),
+          draftCaption: draftCaption.trim() || undefined,
+          draftMediaType: draftMediaType || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success("Draft submitted for approval");
+        fetchDetail();
+      } else {
+        toast.error(data.error ?? "Failed to submit draft");
+      }
+    } catch {
+      toast.error("Network error");
+    } finally {
+      setSubmittingDraft(false);
     }
   };
 
@@ -241,6 +318,96 @@ function CampaignDetailInner() {
           </a>
         )}
       </Card>
+
+      {/* Draft approval — pre-publish review step */}
+      {joined && draft && (
+        <Card variant="solid" style={{ padding: 20, marginBottom: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
+            <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--cc-text)" }}>Draft approval</h2>
+            <Badge variant={DRAFT_BADGE[draft.status] ?? "neutral"} dot>
+              {DRAFT_LABEL[draft.status] ?? draft.status.replace(/_/g, " ")}
+            </Badge>
+          </div>
+          <p style={{ fontSize: 13, color: "var(--cc-text-muted)", marginBottom: 12 }}>
+            Send your content for approval <strong>before</strong> you post it publicly. Once approved, post it and submit the live link below.
+          </p>
+
+          {draft.status === "DECLINED" && draft.feedbackNotes && (
+            <div style={{ padding: "10px 14px", borderRadius: 8, background: "#FEE2E2", color: "#DC2626", fontSize: 13, marginBottom: 12 }}>
+              <strong>Changes requested:</strong> {draft.feedbackNotes}
+            </div>
+          )}
+
+          {draft.draftSubmittedAt && (
+            <p style={{ fontSize: 12, color: "var(--cc-text-muted)", marginBottom: 12 }}>
+              Last submitted {formatDateAbs(draft.draftSubmittedAt)}
+            </p>
+          )}
+
+          {detail.deadlinePassed ? (
+            <div style={{ padding: "10px 14px", borderRadius: 8, background: "#FEF3C7", color: "#D97706", fontSize: 13 }}>
+              The submission deadline has passed.
+            </div>
+          ) : CAN_SUBMIT_DRAFT.includes(draft.status) ? (
+            <form onSubmit={handleSubmitDraft} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <Input
+                label="Draft link"
+                value={draftUrl}
+                onChange={(e) => setDraftUrl(e.target.value)}
+                placeholder="https://drive.google.com/file/… or any shareable link"
+              />
+              <div>
+                <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>
+                  Caption
+                </label>
+                <textarea
+                  value={draftCaption}
+                  onChange={(e) => setDraftCaption(e.target.value)}
+                  rows={3}
+                  placeholder="The caption you plan to post with…"
+                  style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-border)", fontSize: 14, color: "var(--cc-text)", background: "var(--cc-card)", outline: "none", resize: "vertical", fontFamily: "inherit", boxSizing: "border-box" }}
+                />
+              </div>
+              <div>
+                <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>
+                  Content type
+                </label>
+                <select
+                  value={draftMediaType}
+                  onChange={(e) => setDraftMediaType(e.target.value)}
+                  style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-border)", fontSize: 14, color: "var(--cc-text)", background: "var(--cc-card)", outline: "none" }}
+                >
+                  <option value="">Not specified</option>
+                  {MEDIA_TYPES.map((m) => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+              </div>
+              <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                <Button variant="primary" loading={submittingDraft}>
+                  {draft.status === "DECLINED" ? "Resubmit draft" : "Submit draft"}
+                </Button>
+              </div>
+            </form>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {draft.draftUrl && (
+                <a
+                  href={draft.draftUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 600, color: "var(--cc-primary)", textDecoration: "none" }}
+                >
+                  View submitted draft <ExternalLink size={12} />
+                </a>
+              )}
+              <div style={{ padding: "10px 14px", borderRadius: 8, background: "#D1FAE5", color: "#059669", fontSize: 13 }}>
+                Your draft is approved — post it publicly, then submit the live link below.
+              </div>
+            </div>
+          )}
+        </Card>
+      )}
 
       {/* Submit */}
       <Card variant="solid" style={{ padding: 20, marginBottom: 16 }}>

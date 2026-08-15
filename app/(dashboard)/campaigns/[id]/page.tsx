@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import { Card, Badge, Button, EmptyState, Avatar, Skeleton, Modal } from "@pratham7711/ui";
 import { MetricTile } from "@/components/ds";
 import PostsTab from "./PostsTab";
+import DraftsTab from "./DraftsTab";
 import DepositsSection from "./DepositsSection";
 import PayoutRequestsSection from "./PayoutRequestsSection";
 import InvitesSection from "./InvitesSection";
@@ -58,7 +59,7 @@ const BudgetBreakdownPie = dynamic(() => import("./CampaignTabCharts").then((m) 
   loading: () => <ChartSkeleton height={200} />,
 });
 
-type Tab = "performance" | "overview" | "posts" | "creators" | "reviews" | "analytics" | "financials" | "edit";
+type Tab = "performance" | "overview" | "drafts" | "posts" | "creators" | "reviews" | "analytics" | "financials" | "edit";
 
 function formatNumber(num: number): string {
   return formatCompact(num);
@@ -422,9 +423,14 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
     }
   };
 
+  const pendingDrafts = (campaign?.activations ?? []).filter(
+    (a) => a.status === "DRAFT_SUBMITTED" || a.status === "AWAITING_APPROVAL"
+  ).length;
+
   const tabsList: { label: string; value: Tab; count?: number }[] = [
     { label: "Performance", value: "performance" },
     { label: "Overview", value: "overview" },
+    { label: "Drafts", value: "drafts" as Tab, count: pendingDrafts || undefined },
     { label: "Posts", value: "posts", count: campaign?._count.posts },
     { label: "Creators", value: "creators", count: campaign?._count.activations },
     { label: "Reviews", value: "reviews" as Tab },
@@ -594,6 +600,9 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
             )}
           </div>
         )}
+
+        {/* Drafts Tab */}
+        {activeTab === "drafts" && <DraftsTab campaignId={id} onChange={refreshCampaign} />}
 
         {/* Posts Tab */}
         {activeTab === "posts" && (

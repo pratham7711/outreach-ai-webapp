@@ -8,6 +8,7 @@ import { Grid3X3, List, Plus, Check, X, Eye, Heart, MessageCircle, TrendingUp, B
 import Link from "next/link";
 import { computePostEmv, computeEngagementRate } from "@/lib/metrics";
 import { formatCompact, formatCompactCurrency, stripAt, formatDateAbs } from "@/lib/format";
+import type { ComplianceFlag } from "@/lib/compliance/postCompliance";
 
 type SnapshotLite = { id: string; viewsCount: number; recordedAt: string };
 
@@ -31,6 +32,7 @@ type PostData = {
   lastSyncedAt: string | null;
   createdAt?: string;
   hasOpenFraudFlag?: boolean;
+  complianceFlags?: ComplianceFlag[];
   creator: { id: string; name: string; handle: string; avatarUrl: string | null };
   snapshots?: SnapshotLite[];
 };
@@ -62,6 +64,12 @@ const STATUS_BADGE: Record<string, "warning" | "success" | "danger" | "neutral">
   PENDING_REVIEW: "warning",
   APPROVED: "success",
   REJECTED: "danger",
+};
+
+const COMPLIANCE_LABEL: Record<string, string> = {
+  POSTED_AFTER_DEADLINE: "Late",
+  SYNC_DEAD_LETTERED: "Unreachable",
+  SYNC_FAILING: "Sync failing",
 };
 
 const PLATFORM_BADGE: Record<string, "accent" | "success" | "warning" | "danger" | "neutral"> = {
@@ -599,6 +607,11 @@ export default function PostsTab({
                   <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-start" }}>
                     <Badge variant={STATUS_BADGE[post.status] ?? "neutral"}>{post.status.replace(/_/g, " ")}</Badge>
                     {post.hasOpenFraudFlag && <Badge variant="danger" style={{ fontSize: 10, display: "inline-flex", alignItems: "center", gap: 4 }}><AlertTriangle size={14} color="var(--cc-danger)" /> Flagged</Badge>}
+                    {(post.complianceFlags ?? []).map((f) => (
+                      <Badge key={f.code} variant={f.severity === "error" ? "danger" : "warning"} title={f.message} style={{ fontSize: 10, display: "inline-flex", alignItems: "center", gap: 4 }}>
+                        <AlertTriangle size={12} color={f.severity === "error" ? "var(--cc-danger)" : "var(--cc-warning)"} /> {COMPLIANCE_LABEL[f.code]}
+                      </Badge>
+                    ))}
                     {marketplace && post.status === "PENDING_REVIEW" && !post.hasOpenFraudFlag && (
                       <span style={{ fontSize: 11, color: "var(--cc-text-muted)" }}>
                         auto in {timeRemaining(post.createdAt, marketplace.autoApproveHours)}

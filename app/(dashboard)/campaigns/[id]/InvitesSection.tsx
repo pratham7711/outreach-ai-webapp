@@ -2,8 +2,16 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Card, Badge, Button, Modal, EmptyState, Skeleton } from "@pratham7711/ui";
-import { Send, Copy, RotateCcw, X, Mail } from "lucide-react";
+import { Send, Copy, RotateCcw, X, Mail, Sparkles } from "lucide-react";
 import { stripAt, formatDateAbs } from "@/lib/format";
+import { OutreachDraftPanel } from "@/components/ai/OutreachDraftPanel";
+
+type AiDraft = {
+  subject: string;
+  body: string;
+  groundedFacts: string[];
+  grounding: { ok: boolean; unsupportedNumbers: string[] } | null;
+};
 
 type Invite = {
   id: string;
@@ -33,6 +41,9 @@ export default function InvitesSection({ campaignId }: { campaignId: string }) {
   const [creators, setCreators] = useState<Creator[]>([]);
   const [form, setForm] = useState({ creatorId: "", channel: "LINK" });
   const [copied, setCopied] = useState<string | null>(null);
+  const [drafting, setDrafting] = useState(false);
+  const [draft, setDraft] = useState<AiDraft | null>(null);
+  const [draftError, setDraftError] = useState<string | null>(null);
 
   const fetchInvites = useCallback(async () => {
     const res = await fetch(`/api/campaigns/${campaignId}/invites`);
@@ -47,6 +58,8 @@ export default function InvitesSection({ campaignId }: { campaignId: string }) {
 
   const openCreate = async () => {
     setShowCreate(true);
+    setDraft(null);
+    setDraftError(null);
     if (creators.length === 0) {
       const res = await fetch("/api/creators");
       if (res.ok) {
@@ -72,6 +85,36 @@ export default function InvitesSection({ campaignId }: { campaignId: string }) {
       }
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleDraft = async () => {
+    if (!form.creatorId) return;
+    setDrafting(true);
+    setDraftError(null);
+    setDraft(null);
+    try {
+      const res = await fetch(`/api/campaigns/${campaignId}/outreach/draft`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ creatorIds: [form.creatorId] }),
+      });
+      if (res.status === 403) { setDraftError("The AI assistant isn't enabled on this workspace's plan."); return; }
+      if (res.status === 503) { setDraftError("AI drafting isn't configured on the server yet."); return; }
+      if (!res.ok) { setDraftError("Couldn't generate a draft. Try again."); return; }
+      const data = await res.json();
+      const d = Array.isArray(data.drafts) ? data.drafts[0] : null;
+      if (!d || d.error || !d.subject) { setDraftError(d?.error || "No draft was returned."); return; }
+      setDraft({
+        subject: d.subject,
+        body: d.body ?? "",
+        groundedFacts: Array.isArray(d.groundedFacts) ? d.groundedFacts : [],
+        grounding: d.grounding ?? null,
+      });
+    } catch {
+      setDraftError("Couldn't reach the drafting service.");
+    } finally {
+      setDrafting(false);
     }
   };
 
@@ -162,16 +205,21 @@ export default function InvitesSection({ campaignId }: { campaignId: string }) {
 
       {/* Invite Creator Modal */}
       {showCreate && (
-        <Modal open={true} onClose={() => setShowCreate(false)} title="Invite Creator" size="md" footer={
-          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-            <Button variant="secondary" onClick={() => setShowCreate(false)}>Cancel</Button>
-            <Button variant="primary" loading={submitting} onClick={handleCreate} disabled={!form.creatorId}>Send Invite</Button>
+        <Modal open={true} onClose={() => setShowCreate(false)} title="Invite Creator" size={draft ? "lg" : "md"} footer={
+          <div style={{ display: "flex", gap: 8, justifyContent: "space-between", width: "100%" }}>
+            <Button variant="ghost" loading={drafting} onClick={handleDraft} disabled={!form.creatorId}>
+              <span style={{ display: "flex", alignItems: "center", gap: 4 }}><Sparkles size={14} /> Draft with AI</span>
+            </Button>
+            <div style={{ display: "flex", gap: 8 }}>
+              <Button variant="secondary" onClick={() => setShowCreate(false)}>Cancel</Button>
+              <Button variant="primary" loading={submitting} onClick={handleCreate} disabled={!form.creatorId}>Send Invite</Button>
+            </div>
           </div>
         }>
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <div>
               <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Creator</label>
-              <select value={form.creatorId} onChange={(e) => setForm(f => ({ ...f, creatorId: e.target.value }))} style={selectStyle}>
+              <select value={form.creatorId} onChange={(e) => { setForm(f => ({ ...f, creatorId: e.target.value })); setDraft(null); setDraftError(null); }} style={selectStyle}>
                 <option value="">Select creator...</option>
                 {creators.map(c => <option key={c.id} value={c.id}>{c.name} (@{stripAt(c.handle)})</option>)}
               </select>
@@ -183,6 +231,20 @@ export default function InvitesSection({ campaignId }: { campaignId: string }) {
                 <option value="INSTAGRAM_DM">Instagram DM</option>
               </select>
             </div>
+            {draftError && (
+              <div role="alert" style={{ padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-danger)", background: "color-mix(in srgb, var(--cc-danger) 8%, transparent)", fontSize: 13, color: "var(--cc-danger)" }}>
+                {draftError}
+              </div>
+            )}
+            {draft && (
+              <OutreachDraftPanel
+                subject={draft.subject}
+                body={draft.body}
+                groundedFacts={draft.groundedFacts}
+                grounding={draft.grounding ?? undefined}
+                channel={form.channel}
+              />
+            )}
           </div>
         </Modal>
       )}

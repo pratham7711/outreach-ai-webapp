@@ -1,0 +1,8 @@
+-- Extend Platform enum with all major influencer-campaign platforms.
+-- Additive only (ALTER TYPE ADD VALUE); safe/non-destructive.
+ALTER TYPE "Platform" ADD VALUE IF NOT EXISTS 'FACEBOOK';
+ALTER TYPE "Platform" ADD VALUE IF NOT EXISTS 'TWITCH';
+ALTER TYPE "Platform" ADD VALUE IF NOT EXISTS 'THREADS';
+ALTER TYPE "Platform" ADD VALUE IF NOT EXISTS 'PINTEREST';
+ALTER TYPE "Platform" ADD VALUE IF NOT EXISTS 'SNAPCHAT';
+ALTER TYPE "Platform" ADD VALUE IF NOT EXISTS 'LINKEDIN';
