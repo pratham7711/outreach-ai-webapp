@@ -7,6 +7,10 @@
     {
       "path": "/api/cron/auto-approve-submissions",
       "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron/snapshot-sounds",
+      "schedule": "0 4 * * *"
     }
   ]
 }
