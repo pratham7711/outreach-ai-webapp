@@ -109,7 +109,7 @@ const BASE_METRIC_CARDS = [
   { key: "viewsCount", label: "Views", icon: Eye, color: "#5B5BD6" },
   { key: "likesCount", label: "Likes", icon: Heart, color: "#EC4899" },
   { key: "commentsCount", label: "Comments", icon: MessageCircle, color: "#F59E0B" },
-  { key: "sharesCount", label: "Shares", icon: Share2, color: "#10B981" },
+  { key: "sharesCount", label: "Shares", icon: Share2, color: "var(--cc-success)" },
 ] as const;
 
 export default function PostDetailPage() {

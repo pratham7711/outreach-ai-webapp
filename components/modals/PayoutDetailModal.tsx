@@ -103,7 +103,7 @@ export default function PayoutDetailModal({
                 width: 28, height: 28, borderRadius: "50%",
                 display: "flex", alignItems: "center", justifyContent: "center",
                 fontSize: 11, fontWeight: 700,
-                background: isActive ? "var(--cc-primary)" : isPast ? "#10B981" : isFailed ? "#DC2626" : "var(--cc-border)",
+                background: isActive ? "var(--cc-primary)" : isPast ? "var(--cc-success)" : isFailed ? "#DC2626" : "var(--cc-border)",
                 color: isActive || isPast || isFailed ? "white" : "var(--cc-text-muted)",
               }}>
                 {isPast ? <CheckCircle2 size={16} color="currentColor" /> : i + 1}

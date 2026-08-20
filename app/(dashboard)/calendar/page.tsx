@@ -13,7 +13,7 @@ const STATUS_COLORS: Record<string, string> = {
   DRAFT: "#9CA3AF",
   PENDING: "#F59E0B",
   IN_PROGRESS: "var(--cc-primary)",
-  COMPLETE: "#10B981",
+  COMPLETE: "var(--cc-success)",
   CANCELLED: "#EF4444",
 };
 

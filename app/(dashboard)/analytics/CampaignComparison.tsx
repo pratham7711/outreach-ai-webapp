@@ -37,7 +37,7 @@ function DeltaBadge({ pct }: { pct: number | null }) {
     return <span style={{ fontSize: 11, color: "var(--cc-text-subtle)" }}>—</span>;
   }
   const positive = pct >= 0;
-  const color = positive ? "#10B981" : "#DC2626";
+  const color = positive ? "var(--cc-success)" : "#DC2626";
   const Icon = positive ? ArrowUpRight : ArrowDownRight;
   return (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 2, fontSize: 11, fontWeight: 600, color, background: color + "16", borderRadius: 6, padding: "2px 6px" }}>

@@ -400,9 +400,16 @@
 
 /* Two surfaces set their own radius outside the token system: the inbox split
    pane, and the settings hub tiles via a Tailwind utility. */
-.creatorcore .inbox-panes,
+.creatorcore .inbox-panes {
+  border-radius: 20px;
+}
+
+/* The settings hub tiles are built from Tailwind utilities rather than a card
+   component, so they need the card treatment spelled out to match the rest. */
 .creatorcore .rounded-2xl {
   border-radius: 20px;
+  border-color: rgba(31, 60, 239, 0.45);
+  box-shadow: 0 4px 10px 4px rgba(31, 60, 239, 0.15);
 }
 
 .creatorcore ::selection {

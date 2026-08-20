@@ -343,7 +343,7 @@ export default function PayoutsClient({ payouts, stats, creators, campaigns }: {
                         ))}
                       </div>
                     ) : p.status === "SUCCESS" ? (
-                      <span style={{ fontSize: 12, color: "#10B981", fontWeight: 600 }}>
+                      <span style={{ fontSize: 12, color: "var(--cc-success)", fontWeight: 600 }}>
                         <Check size={14} style={{ display: "inline", verticalAlign: "middle" }} /> Done
                       </span>
                     ) : null}
