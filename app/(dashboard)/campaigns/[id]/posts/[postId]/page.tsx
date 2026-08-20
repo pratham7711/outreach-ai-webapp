@@ -4,7 +4,7 @@ import React from "react";
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Card, Badge, Button, Skeleton, Tag, EmptyState } from "@pratham7711/ui";
-import { ArrowLeft, ExternalLink, RefreshCw, Eye, Heart, MessageCircle, Share2, Download, Bookmark, DollarSign, TrendingUp, Flag, Lock, Activity, ShieldAlert, Shield } from "lucide-react";
+import { ArrowLeft, ExternalLink, RefreshCw, Eye, Heart, MessageCircle, Share2, Download, Bookmark, DollarSign, TrendingUp, Flag, Lock, Activity, ShieldAlert, Shield, Play } from "lucide-react";
 import dynamic from "next/dynamic";
 import { computePostEmv, computeEngagementRate } from "@/lib/metrics";
 import { formatCompact, stripAt, formatDateAbs, formatDateTimeAbs } from "@/lib/format";
@@ -112,6 +112,25 @@ const BASE_METRIC_CARDS = [
   { key: "sharesCount", label: "Shares", icon: Share2, color: "var(--cc-success)" },
 ] as const;
 
+// Each platform publishes its own embed player, so a post can be watched here
+// rather than in a new tab. Anything we cannot build a player URL for keeps the
+// still thumbnail and the outbound link.
+function embedSrcFor(platform: string, platformPostId: string, postUrl: string): string | null {
+  const id = platformPostId?.trim();
+  switch (platform) {
+    case "TIKTOK":
+      return id ? `https://www.tiktok.com/embed/v2/${id}` : null;
+    case "YOUTUBE":
+      return id ? `https://www.youtube.com/embed/${id}` : null;
+    case "INSTAGRAM": {
+      const shortcode = id || postUrl.match(/\/(?:p|reel)\/([^/?#]+)/)?.[1];
+      return shortcode ? `https://www.instagram.com/p/${shortcode}/embed` : null;
+    }
+    default:
+      return null;
+  }
+}
+
 export default function PostDetailPage() {
   const params = useParams<{ id: string; postId: string }>();
   const router = useRouter();
@@ -121,6 +140,7 @@ export default function PostDetailPage() {
   const [syncing, setSyncing] = useState(false);
   const [flagging, setFlagging] = useState(false);
   const [flagged, setFlagged] = useState(false);
+  const [playing, setPlaying] = useState(false);
   const [timeseries, setTimeseries] = useState<Timeseries | null>(null);
   const [trackToggling, setTrackToggling] = useState(false);
 
@@ -263,6 +283,8 @@ export default function PostDetailPage() {
     );
   }
 
+  const embedSrc = embedSrcFor(post.platform, post.platformPostId, post.postUrl);
+
   const engRate = computeEngagementRate({
     views: post.viewsCount,
     likes: post.likesCount,
@@ -314,9 +336,23 @@ export default function PostDetailPage() {
 
         <div style={{ display: "flex", gap: 20, alignItems: "flex-start", flexWrap: "wrap" }}>
           {post.thumbnailUrl && (
-            <div style={{ width: 120, height: 80, borderRadius: 10, overflow: "hidden", flexShrink: 0, border: "1px solid var(--cc-border)" }}>
-              <img src={post.thumbnailUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-            </div>
+            embedSrc ? (
+              <button
+                type="button"
+                onClick={() => setPlaying(true)}
+                aria-label="Play post"
+                style={{ position: "relative", width: 120, height: 80, borderRadius: 10, overflow: "hidden", flexShrink: 0, border: "1px solid var(--cc-border)", padding: 0, cursor: "pointer", background: "none" }}
+              >
+                <img src={post.thumbnailUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                <span style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.35)" }}>
+                  <Play size={22} color="#ffffff" fill="#ffffff" />
+                </span>
+              </button>
+            ) : (
+              <div style={{ width: 120, height: 80, borderRadius: 10, overflow: "hidden", flexShrink: 0, border: "1px solid var(--cc-border)" }}>
+                <img src={post.thumbnailUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              </div>
+            )
           )}
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4, flexWrap: "wrap" }}>
@@ -351,6 +387,20 @@ export default function PostDetailPage() {
           </div>
         </div>
       </div>
+
+      {playing && embedSrc && (
+        <Card variant="solid" style={{ padding: 0, marginBottom: 24, overflow: "hidden" }}>
+          <div style={{ position: "relative", width: "100%", maxWidth: 620, margin: "0 auto", aspectRatio: post.platform === "YOUTUBE" ? "16 / 9" : "9 / 16" }}>
+            <iframe
+              src={embedSrc}
+              title={post.caption ?? "Post"}
+              allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+              allowFullScreen
+              style={{ position: "absolute", inset: 0, width: "100%", height: "100%", border: "none" }}
+            />
+          </div>
+        </Card>
+      )}
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 12, marginBottom: 24 }}>
         {metricCards.map(({ key, label, icon: Icon, color }) => (

@@ -359,7 +359,10 @@
   transform: none;
 }
 
-/* Stat tiles drop the border entirely and sit on a paler lift. */
+/* Stat tiles drop the border entirely and sit on a paler lift. MetricTile
+   renders the same shadcn card as everything else, so it carries a marker
+   attribute purely so this rule can tell the two apart. */
+.creatorcore [data-metric-tile],
 .creatorcore .cc-stat-card,
 .creatorcore .ui-statcard {
   background: var(--card);

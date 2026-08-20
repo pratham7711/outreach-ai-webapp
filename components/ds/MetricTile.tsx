@@ -88,7 +88,7 @@ export function MetricTile({
   }
 
   return (
-    <Card className="gap-0">
+    <Card className="gap-0" data-metric-tile="">
       <CardContent className="flex flex-col gap-2">{body}</CardContent>
     </Card>
   );
