@@ -149,7 +149,7 @@ export default function ActivationsClient({ activations, stats, creators, campai
                     {items.map((a) => {
                       const actions = NEXT_STATUS[a.status] ?? [];
                       return (
-                        <div key={a.id} style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 8, padding: 12 }}>
+                        <div key={a.id} style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: "var(--cc-r-card, 8px)", padding: 12 }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
                             <Avatar name={a.creator.name} size="sm" />
                             <div style={{ flex: 1, minWidth: 0 }}>
