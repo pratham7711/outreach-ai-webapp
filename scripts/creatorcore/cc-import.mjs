@@ -54,13 +54,38 @@ export function mapPlatform(raw, url = "") {
   if (u.includes("twitter") || u.includes("x.com")) return "TWITTER";
   return "TIKTOK";
 }
+// CreatorCore stores campaign status as a reference to an org-activationstatus
+// record, not a label — and that type 404s on the Data API. These IDs were mapped
+// by driving the app's own status tabs and matching their counts against ours:
+// Complete 497, Active 4, Canceled 5 (3+2), Pending 0 — totalling all 506.
+const CC_CAMPAIGN_STATUS = {
+  "1749228030762x636436422338022800": "COMPLETE",    // UI: "497 Complete Campaigns"
+  "1749228030702x337686101696905500": "IN_PROGRESS", // UI: "4 Active Campaigns"
+  "1749228031045x851842503930208900": "CANCELLED",   // UI: Canceled (3 of the 5)
+  "1749228031102x507523978686096100": "CANCELLED",   // UI: Canceled (2 of the 5)
+};
 export function mapCampaignStatus(raw) {
-  const s = String(raw || "").toLowerCase();
+  const id = String(raw || "");
+  if (CC_CAMPAIGN_STATUS[id]) return CC_CAMPAIGN_STATUS[id];
+  // Fall back to label matching in case CreatorCore ever returns a plain string.
+  const s = id.toLowerCase();
   if (s.includes("complet")) return "COMPLETE";
   if (s.includes("cancel")) return "CANCELLED";
   if (s.includes("pend")) return "PENDING";
   if (s.includes("draft")) return "DRAFT";
   return "IN_PROGRESS";
+}
+
+// CreatorCore post status is a fetch outcome, NOT an approval state:
+// Success 15714 / Unavailable 2719 / Error 227 / absent 20. It maps to its own
+// PostFetchState dimension; approval status is left at the app's default so an
+// import never fabricates an approval decision a human never made.
+export function mapFetchState(raw) {
+  const s = String(raw || "").toLowerCase();
+  if (s === "success") return "LIVE";
+  if (s === "unavailable") return "UNAVAILABLE";
+  if (s === "error") return "ERROR";
+  return "UNKNOWN";
 }
 export function mapPostStatus(raw) {
   const s = String(raw || "").toLowerCase();
@@ -287,6 +312,19 @@ async function main() {
       createdById: user.id,
       typeConfig: { __cc: rec }, // full raw campaign preserved
       createdAt: toDate(rec["Created Date"]) || undefined,
+      // ─── CreatorCore parity ───────────────────────────────────────────────
+      ccCampaignId: rec._id,
+      ccStatusId: rec.status ?? null,
+      ccFullId: rec.fullID ?? null,
+      ccSlug: rec["sudo-slug"] ?? null,
+      archived: bool(rec.Archive) ?? false,
+      refreshActive: bool(rec.refreshActive),
+      refreshInterval: fnum(rec.refreshInterval),
+      lastRefreshAt: toDate(rec.lastRefresh),
+      postRefreshAnchor: toDate(rec.postRefreshAnchor),
+      creatorRateTotals: fnum(rec.creatorRateTotals),
+      commissionTotal: fnum(rec.commissionTotal),
+      profitTotal: fnum(rec.profitTotal),
     };
     const existingId = idmap[rec._id];
     if (existingId) {
@@ -355,6 +393,14 @@ async function main() {
       engagementRate: statFrom(statRec, "engagementrate", "engagement_rate") || num(typeof le === "object" ? le?.engagement : 0),
       status: mapPostStatus(rec.status),
       platformMetrics: { __cc: rec, __stat: statRec || null }, // full raw preserved
+      // ─── CreatorCore parity ───────────────────────────────────────────────
+      ccPostId: rec._id,
+      fetchState: mapFetchState(rec.status),
+      ccStatusRaw: rec.status ?? null,
+      isInstagramStory: bool(rec.isInstagramStory) ?? false,
+      authorProfilePic: rec.authorProfilePic ?? null,
+      lastFreshAt: toDate(rec.lastFresh),
+      autoAdded: bool(rec.autoAdd) ?? false,
     };
     if (!data.postUrl) { pSkipped++; continue; }
 

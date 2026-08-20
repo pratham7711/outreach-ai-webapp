@@ -1,7 +1,7 @@
 // Runnable check for the importer's data-correctness helpers (the parts that
 // silently corrupt data if wrong). Run: node scripts/creatorcore/cc-import.test.mjs
 import assert from "node:assert";
-import { mapPlatform, mapCampaignStatus, mapPostStatus, mapCurrency, num, statFrom, platformPostIdFrom, toDate, bool, fnum, ccCampaignData, ccPostData } from "./cc-import.mjs";
+import { mapPlatform, mapCampaignStatus, mapPostStatus, mapFetchState, mapCurrency, num, statFrom, platformPostIdFrom, toDate, bool, fnum, ccCampaignData, ccPostData } from "./cc-import.mjs";
 
 // platform: explicit text, then URL inference, then default
 assert.equal(mapPlatform("TikTok"), "TIKTOK");
@@ -29,12 +29,27 @@ assert.equal(statFrom({ nothing: 1 }, "view"), 0);
 assert.equal(statFrom(null, "view"), 0);
 
 // enum maps
+// Campaign status arrives as an org-activationstatus REFERENCE ID, not a label.
+// These four IDs were verified by driving CreatorCore's own status tabs and
+// matching their counts: Complete 497, Active 4, Canceled 3+2, Pending 0 = 506.
+assert.equal(mapCampaignStatus("1749228030762x636436422338022800"), "COMPLETE");
+assert.equal(mapCampaignStatus("1749228030702x337686101696905500"), "IN_PROGRESS");
+assert.equal(mapCampaignStatus("1749228031045x851842503930208900"), "CANCELLED");
+assert.equal(mapCampaignStatus("1749228031102x507523978686096100"), "CANCELLED");
+// string fallback still works if the source ever returns labels
 assert.equal(mapCampaignStatus("Completed"), "COMPLETE");
-assert.equal(mapCampaignStatus("in progress"), "IN_PROGRESS");
 assert.equal(mapCampaignStatus(undefined), "IN_PROGRESS");
+
+// Post fetch state is its own dimension; approval status must NOT be inferred
+// from it (importing must never fabricate an approval a human never made).
+assert.equal(mapFetchState("Success"), "LIVE");
+assert.equal(mapFetchState("Unavailable"), "UNAVAILABLE");
+assert.equal(mapFetchState("Error"), "ERROR");
+assert.equal(mapFetchState(undefined), "UNKNOWN");
+assert.equal(mapPostStatus("Success"), "PENDING_REVIEW");
+assert.equal(mapPostStatus("Unavailable"), "PENDING_REVIEW");
 assert.equal(mapPostStatus("Approved"), "APPROVED");
 assert.equal(mapPostStatus("declined"), "REJECTED");
-assert.equal(mapPostStatus("whatever"), "PENDING_REVIEW");
 assert.equal(mapCurrency("$ USD"), "USD");
 assert.equal(mapCurrency("₹ INR"), "INR");
 assert.equal(mapCurrency("weird"), "USD");

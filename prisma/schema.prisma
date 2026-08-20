@@ -112,6 +112,17 @@ enum PostStatus {
   REJECTED
 }
 
+// Whether the post still exists on the platform, as distinct from whether it is
+// approved. CreatorCore tracks this separately (Success / Unavailable / Error)
+// and the app's own /api/posts/inspect resolves the same three outcomes, so it
+// is modelled as its own dimension rather than overloading PostStatus.
+enum PostFetchState {
+  LIVE
+  UNAVAILABLE
+  ERROR
+  UNKNOWN
+}
+
 enum PaymentGateway {
   RAZORPAY
   STRIPE
@@ -378,6 +389,19 @@ model Campaign {
   paymentRelease            PaymentRelease        @default(MANUAL)
   postApprovalMode          PostApprovalMode      @default(MANUAL)
   depositStatus             DepositStatus?
+  // ─── CreatorCore parity ─────────────────────────────────────────────────────
+  ccCampaignId              String?               @unique // source _id — re-sync key
+  ccStatusId                String? // source org-activationstatus ref, kept verbatim
+  ccFullId                  String? // source fullID, e.g. "279-92"
+  ccSlug                    String? // source sudo-slug, for CreatorCore deep links
+  archived                  Boolean               @default(false)
+  refreshActive             Boolean? // whether CreatorCore auto-refreshes this campaign
+  refreshInterval           Float?
+  lastRefreshAt             DateTime?
+  postRefreshAnchor         DateTime?
+  creatorRateTotals         Float? // financial rollups CreatorCore computes per campaign
+  commissionTotal           Float?
+  profitTotal               Float?
   createdAt                 DateTime              @default(now())
   updatedAt                 DateTime              @updatedAt
   deletedAt                 DateTime?
@@ -541,7 +565,7 @@ model Activation {
 // ─── Posts & Social Metrics ───────────────────────────────────────────────────
 
 model Post {
-  id                String     @id @default(cuid())
+  id                String          @id @default(cuid())
   campaignId        String
   creatorId         String
   activationId      String?
@@ -552,25 +576,33 @@ model Post {
   caption           String?
   mediaType         MediaType?
   postedAt          DateTime
-  viewsCount        Float      @default(0)
-  likesCount        Float      @default(0)
-  commentsCount     Float      @default(0)
-  sharesCount       Float      @default(0)
-  downloadsCount    Float      @default(0)
-  savesCount        Float      @default(0)
-  reachCount        Float      @default(0)
-  engagementRate    Float      @default(0)
+  viewsCount        Float           @default(0)
+  likesCount        Float           @default(0)
+  commentsCount     Float           @default(0)
+  sharesCount       Float           @default(0)
+  downloadsCount    Float           @default(0)
+  savesCount        Float           @default(0)
+  reachCount        Float           @default(0)
+  engagementRate    Float           @default(0)
   platformMetrics   Json?
   storyExpiresAt    DateTime?
-  status            PostStatus @default(PENDING_REVIEW)
+  status            PostStatus      @default(PENDING_REVIEW)
   rejectionReason   String?
   lastSyncedAt      DateTime?
-  syncFailCount     Int        @default(0)
+  syncFailCount     Int             @default(0)
   syncDisabledAt    DateTime?
-  trackingEnabled   Boolean    @default(false)
+  trackingEnabled   Boolean         @default(false)
   trackingStartedAt DateTime?
-  createdAt         DateTime   @default(now())
-  updatedAt         DateTime   @updatedAt
+  // ─── CreatorCore parity ─────────────────────────────────────────────────────
+  ccPostId          String?         @unique // source _id — re-sync key, idempotency
+  fetchState        PostFetchState? // Success/Unavailable/Error — distinct from approval
+  ccStatusRaw       String? // exact source string, so nothing is inferred away
+  isInstagramStory  Boolean         @default(false)
+  authorProfilePic  String?
+  lastFreshAt       DateTime? // source lastFresh — when metrics were last refreshed
+  autoAdded         Boolean         @default(false) // source autoAdd
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
 
   campaign   Campaign             @relation(fields: [campaignId], references: [id])
   creator    Creator              @relation(fields: [creatorId], references: [id])
