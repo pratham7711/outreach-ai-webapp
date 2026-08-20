@@ -7,7 +7,7 @@ test.describe('Audit Log', () => {
     await expect(page).not.toHaveURL(/login/, { timeout: 15000 });
     await waitForMain(page);
 
-    await expect(page.getByRole('heading', { name: 'Audit Log' })).toBeVisible({ timeout: 15000 });
+    await expect(page.getByRole('heading', { name: 'Audit Log' }).first()).toBeVisible({ timeout: 15000 });
     // Briefly duplicated while the outgoing and incoming trees overlap during
     // the page-enter transition, which trips strict mode.
     await expect(page.getByText('Track changes across your organization').first()).toBeVisible();
@@ -16,7 +16,7 @@ test.describe('Audit Log', () => {
     await expect(page.locator('label').filter({ hasText: 'Search' }).first()).toBeVisible();
     await expect(page.getByRole('combobox').first()).toBeVisible();
     await expect(page.getByRole('combobox').nth(1)).toBeVisible();
-    await expect(page.getByPlaceholder('Search label, email, IP...')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Reset' })).toBeVisible();
+    await expect(page.getByPlaceholder('Search label, email, IP...').first()).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Reset' }).first()).toBeVisible();
   });
 });
