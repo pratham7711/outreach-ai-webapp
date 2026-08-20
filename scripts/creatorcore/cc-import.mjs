@@ -193,16 +193,20 @@ export function ccPostData(rec, orgId) {
   };
 }
 
-// Upsert a batch of raw records into a mirror table by ccId. Lossless.
-async function mirrorMany(records, table, mapFn, label) {
+// Bulk-load raw records into a mirror table. Clean per-org reload (deleteMany then
+// chunked createMany) — orders of magnitude faster than per-row upsert over a
+// remote pooler, and idempotent: re-running replaces this org's mirror rows.
+async function mirrorMany(records, table, mapFn, label, orgId) {
+  await db[table].deleteMany({ where: { orgId } });
+  if (!records.length) { console.log(`  mirror ${label}: 0 rows`); return 0; }
   let n = 0;
-  for (const rec of records) {
-    if (!rec?._id) continue;
-    const data = mapFn(rec);
-    await db[table].upsert({ where: { ccId: rec._id }, create: data, update: data });
-    if (++n % 500 === 0) process.stdout.write(`\r  mirror ${label}: ${n}/${records.length}   `);
+  const CHUNK = 500;
+  for (let i = 0; i < records.length; i += CHUNK) {
+    const data = records.slice(i, i + CHUNK).filter((r) => r?._id).map(mapFn);
+    if (data.length) { await db[table].createMany({ data, skipDuplicates: true }); n += data.length; }
+    process.stdout.write(`\r  mirror ${label}: ${n}/${records.length}   `);
   }
-  if (records.length) process.stdout.write("\n");
+  process.stdout.write("\n");
   console.log(`  mirror ${label}: ${n} rows`);
   return n;
 }
@@ -247,10 +251,10 @@ async function main() {
   // ── mirror pass: EVERY field of EVERY type lands in the DB, losslessly ────────
   const refreshQueue = readJsonl("campaign-postrefreshqueue");
   console.log("Mirroring full CreatorCore records (every attribute):");
-  await mirrorMany(campaigns, "ccCampaign", (r) => ccCampaignData(r, org.id), "campaign");
-  await mirrorMany(posts, "ccPost", (r) => ccPostData(r, org.id), "post");
-  await mirrorMany(stats, "ccStatisticPost", (r) => ({ orgId: org.id, ccId: r._id, raw: r }), "statistic-post");
-  await mirrorMany(refreshQueue, "ccRefreshQueue", (r) => ({ orgId: org.id, ccId: r._id, raw: r }), "refresh-queue");
+  await mirrorMany(campaigns, "ccCampaign", (r) => ccCampaignData(r, org.id), "campaign", org.id);
+  await mirrorMany(posts, "ccPost", (r) => ccPostData(r, org.id), "post", org.id);
+  await mirrorMany(stats, "ccStatisticPost", (r) => ({ orgId: org.id, ccId: r._id, raw: r }), "statistic-post", org.id);
+  await mirrorMany(refreshQueue, "ccRefreshQueue", (r) => ({ orgId: org.id, ccId: r._id, raw: r }), "refresh-queue", org.id);
 
   // Any other extracted type → generic CcRecord, so no type is ever dropped.
   const KNOWN = new Set(["campaign", "post", "statistic-post", "campaign-postrefreshqueue"]);
