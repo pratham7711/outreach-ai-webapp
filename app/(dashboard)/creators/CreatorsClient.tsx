@@ -9,8 +9,7 @@ import AddCreatorModal from "@/components/modals/AddCreatorModal";
 import Link from "next/link";
 import { formatCompact, stripAt, platformLabel } from "@/lib/format";
 import { useListQuery } from "@/lib/useListQuery";
-
-export const CREATORS_PAGE_SIZE = 24;
+import { CREATORS_PAGE_SIZE } from "@/lib/listPageSize";
 
 type Creator = {
   id: string;
@@ -61,7 +60,13 @@ export default function CreatorsClient({
   const [search, setSearch] = useState(q);
   const [view, setView] = useState<"grid" | "table">("grid");
   const [showModal, setShowModal] = useState(false);
-  const { push, pending } = useListQuery({ q, platform, page });
+  // Defaults are passed as undefined so they stay out of the URL entirely —
+  // /creators rather than /creators?platform=All&page=1.
+  const { push, pending } = useListQuery({
+    q,
+    platform: platform === "All" ? undefined : platform,
+    page: page === 1 ? undefined : page,
+  });
 
   // Filtering happens in the database now, so the box debounces into the URL
   // instead of slicing a local array.

@@ -2,7 +2,8 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { Prisma, type Platform } from "@/lib/generated/prisma/client";
-import CreatorsClient, { CREATORS_PAGE_SIZE } from "./CreatorsClient";
+import CreatorsClient from "./CreatorsClient";
+import { CREATORS_PAGE_SIZE } from "@/lib/listPageSize";
 
 export default async function CreatorsPage({
   searchParams,

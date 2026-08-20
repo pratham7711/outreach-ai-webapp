@@ -2,7 +2,8 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { Prisma, type CampaignStatus } from "@/lib/generated/prisma/client";
-import CampaignsClient, { CAMPAIGNS_PAGE_SIZE } from "./CampaignsClient";
+import CampaignsClient from "./CampaignsClient";
+import { CAMPAIGNS_PAGE_SIZE } from "@/lib/listPageSize";
 
 export default async function CampaignsPage({
   searchParams,

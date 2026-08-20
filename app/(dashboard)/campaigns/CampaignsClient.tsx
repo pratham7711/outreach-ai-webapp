@@ -8,8 +8,7 @@ import { StatusTabs, Pagination } from "@/components/ds";
 import CampaignWizard from "@/components/modals/CampaignWizard";
 import { formatCompactCurrency, timeAgo } from "@/lib/format";
 import { useListQuery } from "@/lib/useListQuery";
-
-export const CAMPAIGNS_PAGE_SIZE = 25;
+import { CAMPAIGNS_PAGE_SIZE } from "@/lib/listPageSize";
 
 type Campaign = {
   id: string;
@@ -66,7 +65,13 @@ export default function CampaignsClient({
 }) {
   const [search, setSearch] = useState(q);
   const [showModal, setShowModal] = useState(false);
-  const { push, pending } = useListQuery({ q, status, page });
+  // Defaults are passed as undefined so they stay out of the URL entirely —
+  // /campaigns rather than /campaigns?status=ALL&page=1.
+  const { push, pending } = useListQuery({
+    q,
+    status: status === "ALL" ? undefined : status,
+    page: page === 1 ? undefined : page,
+  });
 
   // Filtering happens in the database now, so the box debounces into the URL
   // instead of slicing a local array.
