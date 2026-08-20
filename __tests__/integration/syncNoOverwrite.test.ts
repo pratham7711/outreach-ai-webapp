@@ -130,6 +130,7 @@ describe("cron sync — never overwrites real counts with unknowns", () => {
         syncFailCount: 0,
         syncDisabledAt: null,
         snapshots: [],
+        creator: { orgId: "org-1", handle: "u", socialAccounts: [] },
       },
     ]);
     mockFetch.mockResolvedValue({
