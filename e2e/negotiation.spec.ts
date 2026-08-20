@@ -236,8 +236,11 @@ test.describe('AI Negotiation', () => {
     const portalCtx = await browser.newContext({ storageState: portalState });
     const portalPage = await portalCtx.newPage();
     await portalPage.goto('/portal/offers');
-    await expect(portalPage.getByText(/Awaiting brand decision/i).first()).toBeVisible({ timeout: 20000 });
-    await expect(portalPage.getByRole('button', { name: /Counter/i })).toHaveCount(0);
+    // Scoped to this offer's card: the portal lists every offer the creator has,
+    // and the others are legitimately still counterable.
+    const card = portalPage.locator(`[data-offer-id="${offerId}"]`);
+    await expect(card.getByText(/Awaiting brand decision/i)).toBeVisible({ timeout: 20000 });
+    await expect(card.getByRole('button', { name: /Counter/i })).toHaveCount(0);
     await portalCtx.close();
   });
 

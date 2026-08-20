@@ -5,8 +5,14 @@ export async function waitForMain(page: Page, timeout = 20000): Promise<void> {
   await page.locator('main').first().waitFor({ state: 'visible', timeout });
 }
 
-/** Assert a heading (h1 or h2) with the given text is visible */
-export async function expectHeading(page: Page, text: string | RegExp, timeout = 15000): Promise<void> {
+/**
+ * Assert a heading (h1 or h2) with the given text is visible.
+ *
+ * The default is generous because the first test to touch a route pays for the
+ * dev server compiling it, which can outrun a tighter budget even though every
+ * later test on the same route is fast.
+ */
+export async function expectHeading(page: Page, text: string | RegExp, timeout = 30000): Promise<void> {
   await expect(page.getByRole('heading', { name: text }).first()).toBeVisible({ timeout });
 }
 

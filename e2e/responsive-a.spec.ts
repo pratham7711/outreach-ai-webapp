@@ -228,7 +228,10 @@ test.describe('Responsive A — dashboard + campaigns surfaces', () => {
     await expect(hamburger).toHaveAttribute('aria-expanded', 'false');
 
     await hamburger.click();
-    await expect(hamburger).toHaveAttribute('aria-expanded', 'true');
+    // The trigger hides itself once the drawer is open, so it leaves the
+    // accessibility tree entirely — the drawer's own close button takes over.
+    await expect(hamburger).toBeHidden();
+    await expect(page.getByRole('button', { name: 'Close navigation menu' })).toBeVisible();
 
     // The drawer is now translated on-screen: its left edge sits at x >= 0.
     const sidebar = page.locator('aside[aria-label="Main sidebar"]');
@@ -245,7 +248,8 @@ test.describe('Responsive A — dashboard + campaigns surfaces', () => {
     await campaignsLink.click();
 
     await page.waitForURL(/\/campaigns(\/|$|\?)/, { timeout: 15000 });
-    await expect(page.locator('h1')).toBeVisible();
+    // The dev server compiles /campaigns on first hit, which outruns the 5s default.
+    await expect(page.locator('h1').first()).toBeVisible({ timeout: 20000 });
     await assertNoHScroll(page, 'campaigns-after-nav@375');
 
     await page.screenshot({ path: 'test-results/responsive/a-hamburger-nav-375.png', fullPage: true });

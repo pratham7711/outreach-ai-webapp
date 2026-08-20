@@ -35,7 +35,9 @@ test.describe('Gate 2 Dashboard — Performance Tab', () => {
 
     await page.getByText('Views').first().waitFor({ state: 'visible', timeout: 30000 });
 
-    const svg = page.locator('svg').first();
+    // The first svg on the page is the mobile hamburger icon, which is hidden
+    // at desktop width — target the chart itself.
+    const svg = page.locator('.recharts-surface').first();
     await expect(svg).toBeVisible({ timeout: 20000 });
   });
 

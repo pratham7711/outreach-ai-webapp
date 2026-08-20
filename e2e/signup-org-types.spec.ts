@@ -25,15 +25,27 @@ test.describe('Signup — org types', () => {
     await page.getByPlaceholder('Re-enter your password').fill(opts.password);
   }
 
+  // Reading the body off the Response is racy here: on success the app
+  // redirects, and once the page navigates the browser drops the body and
+  // response.json() fails with "No resource with given identifier found".
+  // Intercepting captures the body up front instead, so it survives.
   async function assertSignupApiSucceeds(page: import('@playwright/test').Page) {
-    const [response] = await Promise.all([
-      page.waitForResponse(
-        res => res.url().includes('/api/signup') && res.request().method() === 'POST',
-        { timeout: 30000 }
-      ),
-      page.getByRole('button', { name: 'Create account' }).click(),
-    ]);
-    return response;
+    let captured: { status: number; text: string } | null = null;
+    const pattern = '**/api/signup';
+    await page.route(pattern, async route => {
+      const res = await route.fetch();
+      const text = await res.text();
+      captured = { status: res.status(), text };
+      await route.fulfill({ response: res, body: text });
+    });
+    try {
+      await page.getByRole('button', { name: 'Create account' }).click();
+      await expect.poll(() => captured, { timeout: 30000 }).not.toBeNull();
+    } finally {
+      await page.unroute(pattern);
+    }
+    const { status, text } = captured as unknown as { status: number; text: string };
+    return { status, body: text ? JSON.parse(text) : null };
   }
 
   test('agency signup → /api/signup returns 201 and router navigates to /login?registered=1', async ({ page }) => {
@@ -45,8 +57,8 @@ test.describe('Signup — org types', () => {
       email: `e2e-agency-nav-${epoch}@example.dev`,
       password: 'Password123!',
     });
-    const response = await assertSignupApiSucceeds(page);
-    expect(response.status()).toBe(201);
+    const { status } = await assertSignupApiSucceeds(page);
+    expect(status).toBe(201);
 
     try {
       await page.waitForURL(/\/login\?registered=1/, { timeout: 30000 });
@@ -67,9 +79,8 @@ test.describe('Signup — org types', () => {
       email: `e2e-agency-${epoch}@example.dev`,
       password: 'Password123!',
     });
-    const response = await assertSignupApiSucceeds(page);
-    expect(response.status()).toBe(201);
-    const body = await response.json();
+    const { status, body } = await assertSignupApiSucceeds(page);
+    expect(status).toBe(201);
     expect(body.success).toBe(true);
   });
 
@@ -85,8 +96,8 @@ test.describe('Signup — org types', () => {
       email,
       password,
     });
-    const response = await assertSignupApiSucceeds(page);
-    expect(response.status()).toBe(201);
+    const { status } = await assertSignupApiSucceeds(page);
+    expect(status).toBe(201);
 
     await page.goto('/login', { waitUntil: 'domcontentloaded' });
     await page.getByRole('textbox', { name: 'Email' }).fill(email);
@@ -113,9 +124,8 @@ test.describe('Signup — org types', () => {
       email: `e2e-brand-${epoch}@example.dev`,
       password: 'Password123!',
     });
-    const response = await assertSignupApiSucceeds(page);
-    expect(response.status()).toBe(201);
-    const body = await response.json();
+    const { status, body } = await assertSignupApiSucceeds(page);
+    expect(status).toBe(201);
     expect(body.success).toBe(true);
   });
 
@@ -131,8 +141,8 @@ test.describe('Signup — org types', () => {
       email,
       password,
     });
-    const response = await assertSignupApiSucceeds(page);
-    expect(response.status()).toBe(201);
+    const { status } = await assertSignupApiSucceeds(page);
+    expect(status).toBe(201);
 
     await page.goto('/login', { waitUntil: 'domcontentloaded' });
     await page.getByRole('textbox', { name: 'Email' }).fill(email);
@@ -161,8 +171,8 @@ test.describe('Signup — org types', () => {
       email,
       password: 'Password123!',
     });
-    const response1 = await assertSignupApiSucceeds(page);
-    expect(response1.status()).toBe(201);
+    const { status: status1 } = await assertSignupApiSucceeds(page);
+    expect(status1).toBe(201);
 
     await page.waitForTimeout(3000);
 

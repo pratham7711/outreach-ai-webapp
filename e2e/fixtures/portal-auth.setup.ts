@@ -10,6 +10,7 @@ setup('authenticate as creator portal user', async ({ request }) => {
   // Login via the portal auth API to get a session cookie
   const response = await request.post(`${baseURL}/api/portal/auth/login`, {
     data: { email: 'creator@demo.com', password: 'creator123' },
+    timeout: 60000,
   });
 
   if (!response.ok()) {

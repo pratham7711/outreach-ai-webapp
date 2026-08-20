@@ -17,6 +17,8 @@ test.describe('Dashboard', () => {
   });
 
   test('shows recent campaigns from seed data', async ({ page }) => {
+    // Recent campaigns live on the Activity tab; Overview is the default.
+    await page.getByRole('tab', { name: /activity/i }).click();
     // Seed has campaigns like "LEAK IT (BTS)", "FUJI KAZE"
     await expect(page.getByText(/LEAK IT/i).first()).toBeVisible({ timeout: 15000 });
   });

@@ -19,7 +19,9 @@ test.describe('Authentication', () => {
     await page.getByRole('textbox', { name: 'Email' }).fill('wrong@test.com');
     await page.getByRole('textbox', { name: 'Password' }).fill('wrongpass');
     await page.getByRole('button', { name: 'Sign in' }).click();
-    const alert = page.getByRole('alert');
+    // Next renders its own role="alert" route announcer on every page, so an
+    // unscoped getByRole('alert') matches two elements and trips strict mode.
+    const alert = page.locator('[role="alert"]:not(#__next-route-announcer__)');
     await expect(alert).toBeVisible({ timeout: 30000 });
     await expect(alert).toContainText(/invalid email or password/i);
   });
