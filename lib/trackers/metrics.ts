@@ -99,6 +99,13 @@ export function statusFor(velocityPerHour: number | null): TrackerStatus {
   return "stable";
 }
 
+// Growth between two consecutive snapshots, as a percentage, stored on each
+// snapshot as velocityScore when it is recorded.
+export function velocityBetween(prev: number, current: number): number {
+  if (prev > 0) return Math.round(((current - prev) / prev) * 10000) / 100;
+  return current > 0 ? 100 : 0;
+}
+
 export function latestOf(snapshots: TrackerSnapshot[]): TrackerSnapshot | null {
   if (snapshots.length === 0) return null;
   return ascending(snapshots)[snapshots.length - 1];

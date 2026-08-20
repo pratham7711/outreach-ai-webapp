@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Badge, Card, Button, Modal, Input, Skeleton, EmptyState } from "@pratham7711/ui";
 import { MetricTile } from "@/components/ds";
-import { Music, Plus, Trash2, TrendingUp } from "lucide-react";
+import { Music, Plus, RefreshCw, Trash2, TrendingUp } from "lucide-react";
 import { formatCompact, formatDateAbs } from "@/lib/format";
 import { apiDelete, apiFetch, apiPost } from "@/lib/api/client";
 import { errorMessage } from "@/lib/api/errorMessage";
@@ -110,6 +110,22 @@ export default function TrackersPage() {
     onError: (error) => toast.error(errorMessage(error, "Could not track that sound")),
   });
 
+  const refreshMutation = useMutation({
+    mutationFn: () =>
+      apiPost<{ snapshots: number; failed: number; skipped: number }>("/api/trackers/refresh", {}),
+    onSuccess: (result) => {
+      invalidate();
+      if (result.snapshots > 0) {
+        toast.success(`Updated ${result.snapshots} sound${result.snapshots === 1 ? "" : "s"}`);
+      } else if (result.failed > 0) {
+        toast.error("TikTok did not return counts for any tracked sound");
+      } else {
+        toast.success("Nothing to refresh");
+      }
+    },
+    onError: (error) => toast.error(errorMessage(error, "Could not refresh trackers")),
+  });
+
   const deleteMutation = useMutation({
     mutationFn: (id: string) => apiDelete(`/api/trackers/${id}`),
     onSuccess: () => {
@@ -150,10 +166,26 @@ export default function TrackersPage() {
           <h1 style={{ fontSize: 26, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Trackers</h1>
           <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>Track TikTok sounds and trends</p>
         </div>
-        <Button variant="primary" onClick={() => setModalOpen(true)}>
-          <Plus size={16} style={{ marginRight: 6 }} />
-          Track Sound
-        </Button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <Button
+            variant="secondary"
+            onClick={() => refreshMutation.mutate()}
+            disabled={refreshMutation.isPending}
+          >
+            <RefreshCw
+              size={16}
+              style={{
+                marginRight: 6,
+                animation: refreshMutation.isPending ? "cc-spin 1s linear infinite" : undefined,
+              }}
+            />
+            {refreshMutation.isPending ? "Refreshing..." : "Refresh"}
+          </Button>
+          <Button variant="primary" onClick={() => setModalOpen(true)}>
+            <Plus size={16} style={{ marginRight: 6 }} />
+            Track Sound
+          </Button>
+        </div>
       </div>
 
       {/* Stat Cards */}
