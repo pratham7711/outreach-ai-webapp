@@ -161,3 +161,22 @@ export const PARITY_DDL: string[] = [
   `CREATE UNIQUE INDEX IF NOT EXISTS "Campaign_ccCampaignId_key" ON "Campaign"("ccCampaignId")`,
   `CREATE UNIQUE INDEX IF NOT EXISTS "Post_ccPostId_key" ON "Post"("ccPostId")`,
 ];
+
+// Drift repair, unrelated to CreatorCore.
+//
+// Production was provisioned with `prisma db push` and has no _prisma_migrations
+// table, so migrations added since never reached it. Comparing every model in
+// schema.prisma against production's information_schema turned up exactly one
+// gap: the four Activation draft columns from
+// prisma/migrations/20260812041000_add_activation_draft_fields.
+//
+// That gap broke GET /api/campaigns/[id] for EVERY campaign — the query joins
+// `activations`, so Prisma selected columns the database did not have and failed
+// the whole request with P2022 ColumnNotFound. Re-diff with the cc-sync
+// `columns` action if this list ever needs revisiting.
+export const DRIFT_REPAIR_DDL: string[] = [
+  `ALTER TABLE "Activation" ADD COLUMN IF NOT EXISTS "draftUrl" TEXT`,
+  `ALTER TABLE "Activation" ADD COLUMN IF NOT EXISTS "draftCaption" TEXT`,
+  `ALTER TABLE "Activation" ADD COLUMN IF NOT EXISTS "draftMediaType" "MediaType"`,
+  `ALTER TABLE "Activation" ADD COLUMN IF NOT EXISTS "draftSubmittedAt" TIMESTAMP(3)`,
+];
