@@ -326,24 +326,18 @@ async function main() {
       commissionTotal: fnum(rec.commissionTotal),
       profitTotal: fnum(rec.profitTotal),
     };
-    const existingId = idmap[rec._id];
-    if (existingId) {
-      await db.campaign.update({ where: { id: existingId }, data }).catch(async () => {
-        const c = await db.campaign.create({ data });
-        idmap[rec._id] = c.id;
-      });
+    // Match on the source _id, never on title: CreatorCore has 9 duplicate
+    // titles (e.g. "SEM TEMPO - HARDSTYLE" x3) and title-matching silently
+    // collapsed 10 distinct campaigns into one another.
+    const existing = await db.campaign.findUnique({ where: { ccCampaignId: rec._id } });
+    if (existing) {
+      await db.campaign.update({ where: { id: existing.id }, data });
+      idmap[rec._id] = existing.id;
       cUpdated++;
     } else {
-      const byTitle = await db.campaign.findFirst({ where: { orgId: org.id, title: data.title } });
-      if (byTitle) {
-        await db.campaign.update({ where: { id: byTitle.id }, data });
-        idmap[rec._id] = byTitle.id;
-        cUpdated++;
-      } else {
-        const c = await db.campaign.create({ data });
-        idmap[rec._id] = c.id;
-        cCreated++;
-      }
+      const c = await db.campaign.create({ data });
+      idmap[rec._id] = c.id;
+      cCreated++;
     }
   }
   saveIdmap();
@@ -404,21 +398,17 @@ async function main() {
     };
     if (!data.postUrl) { pSkipped++; continue; }
 
-    const existingId = idmap[rec._id];
-    if (existingId) {
-      await db.post.update({ where: { id: existingId }, data }).catch(() => {});
+    // Match on the source _id, never on (campaign, postUrl): 24 such pairs are
+    // duplicated in CreatorCore, which collapsed 31 distinct posts.
+    const existing = await db.post.findUnique({ where: { ccPostId: rec._id } });
+    if (existing) {
+      await db.post.update({ where: { id: existing.id }, data });
+      idmap[rec._id] = existing.id;
       pUpdated++;
     } else {
-      const byUrl = await db.post.findFirst({ where: { campaignId, postUrl: data.postUrl } });
-      if (byUrl) {
-        await db.post.update({ where: { id: byUrl.id }, data });
-        idmap[rec._id] = byUrl.id;
-        pUpdated++;
-      } else {
-        const p = await db.post.create({ data });
-        idmap[rec._id] = p.id;
-        pCreated++;
-      }
+      const p = await db.post.create({ data });
+      idmap[rec._id] = p.id;
+      pCreated++;
     }
     if ((pCreated + pUpdated) % 250 === 0) { saveIdmap(); process.stdout.write(`\r  posts: +${pCreated} ~${pUpdated} (skip ${pSkipped})   `); }
   }
