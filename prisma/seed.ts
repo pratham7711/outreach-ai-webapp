@@ -6,6 +6,11 @@ import bcrypt from "bcryptjs";
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
 const prisma = new PrismaClient({ adapter });
 
+// Re-seeding has to be visible. The demo rows sort by addedAt/updatedAt, and
+// once an org also holds imported data a row left on its original timestamp is
+// buried pages deep — so a re-seed stamps them as the newest thing here.
+const SEEDED_AT = new Date();
+
 async function main() {
   const org = await prisma.organization.upsert({
     where: { subdomain: "demo-agency" },
@@ -215,25 +220,25 @@ async function main() {
 
   // ─── Creators (10) ───
   const creators = await Promise.all([
-    prisma.creator.upsert({ where: { id: "creator-1" }, update: {}, create: { id: "creator-1", orgId: org.id, name: "Blessing Jolie", handle: "@blessingjolie", platform: "INSTAGRAM", followersCount: 2400000, rate: 5000, bio: "Lifestyle & fashion content creator" } }),
-    prisma.creator.upsert({ where: { id: "creator-2" }, update: {}, create: { id: "creator-2", orgId: org.id, name: "Alex Turner", handle: "@alexturner", platform: "TIKTOK", followersCount: 890000, rate: 2000, bio: "Music & comedy shorts" } }),
-    prisma.creator.upsert({ where: { id: "creator-3" }, update: {}, create: { id: "creator-3", orgId: org.id, name: "Maria Santos", handle: "@mariasantos", platform: "YOUTUBE", followersCount: 1200000, rate: 3500, bio: "Travel vlogger and storyteller" } }),
-    prisma.creator.upsert({ where: { id: "creator-4" }, update: {}, create: { id: "creator-4", orgId: org.id, name: "James Kim", handle: "@jameskim", platform: "INSTAGRAM", followersCount: 450000, rate: 1500, bio: "Food & restaurant reviews" } }),
-    prisma.creator.upsert({ where: { id: "creator-5" }, update: {}, create: { id: "creator-5", orgId: org.id, name: "Priya Patel", handle: "@priyapatel", platform: "TIKTOK", followersCount: 3100000, rate: 8000, bio: "Dance & culture content" } }),
-    prisma.creator.upsert({ where: { id: "creator-6" }, update: {}, create: { id: "creator-6", orgId: org.id, name: "Liam Brooks", handle: "@liambrooks", platform: "YOUTUBE", followersCount: 780000, rate: 2500, bio: "Tech reviews & unboxings" } }),
-    prisma.creator.upsert({ where: { id: "creator-7" }, update: {}, create: { id: "creator-7", orgId: org.id, name: "Nina Okafor", handle: "@ninaokafor", platform: "INSTAGRAM", followersCount: 1600000, rate: 4500, bio: "Beauty & skincare guru" } }),
-    prisma.creator.upsert({ where: { id: "creator-8" }, update: {}, create: { id: "creator-8", orgId: org.id, name: "Tomás Rivera", handle: "@tomasrivera", platform: "TIKTOK", followersCount: 520000, rate: 1800, bio: "Fitness & wellness" } }),
-    prisma.creator.upsert({ where: { id: "creator-9" }, update: {}, create: { id: "creator-9", orgId: org.id, name: "Emma Chen", handle: "@emmachen", platform: "YOUTUBE", followersCount: 2100000, rate: 6000, bio: "Music covers & original songs" } }),
-    prisma.creator.upsert({ where: { id: "creator-10" }, update: {}, create: { id: "creator-10", orgId: org.id, name: "David Osei", handle: "@davidosei", platform: "TWITTER", followersCount: 340000, rate: 1200, bio: "Pop culture commentary" } }),
+    prisma.creator.upsert({ where: { id: "creator-1" }, update: { addedAt: SEEDED_AT }, create: { id: "creator-1", orgId: org.id, name: "Blessing Jolie", handle: "@blessingjolie", platform: "INSTAGRAM", followersCount: 2400000, rate: 5000, bio: "Lifestyle & fashion content creator" } }),
+    prisma.creator.upsert({ where: { id: "creator-2" }, update: { addedAt: SEEDED_AT }, create: { id: "creator-2", orgId: org.id, name: "Alex Turner", handle: "@alexturner", platform: "TIKTOK", followersCount: 890000, rate: 2000, bio: "Music & comedy shorts" } }),
+    prisma.creator.upsert({ where: { id: "creator-3" }, update: { addedAt: SEEDED_AT }, create: { id: "creator-3", orgId: org.id, name: "Maria Santos", handle: "@mariasantos", platform: "YOUTUBE", followersCount: 1200000, rate: 3500, bio: "Travel vlogger and storyteller" } }),
+    prisma.creator.upsert({ where: { id: "creator-4" }, update: { addedAt: SEEDED_AT }, create: { id: "creator-4", orgId: org.id, name: "James Kim", handle: "@jameskim", platform: "INSTAGRAM", followersCount: 450000, rate: 1500, bio: "Food & restaurant reviews" } }),
+    prisma.creator.upsert({ where: { id: "creator-5" }, update: { addedAt: SEEDED_AT }, create: { id: "creator-5", orgId: org.id, name: "Priya Patel", handle: "@priyapatel", platform: "TIKTOK", followersCount: 3100000, rate: 8000, bio: "Dance & culture content" } }),
+    prisma.creator.upsert({ where: { id: "creator-6" }, update: { addedAt: SEEDED_AT }, create: { id: "creator-6", orgId: org.id, name: "Liam Brooks", handle: "@liambrooks", platform: "YOUTUBE", followersCount: 780000, rate: 2500, bio: "Tech reviews & unboxings" } }),
+    prisma.creator.upsert({ where: { id: "creator-7" }, update: { addedAt: SEEDED_AT }, create: { id: "creator-7", orgId: org.id, name: "Nina Okafor", handle: "@ninaokafor", platform: "INSTAGRAM", followersCount: 1600000, rate: 4500, bio: "Beauty & skincare guru" } }),
+    prisma.creator.upsert({ where: { id: "creator-8" }, update: { addedAt: SEEDED_AT }, create: { id: "creator-8", orgId: org.id, name: "Tomás Rivera", handle: "@tomasrivera", platform: "TIKTOK", followersCount: 520000, rate: 1800, bio: "Fitness & wellness" } }),
+    prisma.creator.upsert({ where: { id: "creator-9" }, update: { addedAt: SEEDED_AT }, create: { id: "creator-9", orgId: org.id, name: "Emma Chen", handle: "@emmachen", platform: "YOUTUBE", followersCount: 2100000, rate: 6000, bio: "Music covers & original songs" } }),
+    prisma.creator.upsert({ where: { id: "creator-10" }, update: { addedAt: SEEDED_AT }, create: { id: "creator-10", orgId: org.id, name: "David Osei", handle: "@davidosei", platform: "TWITTER", followersCount: 340000, rate: 1200, bio: "Pop culture commentary" } }),
   ]);
 
   // ─── Campaigns ───
   const campaigns = await Promise.all([
-    prisma.campaign.upsert({ where: { id: "camp-1" }, update: {}, create: { id: "camp-1", orgId: org.id, clientId: clients[0].id, createdById: user.id, title: "LEAK IT (BTS)", status: "IN_PROGRESS", budget: 25000, currency: "USD", createdAt: new Date("2026-01-15") } }),
-    prisma.campaign.upsert({ where: { id: "camp-2" }, update: {}, create: { id: "camp-2", orgId: org.id, clientId: clients[1].id, createdById: user.id, title: "FUJI KAZE (2ND PHASE)", status: "IN_PROGRESS", budget: 40000, currency: "USD", createdAt: new Date("2026-02-01") } }),
-    prisma.campaign.upsert({ where: { id: "camp-3" }, update: {}, create: { id: "camp-3", orgId: org.id, clientId: clients[0].id, createdById: user.id, title: "Blessing Jolie", status: "IN_PROGRESS", budget: 15000, currency: "USD", createdAt: new Date("2026-02-10") } }),
-    prisma.campaign.upsert({ where: { id: "camp-4" }, update: {}, create: { id: "camp-4", orgId: org.id, clientId: clients[2].id, createdById: user.id, title: "CRUEL WORLD", status: "COMPLETE", budget: 30000, currency: "USD", createdAt: new Date("2025-12-01") } }),
-    prisma.campaign.upsert({ where: { id: "camp-5" }, update: {}, create: { id: "camp-5", orgId: org.id, clientId: clients[1].id, createdById: user.id, title: "American Girls", status: "PENDING", budget: null, currency: "USD", createdAt: new Date("2026-03-01") } }),
+    prisma.campaign.upsert({ where: { id: "camp-1" }, update: { updatedAt: SEEDED_AT }, create: { id: "camp-1", orgId: org.id, clientId: clients[0].id, createdById: user.id, title: "LEAK IT (BTS)", status: "IN_PROGRESS", budget: 25000, currency: "USD", createdAt: new Date("2026-01-15") } }),
+    prisma.campaign.upsert({ where: { id: "camp-2" }, update: { updatedAt: SEEDED_AT }, create: { id: "camp-2", orgId: org.id, clientId: clients[1].id, createdById: user.id, title: "FUJI KAZE (2ND PHASE)", status: "IN_PROGRESS", budget: 40000, currency: "USD", createdAt: new Date("2026-02-01") } }),
+    prisma.campaign.upsert({ where: { id: "camp-3" }, update: { updatedAt: SEEDED_AT }, create: { id: "camp-3", orgId: org.id, clientId: clients[0].id, createdById: user.id, title: "Blessing Jolie", status: "IN_PROGRESS", budget: 15000, currency: "USD", createdAt: new Date("2026-02-10") } }),
+    prisma.campaign.upsert({ where: { id: "camp-4" }, update: { updatedAt: SEEDED_AT }, create: { id: "camp-4", orgId: org.id, clientId: clients[2].id, createdById: user.id, title: "CRUEL WORLD", status: "COMPLETE", budget: 30000, currency: "USD", createdAt: new Date("2025-12-01") } }),
+    prisma.campaign.upsert({ where: { id: "camp-5" }, update: { updatedAt: SEEDED_AT }, create: { id: "camp-5", orgId: org.id, clientId: clients[1].id, createdById: user.id, title: "American Girls", status: "PENDING", budget: null, currency: "USD", createdAt: new Date("2026-03-01") } }),
   ]);
 
   // ─── Activations ───
