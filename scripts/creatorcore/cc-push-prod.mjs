@@ -34,9 +34,11 @@ const OUT = path.join(path.dirname(fileURLToPath(import.meta.url)), "out");
 const args = process.argv.slice(2);
 const BASE = (args.includes("--base") ? args[args.indexOf("--base") + 1] : "https://campaign.madeboring.com").replace(/\/$/, "");
 const DRY = args.includes("--dry");
-const TOKEN = process.env.CC_SYNC_TOKEN;
+// --token-file keeps the secret out of the process list and the shell history.
+const tokenFile = args.includes("--token-file") ? args[args.indexOf("--token-file") + 1] : null;
+const TOKEN = tokenFile ? fs.readFileSync(tokenFile, "utf8").trim() : process.env.CC_SYNC_TOKEN;
 if (!TOKEN) {
-  console.error("CC_SYNC_TOKEN not set");
+  console.error("No token: pass --token-file <path> or set CC_SYNC_TOKEN");
   process.exit(1);
 }
 
@@ -68,10 +70,28 @@ async function call(payload, tries = 5) {
   }
 }
 
-async function loadTable(table, rows, chunk) {
+// Chunk by serialized size, not row count: a CreatorCore campaign carries its
+// whole post-id array, so 500 campaigns is megabytes while 500 queue rows is
+// nothing. Vercel rejects an oversized body with FUNCTION_PAYLOAD_TOO_LARGE.
+const MAX_BYTES = 2_000_000;
+
+function* chunksBySize(rows, maxRows) {
+  let batch = [], bytes = 0;
+  for (const row of rows) {
+    const size = Buffer.byteLength(JSON.stringify(row));
+    if (batch.length && (bytes + size > MAX_BYTES || batch.length >= maxRows)) {
+      yield batch;
+      batch = []; bytes = 0;
+    }
+    batch.push(row);
+    bytes += size;
+  }
+  if (batch.length) yield batch;
+}
+
+async function loadTable(table, rows, maxRows) {
   let sent = 0, inserted = 0;
-  for (let i = 0; i < rows.length; i += chunk) {
-    const slice = rows.slice(i, i + chunk);
+  for (const slice of chunksBySize(rows, maxRows)) {
     if (!DRY) {
       const r = await call({ action: "load", table, rows: slice });
       inserted += r.inserted;

@@ -121,6 +121,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: true, statements: applied.length, applied });
     }
 
+    if (action === "columns") {
+      // Every column of every table, so a P2022 ColumnNotFound can be diffed
+      // against the Prisma schema without guessing which model drifted.
+      const rows = await db.$queryRawUnsafe<{ table_name: string; column_name: string }[]>(
+        `SELECT table_name, column_name FROM information_schema.columns
+         WHERE table_schema = 'public' ORDER BY table_name, column_name`
+      );
+      const byTable: Record<string, string[]> = {};
+      for (const r of rows) (byTable[r.table_name] ??= []).push(r.column_name);
+      return NextResponse.json({ ok: true, byTable });
+    }
+
     if (action === "have") {
       // Keys already present, so the driver can resume instead of re-sending.
       const { orgId } = await resolveTarget();
