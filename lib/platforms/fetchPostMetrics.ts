@@ -284,6 +284,24 @@ export function pickCount(...values: unknown[]): number {
   return best;
 }
 
+// TikTok answers a deleted post with a normal 200 and a rehydration payload
+// carrying a non-zero statusCode (10204 "item doesn't exist"). That is a
+// perfectly healthy response, so callers must not mistake it for being blocked.
+// Returns null when there is no payload at all, which IS the blocked/changed
+// -markup case.
+export function parseTikTokDetailStatus(html: string): number | null {
+  const match = html.match(TIKTOK_REHYDRATION_RE);
+  if (!match) return null;
+
+  try {
+    const detail = JSON.parse(match[1])?.__DEFAULT_SCOPE__?.["webapp.video-detail"];
+    if (!detail) return null;
+    return typeof detail.statusCode === "number" ? detail.statusCode : null;
+  } catch {
+    return null;
+  }
+}
+
 export function parseTikTokRehydration(html: string): TikTokDirectMetrics | null {
   const match = html.match(TIKTOK_REHYDRATION_RE);
   if (!match) return null;
@@ -341,10 +359,20 @@ async function fetchTikTokMetricsDirect(url: string): Promise<Partial<PostMetric
       return null;
     }
 
-    const parsed = parseTikTokRehydration(await res.text());
+    const html = await res.text();
+    const parsed = parseTikTokRehydration(html);
     if (!parsed) {
-      tiktokGate.recordBlocked();
-      log.warn("TikTok direct fetch could not parse rehydration payload");
+      // A removed post answers 200 with a non-zero statusCode. Counting that as
+      // a block let five deleted posts in a row latch the breaker for 15
+      // minutes and stall every healthy fetch behind them.
+      const statusCode = parseTikTokDetailStatus(html);
+      if (statusCode !== null && statusCode !== 0) {
+        tiktokGate.recordSuccess();
+        log.warn("TikTok says this post is gone", { statusCode });
+      } else {
+        tiktokGate.recordBlocked();
+        log.warn("TikTok direct fetch could not parse rehydration payload");
+      }
       return null;
     }
     tiktokGate.recordSuccess();
