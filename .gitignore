@@ -65,3 +65,7 @@ tmp/
 # session scratch — reads .secrets/, never commit
 .tmp-tt-assisted.mjs
 .seed-drafts-qa.ts
+
+# CreatorCore extraction — login session + bulk data must never be committed
+scripts/creatorcore/out/
+scripts/creatorcore/.profile/
