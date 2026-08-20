@@ -14,6 +14,7 @@ gitignored Playwright profile.
 
 ```bash
 cd webapp
+npx playwright install chromium        # one-time: headed browser for the login step
 node scripts/creatorcore/cc-extract.mjs
 ```
 
