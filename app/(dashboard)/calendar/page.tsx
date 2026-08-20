@@ -155,7 +155,7 @@ export default function CalendarPage() {
                         minHeight: 90, padding: 6,
                         borderBottom: "1px solid var(--cc-border)",
                         borderRight: "1px solid var(--cc-border)",
-                        background: isSelected ? "var(--cc-bg)" : today ? "rgba(91,91,214,0.04)" : "transparent",
+                        background: isSelected ? "var(--cc-bg)" : today ? "var(--cc-primary-light)" : "transparent",
                         opacity: inMonth ? 1 : 0.35,
                         cursor: "pointer",
                         transition: "background 0.1s",

@@ -219,6 +219,198 @@
   color-scheme: dark;
 }
 
+
+/*
+  CreatorCore theme (next-themes .creatorcore on <html>). Not a taste exercise —
+  every value below was measured off app.creatorcore.co with getComputedStyle,
+  across all 13 dashboard screens, so migrating clients land on a UI they can
+  already read. The look is monochrome indigo: text, headings, hairline borders
+  and even the shadow tint are all #1F3CEF, and "muted" is that same indigo at
+  36% rather than a grey.
+*/
+.creatorcore {
+  --radius: 10px;
+
+  /* The ui library derives every corner from this scale, so re-pointing it
+     re-skins cards, inputs, tags and buttons in one move: 4px on the small
+     chrome, 10px on buttons, 20px on cards — CreatorCore's three radii. */
+  --ui-r-sm: 4px;
+  --ui-r-md: 10px;
+  --ui-r-lg: 20px;
+  --ui-r-xl: 20px;
+
+  --app-font: var(--font-lexend), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+
+  --background: #F3F5FC;
+  --foreground: #000000;
+  --card: #FFFFFF;
+  --card-foreground: #000000;
+  --popover: #FFFFFF;
+  --popover-foreground: #000000;
+  --primary: #1F3CEF;
+  --primary-foreground: #FFFFFF;
+  --secondary: #EBEEFE;
+  --secondary-foreground: #1F3CEF;
+  --muted: #EBEEFE;
+  --muted-foreground: #848484;
+  --accent: #EBEEFE;
+  --accent-foreground: #1F3CEF;
+  --destructive: #FF3B30;
+  --destructive-foreground: #FFFFFF;
+  --border: rgba(31, 60, 239, 0.22);
+  --input: rgba(31, 60, 239, 0.22);
+  --ring: #1F3CEF;
+
+  /* Indigo leads, then the purple and green CreatorCore already uses for tags
+     and status; the last two complete the ramp from the same iOS family. */
+  --chart-1: #1f3cef;
+  --chart-2: #a53ada;
+  --chart-3: #34c759;
+  --chart-4: #ff9500;
+  --chart-5: #ff375f;
+
+  --status-good: #34C759;
+  --status-warning: #FF9500;
+  --status-serious: #FF6B35;
+  --status-critical: #FF3B30;
+
+  --chart-grid: rgba(31, 60, 239, 0.10);
+  --chart-axis: rgba(31, 60, 239, 0.30);
+
+  --cc-sidebar: #FFFFFF;
+  --cc-primary-hover: #193EE6;
+  --cc-primary-light: rgba(31, 60, 239, 0.08);
+  --cc-primary-medium: rgba(31, 60, 239, 0.15);
+  --cc-text-subtle: rgba(31, 60, 239, 0.36);
+  --cc-hover-bg: #EBEEFE;
+  --cc-row-hover: rgba(31, 60, 239, 0.04);
+
+  --ui-accent-dim: rgba(31, 60, 239, 0.25);
+  --ui-accent-glow: rgba(31, 60, 239, 0.12);
+
+  --ui-bg-2: #EBEEFE;
+  --ui-bg-3: #DDE3FD;
+
+  --ui-text-1: rgba(0, 0, 0, 0.75);
+  --ui-text-2: rgba(31, 60, 239, 0.36);
+
+  --ui-border-strong: rgba(31, 60, 239, 0.40);
+
+  --ui-glass: rgba(255, 255, 255, 0.9);
+  --ui-glass-border: rgba(31, 60, 239, 0.22);
+
+  --ui-shadow-sm: 0 2px 6px rgba(31, 60, 239, 0.10);
+  --ui-shadow-md: 0 4px 10px 4px rgba(31, 60, 239, 0.15);
+  --ui-shadow-lg: 0 8px 24px rgba(31, 60, 239, 0.18);
+  --ui-glow: 0 4px 10px 5px rgba(211, 218, 248, 0.5);
+
+  --ui-success-dim: rgba(52, 199, 89, 0.16);
+  --ui-warning-dim: rgba(255, 149, 0, 0.16);
+  --ui-danger-dim: rgba(255, 59, 48, 0.14);
+  --ui-neutral-dim: rgba(31, 60, 239, 0.06);
+
+  color-scheme: light;
+}
+
+/*
+  Headings are indigo on CreatorCore, body copy is black. Most page headers here
+  carry an inline color: var(--cc-text), which no class selector can beat — so
+  rebind the variable on the heading itself and the inline style resolves to
+  indigo on its own. Size and weight are inline literals, so those do need the
+  override to land at CreatorCore's 24px/700.
+*/
+.creatorcore h1,
+.creatorcore h2 {
+  --cc-text: var(--cc-primary);
+  color: var(--cc-primary);
+  letter-spacing: 0 !important;
+}
+
+/*
+  Cards: a sub-pixel indigo hairline over a soft indigo glow. 0.588px is what
+  Bubble emits and browsers round it up, so 1px at ~45% reads the same weight.
+  The ui library's solid card is tinted by default; CreatorCore's are white.
+*/
+.creatorcore .cc-card,
+.creatorcore .ui-card-outlined,
+.creatorcore [data-slot="card"] {
+  background: var(--card);
+  border-radius: 20px;
+  border: 1px solid rgba(31, 60, 239, 0.45);
+  box-shadow: 0 4px 10px 4px rgba(31, 60, 239, 0.15);
+}
+
+.creatorcore .ui-card-solid {
+  background: var(--card);
+  border-radius: 20px;
+  border: 1px solid rgba(31, 60, 239, 0.45);
+  box-shadow: 0 4px 10px 4px rgba(31, 60, 239, 0.15);
+}
+
+.creatorcore .cc-card:hover,
+.creatorcore .ui-card-solid:hover,
+.creatorcore .ui-card-outlined:hover {
+  border-color: rgba(31, 60, 239, 0.55);
+  box-shadow: 0 4px 14px 5px rgba(31, 60, 239, 0.22);
+  transform: none;
+}
+
+/* Stat tiles drop the border entirely and sit on a paler lift. */
+.creatorcore .cc-stat-card,
+.creatorcore .ui-statcard {
+  background: var(--card);
+  border: none;
+  box-shadow: 0 4px 10px 5px rgba(211, 218, 248, 0.5);
+}
+
+.creatorcore .cc-btn-primary:hover,
+.creatorcore .ui-btn-primary:hover {
+  box-shadow: 0 2px 8px rgba(31, 60, 239, 0.25);
+}
+
+.creatorcore .cc-btn-dark {
+  background: var(--cc-primary);
+}
+
+.creatorcore .cc-btn-dark:hover {
+  background: var(--cc-primary-hover);
+  box-shadow: 0 2px 8px rgba(31, 60, 239, 0.25);
+}
+
+.creatorcore .cc-nav-item.active {
+  box-shadow: 0 2px 6px rgba(31, 60, 239, 0.24);
+}
+
+.creatorcore .cc-search {
+  border-width: 1px;
+}
+
+.creatorcore .cc-search:hover {
+  border-color: rgba(31, 60, 239, 0.4);
+}
+
+.creatorcore .cc-search:focus,
+.creatorcore .ui-input:focus {
+  box-shadow: 0 0 0 3px rgba(31, 60, 239, 0.12);
+}
+
+.creatorcore ::selection {
+  background: rgba(31, 60, 239, 0.18);
+}
+
+/*
+  CreatorCore's own heading metric — 24px/700 — comes from a desktop-only Bubble
+  layout, and the page headers here hardcode 26px/800 inline. Below 1024px the
+  app's own scale is the one that fits, so the exact figure lands only where
+  there is room for it.
+*/
+@media (min-width: 1024px) {
+  .creatorcore h1 {
+    font-size: 24px !important;
+    font-weight: 700 !important;
+  }
+}
+
 body {
   background-color: var(--cc-bg);
   color: var(--cc-text);

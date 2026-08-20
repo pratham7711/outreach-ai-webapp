@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
+import { Lexend_Deca } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -15,6 +16,12 @@ const satoshi = localFont({
   display: "swap",
 });
 
+const lexend = Lexend_Deca({
+  subsets: ["latin"],
+  variable: "--font-lexend",
+  display: "swap",
+});
+
 export const metadata: Metadata = {
   title: "Outreach AI",
   description: "Run creator campaigns from pitch to payout — discovery, activations, deliverables and payouts in one place.",
@@ -22,9 +29,9 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={satoshi.variable} suppressHydrationWarning>
+    <html lang="en" className={`${satoshi.variable} ${lexend.variable}`} suppressHydrationWarning>
       <body suppressHydrationWarning>
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange themes={["light", "dark", "creatorcore"]}>
           <TooltipProvider delay={150}>{children}</TooltipProvider>
         </ThemeProvider>
       </body>
