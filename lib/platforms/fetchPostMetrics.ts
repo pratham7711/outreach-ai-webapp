@@ -26,7 +26,9 @@ export type PostMetrics = {
 };
 
 export function hasMetricCounts(m: PostMetrics): boolean {
-  return typeof m.viewsCount === "number";
+  if (typeof m.viewsCount !== "number") return false;
+  const likesExceedViews = typeof m.likesCount === "number" && m.likesCount > m.viewsCount;
+  return !likesExceedViews;
 }
 
 function fetchTimeoutSignal(ms = 8000): AbortSignal | undefined {

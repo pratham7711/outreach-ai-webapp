@@ -150,4 +150,20 @@ describe("fetchPostMetrics — unknown vs known counts", () => {
     expect(hasMetricCounts(m)).toBe(false);
     expect(m.caption).toBe("someone else");
   });
+
+  it("rejects counts where likes exceed views", () => {
+    const base = {
+      platform: "TIKTOK" as const,
+      viewsCount: 406,
+      likesCount: 1092,
+      commentsCount: 18,
+      sharesCount: 161,
+      engagementRate: null,
+      caption: null,
+      thumbnailUrl: null,
+      postedAt: null,
+    };
+    expect(hasMetricCounts(base as PostMetrics)).toBe(false);
+    expect(hasMetricCounts({ ...base, likesCount: 406 } as PostMetrics)).toBe(true);
+  });
 });
