@@ -1,13 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Plus, LayoutGrid, List as ListIcon, Users } from "lucide-react";
 import { Button, Badge, Card, Input, Avatar, EmptyState } from "@pratham7711/ui";
-import { StatusTabs } from "@/components/ds";
+import { StatusTabs, Pagination } from "@/components/ds";
 import { Search } from "lucide-react";
 import AddCreatorModal from "@/components/modals/AddCreatorModal";
 import Link from "next/link";
 import { formatCompact, stripAt, platformLabel } from "@/lib/format";
+import { useListQuery } from "@/lib/useListQuery";
+
+export const CREATORS_PAGE_SIZE = 24;
 
 type Creator = {
   id: string;
@@ -18,7 +21,7 @@ type Creator = {
   followerCount: number | null;
   avgViews: number | null;
   rate: number | null;
-  _count: { activations: number };
+  _count: { activations: number; posts: number };
 };
 
 function formatNumber(n: number): string {
@@ -40,17 +43,36 @@ const PLATFORM_BADGE_VARIANT: Record<string, "accent" | "danger" | "neutral" | "
   Twitter: "neutral",
 };
 
-export default function CreatorsClient({ creators }: { creators: Creator[] }) {
-  const [search, setSearch] = useState("");
-  const [platformFilter, setPlatformFilter] = useState("All");
+export default function CreatorsClient({
+  creators,
+  platformCounts,
+  total,
+  page,
+  q,
+  platform,
+}: {
+  creators: Creator[];
+  platformCounts: Record<string, number>;
+  total: number;
+  page: number;
+  q: string;
+  platform: string;
+}) {
+  const [search, setSearch] = useState(q);
   const [view, setView] = useState<"grid" | "table">("grid");
   const [showModal, setShowModal] = useState(false);
+  const { push, pending } = useListQuery({ q, platform, page });
 
-  const filtered = creators.filter((c) => {
-    const matchSearch = c.name.toLowerCase().includes(search.toLowerCase()) || c.handle.toLowerCase().includes(search.toLowerCase());
-    const matchPlatform = platformFilter === "All" || c.platform.toUpperCase() === platformFilter;
-    return matchSearch && matchPlatform;
-  });
+  // Filtering happens in the database now, so the box debounces into the URL
+  // instead of slicing a local array.
+  useEffect(() => {
+    if (search === q) return;
+    const t = setTimeout(() => push({ q: search || null, page: null }), 350);
+    return () => clearTimeout(t);
+  }, [search]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const filtered = creators;
+  const totalPages = Math.max(1, Math.ceil(total / CREATORS_PAGE_SIZE));
 
   return (
     <div className="rsp-page">
@@ -94,21 +116,31 @@ export default function CreatorsClient({ creators }: { creators: Creator[] }) {
         style={{ marginBottom: 24 }}
         tabs={PLATFORM_TABS.map((t) => ({
           ...t,
-          count: t.key === "All" ? creators.length : creators.filter((c) => c.platform.toUpperCase() === t.key).length,
+          count: platformCounts[t.key] ?? 0,
         }))}
-        active={platformFilter}
-        onChange={setPlatformFilter}
+        active={platform}
+        onChange={(key) => push({ platform: key === "All" ? null : key, page: null })}
       />
 
       {filtered.length === 0 ? (
         <EmptyState
           icon={<Users size={32} color="var(--cc-text-subtle)" />}
-          title="No creators yet"
-          description="Add creators to your roster to get started."
+          title={q || platform !== "All" ? "No creators match those filters" : "No creators yet"}
+          description={
+            q || platform !== "All"
+              ? "Try a different search term or platform."
+              : "Add creators to your roster to get started."
+          }
           action={
-            <Button variant="primary" iconLeft={<Plus size={15} />} onClick={() => setShowModal(true)}>
-              Add Creator
-            </Button>
+            q || platform !== "All" ? (
+              <Button variant="secondary" onClick={() => { setSearch(""); push({ q: null, platform: null, page: null }); }}>
+                Clear filters
+              </Button>
+            ) : (
+              <Button variant="primary" iconLeft={<Plus size={15} />} onClick={() => setShowModal(true)}>
+                Add Creator
+              </Button>
+            )
           }
         />
       ) : view === "grid" ? (
@@ -147,7 +179,7 @@ export default function CreatorsClient({ creators }: { creators: Creator[] }) {
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ background: "var(--cc-hover-bg)" }}>
-                {["Creator", "Platform", "Followers", "Avg. Views", "Rate", "Campaigns"].map((h) => (
+                {["Creator", "Platform", "Followers", "Avg. Views", "Rate", "Campaigns", "Posts"].map((h) => (
                   <th key={h} style={{ textAlign: "left", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--cc-text-subtle)", padding: "12px 24px" }}>{h}</th>
                 ))}
               </tr>
@@ -171,12 +203,25 @@ export default function CreatorsClient({ creators }: { creators: Creator[] }) {
                   <td style={{ padding: "14px 24px", fontSize: 14, fontWeight: 500, color: "var(--cc-text)" }}>{c.avgViews ? formatNumber(c.avgViews) : "—"}</td>
                   <td style={{ padding: "14px 24px", fontSize: 14, fontWeight: 500, color: "var(--cc-text)" }}>{c.rate ? `$${c.rate}` : "—"}</td>
                   <td style={{ padding: "14px 24px", fontSize: 14, fontWeight: 500, color: "var(--cc-text)" }}>{c._count.activations}</td>
+                  <td style={{ padding: "14px 24px", fontSize: 14, fontWeight: 500, color: "var(--cc-text)" }}>{c._count.posts}</td>
                 </tr>
               ))}
             </tbody>
           </table>
           </div>
         </Card>
+      )}
+
+      {total > CREATORS_PAGE_SIZE && (
+        <Pagination
+          style={{ marginTop: 24 }}
+          page={page}
+          totalPages={totalPages}
+          total={total}
+          pageSize={CREATORS_PAGE_SIZE}
+          loading={pending}
+          onPageChange={(p) => push({ page: p === 1 ? null : p })}
+        />
       )}
 
       {showModal && <AddCreatorModal onClose={() => setShowModal(false)} />}

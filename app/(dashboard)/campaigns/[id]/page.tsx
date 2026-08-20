@@ -97,8 +97,42 @@ type Post = {
   commentsCount: number;
   sharesCount: number;
   engagementRate: number;
-  creator: { id: string; name: string };
+  creator: {
+    id: string; name: string; handle: string; platform: string;
+    avatarUrl: string | null; followersCount: number; rate: number | null;
+  };
 };
+
+// A campaign's creator roster, merged from both sources: activations (formally
+// assigned) and posts (actually delivered). Imported CreatorCore campaigns have
+// only the latter, so an activations-only list left 506 of 512 campaigns
+// showing "No creators yet" beside dozens of real posts.
+type RosterEntry = {
+  creator: Post["creator"];
+  activationStatus: string | null;
+  posts: number;
+  views: number;
+};
+
+function buildRoster(activations: Activation[], posts: Post[]): RosterEntry[] {
+  const byCreator = new Map<string, RosterEntry>();
+  for (const act of activations) {
+    byCreator.set(act.creator.id, { creator: act.creator, activationStatus: act.status, posts: 0, views: 0 });
+  }
+  for (const post of posts) {
+    if (!post.creator) continue;
+    const entry = byCreator.get(post.creator.id) ?? {
+      creator: post.creator,
+      activationStatus: null,
+      posts: 0,
+      views: 0,
+    };
+    entry.posts += 1;
+    entry.views += post.viewsCount ?? 0;
+    byCreator.set(post.creator.id, entry);
+  }
+  return [...byCreator.values()].sort((a, b) => b.views - a.views || b.posts - a.posts);
+}
 
 type Activation = {
   id: string;
@@ -427,12 +461,14 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
     (a) => a.status === "DRAFT_SUBMITTED" || a.status === "AWAITING_APPROVAL"
   ).length;
 
+  const roster = buildRoster(campaign?.activations ?? [], campaign?.posts ?? []);
+
   const tabsList: { label: string; value: Tab; count?: number }[] = [
     { label: "Performance", value: "performance" },
     { label: "Overview", value: "overview" },
     { label: "Drafts", value: "drafts" as Tab, count: pendingDrafts || undefined },
     { label: "Posts", value: "posts", count: campaign?._count.posts },
-    { label: "Creators", value: "creators", count: campaign?._count.activations },
+    { label: "Creators", value: "creators", count: roster.length },
     { label: "Reviews", value: "reviews" as Tab },
     { label: "Analytics", value: "analytics" },
     { label: "Financials", value: "financials" },
@@ -525,7 +561,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
           </>
         )}
         <span>·</span>
-        <span>{campaign._count.activations} creators · {campaign._count.posts} posts</span>
+        <span>{roster.length} creators · {campaign._count.posts} posts</span>
       </div>
 
       {/* Tabs */}
@@ -562,7 +598,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
             <div className="rsp-grid-tiles">
               <MetricTile metric="totalViews" value={formatNumber(totalViews)} />
               <MetricTile metric="engagementRate" label="Avg engagement" value={avgEngagement > 0 ? avgEngagement.toFixed(1) + "%" : "—"} />
-              <MetricTile metric="campaignCreators" value={String(campaign._count.activations)} />
+              <MetricTile metric="campaignCreators" value={String(roster.length)} />
               <MetricTile metric="budgetUsed" value={budget > 0 ? `${Math.round((spent / budget) * 100)}%` : "—"} />
             </div>
 
@@ -638,37 +674,44 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                 <UserPlus size={14} /> Add Creator
               </button>
             </div>
-            {campaign.activations.length === 0 ? (
+            {roster.length === 0 ? (
               <EmptyState icon={<Users size={32} color="var(--cc-text-subtle)" />} title="No creators yet" description="Add creators to this campaign to get started." />
             ) : (
               <Card variant="solid" noPadding style={{ overflowX: "auto" }}>
                 <div style={{
-                  display: "grid", gridTemplateColumns: "1fr 120px 100px 100px 100px", minWidth: 720,
+                  display: "grid", gridTemplateColumns: "1fr 120px 100px 80px 100px 130px", minWidth: 820,
                   gap: 12, padding: "12px 24px", borderBottom: "1px solid var(--cc-border)", background: "var(--cc-bg)",
                 }}>
-                  {["Creator", "Platform", "Followers", "Rate", "Status"].map(h => (
+                  {["Creator", "Platform", "Followers", "Posts", "Views", "Status"].map(h => (
                     <span key={h} style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--cc-text-subtle)" }}>{h}</span>
                   ))}
                 </div>
                 <div className="cc-stagger">
-                  {campaign.activations.map((act, i) => (
+                  {roster.map((entry, i) => (
                     <Link
-                      key={act.id}
-                      href={`/creators/${act.creator.id}`}
-                      style={{ textDecoration: "none", display: "grid", gridTemplateColumns: "1fr 120px 100px 100px 100px", minWidth: 720, gap: 12, padding: "14px 24px", alignItems: "center", borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined }}
+                      key={entry.creator.id}
+                      href={`/creators/${entry.creator.id}`}
+                      style={{ textDecoration: "none", display: "grid", gridTemplateColumns: "1fr 120px 100px 80px 100px 130px", minWidth: 820, gap: 12, padding: "14px 24px", alignItems: "center", borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined }}
                       className="cc-table-row"
                     >
                       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                        <Avatar name={act.creator.name} size="sm" />
+                        <Avatar name={entry.creator.name} size="sm" src={entry.creator.avatarUrl ?? undefined} />
                         <div>
-                          <p style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>{act.creator.name}</p>
-                          <p style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>@{stripAt(act.creator.handle)}</p>
+                          <p style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>{entry.creator.name}</p>
+                          <p style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>@{stripAt(entry.creator.handle)}</p>
                         </div>
                       </div>
-                      <Badge variant="neutral">{act.creator.platform}</Badge>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>{formatNumber(act.creator.followersCount)}</span>
-                      <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{act.creator.rate ? formatCurrency(Number(act.creator.rate)) : "—"}</span>
-                      <Badge variant={ACTIVATION_STATUS[act.status] ?? "neutral"} dot>{act.status.replace(/_/g, " ")}</Badge>
+                      <Badge variant="neutral">{entry.creator.platform}</Badge>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>{formatNumber(entry.creator.followersCount)}</span>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>{entry.posts}</span>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>{formatNumber(entry.views)}</span>
+                      {entry.activationStatus ? (
+                        <Badge variant={ACTIVATION_STATUS[entry.activationStatus] ?? "neutral"} dot>
+                          {entry.activationStatus.replace(/_/g, " ")}
+                        </Badge>
+                      ) : (
+                        <Badge variant="success" dot>POSTED</Badge>
+                      )}
                     </Link>
                   ))}
                 </div>

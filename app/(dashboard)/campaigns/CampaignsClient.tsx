@@ -1,12 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Plus, Search, FolderOpen, ChevronDown, Sparkles, Target } from "lucide-react";
 import Link from "next/link";
 import { Button, Card, Badge, Input, EmptyState, Avatar, Tooltip } from "@pratham7711/ui";
-import { StatusTabs } from "@/components/ds";
+import { StatusTabs, Pagination } from "@/components/ds";
 import CampaignWizard from "@/components/modals/CampaignWizard";
 import { formatCompactCurrency, timeAgo } from "@/lib/format";
+import { useListQuery } from "@/lib/useListQuery";
+
+export const CAMPAIGNS_PAGE_SIZE = 25;
 
 type Campaign = {
   id: string;
@@ -16,6 +19,7 @@ type Campaign = {
   currency: string;
   client?: { name: string } | null;
   _count: { activations: number; posts: number };
+  creatorCount: number;
   updatedAt?: string;
 };
 
@@ -44,33 +48,47 @@ function formatCurrency(n: number) {
 export default function CampaignsClient({
   campaigns,
   stats,
+  statusCounts,
+  filteredTotal,
+  page,
+  q,
+  status,
   clients,
 }: {
   campaigns: Campaign[];
   stats: { total: number; active: number; creatorCount: number; totalBudget: number };
+  statusCounts: Record<string, number>;
+  filteredTotal: number;
+  page: number;
+  q: string;
+  status: string;
   clients: Client[];
 }) {
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("ALL");
+  const [search, setSearch] = useState(q);
   const [showModal, setShowModal] = useState(false);
+  const { push, pending } = useListQuery({ q, status, page });
+
+  // Filtering happens in the database now, so the box debounces into the URL
+  // instead of slicing a local array.
+  useEffect(() => {
+    if (search === q) return;
+    const t = setTimeout(() => push({ q: search || null, page: null }), 350);
+    return () => clearTimeout(t);
+  }, [search]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Mirrors CreatorCore: the count under the title reflects the selected status
   // tab ("4 Active Campaigns", "497 Complete Campaigns"), not the overall total.
-  const activeTab = STATUS_TABS.find((t) => t.key === statusFilter);
-  const tabCount =
-    statusFilter === "ALL" ? stats.total : campaigns.filter((c) => c.status === statusFilter).length;
+  // With a search active it reports the match count instead, so the number
+  // always describes what is on screen.
+  const activeTab = STATUS_TABS.find((t) => t.key === status);
+  const tabCount = q ? filteredTotal : statusCounts[status] ?? 0;
   const countLabel =
-    statusFilter === "ALL"
+    status === "ALL"
       ? `${tabCount} Campaign${tabCount !== 1 ? "s" : ""}`
       : `${tabCount} ${activeTab?.label ?? ""} Campaign${tabCount !== 1 ? "s" : ""}`;
 
-  const filtered = campaigns.filter((c) => {
-    const matchesSearch =
-      c.title.toLowerCase().includes(search.toLowerCase()) ||
-      (c.client?.name ?? "").toLowerCase().includes(search.toLowerCase());
-    const matchesStatus = statusFilter === "ALL" || c.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  const filtered = campaigns;
+  const totalPages = Math.max(1, Math.ceil(filteredTotal / CAMPAIGNS_PAGE_SIZE));
 
   return (
     <div className="cc-page-content rsp-page">
@@ -139,11 +157,11 @@ export default function CampaignsClient({
         style={{ marginBottom: 24 }}
         tabs={STATUS_TABS.map((tab) => ({
           ...tab,
-          count: tab.key === "ALL" ? campaigns.length : campaigns.filter((c) => c.status === tab.key).length,
+          count: statusCounts[tab.key] ?? 0,
           badgeVariant: STATUS_BADGE_VARIANT[tab.key] ?? "neutral",
         }))}
-        active={statusFilter}
-        onChange={setStatusFilter}
+        active={status}
+        onChange={(key) => push({ status: key === "ALL" ? null : key, page: null })}
       />
 
       {/* Campaign List */}
@@ -152,12 +170,22 @@ export default function CampaignsClient({
           <div style={{ padding: "48px 24px" }}>
             <EmptyState
               icon={<Target size={32} color="var(--cc-text-subtle)" />}
-              title="No campaigns yet"
-              description="Create your first campaign to get started"
+              title={q || status !== "ALL" ? "No campaigns match those filters" : "No campaigns yet"}
+              description={
+                q || status !== "ALL"
+                  ? "Try a different search term or status."
+                  : "Create your first campaign to get started"
+              }
               action={
-                <Button variant="primary" iconLeft={<Plus size={15} />} onClick={() => setShowModal(true)}>
-                  New Campaign
-                </Button>
+                q || status !== "ALL" ? (
+                  <Button variant="secondary" onClick={() => { setSearch(""); push({ q: null, status: null, page: null }); }}>
+                    Clear filters
+                  </Button>
+                ) : (
+                  <Button variant="primary" iconLeft={<Plus size={15} />} onClick={() => setShowModal(true)}>
+                    New Campaign
+                  </Button>
+                )
               }
             />
           </div>
@@ -207,7 +235,7 @@ export default function CampaignsClient({
                         Creators
                       </p>
                       <p style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>
-                        {campaign._count.activations}
+                        {campaign.creatorCount}
                       </p>
                     </div>
 
@@ -242,6 +270,18 @@ export default function CampaignsClient({
           </div>
         )}
       </Card>
+
+      {filteredTotal > CAMPAIGNS_PAGE_SIZE && (
+        <Pagination
+          style={{ marginTop: 24 }}
+          page={page}
+          totalPages={totalPages}
+          total={filteredTotal}
+          pageSize={CAMPAIGNS_PAGE_SIZE}
+          loading={pending}
+          onPageChange={(p) => push({ page: p === 1 ? null : p })}
+        />
+      )}
 
       {showModal && <CampaignWizard clients={clients} onClose={() => setShowModal(false)} />}
     </div>

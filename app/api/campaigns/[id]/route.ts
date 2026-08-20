@@ -109,8 +109,20 @@ export async function GET(
         },
         posts: {
           include: {
+            // Enough of the creator to build the campaign's creator roster from
+            // posts. CreatorCore activations could not be imported (that type
+            // 404s on their Data API), so posts are the only record of who
+            // actually delivered on an imported campaign.
             creator: {
-              select: { id: true, name: true },
+              select: {
+                id: true,
+                name: true,
+                handle: true,
+                platform: true,
+                avatarUrl: true,
+                followersCount: true,
+                rate: true,
+              },
             },
           },
         },
