@@ -54,6 +54,16 @@ export default function CampaignsClient({
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [showModal, setShowModal] = useState(false);
 
+  // Mirrors CreatorCore: the count under the title reflects the selected status
+  // tab ("4 Active Campaigns", "497 Complete Campaigns"), not the overall total.
+  const activeTab = STATUS_TABS.find((t) => t.key === statusFilter);
+  const tabCount =
+    statusFilter === "ALL" ? stats.total : campaigns.filter((c) => c.status === statusFilter).length;
+  const countLabel =
+    statusFilter === "ALL"
+      ? `${tabCount} Campaign${tabCount !== 1 ? "s" : ""}`
+      : `${tabCount} ${activeTab?.label ?? ""} Campaign${tabCount !== 1 ? "s" : ""}`;
+
   const filtered = campaigns.filter((c) => {
     const matchesSearch =
       c.title.toLowerCase().includes(search.toLowerCase()) ||
@@ -71,7 +81,7 @@ export default function CampaignsClient({
             Campaigns
           </h1>
           <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>
-            {stats.total} Campaign{stats.total !== 1 ? "s" : ""}
+            {countLabel}
           </p>
         </div>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>

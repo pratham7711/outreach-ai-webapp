@@ -28,6 +28,7 @@ type PostData = {
   savesCount: number;
   engagementRate: number;
   status: string;
+  fetchState: string | null; // LIVE / UNAVAILABLE / ERROR — is the post still up
   rejectionReason: string | null;
   lastSyncedAt: string | null;
   createdAt?: string;
@@ -64,6 +65,18 @@ const STATUS_BADGE: Record<string, "warning" | "success" | "danger" | "neutral">
   PENDING_REVIEW: "warning",
   APPROVED: "success",
   REJECTED: "danger",
+};
+
+// Whether the post is still live on the platform, independent of approval.
+// CreatorCore surfaces this prominently (Unavailable = removed at source), and
+// a large share of imported posts are dead, so hiding it would misrepresent them.
+const FETCH_STATE_LABEL: Record<string, string> = {
+  UNAVAILABLE: "Unavailable",
+  ERROR: "Fetch error",
+};
+const FETCH_STATE_BADGE: Record<string, "danger" | "warning"> = {
+  UNAVAILABLE: "danger",
+  ERROR: "warning",
 };
 
 const COMPLIANCE_LABEL: Record<string, string> = {
@@ -606,6 +619,11 @@ export default function PostsTab({
                   )}
                   <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-start" }}>
                     <Badge variant={STATUS_BADGE[post.status] ?? "neutral"}>{post.status.replace(/_/g, " ")}</Badge>
+                    {post.fetchState && FETCH_STATE_LABEL[post.fetchState] && (
+                      <Badge variant={FETCH_STATE_BADGE[post.fetchState]} style={{ fontSize: 10 }}>
+                        {FETCH_STATE_LABEL[post.fetchState]}
+                      </Badge>
+                    )}
                     {post.hasOpenFraudFlag && <Badge variant="danger" style={{ fontSize: 10, display: "inline-flex", alignItems: "center", gap: 4 }}><AlertTriangle size={14} color="var(--cc-danger)" /> Flagged</Badge>}
                     {(post.complianceFlags ?? []).map((f) => (
                       <Badge key={f.code} variant={f.severity === "error" ? "danger" : "warning"} title={f.message} style={{ fontSize: 10, display: "inline-flex", alignItems: "center", gap: 4 }}>
