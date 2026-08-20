@@ -249,19 +249,22 @@ export default function NewSidebar({ allowedNavHrefs, brandName, user }: Sidebar
               </div>
 
               <div className="flex items-center gap-1.5" style={{ flexShrink: 0 }}>
-                <div
-                  style={{
-                    background: "var(--cc-primary)",
-                    color: "var(--primary-foreground)",
-                    fontSize: 10,
-                    fontWeight: 700,
-                    padding: "3px 10px",
-                    borderRadius: 6,
-                    letterSpacing: "0.5px",
-                  }}
-                >
-                  LKM
-                </div>
+                {brandName ? (
+                  <div
+                    aria-hidden="true"
+                    style={{
+                      background: "var(--cc-primary)",
+                      color: "var(--primary-foreground)",
+                      fontSize: 10,
+                      fontWeight: 700,
+                      padding: "3px 10px",
+                      borderRadius: 6,
+                      letterSpacing: "0.5px",
+                    }}
+                  >
+                    {sidebarInitials(brandName)}
+                  </div>
+                ) : null}
 
                 {/* Mobile close */}
                 <button

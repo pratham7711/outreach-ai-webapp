@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, act } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 
 // Mock next-themes before importing the component
 jest.mock('next-themes', () => ({
@@ -16,34 +16,29 @@ describe('ThemeToggle', () => {
     (useTheme as jest.Mock).mockReturnValue({ resolvedTheme: "dark", setTheme: mockSetTheme });
   });
 
-  it('renders the toggle button with aria-label', () => {
+  // light -> dark -> creatorcore -> light
+  it.each([
+    ["light", "Switch to Dark mode", "dark"],
+    ["dark", "Switch to CreatorCore mode", "creatorcore"],
+    ["creatorcore", "Switch to Light mode", "light"],
+  ])('from %s it offers %s', (resolvedTheme, label, expected) => {
+    (useTheme as jest.Mock).mockReturnValue({ resolvedTheme, setTheme: mockSetTheme });
     render(<ThemeToggle />);
-    expect(screen.getByRole('button', { name: 'Switch to light theme' })).toBeInTheDocument();
+    const button = screen.getByRole('button', { name: label });
+    expect(button).toBeInTheDocument();
+    fireEvent.click(button);
+    expect(mockSetTheme).toHaveBeenCalledWith(expected);
   });
 
-  it('switches to light theme when in dark mode', () => {
-    (useTheme as jest.Mock).mockReturnValue({ resolvedTheme: "dark", setTheme: mockSetTheme });
+  it('falls back to the first step for an unknown theme', () => {
+    (useTheme as jest.Mock).mockReturnValue({ resolvedTheme: undefined, setTheme: mockSetTheme });
     render(<ThemeToggle />);
-    fireEvent.click(screen.getByRole('button', { name: 'Switch to light theme' }));
-    expect(mockSetTheme).toHaveBeenCalledWith('light');
-  });
-
-  it('switches to dark theme when in light mode', () => {
-    (useTheme as jest.Mock).mockReturnValue({ resolvedTheme: "light", setTheme: mockSetTheme });
-    render(<ThemeToggle />);
-    fireEvent.click(screen.getByRole('button', { name: 'Switch to dark theme' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Switch to Dark mode' }));
     expect(mockSetTheme).toHaveBeenCalledWith('dark');
   });
 
-  it('shows Sun icon in dark mode', () => {
+  it('renders an icon for the current theme', () => {
     (useTheme as jest.Mock).mockReturnValue({ resolvedTheme: "dark", setTheme: mockSetTheme });
-    const { container } = render(<ThemeToggle />);
-    // Sun icon SVG is rendered
-    expect(container.querySelector('svg')).toBeInTheDocument();
-  });
-
-  it('shows Moon icon in light mode', () => {
-    (useTheme as jest.Mock).mockReturnValue({ resolvedTheme: "light", setTheme: mockSetTheme });
     const { container } = render(<ThemeToggle />);
     expect(container.querySelector('svg')).toBeInTheDocument();
   });
