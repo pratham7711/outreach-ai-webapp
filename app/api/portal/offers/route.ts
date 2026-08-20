@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { getCreatorSession } from "@/lib/creator-auth";
+import { getCreatorSession, creatorHandleVariants } from "@/lib/creator-auth";
 
 // GET /api/portal/offers — negotiation offers addressed to the signed-in creator
 export async function GET() {
@@ -10,7 +10,7 @@ export async function GET() {
 
     // Bridge CreatorUser -> org-side Creator rows by handle match.
     const creators = await db.creator.findMany({
-      where: { handle: session.handle, deletedAt: null },
+      where: { handle: { in: creatorHandleVariants(session.handle) }, deletedAt: null },
       select: { id: true, orgId: true },
     });
     if (creators.length === 0) {

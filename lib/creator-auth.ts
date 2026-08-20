@@ -14,6 +14,17 @@ export type CreatorSession = {
   handle: string;
 };
 
+/**
+ * Both spellings of a creator handle, for bridging a portal session to the
+ * org-side Creator row. The two sides disagree about the leading "@" — org
+ * creators are stored as "@blessingjolie", portal accounts as "blessingjolie" —
+ * so an exact match silently finds nothing. Mirrors resolveCreatorUserForCreator.
+ */
+export function creatorHandleVariants(handle: string): string[] {
+  const bare = handle.replace(/^@/, "");
+  return [bare, `@${bare}`];
+}
+
 /** Hash a password with bcrypt */
 export async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, 12);

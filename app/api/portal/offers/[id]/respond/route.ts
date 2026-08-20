@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { getCreatorSession } from "@/lib/creator-auth";
+import { getCreatorSession, creatorHandleVariants } from "@/lib/creator-auth";
 import { getOrCreateConversation, appendMessage } from "@/lib/negotiation/conversation";
 import { getAdvisor } from "@/lib/negotiation/engine";
 import { z } from "zod";
@@ -37,7 +37,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     // Ownership: the org-side creator on the offer must bridge (by handle) to this creator user.
     const creator = await db.creator.findFirst({
-      where: { id: offer.creatorId, handle: session.handle, deletedAt: null },
+      where: { id: offer.creatorId, handle: { in: creatorHandleVariants(session.handle) }, deletedAt: null },
       select: { id: true, followersCount: true, averageViews: true, rate: true },
     });
     if (!creator) return NextResponse.json({ error: "Offer not found" }, { status: 404 });

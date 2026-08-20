@@ -167,7 +167,7 @@ export default function PortalOffersClient() {
             const awaitingBrand = offer.aiRound >= 1 || offer.status === "COUNTERED" || offer.finalRate != null;
             const actionable = canAct && offer.aiRound < 1;
             return (
-              <Card key={offer.id} variant="solid" style={{ padding: 20 }}>
+              <Card key={offer.id} data-offer-id={offer.id} variant="solid" style={{ padding: 20 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12, gap: 8, flexWrap: "wrap" }}>
                   <div style={{ minWidth: 0 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>

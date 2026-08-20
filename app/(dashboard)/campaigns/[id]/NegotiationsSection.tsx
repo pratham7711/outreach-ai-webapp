@@ -293,7 +293,7 @@ export default function NegotiationsSection({
               background: "var(--cc-bg)",
             }}
           >
-            {["Creator", "Offered", "Creator", "AI counter", "Standing", "AI round", "Status", "Action"].map((h) => (
+            {["Creator", "Offered", "Counter", "AI counter", "Standing", "AI round", "Status", "Action"].map((h) => (
               <span
                 key={h}
                 style={{
