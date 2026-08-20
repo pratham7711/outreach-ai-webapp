@@ -27,7 +27,18 @@ dies, just run it again and it resumes.
 Readable types (the Data API exposes 4; the rest are attempted and skipped if
 refused): `campaign`, `post`, `statistic-post`, `campaign-postrefreshqueue`.
 
-## 2. Import
+## 2. Create the mirror tables (one-time per DB)
+
+The importer writes into 5 CreatorCore mirror tables (`CcCampaign`, `CcPost`,
+`CcStatisticPost`, `CcRefreshQueue`, `CcRecord`). Push the schema first — additive
+only, no data loss:
+
+```bash
+npx prisma db push                                   # dev
+DATABASE_URL='postgres://…prod…' npx prisma db push  # prod
+```
+
+## 3. Import
 
 Dev first:
 
@@ -48,11 +59,25 @@ DATABASE_URL='postgres://…prod…' node scripts/creatorcore/cc-import.mjs
   `platformMetrics.__cc` (posts) and `typeConfig.__cc` (campaigns), regardless of
   how the convenience columns map.
 
-## 3. Verify (optional)
+## 4. Verify (optional)
 
 ```bash
-node scripts/creatorcore/cc-import.test.mjs   # checks the mapping helpers
+node scripts/creatorcore/cc-import.test.mjs   # checks the mapping + mirror helpers
 ```
+
+## What lands where
+
+Every record is imported **twice**, on purpose:
+
+1. **Mirror tables (`Cc*`) — lossless, full fidelity.** Every known CreatorCore
+   scalar becomes a typed column; arrays/objects become `Json`; and the *entire*
+   original record is stored in `raw` — so no attribute is ever dropped, even ones
+   not promoted to a column (e.g. `statistic-post`, whose schema we can't
+   enumerate, is preserved whole). This is the "every column and attribute" store.
+2. **Domain models (`Campaign`/`Post`/`Creator`) — the usable app layer.** Mapped
+   for the app to consume, with the raw record also kept in `platformMetrics.__cc`.
+
+Both are idempotent (mirror upserts by `ccId`; domain via `out/_idmap.json`).
 
 ## Notes
 

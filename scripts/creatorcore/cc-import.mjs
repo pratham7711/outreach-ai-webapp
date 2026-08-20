@@ -108,6 +108,105 @@ export function platformPostIdFrom(url, fallback) {
   return fallback;
 }
 
+// ── CreatorCore mirror mappers (lossless: known scalars → columns, rest in raw) ─
+export function bool(v) {
+  if (typeof v === "boolean") return v;
+  if (v === "yes" || v === "true" || v === 1) return true;
+  if (v === "no" || v === "false" || v === 0) return false;
+  return null;
+}
+// float-or-null (unlike num(), which returns 0 for absent values)
+export function fnum(v) {
+  if (typeof v === "number") return v;
+  if (typeof v === "string" && v.trim() !== "" && !isNaN(Number(v))) return Number(v);
+  return null;
+}
+
+export function ccCampaignData(rec, orgId) {
+  return {
+    orgId, ccId: rec._id, raw: rec,
+    ccNumericId: fnum(rec.id),
+    fullId: rec.fullID ?? null,
+    title: rec.title ?? null,
+    status: rec.status ?? null,
+    thumbnail: rec.thumbnail ?? null,
+    urlPreview: rec.urlPreview ?? null,
+    sudoSlug: rec["sudo-slug"] ?? null,
+    satellite: rec.satellite ?? null,
+    organization: rec.organization ?? null,
+    currency: rec.currency ?? null,
+    budget: fnum(rec.budget),
+    creatorRateTotals: fnum(rec.creatorRateTotals),
+    commissionTotal: fnum(rec.commissionTotal),
+    profitTotal: fnum(rec.profitTotal),
+    refreshInterval: fnum(rec.refreshInterval),
+    archive: bool(rec.Archive),
+    refreshActive: bool(rec.refreshActive),
+    tempComplete: bool(rec.tempComplete),
+    viewMigrateComplete: bool(rec.viewMigrateComplete),
+    actionColumnAdded: bool(rec.actionColumnAdded),
+    defaultDeliverableViewAdded: bool(rec.defaultDeliverableViewAdded),
+    createdBy: rec["Created By"] ?? null,
+    recentSnapshot: rec.recentSnapshot ?? null,
+    nextSnapshotWorkflow: rec.nextSnapshotWorkflow ?? null,
+    createdDate: toDate(rec["Created Date"]),
+    modifiedDate: toDate(rec["Modified Date"]),
+    postRefreshAnchor: toDate(rec.postRefreshAnchor),
+    lastRefresh: toDate(rec.lastRefresh),
+    posts: rec.posts ?? null,
+    activations: rec.activations ?? null,
+    creatorProfiles: rec.creatorProfiles ?? null,
+    metatags: rec.metatags ?? null,
+    modules: rec.modules ?? null,
+    snapshots: rec.snapshots ?? null,
+    activity: rec.activity ?? null,
+    campaignManagers: rec["Campaign Managers"] ?? null,
+    activationColumns: rec.activationColumns ?? null,
+    views: rec.views ?? null,
+    displayPlatforms: rec.displayPlatforms ?? null,
+  };
+}
+
+export function ccPostData(rec, orgId) {
+  return {
+    orgId, ccId: rec._id, raw: rec,
+    campaign: rec.campaign ?? null,
+    organization: rec.organization ?? null,
+    lastStatistics: rec.lastStatistics ?? null,
+    latestViewsEngagement: fnum(rec["latestViews/Engagement"]),
+    platform: rec.platform ?? null,
+    platformText: rec.platformTEXT ?? null,
+    postUrl: rec.postUrl ?? null,
+    status: rec.status ?? null,
+    thumbnail: rec.thumbnail ?? null,
+    username: rec.username ?? null,
+    authorProfilePic: rec.authorProfilePic ?? null,
+    createdBy: rec["Created By"] ?? null,
+    createdByUser: rec.createdByUser ?? null,
+    isInstagramStory: bool(rec.isInstagramStory),
+    autoAdd: bool(rec.autoAdd),
+    heicConvert: bool(rec.heicConvert),
+    postDate: toDate(rec.postDate),
+    lastFresh: toDate(rec.lastFresh),
+    createdDate: toDate(rec["Created Date"]),
+    modifiedDate: toDate(rec["Modified Date"]),
+  };
+}
+
+// Upsert a batch of raw records into a mirror table by ccId. Lossless.
+async function mirrorMany(records, table, mapFn, label) {
+  let n = 0;
+  for (const rec of records) {
+    if (!rec?._id) continue;
+    const data = mapFn(rec);
+    await db[table].upsert({ where: { ccId: rec._id }, create: data, update: data });
+    if (++n % 500 === 0) process.stdout.write(`\r  mirror ${label}: ${n}/${records.length}   `);
+  }
+  if (records.length) process.stdout.write("\n");
+  console.log(`  mirror ${label}: ${n} rows`);
+  return n;
+}
+
 // ── resolve target org + a creator-of-record user ────────────────────────────
 async function resolveOrg() {
   if (process.env.CC_IMPORT_ORG_ID) {
@@ -144,6 +243,32 @@ async function main() {
   }
 
   const statMap = new Map(stats.map((s) => [s._id, s]));
+
+  // ── mirror pass: EVERY field of EVERY type lands in the DB, losslessly ────────
+  const refreshQueue = readJsonl("campaign-postrefreshqueue");
+  console.log("Mirroring full CreatorCore records (every attribute):");
+  await mirrorMany(campaigns, "ccCampaign", (r) => ccCampaignData(r, org.id), "campaign");
+  await mirrorMany(posts, "ccPost", (r) => ccPostData(r, org.id), "post");
+  await mirrorMany(stats, "ccStatisticPost", (r) => ({ orgId: org.id, ccId: r._id, raw: r }), "statistic-post");
+  await mirrorMany(refreshQueue, "ccRefreshQueue", (r) => ({ orgId: org.id, ccId: r._id, raw: r }), "refresh-queue");
+
+  // Any other extracted type → generic CcRecord, so no type is ever dropped.
+  const KNOWN = new Set(["campaign", "post", "statistic-post", "campaign-postrefreshqueue"]);
+  const otherTypes = fs.existsSync(OUT)
+    ? fs.readdirSync(OUT).filter((f) => f.endsWith(".jsonl")).map((f) => f.slice(0, -6)).filter((t) => !KNOWN.has(t))
+    : [];
+  for (const t of otherTypes) {
+    const recs = readJsonl(t);
+    let n = 0;
+    for (const rec of recs) {
+      if (!rec?._id) continue;
+      const data = { orgId: org.id, ccType: t, ccId: rec._id, raw: rec };
+      await db.ccRecord.upsert({ where: { ccType_ccId: { ccType: t, ccId: rec._id } }, create: data, update: data });
+      n++;
+    }
+    console.log(`  mirror ${t} -> CcRecord: ${n} rows`);
+  }
+  console.log("");
 
   // ── campaigns ──────────────────────────────────────────────────────────────
   let cCreated = 0, cUpdated = 0;

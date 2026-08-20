@@ -225,50 +225,50 @@ model VerificationToken {
 // ─── Organization & IAM ───────────────────────────────────────────────────────
 
 model Organization {
-  id             String    @id @default(cuid())
-  name           String
-  subdomain      String    @unique
-  logoUrl        String?
-  primaryColor   String    @default("#4F46E5")
-  secondaryColor String    @default("#1E1B4B")
-  accentColor    String    @default("#F59E0B")
-  fontFamily     String    @default("Inter")
-  brandName      String?
-  customDomain   String?   @unique
-  faviconUrl     String?
-  timezone       String    @default("UTC")
-  plan           String    @default("starter")
-  planExpiresAt  DateTime?
-  currency       Currency  @default(USD)
-  orgType        OrgType   @default(AGENCY)
-  uiConfig       Json?     // OrgUIConfig — features, nav, branding, limits, dashboard widgets
+  id                String    @id @default(cuid())
+  name              String
+  subdomain         String    @unique
+  logoUrl           String?
+  primaryColor      String    @default("#4F46E5")
+  secondaryColor    String    @default("#1E1B4B")
+  accentColor       String    @default("#F59E0B")
+  fontFamily        String    @default("Inter")
+  brandName         String?
+  customDomain      String?   @unique
+  faviconUrl        String?
+  timezone          String    @default("UTC")
+  plan              String    @default("starter")
+  planExpiresAt     DateTime?
+  currency          Currency  @default(USD)
+  orgType           OrgType   @default(AGENCY)
+  uiConfig          Json? // OrgUIConfig — features, nav, branding, limits, dashboard widgets
   // Bank account
   bankAccountName   String?
   bankAccountNumber String?
   bankIFSC          String?
   bankSwift         String?
   bankRoutingNumber String?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
-  users            User[]
-  campaigns        Campaign[]
-  creators         Creator[]
-  creatorLists     CreatorList[]
-  clients          Client[]
-  folders          Folder[]
-  payoutBalances   PayoutBalance[]
-  payouts          Payout[]
-  tiktokSounds     TikTokSound[]
-  connections      Connection[]    @relation("FromOrg")
-  connectionsTo    Connection[]    @relation("ToOrg")
-  reports          Report[]
-  mediakits        MediaKit[]
-  auditLogs        AuditLog[]
-  plans            Plan[]
-  planConfig       OrgPlanConfig?
-  invites          UserInvite[]
-  apiKeys          ApiKey[]
+  users               User[]
+  campaigns           Campaign[]
+  creators            Creator[]
+  creatorLists        CreatorList[]
+  clients             Client[]
+  folders             Folder[]
+  payoutBalances      PayoutBalance[]
+  payouts             Payout[]
+  tiktokSounds        TikTokSound[]
+  connections         Connection[]         @relation("FromOrg")
+  connectionsTo       Connection[]         @relation("ToOrg")
+  reports             Report[]
+  mediakits           MediaKit[]
+  auditLogs           AuditLog[]
+  plans               Plan[]
+  planConfig          OrgPlanConfig?
+  invites             UserInvite[]
+  apiKeys             ApiKey[]
   campaignDeposits    CampaignDeposit[]
   creatorReviews      CreatorReview[]
   creatorTestimonials CreatorTestimonial[]
@@ -302,39 +302,39 @@ model User {
 }
 
 model OrgPlanConfig {
-  id           String       @id @default(cuid())
-  orgId        String       @unique
-  planName     String       @default("starter")
-  maxCampaigns Int          @default(10)
-  maxCreators  Int          @default(100)
-  maxUsers     Int          @default(5)
-  features     Json         @default("{}")
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
+  id           String   @id @default(cuid())
+  orgId        String   @unique
+  planName     String   @default("starter")
+  maxCampaigns Int      @default(10)
+  maxCreators  Int      @default(100)
+  maxUsers     Int      @default(5)
+  features     Json     @default("{}")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 }
 
 model UserInvite {
-  id           String       @id @default(cuid())
-  orgId        String
-  email        String
-  role         UserRole     @default(MEMBER)
-  token        String       @unique @default(cuid())
-  expiresAt    DateTime
-  acceptedAt   DateTime?
-  createdAt    DateTime     @default(now())
+  id         String    @id @default(cuid())
+  orgId      String
+  email      String
+  role       UserRole  @default(MEMBER)
+  token      String    @unique @default(cuid())
+  expiresAt  DateTime
+  acceptedAt DateTime?
+  createdAt  DateTime  @default(now())
 
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 }
 
 model ApiKey {
-  id           String       @id @default(cuid())
-  orgId        String
-  name         String
-  keyHash      String       @unique // SHA-256 hash — never store plaintext
-  lastUsedAt   DateTime?
-  createdAt    DateTime     @default(now())
+  id         String    @id @default(cuid())
+  orgId      String
+  name       String
+  keyHash    String    @unique // SHA-256 hash — never store plaintext
+  lastUsedAt DateTime?
+  createdAt  DateTime  @default(now())
 
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 }
@@ -342,71 +342,71 @@ model ApiKey {
 // ─── Campaigns ────────────────────────────────────────────────────────────────
 
 model Campaign {
-  id               String           @id @default(cuid())
-  orgId            String
-  title            String
-  status           CampaignStatus   @default(DRAFT)
-  campaignType     CampaignType     @default(BUDGET_BASED)
-  typeConfig       Json?            // shape varies per CampaignType + payout model
-  selfServe        Boolean          @default(false)
-  platformFeeMinor Int              @default(0)
-  enrollmentOpen        Boolean               @default(false)
+  id                        String                @id @default(cuid())
+  orgId                     String
+  title                     String
+  status                    CampaignStatus        @default(DRAFT)
+  campaignType              CampaignType          @default(BUDGET_BASED)
+  typeConfig                Json? // shape varies per CampaignType + payout model
+  selfServe                 Boolean               @default(false)
+  platformFeeMinor          Int                   @default(0)
+  enrollmentOpen            Boolean               @default(false)
   // ─── Whop-style marketplace (Phase 2M) ───────────────────────────────────
   // NOTE: All *Minor amounts below are integer MINOR units (cents/paise) per the
   // P3.1 payments convention — never floats. ratePerThousand is per-platform
   // minor units per 1k verified views, e.g. {"TIKTOK":150,"INSTAGRAM":150,"YOUTUBE":200}.
-  marketplaceVisibility MarketplaceVisibility @default(PRIVATE)
-  publicSlug             String?              @unique // url-safe, generated server-side from title + nanoid on first publish to GLOBAL
-  guidelines             String?              @db.Text // marketplace brief — creative guidelines
-  requirements           String?              @db.Text // marketplace brief — participation requirements
-  contentAssetsUrl       String?              // link to downloadable assets (logos, footage, etc.)
-  ratePerThousand        Json?                // per-platform minor units per 1k verified views
-  minPayoutMinor         Int?                 // minimum accrued (minor units) before a creator can request payout
-  marketplaceBudgetCapMinor Int?              // hard cap (minor units) on total marketplace accrual
-  submissionDeadline     DateTime?            // last date creators can submit posts
-  autoApproveHours       Int                  @default(48) // hours before a PENDING submission auto-approves
-  inviteCode             String?              // shared join code for INVITE_ONLY campaigns (regenerated server-side only)
-  thumbnailUrl     String?
-  budget           Float?
-  currency         Currency         @default(USD)
-  notes            String?
-  clientId         String?
-  folderId         String?
-  createdById      String
+  marketplaceVisibility     MarketplaceVisibility @default(PRIVATE)
+  publicSlug                String?               @unique // url-safe, generated server-side from title + nanoid on first publish to GLOBAL
+  guidelines                String?               @db.Text // marketplace brief — creative guidelines
+  requirements              String?               @db.Text // marketplace brief — participation requirements
+  contentAssetsUrl          String? // link to downloadable assets (logos, footage, etc.)
+  ratePerThousand           Json? // per-platform minor units per 1k verified views
+  minPayoutMinor            Int? // minimum accrued (minor units) before a creator can request payout
+  marketplaceBudgetCapMinor Int? // hard cap (minor units) on total marketplace accrual
+  submissionDeadline        DateTime? // last date creators can submit posts
+  autoApproveHours          Int                   @default(48) // hours before a PENDING submission auto-approves
+  inviteCode                String? // shared join code for INVITE_ONLY campaigns (regenerated server-side only)
+  thumbnailUrl              String?
+  budget                    Float?
+  currency                  Currency              @default(USD)
+  notes                     String?
+  clientId                  String?
+  folderId                  String?
+  createdById               String
   // Payment & approval config
-  paymentMode      PaymentMode      @default(SELF_MANAGED)
-  paymentRelease   PaymentRelease   @default(MANUAL)
-  postApprovalMode PostApprovalMode @default(MANUAL)
-  depositStatus    DepositStatus?
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
-  deletedAt        DateTime?
+  paymentMode               PaymentMode           @default(SELF_MANAGED)
+  paymentRelease            PaymentRelease        @default(MANUAL)
+  postApprovalMode          PostApprovalMode      @default(MANUAL)
+  depositStatus             DepositStatus?
+  createdAt                 DateTime              @default(now())
+  updatedAt                 DateTime              @updatedAt
+  deletedAt                 DateTime?
 
-  org            Organization         @relation(fields: [orgId], references: [id])
-  client         Client?              @relation(fields: [clientId], references: [id])
-  folder         Folder?              @relation(fields: [folderId], references: [id])
-  teamMembers    CampaignTeamMember[]
-  tags           CampaignTag[]
-  posts          Post[]
-  activations    Activation[]
-  brief          CreativeBrief?
-  analytics      AnalyticsModule[]
-  financials     CampaignFinancials?
-  documents      Document[]
-  comments       CampaignComment[]
-  activityLogs   ActivityLog[]
-  payouts        Payout[]
-  reports        Report[]
-  deposit        CampaignDeposit?
-  campaignInvites CampaignInvite[]
-  payoutRequests PayoutRequest[]
-  negotiations    NegotiationOffer[]
-  proposals       CampaignProposal[]
-  creatorReviews      CreatorReview[]
-  testimonials        CreatorTestimonial[]
-  viewLedgerEntries   ViewLedger[]
-  fraudFlags          ViewFraudFlag[]
-  conversations       Conversation[]
+  org               Organization         @relation(fields: [orgId], references: [id])
+  client            Client?              @relation(fields: [clientId], references: [id])
+  folder            Folder?              @relation(fields: [folderId], references: [id])
+  teamMembers       CampaignTeamMember[]
+  tags              CampaignTag[]
+  posts             Post[]
+  activations       Activation[]
+  brief             CreativeBrief?
+  analytics         AnalyticsModule[]
+  financials        CampaignFinancials?
+  documents         Document[]
+  comments          CampaignComment[]
+  activityLogs      ActivityLog[]
+  payouts           Payout[]
+  reports           Report[]
+  deposit           CampaignDeposit?
+  campaignInvites   CampaignInvite[]
+  payoutRequests    PayoutRequest[]
+  negotiations      NegotiationOffer[]
+  proposals         CampaignProposal[]
+  creatorReviews    CreatorReview[]
+  testimonials      CreatorTestimonial[]
+  viewLedgerEntries ViewLedger[]
+  fraudFlags        ViewFraudFlag[]
+  conversations     Conversation[]
 }
 
 model CampaignTeamMember {
@@ -445,15 +445,15 @@ model CreativeBrief {
 // ─── Creators ─────────────────────────────────────────────────────────────────
 
 model Creator {
-  id             String    @id @default(cuid())
+  id             String         @id @default(cuid())
   orgId          String
   name           String
   handle         String
-  platform       Platform  @default(TIKTOK)
+  platform       Platform       @default(TIKTOK)
   platformUserId String?
   avatarUrl      String?
-  followersCount Float     @default(0)
-  averageViews   Float     @default(0)
+  followersCount Float          @default(0)
+  averageViews   Float          @default(0)
   bio            String?
   contactEmail   String?
   paymentInfo    String?
@@ -461,8 +461,8 @@ model Creator {
   boostRate      Float?
   niches         CreatorNiche[]
   notes          String?
-  addedAt        DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  addedAt        DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
   deletedAt      DateTime?
 
   org            Organization           @relation(fields: [orgId], references: [id])
@@ -478,8 +478,8 @@ model CreatorSocialAccount {
   creatorId      String
   platform       Platform
   handle         String
-  accessToken    String    // AES-256-GCM ciphertext at rest — lib/crypto/encrypt.ts (AAD = orgId)
-  refreshToken   String?   // AES-256-GCM ciphertext at rest — lib/crypto/encrypt.ts (AAD = orgId)
+  accessToken    String // AES-256-GCM ciphertext at rest — lib/crypto/encrypt.ts (AAD = orgId)
+  refreshToken   String? // AES-256-GCM ciphertext at rest — lib/crypto/encrypt.ts (AAD = orgId)
   tokenExpiry    DateTime?
   followersCount Float     @default(0)
   avgViews       Float     @default(0)
@@ -499,7 +499,7 @@ model CreatorList {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  org   Organization    @relation(fields: [orgId], references: [id])
+  org   Organization      @relation(fields: [orgId], references: [id])
   items CreatorListItem[]
 }
 
@@ -541,40 +541,40 @@ model Activation {
 // ─── Posts & Social Metrics ───────────────────────────────────────────────────
 
 model Post {
-  id             String     @id @default(cuid())
-  campaignId     String
-  creatorId      String
-  activationId   String?
-  platform       Platform
-  platformPostId String
-  postUrl        String
-  thumbnailUrl   String?
-  caption        String?
-  mediaType      MediaType?
-  postedAt       DateTime
-  viewsCount      Float      @default(0)
-  likesCount      Float      @default(0)
-  commentsCount   Float      @default(0)
-  sharesCount     Float      @default(0)
-  downloadsCount  Float      @default(0)
-  savesCount      Float      @default(0)
-  reachCount      Float      @default(0)
-  engagementRate  Float      @default(0)
-  platformMetrics Json?
-  storyExpiresAt  DateTime?
-  status          PostStatus @default(PENDING_REVIEW)
-  rejectionReason String?
-  lastSyncedAt    DateTime?
-  syncFailCount   Int        @default(0)
-  syncDisabledAt  DateTime?
-  trackingEnabled   Boolean  @default(false)
+  id                String     @id @default(cuid())
+  campaignId        String
+  creatorId         String
+  activationId      String?
+  platform          Platform
+  platformPostId    String
+  postUrl           String
+  thumbnailUrl      String?
+  caption           String?
+  mediaType         MediaType?
+  postedAt          DateTime
+  viewsCount        Float      @default(0)
+  likesCount        Float      @default(0)
+  commentsCount     Float      @default(0)
+  sharesCount       Float      @default(0)
+  downloadsCount    Float      @default(0)
+  savesCount        Float      @default(0)
+  reachCount        Float      @default(0)
+  engagementRate    Float      @default(0)
+  platformMetrics   Json?
+  storyExpiresAt    DateTime?
+  status            PostStatus @default(PENDING_REVIEW)
+  rejectionReason   String?
+  lastSyncedAt      DateTime?
+  syncFailCount     Int        @default(0)
+  syncDisabledAt    DateTime?
+  trackingEnabled   Boolean    @default(false)
   trackingStartedAt DateTime?
-  createdAt       DateTime   @default(now())
-  updatedAt       DateTime   @updatedAt
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
 
-  campaign   Campaign              @relation(fields: [campaignId], references: [id])
-  creator    Creator               @relation(fields: [creatorId], references: [id])
-  activation Activation?           @relation(fields: [activationId], references: [id])
+  campaign   Campaign             @relation(fields: [campaignId], references: [id])
+  creator    Creator              @relation(fields: [creatorId], references: [id])
+  activation Activation?          @relation(fields: [activationId], references: [id])
   snapshots  PostMetricSnapshot[]
 }
 
@@ -627,14 +627,14 @@ model SoundTrackerSnapshot {
 // ─── Clients & Plans ──────────────────────────────────────────────────────────
 
 model Plan {
-  id          String       @id @default(cuid())
+  id          String   @id @default(cuid())
   name        String
   description String?
-  features    Json         @default("{}")
-  isCustom    Boolean      @default(false)
+  features    Json     @default("{}")
+  isCustom    Boolean  @default(false)
   orgId       String
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   org     Organization @relation(fields: [orgId], references: [id])
   clients Client[]
@@ -842,8 +842,8 @@ model CampaignDeposit {
   createdAt        DateTime              @default(now())
   updatedAt        DateTime              @updatedAt
 
-  campaign Campaign      @relation(fields: [campaignId], references: [id])
-  org      Organization  @relation(fields: [orgId], references: [id])
+  campaign Campaign     @relation(fields: [campaignId], references: [id])
+  org      Organization @relation(fields: [orgId], references: [id])
 }
 
 model PayoutRequest {
@@ -851,7 +851,7 @@ model PayoutRequest {
   orgId           String
   campaignId      String
   creatorId       String
-  creatorUserId   String?             // portal CreatorUser who initiated the request
+  creatorUserId   String? // portal CreatorUser who initiated the request
   requestedAmount Float
   currency        String              @default("USD")
   status          PayoutRequestStatus @default(PENDING)
@@ -865,21 +865,21 @@ model PayoutRequest {
 }
 
 model NegotiationOffer {
-  id           String            @id @default(cuid())
-  campaignId   String
-  creatorId    String
-  orgId        String
-  offeredRate  Float
-  counterRate  Float?
-  currency     String            @default("USD")
-  status       NegotiationStatus @default(PENDING)
-  notes        String?
-  aiRound        Int     @default(0)
+  id             String            @id @default(cuid())
+  campaignId     String
+  creatorId      String
+  orgId          String
+  offeredRate    Float
+  counterRate    Float?
+  currency       String            @default("USD")
+  status         NegotiationStatus @default(PENDING)
+  notes          String?
+  aiRound        Int               @default(0)
   aiCounterRate  Float?
   finalRate      Float?
   conversationId String?
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
 
   campaign Campaign @relation(fields: [campaignId], references: [id])
 }
@@ -905,8 +905,8 @@ model CampaignInvite {
 // ─── Marketplace: Creator Users (separate auth) ──────────────────────────────
 
 enum MarketplaceVisibility {
-  PRIVATE     // org-only — not listed publicly (default)
-  GLOBAL      // listed on the public /explore marketplace across orgs
+  PRIVATE // org-only — not listed publicly (default)
+  GLOBAL // listed on the public /explore marketplace across orgs
   INVITE_ONLY // reachable only with an invite code
 }
 
@@ -933,23 +933,23 @@ enum CreatorNiche {
 }
 
 model CreatorUser {
-  id               String        @id @default(cuid())
-  email            String        @unique
-  passwordHash     String
-  name             String
-  handle           String        @unique
-  avatarUrl        String?
-  bio              String?
-  platform         Platform      @default(TIKTOK)
-  followersCount   Float         @default(0)
-  averageViews     Float         @default(0)
-  rate             Float?
-  boostRate        Float?
-  lifetimeEarnings Float         @default(0)
-  cpm              Float         @default(0)
-  averageRating    Float         @default(0)
-  reviewCount      Int           @default(0)
-  niches           CreatorNiche[]
+  id                String         @id @default(cuid())
+  email             String         @unique
+  passwordHash      String
+  name              String
+  handle            String         @unique
+  avatarUrl         String?
+  bio               String?
+  platform          Platform       @default(TIKTOK)
+  followersCount    Float          @default(0)
+  averageViews      Float          @default(0)
+  rate              Float?
+  boostRate         Float?
+  lifetimeEarnings  Float          @default(0)
+  cpm               Float          @default(0)
+  averageRating     Float          @default(0)
+  reviewCount       Int            @default(0)
+  niches            CreatorNiche[]
   // Bank account
   bankAccountName   String?
   bankAccountNumber String?
@@ -957,8 +957,8 @@ model CreatorUser {
   bankSwift         String?
   bankRoutingNumber String?
   // Lifecycle
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
 
   sessions       CreatorSession[]
   proposals      CampaignProposal[]
@@ -968,11 +968,11 @@ model CreatorUser {
 }
 
 model CreatorSession {
-  id             String   @id @default(cuid())
-  creatorUserId  String
-  token          String   @unique
-  expiresAt      DateTime
-  createdAt      DateTime @default(now())
+  id            String   @id @default(cuid())
+  creatorUserId String
+  token         String   @unique
+  expiresAt     DateTime
+  createdAt     DateTime @default(now())
 
   creatorUser CreatorUser @relation(fields: [creatorUserId], references: [id])
 }
@@ -1031,9 +1031,9 @@ model CreatorReview {
   id         String   @id @default(cuid())
   orgId      String
   campaignId String
-  creatorId  String   // references Creator (org-side), not CreatorUser
-  rating     Int      // 1-5
-  tags       Json?    // ["on_time", "high_quality", "creative", "responsive", "professional"]
+  creatorId  String // references Creator (org-side), not CreatorUser
+  rating     Int // 1-5
+  tags       Json? // ["on_time", "high_quality", "creative", "responsive", "professional"]
   comment    String?
   createdAt  DateTime @default(now())
 
@@ -1114,14 +1114,14 @@ model PaymentIdempotencyKey {
 }
 
 model PaymentWebhookEvent {
-  id            String    @id @default(cuid())
-  provider      String
-  eventId       String
-  type          String
-  payloadJson   Json
+  id             String    @id @default(cuid())
+  provider       String
+  eventId        String
+  type           String
+  payloadJson    Json
   signatureValid Boolean
-  receivedAt    DateTime  @default(now())
-  processedAt   DateTime?
+  receivedAt     DateTime  @default(now())
+  processedAt    DateTime?
 
   @@unique([provider, eventId])
 }
@@ -1129,22 +1129,148 @@ model PaymentWebhookEvent {
 // ─── View Fraud Detection ─────────────────────────────────────────────────────
 
 model ViewFraudFlag {
-  id           String            @id @default(cuid())
-  orgId        String
-  campaignId   String
-  creatorId    String
-  postId       String
-  flagType     FraudFlagType
-  severity     FraudFlagSeverity @default(MEDIUM)
-  description  String
-  evidence     Json
-  isResolved   Boolean           @default(false)
-  resolvedAt   DateTime?
-  resolvedBy   String?
-  createdAt    DateTime          @default(now())
+  id          String            @id @default(cuid())
+  orgId       String
+  campaignId  String
+  creatorId   String
+  postId      String
+  flagType    FraudFlagType
+  severity    FraudFlagSeverity @default(MEDIUM)
+  description String
+  evidence    Json
+  isResolved  Boolean           @default(false)
+  resolvedAt  DateTime?
+  resolvedBy  String?
+  createdAt   DateTime          @default(now())
 
   campaign Campaign @relation(fields: [campaignId], references: [id])
 
   @@index([campaignId])
   @@index([orgId, isResolved])
+}
+
+// ─── CreatorCore raw mirror (full-fidelity import) ──────────────────────────────
+// Every CreatorCore attribute lands here: known scalars as typed columns, arrays
+// and objects as Json, and the complete untouched record in `raw` — so nothing is
+// ever lost, including fields not (yet) promoted to a column. `ccId` is the source
+// _id (idempotent upsert key); `orgId` scopes to our tenant. Populated by
+// scripts/creatorcore/cc-import.mjs alongside the usable domain models.
+
+model CcCampaign {
+  id                          String    @id @default(cuid())
+  orgId                       String
+  ccId                        String    @unique // CreatorCore _id
+  ccNumericId                 Float? // CreatorCore `id`
+  fullId                      String?
+  title                       String?
+  status                      String?
+  thumbnail                   String?
+  urlPreview                  String?
+  sudoSlug                    String?
+  satellite                   String?
+  organization                String? // CreatorCore org id (source system)
+  currency                    String?
+  budget                      Float?
+  creatorRateTotals           Float?
+  commissionTotal             Float?
+  profitTotal                 Float?
+  refreshInterval             Float?
+  archive                     Boolean?
+  refreshActive               Boolean?
+  tempComplete                Boolean?
+  viewMigrateComplete         Boolean?
+  actionColumnAdded           Boolean?
+  defaultDeliverableViewAdded Boolean?
+  createdBy                   String?
+  recentSnapshot              String?
+  nextSnapshotWorkflow        String?
+  createdDate                 DateTime?
+  modifiedDate                DateTime?
+  postRefreshAnchor           DateTime?
+  lastRefresh                 DateTime?
+  posts                       Json?
+  activations                 Json?
+  creatorProfiles             Json?
+  metatags                    Json?
+  modules                     Json?
+  snapshots                   Json?
+  activity                    Json?
+  campaignManagers            Json?
+  activationColumns           Json?
+  views                       Json?
+  displayPlatforms            Json?
+  raw                         Json // complete original record
+  importedAt                  DateTime  @default(now())
+  updatedAt                   DateTime  @updatedAt
+
+  @@index([orgId])
+}
+
+model CcPost {
+  id                    String    @id @default(cuid())
+  orgId                 String
+  ccId                  String    @unique // CreatorCore _id
+  campaign              String? // CreatorCore campaign id
+  organization          String?
+  lastStatistics        String? // ref to CcStatisticPost.ccId
+  latestViewsEngagement Float?
+  platform              String?
+  platformText          String?
+  postUrl               String?
+  status                String?
+  thumbnail             String?
+  username              String?
+  authorProfilePic      String?
+  createdBy             String?
+  createdByUser         String?
+  isInstagramStory      Boolean?
+  autoAdd               Boolean?
+  heicConvert           Boolean?
+  postDate              DateTime?
+  lastFresh             DateTime?
+  createdDate           DateTime?
+  modifiedDate          DateTime?
+  raw                   Json
+  importedAt            DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([orgId])
+  @@index([campaign])
+}
+
+model CcStatisticPost {
+  id         String   @id @default(cuid())
+  orgId      String
+  ccId       String   @unique
+  raw        Json // full record — schema unknown until extracted, preserved whole
+  importedAt DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([orgId])
+}
+
+model CcRefreshQueue {
+  id         String   @id @default(cuid())
+  orgId      String
+  ccId       String   @unique
+  raw        Json
+  importedAt DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([orgId])
+}
+
+// Catch-all for any additional CreatorCore type the extractor reaches
+// (activation, draft, story, …) so no type is ever dropped.
+model CcRecord {
+  id         String   @id @default(cuid())
+  orgId      String
+  ccType     String
+  ccId       String
+  raw        Json
+  importedAt DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([ccType, ccId])
+  @@index([orgId])
 }

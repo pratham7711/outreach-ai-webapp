@@ -1,7 +1,7 @@
 // Runnable check for the importer's data-correctness helpers (the parts that
 // silently corrupt data if wrong). Run: node scripts/creatorcore/cc-import.test.mjs
 import assert from "node:assert";
-import { mapPlatform, mapCampaignStatus, mapPostStatus, mapCurrency, num, statFrom, platformPostIdFrom, toDate } from "./cc-import.mjs";
+import { mapPlatform, mapCampaignStatus, mapPostStatus, mapCurrency, num, statFrom, platformPostIdFrom, toDate, bool, fnum, ccCampaignData, ccPostData } from "./cc-import.mjs";
 
 // platform: explicit text, then URL inference, then default
 assert.equal(mapPlatform("TikTok"), "TIKTOK");
@@ -42,5 +42,56 @@ assert.equal(mapCurrency("weird"), "USD");
 // toDate: first valid wins, else null
 assert.ok(toDate(null, "2026-07-15T20:36:22.901Z") instanceof Date);
 assert.equal(toDate(null, "not-a-date"), null);
+
+// bool / fnum coercion
+assert.equal(bool(true), true);
+assert.equal(bool("yes"), true);
+assert.equal(bool("no"), false);
+assert.equal(bool(undefined), null);
+assert.equal(fnum(12), 12);
+assert.equal(fnum("3.5"), 3.5);
+assert.equal(fnum(""), null);
+assert.equal(fnum(undefined), null);
+
+// ── mirror mappers: every known field promoted to a column, raw preserved whole ──
+const CAMPAIGN_KEYS = ["_id","Modified Date","Created Date","Created By","posts","activations","budget","creatorProfiles","fullID","id","metatags","modules","organization","recentSnapshot","refreshInterval","snapshots","status","thumbnail","title","nextSnapshotWorkflow","activity","creatorRateTotals","commissionTotal","profitTotal","currency","postRefreshAnchor","Campaign Managers","Archive","lastRefresh","urlPreview","refreshActive","activationColumns","views","displayPlatforms","tempComplete","satellite","viewMigrateComplete","actionColumnAdded","defaultDeliverableViewAdded","sudo-slug"];
+const sampleCampaign = Object.fromEntries(CAMPAIGN_KEYS.map((k) => {
+  if (k === "_id") return [k, "camp1"];
+  if (k === "id") return [k, 42];
+  if (["budget","creatorRateTotals","commissionTotal","profitTotal","refreshInterval"].includes(k)) return [k, 100];
+  if (["Archive","refreshActive","tempComplete","viewMigrateComplete","actionColumnAdded","defaultDeliverableViewAdded"].includes(k)) return [k, true];
+  if (["posts","activations","creatorProfiles","metatags","modules","snapshots","activity","Campaign Managers","activationColumns","views","displayPlatforms"].includes(k)) return [k, ["x"]];
+  if (["Created Date","Modified Date","postRefreshAnchor","lastRefresh"].includes(k)) return [k, "2026-07-15T20:36:22.901Z"];
+  return [k, "v_" + k];
+}));
+const cc = ccCampaignData(sampleCampaign, "org1");
+assert.equal(cc.orgId, "org1");
+assert.equal(cc.ccId, "camp1");
+assert.equal(cc.ccNumericId, 42);
+assert.equal(cc.fullId, "v_fullID");        // tricky rename fullID -> fullId
+assert.equal(cc.sudoSlug, "v_sudo-slug");   // tricky key sudo-slug -> sudoSlug
+assert.deepEqual(cc.campaignManagers, ["x"]); // "Campaign Managers" -> campaignManagers
+assert.equal(cc.archive, true);
+assert.ok(cc.createdDate instanceof Date);
+assert.deepEqual(cc.raw, sampleCampaign);   // nothing lost
+// every promoted column is non-undefined (present) for a full record
+for (const [k, v] of Object.entries(cc)) assert.notEqual(v, undefined, `campaign column ${k} undefined`);
+
+const samplePost = {
+  _id: "post1", campaign: "camp1", organization: "org-src", lastStatistics: "stat1",
+  "latestViews/Engagement": 12345, platform: "p", platformTEXT: "TikTok", postUrl: "https://tiktok.com/@u/video/1",
+  status: "approved", thumbnail: "t", username: "u", authorProfilePic: "a", "Created By": "cb",
+  createdByUser: "cbu", isInstagramStory: false, autoAdd: true, heicConvert: false,
+  postDate: "2026-07-15T20:36:22.901Z", lastFresh: "2026-07-16T00:00:00.000Z",
+  "Created Date": "2026-07-01T00:00:00.000Z", "Modified Date": "2026-07-10T00:00:00.000Z",
+};
+const cp = ccPostData(samplePost, "org1");
+assert.equal(cp.ccId, "post1");
+assert.equal(cp.latestViewsEngagement, 12345); // "latestViews/Engagement" -> latestViewsEngagement
+assert.equal(cp.platformText, "TikTok");        // platformTEXT -> platformText
+assert.equal(cp.isInstagramStory, false);
+assert.ok(cp.postDate instanceof Date);
+assert.deepEqual(cp.raw, samplePost);           // nothing lost
+for (const [k, v] of Object.entries(cp)) assert.notEqual(v, undefined, `post column ${k} undefined`);
 
 console.log("cc-import helpers: all assertions passed");
