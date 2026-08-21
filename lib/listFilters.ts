@@ -61,6 +61,8 @@ export type CampaignFilters = {
   status: CampaignStatus[];
   clientIds: string[];
   campaignType: CampaignType[];
+  tags: string[];
+  teamMemberIds: string[];
   createdFrom?: Date;
   createdTo?: Date;
   hasCreators?: boolean;
@@ -75,6 +77,16 @@ export const campaignFilterSchema = z.object({
     .optional()
     .transform((raw) => csvParam(raw)),
   campaignType: csvEnumParam(CAMPAIGN_TYPES),
+  // Free-text, unlike the enum multi-selects: a tag is whatever someone typed,
+  // so an unrecognised one narrows to nothing rather than being a 400.
+  tags: z
+    .string()
+    .optional()
+    .transform((raw) => csvParam(raw)),
+  teamMemberIds: z
+    .string()
+    .optional()
+    .transform((raw) => csvParam(raw)),
   createdFrom: optionalDateParam,
   createdTo: optionalDateParam,
   hasCreators: z.enum(["1"]).optional().transform((v) => (v ? true : undefined)),
@@ -88,6 +100,8 @@ export function readCampaignFilters(sp: Record<string, string | string[] | undef
     status: firstParam(sp.status),
     clientIds: firstParam(sp.clientIds),
     campaignType: firstParam(sp.campaignType),
+    tags: firstParam(sp.tags),
+    teamMemberIds: firstParam(sp.teamMemberIds),
     createdFrom: firstParam(sp.createdFrom),
     createdTo: firstParam(sp.createdTo),
     hasCreators: firstParam(sp.hasCreators),
@@ -95,7 +109,7 @@ export function readCampaignFilters(sp: Record<string, string | string[] | undef
   });
   if (parsed.success) return parsed.data;
   // A hand-edited URL should show an unfiltered table, not a crash.
-  return { status: [], clientIds: [], campaignType: [] };
+  return { status: [], clientIds: [], campaignType: [], tags: [], teamMemberIds: [] };
 }
 
 export function campaignWhere(orgId: string, f: CampaignFilters): Prisma.CampaignWhereInput {
@@ -105,6 +119,11 @@ export function campaignWhere(orgId: string, f: CampaignFilters): Prisma.Campaig
     ...(f.status.length && { status: { in: f.status } }),
     ...(f.clientIds.length && { clientId: { in: f.clientIds } }),
     ...(f.campaignType.length && { campaignType: { in: f.campaignType } }),
+    // Both are many-to-many, so several selected values widen the result set
+    // (campaigns carrying ANY of these tags), matching how the other
+    // multi-selects here read.
+    ...(f.tags.length && { tags: { some: { tag: { in: f.tags } } } }),
+    ...(f.teamMemberIds.length && { teamMembers: { some: { userId: { in: f.teamMemberIds } } } }),
     ...(dateRange(f.createdFrom, f.createdTo) && { createdAt: dateRange(f.createdFrom, f.createdTo) }),
     ...(f.hasCreators && { activations: { some: {} } }),
     ...(f.hasPosts && { posts: { some: {} } }),
@@ -125,6 +144,8 @@ export function countCampaignFilters(f: CampaignFilters): number {
     (f.status.length ? 1 : 0) +
     (f.clientIds.length ? 1 : 0) +
     (f.campaignType.length ? 1 : 0) +
+    (f.tags.length ? 1 : 0) +
+    (f.teamMemberIds.length ? 1 : 0) +
     (f.createdFrom || f.createdTo ? 1 : 0) +
     (f.hasCreators ? 1 : 0) +
     (f.hasPosts ? 1 : 0)

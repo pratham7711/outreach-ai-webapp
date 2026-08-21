@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, Search, FolderOpen, ChevronDown, Sparkles, Target } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Plus, Search, Target, Sun, Zap, CheckCircle2, XCircle, Wallet, Users, FileText, LayoutList } from "lucide-react";
 import Link from "next/link";
-import { Button, Card, Badge, Input, EmptyState, Avatar, Tooltip } from "@pratham7711/ui";
+import { Button, Card, Badge, Input, EmptyState, Avatar } from "@pratham7711/ui";
 import { StatusTabs, Pagination, FilterDrawer, FilterButton } from "@/components/ds";
 import type { FilterDef, FilterValues } from "@/components/ds";
 import CampaignWizard from "@/components/modals/CampaignWizard";
@@ -22,9 +23,13 @@ type Campaign = {
   _count: { activations: number; posts: number };
   creatorCount: number;
   updatedAt?: string;
+  budget: number | null;
+  team: { id: string; name: string; avatarUrl: string | null }[];
+  tags: string[];
 };
 
 type Client = { id: string; name: string };
+type TeamOption = { id: string; name: string };
 
 const CAMPAIGN_TYPE_OPTIONS = [
   { value: "BUDGET_BASED", label: "Budget Based" },
@@ -34,11 +39,21 @@ const CAMPAIGN_TYPE_OPTIONS = [
 ];
 
 const STATUS_TABS = [
-  { key: "ALL",         label: "All",       bg: "#F3F4F6", color: "#374151" },
-  { key: "PENDING",     label: "Pending",   bg: "#FEF3C7", color: "#D97706" },
-  { key: "IN_PROGRESS", label: "Active",    bg: "#EEF2FF", color: "#4F46E5" },
-  { key: "COMPLETE",    label: "Complete",   bg: "#D1FAE5", color: "#059669" },
-  { key: "CANCELLED",   label: "Canceled",  bg: "#FEE2E2", color: "#DC2626" },
+  { key: "ALL",         label: "All",       bg: "#F3F4F6", color: "#374151", Icon: LayoutList },
+  { key: "PENDING",     label: "Pending",   bg: "#FEF3C7", color: "#D97706", Icon: Sun },
+  { key: "IN_PROGRESS", label: "Active",    bg: "#EEF2FF", color: "#4F46E5", Icon: Zap },
+  { key: "COMPLETE",    label: "Complete",  bg: "#D1FAE5", color: "#059669", Icon: CheckCircle2 },
+  { key: "CANCELLED",   label: "Canceled",  bg: "#FEE2E2", color: "#DC2626", Icon: XCircle },
+];
+
+/* The dropdown offers every status, including DRAFT, which has no tab of its
+   own — a campaign can be in it, so it has to be reachable and displayable. */
+const STATUS_OPTIONS = [
+  { value: "DRAFT", label: "Draft" },
+  { value: "PENDING", label: "Pending" },
+  { value: "IN_PROGRESS", label: "In-Progress" },
+  { value: "COMPLETE", label: "Complete" },
+  { value: "CANCELLED", label: "Canceled" },
 ];
 
 const STATUS_BADGE_VARIANT: Record<string, "warning" | "accent" | "success" | "danger" | "neutral"> = {
@@ -49,27 +64,22 @@ const STATUS_BADGE_VARIANT: Record<string, "warning" | "accent" | "success" | "d
   DRAFT: "neutral",
 };
 
-/* Shared by the header and every row; the fixed status column is what stops a
-   wide IN PROGRESS pill from shifting the numbers on its row. */
-const CAMPAIGN_COLS = {
-  "--cc-cols": "44px minmax(0, 1fr) 90px 80px 130px",
-} as React.CSSProperties;
-
 
 /**
  * 506 of 532 campaigns carry artwork that this list was throwing away in favour
  * of two initials. Falls back to the initials avatar only when there is genuinely
  * no image, so a missing thumbnail still reads as a campaign rather than a hole.
  */
-function CampaignThumb({ title, src }: { title: string; src?: string | null }) {
-  const url = imgSrc(src, 88); // 44px box, doubled for retina
+function CampaignThumb({ title, src, size = 44 }: { title: string; src?: string | null; size?: number }) {
+  const url = imgSrc(src, size * 2); // doubled for retina
   if (!url) return <Avatar name={title} size="md" />;
   return (
     <span
       style={{
-        width: 44,
-        height: 44,
+        width: size,
+        height: size,
         borderRadius: 8,
+        flexShrink: 0,
         overflow: "hidden",
         display: "block",
         border: "1px solid var(--cc-border)",
@@ -82,10 +92,121 @@ function CampaignThumb({ title, src }: { title: string; src?: string | null }) {
         alt=""
         loading="lazy"
         decoding="async"
-        width={44}
-        height={44}
+        width={size}
+        height={size}
         style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
       />
+    </span>
+  );
+}
+
+/**
+ * The per-card status dropdown. PATCH /api/campaigns/[id] already accepted a
+ * status, so this adds no route.
+ *
+ * The select shows the pending value while the request is in flight and snaps
+ * back to the server's value on failure, so the card never settles on a status
+ * the database refused. The error sits next to the control rather than in a
+ * toast, because the control is what the reader needs to retry.
+ */
+function StatusSelect({ id, status }: { id: string; status: string }) {
+  const router = useRouter();
+  const [value, setValue] = useState(status);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // A refresh (this card's own save, or another's) re-renders with new props;
+  // local state has to follow or the select would show a stale status.
+  useEffect(() => setValue(status), [status]);
+
+  async function change(next: string) {
+    const previous = value;
+    setValue(next);
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/campaigns/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: next }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? `Update failed (${res.status})`);
+      }
+      router.refresh();
+    } catch (e) {
+      setValue(previous);
+      setError(e instanceof Error ? e.message : "Could not update status");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <span style={{ display: "inline-flex", flexDirection: "column", gap: 4, alignItems: "flex-end" }}>
+      <select
+        aria-label="Campaign status"
+        value={value}
+        disabled={saving}
+        onChange={(e) => change(e.target.value)}
+        style={{
+          appearance: "none",
+          background: "var(--cc-primary)",
+          color: "white",
+          border: "none",
+          borderRadius: 8,
+          padding: "7px 26px 7px 12px",
+          fontSize: 13,
+          fontWeight: 600,
+          cursor: saving ? "progress" : "pointer",
+          opacity: saving ? 0.65 : 1,
+          // The caret the appearance reset removed, drawn back in white.
+          backgroundImage:
+            "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' stroke='white' stroke-width='1.6' fill='none' stroke-linecap='round'/></svg>\")",
+          backgroundRepeat: "no-repeat",
+          backgroundPosition: "right 9px center",
+        }}
+      >
+        {STATUS_OPTIONS.map((o) => (
+          <option key={o.value} value={o.value} style={{ color: "var(--cc-text)", background: "var(--cc-card)" }}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+      {error && (
+        <span role="alert" style={{ fontSize: 11, color: "var(--cc-danger)", maxWidth: 180, textAlign: "right" }}>
+          {error}
+        </span>
+      )}
+    </span>
+  );
+}
+
+/** One bordered stat on a campaign card. */
+function StatChip({ icon, label, children }: { icon: React.ReactNode; label: string; children: React.ReactNode }) {
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 8,
+        border: "1px solid var(--cc-border)",
+        borderRadius: 10,
+        padding: "6px 10px",
+        background: "var(--cc-card)",
+        minWidth: 0,
+      }}
+    >
+      <span aria-hidden="true" style={{ display: "flex", color: "var(--cc-text-muted)" }}>{icon}</span>
+      <span style={{ display: "flex", flexDirection: "column", lineHeight: 1.25, minWidth: 0 }}>
+        <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase", color: "var(--cc-text-muted)" }}>
+          {label}
+        </span>
+        <span style={{ fontSize: 13, fontWeight: 700, color: "var(--cc-text)", fontVariantNumeric: "tabular-nums" }}>
+          {children}
+        </span>
+      </span>
     </span>
   );
 }
@@ -99,6 +220,8 @@ export default function CampaignsClient({
   q,
   status,
   clients,
+  tagOptions,
+  teamOptions,
   filterValues,
   filterCount,
 }: {
@@ -110,6 +233,8 @@ export default function CampaignsClient({
   q: string;
   status: string;
   clients: Client[];
+  tagOptions: string[];
+  teamOptions: TeamOption[];
   filterValues: FilterValues;
   filterCount: number;
 }) {
@@ -134,6 +259,21 @@ export default function CampaignsClient({
       options: clients.map((c) => ({ value: c.id, label: c.name })),
     },
     { type: "multiSelect", key: "campaignType", label: "Campaign type", options: CAMPAIGN_TYPE_OPTIONS },
+    // Both are omitted entirely when nothing has been tagged or assigned. The
+    // options come from the join tables, so an always-empty dropdown is not a
+    // state this can reach -- either there is something to filter by, or the
+    // control is not offered. Nothing in the app writes these rows yet.
+    ...(tagOptions.length
+      ? [{ type: "multiSelect" as const, key: "tags", label: "Tags", options: tagOptions.map((t) => ({ value: t, label: t })) }]
+      : []),
+    ...(teamOptions.length
+      ? [{
+          type: "multiSelect" as const,
+          key: "teamMemberIds",
+          label: "Team member",
+          options: teamOptions.map((u) => ({ value: u.id, label: u.name })),
+        }]
+      : []),
     { type: "dateRange", label: "Created", fromKey: "createdFrom", toKey: "createdTo" },
     {
       type: "toggleGroup",
@@ -211,18 +351,19 @@ export default function CampaignsClient({
       <StatusTabs
         ariaLabel="Filter by campaign status"
         style={{ marginBottom: 24 }}
-        tabs={STATUS_TABS.map((tab) => ({
+        tabs={STATUS_TABS.map(({ Icon, ...tab }) => ({
           ...tab,
           count: statusCounts[tab.key] ?? 0,
           badgeVariant: STATUS_BADGE_VARIANT[tab.key] ?? "neutral",
+          icon: <Icon size={14} aria-hidden="true" />,
         }))}
         active={status}
         onChange={(key) => push({ status: key === "ALL" ? null : key, page: null })}
       />
 
       {/* Campaign List */}
-      <Card variant="solid" noPadding>
-        {filtered.length === 0 ? (
+      {filtered.length === 0 ? (
+        <Card variant="solid" noPadding>
           <div style={{ padding: "48px 24px" }}>
             <EmptyState
               icon={<Target size={32} color="var(--cc-text-subtle)" />}
@@ -245,52 +386,101 @@ export default function CampaignsClient({
               }
             />
           </div>
-        ) : (
-          <div className="cc-stagger" style={CAMPAIGN_COLS}>
-            <div className="cc-list-row cc-list-head">
-              <span />
-              <span>Campaign</span>
-              <span className="cc-list-num cc-list-hide-sm">Creators</span>
-              <span className="cc-list-num cc-list-hide-sm">Posts</span>
-              <span>Status</span>
-            </div>
-
-            {filtered.map((campaign, i) => (
-              <Link prefetch={false} key={campaign.id} href={`/campaigns/${campaign.id}`} style={{ textDecoration: "none" }}>
-                <div
-                  className="cc-table-row cc-list-row"
-                  style={{ borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined }}
-                >
-                  <CampaignThumb title={campaign.title} src={campaign.thumbnailUrl} />
-
-                  <div style={{ minWidth: 0 }}>
-                    <p title={campaign.title} style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)", marginBottom: 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                      {campaign.title}
-                    </p>
-                    <p style={{ fontSize: 12, color: "var(--cc-text-subtle)" }}>
-                      Last updated {timeAgo(campaign.updatedAt)}
-                    </p>
-                  </div>
-
-                  <p className="cc-list-num cc-list-hide-sm" style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>
-                    {campaign.creatorCount}
-                  </p>
-
-                  <p className="cc-list-num cc-list-hide-sm" style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>
-                    {campaign._count.posts}
-                  </p>
-
-                  <span style={{ justifySelf: "start" }}>
-                    <Badge variant={STATUS_BADGE_VARIANT[campaign.status] ?? "neutral"} dot>
-                      {campaign.status.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())}
-                    </Badge>
+        </Card>
+      ) : (
+        <div className="cc-stagger" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {filtered.map((campaign) => (
+            <div
+              key={campaign.id}
+              className="cc-table-row"
+              style={{
+                background: "var(--cc-card)",
+                border: "1px solid var(--cc-border)",
+                borderRadius: 12,
+                padding: 14,
+                display: "flex",
+                alignItems: "center",
+                gap: 14,
+                flexWrap: "wrap",
+              }}
+            >
+              {/* Only the identity block navigates. The chips and the status
+                  dropdown sit outside the link, because a select nested in an
+                  anchor navigates instead of opening. */}
+              <Link
+                prefetch={false}
+                href={`/campaigns/${campaign.id}`}
+                style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 12, flex: "1 1 240px", minWidth: 0 }}
+              >
+                <CampaignThumb title={campaign.title} src={campaign.thumbnailUrl} size={56} />
+                <span style={{ minWidth: 0 }}>
+                  <span
+                    title={campaign.title}
+                    style={{
+                      display: "block",
+                      fontSize: 15,
+                      fontWeight: 700,
+                      color: "var(--cc-primary)",
+                      marginBottom: 3,
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                  >
+                    {campaign.title}
                   </span>
-                </div>
+                  <span style={{ display: "block", fontSize: 12, color: "var(--cc-text-subtle)" }}>
+                    Last updated {timeAgo(campaign.updatedAt)}
+                    {campaign.client ? ` \u00b7 ${campaign.client.name}` : ""}
+                  </span>
+                  {campaign.tags.length > 0 && (
+                    <span style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 5 }}>
+                      {campaign.tags.map((tag) => (
+                        <Badge key={tag} variant="neutral" size="sm">{tag}</Badge>
+                      ))}
+                    </span>
+                  )}
+                </span>
               </Link>
-            ))}
-          </div>
-        )}
-      </Card>
+
+              {/* Budget and Team are dropped when absent rather than shown as a
+                  zero or an empty avatar row: budget is nullable and unset on
+                  most campaigns, and nothing assigns team members yet. */}
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                {campaign.budget !== null && (
+                  <StatChip icon={<Wallet size={15} />} label="Budget">
+                    {formatCompactCurrency(campaign.budget, campaign.currency)}
+                  </StatChip>
+                )}
+                <StatChip icon={<Users size={15} />} label="Creators">
+                  {campaign.creatorCount}
+                </StatChip>
+                <StatChip icon={<FileText size={15} />} label="Posts">
+                  {campaign._count.posts}
+                </StatChip>
+                {campaign.team.length > 0 && (
+                  <StatChip icon={<Users size={15} />} label="Team">
+                    <span style={{ display: "inline-flex", alignItems: "center" }}>
+                      {campaign.team.slice(0, 3).map((member, idx) => (
+                        <span key={member.id} title={member.name} style={{ marginLeft: idx === 0 ? 0 : -6 }}>
+                          <Avatar name={member.name} src={member.avatarUrl ?? undefined} size="sm" />
+                        </span>
+                      ))}
+                      {campaign.team.length > 3 && (
+                        <span style={{ marginLeft: 5, fontSize: 12, color: "var(--cc-text-muted)" }}>
+                          +{campaign.team.length - 3}
+                        </span>
+                      )}
+                    </span>
+                  </StatChip>
+                )}
+              </div>
+
+              <StatusSelect id={campaign.id} status={campaign.status} />
+            </div>
+          ))}
+        </div>
+      )}
 
       {filteredTotal > CAMPAIGNS_PAGE_SIZE && (
         <Pagination

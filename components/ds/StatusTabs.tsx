@@ -12,6 +12,8 @@ export type StatusTab = {
   bg?: string;
   count?: number;
   badgeVariant?: BadgeVariant;
+  /** Shown before the label. In the underline variant it replaces the selected dot. */
+  icon?: React.ReactNode;
 };
 
 export type StatusTabsProps = {
@@ -74,8 +76,12 @@ export function StatusTabs({ tabs, active, onChange, variant = "underline", aria
                 color: isSelected ? color : "var(--cc-text-muted)",
                 transition: "all 0.15s",
                 whiteSpace: "nowrap",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
               }}
             >
+              {tab.icon}
               {tab.label}
               {showCount && (
                 <span style={{ marginLeft: 6, fontSize: 11, opacity: 0.8 }}>{tab.count}</span>
@@ -105,9 +111,10 @@ export function StatusTabs({ tabs, active, onChange, variant = "underline", aria
               whiteSpace: "nowrap",
             }}
           >
-            {isSelected && (
-              <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: "50%", background: color }} />
-            )}
+            {tab.icon ??
+              (isSelected && (
+                <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: "50%", background: color }} />
+              ))}
             {tab.label}
             {showCount && (
               <Badge variant={isSelected ? (tab.badgeVariant ?? "accent") : "neutral"} size="sm">

@@ -28,12 +28,14 @@ export default async function CampaignsPage({
   // over that set, are left out of their own counts.
   const tabBase = campaignWhere(orgId, { ...filters, status: [], search: undefined });
 
-  const [campaigns, filteredTotal, statusGroups, creatorCount, clients] = await Promise.all([
+  const [campaigns, filteredTotal, statusGroups, creatorCount, clients, orgTags, orgTeam] = await Promise.all([
     db.campaign.findMany({
       where,
       include: {
         client: { select: { name: true } },
         _count: { select: { activations: true, posts: true } },
+        teamMembers: { select: { user: { select: { id: true, name: true, avatarUrl: true } } } },
+        tags: { select: { tag: true }, orderBy: { tag: "asc" } },
       },
       orderBy: { updatedAt: "desc" },
       take: CAMPAIGNS_PAGE_SIZE,
@@ -44,6 +46,22 @@ export default async function CampaignsPage({
     db.campaign.groupBy({ by: ["status"], where: tabBase, _count: true }),
     db.creator.count({ where: { orgId, deletedAt: null } }),
     db.client.findMany({ where: { orgId }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    // Options for the Tags and Team Member filters come from the rows that
+    // exist, not from every user in the org. Offering all 113 users when none
+    // are assigned to a campaign would be 113 choices that each return nothing;
+    // sourcing from the join tables means the filter is either useful or absent.
+    db.campaignTag.findMany({
+      where: { campaign: { orgId, deletedAt: null } },
+      select: { tag: true },
+      distinct: ["tag"],
+      orderBy: { tag: "asc" },
+    }),
+    db.campaignTeamMember.findMany({
+      where: { campaign: { orgId, deletedAt: null } },
+      select: { user: { select: { id: true, name: true } } },
+      distinct: ["userId"],
+      orderBy: { user: { name: "asc" } },
+    }),
   ]);
 
   const statusCounts: Record<string, number> = { ALL: 0 };
@@ -83,6 +101,11 @@ export default async function CampaignsPage({
         _count: c._count,
         creatorCount: creatorsByCampaign.get(c.id)?.size ?? 0,
         updatedAt: c.updatedAt.toISOString(),
+        // Nullable in the schema, and only 25 of 532 campaigns carry one, so the
+        // card omits the chip rather than printing a zero budget that was never set.
+        budget: c.budget,
+        team: c.teamMembers.map((m) => m.user),
+        tags: c.tags.map((t) => t.tag),
       }))}
       stats={{
         total: statusCounts.ALL,
@@ -95,6 +118,8 @@ export default async function CampaignsPage({
       q={filters.search ?? ""}
       status={filters.status[0] ?? "ALL"}
       clients={clients}
+      tagOptions={orgTags.map((t) => t.tag)}
+      teamOptions={orgTeam.map((m) => m.user)}
       filterValues={{
         clientIds: firstParam(sp.clientIds),
         campaignType: firstParam(sp.campaignType),
@@ -102,6 +127,8 @@ export default async function CampaignsPage({
         createdTo: firstParam(sp.createdTo),
         hasCreators: firstParam(sp.hasCreators),
         hasPosts: firstParam(sp.hasPosts),
+        tags: firstParam(sp.tags),
+        teamMemberIds: firstParam(sp.teamMemberIds),
       }}
       filterCount={countCampaignFilters({ ...filters, status: [] })}
     />
