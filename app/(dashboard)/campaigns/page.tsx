@@ -1,9 +1,9 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { Prisma, type CampaignStatus } from "@/lib/generated/prisma/client";
 import CampaignsClient from "./CampaignsClient";
 import { CAMPAIGNS_PAGE_SIZE } from "@/lib/listPageSize";
+import { campaignWhere, countCampaignFilters, readCampaignFilters, firstParam } from "@/lib/listFilters";
 
 export default async function CampaignsPage({
   searchParams,
@@ -15,26 +15,18 @@ export default async function CampaignsPage({
   const orgId = (session.user as any).orgId;
 
   const sp = await searchParams;
-  const first = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
-  const q = (first(sp.q) ?? "").trim();
-  const status = first(sp.status) ?? "ALL";
-  const page = Math.max(1, parseInt(first(sp.page) ?? "1", 10) || 1);
+  const page = Math.max(1, parseInt(firstParam(sp.page) ?? "1", 10) || 1);
 
-  // Search and paginate in the database. Rendering all 512 campaigns with their
-  // per-row activation/post counts took ~2.5s server-side and ~7.7s to paint.
-  const base: Prisma.CampaignWhereInput = { orgId, deletedAt: null };
-  const where: Prisma.CampaignWhereInput = {
-    ...base,
-    ...(status !== "ALL" ? { status: status as CampaignStatus } : {}),
-    ...(q
-      ? {
-          OR: [
-            { title: { contains: q, mode: Prisma.QueryMode.insensitive } },
-            { client: { name: { contains: q, mode: Prisma.QueryMode.insensitive } } },
-          ],
-        }
-      : {}),
-  };
+  // Search, filter and paginate in the database. Rendering all 512 campaigns
+  // with their per-row activation/post counts took ~2.5s server-side and ~7.7s
+  // to paint. The same parse runs in /api/campaigns, so the table and the API
+  // cannot disagree about what a filter means.
+  const filters = readCampaignFilters(sp);
+  const where = campaignWhere(orgId, filters);
+  // Tab counts describe the drawer's result set, so narrowing to one client
+  // renumbers the tabs — but the tabs and the search box, being quick filters
+  // over that set, are left out of their own counts.
+  const tabBase = campaignWhere(orgId, { ...filters, status: [], search: undefined });
 
   const [campaigns, filteredTotal, statusGroups, creatorCount, clients] = await Promise.all([
     db.campaign.findMany({
@@ -49,7 +41,7 @@ export default async function CampaignsPage({
     }),
     db.campaign.count({ where }),
     // One grouped query replaces counting each status tab off the full array.
-    db.campaign.groupBy({ by: ["status"], where: base, _count: true }),
+    db.campaign.groupBy({ by: ["status"], where: tabBase, _count: true }),
     db.creator.count({ where: { orgId, deletedAt: null } }),
     db.client.findMany({ where: { orgId }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
   ]);
@@ -100,9 +92,18 @@ export default async function CampaignsPage({
       statusCounts={statusCounts}
       filteredTotal={filteredTotal}
       page={page}
-      q={q}
-      status={status}
+      q={filters.search ?? ""}
+      status={filters.status[0] ?? "ALL"}
       clients={clients}
+      filterValues={{
+        clientIds: firstParam(sp.clientIds),
+        campaignType: firstParam(sp.campaignType),
+        createdFrom: firstParam(sp.createdFrom),
+        createdTo: firstParam(sp.createdTo),
+        hasCreators: firstParam(sp.hasCreators),
+        hasPosts: firstParam(sp.hasPosts),
+      }}
+      filterCount={countCampaignFilters({ ...filters, status: [] })}
     />
   );
 }

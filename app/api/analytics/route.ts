@@ -3,8 +3,21 @@ import { db } from "@/lib/db";
 import { READ_CACHE_HEADERS } from "@/lib/http/readCache";
 import { authenticateRequest } from "@/lib/authenticate";
 import { computeCampaignEmv, computeEngagementRate, sumEngagements } from "@/lib/metrics";
+import type { Prisma } from "@/lib/generated/prisma/client";
 
 const PLATFORMS = ["TIKTOK", "INSTAGRAM", "YOUTUBE", "TWITTER"] as const;
+
+const LEADERBOARD_SIZE = 20;
+
+/**
+ * A month slot key. Built from the calendar parts rather than toISOString,
+ * which shifts a local month start back a month in any positive-offset zone —
+ * in IST the six slots were labelled Mar–Aug while keyed Feb–Jul, so August's
+ * campaigns matched no slot and July's were counted under "Aug".
+ */
+function monthKey(year: number, month: number): string {
+  return `${year}-${String(month + 1).padStart(2, "0")}`;
+}
 
 function parseFrom(req: NextRequest): Date | null {
   const raw = req.nextUrl.searchParams.get("from");
@@ -19,6 +32,13 @@ function parsePlatform(req: NextRequest): string | null {
   return (PLATFORMS as readonly string[]).includes(raw) ? raw : null;
 }
 
+/**
+ * Every number here is counted in the database. Reading the org's whole post
+ * table into Node to reduce it by hand cost ~2.1s and grew with the roster;
+ * grouping by (creator, platform) keeps the rows proportional to who actually
+ * posted, and EMV is linear per metric so a platform's summed counts price the
+ * same as its posts priced one by one.
+ */
 export async function GET(req: NextRequest) {
   const result = await authenticateRequest(req);
   if (!result) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -27,152 +47,175 @@ export async function GET(req: NextRequest) {
   const from = parseFrom(req);
   const platform = parsePlatform(req);
 
-  const postWhere: any = { campaign: { orgId, deletedAt: null } };
-  if (platform) postWhere.platform = platform;
-  if (from) postWhere.postedAt = { gte: from };
-
+  const postWhere: Prisma.PostWhereInput = {
+    campaign: { orgId, deletedAt: null },
+    ...(platform && { platform: platform as (typeof PLATFORMS)[number] }),
+    ...(from && { postedAt: { gte: from } }),
+  };
 
   const now = new Date();
   const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
 
-  const [posts, campaigns, creators, orgCampaigns] = await Promise.all([
-    db.post.findMany({
-      where: postWhere,
-      select: {
-        campaignId: true,
-        platform: true,
-        viewsCount: true,
-        likesCount: true,
-        commentsCount: true,
-        sharesCount: true,
-        savesCount: true,
-        engagementRate: true,
-        postedAt: true,
-        creatorId: true,
-        creator: { select: { id: true, name: true, handle: true, avatarUrl: true, platform: true } },
-      },
-    }),
-    db.campaign.findMany({
-      where: { orgId, deletedAt: null, createdAt: { gte: sixMonthsAgo } },
-      select: { createdAt: true, status: true },
-      orderBy: { createdAt: "asc" },
-    }),
-    db.creator.findMany({
-      where: { orgId },
-      select: { id: true, name: true, handle: true, platform: true, avatarUrl: true, followersCount: true },
-    }),
-    db.campaign.findMany({
-      where: { orgId, deletedAt: null },
-      select: { id: true, title: true, status: true },
-      orderBy: { createdAt: "desc" },
-    }),
-  ]);
-
-  const totalViews = posts.reduce((s, p) => s + p.viewsCount, 0);
-  const totalLikes = posts.reduce((s, p) => s + p.likesCount, 0);
-  const totalComments = posts.reduce((s, p) => s + p.commentsCount, 0);
-  const avgEngagementRate =
-    posts.length > 0 ? posts.reduce((s, p) => s + p.engagementRate, 0) / posts.length : 0;
+  const [kpiRow, monthRows, creatorPlatformRows, creatorCampaignPairs, platformRows, orgCampaigns] =
+    await Promise.all([
+      db.post.aggregate({
+        where: postWhere,
+        _sum: { viewsCount: true, likesCount: true, commentsCount: true },
+        _avg: { engagementRate: true },
+        _count: { _all: true },
+      }),
+      // Month bucketing is the one thing Prisma groupBy cannot express.
+      db.$queryRawUnsafe<{ bucket: Date; campaigns: bigint; active: bigint }[]>(
+        `SELECT date_trunc('month', c."createdAt") AS bucket,
+                COUNT(*) AS campaigns,
+                COUNT(*) FILTER (WHERE c.status::text = 'IN_PROGRESS') AS active
+           FROM "Campaign" c
+          WHERE c."orgId" = $1 AND c."deletedAt" IS NULL AND c."createdAt" >= $2
+          GROUP BY 1
+          ORDER BY 1`,
+        orgId,
+        sixMonthsAgo
+      ),
+      db.post.groupBy({
+        by: ["creatorId", "platform"],
+        where: postWhere,
+        _sum: {
+          viewsCount: true,
+          likesCount: true,
+          commentsCount: true,
+          sharesCount: true,
+          savesCount: true,
+        },
+        _count: { _all: true },
+      }),
+      // Distinct (creator, campaign) pairs, so "campaigns" per creator does not
+      // need every post row in memory.
+      db.post.groupBy({ by: ["creatorId", "campaignId"], where: postWhere }),
+      db.post.groupBy({
+        by: ["platform"],
+        where: postWhere,
+        _sum: { viewsCount: true },
+        _count: { _all: true },
+      }),
+      db.campaign.findMany({
+        where: { orgId, deletedAt: null },
+        select: { id: true, title: true, status: true },
+        orderBy: { createdAt: "desc" },
+      }),
+    ]);
 
   const trendMap: Record<string, { month: string; campaigns: number; active: number }> = {};
   for (let i = 5; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const key = d.toISOString().slice(0, 7);
-    const label = d.toLocaleString("default", { month: "short", year: "2-digit" });
-    trendMap[key] = { month: label, campaigns: 0, active: 0 };
+    trendMap[monthKey(d.getFullYear(), d.getMonth())] = {
+      month: d.toLocaleString("default", { month: "short", year: "2-digit" }),
+      campaigns: 0,
+      active: 0,
+    };
   }
-  for (const c of campaigns) {
-    const key = c.createdAt.toISOString().slice(0, 7);
+  for (const row of monthRows) {
+    // date_trunc returns the month start in the database's zone, so read it back
+    // in UTC to land on the same calendar month the slots were built from.
+    const b = new Date(row.bucket);
+    const key = monthKey(b.getUTCFullYear(), b.getUTCMonth());
     if (trendMap[key]) {
-      trendMap[key].campaigns += 1;
-      if (c.status === "IN_PROGRESS") trendMap[key].active += 1;
+      trendMap[key].campaigns = Number(row.campaigns);
+      trendMap[key].active = Number(row.active);
     }
   }
   const monthlyTrend = Object.values(trendMap);
 
-  type Agg = {
+  type CreatorTotals = {
     views: number;
     likes: number;
     comments: number;
     shares: number;
     saves: number;
     posts: number;
-    campaignIds: Set<string>;
-    emvPosts: { platform: string; views: number; likes: number; comments: number; shares: number; saves: number }[];
+    /** One entry per platform, priced together because EMV is linear. */
+    emvInputs: { platform: string; views: number; likes: number; comments: number; shares: number; saves: number }[];
   };
-  const creatorAgg: Record<string, Agg> = {};
-  for (const p of posts) {
-    const a =
-      creatorAgg[p.creatorId] ??
-      (creatorAgg[p.creatorId] = {
-        views: 0, likes: 0, comments: 0, shares: 0, saves: 0, posts: 0,
-        campaignIds: new Set<string>(), emvPosts: [],
-      });
-    a.views += p.viewsCount;
-    a.likes += p.likesCount;
-    a.comments += p.commentsCount;
-    a.shares += p.sharesCount;
-    a.saves += p.savesCount;
-    a.posts += 1;
-    a.campaignIds.add(p.campaignId);
-    a.emvPosts.push({
-      platform: p.platform,
-      views: p.viewsCount,
-      likes: p.likesCount,
-      comments: p.commentsCount,
-      shares: p.sharesCount,
-      saves: p.savesCount,
-    });
+  const totals = new Map<string, CreatorTotals>();
+  for (const row of creatorPlatformRows) {
+    const t =
+      totals.get(row.creatorId) ??
+      { views: 0, likes: 0, comments: 0, shares: 0, saves: 0, posts: 0, emvInputs: [] };
+    const views = row._sum.viewsCount ?? 0;
+    const likes = row._sum.likesCount ?? 0;
+    const comments = row._sum.commentsCount ?? 0;
+    const shares = row._sum.sharesCount ?? 0;
+    const saves = row._sum.savesCount ?? 0;
+    t.views += views;
+    t.likes += likes;
+    t.comments += comments;
+    t.shares += shares;
+    t.saves += saves;
+    t.posts += row._count._all;
+    t.emvInputs.push({ platform: row.platform, views, likes, comments, shares, saves });
+    totals.set(row.creatorId, t);
   }
-  const creatorIndex = Object.fromEntries(creators.map((c) => [c.id, c]));
-  const leaderboard = Object.entries(creatorAgg)
-    .map(([creatorId, a]) => {
-      const engagements = sumEngagements({ likes: a.likes, comments: a.comments, shares: a.shares, saves: a.saves });
-      const engRate = computeEngagementRate({
-        views: a.views, likes: a.likes, comments: a.comments, shares: a.shares, saves: a.saves,
-      });
-      return {
-        id: creatorId,
-        name: creatorIndex[creatorId]?.name ?? "Unknown",
-        handle: creatorIndex[creatorId]?.handle ?? "",
-        platform: creatorIndex[creatorId]?.platform ?? "",
-        avatarUrl: creatorIndex[creatorId]?.avatarUrl ?? null,
-        followersCount: creatorIndex[creatorId]?.followersCount ?? 0,
-        campaigns: a.campaignIds.size,
-        views: a.views,
-        likes: a.likes,
-        posts: a.posts,
-        engagements,
-        engagementRate: engRate ?? 0,
-        emv: computeCampaignEmv(a.emvPosts),
-      };
-    })
-    .sort((a, b) => b.views - a.views)
-    .slice(0, 20);
 
-  const platformMap: Record<string, { views: number; posts: number }> = {};
-  for (const p of posts) {
-    const pl = p.platform ?? "UNKNOWN";
-    if (!platformMap[pl]) platformMap[pl] = { views: 0, posts: 0 };
-    platformMap[pl].views += p.viewsCount;
-    platformMap[pl].posts += 1;
+  const campaignsPerCreator = new Map<string, number>();
+  for (const pair of creatorCampaignPairs) {
+    campaignsPerCreator.set(pair.creatorId, (campaignsPerCreator.get(pair.creatorId) ?? 0) + 1);
   }
-  const platformBreakdown = Object.entries(platformMap).map(([platform, stats]) => ({
-    platform,
-    ...stats,
+
+  // Rank first, then fetch profiles — only the visible 20 creators are read.
+  const ranked = [...totals.entries()].sort((a, b) => b[1].views - a[1].views).slice(0, LEADERBOARD_SIZE);
+  const profiles = ranked.length
+    ? await db.creator.findMany({
+        where: { orgId, id: { in: ranked.map(([id]) => id) } },
+        select: { id: true, name: true, handle: true, platform: true, avatarUrl: true, followersCount: true },
+      })
+    : [];
+  const profileIndex = new Map(profiles.map((c) => [c.id, c]));
+
+  const leaderboard = ranked.map(([creatorId, t]) => {
+    const profile = profileIndex.get(creatorId);
+    return {
+      id: creatorId,
+      name: profile?.name ?? "Unknown",
+      handle: profile?.handle ?? "",
+      platform: profile?.platform ?? "",
+      avatarUrl: profile?.avatarUrl ?? null,
+      followersCount: profile?.followersCount ?? 0,
+      campaigns: campaignsPerCreator.get(creatorId) ?? 0,
+      views: t.views,
+      likes: t.likes,
+      posts: t.posts,
+      engagements: sumEngagements({ likes: t.likes, comments: t.comments, shares: t.shares, saves: t.saves }),
+      engagementRate:
+        computeEngagementRate({
+          views: t.views,
+          likes: t.likes,
+          comments: t.comments,
+          shares: t.shares,
+          saves: t.saves,
+        }) ?? 0,
+      emv: computeCampaignEmv(t.emvInputs),
+    };
+  });
+
+  const platformBreakdown = platformRows.map((row) => ({
+    platform: row.platform ?? "UNKNOWN",
+    views: row._sum.viewsCount ?? 0,
+    posts: row._count._all,
   }));
 
-  return NextResponse.json({
-    kpis: {
-      totalViews,
-      totalLikes,
-      totalComments,
-      avgEngagementRate: parseFloat(avgEngagementRate.toFixed(2)),
-      totalPosts: posts.length,
+  return NextResponse.json(
+    {
+      kpis: {
+        totalViews: kpiRow._sum.viewsCount ?? 0,
+        totalLikes: kpiRow._sum.likesCount ?? 0,
+        totalComments: kpiRow._sum.commentsCount ?? 0,
+        avgEngagementRate: parseFloat((kpiRow._avg.engagementRate ?? 0).toFixed(2)),
+        totalPosts: kpiRow._count._all,
+      },
+      monthlyTrend,
+      leaderboard,
+      platformBreakdown,
+      campaigns: orgCampaigns,
     },
-    monthlyTrend,
-    leaderboard,
-    platformBreakdown,
-    campaigns: orgCampaigns,
-  }, { headers: READ_CACHE_HEADERS });
+    { headers: READ_CACHE_HEADERS }
+  );
 }

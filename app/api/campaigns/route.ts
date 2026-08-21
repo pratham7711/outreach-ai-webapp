@@ -6,15 +6,12 @@ import { logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
 import { z } from "zod";
 import { pageParam, pageSizeParam, parseQuery } from "@/lib/http/queryParams";
-import type { CampaignStatus, PaymentMode, PaymentRelease, PostApprovalMode } from "@/lib/generated/prisma/client";
+import { CAMPAIGN_STATUSES, CAMPAIGN_TYPES, campaignFilterSchema, campaignWhere } from "@/lib/listFilters";
+import type { PaymentMode, PaymentRelease, PostApprovalMode } from "@/lib/generated/prisma/client";
 
-const CAMPAIGN_TYPES = ["BUDGET_BASED", "VIEW_BASED", "OPEN_COMMUNITY", "PRIVATE_INVITE"] as const;
-
-const CAMPAIGN_STATUSES = ["DRAFT", "PENDING", "IN_PROGRESS", "COMPLETE", "CANCELLED"] as const;
-
-const listCampaignsQuerySchema = z.object({
-  status: z.enum(CAMPAIGN_STATUSES).optional(),
-  search: z.string().optional(),
+// The list query is the page's filter set plus pagination, so a filter added to
+// the drawer reaches this route without a second schema to keep in step.
+const listCampaignsQuerySchema = campaignFilterSchema.extend({
   page: pageParam,
   limit: pageSizeParam(),
 });
@@ -49,18 +46,10 @@ export async function GET(request: NextRequest) {
 
     const parsedQuery = parseQuery(listCampaignsQuerySchema, request.nextUrl.searchParams);
     if (!parsedQuery.ok) return parsedQuery.response;
-    const { search, page, limit } = parsedQuery.data;
-    const status = (parsedQuery.data.status ?? null) as CampaignStatus | null;
+    const { page, limit, ...filters } = parsedQuery.data;
     const skip = (page - 1) * limit;
 
-    const where = {
-      orgId,
-      ...(status && { status }),
-      ...(search && {
-        title: { contains: search, mode: "insensitive" as const },
-      }),
-      deletedAt: null,
-    };
+    const where = campaignWhere(orgId, filters);
 
     const [campaigns, total] = await Promise.all([
       db.campaign.findMany({

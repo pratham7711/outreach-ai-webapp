@@ -7,3 +7,5 @@ export { MetricTile } from "./MetricTile";
 export { SectionCard } from "./SectionCard";
 export { ConfirmProvider, useConfirm } from "./ConfirmDialog";
 export type { ConfirmOptions } from "./ConfirmDialog";
+export { FilterDrawer, FilterButton } from "./FilterDrawer";
+export type { FilterDef, FilterOption, FilterValues } from "./FilterDrawer";

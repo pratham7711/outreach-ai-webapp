@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { Plus, LayoutGrid, List as ListIcon, Users } from "lucide-react";
 import { Button, Badge, Card, Input, Avatar, EmptyState } from "@pratham7711/ui";
 import { imgSrc } from "@/lib/postMedia";
-import { StatusTabs, Pagination } from "@/components/ds";
+import { StatusTabs, Pagination, FilterDrawer, FilterButton } from "@/components/ds";
+import type { FilterDef, FilterValues } from "@/components/ds";
 import { Search } from "lucide-react";
 import AddCreatorModal from "@/components/modals/AddCreatorModal";
 import Link from "next/link";
@@ -49,6 +50,8 @@ export default function CreatorsClient({
   page,
   q,
   platform,
+  filterValues,
+  filterCount,
 }: {
   creators: Creator[];
   platformCounts: Record<string, number>;
@@ -56,17 +59,40 @@ export default function CreatorsClient({
   page: number;
   q: string;
   platform: string;
+  filterValues: FilterValues;
+  filterCount: number;
 }) {
   const [search, setSearch] = useState(q);
   const [view, setView] = useState<"grid" | "table">("grid");
   const [showModal, setShowModal] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
   // Defaults are passed as undefined so they stay out of the URL entirely —
-  // /creators rather than /creators?platform=All&page=1.
+  // /creators rather than /creators?platform=All&page=1. The drawer's values
+  // ride along so changing a tab or page keeps the filters applied.
   const { push, pending } = useListQuery({
     q,
     platform: platform === "All" ? undefined : platform,
     page: page === 1 ? undefined : page,
+    ...filterValues,
   });
+
+  const FILTERS: FilterDef[] = [
+    { type: "numberRange", label: "Followers", minKey: "minFollowers", maxKey: "maxFollowers" },
+    { type: "dateRange", label: "Added", fromKey: "addedFrom", toKey: "addedTo" },
+    {
+      type: "toggleGroup",
+      label: "Activity",
+      options: [{ key: "hasPosts", label: "Has tracked posts" }],
+    },
+  ];
+
+  const anyFilter = Boolean(q) || platform !== "All" || filterCount > 0;
+  const clearEverything = () => {
+    setSearch("");
+    const cleared: Record<string, null> = { q: null, platform: null, page: null };
+    for (const key of Object.keys(filterValues)) cleared[key] = null;
+    push(cleared);
+  };
 
   // Filtering happens in the database now, so the box debounces into the URL
   // instead of slicing a local array.
@@ -106,6 +132,7 @@ export default function CreatorsClient({
             iconLeft={<Search size={16} />}
           />
         </div>
+        <FilterButton count={filterCount} onClick={() => setShowFilters(true)} />
         <div style={{ display: "flex", alignItems: "center", gap: 4, background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 10, padding: 4 }}>
           <Button variant={view === "grid" ? "primary" : "ghost"} size="sm" onClick={() => setView("grid")} aria-label="Grid view">
             <LayoutGrid size={16} />
@@ -130,15 +157,15 @@ export default function CreatorsClient({
       {filtered.length === 0 ? (
         <EmptyState
           icon={<Users size={32} color="var(--cc-text-subtle)" />}
-          title={q || platform !== "All" ? "No creators match those filters" : "No creators yet"}
+          title={anyFilter ? "No creators match those filters" : "No creators yet"}
           description={
-            q || platform !== "All"
-              ? "Try a different search term or platform."
+            anyFilter
+              ? "Try a different search term, platform or filter."
               : "Add creators to your roster to get started."
           }
           action={
-            q || platform !== "All" ? (
-              <Button variant="secondary" onClick={() => { setSearch(""); push({ q: null, platform: null, page: null }); }}>
+            anyFilter ? (
+              <Button variant="secondary" onClick={clearEverything}>
                 Clear filters
               </Button>
             ) : (

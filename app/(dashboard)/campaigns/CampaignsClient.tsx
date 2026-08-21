@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { Plus, Search, FolderOpen, ChevronDown, Sparkles, Target } from "lucide-react";
 import Link from "next/link";
 import { Button, Card, Badge, Input, EmptyState, Avatar, Tooltip } from "@pratham7711/ui";
-import { StatusTabs, Pagination } from "@/components/ds";
+import { StatusTabs, Pagination, FilterDrawer, FilterButton } from "@/components/ds";
+import type { FilterDef, FilterValues } from "@/components/ds";
 import CampaignWizard from "@/components/modals/CampaignWizard";
 import { formatCompactCurrency, timeAgo } from "@/lib/format";
 import { useListQuery } from "@/lib/useListQuery";
@@ -24,6 +25,13 @@ type Campaign = {
 };
 
 type Client = { id: string; name: string };
+
+const CAMPAIGN_TYPE_OPTIONS = [
+  { value: "BUDGET_BASED", label: "Budget Based" },
+  { value: "VIEW_BASED", label: "View Based" },
+  { value: "OPEN_COMMUNITY", label: "Open Community" },
+  { value: "PRIVATE_INVITE", label: "Private Invite" },
+];
 
 const STATUS_TABS = [
   { key: "ALL",         label: "All",       bg: "#F3F4F6", color: "#374151" },
@@ -91,6 +99,8 @@ export default function CampaignsClient({
   q,
   status,
   clients,
+  filterValues,
+  filterCount,
 }: {
   campaigns: Campaign[];
   stats: { total: number; active: number; creatorCount: number };
@@ -100,16 +110,48 @@ export default function CampaignsClient({
   q: string;
   status: string;
   clients: Client[];
+  filterValues: FilterValues;
+  filterCount: number;
 }) {
   const [search, setSearch] = useState(q);
   const [showModal, setShowModal] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
   // Defaults are passed as undefined so they stay out of the URL entirely —
-  // /campaigns rather than /campaigns?status=ALL&page=1.
+  // /campaigns rather than /campaigns?status=ALL&page=1. The drawer's values
+  // ride along so changing a tab or page keeps the filters applied.
   const { push, pending } = useListQuery({
     q,
     status: status === "ALL" ? undefined : status,
     page: page === 1 ? undefined : page,
+    ...filterValues,
   });
+
+  const FILTERS: FilterDef[] = [
+    {
+      type: "multiSelect",
+      key: "clientIds",
+      label: "Client",
+      options: clients.map((c) => ({ value: c.id, label: c.name })),
+    },
+    { type: "multiSelect", key: "campaignType", label: "Campaign type", options: CAMPAIGN_TYPE_OPTIONS },
+    { type: "dateRange", label: "Created", fromKey: "createdFrom", toKey: "createdTo" },
+    {
+      type: "toggleGroup",
+      label: "Activity",
+      options: [
+        { key: "hasCreators", label: "Has creators assigned" },
+        { key: "hasPosts", label: "Has posts delivered" },
+      ],
+    },
+  ];
+
+  const anyFilter = Boolean(q) || status !== "ALL" || filterCount > 0;
+  const clearEverything = () => {
+    setSearch("");
+    const cleared: Record<string, null> = { q: null, status: null, page: null };
+    for (const key of Object.keys(filterValues)) cleared[key] = null;
+    push(cleared);
+  };
 
   // Filtering happens in the database now, so the box debounces into the URL
   // instead of slicing a local array.
@@ -152,14 +194,17 @@ export default function CampaignsClient({
         </div>
       </div>
 
-      {/* Search Bar */}
-      <div style={{ marginBottom: 20 }}>
-        <Input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search Campaigns"
-          iconLeft={<Search size={16} />}
-        />
+      {/* Search + filters */}
+      <div style={{ marginBottom: 20, display: "flex", gap: 10, alignItems: "flex-start" }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search Campaigns"
+            iconLeft={<Search size={16} />}
+          />
+        </div>
+        <FilterButton count={filterCount} onClick={() => setShowFilters(true)} />
       </div>
 
       {/* Status Tabs */}
@@ -181,15 +226,15 @@ export default function CampaignsClient({
           <div style={{ padding: "48px 24px" }}>
             <EmptyState
               icon={<Target size={32} color="var(--cc-text-subtle)" />}
-              title={q || status !== "ALL" ? "No campaigns match those filters" : "No campaigns yet"}
+              title={anyFilter ? "No campaigns match those filters" : "No campaigns yet"}
               description={
-                q || status !== "ALL"
-                  ? "Try a different search term or status."
+                anyFilter
+                  ? "Try a different search term, status or filter."
                   : "Create your first campaign to get started"
               }
               action={
-                q || status !== "ALL" ? (
-                  <Button variant="secondary" onClick={() => { setSearch(""); push({ q: null, status: null, page: null }); }}>
+                anyFilter ? (
+                  <Button variant="secondary" onClick={clearEverything}>
                     Clear filters
                   </Button>
                 ) : (
@@ -258,6 +303,14 @@ export default function CampaignsClient({
           onPageChange={(p) => push({ page: p === 1 ? null : p })}
         />
       )}
+
+      <FilterDrawer
+        open={showFilters}
+        onClose={() => setShowFilters(false)}
+        filters={FILTERS}
+        values={filterValues}
+        onApply={(next) => push({ ...next, page: null })}
+      />
 
       {showModal && <CampaignWizard clients={clients} onClose={() => setShowModal(false)} />}
     </div>

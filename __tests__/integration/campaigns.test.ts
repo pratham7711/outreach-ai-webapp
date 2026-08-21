@@ -73,6 +73,8 @@ describe('GET /api/campaigns', () => {
     expect(body.pagination.page).toBe(1);
   });
 
+  // Search matches the campaign title or its client's name, the same as the
+  // list page, so a search for a brand finds that brand's campaigns.
   it('passes search param to db query', async () => {
     mockDb.campaign.findMany.mockResolvedValue([]);
     mockDb.campaign.count.mockResolvedValue(0);
@@ -83,7 +85,10 @@ describe('GET /api/campaigns', () => {
     expect(mockDb.campaign.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
-          title: expect.objectContaining({ contains: 'test' }),
+          OR: [
+            { title: expect.objectContaining({ contains: 'test' }) },
+            { client: { name: expect.objectContaining({ contains: 'test' }) } },
+          ],
         }),
       })
     );
@@ -98,7 +103,7 @@ describe('GET /api/campaigns', () => {
 
     expect(mockDb.campaign.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: expect.objectContaining({ status: 'DRAFT' }),
+        where: expect.objectContaining({ status: { in: ['DRAFT'] } }),
       })
     );
   });

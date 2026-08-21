@@ -5,10 +5,9 @@ import { logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
 import { z } from "zod";
 import { pageParam, pageSizeParam, parseQuery } from "@/lib/http/queryParams";
+import { creatorFilterSchema, creatorWhere } from "@/lib/listFilters";
 
-const listCreatorsQuerySchema = z.object({
-  search: z.string().optional(),
-  platform: z.enum(["TIKTOK", "INSTAGRAM", "YOUTUBE", "TWITTER"]).optional(),
+const listCreatorsQuerySchema = creatorFilterSchema.extend({
   page: pageParam,
   limit: pageSizeParam(20, 200),
 });
@@ -33,20 +32,10 @@ export async function GET(request: NextRequest) {
 
     const parsedQuery = parseQuery(listCreatorsQuerySchema, request.nextUrl.searchParams);
     if (!parsedQuery.ok) return parsedQuery.response;
-    const { search, platform, page, limit } = parsedQuery.data;
+    const { page, limit, ...filters } = parsedQuery.data;
     const skip = (page - 1) * limit;
 
-    const where = {
-      orgId,
-      ...(search && {
-        OR: [
-          { name: { contains: search, mode: "insensitive" as const } },
-          { handle: { contains: search, mode: "insensitive" as const } },
-        ],
-      }),
-      ...(platform && { platform: platform as "TIKTOK" | "INSTAGRAM" | "YOUTUBE" | "TWITTER" }),
-      deletedAt: null,
-    };
+    const where = creatorWhere(orgId, filters);
 
     const [creators, total] = await Promise.all([
       db.creator.findMany({

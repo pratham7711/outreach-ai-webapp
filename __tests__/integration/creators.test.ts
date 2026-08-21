@@ -96,7 +96,7 @@ describe('GET /api/creators', () => {
 
     expect(mockDb.creator.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: expect.objectContaining({ platform: 'INSTAGRAM' }),
+        where: expect.objectContaining({ platform: { in: ['INSTAGRAM'] } }),
       })
     );
   });

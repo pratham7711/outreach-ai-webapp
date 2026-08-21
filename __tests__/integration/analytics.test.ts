@@ -1,15 +1,20 @@
 /**
  * @jest-environment node
+ *
+ * The route counts in the database, so these mocks stub aggregates rather than
+ * post rows: db.post.aggregate for the KPIs, groupBy for the per-creator and
+ * per-platform rollups, and one raw query for the monthly campaign trend.
  */
 import { NextRequest } from "next/server";
 import { GET as getAnalytics } from "@/app/api/analytics/route";
 
 jest.mock("@/lib/db", () => ({
   db: {
-    post: { findMany: jest.fn() },
+    post: { findMany: jest.fn(), aggregate: jest.fn(), groupBy: jest.fn() },
     payout: { findMany: jest.fn() },
     campaign: { findMany: jest.fn() },
     creator: { findMany: jest.fn() },
+    $queryRawUnsafe: jest.fn(),
   },
 }));
 
@@ -27,10 +32,29 @@ function makeRequest() {
   return new NextRequest("http://localhost/api/analytics");
 }
 
+const EMPTY_KPIS = {
+  _sum: { viewsCount: null, likesCount: null, commentsCount: null },
+  _avg: { engagementRate: null },
+  _count: { _all: 0 },
+};
+
+/**
+ * groupBy is called three times, in order: (creator, platform) totals,
+ * (creator, campaign) pairs, then per-platform totals.
+ */
+function stubGroupBy(creatorPlatform: any[] = [], creatorCampaign: any[] = [], byPlatform: any[] = []) {
+  mockDb.post.groupBy
+    .mockResolvedValueOnce(creatorPlatform)
+    .mockResolvedValueOnce(creatorCampaign)
+    .mockResolvedValueOnce(byPlatform);
+}
+
 beforeEach(() => {
   jest.clearAllMocks();
   mockAuth.mockResolvedValue(authedSession);
-  mockDb.post.findMany.mockResolvedValue([]);
+  mockDb.post.aggregate.mockResolvedValue(EMPTY_KPIS);
+  mockDb.post.groupBy.mockResolvedValue([]);
+  mockDb.$queryRawUnsafe.mockResolvedValue([]);
   mockDb.payout.findMany.mockResolvedValue([]);
   mockDb.campaign.findMany.mockResolvedValue([]);
   mockDb.creator.findMany.mockResolvedValue([]);
@@ -60,27 +84,24 @@ describe("GET /api/analytics", () => {
     expect(body.monthlyTrend).toHaveLength(6);
   });
 
-  it("aggregates KPIs from posts correctly", async () => {
-    mockDb.post.findMany.mockResolvedValue([
-      {
-        viewsCount: 10_000,
-        likesCount: 500,
-        commentsCount: 50,
-        engagementRate: 5.5,
-        createdAt: new Date(),
-        creatorId: "creator-1",
-        creator: { id: "creator-1", name: "Alice", handle: "alice" },
-      },
-      {
-        viewsCount: 20_000,
-        likesCount: 1_000,
-        commentsCount: 100,
-        engagementRate: 4.5,
-        createdAt: new Date(),
-        creatorId: "creator-1",
-        creator: { id: "creator-1", name: "Alice", handle: "alice" },
-      },
-    ]);
+  it("reports the KPIs the database counted", async () => {
+    mockDb.post.aggregate.mockResolvedValue({
+      _sum: { viewsCount: 30_000, likesCount: 1_500, commentsCount: 150 },
+      _avg: { engagementRate: 5 },
+      _count: { _all: 2 },
+    });
+    stubGroupBy(
+      [
+        {
+          creatorId: "creator-1",
+          platform: "TIKTOK",
+          _sum: { viewsCount: 30_000, likesCount: 1_500, commentsCount: 150, sharesCount: 0, savesCount: 0 },
+          _count: { _all: 2 },
+        },
+      ],
+      [{ creatorId: "creator-1", campaignId: "camp-1" }],
+      [{ platform: "TIKTOK", _sum: { viewsCount: 30_000 }, _count: { _all: 2 } }]
+    );
     mockDb.creator.findMany.mockResolvedValue([
       { id: "creator-1", name: "Alice", handle: "alice", platform: "TIKTOK", avatarUrl: null, followersCount: 50_000 },
     ]);
@@ -89,40 +110,88 @@ describe("GET /api/analytics", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
 
-    // KPIs
-    expect(body.kpis.totalViews).toBe(30_000);
-    expect(body.kpis.totalLikes).toBe(1_500);
-    expect(body.kpis.totalComments).toBe(150);
-    expect(body.kpis.avgEngagementRate).toBe(5); // (5.5 + 4.5) / 2
-    expect(body.kpis.totalPosts).toBe(2);
+    expect(body.kpis).toEqual({
+      totalViews: 30_000,
+      totalLikes: 1_500,
+      totalComments: 150,
+      avgEngagementRate: 5,
+      totalPosts: 2,
+    });
 
-    // Leaderboard — only 1 creator with 30K views
     expect(body.leaderboard).toHaveLength(1);
-    expect(body.leaderboard[0].name).toBe("Alice");
-    expect(body.leaderboard[0].views).toBe(30_000);
+    expect(body.leaderboard[0]).toMatchObject({
+      name: "Alice",
+      views: 30_000,
+      posts: 2,
+      campaigns: 1,
+    });
     expect(body.leaderboard[0].earnings).toBeUndefined();
+    expect(body.platformBreakdown).toEqual([{ platform: "TIKTOK", views: 30_000, posts: 2 }]);
   });
 
-  it("never queries payouts", async () => {
+  it("prices EMV off each platform's summed counts", async () => {
+    // TIKTOK view rate is $0.04, like $0.50 — 1000 views + 10 likes = $45.
+    stubGroupBy([
+      {
+        creatorId: "creator-1",
+        platform: "TIKTOK",
+        _sum: { viewsCount: 1_000, likesCount: 10, commentsCount: 0, sharesCount: 0, savesCount: 0 },
+        _count: { _all: 1 },
+      },
+    ]);
+    mockDb.creator.findMany.mockResolvedValue([
+      { id: "creator-1", name: "Alice", handle: "alice", platform: "TIKTOK", avatarUrl: null, followersCount: 0 },
+    ]);
+
+    const body = await (await getAnalytics(makeRequest())).json();
+    expect(body.leaderboard[0].emv).toBeCloseTo(45, 2);
+  });
+
+  it("fills the six-month trend from the bucketed campaign counts", async () => {
+    const thisMonth = new Date();
+    thisMonth.setDate(1);
+    mockDb.$queryRawUnsafe.mockResolvedValue([
+      { bucket: thisMonth, campaigns: BigInt(4), active: BigInt(1) },
+    ]);
+
+    const body = await (await getAnalytics(makeRequest())).json();
+    expect(body.monthlyTrend).toHaveLength(6);
+    expect(body.monthlyTrend[5]).toMatchObject({ campaigns: 4, active: 1 });
+  });
+
+  it("never queries payouts, and never reads whole post rows", async () => {
     await getAnalytics(makeRequest());
     expect(mockDb.payout.findMany).not.toHaveBeenCalled();
+    expect(mockDb.post.findMany).not.toHaveBeenCalled();
   });
 
   it("does not leak data across orgs (cross-tenant isolation)", async () => {
-    // The org-1 session should only see org-1 data.
-    // We verify the db query was called with the correct orgId filter.
+    stubGroupBy([
+      {
+        creatorId: "creator-1",
+        platform: "TIKTOK",
+        _sum: { viewsCount: 1, likesCount: 0, commentsCount: 0, sharesCount: 0, savesCount: 0 },
+        _count: { _all: 1 },
+      },
+    ]);
     await getAnalytics(makeRequest());
-    expect(mockDb.post.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({
-          campaign: expect.objectContaining({ orgId: "org-1" }),
-        }),
-      })
-    );
+
+    const scopedToOrg = expect.objectContaining({
+      where: expect.objectContaining({
+        campaign: expect.objectContaining({ orgId: "org-1" }),
+      }),
+    });
+    expect(mockDb.post.aggregate).toHaveBeenCalledWith(scopedToOrg);
+    for (const call of mockDb.post.groupBy.mock.calls) {
+      expect(call[0].where.campaign.orgId).toBe("org-1");
+    }
+    // Leaderboard profiles are fetched by id, and still scoped to the org.
     expect(mockDb.creator.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({ orgId: "org-1" }),
       })
     );
+    const [, orgArg] = mockDb.$queryRawUnsafe.mock.calls[0];
+    expect(orgArg).toBe("org-1");
   });
 });
