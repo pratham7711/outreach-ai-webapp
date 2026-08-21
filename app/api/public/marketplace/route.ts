@@ -40,7 +40,11 @@ export async function GET(request: NextRequest) {
       pageSize: parseInt(sp.get("pageSize") ?? "12", 10) || 12,
     });
     logger.info("marketplace.done", { status: 200 });
-    return NextResponse.json(result);
+    return NextResponse.json(result, {
+      headers: {
+        "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
+      },
+    });
   } catch (error) {
     console.error("[public/marketplace] list failed:", error);
     return NextResponse.json({ error: "Failed to load marketplace" }, { status: 500 });

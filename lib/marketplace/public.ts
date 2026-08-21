@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { db } from "@/lib/db";
 
 /**
@@ -83,6 +84,7 @@ export const MARKETPLACE_LIST_SELECT = {
  * landing page. Still no org internals / financial internals.
  */
 export const MARKETPLACE_DETAIL_SELECT = {
+  id: true,
   publicSlug: true,
   title: true,
   campaignType: true,
@@ -323,7 +325,7 @@ export type MarketplaceDetailResult = {
  * Shared, auth-free marketplace detail query used by BOTH the public API route
  * and the /explore/[slug] Server Component. PRIVATE / INVITE_ONLY → null (404).
  */
-export async function fetchMarketplaceDetail(
+export const fetchMarketplaceDetail = cache(async function fetchMarketplaceDetail(
   slug: string
 ): Promise<MarketplaceDetailResult | null> {
   const row = await db.campaign.findFirst({
@@ -336,26 +338,23 @@ export async function fetchMarketplaceDetail(
   });
   if (!row) return null;
 
-  const idRow = await db.campaign.findUnique({
-    where: { publicSlug: slug },
-    select: { id: true },
-  });
-  const campaignId = idRow?.id ?? "";
+  const campaignId = (row as unknown as { id: string }).id;
 
-  const agg = await db.viewLedger.aggregate({
-    where: { campaignId },
-    _sum: { amountEarned: true },
-  });
+  const [agg, grouped] = await Promise.all([
+    db.viewLedger.aggregate({
+      where: { campaignId },
+      _sum: { amountEarned: true },
+    }),
+    db.viewLedger.groupBy({
+      by: ["creatorId"],
+      where: { campaignId },
+      _sum: { viewsDelta: true, amountEarned: true },
+      orderBy: { _sum: { viewsDelta: "desc" } },
+      take: 10,
+    }),
+  ]);
   const earnedMajor = agg._sum.amountEarned ?? 0;
   const earnedMinor = Math.round(earnedMajor * 100);
-
-  const grouped = await db.viewLedger.groupBy({
-    by: ["creatorId"],
-    where: { campaignId },
-    _sum: { viewsDelta: true, amountEarned: true },
-    orderBy: { _sum: { viewsDelta: "desc" } },
-    take: 10,
-  });
   const creatorIds = grouped.map((g) => g.creatorId);
   const creators =
     creatorIds.length > 0
@@ -432,7 +431,7 @@ export async function fetchMarketplaceDetail(
     },
     leaderboard,
   };
-}
+});
 
 /**
  * Sum verified earnings for a campaign from the view ledger (major units) and
