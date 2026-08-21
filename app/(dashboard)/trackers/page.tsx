@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Badge, Card, Button, Modal, Input, Skeleton, EmptyState } from "@pratham7711/ui";
 import { MetricTile } from "@/components/ds";
 import { Music, Plus, RefreshCw, Trash2, TrendingUp } from "lucide-react";
+import { CreatorTrackers } from "./CreatorTrackers";
 import { formatCompact, formatDateAbs } from "@/lib/format";
 import { apiDelete, apiFetch, apiPost } from "@/lib/api/client";
 import { errorMessage } from "@/lib/api/errorMessage";
@@ -73,7 +74,18 @@ function periodLabel(key: string): string {
   return PERIODS.find((p) => p.key === key)?.label ?? key;
 }
 
+/* The reference splits this page into Audios and Creators (?sub=sound|creator).
+   They share nothing but the header, so the creator half lives in its own file
+   and its queries do not run until that tab is on screen. */
+const SUBS = [
+  { key: "sound", label: "Audios" },
+  { key: "creator", label: "Creators" },
+];
+
 export default function TrackersPage() {
+  const [sub, setSub] = useState("sound");
+  // Held here so the header button can open the picker the Creators tab owns.
+  const [creatorPickerOpen, setCreatorPickerOpen] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [formData, setFormData] = useState({ tiktokSoundId: "", title: "", artist: "" });
   const [period, setPeriod] = useState("24h");
@@ -164,30 +176,65 @@ export default function TrackersPage() {
       <div className="rsp-header">
         <div>
           <h1 style={{ fontSize: 26, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Trackers</h1>
-          <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>Track TikTok sounds and trends</p>
+          <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>Track TikTok sounds and creators</p>
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <Button
-            variant="secondary"
-            onClick={() => refreshMutation.mutate()}
-            disabled={refreshMutation.isPending}
-          >
-            <RefreshCw
-              size={16}
-              style={{
-                marginRight: 6,
-                animation: refreshMutation.isPending ? "cc-spin 1s linear infinite" : undefined,
-              }}
-            />
-            {refreshMutation.isPending ? "Refreshing..." : "Refresh"}
-          </Button>
-          <Button variant="primary" onClick={() => setModalOpen(true)}>
+        {/* The two tabs track different things, so they get different actions in
+            the same place rather than one tab's buttons sitting inert. */}
+        {sub === "sound" ? (
+          <div style={{ display: "flex", gap: 8 }}>
+            <Button
+              variant="secondary"
+              onClick={() => refreshMutation.mutate()}
+              disabled={refreshMutation.isPending}
+            >
+              <RefreshCw
+                size={16}
+                style={{
+                  marginRight: 6,
+                  animation: refreshMutation.isPending ? "cc-spin 1s linear infinite" : undefined,
+                }}
+              />
+              {refreshMutation.isPending ? "Refreshing..." : "Refresh"}
+            </Button>
+            <Button variant="primary" onClick={() => setModalOpen(true)}>
+              <Plus size={16} style={{ marginRight: 6 }} />
+              Track Sound
+            </Button>
+          </div>
+        ) : (
+          <Button variant="primary" onClick={() => setCreatorPickerOpen(true)}>
             <Plus size={16} style={{ marginRight: 6 }} />
-            Track Sound
+            Track Creator
           </Button>
-        </div>
+        )}
       </div>
 
+      {/* Sub-tabs: Audios | Creators */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 24 }}>
+        {SUBS.map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setSub(t.key)}
+            style={{
+              padding: "10px 32px",
+              borderRadius: 10,
+              fontSize: 14,
+              fontWeight: 600,
+              cursor: "pointer",
+              border: "1px solid var(--cc-primary)",
+              background: sub === t.key ? "var(--cc-primary)" : "var(--cc-card)",
+              color: sub === t.key ? "white" : "var(--cc-primary)",
+            }}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {sub === "creator" ? (
+        <CreatorTrackers pickerOpen={creatorPickerOpen} setPickerOpen={setCreatorPickerOpen} />
+      ) : (
+      <>
       {/* Stat Cards */}
       {loading ? (
         <div className="rsp-grid-tiles" style={{ marginBottom: 32 }}>
@@ -378,6 +425,9 @@ export default function TrackersPage() {
             );
           })}
         </Card>
+      )}
+
+      </>
       )}
 
       {/* Track Sound Modal */}

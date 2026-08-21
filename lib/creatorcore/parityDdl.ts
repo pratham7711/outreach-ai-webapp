@@ -264,6 +264,11 @@ export const SONG_PHASE_SLOT_DDL: string[] = [
   `CREATE INDEX IF NOT EXISTS "SyncSlot_campaignId_idx" ON "SyncSlot"("campaignId")`,
   `CREATE INDEX IF NOT EXISTS "Post_phaseId_idx" ON "Post"("phaseId")`,
 
+  // Creator watchlist for the Trackers page's Creators sub-tab. Nullable, so an
+  // existing row is untracked until someone tracks it, and no backfill is needed.
+  `ALTER TABLE "Creator" ADD COLUMN IF NOT EXISTS "trackedSince" TIMESTAMP(3)`,
+  `CREATE INDEX IF NOT EXISTS "Creator_orgId_trackedSince_idx" ON "Creator"("orgId", "trackedSince")`,
+
   // Postgres has no ADD CONSTRAINT IF NOT EXISTS. These are not cosmetic: the
   // referential actions below are where `onDelete: SetNull` and `Cascade` in
   // schema.prisma actually live, so without them deleting a campaign fails or

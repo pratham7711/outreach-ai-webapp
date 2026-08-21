@@ -578,6 +578,10 @@ model Creator {
   addedAt        DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
   deletedAt      DateTime?
+  // Watchlist membership for the Trackers page, mirroring TikTokSound.trackedSince.
+  // A flag rather than a join table: a creator is tracked or not, the relation
+  // carries no other attribute, and the row is already scoped to an org.
+  trackedSince   DateTime?
 
   org            Organization           @relation(fields: [orgId], references: [id])
   listItems      CreatorListItem[]
@@ -585,6 +589,8 @@ model Creator {
   posts          Post[]
   payouts        Payout[]
   socialAccounts CreatorSocialAccount[]
+
+  @@index([orgId, trackedSince])
 }
 
 model CreatorSocialAccount {
