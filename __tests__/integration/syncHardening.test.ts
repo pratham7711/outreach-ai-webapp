@@ -48,7 +48,7 @@ function makePost(overrides: Record<string, unknown> = {}) {
     syncFailCount: 0,
     syncDisabledAt: null,
     snapshots: [],
-    creator: { orgId: "org-1", handle: "u", socialAccounts: [] },
+    creator: { orgId: "org-1", handle: null, socialAccounts: [] },
     ...overrides,
   };
 }
