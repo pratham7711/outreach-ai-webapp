@@ -4,14 +4,14 @@ import React from "react";
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { Card, Badge, Button, Input, Modal, EmptyState, Skeleton, Avatar } from "@pratham7711/ui";
 import { StatusTabs, Pagination } from "@/components/ds";
-import { Grid3X3, List, Plus, Check, X, Eye, Heart, MessageCircle, TrendingUp, BarChart3, ArrowUp, ArrowDown, ArrowUpDown, Flag, Video, AlertTriangle } from "lucide-react";
+import { Grid3X3, List, Plus, Check, X, Eye, Heart, MessageCircle, TrendingUp, BarChart3, ArrowUp, ArrowDown, ArrowUpDown, Flag, Video, AlertTriangle, Send, Download, Bookmark } from "lucide-react";
 import Link from "next/link";
 import { computePostEmv, computeEngagementRate } from "@/lib/metrics";
 import { formatCompact, formatCompactCurrency, stripAt, formatDateAbs } from "@/lib/format";
 import type { ComplianceFlag } from "@/lib/compliance/postCompliance";
 import PostMedia from "@/components/PostMedia";
 import { imgSrc } from "@/lib/postMedia";
-import { metricValue, engagementRateValue } from "@/lib/metricDisplay";
+import { metricValue, engagementRateValue, summarizePostMetrics } from "@/lib/metricDisplay";
 
 type SnapshotLite = { id: string; viewsCount: number; recordedAt: string };
 
@@ -29,6 +29,7 @@ type PostData = {
   commentsCount: number;
   sharesCount: number;
   savesCount: number;
+  downloadsCount: number;
   engagementRate: number;
   status: string;
   fetchState: string | null; // LIVE / UNAVAILABLE / ERROR — is the post still up
@@ -226,12 +227,14 @@ export default function PostsTab({
   const [posts, setPosts] = useState<PostData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<"grid" | "list">("list");
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [platformFilter, setPlatformFilter] = useState("ALL");
   const [mediaTypeFilter, setMediaTypeFilter] = useState("ALL");
   const [minViews, setMinViews] = useState("");
   const [creatorSearch, setCreatorSearch] = useState("");
+  const [postedFrom, setPostedFrom] = useState("");
+  const [postedTo, setPostedTo] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("posted");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [page, setPage] = useState(1);
@@ -270,7 +273,7 @@ export default function PostsTab({
   }, [campaignId, statusFilter, platformFilter, mediaTypeFilter]);
 
   useEffect(() => { fetchPosts(); }, [fetchPosts]);
-  useEffect(() => { setPage(1); }, [statusFilter, platformFilter, mediaTypeFilter, minViews, creatorSearch, sortKey, sortDir]);
+  useEffect(() => { setPage(1); }, [statusFilter, platformFilter, mediaTypeFilter, minViews, creatorSearch, postedFrom, postedTo, sortKey, sortDir]);
 
   const handleAddPost = async () => {
     if (!addForm.postUrl || !addForm.creatorId) return;
@@ -384,11 +387,20 @@ export default function PostsTab({
   const filteredSorted = useMemo(() => {
     const minV = parseInt(minViews, 10);
     const search = creatorSearch.trim().toLowerCase();
+    // Inclusive on both ends: "to" is the end of that day, not midnight at its start.
+    const fromMs = postedFrom ? new Date(`${postedFrom}T00:00:00`).getTime() : null;
+    const toMs = postedTo ? new Date(`${postedTo}T23:59:59.999`).getTime() : null;
     const rows = posts.filter((p) => {
       if (Number.isFinite(minV) && p.viewsCount < minV) return false;
       if (search) {
         const hay = `${p.creator.name} ${p.creator.handle}`.toLowerCase();
         if (!hay.includes(search)) return false;
+      }
+      if (fromMs !== null || toMs !== null) {
+        const posted = new Date(p.postedAt).getTime();
+        if (!Number.isFinite(posted)) return false;
+        if (fromMs !== null && posted < fromMs) return false;
+        if (toMs !== null && posted > toMs) return false;
       }
       return true;
     });
@@ -411,7 +423,7 @@ export default function PostsTab({
       return sortDir === "asc" ? diff : -diff;
     });
     return sorted;
-  }, [posts, minViews, creatorSearch, sortKey, sortDir]);
+  }, [posts, minViews, creatorSearch, postedFrom, postedTo, sortKey, sortDir]);
 
   const anyDelta = useMemo(() => posts.some((p) => (p.snapshots?.length ?? 0) >= 2), [posts]);
   /* Imported posts carried view counts only, so likes, comments and engagement
@@ -452,6 +464,28 @@ export default function PostsTab({
     [anyLikes, anyComments, anyEngRate, anyDelta]
   );
   const listGrid = useMemo(() => gridTemplate(listCols), [listCols]);
+
+  /* Over the filtered set, so the row answers for what is on screen. */
+  const kpis = useMemo(() => summarizePostMetrics(filteredSorted), [filteredSorted]);
+
+  const kpiChips: { label: string; value: string }[] = useMemo(() => {
+    const chips: { label: string; value: string }[] = [
+      { label: "Total Posts", value: kpis.posts.toLocaleString() },
+      { label: "Total Views", value: formatNumber(kpis.views) },
+    ];
+    const pct = (v: number | null) => (v === null ? null : `${v.toFixed(2)}%`);
+    const add = (label: string, value: string | null) => {
+      if (value !== null) chips.push({ label, value });
+    };
+    add("Avg. Post Eng Rate", pct(kpis.avgPostRate));
+    add("Avg. Campaign Eng Rate", pct(kpis.campaignRate));
+    add("Total Engagement", kpis.engagement === null ? null : formatNumber(kpis.engagement));
+    add("Total Likes", kpis.likes === null ? null : formatNumber(kpis.likes));
+    add("Total Comments", kpis.comments === null ? null : formatNumber(kpis.comments));
+    add("Total Shares", kpis.shares === null ? null : formatNumber(kpis.shares));
+    add("Total Saves", kpis.saves === null ? null : formatNumber(kpis.saves));
+    return chips;
+  }, [kpis]);
 
   const accruedMinor = useMemo(() => {
     if (!marketplace) return 0;
@@ -567,6 +601,29 @@ export default function PostsTab({
           )}
         </Card>
       )}
+      {!error && posts.length > 0 && (
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {kpiChips.map((chip) => (
+            <div
+              key={chip.label}
+              style={{
+                background: "var(--cc-primary)",
+                color: "white",
+                borderRadius: 8,
+                padding: "8px 12px",
+                display: "flex",
+                flexDirection: "column",
+                gap: 2,
+                minWidth: 104,
+              }}
+            >
+              <span style={{ fontSize: 11, opacity: 0.85 }}>{chip.label}</span>
+              <span style={{ fontSize: 16, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{chip.value}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <StatusTabs
@@ -596,6 +653,22 @@ export default function PostsTab({
             aria-label="Minimum views filter"
             className="posts-min-views"
             style={{ ...selectStyle, width: 110 }}
+          />
+          <input
+            type="date"
+            value={postedFrom}
+            max={postedTo || undefined}
+            onChange={(e) => setPostedFrom(e.target.value)}
+            aria-label="Posted on or after"
+            style={{ ...selectStyle, width: 140 }}
+          />
+          <input
+            type="date"
+            value={postedTo}
+            min={postedFrom || undefined}
+            onChange={(e) => setPostedTo(e.target.value)}
+            aria-label="Posted on or before"
+            style={{ ...selectStyle, width: 140 }}
           />
           <select value={platformFilter} onChange={(e) => setPlatformFilter(e.target.value)} aria-label="Filter by platform" style={selectStyle}>
             {PLATFORM_FILTERS.map((p) => <option key={p} value={p}>{p === "ALL" ? "All Platforms" : p}</option>)}
@@ -785,6 +858,9 @@ export default function PostsTab({
               const emv = postEmv(post);
               const cardLikes = metricValue(post.likesCount, post.lastSyncedAt);
               const cardComments = metricValue(post.commentsCount, post.lastSyncedAt);
+              const cardShares = metricValue(post.sharesCount, post.lastSyncedAt);
+              const cardSaves = metricValue(post.savesCount, post.lastSyncedAt);
+              const cardDownloads = metricValue(post.downloadsCount, post.lastSyncedAt);
               const cardEngRate =
                 cardLikes === null && cardComments === null
                   ? null
@@ -820,11 +896,24 @@ export default function PostsTab({
                       {cardComments !== null && (
                         <span style={{ display: "flex", alignItems: "center", gap: 3 }}><MessageCircle size={12} />{formatNumber(cardComments)}</span>
                       )}
+                      {cardShares !== null && (
+                        <span style={{ display: "flex", alignItems: "center", gap: 3 }}><Send size={12} />{formatNumber(cardShares)}</span>
+                      )}
+                      {cardSaves !== null && (
+                        <span style={{ display: "flex", alignItems: "center", gap: 3 }}><Bookmark size={12} />{formatNumber(cardSaves)}</span>
+                      )}
+                      {cardDownloads !== null && (
+                        <span style={{ display: "flex", alignItems: "center", gap: 3 }}><Download size={12} />{formatNumber(cardDownloads)}</span>
+                      )}
                       {cardEngRate !== null && (
                         <span style={{ display: "flex", alignItems: "center", gap: 3 }}><TrendingUp size={12} />{cardEngRate.toFixed(1)}%</span>
                       )}
                     </div>
                     <div style={{ fontSize: 12, color: "var(--cc-text-muted)", marginTop: 8 }}>EMV <strong style={{ color: "var(--cc-text)" }}>{formatMoney(emv)}</strong></div>
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 11, color: "var(--cc-text-muted)", marginTop: 6 }}>
+                      <span>Posted {formatDateAbs(post.postedAt)}</span>
+                      {post.lastSyncedAt && <span>Updated {formatSince(post.lastSyncedAt)}</span>}
+                    </div>
                     <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
                       <Button variant="secondary" onClick={() => openMetrics(post)} style={{ flex: 1, fontSize: 12 }}>
                         <span style={{ display: "flex", alignItems: "center", gap: 4 }}><BarChart3 size={12} /> Metrics</span>

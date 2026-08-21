@@ -42,3 +42,60 @@ export function engagementRateValue(
   return (((l ?? 0) + (c ?? 0)) / views) * 100;
 }
 
+export type MeasurablePost = {
+  viewsCount: number;
+  likesCount: number;
+  commentsCount: number;
+  sharesCount: number;
+  savesCount: number;
+  downloadsCount: number;
+  lastSyncedAt: string | Date | null;
+};
+
+/**
+ * The Posts-tab summary row. Views are always real -- every import carried them.
+ * Every other total stays UNKNOWN until at least one post in scope was actually
+ * measured, because summing unfetched zeroes would invent a figure.
+ *
+ * Two rates, as the reference has: `avgPostRate` is the mean of the per-post
+ * rates, `campaignRate` is total engagement over total views. Both divide by
+ * measured views only, so an unfetched post cannot dilute them.
+ */
+export function summarizePostMetrics(posts: readonly MeasurablePost[]) {
+  const measured = posts.filter((p) => metricValue(p.likesCount, p.lastSyncedAt) !== UNKNOWN);
+  const sum = (pick: (p: MeasurablePost) => number) =>
+    measured.length === 0 ? UNKNOWN : measured.reduce((acc, p) => acc + (pick(p) || 0), 0);
+
+  const likes = sum((p) => p.likesCount);
+  const comments = sum((p) => p.commentsCount);
+  const shares = sum((p) => p.sharesCount);
+  const saves = sum((p) => p.savesCount);
+  const downloads = sum((p) => p.downloadsCount);
+  const engagement =
+    likes === UNKNOWN ? UNKNOWN : likes + (comments ?? 0) + (shares ?? 0) + (downloads ?? 0);
+
+  const perPostRates = measured
+    .map((p) => engagementRateValue(p.likesCount, p.commentsCount, p.viewsCount, p.lastSyncedAt))
+    .filter((r): r is number => r !== UNKNOWN);
+  const avgPostRate =
+    perPostRates.length === 0
+      ? UNKNOWN
+      : perPostRates.reduce((a, b) => a + b, 0) / perPostRates.length;
+
+  const measuredViews = measured.reduce((acc, p) => acc + (p.viewsCount || 0), 0);
+  const campaignRate =
+    engagement !== UNKNOWN && measuredViews > 0 ? (engagement / measuredViews) * 100 : UNKNOWN;
+
+  return {
+    posts: posts.length,
+    views: posts.reduce((acc, p) => acc + (p.viewsCount || 0), 0),
+    avgPostRate,
+    campaignRate,
+    engagement,
+    likes,
+    comments,
+    shares,
+    saves,
+  };
+}
+
