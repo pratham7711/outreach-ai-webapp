@@ -7,7 +7,7 @@ import {
   hasMetricCounts,
   type PostMetrics,
 } from "@/lib/platforms/fetchPostMetrics";
-import { decryptInstagramToken } from "@/lib/platforms/instagramToken";
+import { ensureFreshInstagramToken } from "@/lib/platforms/instagramToken";
 import { ensureFreshTikTokToken } from "@/lib/platforms/tiktokToken";
 import { decideSyncAction, SyncAction } from "@/lib/sync/cadence";
 import { createLogger } from "@/lib/observability/logger";
@@ -175,7 +175,7 @@ export async function GET(request: NextRequest) {
         const ttAccount = post.creator.socialAccounts.find((a) => a.platform === "TIKTOK");
         const instagramToken =
           post.platform === "INSTAGRAM"
-            ? decryptInstagramToken(igAccount?.accessToken, post.creator.orgId)
+            ? await ensureFreshInstagramToken(igAccount, post.creator.orgId)
             : undefined;
         const instagramHandle =
           post.platform === "INSTAGRAM"

@@ -1,4 +1,9 @@
-const GRAPH_BASE = "https://graph.facebook.com/v19.0";
+import { createLogger } from "@/lib/observability/logger";
+
+// v19.0 stopped being usable 2026-05-21. An expired version does not error —
+// Graph silently serves the next-oldest usable one, so a stale pin here is
+// invisible until a field it no longer returns comes back undefined.
+const GRAPH_BASE = "https://graph.facebook.com/v26.0";
 const MEDIA_PAGE_LIMIT = 50;
 const MAX_MEDIA_PAGES = 5;
 
@@ -34,13 +39,69 @@ export async function graphGet(
 ): Promise<any | null> {
   const url = new URL(`${GRAPH_BASE}/${path}`);
   for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
+  const log = createLogger({ context: { platform: "INSTAGRAM", call: `graph.${path}` } });
   try {
     const res = await fetch(url.toString(), { signal });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      // Every failure here collapses to null, so an expired token, a missing
+      // scope and a genuinely empty result are indistinguishable to callers.
+      // Log the Graph error code so the difference is at least recoverable.
+      let code: unknown;
+      let message: unknown;
+      try {
+        const body = await res.json();
+        code = body?.error?.code;
+        message = body?.error?.message;
+      } catch {
+        // non-JSON error body; status alone has to do
+      }
+      log.error("Graph request failed", { status: res.status, code, message });
+      return null;
+    }
     return await res.json();
-  } catch {
+  } catch (err) {
+    log.error("Graph request threw", {
+      error: err instanceof Error ? err.message : String(err),
+    });
     return null;
   }
+}
+
+export type LongLivedToken = { accessToken: string; expiresAt: Date | null };
+
+// Facebook issues no refresh_token. The only way to keep an Instagram
+// connection alive is to trade a still-valid token for a fresh long-lived one;
+// the short-lived token the OAuth callback receives lasts about an hour.
+export async function exchangeForLongLivedToken(
+  token: string,
+  signal?: AbortSignal,
+): Promise<LongLivedToken | null> {
+  const clientId = process.env.INSTAGRAM_CLIENT_ID;
+  const clientSecret = process.env.INSTAGRAM_CLIENT_SECRET;
+  if (!clientId || !clientSecret) return null;
+
+  const data = await graphGet(
+    "oauth/access_token",
+    {
+      grant_type: "fb_exchange_token",
+      client_id: clientId,
+      client_secret: clientSecret,
+      fb_exchange_token: token,
+    },
+    signal,
+  );
+
+  const accessToken = data?.access_token;
+  if (typeof accessToken !== "string" || !accessToken) return null;
+
+  const expiresIn = data?.expires_in;
+  return {
+    accessToken,
+    expiresAt:
+      typeof expiresIn === "number" && expiresIn > 0
+        ? new Date(Date.now() + expiresIn * 1000)
+        : null,
+  };
 }
 
 export async function resolveIgUserId(token: string, signal?: AbortSignal): Promise<string | null> {

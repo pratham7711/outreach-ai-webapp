@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getCreatorSession } from "@/lib/creator-auth";
 import { encrypt } from "@/lib/crypto/encrypt";
+import { exchangeForLongLivedToken } from "@/lib/platforms/instagram";
 import {
   buildTokenRequest,
   isOAuthPlatform,
@@ -84,16 +85,29 @@ export async function GET(
     const creator = await findSessionCreator(session.handle);
     if (!creator) return failureRedirect(req, platform);
 
+    // Facebook's authorisation code buys a token that lasts about an hour and
+    // comes with no refresh_token, so storing it as-is means the connection is
+    // dead by the next cron run. Trade it for a long-lived one immediately.
+    let storedToken = accessToken;
+    let storedExpiry =
+      typeof tokens.expires_in === "number" && tokens.expires_in > 0
+        ? new Date(Date.now() + tokens.expires_in * 1000)
+        : null;
+    if (platform === "instagram") {
+      const longLived = await exchangeForLongLivedToken(accessToken);
+      if (longLived) {
+        storedToken = longLived.accessToken;
+        storedExpiry = longLived.expiresAt;
+      }
+    }
+
     const platformEnum = toPlatformEnum(platform);
-    const encryptedAccess = encrypt(accessToken, creator.orgId);
+    const encryptedAccess = encrypt(storedToken, creator.orgId);
     const encryptedRefresh =
       typeof tokens.refresh_token === "string" && tokens.refresh_token
         ? encrypt(tokens.refresh_token, creator.orgId)
         : null;
-    const tokenExpiry =
-      typeof tokens.expires_in === "number" && tokens.expires_in > 0
-        ? new Date(Date.now() + tokens.expires_in * 1000)
-        : null;
+    const tokenExpiry = storedExpiry;
 
     await db.creatorSocialAccount.upsert({
       where: {
