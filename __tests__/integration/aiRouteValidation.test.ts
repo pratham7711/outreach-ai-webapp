@@ -11,7 +11,7 @@ jest.mock("@/lib/db", () => ({
   db: {
     campaign: { findMany: jest.fn(), findFirst: jest.fn(), count: jest.fn() },
     creator: { findMany: jest.fn(), count: jest.fn() },
-    post: { findMany: jest.fn() },
+    post: { findMany: jest.fn(), groupBy: jest.fn().mockResolvedValue([])},
     payout: { findMany: jest.fn(), aggregate: jest.fn(), count: jest.fn() },
     apiKey: { findUnique: jest.fn(), update: jest.fn() },
   },
@@ -197,7 +197,6 @@ describe("GET /api/discovery zod query validation", () => {
     ["a limit over the cap", "?limit=100000"],
     ["a zero limit", "?limit=0"],
     ["a non-numeric follower bound", "?minFollowers=abc"],
-    ["a non-numeric rate bound", "?maxRate=abc"],
     ["a negative follower bound", "?minFollowers=-1"],
     ["an unknown sort key", "?sort=chaos"],
   ])("rejects %s with 400 and never touches the database", async (_label, query) => {
@@ -227,7 +226,7 @@ describe("GET /api/discovery zod query validation", () => {
   });
 
   it("treats a blank parameter as absent rather than as zero", async () => {
-    const res = await discovery("?minFollowers=&maxRate=&search=");
+    const res = await discovery("?minFollowers=&search=");
     expect(res.status).toBe(200);
     const where = mockDb.creator.findMany.mock.calls[0][0].where;
     expect(where).not.toHaveProperty("followersCount");
@@ -242,7 +241,8 @@ describe("GET /api/discovery zod query validation", () => {
   });
 
   it.each([
-    ["engagement", { averageViews: "desc" }],
+    // averageViews reads 0 for every creator, so that sort did nothing.
+    ["posts", { posts: { _count: "desc" } }],
     ["name", { name: "asc" }],
     ["followers", { followersCount: "desc" }],
   ])("honours the %s sort key", async (sort, orderBy) => {
@@ -252,7 +252,7 @@ describe("GET /api/discovery zod query validation", () => {
 
   it("still passes a valid full query through to a scoped query", async () => {
     const res = await discovery(
-      "?search=ana&platform=tiktok&sort=name&page=2&limit=30&niches=MUSIC,TECH&minFollowers=1000&maxFollowers=50000&minRate=10&maxRate=99.5",
+      "?search=ana&platform=tiktok&sort=name&page=2&limit=30&niches=MUSIC,TECH&minFollowers=1000&maxFollowers=50000",
     );
     expect(res.status).toBe(200);
     const args = mockDb.creator.findMany.mock.calls[0][0];
@@ -262,7 +262,7 @@ describe("GET /api/discovery zod query validation", () => {
     expect(args.where.platform).toBe("TIKTOK");
     expect(args.where.niches).toEqual({ hasSome: ["MUSIC", "TECH"] });
     expect(args.where.followersCount).toEqual({ gte: 1000, lte: 50000 });
-    expect(args.where.rate).toEqual({ gte: 10, lte: 99.5 });
+    expect(args.where.rate).toBeUndefined();
   });
 
   it("checks auth and entitlement before it validates the query", async () => {

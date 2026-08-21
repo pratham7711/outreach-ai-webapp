@@ -55,167 +55,152 @@ export async function GET(req: NextRequest) {
     const to = parsedQuery.data.to ?? now;
     const granularity = parsedQuery.data.granularity;
 
-    // ── Parallel data fetches ───────────────────────────────────────────────
+    // Everything below aggregates in the database. This used to load every post
+    // in the range, every campaign and every activation into Node and reduce
+    // over them in JavaScript: 4.5 seconds of work to produce 4 KB of JSON.
 
-    const [posts, campaigns, activations] = await Promise.all([
-      db.post.findMany({
-        where: {
-          campaign: { orgId },
-          createdAt: { gte: from, lte: to },
-        },
-        include: {
-          creator: { select: { id: true, name: true, handle: true } },
-          campaign: { select: { id: true, title: true } },
-        },
+    const postWhere = { campaign: { orgId }, createdAt: { gte: from, lte: to } };
+    const truncUnit = granularity === "daily" ? "day" : granularity === "weekly" ? "week" : "month";
+
+    const [
+      activeCampaigns,
+      distinctCreators,
+      bucketRows,
+      byCampaign,
+      byPlatform,
+      byCreator,
+      campaignTitles,
+      topPostRows,
+    ] = await Promise.all([
+      db.campaign.count({ where: { orgId, deletedAt: null, status: "IN_PROGRESS" } }),
+      // A creator is on the roster via an activation, whether or not a post exists.
+      db.activation.findMany({
+        where: { campaign: { orgId }, deletedAt: null },
+        select: { creatorId: true },
+        distinct: ["creatorId"],
+      }),
+      // Date bucketing is the one thing Prisma groupBy cannot express, so it is
+      // raw SQL. truncUnit comes from a validated enum, never from user text.
+      db.$queryRawUnsafe<{ bucket: Date; views: bigint }[]>(
+        `SELECT date_trunc('${truncUnit}', p."createdAt") AS bucket, COALESCE(SUM(p."viewsCount"), 0) AS views
+           FROM "Post" p
+           JOIN "Campaign" c ON c.id = p."campaignId"
+          WHERE c."orgId" = $1 AND p."createdAt" >= $2 AND p."createdAt" <= $3
+          GROUP BY 1
+          ORDER BY 1`,
+        orgId,
+        from,
+        to
+      ),
+      db.post.groupBy({
+        by: ["campaignId"],
+        where: postWhere,
+        _sum: { viewsCount: true },
+        orderBy: { _sum: { viewsCount: "desc" } },
+        take: 10,
+      }),
+      db.post.groupBy({
+        by: ["platform"],
+        where: postWhere,
+        _sum: { viewsCount: true },
+        _count: { _all: true },
+      }),
+      db.post.groupBy({
+        by: ["creatorId"],
+        where: postWhere,
+        _sum: { viewsCount: true },
+        _avg: { engagementRate: true },
+        _count: { _all: true },
+        orderBy: { _sum: { viewsCount: "desc" } },
+        take: 10,
       }),
       db.campaign.findMany({
         where: { orgId, deletedAt: null },
-        select: { id: true, title: true, status: true },
+        select: { id: true, title: true },
       }),
-      db.activation.findMany({
-        where: { campaign: { orgId }, deletedAt: null },
-        select: { id: true, campaignId: true, creatorId: true, creator: { select: { name: true, handle: true } } },
+      db.post.findMany({
+        where: postWhere,
+        orderBy: { viewsCount: "desc" },
+        take: 5,
+        select: {
+          id: true, postUrl: true, platform: true, viewsCount: true,
+          likesCount: true, engagementRate: true,
+          creator: { select: { name: true } },
+          campaign: { select: { title: true } },
+        },
       }),
     ]);
 
-    // ── 1. Summary ──────────────────────────────────────────────────────────
-
-    // Creator count comes from activations, not payouts: a creator is on the
-    // campaign whether or not anyone has been paid.
-    const activeCampaigns = campaigns.filter((c) => c.status === "IN_PROGRESS").length;
-    const totalCreators = new Set(activations.map((a) => a.creatorId)).size;
-
     const summary = {
       activeCampaigns,
-      totalCreators,
+      totalCreators: distinctCreators.length,
     };
 
-    // ── 2. Views Over Time ──────────────────────────────────────────────────
-
-    const viewsByDate = new Map<string, number>();
-
-    for (const post of posts) {
-      const key = getDateKey(new Date(post.createdAt), granularity);
-      viewsByDate.set(key, (viewsByDate.get(key) ?? 0) + post.viewsCount);
-    }
-
-    const viewsOverTime = Array.from(viewsByDate.entries())
-      .map(([date, views]) => ({ date, views }))
-      .sort((a, b) => a.date.localeCompare(b.date));
-
-    // ── 3. Views By Campaign (top 10) ───────────────────────────────────────
-
-    // Seeded from every campaign, so one with posts but no payments still
-    // charts -- the old payout-keyed version dropped it entirely.
-    const campaignViewsMap = new Map<string, { title: string; views: number; creators: Set<string> }>();
-
-    for (const c of campaigns) {
-      campaignViewsMap.set(c.id, { title: c.title, views: 0, creators: new Set<string>() });
-    }
-
-    for (const post of posts) {
-      const entry = campaignViewsMap.get(post.campaignId);
-      if (entry) entry.views += post.viewsCount;
-    }
-
-    for (const a of activations) {
-      const entry = campaignViewsMap.get(a.campaignId);
-      if (entry) entry.creators.add(a.creatorId);
-    }
-
-    const viewsByCampaign = Array.from(campaignViewsMap.entries())
-      .map(([campaignId, data]) => ({
-        campaignId,
-        title: data.title,
-        views: data.views,
-        creatorsCount: data.creators.size,
-      }))
-      .filter((c) => c.views > 0 || c.creatorsCount > 0)
-      .sort((a, b) => b.views - a.views)
-      .slice(0, 10);
-
-    // ── 4. Platform Breakdown ───────────────────────────────────────────────
-
-    const platformMap = new Map<string, { views: number; postsCount: number }>();
-
-    for (const post of posts) {
-      const entry = platformMap.get(post.platform) ?? { views: 0, postsCount: 0 };
-      entry.views += post.viewsCount;
-      entry.postsCount += 1;
-      platformMap.set(post.platform, entry);
-    }
-
-    const platformBreakdown = Array.from(platformMap.entries()).map(([platform, data]) => ({
-      platform,
-      views: data.views,
-      postsCount: data.postsCount,
+    const viewsOverTime = bucketRows.map((r) => ({
+      date: getDateKey(new Date(r.bucket), granularity),
+      views: Number(r.views),
     }));
 
-    // ── 5. Creator Performance (top 10 by views) ────────────────────────────
+    const titleById = new Map(campaignTitles.map((c) => [c.id, c.title]));
 
-    const creatorMap = new Map<string, { name: string; handle: string; activationIds: Set<string>; views: number; engagementSum: number; postCount: number }>();
+    // Creator counts per campaign, for the campaigns that actually charted.
+    const topCampaignIds = byCampaign.map((c) => c.campaignId);
+    const campaignCreatorRows = topCampaignIds.length
+      ? await db.activation.findMany({
+          where: { campaignId: { in: topCampaignIds }, deletedAt: null },
+          select: { campaignId: true, creatorId: true },
+          distinct: ["campaignId", "creatorId"],
+        })
+      : [];
+    const creatorsPerCampaign = new Map<string, number>();
+    for (const row of campaignCreatorRows) {
+      creatorsPerCampaign.set(row.campaignId, (creatorsPerCampaign.get(row.campaignId) ?? 0) + 1);
+    }
 
-    for (const a of activations) {
-      if (!a.creator) continue;
-      const entry = creatorMap.get(a.creatorId) ?? {
-        name: a.creator.name,
-        handle: a.creator.handle,
-        activationIds: new Set<string>(),
-        views: 0,
-        engagementSum: 0,
-        postCount: 0,
+    const viewsByCampaign = byCampaign.map((c) => ({
+      campaignId: c.campaignId,
+      title: titleById.get(c.campaignId) ?? "Unknown campaign",
+      views: c._sum.viewsCount ?? 0,
+      creatorsCount: creatorsPerCampaign.get(c.campaignId) ?? 0,
+    }));
+
+    const platformBreakdown = byPlatform.map((p) => ({
+      platform: p.platform,
+      views: p._sum.viewsCount ?? 0,
+      postsCount: p._count._all,
+    }));
+
+    const creatorIds = byCreator.map((c) => c.creatorId);
+    const creatorRows = creatorIds.length
+      ? await db.creator.findMany({
+          where: { id: { in: creatorIds } },
+          select: { id: true, name: true, handle: true, _count: { select: { activations: true } } },
+        })
+      : [];
+    const creatorById = new Map(creatorRows.map((c) => [c.id, c]));
+
+    const creatorPerformance = byCreator.map((c) => {
+      const creator = creatorById.get(c.creatorId);
+      return {
+        creatorId: c.creatorId,
+        name: creator?.name ?? "Unknown",
+        handle: creator?.handle ?? "",
+        activationCount: creator?._count.activations ?? 0,
+        views: c._sum.viewsCount ?? 0,
+        avgEngagement: Math.round((c._avg.engagementRate ?? 0) * 100) / 100,
       };
-      entry.activationIds.add(a.id);
-      creatorMap.set(a.creatorId, entry);
-    }
+    });
 
-    for (const post of posts) {
-      let entry = creatorMap.get(post.creatorId);
-      if (!entry && post.creator) {
-        entry = {
-          name: post.creator.name,
-          handle: post.creator.handle,
-          activationIds: new Set<string>(),
-          views: 0,
-          engagementSum: 0,
-          postCount: 0,
-        };
-        creatorMap.set(post.creatorId, entry);
-      }
-      if (entry) {
-        entry.views += post.viewsCount;
-        entry.engagementSum += post.engagementRate;
-        entry.postCount += 1;
-      }
-    }
-
-    const creatorPerformance = Array.from(creatorMap.entries())
-      .map(([creatorId, data]) => ({
-        creatorId,
-        name: data.name,
-        handle: data.handle,
-        activationCount: data.activationIds.size,
-        views: data.views,
-        avgEngagement: data.postCount > 0 ? Math.round((data.engagementSum / data.postCount) * 100) / 100 : 0,
-      }))
-      .sort((a, b) => b.views - a.views)
-      .slice(0, 10);
-
-    // ── 6. Top Posts (top 5 by views) ───────────────────────────────────────
-
-    const topPosts = posts
-      .sort((a, b) => b.viewsCount - a.viewsCount)
-      .slice(0, 5)
-      .map((p) => ({
-        id: p.id,
-        postUrl: p.postUrl,
-        platform: p.platform,
-        viewsCount: p.viewsCount,
-        likesCount: p.likesCount,
-        engagementRate: p.engagementRate,
-        creatorName: p.creator?.name ?? null,
-        campaignTitle: p.campaign?.title ?? null,
-      }));
+    const topPosts = topPostRows.map((p) => ({
+      id: p.id,
+      postUrl: p.postUrl,
+      platform: p.platform,
+      viewsCount: p.viewsCount,
+      likesCount: p.likesCount,
+      engagementRate: p.engagementRate,
+      creatorName: p.creator?.name ?? null,
+      campaignTitle: p.campaign?.title ?? null,
+    }));
 
     // ── Response ────────────────────────────────────────────────────────────
 

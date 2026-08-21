@@ -10,6 +10,7 @@ jest.mock("@/lib/db", () => ({
       findMany: jest.fn(),
       count: jest.fn(),
     },
+    post: { groupBy: jest.fn().mockResolvedValue([]) },
   },
 }));
 
@@ -121,16 +122,12 @@ describe("rate range filter", () => {
     mockDb.creator.count.mockResolvedValue(0);
   });
 
-  it("applies gte when only minRate given", async () => {
-    await GET(new NextRequest("http://localhost/api/discovery?minRate=100"));
+  // Rate is a payment field and the product does not offer payments, so the
+  // bounds are no longer accepted and must never reach the query.
+  it("ignores minRate and maxRate entirely", async () => {
+    await GET(new NextRequest("http://localhost/api/discovery?minRate=100&maxRate=2000"));
     const call = mockDb.creator.findMany.mock.calls[0][0];
-    expect(call.where.rate).toEqual({ gte: 100 });
-  });
-
-  it("applies lte when only maxRate given", async () => {
-    await GET(new NextRequest("http://localhost/api/discovery?maxRate=2000"));
-    const call = mockDb.creator.findMany.mock.calls[0][0];
-    expect(call.where.rate).toEqual({ lte: 2000 });
+    expect(call.where.rate).toBeUndefined();
   });
 
   it("does not add rate filter when no range given", async () => {

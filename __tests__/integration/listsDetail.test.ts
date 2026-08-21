@@ -14,6 +14,7 @@ jest.mock('@/lib/db', () => ({
     creatorListItem: {
       deleteMany: jest.fn(),
     },
+    post: { groupBy: jest.fn().mockResolvedValue([]) },
   },
 }));
 

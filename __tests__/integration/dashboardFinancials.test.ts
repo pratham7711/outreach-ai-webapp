@@ -1,7 +1,10 @@
 /**
  * @jest-environment node
  *
- * Integration tests for GET /api/dashboard/financials and /api/dashboard/financials/export
+ * Integration tests for GET /api/dashboard/financials and /api/dashboard/financials/export.
+ *
+ * The rollup reports campaign delivery, not money, and aggregates in the
+ * database rather than reducing rows in Node.
  */
 import { NextRequest } from "next/server";
 import { GET } from "@/app/api/dashboard/financials/route";
@@ -10,11 +13,12 @@ import { GET as EXPORT_GET } from "@/app/api/dashboard/financials/export/route";
 jest.mock("@/lib/db", () => ({
   db: {
     payout: { findMany: jest.fn() },
-    campaign: { findMany: jest.fn() },
-    post: { findMany: jest.fn() },
+    campaign: { findMany: jest.fn(), count: jest.fn() },
+    post: { findMany: jest.fn(), groupBy: jest.fn() },
     creator: { findMany: jest.fn() },
     activation: { findMany: jest.fn() },
     campaignDeposit: { findMany: jest.fn() },
+    $queryRawUnsafe: jest.fn(),
   },
 }));
 
@@ -33,9 +37,21 @@ function makeRequest(url: string) {
   return new NextRequest(url);
 }
 
+// Every aggregate the route runs, empty by default; individual tests override.
+function stubEmptyAggregates() {
+  mockDb.campaign.count.mockResolvedValue(0);
+  mockDb.campaign.findMany.mockResolvedValue([]);
+  mockDb.post.groupBy.mockResolvedValue([]);
+  mockDb.post.findMany.mockResolvedValue([]);
+  mockDb.activation.findMany.mockResolvedValue([]);
+  mockDb.creator.findMany.mockResolvedValue([]);
+  mockDb.$queryRawUnsafe.mockResolvedValue([]);
+}
+
 beforeEach(() => {
   jest.clearAllMocks();
   mockAuth.mockResolvedValue(session);
+  stubEmptyAggregates();
 });
 
 // ─── GET /api/dashboard/financials ──────────────────────────────────────────
@@ -52,38 +68,27 @@ describe("GET /api/dashboard/financials", () => {
     expect(body.error).toBe("Unauthorized");
   });
 
-  it("returns financial summary with default date range", async () => {
-    const now = new Date();
-
-    // The route calls findMany twice for campaigns (filtered + all for budget)
-    // and findMany for payouts, posts, activations, deposits — all via Promise.all
-    mockDb.payout.findMany.mockResolvedValue([
-      {
-        amount: 1000,
-        status: "SUCCESS",
-        createdAt: now,
-        creatorId: "c1",
-        campaignId: "camp-1",
-        creator: { id: "c1", name: "Creator One", handle: "creator1", platform: "TIKTOK" },
-        campaign: { id: "camp-1", title: "Test", budget: 5000 },
-      },
-    ]);
-    mockDb.campaign.findMany.mockResolvedValue([
-      { id: "camp-1", title: "Test", budget: 5000, status: "IN_PROGRESS" },
+  it("returns a delivery rollup with the default date range", async () => {
+    mockDb.campaign.count.mockResolvedValue(1);
+    mockDb.campaign.findMany.mockResolvedValue([{ id: "camp-1", title: "Test" }]);
+    mockDb.activation.findMany.mockResolvedValue([{ campaignId: "camp-1", creatorId: "c1" }]);
+    mockDb.$queryRawUnsafe.mockResolvedValue([{ bucket: new Date("2026-08-01"), views: BigInt(10000) }]);
+    mockDb.post.groupBy
+      .mockResolvedValueOnce([{ campaignId: "camp-1", _sum: { viewsCount: 10000 } }])
+      .mockResolvedValueOnce([{ platform: "TIKTOK", _sum: { viewsCount: 10000 }, _count: { _all: 1 } }])
+      .mockResolvedValueOnce([
+        { creatorId: "c1", _sum: { viewsCount: 10000 }, _avg: { engagementRate: 5 }, _count: { _all: 1 } },
+      ]);
+    mockDb.creator.findMany.mockResolvedValue([
+      { id: "c1", name: "Creator One", handle: "creator1", _count: { activations: 1 } },
     ]);
     mockDb.post.findMany.mockResolvedValue([
       {
         id: "post-1", viewsCount: 10000, likesCount: 500, engagementRate: 5.0,
-        platform: "TIKTOK", createdAt: now, campaignId: "camp-1", creatorId: "c1",
-        postUrl: "https://tiktok.com/123",
-        creator: { id: "c1", name: "Creator One", handle: "creator1" },
-        campaign: { id: "camp-1", title: "Test" },
+        platform: "TIKTOK", postUrl: "https://tiktok.com/123",
+        creator: { name: "Creator One" }, campaign: { title: "Test" },
       },
     ]);
-    mockDb.activation.findMany.mockResolvedValue([]);
-    mockDb.campaignDeposit.findMany.mockResolvedValue([
-      { amountUsd: 3000, releasedAmount: 1000 },
-    ]);
 
     const req = makeRequest("http://localhost/api/dashboard/financials");
     const res = await GET(req);
@@ -91,30 +96,43 @@ describe("GET /api/dashboard/financials", () => {
     expect(res.status).toBe(200);
 
     const body = await res.json();
-    expect(body).toHaveProperty("summary");
-    expect(body).toHaveProperty("spendOverTime");
-    expect(body).toHaveProperty("spendByCampaign");
-    expect(body).toHaveProperty("platformBreakdown");
-    expect(body).toHaveProperty("creatorPerformance");
+    expect(body.summary).toEqual({ activeCampaigns: 1, totalCreators: 1 });
+    expect(body.viewsOverTime).toEqual([{ date: "2026-08", views: 10000 }]);
+    expect(body.viewsByCampaign).toEqual([
+      { campaignId: "camp-1", title: "Test", views: 10000, creatorsCount: 1 },
+    ]);
+    expect(body.platformBreakdown).toEqual([{ platform: "TIKTOK", views: 10000, postsCount: 1 }]);
+    expect(body.creatorPerformance[0]).toMatchObject({ name: "Creator One", views: 10000 });
+    expect(body.topPosts[0]).toMatchObject({ id: "post-1", viewsCount: 10000 });
   });
 
-  it("returns empty data for org with no financial activity", async () => {
-    mockDb.payout.findMany.mockResolvedValue([]);
-    mockDb.campaign.findMany.mockResolvedValue([]);
-    mockDb.post.findMany.mockResolvedValue([]);
-    mockDb.activation.findMany.mockResolvedValue([]);
-    mockDb.campaignDeposit.findMany.mockResolvedValue([]);
+  it("never reads payouts or deposits", async () => {
+    await GET(makeRequest("http://localhost/api/dashboard/financials"));
+    expect(mockDb.payout.findMany).not.toHaveBeenCalled();
+    expect(mockDb.campaignDeposit.findMany).not.toHaveBeenCalled();
+  });
 
+  it("scopes every aggregate to the session org", async () => {
+    await GET(makeRequest("http://localhost/api/dashboard/financials"));
+    expect(mockDb.campaign.count).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ orgId: "org-1" }) })
+    );
+    const [, orgArg] = mockDb.$queryRawUnsafe.mock.calls[0];
+    expect(orgArg).toBe("org-1");
+  });
+
+  it("returns empty collections for an org with no delivery yet", async () => {
     const req = makeRequest("http://localhost/api/dashboard/financials");
     const res = await GET(req);
 
     expect(res.status).toBe(200);
 
     const body = await res.json();
-    expect(body.summary).toBeDefined();
-    expect(body.summary.totalSpend).toBe(0);
-    expect(body.summary.totalBudget).toBe(0);
-    expect(body.spendOverTime).toEqual([]);
+    expect(body.summary).toEqual({ activeCampaigns: 0, totalCreators: 0 });
+    expect(body.viewsOverTime).toEqual([]);
+    expect(body.viewsByCampaign).toEqual([]);
+    expect(body.platformBreakdown).toEqual([]);
+    expect(body.topPosts).toEqual([]);
   });
 });
 
@@ -130,20 +148,14 @@ describe("GET /api/dashboard/financials/export", () => {
     expect(res.status).toBe(401);
   });
 
-  it("export returns CSV with correct headers", async () => {
-    mockDb.payout.findMany.mockResolvedValue([
+  it("exports campaigns as CSV, with no money columns", async () => {
+    mockDb.campaign.findMany.mockResolvedValue([
       {
-        id: "pay-1",
-        amount: 1000,
-        currency: "USD",
-        status: "SUCCESS",
-        paymentMethod: "PAYPAL",
-        transactionId: "txn-123",
+        title: "Test Campaign",
+        status: "IN_PROGRESS",
         createdAt: new Date("2026-01-15"),
-        creatorId: "c1",
-        campaignId: "camp-1",
-        creator: { name: "Creator One", handle: "creator1" },
-        campaign: { title: "Test Campaign" },
+        client: { name: "Acme" },
+        activations: [{ id: "a1" }],
       },
     ]);
 
@@ -154,10 +166,15 @@ describe("GET /api/dashboard/financials/export", () => {
     expect(res.headers.get("Content-Type")).toContain("text/csv");
 
     const csv = await res.text();
-    // CSV should have a header row
-    const firstLine = csv.split("\n")[0];
-    expect(firstLine).toBeTruthy();
-    // Should contain at least some payout-related data
-    expect(csv.length).toBeGreaterThan(0);
+    const header = csv.split("\n")[0];
+    expect(header).toBe("Campaign,Client,Status,Creators,Start Date");
+    expect(csv).toContain("Test Campaign");
+    expect(csv).not.toMatch(/Budget|Spent|Paid/);
+  });
+
+  it("rejects the retired payouts export type", async () => {
+    const req = makeRequest("http://localhost/api/dashboard/financials/export?type=payouts");
+    const res = await EXPORT_GET(req);
+    expect(res.status).toBe(400);
   });
 });

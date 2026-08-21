@@ -17,13 +17,14 @@ jest.mock("@/lib/db", () => ({
     campaign: { findMany: jest.fn(), count: jest.fn() },
     payout: { findMany: jest.fn(), count: jest.fn(), aggregate: jest.fn() },
     auditLog: { findMany: jest.fn(), count: jest.fn() },
-    post: { findMany: jest.fn() },
+    post: { findMany: jest.fn(), groupBy: jest.fn() },
     activation: { findMany: jest.fn() },
     campaignDeposit: { findMany: jest.fn() },
     proposal: { findMany: jest.fn() },
     payoutBalance: { findFirst: jest.fn(), findMany: jest.fn() },
     campaignProposal: { findMany: jest.fn(), count: jest.fn() },
     apiKey: { findUnique: jest.fn(), update: jest.fn() },
+    $queryRawUnsafe: jest.fn(),
   },
 }));
 
@@ -85,6 +86,9 @@ beforeEach(() => {
   mockDb.payoutBalance.findMany.mockResolvedValue([]);
   mockDb.campaignProposal.findMany.mockResolvedValue([]);
   mockDb.campaignProposal.count.mockResolvedValue(0);
+  // The delivery rollup aggregates in the database now.
+  mockDb.post.groupBy.mockResolvedValue([]);
+  mockDb.$queryRawUnsafe.mockResolvedValue([]);
 });
 
 type Handler = (req: NextRequest) => Promise<Response>;
@@ -149,8 +153,8 @@ const ROUTES: Array<{
     name: "GET /api/dashboard/financials/export",
     path: "http://localhost/api/dashboard/financials/export",
     handler: getFinancialsExport as Handler,
-    rejects: ["?from=abc", "?to=abc", "?type=chaos"],
-    accepts: ["", "?type=payouts", "?type=campaigns", "?type=creators"],
+    rejects: ["?from=abc", "?to=abc", "?type=chaos", "?type=payouts"],
+    accepts: ["", "?type=campaigns", "?type=creators"],
   },
 ];
 

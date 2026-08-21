@@ -13,6 +13,7 @@ jest.mock('@/lib/db', () => ({
       findUnique: jest.fn(),
       findFirst: jest.fn(),
     },
+    post: { groupBy: jest.fn().mockResolvedValue([]) },
   },
 }));
 
