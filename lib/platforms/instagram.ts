@@ -3,6 +3,7 @@ import { createLogger } from "@/lib/observability/logger";
 // v19.0 stopped being usable 2026-05-21. An expired version does not error —
 // Graph silently serves the next-oldest usable one, so a stale pin here is
 // invisible until a field it no longer returns comes back undefined.
+// v26.0 is read off Meta's versioning docs, not exercised against a live call.
 const GRAPH_BASE = "https://graph.facebook.com/v26.0";
 const MEDIA_PAGE_LIMIT = 50;
 const MAX_MEDIA_PAGES = 5;
