@@ -207,10 +207,10 @@ export type TikTokDirectMetrics = {
   postedAt: Date | null;
 };
 
-const TIKTOK_REHYDRATION_RE =
+export const TIKTOK_REHYDRATION_RE =
   /<script id="__UNIVERSAL_DATA_FOR_REHYDRATION__"[^>]*>([\s\S]*?)<\/script>/;
 
-const TIKTOK_DIRECT_UA =
+export const TIKTOK_DIRECT_UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
 
 export type RateGateOptions = {
@@ -277,13 +277,31 @@ export function isBlockedStatus(status: number): boolean {
   return status === 403 || status === 429 || status >= 500;
 }
 
-function pickCount(...values: unknown[]): number {
+export function pickCount(...values: unknown[]): number {
   let best = 0;
   for (const value of values) {
     const n = Number(value);
     if (Number.isFinite(n) && n > best) best = n;
   }
   return best;
+}
+
+// TikTok answers a deleted post with a normal 200 and a rehydration payload
+// carrying a non-zero statusCode (10204 "item doesn't exist"). That is a
+// perfectly healthy response, so callers must not mistake it for being blocked.
+// Returns null when there is no payload at all, which IS the blocked/changed
+// -markup case.
+export function parseTikTokDetailStatus(html: string): number | null {
+  const match = html.match(TIKTOK_REHYDRATION_RE);
+  if (!match) return null;
+
+  try {
+    const detail = JSON.parse(match[1])?.__DEFAULT_SCOPE__?.["webapp.video-detail"];
+    if (!detail) return null;
+    return typeof detail.statusCode === "number" ? detail.statusCode : null;
+  } catch {
+    return null;
+  }
 }
 
 export function parseTikTokRehydration(html: string): TikTokDirectMetrics | null {
@@ -319,12 +337,32 @@ export function parseTikTokRehydration(html: string): TikTokDirectMetrics | null
   };
 }
 
-async function fetchTikTokMetricsDirect(url: string): Promise<Partial<PostMetrics> | null> {
+/**
+ * What TikTok told us about a post, as opposed to merely whether we got counts.
+ *
+ * - `live`        the post exists and `metrics` is populated
+ * - `deleted`     TikTok answered normally and said the item is gone
+ * - `unavailable` we could not get a usable answer: blocked, rate-gated,
+ *                 timed out, or the page shape changed. Says nothing about
+ *                 whether the post exists.
+ */
+export type TikTokPostState = "live" | "deleted" | "unavailable";
+
+export type TikTokPostLookup = {
+  state: TikTokPostState;
+  /** TikTok's own status code when it gave us one. 0 means live. */
+  statusCode: number | null;
+  /** Why we could not tell, for `unavailable` only. */
+  reason: string | null;
+  metrics: TikTokDirectMetrics | null;
+};
+
+export async function lookupTikTokPost(url: string): Promise<TikTokPostLookup> {
   const log = createLogger({ context: { platform: "TIKTOK", url } });
 
   if (!(await tiktokGate.acquire())) {
     log.warn("TikTok direct fetch skipped; breaker open");
-    return null;
+    return { state: "unavailable", statusCode: null, reason: "breaker-open", metrics: null };
   }
 
   try {
@@ -340,37 +378,71 @@ async function fetchTikTokMetricsDirect(url: string): Promise<Partial<PostMetric
       if (isBlockedStatus(res.status)) tiktokGate.recordBlocked();
       else tiktokGate.recordSuccess();
       log.warn("TikTok direct fetch returned non-OK", { status: res.status });
-      return null;
+      return {
+        state: "unavailable",
+        statusCode: null,
+        reason: `http-${res.status}`,
+        metrics: null,
+      };
     }
 
-    const parsed = parseTikTokRehydration(await res.text());
+    const html = await res.text();
+    const parsed = parseTikTokRehydration(html);
     if (!parsed) {
+      // A removed post answers 200 with a non-zero statusCode. Counting that as
+      // a block let five deleted posts in a row latch the breaker for 15
+      // minutes and stall every healthy fetch behind them.
+      const statusCode = parseTikTokDetailStatus(html);
+      if (statusCode !== null && statusCode !== 0) {
+        tiktokGate.recordSuccess();
+        log.warn("TikTok says this post is gone", { statusCode });
+        return { state: "deleted", statusCode, reason: null, metrics: null };
+      }
       tiktokGate.recordBlocked();
       log.warn("TikTok direct fetch could not parse rehydration payload");
-      return null;
+      return {
+        state: "unavailable",
+        statusCode: null,
+        reason: "no-parsable-payload",
+        metrics: null,
+      };
     }
-    tiktokGate.recordSuccess();
 
-    const views = parsed.viewsCount;
-    const likes = parsed.likesCount;
-    const comments = parsed.commentsCount;
-    return {
-      thumbnailUrl: parsed.thumbnailUrl,
-      caption: parsed.caption,
-      viewsCount: views,
-      likesCount: likes,
-      commentsCount: comments,
-      sharesCount: parsed.sharesCount,
-      engagementRate: views > 0 ? ((likes + comments) / views) * 100 : 0,
-      postedAt: parsed.postedAt ?? undefined,
-    };
+    tiktokGate.recordSuccess();
+    return { state: "live", statusCode: 0, reason: null, metrics: parsed };
   } catch (err) {
     tiktokGate.recordBlocked();
     log.error("TikTok direct fetch threw", {
       error: err instanceof Error ? err.message : String(err),
     });
-    return null;
+    return {
+      state: "unavailable",
+      statusCode: null,
+      reason: err instanceof Error ? err.name : "fetch-threw",
+      metrics: null,
+    };
   }
+}
+
+export function tiktokMetricsToPartial(parsed: TikTokDirectMetrics): Partial<PostMetrics> {
+  const views = parsed.viewsCount;
+  const likes = parsed.likesCount;
+  const comments = parsed.commentsCount;
+  return {
+    thumbnailUrl: parsed.thumbnailUrl,
+    caption: parsed.caption,
+    viewsCount: views,
+    likesCount: likes,
+    commentsCount: comments,
+    sharesCount: parsed.sharesCount,
+    engagementRate: views > 0 ? ((likes + comments) / views) * 100 : 0,
+    postedAt: parsed.postedAt ?? undefined,
+  };
+}
+
+async function fetchTikTokMetricsDirect(url: string): Promise<Partial<PostMetrics> | null> {
+  const lookup = await lookupTikTokPost(url);
+  return lookup.metrics ? tiktokMetricsToPartial(lookup.metrics) : null;
 }
 
 async function fetchTikTokMetricsSocialKit(url: string): Promise<Partial<PostMetrics> | null> {

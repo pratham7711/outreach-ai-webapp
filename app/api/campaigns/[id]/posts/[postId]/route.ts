@@ -9,16 +9,6 @@ const updateStatusSchema = z.object({
   rejectionReason: z.string().nullable().optional(),
 });
 
-const updateMetricsSchema = z.object({
-  viewsCount: z.number().int().min(0).optional(),
-  likesCount: z.number().int().min(0).optional(),
-  commentsCount: z.number().int().min(0).optional(),
-  sharesCount: z.number().int().min(0).optional(),
-  savesCount: z.number().int().min(0).optional(),
-  reachCount: z.number().int().min(0).optional(),
-  downloadsCount: z.number().int().min(0).optional(),
-});
-
 type RouteParams = { params: Promise<{ id: string; postId: string }> };
 
 // GET /api/campaigns/[id]/posts/[postId]
@@ -48,7 +38,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   }
 }
 
-// PATCH /api/campaigns/[id]/posts/[postId] — Approve/reject OR manual metric update
+// PATCH /api/campaigns/[id]/posts/[postId] — approve/reject only.
+// Metrics are never writable by hand: they come from the platform sync
+// (POST .../sync) so a number on screen always traces back to the API that
+// produced it. Editing them here would silently overwrite synced truth.
 export async function PATCH(request: NextRequest, { params }: RouteParams) {
   try {
     const session = await auth();
@@ -64,76 +57,21 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
     const body = await request.json();
 
-    // Status update (approve/reject)
-    if (body.status) {
-      const parsed = updateStatusSchema.safeParse(body);
-      if (!parsed.success) {
-        return NextResponse.json({ error: "Invalid input", details: parsed.error.flatten() }, { status: 400 });
-      }
-
-      const post = await db.post.update({
-        where: { id: postId },
-        data: {
-          status: parsed.data.status as PostStatus,
-          rejectionReason: parsed.data.status === "REJECTED" ? (parsed.data.rejectionReason ?? null) : null,
-        },
-        include: {
-          creator: { select: { id: true, name: true, handle: true, avatarUrl: true } },
-        },
-      });
-      return NextResponse.json(post);
-    }
-
-    // Manual metric update
-    const parsed = updateMetricsSchema.safeParse(body);
+    const parsed = updateStatusSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json({ error: "Invalid input", details: parsed.error.flatten() }, { status: 400 });
     }
 
-    const metrics = parsed.data;
-    const views = metrics.viewsCount ?? existing.viewsCount;
-    const likes = metrics.likesCount ?? existing.likesCount;
-    const comments = metrics.commentsCount ?? existing.commentsCount;
-    const shares = metrics.sharesCount ?? existing.sharesCount;
-    const saves = metrics.savesCount ?? existing.savesCount;
-    const reach = metrics.reachCount ?? existing.reachCount;
-    const downloads = metrics.downloadsCount ?? existing.downloadsCount;
-    const engagementRate = views > 0 ? ((likes + comments) / views) * 100 : 0;
-
-    const [post] = await db.$transaction([
-      db.post.update({
-        where: { id: postId },
-        data: {
-          viewsCount: views,
-          likesCount: likes,
-          commentsCount: comments,
-          sharesCount: shares,
-          savesCount: saves,
-          reachCount: reach,
-          downloadsCount: downloads,
-          engagementRate,
-          lastSyncedAt: new Date(),
-        },
-        include: {
-          creator: { select: { id: true, name: true, handle: true, avatarUrl: true } },
-        },
-      }),
-      db.postMetricSnapshot.create({
-        data: {
-          postId,
-          viewsCount: views,
-          likesCount: likes,
-          commentsCount: comments,
-          sharesCount: shares,
-          savesCount: saves,
-          reachCount: reach,
-          downloadsCount: downloads,
-          engagementRate,
-          syncSource: "manual",
-        },
-      }),
-    ]);
-
+    const post = await db.post.update({
+      where: { id: postId },
+      data: {
+        status: parsed.data.status as PostStatus,
+        rejectionReason: parsed.data.status === "REJECTED" ? (parsed.data.rejectionReason ?? null) : null,
+      },
+      include: {
+        creator: { select: { id: true, name: true, handle: true, avatarUrl: true } },
+      },
+    });
     return NextResponse.json(post);
   } catch (error) {
     console.error("Failed to update post:", error);

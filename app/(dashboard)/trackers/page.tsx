@@ -1,9 +1,13 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { Badge, Card, Button, Modal, Input, Skeleton, EmptyState } from "@pratham7711/ui";
 import { MetricTile } from "@/components/ds";
-import { Music, Plus, Trash2, TrendingUp } from "lucide-react";
+import { Music, Plus, RefreshCw, Trash2, TrendingUp } from "lucide-react";
 import { formatCompact, formatDateAbs } from "@/lib/format";
+import { apiDelete, apiFetch, apiPost } from "@/lib/api/client";
+import { errorMessage } from "@/lib/api/errorMessage";
 
 interface SoundSnapshot {
   usesCount: number;
@@ -11,6 +15,15 @@ interface SoundSnapshot {
   velocityScore: number;
   videosAdded24h: number;
   recordedAt: string;
+}
+
+interface WindowChange {
+  from: number;
+  to: number;
+  added: number;
+  percent: number | null;
+  velocityPerHour: number | null;
+  spanHours: number;
 }
 
 interface TrackedSound {
@@ -21,79 +34,129 @@ interface TrackedSound {
   coverImageUrl: string | null;
   trackedSince: string;
   latestSnapshot: SoundSnapshot | null;
+  change: WindowChange | null;
+  status: "viral" | "trending" | "stable" | "declining" | "unknown";
+  growthPercentage: number | null;
+  addedInPeriod: number | null;
+  snapshotCount: number;
 }
+
+const PERIODS: { key: string; label: string }[] = [
+  { key: "24h", label: "24hr" },
+  { key: "7d", label: "7d" },
+  { key: "14d", label: "14d" },
+  { key: "30d", label: "30d" },
+];
+
+const SORTS: { key: string; label: string }[] = [
+  { key: "velocity", label: "Velocity" },
+  { key: "uses", label: "Uses" },
+  { key: "added", label: "Added" },
+];
 
 function formatCount(n: number): string {
   return formatCompact(n);
 }
 
-function getVelocityBadge(score: number): { label: string; variant: "success" | "accent" | "neutral" | "danger" } {
-  if (score > 10) return { label: "viral", variant: "success" };
-  if (score > 5) return { label: "trending", variant: "accent" };
-  if (score > 0) return { label: "stable", variant: "neutral" };
-  return { label: "declining", variant: "danger" };
+const STATUS_VARIANTS: Record<
+  TrackedSound["status"],
+  "success" | "accent" | "neutral" | "danger"
+> = {
+  viral: "success",
+  trending: "accent",
+  stable: "neutral",
+  declining: "danger",
+  unknown: "neutral",
+};
+
+function periodLabel(key: string): string {
+  return PERIODS.find((p) => p.key === key)?.label ?? key;
 }
 
 export default function TrackersPage() {
-  const [sounds, setSounds] = useState<TrackedSound[]>([]);
-  const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [formData, setFormData] = useState({ tiktokSoundId: "", title: "", artist: "" });
-  const [submitting, setSubmitting] = useState(false);
+  const [period, setPeriod] = useState("24h");
+  const [sort, setSort] = useState("velocity");
 
-  const fetchSounds = useCallback(async () => {
-    try {
-      const res = await fetch("/api/trackers");
-      if (res.ok) {
-        const data = await res.json();
-        setSounds(data.sounds ?? []);
+  const queryClient = useQueryClient();
+  const queryKey = ["trackers", period, sort] as const;
+
+  const {
+    data,
+    isPending: loading,
+    isError: loadError,
+    refetch,
+  } = useQuery({
+    queryKey,
+    queryFn: () =>
+      apiFetch<{ sounds: TrackedSound[] }>(`/api/trackers?period=${period}&sort=${sort}`),
+  });
+
+  const sounds = useMemo(() => data?.sounds ?? [], [data]);
+
+  const invalidate = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ["trackers"] });
+  }, [queryClient]);
+
+  const createMutation = useMutation({
+    mutationFn: (payload: typeof formData) => apiPost("/api/trackers", payload),
+    onSuccess: () => {
+      setModalOpen(false);
+      setFormData({ tiktokSoundId: "", title: "", artist: "" });
+      invalidate();
+      toast.success("Sound tracked");
+    },
+    onError: (error) => toast.error(errorMessage(error, "Could not track that sound")),
+  });
+
+  const refreshMutation = useMutation({
+    mutationFn: () =>
+      apiPost<{ snapshots: number; failed: number; skipped: number }>("/api/trackers/refresh", {}),
+    onSuccess: (result) => {
+      invalidate();
+      if (result.snapshots > 0) {
+        toast.success(`Updated ${result.snapshots} sound${result.snapshots === 1 ? "" : "s"}`);
+      } else if (result.failed > 0) {
+        toast.error("TikTok did not return counts for any tracked sound");
+      } else {
+        toast.success("Nothing to refresh");
       }
-    } catch {
-      // silent
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    },
+    onError: (error) => toast.error(errorMessage(error, "Could not refresh trackers")),
+  });
 
-  useEffect(() => { fetchSounds(); }, [fetchSounds]);
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => apiDelete(`/api/trackers/${id}`),
+    onSuccess: () => {
+      invalidate();
+      toast.success("Tracker removed");
+    },
+    onError: (error) => toast.error(errorMessage(error, "Could not remove that tracker")),
+  });
 
-  const handleCreate = async () => {
+  const submitting = createMutation.isPending;
+
+  const handleCreate = useCallback(() => {
     if (!formData.tiktokSoundId || !formData.title) return;
-    setSubmitting(true);
-    try {
-      const res = await fetch("/api/trackers", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
-      });
-      if (res.ok) {
-        setModalOpen(false);
-        setFormData({ tiktokSoundId: "", title: "", artist: "" });
-        await fetchSounds();
-      }
-    } catch {
-      // silent
-    } finally {
-      setSubmitting(false);
-    }
-  };
+    createMutation.mutate(formData);
+  }, [createMutation, formData]);
 
-  const handleDelete = async (id: string) => {
-    try {
-      const res = await fetch(`/api/trackers/${id}`, { method: "DELETE" });
-      if (res.ok) {
-        setSounds((prev) => prev.filter((s) => s.id !== id));
-      }
-    } catch {
-      // silent
-    }
-  };
+  const handleDelete = useCallback(
+    (id: string) => deleteMutation.mutate(id),
+    [deleteMutation]
+  );
 
-  // Stats
-  const totalTrackers = sounds.length;
-  const totalUses = sounds.reduce((sum, s) => sum + (s.latestSnapshot?.usesCount ?? 0), 0);
-  const trendingCount = sounds.filter((s) => (s.latestSnapshot?.velocityScore ?? 0) > 5).length;
-  const newToday = sounds.reduce((sum, s) => sum + (s.latestSnapshot?.videosAdded24h ?? 0), 0);
+  const stats = useMemo(
+    () => ({
+      totalTrackers: sounds.length,
+      totalUses: sounds.reduce((sum, s) => sum + (s.latestSnapshot?.usesCount ?? 0), 0),
+      trendingCount: sounds.filter((s) => s.status === "viral" || s.status === "trending").length,
+      newToday: sounds.reduce((sum, s) => sum + (s.addedInPeriod ?? 0), 0),
+    }),
+    [sounds]
+  );
+  const { totalTrackers, totalUses, trendingCount, newToday } = stats;
 
   return (
     <div className="rsp-page">
@@ -103,10 +166,26 @@ export default function TrackersPage() {
           <h1 style={{ fontSize: 26, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Trackers</h1>
           <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>Track TikTok sounds and trends</p>
         </div>
-        <Button variant="primary" onClick={() => setModalOpen(true)}>
-          <Plus size={16} style={{ marginRight: 6 }} />
-          Track Sound
-        </Button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <Button
+            variant="secondary"
+            onClick={() => refreshMutation.mutate()}
+            disabled={refreshMutation.isPending}
+          >
+            <RefreshCw
+              size={16}
+              style={{
+                marginRight: 6,
+                animation: refreshMutation.isPending ? "cc-spin 1s linear infinite" : undefined,
+              }}
+            />
+            {refreshMutation.isPending ? "Refreshing..." : "Refresh"}
+          </Button>
+          <Button variant="primary" onClick={() => setModalOpen(true)}>
+            <Plus size={16} style={{ marginRight: 6 }} />
+            Track Sound
+          </Button>
+        </div>
       </div>
 
       {/* Stat Cards */}
@@ -146,6 +225,13 @@ export default function TrackersPage() {
             </div>
           ))}
         </Card>
+      ) : loadError ? (
+        <EmptyState
+          icon={<TrendingUp size={40} />}
+          title="Could not load trackers"
+          description="Something went wrong fetching your sound trackers."
+          action={<Button variant="primary" onClick={() => refetch()}>Retry</Button>}
+        />
       ) : sounds.length === 0 ? (
         <EmptyState
           icon={<TrendingUp size={40} />}
@@ -155,13 +241,68 @@ export default function TrackersPage() {
         />
       ) : (
         <Card variant="outlined" noPadding>
-          <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--cc-border)" }}>
+          <div
+            style={{
+              padding: "16px 20px",
+              borderBottom: "1px solid var(--cc-border)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 16,
+              flexWrap: "wrap",
+            }}
+          >
             <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)" }}>Sound Trackers</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+              <div style={{ display: "flex", gap: 4 }}>
+                {PERIODS.map((p) => (
+                  <button
+                    key={p.key}
+                    onClick={() => setPeriod(p.key)}
+                    style={{
+                      padding: "5px 12px",
+                      borderRadius: 8,
+                      fontSize: 13,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      border: "1px solid",
+                      borderColor: period === p.key ? "var(--cc-primary)" : "var(--cc-border)",
+                      background: period === p.key ? "var(--cc-primary)" : "var(--cc-card)",
+                      color: period === p.key ? "white" : "var(--cc-text-muted)",
+                    }}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>Sort</span>
+                {SORTS.map((s) => (
+                  <button
+                    key={s.key}
+                    onClick={() => setSort(s.key)}
+                    style={{
+                      padding: "5px 10px",
+                      borderRadius: 8,
+                      fontSize: 13,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      border: "1px solid",
+                      borderColor: sort === s.key ? "var(--cc-primary)" : "var(--cc-border)",
+                      background: "var(--cc-card)",
+                      color: sort === s.key ? "var(--cc-primary)" : "var(--cc-text-muted)",
+                    }}
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
           {sounds.map((s, i) => {
             const snap = s.latestSnapshot;
-            const velocity = snap?.velocityScore ?? 0;
-            const badge = getVelocityBadge(velocity);
+            const added = s.addedInPeriod;
+            const measured = s.change !== null;
             return (
               <div
                 key={s.id}
@@ -186,12 +327,33 @@ export default function TrackersPage() {
                   <div title={s.title} style={{ fontWeight: 600, fontSize: 14, color: "var(--cc-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title}</div>
                   <div style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{s.artist || "Unknown artist"}</div>
                 </div>
-                <Badge variant={badge.variant} size="sm">{badge.label}</Badge>
-                <div style={{ textAlign: "right", minWidth: 80 }}>
-                  <div style={{ fontWeight: 700, fontSize: 14, color: "var(--cc-text)" }}>{formatCount(snap?.usesCount ?? 0)}</div>
-                  <div style={{ fontSize: 12, color: (snap?.deltaUses24h ?? 0) >= 0 ? "var(--cc-primary)" : "#ef4444" }}>
-                    {(snap?.deltaUses24h ?? 0) >= 0 ? "+" : ""}{formatCount(snap?.deltaUses24h ?? 0)} / 24h
+                <Badge variant={STATUS_VARIANTS[s.status]} size="sm">
+                  {s.status === "unknown" ? "no data" : s.status}
+                </Badge>
+                <div style={{ textAlign: "right", minWidth: 96 }}>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: "var(--cc-text)" }}>
+                    {snap ? formatCount(snap.usesCount) : "—"}
                   </div>
+                  {measured && added !== null ? (
+                    <div style={{ fontSize: 12, color: added >= 0 ? "var(--cc-primary)" : "#ef4444" }}>
+                      {added >= 0 ? "+" : ""}
+                      {formatCount(added)} / {periodLabel(period)}
+                      {s.growthPercentage !== null
+                        ? ` (${s.growthPercentage >= 0 ? "+" : ""}${s.growthPercentage.toFixed(1)}%)`
+                        : ""}
+                    </div>
+                  ) : (
+                    <div
+                      style={{ fontSize: 12, color: "var(--cc-text-muted)" }}
+                      title={
+                        s.snapshotCount < 2
+                          ? "Needs a second reading before change can be measured"
+                          : "No readings inside this period"
+                      }
+                    >
+                      — / {periodLabel(period)}
+                    </div>
+                  )}
                 </div>
                 <div style={{ fontSize: 12, color: "var(--cc-text-muted)", minWidth: 80, textAlign: "right" }}>
                   {formatDateAbs(s.trackedSince)}

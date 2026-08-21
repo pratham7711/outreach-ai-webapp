@@ -32,11 +32,13 @@ export function OverviewSection({
   const totalViews = platforms.reduce((n, p) => n + p.views, 0);
   const totalPosts = platforms.reduce((n, p) => n + p.postsCount, 0);
 
+
   return (
     <div className="flex flex-col gap-6">
       {widgets.includes("kpi_grid") && (
         <div className="grid grid-cols-2 gap-5 lg:grid-cols-4">
           <MetricTile
+
             metric="activeCampaigns"
             value={String(s ? s.activeCampaigns : fallbackCampaignCount)}
           />

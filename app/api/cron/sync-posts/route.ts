@@ -58,6 +58,8 @@ export async function GET(request: NextRequest) {
           status: { in: ["IN_PROGRESS", "PENDING"] },
           deletedAt: null,
         },
+        syncDisabledAt: null,
+        snapshots: { none: { isFinalSnapshot: true } },
       },
       select: {
         id: true,

@@ -56,7 +56,6 @@ type Props = {
 
 export default function DashboardClient(props: Props) {
   const widgets = props.dashboardWidgets ?? DEFAULT_WIDGETS;
-  const isNewOrg = props.campaignCount === 0 && props.creatorCount === 0;
   const hasPerformance = PERFORMANCE_WIDGETS.some((w) => widgets.includes(w));
 
   const [financials, setFinancials] = useState<PerformanceData | null>(null);
@@ -164,11 +163,9 @@ export default function DashboardClient(props: Props) {
         </div>
       </div>
 
-      {isNewOrg && (
-        <div className="mb-7">
-          <GettingStarted />
-        </div>
-      )}
+      <div className="mb-7 empty:mb-0">
+        <GettingStarted />
+      </div>
 
       <Tabs defaultValue="overview" className="gap-6">
         <TabsList variant="line">

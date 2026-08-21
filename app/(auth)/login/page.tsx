@@ -6,6 +6,7 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { Button, Input } from "@pratham7711/ui";
 import { Eye, EyeOff } from "lucide-react";
+import { BRAND } from "@/lib/brand";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -79,7 +80,7 @@ export default function LoginPage() {
             <circle cx="12" cy="12" r="2" fill="var(--cc-primary)"/>
           </svg>
           <span style={{ fontWeight: 800, fontSize: 20, color: "var(--cc-text)", letterSpacing: "-0.02em" }}>
-            outreach ai
+            {BRAND.name}
           </span>
         </div>
 
@@ -100,7 +101,7 @@ export default function LoginPage() {
             Login
           </h1>
           <p style={{ fontSize: 14, color: "var(--cc-text-muted)", marginBottom: 24 }}>
-            Sign in to outreach ai
+            Sign in to {BRAND.name}
           </p>
 
           {registered && !error && (

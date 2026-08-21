@@ -1,7 +1,8 @@
 /**
  * @jest-environment jsdom
  */
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
+import { renderWithQuery as render } from "../../helpers/renderWithQuery";
 
 jest.mock("@pratham7711/ui", () => ({
   Card: ({ children, ...props }: any) => <div data-testid="card" {...props}>{children}</div>,

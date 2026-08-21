@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { fetchMarketplaceDetail } from "@/lib/marketplace/public";
+import { BRAND } from "@/lib/brand";
 import {
   CAMPAIGN_TYPE_LABEL,
   PLATFORM_META,
@@ -49,10 +50,10 @@ export async function generateMetadata({
   const { slug } = await params;
   const data = await fetchMarketplaceDetail(slug);
   if (!data) {
-    return { title: "Campaign not found | Outreach AI" };
+    return { title: `Campaign not found | ${BRAND.name}` };
   }
   const { campaign } = data;
-  const title = `${campaign.title} — ${campaign.orgName} | Outreach AI`;
+  const title = `${campaign.title} — ${campaign.orgName} | ${BRAND.name}`;
   const description =
     campaign.guidelines?.slice(0, 155) ??
     `Join ${campaign.orgName}'s campaign and get paid per verified view. Post your content and start earning.`;

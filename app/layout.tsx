@@ -4,6 +4,8 @@ import { Lexend_Deca } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { QueryProvider } from "@/components/providers/QueryProvider";
+import { BRAND } from "@/lib/brand";
 
 const satoshi = localFont({
   src: [
@@ -23,7 +25,7 @@ const lexend = Lexend_Deca({
 });
 
 export const metadata: Metadata = {
-  title: "Outreach AI",
+  title: BRAND.name,
   description: "Run creator campaigns from pitch to payout — discovery, activations, deliverables and payouts in one place.",
 };
 
@@ -32,7 +34,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={`${satoshi.variable} ${lexend.variable}`} suppressHydrationWarning>
       <body suppressHydrationWarning>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange themes={["light", "dark", "creatorcore"]}>
-          <TooltipProvider delay={150}>{children}</TooltipProvider>
+          <QueryProvider>
+            <TooltipProvider delay={150}>{children}</TooltipProvider>
+          </QueryProvider>
         </ThemeProvider>
       </body>
     </html>

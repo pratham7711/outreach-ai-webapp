@@ -4,8 +4,9 @@ import { READ_CACHE_HEADERS } from "@/lib/http/readCache";
 import { authenticateRequest } from "@/lib/authenticate";
 import { computeCampaignEmv, computeEngagementRate, sumEngagements } from "@/lib/metrics";
 import type { Prisma } from "@/lib/generated/prisma/client";
+import { PLATFORM_VALUES } from "@/lib/platforms/constants";
 
-const PLATFORMS = ["TIKTOK", "INSTAGRAM", "YOUTUBE", "TWITTER"] as const;
+const PLATFORMS = PLATFORM_VALUES;
 
 const LEADERBOARD_SIZE = 20;
 
@@ -235,6 +236,13 @@ export async function GET(req: NextRequest) {
       leaderboard,
       platformBreakdown,
       campaigns: orgCampaigns,
+      // The posting-time heatmap wants a median per weekday-hour bucket in the
+      // viewer's zone. Reading every post row to get it is the exact cost this
+      // route was rewritten to remove, and there is a test here pinning that, so
+      // the field stays empty until it can be produced as an aggregate:
+      // percentile_cont over EXTRACT(dow/hour FROM "postedAt" AT TIME ZONE $tz)
+      // is 168 rows per platform and handles half-hour offsets correctly.
+      postingTimes: [],
     },
     { headers: READ_CACHE_HEADERS }
   );

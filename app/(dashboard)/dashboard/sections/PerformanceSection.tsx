@@ -117,6 +117,7 @@ export function PerformanceSection({
             )}
           </SectionCard>
         )}
+
       </div>
 
       {widgets.includes("top_posts") && (

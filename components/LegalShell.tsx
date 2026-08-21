@@ -1,12 +1,13 @@
 import React from "react";
 import Link from "next/link";
+import { BRAND } from "@/lib/brand";
 
 export const LEGAL = {
-  name: "Outreach AI",
-  entity: "Outreach AI",
-  privacyEmail: "prathamsharma7711@gmail.com",
-  contactEmail: "prathamsharma7711@gmail.com",
-  updated: "10 August 2026",
+  name: BRAND.name,
+  entity: BRAND.legalEntity,
+  privacyEmail: BRAND.privacyEmail,
+  contactEmail: BRAND.contactEmail,
+  updated: BRAND.updated,
 };
 
 export function LegalSection({

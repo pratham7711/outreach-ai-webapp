@@ -224,13 +224,30 @@ describe("GET /api/portal/connections/[platform]/start", () => {
     expect(mockDb.creatorSocialAccount.upsert).not.toHaveBeenCalled();
   });
 
-  it("redirects with error when no org-side creator matches", async () => {
-    mockDb.creator.findFirst.mockResolvedValue(null);
+  it("refuses TikTok as coming soon, before touching any creator row", async () => {
+    // TikTok connect is gated at the capability layer while API access is
+    // pending, so this must not fall through to the dev connect path and mint a
+    // token for a platform we cannot actually call.
     const res = await startConnect(
       makeRequest("http://localhost:3009/api/portal/connections/tiktok/start"),
       makeParams("tiktok"),
     );
-    expect(res.headers.get("location")).toContain("/portal/settings?error=tiktok");
+    expect(res.status).toBe(503);
+    const body = await res.json();
+    expect(body.status).toBe("coming_soon");
+    expect(mockDb.creator.findFirst).not.toHaveBeenCalled();
+    expect(mockDb.creatorSocialAccount.upsert).not.toHaveBeenCalled();
+  });
+
+  it("redirects with error when no org-side creator matches", async () => {
+    // youtube rather than tiktok: tiktok is refused as coming_soon above and
+    // never reaches the creator lookup this asserts on.
+    mockDb.creator.findFirst.mockResolvedValue(null);
+    const res = await startConnect(
+      makeRequest("http://localhost:3009/api/portal/connections/youtube/start"),
+      makeParams("youtube"),
+    );
+    expect(res.headers.get("location")).toContain("/portal/settings?error=youtube");
     expect(mockDb.creatorSocialAccount.upsert).not.toHaveBeenCalled();
   });
 });

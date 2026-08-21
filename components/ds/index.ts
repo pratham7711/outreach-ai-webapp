@@ -11,3 +11,5 @@ export { FilterDrawer, FilterButton } from "./FilterDrawer";
 export type { FilterDef, FilterOption, FilterValues } from "./FilterDrawer";
 export { EntityPicker } from "./EntityPicker";
 export type { PickerOption } from "./EntityPicker";
+export { SortableTh, useTableSort, numericCell } from "./SortableTh";
+export type { SortAccessors, SortDir, SortState, SortValue } from "./SortableTh";

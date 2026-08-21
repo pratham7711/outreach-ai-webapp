@@ -8,9 +8,12 @@ import { DollarSign, Send, CheckCircle, TrendingUp, Search, LogOut, Inbox } from
 import Link from "next/link";
 import { stripAt, formatDateAbs } from "@/lib/format";
 import { MyPerformance } from "@/components/portal/MyPerformance";
+import { OnboardingChecklist, useDismissable } from "@/components/onboarding/OnboardingChecklist";
+import { isOnboardingProgress, type OnboardingProgress } from "@/lib/onboarding/steps";
 
 type DashboardData = {
   user: { name: string; handle: string; avatarUrl: string | null; lifetimeEarnings: number; averageRating: number; reviewCount: number; cpm: number };
+  onboarding: OnboardingProgress;
   stats: { totalProposals: number; pendingProposals: number; acceptedProposals: number; lifetimeEarnings: number };
   recentProposals: { id: string; proposedRate: number; currency: string; status: string; createdAt: string; campaign: { id: string; title: string; budget: number | null; currency: string; org: { name: string } } }[];
 };
@@ -30,6 +33,7 @@ export default function PortalDashboardPage() {
   const router = useRouter();
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
+  const { dismissed, dismiss } = useDismissable("portal.onboarding.dismissed");
 
   useEffect(() => {
     fetch("/api/portal/dashboard")
@@ -76,6 +80,21 @@ export default function PortalDashboardPage() {
           </Button>
         </div>
       </div>
+
+      {dismissed === false && isOnboardingProgress(data.onboarding) && !data.onboarding.complete && (
+        <Card variant="outlined" noPadding style={{ marginBottom: 24, overflow: "hidden" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "14px 24px" }}>
+            <div>
+              <h2 style={{ fontSize: 15, fontWeight: 700, color: "var(--cc-text)" }}>Finish setting up</h2>
+              <p style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>
+                {data.onboarding.done} of {data.onboarding.total} done. Agencies see a complete profile first.
+              </p>
+            </div>
+            <Button variant="ghost" onClick={dismiss}>Dismiss</Button>
+          </div>
+          <OnboardingChecklist progress={data.onboarding} />
+        </Card>
+      )}
 
       {/* Stats */}
       <div className="rsp-grid-tiles" style={{ marginBottom: 32 }}>

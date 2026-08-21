@@ -4,10 +4,10 @@ import React from "react";
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { Card, Badge, Button, Input, Modal, EmptyState, Skeleton, Avatar } from "@pratham7711/ui";
 import { StatusTabs, Pagination } from "@/components/ds";
-import { Grid3X3, List, Plus, Check, X, Eye, Heart, MessageCircle, TrendingUp, BarChart3, ArrowUp, ArrowDown, ArrowUpDown, Flag, Video, AlertTriangle, Send, Download, Bookmark } from "lucide-react";
+import { Grid3X3, List, Plus, Check, X, Eye, Heart, MessageCircle, TrendingUp, BarChart3, ArrowUp, ArrowDown, ArrowUpDown, Flag, Video, AlertTriangle, RefreshCw, Image as ImageIcon } from "lucide-react";
 import Link from "next/link";
 import { computePostEmv, computeEngagementRate } from "@/lib/metrics";
-import { formatCompact, formatCompactCurrency, stripAt, formatDateAbs } from "@/lib/format";
+import { formatCompact, formatCompactCurrency, stripAt, formatDateAbs, timeAgo } from "@/lib/format";
 import type { ComplianceFlag } from "@/lib/compliance/postCompliance";
 import PostMedia from "@/components/PostMedia";
 import { imgSrc } from "@/lib/postMedia";
@@ -108,18 +108,10 @@ function formatMoney(num: number): string {
   return formatCompactCurrency(num);
 }
 
+// Never-synced is a fact worth stating; timeAgo's "Recently" fallback would
+// claim the opposite.
 function formatSince(iso: string | null): string {
-  if (!iso) return "Never";
-  const then = new Date(iso).getTime();
-  if (Number.isNaN(then)) return "Never";
-  const diff = Date.now() - then;
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "Just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  const days = Math.floor(hrs / 24);
-  return `${days}d ago`;
+  return iso ? timeAgo(iso) : "Never";
 }
 
 function engRatePct(post: PostData): number | null {
@@ -245,10 +237,8 @@ export default function PostsTab({
   const [submitting, setSubmitting] = useState(false);
   const [addForm, setAddForm] = useState({ postUrl: "", creatorId: "", mediaType: "" });
   const [creators, setCreators] = useState<Creator[]>([]);
-  const [metricsPost, setMetricsPost] = useState<PostData | null>(null);
-  const [metricsForm, setMetricsForm] = useState({ viewsCount: 0, likesCount: 0, commentsCount: 0, sharesCount: 0, savesCount: 0 });
-  const [metricsSubmitting, setMetricsSubmitting] = useState(false);
   const [syncingId, setSyncingId] = useState<string | null>(null);
+  const [refreshingAll, setRefreshingAll] = useState(false);
 
   const fetchPosts = useCallback(async () => {
     setError(null);
@@ -344,32 +334,18 @@ export default function PostsTab({
     }
   };
 
-  const openMetrics = (post: PostData) => {
-    setMetricsPost(post);
-    setMetricsForm({
-      viewsCount: post.viewsCount,
-      likesCount: post.likesCount,
-      commentsCount: post.commentsCount,
-      sharesCount: post.sharesCount ?? 0,
-      savesCount: post.savesCount ?? 0,
-    });
-  };
-
-  const handleUpdateMetrics = async () => {
-    if (!metricsPost) return;
-    setMetricsSubmitting(true);
+  // ponytail: fans out over the existing per-post sync route rather than adding a
+  // bulk endpoint. Fine for a campaign's worth of posts; batch server-side if a
+  // campaign ever carries hundreds.
+  const handleRefreshAll = async () => {
+    setRefreshingAll(true);
     try {
-      const res = await fetch(`/api/campaigns/${campaignId}/posts/${metricsPost.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(metricsForm),
-      });
-      if (res.ok) {
-        setMetricsPost(null);
-        fetchPosts();
+      for (const post of posts) {
+        await fetch(`/api/campaigns/${campaignId}/posts/${post.id}/sync`, { method: "POST" });
       }
+      fetchPosts();
     } finally {
-      setMetricsSubmitting(false);
+      setRefreshingAll(false);
     }
   };
 
@@ -493,6 +469,28 @@ export default function PostsTab({
       .filter((p) => p.status === "APPROVED")
       .reduce((sum, p) => sum + earnedMinorForPost(p.viewsCount, p.platform, marketplace.ratePerThousand), 0);
   }, [posts, marketplace]);
+
+  // Campaign roll-up, derived from the synced posts — nothing here is stored or
+  // typed in, so it can never disagree with the per-post numbers below it.
+  const totals = useMemo(() => {
+    const views = posts.reduce((s, p) => s + p.viewsCount, 0);
+    const likes = posts.reduce((s, p) => s + p.likesCount, 0);
+    const comments = posts.reduce((s, p) => s + p.commentsCount, 0);
+    const shares = posts.reduce((s, p) => s + (p.sharesCount ?? 0), 0);
+    const engagement = likes + comments + shares;
+    const perPost = posts.map((p) => engRatePct(p)).filter((r): r is number => r !== null);
+    return {
+      posts: posts.length,
+      views,
+      likes,
+      comments,
+      engagement,
+      // Average of each post's rate — what a creator-level report quotes.
+      avgPostEng: perPost.length ? perPost.reduce((s, r) => s + r, 0) / perPost.length : null,
+      // Campaign-wide rate — total engagement over total views.
+      campaignEng: views > 0 ? (engagement / views) * 100 : null,
+    };
+  }, [posts]);
 
   const pendingCount = useMemo(() => posts.filter((p) => p.status === "PENDING_REVIEW").length, [posts]);
   const capMinor = marketplace?.budgetCapMinor ?? null;
@@ -686,6 +684,12 @@ export default function PostsTab({
             </button>
           </div>
 
+          <Button variant="secondary" onClick={handleRefreshAll} loading={refreshingAll} disabled={posts.length === 0}>
+            <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <RefreshCw size={14} /> Refresh Data
+            </span>
+          </Button>
+
           <Button variant="primary" onClick={openAddPost}>
             <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
               <Plus size={14} /> Add Post
@@ -815,9 +819,6 @@ export default function PostsTab({
                   </div>
                   <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{formatSince(post.lastSyncedAt)}</span>
                   <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-                    <button onClick={() => openMetrics(post)} aria-label="Update metrics" style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid var(--cc-primary)", background: "var(--cc-card)", color: "var(--cc-primary)", cursor: "pointer", fontSize: 12, display: "flex", alignItems: "center", gap: 2 }}>
-                      <BarChart3 size={12} />
-                    </button>
                     <button onClick={() => handleSyncNow(post.id)} disabled={syncingId === post.id} aria-label="Sync post metrics now" style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid var(--cc-border)", background: "var(--cc-card)", color: "var(--cc-text-muted)", cursor: syncingId === post.id ? "wait" : "pointer", fontSize: 12, display: "flex", alignItems: "center", gap: 2, opacity: syncingId === post.id ? 0.6 : 1 }}>
                       <TrendingUp size={12} />
                     </button>
@@ -853,14 +854,11 @@ export default function PostsTab({
         </>
       ) : !error ? (
         <>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 16 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 18 }}>
             {pageRows.map((post) => {
               const emv = postEmv(post);
               const cardLikes = metricValue(post.likesCount, post.lastSyncedAt);
               const cardComments = metricValue(post.commentsCount, post.lastSyncedAt);
-              const cardShares = metricValue(post.sharesCount, post.lastSyncedAt);
-              const cardSaves = metricValue(post.savesCount, post.lastSyncedAt);
-              const cardDownloads = metricValue(post.downloadsCount, post.lastSyncedAt);
               const cardEngRate =
                 cardLikes === null && cardComments === null
                   ? null
@@ -871,62 +869,75 @@ export default function PostsTab({
                       post.lastSyncedAt
                     ) ?? engRatePct(post);
               return (
-                <Card key={post.id} variant="outlined" style={{ padding: 0, overflow: "hidden" }}>
-                  {post.thumbnailUrl && (
-                    <div style={{ width: "100%", height: 160, background: `url(${post.thumbnailUrl}) center/cover`, borderBottom: "1px solid var(--cc-border)" }} />
+                <Link
+                  key={post.id}
+                  href={`/campaigns/${campaignId}/posts/${post.id}`}
+                  style={{
+                    position: "relative",
+                    display: "block",
+                    aspectRatio: "9 / 16",
+                    borderRadius: 20,
+                    overflow: "hidden",
+                    textDecoration: "none",
+                    border: "1px solid var(--cc-border)",
+                    background: post.thumbnailUrl
+                      ? `url(${post.thumbnailUrl}) center/cover no-repeat`
+                      : "var(--cc-bg)",
+                  }}
+                >
+                  {!post.thumbnailUrl && (
+                    <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--cc-text-subtle)" }}>
+                      <ImageIcon size={40} aria-hidden="true" />
+                    </div>
                   )}
-                  <div style={{ padding: 16 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: 8, gap: 8 }}>
-                      <Link prefetch={false} href={`/campaigns/${campaignId}/posts/${post.id}`} style={{ display: "flex", alignItems: "center", gap: 8, textDecoration: "none", minWidth: 0 }}>
-                        <Avatar name={post.creator.name} size="sm" src={imgSrc(post.authorProfilePic, 64) ?? imgSrc(post.creator.avatarUrl, 64) ?? undefined} />
-                        <div style={{ minWidth: 0 }}>
-                          <div title={post.creator.name} style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{post.creator.name}</div>
-                          <div style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{post.platform}</div>
-                        </div>
-                      </Link>
-                      <Badge variant={STATUS_BADGE[post.status] ?? "neutral"} style={{ fontSize: 10 }}>{post.status.replace(/_/g, " ")}</Badge>
+                  <span style={{ position: "absolute", top: 10, left: 10, padding: "3px 9px", borderRadius: 999, background: "rgba(0,0,0,0.55)", color: "white", fontSize: 10, fontWeight: 700, letterSpacing: 0.4, backdropFilter: "blur(4px)" }}>
+                    {post.platform}
+                  </span>
+                  <span style={{ position: "absolute", top: 10, right: 10 }}>
+                    <Badge variant={STATUS_BADGE[post.status] ?? "neutral"} style={{ fontSize: 9 }}>
+                      {post.status.replace(/_/g, " ")}
+                    </Badge>
+                  </span>
+
+                  {/* Metrics read out over the frame itself \u2014 display only, never editable. */}
+                  <div
+                    style={{
+                      position: "absolute",
+                      insetInline: 0,
+                      bottom: 0,
+                      padding: "48px 14px 10px",
+                      // Fades in over the frame, then goes fully solid behind the
+                      // counts \u2014 the same treatment CreatorCore uses, so numbers
+                      // never fight the artwork.
+                      background:
+                        "linear-gradient(to bottom, rgba(28,32,72,0) 0%, rgba(28,32,72,0.72) 30%, var(--cc-text) 48%, var(--cc-text) 100%)",
+                      color: "white",
+                    }}
+                  >
+                    <div title={post.creator.name} style={{ fontSize: 14, fontWeight: 700, marginBottom: 6, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {post.creator.handle || post.creator.name}
                     </div>
-                    <div style={{ display: "flex", gap: 12, fontSize: 12, color: "var(--cc-text-muted)", flexWrap: "wrap" }}>
-                      <span style={{ display: "flex", alignItems: "center", gap: 3 }}><Eye size={12} />{formatNumber(post.viewsCount)}</span>
-                      {/* Unfetched counters default to 0 in the column, which would
-                          read here as a measured zero. Show only what we have. */}
-                      {cardLikes !== null && (
-                        <span style={{ display: "flex", alignItems: "center", gap: 3 }}><Heart size={12} />{formatNumber(cardLikes)}</span>
-                      )}
-                      {cardComments !== null && (
-                        <span style={{ display: "flex", alignItems: "center", gap: 3 }}><MessageCircle size={12} />{formatNumber(cardComments)}</span>
-                      )}
-                      {cardShares !== null && (
-                        <span style={{ display: "flex", alignItems: "center", gap: 3 }}><Send size={12} />{formatNumber(cardShares)}</span>
-                      )}
-                      {cardSaves !== null && (
-                        <span style={{ display: "flex", alignItems: "center", gap: 3 }}><Bookmark size={12} />{formatNumber(cardSaves)}</span>
-                      )}
-                      {cardDownloads !== null && (
-                        <span style={{ display: "flex", alignItems: "center", gap: 3 }}><Download size={12} />{formatNumber(cardDownloads)}</span>
-                      )}
-                      {cardEngRate !== null && (
-                        <span style={{ display: "flex", alignItems: "center", gap: 3 }}><TrendingUp size={12} />{cardEngRate.toFixed(1)}%</span>
-                      )}
-                    </div>
-                    <div style={{ fontSize: 12, color: "var(--cc-text-muted)", marginTop: 8 }}>EMV <strong style={{ color: "var(--cc-text)" }}>{formatMoney(emv)}</strong></div>
-                    <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 11, color: "var(--cc-text-muted)", marginTop: 6 }}>
-                      <span>Posted {formatDateAbs(post.postedAt)}</span>
-                      {post.lastSyncedAt && <span>Updated {formatSince(post.lastSyncedAt)}</span>}
-                    </div>
-                    <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-                      <Button variant="secondary" onClick={() => openMetrics(post)} style={{ flex: 1, fontSize: 12 }}>
-                        <span style={{ display: "flex", alignItems: "center", gap: 4 }}><BarChart3 size={12} /> Metrics</span>
-                      </Button>
-                      {postApprovalMode === "MANUAL" && post.status === "PENDING_REVIEW" && (
-                        <>
-                          <Button variant="primary" onClick={() => handleApprove(post.id)} style={{ flex: 1, fontSize: 12 }}>Approve</Button>
-                          <Button variant="secondary" onClick={() => setShowRejectModal(post.id)} style={{ flex: 1, fontSize: 12 }}>Reject</Button>
-                        </>
-                      )}
+                    {/* Four rows, as the reference card has: shares, saves and
+                        downloads have their own columns in the table view and only
+                        add three "0" lines here. A counter that was never fetched
+                        sits at 0 in the column, and printed here it would read as a
+                        measured zero, so only measured values get a row. */}
+                    {([
+                      { key: "views", icon: <Eye size={13} aria-hidden="true" />, text: `${formatNumber(post.viewsCount)} views` },
+                      cardLikes !== null && { key: "likes", icon: <Heart size={13} aria-hidden="true" />, text: `${formatNumber(cardLikes)} likes` },
+                      cardComments !== null && { key: "comments", icon: <MessageCircle size={13} aria-hidden="true" />, text: `${formatNumber(cardComments)} comments` },
+                      cardEngRate !== null && { key: "eng", icon: <TrendingUp size={13} aria-hidden="true" />, text: `${cardEngRate.toFixed(1)}% eng. rate` },
+                    ].filter(Boolean) as { key: string; icon: React.ReactNode; text: string }[]).map((row) => (
+                      <div key={row.key} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, marginBottom: 2 }}>
+                        {row.icon}{row.text}
+                      </div>
+                    ))}
+                    <div style={{ marginTop: 8, paddingTop: 7, borderTop: "1px solid rgba(255,255,255,0.22)", display: "flex", justifyContent: "space-between", gap: 8, fontSize: 10.5, color: "rgba(255,255,255,0.78)" }}>
+                      <span>EMV {formatMoney(emv)}</span>
+                      <span>{formatSince(post.lastSyncedAt)}</span>
                     </div>
                   </div>
-                </Card>
+                </Link>
               );
             })}
           </div>
@@ -969,30 +980,6 @@ export default function PostsTab({
                 <option value="VIDEO">Video</option>
               </select>
             </div>
-          </div>
-        </Modal>
-      )}
-
-      {metricsPost && (
-        <Modal open={true} onClose={() => setMetricsPost(null)} title="Update Metrics" size="md" footer={
-          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-            <Button variant="secondary" onClick={() => setMetricsPost(null)}>Cancel</Button>
-            <Button variant="primary" loading={metricsSubmitting} onClick={handleUpdateMetrics}>Save Metrics</Button>
-          </div>
-        }>
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            <p style={{ fontSize: 13, color: "var(--cc-text-muted)", margin: 0 }}>
-              Manually update metrics for <strong>{metricsPost.caption?.slice(0, 40) ?? "this post"}</strong>
-            </p>
-            {(["viewsCount", "likesCount", "commentsCount", "sharesCount", "savesCount"] as const).map((field) => (
-              <Input
-                key={field}
-                label={field.replace("Count", "").replace(/([A-Z])/g, " $1").trim()}
-                type="number"
-                value={String(metricsForm[field])}
-                onChange={(e) => setMetricsForm((f) => ({ ...f, [field]: parseInt(e.target.value) || 0 }))}
-              />
-            ))}
           </div>
         </Modal>
       )}

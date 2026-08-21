@@ -3,6 +3,7 @@
  */
 import { NextRequest } from "next/server";
 import { GET, POST } from "@/app/api/mcp/route";
+import { BRAND } from "@/lib/brand";
 
 jest.mock("@/lib/db", () => ({
   db: {
@@ -55,7 +56,7 @@ describe("GET /api/mcp", () => {
     const res = await GET();
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.service).toBe("Outreach AI MCP");
+    expect(body.service).toBe(`${BRAND.name} MCP`);
     expect(body.version).toBe("1.0.0");
   });
 });
@@ -77,7 +78,7 @@ describe("POST /api/mcp", () => {
     const res = await POST(req);
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.result.serverInfo.name).toBe("Outreach AI");
+    expect(body.result.serverInfo.name).toBe(BRAND.name);
     expect(body.result.protocolVersion).toBe("2025-03-26");
   });
 

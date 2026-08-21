@@ -17,6 +17,7 @@ jest.mock("@/lib/authenticate", () => ({
 
 import { db } from "@/lib/db";
 import { authenticateRequest } from "@/lib/authenticate";
+import { PLATFORM_VALUES } from "@/lib/platforms/constants";
 
 const mockDb = db as any;
 const mockAuth = authenticateRequest as jest.Mock;
@@ -110,7 +111,12 @@ describe("GET /api/ingestion/status", () => {
     const body = await res.json();
 
     expect(Array.isArray(body.perPlatform)).toBe(true);
-    expect(body.perPlatform).toHaveLength(3);
+    // Every platform gets a row, zero-filled, so the panel does not silently
+    // omit one that simply has no posts yet. Asserted against the constant
+    // rather than a literal, so adding a platform does not fail this for the
+    // wrong reason.
+    expect(body.perPlatform).toHaveLength(PLATFORM_VALUES.length);
+    expect(body.perPlatform.map((p: any) => p.platform).sort()).toEqual([...PLATFORM_VALUES].sort());
 
     const tiktok = body.perPlatform.find((p: any) => p.platform === "TIKTOK");
     expect(tiktok).toMatchObject({

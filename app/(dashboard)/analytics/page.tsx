@@ -2,8 +2,9 @@
 import React, { useState, useEffect, useCallback } from "react";
 import dynamic from "next/dynamic";
 import { Skeleton, EmptyState } from "@pratham7711/ui";
-import { Activity, BarChart3, Calendar, Smartphone, Users } from "lucide-react";
+import { Activity, BarChart3, Calendar, Clock, Smartphone, Users } from "lucide-react";
 import CampaignComparison from "./CampaignComparison";
+import { PostingTimeHeatmap } from "./PostingTimeHeatmap";
 import CreatorLeaderboard, { LeaderboardCreator } from "./CreatorLeaderboard";
 import { MetricTile, SectionCard } from "@/components/ds";
 import { Button } from "@/components/ui/button";
@@ -45,6 +46,7 @@ type AnalyticsData = {
   leaderboard: LeaderboardCreator[];
   platformBreakdown: { platform: string; views: number; posts: number }[];
   campaigns: CampaignOption[];
+  postingTimes: { postedAt: string; platform: string; viewsCount: number }[];
 };
 
 function PillGroup({
@@ -173,6 +175,10 @@ export default function AnalyticsPage() {
               <Users aria-hidden="true" />
               Creators &amp; platforms
             </TabsTrigger>
+            <TabsTrigger value="timing">
+              <Clock aria-hidden="true" />
+              Timing
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview">
@@ -263,6 +269,10 @@ export default function AnalyticsPage() {
                 )}
               </SectionCard>
             </div>
+          </TabsContent>
+
+          <TabsContent value="timing">
+            <PostingTimeHeatmap posts={data.postingTimes ?? []} platform={platform} />
           </TabsContent>
         </Tabs>
       )}

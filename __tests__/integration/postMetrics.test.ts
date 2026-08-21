@@ -106,30 +106,42 @@ describe('GET /api/campaigns/[id]/posts/[postId]', () => {
   });
 });
 
-// ─── PATCH manual metrics ─────────────────────────────────────────────────────
+// ─── PATCH: approval only, never metrics ────────────────────────────
 
-describe('PATCH /api/campaigns/[id]/posts/[postId] — manual metrics', () => {
-  it('updates metrics and creates snapshot', async () => {
-    const updatedPost = { ...mockPost, viewsCount: 2000, likesCount: 100, creator: { id: 'c1', name: 'Test' } };
-    mockDb.$transaction.mockResolvedValue([updatedPost, { id: 'snap-1' }]);
-
+describe('PATCH /api/campaigns/[id]/posts/[postId]', () => {
+  it('rejects a body that tries to write metrics', async () => {
+    // Counts are fetched from the platform, never typed in — the same as the
+    // reference, where the numbers on a post are read-only. This used to accept
+    // viewsCount and friends and write a snapshot from them; the route now takes
+    // approval fields only, and that has to stay true or hand-entered numbers
+    // become indistinguishable from measured ones.
     const req = makeRequest('http://localhost/api/campaigns/camp-1/posts/post-1', {
       method: 'PATCH',
-      body: JSON.stringify({ viewsCount: 2000, likesCount: 100, commentsCount: 20, sharesCount: 10, savesCount: 5 }),
+      body: JSON.stringify({ viewsCount: 2000, likesCount: 100, commentsCount: 20 }),
       headers: { 'Content-Type': 'application/json' },
     });
     const res = await PATCH(req, makeParams('camp-1', 'post-1'));
-    const body = await res.json();
-
-    expect(res.status).toBe(200);
-    expect(body.viewsCount).toBe(2000);
-    expect(mockDb.$transaction).toHaveBeenCalled();
+    expect(res.status).toBe(400);
+    expect(mockDb.$transaction).not.toHaveBeenCalled();
   });
 
-  it('returns 400 for invalid metrics', async () => {
+  it('accepts an approval', async () => {
+    mockDb.post.findFirst.mockResolvedValue(mockPost);
+    mockDb.post.update.mockResolvedValue({ ...mockPost, status: 'APPROVED' });
+
     const req = makeRequest('http://localhost/api/campaigns/camp-1/posts/post-1', {
       method: 'PATCH',
-      body: JSON.stringify({ viewsCount: -1 }),
+      body: JSON.stringify({ status: 'APPROVED' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const res = await PATCH(req, makeParams('camp-1', 'post-1'));
+    expect(res.status).toBe(200);
+  });
+
+  it('returns 400 for a status outside the allowed pair', async () => {
+    const req = makeRequest('http://localhost/api/campaigns/camp-1/posts/post-1', {
+      method: 'PATCH',
+      body: JSON.stringify({ status: 'PENDING_REVIEW' }),
       headers: { 'Content-Type': 'application/json' },
     });
     const res = await PATCH(req, makeParams('camp-1', 'post-1'));

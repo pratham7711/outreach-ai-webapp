@@ -58,7 +58,9 @@ describe("GET /api/trackers", () => {
     expect(res.status).toBe(401);
   });
 
-  it("returns sounds with computed status and growth", async () => {
+  it("computes trending from two snapshots inside the window", async () => {
+    // 500 uses added over 10 hours is 50/hour, which is trending (>=10, <100).
+    const now = Date.now();
     mockDb.tikTokSound.findMany.mockResolvedValue([
       {
         id: "sound-1",
@@ -70,31 +72,54 @@ describe("GET /api/trackers", () => {
         trackedSince: new Date(),
         createdAt: new Date(),
         snapshots: [
-          {
-            id: "snap-1",
-            soundId: "sound-1",
-            usesCount: 10000,
-            videosAdded24h: 500,
-            deltaUses24h: 500,
-            velocityScore: 75,
-            recordedAt: new Date(),
-          },
+          { id: "snap-2", soundId: "sound-1", usesCount: 10500, videosAdded24h: 500, deltaUses24h: 500, velocityScore: 5, recordedAt: new Date(now) },
+          { id: "snap-1", soundId: "sound-1", usesCount: 10000, videosAdded24h: 0, deltaUses24h: 0, velocityScore: 0, recordedAt: new Date(now - 10 * 60 * 60 * 1000) },
         ],
       },
     ]);
 
-    const req = makeRequest("http://localhost/api/trackers");
-    const res = await getTrackers(req);
+    const res = await getTrackers(makeRequest("http://localhost/api/trackers"));
     const body = await res.json();
 
     expect(res.status).toBe(200);
     expect(body.sounds).toHaveLength(1);
     expect(body.sounds[0].status).toBe("trending");
-    expect(body.sounds[0].growthPercentage).toBeGreaterThan(0);
+    expect(body.sounds[0].growthPercentage).toBeCloseTo(5, 5);
+    expect(body.sounds[0].addedInPeriod).toBe(500);
     expect(body.sounds[0].latestSnapshot).toBeTruthy();
   });
 
-  it("returns stable status when no snapshots", async () => {
+  it("reports unknown from a single snapshot, because change needs two points", async () => {
+    // The tracker exists and has been measured once. That says nothing about
+    // whether it is climbing, so status must not guess -- the old behaviour read
+    // velocityScore off the one row and called a lone reading "trending".
+    mockDb.tikTokSound.findMany.mockResolvedValue([
+      {
+        id: "sound-1",
+        orgId: "org-1",
+        tiktokSoundId: "tt-123",
+        title: "Hit Song",
+        artist: "Artist A",
+        coverImageUrl: null,
+        trackedSince: new Date(),
+        createdAt: new Date(),
+        snapshots: [
+          { id: "snap-1", soundId: "sound-1", usesCount: 10000, videosAdded24h: 500, deltaUses24h: 500, velocityScore: 75, recordedAt: new Date() },
+        ],
+      },
+    ]);
+
+    const res = await getTrackers(makeRequest("http://localhost/api/trackers"));
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.sounds[0].status).toBe("unknown");
+    expect(body.sounds[0].growthPercentage).toBeNull();
+    // The reading itself is still surfaced; only the trend claim is withheld.
+    expect(body.sounds[0].latestSnapshot).toBeTruthy();
+  });
+
+  it("reports unknown when there are no snapshots at all", async () => {
     mockDb.tikTokSound.findMany.mockResolvedValue([
       {
         id: "sound-2",
@@ -109,12 +134,11 @@ describe("GET /api/trackers", () => {
       },
     ]);
 
-    const req = makeRequest("http://localhost/api/trackers");
-    const res = await getTrackers(req);
+    const res = await getTrackers(makeRequest("http://localhost/api/trackers"));
     const body = await res.json();
 
-    expect(body.sounds[0].status).toBe("stable");
-    expect(body.sounds[0].growthPercentage).toBe(0);
+    expect(body.sounds[0].status).toBe("unknown");
+    expect(body.sounds[0].growthPercentage).toBeNull();
     expect(body.sounds[0].latestSnapshot).toBeNull();
   });
 });

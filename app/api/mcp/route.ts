@@ -3,9 +3,10 @@ import { authenticateRequest } from "@/lib/authenticate";
 import { getMcpToolDefinitions, executeMcpTool } from "@/lib/mcp/tools";
 import { getOrgEntitlements, hasOrgFeature } from "@/lib/entitlements";
 import { API_ACCESS_FEATURE } from "@/lib/featureKeys";
+import { BRAND } from "@/lib/brand";
 
 const SERVER_INFO = {
-  name: "Outreach AI",
+  name: BRAND.name,
   version: "1.0.0",
 };
 
@@ -84,5 +85,5 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET() {
-  return NextResponse.json({ service: "Outreach AI MCP", version: "1.0.0" });
+  return NextResponse.json({ service: `${BRAND.name} MCP`, version: "1.0.0" });
 }

@@ -1,6 +1,7 @@
 import {
   createRateGate,
   isBlockedStatus,
+  parseTikTokDetailStatus,
   parseTikTokRehydration,
 } from "@/lib/platforms/fetchPostMetrics";
 
@@ -179,5 +180,34 @@ describe("createRateGate", () => {
     g.recordBlocked();
     expect(g.isOpen()).toBe(true);
     expect(g.isOpen(Date.now() + 60_001)).toBe(false);
+  });
+});
+
+// Shape confirmed against a live TikTok response on 2026-08-20: a removed post
+// comes back HTTP 200 with statusCode 10204 "item doesn't exist".
+describe("parseTikTokDetailStatus", () => {
+  it("reports the status of a removed post so it is not mistaken for a block", () => {
+    const html = page({
+      "webapp.video-detail": { statusCode: 10204, statusMsg: "item doesn't exist" },
+    });
+    expect(parseTikTokDetailStatus(html)).toBe(10204);
+    expect(parseTikTokRehydration(html)).toBeNull();
+  });
+
+  it("reports 0 for a healthy payload", () => {
+    expect(parseTikTokDetailStatus(page(videoDetail()))).toBe(0);
+  });
+
+  it("returns null when there is no payload at all — the genuine block case", () => {
+    expect(parseTikTokDetailStatus("<html><body>nope</body></html>")).toBeNull();
+    expect(
+      parseTikTokDetailStatus(
+        '<script id="__UNIVERSAL_DATA_FOR_REHYDRATION__" type="application/json">{not json</script>'
+      )
+    ).toBeNull();
+  });
+
+  it("returns null when the payload carries no video-detail scope", () => {
+    expect(parseTikTokDetailStatus(page({ "webapp.user-detail": { statusCode: 0 } }))).toBeNull();
   });
 });

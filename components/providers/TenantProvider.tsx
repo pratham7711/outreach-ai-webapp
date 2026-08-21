@@ -35,9 +35,13 @@ export function TenantProvider({ children }: { children: ReactNode }) {
         const secondaryColor = customBrandingValue("secondaryColor", data.secondaryColor);
         const accentColor = customBrandingValue("accentColor", data.accentColor);
         const fontFamily = customBrandingValue("fontFamily", data.fontFamily);
-        if (primaryColor) root.style.setProperty("--color-primary", primaryColor);
-        if (secondaryColor) root.style.setProperty("--color-secondary", secondaryColor);
-        if (accentColor) root.style.setProperty("--color-accent", accentColor);
+        // Write the root tokens, not the aliases. Both --cc-* and --color-* are
+        // defined as var(--primary) etc. in globals.css, so overriding an alias
+        // leaves it reading the unchanged token it was derived from and the
+        // tenant's colour paints nothing.
+        if (primaryColor) root.style.setProperty("--primary", primaryColor);
+        if (secondaryColor) root.style.setProperty("--secondary", secondaryColor);
+        if (accentColor) root.style.setProperty("--accent", accentColor);
         if (fontFamily) root.style.setProperty("--font-family", fontFamily);
       })
       .catch(() => {

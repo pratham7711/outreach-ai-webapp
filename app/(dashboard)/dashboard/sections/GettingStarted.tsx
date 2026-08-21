@@ -1,66 +1,40 @@
 "use client";
 
 import React from "react";
-import Link from "next/link";
-import { ArrowRight, Rocket } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Rocket } from "lucide-react";
 import { SectionCard } from "@/components/ds";
-
-const STEPS = [
-  {
-    href: "/campaigns",
-    title: "Create your first campaign",
-    body: "Launch a brief and start assigning creators to it.",
-    cta: "Go to campaigns",
-  },
-  {
-    href: "/creators",
-    title: "Add creators",
-    body: "Build your roster with handles, platforms, and rates.",
-    cta: "Go to creators",
-  },
-  {
-    href: "/settings",
-    title: "Connect billing when you are ready",
-    body: "Payouts and billing can wait until you need to pay someone.",
-    cta: "Open settings",
-  },
-];
+import { Button } from "@/components/ui/button";
+import { OnboardingChecklist, useDismissable } from "@/components/onboarding/OnboardingChecklist";
+import { apiFetch } from "@/lib/api/client";
+import { isOnboardingProgress, type OnboardingProgress } from "@/lib/onboarding/steps";
+import { BRAND } from "@/lib/brand";
 
 export function GettingStarted() {
+  const { dismissed, dismiss } = useDismissable("onboarding.checklist.dismissed");
+
+  const { data } = useQuery({
+    queryKey: ["onboarding"],
+    queryFn: () => apiFetch<OnboardingProgress>("/api/onboarding"),
+    enabled: dismissed === false,
+    staleTime: 60_000,
+  });
+
+  if (dismissed !== false || !isOnboardingProgress(data) || data.complete) return null;
+
   return (
     <SectionCard
       icon={Rocket}
-      title="Welcome to Outreach AI"
-      description="Your workspace is ready. Three steps to get the first numbers on this dashboard."
+      title={`Get set up on ${BRAND.name}`}
+      description={`${data.done} of ${data.total} done. Each step turns on a part of the dashboard below.`}
       padded={false}
+      action={
+        <Button variant="ghost" size="sm" onClick={dismiss}>
+          Dismiss
+        </Button>
+      }
     >
-      <ol className="flex flex-col divide-y divide-border">
-        {STEPS.map((step, i) => (
-          <li key={step.href}>
-            <Link
-              href={step.href}
-              className="group flex items-center gap-4 px-6 py-4 transition-colors hover:bg-muted/60"
-            >
-              <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-accent text-xs font-bold text-accent-foreground tabular-nums">
-                {i + 1}
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block text-sm font-semibold text-foreground">{step.title}</span>
-                <span className="block text-[13px] leading-snug text-muted-foreground">
-                  {step.body}
-                </span>
-              </span>
-              <span className="hidden shrink-0 items-center gap-1 text-[13px] font-semibold text-primary sm:flex">
-                {step.cta}
-                <ArrowRight
-                  aria-hidden="true"
-                  className="size-3.5 transition-transform group-hover:translate-x-0.5"
-                />
-              </span>
-            </Link>
-          </li>
-        ))}
-      </ol>
+      <OnboardingChecklist progress={data} />
     </SectionCard>
   );
 }

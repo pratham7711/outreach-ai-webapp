@@ -31,8 +31,11 @@ const PLATFORM_LABELS: Record<string, string> = {
   TIKTOK: "TikTok",
   INSTAGRAM: "Instagram",
   YOUTUBE: "YouTube",
-  TWITTER: "Twitter",
+  // The product is called X; TWITTER is only the stored enum value.
+  TWITTER: "X",
   X: "X",
+  LINKEDIN: "LinkedIn",
+  SNAPCHAT: "Snapchat",
 };
 
 export function platformLabel(platform: string | null | undefined): string {
