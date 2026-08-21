@@ -19,6 +19,19 @@ const nextConfig: NextConfig = {
     always build the tree it was started from.
   */
   turbopack: { root: path.dirname(new URL(import.meta.url).pathname) },
+  /*
+    Post thumbnails and creator avatars are served from CreatorCore's Bubble CDN.
+    Allowing the host here lets the built-in optimiser re-encode them, which is
+    the only way the HEIC avatars become viewable -- no browser decodes HEIC.
+  */
+  images: {
+    remotePatterns: [
+      { protocol: "https", hostname: "*.cdn.bubble.io" },
+      { protocol: "https", hostname: "i.ytimg.com" },
+      { protocol: "https", hostname: "*.tiktokcdn-us.com" },
+      { protocol: "https", hostname: "*.cdninstagram.com" },
+    ],
+  },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },

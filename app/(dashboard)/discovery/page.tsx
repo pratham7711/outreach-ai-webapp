@@ -397,7 +397,7 @@ export default function DiscoveryPage() {
             title="Creator Discovery is disabled"
             description="Enable the Creator Discovery feature in Billing to search and discover new creators."
             action={
-              <Link
+              <Link prefetch={false}
                 href="/settings/billing"
                 style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "10px 16px", borderRadius: 10, background: "var(--cc-primary)", color: "white", fontSize: 14, fontWeight: 600, textDecoration: "none" }}
               >
@@ -435,7 +435,7 @@ export default function DiscoveryPage() {
                 </div>
               </div>
               <div style={{ display: "flex", gap: 8 }}>
-                <Link href={`/creators/${c.id}`} style={{ flex: 1, textDecoration: "none" }}>
+                <Link prefetch={false} href={`/creators/${c.id}`} style={{ flex: 1, textDecoration: "none" }}>
                   <Button variant="secondary" fullWidth size="sm">View Profile</Button>
                 </Link>
                 <Button

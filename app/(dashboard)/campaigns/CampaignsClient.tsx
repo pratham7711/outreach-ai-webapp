@@ -9,7 +9,7 @@ import CampaignWizard from "@/components/modals/CampaignWizard";
 import { formatCompactCurrency, timeAgo } from "@/lib/format";
 import { useListQuery } from "@/lib/useListQuery";
 import { CAMPAIGNS_PAGE_SIZE } from "@/lib/listPageSize";
-import { mediaUrl } from "@/lib/postMedia";
+import { imgSrc } from "@/lib/postMedia";
 
 type Campaign = {
   id: string;
@@ -58,7 +58,7 @@ function formatCurrency(n: number) {
  * no image, so a missing thumbnail still reads as a campaign rather than a hole.
  */
 function CampaignThumb({ title, src }: { title: string; src?: string | null }) {
-  const url = mediaUrl(src);
+  const url = imgSrc(src, 88); // 44px box, doubled for retina
   if (!url) return <Avatar name={title} size="md" />;
   return (
     <span
@@ -77,6 +77,9 @@ function CampaignThumb({ title, src }: { title: string; src?: string | null }) {
         src={url}
         alt=""
         loading="lazy"
+        decoding="async"
+        width={44}
+        height={44}
         style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
       />
     </span>
@@ -245,7 +248,7 @@ export default function CampaignsClient({
             </div>
 
             {filtered.map((campaign, i) => (
-              <Link key={campaign.id} href={`/campaigns/${campaign.id}`} style={{ textDecoration: "none" }}>
+              <Link prefetch={false} key={campaign.id} href={`/campaigns/${campaign.id}`} style={{ textDecoration: "none" }}>
                 <div
                   className="cc-table-row cc-list-row"
                   style={{ borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined }}

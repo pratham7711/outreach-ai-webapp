@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Play, ExternalLink, ImageOff } from "lucide-react";
-import { mediaUrl, embedSrcFor } from "@/lib/postMedia";
+import { imgSrc, embedSrcFor } from "@/lib/postMedia";
 
 /**
  * A post's picture, and the post itself.
@@ -35,7 +35,8 @@ export default function PostMedia({
   radius = 8,
 }: Props) {
   const [playing, setPlaying] = useState(false);
-  const thumb = mediaUrl(thumbnailUrl);
+  // Doubled for retina; the CDN original can be 20x the box we paint it in.
+  const thumb = imgSrc(thumbnailUrl, width * 2, height * 2);
   const embed = embedSrcFor(platform, platformPostId, postUrl);
   const href = postUrl ?? undefined;
 
@@ -58,6 +59,9 @@ export default function PostMedia({
       src={thumb}
       alt={caption ? caption.slice(0, 60) : "Post thumbnail"}
       loading="lazy"
+      decoding="async"
+      width={width}
+      height={height}
       style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
     />
   ) : (

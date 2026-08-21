@@ -67,7 +67,7 @@ export function ActivitySection({ recentCampaigns }: ActivitySectionProps) {
                 {recentCampaigns.map((c) => (
                   <TableRow key={c.id} className="group relative border-border">
                     <TableCell className="py-3 pr-3 pl-6">
-                      <Link
+                      <Link prefetch={false}
                         href={`/campaigns/${c.id}`}
                         title={c.title}
                         className="inline-block max-w-[34ch] truncate rounded-sm font-semibold text-foreground after:absolute after:inset-0 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"

@@ -66,3 +66,26 @@ export function embedAspect(platform: string): { width: number; height: number }
       return { width: 340, height: 740 };
   }
 }
+
+/**
+ * Every CDN image goes through /api/img, which normalises it to the size the
+ * page actually paints and re-encodes to WebP.
+ *
+ * Two reasons, not one. Avatars are HEIC, which no browser decodes at all. And
+ * the CDN stores everything at capture size, so a 56px thumbnail was pulling a
+ * half-megabyte PNG -- a creator page cost 4.5 MB of images to draw 13 circles.
+ *
+ * Pass the pixel box you are rendering into, doubled for retina. Ask for
+ * exactly what you paint: the response is cached per (url, w, h), so a page
+ * inventing its own widths just multiplies transcodes.
+ */
+export function imgSrc(
+  raw: string | null | undefined,
+  width = 96,
+  height?: number
+): string | null {
+  const url = mediaUrl(raw);
+  if (!url) return null;
+  const h = height && height !== width ? `&h=${height}` : "";
+  return `/api/img?u=${encodeURIComponent(url)}&w=${width}${h}`;
+}

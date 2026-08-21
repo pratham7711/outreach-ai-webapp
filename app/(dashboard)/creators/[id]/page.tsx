@@ -742,7 +742,7 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
           ) : (
             <div className="cc-stagger" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               {creator.activations.map(act => (
-                <Link key={act.id} href={`/campaigns/${act.campaign.id}`} style={{ textDecoration: "none" }}>
+                <Link prefetch={false} key={act.id} href={`/campaigns/${act.campaign.id}`} style={{ textDecoration: "none" }}>
                   <Card variant="outlined" style={{ padding: "16px 20px" }} clickable>
                     <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
                       <div style={{ flex: 1, minWidth: 140 }}>

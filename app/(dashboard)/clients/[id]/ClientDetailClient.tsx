@@ -202,7 +202,7 @@ export default function ClientDetailClient({ client, plans }: Props) {
                   ))}
                 </div>
                 {campaigns.map((c, i) => (
-                  <Link key={c.id} href={`/campaigns/${c.id}`} style={{ textDecoration: "none", display: "grid", gridTemplateColumns: "1fr 100px 100px 100px 80px", gap: 12, padding: "14px 24px", alignItems: "center", borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined }} className="cc-table-row">
+                  <Link prefetch={false} key={c.id} href={`/campaigns/${c.id}`} style={{ textDecoration: "none", display: "grid", gridTemplateColumns: "1fr 100px 100px 100px 80px", gap: 12, padding: "14px 24px", alignItems: "center", borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined }} className="cc-table-row">
                     <span style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>{c.title}</span>
                     <Badge variant={STATUS_BADGE[c.status] ?? "neutral"} dot>{c.status.replace(/_/g, " ")}</Badge>
                     <span style={{ fontSize: 13, color: "var(--cc-text)" }}>{c.budget ? formatCurrency(Number(c.budget), c.currency) : "—"}</span>

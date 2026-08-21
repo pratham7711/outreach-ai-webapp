@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Plus, LayoutGrid, List as ListIcon, Users } from "lucide-react";
 import { Button, Badge, Card, Input, Avatar, EmptyState } from "@pratham7711/ui";
+import { imgSrc } from "@/lib/postMedia";
 import { StatusTabs, Pagination } from "@/components/ds";
 import { Search } from "lucide-react";
 import AddCreatorModal from "@/components/modals/AddCreatorModal";
@@ -151,17 +152,20 @@ export default function CreatorsClient({
       ) : view === "grid" ? (
         <div className="cc-stagger grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" style={{ gap: 20 }}>
           {filtered.map((creator) => (
-            <Link key={creator.id} href={`/creators/${creator.id}`} style={{ textDecoration: "none" }}>
+            <Link prefetch={false} key={creator.id} href={`/creators/${creator.id}`} style={{ textDecoration: "none" }}>
               <Card variant="solid" className="ui-card-clickable" style={{ padding: 24 }}>
                 <div style={{ display: "flex", alignItems: "flex-start", gap: 14, marginBottom: 20 }}>
-                  <Avatar name={creator.name} size="lg" src={creator.avatarUrl ?? undefined} />
+                  <Avatar name={creator.name} size="lg" src={imgSrc(creator.avatarUrl, 128) ?? undefined} />
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontWeight: 700, fontSize: 16, color: "var(--cc-text)", marginBottom: 3 }}>{creator.name}</p>
-                    <p style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>@{stripAt(creator.handle)}</p>
+                    {/* A long handle used to wrap under the badge and collide with it. */}
+                    <p style={{ fontWeight: 700, fontSize: 16, color: "var(--cc-text)", marginBottom: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={creator.name}>{creator.name}</p>
+                    <p style={{ fontSize: 13, color: "var(--cc-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>@{stripAt(creator.handle)}</p>
                   </div>
-                  <Badge variant={PLATFORM_BADGE_VARIANT[creator.platform] ?? "neutral"}>
-                    {platformLabel(creator.platform)}
-                  </Badge>
+                  <span style={{ flexShrink: 0 }}>
+                    <Badge variant={PLATFORM_BADGE_VARIANT[creator.platform] ?? "neutral"}>
+                      {platformLabel(creator.platform)}
+                    </Badge>
+                  </span>
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>
                   <div>
@@ -193,8 +197,8 @@ export default function CreatorsClient({
               {filtered.map((c) => (
                 <tr key={c.id} className="cc-table-row" style={{ borderTop: "1px solid var(--cc-border)" }}>
                   <td style={{ padding: "14px 24px" }}>
-                    <Link href={`/creators/${c.id}`} style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 12 }}>
-                      <Avatar name={c.name} size="sm" src={c.avatarUrl ?? undefined} />
+                    <Link prefetch={false} href={`/creators/${c.id}`} style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 12 }}>
+                      <Avatar name={c.name} size="sm" src={imgSrc(c.avatarUrl, 64) ?? undefined} />
                       <div>
                         <p style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>{c.name}</p>
                         <p style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>@{stripAt(c.handle)}</p>

@@ -10,7 +10,7 @@ import { computePostEmv, computeEngagementRate } from "@/lib/metrics";
 import { formatCompact, formatCompactCurrency, stripAt, formatDateAbs } from "@/lib/format";
 import type { ComplianceFlag } from "@/lib/compliance/postCompliance";
 import PostMedia from "@/components/PostMedia";
-import { mediaUrl } from "@/lib/postMedia";
+import { imgSrc } from "@/lib/postMedia";
 import { metricValue, engagementRateValue, NEVER_MEASURED } from "@/lib/metricDisplay";
 
 type SnapshotLite = { id: string; viewsCount: number; recordedAt: string };
@@ -617,11 +617,11 @@ export default function PostsTab({
                       thumbnailUrl={post.thumbnailUrl}
                       caption={post.caption}
                     />
-                    <Link href={`/campaigns/${campaignId}/posts/${post.id}`} style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", minWidth: 0 }}>
+                    <Link prefetch={false} href={`/campaigns/${campaignId}/posts/${post.id}`} style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", minWidth: 0 }}>
                       <Avatar
                         name={post.creator.name}
                         size="sm"
-                        src={mediaUrl(post.authorProfilePic) ?? mediaUrl(post.creator.avatarUrl) ?? undefined}
+                        src={imgSrc(post.authorProfilePic, 64) ?? imgSrc(post.creator.avatarUrl, 64) ?? undefined}
                       />
                       <div style={{ minWidth: 0 }}>
                         <div title={post.creator.name} style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{post.creator.name}</div>
@@ -717,8 +717,8 @@ export default function PostsTab({
                   )}
                   <div style={{ padding: 16 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: 8, gap: 8 }}>
-                      <Link href={`/campaigns/${campaignId}/posts/${post.id}`} style={{ display: "flex", alignItems: "center", gap: 8, textDecoration: "none", minWidth: 0 }}>
-                        <Avatar name={post.creator.name} size="sm" src={post.creator.avatarUrl ?? undefined} />
+                      <Link prefetch={false} href={`/campaigns/${campaignId}/posts/${post.id}`} style={{ display: "flex", alignItems: "center", gap: 8, textDecoration: "none", minWidth: 0 }}>
+                        <Avatar name={post.creator.name} size="sm" src={imgSrc(post.authorProfilePic, 64) ?? imgSrc(post.creator.avatarUrl, 64) ?? undefined} />
                         <div style={{ minWidth: 0 }}>
                           <div title={post.creator.name} style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{post.creator.name}</div>
                           <div style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{post.platform}</div>

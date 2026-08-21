@@ -68,7 +68,7 @@ export default function ListsClient({ lists }: { lists: List[] }) {
       ) : (
         <div className="cc-stagger rsp-grid-3">
           {filtered.map((list, i) => (
-            <Link key={list.id} href={`/lists/${list.id}`} style={{ textDecoration: "none" }}>
+            <Link prefetch={false} key={list.id} href={`/lists/${list.id}`} style={{ textDecoration: "none" }}>
               <Card variant="outlined" noPadding clickable>
                 <div style={{ height: 4, background: ACCENT_COLORS[i % ACCENT_COLORS.length] }} />
                 <div style={{ padding: 20 }}>

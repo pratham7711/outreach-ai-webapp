@@ -80,7 +80,7 @@ export default function ClientsClient({ clients, stats }: {
         ) : (
           <div className="cc-stagger">
             {filtered.map((c, i) => (
-              <Link key={c.id} href={`/clients/${c.id}`} style={{ textDecoration: "none" }}>
+              <Link prefetch={false} key={c.id} href={`/clients/${c.id}`} style={{ textDecoration: "none" }}>
                 <div
                   className="cc-table-row"
                   style={{

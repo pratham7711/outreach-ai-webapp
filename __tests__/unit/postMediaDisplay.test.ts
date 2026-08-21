@@ -1,4 +1,4 @@
-import { mediaUrl, embedSrcFor } from "@/lib/postMedia";
+import { mediaUrl, embedSrcFor, imgSrc } from "@/lib/postMedia";
 import { metricValue, engagementRateValue } from "@/lib/metricDisplay";
 
 /**
@@ -87,5 +87,23 @@ describe("engagementRateValue", () => {
 
   it("is unknown without a view count to divide by", () => {
     expect(engagementRateValue(10, 5, 0, "2026-08-20T10:00:00.000Z")).toBeNull();
+  });
+});
+
+describe("imgSrc", () => {
+  it("routes a CDN image through the normaliser at the size asked for", () => {
+    expect(imgSrc("//x.cdn.bubble.io/f/a.heic", 128)).toBe(
+      "/api/img?u=https%3A%2F%2Fx.cdn.bubble.io%2Ff%2Fa.heic&w=128"
+    );
+  });
+
+  it("carries a height only when the box is not square", () => {
+    expect(imgSrc("https://x.cdn.bubble.io/f/a.png", 112, 148)).toContain("&w=112&h=148");
+    expect(imgSrc("https://x.cdn.bubble.io/f/a.png", 96, 96)).not.toContain("&h=");
+  });
+
+  it("stays null with nothing stored, so callers fall back to initials", () => {
+    expect(imgSrc(null)).toBeNull();
+    expect(imgSrc("   ")).toBeNull();
   });
 });

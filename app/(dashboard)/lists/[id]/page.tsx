@@ -141,7 +141,7 @@ export default function ListDetailPage({ params }: { params: Promise<{ id: strin
                 style={{ display: "grid", gridTemplateColumns: "1fr 120px 100px 100px 100px 60px", gap: 12, padding: "14px 24px", alignItems: "center", borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined }}
                 className="cc-table-row"
               >
-                <Link href={`/creators/${item.creator.id}`} style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 12 }}>
+                <Link prefetch={false} href={`/creators/${item.creator.id}`} style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 12 }}>
                   <Avatar name={item.creator.name} size="sm" />
                   <div>
                     <p style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>{item.creator.name}</p>

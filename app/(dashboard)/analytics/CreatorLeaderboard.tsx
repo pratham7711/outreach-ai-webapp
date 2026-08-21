@@ -62,7 +62,7 @@ export default function CreatorLeaderboard({ creators }: { creators: Leaderboard
             ))}
           </div>
           {creators.map((creator, i) => (
-            <Link
+            <Link prefetch={false}
               key={creator.id}
               href={`/creators/${creator.id}`}
               style={{
