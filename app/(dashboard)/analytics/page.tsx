@@ -31,11 +31,10 @@ type KPIs = {
   totalViews: number;
   totalLikes: number;
   totalComments: number;
-  totalSpend: number;
   avgEngagementRate: number;
-  avgCPM: number;
   totalPosts: number;
-  totalPayouts: number;
+  /** How many posts the engagement rate could be measured from. */
+  engagementSample: number;
 };
 
 type CampaignOption = { id: string; title: string; status: string };
@@ -187,17 +186,13 @@ export default function AnalyticsPage() {
                 <MetricTile metric="totalLikes" value={formatNumber(k.totalLikes)} />
                 <MetricTile metric="totalComments" value={formatNumber(k.totalComments)} />
                 <MetricTile
-                  metric="totalSpend"
-                  value={formatCurrency(k.totalSpend)}
-                  footer={`${k.totalPayouts} payouts`}
-                />
-                <MetricTile
                   metric="avgEngagementRate"
-                  value={`${k.avgEngagementRate.toFixed(1)}%`}
-                />
-                <MetricTile
-                  metric="avgCPM"
-                  value={k.avgCPM > 0 ? formatCurrency(k.avgCPM) : "—"}
+                  value={k.engagementSample > 0 ? `${k.avgEngagementRate.toFixed(1)}%` : "—"}
+                  footer={
+                    k.engagementSample > 0 && k.engagementSample < k.totalPosts
+                      ? `from ${formatNumber(k.engagementSample)} of ${formatNumber(k.totalPosts)} posts`
+                      : undefined
+                  }
                 />
               </div>
 

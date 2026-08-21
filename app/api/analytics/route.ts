@@ -56,11 +56,21 @@ export async function GET(req: NextRequest) {
   const now = new Date();
   const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
 
-  const [kpiRow, monthRows, creatorPlatformRows, creatorCampaignPairs, platformRows, orgCampaigns] =
+  const [kpiRow, engagementRow, monthRows, creatorPlatformRows, creatorCampaignPairs, platformRows, orgCampaigns] =
     await Promise.all([
       db.post.aggregate({
         where: postWhere,
         _sum: { viewsCount: true, likesCount: true, commentsCount: true },
+        _count: { _all: true },
+      }),
+      // engagementRate is 0 on 18,602 of 18,708 imported posts — CreatorCore's
+      // export carried views but no likes, comments, shares or saves, so the
+      // rate could not be computed and cannot be derived here either. Averaging
+      // those in reported 0.05% for a roster whose measured posts run near 1%,
+      // so the average covers only the posts that were actually measured and
+      // the response says how many that is.
+      db.post.aggregate({
+        where: { ...postWhere, engagementRate: { gt: 0 } },
         _avg: { engagementRate: true },
         _count: { _all: true },
       }),
@@ -208,8 +218,9 @@ export async function GET(req: NextRequest) {
         totalViews: kpiRow._sum.viewsCount ?? 0,
         totalLikes: kpiRow._sum.likesCount ?? 0,
         totalComments: kpiRow._sum.commentsCount ?? 0,
-        avgEngagementRate: parseFloat((kpiRow._avg.engagementRate ?? 0).toFixed(2)),
+        avgEngagementRate: parseFloat((engagementRow._avg.engagementRate ?? 0).toFixed(2)),
         totalPosts: kpiRow._count._all,
+        engagementSample: engagementRow._count._all,
       },
       monthlyTrend,
       leaderboard,

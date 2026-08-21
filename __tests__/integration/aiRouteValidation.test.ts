@@ -216,13 +216,20 @@ describe("GET /api/discovery zod query validation", () => {
     expect(mockDb.creator.findMany.mock.calls[0][0].take).toBe(100);
   });
 
+  // The default sort is tracked posts, not followers: followersCount is 0 on
+  // 1,823 of 1,834 creators, so ranking by it ordered noise.
   it("applies the documented defaults when nothing is supplied", async () => {
     const res = await discovery("");
     expect(res.status).toBe(200);
     const args = mockDb.creator.findMany.mock.calls[0][0];
     expect(args.take).toBe(20);
     expect(args.skip).toBe(0);
-    expect(args.orderBy).toEqual({ followersCount: "desc" });
+    expect(args.orderBy).toEqual({ posts: { _count: "desc" } });
+  });
+
+  it("still sorts by followers when asked for it explicitly", async () => {
+    await discovery("?sort=followers");
+    expect(mockDb.creator.findMany.mock.calls[0][0].orderBy).toEqual({ followersCount: "desc" });
   });
 
   it("treats a blank parameter as absent rather than as zero", async () => {

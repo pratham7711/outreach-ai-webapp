@@ -215,7 +215,6 @@ type Campaign = {
   activations: Activation[];
   posts: Post[];
   brief: { content: string } | null;
-  financials: { spentAmount: number; totalBudget: number } | null;
   _count: { activations: number; posts: number };
 };
 

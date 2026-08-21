@@ -39,6 +39,15 @@ const EMPTY_KPIS = {
 };
 
 /**
+ * aggregate is called twice: once for the totals over every post, then once
+ * over only the posts carrying an engagement rate — the second is the average's
+ * real sample, because the import left the column at 0 on 99.4% of rows.
+ */
+function stubAggregates(totals: any, measured: any) {
+  mockDb.post.aggregate.mockResolvedValueOnce(totals).mockResolvedValueOnce(measured);
+}
+
+/**
  * groupBy is called three times, in order: (creator, platform) totals,
  * (creator, campaign) pairs, then per-platform totals.
  */
@@ -85,11 +94,13 @@ describe("GET /api/analytics", () => {
   });
 
   it("reports the KPIs the database counted", async () => {
-    mockDb.post.aggregate.mockResolvedValue({
-      _sum: { viewsCount: 30_000, likesCount: 1_500, commentsCount: 150 },
-      _avg: { engagementRate: 5 },
-      _count: { _all: 2 },
-    });
+    stubAggregates(
+      {
+        _sum: { viewsCount: 30_000, likesCount: 1_500, commentsCount: 150 },
+        _count: { _all: 2 },
+      },
+      { _avg: { engagementRate: 5 }, _count: { _all: 2 } }
+    );
     stubGroupBy(
       [
         {
@@ -116,6 +127,7 @@ describe("GET /api/analytics", () => {
       totalComments: 150,
       avgEngagementRate: 5,
       totalPosts: 2,
+      engagementSample: 2,
     });
 
     expect(body.leaderboard).toHaveLength(1);
@@ -127,6 +139,22 @@ describe("GET /api/analytics", () => {
     });
     expect(body.leaderboard[0].earnings).toBeUndefined();
     expect(body.platformBreakdown).toEqual([{ platform: "TIKTOK", views: 30_000, posts: 2 }]);
+  });
+
+  it("averages engagement over measured posts only, and says how many", async () => {
+    stubAggregates(
+      { _sum: { viewsCount: 1_000_000, likesCount: 500, commentsCount: 0 }, _count: { _all: 18_708 } },
+      { _avg: { engagementRate: 1.1 }, _count: { _all: 106 } }
+    );
+
+    const body = await (await getAnalytics(makeRequest())).json();
+    expect(body.kpis.avgEngagementRate).toBe(1.1);
+    expect(body.kpis.engagementSample).toBe(106);
+    expect(body.kpis.totalPosts).toBe(18_708);
+
+    // The second aggregate is the one that excludes the unmeasured rows.
+    const [, measuredCall] = mockDb.post.aggregate.mock.calls;
+    expect(measuredCall[0].where.engagementRate).toEqual({ gt: 0 });
   });
 
   it("prices EMV off each platform's summed counts", async () => {

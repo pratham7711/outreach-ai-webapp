@@ -10,8 +10,8 @@ import { formatCompact, stripAt, platformLabel } from "@/lib/format";
 
 const PLATFORMS = ["All", "TIKTOK", "INSTAGRAM", "YOUTUBE", "TWITTER"];
 const SORT_OPTIONS = [
-  { value: "followers", label: "Most Followers" },
   { value: "posts", label: "Most tracked posts" },
+  { value: "followers", label: "Most Followers" },
   { value: "name", label: "Name A-Z" },
 ];
 const NICHE_OPTIONS = [
@@ -43,7 +43,7 @@ type CreatorList = {
 export default function DiscoveryPage() {
   const [platform, setPlatform] = useState("All");
   const [search, setSearch] = useState("");
-  const [sort, setSort] = useState("followers");
+  const [sort, setSort] = useState("posts");
   const [creators, setCreators] = useState<Creator[]>([]);
   const [lists, setLists] = useState<CreatorList[]>([]);
   const [loading, setLoading] = useState(true);
@@ -378,7 +378,7 @@ export default function DiscoveryPage() {
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
                 <div>
-                  <div style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)" }}>{formatNumber(c.followersCount)}</div>
+                  <div style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)" }}>{c.followersCount ? formatNumber(c.followersCount) : "—"}</div>
                   <div style={{ fontSize: 11, color: "var(--cc-text-muted)" }}>Followers</div>
                 </div>
                 <div style={{ textAlign: "center" }}>

@@ -11,7 +11,7 @@ const MAX_PAGE_SIZE = 100;
 const discoveryQuerySchema = z.object({
   search: z.string().default(""),
   platform: z.string().optional(),
-  sort: z.enum(["followers", "posts", "name"]).default("followers"),
+  sort: z.enum(["followers", "posts", "name"]).default("posts"),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).default(20),
   niches: z.string().default(""),
