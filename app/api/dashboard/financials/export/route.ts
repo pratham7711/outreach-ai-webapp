@@ -37,8 +37,11 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = request.nextUrl;
     const now = new Date();
+    // UTC, matching the route this exports. Not a view on whether defaults
+    // should be user-local -- that is open -- but the export must cover the same
+    // window as the screen, and a UTC screen with a local export does not.
     const sixMonthsAgo = new Date(now);
-    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+    sixMonthsAgo.setUTCMonth(sixMonthsAgo.getUTCMonth() - 6);
 
     const parsedQuery = parseQuery(financialsExportQuerySchema, searchParams);
     if (!parsedQuery.ok) return parsedQuery.response;
