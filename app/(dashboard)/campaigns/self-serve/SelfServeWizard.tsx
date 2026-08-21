@@ -136,7 +136,9 @@ export default function SelfServeWizard({
   const budgetSummary = useMemo(
     () =>
       computeSelfServeBudget({
-        creatorRates: selectedList.map((c) => (typeof c.rate === "number" ? c.rate : 0)),
+        // Passed through as null rather than coerced: the summary needs to be
+        // able to say the total is short, not quietly absorb a missing price.
+        creatorRates: selectedList.map((c) => (typeof c.rate === "number" ? c.rate : null)),
         platformFeeMinor,
         currency,
       }),
@@ -385,6 +387,7 @@ export default function SelfServeWizard({
               platformFee={budgetSummary.platformFee}
               total={budgetSummary.total}
               count={selectedList.length}
+              unpricedCreators={budgetSummary.unpricedCreators}
               budgetTarget={budgetTarget}
               overBudget={overBudget}
               progressPct={progressPct}
@@ -485,6 +488,7 @@ function RunningTotal({
   platformFee,
   total,
   count,
+  unpricedCreators,
   budgetTarget,
   overBudget,
   progressPct,
@@ -494,6 +498,7 @@ function RunningTotal({
   platformFee: number;
   total: number;
   count: number;
+  unpricedCreators: number;
   budgetTarget: number;
   overBudget: boolean;
   progressPct: number;
@@ -524,6 +529,16 @@ function RunningTotal({
         <span>Creators {money(currency, creatorTotal)}</span>
         <span>Platform fee {money(currency, platformFee)}</span>
       </div>
+      {/* Named rather than absorbed. These creators used to price at zero, so the
+          total read as a complete quote while being short by however much they
+          eventually cost — on the screen where someone commits a budget. */}
+      {unpricedCreators > 0 && (
+        <p style={{ fontSize: 12, color: "var(--cc-text-muted)", marginTop: 8 }}>
+          {unpricedCreators === 1
+            ? "1 selected creator has no rate on file, so this total does not include them."
+            : `${unpricedCreators} selected creators have no rate on file, so this total does not include them.`}
+        </p>
+      )}
       {overBudget && (
         <p style={{ fontSize: 12, color: "var(--cc-danger)", marginTop: 8 }}>Over budget target</p>
       )}

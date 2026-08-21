@@ -40,7 +40,8 @@ export function getMcpToolDefinitions(): ToolDef[] {
     },
     {
       name: "get_org_kpis",
-      description: "Get organization-level KPIs: total views, spend, avg CPM, avg engagement rate, and payout summary.",
+      description:
+        "Get organization-level KPIs: total views, total posts, average engagement rate over the posts it could be measured on, and what completed payouts add up to. Returns null rather than 0 for a figure nothing was measured for.",
       inputSchema: {
         type: "object",
         properties: {},
@@ -129,35 +130,66 @@ export async function executeMcpTool(
     }
 
     case "get_org_kpis": {
-      const [posts, payouts] = await Promise.all([
-        db.post.findMany({
+      /*
+       * The same KPIs the dashboard shows, and they have to agree with it.
+       *
+       * Two things were wrong here while the dashboard was being made honest,
+       * because this is a second door onto the same numbers and only the first
+       * one got fixed:
+       *
+       * avgCPM is gone. It divided every payout in the org by every view in the
+       * org, so one recorded payout against a roster of 18,708 posts produced a
+       * confident cost-per-mille for campaigns that had no payout at all. Both
+       * of its inputs are still here, named for what they are, so a caller that
+       * genuinely wants the ratio can form it and see what it rests on.
+       *
+       * avgEngagementRate averaged `engagementRate ?? 0` across every post,
+       * including the ones never measured, which drags the figure toward zero by
+       * however many are missing. It now covers only posts carrying a rate and
+       * says how many that was — the same rule /api/analytics follows.
+       *
+       * Counting also moved into the database. This read every post row in the
+       * org to add up two columns.
+       */
+      const [viewRow, ratedRow, payoutRow] = await Promise.all([
+        db.post.aggregate({
           where: { campaign: { orgId } },
-          select: { viewsCount: true, engagementRate: true },
+          _sum: { viewsCount: true },
+          _count: { _all: true },
         }),
-        db.payout.findMany({
+        db.post.aggregate({
+          where: { campaign: { orgId }, engagementRate: { gt: 0 } },
+          _avg: { engagementRate: true },
+          _count: { _all: true },
+        }),
+        db.payout.aggregate({
           where: { orgId, status: "SUCCESS" },
-          select: { amount: true },
+          _sum: { amount: true },
+          _count: { _all: true },
         }),
       ]);
 
-      const totalViews = posts.reduce((s, p) => s + (p.viewsCount ?? 0), 0);
-      const totalSpend = payouts.reduce((s, p) => s + p.amount, 0);
-      const avgCPM = totalViews > 0 ? Math.round((totalSpend / totalViews) * 1000 * 100) / 100 : 0;
-      const avgEngagementRate =
-        posts.length > 0
-          ? Math.round((posts.reduce((s, p) => s + (p.engagementRate ?? 0), 0) / posts.length) * 100) / 100
-          : 0;
+      const measuredPosts = ratedRow._count._all;
+      const recordedPayouts = payoutRow._count._all;
 
       return {
         content: [{
           type: "text",
           text: JSON.stringify({
-            totalViews,
-            totalSpend,
-            avgCPM,
-            avgEngagementRate,
-            totalPosts: posts.length,
-            totalPayouts: payouts.length,
+            totalViews: viewRow._sum.viewsCount ?? 0,
+            totalPosts: viewRow._count._all,
+            // null, not 0: no rate was measured, which is not the same as an
+            // engagement rate of zero.
+            avgEngagementRate:
+              measuredPosts > 0
+                ? Math.round((ratedRow._avg.engagementRate ?? 0) * 100) / 100
+                : null,
+            engagementSample: measuredPosts,
+            // Named for its provenance. This is what completed payouts add up
+            // to, which is only the campaign spend an org has actually recorded
+            // here — not a budget, and not every campaign.
+            spendFromRecordedPayouts: recordedPayouts > 0 ? payoutRow._sum.amount ?? 0 : null,
+            recordedPayouts,
           }),
         }],
       };

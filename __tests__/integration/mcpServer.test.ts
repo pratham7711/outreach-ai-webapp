@@ -9,8 +9,8 @@ jest.mock("@/lib/db", () => ({
   db: {
     campaign: { findMany: jest.fn(), findFirst: jest.fn() },
     creator: { findMany: jest.fn() },
-    post: { findMany: jest.fn() },
-    payout: { findMany: jest.fn() },
+    post: { findMany: jest.fn(), aggregate: jest.fn() },
+    payout: { findMany: jest.fn(), aggregate: jest.fn() },
     apiKey: { findUnique: jest.fn(), update: jest.fn() },
   },
 }));
@@ -139,31 +139,77 @@ describe("POST /api/mcp", () => {
     );
   });
 
-  it("returns KPIs from get_org_kpis", async () => {
-    mockDb.post.findMany.mockResolvedValue([
-      { viewsCount: 10000, engagementRate: 5.0 },
-      { viewsCount: 20000, engagementRate: 3.0 },
-    ]);
-    mockDb.payout.findMany.mockResolvedValue([
-      { amount: 500 },
-      { amount: 300 },
-    ]);
-
-    const req = makeJsonRpcRequest("tools/call", {
-      name: "get_org_kpis",
-      arguments: {},
-    });
-    const res = await POST(req);
+  /* get_org_kpis is a second door onto the dashboard's numbers, so it has to
+     tell the same story: count in the database, average engagement only over the
+     posts it was measured on, and never report a derived figure for something
+     nobody measured. */
+  async function callKpis() {
+    const res = await POST(makeJsonRpcRequest("tools/call", { name: "get_org_kpis", arguments: {} }));
     expect(res.status).toBe(200);
     const body = await res.json();
-    const kpis = JSON.parse(body.result.content[0].text);
+    return JSON.parse(body.result.content[0].text);
+  }
+
+  it("returns KPIs from get_org_kpis", async () => {
+    mockDb.post.aggregate
+      .mockResolvedValueOnce({ _sum: { viewsCount: 30000 }, _count: { _all: 2 } })
+      .mockResolvedValueOnce({ _avg: { engagementRate: 4 }, _count: { _all: 2 } });
+    mockDb.payout.aggregate.mockResolvedValue({ _sum: { amount: 800 }, _count: { _all: 2 } });
+
+    const kpis = await callKpis();
 
     expect(kpis.totalViews).toBe(30000);
-    expect(kpis.totalSpend).toBe(800);
     expect(kpis.totalPosts).toBe(2);
-    expect(kpis.totalPayouts).toBe(2);
-    expect(kpis.avgCPM).toBeCloseTo(26.67, 1);
     expect(kpis.avgEngagementRate).toBe(4);
+    expect(kpis.engagementSample).toBe(2);
+    expect(kpis.spendFromRecordedPayouts).toBe(800);
+    expect(kpis.recordedPayouts).toBe(2);
+  });
+
+  it("no longer reports a CPM derived from one org-wide division", async () => {
+    // One recorded payout over every view in the org priced campaigns that had
+    // no payout at all. Both inputs are still returned; the ratio is not.
+    mockDb.post.aggregate
+      .mockResolvedValueOnce({ _sum: { viewsCount: 30000 }, _count: { _all: 2 } })
+      .mockResolvedValueOnce({ _avg: { engagementRate: 4 }, _count: { _all: 2 } });
+    mockDb.payout.aggregate.mockResolvedValue({ _sum: { amount: 800 }, _count: { _all: 1 } });
+
+    const kpis = await callKpis();
+    expect(kpis.avgCPM).toBeUndefined();
+    expect(kpis.totalSpend).toBeUndefined();
+  });
+
+  it("reports null, not zero, for figures nothing was measured for", async () => {
+    mockDb.post.aggregate
+      .mockResolvedValueOnce({ _sum: { viewsCount: null }, _count: { _all: 0 } })
+      .mockResolvedValueOnce({ _avg: { engagementRate: null }, _count: { _all: 0 } });
+    mockDb.payout.aggregate.mockResolvedValue({ _sum: { amount: null }, _count: { _all: 0 } });
+
+    const kpis = await callKpis();
+    // An org with no measured engagement has no engagement rate — 0.00% would be
+    // a claim, and an agent reading this over MCP cannot tell the two apart.
+    expect(kpis.avgEngagementRate).toBeNull();
+    expect(kpis.spendFromRecordedPayouts).toBeNull();
+    expect(kpis.totalViews).toBe(0);
+    expect(kpis.recordedPayouts).toBe(0);
+  });
+
+  it("counts in the database instead of reading every post row", async () => {
+    mockDb.post.aggregate
+      .mockResolvedValueOnce({ _sum: { viewsCount: 1 }, _count: { _all: 1 } })
+      .mockResolvedValueOnce({ _avg: { engagementRate: 1 }, _count: { _all: 1 } });
+    mockDb.payout.aggregate.mockResolvedValue({ _sum: { amount: 0 }, _count: { _all: 0 } });
+
+    await callKpis();
+    expect(mockDb.post.findMany).not.toHaveBeenCalled();
+    expect(mockDb.payout.findMany).not.toHaveBeenCalled();
+    // Still scoped to the caller's org on every read.
+    for (const call of mockDb.post.aggregate.mock.calls) {
+      expect(call[0].where.campaign.orgId).toBe("org-1");
+    }
+    expect(mockDb.payout.aggregate).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ orgId: "org-1" }) })
+    );
   });
 
   it("returns error for unknown tool", async () => {
