@@ -10,6 +10,7 @@ import {
 import { decryptInstagramToken } from "@/lib/platforms/instagramToken";
 import { ensureFreshTikTokToken } from "@/lib/platforms/tiktokToken";
 import { decideSyncAction, SyncAction } from "@/lib/sync/cadence";
+import { alertOps, shouldAlertOnBatch } from "@/lib/alerts";
 import { createLogger } from "@/lib/observability/logger";
 
 const MAX_SYNC_FAILURES = 5;
@@ -266,6 +267,24 @@ export async function GET(request: NextRequest) {
     }
 
     log.info("sync complete", { synced, sealed, failed, deadLettered, skippedForBudget, total: posts.length });
+
+    // One digest per run, never per post: a platform outage fails the whole
+    // batch, and 500 emails would be worse than none.
+    if (shouldAlertOnBatch({ failed, total: posts.length })) {
+      await alertOps({
+        source: "cron/sync-posts",
+        title: `Post metric sync failing: ${failed}/${posts.length} posts`,
+        severity: "critical",
+        facts: { synced, sealed, failed, deadLettered, skippedForBudget, total: posts.length },
+      });
+    } else if (deadLettered > 0) {
+      // Dead-lettered posts stop syncing forever until someone intervenes.
+      await alertOps({
+        source: "cron/sync-posts",
+        title: `${deadLettered} post(s) dead-lettered and will no longer sync`,
+        facts: { deadLettered, failed, total: posts.length },
+      });
+    }
     return NextResponse.json({
       ok: true,
       synced,
@@ -277,6 +296,12 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     log.error("cron run failed", { error: String(error) });
+    await alertOps({
+      source: "cron/sync-posts",
+      title: "Post metric sync crashed",
+      severity: "critical",
+      facts: { error: String(error).slice(0, 300) },
+    });
     return NextResponse.json({ error: "Sync failed" }, { status: 500 });
   }
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { fetchSoundStats } from "@/lib/platforms/tiktokSound";
 import { createLogger } from "@/lib/observability/logger";
+import { alertOps, shouldAlertOnBatch } from "@/lib/alerts";
 
 // velocityScore is a same-interval growth percentage: the /api/trackers route reads
 // >=100 viral, >=50 trending, >=0 stable, <0 declining. Doubling in a day -> viral.
@@ -93,10 +94,24 @@ export async function GET(request: NextRequest) {
       snapshots++;
     }
 
+    if (shouldAlertOnBatch({ failed, total: snapshots + failed })) {
+      await alertOps({
+        source: "cron/snapshot-sounds",
+        title: `Sound/audio fetcher failing: ${failed} of ${snapshots + failed}`,
+        severity: "critical",
+        facts: { snapshots, failed, skipped, dryRun },
+      });
+    }
     return NextResponse.json({ snapshots, failed, skipped, dryRun });
   } catch (error) {
     log.error("snapshot-sounds cron failed", {
       error: error instanceof Error ? error.message : String(error),
+    });
+    await alertOps({
+      source: "cron/snapshot-sounds",
+      title: "Sound/audio snapshot cron crashed",
+      severity: "critical",
+      facts: { error: error instanceof Error ? error.message : String(error), snapshots, failed },
     });
     return NextResponse.json({ error: "cron failed", snapshots, failed }, { status: 500 });
   }

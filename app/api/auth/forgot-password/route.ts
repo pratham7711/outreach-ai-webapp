@@ -4,6 +4,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { rateLimit, rateLimitKey } from "@/lib/rateLimit";
 import { createLogger } from "@/lib/observability/logger";
+import { sendEmail, emailConfigured } from "@/lib/email";
 
 const RESET_PREFIX = "reset:";
 const TTL_MS = 60 * 60 * 1000;
@@ -55,10 +56,32 @@ export async function POST(request: NextRequest) {
       process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || request.nextUrl.origin;
     const resetUrl = `${origin.replace(/\/+$/, "")}/reset-password?token=${token}`;
 
-    log.warn("forgot_password.email_provider_missing", {
-      message: "No transactional email provider is configured; reset link was not emailed.",
-      resetUrl,
-    });
+    if (!emailConfigured()) {
+      // Keep the old escape hatch: without a provider the link only reaches the
+      // logs, which is the difference between "recoverable" and "locked out".
+      log.warn("forgot_password.email_provider_missing", {
+        message: "No transactional email provider is configured; reset link was not emailed.",
+        resetUrl,
+      });
+    } else {
+      const sent = await sendEmail({
+        to: email,
+        subject: "Reset your Outreach AI password",
+        text: [
+          "Someone asked to reset the password for this account.",
+          "",
+          `Open this link within the hour to choose a new one:`,
+          resetUrl,
+          "",
+          "If that wasn't you, ignore this email -- the link expires on its own",
+          "and your current password keeps working.",
+        ].join("\n"),
+      });
+      if (!sent.sent) {
+        // Still log the URL so a failed send is recoverable by hand.
+        log.error("forgot_password.send_failed", { reason: sent.reason, resetUrl });
+      }
+    }
 
     if (process.env.NODE_ENV !== "production") {
       return NextResponse.json({ ...generic, devResetUrl: resetUrl });
