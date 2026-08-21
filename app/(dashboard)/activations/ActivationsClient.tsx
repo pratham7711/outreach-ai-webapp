@@ -2,25 +2,28 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Plus, Zap } from "lucide-react";
-import { Button, Badge, EmptyState, Card, Avatar, Modal, Input } from "@pratham7711/ui";
+import { Button, EmptyState, Card, Avatar, Modal } from "@pratham7711/ui";
 import { MetricTile, EntityPicker } from "@/components/ds";
 import type { PickerOption } from "@/components/ds";
 import { toast } from "sonner";
 import { stripAt } from "@/lib/format";
+import {
+  ACTIVATION_QUEUES,
+  ACTIVATION_STAGE_COUNTERS,
+  groupByQueue,
+  countByStatuses,
+} from "@/lib/activationQueues";
 
 type Activation = {
   id: string;
   status: string;
   createdAt: string;
+  updatedAt: string;
   creator: { id: string; name: string; handle: string; platform: string; avatarUrl: string | null };
   campaign: { id: string; title: string };
 };
-
-const COLUMNS = [
-  "AWAITING_DRAFT", "DRAFT_SUBMITTED", "AWAITING_APPROVAL", "APPROVED",
-  "POSTING", "POSTED", "COMPLETE", "DECLINED",
-] as const;
 
 const COLUMN_LABELS: Record<string, string> = {
   AWAITING_DRAFT: "Awaiting Draft", DRAFT_SUBMITTED: "Draft Submitted",
@@ -44,6 +47,141 @@ const NEXT_STATUS: Record<string, { label: string; status: string }[]> = {
   DECLINED: [{ label: "Re-open", status: "AWAITING_DRAFT" }],
 };
 
+function relative(iso: string): string {
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return "";
+  const mins = Math.floor((Date.now() - then) / 60_000);
+  if (mins < 1) return "Just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days < 30) return `${days}d ago`;
+  const months = Math.floor(days / 30);
+  return months < 12 ? `${months}mo ago` : `${Math.floor(months / 12)}y ago`;
+}
+
+// Creator · Last Update · Campaign · Status & Actions, as the reference has it.
+const QUEUE_GRID = "minmax(200px, 1.4fr) 120px minmax(160px, 1fr) minmax(220px, auto)";
+
+function QueueSection({
+  label,
+  hint,
+  items,
+  onStatusChange,
+}: {
+  label: string;
+  hint: string;
+  items: Activation[];
+  onStatusChange: (id: string, status: string) => void;
+}) {
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
+        <span style={{ fontSize: 15, fontWeight: 700, color: "var(--cc-text)" }}>
+          {label} ({items.length})
+        </span>
+        <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{hint}</span>
+      </div>
+
+      {items.length === 0 ? (
+        <Card variant="outlined" style={{ padding: 16 }}>
+          <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>Nothing in this queue.</span>
+        </Card>
+      ) : (
+        <Card variant="outlined" style={{ padding: 0, overflow: "hidden" }}>
+          <div style={{ overflowX: "auto" }}>
+            <div style={{ minWidth: 760 }}>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: QUEUE_GRID,
+                  gap: 12,
+                  padding: "10px 16px",
+                  borderBottom: "1px solid var(--cc-border)",
+                  background: "var(--cc-bg)",
+                  fontSize: 11,
+                  fontWeight: 600,
+                  letterSpacing: "0.04em",
+                  color: "var(--cc-text-muted)",
+                }}
+              >
+                <span>CREATOR</span>
+                <span>LAST UPDATE</span>
+                <span>CAMPAIGN</span>
+                <span>STATUS &amp; ACTIONS</span>
+              </div>
+
+              {items.map((a) => {
+                const actions = NEXT_STATUS[a.status] ?? [];
+                return (
+                  <div
+                    key={a.id}
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: QUEUE_GRID,
+                      gap: 12,
+                      padding: "12px 16px",
+                      borderBottom: "1px solid var(--cc-border)",
+                      alignItems: "center",
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                      <Avatar name={a.creator.name} size="sm" src={a.creator.avatarUrl ?? undefined} />
+                      <div style={{ minWidth: 0 }}>
+                        <div title={a.creator.name} style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {a.creator.name}
+                        </div>
+                        <div style={{ fontSize: 11, color: "var(--cc-text-muted)" }}>@{stripAt(a.creator.handle)}</div>
+                      </div>
+                    </div>
+
+                    <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{relative(a.updatedAt)}</span>
+
+                    <Link
+                      prefetch={false}
+                      href={`/campaigns/${a.campaign.id}`}
+                      title={a.campaign.title}
+                      style={{ fontSize: 13, color: "var(--cc-text)", textDecoration: "none", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                    >
+                      {a.campaign.title}
+                    </Link>
+
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--cc-text-muted)" }}>
+                        <span style={{ width: 8, height: 8, borderRadius: "50%", background: COLUMN_COLORS[a.status] ?? "var(--cc-text-subtle)" }} />
+                        {COLUMN_LABELS[a.status] ?? a.status}
+                      </span>
+                      {actions.map((act) => (
+                        <button
+                          key={act.status}
+                          onClick={() => onStatusChange(a.id, act.status)}
+                          style={{
+                            padding: "5px 10px",
+                            borderRadius: 6,
+                            fontSize: 12,
+                            fontWeight: 600,
+                            border: "1px solid var(--cc-border)",
+                            background: "var(--cc-card)",
+                            color: act.status === "DECLINED" ? "var(--cc-danger)" : "var(--cc-primary)",
+                            cursor: "pointer",
+                          }}
+                        >
+                          {act.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </Card>
+      )}
+    </div>
+  );
+}
+
 export default function ActivationsClient({ activations, stats }: {
   activations: Activation[];
   stats: { total: number; active: number };
@@ -54,12 +192,7 @@ export default function ActivationsClient({ activations, stats }: {
   const [creator, setCreator] = useState<PickerOption | null>(null);
   const [creating, setCreating] = useState(false);
 
-  const grouped = new Map<string, Activation[]>();
-  for (const col of COLUMNS) grouped.set(col, []);
-  for (const a of activations) {
-    const col = COLUMNS.includes(a.status as typeof COLUMNS[number]) ? a.status : "AWAITING_DRAFT";
-    grouped.get(col)!.push(a);
-  }
+  const { groups, ungrouped } = groupByQueue(activations);
 
   const handleStatusChange = async (id: string, status: string) => {
     try {
@@ -111,11 +244,36 @@ export default function ActivationsClient({ activations, stats }: {
       </div>
 
       {/* Stats */}
-      <div className="rsp-grid-tiles" style={{ marginBottom: 32 }}>
+      <div className="rsp-grid-tiles" style={{ marginBottom: 20 }}>
         <MetricTile metric="activationsTotal" value={String(stats.total)} />
         <MetricTile metric="activationsActive" value={String(stats.active)} />
-        <MetricTile metric="activationsPending" value={String(activations.filter(a => a.status === "AWAITING_DRAFT" || a.status === "AWAITING_APPROVAL").length)} />
-        <MetricTile metric="activationsComplete" value={String(activations.filter(a => a.status === "COMPLETE").length)} />
+        <MetricTile metric="activationsComplete" value={String(countByStatuses(activations, ["COMPLETE"]))} />
+      </div>
+
+      {/* The reference's four stage counters: what is waiting, and on whom. These
+          are counts of work outstanding, so Complete and Posted are in none of
+          them — a total that included terminal rows would not be actionable. */}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 28 }}>
+        {ACTIVATION_STAGE_COUNTERS.map((c) => (
+          <div
+            key={c.label}
+            style={{
+              background: "var(--cc-card)",
+              border: "1px solid var(--cc-border)",
+              borderRadius: 10,
+              padding: "10px 14px",
+              display: "flex",
+              flexDirection: "column",
+              gap: 2,
+              minWidth: 150,
+            }}
+          >
+            <span style={{ fontSize: 11, color: "var(--cc-text-muted)" }}>{c.label}</span>
+            <span style={{ fontSize: 20, fontWeight: 700, color: "var(--cc-text)", fontVariantNumeric: "tabular-nums" }}>
+              {countByStatuses(activations, c.statuses)}
+            </span>
+          </div>
+        ))}
       </div>
 
       {activations.length === 0 ? (
@@ -125,57 +283,29 @@ export default function ActivationsClient({ activations, stats }: {
           action={<Button variant="primary" iconLeft={<Plus size={16} />} onClick={() => setShowCreate(true)}>Add Activation</Button>}
         />
       ) : (
-        <div style={{ overflowX: "auto", paddingBottom: 16 }}>
-          <div style={{ display: "flex", gap: 16, minWidth: "max-content" }}>
-            {COLUMNS.map((col) => {
-              const items = grouped.get(col) ?? [];
-              return (
-                <div key={col} style={{ width: 280, minWidth: 200, display: "flex", flexDirection: "column", background: "var(--cc-bg)", borderRadius: 12, border: "1px solid var(--cc-border)" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 16px", borderBottom: "1px solid var(--cc-border)" }}>
-                    <span style={{ width: 8, height: 8, borderRadius: "50%", background: COLUMN_COLORS[col], flexShrink: 0 }} />
-                    <span style={{ fontSize: 12, fontWeight: 600, color: "var(--cc-text)", flex: 1 }}>{COLUMN_LABELS[col]}</span>
-                    <Badge variant="neutral" size="sm">{items.length}</Badge>
-                  </div>
-
-                  <div className="cc-stagger" style={{ flex: 1, padding: 8, display: "flex", flexDirection: "column", gap: 8, overflowY: "auto", maxHeight: 500 }}>
-                    {items.map((a) => {
-                      const actions = NEXT_STATUS[a.status] ?? [];
-                      return (
-                        <div key={a.id} style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: "var(--cc-r-card, 8px)", padding: 12 }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                            <Avatar name={a.creator.name} size="sm" />
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <p title={a.creator.name} style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.creator.name}</p>
-                              <p style={{ fontSize: 11, color: "var(--cc-text-muted)", margin: 0 }}>@{stripAt(a.creator.handle)}</p>
-                            </div>
-                          </div>
-                          <p style={{ fontSize: 12, color: "var(--cc-text-muted)", margin: "0 0 8px" }}>{a.campaign.title}</p>
-                          {actions.length > 0 && (
-                            <div style={{ display: "flex", gap: 4 }}>
-                              {actions.map(act => (
-                                <button
-                                  key={act.status}
-                                  onClick={() => handleStatusChange(a.id, act.status)}
-                                  style={{
-                                    flex: 1, padding: "4px 8px", borderRadius: 6, fontSize: 11, fontWeight: 600,
-                                    border: "1px solid var(--cc-border)", background: "var(--cc-card)",
-                                    color: act.status === "DECLINED" ? "var(--cc-danger)" : "var(--cc-primary)",
-                                    cursor: "pointer", transition: "all 0.15s",
-                                  }}
-                                >
-                                  {act.label}
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+          {ACTIVATION_QUEUES.map((queue) => {
+            const items = groups.get(queue.key) ?? [];
+            return (
+              <QueueSection
+                key={queue.key}
+                label={queue.label}
+                hint={queue.hint}
+                items={items}
+                onStatusChange={handleStatusChange}
+              />
+            );
+          })}
+          {/* A status in the enum but in no queue would otherwise vanish from the
+              page entirely. Showing it is how we find out. */}
+          {ungrouped.length > 0 && (
+            <QueueSection
+              label="Unrecognised status"
+              hint="These are not in any queue — the queue definitions need updating"
+              items={ungrouped}
+              onStatusChange={handleStatusChange}
+            />
+          )}
         </div>
       )}
 

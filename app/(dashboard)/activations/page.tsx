@@ -29,6 +29,12 @@ export default async function ActivationsPage() {
         id: a.id,
         status: a.status,
         createdAt: a.createdAt.toISOString(),
+        // The reference labels this column "Last Status Change". updatedAt is
+        // bumped by any edit, notes and posted URL included, so the column is
+        // labelled "Last Update" here rather than claiming more than it knows. A
+        // true status-change time is derivable from the activation.update audit
+        // rows the campaign activity feed already writes, if it is ever wanted.
+        updatedAt: a.updatedAt.toISOString(),
         creator: a.creator,
         campaign: a.campaign,
       }))}
