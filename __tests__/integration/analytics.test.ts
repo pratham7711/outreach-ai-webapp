@@ -28,8 +28,17 @@ const mockDb = db as any;
 
 const authedSession = { user: { id: "user-1", orgId: "org-1" } };
 
-function makeRequest() {
-  return new NextRequest("http://localhost/api/analytics");
+function makeRequest(query = "") {
+  return new NextRequest(`http://localhost/api/analytics${query}`);
+}
+
+/**
+ * $queryRawUnsafe is called twice, in order: the monthly campaign trend, then
+ * the weekday-hour posting slots. Both are raw because month bucketing and
+ * percentile_cont are the two things Prisma's query API cannot express.
+ */
+function stubRaw(monthRows: any[] = [], slotRows: any[] = []) {
+  mockDb.$queryRawUnsafe.mockResolvedValueOnce(monthRows).mockResolvedValueOnce(slotRows);
 }
 
 const EMPTY_KPIS = {
@@ -225,6 +234,52 @@ describe("GET /api/analytics", () => {
       })
     );
     const [, orgArg] = mockDb.$queryRawUnsafe.mock.calls[0];
+    expect(orgArg).toBe("org-1");
+  });
+
+  it("returns the posting slots the database bucketed, in the requested zone", async () => {
+    stubRaw([], [{ day: 4, hour: 19, count: 5, medianViews: 1200 }]);
+    const body = await (await getAnalytics(makeRequest("?tz=Asia/Kolkata"))).json();
+
+    expect(body.postingTimeZone).toBe("Asia/Kolkata");
+    expect(body.postingBuckets).toEqual([{ day: 4, hour: 19, count: 5, medianViews: 1200 }]);
+
+    // The zone reaches the query as a bound parameter, and the conversion is
+    // doubled: "postedAt" is timestamp WITHOUT time zone holding UTC, so a
+    // single AT TIME ZONE would shift every post by the viewer's offset.
+    const [sql, orgArg, tzArg] = mockDb.$queryRawUnsafe.mock.calls[1];
+    expect(orgArg).toBe("org-1");
+    expect(tzArg).toBe("Asia/Kolkata");
+    expect(sql).toContain("AT TIME ZONE 'UTC') AT TIME ZONE $2");
+    expect(sql).toContain("percentile_cont");
+  });
+
+  it("falls back to UTC rather than passing an unknown zone to the database", async () => {
+    // Postgres throws on an unrecognised zone name, so a hand-edited tz must not
+    // reach it — and it is a bound parameter, so it was never an injection.
+    await getAnalytics(makeRequest("?tz=Mars/Olympus_Mons"));
+    expect(mockDb.$queryRawUnsafe.mock.calls[1][2]).toBe("UTC");
+  });
+
+  it("reports an all-null median as zero instead of null", async () => {
+    stubRaw([], [{ day: 0, hour: 0, count: 2, medianViews: null }]);
+    const body = await (await getAnalytics(makeRequest())).json();
+    expect(body.postingBuckets[0].medianViews).toBe(0);
+  });
+
+  it("narrows the posting slots by the same platform and date filters as the KPIs", async () => {
+    await getAnalytics(makeRequest("?platform=TIKTOK&from=2026-01-01"));
+    const [sql, , , platformArg, fromArg] = mockDb.$queryRawUnsafe.mock.calls[1];
+    expect(sql).toContain("p.platform::text = $3");
+    expect(sql).toContain('p."postedAt" >= $4');
+    expect(platformArg).toBe("TIKTOK");
+    expect(new Date(fromArg as string).getUTCFullYear()).toBe(2026);
+  });
+
+  it("scopes the posting slots to the org", async () => {
+    await getAnalytics(makeRequest());
+    const [sql, orgArg] = mockDb.$queryRawUnsafe.mock.calls[1];
+    expect(sql).toContain('c."orgId" = $1');
     expect(orgArg).toBe("org-1");
   });
 });

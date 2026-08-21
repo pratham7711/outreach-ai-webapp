@@ -7,7 +7,9 @@ import {
   DAY_LABELS,
   formatSlot,
   postingTimeReport,
+  postingTimeReportFromBuckets,
   resolveTimeZone,
+  type TimeBucket,
   type TimedPost,
 } from "@/lib/analytics/postingTime";
 import { formatNumber } from "./shared";
@@ -23,20 +25,44 @@ function cellBackground(count: number, medianViews: number, scaleMax: number, mi
   return `color-mix(in srgb, var(--cc-primary) ${Math.round(12 + t * 88)}%, transparent)`;
 }
 
+/**
+ * Two ways in, one grid out.
+ *
+ * `buckets` is the cheap path: the database already grouped and medianed the
+ * slots, so nothing here ever holds a post row — which is the whole point on an
+ * org with 18,708 posts. `posts` stays for callers that already have the rows in
+ * hand for another reason (the song dashboard renders a table of them right
+ * beside this), where a second round trip would buy nothing.
+ *
+ * Whoever bucketed owns the zone: on the aggregate path the server cut the slots
+ * in the zone it was handed, so it passes that zone back down rather than
+ * letting this component re-resolve it and label the grid with a clock the
+ * numbers were not cut in.
+ */
 export function PostingTimeHeatmap({
   posts,
+  buckets,
   platform,
+  timeZone: timeZoneProp,
 }: {
-  posts: TimedPost[];
+  posts?: TimedPost[];
+  buckets?: TimeBucket[];
   platform: string;
+  timeZone?: string;
 }) {
   // The viewer's own clock. A posting hour is only actionable in a stated zone,
   // and the browser is the only one we can infer without asking.
-  const [timeZone] = useState(resolveTimeZone);
+  const [localZone] = useState(resolveTimeZone);
+  const timeZone = timeZoneProp ?? localZone;
 
   const report = useMemo(
-    () => postingTimeReport(posts, { timeZone, platform, minSample: 3 }),
-    [posts, timeZone, platform],
+    () =>
+      buckets
+        // Server-side already narrowed by platform, so re-filtering here would
+        // drop every slot: a bucket carries no platform to match on.
+        ? postingTimeReportFromBuckets(buckets, { timeZone, minSample: 3 })
+        : postingTimeReport(posts ?? [], { timeZone, platform, minSample: 3 }),
+    [buckets, posts, timeZone, platform],
   );
 
   const byDay = useMemo(() => {

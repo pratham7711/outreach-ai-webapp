@@ -36,6 +36,24 @@ function parseFrom(req: NextRequest): Date | null {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
+/**
+ * The zone the posting-time buckets are cut in. A posting hour only means
+ * something in someone's own clock, and only the browser knows which that is,
+ * so it travels as a query param. Validated against the IANA set Intl knows —
+ * the same set Postgres accepts — because an unknown name would make the
+ * aggregate throw rather than fall back.
+ */
+function parseTimeZone(req: NextRequest): string {
+  const raw = req.nextUrl.searchParams.get("tz");
+  if (!raw) return "UTC";
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: raw });
+    return raw;
+  } catch {
+    return "UTC";
+  }
+}
+
 function parsePlatform(req: NextRequest): string | null {
   const raw = req.nextUrl.searchParams.get("platform");
   if (!raw || raw === "ALL") return null;
@@ -56,6 +74,7 @@ export async function GET(req: NextRequest) {
 
   const from = parseFrom(req);
   const platform = parsePlatform(req);
+  const timeZone = parseTimeZone(req);
 
   const postWhere: Prisma.PostWhereInput = {
     campaign: { orgId, deletedAt: null },
@@ -66,7 +85,30 @@ export async function GET(req: NextRequest) {
   const now = new Date();
   const sixMonthsAgo = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 5, 1));
 
-  const [kpiRow, engagementRow, monthRows, creatorPlatformRows, creatorCampaignPairs, platformRows, orgCampaigns] =
+  // The same platform and from filters as postWhere, restated for the one query
+  // Prisma cannot express. Values are bound, never interpolated — $1 and $2 are
+  // already taken by the org and the zone.
+  const slotParams: unknown[] = [orgId, timeZone];
+  let slotFilter = "";
+  if (platform) {
+    slotParams.push(platform);
+    slotFilter += ` AND p.platform::text = $${slotParams.length}`;
+  }
+  if (from) {
+    slotParams.push(from);
+    slotFilter += ` AND p."postedAt" >= $${slotParams.length}`;
+  }
+
+  const [
+    kpiRow,
+    engagementRow,
+    monthRows,
+    slotRows,
+    creatorPlatformRows,
+    creatorCampaignPairs,
+    platformRows,
+    orgCampaigns,
+  ] =
     await Promise.all([
       db.post.aggregate({
         where: postWhere,
@@ -95,6 +137,31 @@ export async function GET(req: NextRequest) {
           ORDER BY 1`,
         orgId,
         sixMonthsAgo
+      ),
+      /*
+       * The 168 weekday-hour slots, medianed in the database. Reading every post
+       * row to bucket them in Node is the exact cost this route exists to avoid,
+       * and percentile_cont is the median rather than a mean because view counts
+       * are heavy-tailed: one viral post would make an ordinary hour look like
+       * the best time to post.
+       *
+       * The zone conversion is doubled on purpose. Prisma maps DateTime to
+       * timestamp(3) WITHOUT time zone, so "postedAt" is a naive UTC wall time;
+       * a single AT TIME ZONE would read it as already local and shift every
+       * post by the offset. Stamping it as UTC first, then converting, is what
+       * puts a post in the hour it actually went live — the same trap the month
+       * bucketing above documents.
+       */
+      db.$queryRawUnsafe<{ day: number; hour: number; count: number; medianViews: number | null }[]>(
+        `SELECT EXTRACT(DOW FROM (p."postedAt" AT TIME ZONE 'UTC') AT TIME ZONE $2::text)::int AS day,
+                EXTRACT(HOUR FROM (p."postedAt" AT TIME ZONE 'UTC') AT TIME ZONE $2::text)::int AS hour,
+                COUNT(*)::int AS count,
+                percentile_cont(0.5) WITHIN GROUP (ORDER BY p."viewsCount")::float8 AS "medianViews"
+           FROM "Post" p
+           JOIN "Campaign" c ON c.id = p."campaignId"
+          WHERE c."orgId" = $1 AND c."deletedAt" IS NULL AND p."postedAt" IS NOT NULL${slotFilter}
+          GROUP BY 1, 2`,
+        ...slotParams
       ),
       db.post.groupBy({
         by: ["creatorId", "platform"],
@@ -236,13 +303,17 @@ export async function GET(req: NextRequest) {
       leaderboard,
       platformBreakdown,
       campaigns: orgCampaigns,
-      // The posting-time heatmap wants a median per weekday-hour bucket in the
-      // viewer's zone. Reading every post row to get it is the exact cost this
-      // route was rewritten to remove, and there is a test here pinning that, so
-      // the field stays empty until it can be produced as an aggregate:
-      // percentile_cont over EXTRACT(dow/hour FROM "postedAt" AT TIME ZONE $tz)
-      // is 168 rows per platform and handles half-hour offsets correctly.
-      postingTimes: [],
+      // Already bucketed and medianed by the database, so the client renders the
+      // heatmap without ever seeing a post row. The zone is echoed back because
+      // the buckets only mean anything alongside the clock they were cut in.
+      postingBuckets: slotRows.map((r) => ({
+        day: r.day,
+        hour: r.hour,
+        count: r.count,
+        // percentile_cont is null for a group whose views are all null.
+        medianViews: r.medianViews ?? 0,
+      })),
+      postingTimeZone: timeZone,
     },
     { headers: READ_CACHE_HEADERS }
   );

@@ -5,6 +5,7 @@ import { Skeleton, EmptyState } from "@pratham7711/ui";
 import { Activity, BarChart3, Calendar, Clock, Smartphone, Users } from "lucide-react";
 import CampaignComparison from "./CampaignComparison";
 import { PostingTimeHeatmap } from "./PostingTimeHeatmap";
+import { resolveTimeZone } from "@/lib/analytics/postingTime";
 import CreatorLeaderboard, { LeaderboardCreator } from "./CreatorLeaderboard";
 import { MetricTile, SectionCard } from "@/components/ds";
 import { Button } from "@/components/ui/button";
@@ -46,7 +47,9 @@ type AnalyticsData = {
   leaderboard: LeaderboardCreator[];
   platformBreakdown: { platform: string; views: number; posts: number }[];
   campaigns: CampaignOption[];
-  postingTimes: { postedAt: string; platform: string; viewsCount: number }[];
+  /** Weekday-hour slots, already medianed by the database in postingTimeZone. */
+  postingBuckets: { day: number; hour: number; count: number; medianViews: number }[];
+  postingTimeZone: string;
 };
 
 function PillGroup({
@@ -108,6 +111,9 @@ export default function AnalyticsPage() {
   const [error, setError] = useState(false);
   const [range, setRange] = useState("30d");
   const [platform, setPlatform] = useState("ALL");
+  // The posting hours have to be bucketed in someone's clock, and only the
+  // browser knows which. Resolved once, so the buckets never straddle two zones.
+  const [timeZone] = useState(resolveTimeZone);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -116,6 +122,7 @@ export default function AnalyticsPage() {
     const from = rangeToFrom(range);
     if (from) params.set("from", from);
     if (platform !== "ALL") params.set("platform", platform);
+    params.set("tz", timeZone);
     const qs = params.toString();
     fetch(`/api/analytics${qs ? `?${qs}` : ""}`)
       .then((r) => (r.ok ? r.json() : Promise.reject()))
@@ -125,7 +132,7 @@ export default function AnalyticsPage() {
       })
       .catch(() => setError(true))
       .finally(() => setLoading(false));
-  }, [range, platform]);
+  }, [range, platform, timeZone]);
 
   useEffect(() => {
     load();
@@ -272,7 +279,11 @@ export default function AnalyticsPage() {
           </TabsContent>
 
           <TabsContent value="timing">
-            <PostingTimeHeatmap posts={data.postingTimes ?? []} platform={platform} />
+            <PostingTimeHeatmap
+              buckets={data.postingBuckets ?? []}
+              timeZone={data.postingTimeZone ?? timeZone}
+              platform={platform}
+            />
           </TabsContent>
         </Tabs>
       )}

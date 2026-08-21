@@ -3,6 +3,7 @@ import {
   localSlot,
   medianOf,
   postingTimeReport,
+  postingTimeReportFromBuckets,
   type TimedPost,
 } from "@/lib/analytics/postingTime";
 
@@ -111,5 +112,101 @@ describe("postingTimeReport", () => {
       { timeZone: "UTC" },
     );
     expect(r.totalPosts).toBe(0);
+  });
+});
+
+describe("postingTimeReportFromBuckets", () => {
+  it("fills the week around the slots the database returned", () => {
+    const r = postingTimeReportFromBuckets([{ day: 4, hour: 19, count: 5, medianViews: 1200 }], {
+      timeZone: "Asia/Kolkata",
+      minSample: 3,
+    });
+    expect(r.buckets).toHaveLength(168);
+    expect(r.buckets.find((b) => b.day === 4 && b.hour === 19)).toEqual({
+      day: 4,
+      hour: 19,
+      count: 5,
+      medianViews: 1200,
+    });
+    // Every other slot is a real zero, not a hole.
+    expect(r.buckets.filter((b) => b.count === 0)).toHaveLength(167);
+    expect(r.totalPosts).toBe(5);
+    expect(r.timeZone).toBe("Asia/Kolkata");
+  });
+
+  it("ranks and scales exactly like the row-based path", () => {
+    // Same four posts, once bucketed in Node and once handed over pre-medianed.
+    const posts: TimedPost[] = [
+      post("2026-08-13T10:00:00.000Z", 100),
+      post("2026-08-13T10:30:00.000Z", 300),
+      post("2026-08-13T15:00:00.000Z", 900),
+      post("2026-08-13T15:30:00.000Z", 1100),
+    ];
+    const fromRows = postingTimeReport(posts, { timeZone: "UTC", minSample: 2 });
+    const fromBuckets = postingTimeReportFromBuckets(
+      [
+        { day: 4, hour: 10, count: 2, medianViews: 200 },
+        { day: 4, hour: 15, count: 2, medianViews: 1000 },
+      ],
+      { timeZone: "UTC", minSample: 2 },
+    );
+    expect(fromBuckets.best.map(formatSlot)).toEqual(fromRows.best.map(formatSlot));
+    expect(fromBuckets.scaleMax).toBe(fromRows.scaleMax);
+    expect(fromBuckets.totalPosts).toBe(fromRows.totalPosts);
+  });
+
+  it("coerces the strings a driver may hand back for bigint and numeric", () => {
+    // COUNT() is a bigint and percentile_cont a numeric; either can arrive as a
+    // string, and Number("5") must not become slot NaN.
+    const r = postingTimeReportFromBuckets(
+      [{ day: "2", hour: "8", count: "5", medianViews: "412.5" } as never],
+      { timeZone: "UTC", minSample: 1 },
+    );
+    expect(r.buckets.find((b) => b.day === 2 && b.hour === 8)).toMatchObject({
+      count: 5,
+      medianViews: 412.5,
+    });
+  });
+
+  it("drops rows that would land outside the week rather than charting them", () => {
+    const r = postingTimeReportFromBuckets(
+      [
+        { day: 7, hour: 0, count: 3, medianViews: 100 },
+        { day: -1, hour: 0, count: 3, medianViews: 100 },
+        { day: 0, hour: 24, count: 3, medianViews: 100 },
+        { day: 0, hour: 0, count: 0, medianViews: 100 },
+        { day: NaN, hour: 3, count: 3, medianViews: 100 },
+      ],
+      { timeZone: "UTC", minSample: 1 },
+    );
+    expect(r.buckets).toHaveLength(168);
+    expect(r.totalPosts).toBe(0);
+    expect(r.best).toEqual([]);
+  });
+
+  it("reads a null median as unknown-but-zero rather than dropping the slot", () => {
+    // percentile_cont returns null for a group whose views are all null. The
+    // slot still happened, so it must keep its count and stay uncoloured.
+    const r = postingTimeReportFromBuckets(
+      [{ day: 1, hour: 9, count: 4, medianViews: null } as never],
+      { timeZone: "UTC", minSample: 1 },
+    );
+    expect(r.buckets.find((b) => b.day === 1 && b.hour === 9)).toMatchObject({
+      count: 4,
+      medianViews: 0,
+    });
+    expect(r.scaleMax).toBe(0);
+  });
+
+  it("never recommends a slot below the sample floor", () => {
+    const r = postingTimeReportFromBuckets(
+      [
+        { day: 3, hour: 12, count: 1, medianViews: 999_999 },
+        { day: 3, hour: 13, count: 4, medianViews: 100 },
+      ],
+      { timeZone: "UTC", minSample: 3 },
+    );
+    expect(r.best.map(formatSlot)).toEqual(["Wed 13:00"]);
+    expect(r.scaleMax).toBe(100);
   });
 });
