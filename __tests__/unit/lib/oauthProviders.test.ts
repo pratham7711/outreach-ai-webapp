@@ -100,8 +100,9 @@ describe("buildAuthorizeUrl", () => {
       "/api/portal/connections/instagram/callback",
     );
     expect(parsed.searchParams.get("scope")).toBe(
-      "instagram_basic,instagram_manage_insights",
+      "instagram_basic,instagram_manage_insights,pages_show_list",
     );
+    expect(parsed.pathname).toContain("/v26.0/");
     expect(parsed.searchParams.get("state")).toBe("state-123");
     expect(parsed.searchParams.get("response_type")).toBe("code");
     expect(url).not.toContain("ig-secret");

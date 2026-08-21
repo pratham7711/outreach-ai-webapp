@@ -21,9 +21,9 @@ const PROVIDERS: Record<OAuthPlatform, ProviderConfig> = {
     clientIdEnv: "INSTAGRAM_CLIENT_ID",
     clientSecretEnv: "INSTAGRAM_CLIENT_SECRET",
     clientIdParam: "client_id",
-    authorizeUrl: "https://www.facebook.com/v19.0/dialog/oauth",
-    tokenUrl: "https://graph.facebook.com/v19.0/oauth/access_token",
-    scopes: ["instagram_basic", "instagram_manage_insights"],
+    authorizeUrl: "https://www.facebook.com/v26.0/dialog/oauth",
+    tokenUrl: "https://graph.facebook.com/v26.0/oauth/access_token",
+    scopes: ["instagram_basic", "instagram_manage_insights", "pages_show_list"],
     scopeSeparator: ",",
   },
   tiktok: {
