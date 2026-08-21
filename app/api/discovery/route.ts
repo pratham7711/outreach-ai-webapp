@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { deriveAverageViews } from "@/lib/creatorMetrics";
+import { deriveAverageViews, deriveCampaignCounts } from "@/lib/creatorMetrics";
 import { auth } from "@/lib/auth";
 import { getOrgEntitlements, hasOrgFeature } from "@/lib/entitlements";
 import { DISCOVERY_FEATURE } from "@/lib/featureKeys";
@@ -87,11 +87,20 @@ export async function GET(req: NextRequest) {
     db.creator.count({ where }),
   ]);
 
-  // Avg views is measured from the posts; the stored column is always 0.
-  const avgViews = await deriveAverageViews(creators.map((c) => c.id));
+  // Both measured from the posts: the stored averageViews column is always 0,
+  // and counting activations alone reads 0 campaigns for the imported roster.
+  const ids = creators.map((c) => c.id);
+  const [avgViews, campaignCounts] = await Promise.all([
+    deriveAverageViews(ids),
+    deriveCampaignCounts(ids),
+  ]);
 
   return NextResponse.json({
-    creators: creators.map((c) => ({ ...c, avgViews: avgViews.get(c.id) ?? null })),
+    creators: creators.map((c) => ({
+      ...c,
+      avgViews: avgViews.get(c.id) ?? null,
+      campaignCount: campaignCounts.get(c.id) ?? 0,
+    })),
     pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
   });
 }

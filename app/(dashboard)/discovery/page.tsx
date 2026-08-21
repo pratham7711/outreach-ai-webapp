@@ -30,6 +30,8 @@ type Creator = {
   platform: string;
   followersCount: number;
   avgViews: number | null;
+  /** Distinct campaigns, counted from posts as well as activations. */
+  campaignCount: number;
   bio: string | null;
   avatarUrl: string | null;
   _count: { activations: number; posts: number };
@@ -386,7 +388,7 @@ export default function DiscoveryPage() {
                   <div style={{ fontSize: 11, color: "var(--cc-text-muted)" }}>Avg Views</div>
                 </div>
                 <div style={{ textAlign: "right" }}>
-                  <div style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)" }}>{c._count.activations}</div>
+                  <div style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)" }}>{c.campaignCount}</div>
                   <div style={{ fontSize: 11, color: "var(--cc-text-muted)" }}>Campaigns</div>
                 </div>
               </div>

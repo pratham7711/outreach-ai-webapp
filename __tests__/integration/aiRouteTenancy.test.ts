@@ -12,7 +12,9 @@ jest.mock("@/lib/db", () => ({
   db: {
     campaign: { findMany: jest.fn(), findFirst: jest.fn(), count: jest.fn() },
     creator: { findMany: jest.fn(), count: jest.fn() },
-    post: { findMany: jest.fn(), groupBy: jest.fn().mockResolvedValue([])},
+    post: { findMany: jest.fn(), groupBy: jest.fn().mockResolvedValue([]) },
+    // Campaign counts come from posts and activations both.
+    activation: { groupBy: jest.fn().mockResolvedValue([]) },
     payout: { findMany: jest.fn(), aggregate: jest.fn(), count: jest.fn() },
     apiKey: { findUnique: jest.fn(), update: jest.fn() },
   },
