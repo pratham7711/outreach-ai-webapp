@@ -137,18 +137,31 @@ if (!APPLY) {
   process.exit(0);
 }
 
+/* Not a transaction. 200 updates in one interactive transaction blows Prisma's
+   5s timeout against Neon -- each update is its own round trip, so the batch
+   spends all of it waiting on the network. Nothing is gained by atomicity here:
+   the updates are independent per post, and re-running writes the same values,
+   so a partial run is fixed by running it again rather than by rolling back. */
 let done = 0;
-const CHUNK = 200;
-for (let i = 0; i < updates.length; i += CHUNK) {
-  const chunk = updates.slice(i, i + CHUNK);
-  await db.$transaction(
-    chunk.map((u) => db.post.update({ where: { id: u.id }, data: u.data })),
+let failed = 0;
+const CONCURRENCY = 20;
+for (let i = 0; i < updates.length; i += CONCURRENCY) {
+  const batch = updates.slice(i, i + CONCURRENCY);
+  const results = await Promise.allSettled(
+    batch.map((u) => db.post.update({ where: { id: u.id }, data: u.data })),
   );
-  done += chunk.length;
-  if (done % 2000 < CHUNK || done === updates.length) {
+  for (const r of results) {
+    if (r.status === "fulfilled") done += 1;
+    else {
+      failed += 1;
+      if (failed <= 3) console.error(`  update failed: ${r.reason?.message ?? r.reason}`);
+    }
+  }
+  if (done % 2000 < CONCURRENCY || i + CONCURRENCY >= updates.length) {
     console.log(`  ${done}/${updates.length}`);
   }
 }
 
-console.log(`\napplied to ${done} posts`);
+console.log(`\napplied to ${done} posts${failed ? `, ${failed} failed` : ""}`);
+if (failed) console.log("re-run to retry the failures -- writes are idempotent.");
 await db.$disconnect();

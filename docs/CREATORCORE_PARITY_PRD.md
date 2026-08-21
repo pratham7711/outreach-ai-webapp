@@ -62,6 +62,21 @@ The general lesson is worth keeping: the mapping was **verified** against the re
 
 Once applied, the hidden columns reappear on their own — no UI change needed. That is the design working as intended, not a regression.
 
+#### Done, 2026-08-21
+
+All 18,660 records fetched (0 unavailable) and applied to 18,655 posts, 0 failures. The gap is closed:
+
+| | before | after |
+|---|---|---|
+| posts with real likes | 106 | **17,580** |
+| posts with a measurement timestamp | 96 | **18,654** |
+
+The remaining 35 posts have no CreatorCore stats row at all, so they stay unmeasured — correctly, and the provenance rule keeps them from rendering a zero.
+
+Confirmed live, and this is the part worth keeping: **the UI changed by itself.** `TUDO MUDO`, which had shown two KPI chips and eight table columns, now shows all nine chips (Avg. Post Eng Rate 12.01%, Avg. Campaign Eng Rate 6.16%, Total Engagement 329.5K) and eleven columns with LIKES, COMMENTS and ENG % back. Not one line of component code was touched between those two states. `Last Synced` reads "258d ago" rather than "just now", because `lastSyncedAt` carries the stats row's own Modified Date.
+
+One implementation note for anyone re-running it: the apply is **not** transactional. Batching 200 Prisma updates into one interactive transaction exceeds the 5s timeout against Neon — each update is its own round trip, so the batch spends the whole budget on the network (`P2028`, 5,195ms of 5,000). Atomicity buys nothing here: the updates are independent per post and the writes are idempotent, so a partial run is fixed by running it again. It now uses bounded concurrency (20) with `Promise.allSettled` and reports failures instead of rolling back 200 good writes with one bad one.
+
 Corollary for the schema: CreatorCore stores `viewsPullable`, `likesPullable`, `sharesPullable`, `savesPullable`, `downloadsPullable` per post. Availability is a stored fact there and an inference here (`lib/metricDisplay.ts` reads `lastSyncedAt`). Carry it explicitly.
 
 ---
