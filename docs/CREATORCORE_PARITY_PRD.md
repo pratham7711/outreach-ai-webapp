@@ -215,7 +215,11 @@ Header `Creators` with `New Creator` and a `200 Creators` count. Sort control `D
 
 Both sub-tabs render. The URL proves three controls the earlier PRD marked missing: a **period toggle** (`period=7`), a **sort type** (`24hr Change %`), and a **sort direction** (`order=Highest`). Sound tracker is the denser surface (57 controls, 234 text runs) versus creator (37, 114).
 
-**Gaps:** we have the models and the list but nothing writes `SoundTrackerSnapshot` outside the seed, so our numbers never move; and we have no creator tracker, no period toggle, no sort. The requirements in `CREATORCORE_FULL_PRD_2026-08-12.md` §4.9.1–4.9.3 stand and are now confirmed against the live URL surface.
+**Gaps: closed 2026-08-22.** Three of the four listed here were already built when this was written and the document had not caught up — the period toggle and the sort are both on the sounds tab, and `app/api/cron/sync-trackers` writes `SoundTrackerSnapshot` from `fetchTikTokSoundStats`, so the numbers do move. The creator tracker was the real gap and now exists: `?sub=creator` equivalent sub-tabs, 7/14/30-day periods (the reference offers no 24h here), four sorts, and the reference's two-figure card.
+
+What it can honestly show is not what the reference shows, and the difference is data rather than design. `Creator.followersCount` is populated on 11 of 1,834 creators and `averageViews` on exactly 1, both `Float @default(0)` — so those cannot be printed as measured figures. Views can: 18,708 posts carry `postedAt` and `viewsCount` across 1,830 of the same creators. So **Avg. Views** is the mean views of a creator's posts inside the selected window, its **Change** is the same figure over the preceding window of equal length, and **Followers** shows a count only where one exists with `No data yet.` for its change — which is the string the reference itself prints in every Change cell on the captured page, for the same reason. Watchlist membership is `Creator.trackedSince`.
+
+The requirements in `CREATORCORE_FULL_PRD_2026-08-12.md` §4.9.1–4.9.3 stand for anything follower-based, which needs a snapshot table and an ingestion path that does not exist yet.
 
 ---
 
@@ -236,7 +240,7 @@ These four need a narrative pass with an active data set before they can be spec
 5. **Campaign Overview activity feed** — six event types, exact glyphs and phrasing (§4.1).
 6. **Campaign Posts** — card-grid default, the four missing KPI chips, username search, date range, platform toggles (§4.2).
 7. **Campaigns list** — cards over table, Folders, Tags/Team filters, per-row status dropdown (§3).
-8. **Trackers** — snapshot ingestion, creator type, period toggle, velocity sort (§7).
+8. ~~**Trackers** — snapshot ingestion, creator type, period toggle, velocity sort (§7).~~ **Done 2026-08-22** — three of the four were already built; the creator sub-tab shipped in 061bf4b. See §7.
 9. **Re-drive Drafts, Analytics, Creators-tab, Calendar, Clients, Lists, Discovery** against an active campaign and a populated org, then spec (§4.3, §8).
 10. **Resolve the Settings tab token** and inventory its seven tabs (§2.2).
 
