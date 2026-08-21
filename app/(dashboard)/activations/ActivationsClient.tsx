@@ -4,7 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Zap } from "lucide-react";
 import { Button, Badge, EmptyState, Card, Avatar, Modal, Input } from "@pratham7711/ui";
-import { MetricTile } from "@/components/ds";
+import { MetricTile, EntityPicker } from "@/components/ds";
+import type { PickerOption } from "@/components/ds";
 import { toast } from "sonner";
 import { stripAt } from "@/lib/format";
 
@@ -15,9 +16,6 @@ type Activation = {
   creator: { id: string; name: string; handle: string; platform: string; avatarUrl: string | null };
   campaign: { id: string; title: string };
 };
-
-type Creator = { id: string; name: string; handle: string };
-type Campaign = { id: string; title: string };
 
 const COLUMNS = [
   "AWAITING_DRAFT", "DRAFT_SUBMITTED", "AWAITING_APPROVAL", "APPROVED",
@@ -46,15 +44,14 @@ const NEXT_STATUS: Record<string, { label: string; status: string }[]> = {
   DECLINED: [{ label: "Re-open", status: "AWAITING_DRAFT" }],
 };
 
-export default function ActivationsClient({ activations, stats, creators, campaigns }: {
+export default function ActivationsClient({ activations, stats }: {
   activations: Activation[];
   stats: { total: number; active: number };
-  creators: Creator[];
-  campaigns: Campaign[];
 }) {
   const router = useRouter();
   const [showCreate, setShowCreate] = useState(false);
-  const [createForm, setCreateForm] = useState({ campaignId: "", creatorId: "" });
+  const [campaign, setCampaign] = useState<PickerOption | null>(null);
+  const [creator, setCreator] = useState<PickerOption | null>(null);
   const [creating, setCreating] = useState(false);
 
   const grouped = new Map<string, Activation[]>();
@@ -82,29 +79,24 @@ export default function ActivationsClient({ activations, stats, creators, campai
   };
 
   const handleCreate = async () => {
-    if (!createForm.campaignId || !createForm.creatorId) return;
+    if (!campaign || !creator) return;
     setCreating(true);
     try {
       const res = await fetch("/api/activations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(createForm),
+        body: JSON.stringify({ campaignId: campaign.id, creatorId: creator.id }),
       });
       if (res.ok) {
         toast.success("Activation created");
         setShowCreate(false);
-        setCreateForm({ campaignId: "", creatorId: "" });
+        setCampaign(null);
+        setCreator(null);
         router.refresh();
       } else {
         toast.error("Failed to create");
       }
     } finally { setCreating(false); }
-  };
-
-  const selectStyle = {
-    width: "100%", padding: "10px 14px", borderRadius: 10,
-    border: "1px solid var(--cc-border)", fontSize: 14,
-    color: "var(--cc-text)", outline: "none", background: "var(--cc-card)",
   };
 
   return (
@@ -200,17 +192,27 @@ export default function ActivationsClient({ activations, stats, creators, campai
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <div>
               <label htmlFor="act-campaign" style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Campaign *</label>
-              <select id="act-campaign" required value={createForm.campaignId} onChange={e => setCreateForm(f => ({ ...f, campaignId: e.target.value }))} style={selectStyle}>
-                <option value="">Select campaign...</option>
-                {campaigns.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}
-              </select>
+              <EntityPicker
+                id="act-campaign"
+                endpoint="/api/campaigns"
+                placeholder="Search campaigns…"
+                extract={(json) => json.campaigns.map((c: any) => ({ id: c.id, label: c.title }))}
+                value={campaign}
+                onChange={setCampaign}
+              />
             </div>
             <div>
               <label htmlFor="act-creator" style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Creator *</label>
-              <select id="act-creator" required value={createForm.creatorId} onChange={e => setCreateForm(f => ({ ...f, creatorId: e.target.value }))} style={selectStyle}>
-                <option value="">Select creator...</option>
-                {creators.map(c => <option key={c.id} value={c.id}>{c.name} (@{stripAt(c.handle)})</option>)}
-              </select>
+              <EntityPicker
+                id="act-creator"
+                endpoint="/api/creators"
+                placeholder="Search creators…"
+                extract={(json) =>
+                  json.creators.map((c: any) => ({ id: c.id, label: c.name, hint: `@${stripAt(c.handle)}` }))
+                }
+                value={creator}
+                onChange={setCreator}
+              />
             </div>
           </div>
         </Modal>

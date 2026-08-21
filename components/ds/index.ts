@@ -9,3 +9,5 @@ export { ConfirmProvider, useConfirm } from "./ConfirmDialog";
 export type { ConfirmOptions } from "./ConfirmDialog";
 export { FilterDrawer, FilterButton } from "./FilterDrawer";
 export type { FilterDef, FilterOption, FilterValues } from "./FilterDrawer";
+export { EntityPicker } from "./EntityPicker";
+export type { PickerOption } from "./EntityPicker";

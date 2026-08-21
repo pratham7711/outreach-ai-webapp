@@ -8,7 +8,9 @@ export default async function ActivationsPage() {
   if (!session?.user) redirect("/login");
 
   const orgId = (session.user as any).orgId;
-  const [activations, total, activeCount, creators, campaigns] = await Promise.all([
+  // The create form searches for a campaign and a creator through their listing
+  // APIs, so neither table is serialized into this page.
+  const [activations, total, activeCount] = await Promise.all([
     db.activation.findMany({
       where: { deletedAt: null, campaign: { orgId } },
       include: {
@@ -19,8 +21,6 @@ export default async function ActivationsPage() {
     }),
     db.activation.count({ where: { deletedAt: null, campaign: { orgId } } }),
     db.activation.count({ where: { deletedAt: null, campaign: { orgId }, status: { in: ["POSTING", "POSTED"] } } }),
-    db.creator.findMany({ where: { orgId, deletedAt: null }, select: { id: true, name: true, handle: true }, orderBy: { name: "asc" } }),
-    db.campaign.findMany({ where: { orgId, deletedAt: null }, select: { id: true, title: true }, orderBy: { title: "asc" } }),
   ]);
 
   return (
@@ -33,8 +33,6 @@ export default async function ActivationsPage() {
         campaign: a.campaign,
       }))}
       stats={{ total, active: activeCount }}
-      creators={creators}
-      campaigns={campaigns}
     />
   );
 }
