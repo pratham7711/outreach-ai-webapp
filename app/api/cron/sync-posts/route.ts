@@ -45,6 +45,7 @@ export async function GET(request: NextRequest) {
 
   let synced = 0;
   let sealed = 0;
+  let unavailable = 0;
   let failed = 0;
   let deadLettered = 0;
   let skippedForBudget = 0;
@@ -196,6 +197,20 @@ export async function GET(request: NextRequest) {
           }));
         if (!metrics) continue;
 
+        // An unauthenticated read returns no counts, exactly like a post with no
+        // engagement. Recording it would advance lastSyncedAt, reset the failure
+        // count and report a success — leaving a post that looks freshly synced
+        // and permanently empty, with nothing anywhere saying why.
+        if (metrics.unavailableReason) {
+          unavailable++;
+          log.warn("skipped post; platform credentials could not be used", {
+            postId: post.id,
+            platform: post.platform,
+            reason: metrics.unavailableReason,
+          });
+          continue;
+        }
+
         const postData: Record<string, unknown> = { lastSyncedAt: now, syncFailCount: 0 };
         if (metrics.thumbnailUrl !== null) postData.thumbnailUrl = metrics.thumbnailUrl;
         if (metrics.caption !== null) postData.caption = metrics.caption;
@@ -265,10 +280,11 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    log.info("sync complete", { synced, sealed, failed, deadLettered, skippedForBudget, total: posts.length });
+    log.info("sync complete", { synced, sealed, failed, unavailable, deadLettered, skippedForBudget, total: posts.length });
     return NextResponse.json({
       ok: true,
       synced,
+      unavailable,
       sealed,
       failed,
       deadLettered,

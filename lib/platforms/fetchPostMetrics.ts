@@ -1,4 +1,4 @@
-import { fetchInstagramMetricsGraph } from "./instagram";
+import { fetchInstagramMetricsGraph, InstagramAuthError } from "./instagram";
 import {
   businessDiscoveryToken,
   fetchInstagramPublicPostMetrics,
@@ -23,6 +23,10 @@ export type PostMetrics = {
   sharesCount?: number;
   engagementRate?: number;
   postedAt: Date;
+  // Set when counts are absent because we could not read them, not because the
+  // post has none. A caller that records a sync must not treat this as success:
+  // an unauthenticated read looks exactly like a post with no engagement.
+  unavailableReason?: "instagram-auth";
 };
 
 export function hasMetricCounts(m: PostMetrics): boolean {
@@ -449,8 +453,22 @@ export async function fetchInstagramMetrics(
   token?: string,
   handle?: string,
 ): Promise<Partial<PostMetrics>> {
+  let authFailed = false;
   if (token) {
-    const graph = await fetchInstagramMetricsGraph(url, token, fetchTimeoutSignal());
+    let graph: Awaited<ReturnType<typeof fetchInstagramMetricsGraph>> = null;
+    try {
+      graph = await fetchInstagramMetricsGraph(url, token, fetchTimeoutSignal());
+    } catch (err) {
+      if (!(err instanceof InstagramAuthError)) throw err;
+      // The creator's token is dead. Business Discovery uses our own token and
+      // may still answer, so keep going — but remember, so a dry result is not
+      // reported as a successful read.
+      authFailed = true;
+      createLogger({ context: { platform: "INSTAGRAM", call: "graph.metrics" } }).warn(
+        "Instagram token rejected; connection needs re-authorisation",
+        { status: err.status, code: err.code },
+      );
+    }
     if (graph) {
       return {
         thumbnailUrl: graph.thumbnailUrl,
@@ -465,7 +483,19 @@ export async function fetchInstagramMetrics(
   }
   const bizToken = businessDiscoveryToken();
   if (bizToken && handle) {
-    const post = await fetchInstagramPublicPostMetrics(handle, url, bizToken, fetchTimeoutSignal());
+    let post: Awaited<ReturnType<typeof fetchInstagramPublicPostMetrics>> = null;
+    try {
+      post = await fetchInstagramPublicPostMetrics(handle, url, bizToken, fetchTimeoutSignal());
+    } catch (err) {
+      if (!(err instanceof InstagramAuthError)) throw err;
+      // INSTAGRAM_BUSINESS_TOKEN itself is rejected — an operator problem, not a
+      // creator one, and not something to record as a post with no engagement.
+      authFailed = true;
+      createLogger({ context: { platform: "INSTAGRAM", call: "businessDiscovery" } }).error(
+        "INSTAGRAM_BUSINESS_TOKEN rejected; Business Discovery is down until it is replaced",
+        { status: err.status, code: err.code },
+      );
+    }
     if (post) {
       return {
         thumbnailUrl: post.thumbnailUrl,
@@ -492,7 +522,9 @@ export async function fetchInstagramMetrics(
   } catch {
     // fall through
   }
-  return stubMetrics();
+  return authFailed
+    ? { ...stubMetrics(), unavailableReason: "instagram-auth" as const }
+    : stubMetrics();
 }
 
 function stubMetrics(): Partial<PostMetrics> {

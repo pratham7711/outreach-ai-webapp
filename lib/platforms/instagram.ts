@@ -33,6 +33,28 @@ export function shortcodeFromUrl(url: string): string | null {
   return match ? match[1] : null;
 }
 
+// Graph reports an unusable token as 190 (expired/invalid) or 102 (session), and
+// a missing scope as 403. These are the cases a caller must not read as "this
+// creator has no Instagram" — the account may be fine and the token simply dead.
+const AUTH_ERROR_CODES = new Set([102, 190]);
+
+export class InstagramAuthError extends Error {
+  readonly status: number;
+  readonly code: number | undefined;
+
+  constructor(status: number, code: number | undefined, message: string) {
+    super(message);
+    this.name = "InstagramAuthError";
+    this.status = status;
+    this.code = code;
+  }
+}
+
+export function isAuthFailure(status: number, code: unknown): boolean {
+  if (status === 401 || status === 403) return true;
+  return typeof code === "number" && AUTH_ERROR_CODES.has(code);
+}
+
 export async function graphGet(
   path: string,
   params: Record<string, string>,
@@ -57,10 +79,18 @@ export async function graphGet(
         // non-JSON error body; status alone has to do
       }
       log.error("Graph request failed", { status: res.status, code, message });
+      if (isAuthFailure(res.status, code)) {
+        throw new InstagramAuthError(
+          res.status,
+          typeof code === "number" ? code : undefined,
+          typeof message === "string" ? message : `Graph auth failure (${res.status})`,
+        );
+      }
       return null;
     }
     return await res.json();
   } catch (err) {
+    if (err instanceof InstagramAuthError) throw err;
     log.error("Graph request threw", {
       error: err instanceof Error ? err.message : String(err),
     });
