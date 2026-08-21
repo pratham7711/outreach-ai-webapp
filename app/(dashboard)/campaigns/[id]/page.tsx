@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import { Card, Badge, Button, EmptyState, Avatar, Skeleton, Modal } from "@pratham7711/ui";
 import { MetricTile } from "@/components/ds";
 import PostsTab from "./PostsTab";
+import ActivityFeed from "./ActivityFeed";
 import DraftsTab from "./DraftsTab";
 import InvitesSection from "./InvitesSection";
 import NegotiationsSection from "./NegotiationsSection";
@@ -576,6 +577,8 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                 <MetricTile metric="totalBudget" value={formatCompactCurrency(campaign.budget, campaign.currency)} />
               )}
             </div>
+
+            <ActivityFeed campaignId={campaign.id} />
 
             {/* Brief */}
             {campaign.brief && (

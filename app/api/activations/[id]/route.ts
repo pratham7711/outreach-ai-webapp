@@ -91,12 +91,20 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       ipAddress: getRequestIp(req),
       before: {
         id: activation.id,
+        // The campaign activity feed needs both: campaignId to attribute the
+        // event to a campaign at all (AuditLog is org-scoped and entityId here
+        // is the activation), and creatorId because the reference phrases the
+        // event as "<Creator> (@handle) status has been changed to ...".
+        campaignId: activation.campaignId,
+        creatorId: activation.creatorId,
         status: activation.status,
         feedbackNotes: activation.feedbackNotes,
         postedUrl: activation.postedUrl,
       },
       after: {
         id: updated.id,
+        campaignId: updated.campaignId,
+        creatorId: updated.creatorId,
         status: updated.status,
         feedbackNotes: updated.feedbackNotes,
         postedUrl: updated.postedUrl,

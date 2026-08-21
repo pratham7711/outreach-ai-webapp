@@ -7,6 +7,8 @@ import { detectPlatform, fetchPostMetrics } from "@/lib/platforms/fetchPostMetri
 import { getInstagramAccountForCreator } from "@/lib/platforms/instagramToken";
 import { getTikTokTokenForCreator } from "@/lib/platforms/tiktokToken";
 import { checkPostCompliance } from "@/lib/compliance/postCompliance";
+import { logAudit } from "@/lib/audit";
+import { getRequestIp } from "@/lib/request";
 import type { PostStatus, Platform } from "@/lib/generated/prisma/client";
 
 const PLATFORMS = ["TIKTOK", "INSTAGRAM", "YOUTUBE", "TWITTER"] as const;
@@ -146,6 +148,20 @@ export async function POST(
       include: {
         creator: { select: { id: true, name: true, handle: true, avatarUrl: true } },
       },
+    });
+
+    await logAudit({
+      orgId,
+      userId: session.user.id ?? undefined,
+      actorEmail: session.user.email ?? undefined,
+      action: "post.create",
+      entityType: "post",
+      entityId: post.id,
+      entityLabel: post.creator.handle,
+      ipAddress: getRequestIp(request),
+      // campaignId is what the campaign activity feed filters on; entityId is
+      // the post, so without this the event is only reachable org-wide.
+      metadata: { campaignId, creatorId, platform: post.platform, postUrl },
     });
 
     return NextResponse.json(post, { status: 201 });
