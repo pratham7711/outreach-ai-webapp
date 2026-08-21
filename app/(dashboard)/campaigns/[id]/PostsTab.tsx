@@ -9,6 +9,9 @@ import Link from "next/link";
 import { computePostEmv, computeEngagementRate } from "@/lib/metrics";
 import { formatCompact, formatCompactCurrency, stripAt, formatDateAbs } from "@/lib/format";
 import type { ComplianceFlag } from "@/lib/compliance/postCompliance";
+import PostMedia from "@/components/PostMedia";
+import { mediaUrl } from "@/lib/postMedia";
+import { metricValue, engagementRateValue, NEVER_MEASURED } from "@/lib/metricDisplay";
 
 type SnapshotLite = { id: string; viewsCount: number; recordedAt: string };
 
@@ -31,6 +34,7 @@ type PostData = {
   fetchState: string | null; // LIVE / UNAVAILABLE / ERROR — is the post still up
   rejectionReason: string | null;
   lastSyncedAt: string | null;
+  authorProfilePic: string | null;
   createdAt?: string;
   hasOpenFraudFlag?: boolean;
   complianceFlags?: ComplianceFlag[];
@@ -147,7 +151,7 @@ function deltaViews(post: PostData): number | null {
   return post.viewsCount - previous.viewsCount;
 }
 
-const GRID_COLS = "1.6fr 96px 88px 84px 84px 88px 90px 90px 96px 140px 90px 150px";
+const GRID_COLS = "minmax(240px, 1.6fr) 92px 88px 82px 78px 88px 84px 88px 148px 104px 140px 140px";
 
 function earnedMinorForPost(
   views: number,
@@ -568,7 +572,7 @@ export default function PostsTab({
         <>
           <Card variant="solid" noPadding style={{ overflowX: "auto", maxWidth: "100%" }}>
             <div style={{
-              display: "grid", gridTemplateColumns: GRID_COLS, minWidth: 1200,
+              display: "grid", gridTemplateColumns: GRID_COLS, minWidth: 1500,
               gap: 12, padding: "12px 24px", borderBottom: "1px solid var(--cc-border)", background: "var(--cc-bg)", alignItems: "center",
             }}>
               <PlainHeader label="Creator" />
@@ -588,29 +592,55 @@ export default function PostsTab({
               const er = engRatePct(post);
               const emv = postEmv(post);
               const dv = deltaViews(post);
+              // A 0 we never fetched is unknown, not zero -- see lib/metricDisplay.
+              const likes = metricValue(post.likesCount, post.lastSyncedAt);
+              const comments = metricValue(post.commentsCount, post.lastSyncedAt);
+              const erShown =
+                likes === null && comments === null
+                  ? null
+                  : engagementRateValue(post.likesCount, post.commentsCount, post.viewsCount, post.lastSyncedAt) ?? er;
               return (
                 <div
                   key={post.id}
                   style={{
                     display: "grid",
-                    gridTemplateColumns: GRID_COLS, minWidth: 1200,
+                    gridTemplateColumns: GRID_COLS, minWidth: 1500,
                     gap: 12, padding: "14px 24px", alignItems: "center",
                     borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined,
                   }}
                 >
-                  <Link href={`/campaigns/${campaignId}/posts/${post.id}`} style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", minWidth: 0 }}>
-                    <Avatar name={post.creator.name} size="sm" src={post.creator.avatarUrl ?? undefined} />
-                    <div style={{ minWidth: 0 }}>
-                      <div title={post.creator.name} style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{post.creator.name}</div>
-                      <div title={`@${stripAt(post.creator.handle)}`} style={{ fontSize: 12, color: "var(--cc-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>@{stripAt(post.creator.handle)}</div>
-                    </div>
-                  </Link>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+                    <PostMedia
+                      platform={post.platform}
+                      platformPostId={post.platformPostId}
+                      postUrl={post.postUrl}
+                      thumbnailUrl={post.thumbnailUrl}
+                      caption={post.caption}
+                    />
+                    <Link href={`/campaigns/${campaignId}/posts/${post.id}`} style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", minWidth: 0 }}>
+                      <Avatar
+                        name={post.creator.name}
+                        size="sm"
+                        src={mediaUrl(post.authorProfilePic) ?? mediaUrl(post.creator.avatarUrl) ?? undefined}
+                      />
+                      <div style={{ minWidth: 0 }}>
+                        <div title={post.creator.name} style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{post.creator.name}</div>
+                        <div title={`@${stripAt(post.creator.handle)}`} style={{ fontSize: 12, color: "var(--cc-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>@{stripAt(post.creator.handle)}</div>
+                      </div>
+                    </Link>
+                  </div>
                   <Badge variant={PLATFORM_BADGE[post.platform] ?? "neutral"} style={{ fontSize: 11 }}>{post.platform}</Badge>
                   <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{formatDateAbs(post.postedAt)}</span>
                   <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)", textAlign: "right" }}>{formatNumber(post.viewsCount)}</span>
-                  <span style={{ fontSize: 13, color: "var(--cc-text-muted)", textAlign: "right" }}>{formatNumber(post.likesCount)}</span>
-                  <span style={{ fontSize: 13, color: "var(--cc-text-muted)", textAlign: "right" }}>{formatNumber(post.commentsCount)}</span>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-primary)", textAlign: "right" }}>{er === null ? "—" : `${er.toFixed(1)}%`}</span>
+                  <span title={likes === null ? NEVER_MEASURED : undefined} style={{ fontSize: 13, color: "var(--cc-text-muted)", textAlign: "right" }}>
+                    {likes === null ? "—" : formatNumber(likes)}
+                  </span>
+                  <span title={comments === null ? NEVER_MEASURED : undefined} style={{ fontSize: 13, color: "var(--cc-text-muted)", textAlign: "right" }}>
+                    {comments === null ? "—" : formatNumber(comments)}
+                  </span>
+                  <span title={erShown === null ? NEVER_MEASURED : undefined} style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-primary)", textAlign: "right" }}>
+                    {erShown === null ? "—" : `${erShown.toFixed(1)}%`}
+                  </span>
                   <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)", textAlign: "right" }}>{formatMoney(emv)}</span>
                   {anyDelta && (
                     <span style={{ fontSize: 13, fontWeight: 600, textAlign: "right", color: dv === null ? "var(--cc-text-subtle)" : dv >= 0 ? "var(--cc-success)" : "var(--cc-danger)" }}>

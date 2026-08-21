@@ -89,6 +89,7 @@ export default async function CampaignsPage({
         budget: c.budget ? Number(c.budget) : null,
         currency: c.currency,
         client: c.client,
+        thumbnailUrl: c.thumbnailUrl,
         _count: c._count,
         creatorCount: creatorsByCampaign.get(c.id)?.size ?? 0,
         updatedAt: c.updatedAt.toISOString(),

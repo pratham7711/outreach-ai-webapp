@@ -9,6 +9,7 @@ import CampaignWizard from "@/components/modals/CampaignWizard";
 import { formatCompactCurrency, timeAgo } from "@/lib/format";
 import { useListQuery } from "@/lib/useListQuery";
 import { CAMPAIGNS_PAGE_SIZE } from "@/lib/listPageSize";
+import { mediaUrl } from "@/lib/postMedia";
 
 type Campaign = {
   id: string;
@@ -17,6 +18,7 @@ type Campaign = {
   budget: number | null;
   currency: string;
   client?: { name: string } | null;
+  thumbnailUrl?: string | null;
   _count: { activations: number; posts: number };
   creatorCount: number;
   updatedAt?: string;
@@ -43,11 +45,42 @@ const STATUS_BADGE_VARIANT: Record<string, "warning" | "accent" | "success" | "d
 /* Shared by the header and every row; the fixed status column is what stops a
    wide IN PROGRESS pill from shifting the numbers on its row. */
 const CAMPAIGN_COLS = {
-  "--cc-cols": "40px minmax(0, 1fr) 110px 90px 80px 60px 130px",
+  "--cc-cols": "44px minmax(0, 1fr) 110px 90px 80px 130px",
 } as React.CSSProperties;
 
 function formatCurrency(n: number) {
   return formatCompactCurrency(n);
+}
+
+/**
+ * 506 of 532 campaigns carry artwork that this list was throwing away in favour
+ * of two initials. Falls back to the initials avatar only when there is genuinely
+ * no image, so a missing thumbnail still reads as a campaign rather than a hole.
+ */
+function CampaignThumb({ title, src }: { title: string; src?: string | null }) {
+  const url = mediaUrl(src);
+  if (!url) return <Avatar name={title} size="md" />;
+  return (
+    <span
+      style={{
+        width: 44,
+        height: 44,
+        borderRadius: 8,
+        overflow: "hidden",
+        display: "block",
+        border: "1px solid var(--cc-border)",
+        background: "var(--cc-hover-bg)",
+      }}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={url}
+        alt=""
+        loading="lazy"
+        style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+      />
+    </span>
+  );
 }
 
 export default function CampaignsClient({
@@ -208,7 +241,6 @@ export default function CampaignsClient({
               <span className="cc-list-num cc-list-hide-sm">Budget</span>
               <span className="cc-list-num cc-list-hide-sm">Creators</span>
               <span className="cc-list-num cc-list-hide-sm">Posts</span>
-              <span className="cc-list-num cc-list-hide-sm">Team</span>
               <span>Status</span>
             </div>
 
@@ -218,7 +250,7 @@ export default function CampaignsClient({
                   className="cc-table-row cc-list-row"
                   style={{ borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined }}
                 >
-                  <Avatar name={campaign.title} size="md" />
+                  <CampaignThumb title={campaign.title} src={campaign.thumbnailUrl} />
 
                   <div style={{ minWidth: 0 }}>
                     <p title={campaign.title} style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)", marginBottom: 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
@@ -240,12 +272,6 @@ export default function CampaignsClient({
                   <p className="cc-list-num cc-list-hide-sm" style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>
                     {campaign._count.posts}
                   </p>
-
-                  <div className="cc-list-hide-sm" style={{ display: "flex", justifyContent: "center" }}>
-                    <div className="cc-avatar-group">
-                      <Avatar name="T" size="sm" />
-                    </div>
-                  </div>
 
                   <span style={{ justifySelf: "start" }}>
                     <Badge variant={STATUS_BADGE_VARIANT[campaign.status] ?? "neutral"} dot>

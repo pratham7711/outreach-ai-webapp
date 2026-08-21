@@ -56,6 +56,26 @@ export default async function CreatorsPage({
     platformCounts.All += g._count;
   }
 
+  // averageViews is a hand-editable column that nothing ever populates: 1,833 of
+  // 1,834 creators sit at 0 while their posts hold real view counts (steve.i4
+  // averages 225k across 356 posts and the column reads "—"). Derive it from the
+  // posts instead, over one grouped query for the creators on this page. Posts
+  // with no view count are excluded so unfetched zeros cannot drag the mean down.
+  // The stored column is deliberately NOT a fallback: the only creator carrying a
+  // value has no posts at all, so it rendered a 9.1B average with nothing behind
+  // it. No posts means no average, which is what the dash says.
+  const derivedAvgViews = new Map<string, number>();
+  if (creators.length > 0) {
+    const grouped = await db.post.groupBy({
+      by: ["creatorId"],
+      where: { creatorId: { in: creators.map((c) => c.id) }, viewsCount: { gt: 0 } },
+      _avg: { viewsCount: true },
+    });
+    for (const g of grouped) {
+      if (g._avg.viewsCount !== null) derivedAvgViews.set(g.creatorId, Math.round(g._avg.viewsCount));
+    }
+  }
+
   return (
     <CreatorsClient
       creators={creators.map((c) => ({
@@ -65,7 +85,7 @@ export default async function CreatorsPage({
         platform: c.platform,
         avatarUrl: c.avatarUrl,
         followerCount: c.followersCount,
-        avgViews: c.averageViews ? Number(c.averageViews) : null,
+        avgViews: derivedAvgViews.get(c.id) ?? null,
         rate: c.rate ? Number(c.rate) : null,
         _count: c._count,
       }))}
