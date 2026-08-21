@@ -30,11 +30,21 @@ export interface DetectedFlag {
   evidence: JsonValue;
 }
 
+const VIEW_SPIKE_MARGINAL_FLOOR = 0.5;
+const VIEW_SPIKE_COLLAPSE_RATIO = 0.2;
+
+function interactionsOf(snapshot: PostSnapshot): number {
+  return snapshot.likesCount + snapshot.commentsCount + snapshot.sharesCount;
+}
+
 /**
  * Analyze a post and its metric snapshots for potential view fraud.
  *
  * Detection rules:
- * 1. VIEW_SPIKE: >300% view increase between consecutive snapshots (24h window)
+ * 1. VIEW_SPIKE: >300% view increase between consecutive snapshots AND the added
+ *    views brought almost no engagement with them — marginal engagement rate
+ *    below min(0.5%, 20% of the post's rate before the spike). Organic virality
+ *    carries engagement along with the views, so it does not trip this rule.
  * 2. LOW_ENGAGEMENT: views > 10000 but engagement rate < 0.5%
  * 3. BOT_PATTERN: very high views but likes/comments ratio is abnormally low (<0.1%)
  */
@@ -49,41 +59,54 @@ export function analyzePostForFraud(
     (a, b) => new Date(a.recordedAt).getTime() - new Date(b.recordedAt).getTime()
   );
 
-  // Rule 1: VIEW_SPIKE — >300% view increase between consecutive snapshots
+  // Rule 1: VIEW_SPIKE — >300% view increase whose new views carried no engagement
   for (let i = 1; i < sorted.length; i++) {
     const prev = sorted[i - 1];
     const curr = sorted[i];
 
     if (prev.viewsCount === 0) continue;
 
-    const deltaPercent =
-      ((curr.viewsCount - prev.viewsCount) / prev.viewsCount) * 100;
+    const deltaViews = curr.viewsCount - prev.viewsCount;
+    const deltaPercent = (deltaViews / prev.viewsCount) * 100;
 
-    if (deltaPercent > 300) {
-      let severity: FraudFlagSeverity;
-      if (deltaPercent > 5000) {
-        severity = "CRITICAL";
-      } else if (deltaPercent > 1000) {
-        severity = "HIGH";
-      } else {
-        severity = "MEDIUM";
-      }
+    if (deltaPercent <= 300) continue;
 
-      flags.push({
-        flagType: "VIEW_SPIKE",
-        severity,
-        description: `Views increased by ${deltaPercent.toFixed(0)}% between snapshots (${prev.viewsCount} -> ${curr.viewsCount})`,
-        evidence: {
-          viewsBefore: prev.viewsCount,
-          viewsAfter: curr.viewsCount,
-          deltaPercent: Math.round(deltaPercent),
-          snapshotBeforeId: prev.id,
-          snapshotAfterId: curr.id,
-          snapshotBeforeAt: new Date(prev.recordedAt).toISOString(),
-          snapshotAfterAt: new Date(curr.recordedAt).toISOString(),
-        },
-      });
+    const priorRate = (interactionsOf(prev) / prev.viewsCount) * 100;
+    const marginalRate =
+      ((interactionsOf(curr) - interactionsOf(prev)) / deltaViews) * 100;
+    const collapseThreshold = Math.min(
+      VIEW_SPIKE_MARGINAL_FLOOR,
+      priorRate * VIEW_SPIKE_COLLAPSE_RATIO
+    );
+
+    if (marginalRate >= collapseThreshold) continue;
+
+    let severity: FraudFlagSeverity;
+    if (deltaPercent > 5000) {
+      severity = "CRITICAL";
+    } else if (deltaPercent > 1000) {
+      severity = "HIGH";
+    } else {
+      severity = "MEDIUM";
     }
+
+    flags.push({
+      flagType: "VIEW_SPIKE",
+      severity,
+      description: `Views increased by ${deltaPercent.toFixed(0)}% between snapshots (${prev.viewsCount} -> ${curr.viewsCount}) while the added views engaged at only ${marginalRate.toFixed(2)}% against a pre-spike rate of ${priorRate.toFixed(2)}%`,
+      evidence: {
+        viewsBefore: prev.viewsCount,
+        viewsAfter: curr.viewsCount,
+        deltaPercent: Math.round(deltaPercent),
+        marginalEngagementRate: Math.round(marginalRate * 100) / 100,
+        priorEngagementRate: Math.round(priorRate * 100) / 100,
+        collapseThreshold: Math.round(collapseThreshold * 100) / 100,
+        snapshotBeforeId: prev.id,
+        snapshotAfterId: curr.id,
+        snapshotBeforeAt: new Date(prev.recordedAt).toISOString(),
+        snapshotAfterAt: new Date(curr.recordedAt).toISOString(),
+      },
+    });
   }
 
   // Rule 2: LOW_ENGAGEMENT — views > 10000 but engagement rate < 0.5%
@@ -148,4 +171,16 @@ export function analyzePostForFraud(
   }
 
   return flags;
+}
+
+export function fraudFlagKey(
+  postId: string,
+  flagType: FraudFlagType,
+  evidence: unknown
+): string {
+  const snapshotAfterId =
+    evidence && typeof evidence === "object" && !Array.isArray(evidence)
+      ? String((evidence as { snapshotAfterId?: unknown }).snapshotAfterId ?? "")
+      : "";
+  return `${postId}:${flagType}:${snapshotAfterId}`;
 }
