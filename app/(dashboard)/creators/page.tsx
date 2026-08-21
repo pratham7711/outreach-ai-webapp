@@ -4,7 +4,14 @@ import { db } from "@/lib/db";
 import { deriveAverageViews, deriveCampaignCounts } from "@/lib/creatorMetrics";
 import CreatorsClient from "./CreatorsClient";
 import { CREATORS_PAGE_SIZE } from "@/lib/listPageSize";
-import { countCreatorFilters, creatorWhere, firstParam, readCreatorFilters } from "@/lib/listFilters";
+import {
+  countCreatorFilters,
+  creatorOrderBy,
+  creatorWhere,
+  firstParam,
+  readCreatorFilters,
+  readCreatorSort,
+} from "@/lib/listFilters";
 
 export default async function CreatorsPage({
   searchParams,
@@ -22,6 +29,7 @@ export default async function CreatorsPage({
   // after the CreatorCore import, and shipping all of them was a 1 MB payload
   // per view. /api/creators reads the same params through the same parse.
   const filters = readCreatorFilters(sp);
+  const sort = readCreatorSort(sp);
   const where = creatorWhere(orgId, filters);
   // The platform tabs and the search box are quick filters over the drawer's
   // result set, so they are left out of their own counts.
@@ -31,7 +39,7 @@ export default async function CreatorsPage({
     db.creator.findMany({
       where,
       include: { _count: { select: { activations: true, posts: true } } },
-      orderBy: { addedAt: "desc" },
+      orderBy: creatorOrderBy(sort),
       take: CREATORS_PAGE_SIZE,
       skip: (page - 1) * CREATORS_PAGE_SIZE,
     }),
@@ -79,6 +87,7 @@ export default async function CreatorsPage({
         hasPosts: firstParam(sp.hasPosts),
       }}
       filterCount={countCreatorFilters({ ...filters, platform: [] })}
+      sort={sort}
     />
   );
 }

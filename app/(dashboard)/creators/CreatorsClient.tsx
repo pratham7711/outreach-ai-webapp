@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Plus, LayoutGrid, List as ListIcon, Users } from "lucide-react";
 import { Button, Badge, Card, Input, Avatar, EmptyState } from "@pratham7711/ui";
 import { imgSrc } from "@/lib/postMedia";
-import { StatusTabs, Pagination, FilterDrawer, FilterButton } from "@/components/ds";
+import { StatusTabs, Pagination, FilterDrawer, FilterButton, SortableTh } from "@/components/ds";
 import type { FilterDef, FilterValues } from "@/components/ds";
 import { Search } from "lucide-react";
 import AddCreatorModal from "@/components/modals/AddCreatorModal";
@@ -12,6 +12,7 @@ import Link from "next/link";
 import { formatCompact, stripAt, platformLabel } from "@/lib/format";
 import { useListQuery } from "@/lib/useListQuery";
 import { CREATORS_PAGE_SIZE } from "@/lib/listPageSize";
+import type { CreatorSort } from "@/lib/listFilters";
 
 type Creator = {
   id: string;
@@ -54,6 +55,7 @@ export default function CreatorsClient({
   platform,
   filterValues,
   filterCount,
+  sort,
 }: {
   creators: Creator[];
   platformCounts: Record<string, number>;
@@ -63,6 +65,7 @@ export default function CreatorsClient({
   platform: string;
   filterValues: FilterValues;
   filterCount: number;
+  sort: CreatorSort;
 }) {
   const [search, setSearch] = useState(q);
   const [view, setView] = useState<"grid" | "table">("grid");
@@ -75,8 +78,21 @@ export default function CreatorsClient({
     q,
     platform: platform === "All" ? undefined : platform,
     page: page === 1 ? undefined : page,
+    // The default order stays out of the URL entirely, so /creators keeps
+    // looking like /creators until someone actually sorts.
+    sort: sort.key === "added" && sort.dir === "desc" ? undefined : sort.key,
+    dir: sort.key === "added" && sort.dir === "desc" ? undefined : sort.dir,
     ...filterValues,
   });
+
+  /* Sorting happens in the database, so a click goes to the URL rather than to
+     a local array — otherwise it would reorder only the rows on this page and
+     leave the largest value sitting on page 2. Re-sorting returns to page 1,
+     since page 5 of a different order is not a place anyone asked to be. */
+  const toggleSort = (key: string) => {
+    const dir = sort.key === key && sort.dir === "desc" ? "asc" : "desc";
+    push({ sort: key, dir, page: null });
+  };
 
   const FILTERS: FilterDef[] = [
     { type: "numberRange", label: "Followers", minKey: "minFollowers", maxKey: "maxFollowers" },
@@ -91,7 +107,7 @@ export default function CreatorsClient({
   const anyFilter = Boolean(q) || platform !== "All" || filterCount > 0;
   const clearEverything = () => {
     setSearch("");
-    const cleared: Record<string, null> = { q: null, platform: null, page: null };
+    const cleared: Record<string, null> = { q: null, platform: null, page: null, sort: null, dir: null };
     for (const key of Object.keys(filterValues)) cleared[key] = null;
     push(cleared);
   };
@@ -229,9 +245,17 @@ export default function CreatorsClient({
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ background: "var(--cc-hover-bg)" }}>
-                {["Creator", "Platform", ...optionalStats.map((s) => s.label), "Campaigns", "Posts"].map((h) => (
-                  <th key={h} style={{ textAlign: "left", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--cc-text-subtle)", padding: "12px 24px" }}>{h}</th>
+                <SortableTh label="Creator" sortKey="name" sort={sort} onToggle={toggleSort} />
+                <SortableTh label="Platform" />
+                {/* Neither of these can be ordered truthfully: Avg. Views is
+                    measured from posts after this page was fetched, and an
+                    unfetched follower count is a 0 that means unknown. See
+                    CREATOR_SORT_KEYS. */}
+                {optionalStats.map((stat) => (
+                  <SortableTh key={stat.key} label={stat.label} />
                 ))}
+                <SortableTh label="Campaigns" />
+                <SortableTh label="Posts" sortKey="posts" sort={sort} onToggle={toggleSort} />
               </tr>
             </thead>
             <tbody>

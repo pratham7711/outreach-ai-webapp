@@ -5,7 +5,7 @@ import { logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
 import { z } from "zod";
 import { pageParam, pageSizeParam, parseQuery } from "@/lib/http/queryParams";
-import { creatorFilterSchema, creatorWhere } from "@/lib/listFilters";
+import { DEFAULT_CREATOR_SORT, creatorFilterSchema, creatorOrderBy, creatorWhere } from "@/lib/listFilters";
 
 const listCreatorsQuerySchema = creatorFilterSchema.extend({
   page: pageParam,
@@ -40,7 +40,11 @@ export async function GET(request: NextRequest) {
     const [creators, total] = await Promise.all([
       db.creator.findMany({
         where,
-        orderBy: { addedAt: "desc" },
+        // Same order as the page, tiebreaker included. 1,834 creators share
+        // only 1,825 distinct addedAt values, so without a unique second key a
+        // tie straddling a page boundary can hand back one creator twice and
+        // another never.
+        orderBy: creatorOrderBy(DEFAULT_CREATOR_SORT),
         skip,
         take: limit,
       }),

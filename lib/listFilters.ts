@@ -220,3 +220,61 @@ export function countCreatorFilters(f: CreatorFilters): number {
     (f.hasPosts ? 1 : 0)
   );
 }
+
+/**
+ * Creator columns the database can order by.
+ *
+ * Deliberately does NOT include avgViews or campaigns. Both are derived after
+ * pagination — averageViews is 0 in the column for the whole imported roster and
+ * gets measured from posts instead, and campaign counts come from posts as well
+ * as activations. Ordering by them would sort the rows already on screen, which
+ * looks like sorting and is not: page 2 would still hold the largest value.
+ *
+ * Nor followers, for a subtler reason. followersCount is `Float @default(0)`, so
+ * the 1,823 creators whose count never came across the import hold 0 rather than
+ * NULL — the list already renders those as blank, because an unfetched 0 is
+ * unknown and not a measurement. Ascending order would therefore rank every one
+ * of them as the least-followed creator in the roster, and ordering unknowns
+ * last needs `NULLIF("followersCount", 0) NULLS LAST`, which Prisma's orderBy
+ * cannot express. Raw SQL for one column would mean restating every filter in
+ * this file by hand, so the column keeps no sort control.
+ *
+ * A column that cannot be ordered truthfully gets no control rather than a
+ * misleading one.
+ */
+export const CREATOR_SORT_KEYS = ["name", "posts", "added"] as const;
+export type CreatorSortKey = (typeof CREATOR_SORT_KEYS)[number];
+export type CreatorSort = { key: CreatorSortKey; dir: "asc" | "desc" };
+
+/** Newest first, which is what the list did before it was sortable. */
+export const DEFAULT_CREATOR_SORT: CreatorSort = { key: "added", dir: "desc" };
+
+export function readCreatorSort(
+  sp: Record<string, string | string[] | undefined>
+): CreatorSort {
+  const key = firstParam(sp.sort);
+  const dir = firstParam(sp.dir);
+  if (!key || !(CREATOR_SORT_KEYS as readonly string[]).includes(key)) {
+    return DEFAULT_CREATOR_SORT;
+  }
+  return { key: key as CreatorSortKey, dir: dir === "asc" ? "asc" : "desc" };
+}
+
+export function creatorOrderBy(sort: CreatorSort): Prisma.CreatorOrderByWithRelationInput[] {
+  const { dir } = sort;
+  // Every branch ends with id. None of these keys is unique — 1,823 of the
+  // imported roster share a null follower count and plenty share a post count —
+  // and Postgres gives no stable order within a tie, so with skip/take the same
+  // creator can appear on two pages while another appears on none. The unique
+  // tiebreaker is what makes paging through a sorted list actually complete.
+  const tiebreak: Prisma.CreatorOrderByWithRelationInput = { id: "asc" };
+  switch (sort.key) {
+    case "name":
+      return [{ name: dir }, tiebreak];
+    case "posts":
+      return [{ posts: { _count: dir } }, tiebreak];
+    case "added":
+    default:
+      return [{ addedAt: dir }, tiebreak];
+  }
+}
