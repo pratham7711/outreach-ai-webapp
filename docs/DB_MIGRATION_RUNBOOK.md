@@ -64,6 +64,66 @@ spend, not on quota; quota is what failed silently this time.
 
 ---
 
+---
+
+## Hosting: stay on Vercel Pro
+
+Evaluated properly against Fly.io, Render, Railway, Cloud Run, Cloudflare and
+Netlify, on the assumption that migrating is one evening's work (the Dockerfile
+already builds without `output: 'standalone'` — it copies `.next` +
+`node_modules` and runs `next start`), and that performance is a hard requirement.
+
+**Realistic all-in monthly cost:**
+
+| Stack | Compute | DB | Domain | **Total** |
+|---|---|---|---|---|
+| **Vercel Pro + Neon** | $20 (incl. $20 usage credit, 1 TB transfer, 10M edge req) | ~$5 | ~$1.25 | **~$26** |
+| Fly.io 2×shared-cpu-2x 1GB `iad` (HA) | $13.28 + ~$0.40 bandwidth | ~$5 | ~$1.25 | ~$20 |
+| Fly.io 1×shared-cpu-2x 1GB (no HA) | $6.64 + ~$0.40 | ~$5 | ~$1.25 | ~$13 |
+| Render Pro workspace + Starter | $25 + $7 | ~$5 | ~$1.25 | ~$38 |
+| Railway | $15–27, **uncapped** | ~$5 | ~$1.25 | ~$21–33 |
+
+Two corrections to earlier assumptions:
+
+- **Render is no longer the cheap option.** Since 23 Apr 2026 it dropped per-seat
+  fees but the Pro workspace is $25/mo *before* instance cost — $32+/mo total,
+  more expensive than Vercel.
+- **Vercel Pro's $20 is not a tax on top of usage.** The platform fee *includes*
+  $20 of usage credit plus 1 TB Fast Data Transfer and 10M edge requests. A B2B
+  dashboard with a few dozen daily users will not approach those, so it stays $20
+  flat — including as tenants are added. The cost argument for migrating therefore
+  does not improve with scale, which is the usual reason to migrate.
+
+**Performance is a wash once the database is co-located, which is the whole point
+of this runbook.** The current 3.9s `/explore` is the Pacific crossing, not the
+host. After the move the residual differences are second-order in both directions:
+
+- Fly wins on always-warm processes (no cold start) and a direct Neon endpoint,
+  which keeps prepared statements — Vercel's serverless model needs the pooled
+  endpoint, and PgBouncer transaction mode disables them. Real, but single-digit
+  milliseconds on indexed queries.
+- Vercel wins on global CDN for static assets. The team is in India and the app is
+  US-hosted; a Next.js dashboard ships a lot of JS, and first load from a nearby
+  edge beats one from Ashburn. Fly would need Cloudflare in front to match.
+
+So the deciding factors are the non-performance ones: Vercel is the **only
+verified Next.js 16 adapter** (with Bun — Cloudflare's and Netlify's integrations
+are explicitly *not* built on the Adapter API and *not* verified, so compatibility
+"may vary"), and it provides redundancy, zero-downtime deploys and preview
+environments that a single Fly machine does not. Max saving from leaving is
+~$6/mo with HA, for owning deploys, monitoring and uptime on a client system.
+
+**Not locked in.** All three cron routes are `CRON_SECRET`-gated plain HTTP, so
+any scheduler can drive them — GitHub Actions, a Fly scheduled machine, anything.
+Combined with the working Dockerfile, leaving stays a one-evening option.
+
+**Revisit if either happens:** the Vercel bill exceeds the $20 credit in a month,
+or p95 dashboard latency stays above ~800 ms after this migration. Then Fly.io
+`iad` is the target — it is the same metro as Neon `us-east-1` and exactly where
+the TikTok fetcher is proven to work.
+
+---
+
 ## Preconditions
 
 - Neon dashboard access.
