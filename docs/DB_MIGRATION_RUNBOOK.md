@@ -124,6 +124,50 @@ the TikTok fetcher is proven to work.
 
 ---
 
+## Hard ordering constraint (verified 2026-08-21)
+
+**Upgrade the Neon plan BEFORE attempting the dump.** The quota block rejects
+*all* reads, not just large ones — a bare `select 1` against the current project
+returns:
+
+```
+ERROR:  Your project has exceeded the data transfer quota. Upgrade your plan to increase limits.
+```
+
+A `pg_dump` is a large read, so it cannot run while the project is capped. There
+is no workaround and no way to export the data first. Sequence is therefore:
+
+1. Upgrade the **existing** project to Launch → restores read access.
+2. Create the **new** `aws-us-east-1` project.
+3. Dump from old, restore into new.
+4. Repoint `DATABASE_URL`, deploy.
+5. Keep the old project 7 days, then delete.
+
+## Automated path
+
+`scripts/neon-migrate.sh` does steps 2–4's mechanics in one command, with the
+safety checks this migration needs. Credentials come from the environment and are
+never printed — only hostnames are echoed.
+
+```bash
+brew install libpq                                  # provides pg_dump/pg_restore/psql
+
+export OLD_DB='postgresql://...ap-southeast-1...'   # DIRECT endpoint, not -pooler
+export NEW_DB='postgresql://...us-east-1...'        # DIRECT endpoint, not -pooler
+
+scripts/neon-migrate.sh preflight                   # checks only, changes nothing
+scripts/neon-migrate.sh run                         # dump, restore, verify
+```
+
+It refuses to proceed if: either URL is a `-pooler` endpoint (the pooler is
+transaction-scoped and cannot hold restore locks), source and target are the same
+host, the target already has tables in `public`, the dump comes out empty, the
+restore reports any error, or the row counts do not match afterwards. It strips
+Prisma-only query params (`pgbouncer`, `connection_limit`) that libpq rejects and
+forces `sslmode=require`.
+
+The manual equivalent is documented below if you would rather drive it by hand.
+
 ## Preconditions
 
 - Neon dashboard access.
