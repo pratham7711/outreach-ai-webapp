@@ -1,7 +1,8 @@
 import React from "react";
 import { Link2 } from "lucide-react";
 import { db } from "@/lib/db";
-import { computeCampaignPerformance } from "@/lib/reports/campaignPerformance";
+import { computeCampaignPerformance, redactForShare } from "@/lib/reports/campaignPerformance";
+import { parseShareVisibility } from "@/lib/reports/shareVisibility";
 import SharedPerformanceReport from "./SharedPerformanceReport";
 
 const SHARE_KIND = "campaign-performance";
@@ -60,18 +61,30 @@ export default async function SharedReportPage({
   const config = (link.config as { kind?: string } | null) ?? {};
   if (config.kind !== SHARE_KIND) return <RevokedState />;
 
-  const performance = await computeCampaignPerformance({
-    id: link.campaign.id,
-    orgId: link.campaign.orgId,
-    budget: link.campaign.budget,
-    currency: link.campaign.currency,
-  });
+  const visibility = parseShareVisibility(link.config);
+
+  const performance = await computeCampaignPerformance(
+    {
+      id: link.campaign.id,
+      orgId: link.campaign.orgId,
+      budget: link.campaign.budget,
+      currency: link.campaign.currency,
+    },
+    visibility.platforms
+  );
 
   return (
     <SharedPerformanceReport
       token={token}
       campaignTitle={link.campaign.title}
-      data={performance}
+      // Redacted here rather than in the component: props cross into the RSC
+      // payload, so a conditionally-rendered leaderboard still publishes every
+      // creator name to anyone who reads the HTML.
+      data={redactForShare(performance, visibility)}
+      visibility={visibility}
+      // Only reaches the client when the link is allowed to show it, so a
+      // hidden budget is absent from the payload rather than merely unrendered.
+      budget={visibility.showBudget ? link.campaign.budget : null}
     />
   );
 }

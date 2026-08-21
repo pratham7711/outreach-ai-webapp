@@ -1,5 +1,6 @@
 import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
-import type { CampaignPerformance } from "@/lib/reports/campaignPerformance";
+import type { SharedReportData } from "@/lib/reports/campaignPerformance";
+import { DEFAULT_SHARE_VISIBILITY, type ShareVisibility } from "@/lib/reports/shareVisibility";
 import { formatCompact } from "@/lib/format";
 import { POWERED_BY } from "@/lib/brand";
 
@@ -119,11 +120,18 @@ function fmtCurrency(n: number, currency: string): string {
 export function CampaignPerformancePDF({
   campaignTitle,
   data,
+  visibility = DEFAULT_SHARE_VISIBILITY,
+  budget = null,
 }: {
   campaignTitle: string;
-  data: CampaignPerformance;
+  data: SharedReportData;
+  /** Same gating as the web report — a PDF that ignored it would be the leak. */
+  visibility?: ShareVisibility;
+  budget?: number | null;
 }) {
+  // Redacted server-side before it gets here, same as the web report.
   const { kpis, platformSplit, leaderboard, currency } = data;
+  const showEmvColumn = leaderboard.some((r) => r.emv !== null);
 
   // Engagement is unknown for posts we never fetched, so those cells are left
   // out of the report rather than printed as a zero or a dash.
@@ -135,7 +143,8 @@ export function CampaignPerformancePDF({
     kpis.engagementRate !== null
       ? { label: "Eng. Rate", value: `${(kpis.engagementRate * 100).toFixed(2)}%` }
       : null,
-    { label: "EMV", value: fmtCurrency(kpis.emv, currency) },
+    kpis.emv !== null ? { label: "EMV", value: fmtCurrency(kpis.emv, currency) } : null,
+    budget !== null ? { label: "Total Budget", value: fmtCurrency(budget, currency) } : null,
   ].filter((cell): cell is { label: string; value: string } => cell !== null);
 
   return (
@@ -177,6 +186,8 @@ export function CampaignPerformancePDF({
             <Text style={styles.emptyText}>No platform data.</Text>
           )}
 
+          {visibility.showCreators && (
+          <>
           <Text style={styles.sectionTitle}>Top Creators</Text>
           {leaderboard.length > 0 ? (
             <View style={styles.table}>
@@ -185,7 +196,7 @@ export function CampaignPerformancePDF({
                 <Text style={[styles.tableHeaderCell, { flex: 1 }]}>Posts</Text>
                 <Text style={[styles.tableHeaderCell, { flex: 1 }]}>Views</Text>
                 <Text style={[styles.tableHeaderCell, { flex: 1 }]}>Eng.</Text>
-                <Text style={[styles.tableHeaderCell, { flex: 1 }]}>EMV</Text>
+                {showEmvColumn && <Text style={[styles.tableHeaderCell, { flex: 1 }]}>EMV</Text>}
               </View>
               {leaderboard.map((row) => (
                 <View key={row.creatorId} style={styles.tableRow}>
@@ -195,12 +206,16 @@ export function CampaignPerformancePDF({
                   <Text style={[styles.tableCell, { flex: 1 }]}>
                     {row.engagementRate !== null ? (row.engagementRate * 100).toFixed(1) + "%" : "—"}
                   </Text>
-                  <Text style={[styles.tableCell, { flex: 1 }]}>{fmtCurrency(row.emv, currency)}</Text>
+                  {row.emv !== null && (
+                    <Text style={[styles.tableCell, { flex: 1 }]}>{fmtCurrency(row.emv, currency)}</Text>
+                  )}
                 </View>
               ))}
             </View>
           ) : (
             <Text style={styles.emptyText}>No creators yet.</Text>
+          )}
+          </>
           )}
         </View>
 

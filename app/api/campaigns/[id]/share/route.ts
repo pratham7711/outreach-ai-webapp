@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomBytes } from "crypto";
 import { db } from "@/lib/db";
 import { authenticateRequest } from "@/lib/authenticate";
+import {
+  DEFAULT_SHARE_VISIBILITY,
+  parseShareVisibility,
+  sanitizeShareVisibility,
+  type ShareVisibility,
+} from "@/lib/reports/shareVisibility";
 
 const SHARE_KIND = "campaign-performance";
 
@@ -25,13 +31,21 @@ async function findShareLink(orgId: string, campaignId: string) {
   });
 }
 
-function serialize(link: { shareToken: string; isPublic: boolean; createdAt: Date }) {
+function serialize(link: { shareToken: string; isPublic: boolean; createdAt: Date; config: unknown }) {
   return {
     token: link.shareToken,
     isPublic: link.isPublic,
     createdAt: link.createdAt.toISOString(),
     path: `/share/${link.shareToken}`,
+    visibility: parseShareVisibility(link.config),
   };
+}
+
+/** Empty bodies are normal here — "create a link" carries no payload. */
+async function readVisibility(req: NextRequest): Promise<ShareVisibility> {
+  const body = (await req.json().catch(() => null)) as { visibility?: unknown } | null;
+  if (!body || body.visibility === undefined) return DEFAULT_SHARE_VISIBILITY;
+  return sanitizeShareVisibility(body.visibility);
 }
 
 export async function GET(
@@ -70,11 +84,12 @@ export async function POST(
 
   const token = randomBytes(32).toString("base64url");
   const existing = await findShareLink(orgId, id);
+  const visibility = await readVisibility(req);
 
   if (existing) {
     const updated = await db.report.update({
       where: { id: existing.id },
-      data: { shareToken: token, isPublic: true },
+      data: { shareToken: token, isPublic: true, config: { kind: SHARE_KIND, visibility } },
     });
     return NextResponse.json({ link: serialize(updated) }, { status: 201 });
   }
@@ -94,12 +109,47 @@ export async function POST(
       slug,
       shareToken: token,
       isPublic: true,
-      config: { kind: SHARE_KIND },
+      config: { kind: SHARE_KIND, visibility },
       createdById: userId,
     },
   });
 
   return NextResponse.json({ link: serialize(created) }, { status: 201 });
+}
+
+/**
+ * Changes what an existing link shows, without touching the token.
+ *
+ * Deliberately not POST: that rotates the token, and someone toggling "show
+ * budget" is not asking to break a URL they have already emailed to a client.
+ */
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const result = await authenticateRequest(req);
+  if (!result) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { orgId } = result;
+  const { id } = await params;
+
+  const campaign = await db.campaign.findFirst({
+    where: { id, orgId, deletedAt: null },
+    select: { id: true },
+  });
+  if (!campaign) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
+
+  const link = await findShareLink(orgId, id);
+  if (!link || !link.isPublic) {
+    return NextResponse.json({ error: "No active share link" }, { status: 404 });
+  }
+
+  const visibility = await readVisibility(req);
+  const updated = await db.report.update({
+    where: { id: link.id },
+    data: { config: { kind: SHARE_KIND, visibility } },
+  });
+
+  return NextResponse.json({ link: serialize(updated) });
 }
 
 export async function DELETE(

@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { renderToBuffer } from "@react-pdf/renderer";
 import React from "react";
 import { db } from "@/lib/db";
-import { computeCampaignPerformance } from "@/lib/reports/campaignPerformance";
+import { computeCampaignPerformance, redactForShare } from "@/lib/reports/campaignPerformance";
 import { CampaignPerformancePDF } from "@/lib/reports/CampaignPerformancePDF";
+import { parseShareVisibility } from "@/lib/reports/shareVisibility";
 
 const SHARE_KIND = "campaign-performance";
 
@@ -28,17 +29,24 @@ export async function GET(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const performance = await computeCampaignPerformance({
-    id: link.campaign.id,
-    orgId: link.campaign.orgId,
-    budget: link.campaign.budget,
-    currency: link.campaign.currency,
-  });
+  const visibility = parseShareVisibility(link.config);
+
+  const performance = await computeCampaignPerformance(
+    {
+      id: link.campaign.id,
+      orgId: link.campaign.orgId,
+      budget: link.campaign.budget,
+      currency: link.campaign.currency,
+    },
+    visibility.platforms
+  );
 
   const buffer = await renderToBuffer(
     React.createElement(CampaignPerformancePDF, {
       campaignTitle: link.campaign.title,
-      data: performance,
+      data: redactForShare(performance, visibility),
+      visibility,
+      budget: visibility.showBudget ? link.campaign.budget : null,
     }) as any
   );
 

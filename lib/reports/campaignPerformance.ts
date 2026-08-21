@@ -5,6 +5,7 @@ import {
   sumEngagements,
 } from "@/lib/metrics";
 import { metricValue } from "@/lib/metricDisplay";
+import type { SharePlatform } from "@/lib/reports/shareVisibility";
 
 type SeriesPlatform = "TIKTOK" | "INSTAGRAM" | "YOUTUBE";
 const SERIES_PLATFORMS: SeriesPlatform[] = ["TIKTOK", "INSTAGRAM", "YOUTUBE"];
@@ -36,11 +37,56 @@ export type CampaignPerformance = {
   }[];
 };
 
+/**
+ * What a public share link is allowed to carry.
+ *
+ * Distinct from CampaignPerformance because hiding a field in the component is
+ * not hiding it at all: a client component's props are serialized into the RSC
+ * payload, so a leaderboard that renders conditionally still ships every
+ * creator's name to anyone who reads the HTML. The money fields become nullable
+ * so a withheld value is absent rather than zero — a zero here would be
+ * indistinguishable from a campaign that genuinely earned nothing.
+ */
+export type SharedReportData = Omit<CampaignPerformance, "kpis" | "leaderboard"> & {
+  kpis: Omit<CampaignPerformance["kpis"], "emv"> & { emv: number | null };
+  leaderboard: (Omit<CampaignPerformance["leaderboard"][number], "emv"> & { emv: number | null })[];
+};
+
+/**
+ * Strips everything the link may not show, on the server, before the data can
+ * reach a payload. Platform filtering is not done here — it happens in the
+ * query, because the KPI totals have to be computed over the filtered set
+ * rather than trimmed after the fact.
+ */
+export function redactForShare(
+  data: CampaignPerformance,
+  visibility: { showCreators: boolean; showEmv: boolean }
+): SharedReportData {
+  return {
+    ...data,
+    kpis: { ...data.kpis, emv: visibility.showEmv ? data.kpis.emv : null },
+    leaderboard: visibility.showCreators
+      ? data.leaderboard.map((row) => ({ ...row, emv: visibility.showEmv ? row.emv : null }))
+      : [],
+  };
+}
+
 export async function computeCampaignPerformance(
-  campaign: { id: string; orgId: string; budget: number | null; currency: string }
+  campaign: { id: string; orgId: string; budget: number | null; currency: string },
+  /**
+   * Restricts every number in the report to these platforms. Applied in the
+   * query rather than to the result, because the KPI totals, the leaderboard and
+   * the platform split all derive from this one read — filtering afterwards
+   * would leave the KPIs describing a wider set than the charts below them.
+   * Empty or omitted means no restriction.
+   */
+  platforms?: readonly SharePlatform[]
 ): Promise<CampaignPerformance> {
   const posts = await db.post.findMany({
-    where: { campaignId: campaign.id },
+    where: {
+      campaignId: campaign.id,
+      ...(platforms?.length && { platform: { in: platforms as unknown as never } }),
+    },
     select: {
       id: true,
       platform: true,

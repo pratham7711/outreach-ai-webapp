@@ -5,7 +5,8 @@ import {
   PieChart, Pie, Cell, Legend,
 } from "recharts";
 import { BarChart3 } from "lucide-react";
-import type { CampaignPerformance } from "@/lib/reports/campaignPerformance";
+import type { SharedReportData } from "@/lib/reports/campaignPerformance";
+import { DEFAULT_SHARE_VISIBILITY, type ShareVisibility } from "@/lib/reports/shareVisibility";
 import { formatCompact } from "@/lib/format";
 import { platformColor } from "@/app/(dashboard)/analytics/shared";
 import { BRAND, POWERED_BY } from "@/lib/brand";
@@ -61,19 +62,33 @@ export default function SharedPerformanceReport({
   token,
   campaignTitle,
   data,
+  visibility = DEFAULT_SHARE_VISIBILITY,
+  budget = null,
 }: {
   token: string;
   campaignTitle: string;
-  data: CampaignPerformance;
+  data: SharedReportData;
+  visibility?: ShareVisibility;
+  /** Already gated by the server — null both when hidden and when unset. */
+  budget?: number | null;
 }) {
   const isMobile = useIsMobile();
+  // Already redacted server-side — a hidden leaderboard arrives empty rather
+  // than arriving whole and being skipped at render time.
   const { kpis, timeSeries, platformSplit, leaderboard, currency } = data;
+  const showEmvColumn = leaderboard.some((r) => r.emv !== null);
   /* Engagement exists only for posts we fetched ourselves, so the column is
      dropped when no creator in this campaign has one. */
   const anyEngagementMeasured = leaderboard.some((r) => r.engagementRate !== null);
-  const rowCols = anyEngagementMeasured
-    ? "1fr 70px 90px 80px 90px"
-    : "1fr 70px 90px 90px";
+  const rowCols = [
+    "1fr",
+    "70px",
+    "90px",
+    anyEngagementMeasured ? "80px" : null,
+    showEmvColumn ? "90px" : null,
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   const isEmpty = kpis.views === 0 && leaderboard.length === 0 && timeSeries.length === 0;
 
@@ -156,7 +171,12 @@ export default function SharedPerformanceReport({
               {kpis.engagementRate !== null && (
                 <StatTile value={`${(kpis.engagementRate * 100).toFixed(2)}%`} label="Eng. Rate" />
               )}
-              <StatTile value={formatCurrency(kpis.emv, currency)} label="EMV" />
+              {kpis.emv !== null && (
+                <StatTile value={formatCurrency(kpis.emv, currency)} label="EMV" />
+              )}
+              {budget !== null && (
+                <StatTile value={formatCurrency(budget, currency)} label="Total Budget" />
+              )}
             </div>
 
             <div
@@ -263,6 +283,10 @@ export default function SharedPerformanceReport({
                 )}
               </div>
 
+              {/* Hidden outright rather than shown empty: "No creators yet."
+                  under a deliberately withheld roster reads as a claim about
+                  the campaign instead of a choice about the link. */}
+              {visibility.showCreators && (
               <div
                 style={{
                   background: "var(--cc-card)",
@@ -281,7 +305,7 @@ export default function SharedPerformanceReport({
                         display: "grid", gridTemplateColumns: rowCols,
                         gap: 12, padding: "10px 24px", borderBottom: "1px solid var(--cc-border)", background: "var(--cc-bg)",
                       }}>
-                        {["Creator", "Posts", "Views", ...(anyEngagementMeasured ? ["Eng."] : []), "EMV"].map((h) => (
+                        {["Creator", "Posts", "Views", ...(anyEngagementMeasured ? ["Eng."] : []), ...(showEmvColumn ? ["EMV"] : [])].map((h) => (
                           <span key={h} style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--cc-text-subtle)" }}>{h}</span>
                         ))}
                       </div>
@@ -318,7 +342,9 @@ export default function SharedPerformanceReport({
                               {row.engagementRate !== null ? `${(row.engagementRate * 100).toFixed(1)}%` : ""}
                             </span>
                           )}
-                          <span style={{ fontSize: 13, fontWeight: 700, color: "var(--cc-primary)" }}>{formatCurrency(row.emv, currency)}</span>
+                          {row.emv !== null && (
+                            <span style={{ fontSize: 13, fontWeight: 700, color: "var(--cc-primary)" }}>{formatCurrency(row.emv, currency)}</span>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -327,6 +353,7 @@ export default function SharedPerformanceReport({
                   <div style={{ padding: 24, fontSize: 14, color: "var(--cc-text-muted)" }}>No creators yet.</div>
                 )}
               </div>
+              )}
             </div>
           </div>
         )}
