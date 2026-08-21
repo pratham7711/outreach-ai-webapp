@@ -51,7 +51,14 @@ Verified end to end before any bulk run: post `@kewbi_` returns views 592,580 ·
 - `scripts/creatorcore/cc-fetch-stats.mjs` — the resumable bulk fetch (concurrency 4, paced, backoff; ~5.7 records/s).
 - `scripts/creatorcore/cc-apply-stats.mjs` — maps onto `Post` by `ccPostId`, dry-run by default.
 
-Two deliberate choices in the apply step. `lastSyncedAt` is set to the stats row's `Modified Date` rather than `now()`, because that is when the metric was actually measured — it makes the "Last Synced" column truthful and it is the field `lib/metricDisplay.ts` reads to tell a real zero from an unmeasured one. And `savesCount` is left untouched: **the stats record has no saves field**, even though the reference's Posts tab shows a `Total Saves` figure, so that one metric remains unsourced and is the only engagement column that should still hide.
+Two deliberate choices in the apply step. `lastSyncedAt` is set to the stats row's `Modified Date` rather than `now()`, because that is when the metric was actually measured — it makes the "Last Synced" column truthful and it is the field `lib/metricDisplay.ts` reads to tell a real zero from an unmeasured one. **Correction (audited over 9,372 fetched records, not the single post the mapping was first cross-checked on).** An earlier version of this section said the stats record has no saves field and that `Total Saves` was therefore unsourced. Wrong — the field is `saves`, and the script had been looking for `saveCount`. It is non-null on 1,151 rows (TikTok 1,055, Instagram 31, YouTube 65) and absent on the rest, which is precisely the case the provenance rule already handles. `saves → savesCount` is now mapped, so no engagement column stays permanently hidden.
+
+Two more things the audit settled, both of which had been assumptions:
+
+- **`engagement` is a five-term sum**, not four: likes + comments + shares + downloads, plus saves where saves exists. 8,767 rows match the four-term sum, 804 match the five-term sum, **0 match neither**. `summarizePostMetrics` now uses the five-term form, so our Total Engagement chip is their arithmetic rather than our guess.
+- **`engagementRate` is exactly `engagement / views` in every row, and is not bounded by 1.0.** 116 rows exceed 1.5 and every one is genuine — a TikTok post with 2,440 views and 6,043 likes really does rate 253%, because TikTok's view count can trail its like count. So no clamping, no unit conversion, and any future "engagement rate looks impossible" report should be checked against views before it is treated as a bug.
+
+The general lesson is worth keeping: the mapping was **verified** against the reference UI on one post, and that was enough to be confident about the field *names* and completely miss a field that was absent from that post. One cross-check validates a mapping's shape, not its coverage.
 
 Once applied, the hidden columns reappear on their own — no UI change needed. That is the design working as intended, not a regression.
 

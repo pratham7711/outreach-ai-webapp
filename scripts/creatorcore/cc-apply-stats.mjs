@@ -13,12 +13,22 @@
  *   comments      -> commentsCount
  *   shareCount    -> sharesCount
  *   downloadCount -> downloadsCount
+ *   saves         -> savesCount       (present on ~6% of rows; absent elsewhere)
  *   engagementRate-> engagementRate   (already a fraction: 0.1004 = 10.04%)
  *
- * `engagement` is their sum of likes + comments + shares + downloads, so it is
- * derived and not stored. Saves are NOT in this record despite the reference UI
- * showing a Total Saves figure, so savesCount is deliberately left alone rather
- * than zeroed -- see the note printed at the end.
+ * Audited across 9,372 fetched records rather than the single post the mapping
+ * was first cross-checked on:
+ *
+ *   - `saves` DOES exist. An earlier version of this script skipped savesCount
+ *     claiming the record had no saves field; it was looking for `saveCount`.
+ *     Non-null on 1,151 rows (TikTok 1055, Instagram 31, YouTube 65) and null
+ *     elsewhere, which the provenance rule in lib/metricDisplay already handles.
+ *   - `engagement` is their sum of likes + comments + shares + downloads PLUS
+ *     saves where saves exists: 8,767 rows match the four-term sum, 804 match
+ *     the five-term sum, and 0 match neither. Derived, so not stored.
+ *   - `engagementRate` is exactly engagement/views in every row. Values above
+ *     1.0 are real, not a unit mix-up -- a TikTok post with 2,440 views and
+ *     6,043 likes genuinely rates 253%.
  *
  * lastSyncedAt is set to the stats row's Modified Date, not now(): that is when
  * the metrics were actually measured, it makes the "Last Synced" column
@@ -65,6 +75,7 @@ for await (const line of stream) {
     commentsCount: num(r.comments),
     sharesCount: num(r.shareCount),
     downloadsCount: num(r.downloadCount),
+    savesCount: num(r.saves),
     engagementRate: num(r.engagementRate),
     measuredAt: r["Modified Date"] ? new Date(r["Modified Date"]) : null,
   });
@@ -98,6 +109,7 @@ for (const s of stats) {
     "commentsCount",
     "sharesCount",
     "downloadsCount",
+    "savesCount",
     "engagementRate",
   ]) {
     if (s[key] !== null) data[key] = s[key];
@@ -139,9 +151,4 @@ for (let i = 0; i < updates.length; i += CHUNK) {
 }
 
 console.log(`\napplied to ${done} posts`);
-console.log(
-  "note: savesCount was left untouched -- the CreatorCore stats record carries no\n" +
-    "saves field even though its Posts tab shows a Total Saves figure, so that one\n" +
-    "metric is still unsourced.",
-);
 await db.$disconnect();
