@@ -19,8 +19,13 @@ import { createLogger } from "@/lib/observability/logger";
  * and throws on the pixels -- so libheif's wasm build does the decode.
  *
  * Cost is one transcode per distinct image, ever: the response is immutable and
- * cached at the CDN, and only avatars are routed here. Thumbnails already come
- * back in a browser format at sensible dimensions and keep going direct.
+ * cached at the CDN. Thumbnails come through too, not just the HEIC avatars --
+ * the CDN stores everything at capture size, so a 56px circle was pulling half a
+ * megabyte. See imgSrc in lib/postMedia.ts, which is the only way in.
+ *
+ * Nothing here may throw. An unhandled throw in a route handler is a 500, and a
+ * 500 for a decorative thumbnail is a page-level error for a missing picture; the
+ * degradations below are all deliberate.
  */
 
 // An open image proxy is an SSRF hole and a bandwidth donation, so only the
@@ -73,7 +78,23 @@ export async function GET(req: NextRequest) {
   if (!upstream.ok) return new NextResponse("upstream error", { status: 502 });
 
   const type = upstream.headers.get("content-type") ?? "application/octet-stream";
-  const buf = Buffer.from(await upstream.arrayBuffer());
+
+  // Refuse on the declared size before pulling the bytes into memory. The check
+  // below still runs, because a CDN is free to lie or omit the header.
+  const declared = Number(upstream.headers.get("content-length"));
+  if (declared > MAX_BYTES) return new NextResponse("too large", { status: 413 });
+
+  // The body arrives on a second round trip and fails independently of the
+  // headers, so a CDN dropping the connection mid-image threw here -- and an
+  // unhandled throw inside a route handler is a 500. The image is missing either
+  // way; the difference is whether the log says whose fault it was.
+  let buf: Buffer;
+  try {
+    buf = Buffer.from(await upstream.arrayBuffer());
+  } catch (err) {
+    log.warn("img.body_failed", { host: target.host, error: err instanceof Error ? err.message : String(err) });
+    return new NextResponse("upstream failed", { status: 502 });
+  }
   if (buf.byteLength > MAX_BYTES) return new NextResponse("too large", { status: 413 });
 
   // A year, immutable: these CDN paths are content-addressed and never change,
