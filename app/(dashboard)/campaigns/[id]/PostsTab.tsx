@@ -97,7 +97,17 @@ const PLATFORM_BADGE: Record<string, "accent" | "success" | "warning" | "danger"
   TWITTER: "accent",
 };
 
-type SortKey = "posted" | "views" | "likes" | "comments" | "engRate" | "emv" | "delta";
+type SortKey =
+  | "posted"
+  | "views"
+  | "likes"
+  | "comments"
+  | "shares"
+  | "saves"
+  | "downloads"
+  | "engRate"
+  | "emv"
+  | "delta";
 type SortDir = "asc" | "desc";
 
 function formatNumber(num: number): string {
@@ -154,6 +164,9 @@ const COL_WIDTHS = {
   views: "82px",
   likes: "78px",
   comments: "88px",
+  shares: "82px",
+  saves: "78px",
+  downloads: "96px",
   engRate: "84px",
   emv: "88px",
   delta: "148px",
@@ -387,6 +400,9 @@ export default function PostsTab({
         case "views": return p.viewsCount;
         case "likes": return p.likesCount;
         case "comments": return p.commentsCount;
+        case "shares": return p.sharesCount;
+        case "saves": return p.savesCount;
+        case "downloads": return p.downloadsCount;
         case "engRate": return engRatePct(p) ?? -1;
         case "emv": return postEmv(p);
         case "delta": return deltaViews(p) ?? Number.NEGATIVE_INFINITY;
@@ -413,6 +429,18 @@ export default function PostsTab({
     () => posts.some((p) => metricValue(p.commentsCount, p.lastSyncedAt) !== null),
     [posts]
   );
+  const anyShares = useMemo(
+    () => posts.some((p) => metricValue(p.sharesCount, p.lastSyncedAt) !== null),
+    [posts]
+  );
+  const anySaves = useMemo(
+    () => posts.some((p) => metricValue(p.savesCount, p.lastSyncedAt) !== null),
+    [posts]
+  );
+  const anyDownloads = useMemo(
+    () => posts.some((p) => metricValue(p.downloadsCount, p.lastSyncedAt) !== null),
+    [posts]
+  );
   const anyEngRate = useMemo(
     () =>
       posts.some(
@@ -430,6 +458,9 @@ export default function PostsTab({
         "views",
         ...(anyLikes ? (["likes"] as const) : []),
         ...(anyComments ? (["comments"] as const) : []),
+        ...(anyShares ? (["shares"] as const) : []),
+        ...(anySaves ? (["saves"] as const) : []),
+        ...(anyDownloads ? (["downloads"] as const) : []),
         ...(anyEngRate ? (["engRate"] as const) : []),
         "emv",
         ...(anyDelta ? (["delta"] as const) : []),
@@ -437,7 +468,7 @@ export default function PostsTab({
         "lastSynced",
         "actions",
       ] as const,
-    [anyLikes, anyComments, anyEngRate, anyDelta]
+    [anyLikes, anyComments, anyShares, anySaves, anyDownloads, anyEngRate, anyDelta]
   );
   const listGrid = useMemo(() => gridTemplate(listCols), [listCols]);
 
@@ -726,6 +757,9 @@ export default function PostsTab({
               <SortHeader label="Views" sk="views" align="right" />
               {anyLikes && <SortHeader label="Likes" sk="likes" align="right" />}
               {anyComments && <SortHeader label="Comments" sk="comments" align="right" />}
+              {anyShares && <SortHeader label="Shares" sk="shares" align="right" />}
+              {anySaves && <SortHeader label="Saves" sk="saves" align="right" />}
+              {anyDownloads && <SortHeader label="Downloads" sk="downloads" align="right" />}
               {anyEngRate && <SortHeader label="Eng %" sk="engRate" align="right" />}
               <SortHeader label="EMV" sk="emv" align="right" />
               {anyDelta && <SortHeader label="Δ Views" sk="delta" align="right" />}
@@ -740,6 +774,9 @@ export default function PostsTab({
               // A 0 we never fetched is unknown, not zero -- see lib/metricDisplay.
               const likes = metricValue(post.likesCount, post.lastSyncedAt);
               const comments = metricValue(post.commentsCount, post.lastSyncedAt);
+              const shares = metricValue(post.sharesCount, post.lastSyncedAt);
+              const saves = metricValue(post.savesCount, post.lastSyncedAt);
+              const downloads = metricValue(post.downloadsCount, post.lastSyncedAt);
               const erShown =
                 likes === null && comments === null
                   ? null
@@ -785,6 +822,21 @@ export default function PostsTab({
                   {anyComments && (
                     <span style={{ fontSize: 13, color: "var(--cc-text-muted)", textAlign: "right" }}>
                       {comments === null ? "" : formatNumber(comments)}
+                    </span>
+                  )}
+                  {anyShares && (
+                    <span style={{ fontSize: 13, color: "var(--cc-text-muted)", textAlign: "right" }}>
+                      {shares === null ? "" : formatNumber(shares)}
+                    </span>
+                  )}
+                  {anySaves && (
+                    <span style={{ fontSize: 13, color: "var(--cc-text-muted)", textAlign: "right" }}>
+                      {saves === null ? "" : formatNumber(saves)}
+                    </span>
+                  )}
+                  {anyDownloads && (
+                    <span style={{ fontSize: 13, color: "var(--cc-text-muted)", textAlign: "right" }}>
+                      {downloads === null ? "" : formatNumber(downloads)}
                     </span>
                   )}
                   {anyEngRate && (
