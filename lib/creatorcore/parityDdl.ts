@@ -180,3 +180,106 @@ export const DRIFT_REPAIR_DDL: string[] = [
   `ALTER TABLE "Activation" ADD COLUMN IF NOT EXISTS "draftMediaType" "MediaType"`,
   `ALTER TABLE "Activation" ADD COLUMN IF NOT EXISTS "draftSubmittedAt" TIMESTAMP(3)`,
 ];
+
+// Songs, campaign phases and metered sync slots.
+//
+// These models arrived with the trackers branch, which carries them as the
+// tracked migration prisma/migrations/20260814000000_song_phase_and_platforms
+// plus schema-only additions that never got a migration at all (SyncSlot,
+// Organization.syncSlotPoolSize). Production runs neither: its build command is
+// plain `next build`, so no migration has ever executed there.
+//
+// The statements below are that whole set restated idempotently, derived from
+// `prisma migrate diff --from-empty --to-schema` so the column types, defaults
+// and referential actions are Prisma's own output rather than hand-typed. The
+// scope is exactly `git diff feat/creatorcore-extract..HEAD -- prisma/schema.prisma`,
+// which is the only part of the schema that had not already been diffed against
+// production when DRIFT_REPAIR_DDL above was written.
+//
+// Additive only — no DROP, no type change, no data touched. Anything already
+// present is left exactly as it is, so this is safe to re-run and safe to run
+// against a database whose rows were not created by us.
+export const SONG_PHASE_SLOT_DDL: string[] = [
+  `DO $$ BEGIN
+     CREATE TYPE "SyncSlotState" AS ENUM ('POOL', 'ASSIGNED', 'WARM', 'COOLING', 'RELEASED', 'PINNED');
+   EXCEPTION WHEN duplicate_object THEN NULL;
+   END $$`,
+
+  `CREATE TABLE IF NOT EXISTS "Song" (
+    "id" TEXT NOT NULL,
+    "orgId" TEXT NOT NULL,
+    "title" TEXT NOT NULL,
+    "artist" TEXT NOT NULL,
+    "isrc" TEXT,
+    "releaseDate" TIMESTAMP(3),
+    "coverUrl" TEXT,
+    "notes" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "deletedAt" TIMESTAMP(3),
+
+    CONSTRAINT "Song_pkey" PRIMARY KEY ("id")
+  )`,
+
+  `CREATE TABLE IF NOT EXISTS "CampaignPhase" (
+    "id" TEXT NOT NULL,
+    "campaignId" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "sequence" INTEGER NOT NULL,
+    "startDate" TIMESTAMP(3),
+    "endDate" TIMESTAMP(3),
+    "targetPosts" INTEGER,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "CampaignPhase_pkey" PRIMARY KEY ("id")
+  )`,
+
+  `CREATE TABLE IF NOT EXISTS "SyncSlot" (
+    "id" TEXT NOT NULL,
+    "orgId" TEXT NOT NULL,
+    "campaignId" TEXT,
+    "postId" TEXT,
+    "state" "SyncSlotState" NOT NULL DEFAULT 'POOL',
+    "assignedAt" TIMESTAMP(3),
+    "releasedAt" TIMESTAMP(3),
+    "pinnedAt" TIMESTAMP(3),
+    "hotUntil" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "SyncSlot_pkey" PRIMARY KEY ("id")
+  )`,
+
+  `ALTER TABLE "Organization" ADD COLUMN IF NOT EXISTS "syncSlotPoolSize" INTEGER NOT NULL DEFAULT 100`,
+  `ALTER TABLE "Campaign" ADD COLUMN IF NOT EXISTS "songId" TEXT`,
+  `ALTER TABLE "Post" ADD COLUMN IF NOT EXISTS "phaseId" TEXT`,
+
+  `CREATE INDEX IF NOT EXISTS "Song_orgId_idx" ON "Song"("orgId")`,
+  `CREATE INDEX IF NOT EXISTS "Song_orgId_deletedAt_idx" ON "Song"("orgId", "deletedAt")`,
+  `CREATE INDEX IF NOT EXISTS "CampaignPhase_campaignId_idx" ON "CampaignPhase"("campaignId")`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS "CampaignPhase_campaignId_sequence_key" ON "CampaignPhase"("campaignId", "sequence")`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS "SyncSlot_postId_key" ON "SyncSlot"("postId")`,
+  `CREATE INDEX IF NOT EXISTS "SyncSlot_orgId_state_idx" ON "SyncSlot"("orgId", "state")`,
+  `CREATE INDEX IF NOT EXISTS "SyncSlot_campaignId_idx" ON "SyncSlot"("campaignId")`,
+  `CREATE INDEX IF NOT EXISTS "Post_phaseId_idx" ON "Post"("phaseId")`,
+
+  // Postgres has no ADD CONSTRAINT IF NOT EXISTS. These are not cosmetic: the
+  // referential actions below are where `onDelete: SetNull` and `Cascade` in
+  // schema.prisma actually live, so without them deleting a campaign fails or
+  // silently orphans its slots.
+  ...[
+    [`Song`, `Song_orgId_fkey`, `FOREIGN KEY ("orgId") REFERENCES "Organization"("id") ON DELETE RESTRICT ON UPDATE CASCADE`],
+    [`CampaignPhase`, `CampaignPhase_campaignId_fkey`, `FOREIGN KEY ("campaignId") REFERENCES "Campaign"("id") ON DELETE CASCADE ON UPDATE CASCADE`],
+    [`Campaign`, `Campaign_songId_fkey`, `FOREIGN KEY ("songId") REFERENCES "Song"("id") ON DELETE SET NULL ON UPDATE CASCADE`],
+    [`SyncSlot`, `SyncSlot_orgId_fkey`, `FOREIGN KEY ("orgId") REFERENCES "Organization"("id") ON DELETE CASCADE ON UPDATE CASCADE`],
+    [`SyncSlot`, `SyncSlot_campaignId_fkey`, `FOREIGN KEY ("campaignId") REFERENCES "Campaign"("id") ON DELETE SET NULL ON UPDATE CASCADE`],
+    [`SyncSlot`, `SyncSlot_postId_fkey`, `FOREIGN KEY ("postId") REFERENCES "Post"("id") ON DELETE SET NULL ON UPDATE CASCADE`],
+    [`Post`, `Post_phaseId_fkey`, `FOREIGN KEY ("phaseId") REFERENCES "CampaignPhase"("id") ON DELETE SET NULL ON UPDATE CASCADE`],
+  ].map(
+    ([table, name, clause]) => `DO $$ BEGIN
+     ALTER TABLE "${table}" ADD CONSTRAINT "${name}" ${clause};
+   EXCEPTION WHEN duplicate_object THEN NULL;
+   END $$`
+  ),
+];

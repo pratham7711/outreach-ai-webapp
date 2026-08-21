@@ -23,7 +23,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
 import { db } from "@/lib/db";
-import { PARITY_DDL, DRIFT_REPAIR_DDL } from "@/lib/creatorcore/parityDdl";
+import { PARITY_DDL, DRIFT_REPAIR_DDL, SONG_PHASE_SLOT_DDL } from "@/lib/creatorcore/parityDdl";
 
 export const maxDuration = 300;
 export const dynamic = "force-dynamic";
@@ -124,7 +124,7 @@ export async function POST(request: NextRequest) {
   try {
     if (action === "migrate") {
       const applied: string[] = [];
-      for (const stmt of [...PARITY_DDL, ...DRIFT_REPAIR_DDL]) {
+      for (const stmt of [...PARITY_DDL, ...DRIFT_REPAIR_DDL, ...SONG_PHASE_SLOT_DDL]) {
         await db.$executeRawUnsafe(stmt);
         applied.push(stmt.slice(0, 72).replace(/\s+/g, " "));
       }

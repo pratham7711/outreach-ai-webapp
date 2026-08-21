@@ -26,12 +26,12 @@ const MARKERS = {
   "20260329152906_foundation_postgresql_all_models": { table: "Organization" },
   "20260330160119_campaign_payment_posts_phase_a": { table: "Post" },
   "20260330181331_marketplace_phase2b": { table: "Activation" },
-  "20260330192354_view_ledger_model": { table: "ViewLedgerEntry" },
   "20260720150902_viewscount_to_double_precision": { column: ["Post", "viewsCount"] },
   "20260720165317_widen_metric_counts_to_double_precision": { column: ["Post", "likesCount"] },
   "20260812040000_add_platform_enum_values": { enumValue: ["Platform", "FACEBOOK"] },
   "20260812041000_add_activation_draft_fields": { column: ["Activation", "draftUrl"] },
   "20260814000000_song_phase_and_platforms": { table: "Song" },
+  "20260820120000_creatorcore_parity": { index: "Post_ccPostId_key" },
 };
 
 function migrationNames() {
@@ -58,6 +58,14 @@ async function columnExists(db, table, column) {
   return r.rowCount > 0;
 }
 
+async function indexExists(db, name) {
+  const r = await db.query(
+    "select 1 from pg_indexes where schemaname='public' and indexname=$1",
+    [name],
+  );
+  return r.rowCount > 0;
+}
+
 async function enumValueExists(db, typeName, label) {
   const r = await db.query(
     "select 1 from pg_enum e join pg_type t on t.oid=e.enumtypid where t.typname=$1 and e.enumlabel=$2",
@@ -72,6 +80,7 @@ async function isReflected(db, name) {
   if (marker.table) return tableExists(db, marker.table);
   if (marker.column) return columnExists(db, ...marker.column);
   if (marker.enumValue) return enumValueExists(db, ...marker.enumValue);
+  if (marker.index) return indexExists(db, marker.index);
   return null;
 }
 
