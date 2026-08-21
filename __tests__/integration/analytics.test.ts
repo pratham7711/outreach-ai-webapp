@@ -176,8 +176,13 @@ describe("GET /api/analytics", () => {
   });
 
   it("fills the six-month trend from the bucketed campaign counts", async () => {
-    const thisMonth = new Date();
-    thisMonth.setDate(1);
+    // A UTC month start, which is what date_trunc('month', …) returns from a UTC
+    // database. Building it from LOCAL parts instead made this test depend on the
+    // time of day: in IST a local 1 Aug 00:07 is 31 Jul 18:37 UTC, so between
+    // 18:30 and 24:00 UTC the row keyed to the previous month and the newest slot
+    // read zero. The fixture, not the clock, was wrong.
+    const now = new Date();
+    const thisMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
     mockDb.$queryRawUnsafe.mockResolvedValue([
       { bucket: thisMonth, campaigns: BigInt(4), active: BigInt(1) },
     ]);

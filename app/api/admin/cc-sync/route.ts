@@ -21,6 +21,7 @@
 // Retire it by removing CC_SYNC_TOKEN from the Vercel project once the sync is done.
 
 import { NextRequest, NextResponse } from "next/server";
+import { timingSafeEqual } from "node:crypto";
 import { db } from "@/lib/db";
 import { PARITY_DDL, DRIFT_REPAIR_DDL } from "@/lib/creatorcore/parityDdl";
 
@@ -41,10 +42,19 @@ const LOADABLE: Record<string, { delegate: string; inject: Inject }> = {
   post: { delegate: "post", inject: "none" },
 };
 
+/** Constant-time, and length-safe: timingSafeEqual throws on a length mismatch. */
+function tokenMatches(presented: string | null, expected: string): boolean {
+  if (!presented) return false;
+  const a = Buffer.from(presented);
+  const b = Buffer.from(`Bearer ${expected}`);
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
+}
+
 function authorize(request: NextRequest) {
   const token = process.env.CC_SYNC_TOKEN;
   if (!token) return { ok: false as const, res: NextResponse.json({ error: "Not found" }, { status: 404 }) };
-  if (request.headers.get("authorization") !== `Bearer ${token}`) {
+  if (!tokenMatches(request.headers.get("authorization"), token)) {
     return { ok: false as const, res: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
   }
   return { ok: true as const };

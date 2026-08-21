@@ -14,6 +14,15 @@ const LEADERBOARD_SIZE = 20;
  * which shifts a local month start back a month in any positive-offset zone —
  * in IST the six slots were labelled Mar–Aug while keyed Feb–Jul, so August's
  * campaigns matched no slot and July's were counted under "Aug".
+ *
+ * Everything either side of this must be UTC, and that is not cosmetic. The
+ * slots used to be built from LOCAL calendar parts while the database's
+ * date_trunc result was read back with getUTC*, so the two disagreed by one
+ * month for the first 5h30m of every IST day: a local 1 Aug 00:07 is 31 Jul
+ * 18:37 UTC. The current month's counts landed in the previous month's slot and
+ * the newest slot read zero. It only ever reproduced between 18:30 and 24:00
+ * UTC, which is why it survived so long. date_trunc runs in the database's zone
+ * (UTC on Neon), so UTC is the correct basis on both sides.
  */
 function monthKey(year: number, month: number): string {
   return `${year}-${String(month + 1).padStart(2, "0")}`;
@@ -54,7 +63,7 @@ export async function GET(req: NextRequest) {
   };
 
   const now = new Date();
-  const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+  const sixMonthsAgo = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 5, 1));
 
   const [kpiRow, engagementRow, monthRows, creatorPlatformRows, creatorCampaignPairs, platformRows, orgCampaigns] =
     await Promise.all([
@@ -116,9 +125,9 @@ export async function GET(req: NextRequest) {
 
   const trendMap: Record<string, { month: string; campaigns: number; active: number }> = {};
   for (let i = 5; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    trendMap[monthKey(d.getFullYear(), d.getMonth())] = {
-      month: d.toLocaleString("default", { month: "short", year: "2-digit" }),
+    const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1));
+    trendMap[monthKey(d.getUTCFullYear(), d.getUTCMonth())] = {
+      month: d.toLocaleString("default", { month: "short", year: "2-digit", timeZone: "UTC" }),
       campaigns: 0,
       active: 0,
     };
