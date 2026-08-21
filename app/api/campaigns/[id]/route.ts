@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { findForeignRef } from "@/lib/tenantRefs";
 import { authenticateRequest, getAuditActor } from "@/lib/authenticate";
 import { requirePermission } from "@/lib/authz";
 import { hasPermission } from "@/lib/rbac";
@@ -186,15 +187,19 @@ export async function PATCH(
     const { regenerateInviteCode, contentAssetsUrl, submissionDeadline, ratePerThousand, ...rest } =
       parsed.data;
 
-    // songId arrives in the body, so it has to be proven to belong to this org.
-    // Without this a caller could attach their campaign to another org's song and
-    // have their numbers show up on that org's song dashboard.
-    if (rest.songId) {
-      const song = await db.song.findFirst({
-        where: { id: rest.songId, orgId, deletedAt: null },
-        select: { id: true },
-      });
-      if (!song) return NextResponse.json({ error: "Song not found" }, { status: 404 });
+    // songId, clientId and folderId all arrive in the body, so each has to be
+    // proven to belong to this org. Without it a caller could attach their
+    // campaign to another org's song and have their numbers show up on that
+    // org's song dashboard — or file it under another org's client or folder and
+    // read that name straight back off their own campaigns list.
+    const foreign = await findForeignRef(orgId, {
+      songId: rest.songId,
+      clientId: rest.clientId,
+      folderId: rest.folderId,
+    });
+    if (foreign) {
+      const label = foreign === "song" ? "Song" : foreign === "client" ? "Client" : "Folder";
+      return NextResponse.json({ error: `${label} not found` }, { status: 404 });
     }
 
     // Build the update payload; marketplace side-effects (slug, invite code) are

@@ -60,6 +60,13 @@ export type CampaignFilters = {
   search?: string;
   status: CampaignStatus[];
   clientIds: string[];
+  /**
+   * A single folder, unlike the multi-selects around it. A folder is where a
+   * campaign is filed, so the list shows one folder's contents the way a folder
+   * works everywhere else — and the literal "none" narrows to the unfiled ones,
+   * which is the only way to find them again.
+   */
+  folderId?: string;
   campaignType: CampaignType[];
   tags: string[];
   teamMemberIds: string[];
@@ -69,9 +76,12 @@ export type CampaignFilters = {
   hasPosts?: boolean;
 };
 
+export const UNFILED = "none";
+
 export const campaignFilterSchema = z.object({
   search: z.string().optional(),
   status: csvEnumParam(CAMPAIGN_STATUSES),
+  folderId: z.string().optional(),
   clientIds: z
     .string()
     .optional()
@@ -98,6 +108,7 @@ export function readCampaignFilters(sp: Record<string, string | string[] | undef
   const parsed = campaignFilterSchema.safeParse({
     search: firstParam(sp.q ?? sp.search),
     status: firstParam(sp.status),
+    folderId: firstParam(sp.folderId),
     clientIds: firstParam(sp.clientIds),
     campaignType: firstParam(sp.campaignType),
     tags: firstParam(sp.tags),
@@ -117,6 +128,9 @@ export function campaignWhere(orgId: string, f: CampaignFilters): Prisma.Campaig
     orgId,
     deletedAt: null,
     ...(f.status.length && { status: { in: f.status } }),
+    // An unknown folder id is left to narrow to nothing rather than 400 — the
+    // folder may have been deleted since the URL was shared.
+    ...(f.folderId && (f.folderId === UNFILED ? { folderId: null } : { folderId: f.folderId })),
     ...(f.clientIds.length && { clientId: { in: f.clientIds } }),
     ...(f.campaignType.length && { campaignType: { in: f.campaignType } }),
     // Both are many-to-many, so several selected values widen the result set
@@ -142,6 +156,7 @@ export function campaignWhere(orgId: string, f: CampaignFilters): Prisma.Campaig
 export function countCampaignFilters(f: CampaignFilters): number {
   return (
     (f.status.length ? 1 : 0) +
+    (f.folderId ? 1 : 0) +
     (f.clientIds.length ? 1 : 0) +
     (f.campaignType.length ? 1 : 0) +
     (f.tags.length ? 1 : 0) +

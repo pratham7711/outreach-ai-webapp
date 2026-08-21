@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { findForeignRef } from "@/lib/tenantRefs";
 import { authenticateRequest, getAuditActor } from "@/lib/authenticate";
 import { requirePermission } from "@/lib/authz";
 import { logAudit } from "@/lib/audit";
@@ -111,6 +112,15 @@ export async function POST(request: NextRequest) {
     }
 
     const { title, status, campaignType, typeConfig, budget, currency, notes, clientId, folderId, thumbnailUrl, paymentMode, paymentRelease, postApprovalMode, enrollmentOpen } = parsed.data;
+
+    // clientId and folderId arrive in the body, so they have to be proven to
+    // belong to this org before they are written. Without this a caller could
+    // file their campaign under another tenant's client or folder, and the next
+    // render of this list would print that tenant's name back to them.
+    const foreign = await findForeignRef(orgId, { clientId, folderId });
+    if (foreign) {
+      return NextResponse.json({ error: `${foreign === "client" ? "Client" : "Folder"} not found` }, { status: 404 });
+    }
 
     const campaign = await db.campaign.create({
       data: {

@@ -28,7 +28,8 @@ export default async function CampaignsPage({
   // over that set, are left out of their own counts.
   const tabBase = campaignWhere(orgId, { ...filters, status: [], search: undefined });
 
-  const [campaigns, filteredTotal, statusGroups, creatorCount, clients, orgTags, orgTeam] = await Promise.all([
+  const [campaigns, filteredTotal, statusGroups, creatorCount, clients, orgTags, orgTeam, folderRows, folderCounts, unfiledCount] =
+    await Promise.all([
     db.campaign.findMany({
       where,
       include: {
@@ -62,7 +63,25 @@ export default async function CampaignsPage({
       distinct: ["userId"],
       orderBy: { user: { name: "asc" } },
     }),
+    // The folder list and its counts are deliberately NOT narrowed by the
+    // current filters: a folder's count is how many campaigns are filed there,
+    // and a count that shrank as you typed in the search box would be a
+    // different number wearing the same label.
+    db.folder.findMany({ where: { orgId }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    db.campaign.groupBy({
+      by: ["folderId"],
+      where: { orgId, deletedAt: null, folderId: { not: null } },
+      _count: { _all: true },
+    }),
+    db.campaign.count({ where: { orgId, deletedAt: null, folderId: null } }),
   ]);
+
+  const campaignsPerFolder = new Map(folderCounts.map((row) => [row.folderId, row._count._all]));
+  const folders = folderRows.map((f) => ({
+    id: f.id,
+    name: f.name,
+    campaigns: campaignsPerFolder.get(f.id) ?? 0,
+  }));
 
   const statusCounts: Record<string, number> = { ALL: 0 };
   for (const g of statusGroups) {
@@ -106,6 +125,7 @@ export default async function CampaignsPage({
         budget: c.budget,
         team: c.teamMembers.map((m) => m.user),
         tags: c.tags.map((t) => t.tag),
+        folderId: c.folderId,
       }))}
       stats={{
         total: statusCounts.ALL,
@@ -130,7 +150,10 @@ export default async function CampaignsPage({
         tags: firstParam(sp.tags),
         teamMemberIds: firstParam(sp.teamMemberIds),
       }}
-      filterCount={countCampaignFilters({ ...filters, status: [] })}
+      filterCount={countCampaignFilters({ ...filters, status: [], folderId: undefined })}
+      folders={folders}
+      folderId={filters.folderId}
+      unfiledCount={unfiledCount}
     />
   );
 }

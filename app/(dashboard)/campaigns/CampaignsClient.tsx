@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Search, Target, Sun, Zap, CheckCircle2, XCircle, Wallet, Users, FileText, LayoutList } from "lucide-react";
+import { Plus, Search, Target, Sun, Zap, CheckCircle2, XCircle, Wallet, Users, FileText, LayoutList, Folder } from "lucide-react";
 import Link from "next/link";
 import { Button, Card, Badge, Input, EmptyState, Avatar } from "@pratham7711/ui";
 import { StatusTabs, Pagination, FilterDrawer, FilterButton } from "@/components/ds";
@@ -12,6 +12,8 @@ import { formatCompactCurrency, timeAgo } from "@/lib/format";
 import { useListQuery } from "@/lib/useListQuery";
 import { CAMPAIGNS_PAGE_SIZE } from "@/lib/listPageSize";
 import { imgSrc } from "@/lib/postMedia";
+import FoldersPanel, { type FolderOption } from "./FoldersPanel";
+import { UNFILED } from "@/lib/listFilters";
 
 type Campaign = {
   id: string;
@@ -26,6 +28,7 @@ type Campaign = {
   budget: number | null;
   team: { id: string; name: string; avatarUrl: string | null }[];
   tags: string[];
+  folderId: string | null;
 };
 
 type Client = { id: string; name: string };
@@ -70,6 +73,88 @@ const STATUS_BADGE_VARIANT: Record<string, "warning" | "accent" | "success" | "d
  * of two initials. Falls back to the initials avatar only when there is genuinely
  * no image, so a missing thumbnail still reads as a campaign rather than a hole.
  */
+/**
+ * Files a campaign from the row it is on. Deliberately quieter than the status
+ * dropdown next to it: filing is bookkeeping, and it should not compete with
+ * the campaign's state for attention. Hidden entirely when the org has no
+ * folders — a picker whose only option is "Unfiled" is not a choice.
+ */
+function FolderSelect({
+  id,
+  folderId,
+  folders,
+}: {
+  id: string;
+  folderId: string | null;
+  folders: FolderOption[];
+}) {
+  const router = useRouter();
+  const [value, setValue] = useState(folderId ?? "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => setValue(folderId ?? ""), [folderId]);
+
+  if (folders.length === 0) return null;
+
+  async function change(next: string) {
+    const previous = value;
+    setValue(next);
+    setSaving(true);
+    setError(null);
+    try {
+      // "" is the unfiled option, and null is how the API clears the column.
+      await patchCampaign(id, { folderId: next === "" ? null : next });
+      router.refresh();
+    } catch (e) {
+      setValue(previous);
+      setError(e instanceof Error ? e.message : "Could not move campaign");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <span style={{ display: "inline-flex", flexDirection: "column", gap: 4, alignItems: "flex-end" }}>
+      <select
+        aria-label="Campaign folder"
+        value={value}
+        disabled={saving}
+        onChange={(e) => change(e.target.value)}
+        style={{
+          appearance: "none",
+          background: "var(--cc-card)",
+          color: value ? "var(--cc-text)" : "var(--cc-text-muted)",
+          border: "1px solid var(--cc-border)",
+          borderRadius: 8,
+          padding: "6px 26px 6px 10px",
+          fontSize: 13,
+          fontWeight: 600,
+          maxWidth: 150,
+          cursor: saving ? "progress" : "pointer",
+          opacity: saving ? 0.65 : 1,
+          backgroundImage:
+            "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' stroke='%239097B4' stroke-width='1.6' fill='none' stroke-linecap='round'/></svg>\")",
+          backgroundRepeat: "no-repeat",
+          backgroundPosition: "right 9px center",
+        }}
+      >
+        <option value="">Unfiled</option>
+        {folders.map((f) => (
+          <option key={f.id} value={f.id}>
+            {f.name}
+          </option>
+        ))}
+      </select>
+      {error && (
+        <span style={{ fontSize: 11, color: "#DC2626", maxWidth: 160, textAlign: "right" }} role="alert">
+          {error}
+        </span>
+      )}
+    </span>
+  );
+}
+
 function CampaignThumb({ title, src, size = 44 }: { title: string; src?: string | null; size?: number }) {
   const url = imgSrc(src, size * 2); // doubled for retina
   if (!url) return <Avatar name={title} size="md" />;
@@ -109,6 +194,18 @@ function CampaignThumb({ title, src, size = 44 }: { title: string; src?: string 
  * the database refused. The error sits next to the control rather than in a
  * toast, because the control is what the reader needs to retry.
  */
+async function patchCampaign(id: string, body: Record<string, unknown>) {
+  const res = await fetch(`/api/campaigns/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const payload = await res.json().catch(() => ({}));
+    throw new Error(payload.error ?? `Update failed (${res.status})`);
+  }
+}
+
 function StatusSelect({ id, status }: { id: string; status: string }) {
   const router = useRouter();
   const [value, setValue] = useState(status);
@@ -125,15 +222,7 @@ function StatusSelect({ id, status }: { id: string; status: string }) {
     setSaving(true);
     setError(null);
     try {
-      const res = await fetch(`/api/campaigns/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: next }),
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.error ?? `Update failed (${res.status})`);
-      }
+      await patchCampaign(id, { status: next });
       router.refresh();
     } catch (e) {
       setValue(previous);
@@ -224,6 +313,9 @@ export default function CampaignsClient({
   teamOptions,
   filterValues,
   filterCount,
+  folders,
+  folderId,
+  unfiledCount,
 }: {
   campaigns: Campaign[];
   stats: { total: number; active: number; creatorCount: number };
@@ -237,10 +329,14 @@ export default function CampaignsClient({
   teamOptions: TeamOption[];
   filterValues: FilterValues;
   filterCount: number;
+  folders: FolderOption[];
+  folderId?: string;
+  unfiledCount: number;
 }) {
   const [search, setSearch] = useState(q);
   const [showModal, setShowModal] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  const [showFolders, setShowFolders] = useState(false);
   // Defaults are passed as undefined so they stay out of the URL entirely —
   // /campaigns rather than /campaigns?status=ALL&page=1. The drawer's values
   // ride along so changing a tab or page keeps the filters applied.
@@ -248,8 +344,12 @@ export default function CampaignsClient({
     q,
     status: status === "ALL" ? undefined : status,
     page: page === 1 ? undefined : page,
+    folderId,
     ...filterValues,
   });
+
+  const selectedFolder = folderId && folderId !== UNFILED ? folders.find((f) => f.id === folderId) : undefined;
+  const folderLabel = folderId === UNFILED ? "Unfiled" : selectedFolder?.name;
 
   const FILTERS: FilterDef[] = [
     {
@@ -285,10 +385,10 @@ export default function CampaignsClient({
     },
   ];
 
-  const anyFilter = Boolean(q) || status !== "ALL" || filterCount > 0;
+  const anyFilter = Boolean(q) || status !== "ALL" || filterCount > 0 || Boolean(folderId);
   const clearEverything = () => {
     setSearch("");
-    const cleared: Record<string, null> = { q: null, status: null, page: null };
+    const cleared: Record<string, null> = { q: null, status: null, page: null, folderId: null };
     for (const key of Object.keys(filterValues)) cleared[key] = null;
     push(cleared);
   };
@@ -328,6 +428,14 @@ export default function CampaignsClient({
           </p>
         </div>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <Button
+            variant="secondary"
+            iconLeft={<Folder size={15} />}
+            size="sm"
+            onClick={() => setShowFolders(true)}
+          >
+            Folders{folders.length > 0 ? ` (${folders.length})` : ""}
+          </Button>
           <Button variant="primary" iconLeft={<Plus size={15} />} size="sm" onClick={() => setShowModal(true)}>
             New Campaign
           </Button>
@@ -346,6 +454,30 @@ export default function CampaignsClient({
         </div>
         <FilterButton count={filterCount} onClick={() => setShowFilters(true)} />
       </div>
+
+      {folderLabel && (
+        <div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
+          <span
+            style={{
+              display: "inline-flex", alignItems: "center", gap: 8,
+              background: "color-mix(in srgb, var(--cc-primary) 8%, transparent)",
+              border: "1px solid var(--cc-primary)", color: "var(--cc-primary)",
+              borderRadius: 999, padding: "5px 12px", fontSize: 13, fontWeight: 600,
+            }}
+          >
+            <Folder size={13} aria-hidden="true" />
+            {folderLabel}
+            <button
+              type="button"
+              aria-label="Clear folder filter"
+              onClick={() => push({ folderId: null, page: null })}
+              style={{ background: "none", border: "none", padding: 0, cursor: "pointer", color: "inherit", lineHeight: 1, fontSize: 15 }}
+            >
+              ×
+            </button>
+          </span>
+        </div>
+      )}
 
       {/* Status Tabs */}
       <StatusTabs
@@ -476,6 +608,7 @@ export default function CampaignsClient({
                 )}
               </div>
 
+              <FolderSelect id={campaign.id} folderId={campaign.folderId} folders={folders} />
               <StatusSelect id={campaign.id} status={campaign.status} />
             </div>
           ))}
@@ -500,6 +633,19 @@ export default function CampaignsClient({
         filters={FILTERS}
         values={filterValues}
         onApply={(next) => push({ ...next, page: null })}
+      />
+
+      <FoldersPanel
+        open={showFolders}
+        onClose={() => setShowFolders(false)}
+        folders={folders}
+        unfiled={unfiledCount}
+        // Not stats.total: that one is narrowed by whatever filters are active,
+        // including the folder itself, so "All campaigns" would report the
+        // selected folder's size. Filed plus unfiled is every campaign, always.
+        total={unfiledCount + folders.reduce((n, f) => n + f.campaigns, 0)}
+        selected={folderId}
+        onSelect={(next) => push({ folderId: next, page: null })}
       />
 
       {showModal && <CampaignWizard clients={clients} onClose={() => setShowModal(false)} />}
