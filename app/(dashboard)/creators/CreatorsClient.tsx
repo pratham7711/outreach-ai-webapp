@@ -20,6 +20,8 @@ type Creator = {
   platform: string;
   avatarUrl: string | null;
   followerCount: number | null;
+  /** Distinct campaigns, counted from posts as well as activations. */
+  campaignCount: number;
   avgViews: number | null;
   _count: { activations: number; posts: number };
 };
@@ -104,6 +106,16 @@ export default function CreatorsClient({
 
   const filtered = creators;
   const totalPages = Math.max(1, Math.ceil(total / CREATORS_PAGE_SIZE));
+
+  /* A stat nobody on this page has is not shown at all. Follower counts came
+     across empty for 1,823 of 1,834 creators, and a column of em dashes is a
+     column pretending to hold a measurement. */
+  const hasFollowers = filtered.some((c) => c.followerCount);
+  const hasAvgViews = filtered.some((c) => c.avgViews);
+  const optionalStats = [
+    hasFollowers && { key: "followers", label: "Followers", read: (c: Creator) => c.followerCount },
+    hasAvgViews && { key: "avgViews", label: "Avg. Views", read: (c: Creator) => c.avgViews },
+  ].filter(Boolean) as { key: string; label: string; read: (c: Creator) => number | null }[];
 
   return (
     <div className="rsp-page">
@@ -193,16 +205,19 @@ export default function CreatorsClient({
                     </Badge>
                   </span>
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>
-                  <div>
-                    <p style={{ fontSize: 11, color: "var(--cc-text-subtle)", marginBottom: 3, fontWeight: 600, letterSpacing: "0.3px", textTransform: "uppercase" }}>Followers</p>
-                    <p style={{ fontWeight: 700, fontSize: 16, color: "var(--cc-text)" }}>{creator.followerCount ? formatNumber(creator.followerCount) : "—"}</p>
+                {optionalStats.length > 0 && (
+                  <div style={{ display: "grid", gridTemplateColumns: `repeat(${optionalStats.length}, 1fr)`, gap: 12, marginBottom: 20 }}>
+                    {optionalStats.map((stat) => {
+                      const value = stat.read(creator);
+                      return (
+                        <div key={stat.key}>
+                          <p style={{ fontSize: 11, color: "var(--cc-text-subtle)", marginBottom: 3, fontWeight: 600, letterSpacing: "0.3px", textTransform: "uppercase" }}>{stat.label}</p>
+                          <p style={{ fontWeight: 700, fontSize: 16, color: "var(--cc-text)" }}>{value ? formatNumber(value) : ""}</p>
+                        </div>
+                      );
+                    })}
                   </div>
-                  <div>
-                    <p style={{ fontSize: 11, color: "var(--cc-text-subtle)", marginBottom: 3, fontWeight: 600, letterSpacing: "0.3px", textTransform: "uppercase" }}>Avg. Views</p>
-                    <p style={{ fontWeight: 700, fontSize: 16, color: "var(--cc-text)" }}>{creator.avgViews ? formatNumber(creator.avgViews) : "—"}</p>
-                  </div>
-                </div>
+                )}
                 <div className="ui-btn ui-btn-ghost ui-btn-sm" style={{ width: "100%", justifyContent: "center", pointerEvents: "none" }} aria-hidden="true">View Profile</div>
               </Card>
             </Link>
@@ -214,7 +229,7 @@ export default function CreatorsClient({
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ background: "var(--cc-hover-bg)" }}>
-                {["Creator", "Platform", "Followers", "Avg. Views", "Campaigns", "Posts"].map((h) => (
+                {["Creator", "Platform", ...optionalStats.map((s) => s.label), "Campaigns", "Posts"].map((h) => (
                   <th key={h} style={{ textAlign: "left", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--cc-text-subtle)", padding: "12px 24px" }}>{h}</th>
                 ))}
               </tr>
@@ -234,9 +249,15 @@ export default function CreatorsClient({
                   <td style={{ padding: "14px 24px" }}>
                     <Badge variant={PLATFORM_BADGE_VARIANT[c.platform] ?? "neutral"}>{platformLabel(c.platform)}</Badge>
                   </td>
-                  <td style={{ padding: "14px 24px", fontSize: 14, fontWeight: 500, color: "var(--cc-text)" }}>{c.followerCount ? formatNumber(c.followerCount) : "—"}</td>
-                  <td style={{ padding: "14px 24px", fontSize: 14, fontWeight: 500, color: "var(--cc-text)" }}>{c.avgViews ? formatNumber(c.avgViews) : "—"}</td>
-                  <td style={{ padding: "14px 24px", fontSize: 14, fontWeight: 500, color: "var(--cc-text)" }}>{c._count.activations}</td>
+                  {optionalStats.map((stat) => {
+                    const value = stat.read(c);
+                    return (
+                      <td key={stat.key} style={{ padding: "14px 24px", fontSize: 14, fontWeight: 500, color: "var(--cc-text)" }}>
+                        {value ? formatNumber(value) : ""}
+                      </td>
+                    );
+                  })}
+                  <td style={{ padding: "14px 24px", fontSize: 14, fontWeight: 500, color: "var(--cc-text)" }}>{c.campaignCount}</td>
                   <td style={{ padding: "14px 24px", fontSize: 14, fontWeight: 500, color: "var(--cc-text)" }}>{c._count.posts}</td>
                 </tr>
               ))}

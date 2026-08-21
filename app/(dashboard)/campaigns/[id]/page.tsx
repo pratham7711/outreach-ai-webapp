@@ -242,8 +242,10 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
   const [selectedCreatorId, setSelectedCreatorId] = useState("");
   const [clients, setClients] = useState<{ id: string; name: string }[]>([]);
   const [clientsLoaded, setClientsLoaded] = useState(false);
+  // budget is held as a string so the field can be left empty, which means
+  // "not recorded" rather than zero.
   const [editForm, setEditForm] = useState({
-    title: "", status: "", currency: "USD", notes: "", clientId: "",
+    title: "", status: "", currency: "USD", notes: "", clientId: "", budget: "",
   });
   const [saving, setSaving] = useState(false);
 
@@ -276,6 +278,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
         currency: campaign.currency,
         notes: campaign.notes ?? "",
         clientId: campaign.clientId ?? "",
+        budget: campaign.budget != null ? String(campaign.budget) : "",
       });
       const rates: Partial<Record<(typeof MARKETPLACE_PLATFORMS)[number], string>> = {};
       const src = campaign.ratePerThousand ?? {};
@@ -331,6 +334,8 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
         currency: editForm.currency,
         notes: editForm.notes || null,
         clientId: editForm.clientId || null,
+        // Emptying the field unsets the budget; it must not become 0.
+        budget: editForm.budget.trim() === "" ? null : Number(editForm.budget),
       };
         const res = await fetch(`/api/campaigns/${id}`, {
         method: "PATCH",
@@ -558,10 +563,18 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
         {/* Overview */}
         {activeTab === "overview" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+            {/* A figure nobody recorded is not shown at all: budget is optional to
+                enter, and engagement is absent on most imported posts. Neither
+                gets a zero or a dash standing in for the real number. */}
             <div className="rsp-grid-tiles">
               <MetricTile metric="totalViews" value={formatNumber(totalViews)} />
-              <MetricTile metric="engagementRate" label="Avg engagement" value={avgEngagement > 0 ? avgEngagement.toFixed(1) + "%" : "—"} />
+              {avgEngagement > 0 && (
+                <MetricTile metric="engagementRate" label="Avg engagement" value={avgEngagement.toFixed(1) + "%"} />
+              )}
               <MetricTile metric="campaignCreators" value={String(roster.length)} />
+              {campaign.budget != null && (
+                <MetricTile metric="totalBudget" value={formatCompactCurrency(campaign.budget, campaign.currency)} />
+              )}
             </div>
 
             {/* Brief */}
@@ -790,6 +803,22 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                       {["USD", "EUR", "GBP", "INR"].map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
                   </div>
+                </div>
+                <div>
+                  <label htmlFor="edit-budget" style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>
+                    Budget <span style={{ fontWeight: 500, color: "var(--cc-text-muted)" }}>(optional)</span>
+                  </label>
+                  <input
+                    id="edit-budget"
+                    type="number"
+                    min={0}
+                    step="any"
+                    inputMode="decimal"
+                    placeholder="Leave blank if not tracking one"
+                    value={editForm.budget}
+                    onChange={e => setEditForm(f => ({ ...f, budget: e.target.value }))}
+                    style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-border)", fontSize: 14, color: "var(--cc-text)", background: "var(--cc-card)", outline: "none" }}
+                  />
                 </div>
                 <div>
                   <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Client</label>

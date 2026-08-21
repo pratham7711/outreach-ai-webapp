@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { authenticateRequest, getAuditActor } from "@/lib/authenticate";
 import { logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
+import { deriveCampaignCounts } from "@/lib/creatorMetrics";
 
 const updateCreatorSchema = z.object({
   name: z.string().optional(),
@@ -42,16 +43,17 @@ export async function GET(
           orderBy: { postedAt: "desc" },
           take: 50,
         },
-        payouts: {
-          include: { campaign: { select: { id: true, title: true } } },
-          orderBy: { createdAt: "desc" },
-          take: 20,
-        },
-        _count: { select: { activations: true, posts: true, payouts: true } },
+        _count: { select: { activations: true, posts: true } },
       },
     });
     if (!creator) return NextResponse.json({ error: "Not found" }, { status: 404 });
-    return NextResponse.json(creator);
+    // Campaigns counted from posts as well as activations: activations did not
+    // import from CreatorCore, so the relation count alone reads 0.
+    const campaignCounts = await deriveCampaignCounts([creator.id]);
+    return NextResponse.json({
+      ...creator,
+      campaignCount: campaignCounts.get(creator.id) ?? 0,
+    });
   } catch (e) {
     return NextResponse.json({ error: "Failed" }, { status: 500 });
   }

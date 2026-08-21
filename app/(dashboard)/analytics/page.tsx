@@ -185,15 +185,18 @@ export default function AnalyticsPage() {
                 />
                 <MetricTile metric="totalLikes" value={formatNumber(k.totalLikes)} />
                 <MetricTile metric="totalComments" value={formatNumber(k.totalComments)} />
-                <MetricTile
-                  metric="avgEngagementRate"
-                  value={k.engagementSample > 0 ? `${k.avgEngagementRate.toFixed(1)}%` : "—"}
-                  footer={
-                    k.engagementSample > 0 && k.engagementSample < k.totalPosts
-                      ? `from ${formatNumber(k.engagementSample)} of ${formatNumber(k.totalPosts)} posts`
-                      : undefined
-                  }
-                />
+                {/* Absent entirely when no post in range carries a rate. */}
+                {k.engagementSample > 0 && (
+                  <MetricTile
+                    metric="avgEngagementRate"
+                    value={`${k.avgEngagementRate.toFixed(1)}%`}
+                    footer={
+                      k.engagementSample < k.totalPosts
+                        ? `from ${formatNumber(k.engagementSample)} of ${formatNumber(k.totalPosts)} posts`
+                        : undefined
+                    }
+                  />
+                )}
               </div>
 
               <SectionCard

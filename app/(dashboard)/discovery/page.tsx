@@ -378,19 +378,22 @@ export default function DiscoveryPage() {
                 </div>
                 <Badge variant="neutral" style={{ fontSize: 10 }}>{platformLabel(c.platform)}</Badge>
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)" }}>{c.followersCount ? formatNumber(c.followersCount) : "—"}</div>
-                  <div style={{ fontSize: 11, color: "var(--cc-text-muted)" }}>Followers</div>
-                </div>
-                <div style={{ textAlign: "center" }}>
-                  <div style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)" }}>{c.avgViews !== null ? formatNumber(c.avgViews) : "—"}</div>
-                  <div style={{ fontSize: 11, color: "var(--cc-text-muted)" }}>Avg Views</div>
-                </div>
-                <div style={{ textAlign: "right" }}>
-                  <div style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)" }}>{c.campaignCount}</div>
-                  <div style={{ fontSize: 11, color: "var(--cc-text-muted)" }}>Campaigns</div>
-                </div>
+              {/* Only the figures this creator has. Follower counts did not come
+                  across in the import for all but eleven of them, and a slot
+                  reading "—" claims a measurement nobody took. */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 16 }}>
+                {[
+                  c.followersCount ? { label: "Followers", value: c.followersCount } : null,
+                  c.avgViews ? { label: "Avg Views", value: c.avgViews } : null,
+                  { label: "Campaigns", value: c.campaignCount },
+                ]
+                  .filter((stat): stat is { label: string; value: number } => stat !== null)
+                  .map((stat) => (
+                    <div key={stat.label}>
+                      <div style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)" }}>{formatNumber(stat.value)}</div>
+                      <div style={{ fontSize: 11, color: "var(--cc-text-muted)" }}>{stat.label}</div>
+                    </div>
+                  ))}
               </div>
               <div style={{ display: "flex", gap: 8 }}>
                 <Link prefetch={false} href={`/creators/${c.id}`} style={{ flex: 1, textDecoration: "none" }}>

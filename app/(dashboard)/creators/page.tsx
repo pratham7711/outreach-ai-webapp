@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { deriveAverageViews } from "@/lib/creatorMetrics";
+import { deriveAverageViews, deriveCampaignCounts } from "@/lib/creatorMetrics";
 import CreatorsClient from "./CreatorsClient";
 import { CREATORS_PAGE_SIZE } from "@/lib/listPageSize";
 import { countCreatorFilters, creatorWhere, firstParam, readCreatorFilters } from "@/lib/listFilters";
@@ -45,7 +45,13 @@ export default async function CreatorsPage({
     platformCounts.All += g._count;
   }
 
-  const derivedAvgViews = await deriveAverageViews(creators.map((c) => c.id));
+  // Both measured from the posts: the stored averageViews column is always 0,
+  // and counting activations alone reads 0 campaigns for the imported roster.
+  const ids = creators.map((c) => c.id);
+  const [derivedAvgViews, campaignCounts] = await Promise.all([
+    deriveAverageViews(ids),
+    deriveCampaignCounts(ids),
+  ]);
 
   return (
     <CreatorsClient
@@ -57,6 +63,7 @@ export default async function CreatorsPage({
         avatarUrl: c.avatarUrl,
         followerCount: c.followersCount,
         avgViews: derivedAvgViews.get(c.id) ?? null,
+        campaignCount: campaignCounts.get(c.id) ?? 0,
         _count: c._count,
       }))}
       platformCounts={platformCounts}

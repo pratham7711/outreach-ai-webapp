@@ -10,6 +10,9 @@ jest.mock('@/lib/db', () => ({
       findFirst: jest.fn(),
       update: jest.fn(),
     },
+    // Campaign counts are derived from posts and activations.
+    post: { groupBy: jest.fn().mockResolvedValue([]) },
+    activation: { groupBy: jest.fn().mockResolvedValue([]) },
   },
 }));
 

@@ -3,7 +3,7 @@ import { useState, useEffect, use } from "react";
 import { motion } from "framer-motion";
 import {
   ArrowLeft, Eye, Heart, MessageCircle, Share2, Play, ChevronRight, ExternalLink, DollarSign, Pencil, Plus, Trash2, Users,
-  User, Video, ClipboardList, Link2, Banknote,
+  User, Video, ClipboardList, Link2,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -39,7 +39,7 @@ const STATUS_VARIANT: Record<string, "warning" | "success" | "danger" | "neutral
   DECLINED: "danger",
 };
 
-type Tab = "profile" | "posts" | "campaigns" | "payouts" | "social";
+type Tab = "profile" | "posts" | "campaigns" | "social";
 
 type SocialAccount = {
   id: string;
@@ -81,15 +81,6 @@ type Post = {
   campaign: { id: string; title: string } | null;
 };
 
-type PayoutItem = {
-  id: string;
-  amount: number;
-  status: string;
-  currency: string;
-  createdAt: string;
-  campaign: { id: string; title: string } | null;
-};
-
 type Creator = {
   id: string;
   name: string;
@@ -108,8 +99,9 @@ type Creator = {
     campaign: { id: string; title: string; status: string; budget: number | null; currency: string };
   }[];
   posts: Post[];
-  payouts: PayoutItem[];
-  _count: { activations: number; posts: number; payouts: number };
+  /** Distinct campaigns, counted from posts as well as activations. */
+  campaignCount: number;
+  _count: { activations: number; posts: number };
 };
 
 const responsiveStyles = `
@@ -500,8 +492,7 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
   const tabsList: { label: string; value: Tab; count?: number }[] = [
     { label: "Profile", value: "profile" },
     { label: "Posts", value: "posts", count: creator?._count.posts },
-    { label: "Campaigns", value: "campaigns", count: creator?._count.activations },
-    { label: "Payouts", value: "payouts", count: creator?._count.payouts },
+    { label: "Campaigns", value: "campaigns", count: creator?.campaignCount },
     { label: "Social Accounts", value: "social" },
   ];
 
@@ -511,10 +502,6 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
       <EmptyState icon={<User size={32} color="var(--cc-text-subtle)" />} title="Creator not found" description="This creator doesn't exist or has been removed." />
     </div>
   );
-
-  const totalEarnings = creator.payouts
-    .filter(p => p.status === "SUCCESS")
-    .reduce((sum, p) => sum + Number(p.amount), 0);
 
   const avgEngagement = creator.posts.length > 0
     ? creator.posts.reduce((sum, p) => sum + p.engagementRate, 0) / creator.posts.length
@@ -566,11 +553,18 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
           </div>
 
           {/* Stats row */}
+          {/* Only the figures this creator actually has. Follower counts and
+              engagement rates are absent for most of the imported roster, and a
+              tile reading 0 or "—" claims a measurement that was never taken. */}
           <div className="cd-stats-grid">
-            <MetricTile metric="followers" value={formatNumber(creator.followersCount)} />
-            <MetricTile metric="creatorCampaigns" value={String(creator._count.activations)} />
-            <MetricTile metric="creatorEarnings" value={totalEarnings > 0 ? "$" + formatNumber(totalEarnings) : "—"} />
-            <MetricTile metric="engagementRate" label="Avg engagement" value={avgEngagement > 0 ? avgEngagement.toFixed(1) + "%" : "—"} />
+            {creator.followersCount > 0 && (
+              <MetricTile metric="followers" value={formatNumber(creator.followersCount)} />
+            )}
+            <MetricTile metric="creatorCampaigns" value={String(creator.campaignCount)} />
+            <MetricTile metric="posts" label="Posts" value={formatNumber(creator._count.posts)} />
+            {avgEngagement > 0 && (
+              <MetricTile metric="engagementRate" label="Avg engagement" value={avgEngagement.toFixed(1) + "%"} />
+            )}
           </div>
         </div>
       </Card>
@@ -921,48 +915,6 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
           </div>
         )}
 
-        {/* Payouts Tab */}
-        {activeTab === "payouts" && (
-          creator.payouts.length === 0 ? (
-            <EmptyState icon={<Banknote size={32} color="var(--cc-text-subtle)" />} title="No payouts yet" description="Payment history will appear here." />
-          ) : (
-            <Card variant="solid" noPadding>
-              {/* Desktop header */}
-              <div className="cd-payouts-header">
-                {["Campaign", "Amount", "Status", "Date"].map(h => (
-                  <span key={h} style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--cc-text-subtle)" }}>{h}</span>
-                ))}
-              </div>
-              <div className="cc-stagger">
-                {creator.payouts.map((p, i) => (
-                  <div key={p.id}>
-                    {/* Desktop row */}
-                    <div
-                      className="cd-payout-row cc-table-row"
-                      style={{ borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined }}
-                    >
-                      <span style={{ fontSize: 14, color: "var(--cc-text)" }}>{p.campaign?.title ?? "—"}</span>
-                      <span style={{ fontSize: 14, fontWeight: 700, color: "var(--cc-text)" }}>{formatCurrency(Number(p.amount), p.currency)}</span>
-                      <Badge variant={STATUS_VARIANT[p.status] ?? "neutral"} dot>{p.status}</Badge>
-                      <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{formatDateAbs(p.createdAt)}</span>
-                    </div>
-                    {/* Mobile card */}
-                    <div className="cd-payout-card">
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <span style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>{p.campaign?.title ?? "—"}</span>
-                        <span style={{ fontSize: 15, fontWeight: 700, color: "var(--cc-text)" }}>{formatCurrency(Number(p.amount), p.currency)}</span>
-                      </div>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <Badge variant={STATUS_VARIANT[p.status] ?? "neutral"} dot>{p.status}</Badge>
-                        <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{formatDateAbs(p.createdAt)}</span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </Card>
-          )
-        )}
       </motion.div>
 
       <EditCreatorModal
