@@ -40,6 +40,12 @@ const STATUS_BADGE_VARIANT: Record<string, "warning" | "accent" | "success" | "d
   DRAFT: "neutral",
 };
 
+/* Shared by the header and every row; the fixed status column is what stops a
+   wide IN PROGRESS pill from shifting the numbers on its row. */
+const CAMPAIGN_COLS = {
+  "--cc-cols": "40px minmax(0, 1fr) 110px 90px 80px 60px 130px",
+} as React.CSSProperties;
+
 function formatCurrency(n: number) {
   return formatCompactCurrency(n);
 }
@@ -195,25 +201,26 @@ export default function CampaignsClient({
             />
           </div>
         ) : (
-          <div className="cc-stagger">
+          <div className="cc-stagger" style={CAMPAIGN_COLS}>
+            <div className="cc-list-row cc-list-head">
+              <span />
+              <span>Campaign</span>
+              <span className="cc-list-num cc-list-hide-sm">Budget</span>
+              <span className="cc-list-num cc-list-hide-sm">Creators</span>
+              <span className="cc-list-num cc-list-hide-sm">Posts</span>
+              <span className="cc-list-num cc-list-hide-sm">Team</span>
+              <span>Status</span>
+            </div>
+
             {filtered.map((campaign, i) => (
               <Link key={campaign.id} href={`/campaigns/${campaign.id}`} style={{ textDecoration: "none" }}>
                 <div
-                  className="cc-table-row"
-                  style={{
-                    display: "flex",
-                    flexWrap: "wrap",
-                    alignItems: "center",
-                    padding: "14px 20px",
-                    gap: 16,
-                    borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined,
-                  }}
+                  className="cc-table-row cc-list-row"
+                  style={{ borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined }}
                 >
-                  {/* Campaign Avatar/Thumbnail */}
                   <Avatar name={campaign.title} size="md" />
 
-                  {/* Campaign Name + Last Updated */}
-                  <div style={{ flex: 1, minWidth: 160 }}>
+                  <div style={{ minWidth: 0 }}>
                     <p title={campaign.title} style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)", marginBottom: 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                       {campaign.title}
                     </p>
@@ -222,53 +229,29 @@ export default function CampaignsClient({
                     </p>
                   </div>
 
-                  {/* Stats - wrap on mobile as a row of small stat blocks */}
-                  <div className="hidden sm:flex items-center gap-4" style={{ flexShrink: 0 }}>
-                    {/* Budget Column */}
-                    <div style={{ width: 80, textAlign: "center" }}>
-                      <p style={{ fontSize: 10, fontWeight: 600, color: "var(--cc-text-subtle)", letterSpacing: "0.5px", textTransform: "uppercase", marginBottom: 2 }}>
-                        Budget
-                      </p>
-                      <p style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>
-                        {campaign.budget ? formatCurrency(campaign.budget) : "N/A"}
-                      </p>
-                    </div>
+                  <p className="cc-list-num cc-list-hide-sm" style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>
+                    {campaign.budget ? formatCurrency(campaign.budget) : "N/A"}
+                  </p>
 
-                    {/* Creators Column */}
-                    <div style={{ width: 80, textAlign: "center" }}>
-                      <p style={{ fontSize: 10, fontWeight: 600, color: "var(--cc-text-subtle)", letterSpacing: "0.5px", textTransform: "uppercase", marginBottom: 2 }}>
-                        Creators
-                      </p>
-                      <p style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>
-                        {campaign.creatorCount}
-                      </p>
-                    </div>
+                  <p className="cc-list-num cc-list-hide-sm" style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>
+                    {campaign.creatorCount}
+                  </p>
 
-                    {/* Posts Column */}
-                    <div style={{ width: 60, textAlign: "center" }}>
-                      <p style={{ fontSize: 10, fontWeight: 600, color: "var(--cc-text-subtle)", letterSpacing: "0.5px", textTransform: "uppercase", marginBottom: 2 }}>
-                        Posts
-                      </p>
-                      <p style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>
-                        {campaign._count.posts}
-                      </p>
-                    </div>
+                  <p className="cc-list-num cc-list-hide-sm" style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>
+                    {campaign._count.posts}
+                  </p>
 
-                    {/* Team Column */}
-                    <div style={{ width: 60, display: "flex", justifyContent: "center" }}>
-                      <div className="cc-avatar-group">
-                        <Avatar name="T" size="sm" />
-                      </div>
+                  <div className="cc-list-hide-sm" style={{ display: "flex", justifyContent: "center" }}>
+                    <div className="cc-avatar-group">
+                      <Avatar name="T" size="sm" />
                     </div>
                   </div>
 
-                  {/* Status Badge */}
-                  <div style={{ flexShrink: 0 }}>
+                  <span style={{ justifySelf: "start" }}>
                     <Badge variant={STATUS_BADGE_VARIANT[campaign.status] ?? "neutral"} dot>
                       {campaign.status.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())}
                     </Badge>
-                  </div>
-
+                  </span>
                 </div>
               </Link>
             ))}

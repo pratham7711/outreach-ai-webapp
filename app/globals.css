@@ -1011,3 +1011,42 @@ h1, h2, h3, h4, h5, h6 {
   clip: auto;
   white-space: normal;
 }
+
+/*
+  ── List tables ──
+  The header and every row share one grid template, so a wider status badge can
+  no longer push the numeric columns out of line. The flex version let the name
+  column absorb the badge-width delta, which drifted the numbers 41px between
+  a DRAFT row and an IN PROGRESS one.
+*/
+.cc-list-row {
+  display: grid;
+  grid-template-columns: var(--cc-cols);
+  align-items: center;
+  gap: 16px;
+  padding: 14px 20px;
+}
+
+.cc-list-head {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--cc-text-subtle);
+  background: var(--cc-hover-bg);
+  border-bottom: 1px solid var(--cc-border);
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
+/* Digits line up column-wise only with tabular figures. */
+.cc-list-num {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 640px) {
+  .cc-list-row { grid-template-columns: 40px minmax(0, 1fr) auto; }
+  .cc-list-head { display: none; }
+  .cc-list-hide-sm { display: none; }
+}
