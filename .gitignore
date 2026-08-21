@@ -69,3 +69,8 @@ tmp/
 # CreatorCore extraction — login session + bulk data must never be committed
 scripts/creatorcore/out/
 scripts/creatorcore/.profile/
+
+# Generated from the gitignored CreatorCore capture; carries real creator
+# handles and reference-org campaign names. Regenerate with
+# node scripts/creatorcore/cc-render-inventory.mjs > docs/CREATORCORE_UI_INVENTORY.md
+docs/CREATORCORE_UI_INVENTORY.md
