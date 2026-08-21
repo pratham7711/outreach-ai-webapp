@@ -2,6 +2,7 @@ import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
 import type { SharedReportData } from "@/lib/reports/campaignPerformance";
 import { DEFAULT_SHARE_VISIBILITY, type ShareVisibility } from "@/lib/reports/shareVisibility";
 import { formatCompact } from "@/lib/format";
+import { ACTIVATION_STATUS_LABEL } from "@/lib/activationQueues";
 import { POWERED_BY } from "@/lib/brand";
 
 const styles = StyleSheet.create({
@@ -132,6 +133,8 @@ export function CampaignPerformancePDF({
   // Redacted server-side before it gets here, same as the web report.
   const { kpis, platformSplit, leaderboard, currency } = data;
   const showEmvColumn = leaderboard.some((r) => r.emv !== null);
+  // Matches the web report: dropped entirely when nobody on it has a status.
+  const showStatusColumn = leaderboard.some((r) => r.status !== null);
 
   // Engagement is unknown for posts we never fetched, so those cells are left
   // out of the report rather than printed as a zero or a dash.
@@ -197,6 +200,7 @@ export function CampaignPerformancePDF({
                 <Text style={[styles.tableHeaderCell, { flex: 1 }]}>Views</Text>
                 <Text style={[styles.tableHeaderCell, { flex: 1 }]}>Eng.</Text>
                 {showEmvColumn && <Text style={[styles.tableHeaderCell, { flex: 1 }]}>EMV</Text>}
+                {showStatusColumn && <Text style={[styles.tableHeaderCell, { flex: 1.4 }]}>Status</Text>}
               </View>
               {leaderboard.map((row) => (
                 <View key={row.creatorId} style={styles.tableRow}>
@@ -208,6 +212,11 @@ export function CampaignPerformancePDF({
                   </Text>
                   {row.emv !== null && (
                     <Text style={[styles.tableCell, { flex: 1 }]}>{fmtCurrency(row.emv, currency)}</Text>
+                  )}
+                  {showStatusColumn && (
+                    <Text style={[styles.tableCell, { flex: 1.4 }]}>
+                      {row.status ? ACTIVATION_STATUS_LABEL[row.status] ?? row.status : ""}
+                    </Text>
                   )}
                 </View>
               ))}

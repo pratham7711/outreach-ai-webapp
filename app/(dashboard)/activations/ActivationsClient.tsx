@@ -12,6 +12,8 @@ import { stripAt } from "@/lib/format";
 import {
   ACTIVATION_QUEUES,
   ACTIVATION_STAGE_COUNTERS,
+  ACTIVATION_STATUS_COLOR,
+  ACTIVATION_STATUS_LABEL,
   groupByQueue,
   countByStatuses,
 } from "@/lib/activationQueues";
@@ -25,17 +27,6 @@ type Activation = {
   campaign: { id: string; title: string };
 };
 
-const COLUMN_LABELS: Record<string, string> = {
-  AWAITING_DRAFT: "Awaiting Draft", DRAFT_SUBMITTED: "Draft Submitted",
-  AWAITING_APPROVAL: "Awaiting Approval", APPROVED: "Approved",
-  POSTING: "Posting", POSTED: "Posted", COMPLETE: "Complete", DECLINED: "Declined",
-};
-
-const COLUMN_COLORS: Record<string, string> = {
-  AWAITING_DRAFT: "#f59e0b", DRAFT_SUBMITTED: "#3b82f6", AWAITING_APPROVAL: "#f59e0b",
-  APPROVED: "#22c55e", POSTING: "var(--cc-primary)", POSTED: "#22c55e",
-  COMPLETE: "#16a34a", DECLINED: "#ef4444",
-};
 
 const NEXT_STATUS: Record<string, { label: string; status: string }[]> = {
   AWAITING_DRAFT: [{ label: "Submit Draft", status: "DRAFT_SUBMITTED" }],
@@ -149,8 +140,8 @@ function QueueSection({
 
                     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                       <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--cc-text-muted)" }}>
-                        <span style={{ width: 8, height: 8, borderRadius: "50%", background: COLUMN_COLORS[a.status] ?? "var(--cc-text-subtle)" }} />
-                        {COLUMN_LABELS[a.status] ?? a.status}
+                        <span style={{ width: 8, height: 8, borderRadius: "50%", background: ACTIVATION_STATUS_COLOR[a.status] ?? "var(--cc-text-subtle)" }} />
+                        {ACTIVATION_STATUS_LABEL[a.status] ?? a.status}
                       </span>
                       {actions.map((act) => (
                         <button
@@ -202,7 +193,7 @@ export default function ActivationsClient({ activations, stats }: {
         body: JSON.stringify({ status }),
       });
       if (res.ok) {
-        toast.success(`Moved to ${COLUMN_LABELS[status]}`);
+        toast.success(`Moved to ${ACTIVATION_STATUS_LABEL[status]}`);
         router.refresh();
       } else {
         const err = await res.json();

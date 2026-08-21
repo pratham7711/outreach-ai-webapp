@@ -84,7 +84,13 @@ describe("sanitizeShareVisibility", () => {
 
   it("drops unknown keys instead of persisting them", () => {
     const v = sanitizeShareVisibility({ showBudget: true, showSalaries: true, __proto__: { evil: 1 } });
-    expect(Object.keys(v).sort()).toEqual(["platforms", "showBudget", "showCreators", "showEmv"]);
+    expect(Object.keys(v).sort()).toEqual([
+      "platforms",
+      "showBudget",
+      "showCreators",
+      "showEmv",
+      "showStatuses",
+    ]);
   });
 
   it("dedupes platforms and rejects unknown ones", () => {
@@ -97,5 +103,40 @@ describe("sanitizeShareVisibility", () => {
     // would silently make a platform unselectable in the modal.
     const v = sanitizeShareVisibility({ platforms: [...SHARE_PLATFORMS] });
     expect(v.platforms).toEqual([...SHARE_PLATFORMS]);
+  });
+});
+
+describe("showStatuses", () => {
+  /* Activation statuses say who declined and what is still unposted, which is
+     agency-internal until an agency decides otherwise — so this one is closed by
+     default on every path, including a legacy link that predates it. */
+
+  it("is off for a legacy link, which never showed statuses", () => {
+    expect(parseShareVisibility({ kind: "campaign-performance" }).showStatuses).toBe(false);
+    expect(DEFAULT_SHARE_VISIBILITY.showStatuses).toBe(false);
+  });
+
+  it("is off unless stored as exactly true", () => {
+    for (const stored of ["true", 1, "yes", {}, [], null]) {
+      expect(
+        parseShareVisibility({ visibility: { showStatuses: stored } }).showStatuses
+      ).toBe(false);
+    }
+    expect(parseShareVisibility({ visibility: { showStatuses: true } }).showStatuses).toBe(true);
+  });
+
+  it("stays off when the client omits it, unlike the fields that default open", () => {
+    // sanitize opens showCreators/showEmv on absence for legacy continuity;
+    // this one has no legacy to preserve, so absence means off.
+    const sanitized = sanitizeShareVisibility({});
+    expect(sanitized.showStatuses).toBe(false);
+    expect(sanitized.showCreators).toBe(true);
+    expect(sanitizeShareVisibility({ showStatuses: true }).showStatuses).toBe(true);
+    expect(sanitizeShareVisibility({ showStatuses: "true" }).showStatuses).toBe(false);
+  });
+
+  it("survives a round trip through storage", () => {
+    const stored = sanitizeShareVisibility({ showStatuses: true, showBudget: true });
+    expect(parseShareVisibility({ visibility: stored })).toEqual(stored);
   });
 });

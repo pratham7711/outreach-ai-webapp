@@ -100,3 +100,42 @@ export function countByStatuses<T extends { status: string }>(
 ): number {
   return rows.filter((r) => statuses.includes(r.status)).length;
 }
+
+/**
+ * How an activation status is written and coloured, wherever it is shown.
+ *
+ * Lifted out of the Activations board when the shared campaign report started
+ * needing the same eight labels: two copies would drift the moment a status is
+ * added to the enum, and the client-facing report is the worst place to render a
+ * raw `AWAITING_DRAFT`.
+ */
+export const ACTIVATION_STATUS_LABEL: Record<string, string> = {
+  AWAITING_DRAFT: "Awaiting Draft",
+  DRAFT_SUBMITTED: "Draft Submitted",
+  AWAITING_APPROVAL: "Awaiting Approval",
+  APPROVED: "Approved",
+  POSTING: "Posting",
+  POSTED: "Posted",
+  COMPLETE: "Complete",
+  DECLINED: "Declined",
+};
+
+export const ACTIVATION_STATUS_COLOR: Record<string, string> = {
+  AWAITING_DRAFT: "#f59e0b",
+  DRAFT_SUBMITTED: "#3b82f6",
+  AWAITING_APPROVAL: "#f59e0b",
+  APPROVED: "#22c55e",
+  POSTING: "var(--cc-primary)",
+  POSTED: "#22c55e",
+  COMPLETE: "#16a34a",
+  DECLINED: "#ef4444",
+};
+
+/** Badge styling for one status — a tinted pill, same treatment everywhere. */
+export function activationStatusBadgeStyle(status: string): {
+  color: string;
+  background: string;
+} {
+  const color = ACTIVATION_STATUS_COLOR[status] ?? "var(--cc-text-muted)";
+  return { color, background: `color-mix(in srgb, ${color} 14%, transparent)` };
+}

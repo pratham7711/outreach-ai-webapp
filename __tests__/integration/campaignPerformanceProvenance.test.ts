@@ -9,6 +9,7 @@ jest.mock("@/lib/db", () => ({
   db: {
     post: { findMany: jest.fn() },
     postMetricSnapshot: { findMany: jest.fn() },
+    activation: { findMany: jest.fn() },
   },
 }));
 
@@ -18,6 +19,7 @@ import { computeCampaignPerformance } from "@/lib/reports/campaignPerformance";
 const mockDb = db as unknown as {
   post: { findMany: jest.Mock };
   postMetricSnapshot: { findMany: jest.Mock };
+  activation: { findMany: jest.Mock };
 };
 
 const campaign = { id: "camp-1", orgId: "org-1", budget: null, currency: "USD" };
@@ -43,6 +45,9 @@ function post(over: Record<string, unknown> = {}) {
 beforeEach(() => {
   jest.clearAllMocks();
   mockDb.postMetricSnapshot.findMany.mockResolvedValue([]);
+  // No activations by default — which is the state of every imported campaign,
+  // and the reason a leaderboard status is null rather than a default status.
+  mockDb.activation.findMany.mockResolvedValue([]);
 });
 
 describe("computeCampaignPerformance engagement provenance", () => {
@@ -104,5 +109,44 @@ describe("computeCampaignPerformance engagement provenance", () => {
     expect(result.kpis).not.toHaveProperty("cpm");
     expect(result.kpis).not.toHaveProperty("cpe");
     expect(result).not.toHaveProperty("spendSource");
+  });
+
+  it("leaves the status null for a creator with no activation on the campaign", async () => {
+    mockDb.post.findMany.mockResolvedValue([post()]);
+    const r = await computeCampaignPerformance(campaign);
+    expect(r.leaderboard[0].status).toBeNull();
+  });
+
+  it("carries the current status when the creator does have an activation", async () => {
+    mockDb.post.findMany.mockResolvedValue([post()]);
+    mockDb.activation.findMany.mockResolvedValue([
+      { creatorId: "creator-1", status: "APPROVED" },
+    ]);
+    const r = await computeCampaignPerformance(campaign);
+    expect(r.leaderboard[0].status).toBe("APPROVED");
+  });
+
+  it("takes the latest activation when a creator has more than one", async () => {
+    // The query orders by updatedAt ascending, so the last row wins — a creator
+    // re-briefed on the same campaign shows where they are now, not where they
+    // started.
+    mockDb.post.findMany.mockResolvedValue([post()]);
+    mockDb.activation.findMany.mockResolvedValue([
+      { creatorId: "creator-1", status: "DECLINED" },
+      { creatorId: "creator-1", status: "POSTED" },
+    ]);
+    const r = await computeCampaignPerformance(campaign);
+    expect(r.leaderboard[0].status).toBe("POSTED");
+    expect(mockDb.activation.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ orderBy: { updatedAt: "asc" } })
+    );
+  });
+
+  it("scopes the activation read to this campaign and skips deleted ones", async () => {
+    mockDb.post.findMany.mockResolvedValue([post()]);
+    await computeCampaignPerformance(campaign);
+    expect(mockDb.activation.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { campaignId: "camp-1", deletedAt: null } })
+    );
   });
 });

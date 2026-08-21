@@ -6,6 +6,7 @@ import {
 } from "@/lib/metrics";
 import { metricValue } from "@/lib/metricDisplay";
 import type { SharePlatform } from "@/lib/reports/shareVisibility";
+import type { ActivationStatus } from "@/lib/generated/prisma/client";
 
 type SeriesPlatform = "TIKTOK" | "INSTAGRAM" | "YOUTUBE";
 const SERIES_PLATFORMS: SeriesPlatform[] = ["TIKTOK", "INSTAGRAM", "YOUTUBE"];
@@ -34,6 +35,13 @@ export type CampaignPerformance = {
     engagements: number | null;
     engagementRate: number | null;
     emv: number;
+    /**
+     * The creator's activation status on this campaign, or null when they have
+     * no activation row — which is the case for every imported campaign, since
+     * CreatorCore's export carried posts but not activations. Null means "not
+     * tracked here", never a default status.
+     */
+    status: ActivationStatus | null;
   }[];
 };
 
@@ -60,13 +68,17 @@ export type SharedReportData = Omit<CampaignPerformance, "kpis" | "leaderboard">
  */
 export function redactForShare(
   data: CampaignPerformance,
-  visibility: { showCreators: boolean; showEmv: boolean }
+  visibility: { showCreators: boolean; showEmv: boolean; showStatuses?: boolean }
 ): SharedReportData {
   return {
     ...data,
     kpis: { ...data.kpis, emv: visibility.showEmv ? data.kpis.emv : null },
     leaderboard: visibility.showCreators
-      ? data.leaderboard.map((row) => ({ ...row, emv: visibility.showEmv ? row.emv : null }))
+      ? data.leaderboard.map((row) => ({
+          ...row,
+          emv: visibility.showEmv ? row.emv : null,
+          status: visibility.showStatuses ? row.status : null,
+        }))
       : [],
   };
 }
@@ -109,6 +121,17 @@ export async function computeCampaignPerformance(
           orderBy: { recordedAt: "asc" },
         })
       : [];
+
+  /* Statuses live on Activation, not on the posts, and a creator can hold more
+     than one activation on the same campaign (a re-brief, a second deliverable).
+     The most recently updated one is the current state, so ordering ascending
+     and letting later rows overwrite lands on it. */
+  const activations = await db.activation.findMany({
+    where: { campaignId: campaign.id, deletedAt: null },
+    select: { creatorId: true, status: true },
+    orderBy: { updatedAt: "asc" },
+  });
+  const statusByCreator = new Map(activations.map((a) => [a.creatorId, a.status]));
 
   const views = posts.reduce((s, p) => s + (p.viewsCount ?? 0), 0);
 
@@ -257,6 +280,7 @@ export async function computeCampaignPerformance(
             saves: p.savesCount,
           }))
       ),
+      status: statusByCreator.get(c.creatorId) ?? null,
     }))
     .sort((a, b) => b.views - a.views)
     .slice(0, 10);

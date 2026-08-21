@@ -358,6 +358,12 @@ function ShareModal({ campaignId, onClose }: { campaignId: string; onClose: () =
                   label="Total budget"
                   hint="Off by default — a brand does not see it unless you turn it on."
                 />
+                <VisibilityToggle
+                  checked={link.visibility.showStatuses}
+                  onChange={(next) => setVisibility({ ...link.visibility, showStatuses: next })}
+                  label="Creator statuses"
+                  hint="Where each activation stands, including who declined. Off by default."
+                />
               </div>
             </div>
 

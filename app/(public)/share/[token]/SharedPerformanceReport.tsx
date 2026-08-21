@@ -8,6 +8,7 @@ import { BarChart3 } from "lucide-react";
 import type { SharedReportData } from "@/lib/reports/campaignPerformance";
 import { DEFAULT_SHARE_VISIBILITY, type ShareVisibility } from "@/lib/reports/shareVisibility";
 import { formatCompact } from "@/lib/format";
+import { ACTIVATION_STATUS_LABEL, activationStatusBadgeStyle } from "@/lib/activationQueues";
 import { platformColor } from "@/app/(dashboard)/analytics/shared";
 import { BRAND, POWERED_BY } from "@/lib/brand";
 
@@ -23,6 +24,19 @@ function formatNumber(num: number): string {
 
 function formatCurrency(n: number, currency = "USD"): string {
   return new Intl.NumberFormat("en-US", { style: "currency", currency, maximumFractionDigits: 2 }).format(n);
+}
+
+/**
+ * Table-width currency. $1,135,602,774.32 is seventeen characters and ran off
+ * the right edge of the card, so per-row money is compacted to $1.1B and the
+ * exact figure moves to the cell's title. The KPI tiles keep the full number —
+ * they have the room, and a headline figure should not be rounded.
+ */
+function formatCurrencyCompact(n: number, currency = "USD"): string {
+  const symbol = currency === "USD" ? "$" : "";
+  return symbol
+    ? `${symbol}${formatCompact(n)}`
+    : `${formatCompact(n)} ${currency}`;
 }
 
 function formatDate(iso: string): string {
@@ -80,12 +94,21 @@ export default function SharedPerformanceReport({
   /* Engagement exists only for posts we fetched ourselves, so the column is
      dropped when no creator in this campaign has one. */
   const anyEngagementMeasured = leaderboard.some((r) => r.engagementRate !== null);
+  /* Statuses come from activations, which imported campaigns have none of, so
+     nothing renders when no creator on the report has one. Server-side redaction
+     has already nulled these when the link hides them.
+
+     The badge sits under the creator's name rather than in a sixth column: the
+     table lives in the narrower half of a two-column layout, and a sixth column
+     took its width out of the name column — which collapsed the names to
+     nothing and pushed the header past the card's right edge. */
+  const anyStatus = leaderboard.some((r) => r.status !== null);
   const rowCols = [
-    "1fr",
-    "70px",
-    "90px",
-    anyEngagementMeasured ? "80px" : null,
-    showEmvColumn ? "90px" : null,
+    "minmax(120px, 1fr)",
+    "56px",
+    "80px",
+    anyEngagementMeasured ? "64px" : null,
+    showEmvColumn ? "82px" : null,
   ]
     .filter(Boolean)
     .join(" ");
@@ -300,7 +323,7 @@ export default function SharedPerformanceReport({
                 </div>
                 {leaderboard.length > 0 ? (
                   <div style={{ overflowX: "auto" }}>
-                    <div style={{ minWidth: isMobile ? 420 : "auto" }}>
+                    <div style={{ minWidth: isMobile ? 420 : 520 }}>
                       <div style={{
                         display: "grid", gridTemplateColumns: rowCols,
                         gap: 12, padding: "10px 24px", borderBottom: "1px solid var(--cc-border)", background: "var(--cc-bg)",
@@ -333,7 +356,21 @@ export default function SharedPerformanceReport({
                                 row.name.charAt(0).toUpperCase()
                               )}
                             </div>
-                            <span title={row.name} style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.name}</span>
+                            <div style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 3 }}>
+                              <span title={row.name} style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.name}</span>
+                              {anyStatus && row.status && (
+                                <span
+                                  style={{
+                                    alignSelf: "flex-start",
+                                    fontSize: 10, fontWeight: 700, letterSpacing: "0.02em",
+                                    padding: "2px 7px", borderRadius: 999, whiteSpace: "nowrap",
+                                    ...activationStatusBadgeStyle(row.status),
+                                  }}
+                                >
+                                  {ACTIVATION_STATUS_LABEL[row.status] ?? row.status}
+                                </span>
+                              )}
+                            </div>
                           </div>
                           <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{row.posts}</span>
                           <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>{formatNumber(row.views)}</span>
@@ -343,8 +380,14 @@ export default function SharedPerformanceReport({
                             </span>
                           )}
                           {row.emv !== null && (
-                            <span style={{ fontSize: 13, fontWeight: 700, color: "var(--cc-primary)" }}>{formatCurrency(row.emv, currency)}</span>
+                            <span
+                              title={formatCurrency(row.emv, currency)}
+                              style={{ fontSize: 13, fontWeight: 700, color: "var(--cc-primary)", whiteSpace: "nowrap" }}
+                            >
+                              {formatCurrencyCompact(row.emv, currency)}
+                            </span>
                           )}
+
                         </div>
                       ))}
                     </div>
