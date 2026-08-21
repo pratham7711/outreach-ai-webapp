@@ -122,7 +122,29 @@ Two columns.
 | 🗑️ | `A post has been deleted by <User>` |
 | 💡 | `Campaign status has been changed to <Status> by <User>` |
 
-Activity logs are in kept scope, so **these six event types, their glyphs and their exact phrasing are a requirement**, as is the threaded-comment filter. Ours logs audit events but does not render this feed on the campaign.
+Activity logs are in kept scope, so **these six event types, their glyphs and their exact phrasing are a requirement**, as is the threaded-comment filter.
+
+#### What we actually have, checked rather than assumed
+
+The earlier version of this section said we "log audit events but do not render the feed". That understated it. Two separate models, and neither is ready:
+
+- **`ActivityLog`** is campaign-scoped (`campaignId`, `userId`, `action`, `metadata`) — exactly the right shape for this feed — and has **zero call sites**. `grep` for `db.activityLog` across `app/`, `lib/` and `components/` returns nothing. It is a dead model that was declared and never wired.
+- **`AuditLog`** is real and busy (~40 distinct actions) but **org-scoped**, keyed by `entityType`/`entityId`. Filtering it to one campaign only works where the payload happens to carry the campaign.
+
+Mapping the six required events onto what exists:
+
+| Glyph | Event | Source today |
+|---|---|---|
+| ➕ | Creator added | `activation.create` — usable: `after.campaignId` is present |
+| 🌀 | Status changed | `activation.update` — **needs `campaignId`**; before/after carry only `id`, `status`, `feedbackNotes`, `postedUrl` |
+| 🤳 | Post added | **nothing** |
+| 📦 | N posts added | **nothing** |
+| 🗑️ | Post deleted | **nothing** |
+| 💡 | Campaign status changed | `campaign.update` — usable, entityId *is* the campaign |
+
+So half the vocabulary has no source at all, and one more is unqueryable per-campaign. The feed is not a read over existing data; it needs write-path instrumentation on the post routes first. `CampaignComment` already exists, so the `All | Comments` filter is the cheap half.
+
+Smallest honest build, in order: add `campaignId` to the `activation.update` audit payload; emit audit rows on post create, bulk create and delete; then one `GET /api/campaigns/[id]/activity` that unions the six actions with `CampaignComment` and sorts by time. Do **not** revive `ActivityLog` — `AuditLog` already holds the actor, IP and before/after that this feed's phrasing needs, and a second log would drift from it.
 
 ### 4.2 Posts
 Source filter `All` / `⬆ Manual`. Nine solid-violet KPI chips in one row: Total Posts · Total Views · Average Post Eng Rate · **Avg. Campaign Eng Rate** · Total Engagement · Total Likes · Total Comments · Total Shares · Total Saves. Note the two distinct engagement rates — per-post average and campaign-wide — we have neither.
