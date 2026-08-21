@@ -11,7 +11,7 @@ import { formatCompact, stripAt, platformLabel } from "@/lib/format";
 const PLATFORMS = ["All", "TIKTOK", "INSTAGRAM", "YOUTUBE", "TWITTER"];
 const SORT_OPTIONS = [
   { value: "followers", label: "Most Followers" },
-  { value: "engagement", label: "Highest Engagement" },
+  { value: "posts", label: "Most tracked posts" },
   { value: "name", label: "Name A-Z" },
 ];
 const NICHE_OPTIONS = [
@@ -29,7 +29,7 @@ type Creator = {
   handle: string;
   platform: string;
   followersCount: number;
-  averageViews: number;
+  avgViews: number | null;
   bio: string | null;
   avatarUrl: string | null;
   _count: { activations: number; posts: number };
@@ -58,8 +58,6 @@ export default function DiscoveryPage() {
   const [selectedNiches, setSelectedNiches] = useState<string[]>([]);
   const [minFollowers, setMinFollowers] = useState("");
   const [maxFollowers, setMaxFollowers] = useState("");
-  const [minRate, setMinRate] = useState("");
-  const [maxRate, setMaxRate] = useState("");
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
@@ -67,8 +65,7 @@ export default function DiscoveryPage() {
     selectedNiches.length +
     (minFollowers ? 1 : 0) +
     (maxFollowers ? 1 : 0) +
-    (minRate ? 1 : 0) +
-    (maxRate ? 1 : 0);
+    0;
 
   const fetchCreators = useCallback(async () => {
     setLoading(true);
@@ -81,8 +78,6 @@ export default function DiscoveryPage() {
     if (selectedNiches.length > 0) params.set("niches", selectedNiches.join(","));
     if (minFollowers) params.set("minFollowers", minFollowers);
     if (maxFollowers) params.set("maxFollowers", maxFollowers);
-    if (minRate) params.set("minRate", minRate);
-    if (maxRate) params.set("maxRate", maxRate);
 
     const r = await fetch(`/api/discovery?${params}`);
     if (r.status === 403) { setFeatureDisabled(true); setLoading(false); return; }
@@ -91,12 +86,12 @@ export default function DiscoveryPage() {
     setTotal(data.pagination?.total ?? 0);
     setTotalPages(data.pagination?.totalPages ?? 1);
     setLoading(false);
-  }, [search, platform, sort, page, selectedNiches, minFollowers, maxFollowers, minRate, maxRate]);
+  }, [search, platform, sort, page, selectedNiches, minFollowers, maxFollowers]);
 
   // Reset page to 1 when filters change (but not when page itself changes)
   useEffect(() => {
     setPage(1);
-  }, [search, platform, sort, selectedNiches, minFollowers, maxFollowers, minRate, maxRate]);
+  }, [search, platform, sort, selectedNiches, minFollowers, maxFollowers]);
 
   const fetchLists = useCallback(() => {
     fetch("/api/lists")
@@ -128,8 +123,6 @@ export default function DiscoveryPage() {
     setSelectedNiches([]);
     setMinFollowers("");
     setMaxFollowers("");
-    setMinRate("");
-    setMaxRate("");
   }
 
   async function handleAddToList() {
@@ -297,27 +290,6 @@ export default function DiscoveryPage() {
               </div>
             </div>
 
-            {/* Rate range */}
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 8 }}>Rate ($/post)</div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <Input
-                  type="number"
-                  placeholder="Min"
-                  value={minRate}
-                  onChange={(e) => setMinRate(e.target.value)}
-                  style={{ flex: 1, minWidth: 0 }}
-                />
-                <span style={{ color: "var(--cc-text-muted)", fontSize: 14 }}>–</span>
-                <Input
-                  type="number"
-                  placeholder="Max"
-                  value={maxRate}
-                  onChange={(e) => setMaxRate(e.target.value)}
-                  style={{ flex: 1, minWidth: 0 }}
-                />
-              </div>
-            </div>
           </div>
 
           <Button variant="secondary" size="sm" onClick={clearAdvanced}>
@@ -360,22 +332,6 @@ export default function DiscoveryPage() {
             <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "var(--cc-primary)", color: "white", borderRadius: 20, fontSize: 12, fontWeight: 500, padding: "4px 10px" }}>
               Max followers: {maxFollowers}
               <button onClick={() => setMaxFollowers("")} style={{ background: "none", border: "none", cursor: "pointer", color: "white", padding: 0, display: "flex", alignItems: "center" }}>
-                <X size={12} />
-              </button>
-            </span>
-          )}
-          {minRate && (
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "var(--cc-primary)", color: "white", borderRadius: 20, fontSize: 12, fontWeight: 500, padding: "4px 10px" }}>
-              Min rate: ${minRate}
-              <button onClick={() => setMinRate("")} style={{ background: "none", border: "none", cursor: "pointer", color: "white", padding: 0, display: "flex", alignItems: "center" }}>
-                <X size={12} />
-              </button>
-            </span>
-          )}
-          {maxRate && (
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "var(--cc-primary)", color: "white", borderRadius: 20, fontSize: 12, fontWeight: 500, padding: "4px 10px" }}>
-              Max rate: ${maxRate}
-              <button onClick={() => setMaxRate("")} style={{ background: "none", border: "none", cursor: "pointer", color: "white", padding: 0, display: "flex", alignItems: "center" }}>
                 <X size={12} />
               </button>
             </span>
@@ -426,7 +382,7 @@ export default function DiscoveryPage() {
                   <div style={{ fontSize: 11, color: "var(--cc-text-muted)" }}>Followers</div>
                 </div>
                 <div style={{ textAlign: "center" }}>
-                  <div style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)" }}>{formatNumber(c.averageViews)}</div>
+                  <div style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)" }}>{c.avgViews !== null ? formatNumber(c.avgViews) : "—"}</div>
                   <div style={{ fontSize: 11, color: "var(--cc-text-muted)" }}>Avg Views</div>
                 </div>
                 <div style={{ textAlign: "right" }}>

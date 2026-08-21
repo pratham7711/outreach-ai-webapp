@@ -17,16 +17,24 @@ describe('NewSidebar', () => {
     render(<NewSidebar />);
     expect(screen.getByRole('link', { name: /Campaigns/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Creators/i })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Payouts/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Lists/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Clients/i })).toBeInTheDocument();
   });
+
+  // Payments are not part of the product right now, so these routes still exist
+  // but must not be reachable from the nav.
+  it.each(['Payouts', 'Recipients', 'Requests', 'Fan Pages', 'Inbox'])(
+    'does not link parked section %s',
+    (label) => {
+      render(<NewSidebar />);
+      expect(screen.queryByRole('link', { name: new RegExp(label, 'i') })).toBeNull();
+    }
+  );
 
   it('links have correct hrefs', () => {
     render(<NewSidebar />);
     expect(screen.getByRole('link', { name: /Campaigns/i })).toHaveAttribute('href', '/campaigns');
     expect(screen.getByRole('link', { name: /Creators/i })).toHaveAttribute('href', '/creators');
-    expect(screen.getByRole('link', { name: /Payouts/i })).toHaveAttribute('href', '/payouts');
   });
 
   it('renders user section with name Pratham', () => {

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { READ_CACHE_HEADERS } from "@/lib/http/readCache";
 import { authenticateRequest } from "@/lib/authenticate";
 import { computeCampaignEmv, computeEngagementRate, sumEngagements } from "@/lib/metrics";
 
@@ -30,13 +31,11 @@ export async function GET(req: NextRequest) {
   if (platform) postWhere.platform = platform;
   if (from) postWhere.postedAt = { gte: from };
 
-  const payoutWhere: any = { orgId, status: "SUCCESS" };
-  if (from) payoutWhere.createdAt = { gte: from };
 
   const now = new Date();
   const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
 
-  const [posts, payouts, campaigns, creators, orgCampaigns] = await Promise.all([
+  const [posts, campaigns, creators, orgCampaigns] = await Promise.all([
     db.post.findMany({
       where: postWhere,
       select: {
@@ -52,10 +51,6 @@ export async function GET(req: NextRequest) {
         creatorId: true,
         creator: { select: { id: true, name: true, handle: true, avatarUrl: true, platform: true } },
       },
-    }),
-    db.payout.findMany({
-      where: payoutWhere,
-      select: { amount: true, creatorId: true, createdAt: true },
     }),
     db.campaign.findMany({
       where: { orgId, deletedAt: null, createdAt: { gte: sixMonthsAgo } },
@@ -76,10 +71,8 @@ export async function GET(req: NextRequest) {
   const totalViews = posts.reduce((s, p) => s + p.viewsCount, 0);
   const totalLikes = posts.reduce((s, p) => s + p.likesCount, 0);
   const totalComments = posts.reduce((s, p) => s + p.commentsCount, 0);
-  const totalSpend = payouts.reduce((s, p) => s + p.amount, 0);
   const avgEngagementRate =
     posts.length > 0 ? posts.reduce((s, p) => s + p.engagementRate, 0) / posts.length : 0;
-  const avgCPM = totalViews > 0 ? (totalSpend / totalViews) * 1000 : 0;
 
   const trendMap: Record<string, { month: string; campaigns: number; active: number }> = {};
   for (let i = 5; i >= 0; i--) {
@@ -104,7 +97,6 @@ export async function GET(req: NextRequest) {
     shares: number;
     saves: number;
     posts: number;
-    earnings: number;
     campaignIds: Set<string>;
     emvPosts: { platform: string; views: number; likes: number; comments: number; shares: number; saves: number }[];
   };
@@ -113,7 +105,7 @@ export async function GET(req: NextRequest) {
     const a =
       creatorAgg[p.creatorId] ??
       (creatorAgg[p.creatorId] = {
-        views: 0, likes: 0, comments: 0, shares: 0, saves: 0, posts: 0, earnings: 0,
+        views: 0, likes: 0, comments: 0, shares: 0, saves: 0, posts: 0,
         campaignIds: new Set<string>(), emvPosts: [],
       });
     a.views += p.viewsCount;
@@ -132,10 +124,6 @@ export async function GET(req: NextRequest) {
       saves: p.savesCount,
     });
   }
-  for (const p of payouts) {
-    if (p.creatorId && creatorAgg[p.creatorId]) creatorAgg[p.creatorId].earnings += p.amount;
-  }
-
   const creatorIndex = Object.fromEntries(creators.map((c) => [c.id, c]));
   const leaderboard = Object.entries(creatorAgg)
     .map(([creatorId, a]) => {
@@ -154,7 +142,6 @@ export async function GET(req: NextRequest) {
         views: a.views,
         likes: a.likes,
         posts: a.posts,
-        earnings: a.earnings,
         engagements,
         engagementRate: engRate ?? 0,
         emv: computeCampaignEmv(a.emvPosts),
@@ -180,15 +167,12 @@ export async function GET(req: NextRequest) {
       totalViews,
       totalLikes,
       totalComments,
-      totalSpend,
       avgEngagementRate: parseFloat(avgEngagementRate.toFixed(2)),
-      avgCPM: parseFloat(avgCPM.toFixed(2)),
       totalPosts: posts.length,
-      totalPayouts: payouts.length,
     },
     monthlyTrend,
     leaderboard,
     platformBreakdown,
     campaigns: orgCampaigns,
-  });
+  }, { headers: READ_CACHE_HEADERS });
 }

@@ -4,26 +4,32 @@ import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import {
-  LayoutDashboard, Megaphone, Play, Calendar, CalendarClock, Users, Users2, Radio, LineChart,
-  Search, List, Wallet, Inbox, UserCheck, Link2, CreditCard, Shield, FileText,
-  ChevronDown, Settings, LogOut, Menu, X, ChevronsLeft, Key, PieChart, BarChart2, Activity
+  LayoutDashboard, Megaphone, Play, Calendar, CalendarClock, Users, Users2, LineChart,
+  Search, List, Link2, CreditCard, Shield, FileText,
+  ChevronDown, Settings, LogOut, Menu, X, ChevronsLeft, Key, BarChart2, Activity
 } from "lucide-react";
 import { useSidebar } from "@/components/providers/SidebarProvider";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
+/*
+  The money side of the product is parked, not deleted: we are not offering
+  payments yet, so Payouts, Requests, Recipients and Financials are unlinked
+  while their routes and tables stay put. Inbox and Fan Pages are parked the
+  same way. Everything reachable here is campaign delivery and reporting.
+*/
 const NAV_SECTIONS = [
   {
     label: "Campaigns & Reporting",
     items: [
       { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
       { href: "/campaigns", icon: Megaphone, label: "Campaigns" },
-      { href: "/inbox", icon: Inbox, label: "Inbox" },
       { href: "/activations", icon: Play, label: "Activations" },
       { href: "/calendar", icon: Calendar, label: "Calendar" },
       { href: "/deadlines", icon: CalendarClock, label: "Deadlines" },
       { href: "/clients", icon: Users, label: "Clients" },
-      { href: "/fan-pages", icon: Radio, label: "Fan Pages", badge: "Soon" },
       { href: "/trackers", icon: LineChart, label: "Trackers" },
+      { href: "/analytics", icon: BarChart2, label: "Analytics" },
+      { href: "/audit-log", icon: FileText, label: "Activity Log" },
     ],
   },
   {
@@ -35,21 +41,10 @@ const NAV_SECTIONS = [
     ],
   },
   {
-    label: "Financial",
-    items: [
-      { href: "/payouts", icon: Wallet, label: "Payouts" },
-      { href: "/requests", icon: Inbox, label: "Requests" },
-      { href: "/financial-reports", icon: PieChart, label: "Financials" },
-      { href: "/analytics", icon: BarChart2, label: "Analytics" },
-      { href: "/recipients", icon: UserCheck, label: "Recipients" },
-    ],
-  },
-  {
     label: "Settings",
     items: [
       { href: "/settings", icon: Settings, label: "Settings" },
       { href: "/connections", icon: Link2, label: "Connections" },
-      { href: "/audit-log", icon: FileText, label: "Audit Log" },
       { href: "/settings/team", icon: Users2, label: "Team" },
       { href: "/settings/api-keys", icon: Key, label: "API Keys" },
       { href: "/settings/billing", icon: CreditCard, label: "Billing" },

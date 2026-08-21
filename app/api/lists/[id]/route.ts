@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { deriveAverageViews } from "@/lib/creatorMetrics";
 import { authenticateRequest, getAuditActor } from "@/lib/authenticate";
 import { logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
@@ -16,7 +17,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       items: {
         include: {
           creator: {
-            select: { id: true, name: true, handle: true, platform: true, followersCount: true, averageViews: true, avatarUrl: true },
+            select: { id: true, name: true, handle: true, platform: true, followersCount: true, avatarUrl: true },
           },
         },
         orderBy: { addedAt: "desc" },
@@ -26,7 +27,18 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   });
 
   if (!list) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  return NextResponse.json(list);
+
+  // Avg views is measured from the posts; Creator.averageViews reads 0 for all
+  // but one creator, so rendering it printed a confident fake zero per row.
+  const avgViews = await deriveAverageViews(list.items.map((i) => i.creator.id));
+
+  return NextResponse.json({
+    ...list,
+    items: list.items.map((i) => ({
+      ...i,
+      creator: { ...i.creator, avgViews: avgViews.get(i.creator.id) ?? null },
+    })),
+  });
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

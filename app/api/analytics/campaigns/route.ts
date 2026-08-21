@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { READ_CACHE_HEADERS } from "@/lib/http/readCache";
 import { authenticateRequest } from "@/lib/authenticate";
 import {
   computeCampaignEmv,
@@ -186,5 +187,5 @@ export async function GET(req: NextRequest) {
     campaigns: ownedCampaigns,
     comparison,
     series,
-  });
+  }, { headers: READ_CACHE_HEADERS });
 }

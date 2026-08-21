@@ -2,7 +2,7 @@
 
 import React from "react";
 import dynamic from "next/dynamic";
-import { Activity, DollarSign, Download, Eye, TrendingUp } from "lucide-react";
+import { Activity, BarChart3, Download, Eye, TrendingUp } from "lucide-react";
 import { Badge } from "@pratham7711/ui";
 import { SectionCard } from "@/components/ds";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -17,20 +17,20 @@ import {
 } from "@/components/ui/table";
 import { platformColor } from "@/app/(dashboard)/analytics/shared";
 import { stripAt } from "@/lib/format";
-import { formatCurrency, formatNumber, type FinancialData } from "../types";
+import { formatNumber, type PerformanceData } from "../types";
 
 const PlatformBreakdownPie = dynamic(
   () => import("../DashboardCharts").then((m) => m.PlatformBreakdownPie),
   { ssr: false, loading: () => <Skeleton className="h-[200px] w-full rounded-lg" /> }
 );
 
-const SpendByCampaignBar = dynamic(
-  () => import("../DashboardCharts").then((m) => m.SpendByCampaignBar),
+const ViewsByCampaignBar = dynamic(
+  () => import("../DashboardCharts").then((m) => m.ViewsByCampaignBar),
   { ssr: false, loading: () => <Skeleton className="h-[200px] w-full rounded-lg" /> }
 );
 
 type PerformanceSectionProps = {
-  financials: FinancialData | null;
+  financials: PerformanceData | null;
   loading: boolean;
   widgets: string[];
   onExportCreators: () => void;
@@ -47,7 +47,7 @@ export function PerformanceSection({
   onExportCreators,
 }: PerformanceSectionProps) {
   const platforms = financials?.platformBreakdown ?? [];
-  const byCampaign = financials?.spendByCampaign ?? [];
+  const byCampaign = financials?.viewsByCampaign ?? [];
   const topPosts = financials?.topPosts ?? [];
   const creators = financials?.creatorPerformance ?? [];
 
@@ -96,24 +96,24 @@ export function PerformanceSection({
           </SectionCard>
         )}
 
-        {widgets.includes("financial_summary") && (
+        {widgets.includes("campaign_reach") && (
           <SectionCard
-            icon={DollarSign}
-            title="Spend by campaign"
-            description={`Top ${Math.min(5, byCampaign.length) || 5} campaigns by amount paid out.`}
-            metric="totalSpend"
+            icon={BarChart3}
+            title="Views by campaign"
+            description={`Top ${Math.min(5, byCampaign.length) || 5} campaigns by views delivered.`}
+            metric="totalViews"
           >
             {loading ? (
               <Skeleton className="h-[200px] w-full rounded-lg" />
             ) : byCampaign.length > 0 ? (
               <div className="h-[200px]">
-                <SpendByCampaignBar
+                <ViewsByCampaignBar
                   data={byCampaign.slice(0, 5)}
-                  formatCurrency={formatCurrency}
+                  formatNumber={formatNumber}
                 />
               </div>
             ) : (
-              <Empty>No campaign spend data</Empty>
+              <Empty>No campaign views yet</Empty>
             )}
           </SectionCard>
         )}
@@ -197,7 +197,6 @@ export function PerformanceSection({
                 <TableHeader>
                   <TableRow>
                     <TableHead>Creator</TableHead>
-                    <TableHead className="text-right">Total paid</TableHead>
                     <TableHead className="text-right">Activations</TableHead>
                     <TableHead className="text-right">Views</TableHead>
                     <TableHead className="text-right">Avg engagement</TableHead>
@@ -209,9 +208,6 @@ export function PerformanceSection({
                       <TableCell>
                         <div className="font-semibold text-foreground">{c.name}</div>
                         <div className="text-xs text-muted-foreground">@{stripAt(c.handle)}</div>
-                      </TableCell>
-                      <TableCell className="text-right font-semibold text-foreground tabular-nums">
-                        {formatCurrency(c.totalPaid)}
                       </TableCell>
                       <TableCell className="text-right text-muted-foreground tabular-nums">
                         {c.activationCount}

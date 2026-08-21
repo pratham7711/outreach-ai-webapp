@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { deriveAverageViews } from "@/lib/creatorMetrics";
 import { auth } from "@/lib/auth";
 import { getOrgEntitlements, hasOrgFeature } from "@/lib/entitlements";
 import { DISCOVERY_FEATURE } from "@/lib/featureKeys";
@@ -10,14 +11,12 @@ const MAX_PAGE_SIZE = 100;
 const discoveryQuerySchema = z.object({
   search: z.string().default(""),
   platform: z.string().optional(),
-  sort: z.enum(["followers", "engagement", "name"]).default("followers"),
+  sort: z.enum(["followers", "posts", "name"]).default("followers"),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).default(20),
   niches: z.string().default(""),
   minFollowers: z.coerce.number().int().nonnegative().optional(),
   maxFollowers: z.coerce.number().int().nonnegative().optional(),
-  minRate: z.coerce.number().nonnegative().optional(),
-  maxRate: z.coerce.number().nonnegative().optional(),
 });
 
 export async function GET(req: NextRequest) {
@@ -49,8 +48,6 @@ export async function GET(req: NextRequest) {
     limit,
     minFollowers,
     maxFollowers,
-    minRate,
-    maxRate,
   } = parsed.data;
   const niches = parsed.data.niches.split(",").filter(Boolean);
 
@@ -74,13 +71,7 @@ export async function GET(req: NextRequest) {
     if (maxFollowers !== undefined) (where.followersCount as any).lte = maxFollowers;
   }
 
-  if (minRate !== undefined || maxRate !== undefined) {
-    where.rate = {};
-    if (minRate !== undefined) (where.rate as any).gte = minRate;
-    if (maxRate !== undefined) (where.rate as any).lte = maxRate;
-  }
-
-  const orderBy: any = sort === "engagement" ? { averageViews: "desc" } :
+  const orderBy: any = sort === "posts" ? { posts: { _count: "desc" } } :
     sort === "name" ? { name: "asc" } : { followersCount: "desc" };
 
   const [creators, total] = await Promise.all([
@@ -96,8 +87,11 @@ export async function GET(req: NextRequest) {
     db.creator.count({ where }),
   ]);
 
+  // Avg views is measured from the posts; the stored column is always 0.
+  const avgViews = await deriveAverageViews(creators.map((c) => c.id));
+
   return NextResponse.json({
-    creators,
+    creators: creators.map((c) => ({ ...c, avgViews: avgViews.get(c.id) ?? null })),
     pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
   });
 }

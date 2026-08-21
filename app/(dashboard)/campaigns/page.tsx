@@ -36,7 +36,7 @@ export default async function CampaignsPage({
       : {}),
   };
 
-  const [campaigns, filteredTotal, statusGroups, creatorCount, budgetAgg, clients] = await Promise.all([
+  const [campaigns, filteredTotal, statusGroups, creatorCount, clients] = await Promise.all([
     db.campaign.findMany({
       where,
       include: {
@@ -51,7 +51,6 @@ export default async function CampaignsPage({
     // One grouped query replaces counting each status tab off the full array.
     db.campaign.groupBy({ by: ["status"], where: base, _count: true }),
     db.creator.count({ where: { orgId, deletedAt: null } }),
-    db.campaign.aggregate({ where: base, _sum: { budget: true } }),
     db.client.findMany({ where: { orgId }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
   ]);
 
@@ -86,7 +85,6 @@ export default async function CampaignsPage({
         id: c.id,
         title: c.title,
         status: c.status,
-        budget: c.budget ? Number(c.budget) : null,
         currency: c.currency,
         client: c.client,
         thumbnailUrl: c.thumbnailUrl,
@@ -98,7 +96,6 @@ export default async function CampaignsPage({
         total: statusCounts.ALL,
         active: statusCounts.IN_PROGRESS ?? 0,
         creatorCount,
-        totalBudget: Number(budgetAgg._sum.budget ?? 0),
       }}
       statusCounts={statusCounts}
       filteredTotal={filteredTotal}

@@ -30,11 +30,9 @@ import DashboardClient from "@/app/(dashboard)/dashboard/DashboardClient";
 const baseProps = {
   campaignCount: 5,
   creatorCount: 20,
-  pendingPayouts: 1500,
   recentCampaigns: [
-    { id: "1", title: "Test Campaign", status: "PENDING", budget: 1000, client: { name: "Acme" } },
+    { id: "1", title: "Test Campaign", status: "PENDING", client: { name: "Acme" } },
   ],
-  chartData: [{ month: "Jan", spend: 500 }],
 };
 
 const ALL_WIDGETS = [
@@ -42,24 +40,17 @@ const ALL_WIDGETS = [
   "views_over_time",
   "platform_breakdown",
   "top_posts",
-  "financial_summary",
+  "campaign_reach",
   "creator_performance",
 ];
 
 const emptyFinancials = {
   summary: {
-    totalSpend: 0,
-    totalBudget: 0,
-    budgetUtilization: 0,
     activeCampaigns: 0,
     totalCreators: 0,
-    avgCampaignSpend: 0,
-    pendingPayouts: 0,
-    totalDeposits: 0,
-    releasedDeposits: 0,
   },
-  spendOverTime: [],
-  spendByCampaign: [],
+  viewsOverTime: [],
+  viewsByCampaign: [],
   platformBreakdown: [],
   creatorPerformance: [],
   topPosts: [],
@@ -79,35 +70,35 @@ afterEach(() => {
 describe("DashboardClient — widget gating via dashboardWidgets", () => {
   it("renders every widget section when all keys are present", async () => {
     render(<DashboardClient {...baseProps} dashboardWidgets={ALL_WIDGETS} />);
-    expect(await screen.findByText("Total spend")).toBeInTheDocument();
-    expect(screen.getByText("Active campaigns")).toBeInTheDocument();
-    expect(screen.getByText("Spend and views over time")).toBeInTheDocument();
+    expect(await screen.findByText("Active campaigns")).toBeInTheDocument();
+    expect(screen.getByText("Total views")).toBeInTheDocument();
+    expect(screen.getByText("Views over time")).toBeInTheDocument();
 
     // Performance widgets live behind the Performance tab.
     fireEvent.click(screen.getByRole("tab", { name: /Performance/i }));
     expect(await screen.findByText("Views by platform")).toBeInTheDocument();
     expect(screen.getByText("Top posts")).toBeInTheDocument();
-    expect(screen.getByText("Spend by campaign")).toBeInTheDocument();
+    expect(screen.getByText("Views by campaign")).toBeInTheDocument();
     expect(screen.getByText("Creator performance")).toBeInTheDocument();
   });
 
   it("hides the KPI grid when kpi_grid is absent", async () => {
     render(<DashboardClient {...baseProps} dashboardWidgets={["views_over_time"]} />);
-    expect(await screen.findByText("Spend and views over time")).toBeInTheDocument();
-    expect(screen.queryByText("Total spend")).not.toBeInTheDocument();
+    expect(await screen.findByText("Views over time")).toBeInTheDocument();
     expect(screen.queryByText("Active campaigns")).not.toBeInTheDocument();
+    expect(screen.queryByText("Total views")).not.toBeInTheDocument();
   });
 
   it("hides the spend-over-time chart when views_over_time is absent", async () => {
     render(<DashboardClient {...baseProps} dashboardWidgets={["kpi_grid"]} />);
-    expect(await screen.findByText("Total spend")).toBeInTheDocument();
-    expect(screen.queryByText("Spend and views over time")).not.toBeInTheDocument();
+    expect(await screen.findByText("Active campaigns")).toBeInTheDocument();
+    expect(screen.queryByText("Views over time")).not.toBeInTheDocument();
   });
 
   it("falls back to all default widgets when dashboardWidgets is null", async () => {
     render(<DashboardClient {...baseProps} dashboardWidgets={null} />);
-    expect(await screen.findByText("Total spend")).toBeInTheDocument();
-    expect(screen.getByText("Spend and views over time")).toBeInTheDocument();
+    expect(await screen.findByText("Active campaigns")).toBeInTheDocument();
+    expect(screen.getByText("Views over time")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("tab", { name: /Performance/i }));
     expect(await screen.findByText("Views by platform")).toBeInTheDocument();
@@ -118,8 +109,8 @@ describe("DashboardClient — widget gating via dashboardWidgets", () => {
   it("renders only the header chrome when dashboardWidgets is an empty array", async () => {
     render(<DashboardClient {...baseProps} dashboardWidgets={[]} />);
     expect(await screen.findByText("Dashboard")).toBeInTheDocument();
-    expect(screen.queryByText("Total spend")).not.toBeInTheDocument();
-    expect(screen.queryByText("Spend and views over time")).not.toBeInTheDocument();
+    expect(screen.queryByText("Active campaigns")).not.toBeInTheDocument();
+    expect(screen.queryByText("Views over time")).not.toBeInTheDocument();
     expect(screen.queryByText("Views by platform")).not.toBeInTheDocument();
   });
 });

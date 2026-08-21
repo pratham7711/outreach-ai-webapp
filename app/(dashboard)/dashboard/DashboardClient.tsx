@@ -15,7 +15,7 @@ import { OverviewSection } from "./sections/OverviewSection";
 import { PerformanceSection } from "./sections/PerformanceSection";
 import { ActivitySection } from "./sections/ActivitySection";
 import { GettingStarted } from "./sections/GettingStarted";
-import type { Campaign, FinancialData } from "./types";
+import type { Campaign, PerformanceData } from "./types";
 
 const DATE_PRESETS = [
   { label: "7D", days: 7 },
@@ -36,13 +36,13 @@ const DEFAULT_WIDGETS = [
   "views_over_time",
   "platform_breakdown",
   "top_posts",
-  "financial_summary",
+  "campaign_reach",
   "creator_performance",
 ];
 
 const PERFORMANCE_WIDGETS = [
   "platform_breakdown",
-  "financial_summary",
+  "campaign_reach",
   "top_posts",
   "creator_performance",
 ];
@@ -50,9 +50,7 @@ const PERFORMANCE_WIDGETS = [
 type Props = {
   campaignCount: number;
   creatorCount: number;
-  pendingPayouts: number;
   recentCampaigns: Campaign[];
-  chartData: { month: string; spend: number }[];
   dashboardWidgets: string[] | null;
 };
 
@@ -61,7 +59,7 @@ export default function DashboardClient(props: Props) {
   const isNewOrg = props.campaignCount === 0 && props.creatorCount === 0;
   const hasPerformance = PERFORMANCE_WIDGETS.some((w) => widgets.includes(w));
 
-  const [financials, setFinancials] = useState<FinancialData | null>(null);
+  const [financials, setFinancials] = useState<PerformanceData | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeDays, setActiveDays] = useState(180);
   const [granularity, setGranularity] = useState<"daily" | "weekly" | "monthly">("monthly");
@@ -159,7 +157,7 @@ export default function DashboardClient(props: Props) {
             </SelectContent>
           </Select>
 
-          <Button variant="outline" size="sm" onClick={() => handleExport("payouts")}>
+          <Button variant="outline" size="sm" onClick={() => handleExport("campaigns")}>
             <Download aria-hidden="true" className="size-3.5" />
             Export CSV
           </Button>
@@ -195,10 +193,8 @@ export default function DashboardClient(props: Props) {
             financials={financials}
             loading={loading}
             widgets={widgets}
-            fallbackChartData={props.chartData}
             fallbackCampaignCount={props.campaignCount}
             fallbackCreatorCount={props.creatorCount}
-            fallbackPendingPayouts={props.pendingPayouts}
           />
         </TabsContent>
 

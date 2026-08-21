@@ -7,8 +7,6 @@ import { Card, Badge, Button, EmptyState, Avatar, Skeleton, Modal } from "@prath
 import { MetricTile } from "@/components/ds";
 import PostsTab from "./PostsTab";
 import DraftsTab from "./DraftsTab";
-import DepositsSection from "./DepositsSection";
-import PayoutRequestsSection from "./PayoutRequestsSection";
 import InvitesSection from "./InvitesSection";
 import NegotiationsSection from "./NegotiationsSection";
 import ProposalsSection from "./ProposalsSection";
@@ -54,12 +52,7 @@ const CreatorPerformanceBar = dynamic(() => import("./CampaignTabCharts").then((
   loading: () => <ChartSkeleton height={240} />,
 });
 
-const BudgetBreakdownPie = dynamic(() => import("./CampaignTabCharts").then((m) => m.BudgetBreakdownPie), {
-  ssr: false,
-  loading: () => <ChartSkeleton height={200} />,
-});
-
-type Tab = "performance" | "overview" | "drafts" | "posts" | "creators" | "reviews" | "analytics" | "financials" | "edit";
+type Tab = "performance" | "overview" | "drafts" | "posts" | "creators" | "reviews" | "analytics" | "edit";
 
 function formatNumber(num: number): string {
   return formatCompact(num);
@@ -251,7 +244,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
   const [clients, setClients] = useState<{ id: string; name: string }[]>([]);
   const [clientsLoaded, setClientsLoaded] = useState(false);
   const [editForm, setEditForm] = useState({
-    title: "", status: "", budget: "", currency: "USD", notes: "", clientId: "",
+    title: "", status: "", currency: "USD", notes: "", clientId: "",
   });
   const [saving, setSaving] = useState(false);
 
@@ -262,8 +255,6 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
     requirements: "",
     contentAssetsUrl: "",
     rates: {} as Partial<Record<(typeof MARKETPLACE_PLATFORMS)[number], string>>,
-    minPayoutMajor: "",
-    budgetCapMajor: "",
     submissionDeadline: "",
     autoApproveHours: "48",
   });
@@ -283,7 +274,6 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
       setEditForm({
         title: campaign.title,
         status: campaign.status,
-        budget: campaign.budget ? String(campaign.budget) : "",
         currency: campaign.currency,
         notes: campaign.notes ?? "",
         clientId: campaign.clientId ?? "",
@@ -300,8 +290,6 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
         requirements: campaign.requirements ?? "",
         contentAssetsUrl: campaign.contentAssetsUrl ?? "",
         rates,
-        minPayoutMajor: minorToMajor(campaign.minPayoutMinor),
-        budgetCapMajor: minorToMajor(campaign.marketplaceBudgetCapMinor),
         submissionDeadline: campaign.submissionDeadline
           ? campaign.submissionDeadline.slice(0, 10)
           : "",
@@ -345,8 +333,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
         notes: editForm.notes || null,
         clientId: editForm.clientId || null,
       };
-      if (editForm.budget !== "") payload.budget = Number(editForm.budget);
-      const res = await fetch(`/api/campaigns/${id}`, {
+        const res = await fetch(`/api/campaigns/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -396,8 +383,6 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
         requirements: mkt.requirements || null,
         contentAssetsUrl: mkt.contentAssetsUrl || "",
         ratePerThousand: buildRatePayload(),
-        minPayoutMinor: majorToMinor(mkt.minPayoutMajor),
-        marketplaceBudgetCapMinor: majorToMinor(mkt.budgetCapMajor),
         submissionDeadline: mkt.submissionDeadline ? new Date(mkt.submissionDeadline).toISOString() : null,
         autoApproveHours: mkt.autoApproveHours ? Number(mkt.autoApproveHours) : 48,
       };
@@ -471,7 +456,6 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
     { label: "Creators", value: "creators", count: roster.length },
     { label: "Reviews", value: "reviews" as Tab },
     { label: "Analytics", value: "analytics" },
-    { label: "Financials", value: "financials" },
     { label: "Edit", value: "edit" as Tab },
   ];
 
@@ -482,8 +466,6 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
     </div>
   );
 
-  const budget = campaign.budget ? Number(campaign.budget) : 0;
-  const spent = campaign.financials ? Number(campaign.financials.spentAmount) : 0;
   const totalViews = campaign.posts.reduce((s, p) => s + p.viewsCount, 0);
   const totalLikes = campaign.posts.reduce((s, p) => s + p.likesCount, 0);
   const avgEngagement = campaign.posts.length > 0
@@ -519,18 +501,6 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
     name: name.split(" ")[0], views: stats.views, likes: stats.likes,
   }));
 
-  // Per-creator payout for financials
-  const creatorPayouts = campaign.activations.map(act => ({
-    name: act.creator.name,
-    rate: act.creator.rate ? Number(act.creator.rate) : 0,
-    status: act.status,
-  }));
-
-  const pieData = [
-    { name: "Spent", value: spent },
-    { name: "Remaining", value: Math.max(0, budget - spent) },
-  ];
-
   return (
     <div className="cc-page-content rsp-page">
       {/* Breadcrumb */}
@@ -554,12 +524,6 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 32, fontSize: 14, color: "var(--cc-text-muted)", flexWrap: "wrap" }}>
         <span style={{ display: "flex", alignItems: "center", gap: 4 }}><Calendar size={14} />{formatDateAbs(campaign.createdAt)}</span>
-        {budget > 0 && (
-          <>
-            <span>·</span>
-            <span style={{ fontWeight: 700 }}>{formatCompactCurrency(budget, campaign.currency)} budget</span>
-          </>
-        )}
         <span>·</span>
         <span>{roster.length} creators · {campaign._count.posts} posts</span>
       </div>
@@ -599,7 +563,6 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
               <MetricTile metric="totalViews" value={formatNumber(totalViews)} />
               <MetricTile metric="engagementRate" label="Avg engagement" value={avgEngagement > 0 ? avgEngagement.toFixed(1) + "%" : "—"} />
               <MetricTile metric="campaignCreators" value={String(roster.length)} />
-              <MetricTile metric="budgetUsed" value={budget > 0 ? `${Math.round((spent / budget) * 100)}%` : "—"} />
             </div>
 
             {/* Brief */}
@@ -790,72 +753,6 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
           </div>
         )}
 
-        {/* Financials Tab */}
-        {activeTab === "financials" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-            <div className="rsp-grid-2">
-              <Card variant="outlined" style={{ padding: 24 }}>
-                <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)", display: "block", marginBottom: 12 }}>Budget Overview</span>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
-                  <span style={{ fontSize: 28, fontWeight: 700, color: "var(--cc-text)" }}>{formatCurrency(spent, campaign.currency)}</span>
-                  {budget > 0 && <span style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>/ {formatCurrency(budget, campaign.currency)}</span>}
-                </div>
-                {budget > 0 && (
-                  <>
-                    <div style={{ height: 12, borderRadius: 6, marginBottom: 8, background: "var(--cc-bg)" }}>
-                      <div style={{ height: "100%", borderRadius: 6, width: `${Math.min(100, (spent / budget) * 100)}%`, background: "var(--cc-primary)", transition: "width 0.5s" }} />
-                    </div>
-                    <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>
-                      {Math.round((spent / budget) * 100)}% used · {formatCurrency(budget - spent, campaign.currency)} remaining
-                    </span>
-                  </>
-                )}
-              </Card>
-              <Card variant="outlined" style={{ padding: 24 }}>
-                <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)", display: "block", marginBottom: 12 }}>Budget Breakdown</span>
-                {budget > 0 ? (
-                  <div style={{ height: 200 }}>
-                    <BudgetBreakdownPie data={pieData} formatCurrency={formatCurrency} currency={campaign.currency} />
-                  </div>
-                ) : (
-                  <EmptyState icon={<Wallet size={32} color="var(--cc-text-subtle)" />} title="No budget set" />
-                )}
-              </Card>
-            </div>
-
-            {/* Per-creator payout breakdown */}
-            {creatorPayouts.length > 0 && (
-              <Card variant="solid" noPadding>
-                <div style={{ padding: "16px 24px", borderBottom: "1px solid var(--cc-border)" }}>
-                  <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)" }}>Creator Rates</span>
-                </div>
-                {creatorPayouts.map((cp, i) => (
-                  <div
-                    key={i}
-                    style={{
-                      display: "flex", alignItems: "center", justifyContent: "space-between",
-                      padding: "14px 24px",
-                      borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined,
-                    }}
-                  >
-                    <span style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>{cp.name}</span>
-                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                      <Badge variant={ACTIVATION_STATUS[cp.status] ?? "neutral"} dot>{cp.status.replace(/_/g, " ")}</Badge>
-                      <span style={{ fontSize: 14, fontWeight: 700, color: "var(--cc-text)" }}>
-                        {cp.rate > 0 ? formatCurrency(cp.rate) : "—"}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </Card>
-            )}
-
-            {/* Deposits & Payout Requests Sections */}
-            <DepositsSection campaignId={id} />
-            <PayoutRequestsSection campaignId={id} />
-          </div>
-        )}
-
         {/* Edit Tab */}
         {activeTab === "edit" && (
           <div style={{ maxWidth: 640 }}>
@@ -894,16 +791,6 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                       {["USD", "EUR", "GBP", "INR"].map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
                   </div>
-                </div>
-                <div>
-                  <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Budget</label>
-                  <input
-                    type="number"
-                    value={editForm.budget}
-                    onChange={e => setEditForm(f => ({ ...f, budget: e.target.value }))}
-                    placeholder="e.g. 25000"
-                    style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-border)", fontSize: 14, color: "var(--cc-text)", background: "var(--cc-card)", outline: "none", boxSizing: "border-box" }}
-                  />
                 </div>
                 <div>
                   <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Client</label>
@@ -1063,28 +950,8 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                   </div>
                 </div>
 
-                {/* Payout thresholds + deadline + auto-approve */}
+                {/* Deadline + auto-approve */}
                 <div className="rsp-grid-2">
-                  <div>
-                    <label style={mktLabel}>Minimum payout ({campaign.currency})</label>
-                    <input
-                      type="number" min="0" step="0.01"
-                      value={mkt.minPayoutMajor}
-                      onChange={(e) => setMkt((m) => ({ ...m, minPayoutMajor: e.target.value }))}
-                      placeholder="e.g. 20"
-                      style={mktInput}
-                    />
-                  </div>
-                  <div>
-                    <label style={mktLabel}>Budget cap ({campaign.currency})</label>
-                    <input
-                      type="number" min="0" step="0.01"
-                      value={mkt.budgetCapMajor}
-                      onChange={(e) => setMkt((m) => ({ ...m, budgetCapMajor: e.target.value }))}
-                      placeholder="e.g. 5000"
-                      style={mktInput}
-                    />
-                  </div>
                   <div>
                     <label style={mktLabel}>Submission deadline</label>
                     <input

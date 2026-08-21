@@ -8,7 +8,6 @@ import {
 } from "recharts";
 import { Eye, Heart, Percent, DollarSign, Target, TrendingUp, Share2, AlertTriangle, BarChart3, PieChart as PieChartIcon, Trophy, Download } from "lucide-react";
 import { formatCompact } from "@/lib/format";
-import { SPEND_METRIC_BY_SOURCE } from "@/lib/metric-definitions";
 import { platformColor } from "@/app/(dashboard)/analytics/shared";
 
 type Kpis = {
@@ -67,14 +66,6 @@ function formatCurrencyCompact(n: number, currency = "USD"): string {
   }).format(n);
 }
 
-function formatCostMetric(n: number | null, currency = "USD"): string {
-  if (n === null || n <= 0) return "—";
-  return new Intl.NumberFormat("en-US", {
-    style: "currency", currency,
-    minimumFractionDigits: 2,
-    maximumFractionDigits: n < 0.01 ? 4 : 2,
-  }).format(n);
-}
 
 function formatDate(iso: string): string {
   const d = new Date(iso + "T00:00:00Z");
@@ -345,7 +336,7 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
   if (loading) return <LoadingState />;
   if (error || !data) return <ErrorState onRetry={load} />;
 
-  const { kpis, timeSeries, platformSplit, leaderboard, currency, spendSource } = data;
+  const { kpis, timeSeries, platformSplit, leaderboard, currency } = data;
 
   const headerActions = (
     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -398,14 +389,6 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
         <MetricTile metric="views" value={formatNumber(kpis.views)} />
         <MetricTile metric="engagements" value={formatNumber(kpis.engagements)} />
         <MetricTile metric="engagementRate" label="Eng. rate" value={engRateDisplay} />
-        <MetricTile
-          metric={SPEND_METRIC_BY_SOURCE[spendSource]}
-          value={formatCurrencyCompact(kpis.spend, currency)}
-        />
-        <MetricTile
-          metric="cpmCpe"
-          value={`${formatCostMetric(kpis.cpm, currency)} / ${formatCostMetric(kpis.cpe, currency)}`}
-        />
         <MetricTile metric="emv" value={formatCurrencyCompact(kpis.emv, currency)} />
       </div>
 

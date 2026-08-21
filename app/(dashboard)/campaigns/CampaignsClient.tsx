@@ -15,7 +15,6 @@ type Campaign = {
   id: string;
   title: string;
   status: string;
-  budget: number | null;
   currency: string;
   client?: { name: string } | null;
   thumbnailUrl?: string | null;
@@ -45,12 +44,9 @@ const STATUS_BADGE_VARIANT: Record<string, "warning" | "accent" | "success" | "d
 /* Shared by the header and every row; the fixed status column is what stops a
    wide IN PROGRESS pill from shifting the numbers on its row. */
 const CAMPAIGN_COLS = {
-  "--cc-cols": "44px minmax(0, 1fr) 110px 90px 80px 130px",
+  "--cc-cols": "44px minmax(0, 1fr) 90px 80px 130px",
 } as React.CSSProperties;
 
-function formatCurrency(n: number) {
-  return formatCompactCurrency(n);
-}
 
 /**
  * 506 of 532 campaigns carry artwork that this list was throwing away in favour
@@ -97,7 +93,7 @@ export default function CampaignsClient({
   clients,
 }: {
   campaigns: Campaign[];
-  stats: { total: number; active: number; creatorCount: number; totalBudget: number };
+  stats: { total: number; active: number; creatorCount: number };
   statusCounts: Record<string, number>;
   filteredTotal: number;
   page: number;
@@ -150,14 +146,6 @@ export default function CampaignsClient({
           </p>
         </div>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <Button variant="secondary" iconLeft={<FolderOpen size={15} />} size="sm">
-            Folders
-          </Button>
-          <Link href="/campaigns/self-serve" style={{ textDecoration: "none" }}>
-            <Button variant="secondary" iconLeft={<Sparkles size={15} />} size="sm">
-              Self-serve campaign
-            </Button>
-          </Link>
           <Button variant="primary" iconLeft={<Plus size={15} />} size="sm" onClick={() => setShowModal(true)}>
             New Campaign
           </Button>
@@ -172,30 +160,6 @@ export default function CampaignsClient({
           placeholder="Search Campaigns"
           iconLeft={<Search size={16} />}
         />
-      </div>
-
-      {/* Filter Dropdowns Row */}
-      <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
-        {["Campaign Status", "Team Member", "Tags", "Client", "Creation Date"].map((filter) => (
-          <button
-            key={filter}
-            className="cc-filter-tab"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              padding: "7px 14px",
-              fontSize: 13,
-              background: "var(--cc-card)",
-              border: "1px solid var(--cc-border)",
-              borderRadius: 8,
-              cursor: "pointer",
-            }}
-          >
-            {filter}
-            <ChevronDown size={13} />
-          </button>
-        ))}
       </div>
 
       {/* Status Tabs */}
@@ -241,7 +205,6 @@ export default function CampaignsClient({
             <div className="cc-list-row cc-list-head">
               <span />
               <span>Campaign</span>
-              <span className="cc-list-num cc-list-hide-sm">Budget</span>
               <span className="cc-list-num cc-list-hide-sm">Creators</span>
               <span className="cc-list-num cc-list-hide-sm">Posts</span>
               <span>Status</span>
@@ -263,10 +226,6 @@ export default function CampaignsClient({
                       Last updated {timeAgo(campaign.updatedAt)}
                     </p>
                   </div>
-
-                  <p className="cc-list-num cc-list-hide-sm" style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>
-                    {campaign.budget ? formatCurrency(campaign.budget) : "N/A"}
-                  </p>
 
                   <p className="cc-list-num cc-list-hide-sm" style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>
                     {campaign.creatorCount}

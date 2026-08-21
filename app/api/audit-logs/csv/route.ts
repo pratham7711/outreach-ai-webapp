@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { authenticateRequest } from "@/lib/authenticate";
+import { getOrgEntitlements } from "@/lib/entitlements";
 import { z } from "zod";
 import { dateParam, parseQuery } from "@/lib/http/queryParams";
 
@@ -25,6 +26,15 @@ export async function GET(req: NextRequest) {
   const auth = await authenticateRequest(req);
   if (!auth) return Response.json({ error: "Unauthorized" }, { status: 401 });
   const { orgId } = auth;
+
+  // The JSON route gates on role and the audit_log entitlement; this one did
+  // not, so the same data was one URL away for a VIEWER or an org whose plan
+  // has the feature switched off.
+  if (auth.role === "VIEWER") return Response.json({ error: "Forbidden" }, { status: 403 });
+  const entitlements = await getOrgEntitlements(orgId);
+  if (!entitlements?.featureMap.audit_log) {
+    return Response.json({ error: "Audit log not enabled for this plan" }, { status: 403 });
+  }
 
   const parsedQuery = parseQuery(auditLogsCsvQuerySchema, new URL(req.url).searchParams);
   if (!parsedQuery.ok) return parsedQuery.response;

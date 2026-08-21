@@ -20,7 +20,6 @@ type Creator = {
   avatarUrl: string | null;
   followerCount: number | null;
   avgViews: number | null;
-  rate: number | null;
   _count: { activations: number; posts: number };
 };
 
@@ -188,7 +187,7 @@ export default function CreatorsClient({
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ background: "var(--cc-hover-bg)" }}>
-                {["Creator", "Platform", "Followers", "Avg. Views", "Rate", "Campaigns", "Posts"].map((h) => (
+                {["Creator", "Platform", "Followers", "Avg. Views", "Campaigns", "Posts"].map((h) => (
                   <th key={h} style={{ textAlign: "left", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--cc-text-subtle)", padding: "12px 24px" }}>{h}</th>
                 ))}
               </tr>
@@ -210,7 +209,6 @@ export default function CreatorsClient({
                   </td>
                   <td style={{ padding: "14px 24px", fontSize: 14, fontWeight: 500, color: "var(--cc-text)" }}>{c.followerCount ? formatNumber(c.followerCount) : "—"}</td>
                   <td style={{ padding: "14px 24px", fontSize: 14, fontWeight: 500, color: "var(--cc-text)" }}>{c.avgViews ? formatNumber(c.avgViews) : "—"}</td>
-                  <td style={{ padding: "14px 24px", fontSize: 14, fontWeight: 500, color: "var(--cc-text)" }}>{c.rate ? `$${c.rate}` : "—"}</td>
                   <td style={{ padding: "14px 24px", fontSize: 14, fontWeight: 500, color: "var(--cc-text)" }}>{c._count.activations}</td>
                   <td style={{ padding: "14px 24px", fontSize: 14, fontWeight: 500, color: "var(--cc-text)" }}>{c._count.posts}</td>
                 </tr>

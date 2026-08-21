@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { READ_CACHE_HEADERS } from "@/lib/http/readCache";
 import { auth } from "@/lib/auth";
 import { z } from "zod";
 import { dateParam, parseQuery } from "@/lib/http/queryParams";
 
-const financialsQuerySchema = z.object({
+const performanceQuerySchema = z.object({
   from: dateParam.optional(),
   to: dateParam.optional(),
   granularity: z.enum(["daily", "weekly", "monthly"]).default("monthly"),
@@ -29,7 +30,11 @@ function getDateKey(date: Date, granularity: string): string {
   return `${y}-${m}`;
 }
 
-// ─── GET /api/dashboard/financials ────────────────────────────────────────────
+/*
+  Campaign delivery, not money. Payments are not part of the product right now,
+  so this reports views, posts, creators and engagement. The route keeps its
+  path because callers and tests reference it.
+*/
 
 export async function GET(req: NextRequest) {
   try {
@@ -44,7 +49,7 @@ export async function GET(req: NextRequest) {
     const sixMonthsAgo = new Date(now);
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
 
-    const parsedQuery = parseQuery(financialsQuerySchema, searchParams);
+    const parsedQuery = parseQuery(performanceQuerySchema, searchParams);
     if (!parsedQuery.ok) return parsedQuery.response;
     const from = parsedQuery.data.from ?? sixMonthsAgo;
     const to = parsedQuery.data.to ?? now;
@@ -52,14 +57,7 @@ export async function GET(req: NextRequest) {
 
     // ── Parallel data fetches ───────────────────────────────────────────────
 
-    const [payouts, posts, campaigns, activations, deposits, allCampaigns] = await Promise.all([
-      db.payout.findMany({
-        where: { orgId, createdAt: { gte: from, lte: to } },
-        include: {
-          creator: { select: { id: true, name: true, handle: true, platform: true } },
-          campaign: { select: { id: true, title: true, budget: true } },
-        },
-      }),
+    const [posts, campaigns, activations] = await Promise.all([
       db.post.findMany({
         where: {
           campaign: { orgId },
@@ -72,169 +70,118 @@ export async function GET(req: NextRequest) {
       }),
       db.campaign.findMany({
         where: { orgId, deletedAt: null },
-        select: { id: true, title: true, budget: true, status: true },
+        select: { id: true, title: true, status: true },
       }),
       db.activation.findMany({
         where: { campaign: { orgId }, deletedAt: null },
-        select: { id: true, campaignId: true, creatorId: true },
-      }),
-      db.campaignDeposit.findMany({
-        where: { orgId },
-        select: { amountUsd: true, releasedAmount: true },
-      }),
-      // All campaigns for budget total (not date-filtered)
-      db.campaign.findMany({
-        where: { orgId, deletedAt: null },
-        select: { budget: true },
+        select: { id: true, campaignId: true, creatorId: true, creator: { select: { name: true, handle: true } } },
       }),
     ]);
 
     // ── 1. Summary ──────────────────────────────────────────────────────────
 
-    const completedPayouts = payouts.filter((p) => p.status === "SUCCESS");
-    const pendingPayouts = payouts.filter((p) => p.status === "PENDING");
-
-    const totalSpend = completedPayouts.reduce((sum, p) => sum + p.amount, 0);
-    const totalBudget = allCampaigns.reduce((sum, c) => sum + (c.budget ?? 0), 0);
-    const budgetUtilization = totalBudget > 0 ? (totalSpend / totalBudget) * 100 : 0;
+    // Creator count comes from activations, not payouts: a creator is on the
+    // campaign whether or not anyone has been paid.
     const activeCampaigns = campaigns.filter((c) => c.status === "IN_PROGRESS").length;
-    const uniqueCreatorIds = new Set(completedPayouts.map((p) => p.creatorId));
-    const totalCreators = uniqueCreatorIds.size;
-    const avgCampaignSpend = activeCampaigns > 0 ? totalSpend / activeCampaigns : 0;
-    const pendingPayoutsAmount = pendingPayouts.reduce((sum, p) => sum + p.amount, 0);
-    const totalDeposits = deposits.reduce((sum, d) => sum + d.amountUsd, 0);
-    const releasedDeposits = deposits.reduce((sum, d) => sum + d.releasedAmount, 0);
+    const totalCreators = new Set(activations.map((a) => a.creatorId)).size;
 
     const summary = {
-      totalSpend,
-      totalBudget,
-      budgetUtilization: Math.round(budgetUtilization * 100) / 100,
       activeCampaigns,
       totalCreators,
-      avgCampaignSpend: Math.round(avgCampaignSpend * 100) / 100,
-      pendingPayouts: pendingPayoutsAmount,
-      totalDeposits,
-      releasedDeposits,
     };
 
-    // ── 2. Spend Over Time ──────────────────────────────────────────────────
+    // ── 2. Views Over Time ──────────────────────────────────────────────────
 
-    const spendByDate = new Map<string, { spend: number; views: number }>();
-
-    for (const p of completedPayouts) {
-      const key = getDateKey(new Date(p.createdAt), granularity);
-      const entry = spendByDate.get(key) ?? { spend: 0, views: 0 };
-      entry.spend += p.amount;
-      spendByDate.set(key, entry);
-    }
+    const viewsByDate = new Map<string, number>();
 
     for (const post of posts) {
       const key = getDateKey(new Date(post.createdAt), granularity);
-      const entry = spendByDate.get(key) ?? { spend: 0, views: 0 };
-      entry.views += post.viewsCount;
-      spendByDate.set(key, entry);
+      viewsByDate.set(key, (viewsByDate.get(key) ?? 0) + post.viewsCount);
     }
 
-    const spendOverTime = Array.from(spendByDate.entries())
-      .map(([date, data]) => ({ date, spend: data.spend, views: data.views }))
+    const viewsOverTime = Array.from(viewsByDate.entries())
+      .map(([date, views]) => ({ date, views }))
       .sort((a, b) => a.date.localeCompare(b.date));
 
-    // ── 3. Spend By Campaign (top 10) ───────────────────────────────────────
+    // ── 3. Views By Campaign (top 10) ───────────────────────────────────────
 
-    const campaignSpendMap = new Map<string, { title: string; spend: number; budget: number; views: number; creators: Set<string> }>();
+    // Seeded from every campaign, so one with posts but no payments still
+    // charts -- the old payout-keyed version dropped it entirely.
+    const campaignViewsMap = new Map<string, { title: string; views: number; creators: Set<string> }>();
 
-    for (const p of completedPayouts) {
-      if (!p.campaignId || !p.campaign) continue;
-      const entry = campaignSpendMap.get(p.campaignId) ?? {
-        title: p.campaign.title,
-        spend: 0,
-        budget: p.campaign.budget ?? 0,
-        views: 0,
-        creators: new Set<string>(),
-      };
-      entry.spend += p.amount;
-      entry.creators.add(p.creatorId);
-      campaignSpendMap.set(p.campaignId, entry);
+    for (const c of campaigns) {
+      campaignViewsMap.set(c.id, { title: c.title, views: 0, creators: new Set<string>() });
     }
 
     for (const post of posts) {
-      const entry = campaignSpendMap.get(post.campaignId);
+      const entry = campaignViewsMap.get(post.campaignId);
       if (entry) entry.views += post.viewsCount;
     }
 
-    // Add creator counts from activations for campaigns that may not have payouts
     for (const a of activations) {
-      const entry = campaignSpendMap.get(a.campaignId);
+      const entry = campaignViewsMap.get(a.campaignId);
       if (entry) entry.creators.add(a.creatorId);
     }
 
-    const spendByCampaign = Array.from(campaignSpendMap.entries())
+    const viewsByCampaign = Array.from(campaignViewsMap.entries())
       .map(([campaignId, data]) => ({
         campaignId,
         title: data.title,
-        spend: data.spend,
-        budget: data.budget,
         views: data.views,
         creatorsCount: data.creators.size,
       }))
-      .sort((a, b) => b.spend - a.spend)
+      .filter((c) => c.views > 0 || c.creatorsCount > 0)
+      .sort((a, b) => b.views - a.views)
       .slice(0, 10);
 
     // ── 4. Platform Breakdown ───────────────────────────────────────────────
 
-    const platformMap = new Map<string, { spend: number; views: number; postsCount: number }>();
+    const platformMap = new Map<string, { views: number; postsCount: number }>();
 
     for (const post of posts) {
-      const entry = platformMap.get(post.platform) ?? { spend: 0, views: 0, postsCount: 0 };
+      const entry = platformMap.get(post.platform) ?? { views: 0, postsCount: 0 };
       entry.views += post.viewsCount;
       entry.postsCount += 1;
       platformMap.set(post.platform, entry);
     }
 
-    // Attribute payout spend to platform via creator's platform
-    for (const p of completedPayouts) {
-      if (!p.creator) continue;
-      const platform = p.creator.platform;
-      const entry = platformMap.get(platform) ?? { spend: 0, views: 0, postsCount: 0 };
-      entry.spend += p.amount;
-      platformMap.set(platform, entry);
-    }
-
     const platformBreakdown = Array.from(platformMap.entries()).map(([platform, data]) => ({
       platform,
-      spend: data.spend,
       views: data.views,
       postsCount: data.postsCount,
     }));
 
-    // ── 5. Creator Performance (top 10 by total paid) ───────────────────────
+    // ── 5. Creator Performance (top 10 by views) ────────────────────────────
 
-    const creatorMap = new Map<string, { name: string; handle: string; totalPaid: number; activationIds: Set<string>; views: number; engagementSum: number; postCount: number }>();
+    const creatorMap = new Map<string, { name: string; handle: string; activationIds: Set<string>; views: number; engagementSum: number; postCount: number }>();
 
-    for (const p of completedPayouts) {
-      if (!p.creator) continue;
-      const entry = creatorMap.get(p.creatorId) ?? {
-        name: p.creator.name,
-        handle: p.creator.handle,
-        totalPaid: 0,
+    for (const a of activations) {
+      if (!a.creator) continue;
+      const entry = creatorMap.get(a.creatorId) ?? {
+        name: a.creator.name,
+        handle: a.creator.handle,
         activationIds: new Set<string>(),
         views: 0,
         engagementSum: 0,
         postCount: 0,
       };
-      entry.totalPaid += p.amount;
-      creatorMap.set(p.creatorId, entry);
+      entry.activationIds.add(a.id);
+      creatorMap.set(a.creatorId, entry);
     }
 
-    // Enrich with activation counts
-    for (const a of activations) {
-      const entry = creatorMap.get(a.creatorId);
-      if (entry) entry.activationIds.add(a.id);
-    }
-
-    // Enrich with post metrics
     for (const post of posts) {
-      const entry = creatorMap.get(post.creatorId);
+      let entry = creatorMap.get(post.creatorId);
+      if (!entry && post.creator) {
+        entry = {
+          name: post.creator.name,
+          handle: post.creator.handle,
+          activationIds: new Set<string>(),
+          views: 0,
+          engagementSum: 0,
+          postCount: 0,
+        };
+        creatorMap.set(post.creatorId, entry);
+      }
       if (entry) {
         entry.views += post.viewsCount;
         entry.engagementSum += post.engagementRate;
@@ -247,12 +194,11 @@ export async function GET(req: NextRequest) {
         creatorId,
         name: data.name,
         handle: data.handle,
-        totalPaid: data.totalPaid,
         activationCount: data.activationIds.size,
         views: data.views,
         avgEngagement: data.postCount > 0 ? Math.round((data.engagementSum / data.postCount) * 100) / 100 : 0,
       }))
-      .sort((a, b) => b.totalPaid - a.totalPaid)
+      .sort((a, b) => b.views - a.views)
       .slice(0, 10);
 
     // ── 6. Top Posts (top 5 by views) ───────────────────────────────────────
@@ -275,14 +221,14 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       summary,
-      spendOverTime,
-      spendByCampaign,
+      viewsOverTime,
+      viewsByCampaign,
       platformBreakdown,
       creatorPerformance,
       topPosts,
-    });
+    }, { headers: READ_CACHE_HEADERS });
   } catch (error) {
-    console.error("Dashboard financials error:", error);
+    console.error("Dashboard performance error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

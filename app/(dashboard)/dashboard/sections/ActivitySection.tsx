@@ -15,7 +15,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  formatCurrency,
   statusLabel,
   STATUS_BADGE_VARIANT,
   type Campaign,
@@ -58,7 +57,6 @@ export function ActivitySection({ recentCampaigns }: ActivitySectionProps) {
                 <TableRow className="border-border hover:bg-transparent">
                   <TableHead className={`${HEAD} w-full`}>Campaign</TableHead>
                   <TableHead className={`${HEAD} w-[132px]`}>Status</TableHead>
-                  <TableHead className={`${HEAD} w-[104px] text-right`}>Budget</TableHead>
                   <TableHead className={`${HEAD} w-[116px] text-right`}>Last updated</TableHead>
                   <TableHead className="w-10 min-w-10" aria-label="Open campaign" />
                 </TableRow>
@@ -82,15 +80,6 @@ export function ActivitySection({ recentCampaigns }: ActivitySectionProps) {
                       <Badge variant={STATUS_BADGE_VARIANT[c.status] ?? "neutral"} dot>
                         {statusLabel(c.status)}
                       </Badge>
-                    </TableCell>
-                    <TableCell className="px-3 py-3 text-right">
-                      {c.budget ? (
-                        <span className="font-semibold text-foreground tabular-nums">
-                          {formatCurrency(c.budget)}
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground">Not set</span>
-                      )}
                     </TableCell>
                     <TableCell
                       className="px-3 py-3 text-right text-xs whitespace-nowrap text-muted-foreground tabular-nums"

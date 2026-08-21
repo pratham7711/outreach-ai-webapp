@@ -1,41 +1,30 @@
-import { formatCompact, formatCompactCurrency } from "@/lib/format";
+import { formatCompact } from "@/lib/format";
 
 export type Campaign = {
   id: string;
   title: string;
   status: string;
-  budget: number | null;
   client?: { name: string } | null;
   updatedAt?: string | null;
 };
 
-export type FinancialData = {
+export type PerformanceData = {
   summary: {
-    totalSpend: number;
-    totalBudget: number;
-    budgetUtilization: number;
     activeCampaigns: number;
     totalCreators: number;
-    avgCampaignSpend: number;
-    pendingPayouts: number;
-    totalDeposits: number;
-    releasedDeposits: number;
   };
-  spendOverTime: { date: string; spend: number; views: number }[];
-  spendByCampaign: {
+  viewsOverTime: { date: string; views: number }[];
+  viewsByCampaign: {
     campaignId: string;
     title: string;
-    spend: number;
-    budget: number;
     views: number;
     creatorsCount: number;
   }[];
-  platformBreakdown: { platform: string; spend: number; views: number; postsCount: number }[];
+  platformBreakdown: { platform: string; views: number; postsCount: number }[];
   creatorPerformance: {
     creatorId: string;
     name: string;
     handle: string;
-    totalPaid: number;
     activationCount: number;
     views: number;
     avgEngagement: number;
@@ -62,9 +51,6 @@ export const STATUS_BADGE_VARIANT: Record<string, StatusVariant> = {
   DRAFT: "neutral",
 };
 
-export function formatCurrency(n: number) {
-  return formatCompactCurrency(n);
-}
 
 export function formatNumber(n: number) {
   return formatCompact(n);

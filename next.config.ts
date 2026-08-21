@@ -32,6 +32,18 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "*.cdninstagram.com" },
     ],
   },
+  /*
+    Returning to a page should not re-run its queries. Next keeps fetched RSC
+    payloads in an in-memory client cache, but the default reuse window for a
+    dynamic route is 0 seconds, so every back-navigation re-rendered the page on
+    the server. Thirty seconds is long enough that moving between sections feels
+    instant and short enough that a record you just created shows up when you
+    navigate back to its list. The cache lives in memory only, so a hard refresh
+    still fetches everything fresh.
+  */
+  experimental: {
+    staleTimes: { dynamic: 30, static: 180 },
+  },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },

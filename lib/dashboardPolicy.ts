@@ -39,6 +39,10 @@ export const DASHBOARD_NAV_RULES: DashboardNavRule[] = [
   { href: "/clients", key: "clients" },
   { href: "/fan-pages", key: "fan-pages" },
   { href: "/trackers", key: "trackers" },
+  // Both sit in the nav but had no rule here, so any org with a restricted plan
+  // had them filtered out of the sidebar entirely.
+  { href: "/deadlines", alwaysVisible: true },
+  { href: "/analytics", alwaysVisible: true },
   { href: "/discovery", key: "discovery" },
   { href: "/creators", key: "creators" },
   { href: "/lists", key: "lists" },

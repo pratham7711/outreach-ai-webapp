@@ -7,10 +7,10 @@ import { dateParam, parseQuery } from "@/lib/http/queryParams";
 const financialsExportQuerySchema = z.object({
   from: dateParam.optional(),
   to: dateParam.optional(),
-  type: z.enum(["payouts", "campaigns", "creators"]).default("payouts"),
+  type: z.enum(["campaigns", "creators"]).default("campaigns"),
 });
 
-type ExportType = "payouts" | "campaigns" | "creators";
+type ExportType = "campaigns" | "creators";
 
 function escapeCsv(value: string | number | null | undefined): string {
   if (value === null || value === undefined) return "";
@@ -48,42 +48,7 @@ export async function GET(request: NextRequest) {
 
     let csvContent: string;
 
-    if (type === "payouts") {
-      const payouts = await db.payout.findMany({
-        where: {
-          orgId,
-          createdAt: { gte: from, lte: to },
-        },
-        include: {
-          creator: { select: { name: true, handle: true } },
-          campaign: { select: { title: true } },
-        },
-        orderBy: { createdAt: "desc" },
-      });
-
-      const headers = [
-        "Date",
-        "Creator",
-        "Campaign",
-        "Amount",
-        "Currency",
-        "Status",
-        "Payment Method",
-        "Transaction ID",
-      ];
-      const rows = payouts.map((p) => [
-        p.createdAt.toISOString().split("T")[0],
-        p.creator.name,
-        p.campaign?.title ?? "",
-        String(p.amount),
-        p.currency,
-        p.status,
-        p.paymentMethod,
-        p.transactionId ?? "",
-      ]);
-
-      csvContent = buildCsv(headers, rows);
-    } else if (type === "campaigns") {
+    if (type === "campaigns") {
       const campaigns = await db.campaign.findMany({
         where: {
           orgId,
@@ -92,7 +57,6 @@ export async function GET(request: NextRequest) {
         },
         include: {
           client: { select: { name: true } },
-          payouts: { select: { amount: true } },
           activations: { select: { id: true } },
         },
         orderBy: { createdAt: "desc" },
@@ -101,24 +65,17 @@ export async function GET(request: NextRequest) {
       const headers = [
         "Campaign",
         "Client",
-        "Budget",
-        "Total Spent",
         "Status",
         "Creators",
         "Start Date",
       ];
-      const rows = campaigns.map((c) => {
-        const totalSpent = c.payouts.reduce((sum, p) => sum + p.amount, 0);
-        return [
-          c.title,
-          c.client?.name ?? "",
-          c.budget != null ? String(c.budget) : "",
-          String(totalSpent),
-          c.status,
-          String(c.activations.length),
-          c.createdAt.toISOString().split("T")[0],
-        ];
-      });
+      const rows = campaigns.map((c) => [
+        c.title,
+        c.client?.name ?? "",
+        c.status,
+        String(c.activations.length),
+        c.createdAt.toISOString().split("T")[0],
+      ]);
 
       csvContent = buildCsv(headers, rows);
     } else if (type === "creators") {
@@ -128,39 +85,46 @@ export async function GET(request: NextRequest) {
           deletedAt: null,
         },
         include: {
-          payouts: {
-            where: { createdAt: { gte: from, lte: to } },
-            select: { amount: true },
-          },
           activations: { select: { id: true } },
         },
         orderBy: { name: "asc" },
       });
 
+      // Average views is derived from the posts themselves. The stored
+      // Creator.averageViews column is 0 on all but one creator, and the header
+      // used to read "Avg Engagement" while carrying that views number.
+      const grouped = creators.length
+        ? await db.post.groupBy({
+            by: ["creatorId"],
+            where: { creatorId: { in: creators.map((c) => c.id) }, viewsCount: { gt: 0 } },
+            _avg: { viewsCount: true },
+          })
+        : [];
+      const avgViews = new Map(
+        grouped
+          .filter((g) => g._avg.viewsCount !== null)
+          .map((g) => [g.creatorId, Math.round(g._avg.viewsCount as number)])
+      );
+
       const headers = [
         "Creator",
         "Handle",
         "Platform",
-        "Total Paid",
         "Activations",
-        "Avg Engagement",
+        "Avg Views",
       ];
-      const rows = creators.map((c) => {
-        const totalPaid = c.payouts.reduce((sum, p) => sum + p.amount, 0);
-        return [
-          c.name,
-          c.handle,
-          c.platform,
-          String(totalPaid),
-          String(c.activations.length),
-          String(c.averageViews),
-        ];
-      });
+      const rows = creators.map((c) => [
+        c.name,
+        c.handle,
+        c.platform,
+        String(c.activations.length),
+        avgViews.has(c.id) ? String(avgViews.get(c.id)) : "",
+      ]);
 
       csvContent = buildCsv(headers, rows);
     } else {
       return NextResponse.json(
-        { error: "Invalid type. Must be payouts, campaigns, or creators." },
+        { error: "Invalid type. Must be campaigns or creators." },
         { status: 400 }
       );
     }
@@ -168,11 +132,11 @@ export async function GET(request: NextRequest) {
     return new NextResponse(csvContent, {
       headers: {
         "Content-Type": "text/csv",
-        "Content-Disposition": `attachment; filename="financial-report-${type}-${new Date().toISOString().split("T")[0]}.csv"`,
+        "Content-Disposition": `attachment; filename="campaign-report-${type}-${new Date().toISOString().split("T")[0]}.csv"`,
       },
     });
   } catch (error) {
-    console.error("Financial export error:", error);
+    console.error("Report export error:", error);
     return NextResponse.json(
       { error: "Failed to export financial data" },
       { status: 500 }

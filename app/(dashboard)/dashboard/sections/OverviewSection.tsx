@@ -5,107 +5,65 @@ import dynamic from "next/dynamic";
 import { BarChart3 } from "lucide-react";
 import { MetricTile, SectionCard } from "@/components/ds";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatCurrency, formatNumber, type FinancialData } from "../types";
+import { formatNumber, type PerformanceData } from "../types";
 
-const SpendOverTimeArea = dynamic(
-  () => import("../DashboardCharts").then((m) => m.SpendOverTimeArea),
+const ViewsOverTimeArea = dynamic(
+  () => import("../DashboardCharts").then((m) => m.ViewsOverTimeArea),
   { ssr: false, loading: () => <Skeleton className="h-[400px] w-full rounded-lg" /> }
 );
 
 type OverviewSectionProps = {
-  financials: FinancialData | null;
+  financials: PerformanceData | null;
   loading: boolean;
   widgets: string[];
-  fallbackChartData: { month: string; spend: number }[];
   fallbackCampaignCount: number;
   fallbackCreatorCount: number;
-  fallbackPendingPayouts: number;
 };
 
 export function OverviewSection({
   financials,
   loading,
   widgets,
-  fallbackChartData,
   fallbackCampaignCount,
   fallbackCreatorCount,
-  fallbackPendingPayouts,
 }: OverviewSectionProps) {
   const s = financials?.summary;
+  const platforms = financials?.platformBreakdown ?? [];
+  const totalViews = platforms.reduce((n, p) => n + p.views, 0);
+  const totalPosts = platforms.reduce((n, p) => n + p.postsCount, 0);
 
   return (
     <div className="flex flex-col gap-6">
       {widgets.includes("kpi_grid") && (
         <div className="grid grid-cols-2 gap-5 lg:grid-cols-4">
           <MetricTile
-            metric="totalSpend"
-            value={formatCurrency(s ? s.totalSpend : 0)}
-            footer={s ? `${s.budgetUtilization.toFixed(1)}% of total budget used` : undefined}
-          />
-          <MetricTile
             metric="activeCampaigns"
             value={String(s ? s.activeCampaigns : fallbackCampaignCount)}
           />
           <MetricTile
-            metric="pendingPayouts"
-            value={formatCurrency(s ? s.pendingPayouts : fallbackPendingPayouts)}
-          />
-          <MetricTile
-            metric="paidCreators"
+            metric="campaignCreators"
             value={String(s ? s.totalCreators : fallbackCreatorCount)}
           />
-        </div>
-      )}
-
-      {widgets.includes("financial_summary") && s && (
-        <div className="rounded-xl border border-border bg-card px-6 py-5">
-          <h2 className="mb-4 text-[11px] font-semibold tracking-[0.08em] text-muted-foreground uppercase">
-            Budget &amp; escrow
-          </h2>
-          <div className="grid grid-cols-2 gap-x-6 gap-y-6 lg:grid-cols-4 lg:divide-x lg:divide-border">
-            <MetricTile variant="plain" metric="totalBudget" value={formatCurrency(s.totalBudget)} />
-            <div className="lg:pl-6">
-              <MetricTile
-                variant="plain"
-                metric="avgCampaignSpend"
-                value={formatCurrency(s.avgCampaignSpend)}
-              />
-            </div>
-            <div className="lg:pl-6">
-              <MetricTile
-                variant="plain"
-                metric="totalDeposits"
-                value={formatCurrency(s.totalDeposits)}
-              />
-            </div>
-            <div className="lg:pl-6">
-              <MetricTile
-                variant="plain"
-                metric="releasedDeposits"
-                value={formatCurrency(s.releasedDeposits)}
-              />
-            </div>
-          </div>
+          {/* Both come from the same platform rollup, so they are either
+              genuinely measured together or genuinely absent together. */}
+          <MetricTile metric="totalViews" value={platforms.length ? formatNumber(totalViews) : "—"} />
+          <MetricTile metric="totalPosts" value={platforms.length ? formatNumber(totalPosts) : "—"} />
         </div>
       )}
 
       {widgets.includes("views_over_time") && (
         <SectionCard
           icon={BarChart3}
-          title="Spend and views over time"
-          description="Each measure has its own scale, so the two panels are read separately."
+          title="Views over time"
+          description="Total views across every tracked post, by the date it was measured."
         >
           {loading ? (
             <Skeleton className="h-[400px] w-full rounded-lg" />
           ) : (
             <div className="h-[400px]">
-              <SpendOverTimeArea
-                data={
-                  financials?.spendOverTime ??
-                  fallbackChartData.map((d) => ({ date: d.month, spend: d.spend, views: 0 }))
-                }
+              <ViewsOverTimeArea
+                data={financials?.viewsOverTime ?? []}
                 formatNumber={formatNumber}
-                formatCurrency={formatCurrency}
               />
             </div>
           )}
