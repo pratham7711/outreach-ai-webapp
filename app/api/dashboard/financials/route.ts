@@ -13,14 +13,26 @@ const performanceQuerySchema = z.object({
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+/**
+ * A bucket key. UTC throughout, and that is load-bearing: these dates come from
+ * SQL date_trunc, which runs in the database's zone (UTC on Neon), so reading
+ * them with local accessors shifts the key by one period wherever the offset is
+ * negative. A 2026-08-01T00:00:00Z bucket read at UTC-11 is local month 7, so
+ * every US-based developer saw the wrong month on the dashboard — all day, not
+ * in a window, because the offset never changes sign.
+ *
+ * The weekly branch was the subtler half: it fed LOCAL calendar parts into a
+ * Date.UTC() constructor, which silently relabels the day and can cross an ISO
+ * week boundary.
+ */
 function getDateKey(date: Date, granularity: string): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
+  const y = date.getUTCFullYear();
+  const m = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(date.getUTCDate()).padStart(2, "0");
   if (granularity === "daily") return `${y}-${m}-${d}`;
   if (granularity === "weekly") {
     // ISO week number
-    const tmp = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    const tmp = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
     tmp.setUTCDate(tmp.getUTCDate() + 4 - (tmp.getUTCDay() || 7));
     const yearStart = new Date(Date.UTC(tmp.getUTCFullYear(), 0, 1));
     const weekNo = String(Math.ceil(((tmp.getTime() - yearStart.getTime()) / 86400000 + 1) / 7)).padStart(2, "0");
@@ -46,8 +58,9 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = req.nextUrl;
     const now = new Date();
+    // UTC, to match the bucket keys the rollup is grouped by.
     const sixMonthsAgo = new Date(now);
-    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+    sixMonthsAgo.setUTCMonth(sixMonthsAgo.getUTCMonth() - 6);
 
     const parsedQuery = parseQuery(performanceQuerySchema, searchParams);
     if (!parsedQuery.ok) return parsedQuery.response;
