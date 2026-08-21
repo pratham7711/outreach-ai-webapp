@@ -35,7 +35,25 @@ and every post card carries views, likes, comments, shares, downloads and engage
 
 Our database has `likesCount = 0` for 18,602 of 18,708 posts. **CreatorCore has this data; we failed to extract it.** The `statistic-post` type returned **zero rows** — its backend timed out on every page, exactly as `scripts/creatorcore/README.md` warns — and that type is where the per-post metrics live. Post rows carry only `latestViews/Engagement` as a denormalised fallback.
 
-So the work I shipped today (dropping Likes/Comments/Eng % when a campaign has none) is correct for the data we hold and wrong as a permanent state. **The highest-value next action in this whole program is re-running the `statistic-post` extraction**, with small pages and aggressive backoff, until those 18,680 posts have their metrics. That single fix restores four KPI tiles, three post columns, the engagement leaderboard and both engagement-rate figures — none of which need any new UI.
+So the work I shipped today (dropping Likes/Comments/Eng % when a campaign has none) is correct for the data we hold and wrong as a permanent state.
+
+### 1.1 Solved: fetch the stats by id, not by listing
+
+The listing cannot be made to work. `GET /obj/statistic-post?limit=5&cursor=0` answers `400 Database query timeout` at every page size, every time — smaller pages do not help, because the timeout is on their side of the query.
+
+It is also unnecessary. Every post carries `lastStatistics`, the id of its most recent stats row, and **`GET /obj/statistic-post/<id>` answers 200 immediately**. 18,660 keyed reads get the same data the listing refuses to produce.
+
+The record carries exactly what was missing — 24 fields, of which the load-bearing ones are `views`, `likes`, `comments`, `shareCount`, `downloadCount`, `engagementRate` (a fraction: `0.1004` = 10.04%), `engagement` (their sum of likes + comments + shares + downloads), and a per-metric delta set (`viewsChange`, `likesChange`, `commentsChange`, `shareCountChange`, `downloadCountChange`, `engagementChange`).
+
+Verified end to end before any bulk run: post `@kewbi_` returns views 592,580 · likes 57,832 · comments 209 · shares 1,083 · downloads 380 · rate 0.1004 — **identical to what CreatorCore's own Posts tab renders for that post**. So the mapping is confirmed against the reference UI, not assumed.
+
+- `scripts/creatorcore/cc-stats-probe.mjs` — the three-request probe that established the above.
+- `scripts/creatorcore/cc-fetch-stats.mjs` — the resumable bulk fetch (concurrency 4, paced, backoff; ~5.7 records/s).
+- `scripts/creatorcore/cc-apply-stats.mjs` — maps onto `Post` by `ccPostId`, dry-run by default.
+
+Two deliberate choices in the apply step. `lastSyncedAt` is set to the stats row's `Modified Date` rather than `now()`, because that is when the metric was actually measured — it makes the "Last Synced" column truthful and it is the field `lib/metricDisplay.ts` reads to tell a real zero from an unmeasured one. And `savesCount` is left untouched: **the stats record has no saves field**, even though the reference's Posts tab shows a `Total Saves` figure, so that one metric remains unsourced and is the only engagement column that should still hide.
+
+Once applied, the hidden columns reappear on their own — no UI change needed. That is the design working as intended, not a regression.
 
 Corollary for the schema: CreatorCore stores `viewsPullable`, `likesPullable`, `sharesPullable`, `savesPullable`, `downloadsPullable` per post. Availability is a stored fact there and an inference here (`lib/metricDisplay.ts` reads `lastSyncedAt`). Carry it explicitly.
 
@@ -178,6 +196,66 @@ These four need a narrative pass with an active data set before they can be spec
 9. **Re-drive Drafts, Analytics, Creators-tab, Calendar, Clients, Lists, Discovery** against an active campaign and a populated org, then spec (§4.3, §8).
 10. **Resolve the Settings tab token** and inventory its seven tabs (§2.2).
 
+## 9a. Modals, dropdowns and create flows
+
+Captured by `scripts/creatorcore/cc-modal-inventory.mjs`, which opens each control and dismisses it with Escape without submitting. Every click target is named explicitly; a forbidden-label check runs before each click and before any step advance, and it stops rather than guesses. Nothing was created, edited or deleted.
+
+**All create flows are single-step modals, not wizards.** Our `CampaignWizard` is five steps; the reference asks for everything on one screen.
+
+### New Campaign
+Centred modal, ~600px, dark overlay, `✕` top right.
+
+| Field | Required | Notes |
+|---|---|---|
+| Title | **yes** | placeholder `Tchami - Adieu Release` |
+| Client | *(Optional)* | free-text `Client Name`, not a picker |
+| Brief | *(Optional)* | rich text with a full toolbar: font family, **B** *I* U S, text colour, highlight, H1–H4, ordered and unordered list, indent/outdent, align, link |
+| Budget | *(Optional)* | placeholder `$5,000` |
+| Enable External Rates | toggle, default off | with an ⓘ tooltip |
+| Default Deliverables | *(Optional)* | a `Type` select + a name input (`GRWM`) + **Add**, plus a **Most Used** row of one-click chips (e.g. `TikTok Song Promo`) |
+
+**CreatorCore labels Budget and Client "(Optional)" in its own create form.** That is independent confirmation of today's optional-budget work, from the reference rather than from us.
+
+Gaps: no rich-text brief, no default deliverables, no deliverable types, no Most Used chips, no external-rates concept.
+
+### New Client
+Name (required) · Client Tags with **Add Tag** · Website URL *(Optional)* · Logo via **Search for Logo** or **Upload Thumbnail** · **Points of Contact** with **Add** (repeatable) · Notes textarea · **Create**.
+
+Gaps: logo search, repeatable contacts, tags.
+
+### New List
+Title (`Mom Creators`) · Description *(Optional)* · **Get notifications for this list** toggle · **Create List**. The notification toggle is a per-list subscription we have no equivalent for.
+
+### New Tracker
+Returns **"Tracker Limit Reached! Reach out to your CreatorCore account manager or delete trackers."** Trackers are quota-limited per plan — a commercial constraint, and a state our tracker UI has no design for.
+
+### Filter Creators (the richest panel in the product)
+- **Tags to include** / **Tags to exclude**, each with `Add filter` and `Clear all selected tags`
+- **Social Stats**: TikTok · Instagram · YouTube · **X** — a fourth platform we do not model
+- **Details**: Location · Gender · Representative · Deliverable · Age · Birthday Month
+- **Audience Demographics**: TikTok Top Country · Instagram Top Country · YouTube Top Country
+- **Reset**
+
+Gaps: nearly all of it. Note the creator fields this implies — gender, age, birthday month, representative, location, per-platform top country — none of which are in our `Creator` model.
+
+### Share Campaign — per-field visibility, and it matters for handover
+This is what a client sees, so it is the most delivery-relevant modal in the product. Link form is `https://<agency>.creatorcore.co/client/<slug>` — note this is a *different* surface from the brief portal (`/portal?briefViewer=<id>`).
+
+| Group | Controls |
+|---|---|
+| Creator Platforms Included | TikTok · Instagram · YouTube · X |
+| Creator Visibility | Hide All Creators · Show Creator Statuses · Show Rates |
+| Draft Visibility | Hide All Drafts |
+| Campaign Statistics | Show Total Budget · Show Reach |
+
+Our share is all-or-nothing. Every one of those toggles is a gap, and `Show Rates` / `Show Total Budget` are exactly the switches an agency needs before sending a link to a brand.
+
+### Campaign Status filter
+Expands to the billing sub-statuses the older PRD inferred: **Need To Invoice · Invoiced · Paid · Paused**. Confirmed.
+
+### Not resolved in this pass
+`Client` and `Filters` targets were not found by exact text (they are input placeholders, not labels). The Activations `Filter` and `Status` clicks re-rendered the entire page (+378 controls) rather than opening a panel — that surface needs a different approach. No hover state, no validation message and no error state was provoked.
+
 ## 10. Honest limits
 
-Observed at one viewport, one account, one `Complete` campaign, and with no control clicked beyond navigation — so **no modal, dropdown menu, hover state, empty state, error state or validation message is in this document.** Those need a second pass that opens controls; you have said I may create and clean up my own records there, which makes it safe to exercise create flows and delete only what I made. Settings is uninventoried. Six campaign sub-tabs were captured against a campaign too quiet to spec from. Anything not in `CREATORCORE_UI_INVENTORY.md` is not evidence.
+Observed at one viewport, on one account. §9a now covers the modals and create flows, opened but never submitted — so **no hover state, no validation message, no error state and no post-submit state is in this document**, and no record was created. Exercising a real create-and-delete round trip is the remaining gap there. Settings is uninventoried: `?tab=Settings` falls back to Campaigns and the sidebar click mis-targets, so its seven tabs are still unseen. Six campaign sub-tabs were captured against a campaign too quiet to spec from. Anything not in `CREATORCORE_UI_INVENTORY.md` is not evidence.
