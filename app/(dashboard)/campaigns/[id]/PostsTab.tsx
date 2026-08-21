@@ -11,7 +11,7 @@ import { formatCompact, formatCompactCurrency, stripAt, formatDateAbs } from "@/
 import type { ComplianceFlag } from "@/lib/compliance/postCompliance";
 import PostMedia from "@/components/PostMedia";
 import { imgSrc } from "@/lib/postMedia";
-import { metricValue, engagementRateValue, NEVER_MEASURED } from "@/lib/metricDisplay";
+import { metricValue, engagementRateValue } from "@/lib/metricDisplay";
 
 type SnapshotLite = { id: string; viewsCount: number; recordedAt: string };
 
@@ -151,7 +151,37 @@ function deltaViews(post: PostData): number | null {
   return post.viewsCount - previous.viewsCount;
 }
 
-const GRID_COLS = "minmax(240px, 1.6fr) 92px 88px 82px 78px 88px 84px 88px 148px 104px 140px 140px";
+/* Keyed rather than positional: the engagement columns are dropped whenever no
+   post in the campaign has been fetched, and a fixed template would leave their
+   tracks behind as dead space. */
+const COL_WIDTHS = {
+  creator: "minmax(240px, 1.6fr)",
+  platform: "92px",
+  posted: "88px",
+  views: "82px",
+  likes: "78px",
+  comments: "88px",
+  engRate: "84px",
+  emv: "88px",
+  delta: "148px",
+  status: "104px",
+  lastSynced: "140px",
+  actions: "140px",
+} as const;
+
+const COL_GAP = 12;
+
+function gridTemplate(cols: readonly (keyof typeof COL_WIDTHS)[]) {
+  const widths = cols.map((c) => COL_WIDTHS[c]);
+  // The creator column is the flexible one; everything else is a fixed px track.
+  const fixed = widths
+    .filter((w) => w.endsWith("px") && !w.startsWith("minmax"))
+    .reduce((sum, w) => sum + parseInt(w, 10), 0);
+  return {
+    gridTemplateColumns: widths.join(" "),
+    minWidth: fixed + 240 + COL_GAP * (cols.length - 1),
+  };
+}
 
 function earnedMinorForPost(
   views: number,
@@ -384,6 +414,44 @@ export default function PostsTab({
   }, [posts, minViews, creatorSearch, sortKey, sortDir]);
 
   const anyDelta = useMemo(() => posts.some((p) => (p.snapshots?.length ?? 0) >= 2), [posts]);
+  /* Imported posts carried view counts only, so likes, comments and engagement
+     rate are unknown for all but the ones we fetched ourselves. A column none of
+     these posts can fill is not shown at all. */
+  const anyLikes = useMemo(
+    () => posts.some((p) => metricValue(p.likesCount, p.lastSyncedAt) !== null),
+    [posts]
+  );
+  const anyComments = useMemo(
+    () => posts.some((p) => metricValue(p.commentsCount, p.lastSyncedAt) !== null),
+    [posts]
+  );
+  const anyEngRate = useMemo(
+    () =>
+      posts.some(
+        (p) =>
+          engagementRateValue(p.likesCount, p.commentsCount, p.viewsCount, p.lastSyncedAt) !== null
+      ),
+    [posts]
+  );
+  const listCols = useMemo(
+    () =>
+      [
+        "creator",
+        "platform",
+        "posted",
+        "views",
+        ...(anyLikes ? (["likes"] as const) : []),
+        ...(anyComments ? (["comments"] as const) : []),
+        ...(anyEngRate ? (["engRate"] as const) : []),
+        "emv",
+        ...(anyDelta ? (["delta"] as const) : []),
+        "status",
+        "lastSynced",
+        "actions",
+      ] as const,
+    [anyLikes, anyComments, anyEngRate, anyDelta]
+  );
+  const listGrid = useMemo(() => gridTemplate(listCols), [listCols]);
 
   const accruedMinor = useMemo(() => {
     if (!marketplace) return 0;
@@ -572,16 +640,16 @@ export default function PostsTab({
         <>
           <Card variant="solid" noPadding style={{ overflowX: "auto", maxWidth: "100%" }}>
             <div style={{
-              display: "grid", gridTemplateColumns: GRID_COLS, minWidth: 1500,
-              gap: 12, padding: "12px 24px", borderBottom: "1px solid var(--cc-border)", background: "var(--cc-bg)", alignItems: "center",
+              display: "grid", ...listGrid,
+              gap: COL_GAP, padding: "12px 24px", borderBottom: "1px solid var(--cc-border)", background: "var(--cc-bg)", alignItems: "center",
             }}>
               <PlainHeader label="Creator" />
               <PlainHeader label="Platform" />
               <SortHeader label="Posted" sk="posted" />
               <SortHeader label="Views" sk="views" align="right" />
-              <SortHeader label="Likes" sk="likes" align="right" />
-              <SortHeader label="Comments" sk="comments" align="right" />
-              <SortHeader label="Eng %" sk="engRate" align="right" />
+              {anyLikes && <SortHeader label="Likes" sk="likes" align="right" />}
+              {anyComments && <SortHeader label="Comments" sk="comments" align="right" />}
+              {anyEngRate && <SortHeader label="Eng %" sk="engRate" align="right" />}
               <SortHeader label="EMV" sk="emv" align="right" />
               {anyDelta && <SortHeader label="Δ Views" sk="delta" align="right" />}
               <PlainHeader label="Status" />
@@ -604,8 +672,8 @@ export default function PostsTab({
                   key={post.id}
                   style={{
                     display: "grid",
-                    gridTemplateColumns: GRID_COLS, minWidth: 1500,
-                    gap: 12, padding: "14px 24px", alignItems: "center",
+                    ...listGrid,
+                    gap: COL_GAP, padding: "14px 24px", alignItems: "center",
                     borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined,
                   }}
                 >
@@ -632,19 +700,25 @@ export default function PostsTab({
                   <Badge variant={PLATFORM_BADGE[post.platform] ?? "neutral"} style={{ fontSize: 11 }}>{post.platform}</Badge>
                   <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{formatDateAbs(post.postedAt)}</span>
                   <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)", textAlign: "right" }}>{formatNumber(post.viewsCount)}</span>
-                  <span title={likes === null ? NEVER_MEASURED : undefined} style={{ fontSize: 13, color: "var(--cc-text-muted)", textAlign: "right" }}>
-                    {likes === null ? "—" : formatNumber(likes)}
-                  </span>
-                  <span title={comments === null ? NEVER_MEASURED : undefined} style={{ fontSize: 13, color: "var(--cc-text-muted)", textAlign: "right" }}>
-                    {comments === null ? "—" : formatNumber(comments)}
-                  </span>
-                  <span title={erShown === null ? NEVER_MEASURED : undefined} style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-primary)", textAlign: "right" }}>
-                    {erShown === null ? "—" : `${erShown.toFixed(1)}%`}
-                  </span>
+                  {anyLikes && (
+                    <span style={{ fontSize: 13, color: "var(--cc-text-muted)", textAlign: "right" }}>
+                      {likes === null ? "" : formatNumber(likes)}
+                    </span>
+                  )}
+                  {anyComments && (
+                    <span style={{ fontSize: 13, color: "var(--cc-text-muted)", textAlign: "right" }}>
+                      {comments === null ? "" : formatNumber(comments)}
+                    </span>
+                  )}
+                  {anyEngRate && (
+                    <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-primary)", textAlign: "right" }}>
+                      {erShown === null ? "" : `${erShown.toFixed(1)}%`}
+                    </span>
+                  )}
                   <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)", textAlign: "right" }}>{formatMoney(emv)}</span>
                   {anyDelta && (
                     <span style={{ fontSize: 13, fontWeight: 600, textAlign: "right", color: dv === null ? "var(--cc-text-subtle)" : dv >= 0 ? "var(--cc-success)" : "var(--cc-danger)" }}>
-                      {dv === null ? "—" : `${dv >= 0 ? "+" : ""}${formatNumber(dv)}`}
+                      {dv === null ? "" : `${dv >= 0 ? "+" : ""}${formatNumber(dv)}`}
                     </span>
                   )}
                   <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-start" }}>
@@ -708,8 +782,18 @@ export default function PostsTab({
         <>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 16 }}>
             {pageRows.map((post) => {
-              const er = engRatePct(post);
               const emv = postEmv(post);
+              const cardLikes = metricValue(post.likesCount, post.lastSyncedAt);
+              const cardComments = metricValue(post.commentsCount, post.lastSyncedAt);
+              const cardEngRate =
+                cardLikes === null && cardComments === null
+                  ? null
+                  : engagementRateValue(
+                      post.likesCount,
+                      post.commentsCount,
+                      post.viewsCount,
+                      post.lastSyncedAt
+                    ) ?? engRatePct(post);
               return (
                 <Card key={post.id} variant="outlined" style={{ padding: 0, overflow: "hidden" }}>
                   {post.thumbnailUrl && (
@@ -728,9 +812,17 @@ export default function PostsTab({
                     </div>
                     <div style={{ display: "flex", gap: 12, fontSize: 12, color: "var(--cc-text-muted)", flexWrap: "wrap" }}>
                       <span style={{ display: "flex", alignItems: "center", gap: 3 }}><Eye size={12} />{formatNumber(post.viewsCount)}</span>
-                      <span style={{ display: "flex", alignItems: "center", gap: 3 }}><Heart size={12} />{formatNumber(post.likesCount)}</span>
-                      <span style={{ display: "flex", alignItems: "center", gap: 3 }}><MessageCircle size={12} />{formatNumber(post.commentsCount)}</span>
-                      <span style={{ display: "flex", alignItems: "center", gap: 3 }}><TrendingUp size={12} />{er === null ? "—" : `${er.toFixed(1)}%`}</span>
+                      {/* Unfetched counters default to 0 in the column, which would
+                          read here as a measured zero. Show only what we have. */}
+                      {cardLikes !== null && (
+                        <span style={{ display: "flex", alignItems: "center", gap: 3 }}><Heart size={12} />{formatNumber(cardLikes)}</span>
+                      )}
+                      {cardComments !== null && (
+                        <span style={{ display: "flex", alignItems: "center", gap: 3 }}><MessageCircle size={12} />{formatNumber(cardComments)}</span>
+                      )}
+                      {cardEngRate !== null && (
+                        <span style={{ display: "flex", alignItems: "center", gap: 3 }}><TrendingUp size={12} />{cardEngRate.toFixed(1)}%</span>
+                      )}
                     </div>
                     <div style={{ fontSize: 12, color: "var(--cc-text-muted)", marginTop: 8 }}>EMV <strong style={{ color: "var(--cc-text)" }}>{formatMoney(emv)}</strong></div>
                     <div style={{ display: "flex", gap: 8, marginTop: 12 }}>

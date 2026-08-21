@@ -150,7 +150,7 @@ export default function ListDetailPage({ params }: { params: Promise<{ id: strin
                 </Link>
                 <Badge variant="neutral">{item.creator.platform}</Badge>
                 <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>{formatNumber(item.creator.followersCount)}</span>
-                <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{item.creator.avgViews !== null ? formatNumber(item.creator.avgViews) : "—"}</span>
+                <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{item.creator.avgViews ? formatNumber(item.creator.avgViews) : ""}</span>
                 <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{formatDateAbs(item.addedAt)}</span>
                 <button
                   onClick={() => handleRemoveCreator(item.id, item.creator.id)}

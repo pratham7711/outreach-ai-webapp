@@ -45,9 +45,14 @@ export function OverviewSection({
             value={String(s ? s.totalCreators : fallbackCreatorCount)}
           />
           {/* Both come from the same platform rollup, so they are either
-              genuinely measured together or genuinely absent together. */}
-          <MetricTile metric="totalViews" value={platforms.length ? formatNumber(totalViews) : "—"} />
-          <MetricTile metric="totalPosts" value={platforms.length ? formatNumber(totalPosts) : "—"} />
+              genuinely measured together or genuinely absent together — and
+              when they are absent the tiles are not drawn. */}
+          {platforms.length > 0 && (
+            <>
+              <MetricTile metric="totalViews" value={formatNumber(totalViews)} />
+              <MetricTile metric="totalPosts" value={formatNumber(totalPosts)} />
+            </>
+          )}
         </div>
       )}
 

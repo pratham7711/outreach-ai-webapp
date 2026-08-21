@@ -42,7 +42,7 @@ const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
 };
 
 function DaysLeft({ dueDate, status }: { dueDate: string | null; status: string }) {
-  if (!dueDate) return <span style={{ fontSize: 12, color: "var(--cc-text-subtle)" }}>—</span>;
+  if (!dueDate) return null;
   if (["COMPLETE", "DECLINED"].includes(status)) {
     return <span style={{ fontSize: 12, color: "#059669" }}>Done</span>;
   }
@@ -218,7 +218,7 @@ export default function DeadlinesPage() {
             <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>With Deadlines</span>
           </div>
           <p style={{ fontSize: 28, fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>
-            {loading ? "—" : stats.total}
+            {loading ? <Skeleton width="48px" height="32px" borderRadius="6px" /> : stats.total}
           </p>
         </Card>
 
@@ -228,7 +228,7 @@ export default function DeadlinesPage() {
             <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>Overdue</span>
           </div>
           <p style={{ fontSize: 28, fontWeight: 700, color: stats.overdue > 0 ? "#DC2626" : "var(--cc-text)", margin: 0 }}>
-            {loading ? "—" : stats.overdue}
+            {loading ? <Skeleton width="48px" height="32px" borderRadius="6px" /> : stats.overdue}
           </p>
         </Card>
 
@@ -238,7 +238,7 @@ export default function DeadlinesPage() {
             <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>Due This Week</span>
           </div>
           <p style={{ fontSize: 28, fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>
-            {loading ? "—" : stats.dueThisWeek}
+            {loading ? <Skeleton width="48px" height="32px" borderRadius="6px" /> : stats.dueThisWeek}
           </p>
         </Card>
 
@@ -248,7 +248,7 @@ export default function DeadlinesPage() {
             <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>Completed</span>
           </div>
           <p style={{ fontSize: 28, fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>
-            {loading ? "—" : stats.completed}
+            {loading ? <Skeleton width="48px" height="32px" borderRadius="6px" /> : stats.completed}
           </p>
         </Card>
 
@@ -258,7 +258,7 @@ export default function DeadlinesPage() {
             <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>No Date Set</span>
           </div>
           <p style={{ fontSize: 28, fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>
-            {loading ? "—" : stats.noDate}
+            {loading ? <Skeleton width="48px" height="32px" borderRadius="6px" /> : stats.noDate}
           </p>
         </Card>
       </div>

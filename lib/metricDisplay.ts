@@ -8,7 +8,8 @@
  * in the second. Printing "0" on all of them states a fact we never measured.
  *
  * lastSyncedAt is the tiebreak: it is set only when we fetched the post
- * ourselves, so a 0 with no sync timestamp is unknown and renders as an em dash.
+ * ourselves, so a 0 with no sync timestamp is unknown. Callers drop the cell,
+ * column or tile entirely rather than printing a placeholder for it.
  */
 
 /** Sentinel for "we never measured this", so callers can format it their own way. */
@@ -41,5 +42,3 @@ export function engagementRateValue(
   return (((l ?? 0) + (c ?? 0)) / views) * 100;
 }
 
-/** Tooltip text for a dash that means "never fetched", not "zero". */
-export const NEVER_MEASURED = "Not collected yet — this post was imported with view counts only";

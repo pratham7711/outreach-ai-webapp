@@ -12,13 +12,14 @@ import { platformColor } from "@/app/(dashboard)/analytics/shared";
 
 type Kpis = {
   views: number;
-  engagements: number;
+  /** null when no post in the campaign has had its engagement fetched. */
+  engagements: number | null;
   engagementRate: number | null;
-  spend: number;
-  cpm: number | null;
-  cpe: number | null;
   emv: number;
 };
+
+const LEADERBOARD_COLS = (withEngagement: boolean) =>
+  withEngagement ? "1fr 70px 90px 80px 90px" : "1fr 70px 90px 90px";
 
 type TimeSeriesPoint = { date: string; TIKTOK: number; INSTAGRAM: number; YOUTUBE: number };
 type PlatformSplit = { platform: string; views: number; posts: number };
@@ -28,14 +29,13 @@ type LeaderboardRow = {
   avatarUrl: string | null;
   posts: number;
   views: number;
-  engagements: number;
+  engagements: number | null;
   engagementRate: number | null;
   emv: number;
 };
 
 type PerformanceData = {
   currency: string;
-  spendSource: "PAID_PAYOUTS" | "ACCRUED_LEDGER" | "BUDGET";
   kpis: Kpis;
   timeSeries: TimeSeriesPoint[];
   platformSplit: PlatformSplit[];
@@ -373,8 +373,11 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
     );
   }
 
-  const engRateDisplay = kpis.engagementRate !== null ? (kpis.engagementRate * 100).toFixed(2) + "%" : "—";
   const pieData = platformSplit.filter((p) => p.views > 0);
+  /* Every post here carries a view count; engagement only exists for the ones we
+     fetched ourselves, so those tiles appear only when there is something in
+     them. See lib/metricDisplay. */
+  const anyEngagementMeasured = leaderboard.some((r) => r.engagementRate !== null);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
@@ -387,8 +390,16 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
       <div style={{ display: "flex", justifyContent: "flex-end" }}>{headerActions}</div>
       <div className="rsp-grid-tiles perf-tiles">
         <MetricTile metric="views" value={formatNumber(kpis.views)} />
-        <MetricTile metric="engagements" value={formatNumber(kpis.engagements)} />
-        <MetricTile metric="engagementRate" label="Eng. rate" value={engRateDisplay} />
+        {kpis.engagements !== null && (
+          <MetricTile metric="engagements" value={formatNumber(kpis.engagements)} />
+        )}
+        {kpis.engagementRate !== null && (
+          <MetricTile
+            metric="engagementRate"
+            label="Eng. rate"
+            value={`${(kpis.engagementRate * 100).toFixed(2)}%`}
+          />
+        )}
         <MetricTile metric="emv" value={formatCurrencyCompact(kpis.emv, currency)} />
       </div>
 
@@ -482,10 +493,10 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
           {leaderboard.length > 0 ? (
             <div style={{ minWidth: 480 }}>
               <div style={{
-                display: "grid", gridTemplateColumns: "1fr 70px 90px 80px 90px",
+                display: "grid", gridTemplateColumns: LEADERBOARD_COLS(anyEngagementMeasured),
                 gap: 12, padding: "10px 24px", borderBottom: "1px solid var(--cc-border)", background: "var(--cc-bg)",
               }}>
-                {["Creator", "Posts", "Views", "Eng.", "EMV"].map((h) => (
+                {["Creator", "Posts", "Views", ...(anyEngagementMeasured ? ["Eng."] : []), "EMV"].map((h) => (
                   <span key={h} style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--cc-text-subtle)" }}>{h}</span>
                 ))}
               </div>
@@ -493,7 +504,7 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
                 <div
                   key={row.creatorId}
                   style={{
-                    display: "grid", gridTemplateColumns: "1fr 70px 90px 80px 90px", gap: 12,
+                    display: "grid", gridTemplateColumns: LEADERBOARD_COLS(anyEngagementMeasured), gap: 12,
                     padding: "12px 24px", alignItems: "center",
                     borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined,
                   }}
@@ -504,7 +515,13 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
                   </div>
                   <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{row.posts}</span>
                   <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>{formatNumber(row.views)}</span>
-                  <Badge variant="neutral" size="sm">{row.engagementRate !== null ? (row.engagementRate * 100).toFixed(1) + "%" : "—"}</Badge>
+                  {anyEngagementMeasured && (
+                    <span>
+                      {row.engagementRate !== null && (
+                        <Badge variant="neutral" size="sm">{(row.engagementRate * 100).toFixed(1)}%</Badge>
+                      )}
+                    </span>
+                  )}
                   <span style={{ fontSize: 13, fontWeight: 700, color: "var(--cc-primary)" }}>{formatCurrency(row.emv, currency)}</span>
                 </div>
               ))}

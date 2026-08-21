@@ -138,8 +138,8 @@ export default function ClientDetailClient({ client, plans }: Props) {
       `}</style>
       <div className="rsp-grid-3 client-stats" style={{ marginBottom: 32 }}>
         <StatCard value={String(client.campaignCount)} label="Campaigns" />
-        <StatCard value={contact.email || "—"} label="Contact Email" />
-        <StatCard value={contact.contactPerson || "—"} label="Contact Person" />
+        {contact.email && <StatCard value={contact.email} label="Contact Email" />}
+        {contact.contactPerson && <StatCard value={contact.contactPerson} label="Contact Person" />}
       </div>
 
       {/* Tab nav */}
@@ -193,26 +193,41 @@ export default function ClientDetailClient({ client, plans }: Props) {
         ) : campaigns.length === 0 ? (
           <EmptyState icon={<ClipboardList size={32} color="var(--cc-text-subtle)" />} title="No campaigns" description="This client has no campaigns yet." />
         ) : (
-          <Card variant="solid" noPadding>
-            <div className="rsp-table-wrap">
-              <div style={{ minWidth: 560 }}>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 100px 100px 100px 80px", gap: 12, padding: "12px 24px", borderBottom: "1px solid var(--cc-border)", background: "var(--cc-bg)" }}>
-                  {["Campaign", "Status", "Budget", "Date", "Creators"].map(h => (
-                    <span key={h} style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--cc-text-subtle)" }}>{h}</span>
-                  ))}
+          (() => {
+            /* Budget is optional, so the column exists only when one of this
+               client's campaigns actually records one. */
+            const showBudget = campaigns.some((c) => c.budget);
+            const cols = showBudget
+              ? "1fr 100px 100px 100px 80px"
+              : "1fr 100px 100px 80px";
+            const headers = showBudget
+              ? ["Campaign", "Status", "Budget", "Date", "Creators"]
+              : ["Campaign", "Status", "Date", "Creators"];
+            return (
+              <Card variant="solid" noPadding>
+                <div className="rsp-table-wrap">
+                  <div style={{ minWidth: showBudget ? 560 : 460 }}>
+                    <div style={{ display: "grid", gridTemplateColumns: cols, gap: 12, padding: "12px 24px", borderBottom: "1px solid var(--cc-border)", background: "var(--cc-bg)" }}>
+                      {headers.map(h => (
+                        <span key={h} style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--cc-text-subtle)" }}>{h}</span>
+                      ))}
+                    </div>
+                    {campaigns.map((c, i) => (
+                      <Link prefetch={false} key={c.id} href={`/campaigns/${c.id}`} style={{ textDecoration: "none", display: "grid", gridTemplateColumns: cols, gap: 12, padding: "14px 24px", alignItems: "center", borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined }} className="cc-table-row">
+                        <span style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>{c.title}</span>
+                        <Badge variant={STATUS_BADGE[c.status] ?? "neutral"} dot>{c.status.replace(/_/g, " ")}</Badge>
+                        {showBudget && (
+                          <span style={{ fontSize: 13, color: "var(--cc-text)" }}>{c.budget ? formatCurrency(Number(c.budget), c.currency) : ""}</span>
+                        )}
+                        <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{formatDateAbs(c.createdAt)}</span>
+                        <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{c._count.activations}</span>
+                      </Link>
+                    ))}
+                  </div>
                 </div>
-                {campaigns.map((c, i) => (
-                  <Link prefetch={false} key={c.id} href={`/campaigns/${c.id}`} style={{ textDecoration: "none", display: "grid", gridTemplateColumns: "1fr 100px 100px 100px 80px", gap: 12, padding: "14px 24px", alignItems: "center", borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined }} className="cc-table-row">
-                    <span style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>{c.title}</span>
-                    <Badge variant={STATUS_BADGE[c.status] ?? "neutral"} dot>{c.status.replace(/_/g, " ")}</Badge>
-                    <span style={{ fontSize: 13, color: "var(--cc-text)" }}>{c.budget ? formatCurrency(Number(c.budget), c.currency) : "—"}</span>
-                    <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{formatDateAbs(c.createdAt)}</span>
-                    <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{c._count.activations}</span>
-                  </Link>
-                ))}
-              </div>
-            </div>
-          </Card>
+              </Card>
+            );
+          })()
         )
       )}
 

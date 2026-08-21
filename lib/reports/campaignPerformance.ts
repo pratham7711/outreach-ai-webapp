@@ -1,11 +1,10 @@
 import { db } from "@/lib/db";
 import {
   computeCampaignEmv,
-  computeCpm,
-  computeCpe,
   computeEngagementRate,
   sumEngagements,
 } from "@/lib/metrics";
+import { metricValue } from "@/lib/metricDisplay";
 
 type SeriesPlatform = "TIKTOK" | "INSTAGRAM" | "YOUTUBE";
 const SERIES_PLATFORMS: SeriesPlatform[] = ["TIKTOK", "INSTAGRAM", "YOUTUBE"];
@@ -16,14 +15,11 @@ function dateKey(d: Date): string {
 
 export type CampaignPerformance = {
   currency: string;
-  spendSource: "PAID_PAYOUTS" | "ACCRUED_LEDGER" | "BUDGET";
   kpis: {
     views: number;
-    engagements: number;
+    /** null when no post in the campaign has had its engagement fetched. */
+    engagements: number | null;
     engagementRate: number | null;
-    spend: number;
-    cpm: number | null;
-    cpe: number | null;
     emv: number;
   };
   timeSeries: { date: string; TIKTOK: number; INSTAGRAM: number; YOUTUBE: number }[];
@@ -34,7 +30,7 @@ export type CampaignPerformance = {
     avatarUrl: string | null;
     posts: number;
     views: number;
-    engagements: number;
+    engagements: number | null;
     engagementRate: number | null;
     emv: number;
   }[];
@@ -54,50 +50,49 @@ export async function computeCampaignPerformance(
       commentsCount: true,
       sharesCount: true,
       savesCount: true,
+      lastSyncedAt: true,
       creator: { select: { id: true, name: true, avatarUrl: true } },
     },
   });
 
-  const [paidPayouts, accruedLedger, snapshots] = await Promise.all([
-    db.payout.aggregate({
-      where: { campaignId: campaign.id, orgId: campaign.orgId, status: "SUCCESS" },
-      _sum: { amount: true },
-    }),
-    db.viewLedger.aggregate({
-      where: { campaignId: campaign.id, orgId: campaign.orgId },
-      _sum: { amountEarned: true },
-    }),
+  const snapshots =
     posts.length > 0
-      ? db.postMetricSnapshot.findMany({
+      ? await db.postMetricSnapshot.findMany({
           where: { postId: { in: posts.map((p) => p.id) } },
           select: { postId: true, viewsCount: true, recordedAt: true },
           orderBy: { recordedAt: "asc" },
         })
-      : Promise.resolve([]),
-  ]);
-
-  const paidSpend = paidPayouts._sum.amount ?? 0;
-  const accruedSpend = accruedLedger._sum.amountEarned ?? 0;
-  const settledSpend = Math.max(paidSpend, accruedSpend);
-  const spend = settledSpend > 0 ? settledSpend : campaign.budget ?? 0;
+      : [];
 
   const views = posts.reduce((s, p) => s + (p.viewsCount ?? 0), 0);
-  const engagements = posts.reduce(
-    (s, p) =>
-      s +
-      sumEngagements({
-        likes: p.likesCount,
-        comments: p.commentsCount,
-        shares: p.sharesCount,
-        saves: p.savesCount,
-      }),
-    0
-  );
 
+  /* Engagement counters default to 0 for posts we never fetched, so summing them
+     all would report a measured zero for an imported campaign. Only posts whose
+     engagement is actually known contribute, and a campaign with none reports
+     null rather than 0. */
+  const measured = posts.filter(
+    (p) => metricValue(p.likesCount, p.lastSyncedAt) !== null
+  );
+  const engagements =
+    measured.length === 0
+      ? null
+      : measured.reduce(
+          (s, p) =>
+            s +
+            sumEngagements({
+              likes: p.likesCount,
+              comments: p.commentsCount,
+              shares: p.sharesCount,
+              saves: p.savesCount,
+            }),
+          0
+        );
+
+  const measuredViews = measured.reduce((s, p) => s + (p.viewsCount ?? 0), 0);
   const engagementRate =
-    views > 0 ? computeEngagementRate({ views, likes: engagements }) : null;
-  const cpm = computeCpm({ spend, views });
-  const cpe = computeCpe({ spend, engagements });
+    engagements !== null && measuredViews > 0
+      ? computeEngagementRate({ views: measuredViews, likes: engagements })
+      : null;
   const emv = computeCampaignEmv(
     posts.map((p) => ({
       platform: p.platform,
@@ -109,7 +104,7 @@ export async function computeCampaignPerformance(
     }))
   );
 
-  const kpis = { views, engagements, engagementRate, spend, cpm, cpe, emv };
+  const kpis = { views, engagements, engagementRate, emv };
 
   const platformByPost = new Map(posts.map((p) => [p.id, p.platform]));
   const buckets = new Map<string, Record<SeriesPlatform, number>>();
@@ -165,7 +160,8 @@ export async function computeCampaignPerformance(
       avatarUrl: string | null;
       posts: number;
       views: number;
-      engagements: number;
+      engagements: number | null;
+      measuredViews: number;
     }
   >();
   for (const p of posts) {
@@ -178,23 +174,31 @@ export async function computeCampaignPerformance(
         avatarUrl: p.creator.avatarUrl,
         posts: 0,
         views: 0,
-        engagements: 0,
+        engagements: null as number | null,
+        measuredViews: 0,
       };
     entry.posts += 1;
     entry.views += p.viewsCount ?? 0;
-    entry.engagements += sumEngagements({
-      likes: p.likesCount,
-      comments: p.commentsCount,
-      shares: p.sharesCount,
-      saves: p.savesCount,
-    });
+    if (metricValue(p.likesCount, p.lastSyncedAt) !== null) {
+      entry.engagements =
+        (entry.engagements ?? 0) +
+        sumEngagements({
+          likes: p.likesCount,
+          comments: p.commentsCount,
+          shares: p.sharesCount,
+          saves: p.savesCount,
+        });
+      entry.measuredViews += p.viewsCount ?? 0;
+    }
     leaderboardMap.set(key, entry);
   }
   const leaderboard = Array.from(leaderboardMap.values())
-    .map((c) => ({
+    .map(({ measuredViews, ...c }) => ({
       ...c,
       engagementRate:
-        c.views > 0 ? computeEngagementRate({ views: c.views, likes: c.engagements }) : null,
+        c.engagements !== null && measuredViews > 0
+          ? computeEngagementRate({ views: measuredViews, likes: c.engagements })
+          : null,
       emv: computeCampaignEmv(
         posts
           .filter((p) => p.creator.id === c.creatorId)
@@ -213,12 +217,6 @@ export async function computeCampaignPerformance(
 
   return {
     currency: campaign.currency,
-    spendSource:
-      settledSpend === 0
-        ? "BUDGET"
-        : accruedSpend > paidSpend
-          ? "ACCRUED_LEDGER"
-          : "PAID_PAYOUTS",
     kpis,
     timeSeries,
     platformSplit,

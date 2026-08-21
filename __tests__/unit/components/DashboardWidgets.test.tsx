@@ -56,11 +56,22 @@ const emptyFinancials = {
   topPosts: [],
 };
 
-beforeEach(() => {
+// The views and posts tiles are drawn only when the platform rollup measured
+// something, so a widget-gating test needs a platform to assert they appear.
+const measuredFinancials = {
+  ...emptyFinancials,
+  platformBreakdown: [{ platform: "TIKTOK", views: 10_000, postsCount: 4 }],
+};
+
+function stubRollup(payload: unknown) {
   global.fetch = jest.fn().mockResolvedValue({
     ok: true,
-    json: async () => emptyFinancials,
+    json: async () => payload,
   }) as unknown as typeof fetch;
+}
+
+beforeEach(() => {
+  stubRollup(emptyFinancials);
 });
 
 afterEach(() => {
@@ -69,9 +80,11 @@ afterEach(() => {
 
 describe("DashboardClient — widget gating via dashboardWidgets", () => {
   it("renders every widget section when all keys are present", async () => {
+    stubRollup(measuredFinancials);
     render(<DashboardClient {...baseProps} dashboardWidgets={ALL_WIDGETS} />);
     expect(await screen.findByText("Active campaigns")).toBeInTheDocument();
-    expect(screen.getByText("Total views")).toBeInTheDocument();
+    // The views tile only exists once the rollup lands, so this one waits.
+    expect(await screen.findByText("Total views")).toBeInTheDocument();
     expect(screen.getByText("Views over time")).toBeInTheDocument();
 
     // Performance widgets live behind the Performance tab.
@@ -80,6 +93,15 @@ describe("DashboardClient — widget gating via dashboardWidgets", () => {
     expect(screen.getByText("Top posts")).toBeInTheDocument();
     expect(screen.getByText("Views by campaign")).toBeInTheDocument();
     expect(screen.getByText("Creator performance")).toBeInTheDocument();
+  });
+
+  it("omits the views and posts tiles when no platform reported anything", async () => {
+    render(<DashboardClient {...baseProps} dashboardWidgets={ALL_WIDGETS} />);
+    // The grid itself is present — active campaigns is always known.
+    expect(await screen.findByText("Active campaigns")).toBeInTheDocument();
+    // An unmeasured figure is not shown at all, not shown as 0 or a dash.
+    expect(screen.queryByText("Total views")).not.toBeInTheDocument();
+    expect(screen.queryByText("Total posts")).not.toBeInTheDocument();
   });
 
   it("hides the KPI grid when kpi_grid is absent", async () => {

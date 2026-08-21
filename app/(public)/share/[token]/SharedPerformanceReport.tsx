@@ -7,7 +7,6 @@ import {
 import { BarChart3 } from "lucide-react";
 import type { CampaignPerformance } from "@/lib/reports/campaignPerformance";
 import { formatCompact } from "@/lib/format";
-import { METRIC_DEFINITIONS, SPEND_METRIC_BY_SOURCE } from "@/lib/metric-definitions";
 import { platformColor } from "@/app/(dashboard)/analytics/shared";
 
 const SERIES = [
@@ -67,8 +66,13 @@ export default function SharedPerformanceReport({
   data: CampaignPerformance;
 }) {
   const isMobile = useIsMobile();
-  const { kpis, timeSeries, platformSplit, leaderboard, currency, spendSource } = data;
-  const engRateDisplay = kpis.engagementRate !== null ? (kpis.engagementRate * 100).toFixed(2) + "%" : "—";
+  const { kpis, timeSeries, platformSplit, leaderboard, currency } = data;
+  /* Engagement exists only for posts we fetched ourselves, so the column is
+     dropped when no creator in this campaign has one. */
+  const anyEngagementMeasured = leaderboard.some((r) => r.engagementRate !== null);
+  const rowCols = anyEngagementMeasured
+    ? "1fr 70px 90px 80px 90px"
+    : "1fr 70px 90px 90px";
 
   const isEmpty = kpis.views === 0 && leaderboard.length === 0 && timeSeries.length === 0;
 
@@ -142,19 +146,15 @@ export default function SharedPerformanceReport({
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-            <style>{".spr-stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 16px; } @media (min-width: 1280px) { .spr-stat-grid { grid-template-columns: repeat(6, 1fr); } }"}</style>
+            <style>{".spr-stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 16px; }"}</style>
             <div className="spr-stat-grid">
               <StatTile value={formatNumber(kpis.views)} label="Views" />
-              <StatTile value={formatNumber(kpis.engagements)} label="Engagements" />
-              <StatTile value={engRateDisplay} label="Eng. Rate" />
-              <StatTile
-                value={formatCurrency(kpis.spend, currency)}
-                label={METRIC_DEFINITIONS[SPEND_METRIC_BY_SOURCE[spendSource]].label}
-              />
-              <StatTile
-                value={`${kpis.cpm !== null ? formatCurrency(kpis.cpm, currency) : "—"} / ${kpis.cpe !== null ? formatCurrency(kpis.cpe, currency) : "—"}`}
-                label="CPM / CPE"
-              />
+              {kpis.engagements !== null && (
+                <StatTile value={formatNumber(kpis.engagements)} label="Engagements" />
+              )}
+              {kpis.engagementRate !== null && (
+                <StatTile value={`${(kpis.engagementRate * 100).toFixed(2)}%`} label="Eng. Rate" />
+              )}
               <StatTile value={formatCurrency(kpis.emv, currency)} label="EMV" />
             </div>
 
@@ -277,10 +277,10 @@ export default function SharedPerformanceReport({
                   <div style={{ overflowX: "auto" }}>
                     <div style={{ minWidth: isMobile ? 420 : "auto" }}>
                       <div style={{
-                        display: "grid", gridTemplateColumns: "1fr 70px 90px 80px 90px",
+                        display: "grid", gridTemplateColumns: rowCols,
                         gap: 12, padding: "10px 24px", borderBottom: "1px solid var(--cc-border)", background: "var(--cc-bg)",
                       }}>
-                        {["Creator", "Posts", "Views", "Eng.", "EMV"].map((h) => (
+                        {["Creator", "Posts", "Views", ...(anyEngagementMeasured ? ["Eng."] : []), "EMV"].map((h) => (
                           <span key={h} style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--cc-text-subtle)" }}>{h}</span>
                         ))}
                       </div>
@@ -288,7 +288,7 @@ export default function SharedPerformanceReport({
                         <div
                           key={row.creatorId}
                           style={{
-                            display: "grid", gridTemplateColumns: "1fr 70px 90px 80px 90px", gap: 12,
+                            display: "grid", gridTemplateColumns: rowCols, gap: 12,
                             padding: "12px 24px", alignItems: "center",
                             borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined,
                           }}
@@ -312,7 +312,11 @@ export default function SharedPerformanceReport({
                           </div>
                           <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{row.posts}</span>
                           <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>{formatNumber(row.views)}</span>
-                          <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{row.engagementRate !== null ? (row.engagementRate * 100).toFixed(1) + "%" : "—"}</span>
+                          {anyEngagementMeasured && (
+                            <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>
+                              {row.engagementRate !== null ? `${(row.engagementRate * 100).toFixed(1)}%` : ""}
+                            </span>
+                          )}
                           <span style={{ fontSize: 13, fontWeight: 700, color: "var(--cc-primary)" }}>{formatCurrency(row.emv, currency)}</span>
                         </div>
                       ))}

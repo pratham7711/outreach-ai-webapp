@@ -7,6 +7,7 @@ import { Card, Badge, Button, Skeleton, Tag, EmptyState } from "@pratham7711/ui"
 import { ArrowLeft, ExternalLink, RefreshCw, Eye, Heart, MessageCircle, Share2, Download, Bookmark, DollarSign, TrendingUp, Flag, Lock, Activity, ShieldAlert, Shield, Play } from "lucide-react";
 import dynamic from "next/dynamic";
 import { computePostEmv, computeEngagementRate } from "@/lib/metrics";
+import { metricValue } from "@/lib/metricDisplay";
 import { formatCompact, stripAt, formatDateAbs, formatDateTimeAbs } from "@/lib/format";
 
 const PerformanceOverTimeArea = dynamic(() => import("./PostCharts").then((m) => m.PerformanceOverTimeArea), {
@@ -285,13 +286,17 @@ export default function PostDetailPage() {
 
   const embedSrc = embedSrcFor(post.platform, post.platformPostId, post.postUrl);
 
-  const engRate = computeEngagementRate({
-    views: post.viewsCount,
-    likes: post.likesCount,
-    comments: post.commentsCount,
-    shares: post.sharesCount,
-    saves: post.savesCount,
-  });
+  const engRate =
+    metricValue(post.likesCount, post.lastSyncedAt) === null &&
+    metricValue(post.commentsCount, post.lastSyncedAt) === null
+      ? null
+      : computeEngagementRate({
+          views: post.viewsCount,
+          likes: post.likesCount,
+          comments: post.commentsCount,
+          shares: post.sharesCount,
+          saves: post.savesCount,
+        });
   const emv = computePostEmv({
     platform: post.platform,
     views: post.viewsCount,
@@ -301,13 +306,21 @@ export default function PostDetailPage() {
     saves: post.savesCount,
   });
 
-  const metricCards = [...BASE_METRIC_CARDS] as { key: string; label: string; icon: typeof Eye; color: string }[];
+  const allMetricCards = [...BASE_METRIC_CARDS] as { key: string; label: string; icon: typeof Eye; color: string }[];
   if (post.platform === "INSTAGRAM") {
-    metricCards.push({ key: "savesCount", label: "Saves", icon: Bookmark, color: "#8B5CF6" });
+    allMetricCards.push({ key: "savesCount", label: "Saves", icon: Bookmark, color: "#8B5CF6" });
   }
   if (post.platform === "YOUTUBE") {
-    metricCards.push({ key: "downloadsCount", label: "Downloads", icon: Download, color: "#6366F1" });
+    allMetricCards.push({ key: "downloadsCount", label: "Downloads", icon: Download, color: "#6366F1" });
   }
+  /* Views came across in the import; every other counter defaults to 0 for a
+     post we never fetched, so its card would state a figure nobody measured.
+     See lib/metricDisplay. */
+  const metricCards = allMetricCards.filter(
+    ({ key }) =>
+      key === "viewsCount" ||
+      metricValue((post as unknown as Record<string, number>)[key], post.lastSyncedAt) !== null
+  );
 
   const chartData = post.snapshots.map((s) => ({
     date: new Date(s.recordedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
@@ -414,15 +427,17 @@ export default function PostDetailPage() {
             </span>
           </Card>
         ))}
-        <Card variant="outlined" style={{ padding: "16px 20px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-            <TrendingUp size={16} color="#5B5BD6" />
-            <span style={{ fontSize: 12, color: "var(--cc-text-muted)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em" }}>Engagement</span>
-          </div>
-          <span style={{ fontSize: 24, fontWeight: 700, color: "var(--cc-primary)" }}>
-            {engRate === null ? "—" : `${(engRate * 100).toFixed(2)}%`}
-          </span>
-        </Card>
+        {engRate !== null && (
+          <Card variant="outlined" style={{ padding: "16px 20px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+              <TrendingUp size={16} color="#5B5BD6" />
+              <span style={{ fontSize: 12, color: "var(--cc-text-muted)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em" }}>Engagement</span>
+            </div>
+            <span style={{ fontSize: 24, fontWeight: 700, color: "var(--cc-primary)" }}>
+              {`${(engRate * 100).toFixed(2)}%`}
+            </span>
+          </Card>
+        )}
         <Card variant="outlined" style={{ padding: "16px 20px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
             <DollarSign size={16} color="#059669" />
@@ -547,7 +562,7 @@ export default function PostDetailPage() {
                     <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}><Lock size={10} /> Sealed</span>
                   </Tag>
                 ) : (
-                  <span style={{ fontSize: 12, color: "var(--cc-text-subtle)" }}>—</span>
+                  <span />
                 )}
               </span>
             </div>

@@ -69,7 +69,7 @@ export async function GET(
       });
     }
 
-    const [posts, activations, payouts] = await Promise.all([
+    const [posts, activations] = await Promise.all([
       db.post.findMany({
         where: { campaignId: campaign.id, campaign: { orgId } },
         select: {
@@ -95,26 +95,9 @@ export async function GET(
           creator: { select: { id: true, name: true, handle: true, platform: true } },
         },
       }),
-      db.payout.findMany({
-        where: { orgId, campaignId: campaign.id },
-        select: {
-          createdAt: true,
-          amount: true,
-          currency: true,
-          status: true,
-          paymentMethod: true,
-          transactionId: true,
-          completedAt: true,
-          creator: { select: { name: true, handle: true } },
-        },
-        orderBy: { createdAt: "desc" },
-      }),
     ]);
 
     const { kpis } = performance;
-    const paidTotal = payouts
-      .filter((p) => p.status === "SUCCESS")
-      .reduce((s, p) => s + p.amount, 0);
 
     const summary: Section = {
       name: "Summary",
@@ -129,14 +112,11 @@ export async function GET(
         ["Created", day(campaign.createdAt)],
         ["Currency", performance.currency],
         ["Budget", campaign.budget ?? ""],
-        ["Spend", kpis.spend],
-        ["Spend Source", performance.spendSource],
-        ["Paid Payouts", paidTotal],
+
         ["Views", kpis.views],
-        ["Engagements", kpis.engagements],
+        ["Engagements", kpis.engagements ?? ""],
         ["Engagement Rate %", kpis.engagementRate !== null ? +(kpis.engagementRate * 100).toFixed(2) : ""],
-        ["CPM", kpis.cpm ?? ""],
-        ["CPE", kpis.cpe ?? ""],
+
         ["EMV", kpis.emv],
         ["Posts", posts.length],
         ["Creators", activations.length],
@@ -180,13 +160,6 @@ export async function GET(
       ],
     };
 
-    const paidByCreator = new Map<string, number>();
-    for (const p of payouts) {
-      if (p.status !== "SUCCESS") continue;
-      const key = p.creator.handle;
-      paidByCreator.set(key, (paidByCreator.get(key) ?? 0) + p.amount);
-    }
-
     const creatorIds = new Set<string>([
       ...activations.map((a) => a.creator.id),
       ...posts.map((p) => p.creator.id),
@@ -229,7 +202,6 @@ export async function GET(
         engagements,
         rate !== null ? +(rate * 100).toFixed(2) : "",
         emv,
-        paidByCreator.get(meta.handle) ?? 0,
       ] as Cell[];
     });
     creatorRows.sort((a, b) => Number(b[6]) - Number(a[6]));
@@ -248,41 +220,12 @@ export async function GET(
           "Engagements",
           "Engagement Rate %",
           "EMV",
-          "Paid",
         ],
         ...creatorRows,
       ],
     };
 
-    const payoutSection: Section = {
-      name: "Payouts",
-      rows: [
-        [
-          "Created",
-          "Completed",
-          "Creator",
-          "Handle",
-          "Amount",
-          "Currency",
-          "Status",
-          "Payment Method",
-          "Transaction ID",
-        ],
-        ...payouts.map((p) => [
-          day(p.createdAt),
-          day(p.completedAt),
-          p.creator.name,
-          p.creator.handle,
-          p.amount,
-          p.currency,
-          p.status,
-          p.paymentMethod,
-          p.transactionId ?? "",
-        ] as Cell[]),
-      ],
-    };
-
-    const sections = [summary, postSection, creatorSection, payoutSection];
+    const sections = [summary, postSection, creatorSection];
 
     if (format === "csv") {
       const csv = sections

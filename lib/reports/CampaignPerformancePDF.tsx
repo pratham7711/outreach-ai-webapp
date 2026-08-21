@@ -123,16 +123,19 @@ export function CampaignPerformancePDF({
   data: CampaignPerformance;
 }) {
   const { kpis, platformSplit, leaderboard, currency } = data;
-  const engRate = kpis.engagementRate !== null ? (kpis.engagementRate * 100).toFixed(2) + "%" : "—";
 
+  // Engagement is unknown for posts we never fetched, so those cells are left
+  // out of the report rather than printed as a zero or a dash.
   const kpiCells = [
     { label: "Views", value: fmtNumber(kpis.views) },
-    { label: "Engagements", value: fmtNumber(kpis.engagements) },
-    { label: "Eng. Rate", value: engRate },
-    { label: "Spend", value: fmtCurrency(kpis.spend, currency) },
-    { label: "CPM / CPE", value: `${kpis.cpm !== null ? fmtCurrency(kpis.cpm, currency) : "—"} / ${kpis.cpe !== null ? fmtCurrency(kpis.cpe, currency) : "—"}` },
+    kpis.engagements !== null
+      ? { label: "Engagements", value: fmtNumber(kpis.engagements) }
+      : null,
+    kpis.engagementRate !== null
+      ? { label: "Eng. Rate", value: `${(kpis.engagementRate * 100).toFixed(2)}%` }
+      : null,
     { label: "EMV", value: fmtCurrency(kpis.emv, currency) },
-  ];
+  ].filter((cell): cell is { label: string; value: string } => cell !== null);
 
   return (
     <Document>
