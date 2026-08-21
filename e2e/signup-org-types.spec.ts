@@ -2,23 +2,19 @@ import { test, expect } from '@playwright/test';
 
 const HMR_ROUTER_PUSH_BUG = `APP BUG (dev-mode HMR race): After /api/signup returns 201, router.push('/login?registered=1') is called but Next.js Turbopack HMR fires before the navigation completes (it compiles the /login route on first access), causing the page to reset back to /signup. Confirmed via: (a) API call returns 201 {"success":true} in the network interception; (b) navigation event "navigated to /login?registered=1" DOES appear in the framenavigated listener then immediately "navigated to /signup" from HMR reload. Repro: start dev server (PORT=3009 npm run dev), open http://localhost:3009/signup in headless browser, fill all fields, click Create account, observe 201 API response followed by page reset to /signup. Fix: replace router.push in signup/page.tsx with window.location.href (full navigation, immune to HMR) or test against a production build.`;
 
-test.describe('Signup — org types', () => {
+test.describe('Signup — agency-only flow', () => {
   test.beforeEach(async ({ context }) => {
     await context.clearCookies();
   });
 
   async function fillSignupForm(
     page: import('@playwright/test').Page,
-    opts: { orgName: string; orgType: 'Marketing Agency' | 'Brand'; name: string; email: string; password: string }
+    opts: { orgName: string; name: string; email: string; password: string }
   ) {
     await page.goto('/signup', { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('input[placeholder="Acme Agency"]', { timeout: 30000 });
     await page.waitForTimeout(3000);
     await page.getByPlaceholder('Acme Agency').fill(opts.orgName);
-    const orgTypeRadios = page.locator('[role="radiogroup"] [role="radio"]');
-    if (opts.orgType === 'Brand') {
-      await orgTypeRadios.nth(1).click();
-    }
     await page.getByPlaceholder('Jane Doe').fill(opts.name);
     await page.getByPlaceholder('you@company.com').fill(opts.email);
     await page.getByPlaceholder('Min. 8 characters').fill(opts.password);
@@ -52,7 +48,6 @@ test.describe('Signup — org types', () => {
     const epoch = Date.now();
     await fillSignupForm(page, {
       orgName: `E2E Agency Nav ${epoch}`,
-      orgType: 'Marketing Agency',
       name: 'E2E Agency Nav User',
       email: `e2e-agency-nav-${epoch}@example.dev`,
       password: 'Password123!',
@@ -74,7 +69,6 @@ test.describe('Signup — org types', () => {
     const epoch = Date.now();
     await fillSignupForm(page, {
       orgName: `E2E Agency ${epoch}`,
-      orgType: 'Marketing Agency',
       name: 'E2E Agency User',
       email: `e2e-agency-${epoch}@example.dev`,
       password: 'Password123!',
@@ -91,7 +85,6 @@ test.describe('Signup — org types', () => {
 
     await fillSignupForm(page, {
       orgName: `E2E Agency Login ${epoch}`,
-      orgType: 'Marketing Agency',
       name: 'E2E Agency Login User',
       email,
       password,
@@ -115,50 +108,6 @@ test.describe('Signup — org types', () => {
     expect(bodyText.toLowerCase()).toMatch(/campaign|no campaigns|get started|create/i);
   });
 
-  test('brand signup → /api/signup returns 201 with brand org type', async ({ page }) => {
-    const epoch = Date.now();
-    await fillSignupForm(page, {
-      orgName: `E2E Brand ${epoch}`,
-      orgType: 'Brand',
-      name: 'E2E Brand User',
-      email: `e2e-brand-${epoch}@example.dev`,
-      password: 'Password123!',
-    });
-    const { status, body } = await assertSignupApiSucceeds(page);
-    expect(status).toBe(201);
-    expect(body.success).toBe(true);
-  });
-
-  test('brand signup → login with new credentials lands on campaigns page with no-campaign empty state', async ({ page }) => {
-    const epoch = Date.now();
-    const email = `e2e-brand-login-${epoch}@example.dev`;
-    const password = 'Password123!';
-
-    await fillSignupForm(page, {
-      orgName: `E2E Brand Login ${epoch}`,
-      orgType: 'Brand',
-      name: 'E2E Brand Login User',
-      email,
-      password,
-    });
-    const { status } = await assertSignupApiSucceeds(page);
-    expect(status).toBe(201);
-
-    await page.goto('/login', { waitUntil: 'domcontentloaded' });
-    await page.getByRole('textbox', { name: 'Email' }).fill(email);
-    await page.getByRole('textbox', { name: 'Password' }).fill(password);
-    await page.getByRole('button', { name: 'Sign in' }).click();
-
-    try {
-      await page.waitForURL(/\/campaigns/, { timeout: 30000 });
-    } catch {
-      test.fixme(true, HMR_ROUTER_PUSH_BUG);
-      return;
-    }
-    await expect(page.locator('h1').first()).toBeVisible({ timeout: 20000 });
-    const bodyText = (await page.textContent('body')) ?? '';
-    expect(bodyText.toLowerCase()).toMatch(/campaign|no campaigns|get started|create/i);
-  });
 
   test('duplicate email → /api/signup returns 409 and shows error in UI', async ({ page }) => {
     const epoch = Date.now();
@@ -166,7 +115,6 @@ test.describe('Signup — org types', () => {
 
     await fillSignupForm(page, {
       orgName: `E2E Dup Org A ${epoch}`,
-      orgType: 'Marketing Agency',
       name: 'E2E Dup User A',
       email,
       password: 'Password123!',
@@ -178,7 +126,6 @@ test.describe('Signup — org types', () => {
 
     await fillSignupForm(page, {
       orgName: `E2E Dup Org B ${epoch}`,
-      orgType: 'Marketing Agency',
       name: 'E2E Dup User B',
       email,
       password: 'Password123!',

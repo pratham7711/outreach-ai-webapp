@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import type { OrgType } from "@/lib/generated/prisma/client";
 import { requestLogger } from "@/lib/observability/requestLogger";
+import { rateLimit, rateLimitKey } from "@/lib/rateLimit";
 
 const signupSchema = z.object({
   orgName: z.string().trim().min(1, "Organization name is required").max(120),
@@ -36,6 +37,22 @@ export async function POST(req: NextRequest) {
   const { logger } = requestLogger("signup");
   try {
     logger.info("signup.start");
+
+    // Creating an org is a rare, expensive action; without a cap this endpoint
+    // mints unlimited tenants. Best-effort only -- lib/rateLimit is per-instance
+    // memory, so the edge firewall is the real defence.
+    const rl = rateLimit({
+      key: rateLimitKey("signup", req),
+      limit: 5,
+      windowMs: 60 * 60 * 1000,
+    });
+    if (!rl.allowed) {
+      logger.warn("signup.rate_limited", { retryAfterSeconds: rl.retryAfterSeconds });
+      return NextResponse.json(
+        { error: "Too many signup attempts. Please try again later." },
+        { status: 429, headers: { "Retry-After": String(rl.retryAfterSeconds) } }
+      );
+    }
     const body = await req.json().catch(() => null);
     const parsed = signupSchema.safeParse(body);
     if (!parsed.success) {
