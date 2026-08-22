@@ -21,6 +21,17 @@ export type PostMetrics = {
   likesCount?: number;
   commentsCount?: number;
   sharesCount?: number;
+  /**
+   * TikTok publishes this as `collectCount` -- bookmarks, which CreatorCore's
+   * report calls Total Saves. We parsed four counters out of that payload for
+   * months and left the fifth sitting next to them, so the tile had no source and
+   * a campaign with 1,762 saves reported none.
+   *
+   * Instagram and YouTube publish no equivalent, and no platform we can reach
+   * publishes a download count at all, which is why there is no downloadsCount
+   * here: a field nothing can ever fill is worse than an absent one.
+   */
+  savesCount?: number;
   engagementRate?: number;
   /** Absent when the platform did not say. Never today's date as a stand-in. */
   postedAt?: Date;
@@ -199,10 +210,14 @@ async function fetchTikTokMetricsDisplay(
 }
 
 export type TikTokDirectMetrics = {
-  viewsCount: number;
-  likesCount: number;
-  commentsCount: number;
-  sharesCount: number;
+  /* Optional, because every field in TikTok's stats block is. A missing one used
+     to arrive here as 0 and be written as a measured zero. */
+  viewsCount?: number;
+  likesCount?: number;
+  commentsCount?: number;
+  sharesCount?: number;
+  /** TikTok's collectCount: bookmarks, which the client report calls saves. */
+  savesCount?: number;
   caption: string | null;
   thumbnailUrl: string | null;
   postedAt: Date | null;
@@ -287,6 +302,24 @@ export function pickCount(...values: unknown[]): number {
   return best;
 }
 
+/**
+ * The same, but absent stays absent.
+ *
+ * pickCount answers 0 when nothing was numeric, which reads downstream as a
+ * counter we measured at zero -- and every field in TikTok's stats block is
+ * optional, so a payload missing one would have been recorded as a real zero.
+ * See fieldMetricValue in lib/metricDisplay for what depends on the difference.
+ */
+export function pickOptionalCount(...values: unknown[]): number | undefined {
+  let best: number | undefined;
+  for (const value of values) {
+    if (value === null || value === undefined || value === "") continue;
+    const n = Number(value);
+    if (Number.isFinite(n) && (best === undefined || n > best)) best = n;
+  }
+  return best;
+}
+
 // TikTok answers a deleted post with a normal 200 and a rehydration payload
 // carrying a non-zero statusCode (10204 "item doesn't exist"). That is a
 // perfectly healthy response, so callers must not mistake it for being blocked.
@@ -328,10 +361,11 @@ export function parseTikTokRehydration(html: string): TikTokDirectMetrics | null
   const createTime = Number(item.createTime);
 
   return {
-    viewsCount: pickCount(stats?.playCount, statsV2?.playCount),
-    likesCount: pickCount(stats?.diggCount, statsV2?.diggCount),
-    commentsCount: pickCount(stats?.commentCount, statsV2?.commentCount),
-    sharesCount: pickCount(stats?.shareCount, statsV2?.shareCount),
+    viewsCount: pickOptionalCount(stats?.playCount, statsV2?.playCount),
+    likesCount: pickOptionalCount(stats?.diggCount, statsV2?.diggCount),
+    commentsCount: pickOptionalCount(stats?.commentCount, statsV2?.commentCount),
+    sharesCount: pickOptionalCount(stats?.shareCount, statsV2?.shareCount),
+    savesCount: pickOptionalCount(stats?.collectCount, statsV2?.collectCount),
     caption: typeof item.desc === "string" && item.desc.length > 0 ? item.desc : null,
     thumbnailUrl: item.video?.cover ?? item.video?.originCover ?? null,
     postedAt: Number.isFinite(createTime) && createTime > 0 ? new Date(createTime * 1000) : null,
@@ -429,14 +463,19 @@ export function tiktokMetricsToPartial(parsed: TikTokDirectMetrics): Partial<Pos
   const views = parsed.viewsCount;
   const likes = parsed.likesCount;
   const comments = parsed.commentsCount;
+  /* Only the fields TikTok sent, so an absent counter stays absent all the way
+     to the write -- see countsFrom in lib/sync/syncPost. */
   return {
     thumbnailUrl: parsed.thumbnailUrl,
     caption: parsed.caption,
-    viewsCount: views,
-    likesCount: likes,
-    commentsCount: comments,
-    sharesCount: parsed.sharesCount,
-    engagementRate: views > 0 ? ((likes + comments) / views) * 100 : 0,
+    ...(typeof views === "number" ? { viewsCount: views } : {}),
+    ...(typeof likes === "number" ? { likesCount: likes } : {}),
+    ...(typeof comments === "number" ? { commentsCount: comments } : {}),
+    ...(typeof parsed.sharesCount === "number" ? { sharesCount: parsed.sharesCount } : {}),
+    ...(typeof parsed.savesCount === "number" ? { savesCount: parsed.savesCount } : {}),
+    ...(typeof views === "number" && views > 0
+      ? { engagementRate: (((likes ?? 0) + (comments ?? 0)) / views) * 100 }
+      : {}),
     postedAt: parsed.postedAt ?? undefined,
   };
 }
@@ -628,11 +667,16 @@ function assemblePostMetrics(
   const likes = finite(m.likesCount);
   const comments = finite(m.commentsCount);
   const shares = finite(m.sharesCount);
+  const saves = finite(m.savesCount);
   const engagement = finite(m.engagementRate);
   if (views !== undefined) result.viewsCount = views;
   if (likes !== undefined) result.likesCount = likes;
   if (comments !== undefined) result.commentsCount = comments;
   if (shares !== undefined) result.sharesCount = shares;
+  /* This list is a whitelist, so a counter the parser produces but this omits is
+     silently dropped -- which is exactly what happened to saves on its first
+     run: parsed from collectCount, and gone by the time anything wrote it. */
+  if (saves !== undefined) result.savesCount = saves;
   if (engagement !== undefined) result.engagementRate = engagement;
 
   return result;

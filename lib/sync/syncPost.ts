@@ -80,6 +80,7 @@ export function countsFrom(metrics: PostMetrics): {
   record("likes", "likesCount", metrics.likesCount);
   record("comments", "commentsCount", metrics.commentsCount);
   record("shares", "sharesCount", metrics.sharesCount);
+  record("saves", "savesCount", metrics.savesCount);
   return { counts, present, measuredPatch: { [MEASURED_FIELDS_KEY]: present } };
 }
 
@@ -117,6 +118,7 @@ export async function applyPostMetrics(
   const likes = metrics.likesCount ?? 0;
   const comments = metrics.commentsCount ?? 0;
   const shares = metrics.sharesCount ?? 0;
+  const saves = metrics.savesCount ?? 0;
   const engagementRate =
     metrics.engagementRate ?? (views > 0 ? ((likes + comments) / views) * 100 : 0);
 
@@ -161,6 +163,7 @@ export async function applyPostMetrics(
         likesCount: likes,
         commentsCount: comments,
         sharesCount: shares,
+        savesCount: saves,
         engagementRate,
         syncSource: "api",
       },

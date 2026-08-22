@@ -62,14 +62,19 @@ export async function GET(req: NextRequest) {
     platformStatusCode: lookup.statusCode,
     reason: lookup.reason,
     checkedAt,
+    // Each counter is nullable because TikTok's stats block omits rather than
+    // zeroes, and this route reports what it was told.
     stats: m
       ? {
-          views: m.viewsCount,
-          likes: m.likesCount,
-          comments: m.commentsCount,
-          shares: m.sharesCount,
+          views: m.viewsCount ?? null,
+          likes: m.likesCount ?? null,
+          comments: m.commentsCount ?? null,
+          shares: m.sharesCount ?? null,
+          saves: m.savesCount ?? null,
           engagementRate:
-            m.viewsCount > 0 ? ((m.likesCount + m.commentsCount) / m.viewsCount) * 100 : 0,
+            typeof m.viewsCount === "number" && m.viewsCount > 0
+              ? (((m.likesCount ?? 0) + (m.commentsCount ?? 0)) / m.viewsCount) * 100
+              : null,
         }
       : null,
     caption: m?.caption ?? null,

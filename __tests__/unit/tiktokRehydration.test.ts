@@ -85,6 +85,39 @@ describe("parseTikTokRehydration", () => {
     expect(result!.viewsCount).toBe(0);
   });
 
+  it("reads collectCount as the saves figure", () => {
+    // Verified against a live payload: stats carries collectCount alongside the
+    // four we already parsed, as a string. It is what CreatorCore calls Total
+    // Saves, and leaving it unparsed is why that tile had no source.
+    const result = parseTikTokRehydration(
+      page(
+        videoDetail({
+          stats: {
+            playCount: 55600,
+            diggCount: 4998,
+            commentCount: 34,
+            shareCount: 213,
+            collectCount: "853",
+          },
+        }),
+      ),
+    );
+
+    expect(result!.savesCount).toBe(853);
+  });
+
+  it("leaves a counter absent when the payload omits it", () => {
+    // Every field in the stats block is optional, and 0 would be written as a
+    // measurement -- see fieldMetricValue.
+    const result = parseTikTokRehydration(
+      page(videoDetail({ stats: { playCount: 55600 } })),
+    );
+
+    expect(result!.viewsCount).toBe(55600);
+    expect(result!.likesCount).toBeUndefined();
+    expect(result!.savesCount).toBeUndefined();
+  });
+
   it("returns null when the video is unavailable", () => {
     const html = page({
       "webapp.video-detail": { statusCode: 10204, itemInfo: {} },
