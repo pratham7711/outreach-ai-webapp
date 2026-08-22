@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { httpUrl } from "@/lib/validation/url";
 import { z } from "zod";
 import { detectPlatform, fetchPostMetrics, hasMetricCounts } from "@/lib/platforms/fetchPostMetrics";
+import { countsFrom } from "@/lib/sync/syncPost";
 import { getInstagramAccountForCreator } from "@/lib/platforms/instagramToken";
 import { getTikTokTokenForCreator } from "@/lib/platforms/tiktokToken";
 import { checkPostCompliance } from "@/lib/compliance/postCompliance";
@@ -138,11 +139,14 @@ export async function POST(
         thumbnailUrl: metrics?.thumbnailUrl ?? null,
         caption: metrics?.caption ?? null,
         mediaType: mediaType ?? null,
-        viewsCount: metrics?.viewsCount ?? 0,
-        likesCount: metrics?.likesCount ?? 0,
-        commentsCount: metrics?.commentsCount ?? 0,
+        // Only the counters the platform actually reported, and a record of which
+        // those were. Writing `?? 0` for the rest and then stamping lastSyncedAt
+        // is what made an Instagram post claim "0 shares" -- Instagram reports
+        // none. sharesCount was not even written here before. See countsFrom.
+        ...(metrics ? countsFrom(metrics).counts : {}),
         engagementRate: metrics?.engagementRate ?? 0,
         postedAt: metrics?.postedAt ?? new Date(),
+        ...(metrics ? { platformMetrics: countsFrom(metrics).measuredPatch } : {}),
         // Without this a post created with real counts reads as never synced,
         // which makes lib/metricDisplay treat its measured zeroes as unknown and
         // makes the card say "Never" under numbers we just fetched. Only set

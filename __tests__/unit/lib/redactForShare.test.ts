@@ -23,12 +23,32 @@ const row = (over: Partial<Record<string, unknown>> = {}) => ({
   ...over,
 });
 
+const postRow = {
+  id: "p1",
+  platform: "TIKTOK",
+  platformPostId: "7546394810303694849",
+  postUrl: "https://www.tiktok.com/@mariasantos/video/7546394810303694849",
+  thumbnailUrl: "https://p77-sg.tiktokcdn.com/thumb.jpeg",
+  caption: "Maria Santos dancing to the track",
+  postedAt: "2026-08-20T00:00:00.000Z",
+  lastSyncedAt: "2026-08-22T00:00:00.000Z",
+  creator: { id: "c1", name: "Maria Santos", handle: "mariasantos", avatarUrl: null },
+  views: 1000,
+  likes: 50,
+  comments: 4,
+  shares: null,
+  saves: null,
+  downloads: null,
+  engagementRate: 0.05,
+};
+
 const data = {
   currency: "USD",
   kpis: { views: 1000, engagements: 50, engagementRate: 0.05, emv: 250 },
   timeSeries: [],
   platformSplit: [],
   leaderboard: [row()],
+  posts: [postRow],
 } as never;
 
 const OPEN = { showCreators: true, showEmv: true, showStatuses: true };
@@ -58,6 +78,29 @@ describe("redactForShare", () => {
     expect(out.leaderboard).toEqual([]);
     expect(JSON.stringify(out)).not.toContain("Maria Santos");
     expect(JSON.stringify(out)).not.toContain("DECLINED");
+  });
+
+  it("keeps the post list but strips who posted, when creators are hidden", () => {
+    // The numbers are the point of the report, so the rows survive -- but the
+    // creator has to be gone from the data, not merely unrendered: props are
+    // serialized into the RSC payload either way.
+    const out = redactForShare(data, { ...OPEN, showCreators: false });
+
+    expect(out.posts).toHaveLength(1);
+    expect(out.posts[0].views).toBe(1000);
+    expect(out.posts[0].creator).toBeNull();
+    // The caption and thumbnail name the creator as surely as the handle does.
+    expect(out.posts[0].caption).toBeNull();
+    expect(out.posts[0].thumbnailUrl).toBeNull();
+    const payload = JSON.stringify(out);
+    expect(payload).not.toContain("Maria Santos");
+    expect(payload).not.toContain("mariasantos");
+  });
+
+  it("leaves the post list alone when creators are shown", () => {
+    const out = redactForShare(data, OPEN);
+    expect(out.posts[0].creator?.handle).toBe("mariasantos");
+    expect(out.posts[0].thumbnailUrl).toContain("tiktokcdn");
   });
 
   it("nulls money rather than zeroing it, so withheld is not mistaken for none", () => {

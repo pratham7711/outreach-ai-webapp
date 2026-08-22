@@ -64,7 +64,9 @@ export async function POST(
 
     const posts = await db.post.findMany({
       where: { campaignId },
-      select: { id: true, platform: true, creatorId: true, postUrl: true, thumbnailUrl: true, caption: true },
+      // platformMetrics comes along because applyPostMetrics merges the measured-field
+      // record into it rather than replacing the importer's raw record.
+      select: { id: true, platform: true, creatorId: true, postUrl: true, thumbnailUrl: true, caption: true, platformMetrics: true },
       // Oldest sync first, so a campaign too big for one run still makes
       // progress on the stalest posts each time.
       orderBy: { lastSyncedAt: { sort: "asc", nulls: "first" } },

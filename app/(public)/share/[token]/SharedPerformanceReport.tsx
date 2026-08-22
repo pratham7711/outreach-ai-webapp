@@ -13,6 +13,7 @@ import { platformColor } from "@/app/(dashboard)/analytics/shared";
 import { BRAND, POWERED_BY } from "@/lib/brand";
 import { AudioCard } from "@/components/campaigns/AudioCard";
 import { shareImgSrc } from "@/lib/postMedia";
+import SharedPostList from "./SharedPostList";
 
 const SERIES = [
   { key: "TIKTOK", color: platformColor("TIKTOK") },
@@ -22,6 +23,13 @@ const SERIES = [
 
 function formatNumber(num: number): string {
   return formatCompact(num);
+}
+
+/* The stat tiles print figures in full with separators, the way CreatorCore's do
+   ("Total Views 172,328"). Compact stays for the chart axes, where a full number
+   would not fit. */
+function formatExact(num: number): string {
+  return num.toLocaleString("en-US");
 }
 
 function formatCurrency(n: number, currency = "USD"): string {
@@ -220,25 +228,25 @@ export default function SharedPerformanceReport({
                   combined engagement figure. A counter no post has measured has
                   no tile at all -- printing "Total Saves 0" to a brand would
                   claim a measurement the public TikTok payload never carries. */}
-              <StatTile value={formatNumber(kpis.posts)} label="Total Posts" />
-              <StatTile value={formatNumber(kpis.views)} label="Total Views" />
+              <StatTile value={formatExact(kpis.posts)} label="Total Posts" />
+              <StatTile value={formatExact(kpis.views)} label="Total Views" />
               {kpis.likes !== null && (
-                <StatTile value={formatNumber(kpis.likes)} label="Total Likes" />
+                <StatTile value={formatExact(kpis.likes)} label="Total Likes" />
               )}
               {kpis.comments !== null && (
-                <StatTile value={formatNumber(kpis.comments)} label="Total Comments" />
+                <StatTile value={formatExact(kpis.comments)} label="Total Comments" />
               )}
               {kpis.shares !== null && (
-                <StatTile value={formatNumber(kpis.shares)} label="Total Shares" />
+                <StatTile value={formatExact(kpis.shares)} label="Total Shares" />
               )}
               {kpis.saves !== null && (
-                <StatTile value={formatNumber(kpis.saves)} label="Total Saves" />
+                <StatTile value={formatExact(kpis.saves)} label="Total Saves" />
               )}
               {kpis.downloads !== null && (
-                <StatTile value={formatNumber(kpis.downloads)} label="Total Downloads" />
+                <StatTile value={formatExact(kpis.downloads)} label="Total Downloads" />
               )}
               {kpis.engagements !== null && (
-                <StatTile value={formatNumber(kpis.engagements)} label="Engagements" />
+                <StatTile value={formatExact(kpis.engagements)} label="Total Eng." />
               )}
               {kpis.engagementRate !== null && (
                 <StatTile value={`${(kpis.engagementRate * 100).toFixed(2)}%`} label="Eng. Rate" />
@@ -460,6 +468,11 @@ export default function SharedPerformanceReport({
                 )}
               </div>
               )}
+
+              {/* The list the leaderboard above summarises. Shown even on a link
+                  that hides creators: the numbers are the point of the report,
+                  and the rows arrive already stripped of who posted them. */}
+              <SharedPostList posts={data.posts} token={token} showCreators={visibility.showCreators} />
             </div>
           </div>
         )}

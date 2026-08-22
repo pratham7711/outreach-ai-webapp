@@ -529,10 +529,13 @@ export async function fetchInstagramMetrics(
       return {
         thumbnailUrl: graph.thumbnailUrl,
         caption: graph.caption,
-        viewsCount: graph.viewsCount,
-        likesCount: graph.likesCount,
-        commentsCount: graph.commentsCount,
-        sharesCount: 0,
+        ...(typeof graph.viewsCount === "number" ? { viewsCount: graph.viewsCount } : {}),
+        ...(typeof graph.likesCount === "number" ? { likesCount: graph.likesCount } : {}),
+        ...(typeof graph.commentsCount === "number" ? { commentsCount: graph.commentsCount } : {}),
+        /* No sharesCount at all. Instagram publishes no share count on any
+           endpoint we can reach, so writing 0 asserted a measurement we cannot
+           make -- and CreatorCore's report of the same posts shows no shares row
+           for them either. */
         postedAt: graph.postedAt,
       };
     }
@@ -544,10 +547,10 @@ export async function fetchInstagramMetrics(
       return {
         thumbnailUrl: post.thumbnailUrl,
         caption: post.caption,
-        viewsCount: post.viewsCount,
-        likesCount: post.likesCount,
-        commentsCount: post.commentsCount,
-        sharesCount: 0,
+        ...(typeof post.viewsCount === "number" ? { viewsCount: post.viewsCount } : {}),
+        ...(typeof post.likesCount === "number" ? { likesCount: post.likesCount } : {}),
+        ...(typeof post.commentsCount === "number" ? { commentsCount: post.commentsCount } : {}),
+        // Same as above: Instagram reports no shares, so we claim none.
         postedAt: post.postedAt ?? undefined,
       };
     }

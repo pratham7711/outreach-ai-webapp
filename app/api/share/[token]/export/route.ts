@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { parseShareVisibility } from "@/lib/reports/shareVisibility";
 import { rateLimit } from "@/lib/rateLimit";
 import { getRequestIp } from "@/lib/request";
+import { fieldMetricValue, unwrittenMetricValue } from "@/lib/metricDisplay";
 
 /**
  * GET /api/share/[token]/export — the post list behind a shared report, as CSV.
@@ -35,12 +36,6 @@ function csv(rows: (string | number | null)[][]): string {
   // and Excel reads a plain UTF-8 CSV as Latin-1 without one.
   return "﻿" + rows.map((r) => r.map(csvCell).join(",")).join("\r\n") + "\r\n";
 }
-
-const measured = (value: number | null, lastSyncedAt: Date | null): number | null => {
-  if (value === null) return null;
-  if (value > 0) return value;
-  return lastSyncedAt ? 0 : null;
-};
 
 export async function GET(
   request: NextRequest,
@@ -93,6 +88,7 @@ export async function GET(
       savesCount: true,
       downloadsCount: true,
       lastSyncedAt: true,
+      platformMetrics: true,
       creator: { select: { name: true, handle: true } },
     },
     orderBy: { viewsCount: "desc" },
@@ -120,11 +116,13 @@ export async function GET(
       p.postedAt ? p.postedAt.toISOString().slice(0, 10) : "",
       p.postUrl,
       p.viewsCount,
-      measured(p.likesCount, p.lastSyncedAt),
-      measured(p.commentsCount, p.lastSyncedAt),
-      measured(p.sharesCount, p.lastSyncedAt),
-      measured(p.savesCount, p.lastSyncedAt),
-      measured(p.downloadsCount, p.lastSyncedAt),
+      fieldMetricValue(p.likesCount, p.lastSyncedAt, p.platformMetrics, "likes"),
+      fieldMetricValue(p.commentsCount, p.lastSyncedAt, p.platformMetrics, "comments"),
+      fieldMetricValue(p.sharesCount, p.lastSyncedAt, p.platformMetrics, "shares"),
+      // Nothing here writes these two, so a sync's timestamp does not vouch for
+      // their zeroes the way it does for the columns above.
+      unwrittenMetricValue(p.savesCount),
+      unwrittenMetricValue(p.downloadsCount),
       p.lastSyncedAt ? p.lastSyncedAt.toISOString() : "",
     ]),
   ];

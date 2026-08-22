@@ -4,7 +4,8 @@ import {
   computeEngagementRate,
   sumEngagements,
 } from "@/lib/metrics";
-import { metricValue, unwrittenMetricValue } from "@/lib/metricDisplay";
+import { metricValue, unwrittenMetricValue, fieldMetricValue } from "@/lib/metricDisplay";
+import type { MetricField } from "@/lib/metricDisplay";
 import type { SharePlatform } from "@/lib/reports/shareVisibility";
 import type { ActivationStatus } from "@/lib/generated/prisma/client";
 
@@ -57,6 +58,18 @@ export type CampaignPerformance = {
     status: ActivationStatus | null;
   }[];
   /**
+   * Every post on the campaign, newest metrics first, because a client report is
+   * fundamentally a list of posts: CreatorCore's shows all seventeen of them with
+   * their own counters, where ours showed a ten-row creator leaderboard and
+   * nothing else. The leaderboard stays -- it answers a different question -- but
+   * it is a summary of this, not a substitute for it.
+   *
+   * Every counter is nullable and carries its own provenance, which is what
+   * CreatorCore does too: on its report one post shows views and comments and no
+   * likes, because likes is what it does not have for that post.
+   */
+  posts: SharedPostRow[];
+  /**
    * The TikTok sound behind the campaign, when its song has one tracked. Null
    * means there is nothing to show — no song, or a song with no sound — and the
    * card is simply absent, the way it is on a campaign that promotes no release.
@@ -67,6 +80,32 @@ export type CampaignPerformance = {
    * used, which is a measurement we have not made.
    */
   audio: CampaignAudio | null;
+};
+
+export type SharedPostRow = {
+  id: string;
+  platform: string;
+  platformPostId: string | null;
+  /**
+   * Null on a link that hides creators: a platform post URL carries the handle
+   * in its path (tiktok.com/@handle/video/...), so keeping the link would have
+   * published exactly the name the toggle was set to withhold.
+   */
+  postUrl: string | null;
+  thumbnailUrl: string | null;
+  caption: string | null;
+  postedAt: string;
+  /** Null for a post never synced, which is "unknown", not "never updated". */
+  lastSyncedAt: string | null;
+  /** Null when the link hides creators, exactly as the leaderboard is withheld. */
+  creator: { id: string; name: string; handle: string | null; avatarUrl: string | null } | null;
+  views: number;
+  likes: number | null;
+  comments: number | null;
+  shares: number | null;
+  saves: number | null;
+  downloads: number | null;
+  engagementRate: number | null;
 };
 
 export type CampaignAudio = {
@@ -115,6 +154,21 @@ export function redactForShare(
           status: visibility.showStatuses ? row.status : null,
         }))
       : [],
+    /* The post list survives a hidden-creator link -- the numbers are the point
+       of the report -- but the creator is stripped from each row rather than
+       merely left unrendered, since props reach the payload either way. The
+       thumbnail and caption go with it: both identify the creator as surely as
+       the name does. */
+    posts: visibility.showCreators
+      ? data.posts
+      : data.posts.map((row) => ({
+          ...row,
+          creator: null,
+          thumbnailUrl: null,
+          caption: null,
+          // The URL names the creator in its path, so it goes with them.
+          postUrl: null,
+        })),
   };
 }
 
@@ -137,6 +191,10 @@ export async function computeCampaignPerformance(
     select: {
       id: true,
       platform: true,
+      platformPostId: true,
+      postUrl: true,
+      thumbnailUrl: true,
+      caption: true,
       postedAt: true,
       viewsCount: true,
       likesCount: true,
@@ -145,7 +203,8 @@ export async function computeCampaignPerformance(
       savesCount: true,
       downloadsCount: true,
       lastSyncedAt: true,
-      creator: { select: { id: true, name: true, avatarUrl: true } },
+      platformMetrics: true,
+      creator: { select: { id: true, name: true, handle: true, avatarUrl: true } },
     },
   });
 
@@ -214,18 +273,22 @@ export async function computeCampaignPerformance(
      columns where that happens: TikTok's public payload gives views, likes,
      comments and shares but never saves or downloads, so those two are usually
      unknown while the others are real. */
-  const totalOf = (
+  const sumWhere = (
     pick: (p: (typeof posts)[number]) => number | null | undefined,
-    /* Saves and downloads have no writer in this repo, so their zeroes are
-       defaults rather than readings and lastSyncedAt cannot vouch for them --
-       see unwrittenMetricValue. */
-    provenance: (p: (typeof posts)[number]) => number | null = (p) => metricValue(pick(p), p.lastSyncedAt),
+    provenance: (p: (typeof posts)[number]) => number | null,
   ): number | null => {
     const known = posts.filter((p) => provenance(p) !== null);
     return known.length === 0 ? null : known.reduce((sum, p) => sum + (pick(p) ?? 0), 0);
   };
+  /* A tile appears only if some post actually reported that counter. Without the
+     per-field test an Instagram-only campaign totalled its unreported shares as
+     a measured "Total Shares 0". */
+  const totalOf = (field: MetricField, pick: (p: (typeof posts)[number]) => number | null | undefined) =>
+    sumWhere(pick, (p) => fieldMetricValue(pick(p), p.lastSyncedAt, p.platformMetrics, field));
+  /* Saves and downloads have no writer in this repo at all, so only a value
+     vouches for them -- see unwrittenMetricValue. */
   const unwritten = (pick: (p: (typeof posts)[number]) => number | null | undefined) =>
-    totalOf(pick, (p) => unwrittenMetricValue(pick(p)));
+    sumWhere(pick, (p) => unwrittenMetricValue(pick(p)));
 
   const kpis = {
     views,
@@ -233,9 +296,9 @@ export async function computeCampaignPerformance(
     engagementRate,
     emv,
     posts: posts.length,
-    likes: totalOf((p) => p.likesCount),
-    comments: totalOf((p) => p.commentsCount),
-    shares: totalOf((p) => p.sharesCount),
+    likes: totalOf("likes", (p) => p.likesCount),
+    comments: totalOf("comments", (p) => p.commentsCount),
+    shares: totalOf("shares", (p) => p.sharesCount),
     saves: unwritten((p) => p.savesCount),
     downloads: unwritten((p) => p.downloadsCount),
   };
@@ -350,12 +413,64 @@ export async function computeCampaignPerformance(
     .sort((a, b) => b.views - a.views)
     .slice(0, 10);
 
+  /* Sorted by views, matching CreatorCore's own order, so the post a brand cares
+     about is the first one it reads. */
+  const postRows: SharedPostRow[] = posts
+    .slice()
+    .sort((a, b) => (b.viewsCount ?? 0) - (a.viewsCount ?? 0))
+    .map((p) => {
+      /* Per field, not per row: Instagram reports no shares at all, so a shares
+         row on an Instagram post would be a zero we invented. */
+      const at = (field: MetricField, value: number | null) =>
+        fieldMetricValue(value, p.lastSyncedAt, p.platformMetrics, field);
+      const likes = at("likes", p.likesCount);
+      const comments = at("comments", p.commentsCount);
+      const views = p.viewsCount ?? 0;
+      const engagements =
+        likes === null && comments === null
+          ? null
+          : sumEngagements({
+              likes: p.likesCount,
+              comments: p.commentsCount,
+              shares: p.sharesCount,
+              saves: p.savesCount,
+            });
+      return {
+        id: p.id,
+        platform: p.platform,
+        platformPostId: p.platformPostId,
+        postUrl: p.postUrl,
+        thumbnailUrl: p.thumbnailUrl,
+        caption: p.caption,
+        postedAt: p.postedAt.toISOString(),
+        lastSyncedAt: p.lastSyncedAt ? p.lastSyncedAt.toISOString() : null,
+        creator: {
+          id: p.creator.id,
+          name: p.creator.name,
+          handle: p.creator.handle,
+          avatarUrl: p.creator.avatarUrl,
+        },
+        views,
+        likes,
+        comments,
+        shares: at("shares", p.sharesCount),
+        // Nothing in this repo writes these two -- see unwrittenMetricValue.
+        saves: unwrittenMetricValue(p.savesCount),
+        downloads: unwrittenMetricValue(p.downloadsCount),
+        engagementRate:
+          engagements !== null && views > 0
+            ? computeEngagementRate({ views, likes: engagements })
+            : null,
+      };
+    });
+
   return {
     currency: campaign.currency,
     kpis,
     timeSeries,
     platformSplit,
     leaderboard,
+    posts: postRows,
     audio: await loadCampaignAudio(campaign.id),
   };
 }

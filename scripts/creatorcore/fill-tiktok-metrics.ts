@@ -83,7 +83,7 @@ async function main() {
     where: { campaignId, platform: "TIKTOK" },
     select: {
       id: true, platform: true, creatorId: true, postUrl: true,
-      thumbnailUrl: true, caption: true,
+      thumbnailUrl: true, caption: true, platformMetrics: true,
       creator: { select: { handle: true } },
     },
   });

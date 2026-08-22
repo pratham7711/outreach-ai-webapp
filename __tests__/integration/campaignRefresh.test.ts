@@ -119,6 +119,47 @@ describe('single post sync', () => {
     );
   });
 
+  it('writes only the counters the platform reported, and records which', async () => {
+    // Instagram's shape: views and comments, no likes, no shares. The old code
+    // filled all four with `?? 0` and stamped the timestamp, so a report showed
+    // "0 likes, 0 shares" for a post where the platform said neither.
+    mockFetch.mockResolvedValue({
+      platform: 'INSTAGRAM',
+      platformPostId: 'abc',
+      thumbnailUrl: null,
+      caption: null,
+      postedAt: new Date('2026-08-01'),
+      viewsCount: 9864,
+      commentsCount: 2,
+    });
+
+    await syncReq();
+    const written = mockDb.post.update.mock.calls[0][0].data;
+
+    expect(written.viewsCount).toBe(9864);
+    expect(written.commentsCount).toBe(2);
+    expect(written).not.toHaveProperty('likesCount');
+    expect(written).not.toHaveProperty('sharesCount');
+    expect(written.platformMetrics.__measured).toEqual(['views', 'comments']);
+  });
+
+  it('keeps the importer raw record when it merges the measured list in', async () => {
+    // platformMetrics is a shared bag: cc-import parks the whole CreatorCore
+    // record under __cc there, and overwriting it would throw that away.
+    mockDb.post.findFirst.mockResolvedValue({
+      ...post,
+      platformMetrics: { __cc: { id: 'cc-1' }, __stat: { views: 12 } },
+    });
+    mockFetch.mockResolvedValue(withCounts);
+
+    await syncReq();
+    const written = mockDb.post.update.mock.calls[0][0].data;
+
+    expect(written.platformMetrics.__cc).toEqual({ id: 'cc-1' });
+    expect(written.platformMetrics.__stat).toEqual({ views: 12 });
+    expect(written.platformMetrics.__measured).toEqual(['views', 'likes', 'comments', 'shares']);
+  });
+
   it('reports an unusable URL as 422 rather than a silent success', async () => {
     mockFetch.mockResolvedValue(null);
 

@@ -80,7 +80,9 @@ it('leaves an unmeasured counter empty instead of writing 0', async () => {
   expect(cells.slice(-3, -1)).toEqual(['', '']);
 });
 
-it('exports a measured zero, because that one is a fact', async () => {
+it('leaves saves and downloads blank even on a synced post', async () => {
+  // A sync stamps lastSyncedAt while fetching neither counter, so the timestamp
+  // is no evidence for those two columns -- only a value is.
   mockDb.post.findMany.mockResolvedValue([
     post({ savesCount: 0, downloadsCount: 0, lastSyncedAt: new Date('2026-08-22T00:00:00Z') }),
   ]);
@@ -88,7 +90,30 @@ it('exports a measured zero, because that one is a fact', async () => {
   const body = await (await call()).text();
   const row = body.trim().split('\r\n')[1].split(',');
 
-  expect(row.slice(-3, -1)).toEqual(['0', '0']);
+  expect(row.slice(-3, -1)).toEqual(['', '']);
+});
+
+it('exports saves and downloads that the CreatorCore import did write', async () => {
+  mockDb.post.findMany.mockResolvedValue([
+    post({ savesCount: 155, downloadsCount: 10, lastSyncedAt: null }),
+  ]);
+
+  const body = await (await call()).text();
+  const row = body.trim().split('\r\n')[1].split(',');
+
+  expect(row.slice(-3, -1)).toEqual(['155', '10']);
+});
+
+it('exports a measured zero for a counter something does fetch', async () => {
+  mockDb.post.findMany.mockResolvedValue([
+    post({ likesCount: 0, commentsCount: 0, lastSyncedAt: new Date('2026-08-22T00:00:00Z') }),
+  ]);
+
+  const body = await (await call()).text();
+  const row = body.trim().split('\r\n')[1].split(',');
+
+  // Likes and comments sit right after Views, and a sync really does read them.
+  expect(row.slice(-6, -4)).toEqual(['0', '0']);
 });
 
 it('omits creator columns when the link hides creators', async () => {

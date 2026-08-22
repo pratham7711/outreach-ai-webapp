@@ -98,9 +98,15 @@ export async function fetchInstagramMetricsGraph(
       return {
         thumbnailUrl: match.thumbnail_url ?? match.media_url ?? null,
         caption: match.caption ?? null,
-        likesCount: typeof match.like_count === "number" ? match.like_count : 0,
-        commentsCount: typeof match.comments_count === "number" ? match.comments_count : 0,
-        viewsCount: typeof views === "number" ? views : 0,
+        /* Omitted, not zeroed. Instagram leaves like_count out of the payload
+           entirely when the creator has hidden their like counts, and coercing
+           that to 0 is indistinguishable from a reel nobody liked -- which is
+           how two posts with ten thousand views each came to report "0 likes"
+           on a client report. Every field here is optional for this reason;
+           applyPostMetrics writes only what arrived. */
+        ...(typeof match.like_count === "number" ? { likesCount: match.like_count } : {}),
+        ...(typeof match.comments_count === "number" ? { commentsCount: match.comments_count } : {}),
+        ...(typeof views === "number" ? { viewsCount: views } : {}),
         postedAt: match.timestamp ? new Date(match.timestamp) : undefined,
       };
     }

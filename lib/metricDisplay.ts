@@ -46,6 +46,50 @@ export function unwrittenMetricValue(value: number | null | undefined): number |
 }
 
 /**
+ * Per-field provenance, for the case lastSyncedAt cannot describe.
+ *
+ * lastSyncedAt is one flag for a whole row, but which counters a fetch comes back
+ * with varies by platform and even by post: TikTok's public payload carries
+ * views, likes, comments and shares; Instagram's carries views and comments, and
+ * likes only sometimes. The write path used to coerce every absent field with
+ * `?? 0` and then stamp the timestamp, so three Instagram posts on the reference
+ * campaign reported "0 likes, 0 shares" -- and CreatorCore's own report, looking
+ * at the same three posts, shows no likes row and no shares row at all. Omitting
+ * what the platform never said is the parity behaviour, not a divergence from it.
+ *
+ * applyPostMetrics now records the fields a fetch actually delivered, under a
+ * namespaced key in the existing platformMetrics bag (alongside the importer's
+ * `__cc` and `__stat`), so no column had to be added for this.
+ *
+ * A post with no record -- everything imported from CreatorCore, and everything
+ * synced before this existed -- falls through to the row-level rule, which is
+ * exactly the old behaviour.
+ */
+export const MEASURED_FIELDS_KEY = "__measured";
+
+export type MetricField = "views" | "likes" | "comments" | "shares" | "saves" | "downloads";
+
+export function measuredFields(platformMetrics: unknown): MetricField[] | null {
+  if (!platformMetrics || typeof platformMetrics !== "object") return null;
+  const raw = (platformMetrics as Record<string, unknown>)[MEASURED_FIELDS_KEY];
+  return Array.isArray(raw) ? (raw.filter((f) => typeof f === "string") as MetricField[]) : null;
+}
+
+export function fieldMetricValue(
+  value: number | null | undefined,
+  lastSyncedAt: string | Date | null | undefined,
+  platformMetrics: unknown,
+  field: MetricField
+): number | null {
+  // A value we hold is a value we hold, whatever its provenance -- the importer
+  // wrote real saves counts with no sync timestamp and no measured list.
+  if (typeof value === "number" && value > 0) return value;
+  const fields = measuredFields(platformMetrics);
+  if (fields) return fields.includes(field) ? metricValue(value, lastSyncedAt) : UNKNOWN;
+  return metricValue(value, lastSyncedAt);
+}
+
+/**
  * Engagement rate is derived from the same unmeasured counters, so it inherits
  * their provenance rather than confidently reporting 0.00%.
  */

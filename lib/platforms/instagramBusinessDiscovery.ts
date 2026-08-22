@@ -4,9 +4,13 @@ export type IgPublicPost = {
   id: string;
   permalink: string | null;
   caption: string | null;
-  viewsCount: number;
-  likesCount: number;
-  commentsCount: number;
+  /* Optional because Instagram omits these rather than sending zero: view_count
+     is absent on a still image, and like_count is absent whenever the creator has
+     hidden their like counts. Reading an absent field as 0 told a client report
+     that a ten-thousand-view reel earned no likes. */
+  viewsCount?: number;
+  likesCount?: number;
+  commentsCount?: number;
   postedAt: Date | null;
   thumbnailUrl: string | null;
 };
@@ -43,9 +47,9 @@ function mapMedia(node: DiscoveryMediaNode): IgPublicPost {
     id: node.id ?? "",
     permalink: node.permalink ?? null,
     caption: node.caption ?? null,
-    viewsCount: typeof node.view_count === "number" ? node.view_count : 0,
-    likesCount: typeof node.like_count === "number" ? node.like_count : 0,
-    commentsCount: typeof node.comments_count === "number" ? node.comments_count : 0,
+    ...(typeof node.view_count === "number" ? { viewsCount: node.view_count } : {}),
+    ...(typeof node.like_count === "number" ? { likesCount: node.like_count } : {}),
+    ...(typeof node.comments_count === "number" ? { commentsCount: node.comments_count } : {}),
     postedAt: node.timestamp ? new Date(node.timestamp) : null,
     thumbnailUrl: node.thumbnail_url ?? node.media_url ?? null,
   };

@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { MEASURED_FIELDS_KEY, type MetricField } from "@/lib/metricDisplay";
 import { fetchPostMetrics, hasMetricCounts, type PostMetrics } from "@/lib/platforms/fetchPostMetrics";
 import { getInstagramAccountForCreator } from "@/lib/platforms/instagramToken";
 import { getTikTokTokenForCreator } from "@/lib/platforms/tiktokToken";
@@ -41,7 +42,46 @@ type SyncablePost = {
   postUrl: string;
   thumbnailUrl: string | null;
   caption: string | null;
+  /** Read to merge into rather than clobber -- the importer's raw record lives here. */
+  platformMetrics?: unknown;
 };
+
+/**
+ * The counters a fetch actually delivered, and their column values.
+ *
+ * Which counters come back varies by platform and by post: TikTok's public
+ * payload carries views, likes, comments and shares; Instagram's carries views
+ * and comments, likes only sometimes, and shares never. Coercing the absent ones
+ * with `?? 0` and then stamping lastSyncedAt is what made three Instagram posts
+ * report "0 likes, 0 shares" on a report where CreatorCore, reading the same
+ * three posts, shows neither row.
+ *
+ * An absent field is left out of the write entirely, so whatever was there
+ * before -- an imported figure, or the untouched default -- survives, and the
+ * list of what was present is stored for the display to read back. Shared with
+ * the create route in app/api/campaigns/[id]/posts, which builds a new row from
+ * the same fetch and had the same `?? 0`.
+ *
+ * See fieldMetricValue in lib/metricDisplay for the other half.
+ */
+export function countsFrom(metrics: PostMetrics): {
+  counts: Record<string, number>;
+  present: MetricField[];
+  measuredPatch: Record<string, MetricField[]>;
+} {
+  const present: MetricField[] = [];
+  const counts: Record<string, number> = {};
+  const record = (field: MetricField, column: string, value: number | undefined) => {
+    if (typeof value !== "number") return;
+    present.push(field);
+    counts[column] = value;
+  };
+  record("views", "viewsCount", metrics.viewsCount);
+  record("likes", "likesCount", metrics.likesCount);
+  record("comments", "commentsCount", metrics.commentsCount);
+  record("shares", "sharesCount", metrics.sharesCount);
+  return { counts, present, measuredPatch: { [MEASURED_FIELDS_KEY]: present } };
+}
 
 /**
  * Write metrics that were already fetched.
@@ -71,6 +111,8 @@ export async function applyPostMetrics(
     return { status: "no-metrics", post: updated as unknown as Record<string, unknown> };
   }
 
+  const { counts, present } = countsFrom(metrics);
+
   const views = metrics.viewsCount ?? 0;
   const likes = metrics.likesCount ?? 0;
   const comments = metrics.commentsCount ?? 0;
@@ -85,11 +127,15 @@ export async function applyPostMetrics(
         thumbnailUrl: metrics.thumbnailUrl ?? post.thumbnailUrl,
         caption: metrics.caption ?? post.caption,
         lastSyncedAt: new Date(),
-        viewsCount: views,
-        likesCount: likes,
-        commentsCount: comments,
-        sharesCount: shares,
+        ...counts,
         engagementRate,
+        /* Merged, not replaced: this bag also holds the importer's raw record. */
+        platformMetrics: {
+          ...(typeof post.platformMetrics === "object" && post.platformMetrics !== null
+            ? (post.platformMetrics as Record<string, unknown>)
+            : {}),
+          [MEASURED_FIELDS_KEY]: present,
+        },
       },
       include: SYNC_POST_INCLUDE,
     }),

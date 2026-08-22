@@ -12,7 +12,7 @@ import { formatCompact, formatCompactCurrency, stripAt, formatDateAbs, timeAgo }
 import type { ComplianceFlag } from "@/lib/compliance/postCompliance";
 import PostMedia from "@/components/PostMedia";
 import { imgSrc } from "@/lib/postMedia";
-import { metricValue, unwrittenMetricValue, engagementRateValue, summarizePostMetrics } from "@/lib/metricDisplay";
+import { metricValue, unwrittenMetricValue, fieldMetricValue, engagementRateValue, summarizePostMetrics } from "@/lib/metricDisplay";
 
 type SnapshotLite = { id: string; viewsCount: number; recordedAt: string };
 
@@ -31,6 +31,7 @@ type PostData = {
   sharesCount: number;
   savesCount: number;
   downloadsCount: number;
+  platformMetrics?: unknown;
   engagementRate: number;
   status: string;
   fetchState: string | null; // LIVE / UNAVAILABLE / ERROR — is the post still up
@@ -459,15 +460,15 @@ export default function PostsTab({
      rate are unknown for all but the ones we fetched ourselves. A column none of
      these posts can fill is not shown at all. */
   const anyLikes = useMemo(
-    () => posts.some((p) => metricValue(p.likesCount, p.lastSyncedAt) !== null),
+    () => posts.some((p) => fieldMetricValue(p.likesCount, p.lastSyncedAt, p.platformMetrics, "likes") !== null),
     [posts]
   );
   const anyComments = useMemo(
-    () => posts.some((p) => metricValue(p.commentsCount, p.lastSyncedAt) !== null),
+    () => posts.some((p) => fieldMetricValue(p.commentsCount, p.lastSyncedAt, p.platformMetrics, "comments") !== null),
     [posts]
   );
   const anyShares = useMemo(
-    () => posts.some((p) => metricValue(p.sharesCount, p.lastSyncedAt) !== null),
+    () => posts.some((p) => fieldMetricValue(p.sharesCount, p.lastSyncedAt, p.platformMetrics, "shares") !== null),
     [posts]
   );
   const anySaves = useMemo(
@@ -835,9 +836,10 @@ export default function PostsTab({
               const dv = deltaViews(post);
               // A 0 we never fetched is unknown, not zero -- see lib/metricDisplay.
               const views = metricValue(post.viewsCount, post.lastSyncedAt);
-              const likes = metricValue(post.likesCount, post.lastSyncedAt);
-              const comments = metricValue(post.commentsCount, post.lastSyncedAt);
-              const shares = metricValue(post.sharesCount, post.lastSyncedAt);
+              // Per field: Instagram reports no shares, so a 0 there is ours, not theirs.
+              const likes = fieldMetricValue(post.likesCount, post.lastSyncedAt, post.platformMetrics, "likes");
+              const comments = fieldMetricValue(post.commentsCount, post.lastSyncedAt, post.platformMetrics, "comments");
+              const shares = fieldMetricValue(post.sharesCount, post.lastSyncedAt, post.platformMetrics, "shares");
               // Nothing in this repo writes these two, so lastSyncedAt cannot vouch for a
               // zero here the way it can for views -- see unwrittenMetricValue.
               const saves = unwrittenMetricValue(post.savesCount);
@@ -979,8 +981,8 @@ export default function PostsTab({
             {pageRows.map((post) => {
               const emv = postEmv(post);
               const cardViews = metricValue(post.viewsCount, post.lastSyncedAt);
-              const cardLikes = metricValue(post.likesCount, post.lastSyncedAt);
-              const cardComments = metricValue(post.commentsCount, post.lastSyncedAt);
+              const cardLikes = fieldMetricValue(post.likesCount, post.lastSyncedAt, post.platformMetrics, "likes");
+              const cardComments = fieldMetricValue(post.commentsCount, post.lastSyncedAt, post.platformMetrics, "comments");
               const cardEngRate =
                 cardLikes === null && cardComments === null
                   ? null
