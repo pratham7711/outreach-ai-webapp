@@ -304,6 +304,38 @@ Expands to the billing sub-statuses the older PRD inferred: **Need To Invoice ·
 ### Not resolved in this pass
 `Client` and `Filters` targets were not found by exact text (they are input placeholders, not labels). The Activations `Filter` and `Status` clicks re-rendered the entire page (+378 controls) rather than opening a panel — that surface needs a different approach. No hover state, no validation message and no error state was provoked.
 
+## 9b. Our own sweep — every page, every GET route, every create flow
+
+**2026-08-22.** The reference inventory in §9a opens modals but never submits, so nothing above says whether *our* flows actually work. This section is the other half: our app driven end to end, against the imported org (1,834 creators, 532 campaigns, 18,708 posts).
+
+**Read paths.** All 38 dashboard pages and all 67 GET routes that exist on disk were requested with a real session and real ids resolved from the database. **Zero 5xx.** Three non-200s, all correct: `payout-calculator` 400s on a campaign that is not VIEW_BASED, `tiktok-videos` 409s with no connected account, and `/lists/[id]` had no row to fetch because `CreatorList` was empty — that page had never been rendered with data until this sweep created some.
+
+**Write paths.** Create → read → update → delete driven for folder, client, creator, campaign, activation, list, list membership, song and share link. Everything created was tagged `SWEEP-` and deleted afterwards; counts returned to 1,834 / 532 / 18,708 / 5 exactly. Nothing imported from CreatorCore was written or deleted.
+
+### What it found
+
+1. **Every creator picker offered 20 of 1,834.** Five call sites on the campaign detail page — Add Creator, Invites, Payout Requests, Add Post, Negotiations — each did a bare `fetch("/api/creators")`. That endpoint pages, and its default limit is 20. Add Creator then filtered out the already-attached ones and, when those 20 were used up, said *"No available creators to add. All creators are already assigned."* about 1,814 creators it had never asked for. All five now use `components/CreatorSelect.tsx`, which searches server-side.
+
+2. **The self-serve wizard filtered 200 rows in the browser.** It fetched `limit=200` and narrowed that array by platform. Picking INSTAGRAM offered **4** creators; the org has **241**. YOUTUBE offered 23 of 62. Search, platform and min-followers are now sent to the API, which applies them in SQL. Niche and max-rate have no server-side equivalent and still narrow the page locally, so the list states what it is showing out of when the org has more matches than one page holds.
+
+3. **Negotiation offers rendered raw ids.** `NegotiationOffer.creatorId` is a plain string with no relation, and the name was resolved client-side against the same truncated picker list — which was only fetched when the Make Offer modal was first opened. Until then every row read `cmt1m1wq...`. The API now resolves each offer to its creator, scoped to the org, in one de-duplicated query.
+
+4. **Two duplicate writes the server accepted.** `POST /api/creators` created a second creator with an existing handle, and `POST /api/activations` attached the same creator to the same campaign twice. Both are now 409. Both are app-level guards rather than unique indexes, deliberately: 23 handles imported from CreatorCore are already duplicated and de-duplicating rows we did not create is not a route's decision, and an activation is soft-deleted, so a unique pair would refuse to re-add a creator who had been removed.
+
+5. **`/campaigns/self-serve` had no entry point.** A complete second campaign-creation flow — budget first, shortlist creators, flat platform fee — was reachable only by typing the URL. Nothing in the app linked to it. The campaigns header now does.
+
+Finding 2 also corrects a standing misdiagnosis: `e2e/self-serve-wizard.spec.ts` carried a `test.fixme` blaming the seed data — *"the seeded org may have no INSTAGRAM creators"*. The org has 241. The app was dropping 237 of them.
+
+### Two more, reported from the screen
+
+6. **A creator's Campaigns tab was empty under a badge that counted them.** The tab rendered `creator.activations`; the badge came from `deriveCampaignCounts`, which unions posts and activations. Activations never imported from CreatorCore, so **1,824 of 1,834 creators have campaigns via posts and none via activations** — the tab read "215 Campaigns" and then "No campaigns yet" underneath. Both now come from one helper, `deriveCreatorCampaigns`, so they cannot disagree; rows carry the creator's post count on that campaign, its status and its budget. steve.i4: badge 29, list 29.
+
+7. **The Discovery sort menu rendered at roughly twice the page's size.** Not a CSS fault — the control and its options both compute to 13px. A native `<select>` hands its option list to the operating system, and macOS draws that menu at its own size; nothing in the page reaches inside it. `components/ds/Dropdown.tsx` draws the menu in-page instead (13px, aligned under the trigger, check on the selection, Escape and click-outside, arrow keys). Applied to Discovery's sort and to the campaigns-list sort, which had the same flaw. **22 other files still use a native `<select>`** and will show the same behaviour on macOS; migrating them is not in this pass.
+
+### Left alone, deliberately
+
+Eight `E2E SelfServe …` campaigns from earlier test runs are still live in the org. The wizard test now deletes the campaign it creates — before the self-serve link existed it never reached submit, so it created nothing and needed no teardown — but the historical rows were not created by this pass and are not ours to remove.
+
 ## 10. Honest limits
 
 Observed at one viewport, on one account. §9a now covers the modals and create flows, opened but never submitted — so **no hover state, no validation message, no error state and no post-submit state is in this document**, and no record was created. Exercising a real create-and-delete round trip is the remaining gap there. Settings is uninventoried: `?tab=Settings` falls back to Campaigns and the sidebar click mis-targets, so its seven tabs are still unseen. Six campaign sub-tabs were captured against a campaign too quiet to spec from. Anything not in `CREATORCORE_UI_INVENTORY.md` is not evidence.

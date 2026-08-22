@@ -68,13 +68,12 @@ test.describe('Self-serve wizard', () => {
     await platformSelect.selectOption('INSTAGRAM');
     await page.waitForTimeout(400);
 
+    // The platform filter is applied by the API now. It used to narrow whatever
+    // page had already been fetched, so picking INSTAGRAM showed 4 of the org's
+    // 241 and read as "no creators available".
     const creatorButtons = page.locator('[aria-pressed]');
+    await expect.poll(() => creatorButtons.count(), { timeout: 15000 }).toBeGreaterThan(0);
     const count = await creatorButtons.count();
-
-    if (count === 0) {
-      test.fixme(true, 'APP BUG: No creators available after filter — the seeded org may have no INSTAGRAM creators. Repro: log in as admin@demo.com, go to /campaigns/self-serve, advance to step 2, select INSTAGRAM filter — creator list is empty.');
-      return;
-    }
 
     await creatorButtons.nth(0).click();
     await expect(creatorButtons.nth(0)).toHaveAttribute('aria-pressed', 'true', { timeout: 5000 });
@@ -119,6 +118,21 @@ test.describe('Self-serve wizard', () => {
 
     await page.getByRole('main').waitFor({ state: 'visible', timeout: 20000 });
     await expect(page.getByRole('heading', { name: campaignTitle }).first()).toBeVisible({ timeout: 15000 });
+
+    // This test submits, so it leaves a campaign behind. Before the self-serve
+    // link existed it never got this far and never created one; now it would
+    // add a row per run, and 21 "E2E SelfServe ..." campaigns had already piled
+    // up in the org from earlier runs. Clean up after ourselves.
+    if (createdCampaignId) {
+      await page.request.delete(`/api/campaigns/${createdCampaignId}`);
+    } else {
+      const found = await page.request.get(
+        `/api/campaigns?search=${encodeURIComponent(campaignTitle)}&limit=5`
+      );
+      const body = await found.json().catch(() => null);
+      const match = body?.campaigns?.find((c: { title: string }) => c.title === campaignTitle);
+      if (match) await page.request.delete(`/api/campaigns/${match.id}`);
+    }
   });
 
   test('step 2 creators list loads and platform filter narrows results', async ({ page }) => {

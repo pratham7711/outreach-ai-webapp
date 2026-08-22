@@ -11,7 +11,9 @@ test.describe('Authentication', () => {
 
   test('shows brand name on login page', async ({ page }) => {
     await page.goto('/login');
-    await expect(page.getByText('outreach ai').first()).toBeVisible({ timeout: 10000 });
+    // The product is Made Boring; "outreach ai" is the pre-rebrand name and has
+    // not been on this page since.
+    await expect(page.getByText(/Made Boring/i).first()).toBeVisible({ timeout: 10000 });
   });
 
   test('shows error on invalid credentials', async ({ page }) => {

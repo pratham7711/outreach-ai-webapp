@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Plus, Search, SlidersHorizontal, X, Lock } from "lucide-react";
 import { Button, Card, EmptyState, Input, Avatar, Badge, Skeleton, StatCard } from "@pratham7711/ui";
-import { Pagination } from "@/components/ds";
+import { Dropdown, Pagination } from "@/components/ds";
 import Link from "next/link";
 import { toast } from "sonner";
 import { formatCompact, stripAt, platformLabel } from "@/lib/format";
@@ -220,19 +220,12 @@ export default function DiscoveryPage() {
         </button>
 
         <div style={{ marginLeft: "auto" }}>
-          <select
+          <Dropdown
             value={sort}
-            onChange={(e) => setSort(e.target.value)}
-            style={{
-              padding: "7px 12px", borderRadius: 8, fontSize: 13,
-              border: "1px solid var(--cc-border)", background: "var(--cc-card)",
-              color: "var(--cc-text)", outline: "none",
-            }}
-          >
-            {SORT_OPTIONS.map(o => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
+            onChange={setSort}
+            options={SORT_OPTIONS}
+            ariaLabel="Sort creators"
+          />
         </div>
       </div>
 

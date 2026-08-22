@@ -9,7 +9,7 @@ jest.mock("@/lib/db", () => ({
   db: {
     campaign: { findFirst: jest.fn() },
     creator: { findFirst: jest.fn() },
-    activation: { create: jest.fn() },
+    activation: { create: jest.fn(), findFirst: jest.fn() },
     payout: { create: jest.fn() },
   },
 }));
@@ -62,6 +62,7 @@ describe("POST /api/activations — creator tenancy", () => {
   it("creates an activation when the creator belongs to the org", async () => {
     mockDb.campaign.findFirst.mockResolvedValue({ id: "camp-1", orgId: "org-1" });
     mockDb.creator.findFirst.mockResolvedValue({ id: "c1", orgId: "org-1" });
+    mockDb.activation.findFirst.mockResolvedValue(null);
     mockDb.activation.create.mockResolvedValue({
       id: "act-1",
       campaignId: "camp-1",
@@ -75,6 +76,40 @@ describe("POST /api/activations — creator tenancy", () => {
 
     expect(res.status).toBe(201);
     expect(mockDb.activation.create).toHaveBeenCalled();
+  });
+
+  /* The campaign page hides creators it has already attached, but it does that
+     against one snapshot in one tab. The server is the only place that can
+     actually refuse the second write. */
+  it("refuses to attach the same creator twice (409, no write)", async () => {
+    mockDb.campaign.findFirst.mockResolvedValue({ id: "camp-1", orgId: "org-1" });
+    mockDb.creator.findFirst.mockResolvedValue({ id: "c1", orgId: "org-1" });
+    mockDb.activation.findFirst.mockResolvedValue({ id: "act-existing" });
+
+    const res = await activationsPOST(
+      jsonReq("http://localhost/api/activations", { campaignId: "camp-1", creatorId: "c1" })
+    );
+
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({
+      error: "That creator is already on this campaign",
+      activationId: "act-existing",
+    });
+    expect(mockDb.activation.create).not.toHaveBeenCalled();
+  });
+
+  it("looks past soft-deleted activations, so a removed creator can be re-added", async () => {
+    mockDb.campaign.findFirst.mockResolvedValue({ id: "camp-1", orgId: "org-1" });
+    mockDb.creator.findFirst.mockResolvedValue({ id: "c1", orgId: "org-1" });
+    mockDb.activation.findFirst.mockResolvedValue(null);
+    mockDb.activation.create.mockResolvedValue({ id: "act-2", campaignId: "camp-1", creatorId: "c1" });
+
+    await activationsPOST(jsonReq("http://localhost/api/activations", { campaignId: "camp-1", creatorId: "c1" }));
+
+    expect(mockDb.activation.findFirst).toHaveBeenCalledWith({
+      where: { campaignId: "camp-1", creatorId: "c1", deletedAt: null },
+      select: { id: true },
+    });
   });
 });
 

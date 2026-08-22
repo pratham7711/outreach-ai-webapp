@@ -5,6 +5,7 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { Card, Badge, Button, Input, Modal, EmptyState, Skeleton, Avatar } from "@pratham7711/ui";
 import { StatusTabs, Pagination } from "@/components/ds";
 import { Grid3X3, List, Plus, Check, X, Eye, Heart, MessageCircle, TrendingUp, BarChart3, ArrowUp, ArrowDown, ArrowUpDown, Flag, Video, AlertTriangle, RefreshCw, Image as ImageIcon } from "lucide-react";
+import { CreatorSelect } from "@/components/CreatorSelect";
 import Link from "next/link";
 import { computePostEmv, computeEngagementRate } from "@/lib/metrics";
 import { formatCompact, formatCompactCurrency, stripAt, formatDateAbs, timeAgo } from "@/lib/format";
@@ -43,7 +44,6 @@ type PostData = {
   snapshots?: SnapshotLite[];
 };
 
-type Creator = { id: string; name: string; handle: string };
 
 type MarketplacePlatform = "TIKTOK" | "INSTAGRAM" | "YOUTUBE" | "TWITTER";
 
@@ -249,7 +249,6 @@ export default function PostsTab({
   const [rejectionReason, setRejectionReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [addForm, setAddForm] = useState({ postUrl: "", creatorId: "", mediaType: "" });
-  const [creators, setCreators] = useState<Creator[]>([]);
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [refreshingAll, setRefreshingAll] = useState(false);
 
@@ -362,15 +361,8 @@ export default function PostsTab({
     }
   };
 
-  const openAddPost = async () => {
+  const openAddPost = () => {
     setShowAddPost(true);
-    if (creators.length === 0) {
-      const res = await fetch("/api/creators");
-      if (res.ok) {
-        const data = await res.json();
-        setCreators((data.creators ?? data).map((c: any) => ({ id: c.id, name: c.name, handle: c.handle })));
-      }
-    }
   };
 
   const filteredSorted = useMemo(() => {
@@ -1015,11 +1007,11 @@ export default function PostsTab({
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <Input label="Post URL" value={addForm.postUrl} onChange={(e) => setAddForm((f) => ({ ...f, postUrl: e.target.value }))} placeholder="https://youtube.com/watch?v=..." required />
             <div>
-              <label htmlFor="add-post-creator" style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Creator</label>
-              <select id="add-post-creator" value={addForm.creatorId} onChange={(e) => setAddForm((f) => ({ ...f, creatorId: e.target.value }))} style={{ ...selectStyle, width: "100%" }}>
-                <option value="">Select creator...</option>
-                {creators.map((c) => <option key={c.id} value={c.id}>{c.name} (@{stripAt(c.handle)})</option>)}
-              </select>
+              <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Creator</label>
+              <CreatorSelect
+                value={addForm.creatorId}
+                onChange={(id) => setAddForm((f) => ({ ...f, creatorId: id }))}
+              />
             </div>
             <div>
               <label htmlFor="add-post-mediatype" style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Media Type</label>

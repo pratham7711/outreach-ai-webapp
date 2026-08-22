@@ -20,6 +20,7 @@ import {
 import Link from "next/link";
 import { toast } from "sonner";
 import { formatCompact, stripAt, formatCompactCurrency, formatDateAbs } from "@/lib/format";
+import { CreatorSelect } from "@/components/CreatorSelect";
 import { platformColor } from "@/app/(dashboard)/analytics/shared";
 
 const ChartSkeleton = ({ height }: { height: number }) => (
@@ -239,7 +240,6 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
   const [loading, setLoading] = useState(true);
   const [showAddCreator, setShowAddCreator] = useState(false);
   const [addingCreator, setAddingCreator] = useState(false);
-  const [availableCreators, setAvailableCreators] = useState<{id: string; name: string; handle: string; platform: string}[]>([]);
   const [selectedCreatorId, setSelectedCreatorId] = useState("");
   const [clients, setClients] = useState<{ id: string; name: string }[]>([]);
   const [clientsLoaded, setClientsLoaded] = useState(false);
@@ -306,15 +306,6 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
       fetchClients();
     }
   }, [activeTab]);
-
-  const fetchAvailableCreators = async () => {
-    const res = await fetch("/api/creators");
-    if (res.ok) {
-      const data = await res.json();
-      const assignedIds = new Set(campaign?.activations.map((a: Activation) => a.creator.id) ?? []);
-      setAvailableCreators((data.creators ?? data).filter((c: any) => !assignedIds.has(c.id)));
-    }
-  };
 
   const fetchClients = async () => {
     if (clientsLoaded) return;
@@ -642,7 +633,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <div style={{ display: "flex", justifyContent: "flex-end" }}>
               <button
-                onClick={() => { setShowAddCreator(true); fetchAvailableCreators(); }}
+                onClick={() => setShowAddCreator(true)}
                 style={{
                   display: "flex", alignItems: "center", gap: 6,
                   background: "var(--cc-primary)", color: "white", border: "none",
@@ -1041,26 +1032,11 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
       {showAddCreator && (
         <Modal open onClose={() => { setShowAddCreator(false); setSelectedCreatorId(""); }} title="Add Creator to Campaign" size="md">
           <div style={{ padding: 24, display: "flex", flexDirection: "column", gap: 16 }}>
-            {availableCreators.length === 0 ? (
-              <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>No available creators to add. All creators are already assigned.</p>
-            ) : (
-              <select
-                value={selectedCreatorId}
-                onChange={(e) => setSelectedCreatorId(e.target.value)}
-                style={{
-                  width: "100%", padding: "10px 12px", borderRadius: 8,
-                  border: "1px solid var(--cc-border)", fontSize: 14,
-                  color: "var(--cc-text)", background: "var(--cc-card)",
-                }}
-              >
-                <option value="">Select a creator...</option>
-                {availableCreators.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} (@{stripAt(c.handle)}) — {c.platform}
-                  </option>
-                ))}
-              </select>
-            )}
+            <CreatorSelect
+              value={selectedCreatorId}
+              onChange={(id) => setSelectedCreatorId(id)}
+              excludeIds={campaign?.activations.map((a: Activation) => a.creator.id) ?? []}
+            />
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
               <button
                 onClick={() => { setShowAddCreator(false); setSelectedCreatorId(""); }}

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Plus, Search, Target, Sun, Zap, CheckCircle2, XCircle, Wallet, Users, FileText, LayoutList, Folder, Share2, ArrowUpDown } from "lucide-react";
 import Link from "next/link";
 import { Button, Card, Badge, Input, EmptyState, Avatar } from "@pratham7711/ui";
-import { StatusTabs, Pagination, FilterDrawer, FilterButton } from "@/components/ds";
+import { StatusTabs, Pagination, FilterDrawer, FilterButton, Dropdown } from "@/components/ds";
 import type { FilterDef, FilterValues } from "@/components/ds";
 import CampaignWizard from "@/components/modals/CampaignWizard";
 import { formatCompactCurrency, timeAgo } from "@/lib/format";
@@ -335,40 +335,29 @@ function SortControl({
   sort: CampaignSort;
   onChange: (next: CampaignSort) => void;
 }) {
-  const selectStyle = {
-    border: "1px solid var(--cc-border)",
-    borderRadius: 8,
-    padding: "7px 10px",
-    fontSize: 13,
-    fontWeight: 600,
-    color: "var(--cc-text)",
-    background: "var(--cc-card)",
-    cursor: "pointer",
-  } as const;
-
   return (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
       <ArrowUpDown size={15} aria-hidden="true" style={{ color: "var(--cc-text-muted)" }} />
-      <select
-        aria-label="Sort campaigns by"
+      <Dropdown
+        ariaLabel="Sort campaigns by"
         value={sort.key}
-        onChange={(e) => onChange({ key: e.target.value as CampaignSortKey, dir: sort.dir })}
-        style={selectStyle}
-      >
-        {SORT_FIELDS.map((f) => (
-          <option key={f.key} value={f.key}>{f.label}</option>
-        ))}
-      </select>
-      <select
-        aria-label="Sort direction"
+        onChange={(v) => onChange({ key: v as CampaignSortKey, dir: sort.dir })}
+        options={SORT_FIELDS.map((f) => ({ value: f.key, label: f.label }))}
+        align="left"
+        minWidth={140}
+      />
+      {/* Both remaining fields are dates, so newest/oldest says it plainly. */}
+      <Dropdown
+        ariaLabel="Sort direction"
         value={sort.dir}
-        onChange={(e) => onChange({ key: sort.key, dir: e.target.value as "asc" | "desc" })}
-        style={selectStyle}
-      >
-        {/* Both remaining fields are dates, so newest/oldest says it plainly. */}
-        <option value="desc">Newest</option>
-        <option value="asc">Oldest</option>
-      </select>
+        onChange={(v) => onChange({ key: sort.key, dir: v as "asc" | "desc" })}
+        options={[
+          { value: "desc", label: "Newest" },
+          { value: "asc", label: "Oldest" },
+        ]}
+        align="left"
+        minWidth={110}
+      />
     </span>
   );
 }
@@ -547,6 +536,30 @@ export default function CampaignsClient({
           >
             Folders{folders.length > 0 ? ` (${folders.length})` : ""}
           </Button>
+          {/* /campaigns/self-serve is a whole second way to create a campaign —
+              budget first, shortlist creators, flat platform fee — and nothing
+              in the app linked to it, so it could only be reached by typing the
+              URL. */}
+          <Link
+            href="/campaigns/self-serve"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "0 12px",
+              height: 32,
+              borderRadius: 8,
+              border: "1px solid var(--cc-border)",
+              background: "var(--cc-card)",
+              color: "var(--cc-text)",
+              fontSize: 13,
+              fontWeight: 600,
+              textDecoration: "none",
+            }}
+          >
+            <Wallet size={15} />
+            Self-serve campaign
+          </Link>
           <Button variant="primary" iconLeft={<Plus size={15} />} size="sm" onClick={() => setShowModal(true)}>
             New Campaign
           </Button>

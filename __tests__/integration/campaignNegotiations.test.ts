@@ -9,6 +9,7 @@ jest.mock('@/lib/db', () => ({
   db: {
     campaign: { findFirst: jest.fn() },
     negotiationOffer: { findMany: jest.fn(), create: jest.fn(), findFirst: jest.fn(), update: jest.fn() },
+    creator: { findMany: jest.fn() },
   },
 }));
 jest.mock('@/lib/auth', () => ({ auth: jest.fn() }));
@@ -31,6 +32,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockAuth.mockResolvedValue(session);
   mockDb.campaign.findFirst.mockResolvedValue(mockCampaign);
+  mockDb.creator.findMany.mockResolvedValue([]);
 });
 
 describe('GET /api/campaigns/[id]/negotiations', () => {
@@ -41,12 +43,53 @@ describe('GET /api/campaigns/[id]/negotiations', () => {
   });
 
   it('returns negotiations list', async () => {
-    const negotiations = [{ id: 'neg-1', offeredRate: 500, status: 'PENDING' }];
+    const negotiations = [{ id: 'neg-1', creatorId: 'cr-1', offeredRate: 500, status: 'PENDING' }];
     mockDb.negotiationOffer.findMany.mockResolvedValue(negotiations);
     const res = await GET(makeRequest('http://localhost/api/campaigns/camp-1/negotiations'), makeParams('camp-1'));
     const body = await res.json();
     expect(res.status).toBe(200);
-    expect(body.negotiations).toEqual(negotiations);
+    expect(body.negotiations).toEqual([{ ...negotiations[0], creator: null }]);
+  });
+
+  /* NegotiationOffer stores creatorId as a bare string with no relation. The
+     page used to resolve it client-side against whatever its creator picker had
+     fetched — which was the first 20 creators, and only after that modal had
+     been opened once. Every other offer rendered as "cmt1m1wq...". */
+  it('resolves each offer to its creator, scoped to the org', async () => {
+    mockDb.negotiationOffer.findMany.mockResolvedValue([
+      { id: 'neg-1', creatorId: 'cr-1' },
+      { id: 'neg-2', creatorId: 'cr-2' },
+      { id: 'neg-3', creatorId: 'cr-1' },
+    ]);
+    mockDb.creator.findMany.mockResolvedValue([
+      { id: 'cr-1', name: 'Ada', handle: 'ada' },
+      { id: 'cr-2', name: 'Grace', handle: 'grace' },
+    ]);
+
+    const body = await (await GET(makeRequest('http://localhost/api/campaigns/camp-1/negotiations'), makeParams('camp-1'))).json();
+
+    expect(body.negotiations.map((n: any) => n.creator?.name)).toEqual(['Ada', 'Grace', 'Ada']);
+    // Asked for once, de-duplicated, and never outside this org.
+    expect(mockDb.creator.findMany).toHaveBeenCalledWith({
+      where: { id: { in: ['cr-1', 'cr-2'] }, orgId: 'org-1' },
+      select: { id: true, name: true, handle: true },
+    });
+  });
+
+  it('leaves creator null rather than inventing a name for a deleted one', async () => {
+    mockDb.negotiationOffer.findMany.mockResolvedValue([{ id: 'neg-1', creatorId: 'gone' }]);
+    mockDb.creator.findMany.mockResolvedValue([]);
+
+    const body = await (await GET(makeRequest('http://localhost/api/campaigns/camp-1/negotiations'), makeParams('camp-1'))).json();
+
+    expect(body.negotiations[0].creator).toBeNull();
+  });
+
+  it('does not query for creators when there are no offers', async () => {
+    mockDb.negotiationOffer.findMany.mockResolvedValue([]);
+    const body = await (await GET(makeRequest('http://localhost/api/campaigns/camp-1/negotiations'), makeParams('camp-1'))).json();
+    expect(body.negotiations).toEqual([]);
+    expect(mockDb.creator.findMany).not.toHaveBeenCalled();
   });
 });
 

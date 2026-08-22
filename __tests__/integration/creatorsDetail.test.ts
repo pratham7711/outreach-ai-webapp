@@ -10,9 +10,11 @@ jest.mock('@/lib/db', () => ({
       findFirst: jest.fn(),
       update: jest.fn(),
     },
-    // Campaign counts are derived from posts and activations.
+    // Campaign counts, and the campaign list behind them, are derived from
+    // posts and activations rather than read off the relation.
     post: { groupBy: jest.fn().mockResolvedValue([]) },
-    activation: { groupBy: jest.fn().mockResolvedValue([]) },
+    activation: { groupBy: jest.fn().mockResolvedValue([]), findMany: jest.fn().mockResolvedValue([]) },
+    campaign: { findMany: jest.fn().mockResolvedValue([]) },
   },
 }));
 
@@ -53,6 +55,64 @@ describe('GET /api/creators/[id]', () => {
     expect(body.error).toBe('Unauthorized');
   });
 
+  it('lists campaigns reached through posts, not only through activations', async () => {
+    mockDb.creator.findFirst.mockResolvedValue({
+      id: 'cr-1', orgId: 'org-1', deletedAt: null, activations: [], posts: [], _count: {},
+    });
+    // 1,824 of 1,834 creators look exactly like this: posts on campaigns, no activation.
+    mockDb.post.groupBy.mockResolvedValue([
+      { campaignId: 'camp-a', _count: { _all: 33 } },
+      { campaignId: 'camp-b', _count: { _all: 4 } },
+    ]);
+    mockDb.activation.findMany.mockResolvedValue([]);
+    mockDb.campaign.findMany.mockResolvedValue([
+      { id: 'camp-b', title: 'Beta', status: 'COMPLETE', budget: null, currency: 'USD' },
+      { id: 'camp-a', title: 'Alpha', status: 'IN_PROGRESS', budget: 1000, currency: 'USD' },
+    ]);
+
+    const body = await (await GET(makeRequest('http://localhost/api/creators/cr-1'), makeParams('cr-1'))).json();
+
+    // Most of the creator's work first, and every row carries its own count.
+    expect(body.campaigns.map((c: any) => [c.id, c.postCount])).toEqual([
+      ['camp-a', 33],
+      ['camp-b', 4],
+    ]);
+    expect(body.campaigns.every((c: any) => c.activation === null)).toBe(true);
+  });
+
+  it('returns no campaigns rather than an empty query when there are none', async () => {
+    mockDb.creator.findFirst.mockResolvedValue({
+      id: 'cr-1', orgId: 'org-1', deletedAt: null, activations: [], posts: [], _count: {},
+    });
+    mockDb.post.groupBy.mockResolvedValue([]);
+    mockDb.activation.findMany.mockResolvedValue([]);
+    mockDb.campaign.findMany.mockClear();
+
+    const body = await (await GET(makeRequest('http://localhost/api/creators/cr-1'), makeParams('cr-1'))).json();
+
+    expect(body.campaigns).toEqual([]);
+    expect(mockDb.campaign.findMany).not.toHaveBeenCalled();
+  });
+
+  it('keeps the activation when there is one, so its status and due date survive', async () => {
+    mockDb.creator.findFirst.mockResolvedValue({
+      id: 'cr-1', orgId: 'org-1', deletedAt: null, activations: [], posts: [], _count: {},
+    });
+    mockDb.post.groupBy.mockResolvedValue([]);
+    mockDb.activation.findMany.mockResolvedValue([
+      { id: 'act-1', status: 'AWAITING_DRAFT', deliverableDueDate: null, campaignId: 'camp-a' },
+    ]);
+    mockDb.campaign.findMany.mockResolvedValue([
+      { id: 'camp-a', title: 'Alpha', status: 'IN_PROGRESS', budget: null, currency: 'USD' },
+    ]);
+
+    const body = await (await GET(makeRequest('http://localhost/api/creators/cr-1'), makeParams('cr-1'))).json();
+
+    expect(body.campaigns).toHaveLength(1);
+    expect(body.campaigns[0].activation.status).toBe('AWAITING_DRAFT');
+    expect(body.campaigns[0].postCount).toBe(0);
+  });
+
   it('returns creator with correct shape', async () => {
     const creator = {
       id: 'cr-1',
@@ -79,6 +139,7 @@ describe('GET /api/creators/[id]', () => {
     expect(body).toHaveProperty('posts');
     expect(body).toHaveProperty('payouts');
     expect(body).toHaveProperty('_count');
+    expect(body).toHaveProperty('campaigns');
   });
 
   it('returns 404 for non-existent creator', async () => {

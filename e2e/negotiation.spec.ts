@@ -125,7 +125,10 @@ test.describe('AI Negotiation', () => {
     const modal = page.locator('[role="dialog"]');
     await expect(modal).toBeVisible({ timeout: 10000 });
 
-    await modal.locator('select').first().selectOption({ value: 'creator-1' });
+    // The creator field is a search box, not a <select>: the dropdown it replaced
+    // only ever listed the first 20 of the org's creators.
+    await modal.getByPlaceholder(/Search creators/i).fill('blessingjolie');
+    await modal.getByText('Blessing Jolie').first().click();
 
     await modal.locator('input[type="number"]').first().fill(String(OFFERED_RATE));
 

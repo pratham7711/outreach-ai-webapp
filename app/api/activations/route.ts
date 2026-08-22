@@ -25,6 +25,24 @@ export async function POST(req: NextRequest) {
   if (!campaign) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
   const creator = await db.creator.findFirst({ where: { id: creatorId, orgId, deletedAt: null } });
   if (!creator) return NextResponse.json({ error: "Creator not found" }, { status: 404 });
+
+  // The campaign page hides creators it has already attached, but that filter
+  // runs in one browser tab against one snapshot. Two tabs, a retried request,
+  // or any caller that is not that page could attach the same creator twice,
+  // and the campaign would then carry two activations that both look real.
+  // Guarded here rather than with a unique index because an activation is soft
+  // deleted, and a unique pair would refuse to re-add a creator who was removed.
+  const already = await db.activation.findFirst({
+    where: { campaignId, creatorId, deletedAt: null },
+    select: { id: true },
+  });
+  if (already) {
+    return NextResponse.json(
+      { error: "That creator is already on this campaign", activationId: already.id },
+      { status: 409 }
+    );
+  }
+
   try {
     const activation = await db.activation.create({
       data: { campaignId, creatorId, deliverableDueDate: deliverableDueDate ? new Date(deliverableDueDate) : null },

@@ -33,6 +33,11 @@ const CURRENCY_SYMBOL: Record<Currency, string> = { USD: "$", EUR: "€", GBP: "
 
 const STEPS = ["Basics", "Creators", "Review"];
 
+// The API caps a page at 200. Asking for that many keeps the niche and max-rate
+// passes below working on a decent slice, and the list says so when the org has
+// more matches than one page holds.
+const CREATOR_FETCH_LIMIT = 200;
+
 const labelStyle: React.CSSProperties = {
   display: "block",
   fontSize: 13,
@@ -86,16 +91,41 @@ export default function SelfServeWizard({
   const [selected, setSelected] = useState<Record<string, Creator>>({});
 
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [debouncedMinFollowers, setDebouncedMinFollowers] = useState("");
+  const [matchTotal, setMatchTotal] = useState<number | null>(null);
   const [platformFilter, setPlatformFilter] = useState<Platform | "">("");
   const [nicheFilter, setNicheFilter] = useState<string>("");
   const [minFollowers, setMinFollowers] = useState("");
   const [maxRate, setMaxRate] = useState("");
 
+  // Both of these are typed a character at a time, and each character would
+  // otherwise be its own query.
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedMinFollowers(minFollowers.trim()), 300);
+    return () => clearTimeout(t);
+  }, [minFollowers]);
+
+  /* Search, platform and min-followers are filters the API applies in SQL, so
+     they are sent rather than applied to whatever page came back. They used not
+     to be: this fetched the first 200 creators and filtered that array, which
+     with 1,834 creators meant picking INSTAGRAM offered 4 of the org's 241.
+     Niche and max-rate have no server-side equivalent and still narrow the page
+     locally, which is why the count below says what it is showing out of. */
   useEffect(() => {
     let active = true;
     setLoadingCreators(true);
     setCreatorError("");
-    fetch("/api/creators?limit=200")
+    const params = new URLSearchParams({ limit: String(CREATOR_FETCH_LIMIT) });
+    if (debouncedSearch) params.set("search", debouncedSearch);
+    if (platformFilter) params.set("platform", platformFilter);
+    if (Number(debouncedMinFollowers) > 0) params.set("minFollowers", debouncedMinFollowers);
+    fetch(`/api/creators?${params}`)
       .then(async (res) => {
         if (!res.ok) throw new Error("Failed to load creators");
         return res.json();
@@ -103,6 +133,7 @@ export default function SelfServeWizard({
       .then((data) => {
         if (!active) return;
         setCreators(Array.isArray(data.creators) ? data.creators : []);
+        setMatchTotal(typeof data.pagination?.total === "number" ? data.pagination.total : null);
       })
       .catch(() => {
         if (!active) return;
@@ -114,22 +145,17 @@ export default function SelfServeWizard({
     return () => {
       active = false;
     };
-  }, []);
+  }, [debouncedSearch, platformFilter, debouncedMinFollowers]);
 
   const filteredCreators = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    const minF = Number(minFollowers) || 0;
     const maxR = maxRate.trim() === "" ? Infinity : Number(maxRate);
     return creators.filter((c) => {
-      if (platformFilter && c.platform !== platformFilter) return false;
       if (nicheFilter && !(c.niches ?? []).includes(nicheFilter)) return false;
-      if (c.followersCount < minF) return false;
       const rate = typeof c.rate === "number" ? c.rate : 0;
       if (Number.isFinite(maxR) && rate > maxR) return false;
-      if (q && !(c.name.toLowerCase().includes(q) || c.handle.toLowerCase().includes(q))) return false;
       return true;
     });
-  }, [creators, search, platformFilter, nicheFilter, minFollowers, maxRate]);
+  }, [creators, nicheFilter, maxRate]);
 
   const selectedList = useMemo(() => Object.values(selected), [selected]);
 
@@ -326,6 +352,12 @@ export default function SelfServeWizard({
                 />
               </div>
             ) : (
+              <>
+              {matchTotal !== null && matchTotal > creators.length && (
+                <p style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>
+                  Showing {creators.length} of {matchTotal} matching creators — narrow the search to see the rest.
+                </p>
+              )}
               <div style={{ display: "flex", flexDirection: "column", border: "1px solid var(--cc-border)", borderRadius: 10, overflow: "hidden", maxHeight: 360, overflowY: "auto" }}>
                 {filteredCreators.map((c, i) => {
                   const isSelected = Boolean(selected[c.id]);
@@ -379,6 +411,7 @@ export default function SelfServeWizard({
                   );
                 })}
               </div>
+              </>
             )}
 
             <RunningTotal

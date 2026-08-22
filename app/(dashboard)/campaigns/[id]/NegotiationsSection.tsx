@@ -3,11 +3,14 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { Card, Badge, Button, Input, Modal, EmptyState, Skeleton, Tag } from "@pratham7711/ui";
 import { Handshake, Check, X, ArrowRightLeft, Sparkles, AlertTriangle } from "lucide-react";
+import { CreatorSelect, type PickableCreator } from "@/components/CreatorSelect";
 import { stripAt } from "@/lib/format";
 
 type Offer = {
   id: string;
   creatorId: string;
+  /** Resolved server-side; null only if the creator was deleted. */
+  creator: { id: string; name: string; handle: string } | null;
   offeredRate: number;
   counterRate: number | null;
   aiCounterRate: number | null;
@@ -53,7 +56,7 @@ export default function NegotiationsSection({
   const [showBatch, setShowBatch] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [acting, setActing] = useState<string | null>(null);
-  const [creators, setCreators] = useState<Creator[]>([]);
+  const [batchPicked, setBatchPicked] = useState<Creator[]>([]);
   const [form, setForm] = useState({ creatorId: "", offeredRate: "", currency: "USD", notes: "" });
   const [batch, setBatch] = useState<{ creatorIds: string[]; offeredRate: string; currency: string }>({
     creatorIds: [],
@@ -84,24 +87,12 @@ export default function NegotiationsSection({
     fetchOffers();
   }, [fetchOffers]);
 
-  const loadCreators = useCallback(async () => {
-    if (creators.length > 0) return;
-    const res = await fetch("/api/creators");
-    if (res.ok) {
-      const data = await res.json();
-      setCreators((data.creators ?? data).map((c: any) => ({ id: c.id, name: c.name, handle: c.handle })));
-    }
-  }, [creators.length]);
+  const openCreate = () => setShowCreate(true);
 
-  const openCreate = async () => {
-    setShowCreate(true);
-    await loadCreators();
-  };
-
-  const openBatch = async () => {
+  const openBatch = () => {
     setBatch({ creatorIds: [], offeredRate: "", currency: "USD" });
+    setBatchPicked([]);
     setShowBatch(true);
-    await loadCreators();
   };
 
   const handleCreate = async () => {
@@ -179,11 +170,18 @@ export default function NegotiationsSection({
     }
   };
 
-  const toggleBatchCreator = (id: string) => {
+  // The picker only ever holds the creators matching the current search, so a
+  // chosen creator's name is kept here rather than looked up later in a result
+  // set that has since moved on.
+  const toggleBatchCreator = (c: Creator | PickableCreator) => {
+    const on = batch.creatorIds.includes(c.id);
     setBatch((b) => ({
       ...b,
-      creatorIds: b.creatorIds.includes(id) ? b.creatorIds.filter((x) => x !== id) : [...b.creatorIds, id],
+      creatorIds: on ? b.creatorIds.filter((x) => x !== c.id) : [...b.creatorIds, c.id],
     }));
+    setBatchPicked((p) =>
+      on ? p.filter((x) => x.id !== c.id) : [...p, { id: c.id, name: c.name, handle: c.handle }]
+    );
   };
 
   const selectStyle = {
@@ -198,10 +196,8 @@ export default function NegotiationsSection({
     boxSizing: "border-box" as const,
   };
 
-  const creatorName = (id: string) => {
-    const c = creators.find((x) => x.id === id);
-    return c ? `${c.name} (@${stripAt(c.handle)})` : `${id.slice(0, 8)}...`;
-  };
+  const creatorName = (offer: Offer) =>
+    offer.creator ? `${offer.creator.name} (@${stripAt(offer.creator.handle)})` : "Deleted creator";
 
   const platformFee = platformFeeMinor > 0 ? platformFeeMinor / 100 : 0;
   const currency = offers[0]?.currency ?? "USD";
@@ -322,7 +318,7 @@ export default function NegotiationsSection({
               }}
             >
               <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>
-                {creatorName(offer.creatorId)}
+                {creatorName(offer)}
               </span>
               <span style={{ fontSize: 13, color: "var(--cc-text)" }}>
                 {formatCurrency(offer.offeredRate, offer.currency)}
@@ -425,18 +421,10 @@ export default function NegotiationsSection({
               <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>
                 Creator
               </label>
-              <select
+              <CreatorSelect
                 value={form.creatorId}
-                onChange={(e) => setForm((f) => ({ ...f, creatorId: e.target.value }))}
-                style={selectStyle}
-              >
-                <option value="">Select creator...</option>
-                {creators.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} (@{stripAt(c.handle)})
-                  </option>
-                ))}
-              </select>
+                onChange={(id) => setForm((f) => ({ ...f, creatorId: id }))}
+              />
             </div>
             <div style={{ display: "flex", gap: 12 }}>
               <div style={{ flex: 1 }}>
@@ -550,25 +538,31 @@ export default function NegotiationsSection({
                   padding: 4,
                 }}
               >
-                {creators.length === 0 ? (
-                  <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>No creators available.</span>
+                {batchPicked.length === 0 ? (
+                  <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>
+                    Search below and pick creators to offer.
+                  </span>
                 ) : (
-                  creators.map((c) => {
-                    const selected = batch.creatorIds.includes(c.id);
-                    return (
-                      <Tag
-                        key={c.id}
-                        variant={selected ? "accent" : "neutral"}
-                        outlined={!selected}
-                        clickable
-                        onClick={() => toggleBatchCreator(c.id)}
-                        style={{ cursor: "pointer", fontWeight: selected ? 600 : 400 }}
-                      >
-                        {c.name}
-                      </Tag>
-                    );
-                  })
+                  batchPicked.map((c) => (
+                    <Tag
+                      key={c.id}
+                      variant="accent"
+                      clickable
+                      onClick={() => toggleBatchCreator(c)}
+                      style={{ cursor: "pointer", fontWeight: 600 }}
+                    >
+                      {c.name} ×
+                    </Tag>
+                  ))
                 )}
+              </div>
+              <div style={{ marginTop: 8 }}>
+                <CreatorSelect
+                  value=""
+                  onChange={(_id, creator) => creator && toggleBatchCreator(creator)}
+                  excludeIds={batch.creatorIds}
+                  placeholder="Search creators to add to this batch"
+                />
               </div>
             </div>
           </div>

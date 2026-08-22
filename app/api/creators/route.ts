@@ -88,6 +88,27 @@ export async function POST(request: NextRequest) {
 
     const { name, handle, platform, contactEmail, bio, rate, followersCount, averageViews } = parsed.data;
 
+    // A handle is how a creator is identified everywhere else in this app: the
+    // portal matches its CreatorUser to an org Creator by handle, and so does
+    // the proposal-accept path. Both of those find-before-create; this route
+    // did not, so typing a handle that already existed silently produced a
+    // second row and left the two paths disagreeing about which one is real.
+    //
+    // Not a database constraint, deliberately: 23 handles imported from
+    // CreatorCore are already duplicated, and de-duplicating rows we did not
+    // create is not this route's decision to make. The guard covers everything
+    // created from here on.
+    const clash = await db.creator.findFirst({
+      where: { orgId, handle, deletedAt: null },
+      select: { id: true },
+    });
+    if (clash) {
+      return NextResponse.json(
+        { error: `A creator with the handle ${handle} already exists`, creatorId: clash.id },
+        { status: 409 }
+      );
+    }
+
     const creator = await db.creator.create({
       data: {
         name,

@@ -54,7 +54,24 @@ export async function GET(
       }
     }
 
-    return NextResponse.json({ negotiations, aggregate: { acceptedTotal, pendingEstimate } });
+    // NegotiationOffer holds creatorId as a plain string with no relation, so
+    // the name has to be looked up. The client used to do it against whatever
+    // creators its picker happened to have fetched, which meant every offer
+    // rendered as "cmt1m1wq..." until that modal had been opened at least once.
+    // Resolving it here makes the row carry its own name.
+    const creatorIds = [...new Set(negotiations.map((n) => n.creatorId))];
+    const creators = creatorIds.length
+      ? await db.creator.findMany({
+          where: { id: { in: creatorIds }, orgId },
+          select: { id: true, name: true, handle: true },
+        })
+      : [];
+    const byId = new Map(creators.map((c) => [c.id, c]));
+
+    return NextResponse.json({
+      negotiations: negotiations.map((n) => ({ ...n, creator: byId.get(n.creatorId) ?? null })),
+      aggregate: { acceptedTotal, pendingEstimate },
+    });
   } catch (error) {
     console.error("Failed to fetch negotiations:", error);
     return NextResponse.json({ error: "Failed to fetch negotiations" }, { status: 500 });

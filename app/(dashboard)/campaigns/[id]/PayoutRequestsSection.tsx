@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback } from "react";
 import { Card, Badge, Button, Input, Modal, EmptyState, Skeleton } from "@pratham7711/ui";
 import { StatusTabs } from "@/components/ds";
 import { Banknote, Check, X } from "lucide-react";
-import { stripAt, formatDateAbs } from "@/lib/format";
+import { CreatorSelect } from "@/components/CreatorSelect";
+import { formatDateAbs } from "@/lib/format";
 
 type PayoutReq = {
   id: string;
@@ -17,7 +18,6 @@ type PayoutReq = {
   createdAt: string;
 };
 
-type Creator = { id: string; name: string; handle: string };
 
 const STATUS_TABS = [
   { key: "ALL", label: "All", bg: "#F3F4F6", color: "#374151" },
@@ -43,7 +43,6 @@ export default function PayoutRequestsSection({ campaignId }: { campaignId: stri
   const [showCreate, setShowCreate] = useState(false);
   const [showReject, setShowReject] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [creators, setCreators] = useState<Creator[]>([]);
   const [form, setForm] = useState({ creatorId: "", requestedAmount: "", currency: "USD" });
   const [rejectionReason, setRejectionReason] = useState("");
 
@@ -60,15 +59,8 @@ export default function PayoutRequestsSection({ campaignId }: { campaignId: stri
 
   useEffect(() => { fetchRequests(); }, [fetchRequests]);
 
-  const openCreate = async () => {
+  const openCreate = () => {
     setShowCreate(true);
-    if (creators.length === 0) {
-      const res = await fetch("/api/creators");
-      if (res.ok) {
-        const data = await res.json();
-        setCreators((data.creators ?? data).map((c: any) => ({ id: c.id, name: c.name, handle: c.handle })));
-      }
-    }
   };
 
   const handleCreate = async () => {
@@ -203,10 +195,10 @@ export default function PayoutRequestsSection({ campaignId }: { campaignId: stri
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <div>
               <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Creator</label>
-              <select value={form.creatorId} onChange={(e) => setForm(f => ({ ...f, creatorId: e.target.value }))} style={selectStyle}>
-                <option value="">Select creator...</option>
-                {creators.map(c => <option key={c.id} value={c.id}>{c.name} (@{stripAt(c.handle)})</option>)}
-              </select>
+              <CreatorSelect
+                value={form.creatorId}
+                onChange={(id) => setForm(f => ({ ...f, creatorId: id }))}
+              />
             </div>
             <div style={{ display: "flex", gap: 12 }}>
               <div style={{ flex: 1 }}>

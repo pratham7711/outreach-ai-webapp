@@ -15,9 +15,11 @@ jest.mock('@/lib/db', () => ({
       findFirst: jest.fn(),
       update: jest.fn(),
     },
-    // Campaign counts are derived from posts and activations.
+    // Campaign counts, and the campaign list behind them, are derived from posts
+    // and activations rather than read off the relation.
     post: { groupBy: jest.fn().mockResolvedValue([]) },
-    activation: { groupBy: jest.fn().mockResolvedValue([]) },
+    activation: { groupBy: jest.fn().mockResolvedValue([]), findMany: jest.fn().mockResolvedValue([]) },
+    campaign: { findMany: jest.fn().mockResolvedValue([]) },
   },
 }));
 
@@ -161,6 +163,43 @@ describe('POST /api/creators', () => {
         data: expect.objectContaining({ platform: 'TIKTOK' }),
       })
     );
+  });
+
+  /* A handle is how a creator is identified across the rest of the app: the
+     portal matches a CreatorUser to an org Creator by handle, and so does the
+     proposal-accept path. Both find-before-create. This route did not, so the
+     same handle could be created twice and those two paths would then disagree
+     about which row is the real one. */
+  it('refuses a handle the org already uses (409, no write)', async () => {
+    mockDb.creator.findFirst.mockResolvedValue({ id: 'creator-existing' });
+
+    const req = makeRequest('http://localhost/api/creators', {
+      method: 'POST',
+      body: JSON.stringify(validBody),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const res = await POST(req);
+
+    expect(res.status).toBe(409);
+    expect((await res.json()).creatorId).toBe('creator-existing');
+    expect(mockDb.creator.create).not.toHaveBeenCalled();
+  });
+
+  it('scopes the clash check to this org and ignores soft-deleted rows', async () => {
+    mockDb.creator.findFirst.mockResolvedValue(null);
+    mockDb.creator.create.mockResolvedValue({ id: 'creator-1', ...validBody });
+
+    const req = makeRequest('http://localhost/api/creators', {
+      method: 'POST',
+      body: JSON.stringify(validBody),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    await POST(req);
+
+    expect(mockDb.creator.findFirst).toHaveBeenCalledWith({
+      where: { orgId: 'org-1', handle: '@bobcreator', deletedAt: null },
+      select: { id: true },
+    });
   });
 
   it('returns 400 for missing name', async () => {

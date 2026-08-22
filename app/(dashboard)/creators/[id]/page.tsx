@@ -101,6 +101,16 @@ type Creator = {
   posts: Post[];
   /** Distinct campaigns, counted from posts as well as activations. */
   campaignCount: number;
+  /** The campaigns behind that count, derived the same way. */
+  campaigns: {
+    id: string;
+    title: string;
+    status: string;
+    budget: number | null;
+    currency: string;
+    postCount: number;
+    activation: { id: string; status: string; deliverableDueDate: string | null } | null;
+  }[];
   _count: { activations: number; posts: number };
 };
 
@@ -684,24 +694,32 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
 
         {/* Campaigns Tab */}
         {activeTab === "campaigns" && (
-          creator.activations.length === 0 ? (
-            <EmptyState icon={<ClipboardList size={32} color="var(--cc-text-subtle)" />} title="No campaigns yet" description="This creator has not been assigned to any campaigns." />
+          /* Driven by creator.campaigns, not creator.activations. Activations did
+             not import from CreatorCore, so 1,824 of 1,834 creators had none and
+             this tab said "No campaigns yet" directly under a badge reading 215. */
+          (creator.campaigns ?? []).length === 0 ? (
+            <EmptyState icon={<ClipboardList size={32} color="var(--cc-text-subtle)" />} title="No campaigns yet" description="This creator has no posts on, and no activation for, any campaign." />
           ) : (
             <div className="cc-stagger" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              {creator.activations.map(act => (
-                <Link prefetch={false} key={act.id} href={`/campaigns/${act.campaign.id}`} style={{ textDecoration: "none" }}>
+              {(creator.campaigns ?? []).map(c => (
+                <Link prefetch={false} key={c.id} href={`/campaigns/${c.id}`} style={{ textDecoration: "none" }}>
                   <Card variant="outlined" style={{ padding: "16px 20px" }} clickable>
                     <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
                       <div style={{ flex: 1, minWidth: 140 }}>
-                        <div style={{ fontWeight: 700, fontSize: 14, color: "var(--cc-text)" }}>{act.campaign.title}</div>
+                        <div style={{ fontWeight: 700, fontSize: 14, color: "var(--cc-text)" }}>{c.title}</div>
                         <div style={{ fontSize: 12, color: "var(--cc-text-muted)", marginTop: 2 }}>
-                          {act.deliverableDueDate ? `Due: ${formatDateAbs(act.deliverableDueDate)}` : "No due date"}
+                          {c.postCount > 0 ? `${c.postCount} post${c.postCount === 1 ? "" : "s"}` : "No posts"}
+                          {c.activation?.deliverableDueDate ? ` · Due ${formatDateAbs(c.activation.deliverableDueDate)}` : ""}
                         </div>
                       </div>
-                      <Badge variant={STATUS_VARIANT[act.status] ?? "neutral"} dot>{act.status.replace(/_/g, " ")}</Badge>
-                      {act.campaign.budget && (
+                      {/* The activation status when there is one; otherwise the
+                          campaign's own, rather than a blank where a pill was. */}
+                      <Badge variant={STATUS_VARIANT[c.activation?.status ?? c.status] ?? "neutral"} dot>
+                        {(c.activation?.status ?? c.status).replace(/_/g, " ")}
+                      </Badge>
+                      {c.budget && (
                         <span className="cd-campaign-row-budget" style={{ fontWeight: 700, fontSize: 14, color: "var(--cc-text)" }}>
-                          {formatCurrency(Number(act.campaign.budget), act.campaign.currency)}
+                          {formatCurrency(Number(c.budget), c.currency)}
                         </span>
                       )}
                       <span className="cd-campaign-row-chevron">

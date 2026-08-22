@@ -18,9 +18,12 @@ test.describe('Discovery', () => {
   });
 
   test('shows creator cards or disabled state', async ({ page }) => {
-    // Discovery may be disabled by feature flag — wait for either state to appear
+    // Discovery may be disabled by feature flag — wait for either state to appear.
+    // Asserted on the card affordance rather than on named seed creators: the org
+    // carries 1,834 imported creators now, and the default sort is most-tracked,
+    // so no particular seeded name is on the first page.
     await expect(
-      page.getByText(/Blessing Jolie|Alex Turner|discovery is disabled|no creators found/i).first()
+      page.getByText(/View Profile|discovery is disabled|no creators found/i).first()
     ).toBeVisible({ timeout: 15000 });
   });
 });
