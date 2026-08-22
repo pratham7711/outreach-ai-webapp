@@ -14,6 +14,7 @@ export type DashboardPolicyInput = {
 
 export type DashboardPolicy = {
   brandName: string | null;
+  logoUrl: string | null;
   primaryColor: string;
   navAllowKeys: string[] | null;
   allowedNavHrefs: string[];
@@ -124,6 +125,13 @@ function pickPrimaryColor(entitlements: OrgEntitlements | null, uiConfig?: OrgUi
   return uiConfig?.branding?.primaryColor ?? entitlements?.branding.primaryColor ?? DEFAULT_PRIMARY_COLOR;
 }
 
+/* Organization.logoUrl has been read into entitlements all along; nothing ever
+   asked the policy for it, so the rail drew initials instead of the tenant's
+   own mark. uiConfig wins where set, exactly as it does for the other two. */
+function pickLogoUrl(entitlements: OrgEntitlements | null, uiConfig?: OrgUiConfig | null): string | null {
+  return uiConfig?.branding?.logoUrl ?? entitlements?.branding.logoUrl ?? null;
+}
+
 export function resolveDashboardPolicy({
   entitlements,
   uiConfig,
@@ -138,6 +146,7 @@ export function resolveDashboardPolicy({
 
   return {
     brandName: pickBrandName(entitlements, uiConfig),
+    logoUrl: pickLogoUrl(entitlements, uiConfig),
     primaryColor: pickPrimaryColor(entitlements, uiConfig),
     navAllowKeys,
     allowedNavHrefs,

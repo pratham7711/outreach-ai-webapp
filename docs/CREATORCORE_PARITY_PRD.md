@@ -84,7 +84,32 @@ Corollary for the schema: CreatorCore stores `viewsPullable`, `likesPullable`, `
 ## 2. Global chrome
 
 ### 2.1 Sidebar
-Fixed 240px, white, four labelled groups. Active item is a solid blue pill with white text.
+Measured, not eyeballed: `scripts/creatorcore/cc-sidebar-spec.mjs` logs in read-only,
+finds the rail by anchoring on the `Campaigns & Reporting` label, and writes
+`scripts/creatorcore/out/sidebar/spec.json` plus two screenshots. Re-run it before
+changing any number below.
+
+The rail is **not** a panel flush to the viewport edge. It is a floating white card,
+240x970 at (10, 15) in a 1600x1000 viewport — inset 10px left, 15px top and bottom —
+`border-radius: 20px`, `padding: 20px 10px`, no border, no shadow, inside a
+`position: fixed` wrapper. Type is Lexend Deca throughout.
+
+| Element | Measured |
+|---|---|
+| Rail card | 240 x 970 at x=10, y=15 · radius 20 · padding 20px 10px · white · no border/shadow |
+| Nav row | 220 x 40 at x=20 · **48px pitch** (row tops 111.8 → 159.8 → 207.8) |
+| Row label | 16px / 20px line-height / weight 400 · starts at x=58 |
+| Row colour | `rgb(31, 60, 239)` idle · `#FFF` on the active pill |
+| Group label | 15px / 18.75px / weight 400 · `rgba(31, 60, 239, 0.36)` · x=20 · sentence case, no letter-spacing |
+| Footer name | 15px / 18.75px · `rgb(42, 42, 42)` · avatar left edge x=20 |
+| Dividers | **none** — a scan of the capture for any band over 85% of the card width finds exactly one hit, the active pill |
+
+Two of those are the ones that read as "not CreatorCore" at a glance. The group
+labels are nearly the same size as the rows they head (15px vs 16px) and quieter
+only in colour — ours were 10px bold uppercase with letter-spacing. And the rows
+sit on a 48px pitch, which is why 20 nav items do not fit where CreatorCore's 14 do.
+
+Four labelled groups. Active item is a solid blue pill with white text.
 
 | Group | Items |
 |---|---|
@@ -95,7 +120,22 @@ Fixed 240px, white, four labelled groups. Active item is a solid blue pill with 
 
 Footer: circular user avatar + first name, and a notification bell.
 
-**Ours diverges deliberately.** We add Dashboard, Deadlines and Analytics; we must keep Payouts/Requests/Recipients hidden while parked, and Fan Pages carries an upsell badge there that is meaningless for us. Group labels and the active-pill treatment should match.
+**Ours diverges deliberately.** We add Dashboard, Songs, Deadlines, Trackers, Analytics and Activity Log; we must keep Payouts/Requests/Recipients hidden while parked, and Fan Pages carries an upsell badge there that is meaningless for us.
+
+The numbers above ship inside the `creatorcore` theme only — light and dark keep our
+own tighter rail. Getting there meant lifting every divergence out of an inline
+`style={{}}` in `NewSidebar.tsx` into a class (`.cc-sidebar-rail`, `.cc-nav-item`,
+`.cc-nav-group-label`, `.cc-sidebar-head/footer/avatar/username`) at today's exact
+values, then overriding only those classes under `.creatorcore`; a theme selector
+cannot outrank an inline style, which is why nothing about the rail responded to the
+theme before. Two traps worth keeping written down: `--cc-sidebar-w` had to be
+declared on `:root.creatorcore` because a plain `.creatorcore` ties with the later
+`:root` block and loses; and `min-height: 40px` alone left rows at 44px, because
+16px text at normal line-height is already 24px — the rows need an explicit
+`line-height: 20px`.
+
+The cost is honest: at a 48px pitch, 13 of our 20 items fit the viewport and 7 need
+scrolling, because our nav is six items longer than CreatorCore's.
 
 **Primary colour.** The reference's primary is a saturated blue (logo, active pill, `New Campaign`, `Add Posts`). Our `--cc-primary` is `#5B5BD6`, a violet. A second accent — magenta/purple — is reserved for **Share** actions specifically. Sample the exact values off the screenshots before changing tokens; this is a real mismatch, not a rounding error.
 

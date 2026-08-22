@@ -384,8 +384,135 @@
   box-shadow: 0 2px 8px rgba(31, 60, 239, 0.25);
 }
 
+/*
+  The rail. CreatorCore's is not a panel welded to the window edge like ours --
+  it is a floating white card, 240px wide, inset 10px from the left and 15px
+  top and bottom, with 20px corners and neither a border nor a shadow. Measured
+  at a 1600x1000 viewport: the card lands at x=10, y=15, 240x970.
+
+  Only from lg up. Below that the rail is a slide-in drawer, and a drawer that
+  stops 15px short of the top reads as a mistake rather than a card.
+*/
+/*
+  240px of rail plus 10px of inset either side. Both the rail's width and the
+  dashboard's left margin read this one token, so the card and the content it
+  pushes cannot desync.
+
+  :root.creatorcore, not .creatorcore, and deliberately: the layout block that
+  defines --cc-sidebar-w further down this file is a plain :root, which carries
+  the same specificity as a class. At equal specificity the later rule wins, so
+  a bare .creatorcore declaration silently lost and the rail stayed 264px.
+*/
+:root.creatorcore {
+  --cc-sidebar-w: 260px;
+  --cc-sidebar-w-collapsed: 92px;
+}
+
+@media (min-width: 1024px) {
+  .creatorcore .cc-sidebar-rail {
+    top: 15px;
+    bottom: 15px;
+    left: 10px;
+    height: auto;
+    border-right: none;
+    border-radius: 20px;
+    /* The token is the space the rail occupies, and the card is that space less
+       the 10px of air either side of it. Everywhere else the rail's width and
+       the content's margin are the same number; here they differ by the inset,
+       so the card cannot simply take the token or it would fill the gap. */
+    width: calc(var(--cc-sidebar-w) - 20px);
+  }
+
+  .creatorcore .cc-sidebar-rail[data-collapsed="true"] {
+    width: calc(var(--cc-sidebar-w-collapsed) - 20px);
+  }
+}
+
+/*
+  Rows are 40px tall in a 220px column -- the card's 240px less its 10px of
+  padding either side -- with 8px between them, so the pitch is 48px. The nav
+  carries that padding here because our rail element has none of its own.
+*/
+.creatorcore .cc-sidebar-nav {
+  padding: 0 10px;
+}
+
+.creatorcore .cc-nav-item {
+  min-height: 40px;
+  padding: 10px;
+  gap: 10px;
+  font-size: 16px;
+  line-height: 20px;
+  font-weight: 400;
+  margin-bottom: 8px;
+  color: var(--cc-primary);
+}
+
+/* Icons are 18px and full-strength indigo, not the dimmed grey ours uses --
+  every inactive row on CreatorCore is drawn in the primary colour. */
+.creatorcore .cc-nav-item svg {
+  width: 18px;
+  height: 18px;
+  opacity: 1;
+}
+
 .creatorcore .cc-nav-item.active {
-  box-shadow: 0 2px 6px rgba(31, 60, 239, 0.24);
+  font-weight: 400;
+  box-shadow: none;
+}
+
+/*
+  Group headings are the largest single difference: ours are 10px bold uppercase
+  with letter-spacing, CreatorCore's are 15px regular sentence-case indigo at
+  36% -- nearly the same size as the rows they head, and quieter only in colour.
+*/
+.creatorcore .cc-nav-group-label {
+  font-size: 15px;
+  font-weight: 400;
+  letter-spacing: normal;
+  text-transform: none;
+  line-height: 18.75px;
+  color: rgba(31, 60, 239, 0.36);
+  padding: 0;
+  margin-bottom: 8px;
+}
+
+/* The footer identity: a 40px round avatar, and the one place in the rail whose
+   text is grey rather than indigo. */
+/*
+  CreatorCore's rail has no horizontal rules anywhere. Scanning its capture for
+  a band covering more than 85% of the card's width turns up exactly one hit --
+  the active pill -- and nothing light enough to be a hairline, above the footer
+  or below the header. Ours drew both, so both come off here.
+*/
+.creatorcore .cc-sidebar-head,
+.creatorcore .cc-sidebar-footer {
+  border: none;
+}
+
+.creatorcore .cc-sidebar-footer {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.creatorcore .cc-sidebar-head {
+  border-bottom: 1px solid var(--cc-border);
+}
+
+.cc-sidebar-footer {
+  border-top: 1px solid var(--cc-border);
+}
+
+.cc-sidebar-avatar {
+  width: 40px;
+  height: 40px;
+  font-size: 15px;
+}
+
+.creatorcore .cc-sidebar-username {
+  font-size: 15px;
+  font-weight: 400;
+  color: #2A2A2A;
 }
 
 .creatorcore .cc-search {
@@ -546,12 +673,34 @@ h1, h2, h3, h4, h5, h6 {
   padding: 9px 14px;
   border-radius: 10px;
   transition: all 0.15s ease;
-  font-size: 14px;
+  font-size: 13.5px;
   font-weight: 500;
   color: var(--cc-text);
   text-decoration: none;
   position: relative;
   margin-bottom: 2px;
+}
+
+/* The label used to carry font-size inline, which no theme could outrank. It
+   inherits now, so re-pointing .cc-nav-item re-sizes the row's text with it. */
+.cc-nav-item svg {
+  opacity: 0.7;
+}
+
+.cc-nav-item.active svg {
+  opacity: 1;
+}
+
+/* Group heading above each run of nav items. Also inline until now. */
+.cc-nav-group-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--cc-text-subtle);
+  padding: 12px 12px 4px;
+  white-space: nowrap;
+  overflow: hidden;
 }
 
 .cc-nav-item:hover {
@@ -956,6 +1105,8 @@ h1, h2, h3, h4, h5, h6 {
 
 .cc-sidebar-rail {
   width: var(--cc-sidebar-w);
+  background: var(--cc-sidebar);
+  border-right: 1px solid var(--cc-border);
 }
 .cc-sidebar-rail[data-collapsed="true"] {
   width: var(--cc-sidebar-w-collapsed);
@@ -978,6 +1129,30 @@ h1, h2, h3, h4, h5, h6 {
 }
 .cc-dashboard-content[data-ready="true"] {
   transition: margin-left 0.2s ease;
+}
+
+.cc-sidebar-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--cc-primary);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.cc-sidebar-username {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--cc-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 140px;
 }
 
 /* Collapsed rail: reclaim the scrollbar gutter that eats a 72px column. */

@@ -9,6 +9,7 @@ import {
   Search, List, Link2, CreditCard, Shield, FileText,
   ChevronDown, Settings, LogOut, Menu, X, ChevronsLeft, Key, BarChart2, Activity, Music
 } from "lucide-react";
+import { mediaUrl } from "@/lib/postMedia";
 import { useSidebar } from "@/components/providers/SidebarProvider";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -65,6 +66,8 @@ const NAV_SECTIONS = [
 type SidebarProps = {
   allowedNavHrefs?: string[] | null;
   brandName?: string | null;
+  /** The tenant's own mark. CreatorCore shows one here; we fall back to initials. */
+  brandLogoUrl?: string | null;
   user?: { name: string | null; email: string | null } | null;
 };
 
@@ -96,7 +99,8 @@ function UserMenuTooltip({
   );
 }
 
-export default function NewSidebar({ allowedNavHrefs, brandName, user }: SidebarProps = {}) {
+export default function NewSidebar({ allowedNavHrefs, brandName, brandLogoUrl, user }: SidebarProps = {}) {
+  const [logoBroken, setLogoBroken] = useState(false);
   const userName = user?.name || user?.email || "Account";
   const userInitial = sidebarInitials(user?.name, user?.email);
   const pathname = usePathname();
@@ -199,20 +203,13 @@ export default function NewSidebar({ allowedNavHrefs, brandName, user }: Sidebar
         }`}
         data-collapsed={mobileOpen ? false : collapsed}
         data-ready={ready}
-        style={{
-          background: "var(--cc-sidebar)",
-          borderRight: "1px solid var(--cc-border)",
-        }}
         role="navigation"
         aria-label="Main sidebar"
       >
         {/* Header: Logo + Org + Collapse Toggle */}
         <div
-          className={`h-14 flex items-center shrink-0 ${isRail ? "justify-center" : "justify-between"}`}
-          style={{
-            borderBottom: "1px solid var(--cc-border)",
-            padding: isRail ? "0 8px" : "0 16px",
-          }}
+          className={`cc-sidebar-head h-14 flex items-center shrink-0 ${isRail ? "justify-center" : "justify-between"}`}
+          style={{ padding: isRail ? "0 8px" : "0 16px" }}
         >
           {isRail ? (
             <Tooltip>
@@ -246,7 +243,28 @@ export default function NewSidebar({ allowedNavHrefs, brandName, user }: Sidebar
               </div>
 
               <div className="flex items-center gap-1.5" style={{ flexShrink: 0 }}>
-                {brandName ? (
+                {/*
+                  CreatorCore's rail carries the tenant's uploaded logo here --
+                  a 90x30 image beside its own wordmark. Ours drew two letters
+                  because nothing passed the org's logoUrl down, though
+                  entitlements had been reading it all along. The initials stay
+                  as the fallback: every org's logoUrl is still null, and an
+                  image that 404s must not leave a blank gap where the brand was.
+                */}
+                {brandLogoUrl && !logoBroken ? (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img
+                    src={mediaUrl(brandLogoUrl) ?? undefined}
+                    alt={brandName ? `${brandName} logo` : "Organisation logo"}
+                    onError={() => setLogoBroken(true)}
+                    style={{
+                      maxHeight: 30,
+                      maxWidth: 92,
+                      objectFit: "contain",
+                      display: "block",
+                    }}
+                  />
+                ) : brandName ? (
                   <div
                     aria-hidden="true"
                     style={{
@@ -296,20 +314,7 @@ export default function NewSidebar({ allowedNavHrefs, brandName, user }: Sidebar
             <div key={section.label} className="mb-1">
               {/* Section label — hidden when collapsed */}
               {!isRail && (
-                <div
-                  style={{
-                    fontSize: 10,
-                    fontWeight: 700,
-                    letterSpacing: "0.8px",
-                    textTransform: "uppercase",
-                    color: "var(--cc-text-subtle)",
-                    padding: "12px 12px 4px",
-                    whiteSpace: "nowrap",
-                    overflow: "hidden",
-                  }}
-                >
-                  {section.label}
-                </div>
+                <div className="cc-nav-group-label">{section.label}</div>
               )}
               {/* Thin separator when collapsed */}
               {isRail && (
@@ -341,13 +346,11 @@ export default function NewSidebar({ allowedNavHrefs, brandName, user }: Sidebar
                     >
                       <Icon
                         size={isRail ? 19 : 17}
-                        style={{ flexShrink: 0, opacity: active ? 1 : 0.7 }}
+                        style={{ flexShrink: 0 }}
                         aria-hidden="true"
                       />
                       {!isRail && (
-                        <span style={{ fontSize: 13.5, whiteSpace: "nowrap", overflow: "hidden" }}>
-                          {label}
-                        </span>
+                        <span style={{ whiteSpace: "nowrap", overflow: "hidden" }}>{label}</span>
                       )}
                       {!isRail && badge && !active && (
                         <span
@@ -390,8 +393,8 @@ export default function NewSidebar({ allowedNavHrefs, brandName, user }: Sidebar
 
         {/* Footer - User Profile */}
         <div
-          className="px-2 py-2"
-          style={{ borderTop: "1px solid var(--cc-border)", position: "relative" }}
+          className="cc-sidebar-footer px-2 py-2"
+          style={{ position: "relative" }}
         >
           {/* User menu dropdown */}
           {showUserMenu && !isRail && (
@@ -467,37 +470,11 @@ export default function NewSidebar({ allowedNavHrefs, brandName, user }: Sidebar
             }}
           >
             <div className="flex items-center gap-2.5">
-              <div
-                style={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: "50%",
-                  background: "var(--cc-primary)",
-                  color: "#fff",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: 12,
-                  fontWeight: 700,
-                  flexShrink: 0,
-                }}
-                aria-hidden="true"
-              >
+              <div className="cc-sidebar-avatar" aria-hidden="true">
                 {userInitial}
               </div>
               {!isRail && (
-                <span
-                  title={userName}
-                  style={{
-                    fontSize: 13,
-                    fontWeight: 600,
-                    color: "var(--cc-text)",
-                    whiteSpace: "nowrap",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    maxWidth: 140,
-                  }}
-                >
+                <span className="cc-sidebar-username" title={userName}>
                   {userName}
                 </span>
               )}

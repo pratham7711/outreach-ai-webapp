@@ -49,6 +49,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           <NewSidebar
             allowedNavHrefs={orgId ? policy.allowedNavHrefs : null}
             brandName={orgId ? policy.brandName : null}
+            brandLogoUrl={orgId ? policy.logoUrl : null}
             user={user}
           />
           <DashboardContent>

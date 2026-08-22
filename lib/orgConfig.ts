@@ -22,6 +22,7 @@ export type OrgUiConfig = {
   branding?: {
     primaryColor?: string;
     brandName?: string;
+    logoUrl?: string;
   };
   limits?: {
     maxCampaigns?: number;
