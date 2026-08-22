@@ -1,10 +1,10 @@
 "use client";
-import React from "react";
+import React, { useState } from "react";
 import { Card } from "@pratham7711/ui";
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip } from "recharts";
 import { Music2 } from "lucide-react";
 import { formatCompact } from "@/lib/format";
-import { imgSrc } from "@/lib/postMedia";
+import { mediaUrl } from "@/lib/postMedia";
 import type { CampaignAudio } from "@/lib/reports/campaignPerformance";
 
 /**
@@ -18,7 +18,16 @@ import type { CampaignAudio } from "@/lib/reports/campaignPerformance";
  * creator names, money, or anything else a link can withhold.
  */
 export function AudioCard({ audio }: { audio: CampaignAudio }) {
-  const cover = imgSrc(audio.coverUrl, 160);
+  /*
+    Straight to the CDN, not through /api/img. That proxy is session-gated -- it
+    has to be, or it is an open image proxy -- so a card that reached for it
+    rendered a broken box on the one page that has no session, the public share
+    report. The share report's creator avatars already load direct for the same
+    reason. Nothing is lost: the proxy exists to transcode CreatorCore's HEIC
+    avatars, and a sound cover is a CDN JPEG.
+  */
+  const [coverBroken, setCoverBroken] = useState(false);
+  const cover = coverBroken ? null : mediaUrl(audio.coverUrl);
   // A tracked sound has counts only after a sync. Zero would claim the audio has
   // never been used, so an unsynced tracker shows an em dash instead.
   const uses = audio.uses === null ? "—" : formatCompact(audio.uses);
@@ -48,6 +57,7 @@ export function AudioCard({ audio }: { audio: CampaignAudio }) {
               <img
                 src={cover}
                 alt=""
+                onError={() => setCoverBroken(true)}
                 style={{ width: 44, height: 44, borderRadius: 10, objectFit: "cover", flexShrink: 0 }}
               />
             ) : (
