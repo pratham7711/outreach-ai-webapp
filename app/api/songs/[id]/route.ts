@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { db } from "@/lib/db";
 import { authenticateRequest } from "@/lib/authenticate";
 import { computeEngagementRate } from "@/lib/metrics";
+import { logAudit } from "@/lib/audit";
+import { getRequestIp } from "@/lib/request";
 
 /**
  * Everything the song dashboard renders, in one round trip.
@@ -167,4 +170,73 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       creatorHandle: p.creator?.handle ?? null,
     })),
   });
+}
+
+
+const updateSchema = z.object({
+  title: z.string().trim().min(1).max(200).optional(),
+  artist: z.string().trim().min(1).max(200).optional(),
+  isrc: z.string().trim().max(32).optional().nullable(),
+  releaseDate: z.string().datetime().optional().nullable(),
+  coverUrl: z.string().url().max(2048).optional().nullable(),
+  notes: z.string().max(5000).optional().nullable(),
+  /** A tracked TikTok sound to attach, or null to detach. */
+  soundId: z.string().min(1).optional().nullable(),
+});
+
+/**
+ * Edit a song, including which tracked TikTok sound it is promoted with.
+ *
+ * The sound is looked up under the caller's own org before it is written. A
+ * plain FK write would accept any cuid the client sent, which would let one
+ * tenant point its song at another tenant's tracker and pull that tracker's
+ * usage curve into its own campaign report.
+ */
+export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const result = await authenticateRequest(req);
+  if (!result) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { orgId, userId, actorEmail } = result;
+  const { id } = await ctx.params;
+
+  const parsed = updateSchema.safeParse(await req.json());
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: "Validation failed", details: parsed.error.flatten() },
+      { status: 400 }
+    );
+  }
+
+  const existing = await db.song.findFirst({ where: { id, orgId, deletedAt: null }, select: { id: true } });
+  if (!existing) return NextResponse.json({ error: "Song not found" }, { status: 404 });
+
+  const { soundId, releaseDate, ...rest } = parsed.data;
+
+  if (soundId) {
+    const sound = await db.tikTokSound.findFirst({ where: { id: soundId, orgId }, select: { id: true } });
+    if (!sound) return NextResponse.json({ error: "Tracked sound not found" }, { status: 404 });
+  }
+
+  const song = await db.song.update({
+    where: { id },
+    data: {
+      ...rest,
+      ...(soundId !== undefined && { soundId }),
+      ...(releaseDate !== undefined && { releaseDate: releaseDate ? new Date(releaseDate) : null }),
+    },
+    select: { id: true, title: true, artist: true, coverUrl: true, soundId: true },
+  });
+
+  await logAudit({
+    orgId,
+    userId: userId ?? undefined,
+    actorEmail: actorEmail ?? undefined,
+    action: "song.update",
+    entityType: "song",
+    entityId: song.id,
+    entityLabel: song.title,
+    ipAddress: getRequestIp(req),
+    metadata: { fields: Object.keys(parsed.data) },
+  });
+
+  return NextResponse.json({ song });
 }

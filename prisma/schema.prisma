@@ -314,11 +314,19 @@ model Song {
   updatedAt   DateTime  @updatedAt
   deletedAt   DateTime?
 
+  /// The TikTok sound this release is promoted with, if one is tracked. It hangs
+  /// off the song rather than off the campaign because the usage curve belongs to
+  /// the audio: three campaigns pushing the same release read the same tracker,
+  /// and none of them owns it.
+  soundId String?
+
   org       Organization @relation(fields: [orgId], references: [id])
   campaigns Campaign[]
+  sound     TikTokSound? @relation(fields: [soundId], references: [id])
 
   @@index([orgId])
   @@index([orgId, deletedAt])
+  @@index([soundId])
 }
 
 /// A campaign can run in waves — "4 phases of 10 posts each". Posts point at a
@@ -743,6 +751,7 @@ model TikTokSound {
 
   org       Organization           @relation(fields: [orgId], references: [id])
   snapshots SoundTrackerSnapshot[]
+  songs     Song[]
 }
 
 model SoundTrackerSnapshot {

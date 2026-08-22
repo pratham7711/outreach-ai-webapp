@@ -269,6 +269,13 @@ export const SONG_PHASE_SLOT_DDL: string[] = [
   `ALTER TABLE "Creator" ADD COLUMN IF NOT EXISTS "trackedSince" TIMESTAMP(3)`,
   `CREATE INDEX IF NOT EXISTS "Creator_orgId_trackedSince_idx" ON "Creator"("orgId", "trackedSince")`,
 
+  // The TikTok sound a release is promoted with, so a campaign report can show
+  // the audio card CreatorCore's does. It hangs off Song, not Campaign: the usage
+  // curve belongs to the audio, and every campaign pushing that release reads the
+  // same tracker. Nullable, so songs without a tracked sound are unaffected.
+  `ALTER TABLE "Song" ADD COLUMN IF NOT EXISTS "soundId" TEXT`,
+  `CREATE INDEX IF NOT EXISTS "Song_soundId_idx" ON "Song"("soundId")`,
+
   // Postgres has no ADD CONSTRAINT IF NOT EXISTS. These are not cosmetic: the
   // referential actions below are where `onDelete: SetNull` and `Cascade` in
   // schema.prisma actually live, so without them deleting a campaign fails or
@@ -281,6 +288,7 @@ export const SONG_PHASE_SLOT_DDL: string[] = [
     [`SyncSlot`, `SyncSlot_campaignId_fkey`, `FOREIGN KEY ("campaignId") REFERENCES "Campaign"("id") ON DELETE SET NULL ON UPDATE CASCADE`],
     [`SyncSlot`, `SyncSlot_postId_fkey`, `FOREIGN KEY ("postId") REFERENCES "Post"("id") ON DELETE SET NULL ON UPDATE CASCADE`],
     [`Post`, `Post_phaseId_fkey`, `FOREIGN KEY ("phaseId") REFERENCES "CampaignPhase"("id") ON DELETE SET NULL ON UPDATE CASCADE`],
+    [`Song`, `Song_soundId_fkey`, `FOREIGN KEY ("soundId") REFERENCES "TikTokSound"("id") ON DELETE SET NULL ON UPDATE CASCADE`],
   ].map(
     ([table, name, clause]) => `DO $$ BEGIN
      ALTER TABLE "${table}" ADD CONSTRAINT "${name}" ${clause};

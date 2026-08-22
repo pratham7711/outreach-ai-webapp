@@ -10,6 +10,8 @@ import { Eye, Heart, Percent, DollarSign, Target, TrendingUp, Share2, AlertTrian
 import { formatCompact } from "@/lib/format";
 import { platformColor } from "@/app/(dashboard)/analytics/shared";
 import { ShareModal } from "@/app/(dashboard)/campaigns/ShareModal";
+import { AudioCard } from "@/components/campaigns/AudioCard";
+import type { CampaignAudio } from "@/lib/reports/campaignPerformance";
 
 type Kpis = {
   views: number;
@@ -41,6 +43,8 @@ type PerformanceData = {
   timeSeries: TimeSeriesPoint[];
   platformSplit: PlatformSplit[];
   leaderboard: LeaderboardRow[];
+  /** Null when the campaign has no song, or a song with no tracked sound. */
+  audio: CampaignAudio | null;
 };
 
 const SERIES = [
@@ -265,6 +269,10 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
         )}
         <MetricTile metric="emv" value={formatCurrencyCompact(kpis.emv, currency)} />
       </div>
+
+      {/* Absent unless the campaign's song has a tracked sound, so campaigns
+          that promote no release look exactly as they did. */}
+      {data.audio ? <AudioCard audio={data.audio} /> : null}
 
       <Card variant="outlined" style={{ padding: 24 }}>
         <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)", display: "block", marginBottom: 16 }}>

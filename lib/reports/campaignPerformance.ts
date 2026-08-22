@@ -43,6 +43,28 @@ export type CampaignPerformance = {
      */
     status: ActivationStatus | null;
   }[];
+  /**
+   * The TikTok sound behind the campaign, when its song has one tracked. Null
+   * means there is nothing to show — no song, or a song with no sound — and the
+   * card is simply absent, the way it is on a campaign that promotes no release.
+   *
+   * `uses` and `videosAdded24h` are nullable for the usual reason: the tracker
+   * row exists as soon as somebody tracks the sound, but its counts only exist
+   * after a snapshot has been taken. Zero would claim the audio has never been
+   * used, which is a measurement we have not made.
+   */
+  audio: CampaignAudio | null;
+};
+
+export type CampaignAudio = {
+  title: string;
+  artist: string;
+  coverUrl: string | null;
+  soundUrl: string;
+  uses: number | null;
+  videosAdded24h: number | null;
+  /** Oldest to newest, for the usage curve. Empty until the sound is synced. */
+  usageSeries: { date: string; uses: number }[];
 };
 
 /**
@@ -291,5 +313,54 @@ export async function computeCampaignPerformance(
     timeSeries,
     platformSplit,
     leaderboard,
+    audio: await loadCampaignAudio(campaign.id),
+  };
+}
+
+/**
+ * The audio card's data, reached campaign → song → sound.
+ *
+ * Two reads rather than one nested include: the snapshots are ordered and
+ * bounded independently of the song lookup, and most campaigns have no song at
+ * all, so the second query usually never runs.
+ */
+async function loadCampaignAudio(campaignId: string): Promise<CampaignAudio | null> {
+  const campaign = await db.campaign.findUnique({
+    where: { id: campaignId },
+    select: {
+      song: {
+        select: {
+          coverUrl: true,
+          sound: { select: { id: true, tiktokSoundId: true, title: true, artist: true, coverImageUrl: true } },
+        },
+      },
+    },
+  });
+  const sound = campaign?.song?.sound;
+  if (!sound) return null;
+
+  /* Newest first here so `take` keeps the most recent window, then reversed for
+     the chart, which reads left to right. */
+  const snaps = await db.soundTrackerSnapshot.findMany({
+    where: { soundId: sound.id },
+    select: { usesCount: true, videosAdded24h: true, recordedAt: true },
+    orderBy: { recordedAt: "desc" },
+    take: 60,
+  });
+  const latest = snaps[0] ?? null;
+
+  return {
+    title: sound.title,
+    artist: sound.artist,
+    // The tracker's own cover wins; the song's art is the fallback for a sound
+    // that has been tracked but not yet synced, which is when it has no cover.
+    coverUrl: sound.coverImageUrl ?? campaign?.song?.coverUrl ?? null,
+    soundUrl: `https://www.tiktok.com/music/x-${sound.tiktokSoundId}`,
+    uses: latest ? latest.usesCount : null,
+    videosAdded24h: latest ? latest.videosAdded24h : null,
+    usageSeries: snaps
+      .slice()
+      .reverse()
+      .map((s) => ({ date: s.recordedAt.toISOString().slice(0, 10), uses: s.usesCount })),
   };
 }

@@ -10,6 +10,9 @@ jest.mock("@/lib/db", () => ({
     post: { findMany: jest.fn() },
     postMetricSnapshot: { findMany: jest.fn() },
     activation: { findMany: jest.fn() },
+    // The report also reaches campaign -> song -> sound for the audio card.
+    campaign: { findUnique: jest.fn() },
+    soundTrackerSnapshot: { findMany: jest.fn() },
   },
 }));
 
@@ -20,6 +23,8 @@ const mockDb = db as unknown as {
   post: { findMany: jest.Mock };
   postMetricSnapshot: { findMany: jest.Mock };
   activation: { findMany: jest.Mock };
+  campaign: { findUnique: jest.Mock };
+  soundTrackerSnapshot: { findMany: jest.Mock };
 };
 
 const campaign = { id: "camp-1", orgId: "org-1", budget: null, currency: "USD" };
@@ -48,6 +53,9 @@ beforeEach(() => {
   // No activations by default — which is the state of every imported campaign,
   // and the reason a leaderboard status is null rather than a default status.
   mockDb.activation.findMany.mockResolvedValue([]);
+  // No song by default, so there is no audio card to build.
+  mockDb.campaign.findUnique.mockResolvedValue({ song: null });
+  mockDb.soundTrackerSnapshot.findMany.mockResolvedValue([]);
 });
 
 describe("computeCampaignPerformance engagement provenance", () => {
@@ -148,5 +156,74 @@ describe("computeCampaignPerformance engagement provenance", () => {
     expect(mockDb.activation.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { campaignId: "camp-1", deletedAt: null } })
     );
+  });
+});
+
+describe("computeCampaignPerformance audio provenance", () => {
+  it("carries no audio when the campaign has no song", async () => {
+    mockDb.post.findMany.mockResolvedValue([post()]);
+
+    const result = await computeCampaignPerformance(campaign);
+
+    expect(result.audio).toBeNull();
+  });
+
+  it("carries no audio when the song has no tracked sound", async () => {
+    mockDb.post.findMany.mockResolvedValue([post()]);
+    mockDb.campaign.findUnique.mockResolvedValue({ song: { coverUrl: "https://cdn/x.jpg", sound: null } });
+
+    const result = await computeCampaignPerformance(campaign);
+
+    expect(result.audio).toBeNull();
+  });
+
+  it("reports null uses for a sound that has been tracked but never synced", async () => {
+    mockDb.post.findMany.mockResolvedValue([post()]);
+    mockDb.campaign.findUnique.mockResolvedValue({
+      song: {
+        coverUrl: "https://cdn/song.jpg",
+        sound: { id: "s1", tiktokSoundId: "999", title: "Wherever I Go", artist: "Ellie Holcomb", coverImageUrl: null },
+      },
+    });
+    mockDb.soundTrackerSnapshot.findMany.mockResolvedValue([]);
+
+    const result = await computeCampaignPerformance(campaign);
+
+    expect(result.audio).not.toBeNull();
+    // Zero here would claim the audio has never been used, which is a
+    // measurement no snapshot has made.
+    expect(result.audio!.uses).toBeNull();
+    expect(result.audio!.videosAdded24h).toBeNull();
+    expect(result.audio!.usageSeries).toEqual([]);
+    // The song's art stands in until the tracker has a cover of its own.
+    expect(result.audio!.coverUrl).toBe("https://cdn/song.jpg");
+    expect(result.audio!.soundUrl).toContain("999");
+  });
+
+  it("reports the latest snapshot and orders the usage curve oldest first", async () => {
+    mockDb.post.findMany.mockResolvedValue([post()]);
+    mockDb.campaign.findUnique.mockResolvedValue({
+      song: {
+        coverUrl: null,
+        sound: { id: "s1", tiktokSoundId: "999", title: "Wherever I Go", artist: "Ellie Holcomb", coverImageUrl: "https://cdn/sound.jpg" },
+      },
+    });
+    // The query orders newest first, so the newest row is the current count and
+    // the series has to come back reversed.
+    mockDb.soundTrackerSnapshot.findMany.mockResolvedValue([
+      { usesCount: 44, videosAdded24h: 21, recordedAt: new Date("2026-08-22T00:00:00Z") },
+      { usesCount: 23, videosAdded24h: 9, recordedAt: new Date("2026-08-21T00:00:00Z") },
+    ]);
+
+    const result = await computeCampaignPerformance(campaign);
+
+    expect(result.audio!.uses).toBe(44);
+    expect(result.audio!.videosAdded24h).toBe(21);
+    expect(result.audio!.usageSeries).toEqual([
+      { date: "2026-08-21", uses: 23 },
+      { date: "2026-08-22", uses: 44 },
+    ]);
+    // The tracker's own cover wins over the song's art.
+    expect(result.audio!.coverUrl).toBe("https://cdn/sound.jpg");
   });
 });

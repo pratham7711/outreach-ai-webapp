@@ -11,6 +11,7 @@ import { formatCompact } from "@/lib/format";
 import { ACTIVATION_STATUS_LABEL, activationStatusBadgeStyle } from "@/lib/activationQueues";
 import { platformColor } from "@/app/(dashboard)/analytics/shared";
 import { BRAND, POWERED_BY } from "@/lib/brand";
+import { AudioCard } from "@/components/campaigns/AudioCard";
 
 const SERIES = [
   { key: "TIKTOK", color: platformColor("TIKTOK") },
@@ -201,6 +202,11 @@ export default function SharedPerformanceReport({
                 <StatTile value={formatCurrency(budget, currency)} label="Total Budget" />
               )}
             </div>
+
+            {/* The audio is not gated on a visibility flag: the reference report
+                always shows it, and the card carries no creator, money or status
+                field that a link is allowed to withhold. */}
+            {data.audio ? <AudioCard audio={data.audio} /> : null}
 
             <div
               style={{
