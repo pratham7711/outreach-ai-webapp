@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Search, Target, Sun, Zap, CheckCircle2, XCircle, Wallet, Users, FileText, LayoutList, Folder } from "lucide-react";
+import { Plus, Search, Target, Sun, Zap, CheckCircle2, XCircle, Wallet, Users, FileText, LayoutList, Folder, Share2 } from "lucide-react";
 import Link from "next/link";
 import { Button, Card, Badge, Input, EmptyState, Avatar } from "@pratham7711/ui";
 import { StatusTabs, Pagination, FilterDrawer, FilterButton } from "@/components/ds";
@@ -13,6 +13,7 @@ import { useListQuery } from "@/lib/useListQuery";
 import { CAMPAIGNS_PAGE_SIZE } from "@/lib/listPageSize";
 import { imgSrc } from "@/lib/postMedia";
 import FoldersPanel, { type FolderOption } from "./FoldersPanel";
+import { ShareModal } from "./ShareModal";
 import { UNFILED } from "@/lib/listFilters";
 
 type Campaign = {
@@ -273,6 +274,47 @@ function StatusSelect({ id, status }: { id: string; status: string }) {
 }
 
 /** One bordered stat on a campaign card. */
+/*
+ * Share, on the row. The reference puts it here rather than only inside a
+ * campaign, which is the difference between sending a client a report and
+ * remembering which tab the button was on.
+ *
+ * It opens the same dialog as the Performance tab -- create, copy, per-field
+ * visibility, revoke -- because a second, thinner share control on the busier
+ * surface is the one that would forget that an empty platform list means "no
+ * restriction" rather than "nothing".
+ */
+function ShareButton({ id, title }: { id: string; title: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        title={`Share ${title}`}
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 6,
+          background: "var(--cc-card)",
+          color: "var(--cc-primary)",
+          border: "1.5px solid var(--cc-primary)",
+          borderRadius: 8,
+          padding: "7px 12px",
+          fontSize: 13,
+          fontWeight: 600,
+          cursor: "pointer",
+          whiteSpace: "nowrap",
+        }}
+      >
+        <Share2 size={14} aria-hidden="true" />
+        Share
+      </button>
+      {open && <ShareModal campaignId={id} campaignTitle={title} onClose={() => setOpen(false)} />}
+    </>
+  );
+}
+
 function StatChip({ icon, label, children }: { icon: React.ReactNode; label: string; children: React.ReactNode }) {
   return (
     <span
@@ -610,6 +652,7 @@ export default function CampaignsClient({
 
               <FolderSelect id={campaign.id} folderId={campaign.folderId} folders={folders} />
               <StatusSelect id={campaign.id} status={campaign.status} />
+              <ShareButton id={campaign.id} title={campaign.title} />
             </div>
           ))}
         </div>

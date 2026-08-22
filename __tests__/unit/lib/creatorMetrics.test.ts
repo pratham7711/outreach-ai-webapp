@@ -37,7 +37,7 @@ describe("toNumber", () => {
     // numeric arrives as a string, count as a bigint, avg over nothing as null.
     expect(toNumber("1234.5")).toBe(1234.5);
     expect(toNumber(42)).toBe(42);
-    expect(toNumber(7n as unknown)).toBe(7);
+    expect(toNumber(BigInt(7) as unknown)).toBe(7);
     expect(toNumber("0")).toBe(0);
   });
 

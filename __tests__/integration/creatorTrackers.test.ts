@@ -119,7 +119,7 @@ describe("GET /api/trackers/creators", () => {
     ]);
     mockDb.$queryRawUnsafe.mockResolvedValue([
       // As Postgres sends them: numeric as string, count as bigint.
-      { creatorId: "cr1", avgCurrent: "200", postsCurrent: 2n, avgPrevious: "100", postsPrevious: 4n },
+      { creatorId: "cr1", avgCurrent: "200", postsCurrent: BigInt(2), avgPrevious: "100", postsPrevious: BigInt(4) },
     ]);
     const body = await (await GET(req(BASE))).json();
     const a = body.creators.find((c: any) => c.handle === "a");
