@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import sharp from "sharp";
 import decodeHeic from "heic-decode";
 import { auth } from "@/lib/auth";
+import { isProxyableHost } from "@/lib/postMedia";
 import { createLogger } from "@/lib/observability/logger";
 
 /**
@@ -29,19 +30,10 @@ import { createLogger } from "@/lib/observability/logger";
  */
 
 // An open image proxy is an SSRF hole and a bandwidth donation, so only the
-// hosts we actually store URLs for may be fetched.
-const ALLOWED_HOSTS = [
-  /\.cdn\.bubble\.io$/,
-  /\.tiktokcdn-us\.com$/,
-  /\.cdninstagram\.com$/,
-  /^i\.ytimg\.com$/,
-];
-
+// hosts we actually store URLs for may be fetched. Shared with imgSrc, which
+// uses it to route un-proxyable URLs straight to the browser instead of sending
+// them here to be refused -- but this check is the boundary, not that one.
 const MAX_BYTES = 12 * 1024 * 1024;
-
-function hostAllowed(host: string): boolean {
-  return ALLOWED_HOSTS.some((re) => re.test(host));
-}
 
 export async function GET(req: NextRequest) {
   const log = createLogger({ context: { route: "api/img" } });
@@ -61,7 +53,7 @@ export async function GET(req: NextRequest) {
     return new NextResponse("bad url", { status: 400 });
   }
   if (target.protocol !== "https:") return new NextResponse("https only", { status: 400 });
-  if (!hostAllowed(target.host)) return new NextResponse("host not allowed", { status: 403 });
+  if (!isProxyableHost(target.host)) return new NextResponse("host not allowed", { status: 403 });
 
   const dim = (name: string, fallback: number) =>
     Math.min(Math.max(Number(req.nextUrl.searchParams.get(name)) || fallback, 16), 1024);

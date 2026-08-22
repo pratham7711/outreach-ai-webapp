@@ -68,6 +68,23 @@ export function embedAspect(platform: string): { width: number; height: number }
 }
 
 /**
+ * The hosts /api/img is willing to fetch. The proxy enforces this itself -- it
+ * is an SSRF boundary and cannot be talked out of it from the client -- but the
+ * list lives here so imgSrc can tell, before rendering, whether a given URL
+ * would come back as a 403.
+ */
+export const PROXYABLE_HOSTS: RegExp[] = [
+  /\.cdn\.bubble\.io$/,
+  /\.tiktokcdn-us\.com$/,
+  /\.cdninstagram\.com$/,
+  /^i\.ytimg\.com$/,
+];
+
+export function isProxyableHost(host: string): boolean {
+  return PROXYABLE_HOSTS.some((re) => re.test(host));
+}
+
+/**
  * Every CDN image goes through /api/img, which normalises it to the size the
  * page actually paints and re-encodes to WebP.
  *
@@ -86,6 +103,21 @@ export function imgSrc(
 ): string | null {
   const url = mediaUrl(raw);
   if (!url) return null;
+
+  // Only the CDNs we import from can go through the proxy. Anything else -- a
+  // logo or thumbnail somebody pasted into a form, pointing at their own site --
+  // used to be sent there anyway and came back 403, so a perfectly good image
+  // rendered as an empty box. Those go straight to the browser instead: it
+  // needs no transcode (nobody else serves us HEIC) and a client-side fetch of
+  // a third-party URL is not something the proxy protects us from anyway.
+  let host: string;
+  try {
+    host = new URL(url).host;
+  } catch {
+    return null;
+  }
+  if (!isProxyableHost(host)) return url;
+
   const h = height && height !== width ? `&h=${height}` : "";
   return `/api/img?u=${encodeURIComponent(url)}&w=${width}${h}`;
 }
