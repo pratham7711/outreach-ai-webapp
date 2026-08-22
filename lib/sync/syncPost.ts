@@ -126,6 +126,12 @@ export async function applyPostMetrics(
       data: {
         thumbnailUrl: metrics.thumbnailUrl ?? post.thumbnailUrl,
         caption: metrics.caption ?? post.caption,
+        /* The platform is authoritative about when its own post was published,
+           and this never wrote it -- so posts created while their platform was
+           unreachable kept the placeholder date the create route had to invent
+           for a non-nullable column, even after a later sync learned the real
+           one. On the reference campaign that was all seventeen of them. */
+        ...(metrics.postedAt ? { postedAt: metrics.postedAt } : {}),
         lastSyncedAt: new Date(),
         ...counts,
         engagementRate,

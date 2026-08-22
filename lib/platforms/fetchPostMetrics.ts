@@ -22,7 +22,8 @@ export type PostMetrics = {
   commentsCount?: number;
   sharesCount?: number;
   engagementRate?: number;
-  postedAt: Date;
+  /** Absent when the platform did not say. Never today's date as a stand-in. */
+  postedAt?: Date;
 };
 
 export function hasMetricCounts(m: PostMetrics): boolean {
@@ -573,10 +574,14 @@ export async function fetchInstagramMetrics(
 }
 
 function stubMetrics(): Partial<PostMetrics> {
+  // No postedAt. A stub is what we return when the platform told us nothing, and
+  // it knows least of all when the post went up -- filling in `new Date()` there
+  // stamped today onto every post created while TikTok was unreachable, and the
+  // reference campaign's seventeen posts all claimed to have been published on
+  // the day we added them.
   return {
     thumbnailUrl: null,
     caption: null,
-    postedAt: new Date(),
   };
 }
 
@@ -614,7 +619,7 @@ function assemblePostMetrics(
     platformPostId,
     thumbnailUrl: m.thumbnailUrl ?? null,
     caption: m.caption ?? null,
-    postedAt: m.postedAt ?? new Date(),
+    ...(m.postedAt ? { postedAt: m.postedAt } : {}),
   };
 
   const finite = (v: unknown): number | undefined =>
