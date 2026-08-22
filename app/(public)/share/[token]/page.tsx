@@ -1,4 +1,5 @@
 import React from "react";
+import type { Metadata } from "next";
 import { Link2 } from "lucide-react";
 import { db } from "@/lib/db";
 import { computeCampaignPerformance, redactForShare } from "@/lib/reports/campaignPerformance";
@@ -40,6 +41,40 @@ function RevokedState() {
       </div>
     </div>
   );
+}
+
+/**
+ * The tab title is the campaign and the tenant, the way CreatorCore's client
+ * report names itself -- "Wherever I go - Ellie Holcomb | LKay Media". A brand
+ * with three of these links open otherwise sees three identical tabs carrying
+ * the name of our product instead of the campaign they asked about.
+ *
+ * Deliberately not indexed: the link is unlisted, and the whole point is that it
+ * is shared deliberately rather than found.
+ */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ token: string }>;
+}): Promise<Metadata> {
+  const { token } = await params;
+  const link = await db.report.findUnique({
+    where: { shareToken: token },
+    select: {
+      isPublic: true,
+      campaign: { select: { title: true, org: { select: { name: true } } } },
+    },
+  });
+
+  const robots = { index: false, follow: false };
+  if (!link?.isPublic || !link.campaign) return { title: "Report unavailable", robots };
+
+  const org = link.campaign.org?.name;
+  return {
+    title: org ? `${link.campaign.title} | ${org}` : link.campaign.title,
+    description: `Campaign performance report for ${link.campaign.title}.`,
+    robots,
+  };
 }
 
 export default async function SharedReportPage({

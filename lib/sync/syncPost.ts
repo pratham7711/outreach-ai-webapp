@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { fetchPostMetrics, hasMetricCounts } from "@/lib/platforms/fetchPostMetrics";
+import { fetchPostMetrics, hasMetricCounts, type PostMetrics } from "@/lib/platforms/fetchPostMetrics";
 import { getInstagramAccountForCreator } from "@/lib/platforms/instagramToken";
 import { getTikTokTokenForCreator } from "@/lib/platforms/tiktokToken";
 
@@ -43,21 +43,20 @@ type SyncablePost = {
   caption: string | null;
 };
 
-export async function syncPost(post: SyncablePost, orgId: string): Promise<SyncPostOutcome> {
-  const instagram =
-    post.platform === "INSTAGRAM"
-      ? await getInstagramAccountForCreator(post.creatorId, orgId)
-      : undefined;
-  const tiktokToken =
-    post.platform === "TIKTOK" ? await getTikTokTokenForCreator(post.creatorId, orgId) : undefined;
-
-  const metrics = await fetchPostMetrics(post.postUrl, {
-    instagramToken: instagram?.token,
-    instagramHandle: instagram?.handle,
-    tiktokToken,
-  });
-  if (!metrics) return { status: "unfetchable" };
-
+/**
+ * Write metrics that were already fetched.
+ *
+ * Split out from syncPost because fetching and writing sometimes cannot happen
+ * on the same network. TikTok is unreachable from India and our database is
+ * unreachable through the VPN that fixes that -- port 5432 gets reset while 443
+ * passes -- so the dev filler fetches with the tunnel up and writes with it
+ * down. Both paths land here, so the offline writer cannot drift from the live
+ * one on which columns it sets.
+ */
+export async function applyPostMetrics(
+  post: SyncablePost,
+  metrics: PostMetrics,
+): Promise<SyncPostOutcome> {
   if (!hasMetricCounts(metrics)) {
     // Worth keeping if the fetch produced one: a thumbnail with no counts is
     // still better than an empty card. No lastSyncedAt -- see above.
@@ -108,4 +107,22 @@ export async function syncPost(post: SyncablePost, orgId: string): Promise<SyncP
   ]);
 
   return { status: "measured", post: updated as unknown as Record<string, unknown> };
+}
+
+export async function syncPost(post: SyncablePost, orgId: string): Promise<SyncPostOutcome> {
+  const instagram =
+    post.platform === "INSTAGRAM"
+      ? await getInstagramAccountForCreator(post.creatorId, orgId)
+      : undefined;
+  const tiktokToken =
+    post.platform === "TIKTOK" ? await getTikTokTokenForCreator(post.creatorId, orgId) : undefined;
+
+  const metrics = await fetchPostMetrics(post.postUrl, {
+    instagramToken: instagram?.token,
+    instagramHandle: instagram?.handle,
+    tiktokToken,
+  });
+  if (!metrics) return { status: "unfetchable" };
+
+  return applyPostMetrics(post, metrics);
 }

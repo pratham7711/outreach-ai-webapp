@@ -11,15 +11,11 @@ import { formatCompact } from "@/lib/format";
 import { platformColor } from "@/app/(dashboard)/analytics/shared";
 import { ShareModal } from "@/app/(dashboard)/campaigns/ShareModal";
 import { AudioCard } from "@/components/campaigns/AudioCard";
-import type { CampaignAudio } from "@/lib/reports/campaignPerformance";
+import type { CampaignAudio, CampaignPerformance } from "@/lib/reports/campaignPerformance";
 
-type Kpis = {
-  views: number;
-  /** null when no post in the campaign has had its engagement fetched. */
-  engagements: number | null;
-  engagementRate: number | null;
-  emv: number;
-};
+/* Taken from the report seam rather than restated here. It was restated, and the
+   two drifted the moment the seam grew the per-counter totals. */
+type Kpis = CampaignPerformance["kpis"];
 
 const LEADERBOARD_COLS = (withEngagement: boolean) =>
   withEngagement ? "1fr 70px 90px 80px 90px" : "1fr 70px 90px 90px";
@@ -256,7 +252,26 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
       `}</style>
       <div style={{ display: "flex", justifyContent: "flex-end" }}>{headerActions}</div>
       <div className="rsp-grid-tiles perf-tiles">
+        {/* The same per-counter breakout CreatorCore's client report shows, so the
+            campaign's own tab and the shared link tell one story. A counter no
+            post has measured has no tile -- see lib/metricDisplay. */}
+        <MetricTile metric="totalPosts" value={formatNumber(kpis.posts)} />
         <MetricTile metric="views" value={formatNumber(kpis.views)} />
+        {kpis.likes !== null && (
+          <MetricTile metric="totalLikes" value={formatNumber(kpis.likes)} />
+        )}
+        {kpis.comments !== null && (
+          <MetricTile metric="totalComments" value={formatNumber(kpis.comments)} />
+        )}
+        {kpis.shares !== null && (
+          <MetricTile metric="totalShares" value={formatNumber(kpis.shares)} />
+        )}
+        {kpis.saves !== null && (
+          <MetricTile metric="totalSaves" value={formatNumber(kpis.saves)} />
+        )}
+        {kpis.downloads !== null && (
+          <MetricTile metric="totalDownloads" value={formatNumber(kpis.downloads)} />
+        )}
         {kpis.engagements !== null && (
           <MetricTile metric="engagements" value={formatNumber(kpis.engagements)} />
         )}

@@ -23,6 +23,19 @@ export type CampaignPerformance = {
     engagements: number | null;
     engagementRate: number | null;
     emv: number;
+    /**
+     * The per-counter totals CreatorCore's client report breaks out, rather than
+     * only the combined engagement figure. Each is null when no post on the
+     * campaign has that counter measured -- saves and downloads usually are,
+     * because the public TikTok payload does not carry them -- so a tile is
+     * absent instead of claiming a campaign earned zero saves.
+     */
+    posts: number;
+    likes: number | null;
+    comments: number | null;
+    shares: number | null;
+    saves: number | null;
+    downloads: number | null;
   };
   timeSeries: { date: string; TIKTOK: number; INSTAGRAM: number; YOUTUBE: number }[];
   platformSplit: { platform: string; views: number; posts: number }[];
@@ -130,6 +143,7 @@ export async function computeCampaignPerformance(
       commentsCount: true,
       sharesCount: true,
       savesCount: true,
+      downloadsCount: true,
       lastSyncedAt: true,
       creator: { select: { id: true, name: true, avatarUrl: true } },
     },
@@ -195,7 +209,28 @@ export async function computeCampaignPerformance(
     }))
   );
 
-  const kpis = { views, engagements, engagementRate, emv };
+  /* Each counter carries its own provenance. Summing a column across posts that
+     never had it fetched would report a measured zero, and these are exactly the
+     columns where that happens: TikTok's public payload gives views, likes,
+     comments and shares but never saves or downloads, so those two are usually
+     unknown while the others are real. */
+  const totalOf = (pick: (p: (typeof posts)[number]) => number | null | undefined): number | null => {
+    const known = posts.filter((p) => metricValue(pick(p), p.lastSyncedAt) !== null);
+    return known.length === 0 ? null : known.reduce((sum, p) => sum + (pick(p) ?? 0), 0);
+  };
+
+  const kpis = {
+    views,
+    engagements,
+    engagementRate,
+    emv,
+    posts: posts.length,
+    likes: totalOf((p) => p.likesCount),
+    comments: totalOf((p) => p.commentsCount),
+    shares: totalOf((p) => p.sharesCount),
+    saves: totalOf((p) => p.savesCount),
+    downloads: totalOf((p) => p.downloadsCount),
+  };
 
   const platformByPost = new Map(posts.map((p) => [p.id, p.platform]));
   const buckets = new Map<string, Record<SeriesPlatform, number>>();

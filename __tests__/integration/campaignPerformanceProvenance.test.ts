@@ -227,3 +227,58 @@ describe("computeCampaignPerformance audio provenance", () => {
     expect(result.audio!.coverUrl).toBe("https://cdn/sound.jpg");
   });
 });
+
+describe("computeCampaignPerformance per-counter totals", () => {
+  it("counts posts even when nothing about them has been measured", async () => {
+    mockDb.post.findMany.mockResolvedValue([
+      post({ viewsCount: 400, lastSyncedAt: null }),
+      post({ id: "p2", viewsCount: 600, lastSyncedAt: null }),
+    ]);
+
+    const result = await computeCampaignPerformance(campaign);
+
+    // How many posts exist is a fact about our own records, not a measurement
+    // taken from a platform, so it is always known.
+    expect(result.kpis.posts).toBe(2);
+    expect(result.kpis.views).toBe(1000);
+  });
+
+  it("reports null for counters no post has measured, not zero", async () => {
+    mockDb.post.findMany.mockResolvedValue([
+      post({ viewsCount: 400, likesCount: 0, commentsCount: 0, sharesCount: 0, savesCount: 0, lastSyncedAt: null }),
+    ]);
+
+    const result = await computeCampaignPerformance(campaign);
+
+    // A tile reading "Total Saves 0" would tell a brand the campaign earned no
+    // saves. We never asked TikTok for saves; it does not carry them.
+    expect(result.kpis.likes).toBeNull();
+    expect(result.kpis.comments).toBeNull();
+    expect(result.kpis.shares).toBeNull();
+    expect(result.kpis.saves).toBeNull();
+    expect(result.kpis.downloads).toBeNull();
+  });
+
+  it("sums only the posts where a counter was actually measured", async () => {
+    mockDb.post.findMany.mockResolvedValue([
+      post({
+        id: "measured", viewsCount: 1000, likesCount: 90, commentsCount: 4,
+        sharesCount: 7, savesCount: 0, lastSyncedAt: new Date("2026-08-22"),
+      }),
+      post({
+        id: "never", viewsCount: 500, likesCount: 0, commentsCount: 0,
+        sharesCount: 0, savesCount: 0, lastSyncedAt: null,
+      }),
+    ]);
+
+    const result = await computeCampaignPerformance(campaign);
+
+    expect(result.kpis.likes).toBe(90);
+    expect(result.kpis.comments).toBe(4);
+    expect(result.kpis.shares).toBe(7);
+    // A zero we did observe is a real measurement and counts.
+    expect(result.kpis.saves).toBe(0);
+    // Views are carried by every source, including the import, so both count.
+    expect(result.kpis.views).toBe(1500);
+  });
+});

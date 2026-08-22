@@ -135,6 +135,21 @@ export const METRIC_DEFINITIONS = {
     what: "How many pieces of content your creators published in the selected range.",
     how: "Counts every tracked post.",
   },
+  totalShares: {
+    label: "Total shares",
+    what: "How often people sent the posts to someone else. A share reaches an audience the post was never served to.",
+    how: "Adds up the share count of every tracked post.",
+  },
+  totalSaves: {
+    label: "Total saves",
+    what: "How often people bookmarked a post to come back to. Saves track intent better than likes do.",
+    how: "Adds up the save count of every tracked post that reports one.",
+  },
+  totalDownloads: {
+    label: "Total downloads",
+    what: "How often the video itself was downloaded, which is how sounds travel off-platform.",
+    how: "Adds up the download count of every tracked post that reports one.",
+  },
   avgEngagementRate: {
     label: "Average engagement rate",
     what: "How actively people responded rather than just scrolling past. Higher usually means the content landed.",

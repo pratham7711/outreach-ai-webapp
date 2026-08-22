@@ -147,22 +147,44 @@ export default function SharedPerformanceReport({
             </h1>
           </div>
           {!isEmpty && (
-            <a
-              href={`/api/share/${token}/pdf`}
-              style={{
-                background: "var(--cc-primary)",
-                color: "var(--cc-card)",
-                border: "none",
-                borderRadius: 8,
-                padding: "8px 16px",
-                fontSize: 14,
-                fontWeight: 600,
-                textDecoration: "none",
-                whiteSpace: "nowrap",
-              }}
-            >
-              Download PDF
-            </a>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {/* CreatorCore's client report offers the post list as a
+                  spreadsheet, so a brand can work the numbers without asking the
+                  agency for them. Secondary next to the PDF: the PDF is the
+                  thing most recipients want, the CSV is for the one who models. */}
+              <a
+                href={`/api/share/${token}/export`}
+                style={{
+                  background: "var(--cc-card)",
+                  color: "var(--cc-primary)",
+                  border: "1.5px solid var(--cc-primary)",
+                  borderRadius: 8,
+                  padding: "8px 16px",
+                  fontSize: 14,
+                  fontWeight: 600,
+                  textDecoration: "none",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                Export Posts
+              </a>
+              <a
+                href={`/api/share/${token}/pdf`}
+                style={{
+                  background: "var(--cc-primary)",
+                  color: "var(--cc-card)",
+                  border: "none",
+                  borderRadius: 8,
+                  padding: "8px 16px",
+                  fontSize: 14,
+                  fontWeight: 600,
+                  textDecoration: "none",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                Download PDF
+              </a>
+            </div>
           )}
         </div>
 
@@ -188,7 +210,28 @@ export default function SharedPerformanceReport({
           <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
             <style>{".spr-stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 16px; }"}</style>
             <div className="spr-stat-grid">
-              <StatTile value={formatNumber(kpis.views)} label="Views" />
+              {/* CreatorCore's client report leads with the per-counter totals and
+                  breaks them out one tile each, rather than showing a single
+                  combined engagement figure. A counter no post has measured has
+                  no tile at all -- printing "Total Saves 0" to a brand would
+                  claim a measurement the public TikTok payload never carries. */}
+              <StatTile value={formatNumber(kpis.posts)} label="Total Posts" />
+              <StatTile value={formatNumber(kpis.views)} label="Total Views" />
+              {kpis.likes !== null && (
+                <StatTile value={formatNumber(kpis.likes)} label="Total Likes" />
+              )}
+              {kpis.comments !== null && (
+                <StatTile value={formatNumber(kpis.comments)} label="Total Comments" />
+              )}
+              {kpis.shares !== null && (
+                <StatTile value={formatNumber(kpis.shares)} label="Total Shares" />
+              )}
+              {kpis.saves !== null && (
+                <StatTile value={formatNumber(kpis.saves)} label="Total Saves" />
+              )}
+              {kpis.downloads !== null && (
+                <StatTile value={formatNumber(kpis.downloads)} label="Total Downloads" />
+              )}
               {kpis.engagements !== null && (
                 <StatTile value={formatNumber(kpis.engagements)} label="Engagements" />
               )}

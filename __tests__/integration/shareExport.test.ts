@@ -1,0 +1,171 @@
+/**
+ * @jest-environment node
+ *
+ * The share export is reachable with no session at all -- the token is the whole
+ * authorisation -- so the rules it has to keep are the page's rules, not softer
+ * ones: a revoked link exports nothing, a link that hides creators exports no
+ * creator names, and a counter nobody measured comes out empty rather than as a
+ * zero a brand would read as a measurement.
+ */
+import { NextRequest } from 'next/server';
+import { GET } from '@/app/api/share/[token]/export/route';
+
+jest.mock('@/lib/db', () => ({
+  db: {
+    report: { findUnique: jest.fn() },
+    post: { findMany: jest.fn() },
+  },
+}));
+jest.mock('@/lib/rateLimit', () => ({ rateLimit: jest.fn(), rateLimitKey: jest.fn() }));
+
+import { db } from '@/lib/db';
+import { rateLimit } from '@/lib/rateLimit';
+
+const mockDb = db as any;
+const mockRateLimit = rateLimit as jest.Mock;
+
+const call = (token = 'tok') =>
+  GET(new NextRequest(`http://localhost/api/share/${token}/export`), {
+    params: Promise.resolve({ token }),
+  });
+
+const post = (over: Record<string, unknown> = {}) => ({
+  platform: 'TIKTOK',
+  postUrl: 'https://www.tiktok.com/@a/video/1',
+  postedAt: new Date('2026-08-01T00:00:00Z'),
+  viewsCount: 22600,
+  likesCount: 1200,
+  commentsCount: 14,
+  sharesCount: 30,
+  savesCount: 0,
+  downloadsCount: 0,
+  lastSyncedAt: null,
+  creator: { name: 'Awx Yken', handle: 'awxyken' },
+  ...over,
+});
+
+beforeEach(() => {
+  jest.clearAllMocks();
+  mockRateLimit.mockReturnValue({ allowed: true, retryAfterSeconds: 0 });
+  mockDb.report.findUnique.mockResolvedValue({
+    isPublic: true,
+    config: { kind: 'campaign-performance' },
+    campaign: { id: 'camp-1', title: 'Wherever I go - Ellie Holcomb', currency: 'USD' },
+  });
+  mockDb.post.findMany.mockResolvedValue([post()]);
+});
+
+it('serves a CSV attachment named after the campaign', async () => {
+  const res = await call();
+
+  expect(res.status).toBe(200);
+  expect(res.headers.get('Content-Type')).toContain('text/csv');
+  expect(res.headers.get('Content-Disposition')).toContain('Wherever-I-go---Ellie-Holcomb-posts.csv');
+  // An unlisted link's contents should not sit in a shared cache.
+  expect(res.headers.get('Cache-Control')).toBe('no-store');
+});
+
+it('leaves an unmeasured counter empty instead of writing 0', async () => {
+  mockDb.post.findMany.mockResolvedValue([
+    post({ savesCount: 0, downloadsCount: 0, lastSyncedAt: null }),
+  ]);
+
+  const body = await (await call()).text();
+  const [, row] = body.trim().split('\r\n');
+  const cells = row.split(',');
+
+  // Views are carried by every source; saves and downloads are not, and this
+  // post was never synced, so those two cells are blank.
+  expect(cells).toContain('22600');
+  expect(cells.slice(-3, -1)).toEqual(['', '']);
+});
+
+it('exports a measured zero, because that one is a fact', async () => {
+  mockDb.post.findMany.mockResolvedValue([
+    post({ savesCount: 0, downloadsCount: 0, lastSyncedAt: new Date('2026-08-22T00:00:00Z') }),
+  ]);
+
+  const body = await (await call()).text();
+  const row = body.trim().split('\r\n')[1].split(',');
+
+  expect(row.slice(-3, -1)).toEqual(['0', '0']);
+});
+
+it('omits creator columns when the link hides creators', async () => {
+  mockDb.report.findUnique.mockResolvedValue({
+    isPublic: true,
+    config: { kind: 'campaign-performance', visibility: { showCreators: false, showEmv: true } },
+    campaign: { id: 'camp-1', title: 'C', currency: 'USD' },
+  });
+
+  const body = await (await call()).text();
+  const header = body.trim().split('\r\n')[0];
+
+  expect(header).not.toContain('Creator');
+  expect(body).not.toContain('Awx Yken');
+  expect(body).not.toContain('awxyken');
+});
+
+it('refuses a revoked link', async () => {
+  mockDb.report.findUnique.mockResolvedValue({
+    isPublic: false,
+    config: { kind: 'campaign-performance' },
+    campaign: { id: 'camp-1', title: 'C', currency: 'USD' },
+  });
+
+  const res = await call();
+
+  expect(res.status).toBe(404);
+  expect(mockDb.post.findMany).not.toHaveBeenCalled();
+});
+
+it('refuses a token belonging to some other kind of report', async () => {
+  mockDb.report.findUnique.mockResolvedValue({
+    isPublic: true,
+    config: { kind: 'something-else' },
+    campaign: { id: 'camp-1', title: 'C', currency: 'USD' },
+  });
+
+  expect((await call()).status).toBe(404);
+  expect(mockDb.post.findMany).not.toHaveBeenCalled();
+});
+
+it('refuses an unknown token', async () => {
+  mockDb.report.findUnique.mockResolvedValue(null);
+
+  expect((await call()).status).toBe(404);
+});
+
+it('turns away a caller walking the token space', async () => {
+  mockRateLimit.mockReturnValue({ allowed: false, retryAfterSeconds: 30 });
+
+  const res = await call();
+
+  expect(res.status).toBe(429);
+  expect(res.headers.get('Retry-After')).toBe('30');
+  expect(mockDb.report.findUnique).not.toHaveBeenCalled();
+});
+
+it('restricts the export to the platforms the link allows', async () => {
+  mockDb.report.findUnique.mockResolvedValue({
+    isPublic: true,
+    config: { kind: 'campaign-performance', visibility: { showCreators: true, platforms: ['TIKTOK'] } },
+    campaign: { id: 'camp-1', title: 'C', currency: 'USD' },
+  });
+
+  await call();
+
+  expect(mockDb.post.findMany).toHaveBeenCalledWith(
+    expect.objectContaining({
+      where: expect.objectContaining({ platform: { in: ['TIKTOK'] } }),
+    }),
+  );
+});
+
+it('quotes a value that would otherwise break the row', async () => {
+  mockDb.post.findMany.mockResolvedValue([post({ creator: { name: 'Doe, Jane "JD"', handle: 'jd' } })]);
+
+  const body = await (await call()).text();
+
+  expect(body).toContain('"Doe, Jane ""JD"""');
+});
