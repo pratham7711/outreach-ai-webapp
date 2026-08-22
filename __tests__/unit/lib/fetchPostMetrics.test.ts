@@ -90,6 +90,30 @@ describe("fetchPostMetrics — unknown vs known counts", () => {
     expect(m.viewsCount).toBe(1000);
     expect(m.likesCount).toBe(50);
     expect(m.commentsCount).toBe(5);
+    // The Data API has no share statistic, so there is nothing to report.
+    expect(m.sharesCount).toBeUndefined();
+    expect(m.postedAt).toEqual(new Date("2026-01-01T00:00:00Z"));
+  });
+
+  it("YouTube omits a like count the channel hides, rather than reading it as none", async () => {
+    process.env.YOUTUBE_API_KEY = "test-key";
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        items: [
+          {
+            statistics: { viewCount: "1000", commentCount: "5" },
+            snippet: { title: "vid", thumbnails: { high: { url: "y.jpg" } } },
+          },
+        ],
+      }),
+    }) as unknown as typeof fetch;
+
+    const m = (await fetchPostMetrics("https://youtu.be/abc123XYZ_1")) as PostMetrics;
+    expect(m.viewsCount).toBe(1000);
+    expect(m.likesCount).toBeUndefined();
+    // And no publish date was sent, so none is invented.
+    expect(m.postedAt).toBeUndefined();
   });
 
   it("YouTube without an API key falls back to a no-counts stub", async () => {

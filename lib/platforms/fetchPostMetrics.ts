@@ -104,18 +104,24 @@ export async function fetchYouTubeMetrics(videoId: string): Promise<Partial<Post
 
 function mapYouTubeItem(item: any): Partial<PostMetrics> {
   const stats = item?.statistics ?? {};
-  const views = Number(stats.viewCount) || 0;
-  const likes = Number(stats.likeCount) || 0;
-  const comments = Number(stats.commentCount) || 0;
+  const views = pickOptionalCount(stats.viewCount);
+  const likes = pickOptionalCount(stats.likeCount);
+  const comments = pickOptionalCount(stats.commentCount);
+  const published = item?.snippet?.publishedAt ? new Date(item.snippet.publishedAt) : undefined;
+  /* No sharesCount: the Data API has no share statistic at all, so the zero
+     this used to write was a reading nobody ever took. A channel that hides its
+     like count omits likeCount for the same reason, and Number(undefined) || 0
+     turned that into a measured none too. */
   return {
     thumbnailUrl: item?.snippet?.thumbnails?.high?.url ?? null,
     caption: item?.snippet?.title ?? null,
-    viewsCount: views,
-    likesCount: likes,
-    commentsCount: comments,
-    sharesCount: 0,
-    engagementRate: views > 0 ? ((likes + comments) / views) * 100 : 0,
-    postedAt: item?.snippet?.publishedAt ? new Date(item.snippet.publishedAt) : new Date(),
+    ...(views !== undefined ? { viewsCount: views } : {}),
+    ...(likes !== undefined ? { likesCount: likes } : {}),
+    ...(comments !== undefined ? { commentsCount: comments } : {}),
+    ...(views !== undefined && views > 0
+      ? { engagementRate: (((likes ?? 0) + (comments ?? 0)) / views) * 100 }
+      : {}),
+    ...(published && !Number.isNaN(published.getTime()) ? { postedAt: published } : {}),
   };
 }
 
@@ -517,20 +523,23 @@ async function fetchTikTokMetricsSocialKit(url: string): Promise<Partial<PostMet
       return null;
     }
 
-    const views = Number(data.views) || 0;
-    const likes = Number(data.likes) || 0;
-    const comments = Number(data.comments) || 0;
-    const shares = Number(data.shares) || 0;
+    const views = pickOptionalCount(data.views);
+    const likes = pickOptionalCount(data.likes);
+    const comments = pickOptionalCount(data.comments);
+    const shares = pickOptionalCount(data.shares);
+    const published = data.publishedAt ? new Date(data.publishedAt) : undefined;
 
     return {
       thumbnailUrl: data.thumbnailUrl ?? null,
       caption: data.title ?? data.description ?? null,
-      viewsCount: views,
-      likesCount: likes,
-      commentsCount: comments,
-      sharesCount: shares,
-      engagementRate: views > 0 ? ((likes + comments) / views) * 100 : 0,
-      postedAt: data.publishedAt ? new Date(data.publishedAt) : new Date(),
+      ...(views !== undefined ? { viewsCount: views } : {}),
+      ...(likes !== undefined ? { likesCount: likes } : {}),
+      ...(comments !== undefined ? { commentsCount: comments } : {}),
+      ...(shares !== undefined ? { sharesCount: shares } : {}),
+      ...(views !== undefined && views > 0
+        ? { engagementRate: (((likes ?? 0) + (comments ?? 0)) / views) * 100 }
+        : {}),
+      ...(published && !Number.isNaN(published.getTime()) ? { postedAt: published } : {}),
     };
   } catch (err) {
     log.error("SocialKit TikTok fetch threw", {
