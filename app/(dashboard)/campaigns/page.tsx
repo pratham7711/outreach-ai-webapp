@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import CampaignsClient from "./CampaignsClient";
 import { CAMPAIGNS_PAGE_SIZE } from "@/lib/listPageSize";
-import { campaignWhere, countCampaignFilters, readCampaignFilters, firstParam } from "@/lib/listFilters";
+import { campaignWhere, countCampaignFilters, readCampaignFilters, firstParam, campaignOrderBy, readCampaignSort } from "@/lib/listFilters";
 
 export default async function CampaignsPage({
   searchParams,
@@ -22,6 +22,7 @@ export default async function CampaignsPage({
   // to paint. The same parse runs in /api/campaigns, so the table and the API
   // cannot disagree about what a filter means.
   const filters = readCampaignFilters(sp);
+  const sort = readCampaignSort(sp);
   const where = campaignWhere(orgId, filters);
   // Tab counts describe the drawer's result set, so narrowing to one client
   // renumbers the tabs — but the tabs and the search box, being quick filters
@@ -38,7 +39,9 @@ export default async function CampaignsPage({
         teamMembers: { select: { user: { select: { id: true, name: true, avatarUrl: true } } } },
         tags: { select: { tag: true }, orderBy: { tag: "asc" } },
       },
-      orderBy: { updatedAt: "desc" },
+      // campaignOrderBy always appends a unique tiebreaker; ordering by
+      // updatedAt alone left 519 campaigns paging over 516 distinct values.
+      orderBy: campaignOrderBy(sort),
       take: CAMPAIGNS_PAGE_SIZE,
       skip: (page - 1) * CAMPAIGNS_PAGE_SIZE,
     }),
@@ -154,6 +157,7 @@ export default async function CampaignsPage({
       folders={folders}
       folderId={filters.folderId}
       unfiledCount={unfiledCount}
+      sort={sort}
     />
   );
 }

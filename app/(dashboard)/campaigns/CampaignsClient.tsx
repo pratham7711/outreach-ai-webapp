@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Search, Target, Sun, Zap, CheckCircle2, XCircle, Wallet, Users, FileText, LayoutList, Folder, Share2 } from "lucide-react";
+import { Plus, Search, Target, Sun, Zap, CheckCircle2, XCircle, Wallet, Users, FileText, LayoutList, Folder, Share2, ArrowUpDown } from "lucide-react";
 import Link from "next/link";
 import { Button, Card, Badge, Input, EmptyState, Avatar } from "@pratham7711/ui";
 import { StatusTabs, Pagination, FilterDrawer, FilterButton } from "@/components/ds";
@@ -14,7 +14,7 @@ import { CAMPAIGNS_PAGE_SIZE } from "@/lib/listPageSize";
 import { imgSrc } from "@/lib/postMedia";
 import FoldersPanel, { type FolderOption } from "./FoldersPanel";
 import { ShareModal } from "./ShareModal";
-import { UNFILED } from "@/lib/listFilters";
+import { UNFILED, isDefaultCampaignSort, type CampaignSort, type CampaignSortKey } from "@/lib/listFilters";
 
 type Campaign = {
   id: string;
@@ -315,6 +315,64 @@ function ShareButton({ id, title }: { id: string; title: string }) {
   );
 }
 
+/*
+ * Sort, as the reference offers it: a field and a direction, not a column
+ * header -- this list is cards, so there is no header row to click.
+ *
+ * The reference labels the control "Creation Date" and then opens Title and
+ * Last Updated inside it; the label is followed rather than the options, since
+ * the options are what it actually does.
+ */
+const SORT_FIELDS: { key: CampaignSortKey; label: string }[] = [
+  { key: "updated", label: "Last Updated" },
+  { key: "created", label: "Created" },
+];
+
+function SortControl({
+  sort,
+  onChange,
+}: {
+  sort: CampaignSort;
+  onChange: (next: CampaignSort) => void;
+}) {
+  const selectStyle = {
+    border: "1px solid var(--cc-border)",
+    borderRadius: 8,
+    padding: "7px 10px",
+    fontSize: 13,
+    fontWeight: 600,
+    color: "var(--cc-text)",
+    background: "var(--cc-card)",
+    cursor: "pointer",
+  } as const;
+
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+      <ArrowUpDown size={15} aria-hidden="true" style={{ color: "var(--cc-text-muted)" }} />
+      <select
+        aria-label="Sort campaigns by"
+        value={sort.key}
+        onChange={(e) => onChange({ key: e.target.value as CampaignSortKey, dir: sort.dir })}
+        style={selectStyle}
+      >
+        {SORT_FIELDS.map((f) => (
+          <option key={f.key} value={f.key}>{f.label}</option>
+        ))}
+      </select>
+      <select
+        aria-label="Sort direction"
+        value={sort.dir}
+        onChange={(e) => onChange({ key: sort.key, dir: e.target.value as "asc" | "desc" })}
+        style={selectStyle}
+      >
+        {/* Both remaining fields are dates, so newest/oldest says it plainly. */}
+        <option value="desc">Newest</option>
+        <option value="asc">Oldest</option>
+      </select>
+    </span>
+  );
+}
+
 function StatChip({ icon, label, children }: { icon: React.ReactNode; label: string; children: React.ReactNode }) {
   return (
     <span
@@ -358,6 +416,7 @@ export default function CampaignsClient({
   folders,
   folderId,
   unfiledCount,
+  sort,
 }: {
   campaigns: Campaign[];
   stats: { total: number; active: number; creatorCount: number };
@@ -374,6 +433,7 @@ export default function CampaignsClient({
   folders: FolderOption[];
   folderId?: string;
   unfiledCount: number;
+  sort: CampaignSort;
 }) {
   const [search, setSearch] = useState(q);
   const [showModal, setShowModal] = useState(false);
@@ -382,13 +442,22 @@ export default function CampaignsClient({
   // Defaults are passed as undefined so they stay out of the URL entirely —
   // /campaigns rather than /campaigns?status=ALL&page=1. The drawer's values
   // ride along so changing a tab or page keeps the filters applied.
+  const defaultSort = isDefaultCampaignSort(sort);
   const { push, pending } = useListQuery({
     q,
     status: status === "ALL" ? undefined : status,
     page: page === 1 ? undefined : page,
     folderId,
+    sort: defaultSort ? undefined : sort.key,
+    dir: defaultSort ? undefined : sort.dir,
     ...filterValues,
   });
+
+  /* Back to page 1 on every re-sort. Staying on page 7 of a freshly reordered
+     list shows a slice of rows nobody asked for, and the top of the new order —
+     the whole point of sorting — would be behind six pages. */
+  const changeSort = (next: CampaignSort) =>
+    push({ sort: next.key, dir: next.dir, page: null });
 
   const selectedFolder = folderId && folderId !== UNFILED ? folders.find((f) => f.id === folderId) : undefined;
   const folderLabel = folderId === UNFILED ? "Unfiled" : selectedFolder?.name;
@@ -430,7 +499,7 @@ export default function CampaignsClient({
   const anyFilter = Boolean(q) || status !== "ALL" || filterCount > 0 || Boolean(folderId);
   const clearEverything = () => {
     setSearch("");
-    const cleared: Record<string, null> = { q: null, status: null, page: null, folderId: null };
+    const cleared: Record<string, null> = { q: null, status: null, page: null, folderId: null, sort: null, dir: null };
     for (const key of Object.keys(filterValues)) cleared[key] = null;
     push(cleared);
   };
@@ -494,6 +563,7 @@ export default function CampaignsClient({
             iconLeft={<Search size={16} />}
           />
         </div>
+        <SortControl sort={sort} onChange={changeSort} />
         <FilterButton count={filterCount} onClick={() => setShowFilters(true)} />
       </div>
 

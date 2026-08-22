@@ -257,6 +257,69 @@ export function countCreatorFilters(f: CreatorFilters): number {
  * A column that cannot be ordered truthfully gets no control rather than a
  * misleading one.
  */
+/**
+ * Campaign columns the list can order by.
+ *
+ * The reference offers Title and Last Updated, each newest/oldest — its control
+ * is labelled "Creation Date" but the options it opens are these two
+ * (scripts/creatorcore/out/modals/campaigns-filter-date.json). Created is here
+ * as well because createdAt is the one campaign date that is genuinely unique
+ * across all 519 rows, which makes it the only stable thing to fall back on.
+ *
+ * Title is deliberately absent, which the reference does offer. 177 of the 519
+ * imported titles carry leading or trailing whitespace — " Kany Garcia",
+ * "27th Birthday " — and HTML collapses it, so the list renders them looking
+ * ordinary while Postgres sorts them by a space. Ascending order put two of them
+ * above "2003 - 347aiden" on screen with nothing to explain why. Ordering by
+ * btrim(title) is what this needs and Prisma's orderBy cannot express it, so the
+ * choice is raw SQL for the whole filtered query or trimming 177 rows of
+ * imported data. Both are decisions above a sort control's pay grade; until one
+ * is taken the control offers only what it can order truthfully.
+ *
+ * Not budget: it is nullable and unset on most campaigns, so ascending order
+ * would rank every campaign without one as the cheapest. Not creators or posts:
+ * both are counted after the page is fetched, so ordering by them would sort
+ * only the rows already on screen.
+ */
+export const CAMPAIGN_SORT_KEYS = ["updated", "created"] as const;
+export type CampaignSortKey = (typeof CAMPAIGN_SORT_KEYS)[number];
+export type CampaignSort = { key: CampaignSortKey; dir: "asc" | "desc" };
+
+/** Most recently touched first, which is what the list did before it could sort. */
+export const DEFAULT_CAMPAIGN_SORT: CampaignSort = { key: "updated", dir: "desc" };
+
+export function isDefaultCampaignSort(sort: CampaignSort): boolean {
+  return sort.key === DEFAULT_CAMPAIGN_SORT.key && sort.dir === DEFAULT_CAMPAIGN_SORT.dir;
+}
+
+export function readCampaignSort(
+  sp: Record<string, string | string[] | undefined>
+): CampaignSort {
+  const key = firstParam(sp.sort);
+  const dir = firstParam(sp.dir);
+  if (!key || !(CAMPAIGN_SORT_KEYS as readonly string[]).includes(key)) {
+    return DEFAULT_CAMPAIGN_SORT;
+  }
+  return { key: key as CampaignSortKey, dir: dir === "asc" ? "asc" : "desc" };
+}
+
+export function campaignOrderBy(sort: CampaignSort): Prisma.CampaignOrderByWithRelationInput[] {
+  const { dir } = sort;
+  // Every branch ends with id, for the reason the creator list documents below:
+  // 519 campaigns share only 516 distinct updatedAt values and 505 distinct
+  // titles, and Postgres promises no order within a tie. With skip/take that
+  // lets a tie straddling a page boundary show one campaign twice and another
+  // never. The list was ordering by updatedAt alone before this.
+  const tiebreak: Prisma.CampaignOrderByWithRelationInput = { id: "asc" };
+  switch (sort.key) {
+    case "created":
+      return [{ createdAt: dir }, tiebreak];
+    case "updated":
+    default:
+      return [{ updatedAt: dir }, tiebreak];
+  }
+}
+
 export const CREATOR_SORT_KEYS = ["name", "posts", "added"] as const;
 export type CreatorSortKey = (typeof CREATOR_SORT_KEYS)[number];
 export type CreatorSort = { key: CreatorSortKey; dir: "asc" | "desc" };
