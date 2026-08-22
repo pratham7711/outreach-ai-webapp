@@ -37,6 +37,11 @@ export function AudioCard({ audio, shareToken }: { audio: CampaignAudio; shareTo
   const uses = audio.uses === null ? "—" : formatCompact(audio.uses);
   const added = audio.videosAdded24h === null ? "—" : `+${formatCompact(audio.videosAdded24h)}`;
 
+  /* Usage is how many videos use the sound; Velocity is how fast that is moving.
+     CreatorCore puts both behind this toggle over one chart, and they are two
+     questions about the same series rather than two datasets. */
+  const [view, setView] = useState<"usage" | "velocity">("usage");
+
   return (
     <Card>
       <div style={{ padding: 20 }}>
@@ -97,21 +102,62 @@ export function AudioCard({ audio, shareToken }: { audio: CampaignAudio; shareTo
           </a>
 
           <Stat label="Audio Uses" value={uses} />
-          <Stat label="Videos Added (24h)" value={added} />
+          {/* Not "(24h)": a snapshot is taken whenever a sync runs, so the delta
+              is between the last two readings and calling that a day would be a
+              claim about a cadence we do not keep. CreatorCore's own label reads
+              "Videos Added (Since..." -- truncated in their markup, not by CSS --
+              so there is no exact string to match here. */}
+          <Stat label="Videos Added (Since Last Sync)" value={added} />
         </div>
 
         {/* One point is not a curve; the chart appears once there are two. */}
         {audio.usageSeries.length > 1 ? (
-          <div style={{ height: 180 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 8 }}>
-              Audio Usage
+          <div style={{ height: 210 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 8 }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>Audio Usage</span>
+              <div role="tablist" aria-label="Audio chart view" style={{ display: "flex", gap: 4 }}>
+                {(["usage", "velocity"] as const).map((key) => (
+                  <button
+                    key={key}
+                    type="button"
+                    role="tab"
+                    aria-selected={view === key}
+                    onClick={() => setView(key)}
+                    style={{
+                      fontSize: 12, fontWeight: 600, padding: "4px 10px", borderRadius: 999,
+                      cursor: "pointer", textTransform: "capitalize",
+                      border: `1px solid ${view === key ? "var(--cc-primary)" : "var(--cc-border)"}`,
+                      background: view === key ? "var(--cc-primary)" : "var(--cc-card)",
+                      color: view === key ? "white" : "var(--cc-text-muted)",
+                    }}
+                  >
+                    {key}
+                  </button>
+                ))}
+              </div>
             </div>
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="82%">
               <AreaChart data={audio.usageSeries} margin={{ top: 4, right: 8, left: -12, bottom: 0 }}>
                 <XAxis dataKey="date" tick={{ fontSize: 11, fill: "var(--cc-text-muted)" }} tickLine={false} axisLine={false} />
-                <YAxis tick={{ fontSize: 11, fill: "var(--cc-text-muted)" }} tickLine={false} axisLine={false} tickFormatter={(v) => formatCompact(Number(v))} />
-                <Tooltip formatter={(v) => formatCompact(Number(v))} labelStyle={{ fontSize: 12 }} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-                <Area type="monotone" dataKey="uses" stroke="var(--cc-primary)" fill="var(--cc-primary)" fillOpacity={0.14} strokeWidth={2} />
+                <YAxis
+                  tick={{ fontSize: 11, fill: "var(--cc-text-muted)" }}
+                  tickLine={false}
+                  axisLine={false}
+                  tickFormatter={(v) => (view === "velocity" ? `${Number(v).toFixed(0)}%` : formatCompact(Number(v)))}
+                />
+                <Tooltip
+                  formatter={(v) => (view === "velocity" ? `${Number(v).toFixed(2)}%` : formatCompact(Number(v)))}
+                  labelStyle={{ fontSize: 12 }}
+                  contentStyle={{ fontSize: 12, borderRadius: 8 }}
+                />
+                <Area
+                  type="monotone"
+                  dataKey={view === "velocity" ? "velocity" : "uses"}
+                  stroke="var(--cc-primary)"
+                  fill="var(--cc-primary)"
+                  fillOpacity={0.14}
+                  strokeWidth={2}
+                />
               </AreaChart>
             </ResponsiveContainer>
           </div>

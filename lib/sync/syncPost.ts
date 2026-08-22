@@ -132,6 +132,15 @@ export async function applyPostMetrics(
            for a non-nullable column, even after a later sync learned the real
            one. On the reference campaign that was all seventeen of them. */
         ...(metrics.postedAt ? { postedAt: metrics.postedAt } : {}),
+        /* The platform answered with this post's numbers, so the post is up.
+           Nothing else in this codebase ever wrote fetchState, so "Live Posts"
+           had no source at all despite the column existing.
+
+           Only ever LIVE, never the reverse: a fetch that fails is far more
+           often our network than a deleted post -- every TikTok fetch fails from
+           here -- and writing UNAVAILABLE on that would tell a brand its
+           creators had taken the campaign down. */
+        fetchState: "LIVE" as const,
         lastSyncedAt: new Date(),
         ...counts,
         engagementRate,

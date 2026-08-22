@@ -256,6 +256,9 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
             campaign's own tab and the shared link tell one story. A counter no
             post has measured has no tile -- see lib/metricDisplay. */}
         <MetricTile metric="totalPosts" value={formatNumber(kpis.posts)} />
+        {kpis.livePosts !== null && (
+          <MetricTile metric="livePosts" value={formatNumber(kpis.livePosts)} />
+        )}
         <MetricTile metric="views" value={formatNumber(kpis.views)} />
         {kpis.likes !== null && (
           <MetricTile metric="totalLikes" value={formatNumber(kpis.likes)} />

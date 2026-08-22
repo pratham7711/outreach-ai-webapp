@@ -32,6 +32,17 @@ export type CampaignPerformance = {
      * absent instead of claiming a campaign earned zero saves.
      */
     posts: number;
+    /**
+     * Posts still live on their platform, or null unless every post on the
+     * campaign has been reached at least once.
+     *
+     * fetchState is only set by a sync that actually got a post's numbers back,
+     * so a null there means "we have never managed to look", not "gone". A count
+     * taken over just the reached posts would be read against the total anyway --
+     * "17 posts, 16 live" says a creator deleted one -- so a partial answer is
+     * worse than no tile.
+     */
+    livePosts: number | null;
     likes: number | null;
     comments: number | null;
     shares: number | null;
@@ -115,8 +126,14 @@ export type CampaignAudio = {
   soundUrl: string;
   uses: number | null;
   videosAdded24h: number | null;
-  /** Oldest to newest, for the usage curve. Empty until the sound is synced. */
-  usageSeries: { date: string; uses: number }[];
+  /**
+   * Oldest to newest, for the usage curve. Empty until the sound is synced.
+   *
+   * `velocity` is the percentage change from the reading before it, which is what
+   * CreatorCore's Velocity view of this chart plots -- the same series, asked a
+   * different question: Usage is how many, Velocity is how fast.
+   */
+  usageSeries: { date: string; uses: number; velocity: number }[];
 };
 
 /**
@@ -204,6 +221,7 @@ export async function computeCampaignPerformance(
       downloadsCount: true,
       lastSyncedAt: true,
       platformMetrics: true,
+      fetchState: true,
       creator: { select: { id: true, name: true, handle: true, avatarUrl: true } },
     },
   });
@@ -290,12 +308,23 @@ export async function computeCampaignPerformance(
   const unwritten = (pick: (p: (typeof posts)[number]) => number | null | undefined) =>
     sumWhere(pick, (p) => unwrittenMetricValue(pick(p)));
 
+  /* Every post, or no tile. A count over the reached subset reads as a count over
+     all of them -- "17 posts, 16 live" tells a brand a creator deleted one, when
+     the truth was that one Instagram fetch had flaked and we simply did not know.
+     != null so an absent key reads the same as an explicit null. */
+  const reached = posts.filter((p) => p.fetchState != null);
+  const livePosts =
+    posts.length > 0 && reached.length === posts.length
+      ? reached.filter((p) => p.fetchState === "LIVE").length
+      : null;
+
   const kpis = {
     views,
     engagements,
     engagementRate,
     emv,
     posts: posts.length,
+    livePosts,
     likes: totalOf("likes", (p) => p.likesCount),
     comments: totalOf("comments", (p) => p.commentsCount),
     shares: totalOf("shares", (p) => p.sharesCount),
@@ -501,7 +530,7 @@ async function loadCampaignAudio(campaignId: string): Promise<CampaignAudio | nu
      the chart, which reads left to right. */
   const snaps = await db.soundTrackerSnapshot.findMany({
     where: { soundId: sound.id },
-    select: { usesCount: true, videosAdded24h: true, recordedAt: true },
+    select: { usesCount: true, videosAdded24h: true, velocityScore: true, recordedAt: true },
     orderBy: { recordedAt: "desc" },
     take: 60,
   });
@@ -521,6 +550,10 @@ async function loadCampaignAudio(campaignId: string): Promise<CampaignAudio | nu
     usageSeries: snaps
       .slice()
       .reverse()
-      .map((s) => ({ date: s.recordedAt.toISOString().slice(0, 10), uses: s.usesCount })),
+      .map((s) => ({
+        date: s.recordedAt.toISOString().slice(0, 10),
+        uses: s.usesCount,
+        velocity: s.velocityScore,
+      })),
   };
 }

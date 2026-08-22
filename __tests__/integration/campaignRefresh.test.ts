@@ -160,6 +160,21 @@ describe('single post sync', () => {
     expect(written.platformMetrics.__measured).toEqual(['views', 'likes', 'comments', 'shares']);
   });
 
+  it('marks a post live when the platform answered, and never the reverse', async () => {
+    mockFetch.mockResolvedValue(withCounts);
+    await syncReq();
+    expect(mockDb.post.update.mock.calls[0][0].data.fetchState).toBe('LIVE');
+
+    // A fetch that came back with nothing is our network far more often than a
+    // deleted post -- every TikTok fetch fails from here -- so it says nothing.
+    jest.clearAllMocks();
+    mockDb.post.findFirst.mockResolvedValue(post);
+    mockDb.post.update.mockImplementation(({ data }: any) => Promise.resolve({ id: 'post-1', ...data }));
+    mockFetch.mockResolvedValue(noCounts);
+    await syncReq();
+    expect(mockDb.post.update.mock.calls[0][0].data).not.toHaveProperty('fetchState');
+  });
+
   it('reports an unusable URL as 422 rather than a silent success', async () => {
     mockFetch.mockResolvedValue(null);
 

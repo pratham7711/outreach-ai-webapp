@@ -135,6 +135,11 @@ export const METRIC_DEFINITIONS = {
     what: "How many pieces of content your creators published in the selected range.",
     how: "Counts every tracked post.",
   },
+  livePosts: {
+    label: "Live posts",
+    what: "How many of the tracked posts are still up on their platform. A creator deleting a post does not remove it from the campaign, so this can be lower than total posts.",
+    how: "Counts posts last inspected as live. Absent entirely until at least one post on the campaign has been inspected, because an uninspected post is neither known-live nor known-gone.",
+  },
   totalShares: {
     label: "Total shares",
     what: "How often people sent the posts to someone else. A share reaches an audience the post was never served to.",

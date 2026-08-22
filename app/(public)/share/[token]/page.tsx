@@ -87,7 +87,7 @@ export default async function SharedReportPage({
   const link = await db.report.findUnique({
     where: { shareToken: token },
     include: {
-      campaign: { select: { id: true, orgId: true, title: true, budget: true, currency: true } },
+      campaign: { select: { id: true, orgId: true, title: true, budget: true, currency: true, status: true } },
     },
   });
 
@@ -116,6 +116,7 @@ export default async function SharedReportPage({
       // payload, so a conditionally-rendered leaderboard still publishes every
       // creator name to anyone who reads the HTML.
       data={redactForShare(performance, visibility)}
+      campaignStatus={link.campaign.status}
       visibility={visibility}
       // Only reaches the client when the link is allowed to show it, so a
       // hidden budget is absent from the payload rather than merely unrendered.

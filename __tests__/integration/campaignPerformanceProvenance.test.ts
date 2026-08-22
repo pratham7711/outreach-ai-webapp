@@ -42,6 +42,8 @@ function post(over: Record<string, unknown> = {}) {
     sharesCount: 0,
     savesCount: 0,
     lastSyncedAt: null,
+    // Never inspected, which is the state of every imported post.
+    fetchState: null,
     creator,
     ...over,
   };
@@ -281,6 +283,49 @@ describe("computeCampaignPerformance per-counter totals", () => {
     expect(result.kpis.saves).toBeNull();
     // Views are carried by every source, including the import, so both count.
     expect(result.kpis.views).toBe(1500);
+  });
+
+  it("says nothing about live posts until something has been inspected", async () => {
+    // fetchState is nullable and only /api/posts/inspect writes it. Counting
+    // nulls as live would report a deleted post as standing; counting them as
+    // dead would report a healthy campaign as gone.
+    mockDb.post.findMany.mockResolvedValue([
+      post({ id: "a", viewsCount: 100 }),
+      post({ id: "b", viewsCount: 200 }),
+    ]);
+
+    const result = await computeCampaignPerformance(campaign);
+
+    expect(result.kpis.posts).toBe(2);
+    expect(result.kpis.livePosts).toBeNull();
+  });
+
+  it("counts the live ones once every post has been reached", async () => {
+    mockDb.post.findMany.mockResolvedValue([
+      post({ id: "a", viewsCount: 100, fetchState: "LIVE" }),
+      post({ id: "b", viewsCount: 200, fetchState: "UNAVAILABLE" }),
+      post({ id: "c", viewsCount: 300, fetchState: "LIVE" }),
+    ]);
+
+    const result = await computeCampaignPerformance(campaign);
+
+    expect(result.kpis.posts).toBe(3);
+    expect(result.kpis.livePosts).toBe(2);
+  });
+
+  it("withholds the count while even one post has never been reached", async () => {
+    // "3 posts, 2 live" would say a creator deleted one. The truth is that the
+    // third has never been fetched, which is a different statement entirely.
+    mockDb.post.findMany.mockResolvedValue([
+      post({ id: "a", viewsCount: 100, fetchState: "LIVE" }),
+      post({ id: "b", viewsCount: 200, fetchState: "LIVE" }),
+      post({ id: "c", viewsCount: 300 }),
+    ]);
+
+    const result = await computeCampaignPerformance(campaign);
+
+    expect(result.kpis.posts).toBe(3);
+    expect(result.kpis.livePosts).toBeNull();
   });
 
   it("counts saves and downloads only where something actually wrote them", async () => {

@@ -21,6 +21,15 @@ const SERIES = [
   { key: "YOUTUBE", color: platformColor("YOUTUBE") },
 ] as const;
 
+/* CreatorCore prints "In-Progress", not the enum. */
+const CAMPAIGN_STATUS_LABEL: Record<string, string> = {
+  DRAFT: "Draft",
+  PENDING: "Pending",
+  IN_PROGRESS: "In-Progress",
+  COMPLETE: "Complete",
+  CANCELLED: "Canceled",
+};
+
 function formatNumber(num: number): string {
   return formatCompact(num);
 }
@@ -88,11 +97,14 @@ export default function SharedPerformanceReport({
   data,
   visibility = DEFAULT_SHARE_VISIBILITY,
   budget = null,
+  campaignStatus = null,
 }: {
   token: string;
   campaignTitle: string;
   data: SharedReportData;
   visibility?: ShareVisibility;
+  /** The campaign's own status, which CreatorCore's report shows as a tile. */
+  campaignStatus?: string | null;
   /** Already gated by the server — null both when hidden and when unset. */
   budget?: number | null;
 }) {
@@ -229,6 +241,15 @@ export default function SharedPerformanceReport({
                   no tile at all -- printing "Total Saves 0" to a brand would
                   claim a measurement the public TikTok payload never carries. */}
               <StatTile value={formatExact(kpis.posts)} label="Total Posts" />
+              {/* Both of these lead CreatorCore's report. Live Posts is absent
+                  rather than zero when nothing has been inspected -- see the
+                  livePosts note on the seam. */}
+              {kpis.livePosts !== null && (
+                <StatTile value={formatExact(kpis.livePosts)} label="Live Posts" />
+              )}
+              {campaignStatus && (
+                <StatTile value={CAMPAIGN_STATUS_LABEL[campaignStatus] ?? campaignStatus} label="Status" />
+              )}
               <StatTile value={formatExact(kpis.views)} label="Total Views" />
               {kpis.likes !== null && (
                 <StatTile value={formatExact(kpis.likes)} label="Total Likes" />
