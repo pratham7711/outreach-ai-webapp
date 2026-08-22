@@ -58,7 +58,7 @@ that needs a human (a credential, a paid API, a ToS acceptance).
 - [x] Posts table — every column header and cell
 - [x] Audio / sound card — cover, uses, 24h delta, usage curve
 - [x] Creator roster tab — columns, avatars, per-creator totals
-- [ ] Charts — series present, axis labels, totals agreeing with the tiles
+- [x] Charts — series present, axis labels, totals agreeing with the tiles
 - [ ] Filters and sorts — every control, and that each changes the result set
 - [x] Share / client report — what a link shows vs the reference report
 - [ ] Empty, loading and error states
@@ -83,6 +83,7 @@ gone by re-extracting. The measurement quoted is the one taken after the fix.
 | A link could not point at a campaign tab | the tab lived in `useState`, so the URL never named it | 7 cases: three deep links, default, two clicks, one bogus value |
 | The roster showed `0 followers` for all 25 creators | nothing had ever written `Creator.followersCount`, and the roster printed the `Float @default(0)` as a measurement | 14/14 TikTok creators filled from a payload we already fetch — `@awxyken` 1.3M |
 | The roster had no Rate column | the number was in the row data and never rendered | column renders, `—` where no rate was agreed |
+| The Views-by-Platform pie drew a frame around no data | unguarded call site, unlike the bar chart three lines below it | every chart call site now guarded; sweep reports zero |
 
 ## Known ceilings
 
@@ -118,6 +119,20 @@ Not defects, and not worth re-litigating each sweep:
   CDN fetches and, from an ISP that filters TikTok, some come back 502; the
   route's year-long immutable cache means the warm load has one failure. Left
   alone: a retry would multiply requests against a CDN that is rate-limiting us.
+
+## Reading a chart sweep
+
+Two traps, both hit once:
+
+- **Count the right elements.** A Recharts pie draws `.recharts-sector`, not
+  `path.recharts-curve` — a detector that looks only for curves, bars and dots
+  reports a perfectly good pie as an empty chart. The two 240px charts on the
+  Analytics tab read "0 series" until the selector included sectors.
+- **Guard at the call site, not in the component.** The chart components take
+  data as a prop and correctly render whatever they are given, so grepping them
+  for a guard flags all of them. What matters is the mount site: `{rows.length >
+  0 ? <Chart/> : <EmptyState/>}`. Checking the wrong layer produced eleven
+  findings, none of them real.
 
 ## Still open on swept surfaces
 

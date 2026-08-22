@@ -758,9 +758,17 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
               {/* Platform breakdown */}
               <Card variant="outlined" style={{ padding: 24 }}>
                 <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)", display: "block", marginBottom: 16 }}>Views by Platform</span>
-                <div style={{ height: 240 }}>
-                  <PlatformViewsPie data={platformPieData} formatNumber={formatNumber} />
-                </div>
+                {/* platformPieData drops every platform with no measured views,
+                    so a campaign whose posts have never synced leaves it empty --
+                    and an unguarded pie draws 240px of frame and legend around
+                    nothing. The bar chart beside it has always had this guard. */}
+                {platformPieData.length > 0 ? (
+                  <div style={{ height: 240 }}>
+                    <PlatformViewsPie data={platformPieData} formatNumber={formatNumber} />
+                  </div>
+                ) : (
+                  <EmptyState icon={<TrendingUp size={32} color="var(--cc-text-subtle)" />} title="No views measured yet" />
+                )}
               </Card>
 
               {/* Creator performance */}
