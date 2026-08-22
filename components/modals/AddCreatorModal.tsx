@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Modal, Button, Input } from "@pratham7711/ui";
+import { Dropdown } from "@/components/ds";
 
 export default function AddCreatorModal({ onClose }: { onClose: () => void }) {
   const router = useRouter();
@@ -41,17 +42,6 @@ export default function AddCreatorModal({ onClose }: { onClose: () => void }) {
     }
   };
 
-  const selectStyle = {
-    width: "100%",
-    padding: "10px 14px",
-    borderRadius: 10,
-    border: "1px solid var(--cc-border)",
-    fontSize: 14,
-    color: "var(--cc-text)",
-    outline: "none",
-    background: "var(--cc-card)",
-    boxSizing: "border-box" as const,
-  };
 
   const labelStyle = {
     display: "block" as const,
@@ -93,17 +83,19 @@ export default function AddCreatorModal({ onClose }: { onClose: () => void }) {
         />
         <div>
           <label htmlFor="creator-platform" style={labelStyle}>Platform</label>
-          <select
-            id="creator-platform"
+          <Dropdown
+            ariaLabel="Platform"
+            align="left"
+            fullWidth
             value={form.platform}
-            onChange={(e) => setForm((f) => ({ ...f, platform: e.target.value }))}
-            style={selectStyle}
-          >
-            <option value="INSTAGRAM">Instagram</option>
-            <option value="TIKTOK">TikTok</option>
-            <option value="YOUTUBE">YouTube</option>
-            <option value="TWITTER">Twitter / X</option>
-          </select>
+            onChange={(v) => setForm((f) => ({ ...f, platform: v }))}
+            options={[
+              { value: "INSTAGRAM", label: "Instagram" },
+              { value: "TIKTOK", label: "TikTok" },
+              { value: "YOUTUBE", label: "YouTube" },
+              { value: "TWITTER", label: "Twitter / X" },
+            ]}
+          />
         </div>
         <div style={{ display: "flex", gap: 12 }}>
           <div style={{ flex: 1 }}>

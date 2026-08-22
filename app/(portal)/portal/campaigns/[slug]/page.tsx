@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { ArrowLeft, ExternalLink, CheckCircle2, Download, AlertTriangle, Video } from "lucide-react";
 import { formatDateAbs } from "@/lib/format";
 import { ConnectPrompt } from "@/components/portal/ConnectPrompt";
+import { Dropdown } from "@/components/ds";
 
 type Rates = Partial<Record<"TIKTOK" | "INSTAGRAM" | "YOUTUBE", number>>;
 
@@ -372,16 +373,18 @@ function CampaignDetailInner() {
                 <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>
                   Content type
                 </label>
-                <select
+                <Dropdown
+                  ariaLabel="Content type"
+                  align="left"
+                  fullWidth
+                  size="md"
                   value={draftMediaType}
-                  onChange={(e) => setDraftMediaType(e.target.value)}
-                  style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-border)", fontSize: 14, color: "var(--cc-text)", background: "var(--cc-card)", outline: "none" }}
-                >
-                  <option value="">Not specified</option>
-                  {MEDIA_TYPES.map((m) => (
-                    <option key={m} value={m}>{m}</option>
-                  ))}
-                </select>
+                  onChange={setDraftMediaType}
+                  options={[
+                    { value: "", label: "Not specified" },
+                    ...MEDIA_TYPES.map((m) => ({ value: m, label: m })),
+                  ]}
+                />
               </div>
               <div style={{ display: "flex", justifyContent: "flex-end" }}>
                 <Button variant="primary" loading={submittingDraft}>

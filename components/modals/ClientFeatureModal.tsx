@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { Modal, Button, Badge } from "@pratham7711/ui";
 import { FEATURES, type FeatureKey } from "@/lib/features";
+import { Dropdown } from "@/components/ds";
 
 const featureKeys = Object.keys(FEATURES) as FeatureKey[];
 
@@ -104,16 +105,6 @@ export default function ClientFeatureModal({ open, onClose, client, plans, onSav
     transition: "all 0.15s",
   });
 
-  const selectStyle = {
-    flex: 1,
-    padding: "10px 14px",
-    borderRadius: 10,
-    fontSize: 14,
-    border: "1px solid var(--cc-border)",
-    background: "var(--cc-card)",
-    color: "var(--cc-text)",
-    outline: "none",
-  };
 
   return (
     <Modal
@@ -148,16 +139,17 @@ export default function ClientFeatureModal({ open, onClose, client, plans, onSav
             Plan Assignment
           </label>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <select
+            <Dropdown
+              ariaLabel="Plan Assignment"
+              align="left"
+              fullWidth
               value={selectedPlanId}
-              onChange={(e) => setSelectedPlanId(e.target.value)}
-              style={selectStyle}
-            >
-              <option value="">— No plan —</option>
-              {plans.map((p) => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
-            </select>
+              onChange={setSelectedPlanId}
+              options={[
+                { value: "", label: "— No plan —" },
+                ...plans.map((p) => ({ value: p.id, label: p.name })),
+              ]}
+            />
             {selectedPlan && (
               <span style={{ fontSize: 12, color: "var(--cc-text-muted)", whiteSpace: "nowrap" }}>
                 {featureKeys.filter((k) => selectedPlan.features[k]).length}/{featureKeys.length} features

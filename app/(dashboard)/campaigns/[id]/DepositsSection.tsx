@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Card, Badge, Button, Input, Modal, EmptyState, Skeleton } from "@pratham7711/ui";
 import { DollarSign, CreditCard } from "lucide-react";
 import { formatDateAbs } from "@/lib/format";
+import { Dropdown } from "@/components/ds";
 
 type Deposit = {
   id: string;
@@ -93,17 +94,6 @@ export default function DepositsSection({ campaignId }: { campaignId: string }) 
     }
   };
 
-  const selectStyle = {
-    width: "100%",
-    padding: "10px 14px",
-    borderRadius: 10,
-    border: "1px solid var(--cc-border)",
-    fontSize: 14,
-    color: "var(--cc-text)",
-    background: "var(--cc-card)",
-    outline: "none",
-    boxSizing: "border-box" as const,
-  };
 
   if (loading) return <Skeleton width="100%" height="120px" borderRadius="12px" />;
 
@@ -177,26 +167,49 @@ export default function DepositsSection({ campaignId }: { campaignId: string }) 
               </div>
               <div style={{ width: 110 }}>
                 <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Currency</label>
-                <select value={createForm.currency} onChange={(e) => setCreateForm(f => ({ ...f, currency: e.target.value }))} style={selectStyle}>
-                  <option>USD</option><option>EUR</option><option>GBP</option><option>INR</option>
-                </select>
+                <Dropdown
+                    ariaLabel="Currency"
+                    align="left"
+                    fullWidth
+                    value={createForm.currency}
+                    onChange={(v) => setCreateForm(f => ({ ...f, currency: v }))}
+                    options={["USD", "EUR", "GBP", "INR"].map((c) => ({ value: c, label: c }))}
+                  />
               </div>
             </div>
             <div>
               <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Payment Gateway</label>
-              <select value={createForm.gateway} onChange={(e) => setCreateForm(f => ({ ...f, gateway: e.target.value }))} style={selectStyle}>
-                <option value="STRIPE">Stripe</option>
-                <option value="RAZORPAY">Razorpay</option>
-              </select>
+              <Dropdown
+                ariaLabel="Payment Gateway"
+                align="left"
+                fullWidth
+                value={createForm.gateway}
+                onChange={(v) => setCreateForm(f => ({ ...f, gateway: v }))}
+                options={[
+                  { value: "STRIPE", label: "Stripe" },
+                  { value: "RAZORPAY", label: "Razorpay" },
+                ]}
+              />
             </div>
             <div>
               <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Payment Method</label>
-              <select value={createForm.method} onChange={(e) => setCreateForm(f => ({ ...f, method: e.target.value }))} style={selectStyle}>
-                <option value="">Select...</option>
-                <option value="CARD">Card</option><option value="UPI">UPI</option><option value="NEFT">NEFT</option>
-                <option value="IMPS">IMPS</option><option value="RTGS">RTGS</option><option value="ENACH">eNACH</option>
-                <option value="WIRE">Wire Transfer</option>
-              </select>
+              <Dropdown
+                ariaLabel="Payment Method"
+                align="left"
+                fullWidth
+                value={createForm.method}
+                onChange={(v) => setCreateForm(f => ({ ...f, method: v }))}
+                options={[
+                  { value: "", label: "Select..." },
+                  { value: "CARD", label: "Card" },
+                  { value: "UPI", label: "UPI" },
+                  { value: "NEFT", label: "NEFT" },
+                  { value: "IMPS", label: "IMPS" },
+                  { value: "RTGS", label: "RTGS" },
+                  { value: "ENACH", label: "eNACH" },
+                  { value: "WIRE", label: "Wire Transfer" },
+                ]}
+              />
             </div>
           </div>
         </Modal>

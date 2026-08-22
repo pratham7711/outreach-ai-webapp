@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Modal, Button, Input } from "@pratham7711/ui";
+import { Dropdown } from "@/components/ds";
 
 type Client = { id: string; name: string };
 
@@ -43,17 +44,6 @@ export default function NewCampaignModal({ clients, onClose }: { clients: Client
     }
   };
 
-  const selectStyle = {
-    width: "100%",
-    padding: "10px 14px",
-    borderRadius: 10,
-    border: "1px solid var(--cc-border)",
-    fontSize: 14,
-    color: "var(--cc-text)",
-    outline: "none",
-    background: "var(--cc-card)",
-    boxSizing: "border-box" as const,
-  };
 
   const labelStyle = {
     display: "block" as const,
@@ -88,45 +78,49 @@ export default function NewCampaignModal({ clients, onClose }: { clients: Client
         />
         <div>
           <label htmlFor="campaign-client" style={labelStyle}>Client</label>
-          <select
-            id="campaign-client"
+          <Dropdown
+            ariaLabel="Client"
+            align="left"
+            fullWidth
             value={form.clientId}
-            onChange={(e) => setForm((f) => ({ ...f, clientId: e.target.value }))}
-            style={selectStyle}
-          >
-            <option value="">No client</option>
-            {clients.map((c) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
+            onChange={(v) => setForm((f) => ({ ...f, clientId: v }))}
+            options={[
+              { value: "", label: "No client" },
+              ...clients.map((c) => ({ value: c.id, label: c.name })),
+            ]}
+          />
         </div>
         <div>
           <label htmlFor="campaign-status" style={labelStyle}>Status</label>
-          <select
-            id="campaign-status"
+          <Dropdown
+            ariaLabel="Status"
+            align="left"
+            fullWidth
             value={form.status}
-            onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
-            style={selectStyle}
-          >
-            <option value="DRAFT">Draft</option>
-            <option value="PENDING">Pending</option>
-            <option value="IN_PROGRESS">In Progress</option>
-            <option value="COMPLETE">Complete</option>
-          </select>
+            onChange={(v) => setForm((f) => ({ ...f, status: v }))}
+            options={[
+              { value: "DRAFT", label: "Draft" },
+              { value: "PENDING", label: "Pending" },
+              { value: "IN_PROGRESS", label: "In Progress" },
+              { value: "COMPLETE", label: "Complete" },
+            ]}
+          />
         </div>
         <div>
           <label htmlFor="campaign-type" style={labelStyle}>Campaign Type</label>
-          <select
-            id="campaign-type"
+          <Dropdown
+            ariaLabel="Campaign Type"
+            align="left"
+            fullWidth
             value={form.campaignType}
-            onChange={(e) => setForm((f) => ({ ...f, campaignType: e.target.value }))}
-            style={selectStyle}
-          >
-            <option value="BUDGET_BASED">Budget Based</option>
-            <option value="VIEW_BASED">View Based</option>
-            <option value="OPEN_COMMUNITY">Open Community</option>
-            <option value="PRIVATE_INVITE">Private Invite</option>
-          </select>
+            onChange={(v) => setForm((f) => ({ ...f, campaignType: v }))}
+            options={[
+              { value: "BUDGET_BASED", label: "Budget Based" },
+              { value: "VIEW_BASED", label: "View Based" },
+              { value: "OPEN_COMMUNITY", label: "Open Community" },
+              { value: "PRIVATE_INVITE", label: "Private Invite" },
+            ]}
+          />
         </div>
         <div style={{ display: "flex", gap: 12 }}>
           <div style={{ flex: 1 }}>
@@ -140,17 +134,14 @@ export default function NewCampaignModal({ clients, onClose }: { clients: Client
           </div>
           <div style={{ width: 110 }}>
             <label htmlFor="campaign-currency" style={labelStyle}>Currency</label>
-            <select
-              id="campaign-currency"
+            <Dropdown
+              ariaLabel="Currency"
+              align="left"
+              fullWidth
               value={form.currency}
-              onChange={(e) => setForm((f) => ({ ...f, currency: e.target.value }))}
-              style={selectStyle}
-            >
-              <option>USD</option>
-              <option>EUR</option>
-              <option>GBP</option>
-              <option>INR</option>
-            </select>
+              onChange={(v) => setForm((f) => ({ ...f, currency: v }))}
+              options={["USD", "EUR", "GBP", "INR"].map((c) => ({ value: c, label: c }))}
+            />
           </div>
         </div>
       </form>

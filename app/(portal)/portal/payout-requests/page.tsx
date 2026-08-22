@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Card, Badge, Button, Skeleton, EmptyState, Input, Modal } from "@pratham7711/ui";
-import { MetricTile } from "@/components/ds";
+import { Dropdown, MetricTile } from "@/components/ds";
 import { toast } from "sonner";
 import { DollarSign, Clock, CheckCircle, XCircle, Plus, Banknote } from "lucide-react";
 import { formatDateAbs } from "@/lib/format";
@@ -241,27 +241,21 @@ export default function PortalPayoutRequestsPage() {
               <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>
                 Campaign
               </label>
-              <select
+              <Dropdown
+                ariaLabel="Campaign"
+                align="left"
+                fullWidth
+                size="md"
                 value={selectedCampaignId}
-                onChange={(e) => setSelectedCampaignId(e.target.value)}
-                style={{
-                  width: "100%",
-                  padding: "9px 12px",
-                  borderRadius: 8,
-                  border: "1px solid var(--cc-border)",
-                  background: "var(--cc-card)",
-                  color: "var(--cc-text)",
-                  fontSize: 14,
-                  outline: "none",
-                }}
-              >
-                <option value="">Select a campaign</option>
-                {campaigns.map((p) => (
-                  <option key={p.campaign.id} value={p.campaign.id}>
-                    {p.campaign.title} ({formatCurrency(p.proposedRate, p.currency)})
-                  </option>
-                ))}
-              </select>
+                onChange={setSelectedCampaignId}
+                options={[
+                  { value: "", label: "Select a campaign" },
+                  ...campaigns.map((p) => ({
+                    value: p.campaign.id,
+                    label: `${p.campaign.title} (${formatCurrency(p.proposedRate, p.currency)})`,
+                  })),
+                ]}
+              />
             </div>
             <Input
               label="Amount"

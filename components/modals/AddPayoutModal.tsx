@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Modal, Button, Input } from "@pratham7711/ui";
+import { Dropdown } from "@/components/ds";
 
 type Creator = { id: string; name: string; handle: string };
 type Campaign = { id: string; title: string };
@@ -49,17 +50,6 @@ export default function AddPayoutModal({
     }
   };
 
-  const selectStyle = {
-    width: "100%",
-    padding: "10px 14px",
-    borderRadius: 10,
-    border: "1px solid var(--cc-border)",
-    fontSize: 14,
-    color: "var(--cc-text)",
-    outline: "none",
-    background: "var(--cc-card)",
-    boxSizing: "border-box" as const,
-  };
 
   const labelStyle = {
     display: "block" as const,
@@ -95,30 +85,31 @@ export default function AddPayoutModal({
       <form id="add-payout-form" onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         <div>
           <label style={labelStyle}>Creator *</label>
-          <select
-            required
+          <Dropdown
+            ariaLabel="Creator"
+            align="left"
+            fullWidth
             value={form.creatorId}
-            onChange={(e) => setForm((f) => ({ ...f, creatorId: e.target.value }))}
-            style={selectStyle}
-          >
-            <option value="">Select creator...</option>
-            {creators.map((c) => (
-              <option key={c.id} value={c.id}>{c.name} ({c.handle})</option>
-            ))}
-          </select>
+            onChange={(v) => setForm((f) => ({ ...f, creatorId: v }))}
+            options={[
+              { value: "", label: "Select creator..." },
+              ...creators.map((c) => ({ value: c.id, label: `${c.name} (${c.handle})` })),
+            ]}
+          />
         </div>
         <div>
           <label style={labelStyle}>Campaign (optional)</label>
-          <select
+          <Dropdown
+            ariaLabel="Campaign"
+            align="left"
+            fullWidth
             value={form.campaignId}
-            onChange={(e) => setForm((f) => ({ ...f, campaignId: e.target.value }))}
-            style={selectStyle}
-          >
-            <option value="">No campaign</option>
-            {campaigns.map((c) => (
-              <option key={c.id} value={c.id}>{c.title}</option>
-            ))}
-          </select>
+            onChange={(v) => setForm((f) => ({ ...f, campaignId: v }))}
+            options={[
+              { value: "", label: "No campaign" },
+              ...campaigns.map((c) => ({ value: c.id, label: c.title })),
+            ]}
+          />
         </div>
         <div style={{ display: "flex", gap: 12 }}>
           <div style={{ flex: 1 }}>
@@ -133,16 +124,14 @@ export default function AddPayoutModal({
           </div>
           <div style={{ width: 110 }}>
             <label style={labelStyle}>Currency</label>
-            <select
+            <Dropdown
+              ariaLabel="Currency"
+              align="left"
+              fullWidth
               value={form.currency}
-              onChange={(e) => setForm((f) => ({ ...f, currency: e.target.value }))}
-              style={selectStyle}
-            >
-              <option>USD</option>
-              <option>EUR</option>
-              <option>GBP</option>
-              <option>INR</option>
-            </select>
+              onChange={(v) => setForm((f) => ({ ...f, currency: v }))}
+              options={["USD", "EUR", "GBP", "INR"].map((c) => ({ value: c, label: c }))}
+            />
           </div>
         </div>
       </form>

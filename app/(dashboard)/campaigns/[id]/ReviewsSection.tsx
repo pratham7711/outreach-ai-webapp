@@ -4,6 +4,7 @@ import { Card, Badge, Button, EmptyState, Skeleton, Avatar, Modal } from "@prath
 import { Star } from "lucide-react";
 import { toast } from "sonner";
 import { stripAt, formatDateAbs } from "@/lib/format";
+import { Dropdown } from "@/components/ds";
 
 type Activation = {
   id: string;
@@ -254,28 +255,22 @@ export default function ReviewsSection({
       >
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           {/* Creator select */}
-          <select
-            value={form.creatorId}
-            onChange={(e) => setForm((f) => ({ ...f, creatorId: e.target.value }))}
-            style={{
-              width: "100%",
-              height: 38,
-              borderRadius: 8,
-              border: "1px solid var(--cc-border)",
-              padding: "0 12px",
-              background: "var(--cc-card)",
-              color: "var(--cc-text)",
-              marginBottom: 16,
-              fontSize: 14,
-            }}
-          >
-            <option value="">Select a creator...</option>
-            {unreviewedActivations.map((act) => (
-              <option key={act.creator.id} value={act.creator.id}>
-                {act.creator.name} (@{stripAt(act.creator.handle)})
-              </option>
-            ))}
-          </select>
+          <div style={{ marginBottom: 16 }}>
+            <Dropdown
+              ariaLabel="Creator"
+              align="left"
+              fullWidth
+              value={form.creatorId}
+              onChange={(v) => setForm((f) => ({ ...f, creatorId: v }))}
+              options={[
+                { value: "", label: "Select a creator..." },
+                ...unreviewedActivations.map((act) => ({
+                  value: act.creator.id,
+                  label: `${act.creator.name} (@${stripAt(act.creator.handle)})`,
+                })),
+              ]}
+            />
+          </div>
 
           {/* Star picker */}
           <div>

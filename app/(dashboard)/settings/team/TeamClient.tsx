@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Mail, Trash2, Users, Clock, User } from "lucide-react";
 import { Button, Card, Badge, Avatar, EmptyState, Modal, Input } from "@pratham7711/ui";
+import { Dropdown } from "@/components/ds";
 
 type User = {
   id: string;
@@ -300,25 +301,17 @@ export default function TeamClient({ users, invites }: { users: User[]; invites:
             <label style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6, display: "block" }}>
               Role
             </label>
-            <select
+            <Dropdown
+              ariaLabel="Role"
+              align="left"
+              fullWidth
               value={inviteRole}
-              onChange={(e) => setInviteRole(e.target.value)}
-              style={{
-                width: "100%",
-                padding: "9px 12px",
-                borderRadius: 8,
-                border: "1px solid var(--cc-border)",
-                fontSize: 14,
-                color: "var(--cc-text)",
-                background: "var(--cc-card)",
-                cursor: "pointer",
-                outline: "none",
-              }}
-            >
-              {ROLE_OPTIONS.map((r) => (
-                <option key={r} value={r}>{r.charAt(0) + r.slice(1).toLowerCase()}</option>
-              ))}
-            </select>
+              onChange={setInviteRole}
+              options={ROLE_OPTIONS.map((r) => ({
+                value: r,
+                label: r.charAt(0) + r.slice(1).toLowerCase(),
+              }))}
+            />
           </div>
           {error && (
             <div style={{ fontSize: 13, color: "var(--cc-danger)", background: "color-mix(in srgb, var(--cc-danger) 14%, transparent)", padding: "8px 12px", borderRadius: 8 }}>

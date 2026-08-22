@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Modal, Button, Input, Badge } from "@pratham7711/ui";
 import { ChevronLeft, ChevronRight, Check } from "lucide-react";
+import { Dropdown } from "@/components/ds";
 
 type Client = { id: string; name: string };
 
@@ -241,10 +242,17 @@ export default function CampaignWizard({ clients, onClose }: { clients: Client[]
           />
           <div>
             <label htmlFor="wz-client" style={labelStyle}>Client</label>
-            <select id="wz-client" value={form.clientId} onChange={(e) => set({ clientId: e.target.value })} style={selectStyle}>
-              <option value="">No client</option>
-              {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
+            <Dropdown
+              ariaLabel="Client"
+              align="left"
+              fullWidth
+              value={form.clientId}
+              onChange={(v) => set({ clientId: v })}
+              options={[
+                { value: "", label: "No client" },
+                ...clients.map((c) => ({ value: c.id, label: c.name })),
+              ]}
+            />
           </div>
           <Input
             label="Thumbnail URL"
@@ -293,12 +301,14 @@ export default function CampaignWizard({ clients, onClose }: { clients: Client[]
             </div>
             <div style={{ width: 110 }}>
               <label htmlFor="wz-currency" style={labelStyle}>Currency</label>
-              <select id="wz-currency" value={form.currency} onChange={(e) => set({ currency: e.target.value as WizardForm["currency"] })} style={selectStyle}>
-                <option>USD</option>
-                <option>EUR</option>
-                <option>GBP</option>
-                <option>INR</option>
-              </select>
+              <Dropdown
+                ariaLabel="Currency"
+                align="left"
+                fullWidth
+                value={form.currency}
+                onChange={(v) => set({ currency: v as WizardForm["currency"] })}
+                options={["USD", "EUR", "GBP", "INR"].map((c) => ({ value: c, label: c }))}
+              />
             </div>
           </div>
         </div>

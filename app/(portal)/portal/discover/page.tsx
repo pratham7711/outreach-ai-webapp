@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Card, Badge, Button, Input, Modal, EmptyState, Skeleton } from "@pratham7711/ui";
 import { Search, DollarSign, Users, FileText, Send, ArrowLeft, ArrowRight } from "lucide-react";
+import { Dropdown } from "@/components/ds";
 
 type Campaign = {
   id: string;
@@ -150,16 +151,18 @@ export default function PortalDiscoverPage() {
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>Sort:</span>
-              <select
+              <Dropdown
+                ariaLabel="Sort"
+                minWidth={150}
                 value={sort}
-                onChange={e => setSort(e.target.value)}
-                style={{ padding: "7px 12px", borderRadius: 8, border: "1px solid var(--cc-border)", fontSize: 13, color: "var(--cc-text)", background: "var(--cc-card)", outline: "none" }}
-              >
-                <option value="newest">Newest First</option>
-                <option value="budget_desc">Highest Budget</option>
-                <option value="budget_asc">Lowest Budget</option>
-                <option value="proposals_desc">Most Proposals</option>
-              </select>
+                onChange={setSort}
+                options={[
+                  { value: "newest", label: "Newest First" },
+                  { value: "budget_desc", label: "Highest Budget" },
+                  { value: "budget_asc", label: "Lowest Budget" },
+                  { value: "proposals_desc", label: "Most Proposals" },
+                ]}
+              />
             </div>
           </div>
         );

@@ -7,6 +7,7 @@ import { Card, EmptyState, Skeleton, Button, Modal } from "@pratham7711/ui";
 import { ArrowLeft, Star, MessageSquare } from "lucide-react";
 import { formatDateAbs } from "@/lib/format";
 import { toast } from "sonner";
+import { Dropdown } from "@/components/ds";
 
 type Review = {
   id: string;
@@ -275,34 +276,28 @@ export default function PortalReviewsPage() {
         >
           Campaign
         </label>
-        <select
-          value={form.campaignId}
-          onChange={(e) => {
-            const p = acceptedProposals.find((p) => p.campaignId === e.target.value);
-            setForm((f) => ({
-              ...f,
-              campaignId: e.target.value,
-              orgId: p?.campaign?.org?.id ?? "",
-            }));
-          }}
-          style={{
-            width: "100%",
-            height: 38,
-            borderRadius: 8,
-            border: "1px solid var(--cc-border)",
-            marginBottom: 16,
-            padding: "0 12px",
-          }}
-        >
-          <option value="">Select campaign...</option>
-          {acceptedProposals
-            .filter((p) => !testimonials.some((t) => t.campaign?.id === p.campaignId))
-            .map((p) => (
-              <option key={p.campaignId} value={p.campaignId}>
-                {p.campaign?.title}
-              </option>
-            ))}
-        </select>
+        <div style={{ marginBottom: 16 }}>
+          <Dropdown
+            ariaLabel="Campaign"
+            align="left"
+            fullWidth
+            value={form.campaignId}
+            onChange={(v) => {
+              const p = acceptedProposals.find((p) => p.campaignId === v);
+              setForm((f) => ({
+                ...f,
+                campaignId: v,
+                orgId: p?.campaign?.org?.id ?? "",
+              }));
+            }}
+            options={[
+              { value: "", label: "Select campaign..." },
+              ...acceptedProposals
+                .filter((p) => !testimonials.some((t) => t.campaign?.id === p.campaignId))
+                .map((p) => ({ value: p.campaignId, label: p.campaign?.title ?? "Untitled" })),
+            ]}
+          />
+        </div>
 
         <label
           style={{

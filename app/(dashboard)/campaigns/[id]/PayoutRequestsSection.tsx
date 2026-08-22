@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Card, Badge, Button, Input, Modal, EmptyState, Skeleton } from "@pratham7711/ui";
-import { StatusTabs } from "@/components/ds";
+import { Dropdown, StatusTabs } from "@/components/ds";
 import { Banknote, Check, X } from "lucide-react";
 import { CreatorSelect } from "@/components/CreatorSelect";
 import { formatDateAbs } from "@/lib/format";
@@ -206,9 +206,14 @@ export default function PayoutRequestsSection({ campaignId }: { campaignId: stri
               </div>
               <div style={{ width: 110 }}>
                 <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Currency</label>
-                <select value={form.currency} onChange={(e) => setForm(f => ({ ...f, currency: e.target.value }))} style={selectStyle}>
-                  <option>USD</option><option>EUR</option><option>GBP</option><option>INR</option>
-                </select>
+                <Dropdown
+                    ariaLabel="Currency"
+                    align="left"
+                    fullWidth
+                    value={form.currency}
+                    onChange={(v) => setForm(f => ({ ...f, currency: v }))}
+                    options={["USD", "EUR", "GBP", "INR"].map((c) => ({ value: c, label: c }))}
+                  />
               </div>
             </div>
           </div>

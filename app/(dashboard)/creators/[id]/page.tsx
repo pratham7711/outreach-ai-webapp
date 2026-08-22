@@ -8,7 +8,7 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Card, Badge, Avatar, EmptyState, Skeleton, Modal, Input, Tooltip } from "@pratham7711/ui";
-import { MetricTile } from "@/components/ds";
+import { Dropdown, MetricTile } from "@/components/ds";
 import { formatCompact, formatDateAbs, platformLabel } from "@/lib/format";
 
 function formatNumber(num: number): string {
@@ -358,25 +358,14 @@ function EditCreatorModal({ open, onClose, creator, onSaved }: { open: boolean; 
         <Input label="Handle" value={form.handle} onChange={(e: React.ChangeEvent<HTMLInputElement>) => set("handle", e.target.value)} required />
         <div>
           <label htmlFor="edit-creator-platform" style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Platform</label>
-          <select
-            id="edit-creator-platform"
+          <Dropdown
+            ariaLabel="Platform"
+            align="left"
+            fullWidth
             value={form.platform}
-            onChange={e => set("platform", e.target.value)}
-            style={{
-              width: "100%",
-              border: "1px solid var(--cc-border)",
-              borderRadius: 8,
-              padding: "9px 10px",
-              fontSize: 14,
-              color: "var(--cc-text)",
-              background: "var(--cc-card)",
-              cursor: "pointer",
-            }}
-          >
-            {["INSTAGRAM", "TIKTOK", "YOUTUBE", "TWITTER"].map(p => (
-              <option key={p} value={p}>{p}</option>
-            ))}
-          </select>
+            onChange={v => set("platform", v)}
+            options={["INSTAGRAM", "TIKTOK", "YOUTUBE", "TWITTER"].map((p) => ({ value: p, label: p }))}
+          />
         </div>
         <div>
           <label htmlFor="edit-creator-bio" style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Bio</label>
@@ -757,19 +746,14 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                     <div>
                       <label htmlFor="add-social-platform" style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--cc-text)", marginBottom: 4 }}>Platform</label>
-                      <select
-                        id="add-social-platform"
+                      <Dropdown
+                        ariaLabel="Platform"
+                        align="left"
+                        fullWidth
                         value={addSocialForm.platform}
-                        onChange={e => setAddSocialForm(prev => ({ ...prev, platform: e.target.value }))}
-                        style={{
-                          width: "100%", border: "1px solid var(--cc-border)", borderRadius: 8,
-                          padding: "8px 10px", fontSize: 13, color: "var(--cc-text)", background: "var(--cc-card)",
-                        }}
-                      >
-                        {["INSTAGRAM", "TIKTOK", "YOUTUBE", "TWITTER"].map(p => (
-                          <option key={p} value={p}>{p}</option>
-                        ))}
-                      </select>
+                        onChange={v => setAddSocialForm(prev => ({ ...prev, platform: v }))}
+                        options={["INSTAGRAM", "TIKTOK", "YOUTUBE", "TWITTER"].map((p) => ({ value: p, label: p }))}
+                      />
                     </div>
                     <Input
                       label="Handle"

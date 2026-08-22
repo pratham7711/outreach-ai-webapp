@@ -7,7 +7,7 @@ import Link from "next/link";
 import { Button, Input, Badge, EmptyState, Card, Avatar } from "@pratham7711/ui";
 import ClientFeatureModal from "@/components/modals/ClientFeatureModal";
 import { FEATURES, type FeatureKey } from "@/lib/features";
-import { useConfirm } from "@/components/ds";
+import { Dropdown, useConfirm } from "@/components/ds";
 
 const featureKeys = Object.keys(FEATURES) as FeatureKey[];
 
@@ -462,20 +462,22 @@ export default function FeatureAccessClient({ clients: initialClients, plans }: 
             {selected.size} client{selected.size > 1 ? "s" : ""} selected
           </span>
           <div className="rsp-hide-mobile" style={{ width: 1, height: 20, background: "rgba(255,255,255,0.2)" }} />
-          <select
+          <Dropdown
+            ariaLabel="Bulk plan"
+            align="left"
+            minWidth={130}
             value={bulkPlanId}
-            onChange={(e) => setBulkPlanId(e.target.value)}
-            style={{
+            onChange={setBulkPlanId}
+            options={[
+              { value: "", label: "No Plan" },
+              ...plans.map((p) => ({ value: p.id, label: p.name })),
+            ]}
+            triggerStyle={{
               padding: "6px 10px", borderRadius: 6, fontSize: 12,
               background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.2)",
-              color: "white", outline: "none",
+              color: "white",
             }}
-          >
-            <option value="">No Plan</option>
-            {plans.map((p) => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
-          </select>
+          />
           <Button variant="primary" size="sm" loading={bulkSaving} onClick={handleBulkAssign}>
             Assign Plan
           </Button>

@@ -5,6 +5,7 @@ import { Card, Badge, Button, Input, Modal, EmptyState, Skeleton, Tag } from "@p
 import { Handshake, Check, X, ArrowRightLeft, Sparkles, AlertTriangle } from "lucide-react";
 import { CreatorSelect, type PickableCreator } from "@/components/CreatorSelect";
 import { stripAt } from "@/lib/format";
+import { Dropdown } from "@/components/ds";
 
 type Offer = {
   id: string;
@@ -443,16 +444,14 @@ export default function NegotiationsSection({
                 >
                   Currency
                 </label>
-                <select
+                <Dropdown
+                  ariaLabel="Currency"
+                  align="left"
+                  fullWidth
                   value={form.currency}
-                  onChange={(e) => setForm((f) => ({ ...f, currency: e.target.value }))}
-                  style={selectStyle}
-                >
-                  <option>USD</option>
-                  <option>EUR</option>
-                  <option>GBP</option>
-                  <option>INR</option>
-                </select>
+                  onChange={(v) => setForm((f) => ({ ...f, currency: v }))}
+                  options={["USD", "EUR", "GBP", "INR"].map((c) => ({ value: c, label: c }))}
+                />
               </div>
             </div>
             <div>
@@ -512,16 +511,14 @@ export default function NegotiationsSection({
                 >
                   Currency
                 </label>
-                <select
+                <Dropdown
+                  ariaLabel="Currency"
+                  align="left"
+                  fullWidth
                   value={batch.currency}
-                  onChange={(e) => setBatch((b) => ({ ...b, currency: e.target.value }))}
-                  style={selectStyle}
-                >
-                  <option>USD</option>
-                  <option>EUR</option>
-                  <option>GBP</option>
-                  <option>INR</option>
-                </select>
+                  onChange={(v) => setBatch((b) => ({ ...b, currency: v }))}
+                  options={["USD", "EUR", "GBP", "INR"].map((c) => ({ value: c, label: c }))}
+                />
               </div>
             </div>
             <div>

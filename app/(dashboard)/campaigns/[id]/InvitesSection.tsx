@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Card, Badge, Button, Modal, EmptyState, Skeleton } from "@pratham7711/ui";
 import { Send, Copy, RotateCcw, X, Mail, Sparkles } from "lucide-react";
 import { CreatorSelect } from "@/components/CreatorSelect";
+import { Dropdown } from "@/components/ds";
 import { formatDateAbs } from "@/lib/format";
 import { OutreachDraftPanel } from "@/components/ai/OutreachDraftPanel";
 
@@ -125,17 +126,6 @@ export default function InvitesSection({ campaignId }: { campaignId: string }) {
     setTimeout(() => setCopied(null), 2000);
   };
 
-  const selectStyle = {
-    width: "100%",
-    padding: "10px 14px",
-    borderRadius: 10,
-    border: "1px solid var(--cc-border)",
-    fontSize: 14,
-    color: "var(--cc-text)",
-    background: "var(--cc-card)",
-    outline: "none",
-    boxSizing: "border-box" as const,
-  };
 
   if (loading) return <Skeleton width="100%" height="100px" borderRadius="12px" />;
 
@@ -218,10 +208,17 @@ export default function InvitesSection({ campaignId }: { campaignId: string }) {
             </div>
             <div>
               <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Channel</label>
-              <select value={form.channel} onChange={(e) => setForm(f => ({ ...f, channel: e.target.value }))} style={selectStyle}>
-                <option value="LINK">Shareable Link</option>
-                <option value="INSTAGRAM_DM">Instagram DM</option>
-              </select>
+              <Dropdown
+                ariaLabel="Channel"
+                align="left"
+                fullWidth
+                value={form.channel}
+                onChange={(v) => setForm(f => ({ ...f, channel: v }))}
+                options={[
+                  { value: "LINK", label: "Shareable Link" },
+                  { value: "INSTAGRAM_DM", label: "Instagram DM" },
+                ]}
+              />
             </div>
             {draftError && (
               <div role="alert" style={{ padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-danger)", background: "color-mix(in srgb, var(--cc-danger) 8%, transparent)", fontSize: 13, color: "var(--cc-danger)" }}>

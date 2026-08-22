@@ -6,6 +6,7 @@ import { Card, Input, Button, Skeleton, Textarea, Badge, Tag } from "@pratham771
 import { toast } from "sonner";
 import { Save } from "lucide-react";
 import type { PlatformCapability } from "@/lib/capabilities";
+import { Dropdown } from "@/components/ds";
 
 const PLATFORMS = [
   { value: "TIKTOK", label: "TikTok" },
@@ -244,25 +245,17 @@ export default function PortalSettingsPage() {
             <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>
               Primary Platform
             </label>
-            <select
+            <Dropdown
+              ariaLabel="Primary Platform"
+              align="left"
+              fullWidth
               value={form.platform ?? ""}
-              onChange={(e) => set({ platform: e.target.value || null })}
-              style={{
-                width: "100%",
-                padding: "8px 12px",
-                borderRadius: 8,
-                border: "1px solid var(--cc-border)",
-                background: "var(--cc-card)",
-                color: "var(--cc-text)",
-                fontSize: 14,
-                outline: "none",
-              }}
-            >
-              <option value="">Select platform</option>
-              {PLATFORMS.map((p) => (
-                <option key={p.value} value={p.value}>{p.label}</option>
-              ))}
-            </select>
+              onChange={(v) => set({ platform: v || null })}
+              options={[
+                { value: "", label: "Select platform" },
+                ...PLATFORMS.map((p) => ({ value: p.value, label: p.label })),
+              ]}
+            />
           </div>
         </Card>
 

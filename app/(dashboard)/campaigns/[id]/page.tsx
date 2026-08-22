@@ -4,7 +4,7 @@ import { useState, useEffect, use } from "react";
 import dynamic from "next/dynamic";
 import { motion } from "framer-motion";
 import { Card, Badge, Button, EmptyState, Avatar, Skeleton, Modal } from "@pratham7711/ui";
-import { MetricTile } from "@/components/ds";
+import { Dropdown, MetricTile } from "@/components/ds";
 import PostsTab from "./PostsTab";
 import ActivityFeed from "./ActivityFeed";
 import DraftsTab from "./DraftsTab";
@@ -777,25 +777,30 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                 <div className="rsp-grid-2">
                   <div>
                     <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Status</label>
-                    <select
+                    <Dropdown
+                      ariaLabel="Status"
+                      size="md"
+                      fullWidth
+                      align="left"
                       value={editForm.status}
-                      onChange={e => setEditForm(f => ({ ...f, status: e.target.value }))}
-                      style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-border)", fontSize: 14, color: "var(--cc-text)", background: "var(--cc-card)", outline: "none" }}
-                    >
-                      {["DRAFT", "PENDING", "IN_PROGRESS", "COMPLETE", "CANCELLED"].map(s => (
-                        <option key={s} value={s}>{s.replace(/_/g, " ")}</option>
-                      ))}
-                    </select>
+                      onChange={v => setEditForm(f => ({ ...f, status: v }))}
+                      options={["DRAFT", "PENDING", "IN_PROGRESS", "COMPLETE", "CANCELLED"].map(s => ({
+                        value: s,
+                        label: s.replace(/_/g, " "),
+                      }))}
+                    />
                   </div>
                   <div>
                     <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Currency</label>
-                    <select
+                    <Dropdown
+                      ariaLabel="Currency"
+                      size="md"
+                      fullWidth
+                      align="left"
                       value={editForm.currency}
-                      onChange={e => setEditForm(f => ({ ...f, currency: e.target.value }))}
-                      style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-border)", fontSize: 14, color: "var(--cc-text)", background: "var(--cc-card)", outline: "none" }}
-                    >
-                      {["USD", "EUR", "GBP", "INR"].map(c => <option key={c} value={c}>{c}</option>)}
-                    </select>
+                      onChange={v => setEditForm(f => ({ ...f, currency: v }))}
+                      options={["USD", "EUR", "GBP", "INR"].map(c => ({ value: c, label: c }))}
+                    />
                   </div>
                 </div>
                 <div>
@@ -816,15 +821,19 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                 </div>
                 <div>
                   <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Client</label>
-                  <select
+                  <Dropdown
+                    ariaLabel="Client"
+                    size="md"
+                    fullWidth
+                    align="left"
                     value={editForm.clientId}
-                    onChange={e => setEditForm(f => ({ ...f, clientId: e.target.value }))}
-                    onFocus={fetchClients}
-                    style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-border)", fontSize: 14, color: "var(--cc-text)", background: "var(--cc-card)", outline: "none" }}
-                  >
-                    <option value="">No client</option>
-                    {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
+                    onChange={v => setEditForm(f => ({ ...f, clientId: v }))}
+                    onOpen={fetchClients}
+                    options={[
+                      { value: "", label: "No client" },
+                      ...clients.map(c => ({ value: c.id, label: c.name })),
+                    ]}
+                  />
                 </div>
                 <div>
                   <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Notes</label>

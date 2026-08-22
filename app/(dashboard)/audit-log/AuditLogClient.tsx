@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Search, RefreshCw, Filter, Download, Receipt } from "lucide-react";
-import { Pagination } from "@/components/ds";
+import { Dropdown, Pagination } from "@/components/ds";
 import { Card, EmptyState, LoadingSpinner } from "@pratham7711/ui";
 
 type AuditLogItem = {
@@ -169,31 +169,37 @@ export default function AuditLogClient({
         <div className="audit-filters" style={{ padding: 16, borderBottom: "1px solid var(--cc-border)" }}>
           <div>
             <label style={{ display: "block", fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--cc-text-subtle)", marginBottom: 6 }}>Action</label>
-            <select
+            <Dropdown
+              ariaLabel="Action"
+              align="left"
+              fullWidth
               value={action}
-              onChange={(e) => {
+              onChange={(v) => {
                 setPage(1);
-                setAction(e.target.value);
+                setAction(v);
               }}
-              style={{ width: "100%", height: 38, borderRadius: 10, border: "1px solid var(--cc-border)", background: "var(--cc-card)", color: "var(--cc-text)", padding: "0 12px" }}
-            >
-              <option value="">All actions</option>
-              {actions.map((item) => <option key={item} value={item}>{item}</option>)}
-            </select>
+              options={[
+                { value: "", label: "All actions" },
+                ...actions.map((item) => ({ value: item, label: item })),
+              ]}
+            />
           </div>
           <div>
             <label style={{ display: "block", fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--cc-text-subtle)", marginBottom: 6 }}>Entity</label>
-            <select
+            <Dropdown
+              ariaLabel="Entity"
+              align="left"
+              fullWidth
               value={entityType}
-              onChange={(e) => {
+              onChange={(v) => {
                 setPage(1);
-                setEntityType(e.target.value);
+                setEntityType(v);
               }}
-              style={{ width: "100%", height: 38, borderRadius: 10, border: "1px solid var(--cc-border)", background: "var(--cc-card)", color: "var(--cc-text)", padding: "0 12px" }}
-            >
-              <option value="">All entities</option>
-              {entityTypes.map((item) => <option key={item} value={item}>{item}</option>)}
-            </select>
+              options={[
+                { value: "", label: "All entities" },
+                ...entityTypes.map((item) => ({ value: item, label: item })),
+              ]}
+            />
           </div>
           <div>
             <label style={{ display: "block", fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--cc-text-subtle)", marginBottom: 6 }}>Search</label>

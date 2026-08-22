@@ -117,36 +117,15 @@ function FolderSelect({
 
   return (
     <span style={{ display: "inline-flex", flexDirection: "column", gap: 4, alignItems: "flex-end" }}>
-      <select
-        aria-label="Campaign folder"
+      <Dropdown
+        ariaLabel="Campaign folder"
         value={value}
         disabled={saving}
-        onChange={(e) => change(e.target.value)}
-        style={{
-          appearance: "none",
-          background: "var(--cc-card)",
-          color: value ? "var(--cc-text)" : "var(--cc-text-muted)",
-          border: "1px solid var(--cc-border)",
-          borderRadius: 8,
-          padding: "6px 26px 6px 10px",
-          fontSize: 13,
-          fontWeight: 600,
-          maxWidth: 150,
-          cursor: saving ? "progress" : "pointer",
-          opacity: saving ? 0.65 : 1,
-          backgroundImage:
-            "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' stroke='%239097B4' stroke-width='1.6' fill='none' stroke-linecap='round'/></svg>\")",
-          backgroundRepeat: "no-repeat",
-          backgroundPosition: "right 9px center",
-        }}
-      >
-        <option value="">Unfiled</option>
-        {folders.map((f) => (
-          <option key={f.id} value={f.id}>
-            {f.name}
-          </option>
-        ))}
-      </select>
+        onChange={change}
+        minWidth={120}
+        maxWidth={150}
+        options={[{ value: "", label: "Unfiled" }, ...folders.map((f) => ({ value: f.id, label: f.name }))]}
+      />
       {error && (
         <span style={{ fontSize: 11, color: "#DC2626", maxWidth: 160, textAlign: "right" }} role="alert">
           {error}
@@ -157,8 +136,13 @@ function FolderSelect({
 }
 
 function CampaignThumb({ title, src, size = 44 }: { title: string; src?: string | null; size?: number }) {
+  // Initials were only used when there was no URL at all. An image that had a
+  // URL but failed to load -- a dead CDN link, an undecodable HEIC, a host the
+  // proxy refuses -- left an empty bordered square where the artwork should be,
+  // which reads as a broken page rather than a campaign without a picture.
+  const [broken, setBroken] = useState(false);
   const url = imgSrc(src, size * 2); // doubled for retina
-  if (!url) return <Avatar name={title} size="md" />;
+  if (!url || broken) return <Avatar name={title} size="md" />;
   return (
     <span
       style={{
@@ -180,6 +164,7 @@ function CampaignThumb({ title, src, size = 44 }: { title: string; src?: string 
         decoding="async"
         width={size}
         height={size}
+        onError={() => setBroken(true)}
         style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
       />
     </span>
@@ -235,35 +220,15 @@ function StatusSelect({ id, status }: { id: string; status: string }) {
 
   return (
     <span style={{ display: "inline-flex", flexDirection: "column", gap: 4, alignItems: "flex-end" }}>
-      <select
-        aria-label="Campaign status"
+      <Dropdown
+        ariaLabel="Campaign status"
         value={value}
         disabled={saving}
-        onChange={(e) => change(e.target.value)}
-        style={{
-          appearance: "none",
-          background: "var(--cc-primary)",
-          color: "white",
-          border: "none",
-          borderRadius: 8,
-          padding: "7px 26px 7px 12px",
-          fontSize: 13,
-          fontWeight: 600,
-          cursor: saving ? "progress" : "pointer",
-          opacity: saving ? 0.65 : 1,
-          // The caret the appearance reset removed, drawn back in white.
-          backgroundImage:
-            "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' stroke='white' stroke-width='1.6' fill='none' stroke-linecap='round'/></svg>\")",
-          backgroundRepeat: "no-repeat",
-          backgroundPosition: "right 9px center",
-        }}
-      >
-        {STATUS_OPTIONS.map((o) => (
-          <option key={o.value} value={o.value} style={{ color: "var(--cc-text)", background: "var(--cc-card)" }}>
-            {o.label}
-          </option>
-        ))}
-      </select>
+        onChange={change}
+        variant="primary"
+        minWidth={124}
+        options={STATUS_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+      />
       {error && (
         <span role="alert" style={{ fontSize: 11, color: "var(--cc-danger)", maxWidth: 180, textAlign: "right" }}>
           {error}

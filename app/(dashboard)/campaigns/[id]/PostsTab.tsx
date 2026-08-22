@@ -3,7 +3,7 @@
 import React from "react";
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { Card, Badge, Button, Input, Modal, EmptyState, Skeleton, Avatar } from "@pratham7711/ui";
-import { StatusTabs, Pagination } from "@/components/ds";
+import { Dropdown, StatusTabs, Pagination } from "@/components/ds";
 import { Grid3X3, List, Plus, Check, X, Eye, Heart, MessageCircle, TrendingUp, BarChart3, ArrowUp, ArrowDown, ArrowUpDown, Flag, Video, AlertTriangle, RefreshCw, Image as ImageIcon } from "lucide-react";
 import { CreatorSelect } from "@/components/CreatorSelect";
 import Link from "next/link";
@@ -691,12 +691,22 @@ export default function PostsTab({
             aria-label="Posted on or before"
             style={{ ...selectStyle, width: 140 }}
           />
-          <select value={platformFilter} onChange={(e) => setPlatformFilter(e.target.value)} aria-label="Filter by platform" style={selectStyle}>
-            {PLATFORM_FILTERS.map((p) => <option key={p} value={p}>{p === "ALL" ? "All Platforms" : p}</option>)}
-          </select>
-          <select value={mediaTypeFilter} onChange={(e) => setMediaTypeFilter(e.target.value)} aria-label="Filter by media type" style={selectStyle}>
-            {MEDIA_TYPE_FILTERS.map((m) => <option key={m} value={m}>{m === "ALL" ? "All Types" : m}</option>)}
-          </select>
+          <Dropdown
+            ariaLabel="Filter by platform"
+            align="left"
+            minWidth={150}
+            value={platformFilter}
+            onChange={setPlatformFilter}
+            options={PLATFORM_FILTERS.map((p) => ({ value: p, label: p === "ALL" ? "All Platforms" : p }))}
+          />
+          <Dropdown
+            ariaLabel="Filter by media type"
+            align="left"
+            minWidth={140}
+            value={mediaTypeFilter}
+            onChange={setMediaTypeFilter}
+            options={MEDIA_TYPE_FILTERS.map((m) => ({ value: m, label: m === "ALL" ? "All Types" : m }))}
+          />
 
           <div style={{ display: "flex", border: "1px solid var(--cc-border)", borderRadius: 8, overflow: "hidden" }}>
             <button onClick={() => setViewMode("list")} aria-label="List view" aria-pressed={viewMode === "list"} style={{ padding: "6px 10px", background: viewMode === "list" ? "var(--cc-bg)" : "var(--cc-card)", border: "none", cursor: "pointer" }}>
@@ -1015,14 +1025,21 @@ export default function PostsTab({
             </div>
             <div>
               <label htmlFor="add-post-mediatype" style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Media Type</label>
-              <select id="add-post-mediatype" value={addForm.mediaType} onChange={(e) => setAddForm((f) => ({ ...f, mediaType: e.target.value }))} style={{ ...selectStyle, width: "100%" }}>
-                <option value="">Auto-detect</option>
-                <option value="REEL">Reel</option>
-                <option value="STORY">Story</option>
-                <option value="POST">Post</option>
-                <option value="SHORT">Short</option>
-                <option value="VIDEO">Video</option>
-              </select>
+              <Dropdown
+                ariaLabel="Media Type"
+                align="left"
+                fullWidth
+                value={addForm.mediaType}
+                onChange={(v) => setAddForm((f) => ({ ...f, mediaType: v }))}
+                options={[
+                  { value: "", label: "Auto-detect" },
+                  { value: "REEL", label: "Reel" },
+                  { value: "STORY", label: "Story" },
+                  { value: "POST", label: "Post" },
+                  { value: "SHORT", label: "Short" },
+                  { value: "VIDEO", label: "Video" },
+                ]}
+              />
             </div>
           </div>
         </Modal>

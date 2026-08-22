@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { ChevronLeft, ChevronRight, Check, Search, Users, Info } from "lucide-react";
 import { computeSelfServeBudget } from "@/lib/campaigns/selfServeBudget";
 import { stripAt, formatCompact } from "@/lib/format";
+import { Dropdown } from "@/components/ds";
 
 type Currency = "USD" | "EUR" | "GBP" | "INR";
 type Platform = "TIKTOK" | "INSTAGRAM" | "YOUTUBE" | "TWITTER";
@@ -274,16 +275,15 @@ export default function SelfServeWizard({
               </div>
               <div style={{ width: 120 }}>
                 <label htmlFor="ss-currency" style={labelStyle}>Currency</label>
-                <select
-                  id="ss-currency"
+                <Dropdown
+                  ariaLabel="Currency"
+                  align="left"
+                  fullWidth
+                  size="md"
                   value={currency}
-                  onChange={(e) => setCurrency(e.target.value as Currency)}
-                  style={controlStyle}
-                >
-                  {CURRENCIES.map((c) => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
-                </select>
+                  onChange={(v) => setCurrency(v as Currency)}
+                  options={CURRENCIES.map((c) => ({ value: c, label: c }))}
+                />
               </div>
             </div>
             <div>
@@ -311,14 +311,30 @@ export default function SelfServeWizard({
                   iconLeft={<Search size={16} />}
                 />
               </div>
-              <select value={platformFilter} onChange={(e) => setPlatformFilter(e.target.value as Platform | "")} style={{ ...controlStyle, width: "auto", minWidth: 130, flex: "0 0 auto" }}>
-                <option value="">All platforms</option>
-                {PLATFORMS.map((p) => <option key={p} value={p}>{p}</option>)}
-              </select>
-              <select value={nicheFilter} onChange={(e) => setNicheFilter(e.target.value)} style={{ ...controlStyle, width: "auto", minWidth: 130, flex: "0 0 auto" }}>
-                <option value="">All niches</option>
-                {NICHES.map((n) => <option key={n} value={n}>{n.charAt(0) + n.slice(1).toLowerCase()}</option>)}
-              </select>
+              <Dropdown
+                ariaLabel="Platform"
+                align="left"
+                size="md"
+                minWidth={130}
+                value={platformFilter}
+                onChange={(v) => setPlatformFilter(v as Platform | "")}
+                options={[
+                  { value: "", label: "All platforms" },
+                  ...PLATFORMS.map((p) => ({ value: p, label: p })),
+                ]}
+              />
+              <Dropdown
+                ariaLabel="Niche"
+                align="left"
+                size="md"
+                minWidth={130}
+                value={nicheFilter}
+                onChange={setNicheFilter}
+                options={[
+                  { value: "", label: "All niches" },
+                  ...NICHES.map((n) => ({ value: n, label: n.charAt(0) + n.slice(1).toLowerCase() })),
+                ]}
+              />
             </div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
               <div style={{ flex: "1 1 160px" }}>

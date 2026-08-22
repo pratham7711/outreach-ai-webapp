@@ -471,27 +471,17 @@ export default function DiscoveryPage() {
             >
               List
             </label>
-            <select
-              value={selectedListId}
-              onChange={(e) => setSelectedListId(e.target.value)}
-              style={{
-                width: "100%",
-                padding: "10px 12px",
-                borderRadius: 10,
-                border: "1px solid var(--cc-border)",
-                background: "var(--cc-card)",
-                color: "var(--cc-text)",
-                fontSize: 14,
-                marginBottom: 20,
-                outline: "none",
-              }}
-            >
-              {lists.map((list) => (
-                <option key={list.id} value={list.id}>
-                  {list.name}
-                </option>
-              ))}
-            </select>
+            <div style={{ marginBottom: 20 }}>
+              <Dropdown
+                ariaLabel="List"
+                align="left"
+                fullWidth
+                size="md"
+                value={selectedListId}
+                onChange={setSelectedListId}
+                options={lists.map((list) => ({ value: list.id, label: list.name }))}
+              />
+            </div>
 
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
               <Button

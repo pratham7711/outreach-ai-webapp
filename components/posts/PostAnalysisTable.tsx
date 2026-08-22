@@ -3,7 +3,7 @@
 import React, { useMemo, useState } from "react";
 import Link from "next/link";
 import { Badge } from "@pratham7711/ui";
-import { SortableTh, numericCell, useTableSort, type SortAccessors } from "@/components/ds";
+import { Dropdown, SortableTh, numericCell, type SortAccessors, useTableSort } from "@/components/ds";
 import { formatCompact, formatDateTimeAbs, platformLabel, stripAt, timeAgo } from "@/lib/format";
 import { PLATFORM_FILTER_OPTIONS } from "@/lib/platforms/constants";
 
@@ -105,26 +105,39 @@ export function PostAnalysisTable({
           aria-label="Search posts"
           style={{ ...selectStyle, flex: 1, minWidth: 200 }}
         />
-        <select aria-label="Platform" value={platform} onChange={(e) => setPlatform(e.target.value)} style={selectStyle}>
-          {PLATFORM_FILTER_OPTIONS.map((o) => (
-            <option key={o.key} value={o.key}>{o.label}</option>
-          ))}
-        </select>
+        <Dropdown
+          ariaLabel="Platform"
+          align="left"
+          minWidth={150}
+          value={platform}
+          onChange={setPlatform}
+          options={PLATFORM_FILTER_OPTIONS.map((o) => ({ value: o.key, label: o.label }))}
+        />
         {campaigns.length > 1 && (
-          <select aria-label="Campaign" value={campaign} onChange={(e) => setCampaign(e.target.value)} style={selectStyle}>
-            <option value="ALL">All campaigns</option>
-            {campaigns.map((c) => (
-              <option key={c.id} value={c.id}>{c.title}</option>
-            ))}
-          </select>
+          <Dropdown
+            ariaLabel="Campaign"
+            align="left"
+            minWidth={170}
+            value={campaign}
+            onChange={setCampaign}
+            options={[
+              { value: "ALL", label: "All campaigns" },
+              ...campaigns.map((c) => ({ value: c.id, label: c.title })),
+            ]}
+          />
         )}
         {phases.length > 0 && (
-          <select aria-label="Phase" value={phase} onChange={(e) => setPhase(e.target.value)} style={selectStyle}>
-            <option value="ALL">All phases</option>
-            {phases.map((ph) => (
-              <option key={ph.id} value={ph.id}>{ph.name} · {ph.campaignTitle}</option>
-            ))}
-          </select>
+          <Dropdown
+            ariaLabel="Phase"
+            align="left"
+            minWidth={190}
+            value={phase}
+            onChange={setPhase}
+            options={[
+              { value: "ALL", label: "All phases" },
+              ...phases.map((ph) => ({ value: ph.id, label: `${ph.name} · ${ph.campaignTitle}` })),
+            ]}
+          />
         )}
         <span style={{ fontSize: 13, color: "var(--cc-text-muted)", fontVariantNumeric: "tabular-nums" }}>
           {totals.posts} posts · {formatCompact(totals.views)} views

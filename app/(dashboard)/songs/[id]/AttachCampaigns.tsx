@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Link2, Unlink } from "lucide-react";
+import { Dropdown } from "@/components/ds";
 
 export type AttachableCampaign = { id: string; title: string; songId: string | null };
 
@@ -49,23 +50,23 @@ export default function AttachCampaigns({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <select
-          aria-label="Campaign to attach"
-          value={picked}
-          onChange={(e) => setPicked(e.target.value)}
-          style={{
-            flex: 1, minWidth: 180, background: "var(--cc-card)",
-            border: "1px solid var(--cc-border)", borderRadius: 8,
-            padding: "8px 10px", fontSize: 13, color: "var(--cc-text)",
-          }}
-        >
-          <option value="">Attach a campaign…</option>
-          {available.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.title}{c.songId ? " (on another song)" : ""}
-            </option>
-          ))}
-        </select>
+        <div style={{ flex: 1 }}>
+          <Dropdown
+            ariaLabel="Campaign to attach"
+            align="left"
+            fullWidth
+            minWidth={180}
+            value={picked}
+            onChange={setPicked}
+            options={[
+              { value: "", label: "Attach a campaign\u2026" },
+              ...available.map((c) => ({
+                value: c.id,
+                label: `${c.title}${c.songId ? " (on another song)" : ""}`,
+              })),
+            ]}
+          />
+        </div>
         <button
           type="button"
           disabled={!picked || busy !== null}

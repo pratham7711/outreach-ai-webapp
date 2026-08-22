@@ -2,6 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { Dropdown } from "@/components/ds";
 
 const PLATFORMS = [
   { key: "", label: "All platforms" },
@@ -24,17 +25,6 @@ const SORTS = [
   { key: "budget", label: "Budget remaining" },
 ];
 
-const selectStyle: React.CSSProperties = {
-  height: 40,
-  padding: "0 12px",
-  borderRadius: 8,
-  border: "1px solid var(--cc-border)",
-  background: "var(--cc-card)",
-  color: "var(--cc-text)",
-  fontSize: 14,
-  cursor: "pointer",
-  minWidth: 140,
-};
 
 export default function MarketplaceFilters() {
   const router = useRouter();
@@ -93,44 +83,32 @@ export default function MarketplaceFilters() {
         />
       </form>
 
-      <select
-        aria-label="Platform"
-        style={selectStyle}
+      <Dropdown
+        ariaLabel="Platform"
+        align="left"
+        minWidth={140}
         value={params.get("platform") ?? ""}
-        onChange={(e) => push({ platform: e.target.value })}
-      >
-        {PLATFORMS.map((p) => (
-          <option key={p.key} value={p.key}>
-            {p.label}
-          </option>
-        ))}
-      </select>
+        onChange={(v) => push({ platform: v })}
+        options={PLATFORMS.map((p) => ({ value: p.key, label: p.label }))}
+      />
 
-      <select
-        aria-label="Campaign type"
-        style={selectStyle}
+      <Dropdown
+        ariaLabel="Campaign type"
+        align="left"
+        minWidth={150}
         value={params.get("type") ?? ""}
-        onChange={(e) => push({ type: e.target.value })}
-      >
-        {TYPES.map((t) => (
-          <option key={t.key} value={t.key}>
-            {t.label}
-          </option>
-        ))}
-      </select>
+        onChange={(v) => push({ type: v })}
+        options={TYPES.map((t) => ({ value: t.key, label: t.label }))}
+      />
 
-      <select
-        aria-label="Sort"
-        style={selectStyle}
+      <Dropdown
+        ariaLabel="Sort"
+        align="left"
+        minWidth={150}
         value={params.get("sort") ?? "newest"}
-        onChange={(e) => push({ sort: e.target.value })}
-      >
-        {SORTS.map((s) => (
-          <option key={s.key} value={s.key}>
-            {s.label}
-          </option>
-        ))}
-      </select>
+        onChange={(v) => push({ sort: v })}
+        options={SORTS.map((s) => ({ value: s.key, label: s.label }))}
+      />
     </div>
   );
 }

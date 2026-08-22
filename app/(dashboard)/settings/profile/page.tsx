@@ -4,6 +4,7 @@ import { Card, Button, Input, Skeleton } from "@pratham7711/ui";
 import { Building2, Palette, Landmark, Globe, Save } from "lucide-react";
 import { formatDateAbs } from "@/lib/format";
 import { PLATFORM_DEFAULT_BRANDING } from "@/lib/brandingDefaults";
+import { Dropdown } from "@/components/ds";
 
 type OrgProfile = {
   id: string;
@@ -211,24 +212,24 @@ export default function OrgProfilePage() {
                 </div>
               </FormRow>
               <FormRow label="Timezone">
-                <select
+                <Dropdown
+                  ariaLabel="Timezone"
+                  align="left"
+                  fullWidth
                   value={timezone}
-                  onChange={e => setTimezone(e.target.value)}
-                  aria-label="Timezone"
-                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid var(--cc-border)", fontSize: 13, color: "var(--cc-text)", background: "var(--cc-card)", outline: "none" }}
-                >
-                  {TIMEZONES.map(tz => <option key={tz} value={tz}>{tz}</option>)}
-                </select>
+                  onChange={setTimezone}
+                  options={TIMEZONES.map(tz => ({ value: tz, label: tz }))}
+                />
               </FormRow>
               <FormRow label="Default Currency">
-                <select
+                <Dropdown
+                  ariaLabel="Default currency"
+                  align="left"
+                  fullWidth
                   value={currency}
-                  onChange={e => setCurrency(e.target.value)}
-                  aria-label="Default currency"
-                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid var(--cc-border)", fontSize: 13, color: "var(--cc-text)", background: "var(--cc-card)", outline: "none" }}
-                >
-                  {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
+                  onChange={setCurrency}
+                  options={CURRENCIES.map(c => ({ value: c, label: c }))}
+                />
               </FormRow>
               <FormRow label="Current Plan">
                 <div style={{ display: "flex", alignItems: "center", gap: 8, paddingTop: 6 }}>
