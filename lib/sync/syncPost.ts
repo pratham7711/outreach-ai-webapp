@@ -122,6 +122,22 @@ export async function applyPostMetrics(
   const engagementRate =
     metrics.engagementRate ?? (views > 0 ? ((likes + comments) / views) * 100 : 0);
 
+  /* The same payload told us how many followers the author has, and nothing in
+     this codebase had ever written that column -- so the campaign roster showed
+     0 followers for all 25 creators while the number sat in a response we had
+     already fetched. Only ever upward from nothing, and only a real figure: a
+     platform that did not report it must not overwrite one that did. */
+  const followers = metrics.authorFollowers;
+  const creatorUpdate =
+    typeof followers === "number" && followers > 0
+      ? [
+          db.creator.update({
+            where: { id: post.creatorId },
+            data: { followersCount: followers },
+          }),
+        ]
+      : [];
+
   const [updated] = await db.$transaction([
     db.post.update({
       where: { id: post.id },
@@ -168,6 +184,7 @@ export async function applyPostMetrics(
         syncSource: "api",
       },
     }),
+    ...creatorUpdate,
   ]);
 
   return { status: "measured", post: updated as unknown as Record<string, unknown> };

@@ -55,9 +55,9 @@ that needs a human (a credential, a paid API, a ToS acceptance).
 - [x] Campaign header — title, client, status, dates, action buttons
 - [x] KPI / stat tiles — every label, value and unit
 - [x] Posts grid — card fields, thumbnail decode, per-card metrics
-- [ ] Posts table — every column header and cell
+- [x] Posts table — every column header and cell
 - [x] Audio / sound card — cover, uses, 24h delta, usage curve
-- [ ] Creator roster tab — columns, avatars, per-creator totals
+- [x] Creator roster tab — columns, avatars, per-creator totals
 - [ ] Charts — series present, axis labels, totals agreeing with the tiles
 - [ ] Filters and sorts — every control, and that each changes the result set
 - [x] Share / client report — what a link shows vs the reference report
@@ -79,6 +79,10 @@ gone by re-extracting. The measurement quoted is the one taken after the fix.
 | Audio card had no velocity view | only the usage series was plotted | pill toggle switches series |
 | First sound snapshot invented a 24h delta equal to its lifetime total | no baseline to subtract | writes 0 with no baseline |
 | YouTube reported `sharesCount: 0` and stamped today as the publish date | `Number(x) \|\| 0` and a `new Date()` fallback in `mapYouTubeItem`; same in the SocialKit branch | shares stay undefined on a full payload |
+| Post cards showed no shares, no saves and no posted date | shares and saves were held back while an unfetched counter still read as `0`; the date was never rendered | card reads `37 shares 134 saves … Posted 21 Aug 2026`, saves matching CC exactly |
+| A link could not point at a campaign tab | the tab lived in `useState`, so the URL never named it | 7 cases: three deep links, default, two clicks, one bogus value |
+| The roster showed `0 followers` for all 25 creators | nothing had ever written `Creator.followersCount`, and the roster printed the `Float @default(0)` as a measurement | 14/14 TikTok creators filled from a payload we already fetch — `@awxyken` 1.3M |
+| The roster had no Rate column | the number was in the row data and never rendered | column renders, `—` where no rate was agreed |
 
 ## Known ceilings
 
@@ -102,3 +106,28 @@ Not defects, and not worth re-litigating each sweep:
 - **Structural, not informational:** CreatorCore groups Total Views / Eng. Rate
   / Total Eng. under a "Post Performance" heading; ours is one flat tile grid
   carrying the same numbers.
+- **Wording, deliberately:** their card says "Last Updated", ours "Updated" —
+  the long form plus a "3 months ago" overflows a 240px card. Their KPI row
+  mixes "Average Post Eng Rate" with "Avg. Campaign Eng Rate"; ours abbreviates
+  both. A label diff reports these every sweep; they are not findings.
+- **Instagram follower counts** need `INSTAGRAM_BUSINESS_TOKEN`, which is not
+  configured, so the three Instagram creators on the reference campaign read
+  `—`. The plumbing is in place and unit-tested but has never run against the
+  live API.
+- **The image proxy has no retry.** A cold Posts tab fires ~16 concurrent TikTok
+  CDN fetches and, from an ISP that filters TikTok, some come back 502; the
+  route's year-long immutable cache means the warm load has one failure. Left
+  alone: a retry would multiply requests against a CDN that is rate-limiting us.
+
+## Still open on swept surfaces
+
+Found by a sweep, deliberately not built — each is a feature, not a defect:
+
+- CreatorCore's roster also carries **Payouts, Deliverables, Notes and
+  Activity** columns. We have the payout and activation models; notes and a
+  per-creator activity trail have no source yet.
+- Their Posts tab has a **Manual** filter separating hand-added posts from
+  auto-discovered ones, a **Views/Engagement** sort control, and a
+  **New View / Filtering / Sorting / Grouping / Add Columns** table builder with
+  saved views. Ours sorts by column header in list view and filters by status,
+  platform, type, minimum views and post date.

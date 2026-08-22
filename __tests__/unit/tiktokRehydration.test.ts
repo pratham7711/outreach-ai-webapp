@@ -216,6 +216,29 @@ describe("createRateGate", () => {
   });
 });
 
+// authorStats sits in the same payload as stats, so a sync that has already
+// fetched the post knows the author's follower count for free. Confirmed live on
+// 2026-08-23: rebilion.edits came back with authorStats.followerCount 22700.
+describe("parseTikTokRehydration author follower count", () => {
+  it("reads the follower count out of authorStats", () => {
+    const parsed = parseTikTokRehydration(
+      page(videoDetail({ authorStats: { followerCount: 22700, heartCount: 3600000 } }))
+    );
+    expect(parsed?.authorFollowers).toBe(22700);
+  });
+
+  it("falls back to the string-valued authorStatsV2", () => {
+    const parsed = parseTikTokRehydration(
+      page(videoDetail({ authorStatsV2: { followerCount: "1300000" } }))
+    );
+    expect(parsed?.authorFollowers).toBe(1300000);
+  });
+
+  it("leaves it absent when the payload carries no author stats", () => {
+    expect(parseTikTokRehydration(page(videoDetail()))?.authorFollowers).toBeUndefined();
+  });
+});
+
 // Shape confirmed against a live TikTok response on 2026-08-20: a removed post
 // comes back HTTP 200 with statusCode 10204 "item doesn't exist".
 describe("parseTikTokDetailStatus", () => {

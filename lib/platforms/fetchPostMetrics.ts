@@ -33,6 +33,16 @@ export type PostMetrics = {
    */
   savesCount?: number;
   engagementRate?: number;
+  /**
+   * The post author's follower count, when the payload happened to carry it.
+   *
+   * Not a property of the post, which is why it is the odd one out here -- but
+   * TikTok reports it in the same response as the counters, so a sync that has
+   * already paid for the fetch can fill in a creator's followers for free. The
+   * campaign roster printed 0 for all 25 creators because nothing had ever
+   * written the column.
+   */
+  authorFollowers?: number;
   /** Absent when the platform did not say. Never today's date as a stand-in. */
   postedAt?: Date;
 };
@@ -222,6 +232,9 @@ export type TikTokDirectMetrics = {
   likesCount?: number;
   commentsCount?: number;
   sharesCount?: number;
+  /** The post author's follower count, which the same payload reports under
+   *  authorStats -- free, since we have already paid for this fetch. */
+  authorFollowers?: number;
   /** TikTok's collectCount: bookmarks, which the client report calls saves. */
   savesCount?: number;
   caption: string | null;
@@ -372,6 +385,10 @@ export function parseTikTokRehydration(html: string): TikTokDirectMetrics | null
     commentsCount: pickOptionalCount(stats?.commentCount, statsV2?.commentCount),
     sharesCount: pickOptionalCount(stats?.shareCount, statsV2?.shareCount),
     savesCount: pickOptionalCount(stats?.collectCount, statsV2?.collectCount),
+    authorFollowers: pickOptionalCount(
+      item?.authorStats?.followerCount,
+      item?.authorStatsV2?.followerCount
+    ),
     caption: typeof item.desc === "string" && item.desc.length > 0 ? item.desc : null,
     thumbnailUrl: item.video?.cover ?? item.video?.originCover ?? null,
     postedAt: Number.isFinite(createTime) && createTime > 0 ? new Date(createTime * 1000) : null,
@@ -479,6 +496,7 @@ export function tiktokMetricsToPartial(parsed: TikTokDirectMetrics): Partial<Pos
     ...(typeof comments === "number" ? { commentsCount: comments } : {}),
     ...(typeof parsed.sharesCount === "number" ? { sharesCount: parsed.sharesCount } : {}),
     ...(typeof parsed.savesCount === "number" ? { savesCount: parsed.savesCount } : {}),
+    ...(typeof parsed.authorFollowers === "number" ? { authorFollowers: parsed.authorFollowers } : {}),
     ...(typeof views === "number" && views > 0
       ? { engagementRate: (((likes ?? 0) + (comments ?? 0)) / views) * 100 }
       : {}),
@@ -599,6 +617,7 @@ export async function fetchInstagramMetrics(
         ...(typeof post.viewsCount === "number" ? { viewsCount: post.viewsCount } : {}),
         ...(typeof post.likesCount === "number" ? { likesCount: post.likesCount } : {}),
         ...(typeof post.commentsCount === "number" ? { commentsCount: post.commentsCount } : {}),
+        ...(typeof post.authorFollowers === "number" ? { authorFollowers: post.authorFollowers } : {}),
         // Same as above: Instagram reports no shares, so we claim none.
         postedAt: post.postedAt ?? undefined,
       };
@@ -686,6 +705,8 @@ function assemblePostMetrics(
      silently dropped -- which is exactly what happened to saves on its first
      run: parsed from collectCount, and gone by the time anything wrote it. */
   if (saves !== undefined) result.savesCount = saves;
+  const followers = finite(m.authorFollowers);
+  if (followers !== undefined) result.authorFollowers = followers;
   if (engagement !== undefined) result.engagementRate = engagement;
 
   return result;

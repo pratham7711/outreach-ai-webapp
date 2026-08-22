@@ -17,8 +17,11 @@ export type IgPublicPost = {
 
 export type IgPublicProfile = {
   username: string;
-  followersCount: number;
-  mediaCount: number;
+  /* Absent, not zero, when Business Discovery did not report it -- the same
+     reason the per-post counters above are optional. A creator with no follower
+     figure is not a creator with no followers. */
+  followersCount?: number;
+  mediaCount?: number;
   recentPosts: IgPublicPost[];
 };
 
@@ -61,8 +64,8 @@ export function parseBusinessDiscovery(data: any, username: string): IgPublicPro
   const nodes: DiscoveryMediaNode[] = bd.media?.data ?? [];
   return {
     username: normalizeUsername(username),
-    followersCount: typeof bd.followers_count === "number" ? bd.followers_count : 0,
-    mediaCount: typeof bd.media_count === "number" ? bd.media_count : 0,
+    ...(typeof bd.followers_count === "number" ? { followersCount: bd.followers_count } : {}),
+    ...(typeof bd.media_count === "number" ? { mediaCount: bd.media_count } : {}),
     recentPosts: nodes.map(mapMedia),
   };
 }
@@ -91,19 +94,28 @@ export async function fetchInstagramProfile(
   return parseBusinessDiscovery(data, handle);
 }
 
+/**
+ * The post, plus the author's follower count -- which this had already fetched
+ * and then dropped. Business Discovery answers with the profile and its recent
+ * media in one response, so the follower figure costs nothing extra, and the
+ * campaign roster had no source for it at all.
+ */
 export async function fetchInstagramPublicPostMetrics(
   username: string,
   postUrl: string,
   token: string,
   signal?: AbortSignal,
-): Promise<IgPublicPost | null> {
+): Promise<(IgPublicPost & { authorFollowers?: number }) | null> {
   const shortcode = shortcodeFromUrl(postUrl);
   const profile = await fetchInstagramProfile(username, token, signal);
   if (!profile) return null;
   if (!shortcode) return null;
-  return (
-    profile.recentPosts.find(
-      (p) => typeof p.permalink === "string" && p.permalink.includes(`/${shortcode}`),
-    ) ?? null
+  const post = profile.recentPosts.find(
+    (p) => typeof p.permalink === "string" && p.permalink.includes(`/${shortcode}`),
   );
+  if (!post) return null;
+  return {
+    ...post,
+    ...(typeof profile.followersCount === "number" ? { authorFollowers: profile.followersCount } : {}),
+  };
 }

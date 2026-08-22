@@ -2,6 +2,7 @@
 import type { CSSProperties } from "react";
 import { useState, useEffect, use } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { unwrittenMetricValue } from "@/lib/metricDisplay";
 import dynamic from "next/dynamic";
 import { motion } from "framer-motion";
 import { Card, Badge, Button, EmptyState, Avatar, Skeleton, Modal } from "@pratham7711/ui";
@@ -672,10 +673,10 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
             ) : (
               <Card variant="solid" noPadding style={{ overflowX: "auto" }}>
                 <div style={{
-                  display: "grid", gridTemplateColumns: "1fr 120px 100px 80px 100px 130px", minWidth: 820,
+                  display: "grid", gridTemplateColumns: "1fr 120px 100px 80px 100px 100px 130px", minWidth: 920,
                   gap: 12, padding: "12px 24px", borderBottom: "1px solid var(--cc-border)", background: "var(--cc-bg)",
                 }}>
-                  {["Creator", "Platform", "Followers", "Posts", "Views", "Status"].map(h => (
+                  {["Creator", "Platform", "Followers", "Posts", "Views", "Rate", "Status"].map(h => (
                     <span key={h} style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--cc-text-subtle)" }}>{h}</span>
                   ))}
                 </div>
@@ -684,7 +685,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                     <Link
                       key={entry.creator.id}
                       href={`/creators/${entry.creator.id}`}
-                      style={{ textDecoration: "none", display: "grid", gridTemplateColumns: "1fr 120px 100px 80px 100px 130px", minWidth: 820, gap: 12, padding: "14px 24px", alignItems: "center", borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined }}
+                      style={{ textDecoration: "none", display: "grid", gridTemplateColumns: "1fr 120px 100px 80px 100px 100px 130px", minWidth: 920, gap: 12, padding: "14px 24px", alignItems: "center", borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined }}
                       className="cc-table-row"
                     >
                       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -695,9 +696,27 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                         </div>
                       </div>
                       <Badge variant="neutral">{entry.creator.platform}</Badge>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>{formatNumber(entry.creator.followersCount)}</span>
+                      {/* followersCount is Float @default(0), so a creator nobody
+                          has fetched holds 0 rather than null. The creators list
+                          and the creator page both already leave that blank; this
+                          column printed "0" for the whole roster instead, which
+                          reads as a creator with no audience. */}
+                      <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>
+                        {(() => {
+                          const followers = unwrittenMetricValue(entry.creator.followersCount);
+                          return followers === null ? "\u2014" : formatNumber(followers);
+                        })()}
+                      </span>
                       <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>{entry.posts}</span>
                       <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>{formatNumber(entry.views)}</span>
+                      {/* The reference roster leads with Rate; ours held the
+                          number and never showed it. Null means no rate agreed,
+                          which is not the same as a rate of nothing. */}
+                      <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>
+                        {entry.creator.rate === null || entry.creator.rate <= 0
+                          ? "\u2014"
+                          : formatCurrency(entry.creator.rate, campaign.currency)}
+                      </span>
                       {entry.activationStatus ? (
                         <Badge variant={ACTIVATION_STATUS[entry.activationStatus] ?? "neutral"} dot>
                           {entry.activationStatus.replace(/_/g, " ")}

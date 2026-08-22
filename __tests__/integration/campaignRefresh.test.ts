@@ -16,6 +16,7 @@ jest.mock('@/lib/db', () => ({
   db: {
     campaign: { findFirst: jest.fn() },
     post: { findFirst: jest.fn(), findMany: jest.fn(), update: jest.fn() },
+    creator: { update: jest.fn() },
     postMetricSnapshot: { create: jest.fn() },
     $transaction: jest.fn(),
   },
@@ -158,6 +159,34 @@ describe('single post sync', () => {
     expect(written.platformMetrics.__cc).toEqual({ id: 'cc-1' });
     expect(written.platformMetrics.__stat).toEqual({ views: 12 });
     expect(written.platformMetrics.__measured).toEqual(['views', 'likes', 'comments', 'shares']);
+  });
+
+  it("fills in the author's follower count from the same fetch", async () => {
+    // TikTok reports authorStats in the post payload, so this costs no extra
+    // request. Nothing had ever written Creator.followersCount, which is why the
+    // campaign roster showed 0 followers for all 25 of them.
+    mockFetch.mockResolvedValue({ ...withCounts, authorFollowers: 22700 });
+
+    await syncReq();
+
+    expect(mockDb.creator.update).toHaveBeenCalledWith({
+      where: { id: 'creator-1' },
+      data: { followersCount: 22700 },
+    });
+  });
+
+  it('leaves a stored follower count alone when the platform did not report one', async () => {
+    // Only ever upward from nothing: a payload without authorStats must not
+    // overwrite a figure an earlier sync or the import already established.
+    mockFetch.mockResolvedValue(withCounts);
+    await syncReq();
+    expect(mockDb.creator.update).not.toHaveBeenCalled();
+  });
+
+  it('does not write a follower count of zero', async () => {
+    mockFetch.mockResolvedValue({ ...withCounts, authorFollowers: 0 });
+    await syncReq();
+    expect(mockDb.creator.update).not.toHaveBeenCalled();
   });
 
   it('marks a post live when the platform answered, and never the reverse', async () => {
