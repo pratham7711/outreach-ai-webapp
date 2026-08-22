@@ -135,7 +135,30 @@ function engRatePct(post: PostData): number | null {
   return r === null ? null : r * 100;
 }
 
-function postEmv(post: PostData): number {
+/**
+ * A refresh either changed numbers or it did not, and the difference is the
+ * whole point of pressing the button. "measured" is the only count that means
+ * new data landed; the rest explain why nothing moved.
+ */
+function summariseRefresh(r: {
+  total?: number; measured?: number; noMetrics?: number;
+  unfetchable?: number; failed?: number; remaining?: number;
+}): string {
+  const total = r.total ?? 0;
+  if (total === 0) return "No posts to refresh yet.";
+  const parts = [`${r.measured ?? 0} of ${total} post${total === 1 ? "" : "s"} updated`];
+  const empty = (r.noMetrics ?? 0) + (r.unfetchable ?? 0);
+  if (empty > 0) parts.push(`${empty} returned no metrics`);
+  if (r.failed) parts.push(`${r.failed} failed`);
+  if (r.remaining) parts.push(`${r.remaining} left for the next run`);
+  return `${parts.join(", ")}.`;
+}
+
+function postEmv(post: PostData): number | null {
+  // EMV is a function of the counters, so it inherits their provenance. With
+  // nothing measured it is not $0, it is unknown -- and $0 next to a real
+  // creator reads as "this post earned nothing", which is a claim.
+  if (metricValue(post.viewsCount, post.lastSyncedAt) === null) return null;
   return computePostEmv({
     platform: post.platform,
     views: post.viewsCount,
@@ -224,10 +247,13 @@ export default function PostsTab({
   campaignId,
   postApprovalMode,
   marketplace = null,
+  onRefreshed,
 }: {
   campaignId: string;
   postApprovalMode: string | null;
   marketplace?: MarketplaceCtx | null;
+  /** Refreshing the posts moves the campaign's own totals, so the page reloads them too. */
+  onRefreshed?: () => void;
 }) {
   const [posts, setPosts] = useState<PostData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -251,6 +277,8 @@ export default function PostsTab({
   const [addForm, setAddForm] = useState({ postUrl: "", creatorId: "", mediaType: "" });
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [refreshingAll, setRefreshingAll] = useState(false);
+  /** What the last refresh actually managed to fetch. Not an error -- a receipt. */
+  const [refreshNote, setRefreshNote] = useState<string | null>(null);
 
   const fetchPosts = useCallback(async () => {
     setError(null);
@@ -338,24 +366,41 @@ export default function PostsTab({
 
   const handleSyncNow = async (postId: string) => {
     setSyncingId(postId);
+    setRefreshNote(null);
     try {
       const res = await fetch(`/api/campaigns/${campaignId}/posts/${postId}/sync`, { method: "POST" });
-      if (res.ok) fetchPosts();
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setRefreshNote(body.error ?? "Could not refresh that post.");
+        return;
+      }
+      // A 200 that measured nothing looks exactly like a 200 that did, so say it.
+      if (body.metricsFound === false) {
+        setRefreshNote("That post returned no metrics \u2014 the platform answered without counts.");
+      }
+      fetchPosts();
     } finally {
       setSyncingId(null);
     }
   };
 
-  // ponytail: fans out over the existing per-post sync route rather than adding a
-  // bulk endpoint. Fine for a campaign's worth of posts; batch server-side if a
-  // campaign ever carries hundreds.
+  // One request, server-side: refreshes every post on the campaign and the
+  // campaign's tracked sound in the same run. It used to fan out one fetch per
+  // post from here and discard every response, so a campaign whose platform was
+  // unreachable refreshed nothing and said nothing.
   const handleRefreshAll = async () => {
     setRefreshingAll(true);
+    setRefreshNote(null);
     try {
-      for (const post of posts) {
-        await fetch(`/api/campaigns/${campaignId}/posts/${post.id}/sync`, { method: "POST" });
+      const res = await fetch(`/api/campaigns/${campaignId}/refresh`, { method: "POST" });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setRefreshNote(body.error ?? "Refresh failed.");
+        return;
       }
+      setRefreshNote(summariseRefresh(body));
       fetchPosts();
+      onRefreshed?.();
     } finally {
       setRefreshingAll(false);
     }
@@ -396,7 +441,7 @@ export default function PostsTab({
         case "saves": return p.savesCount;
         case "downloads": return p.downloadsCount;
         case "engRate": return engRatePct(p) ?? -1;
-        case "emv": return postEmv(p);
+        case "emv": return postEmv(p) ?? 0;   // unknown sorts to the bottom
         case "delta": return deltaViews(p) ?? Number.NEGATIVE_INFINITY;
         default: return 0;
       }
@@ -740,6 +785,21 @@ export default function PostsTab({
         </Card>
       )}
 
+      {refreshNote && (
+        <Card variant="outlined" style={{ padding: 12 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+            <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{refreshNote}</span>
+            <button
+              onClick={() => setRefreshNote(null)}
+              aria-label="Dismiss refresh summary"
+              style={{ background: "none", border: "none", cursor: "pointer", color: "var(--cc-text-muted)", display: "flex" }}
+            >
+              <X size={14} />
+            </button>
+          </div>
+        </Card>
+      )}
+
       {!error && filteredSorted.length === 0 ? (
         <EmptyState
           icon={<Video size={32} color="var(--cc-text-subtle)" />}
@@ -774,6 +834,7 @@ export default function PostsTab({
               const emv = postEmv(post);
               const dv = deltaViews(post);
               // A 0 we never fetched is unknown, not zero -- see lib/metricDisplay.
+              const views = metricValue(post.viewsCount, post.lastSyncedAt);
               const likes = metricValue(post.likesCount, post.lastSyncedAt);
               const comments = metricValue(post.commentsCount, post.lastSyncedAt);
               const shares = metricValue(post.sharesCount, post.lastSyncedAt);
@@ -815,7 +876,9 @@ export default function PostsTab({
                   </div>
                   <Badge variant={PLATFORM_BADGE[post.platform] ?? "neutral"} style={{ fontSize: 11 }}>{post.platform}</Badge>
                   <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{formatDateAbs(post.postedAt)}</span>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)", textAlign: "right" }}>{formatNumber(post.viewsCount)}</span>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)", textAlign: "right" }}>
+                    {views === null ? "" : formatNumber(views)}
+                  </span>
                   {anyLikes && (
                     <span style={{ fontSize: 13, color: "var(--cc-text-muted)", textAlign: "right" }}>
                       {likes === null ? "" : formatNumber(likes)}
@@ -846,7 +909,9 @@ export default function PostsTab({
                       {erShown === null ? "" : `${erShown.toFixed(1)}%`}
                     </span>
                   )}
-                  <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)", textAlign: "right" }}>{formatMoney(emv)}</span>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)", textAlign: "right" }}>
+                    {emv === null ? "" : formatMoney(emv)}
+                  </span>
                   {anyDelta && (
                     <span style={{ fontSize: 13, fontWeight: 600, textAlign: "right", color: dv === null ? "var(--cc-text-subtle)" : dv >= 0 ? "var(--cc-success)" : "var(--cc-danger)" }}>
                       {dv === null ? "" : `${dv >= 0 ? "+" : ""}${formatNumber(dv)}`}
@@ -911,6 +976,7 @@ export default function PostsTab({
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 18 }}>
             {pageRows.map((post) => {
               const emv = postEmv(post);
+              const cardViews = metricValue(post.viewsCount, post.lastSyncedAt);
               const cardLikes = metricValue(post.likesCount, post.lastSyncedAt);
               const cardComments = metricValue(post.commentsCount, post.lastSyncedAt);
               const cardEngRate =
@@ -976,18 +1042,30 @@ export default function PostsTab({
                         add three "0" lines here. A counter that was never fetched
                         sits at 0 in the column, and printed here it would read as a
                         measured zero, so only measured values get a row. */}
-                    {([
-                      { key: "views", icon: <Eye size={13} aria-hidden="true" />, text: `${formatNumber(post.viewsCount)} views` },
-                      cardLikes !== null && { key: "likes", icon: <Heart size={13} aria-hidden="true" />, text: `${formatNumber(cardLikes)} likes` },
-                      cardComments !== null && { key: "comments", icon: <MessageCircle size={13} aria-hidden="true" />, text: `${formatNumber(cardComments)} comments` },
-                      cardEngRate !== null && { key: "eng", icon: <TrendingUp size={13} aria-hidden="true" />, text: `${cardEngRate.toFixed(1)}% eng. rate` },
-                    ].filter(Boolean) as { key: string; icon: React.ReactNode; text: string }[]).map((row) => (
-                      <div key={row.key} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, marginBottom: 2 }}>
-                        {row.icon}{row.text}
-                      </div>
-                    ))}
+{(() => {
+                      const rows = [
+                        cardViews !== null && { key: "views", icon: <Eye size={13} aria-hidden="true" />, text: `${formatNumber(cardViews)} views` },
+                        cardLikes !== null && { key: "likes", icon: <Heart size={13} aria-hidden="true" />, text: `${formatNumber(cardLikes)} likes` },
+                        cardComments !== null && { key: "comments", icon: <MessageCircle size={13} aria-hidden="true" />, text: `${formatNumber(cardComments)} comments` },
+                        cardEngRate !== null && { key: "eng", icon: <TrendingUp size={13} aria-hidden="true" />, text: `${cardEngRate.toFixed(1)}% eng. rate` },
+                      ].filter(Boolean) as { key: string; icon: React.ReactNode; text: string }[];
+                      // Nothing measured at all: say so once. Four zeroes claim
+                      // this post was watched by nobody, which we never checked.
+                      if (rows.length === 0) {
+                        return (
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: "rgba(255,255,255,0.72)" }}>
+                            <Eye size={13} aria-hidden="true" />Not synced yet
+                          </div>
+                        );
+                      }
+                      return rows.map((row) => (
+                        <div key={row.key} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, marginBottom: 2 }}>
+                          {row.icon}{row.text}
+                        </div>
+                      ));
+                    })()}
                     <div style={{ marginTop: 8, paddingTop: 7, borderTop: "1px solid rgba(255,255,255,0.22)", display: "flex", justifyContent: "space-between", gap: 8, fontSize: 10.5, color: "rgba(255,255,255,0.78)" }}>
-                      <span>EMV {formatMoney(emv)}</span>
+                      <span>EMV {emv === null ? "\u2014" : formatMoney(emv)}</span>
                       <span>{formatSince(post.lastSyncedAt)}</span>
                     </div>
                   </div>

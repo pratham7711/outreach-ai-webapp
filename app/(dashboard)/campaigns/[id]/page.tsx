@@ -614,6 +614,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
           <PostsTab
             campaignId={id}
             postApprovalMode={(campaign as any).postApprovalMode ?? "MANUAL"}
+            onRefreshed={refreshCampaign}
             marketplace={
               campaign.marketplaceVisibility && campaign.marketplaceVisibility !== "PRIVATE"
                 ? {

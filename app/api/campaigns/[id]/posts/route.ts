@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { httpUrl } from "@/lib/validation/url";
 import { z } from "zod";
-import { detectPlatform, fetchPostMetrics } from "@/lib/platforms/fetchPostMetrics";
+import { detectPlatform, fetchPostMetrics, hasMetricCounts } from "@/lib/platforms/fetchPostMetrics";
 import { getInstagramAccountForCreator } from "@/lib/platforms/instagramToken";
 import { getTikTokTokenForCreator } from "@/lib/platforms/tiktokToken";
 import { checkPostCompliance } from "@/lib/compliance/postCompliance";
@@ -143,6 +143,11 @@ export async function POST(
         commentsCount: metrics?.commentsCount ?? 0,
         engagementRate: metrics?.engagementRate ?? 0,
         postedAt: metrics?.postedAt ?? new Date(),
+        // Without this a post created with real counts reads as never synced,
+        // which makes lib/metricDisplay treat its measured zeroes as unknown and
+        // makes the card say "Never" under numbers we just fetched. Only set
+        // when counts actually arrived -- see lib/sync/syncPost for why.
+        lastSyncedAt: metrics && hasMetricCounts(metrics) ? new Date() : null,
         status: initialStatus,
         activationId: activationId ?? null,
       },

@@ -11,12 +11,14 @@ export type SnapshotResult = {
 
 export type SnapshotOptions = {
   orgId?: string;
+  /** One sound instead of the whole org, for a campaign refreshing its own audio. */
+  soundId?: string;
   dryRun?: boolean;
   deadlineMs?: number;
 };
 
 export async function snapshotSounds(options: SnapshotOptions = {}): Promise<SnapshotResult> {
-  const { orgId, dryRun = false, deadlineMs = 4 * 60 * 1000 } = options;
+  const { orgId, soundId, dryRun = false, deadlineMs = 4 * 60 * 1000 } = options;
   const log = createLogger({ context: { job: "snapshot-sounds", orgId: orgId ?? "all" } });
   const deadline = Date.now() + deadlineMs;
 
@@ -25,7 +27,9 @@ export async function snapshotSounds(options: SnapshotOptions = {}): Promise<Sna
   let skipped = 0;
 
   const sounds = await db.tikTokSound.findMany({
-    where: orgId ? { orgId } : undefined,
+    // orgId stays in the filter alongside soundId: the caller passes an id it
+    // read off its own campaign, and a scope check costs nothing here.
+    where: soundId ? { id: soundId, ...(orgId ? { orgId } : {}) } : orgId ? { orgId } : undefined,
     select: {
       id: true,
       tiktokSoundId: true,

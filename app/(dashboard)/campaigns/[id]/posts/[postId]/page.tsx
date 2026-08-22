@@ -139,6 +139,8 @@ export default function PostDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
+  /** Set when a sync came back without counts, so the click is not a silent no-op. */
+  const [syncNote, setSyncNote] = useState<string | null>(null);
   const [flagging, setFlagging] = useState(false);
   const [flagged, setFlagged] = useState(false);
   const [playing, setPlaying] = useState(false);
@@ -225,10 +227,19 @@ export default function PostDetailPage() {
 
   const handleSync = async () => {
     setSyncing(true);
+    setSyncNote(null);
     try {
       const res = await fetch(`/api/campaigns/${params.id}/posts/${params.postId}/sync`, { method: "POST" });
-      if (res.ok) {
-        setPost(await res.json());
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setSyncNote(body.error ?? "Could not sync this post.");
+        return;
+      }
+      setPost(body);
+      // A 200 that measured nothing is indistinguishable from one that did,
+      // unless it says so.
+      if (body.metricsFound === false) {
+        setSyncNote("Synced, but the platform answered without any counts \u2014 nothing changed.");
       }
     } finally {
       setSyncing(false);
@@ -377,10 +388,17 @@ export default function PostDetailPage() {
             <p style={{ fontSize: 13, color: "var(--cc-text-muted)", margin: 0 }}>
               by <strong>{post.creator.name}</strong> (@{stripAt(post.creator.handle)}) · {post.platform} · Posted {formatDateAbs(post.postedAt)}
             </p>
-            {post.lastSyncedAt && (
+            {post.lastSyncedAt ? (
               <p style={{ fontSize: 12, color: "var(--cc-text-subtle)", margin: "4px 0 0" }}>
                 Last synced: {formatDateTimeAbs(post.lastSyncedAt)}
               </p>
+            ) : (
+              <p style={{ fontSize: 12, color: "var(--cc-text-subtle)", margin: "4px 0 0" }}>
+                Never synced \u2014 the counts below are unknown, not zero.
+              </p>
+            )}
+            {syncNote && (
+              <p style={{ fontSize: 12, color: "var(--cc-text-muted)", margin: "4px 0 0" }}>{syncNote}</p>
             )}
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
