@@ -4,7 +4,7 @@ import React from "react";
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { Card, Badge, Button, Input, Modal, EmptyState, Skeleton, Avatar } from "@pratham7711/ui";
 import { Dropdown, StatusTabs, Pagination } from "@/components/ds";
-import { Grid3X3, List, Plus, Check, X, Eye, Heart, MessageCircle, TrendingUp, BarChart3, ArrowUp, ArrowDown, ArrowUpDown, Flag, Video, AlertTriangle, RefreshCw, Image as ImageIcon } from "lucide-react";
+import { Grid3X3, List, Plus, Check, X, Eye, Heart, MessageCircle, TrendingUp, BarChart3, ArrowUp, ArrowDown, ArrowUpDown, Flag, Video, AlertTriangle, RefreshCw, Image as ImageIcon, Share2, Bookmark } from "lucide-react";
 import { CreatorSelect } from "@/components/CreatorSelect";
 import Link from "next/link";
 import { computePostEmv, computeEngagementRate } from "@/lib/metrics";
@@ -983,6 +983,8 @@ export default function PostsTab({
               const cardViews = metricValue(post.viewsCount, post.lastSyncedAt);
               const cardLikes = fieldMetricValue(post.likesCount, post.lastSyncedAt, post.platformMetrics, "likes");
               const cardComments = fieldMetricValue(post.commentsCount, post.lastSyncedAt, post.platformMetrics, "comments");
+              const cardShares = fieldMetricValue(post.sharesCount, post.lastSyncedAt, post.platformMetrics, "shares");
+              const cardSaves = fieldMetricValue(post.savesCount, post.lastSyncedAt, post.platformMetrics, "saves");
               const cardEngRate =
                 cardLikes === null && cardComments === null
                   ? null
@@ -1045,16 +1047,20 @@ export default function PostsTab({
                     <div title={post.creator.name} style={{ fontSize: 14, fontWeight: 700, marginBottom: 6, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {post.creator.handle || post.creator.name}
                     </div>
-                    {/* Four rows, as the reference card has: shares, saves and
-                        downloads have their own columns in the table view and only
-                        add three "0" lines here. A counter that was never fetched
-                        sits at 0 in the column, and printed here it would read as a
-                        measured zero, so only measured values get a row. */}
+                    {/* One row per counter the platform actually reported, which is
+                        how the reference card behaves too: it prints a downloads
+                        line on most posts and simply leaves it off the ones it has
+                        no download figure for. Shares and saves used to be held
+                        back from here because an unfetched counter sat at 0 in the
+                        column and would have read as a measured zero -- per-field
+                        provenance answers that now, so they can be shown. */}
 {(() => {
                       const rows = [
                         cardViews !== null && { key: "views", icon: <Eye size={13} aria-hidden="true" />, text: `${formatNumber(cardViews)} views` },
                         cardLikes !== null && { key: "likes", icon: <Heart size={13} aria-hidden="true" />, text: `${formatNumber(cardLikes)} likes` },
                         cardComments !== null && { key: "comments", icon: <MessageCircle size={13} aria-hidden="true" />, text: `${formatNumber(cardComments)} comments` },
+                        cardShares !== null && { key: "shares", icon: <Share2 size={13} aria-hidden="true" />, text: `${formatNumber(cardShares)} shares` },
+                        cardSaves !== null && { key: "saves", icon: <Bookmark size={13} aria-hidden="true" />, text: `${formatNumber(cardSaves)} saves` },
                         cardEngRate !== null && { key: "eng", icon: <TrendingUp size={13} aria-hidden="true" />, text: `${cardEngRate.toFixed(1)}% eng. rate` },
                       ].filter(Boolean) as { key: string; icon: React.ReactNode; text: string }[];
                       // Nothing measured at all: say so once. Four zeroes claim
@@ -1073,8 +1079,16 @@ export default function PostsTab({
                       ));
                     })()}
                     <div style={{ marginTop: 8, paddingTop: 7, borderTop: "1px solid rgba(255,255,255,0.22)", display: "flex", justifyContent: "space-between", gap: 8, fontSize: 10.5, color: "rgba(255,255,255,0.78)" }}>
-                      <span>EMV {emv === null ? "\u2014" : formatMoney(emv)}</span>
-                      <span>{formatSince(post.lastSyncedAt)}</span>
+                      {/* Only once a platform has answered for this post: until
+                          then postedAt is the day someone added it here, not the
+                          day it went up, and Post.postedAt cannot be null. */}
+                      <span>Posted {post.lastSyncedAt ? formatDateAbs(post.postedAt) : "\u2014"}</span>
+                      {/* "Updated", where the reference says "Last Updated": the
+                          long form plus a "3 months ago" overflows a 240px card. */}
+                      <span>Updated {formatSince(post.lastSyncedAt)}</span>
+                    </div>
+                    <div style={{ marginTop: 4, fontSize: 10.5, color: "rgba(255,255,255,0.78)" }}>
+                      EMV {emv === null ? "\u2014" : formatMoney(emv)}
                     </div>
                   </div>
                 </Link>

@@ -1,6 +1,7 @@
 "use client";
 import type { CSSProperties } from "react";
 import { useState, useEffect, use } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import { motion } from "framer-motion";
 import { Card, Badge, Button, EmptyState, Avatar, Skeleton, Modal } from "@pratham7711/ui";
@@ -54,7 +55,18 @@ const CreatorPerformanceBar = dynamic(() => import("./CampaignTabCharts").then((
   loading: () => <ChartSkeleton height={240} />,
 });
 
-type Tab = "performance" | "overview" | "drafts" | "posts" | "creators" | "reviews" | "analytics" | "edit";
+/* One list, and the union read off it: a tab added to a hand-written union but
+   not to the list would type-check and then silently fall back to Performance
+   whenever someone linked to it. */
+const TAB_VALUES = [
+  "performance", "overview", "drafts", "posts", "creators", "reviews", "analytics", "edit",
+] as const;
+
+type Tab = (typeof TAB_VALUES)[number];
+
+function tabFromParam(raw: string | null): Tab {
+  return TAB_VALUES.includes(raw as Tab) ? (raw as Tab) : "performance";
+}
 
 function formatNumber(num: number): string {
   return formatCompact(num);
@@ -235,7 +247,18 @@ function LoadingSkeleton() {
 
 export default function CampaignDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const [activeTab, setActiveTab] = useState<Tab>("performance");
+  /* The tab belongs in the URL, as it does on the reference app: a link to a
+     campaign's Posts opened on Performance, the back button walked out of the
+     campaign instead of back a tab, and a reload lost the tab entirely.
+     replace, not push, so one visit does not fill the history with tabs. */
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const activeTab = tabFromParam(searchParams.get("tab"));
+  const setActiveTab = (tab: Tab) => {
+    const next = new URLSearchParams(searchParams.toString());
+    next.set("tab", tab);
+    router.replace(`?${next.toString()}`, { scroll: false });
+  };
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [loading, setLoading] = useState(true);
   const [showAddCreator, setShowAddCreator] = useState(false);
