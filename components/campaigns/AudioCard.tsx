@@ -4,7 +4,7 @@ import { Card } from "@pratham7711/ui";
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip } from "recharts";
 import { Music2 } from "lucide-react";
 import { formatCompact } from "@/lib/format";
-import { mediaUrl } from "@/lib/postMedia";
+import { imgSrc, shareImgSrc } from "@/lib/postMedia";
 import type { CampaignAudio } from "@/lib/reports/campaignPerformance";
 
 /**
@@ -17,17 +17,21 @@ import type { CampaignAudio } from "@/lib/reports/campaignPerformance";
  * reference report shows the audio unconditionally, and the card carries no
  * creator names, money, or anything else a link can withhold.
  */
-export function AudioCard({ audio }: { audio: CampaignAudio }) {
+export function AudioCard({ audio, shareToken }: { audio: CampaignAudio; shareToken?: string }) {
   /*
-    Straight to the CDN, not through /api/img. That proxy is session-gated -- it
-    has to be, or it is an open image proxy -- so a card that reached for it
-    rendered a broken box on the one page that has no session, the public share
-    report. The share report's creator avatars already load direct for the same
-    reason. Nothing is lost: the proxy exists to transcode CreatorCore's HEIC
-    avatars, and a sound cover is a CDN JPEG.
+    Which proxy depends on who is looking. /api/img is session-gated -- it has to
+    be, or it is bandwidth anyone can spend -- so the public client report passes
+    its share token and the request goes through the token-scoped twin instead.
+    Either way it is proxied rather than hotlinked: the cover arrives for a viewer
+    whose own network cannot reach the platform's CDN, which is the normal case on
+    some ISPs, and a HEIC cover gets transcoded on the way.
   */
   const [coverBroken, setCoverBroken] = useState(false);
-  const cover = coverBroken ? null : mediaUrl(audio.coverUrl);
+  const cover = coverBroken
+    ? null
+    : shareToken
+      ? shareImgSrc(shareToken, audio.coverUrl, 88)
+      : imgSrc(audio.coverUrl, 88);
   // A tracked sound has counts only after a sync. Zero would claim the audio has
   // never been used, so an unsynced tracker shows an em dash instead.
   const uses = audio.uses === null ? "—" : formatCompact(audio.uses);

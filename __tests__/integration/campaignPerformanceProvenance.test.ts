@@ -276,9 +276,24 @@ describe("computeCampaignPerformance per-counter totals", () => {
     expect(result.kpis.likes).toBe(90);
     expect(result.kpis.comments).toBe(4);
     expect(result.kpis.shares).toBe(7);
-    // A zero we did observe is a real measurement and counts.
-    expect(result.kpis.saves).toBe(0);
+    // Saves is different: lastSyncedAt does not vouch for it, because the sync
+    // that stamped the timestamp never fetched a saves count in the first place.
+    expect(result.kpis.saves).toBeNull();
     // Views are carried by every source, including the import, so both count.
     expect(result.kpis.views).toBe(1500);
+  });
+
+  it("counts saves and downloads only where something actually wrote them", async () => {
+    // Only the CreatorCore import populates these two, and it writes no
+    // lastSyncedAt -- so provenance has to come from the value, not the stamp.
+    mockDb.post.findMany.mockResolvedValue([
+      post({ id: "imported", viewsCount: 900, savesCount: 12, downloadsCount: 3, lastSyncedAt: null }),
+      post({ id: "synced", viewsCount: 400, savesCount: 0, downloadsCount: 0, lastSyncedAt: new Date("2026-08-22") }),
+    ]);
+
+    const result = await computeCampaignPerformance(campaign);
+
+    expect(result.kpis.saves).toBe(12);
+    expect(result.kpis.downloads).toBe(3);
   });
 });

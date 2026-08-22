@@ -75,7 +75,14 @@ export function embedAspect(platform: string): { width: number; height: number }
  */
 export const PROXYABLE_HOSTS: RegExp[] = [
   /\.cdn\.bubble\.io$/,
+  // TikTok serves media from several regional CDN families, and which one a
+  // given post lands on is not ours to choose: covers came back on
+  // p77-sg.tiktokcdn.com while only the -us family was listed, so those images
+  // skipped the proxy, went straight to the browser, and rendered as empty
+  // boxes on any network that filters TikTok -- which includes every Indian ISP.
+  /\.tiktokcdn\.com$/,
   /\.tiktokcdn-us\.com$/,
+  /\.tiktokcdn-eu\.com$/,
   /\.cdninstagram\.com$/,
   /^i\.ytimg\.com$/,
 ];
@@ -120,4 +127,36 @@ export function imgSrc(
 
   const h = height && height !== width ? `&h=${height}` : "";
   return `/api/img?u=${encodeURIComponent(url)}&w=${width}${h}`;
+}
+
+/**
+ * The same thing for a public share link, which has no session and so cannot use
+ * /api/img at all. Reaching for imgSrc there produced a 401 and a broken box on
+ * the one page a brand actually sees; going direct to the CDN produced a broken
+ * box too, because the avatars are image/heic.
+ *
+ * Takes the token rather than reading it from context so it stays a pure
+ * function, callable from a server component and a client one alike.
+ */
+export function shareImgSrc(
+  token: string,
+  raw: string | null | undefined,
+  width = 96,
+  height?: number
+): string | null {
+  const url = mediaUrl(raw);
+  if (!url) return null;
+
+  let host: string;
+  try {
+    host = new URL(url).host;
+  } catch {
+    return null;
+  }
+  // Same reasoning as imgSrc: a URL the proxy would refuse goes straight to the
+  // browser rather than being sent there to come back 403.
+  if (!isProxyableHost(host)) return url;
+
+  const h = height && height !== width ? `&h=${height}` : "";
+  return `/api/share/${encodeURIComponent(token)}/img?u=${encodeURIComponent(url)}&w=${width}${h}`;
 }

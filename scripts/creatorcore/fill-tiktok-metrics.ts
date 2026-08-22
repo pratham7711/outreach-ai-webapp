@@ -25,7 +25,7 @@ import { db } from "../../lib/db";
 import { fetchPostMetrics, type PostMetrics } from "../../lib/platforms/fetchPostMetrics";
 import { fetchTikTokSoundStats } from "../../lib/platforms/tiktokSound";
 import { applyPostMetrics } from "../../lib/sync/syncPost";
-import { velocityBetween } from "../../lib/trackers/metrics";
+import { recordSoundSnapshot } from "../../lib/sounds/snapshot";
 import { vpnDown, vpnUp, vpnStatus, egress, tiktokReachable } from "../dev/vpn.mjs";
 import { fetchSoundStatsViaBrowser } from "../dev/tiktokSoundViaBrowser.mjs";
 
@@ -171,28 +171,9 @@ async function main() {
   }
 
   if (sound && soundStats) {
-    // Fill in the tracker's own metadata if this is the first time we have seen
-    // it. The audio card falls back to the song's art without a cover, so a
-    // real one is worth keeping.
-    await db.tikTokSound.update({
-      where: { id: sound.id },
-      data: {
-        ...(soundStats.title ? { title: soundStats.title } : {}),
-        ...(soundStats.artist ? { artist: soundStats.artist } : {}),
-        ...(soundStats.coverImageUrl ? { coverImageUrl: soundStats.coverImageUrl } : {}),
-      },
-    });
-
-    const previous = sound.snapshots[0]?.usesCount ?? 0;
-    await db.soundTrackerSnapshot.create({
-      data: {
-        soundId: sound.id,
-        usesCount: soundStats.usesCount,
-        // Same derivation the nightly snapshot uses, so one tracker's series
-        // does not have two definitions of "added in the last day".
-        videosAdded24h: velocityBetween(previous, soundStats.usesCount),
-      },
-    });
+    // The nightly job's own writer, so the series has one definition of "added
+    // in the last day" and the metadata backfill behaves identically.
+    await recordSoundSnapshot(sound, soundStats);
     log(`sound snapshot written: ${soundStats.usesCount} uses`);
   }
 

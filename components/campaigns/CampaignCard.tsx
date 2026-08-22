@@ -6,6 +6,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Users, FileText, Clock } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import type { CampaignWithRelations } from "@/types";
+import { imgSrc } from "@/lib/postMedia";
 
 const statusColors: Record<string, string> = {
   DRAFT: "bg-gray-100 text-gray-700",
@@ -52,7 +53,7 @@ export function CampaignCard({ campaign }: { campaign: CampaignWithRelations }) 
         <div className="h-20 w-20 flex-shrink-0 overflow-hidden rounded-lg bg-gradient-to-br from-indigo-400 to-purple-500">
           {campaign.thumbnailUrl ? (
             <img
-              src={campaign.thumbnailUrl}
+              src={imgSrc(campaign.thumbnailUrl, 160) ?? campaign.thumbnailUrl}
               alt={campaign.title}
               className="h-full w-full object-cover"
             />

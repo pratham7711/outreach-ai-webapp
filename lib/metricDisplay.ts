@@ -26,6 +26,26 @@ export function metricValue(
 }
 
 /**
+ * For counters nothing in this repo ever writes: saves and downloads.
+ *
+ * PostMetrics carries views, likes, comments and shares and nothing else -- no
+ * fetcher here has ever populated savesCount or downloadsCount, and only the
+ * CreatorCore import did. So a 0 in those two columns is the column default, not
+ * a reading, and lastSyncedAt cannot rescue it: a TikTok sync legitimately
+ * stamps that timestamp while leaving both untouched, which made metricValue
+ * report "Total Saves 0" on a campaign whose saves we never asked for. The same
+ * argument already applies to reachCount -- see lib/reports/shareVisibility.
+ *
+ * A genuine zero is hidden by this rule. That is the cheaper mistake: omitting a
+ * true zero costs a tile, while asserting a false one tells a brand its campaign
+ * earned no saves.
+ */
+export function unwrittenMetricValue(value: number | null | undefined): number | null {
+  if (value === null || value === undefined) return UNKNOWN;
+  return value > 0 ? value : UNKNOWN;
+}
+
+/**
  * Engagement rate is derived from the same unmeasured counters, so it inherits
  * their provenance rather than confidently reporting 0.00%.
  */

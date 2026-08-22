@@ -12,7 +12,7 @@ import { formatCompact, formatCompactCurrency, stripAt, formatDateAbs, timeAgo }
 import type { ComplianceFlag } from "@/lib/compliance/postCompliance";
 import PostMedia from "@/components/PostMedia";
 import { imgSrc } from "@/lib/postMedia";
-import { metricValue, engagementRateValue, summarizePostMetrics } from "@/lib/metricDisplay";
+import { metricValue, unwrittenMetricValue, engagementRateValue, summarizePostMetrics } from "@/lib/metricDisplay";
 
 type SnapshotLite = { id: string; viewsCount: number; recordedAt: string };
 
@@ -471,11 +471,11 @@ export default function PostsTab({
     [posts]
   );
   const anySaves = useMemo(
-    () => posts.some((p) => metricValue(p.savesCount, p.lastSyncedAt) !== null),
+    () => posts.some((p) => unwrittenMetricValue(p.savesCount) !== null),
     [posts]
   );
   const anyDownloads = useMemo(
-    () => posts.some((p) => metricValue(p.downloadsCount, p.lastSyncedAt) !== null),
+    () => posts.some((p) => unwrittenMetricValue(p.downloadsCount) !== null),
     [posts]
   );
   const anyEngRate = useMemo(
@@ -838,8 +838,10 @@ export default function PostsTab({
               const likes = metricValue(post.likesCount, post.lastSyncedAt);
               const comments = metricValue(post.commentsCount, post.lastSyncedAt);
               const shares = metricValue(post.sharesCount, post.lastSyncedAt);
-              const saves = metricValue(post.savesCount, post.lastSyncedAt);
-              const downloads = metricValue(post.downloadsCount, post.lastSyncedAt);
+              // Nothing in this repo writes these two, so lastSyncedAt cannot vouch for a
+              // zero here the way it can for views -- see unwrittenMetricValue.
+              const saves = unwrittenMetricValue(post.savesCount);
+              const downloads = unwrittenMetricValue(post.downloadsCount);
               const erShown =
                 likes === null && comments === null
                   ? null
@@ -988,6 +990,10 @@ export default function PostsTab({
                       post.viewsCount,
                       post.lastSyncedAt
                     ) ?? engRatePct(post);
+              // Through the proxy, not straight at the CDN: TikTok's thumbnail
+              // hosts are unreachable on networks that filter them, and a
+              // background-image has no onError to fall back with.
+              const thumb = imgSrc(post.thumbnailUrl, 320, 568);
               return (
                 <Link
                   key={post.id}
@@ -1000,12 +1006,12 @@ export default function PostsTab({
                     overflow: "hidden",
                     textDecoration: "none",
                     border: "1px solid var(--cc-border)",
-                    background: post.thumbnailUrl
-                      ? `url(${post.thumbnailUrl}) center/cover no-repeat`
+                    background: thumb
+                      ? `url(${thumb}) center/cover no-repeat`
                       : "var(--cc-bg)",
                   }}
                 >
-                  {!post.thumbnailUrl && (
+                  {!thumb && (
                     <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--cc-text-subtle)" }}>
                       <ImageIcon size={40} aria-hidden="true" />
                     </div>

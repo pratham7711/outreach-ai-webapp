@@ -8,6 +8,7 @@ import { ArrowLeft, ExternalLink, RefreshCw, Eye, Heart, MessageCircle, Share2, 
 import dynamic from "next/dynamic";
 import { computePostEmv, computeEngagementRate } from "@/lib/metrics";
 import { metricValue } from "@/lib/metricDisplay";
+import { imgSrc, embedSrcFor } from "@/lib/postMedia";
 import { formatCompact, stripAt, formatDateAbs, formatDateTimeAbs } from "@/lib/format";
 
 const PerformanceOverTimeArea = dynamic(() => import("./PostCharts").then((m) => m.PerformanceOverTimeArea), {
@@ -112,25 +113,6 @@ const BASE_METRIC_CARDS = [
   { key: "commentsCount", label: "Comments", icon: MessageCircle, color: "#F59E0B" },
   { key: "sharesCount", label: "Shares", icon: Share2, color: "var(--cc-success)" },
 ] as const;
-
-// Each platform publishes its own embed player, so a post can be watched here
-// rather than in a new tab. Anything we cannot build a player URL for keeps the
-// still thumbnail and the outbound link.
-function embedSrcFor(platform: string, platformPostId: string, postUrl: string): string | null {
-  const id = platformPostId?.trim();
-  switch (platform) {
-    case "TIKTOK":
-      return id ? `https://www.tiktok.com/embed/v2/${id}` : null;
-    case "YOUTUBE":
-      return id ? `https://www.youtube.com/embed/${id}` : null;
-    case "INSTAGRAM": {
-      const shortcode = id || postUrl.match(/\/(?:p|reel)\/([^/?#]+)/)?.[1];
-      return shortcode ? `https://www.instagram.com/p/${shortcode}/embed` : null;
-    }
-    default:
-      return null;
-  }
-}
 
 export default function PostDetailPage() {
   const params = useParams<{ id: string; postId: string }>();
@@ -296,6 +278,8 @@ export default function PostDetailPage() {
   }
 
   const embedSrc = embedSrcFor(post.platform, post.platformPostId, post.postUrl);
+  // Not the raw CDN URL: TikTok's thumbnail hosts are blocked on some networks.
+  const thumb = imgSrc(post.thumbnailUrl, 240, 160);
 
   const engRate =
     metricValue(post.likesCount, post.lastSyncedAt) === null &&
@@ -359,7 +343,7 @@ export default function PostDetailPage() {
         </button>
 
         <div style={{ display: "flex", gap: 20, alignItems: "flex-start", flexWrap: "wrap" }}>
-          {post.thumbnailUrl && (
+          {thumb && (
             embedSrc ? (
               <button
                 type="button"
@@ -367,14 +351,14 @@ export default function PostDetailPage() {
                 aria-label="Play post"
                 style={{ position: "relative", width: 120, height: 80, borderRadius: 10, overflow: "hidden", flexShrink: 0, border: "1px solid var(--cc-border)", padding: 0, cursor: "pointer", background: "none" }}
               >
-                <img src={post.thumbnailUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                <img src={thumb} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                 <span style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.35)" }}>
                   <Play size={22} color="#ffffff" fill="#ffffff" />
                 </span>
               </button>
             ) : (
               <div style={{ width: 120, height: 80, borderRadius: 10, overflow: "hidden", flexShrink: 0, border: "1px solid var(--cc-border)" }}>
-                <img src={post.thumbnailUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                <img src={thumb} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
               </div>
             )
           )}

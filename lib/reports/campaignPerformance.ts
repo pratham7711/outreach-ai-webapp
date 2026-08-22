@@ -4,7 +4,7 @@ import {
   computeEngagementRate,
   sumEngagements,
 } from "@/lib/metrics";
-import { metricValue } from "@/lib/metricDisplay";
+import { metricValue, unwrittenMetricValue } from "@/lib/metricDisplay";
 import type { SharePlatform } from "@/lib/reports/shareVisibility";
 import type { ActivationStatus } from "@/lib/generated/prisma/client";
 
@@ -214,10 +214,18 @@ export async function computeCampaignPerformance(
      columns where that happens: TikTok's public payload gives views, likes,
      comments and shares but never saves or downloads, so those two are usually
      unknown while the others are real. */
-  const totalOf = (pick: (p: (typeof posts)[number]) => number | null | undefined): number | null => {
-    const known = posts.filter((p) => metricValue(pick(p), p.lastSyncedAt) !== null);
+  const totalOf = (
+    pick: (p: (typeof posts)[number]) => number | null | undefined,
+    /* Saves and downloads have no writer in this repo, so their zeroes are
+       defaults rather than readings and lastSyncedAt cannot vouch for them --
+       see unwrittenMetricValue. */
+    provenance: (p: (typeof posts)[number]) => number | null = (p) => metricValue(pick(p), p.lastSyncedAt),
+  ): number | null => {
+    const known = posts.filter((p) => provenance(p) !== null);
     return known.length === 0 ? null : known.reduce((sum, p) => sum + (pick(p) ?? 0), 0);
   };
+  const unwritten = (pick: (p: (typeof posts)[number]) => number | null | undefined) =>
+    totalOf(pick, (p) => unwrittenMetricValue(pick(p)));
 
   const kpis = {
     views,
@@ -228,8 +236,8 @@ export async function computeCampaignPerformance(
     likes: totalOf((p) => p.likesCount),
     comments: totalOf((p) => p.commentsCount),
     shares: totalOf((p) => p.sharesCount),
-    saves: totalOf((p) => p.savesCount),
-    downloads: totalOf((p) => p.downloadsCount),
+    saves: unwritten((p) => p.savesCount),
+    downloads: unwritten((p) => p.downloadsCount),
   };
 
   const platformByPost = new Map(posts.map((p) => [p.id, p.platform]));
@@ -392,7 +400,9 @@ async function loadCampaignAudio(campaignId: string): Promise<CampaignAudio | nu
     coverUrl: sound.coverImageUrl ?? campaign?.song?.coverUrl ?? null,
     soundUrl: `https://www.tiktok.com/music/x-${sound.tiktokSoundId}`,
     uses: latest ? latest.usesCount : null,
-    videosAdded24h: latest ? latest.videosAdded24h : null,
+    // A change needs two readings. With one snapshot the stored 0 is the absence
+    // of a baseline, not an observation of no growth, so the card shows a dash.
+    videosAdded24h: snaps.length >= 2 ? latest!.videosAdded24h : null,
     usageSeries: snaps
       .slice()
       .reverse()

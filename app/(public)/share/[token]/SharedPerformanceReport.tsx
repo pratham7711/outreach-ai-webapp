@@ -12,6 +12,7 @@ import { ACTIVATION_STATUS_LABEL, activationStatusBadgeStyle } from "@/lib/activ
 import { platformColor } from "@/app/(dashboard)/analytics/shared";
 import { BRAND, POWERED_BY } from "@/lib/brand";
 import { AudioCard } from "@/components/campaigns/AudioCard";
+import { shareImgSrc } from "@/lib/postMedia";
 
 const SERIES = [
   { key: "TIKTOK", color: platformColor("TIKTOK") },
@@ -88,6 +89,10 @@ export default function SharedPerformanceReport({
   budget?: number | null;
 }) {
   const isMobile = useIsMobile();
+  /* A creator whose picture would not decode, so the circle shows their initial
+     instead of an empty ring. Keyed by creator, because the same avatar can
+     appear on more than one row of a re-brief. */
+  const [brokenAvatars, setBrokenAvatars] = useState<Set<string>>(new Set());
   // Already redacted server-side — a hidden leaderboard arrives empty rather
   // than arriving whole and being skipped at render time.
   const { kpis, timeSeries, platformSplit, leaderboard, currency } = data;
@@ -249,7 +254,7 @@ export default function SharedPerformanceReport({
             {/* The audio is not gated on a visibility flag: the reference report
                 always shows it, and the card carries no creator, money or status
                 field that a link is allowed to withhold. */}
-            {data.audio ? <AudioCard audio={data.audio} /> : null}
+            {data.audio ? <AudioCard audio={data.audio} shareToken={token} /> : null}
 
             <div
               style={{
@@ -399,8 +404,17 @@ export default function SharedPerformanceReport({
                                 fontSize: 12, fontWeight: 700,
                               }}
                             >
-                              {row.avatarUrl ? (
-                                <img src={row.avatarUrl} alt={row.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                              {/* Through the share-scoped proxy, not straight to the
+                                  CDN: these avatars are image/heic and every one of
+                                  them rendered as a broken box. onError falls back to
+                                  the initial rather than leaving an empty circle. */}
+                              {shareImgSrc(token, row.avatarUrl, 56) && !brokenAvatars.has(row.creatorId) ? (
+                                <img
+                                  src={shareImgSrc(token, row.avatarUrl, 56)!}
+                                  alt={row.name}
+                                  onError={() => setBrokenAvatars((prev) => new Set(prev).add(row.creatorId))}
+                                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                                />
                               ) : (
                                 row.name.charAt(0).toUpperCase()
                               )}
