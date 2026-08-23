@@ -37,8 +37,20 @@ const STATUS_BADGE: Record<string, "success" | "warning" | "danger" | "neutral">
   DECLINED: "danger",
 };
 
+/* The reference splits reviewed work into Approved and Declined beside the
+   unreviewed queue, and both are already derivable from the activation status --
+   the tab just never offered them, so a declined draft could only be found by
+   reading every row under "All".
+
+   "Not Reviewed" is the reference's name for what this called "Pending review".
+   APPROVED covers everything downstream of approval too: a posted draft was
+   approved, and filing it anywhere else would make Approved lie. */
+const APPROVED_STATUSES = ["APPROVED", "POSTING", "POSTED", "COMPLETE"];
+
 const FILTERS = [
-  { key: "PENDING", label: "Pending review" },
+  { key: "PENDING", label: "Not Reviewed" },
+  { key: "APPROVED", label: "Approved" },
+  { key: "DECLINED", label: "Declined" },
   { key: "ALL", label: "All" },
 ] as const;
 
@@ -110,11 +122,19 @@ export default function DraftsTab({
     await patch(id, { status: "DECLINED", feedbackNotes: reason || null }, "Revisions requested");
   };
 
-  const visible = drafts.filter((d) =>
-    filter === "PENDING"
-      ? PENDING_STATUSES.includes(d.status)
-      : !!d.draftUrl || PENDING_STATUSES.includes(d.status)
-  );
+  const visible = drafts.filter((d) => {
+    switch (filter) {
+      case "PENDING":
+        return PENDING_STATUSES.includes(d.status);
+      case "APPROVED":
+        return APPROVED_STATUSES.includes(d.status);
+      case "DECLINED":
+        return d.status === "DECLINED";
+      default:
+        // "All" stays as it was: anything with a draft, plus the unreviewed.
+        return !!d.draftUrl || PENDING_STATUSES.includes(d.status);
+    }
+  });
 
   if (loading) {
     return (
@@ -155,7 +175,12 @@ export default function DraftsTab({
       {visible.length === 0 ? (
         <EmptyState
           icon={<FileText size={32} color="var(--cc-text-subtle)" />}
-          title={filter === "PENDING" ? "No drafts awaiting review" : "No drafts yet"}
+          title={
+            filter === "PENDING" ? "No drafts awaiting review"
+            : filter === "APPROVED" ? "No approved drafts"
+            : filter === "DECLINED" ? "No declined drafts"
+            : "No drafts yet"
+          }
           description="Drafts appear here once creators submit content for approval."
         />
       ) : (
