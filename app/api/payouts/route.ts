@@ -9,6 +9,10 @@ import { pageParam, pageSizeParam, parseQuery } from "@/lib/http/queryParams";
 
 const listPayoutsQuerySchema = z.object({
   status: z.enum(["PENDING", "PROCESSING", "SUCCESS", "FAILED"]).optional(),
+  // One campaign's payouts, for the campaign's own Financials tab. Still scoped
+  // by orgId below, so an id from another org narrows to nothing rather than
+  // reaching across tenants.
+  campaignId: z.string().optional(),
   page: pageParam,
   limit: pageSizeParam(),
 });
@@ -19,9 +23,9 @@ export async function GET(req: NextRequest) {
   const { orgId } = result;
   const parsedQuery = parseQuery(listPayoutsQuerySchema, req.nextUrl.searchParams);
   if (!parsedQuery.ok) return parsedQuery.response;
-  const { status, page, limit } = parsedQuery.data;
+  const { status, campaignId, page, limit } = parsedQuery.data;
   const skip = (page - 1) * limit;
-  const where = { orgId, ...(status && { status: status as any }) };
+  const where = { orgId, ...(status && { status: status as any }), ...(campaignId && { campaignId }) };
   const [payouts, total, balance] = await Promise.all([
     db.payout.findMany({ where, include: { creator: { select: { id: true, name: true, handle: true, platform: true } }, campaign: { select: { id: true, title: true } } }, orderBy: { createdAt: "desc" }, skip, take: limit }),
     db.payout.count({ where }),

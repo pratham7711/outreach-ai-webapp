@@ -10,6 +10,7 @@ import { Dropdown, MetricTile } from "@/components/ds";
 import PostsTab from "./PostsTab";
 import ActivityFeed from "./ActivityFeed";
 import DraftsTab from "./DraftsTab";
+import FinancialsTab from "./FinancialsTab";
 import InvitesSection from "./InvitesSection";
 import NegotiationsSection from "./NegotiationsSection";
 import ProposalsSection from "./ProposalsSection";
@@ -61,7 +62,7 @@ const CreatorPerformanceBar = dynamic(() => loadCharts().then((m) => m.CreatorPe
    not to the list would type-check and then silently fall back to Performance
    whenever someone linked to it. */
 const TAB_VALUES = [
-  "performance", "overview", "drafts", "posts", "creators", "reviews", "analytics", "edit",
+  "performance", "overview", "drafts", "posts", "creators", "reviews", "analytics", "financials", "edit",
 ] as const;
 
 type Tab = (typeof TAB_VALUES)[number];
@@ -231,6 +232,11 @@ type Campaign = {
   activations: Activation[];
   posts: Post[];
   brief: { content: string } | null;
+  /** The rollups the reference computes per campaign, shown on Financials. */
+  creatorRateTotals?: number | null;
+  commissionTotal?: number | null;
+  profitTotal?: number | null;
+  financials?: { totalBudget: number; spentAmount: number; notes: string | null } | null;
   /** The org's campaign tags applied to this campaign. */
   tagLinks?: { tag: { id: string; name: string } }[];
   _count: { activations: number; posts: number };
@@ -588,6 +594,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
     { label: "Creators", value: "creators", count: roster.length },
     { label: "Reviews", value: "reviews" as Tab },
     { label: "Analytics", value: "analytics" },
+    { label: "Financials", value: "financials" as Tab },
     { label: "Edit", value: "edit" as Tab },
   ];
 
@@ -929,6 +936,18 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
         )}
 
         {/* Edit Tab */}
+        {activeTab === "financials" && (
+          <FinancialsTab
+            campaignId={id}
+            budget={campaign.budget ?? null}
+            currency={campaign.currency ?? "USD"}
+            notes={campaign.notes ?? null}
+            creatorRateTotals={campaign.creatorRateTotals ?? null}
+            profitTotal={campaign.profitTotal ?? null}
+            financials={campaign.financials ?? null}
+          />
+        )}
+
         {activeTab === "edit" && (
           <div style={{ maxWidth: 640 }}>
             <div style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, padding: 24 }}>
