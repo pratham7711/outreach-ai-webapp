@@ -20,6 +20,18 @@ const INDEXES = [
   // PostMetricSnapshot had nothing but its primary key.
   ['PostMetricSnapshot_postId_idx', 'CREATE INDEX CONCURRENTLY IF NOT EXISTS "PostMetricSnapshot_postId_idx" ON "PostMetricSnapshot" ("postId")'],
   ['PostMetricSnapshot_postId_recordedAt_idx', 'CREATE INDEX CONCURRENTLY IF NOT EXISTS "PostMetricSnapshot_postId_recordedAt_idx" ON "PostMetricSnapshot" ("postId", "recordedAt")'],
+  ['Post_activationId_idx', 'CREATE INDEX CONCURRENTLY IF NOT EXISTS "Post_activationId_idx" ON "Post" ("activationId")'],
+  // Campaign, Activation, AuditLog, CreatorSession and User had no indexes at
+  // all beyond their primary keys, and every read of them is scoped by org.
+  ['Campaign_orgId_deletedAt_idx', 'CREATE INDEX CONCURRENTLY IF NOT EXISTS "Campaign_orgId_deletedAt_idx" ON "Campaign" ("orgId", "deletedAt")'],
+  ['Campaign_clientId_idx', 'CREATE INDEX CONCURRENTLY IF NOT EXISTS "Campaign_clientId_idx" ON "Campaign" ("clientId")'],
+  ['Campaign_folderId_idx', 'CREATE INDEX CONCURRENTLY IF NOT EXISTS "Campaign_folderId_idx" ON "Campaign" ("folderId")'],
+  ['Campaign_songId_idx', 'CREATE INDEX CONCURRENTLY IF NOT EXISTS "Campaign_songId_idx" ON "Campaign" ("songId")'],
+  ['Activation_campaignId_deletedAt_idx', 'CREATE INDEX CONCURRENTLY IF NOT EXISTS "Activation_campaignId_deletedAt_idx" ON "Activation" ("campaignId", "deletedAt")'],
+  ['Activation_creatorId_idx', 'CREATE INDEX CONCURRENTLY IF NOT EXISTS "Activation_creatorId_idx" ON "Activation" ("creatorId")'],
+  ['AuditLog_orgId_createdAt_idx', 'CREATE INDEX CONCURRENTLY IF NOT EXISTS "AuditLog_orgId_createdAt_idx" ON "AuditLog" ("orgId", "createdAt")'],
+  ['CreatorSession_creatorUserId_idx', 'CREATE INDEX CONCURRENTLY IF NOT EXISTS "CreatorSession_creatorUserId_idx" ON "CreatorSession" ("creatorUserId")'],
+  ['User_orgId_idx', 'CREATE INDEX CONCURRENTLY IF NOT EXISTS "User_orgId_idx" ON "User" ("orgId")'],
 ];
 
 if (!process.env.DATABASE_URL) {
@@ -37,7 +49,7 @@ try {
     console.log(`${name.padEnd(42)} ${(Number(process.hrtime.bigint() - started) / 1e6).toFixed(0)}ms`);
   }
   // Without this the planner keeps its old row estimates and may ignore them.
-  for (const table of ["Post", "PostMetricSnapshot"]) await db.query(`ANALYZE "${table}"`);
+  for (const table of ["Post", "PostMetricSnapshot", "Campaign", "Activation", "AuditLog", "CreatorSession", "User"]) await db.query(`ANALYZE "${table}"`);
   console.log("ANALYZE done.");
 } finally {
   await db.end();

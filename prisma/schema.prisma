@@ -375,6 +375,7 @@ model User {
   briefsUpdated   CreativeBrief[]
   accounts        Account[]
   sessions        Session[]
+  @@index([orgId])
 }
 
 model OrgPlanConfig {
@@ -500,6 +501,13 @@ model Campaign {
   fraudFlags        ViewFraudFlag[]
   conversations     Conversation[]
   syncSlots         SyncSlot[]
+  // 80 call sites read this table and every one of them scopes by orgId; it had
+  // no index at all. deletedAt rides along because the scope is almost always
+  // "this org's live campaigns".
+  @@index([orgId, deletedAt])
+  @@index([clientId])
+  @@index([folderId])
+  @@index([songId])
 }
 
 /// A metered high-resolution polling slot — the scarce resource a plan sells.
@@ -664,6 +672,9 @@ model Activation {
   campaign Campaign @relation(fields: [campaignId], references: [id])
   creator  Creator  @relation(fields: [creatorId], references: [id])
   posts    Post[]
+  // Joined per campaign by the roster and the share report.
+  @@index([campaignId, deletedAt])
+  @@index([creatorId])
 }
 
 // ─── Posts & Social Metrics ───────────────────────────────────────────────────
@@ -722,6 +733,8 @@ model Post {
   // 18,725 rows to return the 17 belonging to one campaign.
   @@index([campaignId])
   @@index([creatorId])
+  // 18,725 rows, and the activation is how a post is tied to its brief.
+  @@index([activationId])
 }
 
 model PostMetricSnapshot {
@@ -1127,6 +1140,8 @@ model CreatorSession {
   createdAt     DateTime @default(now())
 
   creatorUser CreatorUser @relation(fields: [creatorUserId], references: [id])
+  // Read on every authenticated creator-portal request.
+  @@index([creatorUserId])
 }
 
 model CampaignProposal {
@@ -1225,6 +1240,8 @@ model AuditLog {
   createdAt   DateTime @default(now())
 
   org Organization @relation(fields: [orgId], references: [id])
+  // Listed newest-first within one org.
+  @@index([orgId, createdAt])
 }
 
 // ─── View Ledger ──────────────────────────────────────────────────────────────
