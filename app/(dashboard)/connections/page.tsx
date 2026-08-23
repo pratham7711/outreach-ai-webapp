@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Button, Card, Badge, Modal, Input, Skeleton } from "@pratham7711/ui";
+import { Button, Card, Badge, Modal, Input, Skeleton, EmptyState } from "@pratham7711/ui";
+import { AlertTriangle } from "lucide-react";
 
 type PlatformConnection = {
   platform: string;
@@ -17,6 +18,7 @@ type PlatformConnection = {
 export default function ConnectionsPage() {
   const [platforms, setPlatforms] = useState<PlatformConnection[]>([]);
   const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
   const [connectModal, setConnectModal] = useState<PlatformConnection | null>(null);
   const [disconnectModal, setDisconnectModal] = useState<PlatformConnection | null>(null);
   const [accountName, setAccountName] = useState("");
@@ -24,12 +26,17 @@ export default function ConnectionsPage() {
   const [toast, setToast] = useState<string | null>(null);
 
   const fetchPlatforms = useCallback(async () => {
+    setFailed(false);
     try {
       const res = await fetch("/api/connections");
-      if (res.ok) {
-        const data = await res.json();
-        setPlatforms(data);
-      }
+      if (!res.ok) throw new Error(String(res.status));
+      setPlatforms(await res.json());
+    } catch {
+      /* The catalogue is fixed, so an empty list never means "you have no
+         connections" -- it means the request did not come back. Without this
+         the page drew its three section headings over nothing and reported
+         "0 connected, 0 available", which reads as an answer. */
+      setFailed(true);
     } finally {
       setLoading(false);
     }
@@ -102,6 +109,33 @@ export default function ConnectionsPage() {
             <Skeleton key={i} height={180} borderRadius={12} />
           ))}
         </div>
+      </div>
+    );
+  }
+
+  if (failed) {
+    return (
+      <div className="rsp-page">
+        <div className="rsp-header">
+          <div>
+            <h1 style={{ fontSize: 28, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Connections</h1>
+            <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>
+              Connect your platforms and payment providers
+            </p>
+          </div>
+        </div>
+        <Card variant="outlined" style={{ padding: 32 }}>
+          <EmptyState
+            icon={<AlertTriangle size={32} color="var(--cc-text-subtle)" />}
+            title="Couldn't load your connections"
+            description="The list of platforms didn't come back. Nothing has been disconnected."
+            action={
+              <Button variant="primary" onClick={fetchPlatforms}>
+                Retry
+              </Button>
+            }
+          />
+        </Card>
       </div>
     );
   }
