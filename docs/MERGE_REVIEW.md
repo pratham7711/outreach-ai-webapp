@@ -8,6 +8,45 @@ work. It records what was checked, what was found, and what is left for a human.
 
 ---
 
+## Live now
+
+**https://campaign.madeboring.com** serves this branch, publicly, functions in
+`sin1`. Sign in with `admin@demo.com` / `admin123`.
+
+The public client report — the CreatorCore equivalent of
+`lkay.creatorcore.co/client/wherever-i-go-ellie-holcomb-8950325` — is
+[`/share/EfxyvjxEUweafK1Z1ABH4A0WkA55mzc15gsdoMksfOw`](https://campaign.madeboring.com/share/EfxyvjxEUweafK1Z1ABH4A0WkA55mzc15gsdoMksfOw).
+Verified from a browser with no cookies and from curl with no headers: HTTP 200,
+4 charts, 26 images, **0 broken, 0 failed requests**.
+
+Two things were in the way and both are fixed. The app was running in `bom1`,
+which cannot reach TikTok's CDN from India — the same reason those avatars are
+blank on a local build and why `vercel.json` pins `sin1`. And production's
+database had neither the new schema nor the import, so the share token came back
+"Link unavailable".
+
+**How the database was handled, and the debt it carries.** Rather than deploy
+and then migrate, production's `DATABASE_URL` was repointed at the Neon database
+that already holds the import — the same one the local build reads. No DDL, no
+data load, no window where new code met an old schema. Pratham chose this
+knowing it breaks the rule in `webapp/CLAUDE.md` that production must not share
+the dev database. What it leaves behind:
+
+- **Production and local are now one database.** A local write is a production
+  write. Seed scripts and destructive test helpers need treating accordingly.
+- **The old production connection string is gone.** It was a `sensitive` Vercel
+  var, so it could not be read before being overwritten; recovering it means
+  going to the Neon console.
+- **Deleting the wrong Neon project now takes production down.** The old project
+  was pencilled in for deletion around 28 Aug — check which one owns
+  `ep-red-star-a1va7t04` first.
+
+The end state is still production on its own Neon branch with `parityDdl`
+applied through `/api/admin/cc-sync`; the sequence is under "After merging" at
+the end of this document.
+
+---
+
 ## Verdict
 
 **Ready to merge once the two conflicts below are resolved.** Nothing found in
