@@ -111,8 +111,142 @@ type Creator = {
     postCount: number;
     activation: { id: string; status: string; deliverableDueDate: string | null } | null;
   }[];
+  /** The org's tags and flags applied to this creator. */
+  tagLinks?: { tag: { id: string; name: string } }[];
+  flagLinks?: { flag: { id: string; name: string; emoji: string | null } }[];
   _count: { activations: number; posts: number };
 };
+
+type LabelDef = { id: string; name: string; emoji?: string | null };
+
+/**
+ * The reference's Tags section and Flag Creator action, both on the creator's
+ * own profile, both drawing on the lists in Settings → General.
+ *
+ * Every change sends the whole set rather than a single add or remove. The card
+ * already knows the full selection, and a set means clicking the same tag twice
+ * cannot leave a duplicate or a half-applied state behind.
+ */
+function LabelCard({
+  creatorId,
+  kind,
+  title,
+  emptyLabel,
+  addLabel,
+  selected,
+  onSaved,
+}: {
+  creatorId: string;
+  kind: "tags" | "flags";
+  title: string;
+  emptyLabel: string;
+  addLabel: string;
+  selected: LabelDef[];
+  onSaved: () => void;
+}) {
+  const [defs, setDefs] = useState<LabelDef[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // The definitions are only needed once the reader wants to add one, but they
+  // also decide whether an "add" control makes sense at all, so they load with
+  // the card.
+  useEffect(() => {
+    const list = kind === "tags" ? "creator-tags" : "creator-flags";
+    fetch(`/api/settings/taxonomy/${list}`)
+      .then((r) => r.json())
+      .then((d) => setDefs(Array.isArray(d.items) ? d.items : []))
+      .catch(() => setDefs([]));
+  }, [kind]);
+
+  async function save(ids: string[]) {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/creators/${creatorId}/labels/${kind}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids }),
+      });
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({}));
+        throw new Error(payload.error ?? `Could not save (${res.status})`);
+      }
+      onSaved();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not save");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const selectedIds = selected.map((s) => s.id);
+  const available = (defs ?? []).filter((d) => !selectedIds.includes(d.id));
+
+  return (
+    <Card variant="outlined" style={{ padding: 24 }}>
+      <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)", display: "block", marginBottom: 12 }}>
+        {title}
+      </span>
+
+      {selected.length === 0 ? (
+        <p style={{ fontSize: 14, color: "var(--cc-text-muted)", lineHeight: 1.6 }}>{emptyLabel}</p>
+      ) : (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
+          {selected.map((s) => (
+            <span
+              key={s.id}
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 6,
+                background: "var(--cc-bg)", border: "1px solid var(--cc-border)",
+                borderRadius: 8, padding: "6px 8px 6px 12px", fontSize: 13, color: "var(--cc-text)",
+              }}
+            >
+              {s.emoji ? `${s.emoji} ` : ""}{s.name}
+              <button
+                type="button"
+                aria-label={`Remove ${s.name}`}
+                disabled={busy}
+                onClick={() => void save(selectedIds.filter((v) => v !== s.id))}
+                style={{ background: "none", border: "none", cursor: "pointer", color: "var(--cc-text-muted)", display: "inline-flex", padding: 0 }}
+              >
+                <Trash2 size={13} aria-hidden="true" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+
+      {defs === null ? null : available.length > 0 ? (
+        <div style={{ marginTop: 12 }}>
+          <Dropdown
+            ariaLabel={addLabel}
+            value=""
+            placeholder={addLabel}
+            disabled={busy}
+            align="left"
+            minWidth={180}
+            onChange={(v) => void save([...selectedIds, v])}
+            options={available.map((d) => ({
+              value: d.id,
+              label: d.emoji ? `${d.emoji} ${d.name}` : d.name,
+            }))}
+          />
+        </div>
+      ) : (
+        <p style={{ marginTop: 12, fontSize: 12, color: "var(--cc-text-muted)" }}>
+          {(defs ?? []).length === 0
+            ? `No ${kind} defined yet — add them in Settings → General.`
+            : `All ${kind} applied.`}
+        </p>
+      )}
+
+      {error && (
+        <p role="alert" style={{ marginTop: 8, fontSize: 12, color: "var(--cc-danger)" }}>{error}</p>
+      )}
+    </Card>
+  );
+}
 
 const responsiveStyles = `
   .cd-stats-grid {
@@ -615,6 +749,24 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
                 {creator.notes ?? "No notes added yet."}
               </p>
             </Card>
+            <LabelCard
+              creatorId={id}
+              kind="tags"
+              title="Tags"
+              emptyLabel="No tags added yet!"
+              addLabel="Add Tag"
+              selected={(creator.tagLinks ?? []).map((l) => l.tag)}
+              onSaved={refreshCreator}
+            />
+            <LabelCard
+              creatorId={id}
+              kind="flags"
+              title="Flags"
+              emptyLabel="No flags added yet!"
+              addLabel="Flag Creator"
+              selected={(creator.flagLinks ?? []).map((l) => l.flag)}
+              onSaved={refreshCreator}
+            />
           </div>
         )}
 

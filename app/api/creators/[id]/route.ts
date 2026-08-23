@@ -43,6 +43,10 @@ export async function GET(
           orderBy: { postedAt: "desc" },
           take: 50,
         },
+        // The org's tags and flags on this creator. The definitions are shared,
+        // so only the name and emoji the profile actually renders come back.
+        tagLinks: { select: { tag: { select: { id: true, name: true } } } },
+        flagLinks: { select: { flag: { select: { id: true, name: true, emoji: true } } } },
         _count: { select: { activations: true, posts: true } },
       },
     });
