@@ -2,7 +2,6 @@
 import type { CSSProperties } from "react";
 import { useState, useEffect, use } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { unwrittenMetricValue } from "@/lib/metricDisplay";
 import dynamic from "next/dynamic";
 import { motion } from "framer-motion";
 import { Card, Badge, Button, EmptyState, Avatar, Skeleton, Modal } from "@pratham7711/ui";
@@ -11,18 +10,19 @@ import PostsTab from "./PostsTab";
 import ActivityFeed from "./ActivityFeed";
 import DraftsTab from "./DraftsTab";
 import FinancialsTab from "./FinancialsTab";
+import RosterTable, { ROSTER_COLUMNS, ROSTER_DEFAULT_COLUMNS } from "./RosterTable";
 import InvitesSection from "./InvitesSection";
 import NegotiationsSection from "./NegotiationsSection";
 import ProposalsSection from "./ProposalsSection";
 import ReviewsSection from "./ReviewsSection";
 import {
   ArrowLeft, Eye, Heart, MessageCircle, Share2, TrendingUp, Users,
-  Calendar, Play, ChevronRight, ExternalLink, DollarSign, UserPlus,
+  Calendar, Play, ChevronRight, ExternalLink, DollarSign,
   ClipboardList, BarChart3, Wallet, Trash2,
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { formatCompact, stripAt, formatCompactCurrency, formatDateAbs } from "@/lib/format";
+import { formatCompact, formatCompactCurrency, formatDateAbs } from "@/lib/format";
 import { CreatorSelect } from "@/components/CreatorSelect";
 import { platformColor } from "@/app/(dashboard)/analytics/shared";
 import { loadCharts } from "@/components/charts/lazyCharts";
@@ -87,15 +87,6 @@ const STATUS_BADGE: Record<string, "success" | "warning" | "accent" | "neutral">
   CANCELLED: "neutral",
 };
 
-const ACTIVATION_STATUS: Record<string, "success" | "warning" | "danger" | "neutral"> = {
-  AWAITING_DRAFT: "warning",
-  DRAFT_SUBMITTED: "neutral",
-  APPROVED: "success",
-  POSTED: "success",
-  COMPLETE: "success",
-  DECLINED: "danger",
-};
-
 type Post = {
   id: string;
   platform: string;
@@ -120,6 +111,7 @@ type Post = {
 type RosterEntry = {
   creator: Post["creator"];
   activationStatus: string | null;
+  deliverableDueDate: string | null;
   posts: number;
   views: number;
 };
@@ -127,13 +119,22 @@ type RosterEntry = {
 function buildRoster(activations: Activation[], posts: Post[]): RosterEntry[] {
   const byCreator = new Map<string, RosterEntry>();
   for (const act of activations) {
-    byCreator.set(act.creator.id, { creator: act.creator, activationStatus: act.status, posts: 0, views: 0 });
+    byCreator.set(act.creator.id, {
+      creator: act.creator,
+      activationStatus: act.status,
+      // Carried through so the roster can offer a Due column. This was read off
+      // the activation and then dropped.
+      deliverableDueDate: act.deliverableDueDate,
+      posts: 0,
+      views: 0,
+    });
   }
   for (const post of posts) {
     if (!post.creator) continue;
     const entry = byCreator.get(post.creator.id) ?? {
       creator: post.creator,
       activationStatus: null,
+      deliverableDueDate: null,
       posts: 0,
       views: 0,
     };
@@ -376,6 +377,26 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
   const setActiveTab = (tab: Tab) => {
     const next = new URLSearchParams(searchParams.toString());
     next.set("tab", tab);
+    router.replace(`?${next.toString()}`, { scroll: false });
+  };
+  /* Which roster columns are showing. In the URL rather than component state for
+     the reason the list pages give: a configured table survives a refresh and
+     can be pasted to a colleague, which is most of what the reference's saved
+     "New View" is for. An unknown key is dropped rather than trusted. */
+  const validColumnKeys = ROSTER_COLUMNS.map((c) => c.key);
+  const colsParam = searchParams.get("cols");
+  const columnKeys = colsParam === null
+    ? ROSTER_DEFAULT_COLUMNS
+    : colsParam.split(",").filter((k) => validColumnKeys.includes(k));
+  const setColumnKeys = (keys: string[]) => {
+    const next = new URLSearchParams(searchParams.toString());
+    // The default set stays out of the URL entirely, so the address stays clean
+    // until someone actually changes the columns.
+    const isDefault =
+      keys.length === ROSTER_DEFAULT_COLUMNS.length &&
+      ROSTER_DEFAULT_COLUMNS.every((k) => keys.includes(k));
+    if (isDefault) next.delete("cols");
+    else next.set("cols", keys.join(","));
     router.replace(`?${next.toString()}`, { scroll: false });
   };
   const [campaign, setCampaign] = useState<Campaign | null>(null);
@@ -781,79 +802,13 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
         {/* Creators Tab */}
         {activeTab === "creators" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            <div style={{ display: "flex", justifyContent: "flex-end" }}>
-              <button
-                onClick={() => setShowAddCreator(true)}
-                style={{
-                  display: "flex", alignItems: "center", gap: 6,
-                  background: "var(--cc-primary)", color: "white", border: "none",
-                  borderRadius: 8, padding: "9px 16px", fontSize: 14, fontWeight: 600, cursor: "pointer",
-                }}
-              >
-                <UserPlus size={14} /> Add Creator
-              </button>
-            </div>
-            {roster.length === 0 ? (
-              <EmptyState icon={<Users size={32} color="var(--cc-text-subtle)" />} title="No creators yet" description="Add creators to this campaign to get started." />
-            ) : (
-              <Card variant="solid" noPadding style={{ overflowX: "auto" }}>
-                <div style={{
-                  display: "grid", gridTemplateColumns: "1fr 120px 100px 80px 100px 100px 130px", minWidth: 920,
-                  gap: 12, padding: "12px 24px", borderBottom: "1px solid var(--cc-border)", background: "var(--cc-bg)",
-                }}>
-                  {["Creator", "Platform", "Followers", "Posts", "Views", "Rate", "Status"].map(h => (
-                    <span key={h} style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--cc-text-subtle)" }}>{h}</span>
-                  ))}
-                </div>
-                <div className="cc-stagger">
-                  {roster.map((entry, i) => (
-                    <Link
-                      key={entry.creator.id}
-                      href={`/creators/${entry.creator.id}`}
-                      style={{ textDecoration: "none", display: "grid", gridTemplateColumns: "1fr 120px 100px 80px 100px 100px 130px", minWidth: 920, gap: 12, padding: "14px 24px", alignItems: "center", borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined }}
-                      className="cc-table-row"
-                    >
-                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                        <Avatar name={entry.creator.name} size="sm" src={entry.creator.avatarUrl ?? undefined} />
-                        <div>
-                          <p style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>{entry.creator.name}</p>
-                          <p style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>@{stripAt(entry.creator.handle)}</p>
-                        </div>
-                      </div>
-                      <Badge variant="neutral">{entry.creator.platform}</Badge>
-                      {/* followersCount is Float @default(0), so a creator nobody
-                          has fetched holds 0 rather than null. The creators list
-                          and the creator page both already leave that blank; this
-                          column printed "0" for the whole roster instead, which
-                          reads as a creator with no audience. */}
-                      <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>
-                        {(() => {
-                          const followers = unwrittenMetricValue(entry.creator.followersCount);
-                          return followers === null ? "\u2014" : formatNumber(followers);
-                        })()}
-                      </span>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>{entry.posts}</span>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>{formatNumber(entry.views)}</span>
-                      {/* The reference roster leads with Rate; ours held the
-                          number and never showed it. Null means no rate agreed,
-                          which is not the same as a rate of nothing. */}
-                      <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>
-                        {entry.creator.rate === null || entry.creator.rate <= 0
-                          ? "\u2014"
-                          : formatCurrency(entry.creator.rate, campaign.currency)}
-                      </span>
-                      {entry.activationStatus ? (
-                        <Badge variant={ACTIVATION_STATUS[entry.activationStatus] ?? "neutral"} dot>
-                          {entry.activationStatus.replace(/_/g, " ")}
-                        </Badge>
-                      ) : (
-                        <Badge variant="success" dot>POSTED</Badge>
-                      )}
-                    </Link>
-                  ))}
-                </div>
-              </Card>
-            )}
+            <RosterTable
+              rows={roster}
+              currency={campaign.currency}
+              columnKeys={columnKeys}
+              onColumnKeysChange={setColumnKeys}
+              onAddCreator={() => setShowAddCreator(true)}
+            />
 
             {/* Proposals, Invites & Negotiations */}
             <ProposalsSection campaignId={id} />
