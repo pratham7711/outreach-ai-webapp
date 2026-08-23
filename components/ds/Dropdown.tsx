@@ -243,6 +243,7 @@ export function Dropdown({
       <button
         ref={triggerRef}
         type="button"
+        role="combobox"
         aria-label={ariaLabel}
         aria-haspopup="listbox"
         aria-expanded={open}
