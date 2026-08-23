@@ -16,11 +16,18 @@ import {
   ACTIVATION_STATUS_LABEL,
   groupByQueue,
   countByStatuses,
+  namedStatusReachable,
 } from "@/lib/activationQueues";
+import { Dropdown } from "@/components/ds";
+
+type StatusDef = { id: string; name: string; bucket: string };
 
 type Activation = {
   id: string;
   status: string;
+  /** The org's named status, when one has been chosen. */
+  statusDefId: string | null;
+  statusDefName: string | null;
   createdAt: string;
   updatedAt: string;
   creator: { id: string; name: string; handle: string; platform: string; avatarUrl: string | null };
@@ -60,11 +67,15 @@ function QueueSection({
   hint,
   items,
   onStatusChange,
+  statusDefs,
+  onNamedStatusChange,
 }: {
   label: string;
   hint: string;
   items: Activation[];
   onStatusChange: (id: string, status: string) => void;
+  statusDefs: StatusDef[];
+  onNamedStatusChange: (id: string, statusDefId: string | null) => void;
 }) {
   return (
     <div>
@@ -141,8 +152,28 @@ function QueueSection({
                     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                       <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--cc-text-muted)" }}>
                         <span style={{ width: 8, height: 8, borderRadius: "50%", background: ACTIVATION_STATUS_COLOR[a.status] ?? "var(--cc-text-subtle)" }} />
-                        {ACTIVATION_STATUS_LABEL[a.status] ?? a.status}
+                        {/* The org's own name for this state wins over the enum
+                            label, which is what makes "Invited" visible at all. */}
+                        {a.statusDefName ?? ACTIVATION_STATUS_LABEL[a.status] ?? a.status}
                       </span>
+                      {statusDefs.length > 0 && (
+                        <Dropdown
+                          ariaLabel={`Named status for ${a.creator.name}`}
+                          value={a.statusDefId ?? ""}
+                          placeholder="Set status"
+                          align="left"
+                          minWidth={150}
+                          onChange={(v) => onNamedStatusChange(a.id, v === "" ? null : v)}
+                          options={[
+                            { value: "", label: "No named status" },
+                            // Only what the state machine allows from here: a
+                            // dropdown whose options 400 is worse than none.
+                            ...statusDefs
+                              .filter((d) => namedStatusReachable(a.status, d.bucket))
+                              .map((d) => ({ value: d.id, label: d.name })),
+                          ]}
+                        />
+                      )}
                       {actions.map((act) => (
                         <button
                           key={act.status}
@@ -173,9 +204,10 @@ function QueueSection({
   );
 }
 
-export default function ActivationsClient({ activations, stats }: {
+export default function ActivationsClient({ activations, stats, statusDefs }: {
   activations: Activation[];
   stats: { total: number; active: number };
+  statusDefs: StatusDef[];
 }) {
   const router = useRouter();
   const [showCreate, setShowCreate] = useState(false);
@@ -197,6 +229,29 @@ export default function ActivationsClient({ activations, stats }: {
         router.refresh();
       } else {
         const err = await res.json();
+        toast.error(err.error || "Failed");
+      }
+    } catch { toast.error("Network error"); }
+  };
+
+  /**
+   * Choosing one of the org's named statuses. The route moves the enum bucket
+   * along with it, so the queues and every status filter keep working on a name
+   * they have never heard of.
+   */
+  const handleNamedStatusChange = async (id: string, statusDefId: string | null) => {
+    try {
+      const res = await fetch(`/api/activations/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ statusDefId }),
+      });
+      if (res.ok) {
+        const name = statusDefs.find((d) => d.id === statusDefId)?.name;
+        toast.success(name ? `Status set to ${name}` : "Named status cleared");
+        router.refresh();
+      } else {
+        const err = await res.json().catch(() => ({}));
         toast.error(err.error || "Failed");
       }
     } catch { toast.error("Network error"); }
@@ -284,6 +339,8 @@ export default function ActivationsClient({ activations, stats }: {
                 hint={queue.hint}
                 items={items}
                 onStatusChange={handleStatusChange}
+                statusDefs={statusDefs}
+                onNamedStatusChange={handleNamedStatusChange}
               />
             );
           })}
@@ -295,6 +352,8 @@ export default function ActivationsClient({ activations, stats }: {
               hint="These are not in any queue — the queue definitions need updating"
               items={ungrouped}
               onStatusChange={handleStatusChange}
+              statusDefs={statusDefs}
+              onNamedStatusChange={handleNamedStatusChange}
             />
           )}
         </div>

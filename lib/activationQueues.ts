@@ -139,3 +139,29 @@ export function activationStatusBadgeStyle(status: string): {
   const color = ACTIVATION_STATUS_COLOR[status] ?? "var(--cc-text-muted)";
   return { color, background: `color-mix(in srgb, ${color} 14%, transparent)` };
 }
+
+/**
+ * Which statuses may follow which. Lives here rather than in the route because
+ * the activations list has to offer only the named statuses actually reachable
+ * from a row's current state -- a dropdown whose options 400 is worse than no
+ * dropdown -- and a second copy of this map on the client is the thing that
+ * would drift out of step with the one the server enforces.
+ */
+export const ALLOWED_TRANSITIONS: Record<string, string[]> = {
+  AWAITING_DRAFT: ["DRAFT_SUBMITTED", "DECLINED"],
+  // A submitted draft can be reviewed, sent back for a redo, or approved/declined outright.
+  DRAFT_SUBMITTED: ["AWAITING_APPROVAL", "AWAITING_DRAFT", "APPROVED", "DECLINED"],
+  AWAITING_APPROVAL: ["APPROVED", "AWAITING_DRAFT", "DECLINED"],
+  APPROVED: ["POSTING"],
+  POSTING: ["POSTED"],
+  POSTED: ["COMPLETE"],
+  DECLINED: ["AWAITING_DRAFT"],
+};
+
+/**
+ * A named status may be chosen when its bucket is where the row already is
+ * (a rename, which moves nothing) or somewhere the state machine allows next.
+ */
+export function namedStatusReachable(current: string, bucket: string): boolean {
+  return bucket === current || (ALLOWED_TRANSITIONS[current] ?? []).includes(bucket);
+}

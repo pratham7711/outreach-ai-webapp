@@ -8,21 +8,16 @@ import { getAuditActor } from "@/lib/authenticate";
 import { logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
 
-const ALLOWED_TRANSITIONS: Record<string, string[]> = {
-  AWAITING_DRAFT: ["DRAFT_SUBMITTED", "DECLINED"],
-  // A submitted draft can be reviewed, sent back for a redo, or approved/declined outright.
-  DRAFT_SUBMITTED: ["AWAITING_APPROVAL", "AWAITING_DRAFT", "APPROVED", "DECLINED"],
-  AWAITING_APPROVAL: ["APPROVED", "AWAITING_DRAFT", "DECLINED"],
-  APPROVED: ["POSTING"],
-  POSTING: ["POSTED"],
-  POSTED: ["COMPLETE"],
-  DECLINED: ["AWAITING_DRAFT"],
-};
+// Shared with the activations list, which has to offer only reachable statuses.
+import { ALLOWED_TRANSITIONS } from "@/lib/activationQueues";
 
 const VALID_STATUSES = ["AWAITING_DRAFT", "DRAFT_SUBMITTED", "AWAITING_APPROVAL", "APPROVED", "POSTING", "POSTED", "COMPLETE", "DECLINED"] as const;
 
 const PatchSchema = z.object({
   status: z.enum(VALID_STATUSES).optional(),
+  // One of the org's named activation statuses from Settings → General. Null
+  // clears it, leaving the enum bucket as the whole answer.
+  statusDefId: z.string().nullable().optional(),
   feedbackNotes: z.string().nullable().optional(),
   postedUrl: httpUrl().optional().nullable(),
   deliverableDueDate: z.string().datetime().optional().nullable(),
@@ -64,17 +59,45 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       return NextResponse.json({ error: "Invalid input", details: parsed.error.flatten() }, { status: 400 });
     }
 
-    const { status, feedbackNotes, postedUrl, deliverableDueDate } = parsed.data;
+    const { status, statusDefId, feedbackNotes, postedUrl, deliverableDueDate } = parsed.data;
 
-    if (status) {
+    // A named status carries the bucket it belongs to, so choosing one is also a
+    // status change and has to clear the same transition guard. Unlike a
+    // campaign, an activation has a state machine: setting "Invited" on
+    // something already POSTED would walk backwards through it. The bucket is
+    // therefore checked here rather than trusted, and staying inside the current
+    // bucket -- renaming POSTED to a different POSTED-bucket status -- is always
+    // allowed because it moves nothing.
+    let bucketFromDef: (typeof VALID_STATUSES)[number] | undefined;
+    if (statusDefId) {
+      const def = await db.activationStatusDef.findFirst({
+        where: { id: statusDefId, orgId },
+        select: { bucket: true, name: true },
+      });
+      if (!def) return NextResponse.json({ error: "Unknown activation status" }, { status: 400 });
+      bucketFromDef = def.bucket as (typeof VALID_STATUSES)[number];
+      if (bucketFromDef !== activation.status) {
+        const allowed = ALLOWED_TRANSITIONS[activation.status] ?? [];
+        if (!allowed.includes(bucketFromDef)) {
+          return NextResponse.json(
+            { error: `"${def.name}" belongs to ${bucketFromDef}, which cannot follow ${activation.status}` },
+            { status: 400 },
+          );
+        }
+      }
+    }
+
+    const effectiveStatus = status ?? bucketFromDef;
+    if (effectiveStatus && effectiveStatus !== activation.status) {
       const allowed = ALLOWED_TRANSITIONS[activation.status] ?? [];
-      if (!allowed.includes(status)) {
-        return NextResponse.json({ error: `Cannot transition from ${activation.status} to ${status}` }, { status: 400 });
+      if (!allowed.includes(effectiveStatus)) {
+        return NextResponse.json({ error: `Cannot transition from ${activation.status} to ${effectiveStatus}` }, { status: 400 });
       }
     }
 
     const updateData: any = {};
-    if (status) updateData.status = status;
+    if (effectiveStatus) updateData.status = effectiveStatus;
+    if (statusDefId !== undefined) updateData.statusDefId = statusDefId;
     if (feedbackNotes !== undefined) updateData.feedbackNotes = feedbackNotes;
     if (postedUrl !== undefined) updateData.postedUrl = postedUrl;
     if (deliverableDueDate !== undefined) updateData.deliverableDueDate = deliverableDueDate ? new Date(deliverableDueDate) : null;

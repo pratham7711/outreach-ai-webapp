@@ -10,7 +10,7 @@ export default async function ActivationsPage() {
   const orgId = (session.user as any).orgId;
   // The create form searches for a campaign and a creator through their listing
   // APIs, so neither table is serialized into this page.
-  const [activations, total, activeCount] = await Promise.all([
+  const [activations, total, activeCount, statusDefs] = await Promise.all([
     db.activation.findMany({
       where: { deletedAt: null, campaign: { orgId } },
       include: {
@@ -21,6 +21,14 @@ export default async function ActivationsPage() {
     }),
     db.activation.count({ where: { deletedAt: null, campaign: { orgId } } }),
     db.activation.count({ where: { deletedAt: null, campaign: { orgId }, status: { in: ["POSTING", "POSTED"] } } }),
+    // The org's named activation statuses from Settings → General. Empty for an
+    // org that has defined none, in which case the rows show the enum label as
+    // they always did.
+    db.activationStatusDef.findMany({
+      where: { orgId },
+      select: { id: true, name: true, bucket: true },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    }),
   ]);
 
   return (
@@ -28,6 +36,8 @@ export default async function ActivationsPage() {
       activations={activations.map(a => ({
         id: a.id,
         status: a.status,
+        statusDefId: a.statusDefId,
+        statusDefName: statusDefs.find((d) => d.id === a.statusDefId)?.name ?? null,
         createdAt: a.createdAt.toISOString(),
         // The reference labels this column "Last Status Change". updatedAt is
         // bumped by any edit, notes and posted URL included, so the column is
@@ -39,6 +49,7 @@ export default async function ActivationsPage() {
         campaign: a.campaign,
       }))}
       stats={{ total, active: activeCount }}
+      statusDefs={statusDefs}
     />
   );
 }
