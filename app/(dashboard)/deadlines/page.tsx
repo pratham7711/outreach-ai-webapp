@@ -217,9 +217,9 @@ export default function DeadlinesPage() {
             <CalendarClock size={18} color="var(--cc-primary)" />
             <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>With Deadlines</span>
           </div>
-          <p style={{ fontSize: 28, fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>
+          <div style={{ fontSize: 28, fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>
             {loading ? <Skeleton width="48px" height="32px" borderRadius="6px" /> : stats.total}
-          </p>
+          </div>
         </Card>
 
         <Card variant="outlined" style={{ padding: 20 }}>
@@ -227,9 +227,9 @@ export default function DeadlinesPage() {
             <AlertTriangle size={18} color="#DC2626" />
             <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>Overdue</span>
           </div>
-          <p style={{ fontSize: 28, fontWeight: 700, color: stats.overdue > 0 ? "#DC2626" : "var(--cc-text)", margin: 0 }}>
+          <div style={{ fontSize: 28, fontWeight: 700, color: stats.overdue > 0 ? "#DC2626" : "var(--cc-text)", margin: 0 }}>
             {loading ? <Skeleton width="48px" height="32px" borderRadius="6px" /> : stats.overdue}
-          </p>
+          </div>
         </Card>
 
         <Card variant="outlined" style={{ padding: 20 }}>
@@ -237,9 +237,9 @@ export default function DeadlinesPage() {
             <Clock size={18} color="#D97706" />
             <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>Due This Week</span>
           </div>
-          <p style={{ fontSize: 28, fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>
+          <div style={{ fontSize: 28, fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>
             {loading ? <Skeleton width="48px" height="32px" borderRadius="6px" /> : stats.dueThisWeek}
-          </p>
+          </div>
         </Card>
 
         <Card variant="outlined" style={{ padding: 20 }}>
@@ -247,9 +247,9 @@ export default function DeadlinesPage() {
             <CheckCircle2 size={18} color="#059669" />
             <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>Completed</span>
           </div>
-          <p style={{ fontSize: 28, fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>
+          <div style={{ fontSize: 28, fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>
             {loading ? <Skeleton width="48px" height="32px" borderRadius="6px" /> : stats.completed}
-          </p>
+          </div>
         </Card>
 
         <Card variant="outlined" style={{ padding: 20 }}>
@@ -257,9 +257,9 @@ export default function DeadlinesPage() {
             <CalendarOff size={18} color="var(--cc-text-muted)" />
             <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>No Date Set</span>
           </div>
-          <p style={{ fontSize: 28, fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>
+          <div style={{ fontSize: 28, fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>
             {loading ? <Skeleton width="48px" height="32px" borderRadius="6px" /> : stats.noDate}
-          </p>
+          </div>
         </Card>
       </div>
 
