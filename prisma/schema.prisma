@@ -717,6 +717,11 @@ model Post {
   syncSlot   SyncSlot?
 
   @@index([phaseId])
+  // Post is the largest table in the app and every campaign screen filters on
+  // campaignId, but nothing indexed it: each of those reads was scanning all
+  // 18,725 rows to return the 17 belonging to one campaign.
+  @@index([campaignId])
+  @@index([creatorId])
 }
 
 model PostMetricSnapshot {
@@ -737,6 +742,11 @@ model PostMetricSnapshot {
   recordedAt       DateTime @default(now())
 
   post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  // Read per post for the trend lines, and joined from Post for the whole
+  // campaign at once by the share report.
+  @@index([postId])
+  @@index([postId, recordedAt])
 }
 
 model TikTokSound {
