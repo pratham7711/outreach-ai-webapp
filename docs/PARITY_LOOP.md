@@ -210,8 +210,17 @@ Found by a sweep, deliberately not built — each is a feature, not a defect:
 - CreatorCore's roster also carries **Payouts, Deliverables, Notes and
   Activity** columns. We have the payout and activation models; notes and a
   per-creator activity trail have no source yet.
-- Their Posts tab has a **Manual** filter separating hand-added posts from
-  auto-discovered ones, a **Views/Engagement** sort control, and a
-  **New View / Filtering / Sorting / Grouping / Add Columns** table builder with
-  saved views. Ours sorts by column header in list view and filters by status,
-  platform, type, minimum views and post date.
+- Their Posts tab has a **New View / Filtering / Sorting / Grouping / Add
+  Columns** table builder with saved views. Ours filters by status, platform,
+  type, minimum views, creator and post date, and sorts from the toolbar in
+  either view.
+- Their **Manual** filter, separating hand-added posts from auto-discovered
+  ones, is deliberately not built. The field behind it is imported and correct:
+  `Post.autoAdded` carries CreatorCore's `autoAdd`, and every one of the 18,680
+  imported posts has it `false` — in our column, in the `CcPost` staging row and
+  in the untouched raw payload alike, with zero disagreement between them. So
+  the source itself has no auto-added post to separate, and nothing in our app
+  writes `true` either, because we have no auto-discovery yet. A filter over it
+  today could only ever return everything. It becomes worth building the day
+  posts start arriving on their own — the column is already there and already
+  honest.

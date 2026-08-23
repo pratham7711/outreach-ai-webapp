@@ -158,7 +158,9 @@ Status pills, each with its own icon and tint: `All` · `☀ Pending` · `⚡ Ac
 
 Each campaign is a full-width white card, not a table row: square thumbnail, title in blue bold, `Last Updated an hour ago`, then four bordered stat chips — **Budget** (icon, `N/A`), **Creators**, **Posts**, **Team** (with member avatars) — then a **status dropdown** rendered as a blue select (`In-Progress ▾`), a magenta **Share ⬆**, and a kebab.
 
-**Gaps for us:** we render a table, not cards; we have no Folders, no Tags or Team Member filter, no per-row status dropdown, no Share, no kebab. The status pill set and their icons should match exactly. Our filter drawer already covers search/status/client/date — Tags and Team Member are new.
+**Gaps for us — as of 2026-08-23, one left.** Cards, Folders, the per-row status dropdown, per-row Share, and the Tags and Team Member filters are all built; the sort control opens the same two date fields the reference offers. What remains is **the kebab**, and it is blocked rather than pending: `cc-modal-inventory` never opened it, so its menu items were never captured, and inventing them would make this a guess rather than a clone. It needs one capture from the reference account.
+
+The status pill set and their icons should still be diffed against the reference exactly.
 
 ---
 
@@ -215,7 +217,9 @@ Controls: `Search By Username` · `Post Date Filter <from> — <to>` · TikTok a
 
 **Default view is a card grid, not a table.** Each card is a full-bleed vertical thumbnail with the platform badge top-left and a kebab top-right; a gradient overlay at the bottom carries `@handle` then one line each for ▶ views, ♥ likes, 💬 comments, ➤ shares, ⬇ downloads, 📊 eng. rate, and a footer `Posted <date>   Last Updated <relative>`.
 
-**Gaps:** our Posts tab is a table by default with no card grid, no username search, no date-range filter, no platform icon toggles, no Downloads or Saves anywhere, and four of the nine KPI chips missing. `Refresh Data` has no equivalent.
+**Gaps — as of 2026-08-23, one left and it is a data ceiling.** Driven against the reference campaign: grid is the default view, all nine KPI chips render (`Total Posts 17 · Total Views 184.7K · Avg. Post Eng Rate 7.83% · Avg. Campaign Eng Rate 9.56% · Total Engagement 17.7K · Total Likes 15.1K · Total Comments 157 · Total Shares 580 · Total Saves 1.8K`, agreeing with the database), and the toolbar carries username search, a post-date range, platform and media-type toggles, the Views/Engagement sort and `Refresh Data`.
+
+Only **Downloads** is still absent, and it is not a build item: TikTok publishes `download_count` only through its app API, which will not answer an unsigned request. See the ceilings list in PARITY_LOOP.md.
 
 ### 4.3 Creators, Drafts, Analytics, Financials, Documents, Settings
 Captured but sparse for this campaign (12, 7, 6, 9, 3 and 7 controls respectively) — this campaign is `Complete` with no live activations, so these tabs are near-empty rather than simple. **Do not spec from this capture.** Re-drive against an active campaign before writing their requirements. Financials is out of kept scope anyway; Drafts is the known large gap and needs its own observed pass.
@@ -278,7 +282,7 @@ These four need a narrative pass with an active data set before they can be spec
 3. **Sample the reference palette** off the screenshots and correct `--cc-primary` plus the Share accent (§2.1).
 4. **Rewrite Activations** as grouped queues with per-group counts and per-group action pairs (§5).
 5. **Campaign Overview activity feed** — six event types, exact glyphs and phrasing (§4.1).
-6. **Campaign Posts** — card-grid default, the four missing KPI chips, username search, date range, platform toggles (§4.2).
+6. ~~**Campaign Posts** — card-grid default, the four missing KPI chips, username search, date range, platform toggles (§4.2).~~ **Done** — grid is the default view, the KPI chips, username search, date range and platform toggles are all in the toolbar, and the Views/Engagement sort landed 2026-08-23 in 82db7fd. The Manual source filter is deliberately not built; see PARITY_LOOP.md for the census behind that.
 7. **Campaigns list** — cards over table, Folders, Tags/Team filters, per-row status dropdown (§3).
 8. ~~**Trackers** — snapshot ingestion, creator type, period toggle, velocity sort (§7).~~ **Done 2026-08-22** — three of the four were already built; the creator sub-tab shipped in 061bf4b. See §7.
 9. **Re-drive Drafts, Analytics, Creators-tab, Calendar, Clients, Lists, Discovery** against an active campaign and a populated org, then spec (§4.3, §8).
