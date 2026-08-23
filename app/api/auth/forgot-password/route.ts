@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { rateLimit, rateLimitKey } from "@/lib/rateLimit";
 import { createLogger } from "@/lib/observability/logger";
 import { sendEmail, emailConfigured } from "@/lib/email";
+import { BRAND } from "@/lib/brand";
 
 const RESET_PREFIX = "reset:";
 const TTL_MS = 60 * 60 * 1000;
@@ -66,7 +67,7 @@ export async function POST(request: NextRequest) {
     } else {
       const sent = await sendEmail({
         to: email,
-        subject: "Reset your Outreach AI password",
+        subject: `Reset your ${BRAND.name} password`,
         text: [
           "Someone asked to reset the password for this account.",
           "",

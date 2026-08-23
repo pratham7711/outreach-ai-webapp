@@ -59,7 +59,7 @@ describe("getOrgUiConfig", () => {
     const config: OrgUiConfig = {
       features: { soundTracker: true, creatorPortal: false, aiBriefings: false, reports: true, csvExport: true },
       nav: ["campaigns", "creators", "payouts", "analytics", "trackers", "lists"],
-      branding: { primaryColor: "#6366f1", brandName: "Outreach AI" },
+      branding: { primaryColor: "#6366f1", brandName: "Made Boring Campaigns" },
       limits: { maxCampaigns: 50, maxCreators: 500, maxUsers: 10 },
       platforms: { tiktok: true, instagram: true, youtube: true },
       dashboard: ["kpi_grid", "views_over_time", "platform_breakdown", "top_posts", "financial_summary", "creator_performance"],
@@ -67,7 +67,7 @@ describe("getOrgUiConfig", () => {
 
     expect(config.features?.soundTracker).toBe(true);
     expect(config.nav).toHaveLength(6);
-    expect(config.branding?.brandName).toBe("Outreach AI");
+    expect(config.branding?.brandName).toBe("Made Boring Campaigns");
     expect(config.limits?.maxCampaigns).toBe(50);
     expect(config.platforms?.tiktok).toBe(true);
     expect(config.dashboard).toHaveLength(6);

@@ -1,5 +1,5 @@
 #!/usr/bin/env tsx
-// Interactive edge test for Outreach AI (localhost:3009)
+// Interactive edge test for Made Boring Campaigns (localhost:3009)
 // Uses native fetch (Node 18+)
 
 const BASE = 'http://localhost:3009';

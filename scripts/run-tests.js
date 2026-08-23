@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * Master Test Runner — Outreach AI
+ * Master Test Runner — Made Boring Campaigns
  *
  * Usage: node scripts/run-tests.js [options]
  *   --unit-only          Run only unit tests (jest.config.js)
@@ -111,7 +111,7 @@ function printSummary() {
 
 (async () => {
   console.log('========================================');
-  console.log('   Outreach AI — Test Automation');
+  console.log('   Made Boring Campaigns — Test Automation');
   console.log('========================================');
 
   if (isUnitOnly) {

@@ -31,7 +31,7 @@ const ORG_B_ID = 'org-b';
 const validUiConfig = {
   features: { soundTracker: true, creatorPortal: false, aiBriefings: false, reports: true, csvExport: true },
   nav: ['campaigns', 'creators', 'payouts', 'analytics', 'trackers', 'lists'],
-  branding: { primaryColor: '#6366f1', brandName: 'Outreach AI' },
+  branding: { primaryColor: '#6366f1', brandName: 'Made Boring Campaigns' },
   limits: { maxCampaigns: 50, maxCreators: 500, maxUsers: 10 },
   platforms: { tiktok: true, instagram: true, youtube: true },
   dashboard: ['kpi_grid', 'views_over_time', 'platform_breakdown', 'top_posts', 'financial_summary', 'creator_performance'],

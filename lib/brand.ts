@@ -1,6 +1,8 @@
 export const BRAND = {
   name: process.env.NEXT_PUBLIC_BRAND_NAME ?? "Made Boring Campaigns",
-  short: process.env.NEXT_PUBLIC_BRAND_SHORT ?? "Campaigns",
+  /* The compact mark, for anywhere a full name will not fit. "MB", not
+     "Campaigns": the umbrella logo is the only Made Boring asset we carry. */
+  short: process.env.NEXT_PUBLIC_BRAND_SHORT ?? "MB",
   umbrella: "Made Boring",
   umbrellaUrl: "https://madeboring.com",
   legalEntity: process.env.NEXT_PUBLIC_LEGAL_ENTITY ?? "Made Boring",

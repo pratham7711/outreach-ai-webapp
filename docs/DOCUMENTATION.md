@@ -1,4 +1,4 @@
-# Outreach AI — Complete Documentation
+# Made Boring Campaigns — Complete Documentation
 
 > Everything you need to understand this project, from the big picture down to individual files.
 
@@ -28,7 +28,7 @@
 
 ## 1. What Is This?
 
-Outreach AI is an **influencer campaign management platform**. Think of it as a tool that music labels, talent agencies, and brands use to:
+Made Boring Campaigns is an **influencer campaign management platform**. Think of it as a tool that music labels, talent agencies, and brands use to:
 
 - **Find creators** (influencers on TikTok, Instagram, YouTube, Twitter)
 - **Run campaigns** (assign creators to promote songs, products, events)

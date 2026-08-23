@@ -128,7 +128,7 @@ try {
   await page.goto(`${APP}/portal/dashboard`, { waitUntil: "domcontentloaded" });
   await settle(page, "Dashboard");
   await page.waitForTimeout(1500);
-  await caption(page, "Outreach AI — campaign management for talent agencies. This is a creator's account.");
+  await caption(page, "Made Boring Campaigns — campaign management for talent agencies. This is a creator's account.");
   await page.waitForTimeout(3500);
 
   // Beat 2 — where the connection lives

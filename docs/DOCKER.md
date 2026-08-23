@@ -46,7 +46,7 @@ docker run -d \
   -e NEXTAUTH_URL="https://your-domain.com" \
   -e TOKEN_ENCRYPTION_KEY="<base64-encoded 32-byte key>" \
   -e CRON_SECRET="<random secret>" \
-  --name outreach-ai \
+  --name madeboring-campaigns \
   outreach-ai-webapp:latest
 ```
 

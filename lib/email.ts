@@ -1,3 +1,4 @@
+import { BRAND } from "@/lib/brand";
 import { createLogger } from "@/lib/observability/logger";
 
 /**
@@ -19,7 +20,11 @@ export type SendResult =
 
 function senderAddress(): string {
   // Must be on a Resend-verified domain. madeboring.com is ours.
-  return process.env.EMAIL_FROM || "Outreach AI <alerts@madeboring.com>";
+  //
+  // The display name comes from BRAND rather than a literal: this was still
+  // "Outreach AI" long after the rebrand, so every alert and password reset
+  // arrived from a product that no longer exists, on the new domain.
+  return process.env.EMAIL_FROM || `${BRAND.name} <alerts@madeboring.com>`;
 }
 
 export function emailConfigured(): boolean {

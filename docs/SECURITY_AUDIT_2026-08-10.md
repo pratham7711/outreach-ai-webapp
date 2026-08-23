@@ -1,4 +1,4 @@
-# Security Audit — Outreach AI webapp
+# Security Audit — Made Boring Campaigns webapp
 
 **Date:** 2026-08-10
 **Target:** local dev build (`localhost:3009`) + dependency tree + source review

@@ -1,9 +1,9 @@
 ---
 name: orchestrate
-description: Token-efficient orchestration for the Outreach AI repo. Use when working in this project and you want the agent to take over execution from CURRENT_TASK.md, keep context lean, resume safely across Claude/Codex sessions, use parallel subagents only when they help, and always finish with build/test plus Playwright E2E for UI-facing changes.
+description: Token-efficient orchestration for the Made Boring Campaigns repo. Use when working in this project and you want the agent to take over execution from CURRENT_TASK.md, keep context lean, resume safely across Claude/Codex sessions, use parallel subagents only when they help, and always finish with build/test plus Playwright E2E for UI-facing changes.
 ---
 
-# Outreach AI Orchestration Skill
+# Made Boring Campaigns Orchestration Skill
 
 This skill is the **Claude entrypoint** for project execution.
 It is designed to work with the shared repo contract in:
