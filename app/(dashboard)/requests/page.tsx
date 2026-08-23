@@ -1,10 +1,10 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
-import { Button, Badge, Card, Avatar, Skeleton, EmptyState } from "@pratham7711/ui";
+import { Button, Badge, Card, Avatar, Skeleton, EmptyState, Input } from "@pratham7711/ui";
 import { MetricTile } from "@/components/ds";
 import { StatusTabs } from "@/components/ds";
 import { formatDateAbs } from "@/lib/format";
-import { Inbox } from "lucide-react";
+import { Inbox, Search } from "lucide-react";
 
 interface PayoutRequest {
   id: string;
@@ -36,6 +36,9 @@ export default function RequestsPage() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("ALL");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  // The reference lets this list be searched. Over the creator and the campaign,
+  // which are the two things anyone knows a request by.
+  const [query, setQuery] = useState("");
 
   const fetchRequests = useCallback(async () => {
     try {
@@ -76,7 +79,17 @@ export default function RequestsPage() {
   };
 
   // Filtered list
-  const filtered = activeTab === "ALL" ? requests : requests.filter((r) => r.status === activeTab);
+  const byStatus = activeTab === "ALL" ? requests : requests.filter((r) => r.status === activeTab);
+  const filtered = (() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return byStatus;
+    return byStatus.filter(
+      (r) =>
+        (r.creator?.name ?? "").toLowerCase().includes(q) ||
+        (r.creator?.handle ?? "").toLowerCase().includes(q) ||
+        (r.campaign?.title ?? "").toLowerCase().includes(q),
+    );
+  })();
 
   // Stats
   const totalRequests = requests.length;
@@ -140,6 +153,16 @@ export default function RequestsPage() {
         onChange={setActiveTab}
       />
 
+      <div style={{ maxWidth: 340, marginBottom: 16 }}>
+        <Input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search Requests"
+          aria-label="Search Requests"
+          iconLeft={<Search size={16} />}
+        />
+      </div>
+
       {/* Request List */}
       {loading ? (
         <Card variant="outlined" noPadding>
@@ -158,6 +181,13 @@ export default function RequestsPage() {
             </div>
           ))}
         </Card>
+      ) : filtered.length === 0 && query.trim() ? (
+        <EmptyState
+          icon={<Search size={32} color="var(--cc-text-subtle)" />}
+          title="No requests match that search"
+          description={`Nothing here matches "${query}".`}
+          action={<Button variant="secondary" onClick={() => setQuery("")}>Clear search</Button>}
+        />
       ) : filtered.length === 0 ? (
         <EmptyState
           icon={<Inbox size={40} />}

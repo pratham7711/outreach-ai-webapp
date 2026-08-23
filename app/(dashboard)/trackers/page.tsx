@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Badge, Card, Button, Modal, Input, Skeleton, EmptyState } from "@pratham7711/ui";
 import { MetricTile } from "@/components/ds";
-import { Music, Plus, RefreshCw, Trash2, TrendingUp } from "lucide-react";
+import { Music, Plus, RefreshCw, Search, Trash2, TrendingUp } from "lucide-react";
 import { CreatorTrackers } from "./CreatorTrackers";
 import { formatCompact, formatDateAbs } from "@/lib/format";
 import { apiDelete, apiFetch, apiPost } from "@/lib/api/client";
@@ -107,6 +107,10 @@ export default function TrackersPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [formData, setFormData] = useState({ tiktokSoundId: "", title: "", artist: "" });
   const [period, setPeriod] = useState("24h");
+  // The reference lets this list be searched. Client-side over the already
+  // fetched page: the sort and period are what the query is keyed on, and adding
+  // a term to it would refetch the world on every keystroke.
+  const [query, setQuery] = useState("");
   const [sort, setSort] = useState("velocity");
 
   const queryClient = useQueryClient();
@@ -123,7 +127,14 @@ export default function TrackersPage() {
       apiFetch<{ sounds: TrackedSound[] }>(`/api/trackers?period=${period}&sort=${sort}`),
   });
 
-  const sounds = useMemo(() => data?.sounds ?? [], [data]);
+  const allSounds = useMemo(() => data?.sounds ?? [], [data]);
+  const sounds = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return allSounds;
+    return allSounds.filter(
+      (s) => s.title.toLowerCase().includes(q) || s.artist.toLowerCase().includes(q),
+    );
+  }, [allSounds, query]);
 
   const invalidate = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ["trackers"] });
@@ -179,12 +190,12 @@ export default function TrackersPage() {
 
   const stats = useMemo(
     () => ({
-      totalTrackers: sounds.length,
-      totalUses: sounds.reduce((sum, s) => sum + (s.latestSnapshot?.usesCount ?? 0), 0),
-      trendingCount: sounds.filter((s) => s.status === "viral" || s.status === "trending").length,
-      newToday: sounds.reduce((sum, s) => sum + (s.addedInPeriod ?? 0), 0),
+      totalTrackers: allSounds.length,
+      totalUses: allSounds.reduce((sum, s) => sum + (s.latestSnapshot?.usesCount ?? 0), 0),
+      trendingCount: allSounds.filter((s) => s.status === "viral" || s.status === "trending").length,
+      newToday: allSounds.reduce((sum, s) => sum + (s.addedInPeriod ?? 0), 0),
     }),
-    [sounds]
+    [allSounds]
   );
   const { totalTrackers, totalUses, trendingCount, newToday } = stats;
 
@@ -297,12 +308,19 @@ export default function TrackersPage() {
           description="Something went wrong fetching your sound trackers."
           action={<Button variant="primary" onClick={() => refetch()}>Retry</Button>}
         />
-      ) : sounds.length === 0 ? (
+      ) : allSounds.length === 0 ? (
         <EmptyState
           icon={<TrendingUp size={40} />}
           title="No trackers yet"
           description="Start tracking TikTok sounds to monitor their performance and trends."
           action={<Button variant="primary" onClick={() => setModalOpen(true)}>Track Sound</Button>}
+        />
+      ) : sounds.length === 0 ? (
+        <EmptyState
+          icon={<Search size={40} />}
+          title="No trackers match that search"
+          description={`Nothing tracked matches "${query}".`}
+          action={<Button variant="secondary" onClick={() => setQuery("")}>Clear search</Button>}
         />
       ) : (
         <Card variant="outlined" noPadding>
@@ -319,6 +337,15 @@ export default function TrackersPage() {
           >
             <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)" }}>Sound Trackers</span>
             <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+              <div style={{ minWidth: 200 }}>
+                <Input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search Trackers"
+                  aria-label="Search Trackers"
+                  iconLeft={<Search size={16} />}
+                />
+              </div>
               <div style={{ display: "flex", gap: 4 }}>
                 {PERIODS.map((p) => (
                   <button
