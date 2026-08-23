@@ -4,14 +4,8 @@ import { db } from "@/lib/db";
 import { deriveAverageViews, deriveCampaignCounts } from "@/lib/creatorMetrics";
 import CreatorsClient from "./CreatorsClient";
 import { CREATORS_PAGE_SIZE } from "@/lib/listPageSize";
-import {
-  countCreatorFilters,
-  creatorOrderBy,
-  creatorWhere,
-  firstParam,
-  readCreatorFilters,
-  readCreatorSort,
-} from "@/lib/listFilters";
+import { countCreatorFilters, creatorOrderBy, creatorWhere, readCreatorFilters } from "@/lib/listFilters";
+import { firstParam, readCreatorSort } from "@/lib/listParams";
 
 export default async function CreatorsPage({
   searchParams,

@@ -3,7 +3,8 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import CampaignsClient from "./CampaignsClient";
 import { CAMPAIGNS_PAGE_SIZE } from "@/lib/listPageSize";
-import { campaignWhere, countCampaignFilters, readCampaignFilters, firstParam, campaignOrderBy, readCampaignSort } from "@/lib/listFilters";
+import { campaignWhere, countCampaignFilters, readCampaignFilters, campaignOrderBy } from "@/lib/listFilters";
+import { firstParam, readCampaignSort } from "@/lib/listParams";
 
 export default async function CampaignsPage({
   searchParams,

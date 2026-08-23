@@ -14,7 +14,7 @@ import { CAMPAIGNS_PAGE_SIZE } from "@/lib/listPageSize";
 import { imgSrc } from "@/lib/postMedia";
 import FoldersPanel, { type FolderOption } from "./FoldersPanel";
 import { ShareModal } from "./ShareModal";
-import { UNFILED, isDefaultCampaignSort, type CampaignSort, type CampaignSortKey } from "@/lib/listFilters";
+import { UNFILED, isDefaultCampaignSort, type CampaignSort, type CampaignSortKey } from "@/lib/listParams";
 
 type Campaign = {
   id: string;

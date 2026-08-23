@@ -5,7 +5,8 @@ import { logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
 import { z } from "zod";
 import { pageParam, pageSizeParam, parseQuery } from "@/lib/http/queryParams";
-import { DEFAULT_CREATOR_SORT, creatorFilterSchema, creatorOrderBy, creatorWhere } from "@/lib/listFilters";
+import { creatorFilterSchema, creatorOrderBy, creatorWhere } from "@/lib/listFilters";
+import { DEFAULT_CREATOR_SORT } from "@/lib/listParams";
 
 const listCreatorsQuerySchema = creatorFilterSchema.extend({
   page: pageParam,

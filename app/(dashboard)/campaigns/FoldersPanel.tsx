@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Folder, FolderOpen, Pencil, Trash2, Plus, Check, X } from "lucide-react";
 import { Modal, Button, Input } from "@pratham7711/ui";
-import { UNFILED } from "@/lib/listFilters";
+import { UNFILED } from "@/lib/listParams";
 
 export type FolderOption = { id: string; name: string; campaigns: number };
 

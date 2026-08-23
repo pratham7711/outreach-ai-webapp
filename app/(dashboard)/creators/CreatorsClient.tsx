@@ -12,7 +12,7 @@ import Link from "next/link";
 import { formatCompact, stripAt, platformLabel } from "@/lib/format";
 import { useListQuery } from "@/lib/useListQuery";
 import { CREATORS_PAGE_SIZE } from "@/lib/listPageSize";
-import type { CreatorSort } from "@/lib/listFilters";
+import type { CreatorSort } from "@/lib/listParams";
 
 type Creator = {
   id: string;

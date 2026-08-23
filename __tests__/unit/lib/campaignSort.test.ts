@@ -4,13 +4,13 @@
  * node, not jsdom: listFilters imports the Prisma client for its generated
  * types, and the Prisma runtime needs TextEncoder, which jsdom does not provide.
  */
+import { campaignOrderBy } from "@/lib/listFilters";
 import {
   CAMPAIGN_SORT_KEYS,
   DEFAULT_CAMPAIGN_SORT,
-  campaignOrderBy,
   isDefaultCampaignSort,
   readCampaignSort,
-} from "@/lib/listFilters";
+} from "@/lib/listParams";
 
 /* The campaigns list pages with skip/take, so the order it asks for has to be
    total. 519 campaigns share only 516 distinct updatedAt values, and Postgres

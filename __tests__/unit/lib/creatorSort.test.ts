@@ -4,12 +4,8 @@
  * node, not jsdom: listFilters imports the Prisma client for its generated
  * types, and the Prisma runtime needs TextEncoder, which jsdom does not provide.
  */
-import {
-  CREATOR_SORT_KEYS,
-  DEFAULT_CREATOR_SORT,
-  creatorOrderBy,
-  readCreatorSort,
-} from "@/lib/listFilters";
+import { creatorOrderBy } from "@/lib/listFilters";
+import { CREATOR_SORT_KEYS, DEFAULT_CREATOR_SORT, readCreatorSort } from "@/lib/listParams";
 
 describe("readCreatorSort", () => {
   it("defaults to newest first, which is what the list did before it was sortable", () => {
