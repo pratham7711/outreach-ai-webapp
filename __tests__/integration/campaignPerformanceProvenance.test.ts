@@ -13,6 +13,8 @@ jest.mock("@/lib/db", () => ({
     // The report also reaches campaign -> song -> sound for the audio card.
     campaign: { findUnique: jest.fn() },
     soundTrackerSnapshot: { findMany: jest.fn() },
+    // The cache key is a stamp read off the campaign's own state.
+    $queryRaw: jest.fn(),
   },
 }));
 
@@ -25,7 +27,14 @@ const mockDb = db as unknown as {
   activation: { findMany: jest.Mock };
   campaign: { findUnique: jest.Mock };
   soundTrackerSnapshot: { findMany: jest.Mock };
+  $queryRaw: jest.Mock;
 };
+
+/* Every test below drives the same campaign id with different posts, so a
+   constant stamp would hand the first test's result to all the others. A fresh
+   stamp per call keeps each one computing: these pin the arithmetic, and the
+   cache itself is verified against a running server, not here. */
+let stampCounter = 0;
 
 const campaign = { id: "camp-1", orgId: "org-1", budget: null, currency: "USD" };
 
@@ -58,6 +67,11 @@ beforeEach(() => {
   // No song by default, so there is no audio card to build.
   mockDb.campaign.findUnique.mockResolvedValue({ song: null });
   mockDb.soundTrackerSnapshot.findMany.mockResolvedValue([]);
+  mockDb.$queryRaw.mockImplementation(() =>
+    Promise.resolve([
+      { posts: BigInt(1), synced: null, activations: null, views: String(++stampCounter) },
+    ])
+  );
 });
 
 describe("computeCampaignPerformance engagement provenance", () => {

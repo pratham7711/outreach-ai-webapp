@@ -1,4 +1,4 @@
-import React from "react";
+import React, { cache } from "react";
 import type { Metadata } from "next";
 import { Link2 } from "lucide-react";
 import { db } from "@/lib/db";
@@ -7,6 +7,31 @@ import { parseShareVisibility } from "@/lib/reports/shareVisibility";
 import SharedPerformanceReport from "./SharedPerformanceReport";
 
 const SHARE_KIND = "campaign-performance";
+
+/**
+ * generateMetadata and the page body both need the link, and both used to fetch
+ * it -- two round trips to Singapore for one row, on every view. cache() is
+ * request-scoped, so the second caller gets the first one's result and a revoked
+ * link is still noticed on the very next request.
+ */
+const loadShareLink = cache((token: string) =>
+  db.report.findUnique({
+    where: { shareToken: token },
+    include: {
+      campaign: {
+        select: {
+          id: true,
+          orgId: true,
+          title: true,
+          budget: true,
+          currency: true,
+          status: true,
+          org: { select: { name: true } },
+        },
+      },
+    },
+  })
+);
 
 function RevokedState() {
   return (
@@ -58,13 +83,7 @@ export async function generateMetadata({
   params: Promise<{ token: string }>;
 }): Promise<Metadata> {
   const { token } = await params;
-  const link = await db.report.findUnique({
-    where: { shareToken: token },
-    select: {
-      isPublic: true,
-      campaign: { select: { title: true, org: { select: { name: true } } } },
-    },
-  });
+  const link = await loadShareLink(token);
 
   const robots = { index: false, follow: false };
   if (!link?.isPublic || !link.campaign) return { title: "Report unavailable", robots };
@@ -84,12 +103,7 @@ export default async function SharedReportPage({
 }) {
   const { token } = await params;
 
-  const link = await db.report.findUnique({
-    where: { shareToken: token },
-    include: {
-      campaign: { select: { id: true, orgId: true, title: true, budget: true, currency: true, status: true } },
-    },
-  });
+  const link = await loadShareLink(token);
 
   if (!link || !link.isPublic || !link.campaign) return <RevokedState />;
 
