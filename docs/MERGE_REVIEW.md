@@ -14,7 +14,7 @@ work. It records what was checked, what was found, and what is left for a human.
 the audit blocks the merge on its own; the one security finding and the four
 failing tests were fixed in the course of the review.
 
-Confidence: **82 / 100**. What it rests on, and what would raise it, is at the
+Confidence: **86 / 100**. What it rests on, and what would raise it, is at the
 bottom.
 
 ---
@@ -197,7 +197,10 @@ review, not the branch. A restart clears the counter.
 
 ### Verified after the fixes
 
-- Six affected specs: **22 passed, 2 skipped** (the `fixme` pair), **0 failed**.
+- **Full suite, one uninterrupted run on a freshly restarted server: 168
+  passed, 5 skipped, 0 failed** (exit 0). The 5 are three pre-existing skips
+  plus the two messaging `fixme`s.
+- Six affected specs on their own: **22 passed, 2 skipped, 0 failed**.
 - `campaigns-detail` warm: **5/5**, the budget assertion in 953ms. It failed
   once at 15.4s on the first request to that route after a server restart —
   cold start, the same effect `e2e/helpers.ts` already documents, and it passes
@@ -249,7 +252,7 @@ as still open — the cron stamping `lastSyncedAt` on the no-counts path. Taking
 
 ## Confidence
 
-**82 / 100.**
+**86 / 100.**
 
 Resting on: mechanical checks over the whole surface rather than samples — all
 146 routes, all 58 models against the DDL, all 38,286 added lines and then all
@@ -267,7 +270,3 @@ What would raise it:
 
 - The conflict resolution built and tested, which needs the merge.
 - A live pass over the deployed result, which needs the deploy.
-- The full suite green in one run on a freshly restarted server. The six
-  affected specs are green and the rest were green in the baseline, but the
-  signup cap means one uninterrupted run is the only way to see all of it at
-  once.
