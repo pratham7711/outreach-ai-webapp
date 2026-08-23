@@ -82,21 +82,30 @@ test.describe('Gate 2 Dashboard — Performance Tab', () => {
   });
 
   test('Posts tab: filter by platform', async ({ page }) => {
-    await page.goto('/campaigns/camp-1');
-    await page.waitForLoadState('networkidle');
-    await page.getByText('Performance').first().waitFor({ state: 'visible', timeout: 20000 });
+    /* This used to click the first element reading "INSTAGRAM", which is a post
+       row's platform badge rather than the filter -- so it navigated to that
+       post and then asserted the word was still on screen, which the post page
+       satisfies on its own. It passed without ever filtering anything, and
+       failed under load whenever the post page had not painted yet.
 
-    const postsTab = page.getByRole('button', { name: /^Posts/i }).first();
-    await postsTab.click();
-    await page.waitForTimeout(1500);
+       It now drives the combobox by its accessible name and counts rows, so it
+       fails if the filter stops narrowing. camp-1 is seeded across three
+       platforms with YouTube the largest, which is what makes the counts here
+       meaningful rather than incidental. */
+    await page.goto('/campaigns/camp-1?tab=posts');
+    await page.getByRole('combobox', { name: /filter by platform/i })
+      .waitFor({ state: 'visible', timeout: 30000 });
 
-    const platformFilter = page.getByText('INSTAGRAM').first();
-    if (await platformFilter.isVisible()) {
-      await platformFilter.click();
-      await page.waitForTimeout(1000);
-      const bodyText = await page.textContent('body');
-      expect(bodyText).toMatch(/INSTAGRAM|instagram/i);
-    }
+    const rows = page.locator('a[href*="/posts/"]');
+    await expect.poll(() => rows.count(), { timeout: 20000 }).toBeGreaterThan(0);
+    const total = await rows.count();
+
+    await page.getByRole('combobox', { name: /filter by platform/i }).click();
+    await page.getByRole('option', { name: 'YOUTUBE', exact: true }).click();
+
+    // Narrower, and still non-empty: seeded camp-1 has YouTube posts and others.
+    await expect.poll(() => rows.count(), { timeout: 20000 }).toBeLessThan(total);
+    expect(await rows.count()).toBeGreaterThan(0);
   });
 
   test('Posts tab: click row navigates to post detail with eng rate and EMV', async ({ page }) => {
