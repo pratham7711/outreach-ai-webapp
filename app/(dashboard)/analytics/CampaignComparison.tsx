@@ -4,8 +4,9 @@ import dynamic from "next/dynamic";
 import { Card, EmptyState, Skeleton } from "@pratham7711/ui";
 import { ArrowUpRight, ArrowDownRight, Folder, TrendingUp, AlertTriangle, TrendingDown } from "lucide-react";
 import { formatNumber, formatCurrency, formatPercent, rangeToFrom, SERIES_COLORS } from "./shared";
+import { loadCharts } from "@/components/charts/lazyCharts";
 
-const CampaignComparisonLine = dynamic(() => import("./AnalyticsCharts").then((m) => m.CampaignComparisonLine), {
+const CampaignComparisonLine = dynamic(() => loadCharts().then((m) => m.CampaignComparisonLine), {
   ssr: false,
   loading: () => <Skeleton width="100%" height="100%" borderRadius="8px" />,
 });

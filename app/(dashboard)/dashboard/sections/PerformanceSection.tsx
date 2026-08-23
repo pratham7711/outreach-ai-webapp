@@ -17,15 +17,16 @@ import {
 } from "@/components/ui/table";
 import { platformColor } from "@/app/(dashboard)/analytics/shared";
 import { stripAt } from "@/lib/format";
+import { loadCharts } from "@/components/charts/lazyCharts";
 import { formatNumber, type PerformanceData } from "../types";
 
 const PlatformBreakdownPie = dynamic(
-  () => import("../DashboardCharts").then((m) => m.PlatformBreakdownPie),
+  () => loadCharts().then((m) => m.PlatformBreakdownPie),
   { ssr: false, loading: () => <Skeleton className="h-[200px] w-full rounded-lg" /> }
 );
 
 const ViewsByCampaignBar = dynamic(
-  () => import("../DashboardCharts").then((m) => m.ViewsByCampaignBar),
+  () => loadCharts().then((m) => m.ViewsByCampaignBar),
   { ssr: false, loading: () => <Skeleton className="h-[200px] w-full rounded-lg" /> }
 );
 

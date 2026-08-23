@@ -5,10 +5,11 @@ import dynamic from "next/dynamic";
 import { BarChart3 } from "lucide-react";
 import { MetricTile, SectionCard } from "@/components/ds";
 import { Skeleton } from "@/components/ui/skeleton";
+import { loadCharts } from "@/components/charts/lazyCharts";
 import { formatNumber, type PerformanceData } from "../types";
 
 const ViewsOverTimeArea = dynamic(
-  () => import("../DashboardCharts").then((m) => m.ViewsOverTimeArea),
+  () => loadCharts().then((m) => m.ViewsOverTimeArea),
   { ssr: false, loading: () => <Skeleton className="h-[400px] w-full rounded-lg" /> }
 );
 

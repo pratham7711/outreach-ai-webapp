@@ -24,12 +24,13 @@ import { toast } from "sonner";
 import { formatCompact, stripAt, formatCompactCurrency, formatDateAbs } from "@/lib/format";
 import { CreatorSelect } from "@/components/CreatorSelect";
 import { platformColor } from "@/app/(dashboard)/analytics/shared";
+import { loadCharts } from "@/components/charts/lazyCharts";
 
 const ChartSkeleton = ({ height }: { height: number }) => (
   <Skeleton width="100%" height={`${height}px`} borderRadius="12px" />
 );
 
-const PerformanceTab = dynamic(() => import("./PerformanceTab"), {
+const PerformanceTab = dynamic(() => loadCharts().then((m) => m.PerformanceTab), {
   ssr: false,
   loading: () => (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
@@ -41,17 +42,17 @@ const PerformanceTab = dynamic(() => import("./PerformanceTab"), {
   ),
 });
 
-const MarketplaceAnalytics = dynamic(() => import("./MarketplaceAnalytics"), {
+const MarketplaceAnalytics = dynamic(() => loadCharts().then((m) => m.MarketplaceAnalytics), {
   ssr: false,
   loading: () => <Skeleton width="100%" height="240px" borderRadius="12px" />,
 });
 
-const PlatformViewsPie = dynamic(() => import("./CampaignTabCharts").then((m) => m.PlatformViewsPie), {
+const PlatformViewsPie = dynamic(() => loadCharts().then((m) => m.PlatformViewsPie), {
   ssr: false,
   loading: () => <ChartSkeleton height={240} />,
 });
 
-const CreatorPerformanceBar = dynamic(() => import("./CampaignTabCharts").then((m) => m.CreatorPerformanceBar), {
+const CreatorPerformanceBar = dynamic(() => loadCharts().then((m) => m.CreatorPerformanceBar), {
   ssr: false,
   loading: () => <ChartSkeleton height={240} />,
 });

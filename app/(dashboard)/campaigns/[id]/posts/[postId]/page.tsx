@@ -10,13 +10,14 @@ import { computePostEmv, computeEngagementRate } from "@/lib/metrics";
 import { metricValue } from "@/lib/metricDisplay";
 import { imgSrc, embedSrcFor } from "@/lib/postMedia";
 import { formatCompact, stripAt, formatDateAbs, formatDateTimeAbs } from "@/lib/format";
+import { loadCharts } from "@/components/charts/lazyCharts";
 
-const PerformanceOverTimeArea = dynamic(() => import("./PostCharts").then((m) => m.PerformanceOverTimeArea), {
+const PerformanceOverTimeArea = dynamic(() => loadCharts().then((m) => m.PerformanceOverTimeArea), {
   ssr: false,
   loading: () => <Skeleton width="100%" height="300px" borderRadius="8px" />,
 });
 
-const TrackingLine = dynamic(() => import("./PostCharts").then((m) => m.TrackingLine), {
+const TrackingLine = dynamic(() => loadCharts().then((m) => m.TrackingLine), {
   ssr: false,
   loading: () => <Skeleton width="100%" height="280px" borderRadius="8px" />,
 });

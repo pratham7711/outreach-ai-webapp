@@ -4,8 +4,9 @@ import dynamic from "next/dynamic";
 import { Card, Badge, Skeleton, EmptyState, Button } from "@pratham7711/ui";
 import { MetricTile } from "@/components/ds";
 import { TrendingUp, TrendingDown, Minus, DollarSign, Wallet, BarChart2, Clock, Download, FileText, Table, TriangleAlert } from "lucide-react";
+import { loadCharts } from "@/components/charts/lazyCharts";
 
-const PayoutTrendChart = dynamic(() => import("./PayoutTrendChart"), {
+const PayoutTrendChart = dynamic(() => loadCharts().then((m) => m.PayoutTrendChart), {
   ssr: false,
   loading: () => <Skeleton width="100%" height="100%" borderRadius="8px" />,
 });

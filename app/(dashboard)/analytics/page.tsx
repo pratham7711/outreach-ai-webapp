@@ -18,13 +18,14 @@ import {
   rangeToFrom,
   platformColor,
 } from "./shared";
+import { loadCharts } from "@/components/charts/lazyCharts";
 
-const MonthlyTrendArea = dynamic(() => import("./AnalyticsCharts").then((m) => m.MonthlyTrendArea), {
+const MonthlyTrendArea = dynamic(() => loadCharts().then((m) => m.MonthlyTrendArea), {
   ssr: false,
   loading: () => <Skeleton width="100%" height="100%" borderRadius="8px" />,
 });
 
-const PlatformBreakdownBar = dynamic(() => import("./AnalyticsCharts").then((m) => m.PlatformBreakdownBar), {
+const PlatformBreakdownBar = dynamic(() => loadCharts().then((m) => m.PlatformBreakdownBar), {
   ssr: false,
   loading: () => <Skeleton width="100%" height="100%" borderRadius="8px" />,
 });
