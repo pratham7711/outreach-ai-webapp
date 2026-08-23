@@ -31,7 +31,7 @@ export default async function CampaignsPage({
   // over that set, are left out of their own counts.
   const tabBase = campaignWhere(orgId, { ...filters, status: [], search: undefined });
 
-  const [campaigns, filteredTotal, statusGroups, creatorCount, clients, orgTags, orgTeam, folderRows, folderCounts, unfiledCount] =
+  const [campaigns, filteredTotal, statusGroups, creatorCount, clients, orgTags, orgTeam, folderRows, folderCounts, unfiledCount, statusDefs] =
     await Promise.all([
     db.campaign.findMany({
       where,
@@ -40,6 +40,7 @@ export default async function CampaignsPage({
         _count: { select: { activations: true, posts: true } },
         teamMembers: { select: { user: { select: { id: true, name: true, avatarUrl: true } } } },
         tags: { select: { tag: true }, orderBy: { tag: "asc" } },
+        statusDef: { select: { id: true, name: true, bucket: true } },
       },
       // campaignOrderBy always appends a unique tiebreaker; ordering by
       // updatedAt alone left 519 campaigns paging over 516 distinct values.
@@ -79,6 +80,14 @@ export default async function CampaignsPage({
       _count: { _all: true },
     }),
     db.campaign.count({ where: { orgId, deletedAt: null, folderId: null } }),
+    // The org's own named statuses, for the per-row picker. Ordered the way
+    // Settings → General orders them so the picker reads the same as the page
+    // that defines it.
+    db.campaignStatusDef.findMany({
+      where: { orgId },
+      select: { id: true, name: true, bucket: true },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    }),
   ]);
 
   const campaignsPerFolder = new Map(folderCounts.map((row) => [row.folderId, row._count._all]));
@@ -131,7 +140,10 @@ export default async function CampaignsPage({
         team: c.teamMembers.map((m) => m.user),
         tags: c.tags.map((t) => t.tag),
         folderId: c.folderId,
+        statusDefId: c.statusDefId,
+        statusDefName: c.statusDef?.name ?? null,
       }))}
+      statusDefs={statusDefs}
       stats={{
         total: statusCounts.ALL,
         active: statusCounts.IN_PROGRESS ?? 0,

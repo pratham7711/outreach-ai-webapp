@@ -1,9 +1,15 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
-import { ArrowRight, BellRing, Building2, CreditCard, Users } from "lucide-react";
+import { ArrowRight, BellRing, Building2, CreditCard, Tags, Users } from "lucide-react";
 
 const cards = [
+  {
+    title: "General",
+    description: "Creator tags and flags, campaign tags, deliverable types, and your own campaign and activation statuses.",
+    href: "/settings/general",
+    icon: Tags,
+  },
   {
     title: "Profile",
     description: "Update your organization name, branding colors, and bank details.",

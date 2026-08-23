@@ -296,6 +296,13 @@ model Organization {
   conversations       Conversation[]
   songs               Song[]
   syncSlots           SyncSlot[]
+
+  creatorTagDefs       CreatorTagDef[]
+  creatorFlagDefs      CreatorFlagDef[]
+  campaignTagDefs      CampaignTagDef[]
+  deliverableTypeDefs  DeliverableTypeDef[]
+  campaignStatusDefs   CampaignStatusDef[]
+  activationStatusDefs ActivationStatusDef[]
 }
 
 /// A release that campaigns promote. One song runs across many campaigns, but a
@@ -469,10 +476,15 @@ model Campaign {
   creatorRateTotals         Float? // financial rollups CreatorCore computes per campaign
   commissionTotal           Float?
   profitTotal               Float?
+  // The org's own granular status. Null means the `status` bucket above is the
+  // whole answer, which is what all 521 pre-existing campaigns look like.
+  statusDefId               String?
   createdAt                 DateTime              @default(now())
   updatedAt                 DateTime              @updatedAt
   deletedAt                 DateTime?
 
+  statusDef         CampaignStatusDef?   @relation(fields: [statusDefId], references: [id])
+  tagLinks          CampaignTagLink[]
   org               Organization         @relation(fields: [orgId], references: [id])
   client            Client?              @relation(fields: [clientId], references: [id])
   song              Song?                @relation(fields: [songId], references: [id])
@@ -605,6 +617,8 @@ model Creator {
   posts          Post[]
   payouts        Payout[]
   socialAccounts CreatorSocialAccount[]
+  tagLinks       CreatorTagLink[]
+  flagLinks      CreatorFlagLink[]
 
   @@index([orgId, trackedSince])
 }
@@ -669,9 +683,14 @@ model Activation {
   updatedAt          DateTime         @updatedAt
   deletedAt          DateTime?
 
-  campaign Campaign @relation(fields: [campaignId], references: [id])
-  creator  Creator  @relation(fields: [creatorId], references: [id])
-  posts    Post[]
+  // The org's own granular status. Null means the enum bucket above is the whole
+  // answer, which is what every row imported before this existed looks like.
+  statusDefId        String?
+
+  campaign  Campaign             @relation(fields: [campaignId], references: [id])
+  creator   Creator              @relation(fields: [creatorId], references: [id])
+  posts     Post[]
+  statusDef ActivationStatusDef? @relation(fields: [statusDefId], references: [id])
   // Joined per campaign by the roster and the share report.
   @@index([campaignId, deletedAt])
   @@index([creatorId])
@@ -1442,4 +1461,143 @@ model CcRecord {
 
   @@unique([ccType, ccId])
   @@index([orgId])
+}
+
+// ─── Org-configurable taxonomy ────────────────────────────────────────────────
+//
+// The reference keeps tags, flags, deliverable types and statuses as rows an org
+// creates in Settings, not as a fixed list in code. That is why statuses we kept
+// finding -- Need To Invoice, Invoiced, Paid, Paused -- are configuration rather
+// than a longer enum.
+//
+// Statuses are modelled as a name plus a bucket rather than replacing the
+// existing enums, because our CampaignStatus values already ARE the reference's
+// four buckets: PENDING/IN_PROGRESS/COMPLETE/CANCELLED to its
+// Pending/Active/Complete/Canceled. So the enum column stays the bucket, every
+// one of the 521 live campaigns keeps the status it has, and the granular status
+// arrives as a nullable pointer alongside it. No backfill, and nothing to undo
+// if a definition is later deleted -- the campaign falls back to its bucket.
+
+model CreatorTagDef {
+  id        String   @id @default(cuid())
+  orgId     String
+  name      String
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  org      Organization     @relation(fields: [orgId], references: [id])
+  creators CreatorTagLink[]
+
+  @@unique([orgId, name])
+  @@index([orgId])
+}
+
+model CreatorTagLink {
+  creatorId String
+  tagId     String
+
+  creator Creator       @relation(fields: [creatorId], references: [id])
+  tag     CreatorTagDef @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([creatorId, tagId])
+  @@index([tagId])
+}
+
+// Flags carry an emoji because the reference shows them as "⚡ Fast Turnaround"
+// -- the glyph is part of the label, not decoration applied at render time.
+model CreatorFlagDef {
+  id        String   @id @default(cuid())
+  orgId     String
+  name      String
+  emoji     String?
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  org      Organization      @relation(fields: [orgId], references: [id])
+  creators CreatorFlagLink[]
+
+  @@unique([orgId, name])
+  @@index([orgId])
+}
+
+model CreatorFlagLink {
+  creatorId String
+  flagId    String
+
+  creator Creator        @relation(fields: [creatorId], references: [id])
+  flag    CreatorFlagDef @relation(fields: [flagId], references: [id], onDelete: Cascade)
+
+  @@id([creatorId, flagId])
+  @@index([flagId])
+}
+
+model CampaignTagDef {
+  id        String   @id @default(cuid())
+  orgId     String
+  name      String
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  org       Organization      @relation(fields: [orgId], references: [id])
+  campaigns CampaignTagLink[]
+
+  @@unique([orgId, name])
+  @@index([orgId])
+}
+
+model CampaignTagLink {
+  campaignId String
+  tagId      String
+
+  campaign Campaign       @relation(fields: [campaignId], references: [id])
+  tag      CampaignTagDef @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([campaignId, tagId])
+  @@index([tagId])
+}
+
+model DeliverableTypeDef {
+  id        String    @id @default(cuid())
+  orgId     String
+  name      String
+  platform  Platform?
+  sortOrder Int       @default(0)
+  createdAt DateTime  @default(now())
+
+  org Organization @relation(fields: [orgId], references: [id])
+
+  @@unique([orgId, name])
+  @@index([orgId])
+}
+
+model CampaignStatusDef {
+  id        String         @id @default(cuid())
+  orgId     String
+  name      String
+  // The fixed group this status sits under, and the column the app still
+  // filters and reports on.
+  bucket    CampaignStatus
+  sortOrder Int            @default(0)
+  createdAt DateTime       @default(now())
+
+  org       Organization @relation(fields: [orgId], references: [id])
+  campaigns Campaign[]
+
+  @@unique([orgId, name])
+  @@index([orgId, bucket])
+}
+
+model ActivationStatusDef {
+  id        String           @id @default(cuid())
+  orgId     String
+  name      String
+  bucket    ActivationStatus
+  sortOrder Int              @default(0)
+  createdAt DateTime         @default(now())
+
+  org         Organization @relation(fields: [orgId], references: [id])
+  activations Activation[]
+
+  @@unique([orgId, name])
+  @@index([orgId, bucket])
 }

@@ -30,6 +30,8 @@ type Campaign = {
   team: { id: string; name: string; avatarUrl: string | null }[];
   tags: string[];
   folderId: string | null;
+  statusDefId: string | null;
+  statusDefName: string | null;
 };
 
 type Client = { id: string; name: string };
@@ -52,6 +54,9 @@ const STATUS_TABS = [
 
 /* The dropdown offers every status, including DRAFT, which has no tab of its
    own — a campaign can be in it, so it has to be reachable and displayable. */
+/** One of the org's named statuses from Settings → General. */
+type StatusDef = { id: string; name: string; bucket: string };
+
 const STATUS_OPTIONS = [
   { value: "DRAFT", label: "Draft" },
   { value: "PENDING", label: "Pending" },
@@ -192,15 +197,29 @@ async function patchCampaign(id: string, body: Record<string, unknown>) {
   }
 }
 
-function StatusSelect({ id, status }: { id: string; status: string }) {
+function StatusSelect({
+  id,
+  status,
+  statusDefId,
+  statusDefs,
+}: {
+  id: string;
+  status: string;
+  statusDefId: string | null;
+  statusDefs: StatusDef[];
+}) {
   const router = useRouter();
-  const [value, setValue] = useState(status);
+  // A named status is chosen by its own id; the bucket travels with it. When the
+  // org has defined none, this falls back to the buckets themselves, which is
+  // what every campaign predating Settings → General still uses.
+  const useDefs = statusDefs.length > 0;
+  const [value, setValue] = useState(useDefs ? statusDefId ?? "" : status);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // A refresh (this card's own save, or another's) re-renders with new props;
   // local state has to follow or the select would show a stale status.
-  useEffect(() => setValue(status), [status]);
+  useEffect(() => setValue(useDefs ? statusDefId ?? "" : status), [status, statusDefId, useDefs]);
 
   async function change(next: string) {
     const previous = value;
@@ -208,7 +227,15 @@ function StatusSelect({ id, status }: { id: string; status: string }) {
     setSaving(true);
     setError(null);
     try {
-      await patchCampaign(id, { status: next });
+      if (useDefs) {
+        const def = statusDefs.find((d) => d.id === next);
+        // Both go in one request: the bucket is what the tabs and reports count,
+        // so a named status arriving without its bucket would file the campaign
+        // under the group it used to be in.
+        await patchCampaign(id, def ? { statusDefId: def.id, status: def.bucket } : { statusDefId: null });
+      } else {
+        await patchCampaign(id, { status: next });
+      }
       router.refresh();
     } catch (e) {
       setValue(previous);
@@ -218,6 +245,13 @@ function StatusSelect({ id, status }: { id: string; status: string }) {
     }
   }
 
+  const options = useDefs
+    ? [
+        { value: "", label: "No status" },
+        ...statusDefs.map((d) => ({ value: d.id, label: d.name })),
+      ]
+    : STATUS_OPTIONS.map((o) => ({ value: o.value, label: o.label }));
+
   return (
     <span style={{ display: "inline-flex", flexDirection: "column", gap: 4, alignItems: "flex-end" }}>
       <Dropdown
@@ -226,8 +260,9 @@ function StatusSelect({ id, status }: { id: string; status: string }) {
         disabled={saving}
         onChange={change}
         variant="primary"
-        minWidth={124}
-        options={STATUS_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+        minWidth={150}
+        placeholder="No status"
+        options={options}
       />
       {error && (
         <span role="alert" style={{ fontSize: 11, color: "var(--cc-danger)", maxWidth: 180, textAlign: "right" }}>
@@ -449,6 +484,7 @@ export default function CampaignsClient({
   unfiledCount,
   sort,
   canDelete,
+  statusDefs,
 }: {
   campaigns: Campaign[];
   stats: { total: number; active: number; creatorCount: number };
@@ -467,6 +503,7 @@ export default function CampaignsClient({
   unfiledCount: number;
   sort: CampaignSort;
   canDelete: boolean;
+  statusDefs: StatusDef[];
 }) {
   const [search, setSearch] = useState(q);
   const [showModal, setShowModal] = useState(false);
@@ -778,7 +815,12 @@ export default function CampaignsClient({
               </div>
 
               <FolderSelect id={campaign.id} folderId={campaign.folderId} folders={folders} />
-              <StatusSelect id={campaign.id} status={campaign.status} />
+              <StatusSelect
+                id={campaign.id}
+                status={campaign.status}
+                statusDefId={campaign.statusDefId}
+                statusDefs={statusDefs}
+              />
               <ShareButton id={campaign.id} title={campaign.title} />
               {canDelete && <DeleteButton id={campaign.id} title={campaign.title} />}
             </div>

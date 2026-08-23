@@ -18,9 +18,10 @@ export type TenantRefs = {
   clientId?: string | null;
   folderId?: string | null;
   songId?: string | null;
+  statusDefId?: string | null;
 };
 
-export type ForeignRef = "client" | "folder" | "song";
+export type ForeignRef = "client" | "folder" | "song" | "status";
 
 /**
  * Returns the first reference that does not belong to the org, or null when
@@ -49,6 +50,13 @@ export async function findForeignRef(orgId: string, refs: TenantRefs): Promise<F
       db.song
         .findFirst({ where: { id: refs.songId, orgId, deletedAt: null }, select: { id: true } })
         .then((row) => (row ? null : ("song" as const)))
+    );
+  }
+  if (refs.statusDefId) {
+    checks.push(
+      db.campaignStatusDef
+        .findFirst({ where: { id: refs.statusDefId, orgId }, select: { id: true } })
+        .then((row) => (row ? null : ("status" as const)))
     );
   }
 

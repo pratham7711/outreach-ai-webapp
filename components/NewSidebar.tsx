@@ -7,7 +7,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   LayoutDashboard, Megaphone, Play, Calendar, CalendarClock, Users, Users2, LineChart,
   Search, List, Link2, CreditCard, Shield, FileText,
-  ChevronDown, Settings, LogOut, Menu, X, ChevronsLeft, Key, BarChart2, Activity, Music
+  ChevronDown, Settings, LogOut, Menu, X, ChevronsLeft, Key, BarChart2, Activity, Music, Tags
 } from "lucide-react";
 import { mediaUrl } from "@/lib/postMedia";
 import { useSidebar } from "@/components/providers/SidebarProvider";
@@ -47,6 +47,7 @@ const NAV_SECTIONS = [
     label: "Settings",
     items: [
       { href: "/settings", icon: Settings, label: "Settings" },
+      { href: "/settings/general", icon: Tags, label: "General" },
       { href: "/connections", icon: Link2, label: "Connections" },
       { href: "/settings/team", icon: Users2, label: "Team" },
       { href: "/settings/api-keys", icon: Key, label: "API Keys" },

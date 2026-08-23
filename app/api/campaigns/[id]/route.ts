@@ -38,6 +38,9 @@ const updateCampaignSchema = z.object({
   // error — campaigns are allowed to stand alone.
   songId: z.string().nullable().optional(),
   folderId: z.string().nullable().optional(),
+  // The org's own named status. It travels with `status`, which stays the bucket
+  // every list and report filters on.
+  statusDefId: z.string().nullable().optional(),
   thumbnailUrl: z.string().nullable().optional(),
   paymentMode: z.enum(PAYMENT_MODES).optional(),
   paymentRelease: z.enum(PAYMENT_RELEASES).optional(),
@@ -196,9 +199,14 @@ export async function PATCH(
       songId: rest.songId,
       clientId: rest.clientId,
       folderId: rest.folderId,
+      statusDefId: rest.statusDefId,
     });
     if (foreign) {
-      const label = foreign === "song" ? "Song" : foreign === "client" ? "Client" : "Folder";
+      const label =
+        foreign === "song" ? "Song"
+        : foreign === "client" ? "Client"
+        : foreign === "status" ? "Status"
+        : "Folder";
       return NextResponse.json({ error: `${label} not found` }, { status: 404 });
     }
 
