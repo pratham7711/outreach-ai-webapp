@@ -553,6 +553,33 @@ export default function PostsTab({
     [filteredSorted, page]
   );
 
+  /* Which columns can be sorted on this campaign's data -- the same conditions
+     the list headers use, so the two controls always offer the same set. A
+     column nobody has a number for is not offered rather than offered as a
+     column of zeros. */
+  const sortFields = useMemo(() => {
+    const fields: { key: SortKey; label: string }[] = [
+      { key: "posted", label: "Posted" },
+      { key: "views", label: "Views" },
+    ];
+    if (anyLikes) fields.push({ key: "likes", label: "Likes" });
+    if (anyComments) fields.push({ key: "comments", label: "Comments" });
+    if (anyShares) fields.push({ key: "shares", label: "Shares" });
+    if (anySaves) fields.push({ key: "saves", label: "Saves" });
+    if (anyDownloads) fields.push({ key: "downloads", label: "Downloads" });
+    if (anyEngRate) fields.push({ key: "engRate", label: "Eng %" });
+    fields.push({ key: "emv", label: "EMV" });
+    if (anyDelta) fields.push({ key: "delta", label: "\u0394 Views" });
+    return fields;
+  }, [anyLikes, anyComments, anyShares, anySaves, anyDownloads, anyEngRate, anyDelta]);
+
+  /* A refresh can fill in a counter nobody had, and in principle take one away.
+     Sorting by a column that is no longer offered would leave the control
+     showing one thing and the list ordered by another. */
+  useEffect(() => {
+    if (!sortFields.some((f) => f.key === sortKey)) setSortKey("posted");
+  }, [sortFields, sortKey]);
+
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) {
       setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -735,6 +762,40 @@ export default function PostsTab({
             onChange={setMediaTypeFilter}
             options={MEDIA_TYPE_FILTERS.map((m) => ({ value: m, label: m === "ALL" ? "All Types" : m }))}
           />
+
+          {/* Sorting used to live entirely in the list headers, and grid is the
+              default view, so the view most people see could not be sorted at
+              all. Same state as the headers: changing either moves both. */}
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <ArrowUpDown size={15} aria-hidden="true" style={{ color: "var(--cc-text-muted)" }} />
+            <Dropdown
+              ariaLabel="Sort posts by"
+              align="left"
+              minWidth={130}
+              value={sortKey}
+              onChange={(v) => setSortKey(v as SortKey)}
+              options={sortFields.map((f) => ({ value: f.key, label: f.label }))}
+            />
+            <Dropdown
+              ariaLabel="Sort direction"
+              align="left"
+              minWidth={110}
+              value={sortDir}
+              onChange={(v) => setSortDir(v as SortDir)}
+              /* Posted is a date and the rest are counts, so the words differ. */
+              options={
+                sortKey === "posted"
+                  ? [
+                      { value: "desc", label: "Newest" },
+                      { value: "asc", label: "Oldest" },
+                    ]
+                  : [
+                      { value: "desc", label: "Highest" },
+                      { value: "asc", label: "Lowest" },
+                    ]
+              }
+            />
+          </span>
 
           <div style={{ display: "flex", border: "1px solid var(--cc-border)", borderRadius: 8, overflow: "hidden" }}>
             <button onClick={() => setViewMode("list")} aria-label="List view" aria-pressed={viewMode === "list"} style={{ padding: "6px 10px", background: viewMode === "list" ? "var(--cc-bg)" : "var(--cc-card)", border: "none", cursor: "pointer" }}>
