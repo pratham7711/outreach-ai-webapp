@@ -124,7 +124,11 @@ export function campaignWhere(orgId: string, f: CampaignFilters): Prisma.Campaig
     // Both are many-to-many, so several selected values widen the result set
     // (campaigns carrying ANY of these tags), matching how the other
     // multi-selects here read.
-    ...(f.tags.length && { tags: { some: { tag: { in: f.tags } } } }),
+    // Filtered by tag name rather than id so a shared URL keeps working after a
+    // tag is renamed... and so the URL stays readable. The tags themselves are
+    // now the org's definitions from Settings → General; the older free-string
+    // CampaignTag table it used to read is empty and no longer written.
+    ...(f.tags.length && { tagLinks: { some: { tag: { name: { in: f.tags } } } } }),
     ...(f.teamMemberIds.length && { teamMembers: { some: { userId: { in: f.teamMemberIds } } } }),
     ...(dateRange(f.createdFrom, f.createdTo) && { createdAt: dateRange(f.createdFrom, f.createdTo) }),
     ...(f.hasCreators && { activations: { some: {} } }),

@@ -17,7 +17,7 @@ import ReviewsSection from "./ReviewsSection";
 import {
   ArrowLeft, Eye, Heart, MessageCircle, Share2, TrendingUp, Users,
   Calendar, Play, ChevronRight, ExternalLink, DollarSign, UserPlus,
-  ClipboardList, BarChart3, Wallet,
+  ClipboardList, BarChart3, Wallet, Trash2,
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -231,8 +231,119 @@ type Campaign = {
   activations: Activation[];
   posts: Post[];
   brief: { content: string } | null;
+  /** The org's campaign tags applied to this campaign. */
+  tagLinks?: { tag: { id: string; name: string } }[];
   _count: { activations: number; posts: number };
 };
+
+/**
+ * The reference's "Select Tags" on a campaign's Overview, drawing on the
+ * campaign tags defined in Settings → General.
+ *
+ * Sends the whole set on every change, like the creator label cards: the
+ * control already knows the full selection, and a set cannot half-apply.
+ */
+function CampaignTagsCard({
+  campaignId,
+  selected,
+  onSaved,
+}: {
+  campaignId: string;
+  selected: { id: string; name: string }[];
+  onSaved: () => void;
+}) {
+  const [defs, setDefs] = useState<{ id: string; name: string }[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/settings/taxonomy/campaign-tags")
+      .then((r) => r.json())
+      .then((d) => setDefs(Array.isArray(d.items) ? d.items : []))
+      .catch(() => setDefs([]));
+  }, []);
+
+  async function save(ids: string[]) {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/campaigns/${campaignId}/tags`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids }),
+      });
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({}));
+        throw new Error(payload.error ?? `Could not save (${res.status})`);
+      }
+      onSaved();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not save");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const selectedIds = selected.map((s) => s.id);
+  const available = (defs ?? []).filter((d) => !selectedIds.includes(d.id));
+
+  return (
+    <Card variant="outlined" style={{ padding: 24 }}>
+      <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)", display: "block", marginBottom: 12 }}>
+        Tags
+      </span>
+
+      {selected.length === 0 ? (
+        <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>No tags added yet!</p>
+      ) : (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
+          {selected.map((s) => (
+            <span
+              key={s.id}
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 6,
+                background: "var(--cc-bg)", border: "1px solid var(--cc-border)",
+                borderRadius: 8, padding: "6px 8px 6px 12px", fontSize: 13, color: "var(--cc-text)",
+              }}
+            >
+              {s.name}
+              <button
+                type="button"
+                aria-label={`Remove ${s.name}`}
+                disabled={busy}
+                onClick={() => void save(selectedIds.filter((v) => v !== s.id))}
+                style={{ background: "none", border: "none", cursor: "pointer", color: "var(--cc-text-muted)", display: "inline-flex", padding: 0 }}
+              >
+                <Trash2 size={13} aria-hidden="true" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+
+      {defs === null ? null : available.length > 0 ? (
+        <Dropdown
+          ariaLabel="Select Tags"
+          value=""
+          placeholder="Select Tags"
+          disabled={busy}
+          align="left"
+          minWidth={180}
+          onChange={(v) => void save([...selectedIds, v])}
+          options={available.map((d) => ({ value: d.id, label: d.name }))}
+        />
+      ) : (
+        <p style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>
+          {(defs ?? []).length === 0
+            ? "No campaign tags defined yet — add them in Settings → General."
+            : "All tags applied."}
+        </p>
+      )}
+
+      {error && <p role="alert" style={{ marginTop: 8, fontSize: 12, color: "var(--cc-danger)" }}>{error}</p>}
+    </Card>
+  );
+}
 
 function LoadingSkeleton() {
   return (
@@ -595,6 +706,12 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
             </div>
 
             <ActivityFeed campaignId={campaign.id} />
+
+            <CampaignTagsCard
+              campaignId={campaign.id}
+              selected={(campaign.tagLinks ?? []).map((l) => l.tag)}
+              onSaved={refreshCampaign}
+            />
 
             {/* Brief */}
             {campaign.brief && (

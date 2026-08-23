@@ -39,7 +39,7 @@ export default async function CampaignsPage({
         client: { select: { name: true } },
         _count: { select: { activations: true, posts: true } },
         teamMembers: { select: { user: { select: { id: true, name: true, avatarUrl: true } } } },
-        tags: { select: { tag: true }, orderBy: { tag: "asc" } },
+        tagLinks: { select: { tag: { select: { name: true } } } },
         statusDef: { select: { id: true, name: true, bucket: true } },
       },
       // campaignOrderBy always appends a unique tiebreaker; ordering by
@@ -57,11 +57,14 @@ export default async function CampaignsPage({
     // exist, not from every user in the org. Offering all 113 users when none
     // are assigned to a campaign would be 113 choices that each return nothing;
     // sourcing from the join tables means the filter is either useful or absent.
-    db.campaignTag.findMany({
-      where: { campaign: { orgId, deletedAt: null } },
-      select: { tag: true },
-      distinct: ["tag"],
-      orderBy: { tag: "asc" },
+    // The org's own campaign tags, from Settings → General. Every definition is
+    // offered, not only the ones currently in use: unlike the old free-string
+    // table, a definition exists because someone deliberately created it, so an
+    // unused one is a tag waiting to be applied rather than dead weight.
+    db.campaignTagDef.findMany({
+      where: { orgId },
+      select: { name: true },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     }),
     db.campaignTeamMember.findMany({
       where: { campaign: { orgId, deletedAt: null } },
@@ -138,7 +141,7 @@ export default async function CampaignsPage({
         // card omits the chip rather than printing a zero budget that was never set.
         budget: c.budget,
         team: c.teamMembers.map((m) => m.user),
-        tags: c.tags.map((t) => t.tag),
+        tags: c.tagLinks.map((l) => l.tag.name),
         folderId: c.folderId,
         statusDefId: c.statusDefId,
         statusDefName: c.statusDef?.name ?? null,
@@ -155,7 +158,7 @@ export default async function CampaignsPage({
       q={filters.search ?? ""}
       status={filters.status[0] ?? "ALL"}
       clients={clients}
-      tagOptions={orgTags.map((t) => t.tag)}
+      tagOptions={orgTags.map((t) => t.name)}
       teamOptions={orgTeam.map((m) => m.user)}
       filterValues={{
         clientIds: firstParam(sp.clientIds),

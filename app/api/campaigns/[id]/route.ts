@@ -103,7 +103,7 @@ export async function GET(
     const campaign = await db.campaign.findFirst({
       where: { id, orgId, deletedAt: null },
       include: {
-        tags: true,
+        tagLinks: { select: { tag: { select: { id: true, name: true } } } },
         teamMembers: {
           include: {
             user: {
@@ -255,7 +255,7 @@ export async function PATCH(
       where: { id },
       data,
       include: {
-        tags: true,
+        tagLinks: { select: { tag: { select: { id: true, name: true } } } },
         teamMembers: {
           include: {
             user: {
