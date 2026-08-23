@@ -1,5 +1,6 @@
 "use client";
 import { useState, useCallback, useMemo } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Badge, Card, Button, Modal, Input, Skeleton, EmptyState } from "@pratham7711/ui";
@@ -80,10 +81,27 @@ function periodLabel(key: string): string {
 const SUBS = [
   { key: "sound", label: "Audios" },
   { key: "creator", label: "Creators" },
-];
+] as const;
+
+type Sub = (typeof SUBS)[number]["key"];
+
+function subFromParam(raw: string | null): Sub {
+  return SUBS.some((s) => s.key === raw) ? (raw as Sub) : "sound";
+}
 
 export default function TrackersPage() {
-  const [sub, setSub] = useState("sound");
+  /* In the URL, as the comment above always claimed: ?sub=creator opened the
+     Audios tab, so a link to a creator watchlist -- and a reload of one --
+     landed on the wrong half of the page. replace, not push, so switching tabs
+     does not stack up history entries to back out of. */
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const sub = subFromParam(searchParams.get("sub"));
+  const setSub = (next: Sub) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("sub", next);
+    router.replace(`?${params.toString()}`, { scroll: false });
+  };
   // Held here so the header button can open the picker the Creators tab owns.
   const [creatorPickerOpen, setCreatorPickerOpen] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
