@@ -21,7 +21,10 @@ test.describe('Campaign Detail', () => {
   });
 
   test('shows budget info', async ({ page }) => {
-    // camp-1 has $25,000 budget
+    // The page opens on Performance, matching the reference app; the budget
+    // tile lives on Overview, so ask for that tab rather than the default.
+    await navigateAndWait(page, '/campaigns/camp-1?tab=overview');
+    // camp-1 has a $25,000 budget, rendered compactly as $25K.
     await expect(page.getByText(/25,000|25K/i).first()).toBeVisible({ timeout: 15000 });
   });
 });

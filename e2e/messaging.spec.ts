@@ -75,8 +75,15 @@ async function portalLoginToken(): Promise<string> {
   return tokenMatch[1];
 }
 
+/*
+  (a) and (d) are fixme, not failing: Inbox is parked, and with it the Message
+  button on the creator page that both of them start from -- see the note on
+  NAV_SECTIONS in components/NewSidebar.tsx. The inbox itself still works, which
+  is why (b) and (c) below still pass. Unpark messaging and these two go green
+  again without being rewritten.
+*/
 test.describe('Messaging — org admin sends to creator', () => {
-  test('(a) org: message button opens inbox thread and org can send', async ({ browser }) => {
+  test.fixme('(a) org: message button opens inbox thread and org can send', async ({ browser }) => {
     const epoch = Date.now();
     const adminState = await orgAdminStorageState();
     const ctx = await browser.newContext({ storageState: adminState });
@@ -274,7 +281,7 @@ test.describe('Messaging — org admin sends to creator', () => {
     await adminCtx.close();
   });
 
-  test('(d) creator with NO portal account: Message button becomes disabled after click (not on portal)', async ({ browser }) => {
+  test.fixme('(d) creator with NO portal account: Message button becomes disabled after click (not on portal)', async ({ browser }) => {
     const adminState = await orgAdminStorageState();
 
     const adminCtx = await browser.newContext({ storageState: adminState });

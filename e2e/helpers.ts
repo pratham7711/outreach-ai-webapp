@@ -40,3 +40,21 @@ export async function navigateAndWait(page: Page, path: string, timeout = 30000)
   await page.goto(path);
   await waitForMain(page, timeout);
 }
+
+/**
+ * Pick an option from one of the design system's dropdowns.
+ *
+ * There are no native `<select>` elements left in the app, so `selectOption()`
+ * has nothing to drive. The trigger is a button carrying `role="combobox"` and
+ * its accessible name is the `ariaLabel` the component was given; the options
+ * are `role="option"` inside a listbox rendered through a portal, which is why
+ * they are addressed on `page` rather than under the trigger.
+ */
+export async function selectFromDropdown(
+  page: Page,
+  ariaLabel: string,
+  optionLabel: string | RegExp,
+): Promise<void> {
+  await page.getByRole('combobox', { name: ariaLabel }).click();
+  await page.getByRole('option', { name: optionLabel }).first().click();
+}

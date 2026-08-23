@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import path from 'path';
 import fs from 'fs';
 import { encode } from 'next-auth/jwt';
+import { selectFromDropdown } from './helpers';
 
 const NEXTAUTH_SECRET = '4Ngtr3WB/HGm9bJ2K8GkcuWjAIt8sQB6zpt60AL2lFU=';
 const COOKIE_NAME = 'authjs.session-token';
@@ -64,8 +65,7 @@ test.describe('Self-serve wizard', () => {
       return btns.length > 0;
     }, { timeout: 20000 });
 
-    const platformSelect = page.locator('select').first();
-    await platformSelect.selectOption('INSTAGRAM');
+    await selectFromDropdown(page, 'Platform', 'INSTAGRAM');
     await page.waitForTimeout(400);
 
     // The platform filter is applied by the API now. It used to narrow whatever
@@ -85,7 +85,7 @@ test.describe('Self-serve wizard', () => {
 
     const selectedCount = count >= 2 ? 2 : 1;
 
-    await expect(page.getByText(new RegExp(`${selectedCount} selected`))).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText(`${selectedCount} selected`, { exact: true })).toBeVisible({ timeout: 10000 });
     await expect(page.getByText('Platform fee', { exact: false }).first()).toBeVisible({ timeout: 10000 });
 
     await page.getByRole('button', { name: 'Next', exact: true }).click();
@@ -152,14 +152,13 @@ test.describe('Self-serve wizard', () => {
 
     const allCount = await page.locator('[aria-pressed]').count();
 
-    const platformSelect = page.locator('select').first();
-    await platformSelect.selectOption('TIKTOK');
+    await selectFromDropdown(page, 'Platform', 'TIKTOK');
     await page.waitForTimeout(400);
 
     const tiktokCount = await page.locator('[aria-pressed]').count();
     expect(tiktokCount).toBeLessThanOrEqual(allCount);
 
-    await platformSelect.selectOption('');
+    await selectFromDropdown(page, 'Platform', 'All platforms');
     await page.waitForTimeout(400);
 
     const resetCount = await page.locator('[aria-pressed]').count();
@@ -190,7 +189,9 @@ test.describe('Self-serve wizard', () => {
 
     await creatorButtons.nth(0).click();
 
-    await expect(page.getByText(/1 selected/)).toBeVisible({ timeout: 10000 });
+    // Exact, because the missing-rate warning below the list also opens with
+    // "1 selected creator has no rate on file" and a loose match hits both.
+    await expect(page.getByText('1 selected', { exact: true })).toBeVisible({ timeout: 10000 });
     await expect(page.getByText('Platform fee').first()).toBeVisible({ timeout: 5000 });
 
     const totalBadge = page.locator('[class*="badge"], [class*="Badge"]').first();
