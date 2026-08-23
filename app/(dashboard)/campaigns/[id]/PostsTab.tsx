@@ -13,6 +13,7 @@ import type { ComplianceFlag } from "@/lib/compliance/postCompliance";
 import PostMedia from "@/components/PostMedia";
 import { imgSrc } from "@/lib/postMedia";
 import { metricValue, unwrittenMetricValue, fieldMetricValue, engagementRateValue, summarizePostMetrics } from "@/lib/metricDisplay";
+import { summariseRefresh } from "@/lib/refreshSummary";
 
 type SnapshotLite = { id: string; viewsCount: number; recordedAt: string };
 
@@ -134,25 +135,6 @@ function engRatePct(post: PostData): number | null {
     saves: post.savesCount,
   });
   return r === null ? null : r * 100;
-}
-
-/**
- * A refresh either changed numbers or it did not, and the difference is the
- * whole point of pressing the button. "measured" is the only count that means
- * new data landed; the rest explain why nothing moved.
- */
-function summariseRefresh(r: {
-  total?: number; measured?: number; noMetrics?: number;
-  unfetchable?: number; failed?: number; remaining?: number;
-}): string {
-  const total = r.total ?? 0;
-  if (total === 0) return "No posts to refresh yet.";
-  const parts = [`${r.measured ?? 0} of ${total} post${total === 1 ? "" : "s"} updated`];
-  const empty = (r.noMetrics ?? 0) + (r.unfetchable ?? 0);
-  if (empty > 0) parts.push(`${empty} returned no metrics`);
-  if (r.failed) parts.push(`${r.failed} failed`);
-  if (r.remaining) parts.push(`${r.remaining} left for the next run`);
-  return `${parts.join(", ")}.`;
 }
 
 function postEmv(post: PostData): number | null {
