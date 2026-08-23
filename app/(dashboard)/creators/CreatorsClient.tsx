@@ -56,6 +56,7 @@ export default function CreatorsClient({
   filterValues,
   filterCount,
   sort,
+  tagOptions,
 }: {
   creators: Creator[];
   platformCounts: Record<string, number>;
@@ -63,6 +64,7 @@ export default function CreatorsClient({
   page: number;
   q: string;
   platform: string;
+  tagOptions: string[];
   filterValues: FilterValues;
   filterCount: number;
   sort: CreatorSort;
@@ -95,6 +97,24 @@ export default function CreatorsClient({
   };
 
   const FILTERS: FilterDef[] = [
+    // Offered only once the org has defined a tag, the way the campaigns drawer
+    // treats its own -- a dropdown that can only ever be empty is not a filter.
+    ...(tagOptions.length
+      ? ([
+          {
+            type: "multiSelect" as const,
+            key: "tags",
+            label: "Tags to include",
+            options: tagOptions.map((t) => ({ value: t, label: t })),
+          },
+          {
+            type: "multiSelect" as const,
+            key: "excludeTags",
+            label: "Tags to exclude",
+            options: tagOptions.map((t) => ({ value: t, label: t })),
+          },
+        ] satisfies FilterDef[])
+      : []),
     { type: "numberRange", label: "Followers", minKey: "minFollowers", maxKey: "maxFollowers" },
     { type: "dateRange", label: "Added", fromKey: "addedFrom", toKey: "addedTo" },
     {
@@ -302,6 +322,14 @@ export default function CreatorsClient({
           onPageChange={(p) => push({ page: p === 1 ? null : p })}
         />
       )}
+
+      <FilterDrawer
+        open={showFilters}
+        onClose={() => setShowFilters(false)}
+        filters={FILTERS}
+        values={filterValues}
+        onApply={(next) => push({ ...next, page: null })}
+      />
 
       {showModal && <AddCreatorModal onClose={() => setShowModal(false)} />}
     </div>

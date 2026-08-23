@@ -171,6 +171,8 @@ export type CreatorFilters = {
   addedFrom?: Date;
   addedTo?: Date;
   hasPosts?: boolean;
+  tags: string[];
+  excludeTags: string[];
 };
 
 export const creatorFilterSchema = z.object({
@@ -181,6 +183,17 @@ export const creatorFilterSchema = z.object({
   addedFrom: optionalDateParam,
   addedTo: optionalDateParam,
   hasPosts: z.enum(["1"]).optional().transform((v) => (v ? true : undefined)),
+  // The org's own creator tags, matched by name for the same reasons the
+  // campaign tags are: a shared URL stays readable and survives a rename, and
+  // an unrecognised name narrows to nothing rather than being a 400.
+  tags: z
+    .string()
+    .optional()
+    .transform((raw) => csvParam(raw)),
+  excludeTags: z
+    .string()
+    .optional()
+    .transform((raw) => csvParam(raw)),
 });
 
 export function readCreatorFilters(sp: Record<string, string | string[] | undefined>): CreatorFilters {
@@ -193,9 +206,11 @@ export function readCreatorFilters(sp: Record<string, string | string[] | undefi
     addedFrom: firstParam(sp.addedFrom),
     addedTo: firstParam(sp.addedTo),
     hasPosts: firstParam(sp.hasPosts),
+    tags: firstParam(sp.tags),
+    excludeTags: firstParam(sp.excludeTags),
   });
   if (parsed.success) return parsed.data;
-  return { platform: [] };
+  return { platform: [], tags: [], excludeTags: [] };
 }
 
 export function creatorWhere(orgId: string, f: CreatorFilters): Prisma.CreatorWhereInput {
@@ -208,6 +223,13 @@ export function creatorWhere(orgId: string, f: CreatorFilters): Prisma.CreatorWh
     }),
     ...(dateRange(f.addedFrom, f.addedTo) && { addedAt: dateRange(f.addedFrom, f.addedTo) }),
     ...(f.hasPosts && { posts: { some: {} } }),
+    // Include widens (carrying ANY of these), exclude narrows (carrying NONE),
+    // which is what makes the pair useful together: every Music creator who is
+    // not also Unresponsive.
+    ...(f.tags.length && { tagLinks: { some: { tag: { name: { in: f.tags } } } } }),
+    ...(f.excludeTags.length && {
+      NOT: { tagLinks: { some: { tag: { name: { in: f.excludeTags } } } } },
+    }),
     ...(f.search
       ? {
           OR: [
@@ -224,7 +246,9 @@ export function countCreatorFilters(f: CreatorFilters): number {
     (f.platform.length ? 1 : 0) +
     (f.minFollowers !== undefined || f.maxFollowers !== undefined ? 1 : 0) +
     (f.addedFrom || f.addedTo ? 1 : 0) +
-    (f.hasPosts ? 1 : 0)
+    (f.hasPosts ? 1 : 0) +
+    (f.tags.length ? 1 : 0) +
+    (f.excludeTags.length ? 1 : 0)
   );
 }
 
