@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Search, Target, Sun, Zap, CheckCircle2, XCircle, Wallet, Users, FileText, LayoutList, Folder, Share2, ArrowUpDown } from "lucide-react";
+import { Plus, Search, Target, Sun, Zap, CheckCircle2, XCircle, Wallet, Users, FileText, LayoutList, Folder, Share2, ArrowUpDown, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { Button, Card, Badge, Input, EmptyState, Avatar } from "@pratham7711/ui";
-import { StatusTabs, Pagination, FilterDrawer, FilterButton, Dropdown } from "@/components/ds";
+import { StatusTabs, Pagination, FilterDrawer, FilterButton, Dropdown, useConfirm } from "@/components/ds";
 import type { FilterDef, FilterValues } from "@/components/ds";
 import CampaignWizard from "@/components/modals/CampaignWizard";
 import { formatCompactCurrency, timeAgo } from "@/lib/format";
@@ -281,6 +281,83 @@ function ShareButton({ id, title }: { id: string; title: string }) {
 }
 
 /*
+ * Delete, the second half of the reference's row menu.
+ *
+ * The reference hides Add to Folder and Delete behind a kebab. Folder and
+ * status are already inline controls on this row, so only Delete was missing,
+ * and it goes inline beside them rather than reinstating a menu to hold one
+ * item.
+ *
+ * The route soft-deletes and writes an audit entry, so this is recoverable and
+ * the confirm is about intent rather than about loss. It is only rendered when
+ * the role actually carries campaigns:delete -- MEMBER and VIEWER do not, and a
+ * button that always 403s is worse than no button.
+ */
+function DeleteButton({ id, title }: { id: string; title: string }) {
+  const router = useRouter();
+  const confirm = useConfirm();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function remove() {
+    const ok = await confirm({
+      title: `Delete ${title}?`,
+      description:
+        "The campaign stops appearing in lists and reports. Its posts, creators and share links are kept, so this can be undone by an admin.",
+      confirmLabel: "Delete campaign",
+      tone: "danger",
+    });
+    if (!ok) return;
+
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/campaigns/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({}));
+        throw new Error(payload.error ?? `Delete failed (${res.status})`);
+      }
+      router.refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not delete campaign");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <span style={{ display: "inline-flex", flexDirection: "column", gap: 4, alignItems: "flex-end" }}>
+      <button
+        type="button"
+        onClick={remove}
+        disabled={busy}
+        title={`Delete ${title}`}
+        aria-label={`Delete ${title}`}
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background: "var(--cc-card)",
+          color: "var(--cc-danger)",
+          border: "1.5px solid var(--cc-danger)",
+          borderRadius: 8,
+          padding: 8,
+          cursor: busy ? "default" : "pointer",
+          opacity: busy ? 0.6 : 1,
+        }}
+      >
+        <Trash2 size={14} aria-hidden="true" />
+      </button>
+      {error && (
+        <span role="alert" style={{ fontSize: 11, color: "var(--cc-danger)", maxWidth: 180, textAlign: "right" }}>
+          {error}
+        </span>
+      )}
+    </span>
+  );
+}
+
+/*
  * Sort, as the reference offers it: a field and a direction, not a column
  * header -- this list is cards, so there is no header row to click.
  *
@@ -371,6 +448,7 @@ export default function CampaignsClient({
   folderId,
   unfiledCount,
   sort,
+  canDelete,
 }: {
   campaigns: Campaign[];
   stats: { total: number; active: number; creatorCount: number };
@@ -388,6 +466,7 @@ export default function CampaignsClient({
   folderId?: string;
   unfiledCount: number;
   sort: CampaignSort;
+  canDelete: boolean;
 }) {
   const [search, setSearch] = useState(q);
   const [showModal, setShowModal] = useState(false);
@@ -701,6 +780,7 @@ export default function CampaignsClient({
               <FolderSelect id={campaign.id} folderId={campaign.folderId} folders={folders} />
               <StatusSelect id={campaign.id} status={campaign.status} />
               <ShareButton id={campaign.id} title={campaign.title} />
+              {canDelete && <DeleteButton id={campaign.id} title={campaign.title} />}
             </div>
           ))}
         </div>

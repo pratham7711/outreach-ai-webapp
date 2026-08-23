@@ -5,6 +5,7 @@ import CampaignsClient from "./CampaignsClient";
 import { CAMPAIGNS_PAGE_SIZE } from "@/lib/listPageSize";
 import { campaignWhere, countCampaignFilters, readCampaignFilters, campaignOrderBy } from "@/lib/listFilters";
 import { firstParam, readCampaignSort } from "@/lib/listParams";
+import { hasPermission } from "@/lib/rbac";
 
 export default async function CampaignsPage({
   searchParams,
@@ -159,6 +160,7 @@ export default async function CampaignsPage({
       folderId={filters.folderId}
       unfiledCount={unfiledCount}
       sort={sort}
+      canDelete={hasPermission((session.user as any).role, "campaigns:delete")}
     />
   );
 }
