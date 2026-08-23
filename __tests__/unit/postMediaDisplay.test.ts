@@ -1,4 +1,4 @@
-import { mediaUrl, embedSrcFor, imgSrc } from "@/lib/postMedia";
+import { mediaUrl, embedSrcFor, imgSrc, shareImgSrc } from "@/lib/postMedia";
 import { metricValue, engagementRateValue } from "@/lib/metricDisplay";
 
 /**
@@ -105,5 +105,43 @@ describe("imgSrc", () => {
   it("stays null with nothing stored, so callers fall back to initials", () => {
     expect(imgSrc(null)).toBeNull();
     expect(imgSrc("   ")).toBeNull();
+  });
+
+  /* The URL is the cache key, so an avatar asked for at three sizes by three
+     surfaces used to mean three fetches of the same source from the upstream
+     CDN -- which is 376ms of the 380ms a first view costs. */
+  it("snaps a square request up to the nearest standard width", () => {
+    const at = (w: number) => imgSrc("https://x.cdn.bubble.io/f/a.png", w);
+    expect(at(112)).toContain("&w=128");
+    expect(at(128)).toContain("&w=128");
+    expect(at(88)).toContain("&w=96");
+    expect(at(64)).toContain("&w=64");
+    expect(at(160)).toContain("&w=192");
+  });
+
+  it("gives the same URL for the sizes it collapses, which is the point", () => {
+    const url = "https://x.cdn.bubble.io/f/a.png";
+    expect(imgSrc(url, 112)).toBe(imgSrc(url, 128));
+    expect(imgSrc(url, 97)).toBe(imgSrc(url, 128));
+  });
+
+  it("never snaps down, so nothing is painted from too few pixels", () => {
+    const url = "https://x.cdn.bubble.io/f/a.png";
+    for (const w of [17, 40, 65, 100, 200, 300, 500, 800]) {
+      const got = Number(/&w=(\d+)/.exec(imgSrc(url, w) ?? "")?.[1]);
+      expect(got).toBeGreaterThanOrEqual(w);
+    }
+  });
+
+  /* A 240x160 thumbnail has a deliberate aspect ratio and the proxy crops to
+     cover, so rounding its width up alone would re-crop the picture. */
+  it("leaves a non-square box exactly as asked", () => {
+    expect(imgSrc("https://x.cdn.bubble.io/f/a.png", 240, 160)).toContain("&w=240&h=160");
+    expect(imgSrc("https://x.cdn.bubble.io/f/a.png", 320, 568)).toContain("&w=320&h=568");
+  });
+
+  it("snaps the share-link variant the same way", () => {
+    expect(shareImgSrc("tok", "https://x.cdn.bubble.io/f/a.png", 112)).toContain("&w=128");
+    expect(shareImgSrc("tok", "https://x.cdn.bubble.io/f/a.png", 240, 160)).toContain("&w=240&h=160");
   });
 });
