@@ -76,6 +76,17 @@ def source_text(route: str) -> str:
 # Shared chrome lives outside the route dir (sidebar, ds components, ui lib).
 SHARED = source_text("components") + source_text("lib")
 
+
+def present(label: str, src: str) -> bool:
+    """Is this label really in our source as a label?
+
+    Case-sensitively, and not glued to surrounding word characters or hyphens.
+    A case-insensitive substring search reported the reference's "Bold" as
+    present because Tailwind's font-bold and fontWeight: "bold" both contain it,
+    which silently hid a whole missing rich-text toolbar.
+    """
+    return re.search(r"(?<![\w-])" + re.escape(label) + r"(?![\w-])", src) is not None
+
 report = {}
 for name, route in PAGES.items():
     path = os.path.join(UI, f"{name}.json")
@@ -92,7 +103,7 @@ for name, route in PAGES.items():
         if is_chrome(l):
             labels.add(l)
     ours = source_text(route) + SHARED
-    missing = sorted(l for l in labels if l.lower() not in ours.lower())
+    missing = sorted(l for l in labels if not present(l, ours))
     report[name] = {"route": route, "checked": len(labels), "missing": missing}
     print(f"{name:22s} {len(labels):4d} labels  {len(missing):3d} missing")
 
