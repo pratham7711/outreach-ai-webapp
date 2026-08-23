@@ -51,11 +51,9 @@ function formatCurrency(n: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
 }
 
-export default function PayoutsClient({ payouts, stats, creators, campaigns }: {
+export default function PayoutsClient({ payouts, stats }: {
   payouts: Payout[];
   stats: { total: number; sent: number; pending: number; processing: number; failed: number };
-  creators: Creator[];
-  campaigns: Campaign[];
 }) {
   const router = useRouter();
   const confirm = useConfirm();
@@ -356,7 +354,7 @@ export default function PayoutsClient({ payouts, stats, creators, campaigns }: {
         )}
       </Card>
 
-      {showModal && <AddPayoutModal creators={creators} campaigns={campaigns} onClose={() => setShowModal(false)} />}
+      {showModal && <AddPayoutModal onClose={() => setShowModal(false)} />}
       {detailPayout && (
         <PayoutDetailModal
           payout={detailPayout}

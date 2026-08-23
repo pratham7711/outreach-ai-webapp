@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Modal, Button, Input } from "@pratham7711/ui";
 import { Dropdown } from "@/components/ds";
@@ -7,17 +7,34 @@ import { Dropdown } from "@/components/ds";
 type Creator = { id: string; name: string; handle: string };
 type Campaign = { id: string; title: string };
 
-export default function AddPayoutModal({
-  creators,
-  campaigns,
-  onClose,
-}: {
-  creators: Creator[];
-  campaigns: Campaign[];
-  onClose: () => void;
-}) {
+export default function AddPayoutModal({ onClose }: { onClose: () => void }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+
+  /* Fetched here rather than passed in: the payouts page was selecting every
+     creator and campaign in the org to fill these two pickers, on every load,
+     for a dialog most visits never open. */
+  const [creators, setCreators] = useState<Creator[]>([]);
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [optionsState, setOptionsState] = useState<"loading" | "ready" | "failed">("loading");
+
+  const loadOptions = useCallback(async () => {
+    setOptionsState("loading");
+    try {
+      const res = await fetch("/api/payouts/options");
+      if (!res.ok) throw new Error(String(res.status));
+      const data = await res.json();
+      setCreators(data.creators ?? []);
+      setCampaigns(data.campaigns ?? []);
+      setOptionsState("ready");
+    } catch {
+      setOptionsState("failed");
+    }
+  }, []);
+
+  useEffect(() => {
+    loadOptions();
+  }, [loadOptions]);
   const [form, setForm] = useState({
     creatorId: "",
     campaignId: "",
@@ -71,6 +88,7 @@ export default function AddPayoutModal({
           <Button
             variant="primary"
             loading={loading}
+            disabled={optionsState !== "ready"}
             onClick={() => {
               document.getElementById("add-payout-form")?.dispatchEvent(
                 new Event("submit", { cancelable: true, bubbles: true })
@@ -83,16 +101,46 @@ export default function AddPayoutModal({
       }
     >
       <form id="add-payout-form" onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        {optionsState === "failed" && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
+              padding: "10px 12px",
+              borderRadius: 8,
+              border: "1px solid var(--cc-border)",
+              background: "var(--cc-bg)",
+              fontSize: 13,
+              color: "var(--cc-text-muted)",
+            }}
+          >
+            <span>Couldn&apos;t load creators and campaigns.</span>
+            <Button variant="secondary" onClick={loadOptions}>
+              Retry
+            </Button>
+          </div>
+        )}
         <div>
           <label style={labelStyle}>Creator *</label>
           <Dropdown
             ariaLabel="Creator"
             align="left"
             fullWidth
+            disabled={optionsState !== "ready"}
             value={form.creatorId}
             onChange={(v) => setForm((f) => ({ ...f, creatorId: v }))}
             options={[
-              { value: "", label: "Select creator..." },
+              {
+                value: "",
+                label:
+                  optionsState === "loading"
+                    ? "Loading creators..."
+                    : optionsState === "failed"
+                      ? "Creators unavailable"
+                      : "Select creator...",
+              },
               ...creators.map((c) => ({ value: c.id, label: `${c.name} (${c.handle})` })),
             ]}
           />
@@ -103,6 +151,7 @@ export default function AddPayoutModal({
             ariaLabel="Campaign"
             align="left"
             fullWidth
+            disabled={optionsState !== "ready"}
             value={form.campaignId}
             onChange={(v) => setForm((f) => ({ ...f, campaignId: v }))}
             options={[

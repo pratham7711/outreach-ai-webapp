@@ -8,7 +8,11 @@ export default async function PayoutsPage() {
   if (!session?.user) redirect("/login");
   const orgId = (session.user as any).orgId;
 
-  const [payouts, totalAgg, sentAgg, pendingAgg, processingAgg, failedAgg, creators, campaigns] = await Promise.all([
+  /* The creator and campaign pickers used to be selected here and passed
+     down. They belong to a dialog that is usually never opened, and they were
+     1,837 rows and 521 rows of it in every page load, so they now load from
+     /api/payouts/options when the dialog does. */
+  const [payouts, totalAgg, sentAgg, pendingAgg, processingAgg, failedAgg] = await Promise.all([
     db.payout.findMany({
       where: { orgId },
       include: {
@@ -23,8 +27,6 @@ export default async function PayoutsPage() {
     db.payout.aggregate({ where: { orgId, status: "PENDING" }, _sum: { amount: true } }),
     db.payout.aggregate({ where: { orgId, status: "PROCESSING" }, _sum: { amount: true } }),
     db.payout.aggregate({ where: { orgId, status: "FAILED" }, _sum: { amount: true } }),
-    db.creator.findMany({ where: { orgId, deletedAt: null }, select: { id: true, name: true, handle: true }, orderBy: { name: "asc" } }),
-    db.campaign.findMany({ where: { orgId, deletedAt: null }, select: { id: true, title: true }, orderBy: { title: "asc" } }),
   ]);
 
   return (
@@ -51,8 +53,6 @@ export default async function PayoutsPage() {
         processing: Number(processingAgg._sum.amount ?? 0),
         failed: Number(failedAgg._sum.amount ?? 0),
       }}
-      creators={creators}
-      campaigns={campaigns}
     />
   );
 }
