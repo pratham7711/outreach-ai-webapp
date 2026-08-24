@@ -165,10 +165,12 @@ export function AudioCard({ audio, shareToken }: { audio: CampaignAudio; shareTo
                   tick={{ fontSize: 11, fill: "var(--cc-text-muted)" }}
                   tickLine={false}
                   axisLine={false}
-                  /* Usage counts are anchored at zero. Left to scale itself the
-                     axis spanned 45 to 46 uses, and one video going away drew a
-                     cliff across the whole card. Velocity is a signed
-                     percentage, so it keeps its own scale. */
+                  /* Velocity is a signed percentage and has to be allowed below
+                     zero. Recharts defaults a numeric axis to [0, 'auto'], so
+                     the view that exists to show a sound losing pace was the
+                     one view that could not draw it -- a reading of -2.17% sat
+                     clipped on the floor. Usage keeps the zero baseline, which
+                     for a count is what you want. */
                   domain={view === "velocity" ? ["auto", "auto"] : [0, "auto"]}
                   allowDecimals={view === "velocity"}
                   tickFormatter={(v) => (view === "velocity" ? `${Number(v).toFixed(0)}%` : formatCompact(Number(v)))}

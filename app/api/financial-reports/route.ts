@@ -116,7 +116,7 @@ export async function GET(req: NextRequest) {
         orgId,
         createdAt: { gte: new Date(new Date().setMonth(new Date().getMonth() - 5)) },
       },
-      select: { amount: true, status: true, createdAt: true },
+      select: { amount: true, status: true, createdAt: true, completedAt: true },
       orderBy: { createdAt: "asc" },
     }),
     // Top 5 campaigns by budget in current period
@@ -135,13 +135,23 @@ export async function GET(req: NextRequest) {
     }),
   ]);
 
-  // Build monthly trend: group payouts by YYYY-MM
+  /* Monthly trend, grouped by YYYY-MM. Money paid is dated to the month it was
+     actually paid, not the month the payout was raised: a payout opened in June
+     and settled in August is August's spend, and dating it to June told the
+     wrong month twice over. Pending has no completion date yet, so it stays on
+     the month it was raised, which is the question being asked of it -- how
+     long has this been outstanding. */
   const trendMap: Record<string, { paid: number; pending: number }> = {};
   for (const p of monthlyPayouts) {
-    const key = p.createdAt.toISOString().slice(0, 7);
-    if (!trendMap[key]) trendMap[key] = { paid: 0, pending: 0 };
-    if (p.status === "SUCCESS") trendMap[key].paid += p.amount;
-    else if (p.status === "PENDING") trendMap[key].pending += p.amount;
+    if (p.status === "SUCCESS") {
+      const key = (p.completedAt ?? p.createdAt).toISOString().slice(0, 7);
+      if (!trendMap[key]) trendMap[key] = { paid: 0, pending: 0 };
+      trendMap[key].paid += p.amount;
+    } else if (p.status === "PENDING") {
+      const key = p.createdAt.toISOString().slice(0, 7);
+      if (!trendMap[key]) trendMap[key] = { paid: 0, pending: 0 };
+      trendMap[key].pending += p.amount;
+    }
   }
   const monthlyTrend = Object.entries(trendMap)
     .sort(([a], [b]) => a.localeCompare(b))
