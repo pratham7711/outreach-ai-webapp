@@ -35,6 +35,12 @@ export default function PostMedia({
   radius = 8,
 }: Props) {
   const [playing, setPlaying] = useState(false);
+  /* The placeholder below already exists for a post with no thumbnail stored. A
+     thumbnail that fails to load is the same thing on screen, but without this
+     it was the browser's own broken-image glyph instead -- and the proxy now
+     answers 404 for a cover the platform has stopped serving, which is exactly
+     that case. */
+  const [broken, setBroken] = useState(false);
   // Doubled for retina; the CDN original can be 20x the box we paint it in.
   const thumb = imgSrc(thumbnailUrl, width * 2, height * 2);
   const embed = embedSrcFor(platform, platformPostId, postUrl);
@@ -53,7 +59,7 @@ export default function PostMedia({
     display: "block",
   };
 
-  const inner = thumb ? (
+  const inner = thumb && !broken ? (
     // eslint-disable-next-line @next/next/no-img-element
     <img
       src={thumb}
@@ -62,6 +68,7 @@ export default function PostMedia({
       decoding="async"
       width={width}
       height={height}
+      onError={() => setBroken(true)}
       style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
     />
   ) : (
@@ -74,7 +81,7 @@ export default function PostMedia({
         justifyContent: "center",
         color: "var(--cc-text-subtle)",
       }}
-      title="No thumbnail stored for this post"
+      title={broken ? "This post's thumbnail is no longer available" : "No thumbnail stored for this post"}
     >
       <ImageOff size={16} />
     </span>
