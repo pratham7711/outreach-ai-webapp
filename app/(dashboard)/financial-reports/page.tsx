@@ -5,6 +5,7 @@ import { Card, Badge, Skeleton, EmptyState, Button } from "@pratham7711/ui";
 import { MetricTile } from "@/components/ds";
 import { TrendingUp, TrendingDown, Minus, DollarSign, Wallet, BarChart2, Clock, Download, FileText, Table, TriangleAlert } from "lucide-react";
 import { loadCharts } from "@/components/charts/lazyCharts";
+import { downloadCsv } from "@/lib/csv";
 
 const PayoutTrendChart = dynamic(() => loadCharts().then((m) => m.PayoutTrendChart), {
   ssr: false,
@@ -150,14 +151,7 @@ function exportCSV(data: ReportData) {
     ...data.topCampaigns.map(c => [c.title, c.status, String(c.budget), String(c.spend), String(c.utilization)]),
   ];
 
-  const csv = rows.map(r => r.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\n");
-  const blob = new Blob([csv], { type: "text/csv" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `financial-report-${data.period.replace(/\s+/g, "-").toLowerCase()}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
+  downloadCsv(`financial-report-${data.period.replace(/\s+/g, "-").toLowerCase()}`, rows);
 }
 
 export default function FinancialReportsPage() {

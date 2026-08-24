@@ -4,7 +4,8 @@ import { Button, Badge, Card, Avatar, Skeleton, EmptyState, Input } from "@prath
 import { MetricTile } from "@/components/ds";
 import { StatusTabs } from "@/components/ds";
 import { formatDateAbs } from "@/lib/format";
-import { Inbox, Search } from "lucide-react";
+import { Inbox, Search, Download } from "lucide-react";
+import { downloadCsv, exportStamp } from "@/lib/csv";
 
 interface PayoutRequest {
   id: string;
@@ -99,6 +100,23 @@ export default function RequestsPage() {
     .reduce((sum, r) => sum + r.requestedAmount, 0);
   const rejectedCount = requests.filter((r) => r.status === "REJECTED").length;
 
+  // Exports the rows on screen, so a status tab or a search narrows the file
+  // the same way it narrows the list.
+  const exportData = () => {
+    downloadCsv(`payout-requests-${exportStamp()}`, [
+      ["Requested", "Creator", "Handle", "Campaign", "Amount", "Currency", "Status"],
+      ...filtered.map((r) => [
+        formatDateAbs(r.createdAt),
+        r.creator?.name ?? "",
+        r.creator?.handle ?? "",
+        r.campaign?.title ?? "",
+        r.requestedAmount,
+        r.currency,
+        r.status,
+      ]),
+    ]);
+  };
+
   const formatCurrency = (amount: number, currency?: string) => {
     const sym = currency === "INR" ? "\u20B9" : "$";
     return `${sym}${amount.toLocaleString()}`;
@@ -112,6 +130,15 @@ export default function RequestsPage() {
           <h1 style={{ fontSize: 26, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Requests</h1>
           <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>View and manage payout requests</p>
         </div>
+        <Button
+          variant="secondary"
+          size="sm"
+          iconLeft={<Download size={15} />}
+          disabled={filtered.length === 0}
+          onClick={exportData}
+        >
+          Export Data
+        </Button>
       </div>
 
       {/* Stat Cards */}

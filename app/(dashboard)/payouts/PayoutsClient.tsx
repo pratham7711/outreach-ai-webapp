@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Search, ArrowRight, Check, Banknote } from "lucide-react";
+import { Plus, Search, ArrowRight, Check, Banknote, Download } from "lucide-react";
 import { Button, Card, Badge, EmptyState, Input, Avatar } from "@pratham7711/ui";
 import { MetricTile, useConfirm } from "@/components/ds";
 import { StatusTabs } from "@/components/ds";
@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import AddPayoutModal from "@/components/modals/AddPayoutModal";
 import PayoutDetailModal from "@/components/modals/PayoutDetailModal";
 import { stripAt, formatDateAbs } from "@/lib/format";
+import { downloadCsv, exportStamp } from "@/lib/csv";
 
 type Payout = {
   id: string;
@@ -72,6 +73,30 @@ export default function PayoutsClient({ payouts, stats }: {
       statusFilter === "All" || p.status.toUpperCase() === statusFilter.toUpperCase();
     return matchSearch && matchStatus;
   });
+
+  // Exports what is on screen, not the whole table: someone who has narrowed
+  // to the failed payouts for one creator wants those rows, and a file that
+  // silently ignored the filter would be the wrong answer twice over.
+  const exportData = () => {
+    downloadCsv(`payouts-${exportStamp()}`, [
+      ["Date", "Creator", "Handle", "Campaign", "Amount", "Currency", "Status",
+       "Method", "Recipient", "Transaction ID", "Completed", "Failure Reason"],
+      ...filtered.map((p) => [
+        formatDateAbs(p.initiatedAt),
+        p.creator.name,
+        p.creator.handle,
+        p.campaign?.title ?? "",
+        p.amount,
+        p.currency,
+        p.status,
+        p.paymentMethod,
+        p.recipientPaypalEmail ?? "",
+        p.transactionId ?? "",
+        p.completedAt ? formatDateAbs(p.completedAt) : "",
+        p.failureReason ?? "",
+      ]),
+    ]);
+  };
 
   const toggleSelect = (id: string) => {
     setSelected((prev) => {
@@ -161,9 +186,20 @@ export default function PayoutsClient({ payouts, stats }: {
             Track and manage creator payments
           </p>
         </div>
-        <Button variant="primary" iconLeft={<Plus size={15} />} size="sm" onClick={() => setShowModal(true)}>
-          Process Payout
-        </Button>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <Button
+            variant="secondary"
+            iconLeft={<Download size={15} />}
+            size="sm"
+            disabled={filtered.length === 0}
+            onClick={exportData}
+          >
+            Export Data
+          </Button>
+          <Button variant="primary" iconLeft={<Plus size={15} />} size="sm" onClick={() => setShowModal(true)}>
+            Process Payout
+          </Button>
+        </div>
       </div>
 
       {/* Stats */}
