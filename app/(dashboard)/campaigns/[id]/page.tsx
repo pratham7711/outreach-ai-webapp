@@ -9,6 +9,7 @@ import { Dropdown, MetricTile, EntityPicker } from "@/components/ds";
 import PostsTab from "./PostsTab";
 import ActivityFeed from "./ActivityFeed";
 import DraftsTab from "./DraftsTab";
+import DocumentsTab from "./DocumentsTab";
 import FinancialsTab from "./FinancialsTab";
 import CreativeBriefCard from "./CreativeBriefCard";
 import RosterTable, { ROSTER_COLUMNS, ROSTER_DEFAULT_COLUMNS } from "./RosterTable";
@@ -63,7 +64,7 @@ const CreatorPerformanceBar = dynamic(() => loadCharts().then((m) => m.CreatorPe
    not to the list would type-check and then silently fall back to Performance
    whenever someone linked to it. */
 const TAB_VALUES = [
-  "performance", "overview", "drafts", "posts", "creators", "reviews", "analytics", "financials", "edit",
+  "performance", "overview", "drafts", "posts", "creators", "reviews", "analytics", "financials", "documents", "edit",
 ] as const;
 
 type Tab = (typeof TAB_VALUES)[number];
@@ -618,6 +619,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
     { label: "Reviews", value: "reviews" as Tab },
     { label: "Analytics", value: "analytics" },
     { label: "Financials", value: "financials" as Tab },
+    { label: "Documents", value: "documents" as Tab },
     { label: "Edit", value: "edit" as Tab },
   ];
 
@@ -777,6 +779,8 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
 
         {/* Drafts Tab */}
         {activeTab === "drafts" && <DraftsTab campaignId={id} onChange={refreshCampaign} />}
+
+        {activeTab === "documents" && <DocumentsTab campaignId={id} />}
 
         {/* Posts Tab */}
         {activeTab === "posts" && (
