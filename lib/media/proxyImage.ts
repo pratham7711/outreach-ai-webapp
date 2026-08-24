@@ -35,6 +35,33 @@ export function imageDimension(raw: string | null, fallback: number): number {
   return Math.min(Math.max(Number(raw) || fallback, 16), 1024);
 }
 
+/**
+ * A cover the platform no longer serves does not always come back as a 404.
+ *
+ * The top post on the reference campaign has a live thumbnail URL with a
+ * signature good for another two days, and TikTok answers it with a fully
+ * transparent image: 200x200, every pixel alpha 0, 184 bytes once re-encoded.
+ * Handed to the browser that is a perfectly valid image, so onError never fires
+ * and the card paints a blank white box where the callers already have a
+ * perfectly good "no thumbnail" placeholder waiting. A 404 is the honest answer
+ * and it is the one that shows it.
+ *
+ * Two guards against ever hiding a real picture. The byte check comes first, so
+ * stats() runs on essentially nothing we serve -- a photograph does not encode
+ * to 400 bytes. And the verdict is max alpha of zero, meaning every single
+ * pixel is fully transparent; an opaque image has no alpha channel here at all,
+ * and one visible pixel is enough to send it through untouched.
+ */
+async function isEntirelyTransparent(webp: Buffer): Promise<boolean> {
+  if (webp.byteLength >= 400) return false;
+  try {
+    const alpha = (await sharp(webp).stats()).channels[3];
+    return alpha !== undefined && alpha.max === 0;
+  } catch {
+    return false;
+  }
+}
+
 export async function proxyImage(
   rawUrl: string | null,
   width: number,
@@ -105,6 +132,11 @@ export async function proxyImage(
       .resize(width, height, { fit: "cover", withoutEnlargement: true })
       .webp({ quality: 80 })
       .toBuffer();
+
+    if (await isEntirelyTransparent(out)) {
+      return new NextResponse("empty image", { status: 404 });
+    }
+
     return new NextResponse(new Uint8Array(out), {
       headers: { ...headers, "Content-Type": "image/webp" },
     });

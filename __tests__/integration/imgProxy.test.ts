@@ -179,3 +179,57 @@ describe("GET /api/img — what it gives back", () => {
     expect(res.status).toBe(200);
   });
 });
+
+describe("GET /api/img — a cover the platform has stopped serving", () => {
+  /* Not hypothetical: the top post on the reference campaign has a signed
+     thumbnail URL valid for another two days that TikTok answers with a fully
+     transparent 200x200 image. It is a valid image, so the browser's onError
+     never fires and the card paints a blank white box instead of the
+     placeholder the caller already renders for a post with no thumbnail. */
+  it("404s a source whose every pixel is transparent, so the placeholder shows", async () => {
+    const blank = await sharp({
+      create: { width: 200, height: 200, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+    })
+      .png()
+      .toBuffer();
+    global.fetch = jest.fn(async () => upstream(blank, { length: blank.byteLength })) as any;
+
+    const res = await GET(req(BUBBLE, "&w=200"));
+    expect(res.status).toBe(404);
+  });
+
+  it("still serves a picture that is merely small, which is the way this goes wrong", async () => {
+    /* The size guard is what keeps stats() off the hot path, so it is also what
+       would silently swallow a real image if the verdict were byte count alone.
+       This one encodes tiny and is fully opaque, and has to survive. */
+    const tiny = await sharp({
+      create: { width: 16, height: 16, channels: 3, background: { r: 91, g: 91, b: 214 } },
+    })
+      .png()
+      .toBuffer();
+    global.fetch = jest.fn(async () => upstream(tiny, { length: tiny.byteLength })) as any;
+
+    const res = await GET(req(BUBBLE, "&w=16"));
+    expect(res.status).toBe(200);
+  });
+
+  it("serves an image that is almost entirely transparent but not quite", async () => {
+    /* One visible pixel is a picture. The verdict is max alpha, not mean, and
+       this is the case that separates the two. */
+    const dot = await sharp({
+      create: { width: 1, height: 1, channels: 4, background: { r: 255, g: 0, b: 0, alpha: 1 } },
+    })
+      .png()
+      .toBuffer();
+    const nearlyBlank = await sharp({
+      create: { width: 200, height: 200, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+    })
+      .composite([{ input: dot, top: 0, left: 0 }])
+      .png()
+      .toBuffer();
+    global.fetch = jest.fn(async () => upstream(nearlyBlank, { length: nearlyBlank.byteLength })) as any;
+
+    const res = await GET(req(BUBBLE, "&w=200"));
+    expect(res.status).toBe(200);
+  });
+});

@@ -235,9 +235,13 @@ describe("computeCampaignPerformance audio provenance", () => {
 
     expect(result.audio!.uses).toBe(44);
     expect(result.audio!.videosAdded24h).toBe(21);
+    /* `at` carries the clock as well as the day, because several readings can
+       land on one date and the axis then printed the same label for all of
+       them. It is the chart's own dataKey, so a row without it is not a
+       cosmetic loss -- it is a report that does not render. */
     expect(result.audio!.usageSeries).toEqual([
-      { date: "2026-08-21", uses: 23 },
-      { date: "2026-08-22", uses: 44 },
+      { date: "2026-08-21", at: "2026-08-21T00:00:00.000Z", uses: 23 },
+      { date: "2026-08-22", at: "2026-08-22T00:00:00.000Z", uses: 44 },
     ]);
     // The tracker's own cover wins over the song's art.
     expect(result.audio!.coverUrl).toBe("https://cdn/sound.jpg");
