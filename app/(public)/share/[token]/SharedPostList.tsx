@@ -179,8 +179,19 @@ export default function SharedPostList({
                 <div style={{ marginTop: "auto", fontSize: 11, color: "var(--cc-text-subtle)", lineHeight: 1.5 }}>
                   <div>Posted {formatDateAbs(post.postedAt)}</div>
                   {/* "Never" would read as a claim about the post rather than
-                      about our own sync, which has simply not run for it. */}
-                  <div>{post.lastSyncedAt ? `Last updated ${timeAgo(post.lastSyncedAt)}` : "Not yet updated"}</div>
+                      about our own sync, which has simply not run for it.
+
+                      suppressHydrationWarning because this is the one string on
+                      the page measured against the clock. The server renders it
+                      when the request is served and the browser re-renders it on
+                      hydration, so any gap that crosses a minute turns "21m ago"
+                      into "22m ago" and React reports a mismatch -- which is
+                      what production was throwing while local never did, the
+                      gap there being under a second. The client's answer is the
+                      correct one; only the complaint is unwanted. */}
+                  <div suppressHydrationWarning>
+                    {post.lastSyncedAt ? `Last updated ${timeAgo(post.lastSyncedAt)}` : "Not yet updated"}
+                  </div>
                 </div>
               </div>
             </div>
