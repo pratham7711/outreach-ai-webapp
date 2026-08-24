@@ -41,7 +41,7 @@ const NEXT_STATUS: Record<string, { label: string; status: string }[]> = {
   AWAITING_APPROVAL: [{ label: "Approve", status: "APPROVED" }, { label: "Decline", status: "DECLINED" }],
   APPROVED: [{ label: "Start Posting", status: "POSTING" }],
   POSTING: [{ label: "Mark Posted", status: "POSTED" }],
-  POSTED: [{ label: "Complete", status: "COMPLETE" }],
+  POSTED: [{ label: "Mark as Complete", status: "COMPLETE" }],
   DECLINED: [{ label: "Re-open", status: "AWAITING_DRAFT" }],
 };
 

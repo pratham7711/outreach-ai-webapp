@@ -135,6 +135,10 @@ export async function GET(
         },
         brief: true,
         financials: true,
+        // Named, not just referenced by id: the client picker on the edit tab
+        // has to show which client is attached before the client list has
+        // finished loading.
+        client: { select: { id: true, name: true } },
         _count: {
           select: { activations: true, posts: true },
         },

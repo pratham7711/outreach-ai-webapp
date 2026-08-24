@@ -687,13 +687,42 @@ model Activation {
   // answer, which is what every row imported before this existed looks like.
   statusDefId        String?
 
-  campaign  Campaign             @relation(fields: [campaignId], references: [id])
-  creator   Creator              @relation(fields: [creatorId], references: [id])
-  posts     Post[]
-  statusDef ActivationStatusDef? @relation(fields: [statusDefId], references: [id])
+  campaign     Campaign             @relation(fields: [campaignId], references: [id])
+  creator      Creator              @relation(fields: [creatorId], references: [id])
+  posts        Post[]
+  statusDef    ActivationStatusDef? @relation(fields: [statusDefId], references: [id])
+  deliverables Deliverable[]
   // Joined per campaign by the roster and the share report.
   @@index([campaignId, deletedAt])
   @@index([creatorId])
+}
+
+// What a creator owes on one activation. The reference groups its activations
+// board by whether these exist -- "In-Progress - Empty Deliverables" is a
+// bucket -- so an activation with none is a normal state, not a broken one.
+//
+// One row per thing owed rather than a quantity, because two videos have two
+// due dates and are finished separately.
+model Deliverable {
+  id           String    @id @default(cuid())
+  activationId String
+  // The org's own type from Settings, and a copy of what it was called. The
+  // name is stored so deleting a definition leaves the deliverable readable
+  // instead of blank; the link is SET NULL for the same reason.
+  typeDefId    String?
+  name         String
+  dueDate      DateTime?
+  completedAt  DateTime?
+  notes        String?
+  sortOrder    Int       @default(0)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  activation Activation          @relation(fields: [activationId], references: [id], onDelete: Cascade)
+  typeDef    DeliverableTypeDef? @relation(fields: [typeDefId], references: [id], onDelete: SetNull)
+
+  @@index([activationId])
+  @@index([typeDefId])
 }
 
 // ─── Posts & Social Metrics ───────────────────────────────────────────────────
@@ -1564,7 +1593,8 @@ model DeliverableTypeDef {
   sortOrder Int       @default(0)
   createdAt DateTime  @default(now())
 
-  org Organization @relation(fields: [orgId], references: [id])
+  org          Organization  @relation(fields: [orgId], references: [id])
+  deliverables Deliverable[]
 
   @@unique([orgId, name])
   @@index([orgId])

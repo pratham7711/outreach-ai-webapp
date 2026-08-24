@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import { motion } from "framer-motion";
 import { Card, Badge, Button, EmptyState, Avatar, Skeleton, Modal } from "@pratham7711/ui";
-import { Dropdown, MetricTile } from "@/components/ds";
+import { Dropdown, MetricTile, EntityPicker } from "@/components/ds";
 import PostsTab from "./PostsTab";
 import ActivityFeed from "./ActivityFeed";
 import DraftsTab from "./DraftsTab";
@@ -216,6 +216,7 @@ type Campaign = {
   currency: string;
   notes: string | null;
   clientId: string | null;
+  client?: { id: string; name: string } | null;
   createdAt: string;
   updatedAt: string;
   // Marketplace (Phase 2M)
@@ -331,9 +332,9 @@ function CampaignTagsCard({
 
       {defs === null ? null : available.length > 0 ? (
         <Dropdown
-          ariaLabel="Select Tags"
+          ariaLabel="Add Tag"
           value=""
-          placeholder="Select Tags"
+          placeholder="Add Tag"
           disabled={busy}
           align="left"
           minWidth={180}
@@ -907,8 +908,9 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
               <h3 style={{ fontSize: 15, fontWeight: 700, color: "var(--cc-text)", marginBottom: 20 }}>Edit Campaign</h3>
               <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                 <div>
-                  <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Title</label>
+                  <label htmlFor="edit-campaign-title" style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Campaign Title</label>
                   <input
+                    id="edit-campaign-title"
                     type="text"
                     value={editForm.title}
                     onChange={e => setEditForm(f => ({ ...f, title: e.target.value }))}
@@ -961,19 +963,27 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                   />
                 </div>
                 <div>
-                  <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Client</label>
-                  <Dropdown
-                    ariaLabel="Client"
-                    size="md"
-                    fullWidth
-                    align="left"
-                    value={editForm.clientId}
-                    onChange={v => setEditForm(f => ({ ...f, clientId: v }))}
-                    onOpen={fetchClients}
-                    options={[
-                      { value: "", label: "No client" },
-                      ...clients.map(c => ({ value: c.id, label: c.name })),
-                    ]}
+                  <label htmlFor="edit-client" style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Client</label>
+                  {/* Searched rather than scrolled, as the reference does it. A
+                      dropdown listing every client is fine at five and useless
+                      at two hundred. Clearing the picker unsets the client. */}
+                  <EntityPicker
+                    id="edit-client"
+                    endpoint="/api/clients"
+                    placeholder="Search Clients"
+                    extract={(json) => (json.clients ?? []).map((c: { id: string; name: string }) => ({ id: c.id, label: c.name }))}
+                    value={
+                      editForm.clientId
+                        ? {
+                            id: editForm.clientId,
+                            label:
+                              clients.find(c => c.id === editForm.clientId)?.name
+                              ?? campaign.client?.name
+                              ?? "Selected client",
+                          }
+                        : null
+                    }
+                    onChange={(opt) => setEditForm(f => ({ ...f, clientId: opt?.id ?? "" }))}
                   />
                 </div>
                 <div>
