@@ -152,7 +152,12 @@ export default function SharedPerformanceReport({
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--cc-bg)" }}>
-      <div style={{ maxWidth: 960, margin: "0 auto", padding: isMobile ? "24px 16px 64px" : "40px 24px 80px" }}>
+      {/* 1280, because the reference report measures 1256px of content at a
+          1440 viewport and we were capped at 960. The narrower page was not a
+          neutral choice: it is what squeezed the KPI row to five tiles where
+          CreatorCore fits seven, and it left the post grid too narrow to reach
+          the column count their report uses. */}
+      <div style={{ maxWidth: 1280, margin: "0 auto", padding: isMobile ? "24px 16px 64px" : "40px 24px 80px" }}>
         <div
           style={{
             display: "flex",
@@ -489,12 +494,20 @@ export default function SharedPerformanceReport({
                 )}
               </div>
               )}
-
-              {/* The list the leaderboard above summarises. Shown even on a link
-                  that hides creators: the numbers are the point of the report,
-                  and the rows arrive already stripped of who posted them. */}
-              <SharedPostList posts={data.posts} token={token} showCreators={visibility.showCreators} />
             </div>
+
+            {/* The list the leaderboard above summarises. Shown even on a link
+                that hides creators: the numbers are the point of the report,
+                and the rows arrive already stripped of who posted them.
+
+                It sits outside the two-column grid above, and has to. As a third
+                child of a two-column layout it wrapped onto a second row and
+                took the narrow 370px track, so seventeen post cards rendered one
+                per line down a third of the page while the 518px cell beside
+                them stayed empty. Its own grid asks for repeat(auto-fill,
+                minmax(280px, 1fr)) -- given the full 912px that is three columns,
+                which is what it was always written to do. */}
+            <SharedPostList posts={data.posts} token={token} showCreators={visibility.showCreators} />
           </div>
         )}
 
