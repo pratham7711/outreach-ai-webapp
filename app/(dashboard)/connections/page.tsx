@@ -95,7 +95,8 @@ export default function ConnectionsPage() {
 
   const formatDate = (iso: string | null) => {
     if (!iso) return null;
-    return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    // UTC named, so the server render and the browser's cannot disagree. See lib/format.
+    return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
   };
 
   if (loading) {

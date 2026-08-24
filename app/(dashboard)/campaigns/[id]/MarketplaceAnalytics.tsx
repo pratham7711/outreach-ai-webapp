@@ -109,7 +109,8 @@ export default function MarketplaceAnalytics({
   const { budget } = data;
   const pct = budget.fraction != null ? Math.round(budget.fraction * 100) : null;
   const eta = data.projectedExhaustionDate
-    ? new Date(data.projectedExhaustionDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+    // UTC named, so the server render and the browser's cannot disagree. See lib/format.
+    ? new Date(data.projectedExhaustionDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })
     : null;
 
   return (

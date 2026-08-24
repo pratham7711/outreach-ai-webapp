@@ -320,7 +320,9 @@ export default function PostDetailPage() {
   );
 
   const chartData = post.snapshots.map((s) => ({
-    date: new Date(s.recordedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+    // UTC named, so the axis labels a snapshot with the same day the server
+    // rendered it under, and with the day the series is bucketed by.
+    date: new Date(s.recordedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }),
     views: s.viewsCount,
     likes: s.likesCount,
     comments: s.commentsCount,

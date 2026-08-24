@@ -94,6 +94,9 @@ export default function TeamClient({ users, invites }: { users: User[]; invites:
       month: "short",
       day: "numeric",
       year: "numeric",
+      // Named, so the server render and the browser's cannot land on different
+      // days for an invite sent near midnight. See lib/format.
+      timeZone: "UTC",
     });
   }
 

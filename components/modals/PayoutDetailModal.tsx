@@ -45,7 +45,8 @@ function formatCurrency(n: number, currency = "USD") {
 
 function formatDate(d: string | null) {
   if (!d) return "—";
-  return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  // UTC named, so the server render and the browser's cannot disagree. See lib/format.
+  return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "UTC" });
 }
 
 export default function PayoutDetailModal({

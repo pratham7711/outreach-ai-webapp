@@ -79,6 +79,9 @@ export default function ApiKeysClient() {
       month: "short",
       day: "numeric",
       year: "numeric",
+      // Named, so the server render and the browser's cannot land on different
+      // days for a key created near midnight. See lib/format.
+      timeZone: "UTC",
     });
 
   return (

@@ -28,7 +28,8 @@ function formatMethod(method: string) {
 
 function formatDate(iso: string | null) {
   if (!iso) return "—";
-  return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  // UTC named, so the server render and the browser's cannot disagree. See lib/format.
+  return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 }
 
 export default function RecipientsClient({
