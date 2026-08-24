@@ -38,7 +38,7 @@ export default function ClientsClient({ clients, stats }: {
           </p>
         </div>
         <Button variant="primary" iconLeft={<Plus size={15} />} size="sm" onClick={() => setShowModal(true)}>
-          Add Client
+          New Client
         </Button>
       </div>
 
@@ -53,7 +53,7 @@ export default function ClientsClient({ clients, stats }: {
         <Input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search clients..."
+          placeholder="Search Clients"
           iconLeft={<Search size={16} />}
         />
       </div>
@@ -72,7 +72,7 @@ export default function ClientsClient({ clients, stats }: {
               description="Add your first client to start managing campaigns"
               action={
                 <Button variant="primary" iconLeft={<Plus size={15} />} onClick={() => setShowModal(true)}>
-                  Add Client
+                  New Client
                 </Button>
               }
             />

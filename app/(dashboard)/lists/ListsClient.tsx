@@ -58,7 +58,7 @@ export default function ListsClient({ lists }: { lists: List[] }) {
       </div>
 
       <div style={{ marginBottom: 24 }}>
-        <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search lists..." iconLeft={<Search size={16} />} />
+        <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search Lists" iconLeft={<Search size={16} />} />
       </div>
 
       {filtered.length === 0 && lists.length === 0 ? (

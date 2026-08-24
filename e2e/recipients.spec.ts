@@ -21,7 +21,7 @@ test.describe('Recipients', () => {
   test('filters recipients by search', async ({ page }) => {
     // Without the explicit placeholder this types into the TopBar's
     // "Search pages..." box, which comes first in the DOM.
-    await searchFor(page, 'zzzznotarealrecipient', 'Search recipients...');
+    await searchFor(page, 'zzzznotarealrecipient', 'Search Recipients');
     await expect(page.getByText(/no matches/i).first()).toBeVisible({ timeout: 15000 });
   });
 });

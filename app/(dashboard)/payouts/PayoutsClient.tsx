@@ -201,7 +201,7 @@ export default function PayoutsClient({ payouts, stats }: {
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search payouts..."
+            placeholder="Search Transactions"
             iconLeft={<Search size={16} />}
           />
         </div>

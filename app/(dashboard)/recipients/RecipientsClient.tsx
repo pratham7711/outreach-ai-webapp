@@ -93,7 +93,7 @@ export default function RecipientsClient({
         <Input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search recipients..."
+          placeholder="Search Recipients"
           iconLeft={<Search size={16} />}
         />
       </div>

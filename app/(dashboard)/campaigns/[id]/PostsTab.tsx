@@ -814,7 +814,7 @@ export default function PostsTab({
 
           <Button variant="primary" onClick={openAddPost}>
             <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <Plus size={14} /> Add Post
+              <Plus size={14} /> Add Posts
             </span>
           </Button>
         </div>

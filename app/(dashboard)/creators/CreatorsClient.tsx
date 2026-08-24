@@ -166,7 +166,7 @@ export default function CreatorsClient({
           </p>
         </div>
         <Button variant="primary" iconLeft={<Plus size={15} />} size="sm" onClick={() => setShowModal(true)}>
-          Add Creator
+          New Creator
         </Button>
       </div>
 
@@ -176,7 +176,7 @@ export default function CreatorsClient({
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search creators..."
+            placeholder="Search Creators"
             iconLeft={<Search size={16} />}
           />
         </div>
@@ -218,7 +218,7 @@ export default function CreatorsClient({
               </Button>
             ) : (
               <Button variant="primary" iconLeft={<Plus size={15} />} onClick={() => setShowModal(true)}>
-                Add Creator
+                New Creator
               </Button>
             )
           }
