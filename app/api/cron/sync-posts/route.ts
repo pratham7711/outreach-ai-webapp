@@ -268,7 +268,23 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    log.info("sync complete", { synced, sealed, failed, deadLettered, skippedForBudget, total: posts.length });
+    /* Every skip that was not a budget skip used to vanish from the tally, so a
+       run that looked at 115 posts and deliberately synced none of them logged
+       synced:0 failed:0 skippedForBudget:0 total:115 -- indistinguishable from a
+       cron that fired and did nothing at all. The cadence reasons are already on
+       `decisions`; counting them costs nothing and is the difference between
+       "throttled, as designed" and "broken". */
+    const skippedByReason: Record<string, number> = {};
+    for (const d of decisions) {
+      if (d.action !== "skip") continue;
+      skippedByReason[d.reason] = (skippedByReason[d.reason] ?? 0) + 1;
+    }
+    const skipped = Object.values(skippedByReason).reduce((a, b) => a + b, 0);
+
+    log.info("sync complete", {
+      synced, sealed, failed, deadLettered, skipped, skippedByReason,
+      skippedForBudget, total: posts.length,
+    });
 
     // One digest per run, never per post: a platform outage fails the whole
     // batch, and 500 emails would be worse than none.
@@ -293,6 +309,8 @@ export async function GET(request: NextRequest) {
       sealed,
       failed,
       deadLettered,
+      skipped,
+      skippedByReason,
       skippedForBudget,
       total: posts.length,
     });

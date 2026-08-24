@@ -23,7 +23,13 @@ export async function GET(request: NextRequest) {
     const result = await snapshotSounds({ dryRun });
     const { snapshots, failed, skipped } = result;
 
-    if (shouldAlertOnBatch({ failed, total: snapshots + failed })) {
+    /* minFailures is lowered here rather than in shouldAlertOnBatch, whose
+       default of 5 exists to stop a three-post batch waking anyone. Sounds are
+       not posts: an org tracks a handful of them, so the whole corpus failing
+       still sits under the default and the sound fetcher has been able to fail
+       completely, every night, in silence. Half of a small set failing is the
+       outage, and the ratio still guards against one flaky page. */
+    if (shouldAlertOnBatch({ failed, total: snapshots + failed, minFailures: 1 })) {
       await alertOps({
         source: "cron/snapshot-sounds",
         title: `Sound/audio fetcher failing: ${failed} of ${snapshots + failed}`,
