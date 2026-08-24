@@ -23,13 +23,17 @@ import type { CampaignAudio } from "@/lib/reports/campaignPerformance";
  * axis shows the clock instead.
  */
 function makeAxisLabel(series: CampaignAudio["usageSeries"]) {
+  /* UTC on both, because `at` is a UTC instant and `days` above is counted off
+     its UTC date. Reading it back in the viewer's zone would put a label on a
+     point that the bucketing beside it disagrees with, and would differ between
+     the server render and the browser's. */
   const days = new Set(series.map((p) => p.at.slice(0, 10)));
   if (days.size <= 1) {
     return (v: string) =>
-      new Date(v).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+      new Date(v).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" });
   }
   return (v: string) =>
-    new Date(v).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+    new Date(v).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
 }
 
 export function AudioCard({ audio, shareToken }: { audio: CampaignAudio; shareToken?: string }) {
