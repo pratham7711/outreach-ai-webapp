@@ -10,6 +10,22 @@ import type { MetricField } from "@/lib/metricDisplay";
 import type { SharePlatform } from "@/lib/reports/shareVisibility";
 import type { ActivationStatus } from "@/lib/generated/prisma/client";
 
+/**
+ * The rest of the cache key says which data the entry holds. This says which
+ * shape it holds, and without it a deploy that adds a field reads the previous
+ * deploy's payload straight back out of Vercel's Data Cache, which outlives the
+ * deployment that wrote it.
+ *
+ * That is not hypothetical: adding `at` to usageSeries shipped alongside the
+ * AudioCard axis label that reads it, the stamp had not moved since the deploy
+ * before, and every share link died on `p.at.slice` of undefined until the
+ * deployment was rolled back. A version constant would have caught it only if
+ * someone remembered to bump it, which is the same discipline that just failed;
+ * the deployment id needs no one to remember anything. The cost is one
+ * uncached render per campaign per deploy.
+ */
+const BUILD_KEY = process.env.VERCEL_DEPLOYMENT_ID ?? "local";
+
 type SeriesPlatform = "TIKTOK" | "INSTAGRAM" | "YOUTUBE";
 const SERIES_PLATFORMS: SeriesPlatform[] = ["TIKTOK", "INSTAGRAM", "YOUTUBE"];
 
@@ -222,7 +238,7 @@ export async function computeCampaignPerformance(
 
   const cached = unstable_cache(
     () => computeCampaignPerformanceUncached(campaign, platforms),
-    ["campaign-performance", campaign.id, platformKey, stamp],
+    ["campaign-performance", BUILD_KEY, campaign.id, platformKey, stamp],
     /* An entry is unreachable once the stamp moves, so it only has to outlive
        the run of views that share a stamp. Tagged so a deploy or an operator
        can still drop the lot. */
