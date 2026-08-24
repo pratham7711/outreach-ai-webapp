@@ -72,7 +72,10 @@ export async function GET(req: NextRequest) {
     // in the range, every campaign and every activation into Node and reduce
     // over them in JavaScript: 4.5 seconds of work to produce 4 KB of JSON.
 
-    const postWhere = { campaign: { orgId }, createdAt: { gte: from, lte: to } };
+    /* The date range means "what happened in this period", so it reads the day
+       the creator posted, not the day we imported the row. Filtering on
+       createdAt made a six-month view depend on our own import history. */
+    const postWhere = { campaign: { orgId }, postedAt: { gte: from, lte: to } };
     const truncUnit = granularity === "daily" ? "day" : granularity === "weekly" ? "week" : "month";
 
     const [
@@ -94,13 +97,24 @@ export async function GET(req: NextRequest) {
       }),
       // Date bucketing is the one thing Prisma groupBy cannot express, so it is
       // raw SQL. truncUnit comes from a validated enum, never from user text.
+      /* Bucketed on when the post was published, and accumulated.
+         It used to bucket on "createdAt" -- the moment the row was written
+         here -- so the chart was really "current views of whatever we imported
+         that day", and an import of three famous videos put eleven billion
+         views on one afternoon in July and nothing after it. Views are a
+         running total, so the honest line is cumulative: what the org's posts
+         had earned by each point, which only goes up. */
       db.$queryRawUnsafe<{ bucket: Date; views: bigint }[]>(
-        `SELECT date_trunc('${truncUnit}', p."createdAt") AS bucket, COALESCE(SUM(p."viewsCount"), 0) AS views
-           FROM "Post" p
-           JOIN "Campaign" c ON c.id = p."campaignId"
-          WHERE c."orgId" = $1 AND p."createdAt" >= $2 AND p."createdAt" <= $3
-          GROUP BY 1
-          ORDER BY 1`,
+        `SELECT bucket, SUM(views) OVER (ORDER BY bucket) AS views
+           FROM (
+             SELECT date_trunc('${truncUnit}', p."postedAt") AS bucket,
+                    COALESCE(SUM(p."viewsCount"), 0) AS views
+               FROM "Post" p
+               JOIN "Campaign" c ON c.id = p."campaignId"
+              WHERE c."orgId" = $1 AND p."postedAt" >= $2 AND p."postedAt" <= $3
+              GROUP BY 1
+           ) t
+          ORDER BY bucket`,
         orgId,
         from,
         to

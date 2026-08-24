@@ -134,7 +134,7 @@ export type CampaignAudio = {
    * CreatorCore's Velocity view of this chart plots -- the same series, asked a
    * different question: Usage is how many, Velocity is how fast.
    */
-  usageSeries: { date: string; uses: number; velocity: number }[];
+  usageSeries: { date: string; at: string; uses: number; velocity: number }[];
 };
 
 /**
@@ -449,18 +449,39 @@ async function computeCampaignPerformanceUncached(
   });
 
   if (snapshots.length > 0) {
+    /* A view count is a running total, not a day's takings, so a day is worth
+       the latest reading of every post -- not the sum of whichever posts
+       happened to be synced that day. Summing only the day's own readings made
+       the line fall whenever a sync covered fewer posts than the one before:
+       17 posts of 17 one day, 4 the next, and the chart showed the campaign
+       losing three quarters of its views overnight.
+
+       So each post's last known reading is carried forward until a newer one
+       replaces it. Snapshots arrive oldest first, which is what makes the
+       overwrite below land on the latest reading within each day. */
     const latestPerPostDay = new Map<string, number>();
+    const days = new Set<string>();
     for (const snap of snapshots) {
       const platform = platformByPost.get(snap.postId);
       if (!platform || !SERIES_PLATFORMS.includes(platform as SeriesPlatform)) continue;
       const day = dateKey(snap.recordedAt);
+      days.add(day);
       latestPerPostDay.set(`${snap.postId}|${day}`, snap.viewsCount ?? 0);
     }
-    for (const [composite, viewsCount] of latestPerPostDay) {
-      const [postId, day] = composite.split("|");
-      const platform = platformByPost.get(postId) as SeriesPlatform;
-      if (!buckets.has(day)) buckets.set(day, emptyRow());
-      buckets.get(day)![platform] += viewsCount;
+
+    const lastKnown = new Map<string, number>();
+    for (const day of Array.from(days).sort()) {
+      for (const [composite, viewsCount] of latestPerPostDay) {
+        const sep = composite.lastIndexOf("|");
+        if (composite.slice(sep + 1) !== day) continue;
+        lastKnown.set(composite.slice(0, sep), viewsCount);
+      }
+      const row = emptyRow();
+      for (const [postId, viewsCount] of lastKnown) {
+        const platform = platformByPost.get(postId) as SeriesPlatform | undefined;
+        if (platform && SERIES_PLATFORMS.includes(platform)) row[platform] += viewsCount;
+      }
+      buckets.set(day, row);
     }
   } else {
     for (const p of posts) {
@@ -660,6 +681,10 @@ async function loadCampaignAudio(campaignId: string): Promise<CampaignAudio | nu
       .reverse()
       .map((s) => ({
         date: s.recordedAt.toISOString().slice(0, 10),
+        // Several readings can land on one day -- a sync run taken four times
+        // in an hour -- and then every point on the axis carried the same date.
+        // The card needs the time to tell them apart.
+        at: s.recordedAt.toISOString(),
         uses: s.usesCount,
         velocity: s.velocityScore,
       })),

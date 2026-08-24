@@ -17,7 +17,23 @@ import type { CampaignAudio } from "@/lib/reports/campaignPerformance";
  * reference report shows the audio unconditionally, and the card carries no
  * creator names, money, or anything else a link can withhold.
  */
+/**
+ * A run of syncs taken minutes apart all fall on one date, and an axis of
+ * identical dates tells the reader nothing. When every reading shares a day the
+ * axis shows the clock instead.
+ */
+function makeAxisLabel(series: CampaignAudio["usageSeries"]) {
+  const days = new Set(series.map((p) => p.at.slice(0, 10)));
+  if (days.size <= 1) {
+    return (v: string) =>
+      new Date(v).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  }
+  return (v: string) =>
+    new Date(v).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+}
+
 export function AudioCard({ audio, shareToken }: { audio: CampaignAudio; shareToken?: string }) {
+  const axisLabel = makeAxisLabel(audio.usageSeries);
   /*
     Which proxy depends on who is looking. /api/img is session-gated -- it has to
     be, or it is bandwidth anyone can spend -- so the public client report passes
@@ -138,15 +154,32 @@ export function AudioCard({ audio, shareToken }: { audio: CampaignAudio; shareTo
             </div>
             <ResponsiveContainer width="100%" height="82%">
               <AreaChart data={audio.usageSeries} margin={{ top: 4, right: 8, left: -12, bottom: 0 }}>
-                <XAxis dataKey="date" tick={{ fontSize: 11, fill: "var(--cc-text-muted)" }} tickLine={false} axisLine={false} />
+                <XAxis
+                  dataKey="at"
+                  tick={{ fontSize: 11, fill: "var(--cc-text-muted)" }}
+                  tickLine={false}
+                  axisLine={false}
+                  tickFormatter={axisLabel}
+                />
                 <YAxis
                   tick={{ fontSize: 11, fill: "var(--cc-text-muted)" }}
                   tickLine={false}
                   axisLine={false}
+                  /* Usage counts are anchored at zero. Left to scale itself the
+                     axis spanned 45 to 46 uses, and one video going away drew a
+                     cliff across the whole card. Velocity is a signed
+                     percentage, so it keeps its own scale. */
+                  domain={view === "velocity" ? ["auto", "auto"] : [0, "auto"]}
+                  allowDecimals={view === "velocity"}
                   tickFormatter={(v) => (view === "velocity" ? `${Number(v).toFixed(0)}%` : formatCompact(Number(v)))}
                 />
                 <Tooltip
                   formatter={(v) => (view === "velocity" ? `${Number(v).toFixed(2)}%` : formatCompact(Number(v)))}
+                  labelFormatter={(v) =>
+                    new Date(String(v)).toLocaleString("en-GB", {
+                      day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
+                    })
+                  }
                   labelStyle={{ fontSize: 12 }}
                   contentStyle={{ fontSize: 12, borderRadius: 8 }}
                 />
