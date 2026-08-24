@@ -19,6 +19,7 @@ import {
   namedStatusReachable,
 } from "@/lib/activationQueues";
 import { Dropdown } from "@/components/ds";
+import DeliverablesModal from "./DeliverablesModal";
 
 type StatusDef = { id: string; name: string; bucket: string };
 
@@ -69,6 +70,7 @@ function QueueSection({
   onStatusChange,
   statusDefs,
   onNamedStatusChange,
+  onManageDeliverables,
 }: {
   label: string;
   hint: string;
@@ -76,6 +78,7 @@ function QueueSection({
   onStatusChange: (id: string, status: string) => void;
   statusDefs: StatusDef[];
   onNamedStatusChange: (id: string, statusDefId: string | null) => void;
+  onManageDeliverables: (id: string, creatorName: string) => void;
 }) {
   return (
     <div>
@@ -174,6 +177,21 @@ function QueueSection({
                           ]}
                         />
                       )}
+                      <button
+                        onClick={() => onManageDeliverables(a.id, a.creator.name)}
+                        style={{
+                          padding: "5px 10px",
+                          borderRadius: 6,
+                          fontSize: 12,
+                          fontWeight: 600,
+                          border: "1px solid var(--cc-border)",
+                          background: "var(--cc-card)",
+                          color: "var(--cc-text)",
+                          cursor: "pointer",
+                        }}
+                      >
+                        Manage Deliverables
+                      </button>
                       {actions.map((act) => (
                         <button
                           key={act.status}
@@ -211,6 +229,7 @@ export default function ActivationsClient({ activations, stats, statusDefs }: {
 }) {
   const router = useRouter();
   const [showCreate, setShowCreate] = useState(false);
+  const [managing, setManaging] = useState<{ id: string; creatorName: string } | null>(null);
   const [campaign, setCampaign] = useState<PickerOption | null>(null);
   const [creator, setCreator] = useState<PickerOption | null>(null);
   const [creating, setCreating] = useState(false);
@@ -339,6 +358,7 @@ export default function ActivationsClient({ activations, stats, statusDefs }: {
                 hint={queue.hint}
                 items={items}
                 onStatusChange={handleStatusChange}
+                onManageDeliverables={(id, creatorName) => setManaging({ id, creatorName })}
                 statusDefs={statusDefs}
                 onNamedStatusChange={handleNamedStatusChange}
               />
@@ -352,11 +372,21 @@ export default function ActivationsClient({ activations, stats, statusDefs }: {
               hint="These are not in any queue — the queue definitions need updating"
               items={ungrouped}
               onStatusChange={handleStatusChange}
+              onManageDeliverables={(id, creatorName) => setManaging({ id, creatorName })}
               statusDefs={statusDefs}
               onNamedStatusChange={handleNamedStatusChange}
             />
           )}
         </div>
+      )}
+
+      {managing && (
+        <DeliverablesModal
+          activationId={managing.id}
+          creatorName={managing.creatorName}
+          onClose={() => setManaging(null)}
+          onChanged={() => router.refresh()}
+        />
       )}
 
       {/* Create Modal */}
