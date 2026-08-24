@@ -1,0 +1,35 @@
+[Unit]
+Description=Read TikTok sound use-counts and post them to the app
+Documentation=file:///opt/outreach-sound-worker/README.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/outreach-sound-worker/sound-worker
+ExecStart=/usr/bin/node read-sounds.mjs
+
+# APP_URL and SOUND_INGEST_TOKEN live here, root-owned and chmod 600, so the
+# token is never an argument in `ps` and never in a shell history.
+EnvironmentFile=/etc/outreach-sound-worker.env
+
+# A run that reads nothing exits non-zero, which is the whole point of the exit
+# code: without this line a tracker going blind looks exactly like one that is
+# working, which is how it stayed broken for weeks.
+OnFailure=status-email@%n.service
+
+# One browser against one hostile page needs no privileges at all.
+User=sounds
+Group=sounds
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/outreach-sound-worker
+
+# Chromium is not fast and a cold page is worth waiting for, but a hung browser
+# must not sit here until the next timer fires.
+TimeoutStartSec=900
+
+[Install]
+WantedBy=multi-user.target

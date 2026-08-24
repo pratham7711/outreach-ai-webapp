@@ -9,6 +9,15 @@ export type SnapshotResult = {
   skipped: number;
 };
 
+/**
+ * How recent a snapshot has to be before this job treats a sound as somebody
+ * else's. Comfortably longer than the worker's four-hour timer plus its jitter,
+ * so one late run does not hand the sound back and restart the alerting, and
+ * short enough that a worker which genuinely stopped is picked up again the
+ * following night.
+ */
+const HANDOVER_WINDOW_MS = 8 * 60 * 60 * 1000;
+
 export type SnapshotOptions = {
   orgId?: string;
   /** One sound instead of the whole org, for a campaign refreshing its own audio. */
@@ -39,7 +48,7 @@ export async function snapshotSounds(options: SnapshotOptions = {}): Promise<Sna
       snapshots: {
         orderBy: { recordedAt: "desc" },
         take: 1,
-        select: { usesCount: true },
+        select: { usesCount: true, recordedAt: true },
       },
     },
   });
@@ -48,6 +57,23 @@ export async function snapshotSounds(options: SnapshotOptions = {}): Promise<Sna
     if (Date.now() > deadline) {
       log.warn("time budget reached; stopping early", { remaining: sounds.length - index });
       break;
+    }
+
+    /* Somebody else already read this one.
+       This fetch path cannot read a TikTok music page at all -- the count comes
+       from an endpoint that needs headers only TikTok's own client script
+       produces -- so once the browser worker on the VPS is running, every sound
+       it covers would still be counted a failure here and the nightly alert
+       would fire forever about a job that has been superseded.
+       A recent snapshot is the evidence that something is reading them, and it
+       needs no flag to set or remember. Skipped rather than counted as failed,
+       which is what takes it out of the alert ratio.
+       Not applied to a single-sound refresh: a person clicking Refresh asked
+       for this sound now, and silently doing nothing is not an answer. */
+    const lastAt = sound.snapshots[0]?.recordedAt;
+    if (!soundId && lastAt && Date.now() - lastAt.getTime() < HANDOVER_WINDOW_MS) {
+      skipped++;
+      continue;
     }
 
     const stats = await fetchTikTokSoundStats(sound.tiktokSoundId);

@@ -1,0 +1,17 @@
+[Unit]
+Description=Read TikTok sound use-counts six times a day
+Documentation=file:///opt/outreach-sound-worker/README.md
+
+[Timer]
+# Every four hours. A sound's use-count moves in hours, not minutes, and the
+# campaign report reads whatever the last snapshot said -- so this is about
+# keeping the curve honest, not about latency. Six browser loads a day is also
+# well under what gets a residential-looking box noticed.
+OnCalendar=*-*-* 00/4:07:00
+# Not on the hour: every scheduled job on every box fires at :00, and TikTok can
+# see that as clearly as anyone.
+RandomizedDelaySec=600
+Persistent=true
+
+[Install]
+WantedBy=timers.target

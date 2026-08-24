@@ -1,0 +1,14 @@
+{
+  "name": "outreach-sound-worker",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Reads TikTok sound use-counts from a box that can run a browser and is not in India, and posts them to the app.",
+  "scripts": {
+    "read": "node read-sounds.mjs",
+    "read:dry": "node read-sounds.mjs --dry-run"
+  },
+  "dependencies": {
+    "playwright": "^1.58.2"
+  }
+}
