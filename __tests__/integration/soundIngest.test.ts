@@ -89,15 +89,27 @@ describe("the door", () => {
     }
   });
 
-  it("hands the worker only the ids it needs to do its job", async () => {
+  it("tells the worker which sounds it was actually keeping up with", async () => {
+    /* The difference between an outage and a dead row, and only this side knows
+       it. "Has it ever read" is the tempting test and the wrong one: the three
+       seeded sounds in this database have invented TikTok ids AND seven
+       snapshots apiece from March, so by that test they have read, and a worker
+       would call them regressions on every run forever. */
+    const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+    const march = new Date("2026-03-30T14:44:00.000Z");
     mockDb.tikTokSound.findMany.mockResolvedValue([
-      { id: "sound-1", tiktokSoundId: "7546394810303694849", title: "Wherever I Go" },
+      { id: "sound-1", tiktokSoundId: "7546394810303694849", title: "Wherever I Go", snapshots: [{ recordedAt: twoDaysAgo }] },
+      { id: "sound-2", tiktokSoundId: "7300001", title: "Summer Vibes", snapshots: [{ recordedAt: march }] },
+      { id: "sound-3", tiktokSoundId: "7300002", title: "Beat Drop", snapshots: [] },
     ]);
+
     const res = await GET(new NextRequest(URL, { headers: { authorization: `Bearer ${TOKEN}` } }));
+
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
-      sounds: [{ id: "sound-1", tiktokSoundId: "7546394810303694849", title: "Wherever I Go" }],
-    });
+    const { sounds } = await res.json();
+    expect(sounds.map((s: { readRecently: boolean }) => s.readRecently)).toEqual([true, false, false]);
+    expect(sounds[0].lastReadAt).toBe(twoDaysAgo.toISOString());
+    expect(sounds[2].lastReadAt).toBeNull();
   });
 });
 

@@ -30,6 +30,14 @@ import { createLogger } from "@/lib/observability/logger";
  * readings, and nothing else.
  */
 
+/**
+ * How recently a sound must have been read for losing it to count as an outage
+ * rather than a stale row. Generous on purpose: the worker's timer is four
+ * hourly, so anything actually being tracked is far inside this, and a genuine
+ * outage still alerts for a month before going quiet.
+ */
+const LIVE_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
+
 const ReadingSchema = z.object({
   tiktokSoundId: z.string().min(1),
   usesCount: z.number().int().nonnegative(),
@@ -68,10 +76,40 @@ export async function GET(request: NextRequest) {
   if (!isAuthorised(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const sounds = await db.tikTokSound.findMany({
-    select: { id: true, tiktokSoundId: true, title: true },
+    select: {
+      id: true,
+      tiktokSoundId: true,
+      title: true,
+      snapshots: { orderBy: { recordedAt: "desc" }, take: 1, select: { recordedAt: true } },
+    },
     orderBy: { createdAt: "asc" },
   });
-  return NextResponse.json({ sounds });
+
+  const liveSince = Date.now() - LIVE_WINDOW_MS;
+
+  return NextResponse.json({
+    sounds: sounds.map((s) => {
+      const last = s.snapshots[0]?.recordedAt;
+      return {
+        id: s.id,
+        tiktokSoundId: s.tiktokSoundId,
+        title: s.title,
+        /* Was this sound reading until recently?
+           It is the difference between an outage and a dead row, and only this
+           side knows it. "Has it ever read" is the tempting test and it is the
+           wrong one: this database carries three seeded sounds whose TikTok ids
+           were invented, and the seeder wrote them seven snapshots apiece, all
+           frozen in March. By that test they have read, so a worker would call
+           them regressions and exit non-zero on every run forever -- which is
+           the same as having no alert at all.
+           A sound read within the window is one the tracker was genuinely
+           keeping up with, so losing it is worth saying loudly. Anything older
+           is reported quietly as a row to look at, not an outage to chase. */
+        readRecently: last !== undefined && last.getTime() >= liveSince,
+        lastReadAt: last?.toISOString() ?? null,
+      };
+    }),
+  });
 }
 
 export async function POST(request: NextRequest) {

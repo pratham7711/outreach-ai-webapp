@@ -72,7 +72,14 @@ if (!sounds?.length) {
 }
 
 const readings = [];
-const failures = [];
+/* Split deliberately, on the app's readRecently rather than on "did it ever
+   work". This database carries three seeded sounds with invented TikTok ids and
+   seven snapshots apiece, all frozen in March: by the ever-worked test they are
+   regressions, and the job would exit non-zero on every run forever, which is
+   the same as having no alert. A sound the tracker was genuinely keeping up
+   with, suddenly unreadable, is the thing worth saying loudly. */
+const stale = [];
+const regressed = [];
 
 for (const sound of sounds) {
   /* One retry, because a cold page that has not finished issuing its own API
@@ -80,19 +87,19 @@ for (const sound of sounds) {
      past that is TikTok saying no, and hammering it is how a reader gets a box
      blocked. */
   let stats = null;
+  let why = "page gave no count";
   for (let attempt = 1; attempt <= 2 && !stats; attempt += 1) {
     try {
       stats = await fetchSoundStatsViaBrowser(sound.tiktokSoundId, { timeoutMs: 60_000 });
     } catch (err) {
-      if (attempt === 2) failures.push(`${sound.tiktokSoundId}: ${String(err).split("\n")[0].slice(0, 90)}`);
+      why = String(err).split("\n")[0].slice(0, 90);
     }
   }
 
   if (!stats) {
-    if (!failures.some((f) => f.startsWith(sound.tiktokSoundId))) {
-      failures.push(`${sound.tiktokSoundId}: page gave no count`);
-    }
-    console.log(`  MISS  ${sound.tiktokSoundId}  ${sound.title ?? ""}`);
+    const note = `${sound.tiktokSoundId}: ${why}`;
+    (sound.readRecently ? regressed : stale).push(note);
+    console.log(`  ${sound.readRecently ? "LOST" : "skip"}  ${sound.tiktokSoundId}  ${sound.title ?? ""}`);
     continue;
   }
 
@@ -100,12 +107,34 @@ for (const sound of sounds) {
   console.log(`  ok    ${sound.tiktokSoundId}  uses=${stats.usesCount}  ${stats.title ?? sound.title ?? ""}`);
 }
 
+/**
+ * Say what happened, then decide whether it was bad.
+ *
+ * Exiting non-zero is what makes systemd's OnFailure -- or a cron MAILTO -- say
+ * something, and silence is exactly how this tracker sat broken for weeks. But
+ * an alert that fires on every single run is the same as no alert, so only a
+ * sound that used to read and has stopped counts against the exit code.
+ */
+function finish() {
+  if (stale.length) {
+    console.warn(
+      `${stale.length} sound(s) had no recent reading to lose -- rows to look at, not an outage to chase:\n  ${stale.join("\n  ")}`
+    );
+  }
+  if (regressed.length) {
+    console.error(
+      `${regressed.length} sound(s) stopped reading:\n  ${regressed.join("\n  ")}`
+    );
+    process.exit(1);
+  }
+  process.exit(0);
+}
+
 if (!readings.length) {
-  /* Every page failing is the outage this job exists to notice. Exiting non-zero
-     is what makes systemd's OnFailure, or a cron MAILTO, say so -- silence here
-     is exactly how the tracker sat broken for weeks. */
-  console.error(`read 0 of ${sounds.length} sounds:\n  ${failures.join("\n  ")}`);
-  process.exit(1);
+  /* Nothing to post. Whether that is an outage depends on whether any of these
+     were being read until recently, which finish() already knows how to weigh. */
+  console.log(`read 0 of ${sounds.length} sounds`);
+  finish();
 }
 
 const postRes = await callApp(
@@ -122,9 +151,4 @@ const secs = ((Date.now() - started) / 1000).toFixed(1);
 console.log(
   `read ${readings.length}/${sounds.length} in ${secs}s -> recorded=${result.recorded} skipped=${result.skipped} unknown=${result.unknown}${DRY_RUN ? " (dry run)" : ""}`
 );
-/* Partial failure still exits non-zero: three of four sounds reading is a
-   tracker that is quietly going blind on one, and it should be visible. */
-if (failures.length) {
-  console.error(`${failures.length} sound(s) could not be read:\n  ${failures.join("\n  ")}`);
-  process.exit(1);
-}
+finish();

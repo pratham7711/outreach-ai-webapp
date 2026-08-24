@@ -97,11 +97,26 @@ Every four hours, jittered. A use-count moves in hours, so this keeps the curve
 honest rather than chasing latency, and six browser loads a day does not look
 like a scraper.
 
-## When it breaks, it says so
+## When it breaks, it says so — and only then
 
-The worker exits non-zero if it reads **nothing**, and also if it reads only
-some — three of four sounds working is a tracker quietly going blind on one.
-`OnFailure` in the unit file is what turns that into a notification. This
-matters more than it sounds: the audio tracker was already failing silently for
-weeks, because a job that fails and says nothing looks exactly like a job that
-has nothing to do.
+The worker exits non-zero when a sound **that was being read until recently**
+stops reading. `OnFailure` in the unit file turns that into a notification. This
+matters more than it sounds: the audio tracker failed silently for weeks,
+because a job that fails and says nothing looks exactly like a job with nothing
+to do.
+
+The qualifier is doing real work. A sound with no reading in the last 30 days is
+reported as `skip` and a warning, not a failure. The obvious rule — "did it ever
+read?" — is wrong here, and this database is why: it carries three seeded sounds
+(`7300001`, `7300002`, `7300003`) whose TikTok ids were invented, and the seeder
+gave them seven snapshots apiece, all dated March 2026. By the ever-read test
+they are regressions, so the job would exit non-zero on every single run
+forever, which is the same as having no alert at all.
+
+Those three rows are worth deleting from **Trackers → sounds** once you are
+happy to — they are demo fixtures pointing at ids that will never resolve, and
+until they go every run prints three `skip` lines. Nothing here depends on it;
+the output is just quieter.
+
+So a healthy run on a correctly-placed VPS reads `Wherever I Go`, prints three
+`skip` lines for the fixtures, and exits 0.
