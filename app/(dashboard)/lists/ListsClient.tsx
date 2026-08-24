@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Users, Search, ClipboardList } from "lucide-react";
-import { Button, Card, EmptyState, Input, Avatar, Modal } from "@pratham7711/ui";
+import { Card, EmptyState, Input, Avatar, Modal } from "@pratham7711/ui";
+import { Button } from "@/components/ds";
 import { formatDateAbs } from "@/lib/format";
 import { toast } from "sonner";
 import Link from "next/link";

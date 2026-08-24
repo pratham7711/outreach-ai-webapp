@@ -4,7 +4,8 @@ import { useState, useRef, useEffect } from "react";
 import { signIn } from "next-auth/react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Button, Input } from "@pratham7711/ui";
+import { Input } from "@pratham7711/ui";
+import { Button } from "@/components/ds";
 import { Eye, EyeOff } from "lucide-react";
 import { BRAND } from "@/lib/brand";
 

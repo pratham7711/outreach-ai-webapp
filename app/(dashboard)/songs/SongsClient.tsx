@@ -3,7 +3,8 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { Music, Plus } from "lucide-react";
-import { Button, Card, EmptyState, Input } from "@pratham7711/ui";
+import { Card, EmptyState, Input } from "@pratham7711/ui";
+import { Button } from "@/components/ds";
 import { formatCompact, platformLabel } from "@/lib/format";
 
 export type SongRow = {

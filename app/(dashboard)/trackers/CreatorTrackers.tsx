@@ -3,7 +3,8 @@
 import { useCallback, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Button, Card, EmptyState, Input, Modal, Skeleton } from "@pratham7711/ui";
+import { Card, EmptyState, Input, Modal, Skeleton } from "@pratham7711/ui";
+import { Button } from "@/components/ds";
 import { Play, Trash2, User, Users } from "lucide-react";
 import { formatCompact } from "@/lib/format";
 import { imgSrc } from "@/lib/postMedia";

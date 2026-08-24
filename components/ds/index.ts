@@ -15,3 +15,4 @@ export { SortableTh, useTableSort, numericCell } from "./SortableTh";
 export type { SortAccessors, SortDir, SortState, SortValue } from "./SortableTh";
 export { Dropdown } from "./Dropdown";
 export type { DropdownOption } from "./Dropdown";
+export { Button } from "./Button";

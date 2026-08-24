@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Card, Badge, Button, Input, Modal, EmptyState, Skeleton } from "@pratham7711/ui";
-import { Dropdown, StatusTabs } from "@/components/ds";
+import { Card, Badge, Input, Modal, EmptyState, Skeleton } from "@pratham7711/ui";
+import { Dropdown, StatusTabs, Button } from "@/components/ds";
 import { Banknote, Check, X } from "lucide-react";
 import { CreatorSelect } from "@/components/CreatorSelect";
 import { formatDateAbs } from "@/lib/format";
@@ -17,7 +17,6 @@ type PayoutReq = {
   processedAt: string | null;
   createdAt: string;
 };
-
 
 const STATUS_TABS = [
   { key: "ALL", label: "All", bg: "#F3F4F6", color: "#374151" },

@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Button, Card, Badge, Modal, Input, Skeleton, EmptyState } from "@pratham7711/ui";
+import { Card, Badge, Modal, Input, Skeleton, EmptyState } from "@pratham7711/ui";
+import { Button } from "@/components/ds";
 import { AlertTriangle } from "lucide-react";
 
 type PlatformConnection = {

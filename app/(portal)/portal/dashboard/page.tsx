@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Card, Badge, Skeleton, EmptyState, Button, Avatar } from "@pratham7711/ui";
-import { MetricTile } from "@/components/ds";
+import { Card, Badge, Skeleton, EmptyState, Avatar } from "@pratham7711/ui";
+import { MetricTile, Button } from "@/components/ds";
 import { DollarSign, Send, CheckCircle, TrendingUp, Search, LogOut, Inbox } from "lucide-react";
 import Link from "next/link";
 import { stripAt, formatDateAbs } from "@/lib/format";

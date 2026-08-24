@@ -3,11 +3,11 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Card, EmptyState, Skeleton, Button, Modal } from "@pratham7711/ui";
+import { Card, EmptyState, Skeleton, Modal } from "@pratham7711/ui";
 import { ArrowLeft, Star, MessageSquare } from "lucide-react";
 import { formatDateAbs } from "@/lib/format";
 import { toast } from "sonner";
-import { Dropdown } from "@/components/ds";
+import { Dropdown, Button } from "@/components/ds";
 
 type Review = {
   id: string;

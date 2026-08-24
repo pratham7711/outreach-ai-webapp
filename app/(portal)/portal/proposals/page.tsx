@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Card, Badge, Button, EmptyState, Skeleton } from "@pratham7711/ui";
+import { Card, Badge, EmptyState, Skeleton } from "@pratham7711/ui";
+import { Button } from "@/components/ds";
 import { ArrowLeft, Inbox } from "lucide-react";
 import { formatDateAbs } from "@/lib/format";
 import Link from "next/link";

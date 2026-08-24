@@ -4,8 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Search, Target, Sun, Zap, CheckCircle2, XCircle, Wallet, Users, FileText, LayoutList, Folder, Share2, ArrowUpDown, Trash2 } from "lucide-react";
 import Link from "next/link";
-import { Button, Card, Badge, Input, EmptyState, Avatar } from "@pratham7711/ui";
-import { StatusTabs, Pagination, FilterDrawer, FilterButton, Dropdown, useConfirm } from "@/components/ds";
+import { Card, Badge, Input, EmptyState, Avatar } from "@pratham7711/ui";
+import { StatusTabs, Pagination, FilterDrawer, FilterButton, Dropdown, useConfirm, Button } from "@/components/ds";
 import type { FilterDef, FilterValues } from "@/components/ds";
 import CampaignWizard from "@/components/modals/CampaignWizard";
 import { formatCompactCurrency, timeAgo } from "@/lib/format";
@@ -15,6 +15,7 @@ import { imgSrc } from "@/lib/postMedia";
 import FoldersPanel, { type FolderOption } from "./FoldersPanel";
 import { ShareModal } from "./ShareModal";
 import { UNFILED, isDefaultCampaignSort, type CampaignSort, type CampaignSortKey } from "@/lib/listParams";
+import { CAMPAIGN_STATUS_STYLE } from "@/lib/statusColors";
 
 type Campaign = {
   id: string;
@@ -45,11 +46,11 @@ const CAMPAIGN_TYPE_OPTIONS = [
 ];
 
 const STATUS_TABS = [
-  { key: "ALL",         label: "All",       bg: "#F3F4F6", color: "#374151", Icon: LayoutList },
-  { key: "PENDING",     label: "Pending",   bg: "#FEF3C7", color: "#D97706", Icon: Sun },
-  { key: "IN_PROGRESS", label: "Active",    bg: "#EEF2FF", color: "#4F46E5", Icon: Zap },
-  { key: "COMPLETE",    label: "Complete",  bg: "#D1FAE5", color: "#059669", Icon: CheckCircle2 },
-  { key: "CANCELLED",   label: "Canceled",  bg: "#FEE2E2", color: "#DC2626", Icon: XCircle },
+  { key: "ALL",         label: "All",       ...CAMPAIGN_STATUS_STYLE.ALL,         Icon: LayoutList },
+  { key: "PENDING",     label: "Pending",   ...CAMPAIGN_STATUS_STYLE.PENDING,     Icon: Sun },
+  { key: "IN_PROGRESS", label: "Active",    ...CAMPAIGN_STATUS_STYLE.IN_PROGRESS, Icon: Zap },
+  { key: "COMPLETE",    label: "Complete",  ...CAMPAIGN_STATUS_STYLE.COMPLETE,    Icon: CheckCircle2 },
+  { key: "CANCELLED",   label: "Canceled",  ...CAMPAIGN_STATUS_STYLE.CANCELLED,   Icon: XCircle },
 ];
 
 /* The dropdown offers every status, including DRAFT, which has no tab of its
@@ -72,7 +73,6 @@ const STATUS_BADGE_VARIANT: Record<string, "warning" | "accent" | "success" | "d
   CANCELLED: "danger",
   DRAFT: "neutral",
 };
-
 
 /**
  * 506 of 532 campaigns carry artwork that this list was throwing away in favour

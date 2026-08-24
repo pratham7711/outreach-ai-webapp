@@ -1,10 +1,10 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
-import { Card, Badge, Button, EmptyState, Skeleton, Avatar, Modal } from "@pratham7711/ui";
+import { Card, Badge, EmptyState, Skeleton, Avatar, Modal } from "@pratham7711/ui";
 import { Star } from "lucide-react";
 import { toast } from "sonner";
 import { stripAt, formatDateAbs } from "@/lib/format";
-import { Dropdown } from "@/components/ds";
+import { Dropdown, Button } from "@/components/ds";
 
 type Activation = {
   id: string;

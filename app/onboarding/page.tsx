@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Building2, Zap, Plus, X, ArrowRight, Check } from "lucide-react";
-import { Button, Input } from "@pratham7711/ui";
+import { Input } from "@pratham7711/ui";
+import { Button } from "@/components/ds";
 import { apiPatch, apiPost } from "@/lib/api/client";
 import { errorMessage } from "@/lib/api/errorMessage";
 import { BRAND } from "@/lib/brand";

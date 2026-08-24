@@ -1,8 +1,8 @@
 "use client";
 import { useState, useEffect } from "react";
-import { Modal, Button, Badge } from "@pratham7711/ui";
+import { Modal, Badge } from "@pratham7711/ui";
 import { FEATURES, type FeatureKey } from "@/lib/features";
-import { Dropdown } from "@/components/ds";
+import { Dropdown, Button } from "@/components/ds";
 
 const featureKeys = Object.keys(FEATURES) as FeatureKey[];
 
@@ -104,7 +104,6 @@ export default function ClientFeatureModal({ open, onClose, client, plans, onSav
     color: active ? "#fff" : "var(--cc-text-muted)",
     transition: "all 0.15s",
   });
-
 
   return (
     <Modal

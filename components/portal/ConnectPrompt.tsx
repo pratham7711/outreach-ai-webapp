@@ -2,7 +2,8 @@
 
 import React from "react";
 import { useCallback, useEffect, useState } from "react";
-import { Button, Card, Skeleton } from "@pratham7711/ui";
+import { Card, Skeleton } from "@pratham7711/ui";
+import { Button } from "@/components/ds";
 
 export const CONNECT_PLATFORMS = [
   { key: "tiktok", enumValue: "TIKTOK", label: "TikTok" },

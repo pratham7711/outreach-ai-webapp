@@ -2,11 +2,11 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Card, Input, Button, Skeleton, Textarea, Badge, Tag } from "@pratham7711/ui";
+import { Card, Input, Skeleton, Textarea, Badge, Tag } from "@pratham7711/ui";
 import { toast } from "sonner";
 import { Save } from "lucide-react";
 import type { PlatformCapability } from "@/lib/capabilities";
-import { Dropdown } from "@/components/ds";
+import { Dropdown, Button } from "@/components/ds";
 
 const PLATFORMS = [
   { value: "TIKTOK", label: "TikTok" },

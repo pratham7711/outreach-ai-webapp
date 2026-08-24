@@ -2,9 +2,9 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Plus, Pencil, Trash2, Users, ClipboardList } from "lucide-react";
-import { Button, Card, Modal, Input, Textarea, EmptyState, Badge } from "@pratham7711/ui";
+import { Card, Modal, Input, Textarea, EmptyState, Badge } from "@pratham7711/ui";
 import { FEATURES, type FeatureKey } from "@/lib/features";
-import { useConfirm } from "@/components/ds";
+import { useConfirm, Button } from "@/components/ds";
 
 type Plan = {
   id: string;

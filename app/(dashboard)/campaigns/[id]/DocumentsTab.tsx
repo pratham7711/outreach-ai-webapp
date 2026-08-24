@@ -2,7 +2,8 @@
 
 import React from "react";
 import { useState, useEffect, useCallback } from "react";
-import { Card, Button, Modal, EmptyState, Skeleton } from "@pratham7711/ui";
+import { Card, Modal, EmptyState, Skeleton } from "@pratham7711/ui";
+import { Button } from "@/components/ds";
 import { FileText, ExternalLink, Trash2, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { formatDateAbs } from "@/lib/format";

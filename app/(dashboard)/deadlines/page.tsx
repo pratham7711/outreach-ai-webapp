@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
-import { Card, Badge, Skeleton, EmptyState, Button } from "@pratham7711/ui";
+import { Card, Badge, Skeleton, EmptyState } from "@pratham7711/ui";
+import { Button } from "@/components/ds";
 import { CalendarClock, AlertTriangle, CheckCircle2, Clock, CalendarOff, Edit2, X, Check } from "lucide-react";
 import { format, isAfter, isBefore, differenceInDays } from "date-fns";
 import { stripAt } from "@/lib/format";

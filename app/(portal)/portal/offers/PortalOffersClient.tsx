@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Card, Badge, Button, Input, Modal, EmptyState, Skeleton, Tag } from "@pratham7711/ui";
+import { Card, Badge, Input, Modal, EmptyState, Skeleton, Tag } from "@pratham7711/ui";
+import { Button } from "@/components/ds";
 import { toast } from "sonner";
 import { Handshake, AlertTriangle } from "lucide-react";
 

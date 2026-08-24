@@ -3,7 +3,8 @@
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Button, Input } from "@pratham7711/ui";
+import { Input } from "@pratham7711/ui";
+import { Button } from "@/components/ds";
 import { Eye, EyeOff } from "lucide-react";
 import { ConnectPrompt } from "@/components/portal/ConnectPrompt";
 

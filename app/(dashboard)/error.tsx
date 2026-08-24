@@ -1,6 +1,7 @@
 "use client";
 
-import { Card, Button } from "@pratham7711/ui";
+import { Card } from "@pratham7711/ui";
+import { Button } from "@/components/ds";
 import { motion } from "framer-motion";
 import { AlertTriangle, RotateCcw, Home } from "lucide-react";
 import Link from "next/link";

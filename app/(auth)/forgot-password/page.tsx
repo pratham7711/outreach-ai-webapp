@@ -5,7 +5,8 @@ import { motion } from "framer-motion";
 import { ArrowLeft, Mail } from "lucide-react";
 import Link from "next/link";
 import { BRAND } from "@/lib/brand";
-import { Button, Input } from "@pratham7711/ui";
+import { Input } from "@pratham7711/ui";
+import { Button } from "@/components/ds";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");

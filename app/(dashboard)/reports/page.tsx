@@ -3,9 +3,9 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Plus, Lock, AlertTriangle, BarChart3 } from "lucide-react";
-import { Button, Modal, Input, Badge, EmptyState, Card, LoadingSpinner } from "@pratham7711/ui";
+import { Modal, Input, Badge, EmptyState, Card, LoadingSpinner } from "@pratham7711/ui";
 import { formatDateAbs } from "@/lib/format";
-import { useConfirm } from "@/components/ds";
+import { useConfirm, Button } from "@/components/ds";
 
 interface Report {
   id: string;

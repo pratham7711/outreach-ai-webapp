@@ -1,6 +1,7 @@
 "use client";
 
-import { Modal, Button, Badge, Avatar } from "@pratham7711/ui";
+import { Modal, Badge, Avatar } from "@pratham7711/ui";
+import { Button } from "@/components/ds";
 import { ArrowRight, CheckCircle2, ExternalLink } from "lucide-react";
 
 type Payout = {

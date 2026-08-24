@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Card, Badge, Button, Input, Modal, EmptyState, Skeleton } from "@pratham7711/ui";
+import { Card, Badge, Input, Modal, EmptyState, Skeleton } from "@pratham7711/ui";
 import { DollarSign, CreditCard } from "lucide-react";
 import { formatDateAbs } from "@/lib/format";
-import { Dropdown } from "@/components/ds";
+import { Dropdown, Button } from "@/components/ds";
 
 type Deposit = {
   id: string;
@@ -93,7 +93,6 @@ export default function DepositsSection({ campaignId }: { campaignId: string }) 
       setSubmitting(false);
     }
   };
-
 
   if (loading) return <Skeleton width="100%" height="120px" borderRadius="12px" />;
 

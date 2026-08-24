@@ -2,7 +2,8 @@
 
 import React from "react";
 import { useEffect, useState } from "react";
-import { Card, Skeleton, Button } from "@pratham7711/ui";
+import { Card, Skeleton } from "@pratham7711/ui";
+import { Button } from "@/components/ds";
 import { ExternalLink } from "lucide-react";
 import { ConnectPrompt } from "./ConnectPrompt";
 

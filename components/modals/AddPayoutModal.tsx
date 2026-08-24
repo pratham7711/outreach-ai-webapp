@@ -1,8 +1,8 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Modal, Button, Input } from "@pratham7711/ui";
-import { Dropdown } from "@/components/ds";
+import { Modal, Input } from "@pratham7711/ui";
+import { Dropdown, Button } from "@/components/ds";
 
 type Creator = { id: string; name: string; handle: string };
 type Campaign = { id: string; title: string };
@@ -66,7 +66,6 @@ export default function AddPayoutModal({ onClose }: { onClose: () => void }) {
       setLoading(false);
     }
   };
-
 
   const labelStyle = {
     display: "block" as const,

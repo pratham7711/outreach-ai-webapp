@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
-import { Card, Button, Badge, Skeleton, EmptyState } from "@pratham7711/ui";
+import { Card, Badge, Skeleton, EmptyState } from "@pratham7711/ui";
+import { Button } from "@/components/ds";
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from "lucide-react";
 import {
   startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval,

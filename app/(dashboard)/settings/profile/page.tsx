@@ -1,10 +1,10 @@
 "use client";
 import { useState, useEffect } from "react";
-import { Card, Button, Input, Skeleton } from "@pratham7711/ui";
+import { Card, Input, Skeleton } from "@pratham7711/ui";
 import { Building2, Palette, Landmark, Globe, Save } from "lucide-react";
 import { formatDateAbs } from "@/lib/format";
 import { PLATFORM_DEFAULT_BRANDING } from "@/lib/brandingDefaults";
-import { Dropdown } from "@/components/ds";
+import { Dropdown, Button } from "@/components/ds";
 
 type OrgProfile = {
   id: string;

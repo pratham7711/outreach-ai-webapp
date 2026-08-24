@@ -3,7 +3,8 @@
 import React from "react";
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Card, Badge, Button, Skeleton, Tag, EmptyState } from "@pratham7711/ui";
+import { Card, Badge, Skeleton, Tag, EmptyState } from "@pratham7711/ui";
+import { Button } from "@/components/ds";
 import { ArrowLeft, ExternalLink, RefreshCw, Eye, Heart, MessageCircle, Share2, Download, Bookmark, DollarSign, TrendingUp, Flag, Lock, Activity, ShieldAlert, Shield, Play } from "lucide-react";
 import dynamic from "next/dynamic";
 import { computePostEmv, computeEngagementRate } from "@/lib/metrics";

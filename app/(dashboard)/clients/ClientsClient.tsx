@@ -2,8 +2,8 @@
 import { useState } from "react";
 import { Plus, Search, Building2 } from "lucide-react";
 import Link from "next/link";
-import { Button, Card, Input, Avatar, EmptyState } from "@pratham7711/ui";
-import { MetricTile } from "@/components/ds";
+import { Card, Input, Avatar, EmptyState } from "@pratham7711/ui";
+import { MetricTile, Button } from "@/components/ds";
 import AddClientModal from "@/components/modals/AddClientModal";
 
 type Client = {

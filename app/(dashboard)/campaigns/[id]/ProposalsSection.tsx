@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Card, Badge, Button, EmptyState, Skeleton, Avatar } from "@pratham7711/ui";
-import { StatusTabs } from "@/components/ds";
+import { Card, Badge, EmptyState, Skeleton, Avatar } from "@pratham7711/ui";
+import { StatusTabs, Button } from "@/components/ds";
 import { Check, X, Users, Star, TrendingUp, Inbox } from "lucide-react";
 import { toast } from "sonner";
 import { formatCompact, stripAt, formatDateAbs } from "@/lib/format";

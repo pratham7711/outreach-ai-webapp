@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Check, Plus, Tags, Trash2, X } from "lucide-react";
-import { Button, Input } from "@pratham7711/ui";
-import { SectionCard, Dropdown, useConfirm } from "@/components/ds";
+import { Input } from "@pratham7711/ui";
+import { SectionCard, Dropdown, useConfirm, Button } from "@/components/ds";
 
 /**
  * Settings → General, mirroring the reference's Tags & Statuses page.

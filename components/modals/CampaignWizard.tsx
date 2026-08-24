@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Modal, Button, Input, Badge } from "@pratham7711/ui";
+import { Modal, Input, Badge } from "@pratham7711/ui";
 import { ChevronLeft, ChevronRight, Check } from "lucide-react";
-import { Dropdown } from "@/components/ds";
+import { Dropdown, Button } from "@/components/ds";
 
 type Client = { id: string; name: string };
 

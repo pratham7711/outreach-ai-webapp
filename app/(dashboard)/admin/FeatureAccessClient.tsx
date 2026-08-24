@@ -4,10 +4,10 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search, ExternalLink, ArrowRight, Settings } from "lucide-react";
 import Link from "next/link";
-import { Button, Input, Badge, EmptyState, Card, Avatar } from "@pratham7711/ui";
+import { Input, Badge, EmptyState, Card, Avatar } from "@pratham7711/ui";
 import ClientFeatureModal from "@/components/modals/ClientFeatureModal";
 import { FEATURES, type FeatureKey } from "@/lib/features";
-import { Dropdown, useConfirm } from "@/components/ds";
+import { Dropdown, useConfirm, Button } from "@/components/ds";
 
 const featureKeys = Object.keys(FEATURES) as FeatureKey[];
 

@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Card, Badge, Button, EmptyState, Skeleton } from "@pratham7711/ui";
+import { Card, Badge, EmptyState, Skeleton } from "@pratham7711/ui";
+import { Button } from "@/components/ds";
 import { FileText, DollarSign, Clock, Clapperboard } from "lucide-react";
 
 type JoinedCampaign = {

@@ -1,7 +1,8 @@
 "use client";
 
 import React, { createContext, useCallback, useContext, useRef, useState } from "react";
-import { Button, Modal } from "@pratham7711/ui";
+import { Modal } from "@pratham7711/ui";
+import { Button } from "@/components/ds";
 import { AlertTriangle } from "lucide-react";
 
 export type ConfirmOptions = {

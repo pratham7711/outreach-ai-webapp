@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Modal, Button, Input } from "@pratham7711/ui";
+import { Modal, Input } from "@pratham7711/ui";
+import { Button } from "@/components/ds";
 
 export default function AddClientModal({ onClose }: { onClose: () => void }) {
   const router = useRouter();

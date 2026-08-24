@@ -1,7 +1,8 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button, Input, Textarea, Card } from "@pratham7711/ui";
+import { Input, Textarea, Card } from "@pratham7711/ui";
+import { Button } from "@/components/ds";
 import { FEATURES, type FeatureKey } from "@/lib/features";
 
 type PlanFormProps = {

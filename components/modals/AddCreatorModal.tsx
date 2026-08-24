@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Modal, Button, Input } from "@pratham7711/ui";
-import { Dropdown } from "@/components/ds";
+import { Modal, Input } from "@pratham7711/ui";
+import { Dropdown, Button } from "@/components/ds";
 
 export default function AddCreatorModal({ onClose }: { onClose: () => void }) {
   const router = useRouter();
@@ -41,7 +41,6 @@ export default function AddCreatorModal({ onClose }: { onClose: () => void }) {
       setLoading(false);
     }
   };
-
 
   const labelStyle = {
     display: "block" as const,
