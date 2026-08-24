@@ -59,23 +59,68 @@ function fetchTimeoutSignal(ms = 8000): AbortSignal | undefined {
     : undefined;
 }
 
-export function detectPlatform(url: string): { platform: PostMetrics["platform"]; id: string } | null {
+export const MEDIA_TYPES = ["REEL", "STORY", "POST", "SHORT", "VIDEO"] as const;
+export type MediaType = (typeof MEDIA_TYPES)[number];
+
+/**
+ * What a post URL says about itself.
+ *
+ * The URL already carries the two things an operator was being asked to retype:
+ * which kind of post it is, and often whose it is. A TikTok link cannot be
+ * anything but /@handle/video/id, and an Instagram reel says "reel" in the path.
+ * `mediaType` and `handle` are optional because not every form carries them --
+ * a youtu.be link names no channel, and instagram.com/p/CODE names no author --
+ * and an absent field means "the URL does not say", never "there is none".
+ */
+export function detectPlatform(
+  url: string
+): { platform: PostMetrics["platform"]; id: string; mediaType?: MediaType; handle?: string } | null {
   // YouTube: watch?v=ID, youtu.be/ID, shorts/ID, live/ID, embed/ID (IDs are 11 chars).
   // Host-guarded so a stray ?v= on another domain can't be misread as YouTube.
   if (/(?:youtube\.com|youtu\.be)/.test(url)) {
     const ytMatch =
       url.match(/(?:youtube\.com\/(?:shorts|live|embed)\/|youtu\.be\/)([\w-]{11})/) ||
       url.match(/[?&]v=([\w-]{11})/);
-    if (ytMatch) return { platform: "YOUTUBE", id: ytMatch[1] };
+    if (ytMatch) {
+      // A channel handle only appears on some YouTube forms, and never on the
+      // watch?v= one that most people paste.
+      const yHandle = url.match(/youtube\.com\/@([\w.-]+)/)?.[1];
+      return {
+        platform: "YOUTUBE",
+        id: ytMatch[1],
+        mediaType: /youtube\.com\/shorts\//.test(url) ? "SHORT" : "VIDEO",
+        ...(yHandle ? { handle: yHandle } : {}),
+      };
+    }
   }
 
-  // TikTok: tiktok.com/@user/video/ID
-  const ttMatch = url.match(/tiktok\.com\/@[\w.]+\/video\/(\d+)/);
-  if (ttMatch) return { platform: "TIKTOK", id: ttMatch[1] };
+  // TikTok: tiktok.com/@user/video/ID, and /photo/ID for image carousels.
+  const ttMatch = url.match(/tiktok\.com\/@([\w.]+)\/(video|photo)\/(\d+)/);
+  if (ttMatch) {
+    return {
+      platform: "TIKTOK",
+      id: ttMatch[3],
+      mediaType: ttMatch[2] === "photo" ? "POST" : "VIDEO",
+      handle: ttMatch[1],
+    };
+  }
 
-  // Instagram: instagram.com/reel/CODE or instagram.com/p/CODE
-  const igMatch = url.match(/instagram\.com\/(?:reel|p)\/([\w-]+)/);
-  if (igMatch) return { platform: "INSTAGRAM", id: igMatch[1] };
+  // Instagram: /reel/CODE and /p/CODE, either bare or prefixed with the author
+  // -- instagram.com/someone/reel/CODE is what the app's own share sheet gives
+  // you, and it used to match nothing here at all.
+  const igStory = url.match(/instagram\.com\/stories\/([\w.]+)\/(\d+)/);
+  if (igStory) {
+    return { platform: "INSTAGRAM", id: igStory[2], mediaType: "STORY", handle: igStory[1] };
+  }
+  const igMatch = url.match(/instagram\.com\/(?:([\w.]+)\/)?(reels?|p|tv)\/([\w-]+)/);
+  if (igMatch) {
+    return {
+      platform: "INSTAGRAM",
+      id: igMatch[3],
+      mediaType: igMatch[2].startsWith("reel") ? "REEL" : "POST",
+      ...(igMatch[1] ? { handle: igMatch[1] } : {}),
+    };
+  }
 
   return null;
 }

@@ -14,6 +14,8 @@ import PostMedia from "@/components/PostMedia";
 import { imgSrc } from "@/lib/postMedia";
 import { metricValue, unwrittenMetricValue, fieldMetricValue, engagementRateValue, summarizePostMetrics } from "@/lib/metricDisplay";
 import { summariseRefresh } from "@/lib/refreshSummary";
+import { toast } from "sonner";
+import { detectPlatform } from "@/lib/platforms/fetchPostMetrics";
 
 type SnapshotLite = { id: string; viewsCount: number; recordedAt: string };
 
@@ -287,24 +289,41 @@ export default function PostsTab({
   useEffect(() => { fetchPosts(); }, [fetchPosts]);
   useEffect(() => { setPage(1); }, [statusFilter, platformFilter, mediaTypeFilter, minViews, creatorSearch, postedFrom, postedTo, sortKey, sortDir]);
 
+  /* Pure URL parsing, so it runs as the operator types with no request behind
+     it. The server re-derives all of this from the same function -- this copy
+     exists to show the answer, never to be the answer. */
+  const addDetected = useMemo(
+    () => (addForm.postUrl ? detectPlatform(addForm.postUrl) : null),
+    [addForm.postUrl]
+  );
+
   const handleAddPost = async () => {
-    if (!addForm.postUrl || !addForm.creatorId) return;
+    if (!addForm.postUrl) return;
     setSubmitting(true);
     try {
+      /* Absent keys, not nulls. mediaType is z.enum().optional(), which accepts
+         undefined and rejects null, so sending `mediaType: null` for the
+         "Auto-detect" option -- the default -- failed validation before it could
+         reach the detector, and the old `if (res.ok)` with no else swallowed the
+         400 and left the dialog sitting there. Same for creatorId, whose absence
+         is now what asks the server to read the creator off the URL. */
       const res = await fetch(`/api/campaigns/${campaignId}/posts`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           postUrl: addForm.postUrl,
-          creatorId: addForm.creatorId,
-          mediaType: addForm.mediaType || null,
+          ...(addForm.creatorId ? { creatorId: addForm.creatorId } : {}),
+          ...(addForm.mediaType ? { mediaType: addForm.mediaType } : {}),
         }),
       });
       if (res.ok) {
         setShowAddPost(false);
         setAddForm({ postUrl: "", creatorId: "", mediaType: "" });
         fetchPosts();
+        return;
       }
+      const body = await res.json().catch(() => null);
+      toast.error(body?.error ?? "Could not add that post.");
     } finally {
       setSubmitting(false);
     }
@@ -1153,17 +1172,26 @@ export default function PostsTab({
         <Modal open={true} onClose={() => setShowAddPost(false)} title="Add Post" size="md" footer={
           <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
             <Button variant="secondary" onClick={() => setShowAddPost(false)}>Cancel</Button>
-            <Button variant="primary" loading={submitting} onClick={handleAddPost} disabled={!addForm.postUrl || !addForm.creatorId}>Submit Post</Button>
+            <Button variant="primary" loading={submitting} onClick={handleAddPost} disabled={!addForm.postUrl || !(addForm.creatorId || addDetected?.handle)}>Submit Post</Button>
           </div>
         }>
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <Input label="Post URL" value={addForm.postUrl} onChange={(e) => setAddForm((f) => ({ ...f, postUrl: e.target.value }))} placeholder="https://youtube.com/watch?v=..." required />
             <div>
-              <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Creator</label>
+              <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>
+                Creator{addDetected?.handle ? " (optional)" : ""}
+              </label>
               <CreatorSelect
                 value={addForm.creatorId}
                 onChange={(id) => setAddForm((f) => ({ ...f, creatorId: id }))}
               />
+              {/* Says what the link gave away, so the operator can see it was
+                  read correctly rather than trusting a silent match. */}
+              {addDetected?.handle && !addForm.creatorId && (
+                <p style={{ fontSize: 12, color: "var(--cc-text-muted)", margin: "6px 0 0" }}>
+                  Detected <strong style={{ color: "var(--cc-text)" }}>@{addDetected.handle}</strong> from the link. Leave this blank to use them.
+                </p>
+              )}
             </div>
             <div>
               <label htmlFor="add-post-mediatype" style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Media Type</label>
@@ -1174,7 +1202,12 @@ export default function PostsTab({
                 value={addForm.mediaType}
                 onChange={(v) => setAddForm((f) => ({ ...f, mediaType: v }))}
                 options={[
-                  { value: "", label: "Auto-detect" },
+                  {
+                    value: "",
+                    label: addDetected?.mediaType
+                      ? `Auto-detect (${addDetected.mediaType.toLowerCase()})`
+                      : "Auto-detect",
+                  },
                   { value: "REEL", label: "Reel" },
                   { value: "STORY", label: "Story" },
                   { value: "POST", label: "Post" },

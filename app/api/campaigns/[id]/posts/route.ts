@@ -3,7 +3,12 @@ import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { httpUrl } from "@/lib/validation/url";
 import { z } from "zod";
-import { detectPlatform, fetchPostMetrics, hasMetricCounts } from "@/lib/platforms/fetchPostMetrics";
+import {
+  detectPlatform,
+  fetchPostMetrics,
+  hasMetricCounts,
+  MEDIA_TYPES as DETECTABLE_MEDIA_TYPES,
+} from "@/lib/platforms/fetchPostMetrics";
 import { countsFrom } from "@/lib/sync/syncPost";
 import { getInstagramAccountForCreator } from "@/lib/platforms/instagramToken";
 import { getTikTokTokenForCreator } from "@/lib/platforms/tiktokToken";
@@ -14,12 +19,18 @@ import type { PostStatus, Platform } from "@/lib/generated/prisma/client";
 import { PLATFORM_VALUES } from "@/lib/platforms/constants";
 
 const PLATFORMS = PLATFORM_VALUES;
-const MEDIA_TYPES = ["REEL", "STORY", "POST", "SHORT", "VIDEO"] as const;
+// One list, shared with the detector -- two copies would be free to disagree
+// about what a media type is, and the detector's answers have to validate here.
+const MEDIA_TYPES = DETECTABLE_MEDIA_TYPES;
 const POST_STATUSES = ["PENDING_REVIEW", "APPROVED", "REJECTED"] as const;
 
+/* creatorId is optional because the URL usually names the creator: a TikTok
+   link cannot exist without /@handle/ in it. It stays required when the URL does
+   not say -- a youtu.be link names no channel -- and the caller is told which of
+   those two cases it hit rather than getting a bare validation error. */
 const createPostSchema = z.object({
   postUrl: httpUrl(),
-  creatorId: z.string().min(1),
+  creatorId: z.string().min(1).optional(),
   mediaType: z.enum(MEDIA_TYPES).optional(),
   activationId: z.string().nullable().optional(),
 });
@@ -101,7 +112,43 @@ export async function POST(
       return NextResponse.json({ error: "Invalid input", details: parsed.error.flatten() }, { status: 400 });
     }
 
-    const { postUrl, creatorId, mediaType, activationId } = parsed.data;
+    const { postUrl, mediaType, activationId } = parsed.data;
+    const detected = detectPlatform(postUrl);
+
+    /* An explicitly chosen creator always wins; the handle in the URL is only
+       consulted when none was chosen. Matching is case-insensitive and tolerates
+       a leading @, because handles are stored both ways, and it stays scoped to
+       the org -- a pasted URL is untrusted input and must never reach across a
+       tenant. Nothing is created here: inventing a roster entry from a pasted
+       link is not a thing an import should do behind the operator's back. */
+    let creatorId = parsed.data.creatorId;
+    if (!creatorId && detected?.handle) {
+      const bare = detected.handle.replace(/^@/, "");
+      const match = await db.creator.findFirst({
+        where: {
+          orgId,
+          deletedAt: null,
+          OR: [
+            { handle: { equals: bare, mode: "insensitive" } },
+            { handle: { equals: `@${bare}`, mode: "insensitive" } },
+          ],
+        },
+        select: { id: true },
+      });
+      if (!match) {
+        return NextResponse.json(
+          { error: `No creator matches @${bare}. Pick one, or add @${bare} first.`, detectedHandle: bare },
+          { status: 404 }
+        );
+      }
+      creatorId = match.id;
+    }
+    if (!creatorId) {
+      return NextResponse.json(
+        { error: "This link does not name its creator, so please choose one." },
+        { status: 400 }
+      );
+    }
 
     const creator = await db.creator.findFirst({ where: { id: creatorId, orgId, deletedAt: null } });
     if (!creator) return NextResponse.json({ error: "Creator not found" }, { status: 404 });
@@ -112,7 +159,7 @@ export async function POST(
     }
 
     // Fetch metrics from platform
-    const detectedPlatform = detectPlatform(postUrl)?.platform;
+    const detectedPlatform = detected?.platform;
     const instagram =
       detectedPlatform === "INSTAGRAM"
         ? await getInstagramAccountForCreator(creatorId, orgId)
@@ -138,7 +185,10 @@ export async function POST(
         postUrl,
         thumbnailUrl: metrics?.thumbnailUrl ?? null,
         caption: metrics?.caption ?? null,
-        mediaType: mediaType ?? null,
+        // "Auto-detect" in the form meant "store nothing at all". The URL says
+        // which kind it is, so an explicit choice still wins and silence now
+        // actually detects.
+        mediaType: mediaType ?? detected?.mediaType ?? null,
         // Only the counters the platform actually reported, and a record of which
         // those were. Writing `?? 0` for the rest and then stamping lastSyncedAt
         // is what made an Instagram post claim "0 shares" -- Instagram reports

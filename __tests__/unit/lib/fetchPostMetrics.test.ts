@@ -7,9 +7,14 @@ import {
 
 describe("detectPlatform", () => {
   it("detects TikTok video URLs", () => {
+    // The return also carries what the URL says about kind and author now, so
+    // the Add Post form can stop asking for both. Asserted in full rather than
+    // loosened to toMatchObject: the whole point is that these fields are there.
     expect(detectPlatform("https://www.tiktok.com/@user/video/123456")).toEqual({
       platform: "TIKTOK",
       id: "123456",
+      mediaType: "VIDEO",
+      handle: "user",
     });
   });
 
