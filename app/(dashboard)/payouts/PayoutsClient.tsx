@@ -197,7 +197,7 @@ export default function PayoutsClient({ payouts, stats }: {
             Export Data
           </Button>
           <Button variant="primary" iconLeft={<Plus size={15} />} size="sm" onClick={() => setShowModal(true)}>
-            Process Payout
+            New Payout
           </Button>
         </div>
       </div>
@@ -289,7 +289,7 @@ export default function PayoutsClient({ payouts, stats }: {
               description="Process your first creator payment to get started"
               action={
                 <Button variant="primary" iconLeft={<Plus size={15} />} onClick={() => setShowModal(true)}>
-                  Process Payout
+                  New Payout
                 </Button>
               }
             />

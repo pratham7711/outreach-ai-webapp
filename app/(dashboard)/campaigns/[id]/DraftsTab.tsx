@@ -3,7 +3,8 @@
 import React from "react";
 import { useState, useEffect, useCallback } from "react";
 import { Card, Badge, Button, Modal, EmptyState, Skeleton, Avatar } from "@pratham7711/ui";
-import { CheckCircle2, XCircle, ExternalLink, FileText } from "lucide-react";
+import { Dropdown } from "@/components/ds";
+import { CheckCircle2, XCircle, ExternalLink, FileText, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { stripAt, formatDateAbs } from "@/lib/format";
 
@@ -25,6 +26,13 @@ type Draft = {
 };
 
 const PENDING_STATUSES = ["DRAFT_SUBMITTED", "AWAITING_APPROVAL"];
+
+const MEDIA_TYPES = ["REEL", "STORY", "POST", "SHORT", "VIDEO"] as const;
+
+/* Only a creator who has not submitted anything yet can have a draft filed for
+   them. Adding one to an activation that is already approved would quietly
+   overwrite the thing that was approved. */
+const AWAITING_DRAFT = "AWAITING_DRAFT";
 
 const STATUS_BADGE: Record<string, "success" | "warning" | "danger" | "neutral"> = {
   AWAITING_DRAFT: "neutral",
@@ -54,6 +62,16 @@ const FILTERS = [
   { key: "ALL", label: "All" },
 ] as const;
 
+const labelStyle: React.CSSProperties = {
+  display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6,
+};
+
+const inputStyle: React.CSSProperties = {
+  width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-border)",
+  fontSize: 14, color: "var(--cc-text)", background: "var(--cc-card)", outline: "none",
+  boxSizing: "border-box",
+};
+
 export default function DraftsTab({
   campaignId,
   onChange,
@@ -68,6 +86,9 @@ export default function DraftsTab({
   const [declineId, setDeclineId] = useState<string | null>(null);
   const [declineReason, setDeclineReason] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [newDraft, setNewDraft] = useState({ activationId: "", draftUrl: "", draftCaption: "", draftMediaType: "" });
+  const [savingDraft, setSavingDraft] = useState(false);
 
   const fetchDrafts = useCallback(async () => {
     setError(null);
@@ -113,6 +134,48 @@ export default function DraftsTab({
     }
   };
 
+  // Whoever is still owed a draft. The button is pointless with nobody to file
+  // one for, so it says why rather than opening an empty dialog.
+  const awaiting = drafts.filter((d) => d.status === AWAITING_DRAFT);
+
+  const handleAddDraft = async () => {
+    const { activationId, draftUrl, draftCaption, draftMediaType } = newDraft;
+    if (!activationId || !draftUrl.trim()) {
+      toast.error("Pick a creator and paste the draft link");
+      return;
+    }
+    setSavingDraft(true);
+    try {
+      const res = await fetch(`/api/activations/${activationId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          draftUrl: draftUrl.trim(),
+          draftCaption: draftCaption.trim() || null,
+          draftMediaType: draftMediaType || null,
+          // Filing a draft moves the activation into the review queue, which is
+          // the whole point of filing it.
+          status: "DRAFT_SUBMITTED",
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => null);
+        toast.error(err?.error ?? "Could not add the draft");
+        return;
+      }
+      toast.success("Draft added");
+      setAdding(false);
+      setNewDraft({ activationId: "", draftUrl: "", draftCaption: "", draftMediaType: "" });
+      setFilter("PENDING");
+      await fetchDrafts();
+      await onChange?.();
+    } catch {
+      toast.error("Network error");
+    } finally {
+      setSavingDraft(false);
+    }
+  };
+
   const handleDecline = async () => {
     if (!declineId) return;
     const id = declineId;
@@ -155,7 +218,7 @@ export default function DraftsTab({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <div style={{ display: "flex", gap: 8 }}>
+      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
         {FILTERS.map((f) => (
           <button
             key={f.key}
@@ -170,6 +233,18 @@ export default function DraftsTab({
             {f.label}
           </button>
         ))}
+        <div style={{ marginLeft: "auto" }}>
+          <Button
+            variant="primary"
+            size="sm"
+            iconLeft={<Plus size={15} />}
+            disabled={awaiting.length === 0}
+            title={awaiting.length === 0 ? "Every creator on this campaign has already submitted" : undefined}
+            onClick={() => setAdding(true)}
+          >
+            Add Draft
+          </Button>
+        </div>
       </div>
 
       {visible.length === 0 ? (
@@ -257,6 +332,75 @@ export default function DraftsTab({
             );
           })}
         </Card>
+      )}
+
+      {adding && (
+        <Modal
+          open
+          onClose={() => setAdding(false)}
+          title="Add Draft"
+          size="sm"
+          footer={
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <Button variant="secondary" onClick={() => setAdding(false)}>Cancel</Button>
+              <Button variant="primary" loading={savingDraft} onClick={handleAddDraft}>Add Draft</Button>
+            </div>
+          }
+        >
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <div>
+              <label style={labelStyle}>Creator</label>
+              <Dropdown
+                ariaLabel="Creator"
+                size="md"
+                fullWidth
+                align="left"
+                placeholder="Who submitted it?"
+                value={newDraft.activationId}
+                onChange={(v) => setNewDraft((f) => ({ ...f, activationId: v }))}
+                options={awaiting.map((a) => ({
+                  value: a.id,
+                  label: `${a.creator.name} (${stripAt(a.creator.handle)})`,
+                }))}
+              />
+            </div>
+            <div>
+              <label htmlFor="new-draft-url" style={labelStyle}>Draft link</label>
+              <input
+                id="new-draft-url"
+                type="url"
+                value={newDraft.draftUrl}
+                onChange={(e) => setNewDraft((f) => ({ ...f, draftUrl: e.target.value }))}
+                placeholder="https://"
+                style={inputStyle}
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>Media type</label>
+              <Dropdown
+                ariaLabel="Media type"
+                size="md"
+                fullWidth
+                align="left"
+                placeholder="Optional"
+                value={newDraft.draftMediaType}
+                onChange={(v) => setNewDraft((f) => ({ ...f, draftMediaType: v }))}
+                options={MEDIA_TYPES.map((m) => ({ value: m, label: m.charAt(0) + m.slice(1).toLowerCase() }))}
+              />
+            </div>
+            <div>
+              <label htmlFor="new-draft-caption" style={labelStyle}>Caption</label>
+              <textarea
+                id="new-draft-caption"
+                value={newDraft.draftCaption}
+                onChange={(e) => setNewDraft((f) => ({ ...f, draftCaption: e.target.value }))}
+                rows={3}
+                placeholder="Optional — the caption they plan to post with"
+                style={{ ...inputStyle, resize: "vertical", fontFamily: "inherit" }}
+              />
+            </div>
+          </div>
+        </Modal>
       )}
 
       {declineId && (

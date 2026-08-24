@@ -80,7 +80,7 @@ export default function AddPayoutModal({ onClose }: { onClose: () => void }) {
     <Modal
       open={true}
       onClose={onClose}
-      title="Process Payout"
+      title="New Payout"
       size="md"
       footer={
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
@@ -95,7 +95,7 @@ export default function AddPayoutModal({ onClose }: { onClose: () => void }) {
               );
             }}
           >
-            Process Payout
+            New Payout
           </Button>
         </div>
       }

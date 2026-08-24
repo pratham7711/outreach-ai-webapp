@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { authenticateRequest } from "@/lib/authenticate";
 
 /**
- * The two pickers in the Process Payout dialog, fetched when it opens.
+ * The two pickers in the New Payout dialog, fetched when it opens.
  *
  * The payouts page used to select every creator and every campaign in the org
  * and hand both to the client component, which passed them straight to a modal

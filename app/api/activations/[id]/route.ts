@@ -21,6 +21,13 @@ const PatchSchema = z.object({
   feedbackNotes: z.string().nullable().optional(),
   postedUrl: httpUrl().optional().nullable(),
   deliverableDueDate: z.string().datetime().optional().nullable(),
+  // A draft entered on the creator's behalf, which is how the reference's "Add
+  // Draft" works: plenty of creators send a link over DM and somebody on the
+  // team files it. draftSubmittedAt is stamped here rather than accepted, so it
+  // records when the draft actually arrived in the system.
+  draftUrl: httpUrl().optional().nullable(),
+  draftCaption: z.string().max(5_000).optional().nullable(),
+  draftMediaType: z.enum(["REEL", "STORY", "POST", "SHORT", "VIDEO"]).optional().nullable(),
 });
 
 // Approving/declining a creator's draft is a campaign-edit action: managers/owners
@@ -59,7 +66,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       return NextResponse.json({ error: "Invalid input", details: parsed.error.flatten() }, { status: 400 });
     }
 
-    const { status, statusDefId, feedbackNotes, postedUrl, deliverableDueDate } = parsed.data;
+    const { status, statusDefId, feedbackNotes, postedUrl, deliverableDueDate,
+            draftUrl, draftCaption, draftMediaType } = parsed.data;
 
     // A named status carries the bucket it belongs to, so choosing one is also a
     // status change and has to clear the same transition guard. Unlike a
@@ -101,6 +109,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (feedbackNotes !== undefined) updateData.feedbackNotes = feedbackNotes;
     if (postedUrl !== undefined) updateData.postedUrl = postedUrl;
     if (deliverableDueDate !== undefined) updateData.deliverableDueDate = deliverableDueDate ? new Date(deliverableDueDate) : null;
+    if (draftCaption !== undefined) updateData.draftCaption = draftCaption;
+    if (draftMediaType !== undefined) updateData.draftMediaType = draftMediaType;
+    if (draftUrl !== undefined) {
+      updateData.draftUrl = draftUrl;
+      // Stamped when a draft arrives and cleared when it is removed, so the
+      // "submitted" date can never outlive the draft it belongs to. An existing
+      // stamp is left alone: correcting a typo in the link is not a resubmission.
+      if (draftUrl === null) updateData.draftSubmittedAt = null;
+      else if (!activation.draftSubmittedAt) updateData.draftSubmittedAt = new Date();
+    }
 
     const updated = await db.activation.update({ where: { id }, data: updateData });
 
@@ -123,6 +141,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         status: activation.status,
         feedbackNotes: activation.feedbackNotes,
         postedUrl: activation.postedUrl,
+        draftUrl: activation.draftUrl,
       },
       after: {
         id: updated.id,
@@ -131,6 +150,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         status: updated.status,
         feedbackNotes: updated.feedbackNotes,
         postedUrl: updated.postedUrl,
+        draftUrl: updated.draftUrl,
       },
     });
 
