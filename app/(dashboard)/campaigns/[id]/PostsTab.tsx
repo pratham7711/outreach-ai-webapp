@@ -608,10 +608,49 @@ export default function PostsTab({
   };
 
   if (loading) {
+    /* Two grey bars, 48px and 200px, used to stand in for a status tab row, a
+       filter toolbar and a grid of 9:16 posters. Nothing lined up, so the whole
+       tab jumped the moment the posts arrived -- the skeleton was measuring a
+       layout that does not exist. This mirrors the real one: same tab pills,
+       same toolbar height, same grid track and gap, same card aspect and
+       radius, so the placeholders sit exactly where the posts land. */
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-        <Skeleton width="100%" height="48px" borderRadius="8px" />
-        <Skeleton width="100%" height="200px" borderRadius="12px" />
+        {/* The KPI chip strip. It was missing entirely, and it is 59px tall, so
+            the grid below sat exactly that much too high and everything dropped
+            when the numbers arrived. The chips only render once there is at
+            least one post, so on a genuinely empty campaign this row reserves
+            space that never fills -- the wrong guess in the rare direction
+            rather than in the usual one. */}
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {Array.from({ length: 7 }).map((_, i) => (
+            <Skeleton key={i} width="112px" height="59px" borderRadius="8px" />
+          ))}
+        </div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {STATUS_TABS.map((t) => (
+            <Skeleton key={t.key} width={`${52 + t.label.length * 7}px`} height="34px" borderRadius="8px" />
+          ))}
+        </div>
+        {/* The same nine controls at their real widths, in the same order, so
+            the toolbar wraps onto the same number of rows it will once it is
+            interactive. Five stand-ins on one row left the grid 116px too high
+            and the whole tab dropped when the posts arrived. */}
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+          {[140, 110, 140, 140, 150, 140, 130, 110, 96].map((w, i) => (
+            <Skeleton key={i} width={`${w}px`} height="36px" borderRadius="8px" />
+          ))}
+          <div style={{ flex: 1, minWidth: 0 }} />
+          <Skeleton width="130px" height="36px" borderRadius="8px" />
+          <Skeleton width="72px" height="36px" borderRadius="8px" />
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 18 }}>
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} style={{ aspectRatio: "9 / 16", borderRadius: 20, overflow: "hidden" }}>
+              <Skeleton width="100%" height="100%" borderRadius="20px" />
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
