@@ -1231,3 +1231,68 @@ h1, h2, h3, h4, h5, h6 {
   .cc-list-head { display: none; }
   .cc-list-hide-sm { display: none; }
 }
+
+/* Rich-text content, in the editor and when read back. Tailwind's preflight
+   strips list markers and flattens heading sizes, so the document model's own
+   structure has to be given back its appearance here. */
+.cc-prose {
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--cc-text);
+}
+
+.cc-prose:focus { outline: none; }
+
+.cc-prose p { margin: 0 0 8px; }
+.cc-prose p:last-child { margin-bottom: 0; }
+
+.cc-prose h1 { font-size: 20px; font-weight: 700; margin: 16px 0 8px; }
+.cc-prose h2 { font-size: 17px; font-weight: 700; margin: 14px 0 6px; }
+.cc-prose h3 { font-size: 15px; font-weight: 700; margin: 12px 0 6px; }
+.cc-prose h1:first-child,
+.cc-prose h2:first-child,
+.cc-prose h3:first-child { margin-top: 0; }
+
+.cc-prose ul,
+.cc-prose ol { margin: 0 0 8px; padding-left: 22px; }
+.cc-prose ul { list-style: disc; }
+.cc-prose ol { list-style: decimal; }
+.cc-prose ul ul { list-style: circle; }
+.cc-prose li { margin: 2px 0; }
+.cc-prose li > p { margin: 0; }
+
+.cc-prose a {
+  color: var(--cc-primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.cc-prose blockquote {
+  margin: 8px 0;
+  padding-left: 12px;
+  border-left: 3px solid var(--cc-border);
+  color: var(--cc-text-muted);
+}
+
+.cc-prose code {
+  font-size: 13px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--cc-hover-bg);
+}
+
+.cc-prose pre {
+  margin: 8px 0;
+  padding: 12px 14px;
+  border-radius: 8px;
+  overflow-x: auto;
+  background: var(--cc-hover-bg);
+}
+
+.cc-prose pre code { padding: 0; background: none; }
+
+.cc-prose hr {
+  margin: 16px 0;
+  border: none;
+  border-top: 1px solid var(--cc-border);
+}

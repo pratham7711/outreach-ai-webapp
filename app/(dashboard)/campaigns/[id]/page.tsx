@@ -10,6 +10,7 @@ import PostsTab from "./PostsTab";
 import ActivityFeed from "./ActivityFeed";
 import DraftsTab from "./DraftsTab";
 import FinancialsTab from "./FinancialsTab";
+import CreativeBriefCard from "./CreativeBriefCard";
 import RosterTable, { ROSTER_COLUMNS, ROSTER_DEFAULT_COLUMNS } from "./RosterTable";
 import InvitesSection from "./InvitesSection";
 import NegotiationsSection from "./NegotiationsSection";
@@ -742,14 +743,11 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
             />
 
             {/* Brief */}
-            {campaign.brief && (
-              <Card variant="outlined" style={{ padding: 24 }}>
-                <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)", display: "block", marginBottom: 12 }}>Creative Brief</span>
-                <div style={{ fontSize: 14, color: "var(--cc-text-muted)", lineHeight: 1.7, whiteSpace: "pre-wrap" }}>
-                  {campaign.brief.content}
-                </div>
-              </Card>
-            )}
+            <CreativeBriefCard
+              campaignId={campaign.id}
+              initialContent={campaign.brief?.content ?? ""}
+            />
+
 
             {/* Notes */}
             {campaign.notes && (
