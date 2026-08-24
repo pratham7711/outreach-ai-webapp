@@ -299,15 +299,17 @@ export default function PayoutsClient({ payouts, stats }: {
             <div className="payout-inner">
             {/* Table header */}
             <div className="payout-head">
-              <div style={{ display: "flex", alignItems: "center" }}>
+              {/* Same reasoning as the per-row box below: the label takes the
+                  cell so the target is finger-sized without resizing the box. */}
+              <label style={{ display: "flex", alignItems: "center", width: "100%", height: "100%", minHeight: 32, cursor: "pointer" }}>
                 <input
                   type="checkbox"
                   aria-label="Select all payouts"
                   checked={selected.size === filtered.length && filtered.length > 0}
                   onChange={toggleAll}
-                  style={{ accentColor: "var(--cc-primary)" }}
+                  style={{ accentColor: "var(--cc-primary)", width: 16, height: 16 }}
                 />
-              </div>
+              </label>
               {["Creator", "Campaign", "Amount", "Status", "Date", "Action"].map((h) => (
                 <span key={h} style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--cc-text-subtle)" }}>{h}</span>
               ))}
@@ -324,16 +326,28 @@ export default function PayoutsClient({ payouts, stats }: {
                   }}
                   onClick={() => setDetailPayout(p)}
                 >
-                  {/* Checkbox */}
-                  <div data-col="check" style={{ display: "flex", alignItems: "center" }} onClick={(e) => e.stopPropagation()}>
+                  {/* Checkbox. A bare input is 13x13, which is a quarter of the
+                      44px a finger needs and was the smallest thing on the page
+                      by area. The box keeps its size -- the label around it
+                      takes the whole cell, which is already row-height, so the
+                      tap area grows and the layout does not move. */}
+                  <label
+                    data-col="check"
+                    style={{
+                      display: "flex", alignItems: "center",
+                      width: "100%", height: "100%", minHeight: 32,
+                      cursor: "pointer",
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <input
                       type="checkbox"
                       aria-label={`Select payout for ${p.creator.name}`}
                       checked={selected.has(p.id)}
                       onChange={() => toggleSelect(p.id)}
-                      style={{ accentColor: "var(--cc-primary)" }}
+                      style={{ accentColor: "var(--cc-primary)", width: 16, height: 16 }}
                     />
-                  </div>
+                  </label>
                   {/* Creator — keyboard-accessible entry point to the detail view */}
                   <button
                     type="button"
