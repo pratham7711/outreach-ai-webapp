@@ -7,16 +7,17 @@ import {
   startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval,
   format, isSameMonth, isSameDay, isToday, addMonths, subMonths,
 } from "date-fns";
+import { campaignStatusCss, campaignStatusDot } from "@/lib/statusColors";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-const STATUS_COLORS: Record<string, string> = {
-  DRAFT: "#9CA3AF",
-  PENDING: "#F59E0B",
-  IN_PROGRESS: "var(--cc-primary)",
-  COMPLETE: "var(--cc-success)",
-  CANCELLED: "#EF4444",
-};
+/* The chips below used to build their background by appending hex alpha to
+   whatever this map held -- `${color}20`. That works for a literal like
+   "#F59E0B" and silently produces nothing for "var(--cc-primary)20", which is
+   not a colour, so Active and Complete campaigns drew their text on no
+   background at all. The captured palette already carries the tinted ground as
+   its own value, so there is nothing left to concatenate. */
+const STATUS_ORDER = ["DRAFT", "PENDING", "IN_PROGRESS", "COMPLETE", "CANCELLED"];
 
 type CalendarCampaign = {
   id: string; title: string; status: string; createdAt: string;
@@ -105,9 +106,9 @@ export default function CalendarPage() {
 
       {/* Legend */}
       <div style={{ display: "flex", gap: 16, marginBottom: 16, fontSize: 12, color: "var(--cc-text-muted)", flexWrap: "wrap" }}>
-        {Object.entries(STATUS_COLORS).map(([status, color]) => (
+        {STATUS_ORDER.map((status) => (
           <div key={status} style={{ display: "flex", alignItems: "center", gap: 4 }}>
-            <div style={{ width: 8, height: 8, borderRadius: "50%", background: color }} />
+            <div style={{ width: 8, height: 8, borderRadius: "50%", background: campaignStatusDot(status) }} />
             {status.replace(/_/g, " ")}
           </div>
         ))}
@@ -174,8 +175,7 @@ export default function CalendarPage() {
                         <div key={c.id} title={c.title} className={ci >= 2 ? "cal-chip cal-chip-extra" : "cal-chip"} style={{
                           minWidth: 0,
                           marginTop: 2, padding: "1px 4px", borderRadius: 3, fontSize: 9, fontWeight: 500,
-                          background: `${STATUS_COLORS[c.status] ?? "var(--cc-primary)"}20`,
-                          color: STATUS_COLORS[c.status] ?? "var(--cc-primary)",
+                          ...campaignStatusCss(c.status),
                           overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
                         }}>
                           {c.title}

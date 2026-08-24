@@ -40,3 +40,27 @@ export const ACTIVATION_PILL_RADIUS = 15;
 export function campaignStatusStyle(status: string): StatusStyle {
   return CAMPAIGN_STATUS_STYLE[status] ?? CAMPAIGN_STATUS_STYLE.DRAFT;
 }
+
+/**
+ * The same colours as a React style object.
+ *
+ * `bg` is not a CSS property, so spreading a StatusStyle straight into
+ * `style={{ ... }}` sets the text colour and silently drops the ground -- the
+ * chip renders its label on nothing, which reads as "styled" at a glance and is
+ * only visible in a computed-style check. Callers that want inline styles want
+ * this; `bg` stays for callers building their own config objects.
+ */
+export function campaignStatusCss(status: string): { background: string; color: string } {
+  const s = campaignStatusStyle(status);
+  return { background: s.bg, color: s.color };
+}
+
+/**
+ * One colour standing in for a status, for legend dots and other places with no
+ * room for a pill. It is the foreground everywhere except Active, whose
+ * foreground is white -- a white dot on a white page is not a legend entry.
+ */
+export function campaignStatusDot(status: string): string {
+  const s = campaignStatusStyle(status);
+  return s.color.toUpperCase() === "#FFFFFF" ? s.bg : s.color;
+}

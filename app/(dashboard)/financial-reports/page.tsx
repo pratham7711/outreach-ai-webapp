@@ -6,6 +6,7 @@ import { MetricTile, Button } from "@/components/ds";
 import { TrendingUp, TrendingDown, Minus, DollarSign, Wallet, BarChart2, Clock, Download, FileText, Table, TriangleAlert } from "lucide-react";
 import { loadCharts } from "@/components/charts/lazyCharts";
 import { downloadCsv } from "@/lib/csv";
+import { campaignStatusCss, STATUS_PILL_RADIUS } from "@/lib/statusColors";
 
 const PayoutTrendChart = dynamic(() => loadCharts().then((m) => m.PayoutTrendChart), {
   ssr: false,
@@ -21,13 +22,11 @@ const PERIODS = [
   { key: "ALL_TIME", label: "All Time" },
 ];
 
-const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
-  DRAFT:       { bg: "#F3F4F6", color: "#6B7280" },
-  PENDING:     { bg: "#FEF3C7", color: "#D97706" },
-  IN_PROGRESS: { bg: "#EEF2FF", color: "#4F46E5" },
-  COMPLETE:    { bg: "#D1FAE5", color: "#059669" },
-  CANCELLED:   { bg: "#FEE2E2", color: "#DC2626" },
-};
+/* The campaign statuses here are the same statuses the campaigns list shows,
+   so they read from the one captured palette rather than a second private copy
+   that had drifted: this table painted Active as a pale indigo tint where the
+   reference gives it a solid blue, so the running campaigns were the ones that
+   disappeared into the page. */
 
 type Stats = {
   paidPayouts: number;
@@ -369,9 +368,9 @@ export default function FinancialReportsPage() {
                       </td>
                       <td style={{ padding: "14px 20px" }}>
                         <span style={{
-                          fontSize: 11, fontWeight: 600, padding: "3px 8px", borderRadius: 12,
-                          background: STATUS_COLORS[c.status]?.bg ?? "#F3F4F6",
-                          color: STATUS_COLORS[c.status]?.color ?? "#6B7280",
+                          fontSize: 11, fontWeight: 600, padding: "3px 8px",
+                          borderRadius: STATUS_PILL_RADIUS,
+                          ...campaignStatusCss(c.status),
                         }}>
                           {c.status.replace(/_/g, " ")}
                         </span>
