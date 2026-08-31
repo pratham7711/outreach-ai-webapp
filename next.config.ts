@@ -41,8 +41,28 @@ const nextConfig: NextConfig = {
     navigate back to its list. The cache lives in memory only, so a hard refresh
     still fetches everything fresh.
   */
-  // Chromium ships its own binary; bundling it breaks the executable path.
+  /*
+    Chromium ships its own binary, so bundling it would break the executable
+    path — it has to stay external. But "external" only means "do not bundle";
+    something still has to put the files in the function, and Next's tracer
+    could not see them, because the reader imports both packages dynamically so
+    a static trace finds nothing to follow.
+
+    The first production run said so exactly: "Failed to load external module
+    playwright-core: Cannot find module '/var/task/node_modules...'". The browser
+    never launched, the cron fell back to the fetch path, and the fetch path
+    cannot read a music page — so the run looked identical to TikTok refusing us
+    when in fact we had never asked.
+
+    outputFileTracingIncludes is the half that puts the files there.
+  */
   serverExternalPackages: ["@sparticuz/chromium", "playwright-core"],
+  outputFileTracingIncludes: {
+    "/api/cron/sync-trackers": [
+      "./node_modules/@sparticuz/chromium/**",
+      "./node_modules/playwright-core/**",
+    ],
+  },
   experimental: {
     staleTimes: { dynamic: 30, static: 180 },
   },
