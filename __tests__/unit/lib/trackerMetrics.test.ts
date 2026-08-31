@@ -6,6 +6,8 @@ import {
   statusFor,
   velocityPerHour,
   isTrackerWindow,
+  readHealthFor,
+  isMeasurable,
 } from "@/lib/trackers/metrics";
 
 const NOW = new Date("2026-08-14T12:00:00.000Z");
@@ -127,5 +129,59 @@ describe("isTrackerWindow", () => {
     expect(isTrackerWindow("30d")).toBe(true);
     expect(isTrackerWindow("90d")).toBe(false);
     expect(isTrackerWindow("")).toBe(false);
+  });
+});
+
+describe("readHealthFor — a count and its age are one fact", () => {
+  it("is pending when nothing has ever been read", () => {
+    expect(readHealthFor(null, NOW)).toBe("pending");
+  });
+
+  it("is live inside the fresh window", () => {
+    expect(readHealthFor(hoursAgo(1), NOW)).toBe("live");
+    expect(readHealthFor(hoursAgo(23.9), NOW)).toBe("live");
+  });
+
+  it("treats a reading dated slightly in the future as live, not stale", () => {
+    // Clock skew between the reader box and the app should not blank the page.
+    const future = new Date(NOW.getTime() + 30 * 1000);
+    expect(readHealthFor(future, NOW)).toBe("live");
+  });
+
+  it("flips to regressed once the reader has missed six cycles", () => {
+    expect(readHealthFor(hoursAgo(24.1), NOW)).toBe("regressed");
+  });
+
+  it("is regressed — not stale — for the real nine-day outage this fixes", () => {
+    // "Wherever I Go": last read 22 Aug 22:00, still showing "stable +0.0%".
+    expect(readHealthFor(hoursAgo(9 * 24), NOW)).toBe("regressed");
+  });
+
+  it("is stale once a row has gone a month unread", () => {
+    expect(readHealthFor(hoursAgo(30 * 24 + 1), NOW)).toBe("stale");
+  });
+
+  it("only calls a live tracker measurable", () => {
+    expect(isMeasurable("live")).toBe(true);
+    for (const h of ["pending", "regressed", "stale"] as const) {
+      expect(isMeasurable(h)).toBe(false);
+    }
+  });
+
+  it("refuses to present a delta for the stale-fallback case", () => {
+    // changeOverWindow still returns a change here: with no snapshot inside the
+    // 24h window it falls back to the second-newest reading of all time. Both
+    // are the same nine-day-old 45, sixty seconds apart, so it reports +0 at a
+    // velocity of 0 — which statusFor calls "stable". The arithmetic is right;
+    // showing it is not. Health is the gate that stops it reaching the user.
+    const nineDays = 9 * 24;
+    const snapshots = [snap(45, nineDays), snap(45, nineDays + 1 / 60)];
+    const change = changeOverWindow(snapshots, "24h", NOW);
+    expect(change).not.toBeNull();
+    expect(change!.added).toBe(0);
+    expect(statusFor(change!.velocityPerHour)).toBe("stable");
+
+    // ...and this is why that must never be rendered.
+    expect(isMeasurable(readHealthFor(hoursAgo(nineDays), NOW))).toBe(false);
   });
 });

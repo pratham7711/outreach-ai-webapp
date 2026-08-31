@@ -22,6 +22,65 @@ export function isTrackerWindow(value: string): value is TrackerWindow {
   return (TRACKER_WINDOWS as readonly string[]).includes(value);
 }
 
+/**
+ * Whether a tracker's numbers are still worth believing.
+ *
+ * This is a separate question from what the numbers say, and conflating the two
+ * is what produced the bug this exists to fix. "Wherever I Go" was read five
+ * times in one hour on 22 August and never again. Nine days later the page still
+ * reported `stable, +0 / 24hr (+0.0%)` — because `changeOverWindow` finds no
+ * snapshot inside a 24-hour window, falls back to the second-newest reading of
+ * all time, and subtracts two identical nine-day-old numbers. Zero change, zero
+ * velocity, and `statusFor(0)` is "stable". Every step is behaving as written;
+ * the composition is a lie. Worse, the delta was labelled "/ 24hr" while the
+ * two readings it came from were sixty seconds apart.
+ *
+ * A count and its age are one fact. Trend answers "what is it doing", health
+ * answers "can we still see it", and the UI must render them in separate slots
+ * so a genuine decline is never mistaken for a dead reader.
+ */
+export type ReadHealth = "pending" | "live" | "regressed" | "stale";
+
+/**
+ * How old the newest reading may be before a number stops being current.
+ *
+ * The reader's timer is four-hourly, so this allows six consecutive misses
+ * before the UI stops showing a live delta — late enough that one skipped run
+ * is not an alarm, soon enough that a stopped reader cannot masquerade as calm
+ * for nine days.
+ *
+ * Deliberately distinct from the ingest route's 30-day LIVE_WINDOW_MS, which
+ * answers a different question: that one separates "an outage worth shouting
+ * about" from "a row nobody has tracked in a month". One threshold cannot serve
+ * both "is this current?" (hours) and "is this abandoned?" (weeks).
+ */
+export const FRESH_WINDOW_MS = 24 * HOUR_MS;
+export const ABANDONED_WINDOW_MS = 30 * 24 * HOUR_MS;
+
+export function readHealthFor(
+  lastReadAt: Date | null,
+  now: Date
+): ReadHealth {
+  if (!lastReadAt) return "pending";
+  const age = now.getTime() - lastReadAt.getTime();
+  // A clock skew that puts the reading in the future is still a live reading;
+  // treating a negative age as stale would blank the page over a second's drift.
+  if (age < FRESH_WINDOW_MS) return "live";
+  if (age < ABANDONED_WINDOW_MS) return "regressed";
+  return "stale";
+}
+
+/**
+ * True only when a signed delta may be shown to a user.
+ *
+ * The guard belongs here rather than in the component so that every surface —
+ * row, tile, detail chart, campaign audio card — agrees on when a number is
+ * presentable, instead of each re-deriving it and one of them forgetting.
+ */
+export function isMeasurable(health: ReadHealth): boolean {
+  return health === "live";
+}
+
 export function windowHours(window: TrackerWindow): number {
   return WINDOW_HOURS[window];
 }

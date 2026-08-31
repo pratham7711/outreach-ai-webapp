@@ -7,7 +7,7 @@ import { Badge, Card, Modal, Input, Skeleton, EmptyState } from "@pratham7711/ui
 import { MetricTile, Button } from "@/components/ds";
 import { Music, Plus, RefreshCw, Search, Trash2, TrendingUp } from "lucide-react";
 import { CreatorTrackers } from "./CreatorTrackers";
-import { formatCompact, formatDateAbs } from "@/lib/format";
+import { formatCompact, formatDateAbs, timeAgo } from "@/lib/format";
 import { apiDelete, apiFetch, apiPost } from "@/lib/api/client";
 import { errorMessage } from "@/lib/api/errorMessage";
 
@@ -41,6 +41,9 @@ interface TrackedSound {
   growthPercentage: number | null;
   addedInPeriod: number | null;
   snapshotCount: number;
+  /** Whether the number above can still be believed — see lib/trackers/metrics. */
+  health: "pending" | "live" | "regressed" | "stale";
+  lastReadAt: string | null;
 }
 
 const PERIODS: { key: string; label: string }[] = [
@@ -419,28 +422,63 @@ export default function TrackersPage() {
                   <div title={s.title} style={{ fontWeight: 600, fontSize: 14, color: "var(--cc-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title}</div>
                   <div style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{s.artist || "Unknown artist"}</div>
                 </div>
-                <Badge variant={STATUS_VARIANTS[s.status]} size="sm">
-                  {s.status === "unknown" ? "no data" : s.status}
-                </Badge>
+                {/* Trend and read-health never share a slot. A sound that is
+                    genuinely losing uses and a sound nobody has read in a week
+                    are different facts, and one badge cannot say both. */}
+                {s.health === "live" ? (
+                  <Badge variant={STATUS_VARIANTS[s.status]} size="sm">
+                    {s.status === "unknown" ? "no data" : s.status}
+                  </Badge>
+                ) : (
+                  <Badge variant={s.health === "pending" ? "neutral" : "warning"} size="sm">
+                    {s.health === "pending" ? "awaiting first reading" : "not updating"}
+                  </Badge>
+                )}
                 <div style={{ textAlign: "right", minWidth: 96 }}>
-                  <div style={{ fontWeight: 700, fontSize: 14, color: "var(--cc-text)" }}>
+                  <div
+                    style={{
+                      fontWeight: 700,
+                      fontSize: 14,
+                      color: "var(--cc-text)",
+                      // A dated number is still useful; a dated number dressed
+                      // as a current one is not. Dim it and say when it is from.
+                      opacity: s.health === "live" || !snap ? 1 : 0.6,
+                    }}
+                    title={
+                      snap && s.health !== "live"
+                        ? `Last read ${formatDateAbs(s.lastReadAt ?? snap.recordedAt)}`
+                        : undefined
+                    }
+                  >
                     {snap ? formatCount(snap.usesCount) : "—"}
                   </div>
                   {measured && added !== null ? (
-                    <div style={{ fontSize: 12, color: added >= 0 ? "var(--cc-primary)" : "#ef4444" }}>
+                    <div style={{ fontSize: 12, color: added >= 0 ? "var(--cc-primary)" : "var(--cc-danger)" }}>
                       {added >= 0 ? "+" : ""}
                       {formatCount(added)} / {periodLabel(period)}
                       {s.growthPercentage !== null
                         ? ` (${s.growthPercentage >= 0 ? "+" : ""}${s.growthPercentage.toFixed(1)}%)`
                         : ""}
                     </div>
+                  ) : s.health !== "live" && s.lastReadAt ? (
+                    // The case this whole change exists for: rather than "+0 /
+                    // 24hr" computed from two readings a minute apart nine days
+                    // ago, say plainly that nobody has looked since.
+                    <div
+                      style={{ fontSize: 12, color: "var(--cc-warning)" }}
+                      title={`Readings stopped on ${formatDateAbs(s.lastReadAt)}. The count above is the last known value, not a current one.`}
+                    >
+                      last read {timeAgo(s.lastReadAt)}
+                    </div>
                   ) : (
                     <div
                       style={{ fontSize: 12, color: "var(--cc-text-muted)" }}
                       title={
-                        s.snapshotCount < 2
-                          ? "Needs a second reading before change can be measured"
-                          : "No readings inside this period"
+                        s.health === "pending"
+                          ? "First reading usually lands within four hours"
+                          : s.snapshotCount < 2
+                            ? "Needs a second reading before change can be measured"
+                            : "No readings inside this period"
                       }
                     >
                       — / {periodLabel(period)}
