@@ -4,11 +4,20 @@ import { authenticateRequest } from "@/lib/authenticate";
 import { z } from "zod";
 import {
   changeOverWindow,
+  isMeasurable,
   isTrackerWindow,
+  readHealthFor,
   statusFor,
+  windowHours,
   type TrackerSnapshot,
   type WindowChange,
 } from "@/lib/trackers/metrics";
+import {
+  downsample,
+  effectiveChartGranularity,
+  parseGranularity,
+  snapshotFetchLimit,
+} from "@/lib/trackers/granularity";
 
 const SORTS = ["velocity", "uses", "added"] as const;
 type SortKey = (typeof SORTS)[number];
@@ -39,16 +48,29 @@ export async function GET(req: NextRequest) {
     const sort = parseSort(req.nextUrl.searchParams.get("sort"));
     const now = new Date();
 
+    // The org decides how densely its charts are drawn, and how densely they are
+    // read. A flat take:60 was ten days at the four-hourly cadence, so the 30d
+    // window could never be honoured however much history the table held.
+    const org = await db.organization.findUnique({
+      where: { id: orgId },
+      select: { uiConfig: true },
+    });
+    const granularity = parseGranularity(org?.uiConfig ?? null);
+    const windowDays = windowHours(period) / 24;
+
     const sounds = await db.tikTokSound.findMany({
       where: { orgId },
       include: {
         snapshots: {
           orderBy: { recordedAt: "desc" },
-          take: 60,
+          take: snapshotFetchLimit(granularity, windowDays),
         },
       },
       orderBy: { createdAt: "desc" },
     });
+
+    // Clamped, so a chart is never drawn finer than the reader samples.
+    const chartAt = effectiveChartGranularity(granularity);
 
     const mapped = sounds.map((sound) => {
       const history: TrackerSnapshot[] = sound.snapshots.map((s) => ({
@@ -58,14 +80,36 @@ export async function GET(req: NextRequest) {
       const change = changeOverWindow(history, period, now);
       const latest = sound.snapshots[0] ?? null;
 
+      // Age is served with the count, never separately. changeOverWindow will
+      // happily subtract two readings from the same minute nine days ago and
+      // call it a 24-hour delta; `health` is what tells the client not to
+      // believe it. Both go over the wire so no surface has to re-derive it.
+      const lastReadAt = latest?.recordedAt ?? null;
+      const health = readHealthFor(lastReadAt, now);
+      const measurable = isMeasurable(health);
+
       return {
         ...sound,
         latestSnapshot: latest,
         change,
-        status: statusFor(change?.velocityPerHour ?? null),
-        growthPercentage: change?.percent ?? null,
-        addedInPeriod: change?.added ?? null,
+        health,
+        lastReadAt,
+        // Trend and delta are withheld rather than zeroed when the reader has
+        // stopped: "unknown" is a state the UI already renders honestly, while
+        // a zero is indistinguishable from a sound that genuinely did not move.
+        status: measurable ? statusFor(change?.velocityPerHour ?? null) : "unknown",
+        growthPercentage: measurable ? change?.percent ?? null : null,
+        addedInPeriod: measurable ? change?.added ?? null : null,
         snapshotCount: sound.snapshots.length,
+        // The series the chart draws: one point per bucket, oldest first, with
+        // the closing value of each bucket rather than its mean. Change figures
+        // above stay on the raw history — downsampling is a display concern and
+        // must not move the numbers in the tiles.
+        series: downsample(history, chartAt).map((s) => ({
+          value: s.value,
+          recordedAt: s.recordedAt,
+        })),
+        chartGranularity: chartAt,
       };
     });
 
