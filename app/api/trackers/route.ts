@@ -18,6 +18,7 @@ import {
   parseGranularity,
   snapshotFetchLimit,
 } from "@/lib/trackers/granularity";
+import { SOUND_URL_ERRORS, parseSoundUrl } from "@/lib/trackers/soundUrl";
 
 const SORTS = ["velocity", "uses", "added"] as const;
 type SortKey = (typeof SORTS)[number];
@@ -151,14 +152,61 @@ export async function GET(req: NextRequest) {
  */
 const TIKTOK_SOUND_ID = /^\d{18,20}$/;
 
-const createSoundSchema = z.object({
-  tiktokSoundId: z
-    .string()
-    .regex(TIKTOK_SOUND_ID, "tiktokSoundId must be an 18-20 digit TikTok sound id"),
-  title: z.string().min(1),
-  artist: z.string().min(1),
-  coverImageUrl: z.string().nullable().optional(),
-});
+const createSoundSchema = z.union([
+  // What a person actually has: the link. Everything but the id and a
+  // provisional title arrives with the first reading.
+  z.object({ url: z.string().min(1).max(2048) }),
+  // The original shape, kept for ops and for anything already calling this.
+  z.object({
+    tiktokSoundId: z
+      .string()
+      .regex(TIKTOK_SOUND_ID, "tiktokSoundId must be an 18-20 digit TikTok sound id"),
+    title: z.string().min(1),
+    artist: z.string().min(1),
+    coverImageUrl: z.string().nullable().optional(),
+  }),
+]);
+
+/**
+ * Follow a share link far enough to see the sound behind it.
+ *
+ * vm./vt. links carry an opaque token and no id, so the only way to learn one
+ * is to ask where the link goes. A redirect is served before TikTok's app boots,
+ * so unlike the count this *can* be read server-side.
+ *
+ * Manual redirects, and every hop re-checked against the TikTok host set: an
+ * open redirect on a shortener would otherwise turn this endpoint into a
+ * request forgery primitive pointed at whatever the attacker likes.
+ */
+const MAX_HOPS = 3;
+
+async function expandShortLink(input: string): Promise<string | null> {
+  let current = input;
+  for (let hop = 0; hop < MAX_HOPS; hop++) {
+    let res: Response;
+    try {
+      res = await fetch(current, {
+        method: "HEAD",
+        redirect: "manual",
+        signal: AbortSignal.timeout(5000),
+      });
+    } catch {
+      return null;
+    }
+    const location = res.headers.get("location");
+    if (!location) return current; // no further hop: this is the destination
+
+    let next: URL;
+    try {
+      next = new URL(location, current);
+    } catch {
+      return null;
+    }
+    if (!/(^|\.)tiktok\.com$/i.test(next.hostname)) return null;
+    current = next.toString();
+  }
+  return current;
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -176,14 +224,66 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    let tiktokSoundId: string;
+    let title: string;
+    let artist: string;
+    let coverImageUrl: string | null = null;
+
+    if ("url" in parsed.data) {
+      let result = parseSoundUrl(parsed.data.url);
+
+      if (result.kind === "short-link") {
+        const expanded = await expandShortLink(result.url);
+        result = expanded
+          ? parseSoundUrl(expanded)
+          : { kind: "invalid", reason: "unrecognised" };
+        if (!expanded) {
+          return NextResponse.json(
+            { error: "short_link_unresolvable", message: SOUND_URL_ERRORS.short_link_unresolvable },
+            { status: 422 }
+          );
+        }
+      }
+
+      if (result.kind !== "sound") {
+        // A short-link that survived expansion still pointing at a short-link
+        // is not a shape we can name any better than "we did not find a sound".
+        const reason =
+          result.kind === "video"
+            ? "video_url"
+            : result.kind === "invalid"
+              ? result.reason
+              : "unrecognised";
+        return NextResponse.json(
+          { error: reason, message: SOUND_URL_ERRORS[reason] },
+          { status: 400 }
+        );
+      }
+
+      tiktokSoundId = result.tiktokSoundId;
+      // Marked provisional wherever it is shown; the first reading replaces it
+      // with whatever TikTok actually calls the sound.
+      title = result.provisionalTitle ?? `Sound ${result.tiktokSoundId.slice(-6)}`;
+      artist = "";
+    } else {
+      tiktokSoundId = parsed.data.tiktokSoundId;
+      title = parsed.data.title;
+      artist = parsed.data.artist;
+      coverImageUrl = parsed.data.coverImageUrl ?? null;
+    }
+
+    // Pasting the same link twice is a normal thing to do, and two rows for one
+    // sound would read the same page twice and diverge. Return what is already
+    // tracked instead of creating a duplicate or failing.
+    const existing = await db.tikTokSound.findFirst({
+      where: { orgId, tiktokSoundId },
+    });
+    if (existing) {
+      return NextResponse.json({ ...existing, alreadyTracked: true }, { status: 200 });
+    }
+
     const sound = await db.tikTokSound.create({
-      data: {
-        orgId,
-        tiktokSoundId: parsed.data.tiktokSoundId,
-        title: parsed.data.title,
-        artist: parsed.data.artist,
-        coverImageUrl: parsed.data.coverImageUrl ?? null,
-      },
+      data: { orgId, tiktokSoundId, title, artist, coverImageUrl },
     });
 
     return NextResponse.json(sound, { status: 201 });

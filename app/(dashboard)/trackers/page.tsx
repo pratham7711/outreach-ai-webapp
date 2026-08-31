@@ -11,6 +11,7 @@ import { SoundDetailModal } from "./SoundDetailModal";
 import { formatCompact, formatDateAbs, timeAgo } from "@/lib/format";
 import { apiDelete, apiFetch, apiPost } from "@/lib/api/client";
 import { errorMessage } from "@/lib/api/errorMessage";
+import { SOUND_URL_ERRORS, parseSoundUrl } from "@/lib/trackers/soundUrl";
 
 interface SoundSnapshot {
   usesCount: number;
@@ -120,7 +121,7 @@ export default function TrackersPage() {
     router.replace(`?${params.toString()}`, { scroll: false });
   };
   const [modalOpen, setModalOpen] = useState(false);
-  const [formData, setFormData] = useState({ tiktokSoundId: "", title: "", artist: "" });
+  const [urlInput, setUrlInput] = useState("");
   const [period, setPeriod] = useState("24h");
   // The reference lets this list be searched. Client-side over the already
   // fetched page: the sort and period are what the query is keyed on, and adding
@@ -156,12 +157,18 @@ export default function TrackersPage() {
   }, [queryClient]);
 
   const createMutation = useMutation({
-    mutationFn: (payload: typeof formData) => apiPost("/api/trackers", payload),
-    onSuccess: () => {
+    mutationFn: (url: string) => apiPost<TrackedSound & { alreadyTracked?: boolean }>("/api/trackers", { url }),
+    onSuccess: (created) => {
       setModalOpen(false);
-      setFormData({ tiktokSoundId: "", title: "", artist: "" });
+      setUrlInput("");
       invalidate();
-      toast.success("Sound tracked");
+      if (created?.alreadyTracked) {
+        toast.success(`Already tracking \u201C${created.title}\u201D`);
+      } else {
+        // Says what happens next, because nothing happens for a while: readings
+        // arrive on the reader's schedule, not on submit.
+        toast.success("Tracking started — the first reading usually lands within a few hours");
+      }
     },
     onError: (error) => toast.error(errorMessage(error, "Could not track that sound")),
   });
@@ -193,10 +200,27 @@ export default function TrackersPage() {
 
   const submitting = createMutation.isPending;
 
+  // Same parser the route runs, so the modal cannot accept something the server
+  // will reject — and a video link is named before a request is even made.
+  const clientError = useMemo(() => {
+    const raw = urlInput.trim();
+    if (!raw) return null;
+    const parsed = parseSoundUrl(raw);
+    if (parsed.kind === "sound" || parsed.kind === "short-link") return null;
+    const reason = parsed.kind === "video" ? "video_url" : parsed.reason;
+    return SOUND_URL_ERRORS[reason] ?? SOUND_URL_ERRORS.unrecognised;
+  }, [urlInput]);
+
+  const closeAddModal = useCallback(() => {
+    setModalOpen(false);
+    setUrlInput("");
+  }, []);
+
   const handleCreate = useCallback(() => {
-    if (!formData.tiktokSoundId || !formData.title) return;
-    createMutation.mutate(formData);
-  }, [createMutation, formData]);
+    const raw = urlInput.trim();
+    if (!raw || clientError) return;
+    createMutation.mutate(raw);
+  }, [createMutation, urlInput, clientError]);
 
   const handleDelete = useCallback(
     (id: string) => deleteMutation.mutate(id),
@@ -542,39 +566,39 @@ export default function TrackersPage() {
       )}
 
       {/* Track Sound Modal */}
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Track a Sound" size="sm" footer={
+      <Modal open={modalOpen} onClose={closeAddModal} title="Track a Sound" size="sm" footer={
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-          <Button variant="ghost" onClick={() => setModalOpen(false)}>Cancel</Button>
-          <Button variant="primary" onClick={handleCreate} disabled={submitting || !formData.tiktokSoundId || !formData.title}>
-            {submitting ? "Adding..." : "Track Sound"}
+          <Button variant="ghost" onClick={closeAddModal}>Cancel</Button>
+          <Button variant="primary" onClick={handleCreate} disabled={submitting || !urlInput.trim() || clientError !== null}>
+            {submitting ? "Adding\u2026" : "Track Sound"}
           </Button>
         </div>
       }>
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <div>
-            <label style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6, display: "block" }}>TikTok Sound ID *</label>
-            <Input
-              placeholder="e.g. 7123456789"
-              value={formData.tiktokSoundId}
-              onChange={(e) => setFormData((f) => ({ ...f, tiktokSoundId: e.target.value }))}
-            />
-          </div>
-          <div>
-            <label style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6, display: "block" }}>Title *</label>
-            <Input
-              placeholder="Sound title"
-              value={formData.title}
-              onChange={(e) => setFormData((f) => ({ ...f, title: e.target.value }))}
-            />
-          </div>
-          <div>
-            <label style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6, display: "block" }}>Artist</label>
-            <Input
-              placeholder="Artist name"
-              value={formData.artist}
-              onChange={(e) => setFormData((f) => ({ ...f, artist: e.target.value }))}
-            />
-          </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <label htmlFor="sound-url" style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>
+            TikTok sound link
+          </label>
+          <Input
+            id="sound-url"
+            autoFocus
+            placeholder="https://www.tiktok.com/music/..."
+            value={urlInput}
+            onChange={(e) => setUrlInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter" && !clientError && urlInput.trim()) handleCreate(); }}
+            aria-invalid={clientError !== null}
+            aria-describedby={clientError ? "sound-url-error" : "sound-url-help"}
+          />
+          {clientError ? (
+            <div id="sound-url-error" role="alert" style={{ fontSize: 12, color: "var(--cc-danger)" }}>
+              {clientError}
+            </div>
+          ) : (
+            <div id="sound-url-help" style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>
+              Open the sound&apos;s page on TikTok — tap the spinning record on any video, or the
+              sound name at the bottom — then copy that link. The title and artwork fill in
+              automatically after the first reading.
+            </div>
+          )}
         </div>
       </Modal>
 
