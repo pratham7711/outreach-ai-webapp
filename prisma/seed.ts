@@ -11,7 +11,51 @@ const prisma = new PrismaClient({ adapter });
 // buried pages deep — so a re-seed stamps them as the newest thing here.
 const SEEDED_AT = new Date();
 
+/**
+ * Refuse to seed anything that looks like production.
+ *
+ * This guard exists because the fixtures below reached the production database.
+ * Three TikTok sounds with invented ids sat in the live tracker for five months,
+ * their March snapshots summing into every headline tile, and the demo login
+ * admin@demo.com / admin123 — whose password is three lines further down, in a
+ * public repository — was a working account on the deployed app.
+ *
+ * Nothing here distinguished "seed my laptop" from "seed the database LKAY logs
+ * into". The org lookup below is by subdomain, so it happily creates Demo Agency
+ * wherever it is pointed.
+ *
+ * Two independent conditions, because either alone is too easy to satisfy by
+ * accident: the connection string must not be a known production host, and the
+ * operator must say so out loud with SEED_ALLOW=1.
+ */
+function assertSafeToSeed(): void {
+  const url = process.env.DATABASE_URL ?? "";
+  if (!url) throw new Error("DATABASE_URL is not set; refusing to seed.");
+
+  // Neon names its branches in the host. A production branch is not a place for
+  // fixtures, whatever the operator believes they are connected to.
+  const looksProd = /(^|[.-])(prod|production|main)\b/i.test(url) ||
+    /outreach-prod/i.test(url);
+
+  if (looksProd) {
+    throw new Error(
+      "DATABASE_URL looks like production. Refusing to seed.\n" +
+        "If this really is a disposable branch, rename it or point at a dev branch."
+    );
+  }
+
+  if (process.env.SEED_ALLOW !== "1") {
+    throw new Error(
+      "Refusing to seed without an explicit opt-in.\n" +
+        "This writes Demo Agency, admin@demo.com/admin123 and fixture campaigns.\n" +
+        "Re-run with SEED_ALLOW=1 if that is what you want."
+    );
+  }
+}
+
 async function main() {
+  assertSafeToSeed();
+
   const org = await prisma.organization.upsert({
     where: { subdomain: "demo-agency" },
     update: { plan: "pro" },

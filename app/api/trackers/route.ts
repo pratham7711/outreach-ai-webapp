@@ -91,8 +91,26 @@ export async function GET(req: NextRequest) {
 }
 
 // ---------- POST /api/trackers ----------
+/**
+ * A TikTok sound id is a snowflake: 18-20 digits, nothing else.
+ *
+ * This is a front door, not a formality. Production carried three sounds with
+ * hand-invented ids (7300001-3) from a seed run, each with snapshots frozen in
+ * March, and they sat in the tracker for months summing into every headline
+ * tile on the page. Nothing could ever resolve them — no such sound exists —
+ * but nothing rejected them either, so the worker skipped them on every pass
+ * and the dashboard reported their invented totals as fact.
+ *
+ * Rejecting the shape at the boundary turns "tracked forever, never readable"
+ * into an immediate 400. The bound is deliberately a range rather than a fixed
+ * 19: ids have grown a digit before and will again.
+ */
+const TIKTOK_SOUND_ID = /^\d{18,20}$/;
+
 const createSoundSchema = z.object({
-  tiktokSoundId: z.string().min(1),
+  tiktokSoundId: z
+    .string()
+    .regex(TIKTOK_SOUND_ID, "tiktokSoundId must be an 18-20 digit TikTok sound id"),
   title: z.string().min(1),
   artist: z.string().min(1),
   coverImageUrl: z.string().nullable().optional(),
