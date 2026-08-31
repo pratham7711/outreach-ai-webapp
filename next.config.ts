@@ -41,6 +41,8 @@ const nextConfig: NextConfig = {
     navigate back to its list. The cache lives in memory only, so a hard refresh
     still fetches everything fresh.
   */
+  // Chromium ships its own binary; bundling it breaks the executable path.
+  serverExternalPackages: ["@sparticuz/chromium", "playwright-core"],
   experimental: {
     staleTimes: { dynamic: 30, static: 180 },
   },

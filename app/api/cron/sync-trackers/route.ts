@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
+
+/* A browser read costs about ten seconds a sound, measured. The default
+   function ceiling would cut the run off after a couple of sounds. */
+export const maxDuration = 300;
+export const runtime = "nodejs";
 import { db } from "@/lib/db";
 import { createLogger } from "@/lib/observability/logger";
 import { fetchTikTokSoundStats } from "@/lib/platforms/tiktokSound";
+import { fetchSoundStatsViaBrowser } from "@/lib/platforms/tiktokSoundBrowser";
 import {
   changeOverWindow,
   previousOf,
@@ -82,7 +88,16 @@ export async function GET(request: NextRequest) {
         continue;
       }
 
-      const stats = await fetchTikTokSoundStats(sound.tiktokSoundId);
+      // A music page needs a browser: the count arrives from /api/music/detail/,
+      // which is empty without headers TikTok's own client script signs. The
+      // plain fetch below is kept as a fallback only because it costs nothing
+      // when the browser is unavailable — on its own it has never produced a
+      // reading, which is why this cron ran daily for ten days and wrote none.
+      let stats = await fetchSoundStatsViaBrowser(sound.tiktokSoundId).catch((e) => {
+        log.warn("browser read failed", { soundId: sound.id, error: String(e).slice(0, 120) });
+        return null;
+      });
+      if (!stats) stats = await fetchTikTokSoundStats(sound.tiktokSoundId);
       if (!stats) {
         decisions.push({ soundId: sound.id, action: "fail", reason: "no-data" });
         failed++;
