@@ -16,3 +16,5 @@ export type { SortAccessors, SortDir, SortState, SortValue } from "./SortableTh"
 export { Dropdown } from "./Dropdown";
 export type { DropdownOption } from "./Dropdown";
 export { Button } from "./Button";
+export { FeatureState, ComingSoon } from "./FeatureState";
+export type { FeatureStateKind } from "./FeatureState";

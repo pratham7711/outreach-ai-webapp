@@ -8,6 +8,7 @@ import { MetricTile, Button } from "@/components/ds";
 import { Music, Plus, RefreshCw, Search, Trash2, TrendingUp } from "lucide-react";
 import { CreatorTrackers } from "./CreatorTrackers";
 import { SoundDetailModal } from "./SoundDetailModal";
+import { TrackersIntro } from "./TrackersIntro";
 import { formatCompact, formatDateAbs, timeAgo } from "@/lib/format";
 import { apiDelete, apiFetch, apiPost } from "@/lib/api/client";
 import { errorMessage } from "@/lib/api/errorMessage";
@@ -348,12 +349,7 @@ export default function TrackersPage() {
           action={<Button variant="primary" onClick={() => refetch()}>Retry</Button>}
         />
       ) : allSounds.length === 0 ? (
-        <EmptyState
-          icon={<TrendingUp size={40} />}
-          title="No trackers yet"
-          description="Start tracking TikTok sounds to monitor their performance and trends."
-          action={<Button variant="primary" onClick={() => setModalOpen(true)}>Track Sound</Button>}
-        />
+        <TrackersIntro onAdd={() => setModalOpen(true)} />
       ) : sounds.length === 0 ? (
         <EmptyState
           icon={<Search size={40} />}
