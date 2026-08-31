@@ -7,6 +7,7 @@ import { Badge, Card, Modal, Input, Skeleton, EmptyState } from "@pratham7711/ui
 import { MetricTile, Button } from "@/components/ds";
 import { Music, Plus, RefreshCw, Search, Trash2, TrendingUp } from "lucide-react";
 import { CreatorTrackers } from "./CreatorTrackers";
+import { SoundDetailModal } from "./SoundDetailModal";
 import { formatCompact, formatDateAbs, timeAgo } from "@/lib/format";
 import { apiDelete, apiFetch, apiPost } from "@/lib/api/client";
 import { errorMessage } from "@/lib/api/errorMessage";
@@ -44,6 +45,8 @@ interface TrackedSound {
   /** Whether the number above can still be believed — see lib/trackers/metrics. */
   health: "pending" | "live" | "regressed" | "stale";
   lastReadAt: string | null;
+  series: { value: number; recordedAt: string }[];
+  chartGranularity: "hourly" | "4hourly" | "daily" | "weekly";
 }
 
 const PERIODS: { key: string; label: string }[] = [
@@ -107,6 +110,15 @@ export default function TrackersPage() {
   };
   // Held here so the header button can open the picker the Creators tab owns.
   const [creatorPickerOpen, setCreatorPickerOpen] = useState(false);
+  // Which audio's detail is open, mirrored into ?tracker= so the panel is
+  // linkable and survives a reload — the reference addresses it the same way.
+  const openTracker = searchParams.get("tracker");
+  const setOpenTracker = (id: string | null) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (id) params.set("tracker", id);
+    else params.delete("tracker");
+    router.replace(`?${params.toString()}`, { scroll: false });
+  };
   const [modalOpen, setModalOpen] = useState(false);
   const [formData, setFormData] = useState({ tiktokSoundId: "", title: "", artist: "" });
   const [period, setPeriod] = useState("24h");
@@ -419,7 +431,23 @@ export default function TrackersPage() {
                   )}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div title={s.title} style={{ fontWeight: 600, fontSize: 14, color: "var(--cc-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title}</div>
+                  {/* Opening the detail is a real button, so the row is reachable
+                      by keyboard rather than click-only. The id goes in the URL
+                      (?tracker=) so a manager can paste the link to one sound. */}
+                  <button
+                    type="button"
+                    onClick={() => setOpenTracker(s.id)}
+                    title={s.title}
+                    aria-label={`Open details for ${s.title}`}
+                    style={{
+                      display: "block", width: "100%", textAlign: "left",
+                      background: "none", border: "none", padding: 0, cursor: "pointer",
+                      fontWeight: 600, fontSize: 14, color: "var(--cc-text)",
+                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                    }}
+                  >
+                    {s.title}
+                  </button>
                   <div style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{s.artist || "Unknown artist"}</div>
                 </div>
                 {/* Trend and read-health never share a slot. A sound that is
@@ -549,6 +577,14 @@ export default function TrackersPage() {
           </div>
         </div>
       </Modal>
+
+      {/* Detail for one audio. Driven off the already-fetched row, so opening it
+          costs no request and the charts paint immediately. */}
+      <SoundDetailModal
+        open={Boolean(openTracker)}
+        onClose={() => setOpenTracker(null)}
+        sound={allSounds.find((s) => s.id === openTracker) ?? null}
+      />
     </div>
   );
 }
