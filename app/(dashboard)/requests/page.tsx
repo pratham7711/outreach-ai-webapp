@@ -7,16 +7,33 @@ import { formatDateAbs } from "@/lib/format";
 import { Inbox, Search, Download } from "lucide-react";
 import { downloadCsv, exportStamp } from "@/lib/csv";
 
+/**
+ * Mirrors what `GET /api/payout-requests` actually returns.
+ *
+ * It returns flat fields under a `payoutRequests` key; this page read
+ * `data.requests` and reached for nested `creator.name` / `campaign.title`.
+ * Neither the key nor the shape matched, so the list rendered empty whatever
+ * the database held — and because Export is disabled on an empty list, that
+ * button was permanently greyed out too. Creators could raise payout requests
+ * from the portal that no one on the agency side could ever see.
+ *
+ * The route builds `creatorName`/`creatorHandle` from its own creator lookup
+ * rather than a Prisma include, so flat is the deliberate shape; the client is
+ * what was out of step.
+ */
 interface PayoutRequest {
   id: string;
   campaignId: string;
+  campaignTitle: string | null;
   creatorId: string;
+  creatorName: string | null;
+  creatorHandle: string | null;
   requestedAmount: number;
   currency: string;
   status: string;
+  rejectionReason?: string | null;
+  processedAt?: string | null;
   createdAt: string;
-  campaign?: { title: string };
-  creator?: { name: string; handle: string };
 }
 
 const STATUS_TABS = [
@@ -46,7 +63,7 @@ export default function RequestsPage() {
       const res = await fetch("/api/payout-requests");
       if (res.ok) {
         const data = await res.json();
-        setRequests(data.requests ?? []);
+        setRequests(data.payoutRequests ?? []);
       }
     } catch {
       // silent
@@ -86,9 +103,9 @@ export default function RequestsPage() {
     if (!q) return byStatus;
     return byStatus.filter(
       (r) =>
-        (r.creator?.name ?? "").toLowerCase().includes(q) ||
-        (r.creator?.handle ?? "").toLowerCase().includes(q) ||
-        (r.campaign?.title ?? "").toLowerCase().includes(q),
+        (r.creatorName ?? "").toLowerCase().includes(q) ||
+        (r.creatorHandle ?? "").toLowerCase().includes(q) ||
+        (r.campaignTitle ?? "").toLowerCase().includes(q),
     );
   })();
 
@@ -107,9 +124,9 @@ export default function RequestsPage() {
       ["Requested", "Creator", "Handle", "Campaign", "Amount", "Currency", "Status"],
       ...filtered.map((r) => [
         formatDateAbs(r.createdAt),
-        r.creator?.name ?? "",
-        r.creator?.handle ?? "",
-        r.campaign?.title ?? "",
+        r.creatorName ?? "",
+        r.creatorHandle ?? "",
+        r.campaignTitle ?? "",
         r.requestedAmount,
         r.currency,
         r.status,
@@ -230,7 +247,7 @@ export default function RequestsPage() {
             <span style={{ fontSize: 13, color: "var(--cc-text-muted)", marginLeft: 8 }}>({filtered.length})</span>
           </div>
           {filtered.map((r, i) => {
-            const creatorName = r.creator?.name ?? r.creator?.handle ?? `Creator ${r.creatorId.slice(0, 6)}`;
+            const creatorName = r.creatorName ?? r.creatorHandle ?? `Creator ${r.creatorId.slice(0, 6)}`;
             return (
               <div
                 key={r.id}
@@ -247,8 +264,8 @@ export default function RequestsPage() {
                 <Avatar name={creatorName} size="sm" />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 600, fontSize: 14, color: "var(--cc-text)" }}>{creatorName}</div>
-                  <div title={r.campaign?.title ?? undefined} style={{ fontSize: 12, color: "var(--cc-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {r.campaign?.title ?? "Unknown campaign"}
+                  <div title={r.campaignTitle ?? undefined} style={{ fontSize: 12, color: "var(--cc-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {r.campaignTitle ?? "Unknown campaign"}
                   </div>
                 </div>
                 <Badge variant={STATUS_BADGE[r.status] ?? "neutral"} size="sm">{r.status.toLowerCase()}</Badge>

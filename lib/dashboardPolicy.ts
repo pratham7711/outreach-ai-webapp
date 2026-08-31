@@ -63,6 +63,11 @@ export const DASHBOARD_NAV_RULES: DashboardNavRule[] = [
   { href: "/media-kits", key: "media-kits", featureKeys: [MEDIA_KITS_FEATURE] },
   { href: "/settings", alwaysVisible: true },
   { href: "/connections", alwaysVisible: true },
+  // Settings -> General is in NAV_SECTIONS but had no rule here, and the sidebar
+  // renders NAV_SECTIONS filtered by this allowlist -- so the taxonomy manager
+  // was invisible to every org, not just under-entitled ones. Same omission that
+  // was already fixed above for /deadlines and /analytics.
+  { href: "/settings/general", alwaysVisible: true },
   { href: "/settings/team", alwaysVisible: true },
   { href: "/settings/api-keys", alwaysVisible: true },
   { href: "/settings/billing", alwaysVisible: true },
