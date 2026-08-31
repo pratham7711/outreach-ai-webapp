@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
-import { ArrowRight, BellRing, Building2, CreditCard, Tags, Users } from "lucide-react";
+import { ArrowRight, BellRing, Building2, CreditCard, LineChart, Tags, Users } from "lucide-react";
 
 const cards = [
   {
@@ -27,6 +27,12 @@ const cards = [
     description: "Create and revoke keys for API access and integrations.",
     href: "/settings/api-keys",
     icon: CreditCard,
+  },
+  {
+    title: "Trackers",
+    description: "How often tracked sounds are read from TikTok, and how densely their charts are drawn.",
+    href: "/settings/trackers",
+    icon: LineChart,
   },
   {
     title: "Billing",

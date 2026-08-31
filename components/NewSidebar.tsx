@@ -19,7 +19,14 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
   while their routes and tables stay put. Inbox and Fan Pages are parked the
   same way. Everything reachable here is campaign delivery and reporting.
 */
-const NAV_SECTIONS = [
+/**
+ * Exported so a test can assert every href here has a rule in
+ * DASHBOARD_NAV_RULES. The sidebar renders these filtered by that allowlist, so
+ * an item added here without a rule is invisible to every org -- which has now
+ * happened three times (/deadlines, /analytics, and /settings/general, the last
+ * of which hid the taxonomy manager from everyone).
+ */
+export const NAV_SECTIONS = [
   {
     label: "Campaigns & Reporting",
     items: [
@@ -50,6 +57,7 @@ const NAV_SECTIONS = [
       { href: "/settings/general", icon: Tags, label: "General" },
       { href: "/connections", icon: Link2, label: "Connections" },
       { href: "/settings/team", icon: Users2, label: "Team" },
+      { href: "/settings/trackers", icon: LineChart, label: "Tracker settings" },
       { href: "/settings/api-keys", icon: Key, label: "API Keys" },
       { href: "/settings/billing", icon: CreditCard, label: "Billing" },
       { href: "/settings/ingestion", icon: Activity, label: "Ingestion" },
