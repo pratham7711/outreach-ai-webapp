@@ -143,6 +143,28 @@ is no workaround and no way to export the data first. Sequence is therefore:
 4. Repoint `DATABASE_URL`, deploy.
 5. Keep the old project 7 days, then delete.
 
+### Step 6, which was missed: check `vercel.json` regions afterwards
+
+The move above put the database in `us-east-1` on 21 Aug so it would sit beside
+`iad1` compute. Two days later `d64601a` — "Run the functions next to the
+database" — set `"regions": ["sin1"]`, moving compute to Singapore to join a
+database that had left Singapore that same week.
+
+The gap reopened in the opposite direction and stayed open for eight days:
+functions in `sin1`, database in `us-east-1`, roughly 220 ms per round trip.
+`GET /api/campaigns/[id]` issues about nine queries inside one include, so the
+page paid a couple of seconds of pure network before doing any work. Confirmed
+live from the response header `x-vercel-id: fra1::sin1::…` while
+`DATABASE_URL` pointed at `…us-east-1.aws.neon.tech`. Restored to `iad1`.
+
+Both changes were correct in isolation and were reasoned from the layout as it
+stood *before the other one landed*. The lesson is not "sin1 was wrong" — it is
+that **region is not an independent setting**. `vercel.json` `regions` and the
+Neon project region are one decision expressed in two files, and neither file
+mentions the other. Whichever moves first, verify the other in the same change,
+and confirm with the deployed `x-vercel-id` rather than the committed config —
+they disagreed here for over a week.
+
 ## Automated path
 
 `scripts/neon-migrate.sh` does steps 2–4's mechanics in one command, with the
