@@ -38,6 +38,54 @@ const auth = { authorization: `Bearer ${TOKEN}` };
 const started = Date.now();
 
 /**
+ * Refuse to run from India before spending a browser on it.
+ *
+ * From an Indian IP tiktok.com serves an "About | TikTok" placeholder and the
+ * app never boots, so every read fails -- but it fails by *timing out*, at 60
+ * seconds a page and two attempts a sound. A tracker with thirty sounds would
+ * spend an hour discovering something one HTTP request can establish, and would
+ * then report every one of them as newly lost, which is the shape of a real
+ * outage. The alert would be indistinguishable from the reader's own network
+ * having moved.
+ *
+ * This is not hypothetical: the reader has been run on a laptop behind a VPN,
+ * and a VPN drops. Measured on the same machine minutes apart -- Netherlands
+ * egress, 9.7s and a real count; Delhi egress, a 60s timeout and nothing.
+ *
+ * Fail fast, name the cause, and exit non-zero so the timer's OnFailure says
+ * "the reader is in the wrong country" rather than "TikTok is down".
+ */
+async function assertEgressOutsideIndia() {
+  if (process.env.SKIP_EGRESS_CHECK === "1") {
+    console.warn("egress check skipped (SKIP_EGRESS_CHECK=1)");
+    return;
+  }
+  let country = null;
+  try {
+    const res = await fetch("https://ipinfo.io/json", {
+      signal: AbortSignal.timeout(8000),
+    });
+    if (res.ok) country = (await res.json())?.country ?? null;
+  } catch {
+    // A lookup that cannot run is not evidence of anything. Say so and carry on
+    // rather than blocking a reader that may be perfectly well placed.
+    console.warn("could not determine egress country; continuing");
+    return;
+  }
+  if (country === "IN") {
+    console.error(
+      "refusing to run: egress is India (IN), where tiktok.com serves a placeholder and every read times out.\n" +
+        "  Bring up the VPN, or run this on a host outside India, then try again.\n" +
+        "  Override with SKIP_EGRESS_CHECK=1 if you know better."
+    );
+    process.exit(3);
+  }
+  console.log(`egress country: ${country ?? "unknown"}`);
+}
+
+await assertEgressOutsideIndia();
+
+/**
  * Every call to the app goes through here, because the interesting failure is
  * not an HTTP status -- it is the app being unreachable, and an unwrapped fetch
  * answers that by dumping an undici stack trace into the journal. A scheduled
