@@ -100,6 +100,7 @@ export async function POST(
 
     const body = await request.json().catch(() => null);
     const content = typeof body?.content === "string" ? body.content.trim() : "";
+    const parentIdRaw = typeof body?.parentId === "string" ? body.parentId : null;
     if (!content) {
       return NextResponse.json({ error: "Comment cannot be empty" }, { status: 400 });
     }
@@ -110,8 +111,24 @@ export async function POST(
       );
     }
 
+    /* Replies are flattened to one level: a reply to a reply re-parents to the
+       root. The thread lives in a right-hand rail, and indentation that can
+       nest indefinitely stops being readable about three levels in. Doing it
+       here rather than in the UI means the depth holds no matter who posts. */
+    let parentId: string | null = null;
+    if (parentIdRaw) {
+      const parent = await db.campaignComment.findFirst({
+        where: { id: parentIdRaw, campaignId, deletedAt: null },
+        select: { id: true, parentId: true },
+      });
+      if (!parent) {
+        return NextResponse.json({ error: "Parent comment not found" }, { status: 404 });
+      }
+      parentId = parent.parentId ?? parent.id;
+    }
+
     const comment = await db.campaignComment.create({
-      data: { campaignId, userId, content },
+      data: { campaignId, userId, content, parentId },
       include: { user: { select: { id: true, name: true, email: true } } },
     });
 

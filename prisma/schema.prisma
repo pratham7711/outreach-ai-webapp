@@ -997,12 +997,22 @@ model CampaignComment {
   campaignId String
   userId     String
   content    String
+  /// Parent comment, for replies. The reference threads its campaign comments;
+  /// ours were flat. Nullable, so every existing comment stays a root without a
+  /// backfill, and one level deep by convention rather than by constraint — a
+  /// reply to a reply re-parents to the root, because a feed that indents
+  /// indefinitely stops being readable in a right-hand rail.
+  parentId   String?
   createdAt  DateTime  @default(now())
   updatedAt  DateTime?
   deletedAt  DateTime?
 
-  campaign Campaign @relation(fields: [campaignId], references: [id])
-  user     User     @relation(fields: [userId], references: [id])
+  campaign Campaign          @relation(fields: [campaignId], references: [id])
+  user     User              @relation(fields: [userId], references: [id])
+  parent   CampaignComment?  @relation("CommentThread", fields: [parentId], references: [id])
+  replies  CampaignComment[] @relation("CommentThread")
+
+  @@index([campaignId, parentId])
 }
 
 // ─── Structure ────────────────────────────────────────────────────────────────
