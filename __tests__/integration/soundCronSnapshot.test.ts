@@ -23,6 +23,19 @@ jest.mock("@/lib/platforms/tiktokSound", () => ({ fetchTikTokSoundStats: jest.fn
 jest.mock("@/lib/platforms/tiktokSoundBrowser", () => ({
   openSoundBrowserSession: () => ({ read: jest.fn().mockResolvedValue(null), close: jest.fn() }),
 }));
+/* The embed is now the first rung and would otherwise reach the network. These
+   tests are about the arithmetic the cron writes, so the reader is stubbed and
+   fed a count per test. */
+const mockEmbed = jest.fn();
+jest.mock("@/lib/platforms/tiktokSoundEmbed", () => ({
+  readTikTokSoundViaEmbed: (...a: any[]) => mockEmbed(...a),
+}));
+jest.mock("@/lib/platforms/tiktokProfileSandbox", () => ({
+  openSandboxProfileFetcher: () => ({
+    readMusicEmbedHtml: jest.fn().mockResolvedValue(null),
+    close: jest.fn().mockResolvedValue(undefined),
+  }),
+}));
 
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
@@ -71,13 +84,14 @@ beforeEach(() => {
   process.env.CRON_SECRET = "secret";
   mockDb.organization.findMany.mockResolvedValue([{ id: "org-1", uiConfig: null }]);
   mockDb.soundTrackerSnapshot.create.mockResolvedValue({});
+  mockEmbed.mockReset().mockResolvedValue(null);
 });
 
 it("floors videosAdded24h at zero when the uses count fell", async () => {
   // 45 a day ago, 44 now: TikTok's figure went down by one. This is the shape
   // that put "-1 videos added" on the prod campaign report.
   mockDb.tikTokSound.findMany.mockResolvedValue(soundWithHistory(45));
-  mockFetch.mockResolvedValue({ usesCount: 44 });
+  mockEmbed.mockResolvedValue({ usesCount: 44, title: null, artist: null, coverImageUrl: null });
 
   await runCron();
 
@@ -86,7 +100,7 @@ it("floors videosAdded24h at zero when the uses count fell", async () => {
 
 it("keeps the sign on deltaUses24h, which is a change and not a count", async () => {
   mockDb.tikTokSound.findMany.mockResolvedValue(soundWithHistory(45));
-  mockFetch.mockResolvedValue({ usesCount: 44 });
+  mockEmbed.mockResolvedValue({ usesCount: 44, title: null, artist: null, coverImageUrl: null });
 
   await runCron();
 
@@ -95,7 +109,7 @@ it("keeps the sign on deltaUses24h, which is a change and not a count", async ()
 
 it("passes a real rise through unchanged", async () => {
   mockDb.tikTokSound.findMany.mockResolvedValue(soundWithHistory(40));
-  mockFetch.mockResolvedValue({ usesCount: 52 });
+  mockEmbed.mockResolvedValue({ usesCount: 52, title: null, artist: null, coverImageUrl: null });
 
   await runCron();
 
@@ -105,7 +119,7 @@ it("passes a real rise through unchanged", async () => {
 
 it("records zero rather than the lifetime total on a sound's first reading", async () => {
   mockDb.tikTokSound.findMany.mockResolvedValue(soundWithHistory());
-  mockFetch.mockResolvedValue({ usesCount: 46 });
+  mockEmbed.mockResolvedValue({ usesCount: 46, title: null, artist: null, coverImageUrl: null });
 
   await runCron();
 

@@ -1,6 +1,23 @@
 # Sound worker — the audio tracker's reader
 
-The one part of this product that cannot run on Vercel.
+**Probably not needed any more (2026-09-01).** The reasoning below is still
+correct about the music page and about `/api/music/detail/`, and it is why this
+worker was written. It missed one route: the music **embed** page,
+`https://www.tiktok.com/embed/music/<id>`, server-renders an `embedInfo` object
+with the count in it —
+
+```
+"embedInfo":{"coverUrl":"...","artist":"Ellie Holcomb","videoCount":44,
+             "id":"7546394810303694849","statusCode":0,"code":200}
+```
+
+— which needs no browser and no signed headers, only an egress TikTok answers.
+The hourly cron now reads that first (`lib/platforms/tiktokSoundEmbed.ts`),
+falling back to a Vercel Sandbox curl when plain function egress is refused, so
+the audio tracker keeps itself up to date without this box.
+
+Keep the worker if you want a reading for a sound the embed refuses; it is still
+the only rung that can drive a real browser. Otherwise skip it.
 
 ## Why it exists
 

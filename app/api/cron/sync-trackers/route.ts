@@ -8,6 +8,8 @@ import { db } from "@/lib/db";
 import { createLogger } from "@/lib/observability/logger";
 import { fetchTikTokSoundStats } from "@/lib/platforms/tiktokSound";
 import { openSoundBrowserSession } from "@/lib/platforms/tiktokSoundBrowser";
+import { readTikTokSoundViaEmbed } from "@/lib/platforms/tiktokSoundEmbed";
+import { openSandboxProfileFetcher } from "@/lib/platforms/tiktokProfileSandbox";
 import {
   changeOverWindow,
   previousOf,
@@ -56,6 +58,9 @@ export async function GET(request: NextRequest) {
      Per-sound launches paid the launch cost ~93 times and raced on the binary
      extracted to /tmp (ETXTBSY), which is how the creator sweep first failed. */
   const tiktok = openSoundBrowserSession();
+  /* One sandbox for the sweep, booted lazily on the first embed read that needs
+     it — same arrangement as the browser session above and for the same reason. */
+  const remoteEmbed = openSandboxProfileFetcher();
 
   try {
     /* Cadence is per-organisation, so the run needs each sound's owner. The
@@ -112,15 +117,32 @@ export async function GET(request: NextRequest) {
         continue;
       }
 
-      // A music page needs a browser: the count arrives from /api/music/detail/,
-      // which is empty without headers TikTok's own client script signs. The
-      // plain fetch below is kept as a fallback only because it costs nothing
-      // when the browser is unavailable — on its own it has never produced a
-      // reading, which is why this cron ran daily for ten days and wrote none.
-      let stats = await tiktok.read(sound.tiktokSoundId).catch((e) => {
-        log.warn("browser read failed", { soundId: sound.id, error: String(e).slice(0, 120) });
+      /* The music EMBED page is tried first because it is the only rung that has
+         ever worked from here, and it costs one request.
+
+         The music page proper carries no count and /api/music/detail/ answers an
+         empty body without headers TikTok's client script signs — that is why
+         this cron ran for weeks and wrote nothing, and why a browser on a VPS
+         outside India was the documented plan. But
+         https://www.tiktok.com/embed/music/<id> server-renders an embedInfo with
+         the count in it (measured from a Vercel Sandbox, iad1). Same rescue the
+         creator profile embed gave Top Posts. */
+      let stats = await readTikTokSoundViaEmbed(sound.tiktokSoundId, (id) =>
+        remoteEmbed.readMusicEmbedHtml(id)
+      ).catch((e) => {
+        log.warn("embed read failed", { soundId: sound.id, error: String(e).slice(0, 120) });
         return null;
       });
+
+      /* Both kept behind the embed rather than deleted: the browser is the only
+         path that can read a sound the embed refuses, and the plain fetch costs
+         nothing when neither answers. */
+      if (!stats) {
+        stats = await tiktok.read(sound.tiktokSoundId).catch((e) => {
+          log.warn("browser read failed", { soundId: sound.id, error: String(e).slice(0, 120) });
+          return null;
+        });
+      }
       if (!stats) stats = await fetchTikTokSoundStats(sound.tiktokSoundId);
       if (!stats) {
         decisions.push({ soundId: sound.id, action: "fail", reason: "no-data" });
@@ -177,5 +199,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Tracker sweep failed" }, { status: 500 });
   } finally {
     await tiktok.close();
+    await remoteEmbed.close().catch(() => {});
   }
 }
