@@ -138,7 +138,13 @@ export async function GET(request: NextRequest) {
         data: {
           soundId: sound.id,
           usesCount: stats.usesCount,
-          videosAdded24h: day ? Math.round(day.added) : 0,
+          /* A count of new videos cannot be negative, and TikTok's uses figure
+             does fall — it fell by one here, and the report duly showed
+             "-1 videos added". deltaUses24h is the signed change and keeps the
+             sign; videosAdded24h is a count and is floored, exactly as
+             recordSoundSnapshot does it. Third copy of this arithmetic; the
+             second one put a percentage in the same column. */
+          videosAdded24h: day ? Math.max(0, Math.round(day.added)) : 0,
           deltaUses24h: day ? Math.round(day.added) : 0,
           velocityScore: velocity ?? 0,
           recordedAt: now,
