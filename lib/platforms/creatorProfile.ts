@@ -76,6 +76,9 @@ export type CreatorReadFailure =
   | "not-a-professional-account"
   /** The platform answered, but without the numbers we need. */
   | "unreadable"
+  /** The platform says this handle does not exist. Permanent until someone
+   *  edits the tracked handle -- a renamed or deleted account, or a typo. */
+  | "no-such-account"
   /** The platform refused us for now — quota, throttle, or a transient block. */
   | "rate-limited";
 
@@ -90,8 +93,37 @@ export const READ_FAILURE_COPY: Record<CreatorReadFailure, string> = {
   "not-a-professional-account":
     "Instagram only shares figures for Business and Creator accounts. This one is personal or private.",
   unreadable: "The platform answered but did not include follower or view counts.",
+  "no-such-account":
+    "We could not find this handle on the platform. It may have been renamed or deleted, or the spelling may be off — waiting will not fix it.",
   "rate-limited": "We are reading too many creators right now. This one retries on the next sweep.",
 };
+
+/**
+ * Which of two failures to keep when a fallback rung answers after the first.
+ *
+ * The ladder used to keep the first rung's reason and only append the later
+ * rung's detail, so a sandbox read that learned "statusCode 10221 — no such
+ * account" was filed under the generic "unreadable" and the operator was told
+ * the platform had withheld the numbers. It had not; the account was gone.
+ *
+ * Specificity, not order, decides. A reason that names a cause the operator can
+ * act on beats one that only says the read produced nothing.
+ */
+const FAILURE_SPECIFICITY: Record<CreatorReadFailure, number> = {
+  unreadable: 0,
+  "rate-limited": 1,
+  "no-credentials": 2,
+  "unsupported-platform": 2,
+  "not-a-professional-account": 3,
+  "no-such-account": 3,
+};
+
+export function moreSpecificFailure(
+  first: CreatorReadFailure,
+  second: CreatorReadFailure
+): CreatorReadFailure {
+  return FAILURE_SPECIFICITY[second] > FAILURE_SPECIFICITY[first] ? second : first;
+}
 
 function mean(values: number[]): number {
   if (values.length === 0) return 0;
@@ -182,7 +214,10 @@ async function readYouTube(handle: string): Promise<CreatorReadResult> {
       forHandle: `@${clean}`,
     });
     const item = ch?.items?.[0];
-    if (!item) return { ok: false, reason: "unreadable", detail: "no channel for handle" };
+    /* An empty items array from forHandle is definitive: YouTube resolved the
+       lookup and there is no such channel. Distinct from "unreadable" because
+       the fix is editing the handle, not waiting for the next sweep. */
+    if (!item) return { ok: false, reason: "no-such-account", detail: "no channel for handle" };
 
     const followersCount = Number(item.statistics?.subscriberCount ?? NaN);
     const postsCount = Number(item.statistics?.videoCount ?? 0);

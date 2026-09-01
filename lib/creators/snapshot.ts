@@ -3,7 +3,12 @@ import type { Prisma } from "@/lib/generated/prisma";
 import { createLogger } from "@/lib/observability/logger";
 import { velocityBetween } from "@/lib/trackers/metrics";
 import { isDueForRead, parseGranularity, DEFAULT_GRANULARITY } from "@/lib/trackers/granularity";
-import { readCreatorProfile, type CreatorReadResult, type TopPost } from "@/lib/platforms/creatorProfile";
+import {
+  moreSpecificFailure,
+  readCreatorProfile,
+  type CreatorReadResult,
+  type TopPost,
+} from "@/lib/platforms/creatorProfile";
 import { readTikTokTopPostsOfficial } from "@/lib/platforms/tiktokTopPostsOfficial";
 import {
   readTikTokTopPostsEmbed,
@@ -246,8 +251,18 @@ export async function snapshotCreators(
         })
       );
       if (remote.ok) result = remote;
-      else if (remote.detail && remote.detail !== result.detail) {
-        result = { ...result, detail: `${result.detail ?? result.reason}; ${remote.detail}` };
+      else {
+        /* The sandbox is the rung that can actually reach TikTok, so it is
+           usually the one that learns *why* -- "no such account" among them.
+           Keeping the direct read's reason and only appending the sandbox's
+           detail buried that: .olise.ftbl was a deleted handle filed as
+           "unreadable", and the screen told the operator to wait. */
+        const reason = moreSpecificFailure(result.reason, remote.reason);
+        const detail =
+          remote.detail && remote.detail !== result.detail
+            ? `${result.detail ?? result.reason}; ${remote.detail}`
+            : result.detail;
+        result = { ok: false, reason, ...(detail ? { detail } : {}) };
       }
     }
 

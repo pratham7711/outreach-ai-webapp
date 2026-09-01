@@ -75,7 +75,8 @@ export async function fetchTikTokProfile(
       signal: timeoutSignal(timeoutMs),
       cache: "no-store",
     });
-    if (res.status === 404) return { ok: false, reason: "unreadable", detail: "no such account" };
+    if (res.status === 404)
+      return { ok: false, reason: "no-such-account", detail: "http 404" };
     if (res.status === 429) return { ok: false, reason: "rate-limited", detail: "http 429" };
     if (!res.ok) return { ok: false, reason: "unreadable", detail: `http ${res.status}` };
     html = await res.text();
@@ -117,13 +118,16 @@ export function parseTikTokProfileHtml(html: string): CreatorReadResult {
   if (!userInfo) {
     const status = userDetail?.statusCode ?? detail?.__DEFAULT_SCOPE__?.["webapp.app-context"]?.statusCode;
     /* 10221 is TikTok's "this user does not exist" -- in practice a renamed or
-       deleted account (.olise.ftbl had become oliseftbl_). Worth its own words
-       because the fix is editing the tracked handle, not waiting. */
+       deleted account (.olise.ftbl had become oliseftbl_). Worth its own reason
+       because the fix is editing the tracked handle, not waiting. It carried its
+       own *detail* for a while, which nothing shows the operator: the UI maps
+       the reason to copy, so the detail said "renamed or deleted" while the
+       screen said the platform had withheld the counts. */
     if (status === 10221 || status === 10202) {
       return {
         ok: false,
-        reason: "unreadable",
-        detail: `no such account — the handle may have been renamed or deleted (statusCode ${status})`,
+        reason: "no-such-account",
+        detail: `statusCode ${status}`,
       };
     }
     return {

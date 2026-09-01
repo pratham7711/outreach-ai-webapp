@@ -74,6 +74,8 @@ describe("fetchTikTokProfile", () => {
     mockHtml("", 404);
     const res = await fetchTikTokProfile("nope");
     expect(res.ok).toBe(false);
-    if (!res.ok) expect(res.detail).toMatch(/no such account/);
+    /* The claim used to live in the free-text detail, which nothing shows the
+       operator -- the UI maps the reason to copy. It is now the reason. */
+    if (!res.ok) expect(res.reason).toBe("no-such-account");
   });
 });
