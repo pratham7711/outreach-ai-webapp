@@ -38,7 +38,13 @@ export async function POST(request: NextRequest) {
 
   const email = parsed.data.email.toLowerCase();
   const identifier = resetIdentifier(email);
-  const generic = { ok: true as const };
+  /* Told to the client on EVERY response, including for an address that is not
+     registered. It describes the server's configuration, not the account, so it
+     cannot be used to enumerate users -- and without it the page cheerfully
+     says "check your email" for a mail that was never sent, which is how a
+     locked-out user waits forever for nothing. */
+  const delivery: "sent" | "unavailable" = emailConfigured() ? "sent" : "unavailable";
+  const generic = { ok: true as const, delivery };
 
   try {
     const user = await db.user.findUnique({ where: { email }, select: { id: true } });
@@ -60,6 +66,7 @@ export async function POST(request: NextRequest) {
     if (!emailConfigured()) {
       // Keep the old escape hatch: without a provider the link only reaches the
       // logs, which is the difference between "recoverable" and "locked out".
+      // The response says so too -- see `delivery` above.
       log.warn("forgot_password.email_provider_missing", {
         message: "No transactional email provider is configured; reset link was not emailed.",
         resetUrl,

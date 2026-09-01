@@ -117,13 +117,26 @@ describe("the door", () => {
 });
 
 describe("GET — the work list", () => {
+  it("offers a creator whose fresh list came from campaigns, not the platform", async () => {
+    mockDb.creator.findMany.mockResolvedValue([
+      { id: "c1", handle: "campaigns", name: "C", topPostsAt: new Date(), topPostsSource: "campaigns" },
+    ]);
+    const { creators } = await GET(get()).then((r) => r.json());
+    expect(creators).toEqual([
+      { id: "c1", handle: "campaigns", name: "C", readRecently: false },
+    ]);
+  });
+
   it("returns only tracked, undeleted TikTok creators with the freshness split", async () => {
     const recent = new Date();
     const ancient = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
     mockDb.creator.findMany.mockResolvedValue([
-      { id: "c1", handle: "fresh", name: "Fresh", topPostsAt: recent },
-      { id: "c2", handle: "old", name: "Old", topPostsAt: ancient },
-      { id: "c3", handle: "never", name: "Never", topPostsAt: null },
+      /* topPostsSource matters as much as the date: only a PLATFORM list counts
+         as read. A fresh campaign-scoped list must still be offered to the
+         reader, or the fallback suppresses the very read that replaces it. */
+      { id: "c1", handle: "fresh", name: "Fresh", topPostsAt: recent, topPostsSource: "platform" },
+      { id: "c2", handle: "old", name: "Old", topPostsAt: ancient, topPostsSource: "platform" },
+      { id: "c3", handle: "never", name: "Never", topPostsAt: null, topPostsSource: null },
     ]);
 
     const res = await GET(get());
