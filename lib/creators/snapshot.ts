@@ -5,6 +5,10 @@ import { velocityBetween } from "@/lib/trackers/metrics";
 import { isDueForRead, parseGranularity, DEFAULT_GRANULARITY } from "@/lib/trackers/granularity";
 import { readCreatorProfile, type CreatorReadResult, type TopPost } from "@/lib/platforms/creatorProfile";
 import { readTikTokTopPostsOfficial } from "@/lib/platforms/tiktokTopPostsOfficial";
+import {
+  readTikTokTopPostsEmbed,
+  fetchTikTokEmbedHtmlDirect,
+} from "@/lib/platforms/tiktokTopPostsEmbed";
 import { readTopPostsFromCampaigns } from "./topPostsFromCampaigns";
 import type { TikTokPostsRead } from "@/lib/platforms/tiktokTopPostsBrowser";
 
@@ -42,6 +46,9 @@ export type CreatorSnapshotOptions = {
   /** The sandbox-run curl for TikTok profile stats -- the read that works when
    * the WAF shells the direct fetch. Injected for the same bundling reason. */
   readTikTokProfileRemote?: (handle: string) => Promise<CreatorReadResult>;
+  /** The embed page from an egress TikTok answers, for when this one is
+   *  refused. Injected for the same bundling reason as the profile read. */
+  readTikTokEmbedHtml?: (handle: string) => Promise<string | null>;
 };
 
 /** Posts move much slower than follower counts; a grid read costs ~12s of
@@ -74,23 +81,39 @@ function platformPostsAreStaleFor(creator: {
  *  matters because Top Posts keep their own (much slower) cadence -- gating
  *  them behind the follower cadence meant a creator read 20 minutes ago could
  *  not get posts for another whole period. */
-async function readPostsWithoutBrowser(creator: {
-  id: string;
-  orgId: string;
-  handle: string;
-  platform: string;
-}): Promise<{ topPosts: TopPost[]; source: "platform" | "campaigns" } | null> {
+async function readPostsWithoutBrowser(
+  creator: { id: string; orgId: string; handle: string; platform: string },
+  embedHtml?: (handle: string) => Promise<string | null>
+): Promise<{ topPosts: TopPost[]; source: "platform" | "campaigns" } | null> {
   if (creator.platform === "TIKTOK") {
     const official = await readTikTokTopPostsOfficial(creator.id, creator.orgId, creator.handle).catch(
       () => null
     );
     if (official?.topPosts.length) return { topPosts: official.topPosts, source: "platform" };
+
+    const embed = await readTikTokTopPostsEmbed(creator.handle, (h) =>
+      embedHtmlVia(h, embedHtml)
+    ).catch(() => null);
+    if (embed?.topPosts.length) return { topPosts: embed.topPosts, source: "platform" };
   }
   const fromCampaigns = await readTopPostsFromCampaigns(creator.id).catch(() => null);
   if (fromCampaigns?.topPosts.length) {
     return { topPosts: fromCampaigns.topPosts, source: "campaigns" };
   }
   return null;
+}
+
+/** The embed page, over our own egress if it is allowed and from the injected
+ *  reader if it is not. Direct first: it costs one request and needs nothing
+ *  booted, and the embed page is published for third parties, so it is not
+ *  obviously behind the wall that shells the profile page. */
+async function embedHtmlVia(
+  handle: string,
+  injected?: (handle: string) => Promise<string | null>
+): Promise<string | null> {
+  const direct = await fetchTikTokEmbedHtmlDirect(handle);
+  if (direct) return direct;
+  return injected ? injected(handle) : null;
 }
 
 /** Writes only the posts columns, for the paths where no snapshot was taken. */
@@ -120,6 +143,7 @@ export async function snapshotCreators(
     deadlineMs = 4 * 60 * 1000,
     readTikTokPosts,
     readTikTokProfileRemote,
+    readTikTokEmbedHtml,
   } = options;
   const log = createLogger({ context: { job: "snapshot-creators", orgId: orgId ?? "all" } });
   const deadline = Date.now() + deadlineMs;
@@ -192,7 +216,7 @@ export async function snapshotCreators(
     if (!isDueForRead(previous?.recordedAt ?? null, cadence, now)) {
       skipped++;
       if (!dryRun && platformPostsAreStaleFor(creator)) {
-        const read = await readPostsWithoutBrowser(creator);
+        const read = await readPostsWithoutBrowser(creator, readTikTokEmbedHtml);
         if (read) await storeTopPostsOnly(creator.id, read);
       }
       continue;
@@ -283,7 +307,9 @@ export async function snapshotCreators(
          here too, on its own cadence, without pretending the follower read
          succeeded. */
       const salvaged =
-        platformPostsAreStaleFor(creator) && !dryRun ? await readPostsWithoutBrowser(creator) : null;
+        platformPostsAreStaleFor(creator) && !dryRun
+          ? await readPostsWithoutBrowser(creator, readTikTokEmbedHtml)
+          : null;
 
       /* Stamped even though no snapshot exists, so the UI can tell "we tried and
          this account cannot be read" from "we have not got to it yet". */
@@ -347,6 +373,33 @@ export async function snapshotCreators(
           creatorId: creator.id,
           handle: creator.handle,
           posts: official.topPosts.length,
+        });
+      }
+    }
+
+    /* Rung 2: TikTok's own embed page. It server-renders the creator's video
+       list -- id, caption, cover, playCount -- because it exists to be embedded
+       by other sites, so it needs no consent, no browser and no signing params.
+       This is what covers a creator who never connected their account, which
+       every rung below it failed to do. */
+    if (!tiktokPosts && creator.platform === "TIKTOK" && platformPostsAreStale && !dryRun) {
+      const embed = await readTikTokTopPostsEmbed(creator.handle, (h) =>
+        embedHtmlVia(h, readTikTokEmbedHtml)
+      ).catch((e) => {
+        log.warn("tiktok embed posts read failed", {
+          creatorId: creator.id,
+          handle: creator.handle,
+          error: e instanceof Error ? e.message : String(e),
+        });
+        return null;
+      });
+      if (embed?.topPosts.length) {
+        tiktokPosts = { ...embed, profile: null };
+        topPostsSource = "platform";
+        log.info("tiktok top posts from embed page", {
+          creatorId: creator.id,
+          handle: creator.handle,
+          posts: embed.topPosts.length,
         });
       }
     }

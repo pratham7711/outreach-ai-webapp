@@ -42,6 +42,7 @@ export async function GET(request: NextRequest) {
         deadlineMs: 4 * 60 * 1000,
         readTikTokPosts: (handle) => grids.read(handle),
         readTikTokProfileRemote: (handle) => remote.read(handle),
+        readTikTokEmbedHtml: (handle) => remote.readEmbedHtml(handle),
       });
       log.info("creator tracker cron complete", { ...counts, dryRun });
       return NextResponse.json({ ok: true, dryRun, ...counts });

@@ -1,5 +1,6 @@
 import { Sandbox } from "@vercel/sandbox";
 import { parseTikTokProfileHtml } from "./tiktokProfile";
+import { tikTokEmbedUrl } from "./tiktokTopPostsEmbed";
 import type { CreatorReadResult } from "./creatorProfile";
 
 /**
@@ -25,6 +26,9 @@ const SANDBOX_LIFETIME_MS = 4 * 60 * 1000;
 
 export type SandboxProfileFetcher = {
   read: (handle: string) => Promise<CreatorReadResult>;
+  /** The creator's own video list, from TikTok's embed page. Shares the sweep's
+   *  one sandbox, so a second read costs a curl rather than a boot. */
+  readEmbedHtml: (handle: string) => Promise<string | null>;
   close: () => Promise<void>;
 };
 
@@ -85,6 +89,37 @@ export function openSandboxProfileFetcher(): SandboxProfileFetcher {
         };
       }
     },
+    async readEmbedHtml(handle) {
+      const clean = handle.replace(/^@/, "").trim();
+      if (!clean) return null;
+      try {
+        const sandbox = await get();
+        const result = await sandbox.runCommand(
+          "curl",
+          [
+            "-sL",
+            "--max-time",
+            "25",
+            "-A",
+            UA,
+            "-H",
+            "accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "-H",
+            "accept-language: en-US,en;q=0.9",
+            tikTokEmbedUrl(clean),
+          ],
+          { timeoutMs: 35_000 }
+        );
+        const stdout: string =
+          typeof (result as any).stdout === "function"
+            ? await (result as any).stdout()
+            : (result as any).stdout;
+        return stdout || null;
+      } catch {
+        return null;
+      }
+    },
+
     async close() {
       const p = sandboxPromise;
       sandboxPromise = null;
