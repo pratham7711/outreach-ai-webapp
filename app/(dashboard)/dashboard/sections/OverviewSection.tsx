@@ -63,7 +63,17 @@ export function OverviewSection({
         <SectionCard
           icon={BarChart3}
           title="Views over time"
-          description="Total views across every tracked post, by the date it was measured."
+          /* "by the date it was measured" was wrong in the one word that decides
+             how the chart is read. The query buckets on Post.postedAt -- the day
+             the creator published -- and deliberately so: it used to bucket on
+             createdAt, the day we imported the row, which put an import of three
+             famous videos on a single afternoon in July. Nothing about the line
+             is a measurement date.
+             It is also cumulative, and the label read like a per-period total.
+             And it covers the window only (six months by default), not "every
+             tracked post": on production that is 347M views from 8,443 posts
+             against 1.80bn from 18,690 all time. */
+          description="Running total of views, by the month each post went live — not by when it was measured. Covers the last six months."
         >
           {loading ? (
             <Skeleton className="h-[400px] w-full rounded-lg" />

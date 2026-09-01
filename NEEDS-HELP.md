@@ -57,7 +57,23 @@ org can create and assign plans. `lib/rbac.ts` already has the vocabulary
 OWNER/ADMIN only? Probably yes; it is left open because it is a product rule, not
 an oversight to be quietly patched.
 
-### 4. Override persistence on plan change
+### 4. Should a deleted campaign's views still count on the dashboard?
+
+The `viewsOverTime` SQL in `app/api/dashboard/financials/route.ts` joins
+`Campaign` on `orgId` alone, with no `deletedAt IS NULL` — while the "Active
+campaigns" tile rendered directly above it does filter. The same is true of the
+platform, per-campaign and per-creator rollups on that route.
+
+It costs nothing today: soft-deleted campaigns on production hold 0 posts and 0
+views, so no number is currently wrong. But the first time someone deletes a
+campaign that has delivery on it, the dashboard total and the campaign list will
+disagree, and a per-campaign row will appear titled "Unknown campaign" (the
+title lookup *does* filter on `deletedAt`).
+
+Both answers are defensible — "deleted means gone from reporting" or "delivery
+that happened still happened" — which is why it is here rather than patched.
+
+### 5. Override persistence on plan change
 When a client's plan changes, existing per-client `featureOverrides` are
 preserved. Should a plan change clear them instead? Carried over from the old
 file because it is still true and still undecided.
