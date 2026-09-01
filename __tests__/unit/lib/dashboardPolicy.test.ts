@@ -17,6 +17,7 @@ function makeEntitlements(overrides: Partial<OrgEntitlements> = {}): OrgEntitlem
       maxCampaigns: 20,
       maxCreators: 500,
       maxUsers: 5,
+    maxTrackers: 25,
     },
     branding: {
       brandName: "Acme Labels",

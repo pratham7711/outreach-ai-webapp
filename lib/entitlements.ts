@@ -13,6 +13,7 @@ export type OrgEntitlements = {
     maxCampaigns: number;
     maxCreators: number;
     maxUsers: number;
+    maxTrackers: number;
   };
   branding: {
     brandName: string | null;
@@ -93,6 +94,7 @@ export async function getOrgEntitlements(orgId: string): Promise<OrgEntitlements
       maxCampaigns: org.planConfig?.maxCampaigns ?? fallbackPlan.max_campaigns,
       maxCreators: org.planConfig?.maxCreators ?? fallbackPlan.max_creators,
       maxUsers: org.planConfig?.maxUsers ?? fallbackPlan.max_users,
+      maxTrackers: org.planConfig?.maxTrackers ?? fallbackPlan.max_trackers,
     },
     branding: {
       brandName: org.brandName ?? org.name,

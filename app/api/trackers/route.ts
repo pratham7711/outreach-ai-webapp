@@ -19,6 +19,7 @@ import {
   snapshotFetchLimit,
 } from "@/lib/trackers/granularity";
 import { SOUND_URL_ERRORS, parseSoundUrl } from "@/lib/trackers/soundUrl";
+import { getOrgEntitlements } from "@/lib/entitlements";
 
 const SORTS = ["velocity", "uses", "added"] as const;
 type SortKey = (typeof SORTS)[number];
@@ -125,7 +126,19 @@ export async function GET(req: NextRequest) {
       return bv - av;
     });
 
-    return NextResponse.json({ sounds: sorted, period, sort });
+    const ent = await getOrgEntitlements(orgId);
+    const maxTrackers = ent?.limits.maxTrackers ?? Infinity;
+    return NextResponse.json({
+      sounds: sorted,
+      period,
+      sort,
+      // Infinity does not survive JSON, so an unlimited plan sends null and the
+      // UI shows no counter rather than "3/null".
+      limits: {
+        used: sounds.length,
+        max: Number.isFinite(maxTrackers) ? maxTrackers : null,
+      },
+    });
   } catch (error) {
     console.error("Failed to fetch trackers:", error);
     return NextResponse.json(
@@ -272,6 +285,29 @@ export async function POST(req: NextRequest) {
       coverImageUrl = parsed.data.coverImageUrl ?? null;
     }
 
+    /* The seat-equivalent for trackers, checked before the row is written.
+       Deliberately after the duplicate check below would be wrong: re-adding a
+       sound you already track must not be refused for being over the limit,
+       since it adds nothing. So the count is taken here and the duplicate path
+       returns early further down. */
+    const entitlements = await getOrgEntitlements(orgId);
+    const maxTrackers = entitlements?.limits.maxTrackers ?? Infinity;
+    if (Number.isFinite(maxTrackers)) {
+      const already = await db.tikTokSound.findFirst({ where: { orgId, tiktokSoundId } });
+      if (!already) {
+        const tracked = await db.tikTokSound.count({ where: { orgId } });
+        if (tracked >= maxTrackers) {
+          return NextResponse.json(
+            {
+              error: `Your plan includes ${maxTrackers} tracker${maxTrackers === 1 ? "" : "s"} and ${tracked} are in use. Remove one, or ask us to raise the limit.`,
+              trackers: { used: tracked, max: maxTrackers },
+            },
+            { status: 409 }
+          );
+        }
+      }
+    }
+
     // Pasting the same link twice is a normal thing to do, and two rows for one
     // sound would read the same page twice and diverge. Return what is already
     // tracked instead of creating a duplicate or failing.
@@ -293,5 +329,64 @@ export async function POST(req: NextRequest) {
       { error: "Failed to create tracked sound" },
       { status: 500 }
     );
+  }
+}
+
+/**
+ * DELETE /api/trackers — remove every tracked sound for this organisation.
+ *
+ * Bulk removal exists because the per-row delete is fine for tidying and
+ * hopeless for starting over: an org that imported a catalogue, or one whose
+ * trackers are all seed junk, would otherwise click delete a hundred times.
+ *
+ * Two guards, because this is the most destructive button in the tracker
+ * surface. It requires an explicit `confirm: "DELETE_ALL"` in the body, so it
+ * cannot be triggered by a stray fetch or a mis-copied curl; and it reports how
+ * many rows it removed, so a caller who expected three and removed ninety finds
+ * out immediately.
+ *
+ * Snapshots go with the sounds. They are meaningless without the row they
+ * describe, and leaving them would silently re-attach history to a sound of the
+ * same id added later — a tracker inheriting a stranger's past.
+ */
+export async function DELETE(req: NextRequest) {
+  try {
+    const result = await authenticateRequest(req);
+    if (!result)
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const { orgId } = result;
+
+    const body = await req.json().catch(() => null);
+    if (body?.confirm !== "DELETE_ALL") {
+      return NextResponse.json(
+        { error: 'Send { "confirm": "DELETE_ALL" } to remove every tracker.' },
+        { status: 400 }
+      );
+    }
+
+    const sounds = await db.tikTokSound.findMany({
+      where: { orgId },
+      select: { id: true },
+    });
+    if (sounds.length === 0) {
+      return NextResponse.json({ removed: 0, snapshotsRemoved: 0 });
+    }
+    const ids = sounds.map((s) => s.id);
+
+    /* Snapshots first, then sounds, in one transaction: the foreign key would
+       reject the reverse order, and a partial run would leave orphan history
+       that no query would ever surface again. */
+    const [snapshots] = await db.$transaction([
+      db.soundTrackerSnapshot.deleteMany({ where: { soundId: { in: ids } } }),
+      db.tikTokSound.deleteMany({ where: { orgId } }),
+    ]);
+
+    return NextResponse.json({
+      removed: ids.length,
+      snapshotsRemoved: snapshots.count,
+    });
+  } catch (error) {
+    console.error("Failed to remove all trackers:", error);
+    return NextResponse.json({ error: "Failed to remove trackers" }, { status: 500 });
   }
 }

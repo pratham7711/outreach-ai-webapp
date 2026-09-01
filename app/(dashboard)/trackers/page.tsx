@@ -141,7 +141,9 @@ export default function TrackersPage() {
   } = useQuery({
     queryKey,
     queryFn: () =>
-      apiFetch<{ sounds: TrackedSound[] }>(`/api/trackers?period=${period}&sort=${sort}`),
+      apiFetch<{ sounds: TrackedSound[]; limits?: { used: number; max: number | null } }>(
+        `/api/trackers?period=${period}&sort=${sort}`
+      ),
   });
 
   const allSounds = useMemo(() => data?.sounds ?? [], [data]);
@@ -152,6 +154,39 @@ export default function TrackersPage() {
       (s) => s.title.toLowerCase().includes(q) || s.artist.toLowerCase().includes(q),
     );
   }, [allSounds, query]);
+
+  const limits = data?.limits;
+  const atLimit = limits?.max != null && limits.used >= limits.max;
+
+  /* Bulk removal. Guarded by a typed confirmation rather than a dialog alone:
+     this deletes every tracker and all their history, and history is the one
+     thing a re-add cannot recover — readings are point-in-time and TikTok will
+     not tell us what a sound was doing last week. */
+  const removeAllMutation = useMutation({
+    mutationFn: () =>
+      apiFetch<{ removed: number; snapshotsRemoved: number }>("/api/trackers", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirm: "DELETE_ALL" }),
+      }),
+    onSuccess: (r) => {
+      invalidate();
+      toast.success(
+        `Removed ${r.removed} tracker${r.removed === 1 ? "" : "s"} and ${r.snapshotsRemoved} reading${r.snapshotsRemoved === 1 ? "" : "s"}`
+      );
+    },
+    onError: (e) => toast.error(errorMessage(e, "Could not remove trackers")),
+  });
+
+  const confirmRemoveAll = () => {
+    const n = allSounds.length;
+    const typed = window.prompt(
+      `Remove all ${n} tracker${n === 1 ? "" : "s"} and their entire reading history?\n\n` +
+        `History cannot be recovered — TikTok will not tell us what a sound was doing last week.\n\n` +
+        `Type DELETE to confirm.`
+    );
+    if (typed === "DELETE") removeAllMutation.mutate();
+  };
 
   const invalidate = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ["trackers"] });
@@ -265,7 +300,34 @@ export default function TrackersPage() {
               />
               {refreshMutation.isPending ? "Refreshing..." : "Refresh"}
             </Button>
-            <Button variant="primary" onClick={() => setModalOpen(true)}>
+            {allSounds.length > 0 ? (
+              <Button
+                variant="secondary"
+                onClick={confirmRemoveAll}
+                disabled={removeAllMutation.isPending}
+                title="Remove every tracker and its reading history"
+              >
+                {removeAllMutation.isPending ? "Removing…" : "Remove all"}
+              </Button>
+            ) : null}
+            {limits?.max != null ? (
+              <span
+                style={{
+                  fontSize: 13,
+                  alignSelf: "center",
+                  color: atLimit ? "var(--cc-warning)" : "var(--cc-text-muted)",
+                }}
+                title={`${limits.used} of ${limits.max} trackers used on this plan`}
+              >
+                {limits.used}/{limits.max}
+              </span>
+            ) : null}
+            <Button
+              variant="primary"
+              onClick={() => setModalOpen(true)}
+              disabled={atLimit}
+              title={atLimit ? "You have used every tracker on your plan" : undefined}
+            >
               <Plus size={16} style={{ marginRight: 6 }} />
               Track Sound
             </Button>

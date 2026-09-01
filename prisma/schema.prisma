@@ -427,6 +427,9 @@ model OrgPlanConfig {
   maxCampaigns Int      @default(10)
   maxCreators  Int      @default(100)
   maxUsers     Int      @default(5)
+  /// Per-org override for tracked sounds. Null falls back to the plan tier, so
+  /// an org only has a row here once someone has deliberately set one.
+  maxTrackers  Int?
   features     Json     @default("{}")
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
