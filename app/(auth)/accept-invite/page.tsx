@@ -36,8 +36,8 @@ function AcceptInviteForm() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    if (!name.trim() || password.length < 6) {
-      setError("Enter your name and a password of at least 6 characters.");
+    if (!name.trim() || password.length < 8) {
+      setError("Enter your name and a password of at least 8 characters.");
       return;
     }
     setLoading(true);
@@ -105,7 +105,7 @@ function AcceptInviteForm() {
               type={showPassword ? "text" : "password"}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="At least 6 characters"
+              placeholder="At least 8 characters"
             />
             <button
               type="button"

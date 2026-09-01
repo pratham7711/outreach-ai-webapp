@@ -330,6 +330,48 @@ describe('POST /api/invites/accept', () => {
     expect(body.error).toContain('already been accepted');
   });
 
+  /* 8 characters, the same as /signup and /reset-password. This endpoint took
+     6 until it was aligned, which meant an invited ADMIN could pick a weaker
+     password than someone who signed up for themselves. Both sides of the
+     boundary are pinned so a future edit cannot quietly loosen it again. */
+  it('rejects a 7-character password', async () => {
+    const req = makeRequest('http://localhost/api/invites/accept', {
+      method: 'POST',
+      body: JSON.stringify({ token: 'valid-token', name: 'User', password: 'seven77' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const res = await ACCEPT(req);
+    const body = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(body.error).toContain('at least 8 characters');
+    expect(mockDb.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('accepts exactly 8 characters', async () => {
+    mockDb.userInvite.findUnique.mockResolvedValue({
+      id: 'invite-1', orgId: 'org-1', email: 'new@example.com', role: 'MEMBER',
+      token: 'valid-token', acceptedAt: null,
+      expiresAt: new Date(Date.now() + 86400000),
+    });
+    mockDb.user.findUnique.mockResolvedValue(null);
+    mockDb.$transaction.mockImplementation(async (fn: any) =>
+      fn({
+        user: { create: jest.fn().mockResolvedValue({ id: 'u-9', email: 'new@example.com' }) },
+        userInvite: { update: jest.fn() },
+      })
+    );
+
+    const req = makeRequest('http://localhost/api/invites/accept', {
+      method: 'POST',
+      body: JSON.stringify({ token: 'valid-token', name: 'User', password: 'eight888' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const res = await ACCEPT(req);
+
+    expect(res.status).toBeLessThan(400);
+  });
+
   it('rejects invalid token', async () => {
     mockDb.userInvite.findUnique.mockResolvedValue(null);
 

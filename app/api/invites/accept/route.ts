@@ -17,9 +17,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (typeof password !== "string" || password.length < 6) {
+    /* 8, matching /signup and /reset-password. This door used to accept 6,
+       which let somebody invited as an ADMIN choose a weaker password than
+       anybody who signed up for themselves -- the same account type held to a
+       lower bar purely because of which door it came through. */
+    if (typeof password !== "string" || password.length < 8) {
       return NextResponse.json(
-        { error: "Password must be at least 6 characters" },
+        { error: "Password must be at least 8 characters" },
         { status: 400 }
       );
     }
