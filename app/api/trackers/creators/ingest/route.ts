@@ -20,10 +20,13 @@ import { createLogger } from "@/lib/observability/logger";
  * fills Top Posts with someone else's videos, which is worse than an empty
  * panel. Match the exact path.)
  *
- * What has not been ruled out is a VPS outside a hyperscaler's IP ranges: the
- * sound worker's equally-signed `/api/music/detail/` fails from Vercel and
- * works from a rented box, so egress reputation is the live hypothesis and
- * scripts/creator-worker/ is the way to test it.
+ * The grid, however, turned out not to be the only way in: TikTok's embed page
+ * (`/embed/@handle`) server-renders the creator's own video list for anyone,
+ * and that is what actually ships Top Posts today — see
+ * `lib/platforms/tiktokTopPostsEmbed.ts`. This route stays because the embed
+ * page carries no like counts, comment counts or dates, and because a reader
+ * on a box outside a hyperscaler's ranges is still the fallback if TikTok
+ * closes it. scripts/creator-worker/ is that box, unprovisioned by choice.
  *
  * Same deliberate boundaries as that route:
  *  - The worker never gets DATABASE_URL; it holds one bearer token.

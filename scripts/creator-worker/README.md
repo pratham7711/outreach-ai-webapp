@@ -1,7 +1,22 @@
 # Creator worker — the TikTok Top Posts reader
 
-The second thing this product cannot do from Vercel — and, as of 2026-09-01,
-**the last untested hypothesis** for reading a creator's post grid.
+**Not needed for Top Posts any more, and probably not worth provisioning.**
+
+Top Posts for unconnected creators shipped on 2026-09-01 without this box.
+`https://www.tiktok.com/embed/@handle` server-renders the creator's own
+`videoList` — id, caption, cover, `playCount` — because it exists for other
+sites to embed. No consent, no browser, no signing params, one HTTP request.
+Verified on production: @sonheii's panel now shows 28.5M / 12.4M / 1.9M view
+posts, sourced `platform`, from a creator who never connected an account.
+See `lib/platforms/tiktokTopPostsEmbed.ts`.
+
+What the embed page does **not** carry is like counts, comment counts and post
+dates, and it lists roughly a dozen recent videos rather than a full catalogue.
+This worker is the answer if those ever become necessary, or if TikTok closes
+the embed route. Until then it is a rainy-day plan, not a purchase.
+
+The rest of this file is the install and the measured evidence, kept current so
+the box can be stood up in two commands if that day comes.
 
 ## Why it exists
 
@@ -24,7 +39,7 @@ authored by other people. Matching on the substring `item_list` picks those up
 and silently fills Top Posts with someone else's videos. It cost a wrong
 conclusion here; match the exact path.
 
-## So why is a VPS still worth trying?
+## So why would a VPS still be worth trying?
 
 Because egress reputation is the one variable Vercel cannot change. The sound
 worker's `/api/music/detail/` is signed the same way, fails the same way from
@@ -32,9 +47,11 @@ Vercel, and **works from a rented box** (measured: Netherlands egress, 9.7s, a
 real count). Vercel Sandbox runs on hyperscaler IP ranges TikTok has every
 reason to distrust; an ordinary VPS is a different reputation class.
 
-That is a hypothesis with precedent, not a certainty. The dry-run below is what
-settles it, and it costs one hour of a $5/mo box. If it fails there too, the
-self-hosted route is exhausted and ScrapeCreators (~$3–6/mo) is the answer.
+That is a hypothesis with precedent, not a certainty — and it is now a
+hypothesis about *extra* data (likes, comments, dates, a deeper catalogue),
+not about whether the feature works at all. The dry-run below settles it and
+costs one hour of a $5/mo box. If it fails there too, the self-hosted route is
+exhausted and ScrapeCreators (~$3–6/mo) is the answer.
 
 Run it **headed under Xvfb** regardless — headless is refused outright, so a
 display is necessary even if it is not sufficient.
