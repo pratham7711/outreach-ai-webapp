@@ -1,4 +1,5 @@
 import type { CapabilityReport } from "@/lib/capabilities";
+import { joinNames } from "./list";
 
 export type OnboardingSnapshot = {
   orgType: "AGENCY" | "BRAND";
@@ -34,7 +35,7 @@ function trackingBody(capabilities: CapabilityReport): string {
   if (live.length === 0) {
     return "Paste the URL of a post a creator published. It attaches to the campaign and to the creator who earned it. Automatic metric collection is not switched on in this environment yet, so the counts stay at whatever you enter.";
   }
-  return `Paste the URL of a post a creator published. ${live.join(" and ")} counts refresh on their own from there, so the number you quote a client is the number that is true.`;
+  return `Paste the URL of a post a creator published. ${joinNames(live)} counts refresh on their own from there, so the number you quote a client is the number that is true.`;
 }
 
 export function buildOnboardingSteps(

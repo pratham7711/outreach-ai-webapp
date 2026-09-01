@@ -1,0 +1,72 @@
+/**
+ * What the app claims it can collect.
+ *
+ * This report drives user-facing copy: the onboarding step that names which
+ * platforms refresh their own counts reads `metrics === "live"` off it. So a
+ * wrong answer here is not an internal detail, it is a sentence a new user
+ * reads on their first day.
+ *
+ * TikTok was the wrong answer for a long time, because the rule was "is
+ * SOCIALKIT_API_KEY set" -- and SocialKit is the third rung of
+ * fetchTikTokMetrics, behind a keyless read of the video page that works from
+ * Vercel egress. Production had 422 cron-written TikTok snapshots with moving
+ * counts while the onboarding told people TikTok would not update.
+ */
+import { resolvePlatformCapability, resolveCapabilities } from "@/lib/capabilities";
+
+const KEYS = [
+  "INSTAGRAM_BUSINESS_TOKEN",
+  "YOUTUBE_API_KEY",
+  "SOCIALKIT_API_KEY",
+  "PLATFORM_CONNECT_STATUS",
+] as const;
+
+let saved: Record<string, string | undefined>;
+
+beforeEach(() => {
+  saved = Object.fromEntries(KEYS.map((k) => [k, process.env[k]]));
+  for (const k of KEYS) delete process.env[k];
+});
+
+afterEach(() => {
+  for (const k of KEYS) {
+    if (saved[k] === undefined) delete process.env[k];
+    else process.env[k] = saved[k];
+  }
+});
+
+it("reports TikTok metrics live with no credentials at all", () => {
+  // The keyless rehydration read needs nothing provisioned.
+  expect(resolvePlatformCapability("tiktok").metrics).toBe("live");
+});
+
+it("does not make TikTok metrics depend on the paid fallback key", () => {
+  const without = resolvePlatformCapability("tiktok").metrics;
+  process.env.SOCIALKIT_API_KEY = "sk-test";
+  expect(resolvePlatformCapability("tiktok").metrics).toBe(without);
+});
+
+it("still gates Instagram and YouTube on their keys", () => {
+  /* Not blanket optimism: these two genuinely cannot read a count without a
+     credential, and saying otherwise would promise a refresh that never comes. */
+  expect(resolvePlatformCapability("instagram").metrics).toBe("coming_soon");
+  expect(resolvePlatformCapability("youtube").metrics).toBe("coming_soon");
+
+  process.env.INSTAGRAM_BUSINESS_TOKEN = "ig-token";
+  process.env.YOUTUBE_API_KEY = "yt-key";
+  expect(resolvePlatformCapability("instagram").metrics).toBe("live");
+  expect(resolvePlatformCapability("youtube").metrics).toBe("live");
+});
+
+it("says metrics are live overall even on an environment with nothing set", () => {
+  /* The onboarding has a separate, bleaker branch for "no automatic collection
+     at all". TikTok alone keeps that branch from firing, which is correct --
+     it is the platform most posts are on. */
+  expect(resolveCapabilities().anyMetricsLive).toBe(true);
+});
+
+it("leaves the connect status alone", () => {
+  // Reading a post URL and signing an account in are different capabilities;
+  // TikTok sign-in is still awaiting platform approval.
+  expect(resolvePlatformCapability("tiktok").connect).toBe("coming_soon");
+});

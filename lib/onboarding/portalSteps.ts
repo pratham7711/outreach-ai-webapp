@@ -1,5 +1,6 @@
 import type { CapabilityReport } from "@/lib/capabilities";
 import { summarise, type OnboardingProgress, type OnboardingStep } from "./steps";
+import { joinNames } from "./list";
 
 export type CreatorOnboardingSnapshot = {
   hasBio: boolean;
@@ -38,7 +39,7 @@ export function buildCreatorOnboardingSteps(
     steps.push({
       key: "connect",
       title: "Connect your account",
-      body: `Link ${connectable.map((p) => p.label).join(" or ")} and your post metrics update on their own, so nobody has to ask you for a screenshot. You can disconnect it here at any time and the token is deleted.`,
+      body: `Link ${joinNames(connectable.map((p) => p.label), "or")} and your post metrics update on their own, so nobody has to ask you for a screenshot. You can disconnect it here at any time and the token is deleted.`,
       href: "/portal/settings",
       cta: "Connect an account",
       done: snapshot.connectedAccounts > 0,

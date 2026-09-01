@@ -31,9 +31,29 @@ const DEFAULT_CONNECT: Record<OAuthPlatform, StatusRule> = {
   youtube: "auto",
 };
 
-const METRICS_ENV: Record<OAuthPlatform, string> = {
+/**
+ * The credential a platform's metric collector needs, or null when it needs
+ * none.
+ *
+ * TikTok is null, and that is a correction rather than a simplification. It
+ * used to name SOCIALKIT_API_KEY, which is the *third* rung of
+ * fetchTikTokMetrics: the first is a keyless read of the video page's
+ * rehydration blob, and unlike TikTok's profile and music pages, video pages
+ * answer Vercel egress. Measured on production 2026-09-01: 422 cron-written
+ * TikTok post snapshots with counts genuinely moving (336 -> 952 views on one
+ * post), and no SOCIALKIT_API_KEY set anywhere.
+ *
+ * The cost of the old answer was not internal. TikTok is 15,324 of the 18,690
+ * posts on production, and the onboarding step read "Instagram and YouTube
+ * counts refresh on their own" -- telling a new user that the platform holding
+ * 82% of their posts was the one that would not update, while it was in fact
+ * updating hourly. A capability report that understates is not the safe
+ * direction to be wrong in; it just makes the product look less finished than
+ * it is, and invites someone to go buy a key they do not need.
+ */
+const METRICS_ENV: Record<OAuthPlatform, string | null> = {
   instagram: "INSTAGRAM_BUSINESS_TOKEN",
-  tiktok: "SOCIALKIT_API_KEY",
+  tiktok: null,
   youtube: "YOUTUBE_API_KEY",
 };
 
@@ -77,7 +97,9 @@ function metricsNote(platform: OAuthPlatform, status: CapabilityStatus): string 
 export function resolvePlatformCapability(platform: OAuthPlatform): PlatformCapability {
   const rule = connectOverrides()[platform] ?? DEFAULT_CONNECT[platform];
   const connect = resolveRule(platform, rule);
-  const metrics: CapabilityStatus = process.env[METRICS_ENV[platform]] ? "live" : "coming_soon";
+  const metricsEnv = METRICS_ENV[platform];
+  const metrics: CapabilityStatus =
+    metricsEnv === null || process.env[metricsEnv] ? "live" : "coming_soon";
 
   return {
     platform,

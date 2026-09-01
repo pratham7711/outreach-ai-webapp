@@ -20,6 +20,10 @@ things. **If you answer an item here, delete it.**
   `AuditLog` rows exist for invite create/accept/delete.
 - **Confirmation modals.** `ConfirmProvider` is mounted in the dashboard layout;
   no `window.confirm` remains.
+- **TikTok post metrics.** They sync, and always did — a keyless read of the
+  video page, preferring `statsV2`, so the figures are exact. The old worry that
+  TikTok counts were frozen came from `lib/capabilities.ts` gating them on the
+  optional SocialKit key; that is fixed. No key to buy.
 - **Google OAuth.** Not configured, and not missed — credentials login is the
   only provider and signup works. Reopen it only if someone asks for SSO.
 
@@ -53,15 +57,7 @@ org can create and assign plans. `lib/rbac.ts` already has the vocabulary
 OWNER/ADMIN only? Probably yes; it is left open because it is a product rule, not
 an oversight to be quietly patched.
 
-### 5. TikTok post metrics: rounded numbers or none?
-`SOCIALKIT_API_KEY` is unset, so TikTok post counts never refresh while
-Instagram and YouTube do. `https://www.tiktok.com/embed/v2/<videoId>` returns
-playCount, diggCount and commentCount from a Vercel Sandbox with **no
-`statsV2`** — so 30.7M where the true figure is 29,425,475. A rounded number
-that moves is arguably better than an exact number that is frozen, and arguably
-much worse in a client report. Your call.
-
-### 6. Override persistence on plan change
+### 5. Override persistence on plan change
 When a client's plan changes, existing per-client `featureOverrides` are
 preserved. Should a plan change clear them instead? Carried over from the old
 file because it is still true and still undecided.

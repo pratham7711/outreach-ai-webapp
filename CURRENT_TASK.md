@@ -44,14 +44,22 @@ clean.
    creators; nothing refuses the eleventh. Only `maxUsers` (invite seats) and
    `maxTrackers` are actually checked. Either enforce them or stop showing them —
    a limit that is displayed and not enforced is worse than neither.
-3. **TikTok post metrics do not auto-sync.** `SOCIALKIT_API_KEY` is unset in
-   production, so Instagram and YouTube post counts refresh on their own and
-   TikTok's do not. The onboarding copy is honest about this — it names only the
-   platforms whose metrics are live — so this is a missing capability, not a lie.
-   `https://www.tiktok.com/embed/v2/<videoId>` does return playCount, diggCount
-   and commentCount from a Vercel Sandbox, but with **no `statsV2`**, so the
-   figures are rounded (30.7M where the true value is 29,425,475). Adopting it
-   is a deliberate precision trade-off, not an obvious win.
+3. **TikTok post metrics DO auto-sync — the capability report used to deny it.**
+   Corrected 2026-09-01. `fetchTikTokMetrics` tries a keyless read of the video
+   page's rehydration blob first, and it prefers `statsV2`, so the counts are
+   exact. Production evidence: 422 cron-written TikTok post snapshots with
+   values genuinely moving (336 → 952 views on one post), hourly at `:01`, with
+   no `SOCIALKIT_API_KEY` set anywhere. SocialKit is only the third rung of that
+   ladder; buying a key buys nothing that is missing.
+   What *was* broken is that `lib/capabilities.ts` keyed TikTok's metric status
+   off that optional key, so the onboarding step read "Instagram and YouTube
+   counts refresh on their own" — naming everything except the platform holding
+   15,324 of the 18,690 posts. Fixed; TikTok's metric collector needs no
+   credential and the report now says so.
+   Still walled from Vercel egress, and unrelated to the above: TikTok
+   **profile** pages (read through a Sandbox curl) and the **video grid**
+   (`item_list`, which defeats headless Chromium even in a Sandbox).
+
 4. **`docs/BUILD_TRACKER.md` does not exist on this machine.** The old
    references to "#1 P0 in `docs/BUILD_TRACKER.md`" and "WS0 item 2" point at a
    file that was never copied off the previous laptop, along with `AGENTS.md`
