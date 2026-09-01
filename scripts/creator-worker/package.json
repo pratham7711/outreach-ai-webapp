@@ -1,0 +1,14 @@
+{
+  "name": "outreach-creator-worker",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Reads TikTok creator post grids with real Chrome from a box outside India, and posts them to the app.",
+  "scripts": {
+    "read": "node read-top-posts.mjs",
+    "read:dry": "node read-top-posts.mjs --dry-run"
+  },
+  "dependencies": {
+    "playwright": "^1.58.2"
+  }
+}

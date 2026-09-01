@@ -104,8 +104,11 @@ integration (org incoming webhook in `uiConfig.integrations.slack`, `/settings/i
 test + disconnect). Dispatch hooks `logAudit`; comments dispatch from their route.
 Requires `prisma db push` on dev + prod (new `notificationPrefs` column) before deploy.
 Also: Top Posts on creator trackers; TikTok profile stats via Vercel Sandbox curl
-(WAF-proof); TikTok Top Posts remain blocked by TikTok JS fingerprinting — needs
-ScrapeCreators or a real-Chrome VM. Fan Pages stays parked per PRD scope (2026-08-21).
+(WAF-proof). TikTok Top Posts route decided (Pratham, 2026-09-01): US VM + real
+Chrome — `scripts/creator-worker/` (mirrors sound-worker: real Chrome reads the
+grid, POSTs to `/api/trackers/creators/ingest`, token-auth'd, no DATABASE_URL on
+the box). Awaiting VM provisioning; README has the full install. Fan Pages stays
+parked per PRD scope (2026-08-21, reaffirmed 2026-09-01).
 
 ### Campaign Detail Page
 - [x] Wire up Creators tab — show assigned creators (activations)

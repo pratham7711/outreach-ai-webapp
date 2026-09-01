@@ -1,0 +1,34 @@
+[Unit]
+Description=Read TikTok creator post grids with real Chrome and post them to the app
+Documentation=file:///opt/outreach-creator-worker/README.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/outreach-creator-worker/creator-worker
+ExecStart=/usr/bin/node read-top-posts.mjs
+
+# APP_URL and CREATOR_INGEST_TOKEN live here, root-owned and chmod 600, so the
+# token is never an argument in `ps` and never in a shell history.
+EnvironmentFile=/etc/outreach-creator-worker.env
+
+# A run that reads nothing when it used to read exits non-zero; this line is
+# what turns that into a message instead of a quiet gap in the charts.
+OnFailure=status-email@%n.service
+
+# One browser against one hostile page needs no privileges at all.
+User=creators
+Group=creators
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/outreach-creator-worker
+
+# Real Chrome is not fast and a cold grid is worth waiting for, but a hung
+# browser must not sit here until the next timer fires.
+TimeoutStartSec=1800
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,18 @@
+[Unit]
+Description=Read TikTok creator post grids daily
+Documentation=file:///opt/outreach-creator-worker/README.md
+
+[Timer]
+# Daily. Top Posts is a "what's working for this creator" panel, not a live
+# metric — the app treats anything under 20 hours old as fresh
+# (TOP_POSTS_MAX_AGE_MS in lib/creators/snapshot.ts), so one read a day keeps
+# every sweep inside that window. One grid load per creator per day is also
+# far under what gets a box noticed.
+OnCalendar=*-*-* 02:37:00
+# Not on the hour: every scheduled job on every box fires at :00, and TikTok
+# can see that as clearly as anyone.
+RandomizedDelaySec=1800
+Persistent=true
+
+[Install]
+WantedBy=timers.target
