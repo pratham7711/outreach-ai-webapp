@@ -144,7 +144,19 @@ export async function snapshotCreators(
        on top of a successful one. */
     let gridRead: TikTokPostsRead | null | undefined;
     if (!result.ok && creator.platform === "TIKTOK" && readTikTokPosts && !dryRun) {
-      gridRead = await readTikTokPosts(creator.handle).catch(() => null);
+      let browserDetail: string | null = null;
+      gridRead = await readTikTokPosts(creator.handle).catch((e) => {
+        browserDetail = e instanceof Error ? e.message : String(e);
+        return null;
+      });
+      if (!gridRead && browserDetail && !result.ok) {
+        /* Both paths failed; store both, because "fetch got a WAF shell" and
+           "the browser saw X" point at different problems. */
+        result = {
+          ...result,
+          detail: `${result.detail ?? result.reason}; browser: ${browserDetail}`,
+        };
+      }
       if (gridRead?.profile) {
         result = {
           ok: true,

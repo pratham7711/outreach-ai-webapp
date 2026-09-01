@@ -100,13 +100,10 @@ export function createBrowserSession<Arg, Out>(
       } catch (e) {
         /* Whatever wedged or died stays disposed; the next read relaunches
            rather than queueing behind a browser that will never answer. The
-           log line is the only trace a swallowed read leaves. */
-        console.warn(
-          `[tiktok-browser] read failed (${process.env.VERCEL_REGION ?? "local"}):`,
-          e instanceof Error ? e.message : String(e)
-        );
+           error is rethrown, not swallowed: every caller has its own catch,
+           and the message is the only evidence of what the page actually was. */
         dispose();
-        return null;
+        throw e instanceof Error ? e : new Error(String(e));
       }
     },
     async close() {
