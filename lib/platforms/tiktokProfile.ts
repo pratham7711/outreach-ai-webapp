@@ -116,6 +116,16 @@ export function parseTikTokProfileHtml(html: string): CreatorReadResult {
   const userInfo = userDetail?.userInfo;
   if (!userInfo) {
     const status = userDetail?.statusCode ?? detail?.__DEFAULT_SCOPE__?.["webapp.app-context"]?.statusCode;
+    /* 10221 is TikTok's "this user does not exist" -- in practice a renamed or
+       deleted account (.olise.ftbl had become oliseftbl_). Worth its own words
+       because the fix is editing the tracked handle, not waiting. */
+    if (status === 10221 || status === 10202) {
+      return {
+        ok: false,
+        reason: "unreadable",
+        detail: `no such account — the handle may have been renamed or deleted (statusCode ${status})`,
+      };
+    }
     return {
       ok: false,
       reason: "unreadable",
