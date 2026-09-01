@@ -81,6 +81,17 @@ export default defineConfig({
        hand-started server was the only path that ever worked. */
     command: 'PORT=3009 npm run dev',
     url: process.env.E2E_BASE_URL || 'http://localhost:3009',
-    reuseExistingServer: true,
+    /* The suite asserts on seed fixtures -- 'LEAK IT', creator@demo.com and the
+       rest -- so it needs the seeded branch, not whatever .env.local happens to
+       point at. That default was a snapshot branch of the prod project holding
+       512 real campaigns and no seed rows, which is why every seed-dependent
+       spec failed while 54 others passed: not flakiness, the wrong database. */
+    env: process.env.TEST_DATABASE_URL
+      ? { DATABASE_URL: process.env.TEST_DATABASE_URL }
+      : undefined,
+    /* Reuse is a trap once the database matters: a server already up on 3009 is
+       almost certainly pointed at the dev database, and reusing it would silently
+       run the suite against the wrong data again. */
+    reuseExistingServer: !process.env.TEST_DATABASE_URL,
   },
 });
