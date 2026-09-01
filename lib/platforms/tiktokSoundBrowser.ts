@@ -1,4 +1,5 @@
 import type { TikTokSoundStats } from "./tiktokSound";
+import { createBrowserSession, type BrowserSession, type LaunchedBrowser } from "./tiktokBrowser";
 
 /**
  * Read a TikTok sound's use-count from inside a serverless function.
@@ -31,43 +32,9 @@ const UA =
 /** How long to wait for the page to make its own API call once loaded. */
 const PAYLOAD_WAIT_MS = 25_000;
 
-export type LaunchedBrowser = {
-  newPage: (opts: Record<string, unknown>) => Promise<any>;
-  close: () => Promise<void>;
-};
 
-/**
- * Serverless Chromium in production, a local browser in development.
- *
- * @sparticuz/chromium ships a Chromium built to fit a Lambda-style bundle;
- * locally it is absent and unnecessary, so we fall back to whatever Playwright
- * or the OS already has. Resolved dynamically so the serverless build does not
- * pull a development-only path into the bundle.
- */
-export async function launch(): Promise<LaunchedBrowser> {
-  const { chromium: pw } = await import("playwright-core");
 
-  if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
-    const mod = await import("@sparticuz/chromium");
-    const chromium = (mod as any).default ?? mod;
-    return (await pw.launch({
-      args: chromium.args,
-      executablePath: await chromium.executablePath(),
-      headless: true,
-    })) as unknown as LaunchedBrowser;
-  }
-
-  // Local: use the installed Chrome rather than downloading anything.
-  return (await pw.launch({ channel: "chrome", headless: true })) as unknown as LaunchedBrowser;
-}
-
-export type SoundBrowserSession = {
-  read: (
-    tiktokSoundId: string,
-    opts?: { timeoutMs?: number }
-  ) => Promise<TikTokSoundStats | null>;
-  close: () => Promise<void>;
-};
+export type SoundBrowserSession = BrowserSession<string, TikTokSoundStats>;
 
 /**
  * One browser for a whole sweep.
@@ -79,20 +46,7 @@ export type SoundBrowserSession = {
  * where the plain fetch answers first, never starts a browser at all.
  */
 export function openSoundBrowserSession(): SoundBrowserSession {
-  let browserPromise: Promise<LaunchedBrowser> | null = null;
-
-  return {
-    async read(tiktokSoundId, { timeoutMs = 45_000 } = {}) {
-      if (!browserPromise) browserPromise = launch();
-      const browser = await browserPromise;
-      return readWith(browser, tiktokSoundId, timeoutMs);
-    },
-    async close() {
-      if (!browserPromise) return;
-      const browser = await browserPromise.catch(() => null);
-      await browser?.close().catch(() => {});
-    },
-  };
+  return createBrowserSession(readWith);
 }
 
 /** One-shot form for callers reading a single sound. */

@@ -1,4 +1,4 @@
-import { launch, type LaunchedBrowser } from "./tiktokSoundBrowser";
+import { createBrowserSession, type BrowserSession, type LaunchedBrowser } from "./tiktokBrowser";
 import { rankTopPosts, type TopPost } from "./creatorProfile";
 
 /**
@@ -32,26 +32,11 @@ export type TikTokPostsRead = {
   profile: { followersCount: number; postsCount: number } | null;
 };
 
-export type TopPostsSession = {
-  read: (handle: string, opts?: { timeoutMs?: number }) => Promise<TikTokPostsRead | null>;
-  close: () => Promise<void>;
-};
+export type TopPostsSession = BrowserSession<string, TikTokPostsRead>;
 
-/** One lazily-launched browser per sweep -- see openSoundBrowserSession. */
+/** One lazily-launched, self-healing browser per sweep -- see tiktokBrowser. */
 export function openTopPostsSession(): TopPostsSession {
-  let browserPromise: Promise<LaunchedBrowser> | null = null;
-
-  return {
-    async read(handle, { timeoutMs = 45_000 } = {}) {
-      if (!browserPromise) browserPromise = launch();
-      return readWith(await browserPromise, handle, timeoutMs);
-    },
-    async close() {
-      if (!browserPromise) return;
-      const browser = await browserPromise.catch(() => null);
-      await browser?.close().catch(() => {});
-    },
-  };
+  return createBrowserSession(readWith);
 }
 
 async function readWith(
