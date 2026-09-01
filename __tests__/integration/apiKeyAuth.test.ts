@@ -170,6 +170,7 @@ describe("getAuditActor", () => {
       actorEmail: "a@b.com",
       actorType: "user" as const,
       role: "OWNER" as const,
+      campaignScope: "ALL" as const,
     };
     const actor = getAuditActor(result);
     expect(actor.userId).toBe("user-1");
@@ -184,6 +185,7 @@ describe("getAuditActor", () => {
       actorEmail: null,
       actorType: "api_key" as const,
       role: null,
+      campaignScope: null,
     };
     const actor = getAuditActor(result);
     expect(actor.userId).toBeUndefined();

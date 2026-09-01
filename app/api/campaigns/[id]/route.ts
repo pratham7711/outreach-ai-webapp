@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { campaignScopeWhereFor } from "@/lib/campaignScope";
 import { db } from "@/lib/db";
 import { findForeignRef } from "@/lib/tenantRefs";
 import { authenticateRequest, getAuditActor } from "@/lib/authenticate";
@@ -101,7 +102,9 @@ export async function GET(
     const { id } = await params;
 
     const campaign = await db.campaign.findFirst({
-      where: { id, orgId, deletedAt: null },
+      /* Scope is applied on the way in: a campaign the user is not on must 404
+         here, not merely be absent from their list. */
+      where: { id, orgId, deletedAt: null, ...campaignScopeWhereFor(result) },
       include: {
         tagLinks: { select: { tag: { select: { id: true, name: true } } } },
         teamMembers: {

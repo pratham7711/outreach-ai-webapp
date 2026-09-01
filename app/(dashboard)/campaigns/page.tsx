@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import CampaignsClient from "./CampaignsClient";
 import { CAMPAIGNS_PAGE_SIZE } from "@/lib/listPageSize";
 import { campaignWhere, countCampaignFilters, readCampaignFilters, campaignOrderBy } from "@/lib/listFilters";
+import { campaignScopeWhere, scopeSubjectFromSession } from "@/lib/campaignScope";
 import { firstParam, readCampaignSort } from "@/lib/listParams";
 import { hasPermission } from "@/lib/rbac";
 
@@ -25,11 +26,20 @@ export default async function CampaignsPage({
   // cannot disagree about what a filter means.
   const filters = readCampaignFilters(sp);
   const sort = readCampaignSort(sp);
-  const where = campaignWhere(orgId, filters);
+  /* Row-level visibility, ANDed with the org filter rather than replacing it:
+     a scoped user is still confined to their own organisation first. Applied to
+     the tab counts too, or the tabs would advertise the number of campaigns the
+     user cannot open. */
+  const scope = scopeSubjectFromSession(session.user);
+  const scopeWhere = scope ? campaignScopeWhere(scope) : {};
+  const where = { ...campaignWhere(orgId, filters), ...scopeWhere };
   // Tab counts describe the drawer's result set, so narrowing to one client
   // renumbers the tabs — but the tabs and the search box, being quick filters
   // over that set, are left out of their own counts.
-  const tabBase = campaignWhere(orgId, { ...filters, status: [], search: undefined });
+  const tabBase = {
+    ...campaignWhere(orgId, { ...filters, status: [], search: undefined }),
+    ...scopeWhere,
+  };
 
   const [campaigns, filteredTotal, statusGroups, creatorCount, clients, orgTags, orgTeam, folderRows, folderCounts, unfiledCount, statusDefs] =
     await Promise.all([

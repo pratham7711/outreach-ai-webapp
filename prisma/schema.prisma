@@ -20,6 +20,14 @@ enum UserRole {
 /// Billing state of an agency's own subscription to this platform.
 /// PAST_DUE warns; only SUSPENDED and CANCELLED actually block a login, and both
 /// are reached by a human deciding, never by a clock.
+/// Whether a user sees every campaign in their org, or only the ones they are on.
+/// The reference offers this per user as "View All Campaigns" vs "View Assigned
+/// Only". ALL is the default so adding it changes nothing for existing users.
+enum CampaignScope {
+  ALL
+  ASSIGNED
+}
+
 enum SubscriptionStatus {
   TRIALING
   ACTIVE
@@ -388,6 +396,10 @@ model User {
   name          String
   avatarUrl     String?
   role          UserRole  @default(VIEWER)
+  /// Row-level campaign visibility, independent of role. A MANAGER can be
+  /// scoped to their own campaigns; a MEMBER can be given the full view. ALL by
+  /// default, so existing users see exactly what they saw before.
+  campaignScope CampaignScope @default(ALL)
   password      String?
   emailVerified DateTime?
   isActive      Boolean   @default(true)

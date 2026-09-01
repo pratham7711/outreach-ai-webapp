@@ -50,7 +50,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           );
         }
 
-        return { id: user.id, email: user.email, name: user.name, orgId: user.orgId, role: user.role };
+        return { id: user.id, email: user.email, name: user.name, orgId: user.orgId, role: user.role, campaignScope: user.campaignScope };
       },
     }),
   ],
@@ -60,6 +60,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.id = user.id;
         token.orgId = (user as any).orgId;
         token.role = (user as any).role;
+        token.campaignScope = (user as any).campaignScope;
       }
       return token;
     },
@@ -68,6 +69,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         session.user.id = token.id as string;
         (session.user as any).orgId = token.orgId;
         (session.user as any).role = token.role;
+        (session.user as any).campaignScope = token.campaignScope;
       }
       return session;
     },

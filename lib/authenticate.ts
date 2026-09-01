@@ -10,6 +10,9 @@ export type AuthResult = {
   actorEmail: string | null;
   actorType: "user" | "api_key";
   role: UserRole | null;
+  /** Row-level campaign visibility. Null for machine callers, which are org
+   *  credentials rather than people and are not scoped to a team. */
+  campaignScope: "ALL" | "ASSIGNED" | null;
 };
 
 /**
@@ -32,6 +35,8 @@ export async function authenticateRequest(req?: NextRequest): Promise<AuthResult
       actorEmail: (session.user as any).email ?? null,
       actorType: "user",
       role: ((session.user as any).role as UserRole) ?? null,
+      campaignScope:
+        (session.user as any).campaignScope === "ASSIGNED" ? "ASSIGNED" : "ALL",
     };
   }
 
@@ -57,6 +62,7 @@ export async function authenticateRequest(req?: NextRequest): Promise<AuthResult
           actorEmail: null,
           actorType: "api_key",
           role: null,
+          campaignScope: null,
         };
       }
     }
