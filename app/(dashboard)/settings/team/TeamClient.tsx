@@ -42,7 +42,13 @@ const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
   expired:  { bg: "#FEE2E2", color: "#DC2626" },
 };
 
-export default function TeamClient({ users, invites }: { users: User[]; invites: Invite[] }) {
+type Seats = { used: number; pending: number; max: number | null };
+
+export default function TeamClient({
+  users, invites, seats,
+}: { users: User[]; invites: Invite[]; seats?: Seats }) {
+  const seatsFull =
+    seats?.max != null && seats.used + seats.pending >= seats.max;
   const router = useRouter();
   const [showModal, setShowModal] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
@@ -129,9 +135,26 @@ export default function TeamClient({ users, invites }: { users: User[]; invites:
             Manage your team and invite new members
           </p>
         </div>
-        <Button variant="primary" iconLeft={<Plus size={15} />} size="sm" onClick={() => setShowModal(true)}>
-          Invite Member
-        </Button>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          {seats?.max != null ? (
+            <span
+              style={{ fontSize: 13, color: seatsFull ? "var(--cc-warning)" : "var(--cc-text-muted)" }}
+              title={`${seats.used} member${seats.used === 1 ? "" : "s"}${seats.pending ? ` and ${seats.pending} pending invite${seats.pending === 1 ? "" : "s"}` : ""} of ${seats.max} seats`}
+            >
+              {seats.used + seats.pending}/{seats.max} seats
+            </span>
+          ) : null}
+          <Button
+            variant="primary"
+            iconLeft={<Plus size={15} />}
+            size="sm"
+            disabled={seatsFull}
+            title={seatsFull ? "All seats are in use or invited" : undefined}
+            onClick={() => setShowModal(true)}
+          >
+            Invite Member
+          </Button>
+        </div>
       </div>
 
       {/* Stats */}

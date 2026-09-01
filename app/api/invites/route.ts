@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { createAuditActor, logAudit } from "@/lib/audit";
+import { getOrgEntitlements } from "@/lib/entitlements";
 import { getRequestIp } from "@/lib/request";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -54,6 +55,33 @@ export async function POST(request: NextRequest) {
     // Validate role if provided
     if (role && !VALID_ROLES.includes(role)) {
       return NextResponse.json({ error: "Invalid role" }, { status: 400 });
+    }
+
+    /* Seats, counted before the invite is written.
+       The reference shows this as "5/5" and refuses at the limit. Pending
+       invites count against the total: an org one seat from full that sends
+       three invitations has promised three people access it cannot grant, and
+       whichever two accept last hit an error after choosing a password. Better
+       to refuse the invitation than the acceptance. */
+    const entitlements = await getOrgEntitlements(orgId);
+    const maxUsers = entitlements?.limits.maxUsers ?? null;
+    if (maxUsers !== null) {
+      const nowForSeats = new Date();
+      const [members, pending] = await Promise.all([
+        db.user.count({ where: { orgId } }),
+        db.userInvite.count({
+          where: { orgId, acceptedAt: null, expiresAt: { gt: nowForSeats } },
+        }),
+      ]);
+      if (members + pending >= maxUsers) {
+        return NextResponse.json(
+          {
+            error: `Your plan includes ${maxUsers} seat${maxUsers === 1 ? "" : "s"}, and ${members + pending} are in use or invited. Cancel a pending invite or remove a member to invite someone new.`,
+            seats: { used: members, pending, max: maxUsers },
+          },
+          { status: 409 }
+        );
+      }
     }
 
     // Check for duplicate pending invite
