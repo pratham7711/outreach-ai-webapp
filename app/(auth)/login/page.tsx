@@ -195,6 +195,24 @@ export default function LoginPage() {
               </button>
             </div>
 
+            {/* The reset flow existed for weeks with nothing linking to it, which
+                for anyone who forgot their password is the same as not having
+                one. This is the only route into it a locked-out user can
+                reach -- they cannot get past this screen to find it. */}
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: -4 }}>
+              <Link
+                href="/forgot-password"
+                style={{
+                  fontSize: 12,
+                  color: "var(--cc-text-muted)",
+                  textDecoration: "none",
+                  fontWeight: 500,
+                }}
+              >
+                Forgot password?
+              </Link>
+            </div>
+
             <div style={{ marginTop: 8 }}>
               <Button
                 type="submit"
