@@ -76,7 +76,15 @@ export function ViewsOverTimeArea({
                 stroke="var(--chart-3)"
                 strokeWidth={2}
                 fill="url(#viewsGradient)"
-                dot={false}
+                /* A line through one or two points draws nothing you can see,
+                   and this series starts at one point: the daily snapshot cron
+                   has to run before there is a second reading to join to. Show
+                   the markers until the line can carry itself. */
+                dot={
+                  data.length <= 3
+                    ? { fill: "var(--chart-3)", stroke: "var(--card)", strokeWidth: 2, r: 4 }
+                    : false
+                }
                 activeDot={{ fill: "var(--chart-3)", stroke: "var(--card)", strokeWidth: 2, r: 5 }}
               />
             </AreaChart>

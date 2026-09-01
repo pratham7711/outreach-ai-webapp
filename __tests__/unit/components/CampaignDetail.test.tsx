@@ -30,7 +30,7 @@ describe('CampaignDetail', () => {
 
   it('shows status badge label', () => {
     render(<CampaignDetail campaign={baseCampaign} />);
-    expect(screen.getByText('In Progress')).toBeInTheDocument();
+    expect(screen.getByText('In-Progress')).toBeInTheDocument();
   });
 
   it('shows activation count', () => {

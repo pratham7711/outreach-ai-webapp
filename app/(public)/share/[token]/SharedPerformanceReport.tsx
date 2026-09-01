@@ -13,6 +13,7 @@ import { platformColor } from "@/app/(dashboard)/analytics/shared";
 import { BRAND, POWERED_BY } from "@/lib/brand";
 import { AudioCard } from "@/components/campaigns/AudioCard";
 import { shareImgSrc } from "@/lib/postMedia";
+import { campaignStatusLabel } from "@/lib/statusColors";
 import SharedPostList from "./SharedPostList";
 
 const SERIES = [
@@ -20,15 +21,6 @@ const SERIES = [
   { key: "INSTAGRAM", color: platformColor("INSTAGRAM") },
   { key: "YOUTUBE", color: platformColor("YOUTUBE") },
 ] as const;
-
-/* CreatorCore prints "In-Progress", not the enum. */
-const CAMPAIGN_STATUS_LABEL: Record<string, string> = {
-  DRAFT: "Draft",
-  PENDING: "Pending",
-  IN_PROGRESS: "In-Progress",
-  COMPLETE: "Complete",
-  CANCELLED: "Canceled",
-};
 
 function formatNumber(num: number): string {
   return formatCompact(num);
@@ -253,7 +245,7 @@ export default function SharedPerformanceReport({
                 <StatTile value={formatExact(kpis.livePosts)} label="Live Posts" />
               )}
               {campaignStatus && (
-                <StatTile value={CAMPAIGN_STATUS_LABEL[campaignStatus] ?? campaignStatus} label="Status" />
+                <StatTile value={campaignStatusLabel(campaignStatus)} label="Status" />
               )}
               <StatTile value={formatExact(kpis.views)} label="Total Views" />
               {kpis.likes !== null && (

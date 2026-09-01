@@ -65,26 +65,27 @@ export async function PATCH(request: NextRequest) {
 
   const nextFeatures = buildFeatureMap(entitlements.featureMap, parsed.data.enabled);
 
-  /* maxCampaigns and maxCreators are deliberately not written.
+  /* No limit column is written here -- not maxCampaigns, maxCreators or
+     maxUsers.
      This route exists to toggle one feature flag, and it was copying the
-     resolved limits back into the row on the way past. Those two are now
-     uncapped, so the value being copied is Infinity, and the columns are
-     non-null Int -- Prisma rejects the write outright, which would turn the
-     audit-log toggle into a 500. Leaving them out keeps whatever the row
-     already holds; nothing reads either column any more (see
-     lib/entitlements.ts), so the stale number is inert.
-     maxUsers is still a real limit, so it is still kept in step. */
+     resolved limits back into the row on the way past. All three are uncapped
+     now, so the value being copied is Infinity, and the columns are non-null
+     Int -- Prisma rejects the write outright, which would turn the audit-log
+     toggle into a 500. maxUsers was the last one left; it went the same way
+     when seats were uncapped.
+     Leaving them out keeps whatever the row already holds; nothing reads any of
+     the three any more (see lib/entitlements.ts), so the stale numbers are
+     inert. maxTrackers is the only limit still read, and this route has never
+     written it. */
   await db.orgPlanConfig.upsert({
     where: { orgId },
     update: {
       planName: entitlements.planName,
-      maxUsers: entitlements.limits.maxUsers,
       features: nextFeatures,
     },
     create: {
       orgId,
       planName: entitlements.planName,
-      maxUsers: entitlements.limits.maxUsers,
       features: nextFeatures,
     },
   });

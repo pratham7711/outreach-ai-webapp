@@ -20,8 +20,9 @@ function formatLabel(value: string) {
 /**
  * Infinity renders as the literal string "Infinity", which reads as a bug.
  *
- * Campaigns and creators are unlimited on every tier now, so this is the common
- * case on this screen rather than an edge one.
+ * Campaigns, creators and seats are all unlimited on every tier now, so three
+ * of the four rows on this screen take this branch -- it is the common case,
+ * not an edge one.
  */
 function formatLimit(value: number): string {
   return Number.isFinite(value) ? String(value) : "Unlimited";
@@ -96,11 +97,13 @@ export default async function BillingPage() {
           marginBottom: 20,
         }}
       >
-        {/* Trackers sit alongside the others because they are the one limit that
-            is actually enforced, and this screen is where somebody comes to find
-            out what their plan allows. Campaigns and creators stay listed, said
-            plainly as Unlimited, rather than being dropped: a missing row raises
-            the question of whether there is a hidden cap. */}
+        {/* Tracked sounds is the ONE limit a plan applies. Seats joined
+            campaigns and creators in being uncapped on 2026-09-01, so the other
+            three rows read Unlimited on every tier.
+            They stay listed rather than being dropped: this screen is where
+            somebody comes to find out what their plan allows, and a missing row
+            raises the question of whether there is a hidden cap. Said plainly,
+            "Unlimited" answers it. */}
         {limitCard({ label: "Plan", value: formatLabel(entitlements.planName), icon: BadgeDollarSign })}
         {limitCard({
           label: "Tracked sounds",

@@ -51,8 +51,11 @@ interface TrackedSound {
   chartGranularity: "hourly" | "4hourly" | "daily" | "weekly";
 }
 
+/* The same four keys the API validates. The creator tab used to spell these
+   "7 Days / 14 Days / 30 Days" while this tab said "24hr / 7d / 14d / 30d", so
+   the identical control was labelled two ways on two tabs of one page. */
 const PERIODS: { key: string; label: string }[] = [
-  { key: "24h", label: "24hr" },
+  { key: "24h", label: "24h" },
   { key: "7d", label: "7d" },
   { key: "14d", label: "14d" },
   { key: "30d", label: "30d" },
@@ -402,7 +405,14 @@ export default function TrackersPage() {
           <MetricTile metric="trackersActive" value={String(totalTrackers)} />
           <MetricTile metric="trackerUses" value={formatCount(totalUses)} />
           <MetricTile metric="trackersTrending" value={String(trendingCount)} />
-          <MetricTile metric="trackersNewToday" value={formatCompact(newToday)} />
+          {/* The label has to carry the period, because the number changes when
+              the buttons below are clicked. "New today" was wrong on three of
+              the four settings. */}
+          <MetricTile
+            metric="trackersNewUses"
+            label={`New uses / ${periodLabel(period)}`}
+            value={formatCompact(newToday)}
+          />
         </div>
       )}
 

@@ -43,8 +43,12 @@ export function OverviewSection({
             metric="activeCampaigns"
             value={String(s ? s.activeCampaigns : fallbackCampaignCount)}
           />
+          {/* workspaceCreators, not campaignCreators: this is every creator
+              booked anywhere in the workspace, counted once. The campaign
+              definition's help text said "on this campaign", which is a
+              different number on any account running more than one. */}
           <MetricTile
-            metric="campaignCreators"
+            metric="workspaceCreators"
             value={String(s ? s.totalCreators : fallbackCreatorCount)}
           />
           {/* Both come from the same platform rollup, so they are either
@@ -63,24 +67,38 @@ export function OverviewSection({
         <SectionCard
           icon={BarChart3}
           title="Views over time"
-          /* "by the date it was measured" was wrong in the one word that decides
-             how the chart is read. The query buckets on Post.postedAt -- the day
-             the creator published -- and deliberately so: it used to bucket on
-             createdAt, the day we imported the row, which put an import of three
-             famous videos on a single afternoon in July. Nothing about the line
-             is a measurement date.
-             It is also cumulative, and the label read like a per-period total.
-             And it covers the window only (six months by default), not "every
-             tracked post": on production that is 347M views from 8,443 posts
-             against 1.80bn from 18,690 all time. */
-          description="Running total of views, by the month each post went live — not by when it was measured. Covers the last six months."
+          /* This label has been wrong twice, in the one word that decides how
+             the chart is read.
+             It first said "by the date it was measured", when nothing was being
+             measured: the query bucketed posts by publication date and gave each
+             one its CURRENT view count. So the past moved -- a March post gaining
+             views today raised March and every point after it -- and the chart
+             you screenshotted last week no longer matched the chart today.
+             It is now genuinely measured: /api/cron/snapshot-org-views writes one
+             row per org per day at 03:30 UTC holding the lifetime views of every
+             post the org holds, and the line joins those readings. Each point is
+             a running total (it only goes up), and the series starts the day the
+             first reading landed -- there is no history to backfill, because
+             history was never recorded. */
+          description="One reading per day, taken at 03:30 UTC: the lifetime views of every post in this workspace as of that morning. The line starts from the first reading — earlier days were never measured."
         >
           {loading ? (
             <Skeleton className="h-[400px] w-full rounded-lg" />
+          ) : !financials?.viewsOverTime.length ? (
+            /* An empty area chart is indistinguishable from a workspace with
+               zero views, and the real reason is almost always the third one:
+               the first daily reading has not been taken yet. Say so. */
+            <div className="flex h-[400px] flex-col items-center justify-center gap-2 text-center">
+              <p className="text-sm font-medium text-[var(--cc-text)]">No readings yet</p>
+              <p className="max-w-sm text-xs text-[var(--cc-text-muted)]">
+                Views are measured once a day at 03:30 UTC. The first point appears after the
+                next reading, and the line builds from there.
+              </p>
+            </div>
           ) : (
             <div className="h-[400px]">
               <ViewsOverTimeArea
-                data={financials?.viewsOverTime ?? []}
+                data={financials.viewsOverTime}
                 formatNumber={formatNumber}
               />
             </div>

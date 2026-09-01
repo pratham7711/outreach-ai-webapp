@@ -75,15 +75,19 @@ it("ignores the schema's own 10/100 defaults", async () => {
   expect(ent?.limits.maxCreators).toBe(Infinity);
 });
 
-it("still honours a planConfig override for seats and trackers", async () => {
+it("still honours a planConfig override for trackers", async () => {
   mockDb.organization.findUnique.mockResolvedValue(
     org({ planConfig: { planName: "starter", maxCampaigns: 10, maxCreators: 100, maxUsers: 12, maxTrackers: 40, features: {} } }),
   );
 
   const ent = await getOrgEntitlements("org-1");
 
-  expect(ent?.limits.maxUsers).toBe(12);
   expect(ent?.limits.maxTrackers).toBe(40);
+  /* Trackers are the only limit an override can still reinstate. A hand-set 12
+     in the maxUsers column is ignored the same way maxCampaigns is: seats were
+     uncapped on every tier, and honouring the stored number would put an org
+     back under a cap its billing screen says it does not have. */
+  expect(ent?.limits.maxUsers).toBe(Infinity);
 });
 
 it("falls back to the plan tier for trackers when no override is set", async () => {
@@ -92,7 +96,7 @@ it("falls back to the plan tier for trackers when no override is set", async () 
   const ent = await getOrgEntitlements("org-1");
 
   expect(ent?.limits.maxTrackers).toBe(25);
-  expect(ent?.limits.maxUsers).toBe(5);
+  expect(ent?.limits.maxUsers).toBe(Infinity);
 });
 
 it("serialises an uncapped limit to null, which the UI reads as no counter", async () => {
@@ -113,8 +117,10 @@ it("ignores the row shape signup actually creates", async () => {
      and lets the schema fill the rest, so a brand-new tenant has 10/100/5 in
      those columns and PLANS.starter's 20/500 never applied to it. That is what
      made a fresh signup report 10 campaigns and 100 creators, and it is the
-     exact case this guard has to cover. maxTrackers is nullable, so it does
-     still fall through to the tier. */
+     exact case this guard has to cover. The 5 in maxUsers is the same kind of
+     accident and is ignored for the same reason. maxTrackers is nullable, so it
+     does still fall through to the tier -- which is the point: it is the one
+     limit left. */
   mockDb.organization.findUnique.mockResolvedValue(
     org({
       plan: "starter",
@@ -126,6 +132,6 @@ it("ignores the row shape signup actually creates", async () => {
 
   expect(ent?.limits.maxCampaigns).toBe(Infinity);
   expect(ent?.limits.maxCreators).toBe(Infinity);
-  expect(ent?.limits.maxUsers).toBe(5);
+  expect(ent?.limits.maxUsers).toBe(Infinity);
   expect(ent?.limits.maxTrackers).toBe(25);
 });

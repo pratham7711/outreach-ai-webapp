@@ -13,7 +13,10 @@ export type PerformanceData = {
     activeCampaigns: number;
     totalCreators: number;
   };
-  viewsOverTime: { date: string; views: number }[];
+  /* One measured reading per bucket. `views` is a LEVEL -- lifetime views of
+     every post the org held on that day -- not the views earned during the
+     bucket, so these points must never be summed. */
+  viewsOverTime: { date: string; views: number; posts: number }[];
   viewsByCampaign: {
     campaignId: string;
     title: string;
@@ -56,14 +59,7 @@ export function formatNumber(n: number) {
   return formatCompact(n);
 }
 
-const STATUS_LABELS: Record<string, string> = {
-  DRAFT: "Draft",
-  PENDING: "Pending",
-  IN_PROGRESS: "In Progress",
-  COMPLETE: "Complete",
-  CANCELLED: "Cancelled",
-};
-
-export function statusLabel(status: string) {
-  return STATUS_LABELS[status] ?? status.replace(/_/g, " ");
-}
+/* Re-exported rather than redefined. This file used to hold its own copy that
+   spelled the running state "In Progress" while three other files spelled it
+   two other ways. */
+export { campaignStatusLabel as statusLabel } from "@/lib/statusColors";

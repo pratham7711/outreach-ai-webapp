@@ -106,7 +106,12 @@ export function ActivitySection({ recentCampaigns }: ActivitySectionProps) {
       <SectionCard
         icon={Clock}
         title="Activity feed"
-        description="Recent status changes across your campaigns."
+        /* Not a change log. This renders the same five campaigns as the card
+           above -- the same array, unfiltered -- and the only timestamp it has
+           is updatedAt, which any edit bumps: a note, a budget change, a new
+           activation. Claiming "status changes" made every ordinary edit look
+           like a status transition, and dated it wrongly besides. */
+        description="Where each of those five campaigns now stands, and when it was last edited."
       >
         {feed.length > 0 ? (
           <ul className="flex flex-col divide-y divide-border">
@@ -118,7 +123,7 @@ export function ActivitySection({ recentCampaigns }: ActivitySectionProps) {
                 <div className="min-w-0 flex-1">
                   <p className="flex flex-wrap items-center gap-1.5 text-[13px] leading-relaxed text-foreground">
                     <span className="font-semibold">{c.title}</span>
-                    <span className="text-muted-foreground">status updated to</span>
+                    <span className="text-muted-foreground">is now</span>
                     <Badge variant={STATUS_BADGE_VARIANT[c.status] ?? "neutral"} size="sm">
                       {statusLabel(c.status)}
                     </Badge>

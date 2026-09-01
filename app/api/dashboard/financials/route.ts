@@ -95,26 +95,32 @@ export async function GET(req: NextRequest) {
         select: { creatorId: true },
         distinct: ["creatorId"],
       }),
-      // Date bucketing is the one thing Prisma groupBy cannot express, so it is
-      // raw SQL. truncUnit comes from a validated enum, never from user text.
-      /* Bucketed on when the post was published, and accumulated.
-         It used to bucket on "createdAt" -- the moment the row was written
-         here -- so the chart was really "current views of whatever we imported
-         that day", and an import of three famous videos put eleven billion
-         views on one afternoon in July and nothing after it. Views are a
-         running total, so the honest line is cumulative: what the org's posts
-         had earned by each point, which only goes up. */
-      db.$queryRawUnsafe<{ bucket: Date; views: bigint }[]>(
-        `SELECT bucket, SUM(views) OVER (ORDER BY bucket) AS views
-           FROM (
-             SELECT date_trunc('${truncUnit}', p."postedAt") AS bucket,
-                    COALESCE(SUM(p."viewsCount"), 0) AS views
-               FROM "Post" p
-               JOIN "Campaign" c ON c.id = p."campaignId"
-              WHERE c."orgId" = $1 AND p."postedAt" >= $2 AND p."postedAt" <= $3
-              GROUP BY 1
-           ) t
-          ORDER BY bucket`,
+      /* Measured, not derived. One row per day, written by
+         /api/cron/snapshot-org-views at 03:30 UTC.
+
+         This used to be computed here: posts bucketed by publication date, each
+         contributing its CURRENT view count, accumulated. That has a property
+         no client report should have -- the past moves. A March post gaining
+         views today raised March and every point after it, so the chart
+         screenshotted last week no longer matched the chart today. It also
+         could not answer the question its own axis implies, because nothing in
+         the database recorded what the total actually was on any given day.
+
+         A reading is a LEVEL (lifetime views of every post the org holds, as of
+         that morning), so bucketing to weekly or monthly takes the LAST row in
+         the bucket. Summing would count the same lifetime views once per day
+         and produce a number that means nothing. DISTINCT ON is Postgres's way
+         of saying "one row per bucket, the first one in this ordering".
+
+         truncUnit comes from a validated enum, never from user text. */
+      db.$queryRawUnsafe<{ bucket: Date; views: number; posts: number }[]>(
+        `SELECT DISTINCT ON (bucket)
+                date_trunc('${truncUnit}', s."day") AS bucket,
+                s."viewsCount" AS views,
+                s."postsCount" AS posts
+           FROM "OrgViewsSnapshot" s
+          WHERE s."orgId" = $1 AND s."day" >= $2 AND s."day" <= $3
+          ORDER BY bucket, s."day" DESC`,
         orgId,
         from,
         to
@@ -166,6 +172,7 @@ export async function GET(req: NextRequest) {
     const viewsOverTime = bucketRows.map((r) => ({
       date: getDateKey(new Date(r.bucket), granularity),
       views: Number(r.views),
+      posts: Number(r.posts),
     }));
 
     const titleById = new Map(campaignTitles.map((c) => [c.id, c.title]));

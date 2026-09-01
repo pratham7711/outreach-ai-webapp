@@ -327,6 +327,7 @@ model Organization {
   conversations       Conversation[]
   songs               Song[]
   syncSlots           SyncSlot[]
+  viewsSnapshots      OrgViewsSnapshot[]
 
   creatorTagDefs       CreatorTagDef[]
   creatorFlagDefs      CreatorFlagDef[]
@@ -390,27 +391,27 @@ model CampaignPhase {
 }
 
 model User {
-  id            String        @id @default(cuid())
-  orgId         String
-  email         String        @unique
-  name          String
-  avatarUrl     String?
-  role          UserRole      @default(VIEWER)
+  id                String        @id @default(cuid())
+  orgId             String
+  email             String        @unique
+  name              String
+  avatarUrl         String?
+  role              UserRole      @default(VIEWER)
   /// Row-level campaign visibility, independent of role. A MANAGER can be
   /// scoped to their own campaigns; a MEMBER can be given the full view. ALL by
   /// default, so existing users see exactly what they saw before.
-  campaignScope CampaignScope @default(ALL)
+  campaignScope     CampaignScope @default(ALL)
   /// Sparse per-event email-notification overrides (lib/notifications.ts owns
   /// the catalog and defaults). Null means "all defaults" — most rows.
   notificationPrefs Json?
-  password      String?
-  emailVerified DateTime?
-  isActive      Boolean       @default(true)
-  lastLoginAt   DateTime?
-  lastLoginIp   String?
-  invitedById   String?
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  password          String?
+  emailVerified     DateTime?
+  isActive          Boolean       @default(true)
+  lastLoginAt       DateTime?
+  lastLoginIp       String?
+  invitedById       String?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
 
   org             Organization         @relation(fields: [orgId], references: [id])
   campaignMembers CampaignTeamMember[]
@@ -884,7 +885,6 @@ model TikTokSound {
   coverImageUrl String?
   trackedSince  DateTime @default(now())
   createdAt     DateTime @default(now())
-
 
   org       Organization           @relation(fields: [orgId], references: [id])
   snapshots SoundTrackerSnapshot[]
@@ -1734,4 +1734,43 @@ model ActivationStatusDef {
 
   @@unique([orgId, name])
   @@index([orgId, bucket])
+}
+
+/// One measurement per organisation per day of what all its posts had earned.
+///
+/// The dashboard's "Views over time" chart used to be derived rather than
+/// measured: it bucketed posts by publication date and summed each post's
+/// CURRENT view count, cumulatively. That answers "how are the posts we
+/// published in March doing right now", which is a useful question but not the
+/// one the chart claimed to answer, and it had a property nobody wants in a
+/// client report -- the past moved. A March post gaining views today raised
+/// March and every point after it, so a chart screenshotted last week no longer
+/// matched the chart today.
+///
+/// This is the honest version: a row written once a day at a fixed time, holding
+/// the total as it stood at that moment. Once written, a point never changes.
+///
+/// viewsCount is a LEVEL, not a period total -- it is the lifetime views of
+/// every post the org holds, as of `recordedAt`. So rolling these up to weekly
+/// or monthly takes the LAST row in the bucket; summing them would count the
+/// same lifetime views once per day.
+model OrgViewsSnapshot {
+  id            String   @id @default(cuid())
+  orgId         String
+  /// UTC midnight of the day measured. One row per org per day, which is what
+  /// makes the daily cron idempotent -- a retry updates rather than duplicates.
+  day           DateTime @db.Date
+  /// Lifetime views across every post in the org, at recordedAt.
+  viewsCount    Float
+  likesCount    Float    @default(0)
+  commentsCount Float    @default(0)
+  /// How many posts that total was drawn from. A jump in views is far easier to
+  /// read when you can see whether posts were added on the same day.
+  postsCount    Int      @default(0)
+  recordedAt    DateTime @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, day])
+  @@index([orgId, day])
 }

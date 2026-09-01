@@ -72,7 +72,10 @@ describe("GET /api/dashboard/financials", () => {
     mockDb.campaign.count.mockResolvedValue(1);
     mockDb.campaign.findMany.mockResolvedValue([{ id: "camp-1", title: "Test" }]);
     mockDb.activation.findMany.mockResolvedValue([{ campaignId: "camp-1", creatorId: "c1" }]);
-    mockDb.$queryRawUnsafe.mockResolvedValue([{ bucket: new Date("2026-08-01"), views: BigInt(10000) }]);
+    // One measured reading, as OrgViewsSnapshot rows come back.
+    mockDb.$queryRawUnsafe.mockResolvedValue([
+      { bucket: new Date("2026-08-01"), views: 10000, posts: 1 },
+    ]);
     mockDb.post.groupBy
       .mockResolvedValueOnce([{ campaignId: "camp-1", _sum: { viewsCount: 10000 } }])
       .mockResolvedValueOnce([{ platform: "TIKTOK", _sum: { viewsCount: 10000 }, _count: { _all: 1 } }])
@@ -97,7 +100,7 @@ describe("GET /api/dashboard/financials", () => {
 
     const body = await res.json();
     expect(body.summary).toEqual({ activeCampaigns: 1, totalCreators: 1 });
-    expect(body.viewsOverTime).toEqual([{ date: "2026-08", views: 10000 }]);
+    expect(body.viewsOverTime).toEqual([{ date: "2026-08", views: 10000, posts: 1 }]);
     expect(body.viewsByCampaign).toEqual([
       { campaignId: "camp-1", title: "Test", views: 10000, creatorsCount: 1 },
     ]);
@@ -117,8 +120,30 @@ describe("GET /api/dashboard/financials", () => {
     expect(mockDb.campaign.count).toHaveBeenCalledWith(
       expect.objectContaining({ where: expect.objectContaining({ orgId: "org-1" }) })
     );
-    const [, orgArg] = mockDb.$queryRawUnsafe.mock.calls[0];
+    const [sql, orgArg] = mockDb.$queryRawUnsafe.mock.calls[0];
     expect(orgArg).toBe("org-1");
+    expect(sql).toContain('"OrgViewsSnapshot"');
+    expect(sql).toContain('s."orgId" = $1');
+  });
+
+  /* The point of the snapshot table. If the chart ever goes back to reading
+     Post.viewsCount, the past starts moving again and a screenshot from last
+     week stops matching today's chart. */
+  it("reads the views chart from measured snapshots, not from post rows", async () => {
+    await GET(makeRequest("http://localhost/api/dashboard/financials"));
+    const [sql] = mockDb.$queryRawUnsafe.mock.calls[0];
+    expect(sql).not.toContain('p."postedAt"');
+    expect(sql).not.toContain("SUM(views)");
+  });
+
+  /* viewsCount is a LEVEL, so a monthly bucket takes the last reading in the
+     month. Summing would add the same lifetime views once per day. */
+  it("takes one row per bucket rather than summing the readings", async () => {
+    await GET(makeRequest("http://localhost/api/dashboard/financials?granularity=monthly"));
+    const [sql] = mockDb.$queryRawUnsafe.mock.calls[0];
+    expect(sql).toContain("DISTINCT ON (bucket)");
+    expect(sql).toContain('ORDER BY bucket, s."day" DESC');
+    expect(sql).not.toMatch(/SUM\s*\(\s*s\."viewsCount"/i);
   });
 
   it("returns empty collections for an org with no delivery yet", async () => {

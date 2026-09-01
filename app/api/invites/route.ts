@@ -65,7 +65,14 @@ export async function POST(request: NextRequest) {
        to refuse the invitation than the acceptance. */
     const entitlements = await getOrgEntitlements(orgId);
     const maxUsers = entitlements?.limits.maxUsers ?? null;
-    if (maxUsers !== null) {
+    /* Seats are unlimited on every tier now (lib/plans.ts), so maxUsers is
+       Infinity and this whole block is skipped. `>= Infinity` would be false
+       anyway, but only after two COUNT queries had already run on a check that
+       cannot refuse anything. The gate is kept rather than deleted because it
+       is the enforcement point if a seat limit ever comes back -- and because
+       an org whose planConfig is hand-edited to a finite number should still be
+       held to it. */
+    if (maxUsers !== null && Number.isFinite(maxUsers)) {
       const nowForSeats = new Date();
       const [members, pending] = await Promise.all([
         db.user.count({ where: { orgId } }),

@@ -110,7 +110,7 @@ describe("campaign activity feed phrasing", () => {
     expect(byId.e3.glyph).toBe("🗑️");
     expect(byId.e3.text).toBe("A post has been deleted by Alex Turner");
     expect(byId.e4.glyph).toBe("💡");
-    expect(byId.e4.text).toBe("Campaign status has been changed to In Progress by Alex Turner");
+    expect(byId.e4.text).toBe("Campaign status has been changed to In-Progress by Alex Turner");
   });
 
   it("falls back to the email local part when the user row is gone", async () => {
@@ -163,6 +163,9 @@ describe("campaign activity feed phrasing", () => {
 
   it("humanises enum statuses", () => {
     expect(humanStatus("DRAFT_DECLINED")).toBe("Draft Declined");
+    /* humanStatus still title-cases the enum -- that is its job, and it is
+       correct for activation statuses. The campaign feed no longer routes
+       campaign statuses through it; see the In-Progress assertion above. */
     expect(humanStatus("IN_PROGRESS")).toBe("In Progress");
     expect(humanStatus(null)).toBe("Unknown");
   });

@@ -180,7 +180,11 @@ export function PerformanceSection({
         <SectionCard
           icon={TrendingUp}
           title="Creator performance"
-          description="What each creator was paid and what it returned."
+          /* Promised money and delivered none: the columns are Creator,
+             Activations, Views and Avg engagement -- there is no payment figure
+             in this table, and the financials rollup this reads does not fetch
+             one. */
+          description="Your ten highest-reaching creators, with how many campaigns each is booked on and how hard their posts worked."
           padded={false}
           action={
             <Button variant="outline" size="sm" onClick={onExportCreators}>

@@ -12,16 +12,27 @@ describe("PLANS config", () => {
     for (const plan of Object.keys(PLANS) as PlanName[]) {
       expect(PLANS[plan].max_campaigns).toBe(Infinity);
       expect(PLANS[plan].max_creators).toBe(Infinity);
+      // Seats joined them on 2026-09-01. A seat is a row; a tracker is a
+      // recurring platform fetch, and that is the difference that decides this.
+      expect(PLANS[plan].max_users).toBe(Infinity);
     }
   });
 
-  it("keeps seats and trackers real and rising by tier", () => {
-    /* The two limits that mean something: a seat is a person who can invite
-       more people, and a tracker is a recurring fetch on a schedule. */
-    expect(PLANS.free.max_users).toBe(2);
-    expect(PLANS.starter.max_users).toBe(5);
-    expect(PLANS.enterprise.max_users).toBe(Infinity);
+  /* The invariant, not just today's numbers: trackers are the ONLY thing a
+     plan limits. If a second finite limit ever appears here, that is a product
+     decision and this test should be the thing that makes someone say it out
+     loud. */
+  it("makes trackers the only finite limit on any tier", () => {
+    for (const plan of Object.keys(PLANS) as PlanName[]) {
+      const limits = PLANS[plan];
+      const finite = (["max_campaigns", "max_creators", "max_users", "max_trackers"] as const)
+        .filter((k) => Number.isFinite(limits[k]));
+      expect(finite).not.toContain("max_users");
+      expect(finite.every((k) => k === "max_trackers")).toBe(true);
+    }
+  });
 
+  it("keeps trackers real and rising by tier", () => {
     expect(PLANS.free.max_trackers).toBe(3);
     expect(PLANS.starter.max_trackers).toBe(25);
     expect(PLANS.pro.max_trackers).toBe(200);

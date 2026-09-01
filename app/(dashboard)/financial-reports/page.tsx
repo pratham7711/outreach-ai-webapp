@@ -294,6 +294,11 @@ export default function FinancialReportsPage() {
             />
             <MetricTile
               metric="pendingPayouts"
+              /* Period-scoped like everything else on this report: payouts
+                 raised inside the reporting period, not your whole outstanding
+                 balance. The two differ the moment a payout sits unpaid across
+                 a month boundary. */
+              how="Adds up payouts marked Pending that were raised inside the reporting period."
               value={fmt(data.current.pendingPayouts, data.reportCurrency)}
               footer={`${data.current.approvedRequests > 0 ? fmt(data.current.approvedRequests, data.reportCurrency) + " approved requests" : "No pending requests"}`}
             />
@@ -305,6 +310,13 @@ export default function FinancialReportsPage() {
             />
             <MetricTile
               metric="campaigns"
+              /* Overridden because this tile is period-scoped and the shared
+                 definition is not: the query filters campaigns on createdAt
+                 inside the reporting period, so a workspace with 40 campaigns
+                 shows 3 here for a month in which it started three. The
+                 unqualified "in total" reading made that look like data loss. */
+              what="How many campaigns your team started inside the reporting period. Campaigns created earlier are not counted, however active they still are."
+              how="Counts campaigns whose creation date falls in the period, deleted ones excluded."
               value={String(data.current.campaignCount)}
               footer={`${data.current.activeCampaigns} active`}
               delta={toDelta(data.comparison.campaignCountChange)}

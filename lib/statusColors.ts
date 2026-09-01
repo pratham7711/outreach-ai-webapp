@@ -13,6 +13,41 @@
 
 export type StatusStyle = { bg: string; color: string };
 
+/**
+ * The one place a campaign status becomes words.
+ *
+ * There were five of these maps and three different spellings of the same
+ * state: a card said "In Progress", the campaigns filter said "In-Progress",
+ * the settings dropdown and the list tab said "Active", and the shared report
+ * said "In-Progress" with a comment explaining that the reference app spells it
+ * that way. So the same campaign changed status-name depending on which screen
+ * you were looking at.
+ *
+ * "In-Progress" and "Canceled" are the reference's spellings, recorded in
+ * docs/CREATORCORE_PARITY_PRD.md: the status control on a campaign renders
+ * `In-Progress`, and the pills spell it `Canceled` with one L.
+ *
+ * This is the label for a campaign's own status. The FILTER PILLS on the
+ * campaigns list are deliberately not this: the reference labels those
+ * `All · Pending · Active · Complete · Canceled`, calling the same state
+ * "Active" when it is a thing you filter by and "In-Progress" when it is a
+ * thing a campaign is. Both are copied on purpose -- do not "fix" one into the
+ * other. The prose further down this file also says "Active" as shorthand for
+ * the solid-blue exception; that is a note about colour, not a label.
+ */
+export const CAMPAIGN_STATUS_LABEL: Record<string, string> = {
+  DRAFT: "Draft",
+  PENDING: "Pending",
+  IN_PROGRESS: "In-Progress",
+  COMPLETE: "Complete",
+  CANCELLED: "Canceled",
+};
+
+/** Falls back to the enum with underscores softened, never to a blank chip. */
+export function campaignStatusLabel(status: string): string {
+  return CAMPAIGN_STATUS_LABEL[status] ?? status.replace(/_/g, " ");
+}
+
 /** Campaign statuses, as the reference's list shows them. */
 export const CAMPAIGN_STATUS_STYLE: Record<string, StatusStyle> = {
   ALL: { bg: "#F3F4F6", color: "#374151" },

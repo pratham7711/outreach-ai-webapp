@@ -59,10 +59,16 @@ an oversight to be quietly patched.
 
 ### 4. Should a deleted campaign's views still count on the dashboard?
 
-The `viewsOverTime` SQL in `app/api/dashboard/financials/route.ts` joins
-`Campaign` on `orgId` alone, with no `deletedAt IS NULL` — while the "Active
-campaigns" tile rendered directly above it does filter. The same is true of the
-platform, per-campaign and per-creator rollups on that route.
+**Half-answered, and inconsistently, which makes deciding it more urgent than
+before.** The "Views over time" chart now reads `OrgViewsSnapshot`, and the daily
+job that writes those rows (`lib/analytics/orgViewsSnapshot.ts`) *does* filter
+`c."deletedAt" IS NULL` — so the chart excludes deleted campaigns. The platform,
+per-campaign and per-creator rollups on the same route still do not. So the
+chart and the tiles beside it now answer this question two different ways.
+
+Whichever answer wins, it should be applied to all of them; the snapshot job
+picked one so that it could write a number at all, not because the question was
+settled.
 
 It costs nothing today: soft-deleted campaigns on production hold 0 posts and 0
 views, so no number is currently wrong. But the first time someone deletes a
@@ -77,3 +83,19 @@ that happened still happened" — which is why it is here rather than patched.
 When a client's plan changes, existing per-client `featureOverrides` are
 preserved. Should a plan change clear them instead? Carried over from the old
 file because it is still true and still undecided.
+
+### 6. Creating the `OrgViewsSnapshot` table on production
+The daily views cron and the rewritten chart are written, tested and building
+clean, but the table does not exist on production yet, and **the deploy must not
+go out before it does** — `/api/dashboard/financials` will 500 on
+`relation "OrgViewsSnapshot" does not exist`, which is the whole dashboard.
+
+The change is purely additive; `prisma migrate diff` produced exactly one
+`CREATE TABLE`, two indexes and one foreign key, with nothing dropped or
+altered. The SQL is at `scratchpad/orgviews.sql`. Applying it needs an explicit
+go-ahead because it is DDL against a production database that has no
+`_prisma_migrations` table, so `migrate deploy` is not an option and the
+statements go in directly.
+
+Order: apply the SQL → seed today's row (`snapshotOrgViews`, or just let the
+03:30 UTC cron take the first reading) → deploy.

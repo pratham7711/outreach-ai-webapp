@@ -103,7 +103,12 @@ export async function getOrgEntitlements(orgId: string): Promise<OrgEntitlements
          are simply no longer read. */
       maxCampaigns: Infinity,
       maxCreators: Infinity,
-      maxUsers: org.planConfig?.maxUsers ?? fallbackPlan.max_users,
+      /* Uncapped too, and for the same reason as the two above: the stored
+         column defaults to a small number nobody chose. Unlike those, this one
+         WAS enforced -- app/api/invites/route.ts refused a seat over the cap --
+         so leaving the column read here would keep an org on starter stuck at
+         five people while its billing screen said Unlimited. */
+      maxUsers: Infinity,
       maxTrackers: org.planConfig?.maxTrackers ?? fallbackPlan.max_trackers,
     },
     branding: {

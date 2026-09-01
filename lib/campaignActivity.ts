@@ -1,4 +1,5 @@
 import { db } from "./db";
+import { campaignStatusLabel } from "./statusColors";
 
 /**
  * The campaign activity feed's event vocabulary, phrased to match CreatorCore.
@@ -186,7 +187,13 @@ export async function buildActivityFeed(
         events.push({
           ...base,
           glyph: "💡",
-          text: `Campaign status has been changed to ${humanStatus(after.status)} by ${who}`,
+          /* campaignStatusLabel, not humanStatus: title-casing the enum gives
+             "In Progress", and the status control on the campaign this feed is
+             attached to says "In-Progress". The feed named a status the page
+             beside it did not have. Activation statuses above still go through
+             humanStatus -- they have no curated map, and title-casing
+             AWAITING_DRAFT is exactly right. */
+          text: `Campaign status has been changed to ${campaignStatusLabel(after.status as string)} by ${who}`,
         });
         break;
       }

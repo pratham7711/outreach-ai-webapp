@@ -55,10 +55,13 @@ type TrackedCreator = {
   topPostsSource: "platform" | "campaigns" | null;
 };
 
+/* Spelled to match the Audios tab's identical control. There is no 24h option
+   here: a creator's follower count moves too slowly for a one-day reading to be
+   anything but noise. */
 const PERIODS = [
-  { key: "7d", label: "7 Days" },
-  { key: "14d", label: "14 Days" },
-  { key: "30d", label: "30 Days" },
+  { key: "7d", label: "7d" },
+  { key: "14d", label: "14d" },
+  { key: "30d", label: "30d" },
 ];
 
 const SORTS = [

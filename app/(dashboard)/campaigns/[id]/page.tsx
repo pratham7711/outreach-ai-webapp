@@ -733,7 +733,11 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
               )}
               <MetricTile metric="campaignCreators" value={String(roster.length)} />
               {campaign.budget != null && (
-                <MetricTile metric="totalBudget" value={formatCompactCurrency(campaign.budget, campaign.currency)} />
+                /* `budget`, not `totalBudget`: this is one campaign's own cap.
+                   totalBudget's help says "across all campaigns in this date
+                   range", which is a different number and a range this page
+                   does not have. */
+                <MetricTile metric="budget" value={formatCompactCurrency(campaign.budget, campaign.currency)} />
               )}
             </div>
 

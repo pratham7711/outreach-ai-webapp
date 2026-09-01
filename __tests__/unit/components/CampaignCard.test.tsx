@@ -44,7 +44,8 @@ describe('CampaignCard', () => {
 
   it('shows correct status label for IN_PROGRESS', () => {
     render(<CampaignCard campaign={baseCampaign} />);
-    expect(screen.getByText('In Progress')).toBeInTheDocument();
+    // The reference's spelling, from lib/statusColors CAMPAIGN_STATUS_LABEL.
+    expect(screen.getByText('In-Progress')).toBeInTheDocument();
   });
 
   it('shows DRAFT status correctly', () => {
@@ -64,7 +65,8 @@ describe('CampaignCard', () => {
 
   it('shows CANCELLED status correctly', () => {
     render(<CampaignCard campaign={{ ...baseCampaign, status: 'CANCELLED' }} />);
-    expect(screen.getByText('Cancelled')).toBeInTheDocument();
+    // One L, as the reference spells it.
+    expect(screen.getByText('Canceled')).toBeInTheDocument();
   });
 
   it('displays budget with USD symbol', () => {

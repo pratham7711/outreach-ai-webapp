@@ -15,28 +15,34 @@
  * is worse than no limit: the first person to notice learns the app does not
  * mean what it says. Unlimited is now the honest answer in both places.
  *
- * max_users stays real, because a seat is a person who can invite more people,
- * and the invite endpoint does enforce it.
+ * max_users went the same way on 2026-09-01. It was the one limit with a real
+ * enforcement point -- the invite endpoint refused a seat over the cap -- but
+ * the decision is that trackers are the only thing a plan limits. Trackers cost
+ * money to keep reading (every tracked sound is a recurring platform fetch);
+ * seats, campaigns and creators are rows.
+ *
+ * So max_trackers is now the ONLY finite number in this file. If you are adding
+ * a limit here, the question to answer first is what it costs us per unit.
  */
 export const PLANS = {
   free: {
     max_campaigns: Infinity,
     max_creators: Infinity,
-    max_users: 2,
+    max_users: Infinity,
     max_trackers: 3,
     features: ["campaigns", "creator_database", "basic_reports"] as const,
   },
   starter: {
     max_campaigns: Infinity,
     max_creators: Infinity,
-    max_users: 5,
+    max_users: Infinity,
     max_trackers: 25,
     features: ["campaigns", "creator_database", "basic_reports", "media_kits", "shareable_links", "draft_approvals"] as const,
   },
   pro: {
     max_campaigns: Infinity,
     max_creators: Infinity,
-    max_users: 25,
+    max_users: Infinity,
     max_trackers: 200,
     features: ["campaigns", "creator_database", "basic_reports", "advanced_reports", "media_kits", "shareable_links", "draft_approvals", "creator_portal", "audio_analytics", "payments", "export_csv", "api_access"] as const,
   },

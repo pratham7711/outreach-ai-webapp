@@ -47,8 +47,13 @@ type Seats = { used: number; pending: number; max: number | null };
 export default function TeamClient({
   users, invites, seats,
 }: { users: User[]; invites: Invite[]; seats?: Seats }) {
-  const seatsFull =
-    seats?.max != null && seats.used + seats.pending >= seats.max;
+  /* Infinity is a number, so `max != null` was true once seats were uncapped
+     and the header rendered "3/Infinity seats" with the Invite button still
+     live. A limit only exists if it is finite. */
+  const seatLimit =
+    seats?.max != null && Number.isFinite(seats.max) ? seats.max : null;
+  const seatsUsed = seats ? seats.used + seats.pending : 0;
+  const seatsFull = seatLimit != null && seatsUsed >= seatLimit;
   const router = useRouter();
   const [showModal, setShowModal] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
@@ -136,12 +141,15 @@ export default function TeamClient({
           </p>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          {seats?.max != null ? (
+          {seats ? (
             <span
               style={{ fontSize: 13, color: seatsFull ? "var(--cc-warning)" : "var(--cc-text-muted)" }}
-              title={`${seats.used} member${seats.used === 1 ? "" : "s"}${seats.pending ? ` and ${seats.pending} pending invite${seats.pending === 1 ? "" : "s"}` : ""} of ${seats.max} seats`}
+              title={`${seats.used} member${seats.used === 1 ? "" : "s"}${seats.pending ? ` and ${seats.pending} pending invite${seats.pending === 1 ? "" : "s"}` : ""}${seatLimit != null ? ` of ${seatLimit} seats` : ""}`}
             >
-              {seats.used + seats.pending}/{seats.max} seats
+              {/* No denominator when there is no cap. Dropping the counter
+                  entirely would lose the useful half -- how many people are in
+                  the workspace is worth showing whether or not it is limited. */}
+              {seatLimit != null ? `${seatsUsed}/${seatLimit} seats` : `${seatsUsed} seat${seatsUsed === 1 ? "" : "s"} in use`}
             </span>
           ) : null}
           <Button

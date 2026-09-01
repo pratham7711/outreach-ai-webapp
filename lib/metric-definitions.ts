@@ -13,7 +13,10 @@ export const METRIC_DEFINITIONS = {
   activeCampaigns: {
     label: "Active campaigns",
     what: "Campaigns currently running, where creators can still post and earn.",
-    how: "Campaigns with the status Active.",
+    /* Said "the status Active". No status is spelled that way on a campaign --
+       the status control reads In-Progress -- so a reader checking this against
+       the campaigns list found nothing by that name. */
+    how: "Campaigns whose status is In-Progress. Draft, Pending, Complete and Canceled campaigns are not counted, and neither are deleted ones.",
   },
   creators: {
     label: "Creators",
@@ -117,8 +120,12 @@ export const METRIC_DEFINITIONS = {
   },
   totalViews: {
     label: "Total views",
-    what: "How many times your creators' posts were watched, across every campaign in the selected range.",
-    how: "Adds up the latest view count of every tracked post.",
+    /* This tile appears on the dashboard, the analytics page and a single
+       campaign, so it cannot claim "every campaign"; and it said "in the
+       selected range" on screens with no range control. What is true on all of
+       them is that it covers whatever the screen is showing. */
+    what: "How many times your creators' posts were watched, across everything this page is showing.",
+    how: "Adds up the latest view count of every tracked post in view. A post's view count is its lifetime total, so this figure only goes up while the post is live.",
   },
   totalLikes: {
     label: "Total likes",
@@ -132,8 +139,8 @@ export const METRIC_DEFINITIONS = {
   },
   totalPosts: {
     label: "Total posts",
-    what: "How many pieces of content your creators published in the selected range.",
-    how: "Counts every tracked post.",
+    what: "How many pieces of content your creators published, across everything this page is showing.",
+    how: "Counts every tracked post in view, whether or not it is still live on the platform.",
   },
   livePosts: {
     label: "Live posts",
@@ -168,12 +175,15 @@ export const METRIC_DEFINITIONS = {
   activationsTotal: {
     label: "Total",
     what: "Every creator booking on this page, whatever stage it has reached.",
-    how: "Counts all activations, including finished and cancelled ones.",
+    how: "Counts all activations, finished and declined ones included. Deleted activations are not counted.",
   },
   activationsActive: {
     label: "Active",
-    what: "Bookings where the creator is cleared to post and the work is still in progress.",
-    how: "Counts activations with the status Active.",
+    /* Said "the status Active", which is not one of the eight activation
+       statuses. The count is Posting plus Posted -- the stages after approval
+       and before sign-off. */
+    what: "Bookings that have cleared approval and reached the platform: the creator is posting, or has posted and is waiting on sign-off.",
+    how: "Counts activations with the status Posting or Posted. Bookings still awaiting a draft or an approval are in Pending, not here.",
   },
   activationsPending: {
     label: "Pending",
@@ -189,6 +199,15 @@ export const METRIC_DEFINITIONS = {
     label: "Creators",
     what: "How many creators are cleared to post on this campaign.",
     how: "Counts the activations attached to this campaign.",
+  },
+  /* The dashboard tile used campaignCreators, so its help said "on this
+     campaign" while the number beside it was the whole workspace. The two
+     figures differ for anyone running more than one campaign, and a creator
+     booked on three campaigns counts once here and three times there. */
+  workspaceCreators: {
+    label: "Creators",
+    what: "How many different creators are booked on at least one campaign in this workspace.",
+    how: "Counts each creator once, however many campaigns they are activated on. Creators saved to your roster but not yet booked are not counted.",
   },
   budgetUsed: {
     label: "Budget used",
@@ -292,23 +311,29 @@ export const METRIC_DEFINITIONS = {
   },
   trackersActive: {
     label: "Active trackers",
-    what: "Sounds and hashtags you are currently watching for campaign ideas.",
-    how: "Counts trackers that have not been archived.",
+    /* Only sounds are trackable today; hashtags were never built. */
+    what: "Sounds you are watching for campaign ideas. This is the number your plan limits.",
+    how: "Counts every sound tracker in this workspace that has not been deleted.",
   },
   trackerUses: {
     label: "Total uses",
-    what: "How many posts across the platform use the things you track. A proxy for how big a trend is.",
-    how: "Adds up the recorded use count of every tracker.",
+    what: "How many posts across the platform use the sounds you track — a proxy for how big the trend is, not for how much of it is yours.",
+    how: "Adds up the newest reading from every tracker. Each reading is a lifetime total for that sound, so this is not a figure for any particular period.",
   },
   trackersTrending: {
     label: "Trending",
     what: "Trackers whose usage is climbing right now — the ones worth briefing creators on this week.",
-    how: "Counts trackers flagged as trending on the latest refresh.",
+    how: "Counts trackers gaining at least 10 uses an hour over the selected period. A tracker whose reading has gone stale is left out rather than counted as flat.",
   },
-  trackersNewToday: {
-    label: "New today",
-    what: "Uses picked up since this morning, so you can see whether a trend is still accelerating.",
-    how: "Counts uses first recorded today.",
+  /* Was labelled "New today" and explained as "first recorded today", and it is
+     neither: it is the growth over the window the period buttons above it
+     select, which defaults to a rolling 24 hours and goes up to 30 days. On
+     7d/14d/30d the old label was simply a wrong number with a confident name.
+     The trackers page passes a period-aware label over this one. */
+  trackersNewUses: {
+    label: "New uses",
+    what: "Extra posts that picked up your tracked sounds over the period selected above — the reading that says whether a trend is still accelerating.",
+    how: "Compares the newest reading of each tracker against the one at the start of the period and adds up the differences. A tracker with no fresh reading contributes nothing rather than a zero, so it cannot drag the total down.",
   },
   portalLifetimeEarnings: {
     label: "Lifetime earnings",

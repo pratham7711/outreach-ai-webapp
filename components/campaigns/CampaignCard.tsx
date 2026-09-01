@@ -7,6 +7,7 @@ import { Users, FileText, Clock } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import type { CampaignWithRelations } from "@/types";
 import { imgSrc } from "@/lib/postMedia";
+import { campaignStatusLabel } from "@/lib/statusColors";
 
 const statusColors: Record<string, string> = {
   DRAFT: "bg-gray-100 text-gray-700",
@@ -14,14 +15,6 @@ const statusColors: Record<string, string> = {
   IN_PROGRESS: "bg-blue-100 text-blue-700",
   COMPLETE: "bg-green-100 text-green-700",
   CANCELLED: "bg-red-100 text-red-700",
-};
-
-const statusLabels: Record<string, string> = {
-  DRAFT: "Draft",
-  PENDING: "Pending",
-  IN_PROGRESS: "In Progress",
-  COMPLETE: "Complete",
-  CANCELLED: "Cancelled",
 };
 
 const campaignTypeLabels: Record<string, string> = {
@@ -74,7 +67,7 @@ export function CampaignCard({ campaign }: { campaign: CampaignWithRelations }) 
               variant="secondary"
               className={cn("shrink-0 text-xs font-medium px-2.5 py-1", statusColors[campaign.status])}
             >
-              {statusLabels[campaign.status]}
+              {campaignStatusLabel(campaign.status)}
             </Badge>
             {campaign.campaignType && campaign.campaignType !== "BUDGET_BASED" && (
               <Badge

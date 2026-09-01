@@ -101,14 +101,15 @@ describe("PATCH /api/settings/audit-log", () => {
     expect(res.status).toBe(200);
     expect(body).toEqual({ enabled: false, plan: "pro" });
 
-    /* maxCampaigns and maxCreators must NOT appear in either branch. They are
-       uncapped, so the resolved value is Infinity, and the columns are non-null
-       Int -- Prisma rejects that write outright and the toggle would 500. */
+    /* NO limit column may appear in either branch -- maxCampaigns, maxCreators
+       and now maxUsers. All three are uncapped, so the resolved value is
+       Infinity, and the columns are non-null Int: Prisma rejects that write
+       outright and the toggle would 500. This route only ever needed to persist
+       the feature map. */
     expect(mockDb.orgPlanConfig.upsert).toHaveBeenCalledWith({
       where: { orgId: "org-1" },
       update: {
         planName: "pro",
-        maxUsers: 5,
         features: expect.objectContaining({
           audit_log: false,
           reports: true,
@@ -118,7 +119,6 @@ describe("PATCH /api/settings/audit-log", () => {
       create: {
         orgId: "org-1",
         planName: "pro",
-        maxUsers: 5,
         features: expect.objectContaining({
           audit_log: false,
           reports: true,
@@ -126,5 +126,14 @@ describe("PATCH /api/settings/audit-log", () => {
         }),
       },
     });
+
+    /* Named individually, because toHaveBeenCalledWith on an exact object
+       already passing is easy to weaken later by loosening one branch. */
+    const [call] = mockDb.orgPlanConfig.upsert.mock.calls[0];
+    for (const branch of [call.update, call.create]) {
+      expect(branch).not.toHaveProperty("maxUsers");
+      expect(branch).not.toHaveProperty("maxCampaigns");
+      expect(branch).not.toHaveProperty("maxCreators");
+    }
   });
 });
