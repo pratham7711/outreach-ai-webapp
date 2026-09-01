@@ -400,6 +400,9 @@ model User {
   /// scoped to their own campaigns; a MEMBER can be given the full view. ALL by
   /// default, so existing users see exactly what they saw before.
   campaignScope CampaignScope @default(ALL)
+  /// Sparse per-event email-notification overrides (lib/notifications.ts owns
+  /// the catalog and defaults). Null means "all defaults" — most rows.
+  notificationPrefs Json?
   password      String?
   emailVerified DateTime?
   isActive      Boolean       @default(true)

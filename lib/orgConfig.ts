@@ -35,6 +35,15 @@ export type OrgUiConfig = {
     youtube?: boolean;
   };
   dashboard?: string[];
+  integrations?: {
+    /** Shape owned by lib/notifications.ts (SlackIntegration). */
+    slack?: {
+      webhookUrl?: string;
+      channel?: string;
+      connectedAt?: string;
+      events?: Record<string, boolean>;
+    };
+  };
 };
 
 export async function getOrgUiConfig(orgId: string): Promise<OrgUiConfig | null> {

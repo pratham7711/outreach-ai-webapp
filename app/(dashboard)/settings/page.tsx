@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
-import { ArrowRight, BellRing, Building2, CreditCard, LineChart, Tags, Users } from "lucide-react";
+import { ArrowRight, Bell, BellRing, Building2, CreditCard, LineChart, Plug, Tags, Users } from "lucide-react";
 
 const cards = [
   {
@@ -33,6 +33,18 @@ const cards = [
     description: "How often tracked sounds are read from TikTok, and how densely their charts are drawn.",
     href: "/settings/trackers",
     icon: LineChart,
+  },
+  {
+    title: "Notifications",
+    description: "Which events email you. Personal — every teammate chooses their own.",
+    href: "/settings/notifications",
+    icon: Bell,
+  },
+  {
+    title: "Integrations",
+    description: "Connect Slack to post campaign activity into a channel for the whole team.",
+    href: "/settings/integrations",
+    icon: Plug,
   },
   {
     title: "Billing",

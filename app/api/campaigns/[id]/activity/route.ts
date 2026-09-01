@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { notifyAuditEvent } from "@/lib/notifications";
 import { auth } from "@/lib/auth";
 import { buildActivityFeed, FEED_ACTIONS } from "@/lib/campaignActivity";
 
@@ -94,7 +95,7 @@ export async function POST(
   try {
     const campaign = await db.campaign.findFirst({
       where: { id: campaignId, orgId },
-      select: { id: true },
+      select: { id: true, title: true },
     });
     if (!campaign) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
 
@@ -130,6 +131,17 @@ export async function POST(
     const comment = await db.campaignComment.create({
       data: { campaignId, userId, content, parentId },
       include: { user: { select: { id: true, name: true, email: true } } },
+    });
+
+    /* Comments are the one notifiable event that never passes through
+       logAudit (the feed reads them straight from their table), so they
+       dispatch here. Same contract: never throws, time-boxed. */
+    await notifyAuditEvent({
+      orgId,
+      action: "comment.create",
+      actorUserId: userId,
+      actorEmail: session.user.email ?? null,
+      entityLabel: `${campaign.title} — "${content.length > 80 ? `${content.slice(0, 77)}...` : content}"`,
     });
 
     return NextResponse.json({ comment }, { status: 201 });

@@ -8,7 +8,7 @@
 ## Current Status
 
 **Phase:** Phase 4 — Feature Completion
-**Last updated:** 2026-03-30
+**Last updated:** 2026-09-01
 **App URL:** http://localhost:3009
 **Login:** admin@demo.com / admin123
 **DB:** Neon PostgreSQL (serverless) — seeded with 5 clients, 10 creators, 5 campaigns, activations, payouts
@@ -97,6 +97,15 @@
 ---
 
 ## Phase 4 — Feature Completion ⏳ IN PROGRESS
+
+**2026-09-01** — Notification preferences (per-user email, `/settings/notifications`,
+19-event catalog on the audit-action vocabulary, `User.notificationPrefs`) and Slack
+integration (org incoming webhook in `uiConfig.integrations.slack`, `/settings/integrations`,
+test + disconnect). Dispatch hooks `logAudit`; comments dispatch from their route.
+Requires `prisma db push` on dev + prod (new `notificationPrefs` column) before deploy.
+Also: Top Posts on creator trackers; TikTok profile stats via Vercel Sandbox curl
+(WAF-proof); TikTok Top Posts remain blocked by TikTok JS fingerprinting — needs
+ScrapeCreators or a real-Chrome VM. Fan Pages stays parked per PRD scope (2026-08-21).
 
 ### Campaign Detail Page
 - [x] Wire up Creators tab — show assigned creators (activations)
