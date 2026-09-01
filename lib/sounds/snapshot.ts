@@ -1,5 +1,7 @@
 import { db } from "@/lib/db";
 import { fetchTikTokSoundStats } from "@/lib/platforms/tiktokSound";
+import { readTikTokSoundViaEmbed } from "@/lib/platforms/tiktokSoundEmbed";
+import { openSandboxProfileFetcher } from "@/lib/platforms/tiktokProfileSandbox";
 import { createLogger } from "@/lib/observability/logger";
 import { velocityBetween } from "@/lib/trackers/metrics";
 
@@ -11,10 +13,14 @@ export type SnapshotResult = {
 
 /**
  * How recent a snapshot has to be before this job treats a sound as somebody
- * else's. Comfortably longer than the worker's four-hour timer plus its jitter,
- * so one late run does not hand the sound back and restart the alerting, and
- * short enough that a worker which genuinely stopped is picked up again the
- * following night.
+ * else's.
+ *
+ * That somebody used to be a browser worker on a VPS. It is now the hourly
+ * sync-trackers cron, which reads sounds through the same embed this job does,
+ * so the two would otherwise write a duplicate snapshot every night and report
+ * a delta of zero against a reading taken an hour earlier. Comfortably longer
+ * than an hourly cadence plus a late run, and short enough that a reader which
+ * genuinely stopped is picked up again the following night.
  */
 const HANDOVER_WINDOW_MS = 8 * 60 * 60 * 1000;
 
@@ -53,46 +59,74 @@ export async function snapshotSounds(options: SnapshotOptions = {}): Promise<Sna
     },
   });
 
-  for (const [index, sound] of sounds.entries()) {
-    if (Date.now() > deadline) {
-      log.warn("time budget reached; stopping early", { remaining: sounds.length - index });
-      break;
-    }
+  /* One sandbox for the whole run, created lazily inside the fetcher, so a run
+     whose sounds all answer over plain egress never pays for a boot. */
+  const remote = openSandboxProfileFetcher();
 
-    /* Somebody else already read this one.
-       This fetch path cannot read a TikTok music page at all -- the count comes
-       from an endpoint that needs headers only TikTok's own client script
-       produces -- so once the browser worker on the VPS is running, every sound
-       it covers would still be counted a failure here and the nightly alert
-       would fire forever about a job that has been superseded.
-       A recent snapshot is the evidence that something is reading them, and it
-       needs no flag to set or remember. Skipped rather than counted as failed,
-       which is what takes it out of the alert ratio.
-       Not applied to a single-sound refresh: a person clicking Refresh asked
-       for this sound now, and silently doing nothing is not an answer. */
-    const lastAt = sound.snapshots[0]?.recordedAt;
-    if (!soundId && lastAt && Date.now() - lastAt.getTime() < HANDOVER_WINDOW_MS) {
-      skipped++;
-      continue;
-    }
+  try {
+    for (const [index, sound] of sounds.entries()) {
+      if (Date.now() > deadline) {
+        log.warn("time budget reached; stopping early", { remaining: sounds.length - index });
+        break;
+      }
 
-    const stats = await fetchTikTokSoundStats(sound.tiktokSoundId);
-    if (!stats) {
-      failed++;
-      continue;
-    }
-    if (stats.usesCount <= 0) {
-      skipped++;
-      continue;
-    }
+      /* Somebody else already read this one -- in practice the hourly cron.
+         A recent snapshot is the evidence, and it needs no flag to set or
+         remember. Skipped rather than counted as failed, which is what takes it
+         out of the nightly alert ratio.
+         Not applied to a single-sound refresh: a person clicking Refresh asked
+         for this sound now, and silently doing nothing is not an answer. */
+      const lastAt = sound.snapshots[0]?.recordedAt;
+      if (!soundId && lastAt && Date.now() - lastAt.getTime() < HANDOVER_WINDOW_MS) {
+        skipped++;
+        continue;
+      }
 
-    if (dryRun) {
+      /* The embed page first, and it is the rung that actually answers: the music
+         page carries no count, /api/music/detail/ answers empty without headers
+         only TikTok's own client script produces, and the plain fetch below has
+         never produced a reading from here. See lib/platforms/tiktokSoundEmbed.ts.
+
+         This matters most for the Refresh button, which lands here rather than in
+         the hourly cron. Wiring the embed into the cron alone would have left a
+         person clicking Refresh with the same silent nothing it always gave. */
+      const embedStats = await readTikTokSoundViaEmbed(sound.tiktokSoundId, (id) =>
+        remote.readMusicEmbedHtml(id),
+      ).catch((error) => {
+        log.warn("embed read failed", {
+          soundId: sound.id,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        return null;
+      });
+
+      const stats = embedStats ?? (await fetchTikTokSoundStats(sound.tiktokSoundId));
+      if (!stats) {
+        failed++;
+        continue;
+      }
+
+      /* A zero from the embed is a measurement: statusCode 0 with videoCount 0 is
+         TikTok saying the sound exists and nothing uses it, which is exactly what
+         a brand's freshly uploaded audio looks like on day one, and recording it
+         is what makes tomorrow's delta true. A zero from the fetch fallback is not
+         a measurement -- that path returns zero when it could not read -- so it
+         stays a skip. The distinction is which rung answered, not the number. */
+      if (stats.usesCount < 0 || (!embedStats && stats.usesCount <= 0)) {
+        skipped++;
+        continue;
+      }
+
+      if (dryRun) {
+        snapshots++;
+        continue;
+      }
+
+      await recordSoundSnapshot(sound, stats);
       snapshots++;
-      continue;
     }
-
-    await recordSoundSnapshot(sound, stats);
-    snapshots++;
+  } finally {
+    await remote.close().catch(() => {});
   }
 
   return { snapshots, failed, skipped };

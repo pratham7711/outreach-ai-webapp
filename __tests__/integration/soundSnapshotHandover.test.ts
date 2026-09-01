@@ -1,15 +1,19 @@
 /**
  * @jest-environment node
  *
- * This job cannot read a TikTok music page and never could: the count comes from
- * an endpoint that only answers requests carrying headers TikTok's own client
- * script generates. So every sound it tries is a failure, and the alert built on
- * that ratio fires every night.
+ * Two separate things are under test here, and they used to be one.
  *
- * Once the browser worker on the VPS is reading them, that alert is about a job
- * that has been superseded -- and an alert nobody can act on is how the real one
- * gets ignored. A recent snapshot is the evidence that something else is doing
- * the reading, and it needs no flag anyone has to remember to set.
+ * The handover: a sound the hourly cron read an hour ago must not be read again
+ * by this nightly job, or the two write duplicate snapshots and the second one
+ * reports a delta of zero. A recent snapshot is the evidence, and it needs no
+ * flag anyone has to remember to set. Skipped, not failed -- the nightly alert
+ * is a ratio of failures, and a sound somebody else is reading is not one.
+ *
+ * The reader: the embed page, which is what actually answers. The music page
+ * carries no count and /api/music/detail/ answers empty without headers only
+ * TikTok's own client script produces, so the plain fetch below has never
+ * produced a reading. The fetch stays as a fallback, and the tests keep the two
+ * rungs distinguishable because a zero means different things on each.
  */
 jest.mock("@/lib/db", () => ({
   db: {
@@ -18,9 +22,19 @@ jest.mock("@/lib/db", () => ({
   },
 }));
 jest.mock("@/lib/platforms/tiktokSound", () => ({ fetchTikTokSoundStats: jest.fn() }));
+jest.mock("@/lib/platforms/tiktokSoundEmbed", () => ({ readTikTokSoundViaEmbed: jest.fn() }));
+/* @vercel/sandbox is ESM and jest cannot parse it; nothing here needs a real
+   sandbox, only the shape the job calls. */
+jest.mock("@/lib/platforms/tiktokProfileSandbox", () => ({
+  openSandboxProfileFetcher: () => ({
+    readMusicEmbedHtml: jest.fn().mockResolvedValue(null),
+    close: jest.fn().mockResolvedValue(undefined),
+  }),
+}));
 
 import { db } from "@/lib/db";
 import { fetchTikTokSoundStats } from "@/lib/platforms/tiktokSound";
+import { readTikTokSoundViaEmbed } from "@/lib/platforms/tiktokSoundEmbed";
 import { snapshotSounds } from "@/lib/sounds/snapshot";
 
 const mockDb = db as unknown as {
@@ -28,6 +42,7 @@ const mockDb = db as unknown as {
   soundTrackerSnapshot: { create: jest.Mock };
 };
 const mockFetch = fetchTikTokSoundStats as unknown as jest.Mock;
+const mockEmbed = readTikTokSoundViaEmbed as unknown as jest.Mock;
 
 const HOUR = 60 * 60 * 1000;
 
@@ -48,8 +63,10 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockDb.soundTrackerSnapshot.create.mockResolvedValue({});
   mockDb.tikTokSound.update.mockResolvedValue({});
-  // What this path actually does against a music page, every time.
+  // What each path actually does by default: the fetch has never read a music
+  // page, and an embed that did not answer is "not measured", not zero.
   mockFetch.mockResolvedValue(null);
+  mockEmbed.mockResolvedValue(null);
 });
 
 it("leaves a sound alone when something read it recently", async () => {
@@ -60,6 +77,7 @@ it("leaves a sound alone when something read it recently", async () => {
   expect(result).toEqual({ snapshots: 0, failed: 0, skipped: 1 });
   // Skipped, not failed: the alert is a ratio of failures, and a sound somebody
   // else is reading is not a failure of anything.
+  expect(mockEmbed).not.toHaveBeenCalled();
   expect(mockFetch).not.toHaveBeenCalled();
 });
 
@@ -105,4 +123,75 @@ it("records the reading when this path does manage to get one", async () => {
   const written = mockDb.soundTrackerSnapshot.create.mock.calls[0][0].data;
   expect(written.usesCount).toBe(52);
   expect(written.deltaUses24h).toBe(7);
+});
+
+it("reads through the embed page and never reaches the fallback fetch", async () => {
+  /* The rung that actually works. `title` is deliberately null: the music embed
+     names the artist and the cover but never the track, so a reading from it
+     must not be taken as evidence the stored title was wrong. */
+  mockDb.tikTokSound.findMany.mockResolvedValue(soundLastReadHoursAgo(20));
+  mockEmbed.mockResolvedValue({
+    usesCount: 44,
+    title: null,
+    artist: "Ellie Holcomb",
+    coverImageUrl: "https://p19-common.tiktokcdn-us.com/cover.jpeg",
+  });
+
+  const result = await snapshotSounds();
+
+  expect(result).toEqual({ snapshots: 1, failed: 0, skipped: 0 });
+  expect(mockEmbed).toHaveBeenCalledWith("7546394810303694849", expect.any(Function));
+  expect(mockFetch).not.toHaveBeenCalled();
+  const written = mockDb.soundTrackerSnapshot.create.mock.calls[0][0].data;
+  expect(written.usesCount).toBe(44);
+  // 44 against a stored 45. A count of new videos cannot be negative; the signed
+  // change keeps its sign.
+  expect(written.videosAdded24h).toBe(0);
+  expect(written.deltaUses24h).toBe(-1);
+});
+
+it("records a genuine zero from the embed", async () => {
+  /* A brand's freshly uploaded audio on day one. statusCode 0 with videoCount 0
+     is TikTok saying the sound exists and nothing uses it yet, and recording it
+     is what makes tomorrow's delta true rather than inventing history. */
+  mockDb.tikTokSound.findMany.mockResolvedValue(soundLastReadHoursAgo(null));
+  mockEmbed.mockResolvedValue({ usesCount: 0, title: null, artist: null, coverImageUrl: null });
+
+  const result = await snapshotSounds();
+
+  expect(result).toEqual({ snapshots: 1, failed: 0, skipped: 0 });
+  expect(mockDb.soundTrackerSnapshot.create.mock.calls[0][0].data.usesCount).toBe(0);
+});
+
+it("does not record a zero that came from the fallback fetch", async () => {
+  /* Same number, different meaning. The fetch path returns zero when it could
+     not read the page, so writing it would stamp a real sound as unused and put
+     a false cliff in the campaign report. */
+  mockDb.tikTokSound.findMany.mockResolvedValue(soundLastReadHoursAgo(null));
+  mockFetch.mockResolvedValue({ usesCount: 0, title: null, artist: null, coverImageUrl: null });
+
+  const result = await snapshotSounds();
+
+  expect(result).toEqual({ snapshots: 0, failed: 0, skipped: 1 });
+  expect(mockDb.soundTrackerSnapshot.create).not.toHaveBeenCalled();
+});
+
+it("falls back to the fetch when the embed refuses", async () => {
+  mockDb.tikTokSound.findMany.mockResolvedValue(soundLastReadHoursAgo(20));
+  mockFetch.mockResolvedValue({ usesCount: 52, title: null, artist: null, coverImageUrl: null });
+
+  const result = await snapshotSounds();
+
+  expect(result).toEqual({ snapshots: 1, failed: 0, skipped: 0 });
+  expect(mockDb.soundTrackerSnapshot.create.mock.calls[0][0].data.usesCount).toBe(52);
+});
+
+it("counts a sound as failed when the embed throws and the fetch is empty", async () => {
+  // A thrown sandbox error must not take the whole run down with it.
+  mockDb.tikTokSound.findMany.mockResolvedValue(soundLastReadHoursAgo(20));
+  mockEmbed.mockRejectedValue(new Error("sandbox boot failed"));
+
+  const result = await snapshotSounds();
+
+  expect(result).toEqual({ snapshots: 0, failed: 1, skipped: 0 });
 });
