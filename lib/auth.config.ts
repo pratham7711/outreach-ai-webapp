@@ -40,7 +40,11 @@ export const authConfig = {
         nextUrl.pathname.startsWith("/login") ||
         nextUrl.pathname.startsWith("/signup") ||
         nextUrl.pathname.startsWith("/forgot-password") ||
-        nextUrl.pathname.startsWith("/reset-password");
+        nextUrl.pathname.startsWith("/reset-password") ||
+        // An invited colleague has no account yet, so this must be reachable
+        // signed-out — otherwise the invite link bounces to /login and the
+        // person is asked to sign in to an account they are here to create.
+        nextUrl.pathname.startsWith("/accept-invite");
       // Portal, public creator pages, and public marketplace skip org auth
       if (
         isPortalPage ||

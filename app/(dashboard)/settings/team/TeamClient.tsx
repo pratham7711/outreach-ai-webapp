@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Mail, Trash2, Users, Clock, User } from "lucide-react";
+import { Plus, Mail, Trash2, Users, Clock, User, Link as LinkIcon, Check } from "lucide-react";
 import { Card, Badge, Avatar, EmptyState, Modal, Input } from "@pratham7711/ui";
 import { Dropdown, Button } from "@/components/ds";
 
@@ -51,6 +51,23 @@ export default function TeamClient({ users, invites }: { users: User[]; invites:
   const [error, setError] = useState<string | null>(null);
 
   const pendingInvites = invites.filter((i) => i.status !== "accepted");
+  const [copiedToken, setCopiedToken] = useState<string | null>(null);
+
+  /* No email is sent when an invite is created, so without this the token was
+     generated, stored, and shown to nobody — the invited person received
+     nothing at all and the row sat there until it expired. Copying the link by
+     hand is the honest interim: it is how the invite actually reaches someone
+     until the mail path is wired up. */
+  const copyInviteLink = async (token: string) => {
+    const url = `${window.location.origin}/accept-invite?token=${encodeURIComponent(token)}`;
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch {
+      window.prompt("Copy this invite link:", url);
+    }
+    setCopiedToken(token);
+    setTimeout(() => setCopiedToken(null), 2000);
+  };
 
   async function handleInvite() {
     setError(null);
@@ -218,7 +235,7 @@ export default function TeamClient({ users, invites }: { users: User[]; invites:
             {/* Table header */}
             <div style={{
               display: "grid",
-              gridTemplateColumns: "1fr 100px 120px 120px 80px 60px",
+              gridTemplateColumns: "1fr 100px 120px 120px 80px 70px 60px",
               padding: "10px 24px",
               borderBottom: "1px solid var(--cc-border)",
               gap: 16,
@@ -238,7 +255,7 @@ export default function TeamClient({ users, invites }: { users: User[]; invites:
                   className="cc-table-row"
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "1fr 100px 120px 120px 80px 60px",
+                    gridTemplateColumns: "1fr 100px 120px 120px 80px 70px 60px",
                     padding: "12px 24px",
                     alignItems: "center",
                     borderBottom: "1px solid var(--cc-border)",
@@ -257,6 +274,22 @@ export default function TeamClient({ users, invites }: { users: User[]; invites:
                   <Badge style={{ background: statusStyle.bg, color: statusStyle.color, fontSize: 10, fontWeight: 600, textTransform: "capitalize" }}>
                     {invite.status}
                   </Badge>
+                  {invite.status === "pending" ? (
+                    <button
+                      onClick={() => copyInviteLink(invite.token)}
+                      aria-label={`Copy invite link for ${invite.email}`}
+                      title="Copy invite link"
+                      style={{
+                        background: "none", border: "none", cursor: "pointer",
+                        color: copiedToken === invite.token ? "var(--cc-success)" : "var(--cc-primary)",
+                        padding: 4, borderRadius: 6, display: "flex", alignItems: "center",
+                        fontSize: 12, fontWeight: 600, gap: 4,
+                      }}
+                    >
+                      {copiedToken === invite.token ? <Check size={14} /> : <LinkIcon size={14} />}
+                      {copiedToken === invite.token ? "Copied" : "Link"}
+                    </button>
+                  ) : <span />}
                   <button
                     onClick={() => handleCancel(invite.id)}
                     aria-label="Cancel invite"
