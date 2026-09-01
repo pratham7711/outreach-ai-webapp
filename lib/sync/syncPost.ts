@@ -1,3 +1,4 @@
+import type { SandboxPostFetcher } from "@/lib/platforms/tiktokPostSandbox";
 import { db } from "@/lib/db";
 import { MEASURED_FIELDS_KEY, type MetricField } from "@/lib/metricDisplay";
 import {
@@ -205,7 +206,7 @@ export async function applyPostMetrics(
 export async function syncPost(
   post: SyncablePost,
   orgId: string,
-  options: { countsOnly?: boolean } = {},
+  options: { countsOnly?: boolean; tiktokSandbox?: SandboxPostFetcher } = {},
 ): Promise<SyncPostOutcome> {
   const instagram =
     post.platform === "INSTAGRAM"
@@ -219,6 +220,7 @@ export async function syncPost(
     instagramHandle: instagram?.handle,
     tiktokToken,
     countsOnly: options.countsOnly,
+    tiktokSandbox: options.tiktokSandbox,
   });
   if (!metrics) return { status: "unfetchable", reason: "unrecognised-url" };
 

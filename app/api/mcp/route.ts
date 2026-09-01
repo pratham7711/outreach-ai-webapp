@@ -12,6 +12,14 @@ const SERVER_INFO = {
 
 const PROTOCOL_VERSION = "2025-03-26";
 
+/* refresh_campaign paces its platform requests, so a large campaign takes
+   minutes. Without this the function is killed at Vercel's 60s default
+   part-way through a run that has already spent the campaign's thirty-minute
+   allowance -- the agent gets a timeout and the person clicking Refresh Data
+   gets told to wait, for a run neither of them received the result of. The
+   HTTP refresh route carries the same 300. */
+export const maxDuration = 300;
+
 function jsonrpc(id: number | string | null, result: unknown) {
   return { jsonrpc: "2.0" as const, id, result };
 }

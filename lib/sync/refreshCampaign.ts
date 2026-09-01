@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { syncPost } from "@/lib/sync/syncPost";
+import { openSandboxPostFetcher } from "@/lib/platforms/tiktokPostSandbox";
 import { snapshotSounds } from "@/lib/sounds/snapshot";
 import { createLogger } from "@/lib/observability/logger";
 import {
@@ -119,6 +120,14 @@ export async function refreshCampaign(input: {
     select: { id: true },
   });
 
+  /* TikTok refuses this project's function egress far more often than it
+     answers it, and answers a sandbox every time -- so the run reads through
+     one sandbox rather than paying the WAF three times in four. Opened for the
+     whole run and closed in the finally below; it boots lazily, so a campaign
+     with no TikTok posts never pays for it. */
+  const hasTikTok = posts.some((p) => p.platform === "TIKTOK");
+  const tiktokSandbox = hasTikTok ? openSandboxPostFetcher() : undefined;
+
   const deadline = Date.now() + DEADLINE_MS;
   let measured = 0;
   let noMetrics = 0;
@@ -140,7 +149,7 @@ export async function refreshCampaign(input: {
         try {
           /* countsOnly: this run exists to move numbers. Spending a paced slot
              on a metadata-only fallback costs the post behind it its turn. */
-          const outcome = await syncPost(post, orgId, { countsOnly: true });
+          const outcome = await syncPost(post, orgId, { countsOnly: true, tiktokSandbox });
           if (outcome.status === "measured") measured++;
           else if (outcome.status === "no-metrics") {
             noMetrics++;
@@ -221,5 +230,10 @@ export async function refreshCampaign(input: {
       .update({ where: { id: run.id }, data: { status: "failed", finishedAt: new Date() } })
       .catch(() => {});
     throw error;
+  } finally {
+    /* Billed by lifetime, so leaving one running past the run costs real money
+       on every refresh. Closed here rather than after the success return so a
+       thrown run does not leak one. */
+    await tiktokSandbox?.close();
   }
 }

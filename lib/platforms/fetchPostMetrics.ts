@@ -1,3 +1,4 @@
+import type { SandboxPostFetcher } from "./tiktokPostSandbox";
 import { fetchInstagramMetricsGraph } from "./instagram";
 import {
   businessDiscoveryToken,
@@ -24,6 +25,12 @@ export type FetchMetricsContext = {
    * fetch to pay for.
    */
   countsOnly?: boolean;
+  /**
+   * An open Vercel Sandbox to read TikTok pages through. Supplied by a bulk
+   * refresh, which opens one for the whole run; absent for one-off fetches,
+   * where a sandbox boot costs more than the read is worth.
+   */
+  tiktokSandbox?: SandboxPostFetcher;
 };
 
 export type PostMetrics = {
@@ -284,10 +291,23 @@ export async function fetchTikTokMetrics(
   videoId?: string,
   accessToken?: string,
   countsOnly = false,
+  sandbox?: SandboxPostFetcher,
 ): Promise<Partial<PostMetrics>> {
   if (videoId && accessToken) {
     const viaDisplay = await fetchTikTokMetricsDisplay(videoId, accessToken);
     if (viaDisplay) return viaDisplay;
+  }
+
+  /* Sandbox first, not as a fallback. TikTok answers it and refuses this
+     project's function egress, so trying direct first would spend a paced slot
+     to be told no about three times in four, and would feed the breaker
+     challenges that describe an egress this run is not even using. Null means
+     the sandbox failed rather than TikTok refusing, so the direct path below
+     still gets its turn. */
+  if (sandbox) {
+    const viaSandbox = await sandbox.readPost(url);
+    if (viaSandbox?.metrics) return tiktokMetricsToPartial(viaSandbox.metrics);
+    if (viaSandbox?.state === "deleted") return stubMetrics("post-deleted");
   }
 
   const lookup = await lookupTikTokPost(url);
@@ -566,6 +586,31 @@ export type TikTokPostLookup = {
   metrics: TikTokDirectMetrics | null;
 };
 
+/**
+ * Turns a TikTok video-detail page into a lookup, with no opinion about where
+ * the HTML came from.
+ *
+ * Split out from lookupTikTokPost because there are now two egresses that both
+ * ask TikTok the same question and must read the answer identically: this
+ * project's function egress, which TikTok's WAF answers with a login shell
+ * about three times in four, and a Vercel Sandbox, which it answers properly.
+ * Only the transport differs, and only the transport should.
+ *
+ * Deliberately free of gate bookkeeping -- the circuit breaker describes one
+ * egress's standing with TikTok, and a sandbox read must not close it or hold
+ * it open.
+ */
+export function readTikTokPostHtml(html: string): TikTokPostLookup {
+  const parsed = parseTikTokRehydration(html);
+  if (parsed) return { state: "live", statusCode: 0, reason: null, metrics: parsed };
+
+  const statusCode = parseTikTokDetailStatus(html);
+  if (statusCode !== null && statusCode !== 0) {
+    return { state: "deleted", statusCode, reason: null, metrics: null };
+  }
+  return { state: "unavailable", statusCode: null, reason: "no-parsable-payload", metrics: null };
+}
+
 export async function lookupTikTokPost(url: string): Promise<TikTokPostLookup> {
   const log = createLogger({ context: { platform: "TIKTOK", url } });
 
@@ -596,29 +641,24 @@ export async function lookupTikTokPost(url: string): Promise<TikTokPostLookup> {
     }
 
     const html = await res.text();
-    const parsed = parseTikTokRehydration(html);
-    if (!parsed) {
+    const lookup = readTikTokPostHtml(html);
+
+    if (lookup.state === "deleted") {
       // A removed post answers 200 with a non-zero statusCode. Counting that as
       // a block let five deleted posts in a row latch the breaker for 15
       // minutes and stall every healthy fetch behind them.
-      const statusCode = parseTikTokDetailStatus(html);
-      if (statusCode !== null && statusCode !== 0) {
-        tiktokGate.recordSuccess();
-        log.warn("TikTok says this post is gone", { statusCode });
-        return { state: "deleted", statusCode, reason: null, metrics: null };
-      }
+      tiktokGate.recordSuccess();
+      log.warn("TikTok says this post is gone", { statusCode: lookup.statusCode });
+      return lookup;
+    }
+    if (lookup.state === "unavailable") {
       tiktokGate.recordChallenged();
       log.warn("TikTok direct fetch could not parse rehydration payload");
-      return {
-        state: "unavailable",
-        statusCode: null,
-        reason: "no-parsable-payload",
-        metrics: null,
-      };
+      return lookup;
     }
 
     tiktokGate.recordSuccess();
-    return { state: "live", statusCode: 0, reason: null, metrics: parsed };
+    return lookup;
   } catch (err) {
     tiktokGate.recordBlocked();
     log.error("TikTok direct fetch threw", {
@@ -832,7 +872,13 @@ export async function fetchPostMetrics(
       metrics = await fetchYouTubeMetrics(detected.id);
       break;
     case "TIKTOK":
-      metrics = await fetchTikTokMetrics(url, detected.id, context?.tiktokToken, context?.countsOnly);
+      metrics = await fetchTikTokMetrics(
+        url,
+        detected.id,
+        context?.tiktokToken,
+        context?.countsOnly,
+        context?.tiktokSandbox,
+      );
       break;
     case "INSTAGRAM":
       metrics = await fetchInstagramMetrics(url, context?.instagramToken, context?.instagramHandle);
