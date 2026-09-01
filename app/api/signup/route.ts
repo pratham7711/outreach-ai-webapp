@@ -71,12 +71,18 @@ export async function POST(req: NextRequest) {
     const passwordHash = await bcrypt.hash(password, 10);
 
     await db.$transaction(async (tx) => {
+      /* free, not starter. This endpoint is the self-serve door, and the free
+         tier is what a self-serve signup is meant to get: the whole product,
+         and no sound trackers, because a tracker is a recurring platform fetch
+         we pay for on a schedule while everything else is rows.
+         It said "starter" while PLANS.free existed and was never reachable, so
+         the free tier's numbers described nobody. */
       const org = await tx.organization.create({
         data: {
           name: orgName,
           subdomain,
           brandName: orgName,
-          plan: "starter",
+          plan: "free",
           orgType: orgType as OrgType,
         },
       });
@@ -91,10 +97,13 @@ export async function POST(req: NextRequest) {
         },
       });
 
+      /* Kept in step with Organization.plan above; getOrgEntitlements reads
+         planName from here first. The other columns are left to the schema
+         defaults and are not read -- see lib/entitlements.ts. */
       await tx.orgPlanConfig.create({
         data: {
           orgId: org.id,
-          planName: "starter",
+          planName: "free",
         },
       });
     });

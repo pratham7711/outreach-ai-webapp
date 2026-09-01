@@ -33,10 +33,31 @@ describe("PLANS config", () => {
   });
 
   it("keeps trackers real and rising by tier", () => {
-    expect(PLANS.free.max_trackers).toBe(3);
+    expect(PLANS.free.max_trackers).toBe(0);
     expect(PLANS.starter.max_trackers).toBe(25);
-    expect(PLANS.pro.max_trackers).toBe(200);
+    expect(PLANS.pro.max_trackers).toBe(100);
     expect(PLANS.enterprise.max_trackers).toBe(Infinity);
+  });
+
+  /* Zero is a limit, not a missing value, and it is the one a self-serve signup
+     lands on. Every check between the plan table and the gate has to treat it
+     as a number: `?? Infinity` keeps it, `|| Infinity` would silently turn "no
+     trackers" into "unlimited trackers" on the free tier. */
+  it("gives the free tier a real zero rather than a falsy blank", () => {
+    expect(PLANS.free.max_trackers).toBe(0);
+    expect(PLANS.free.max_trackers).not.toBeNull();
+    expect(PLANS.free.max_trackers).not.toBeUndefined();
+    expect(Number.isFinite(PLANS.free.max_trackers)).toBe(true);
+    expect(PLANS.free.max_trackers ?? Infinity).toBe(0);
+  });
+
+  it("never lets a tier lose trackers as it goes up", () => {
+    const ladder = [PLANS.free, PLANS.starter, PLANS.pro, PLANS.enterprise].map(
+      (p) => p.max_trackers
+    );
+    for (let i = 1; i < ladder.length; i++) {
+      expect(ladder[i]).toBeGreaterThan(ladder[i - 1]);
+    }
   });
 
   it("every plan includes 'campaigns' feature", () => {

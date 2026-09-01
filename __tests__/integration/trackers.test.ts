@@ -172,6 +172,70 @@ describe("POST /api/trackers", () => {
     expect(res.status).toBe(400);
   });
 
+  /* The free tier allows 0 trackers, and 0 is exactly the value a falsy check
+     swallows. If `?? Infinity` ever becomes `|| Infinity`, or the gate becomes
+     `if (maxTrackers)`, the free tier silently turns unlimited and these are
+     the only tests that would notice. */
+  describe("a plan with no trackers at all", () => {
+    const freeOrg = () => {
+      mockDb.organization.findUnique.mockResolvedValue(orgFixture({ plan: "free" }));
+      mockDb.tikTokSound.findFirst.mockResolvedValue(null);
+      mockDb.tikTokSound.count.mockResolvedValue(0);
+    };
+
+    it("refuses the very first tracker", async () => {
+      freeOrg();
+
+      const req = makeRequest("http://localhost/api/trackers", {
+        method: "POST",
+        body: JSON.stringify({
+          tiktokSoundId: "7546394810303694849",
+          title: "New Sound",
+          artist: "New Artist",
+        }),
+      });
+      const res = await postTracker(req);
+
+      expect(res.status).toBe(409);
+      expect(mockDb.tikTokSound.create).not.toHaveBeenCalled();
+    });
+
+    /* "Remove one to make room" is nonsense advice to somebody who has none,
+       and it does not say what would actually help. */
+    it("says the plan excludes trackers rather than telling you to remove one", async () => {
+      freeOrg();
+
+      const req = makeRequest("http://localhost/api/trackers", {
+        method: "POST",
+        body: JSON.stringify({
+          tiktokSoundId: "7546394810303694849",
+          title: "New Sound",
+          artist: "New Artist",
+        }),
+      });
+      const body = await (await postTracker(req)).json();
+
+      expect(body.error).toBe(
+        "Your plan does not include sound trackers. Upgrade to start tracking sounds."
+      );
+      expect(body.error).not.toContain("Remove one");
+      expect(body.trackers).toEqual({ used: 0, max: 0 });
+    });
+
+    /* null means unlimited on this wire (Infinity does not survive JSON), so a
+       0 that arrives as null would render as "no counter, add away". */
+    it("sends 0 rather than null on the listing, so the UI can tell them apart", async () => {
+      mockDb.organization.findUnique.mockResolvedValue(orgFixture({ plan: "free" }));
+      mockDb.tikTokSound.findMany.mockResolvedValue([]);
+
+      const res = await getTrackers(makeRequest("http://localhost/api/trackers"));
+      const body = await res.json();
+
+      expect(body.limits).toEqual({ used: 0, max: 0 });
+      expect(body.limits.max).not.toBeNull();
+    });
+  });
+
   it("creates a tracked sound", async () => {
     /* A real TikTok sound id: the route requires 18-20 digits, deliberately, so
        a typo or a video id is refused before it becomes a tracker that can

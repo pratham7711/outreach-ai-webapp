@@ -160,6 +160,11 @@ export default function TrackersPage() {
 
   const limits = data?.limits;
   const atLimit = limits?.max != null && limits.used >= limits.max;
+  /* A plan with no trackers at all is a different state from a plan you have
+     filled, and it is the state every self-serve signup starts in. Telling
+     someone with zero trackers that they have "used every tracker" is both
+     wrong and a dead end -- it does not say what to do. */
+  const planHasNoTrackers = limits?.max === 0;
 
   /* Bulk removal. Guarded by a typed confirmation rather than a dialog alone:
      this deletes every tracker and all their history, and history is the one
@@ -341,16 +346,26 @@ export default function TrackersPage() {
                   alignSelf: "center",
                   color: atLimit ? "var(--cc-warning)" : "var(--cc-text-muted)",
                 }}
-                title={`${limits.used} of ${limits.max} trackers used on this plan`}
+                title={
+                  planHasNoTrackers
+                    ? "Your plan does not include sound trackers"
+                    : `${limits.used} of ${limits.max} trackers used on this plan`
+                }
               >
-                {limits.used}/{limits.max}
+                {planHasNoTrackers ? "Not on this plan" : `${limits.used}/${limits.max}`}
               </span>
             ) : null}
             <Button
               variant="primary"
               onClick={() => setModalOpen(true)}
               disabled={atLimit}
-              title={atLimit ? "You have used every tracker on your plan" : undefined}
+              title={
+                planHasNoTrackers
+                  ? "Your plan does not include sound trackers — upgrade to start tracking"
+                  : atLimit
+                    ? "You have used every tracker on your plan"
+                    : undefined
+              }
             >
               <Plus size={16} style={{ marginRight: 6 }} />
               Track Sound

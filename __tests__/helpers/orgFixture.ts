@@ -24,8 +24,10 @@ export function orgFixture(overrides: OrgFixtureOverrides = {}) {
   return {
     id: "org-1",
     name: "Test Org",
-    // "starter" is what a real signup gets, so a limit test that passes here is
-    // a limit test about the plan people actually land on.
+    /* "starter" -- deliberately NOT "free", which is what a real signup now
+       gets. free allows 0 trackers, so defaulting to it would make every suite
+       that adds a tracker fail on the limit rather than on what it is testing.
+       The free tier is covered explicitly instead, with plan: "free". */
     plan: overrides.plan ?? "starter",
     planConfig: overrides.planConfig === undefined ? null : overrides.planConfig,
     brandName: null,

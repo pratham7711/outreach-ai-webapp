@@ -297,11 +297,16 @@ export async function POST(req: NextRequest) {
       if (!already) {
         const tracked = await db.tikTokSound.count({ where: { orgId } });
         if (tracked >= maxTrackers) {
+          /* Zero is a real limit and needs its own sentence. "Remove one" is
+             nonsense advice to someone who has none, and the free tier is
+             exactly that case -- it is not that they have filled the plan up,
+             it is that the plan does not include this. */
+          const error =
+            maxTrackers === 0
+              ? "Your plan does not include sound trackers. Upgrade to start tracking sounds."
+              : `Your plan includes ${maxTrackers} tracker${maxTrackers === 1 ? "" : "s"} and ${tracked} are in use. Remove one, or ask us to raise the limit.`;
           return NextResponse.json(
-            {
-              error: `Your plan includes ${maxTrackers} tracker${maxTrackers === 1 ? "" : "s"} and ${tracked} are in use. Remove one, or ask us to raise the limit.`,
-              trackers: { used: tracked, max: maxTrackers },
-            },
+            { error, trackers: { used: tracked, max: maxTrackers } },
             { status: 409 }
           );
         }

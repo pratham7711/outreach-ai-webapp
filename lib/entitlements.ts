@@ -72,9 +72,21 @@ export async function getOrgEntitlements(orgId: string): Promise<OrgEntitlements
 
   if (!org) return null;
 
-  const fallbackPlanName = isPlanName(org.plan) ? org.plan : "free";
+  /* The name shown on the billing screen and the name the limits come from
+     must be the same name. planConfig.planName wins because that is the column
+     the settings route writes when somebody changes a plan -- it does not touch
+     Organization.plan -- so reading limits off org.plan would leave an org
+     labelled "pro" while it was still held to free's zero trackers.
+     org.plan remains the fallback for orgs that predate planConfig, and "free"
+     is the last resort: an unrecognised name gets the smallest tier, never the
+     largest. */
+  const planName = org.planConfig?.planName ?? org.plan ?? "free";
+  const fallbackPlanName: PlanName = isPlanName(planName)
+    ? planName
+    : isPlanName(org.plan)
+      ? org.plan
+      : "free";
   const fallbackPlan = PLANS[fallbackPlanName];
-  const planName = org.planConfig?.planName ?? org.plan ?? fallbackPlanName;
   const configFeatureMap = normalizeFeatureMap(org.planConfig?.features);
   const fallbackFeatureMap = Object.fromEntries(fallbackPlan.features.map((feature) => [feature, true]));
 

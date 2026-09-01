@@ -21,15 +21,20 @@
  * money to keep reading (every tracked sound is a recurring platform fetch);
  * seats, campaigns and creators are rows.
  *
- * So max_trackers is now the ONLY finite number in this file. If you are adding
- * a limit here, the question to answer first is what it costs us per unit.
+ * So max_trackers is the ONLY finite number in this file. If you are adding a
+ * limit here, the question to answer first is what it costs us per unit.
+ *
+ * free is 0 on purpose, not as a placeholder: a self-serve signup gets the whole
+ * product except the one feature with a recurring cost per row. Note that 0 is a
+ * real limit and must survive every falsy check between here and the gate --
+ * `?? Infinity` is correct, `|| Infinity` would turn "none" into "unlimited".
  */
 export const PLANS = {
   free: {
     max_campaigns: Infinity,
     max_creators: Infinity,
     max_users: Infinity,
-    max_trackers: 3,
+    max_trackers: 0,
     features: ["campaigns", "creator_database", "basic_reports"] as const,
   },
   starter: {
@@ -43,7 +48,7 @@ export const PLANS = {
     max_campaigns: Infinity,
     max_creators: Infinity,
     max_users: Infinity,
-    max_trackers: 200,
+    max_trackers: 100,
     features: ["campaigns", "creator_database", "basic_reports", "advanced_reports", "media_kits", "shareable_links", "draft_approvals", "creator_portal", "audio_analytics", "payments", "export_csv", "api_access"] as const,
   },
   enterprise: {
