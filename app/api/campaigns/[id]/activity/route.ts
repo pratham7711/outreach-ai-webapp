@@ -63,3 +63,111 @@ export async function GET(
     return NextResponse.json({ error: "Failed to load activity" }, { status: 500 });
   }
 }
+
+/**
+ * POST /api/campaigns/[id]/activity — leave a comment.
+ *
+ * The half that was missing. CampaignComment, the read above, and the merged
+ * feed have all existed since the model landed; nothing could ever put a row in
+ * the table, so the read was a permanent no-op and the feature looked built
+ * while being unreachable. The reference has this on the campaign Overview tab,
+ * which is the first screen anyone opens.
+ *
+ * Scoping repeats the GET's check rather than trusting the id in the path: a
+ * campaign id from another org must 404 on the way in, not merely fail to
+ * appear on the way out.
+ */
+const MAX_COMMENT = 4000;
+
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const session = await auth();
+  if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const orgId = (session.user as any).orgId;
+  const userId = (session.user as any).id;
+  if (!orgId || !userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { id: campaignId } = await params;
+
+  try {
+    const campaign = await db.campaign.findFirst({
+      where: { id: campaignId, orgId },
+      select: { id: true },
+    });
+    if (!campaign) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
+
+    const body = await request.json().catch(() => null);
+    const content = typeof body?.content === "string" ? body.content.trim() : "";
+    if (!content) {
+      return NextResponse.json({ error: "Comment cannot be empty" }, { status: 400 });
+    }
+    if (content.length > MAX_COMMENT) {
+      return NextResponse.json(
+        { error: `Comment is too long (${content.length}/${MAX_COMMENT})` },
+        { status: 400 }
+      );
+    }
+
+    const comment = await db.campaignComment.create({
+      data: { campaignId, userId, content },
+      include: { user: { select: { id: true, name: true, email: true } } },
+    });
+
+    return NextResponse.json({ comment }, { status: 201 });
+  } catch (error) {
+    console.error("Failed to post campaign comment:", error);
+    return NextResponse.json({ error: "Failed to post comment" }, { status: 500 });
+  }
+}
+
+/**
+ * DELETE /api/campaigns/[id]/activity?commentId=... — soft-delete a comment.
+ *
+ * Soft, because deletedAt already exists on the model and a feed someone can
+ * silently rewrite is worse than one with a gap in it. Authors delete their
+ * own; OWNER and ADMIN can delete anyone's, which is the moderation floor a
+ * shared workspace needs.
+ */
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const session = await auth();
+  if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const orgId = (session.user as any).orgId;
+  const userId = (session.user as any).id;
+  const role = (session.user as any).role as string;
+  if (!orgId || !userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { id: campaignId } = await params;
+  const commentId = request.nextUrl.searchParams.get("commentId");
+  if (!commentId) return NextResponse.json({ error: "commentId is required" }, { status: 400 });
+
+  try {
+    /* The campaign is joined into the lookup so a comment id alone cannot reach
+       across tenants — the id is a cuid, but guessing is not the threat model
+       worth relying on. */
+    const comment = await db.campaignComment.findFirst({
+      where: { id: commentId, campaignId, deletedAt: null, campaign: { orgId } },
+      select: { id: true, userId: true },
+    });
+    if (!comment) return NextResponse.json({ error: "Comment not found" }, { status: 404 });
+
+    const isAuthor = comment.userId === userId;
+    const canModerate = role === "OWNER" || role === "ADMIN";
+    if (!isAuthor && !canModerate) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    await db.campaignComment.update({
+      where: { id: commentId },
+      data: { deletedAt: new Date() },
+    });
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    console.error("Failed to delete campaign comment:", error);
+    return NextResponse.json({ error: "Failed to delete comment" }, { status: 500 });
+  }
+}

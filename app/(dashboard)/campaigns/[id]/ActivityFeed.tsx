@@ -1,9 +1,9 @@
 "use client";
 
 import React from "react";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Card, EmptyState, Skeleton } from "@pratham7711/ui";
-import { StatusTabs } from "@/components/ds";
+import { StatusTabs, Button } from "@/components/ds";
 import { History } from "lucide-react";
 
 type ActivityEvent = {
@@ -41,25 +41,49 @@ export default function ActivityFeed({ campaignId }: { campaignId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState("all");
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setError(null);
-      try {
-        const res = await fetch(`/api/campaigns/${campaignId}/activity`);
-        if (!res.ok) throw new Error("Failed to load activity");
-        const data = await res.json();
-        if (!cancelled) setEvents(data.events ?? []);
-      } catch {
-        if (!cancelled) setError("Could not load activity.");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+  const load = useCallback(async () => {
+    setError(null);
+    try {
+      const res = await fetch(`/api/campaigns/${campaignId}/activity`);
+      if (!res.ok) throw new Error("Failed to load activity");
+      const data = await res.json();
+      setEvents(data.events ?? []);
+    } catch {
+      setError("Could not load activity.");
+    } finally {
+      setLoading(false);
+    }
   }, [campaignId]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  const [draft, setDraft] = useState("");
+  const [posting, setPosting] = useState(false);
+
+  const postComment = async () => {
+    const content = draft.trim();
+    if (!content || posting) return;
+    setPosting(true);
+    try {
+      const res = await fetch(`/api/campaigns/${campaignId}/activity`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        setError(d?.error ?? "Could not post that comment.");
+        return;
+      }
+      setDraft("");
+      /* Refetch rather than splice the new comment in locally: the feed
+         interleaves comments with audit events by timestamp, and a client-side
+         insert would have to duplicate that ordering to stay honest. */
+      await load();
+    } finally {
+      setPosting(false);
+    }
+  };
 
   const shown = useMemo(
     () => (filter === "comments" ? events.filter((e) => e.kind === "comment") : events),
@@ -77,6 +101,44 @@ export default function ActivityFeed({ campaignId }: { campaignId: string }) {
           active={filter}
           onChange={setFilter}
         />
+      </div>
+
+      {/* The composer. Without it CampaignComment was a table nothing could
+          write to, so the read path and the Comments filter both sat over
+          permanently empty data. */}
+      <div style={{ marginBottom: 18 }}>
+        <textarea
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            /* Enter sends, Shift+Enter breaks the line — the convention
+               everywhere else people leave short notes. */
+            if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void postComment(); }
+          }}
+          placeholder="Leave a note for the team…"
+          aria-label="Write a comment"
+          rows={2}
+          disabled={posting}
+          style={{
+            width: "100%", resize: "vertical", padding: "10px 12px",
+            borderRadius: 10, border: "1px solid var(--cc-border)",
+            background: "var(--cc-card)", color: "var(--cc-text)",
+            fontSize: 13, fontFamily: "inherit", lineHeight: 1.5,
+          }}
+        />
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 6 }}>
+          <span style={{ fontSize: 11, color: "var(--cc-text-muted)" }}>
+            Enter to post · Shift+Enter for a new line
+          </span>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => void postComment()}
+            disabled={posting || draft.trim().length === 0}
+          >
+            {posting ? "Posting…" : "Comment"}
+          </Button>
+        </div>
       </div>
 
       {loading ? (
