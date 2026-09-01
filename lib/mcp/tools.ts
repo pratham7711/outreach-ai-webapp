@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { getRefreshCooldown, refreshCampaign } from "@/lib/sync/refreshCampaign";
 
 type ToolContent = { type: "text"; text: string };
 type ToolResult = { content: ToolContent[] };
@@ -72,6 +73,30 @@ export function getMcpToolDefinitions(): ToolDef[] {
         required: ["id"],
       },
     },
+    {
+      name: "get_refresh_status",
+      description:
+        "Check when a campaign's posts were last refreshed from their platforms, whether a refresh is running right now, and how long until it may be refreshed again. Call this before refresh_campaign to avoid a wasted attempt.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          id: { type: "string", description: "Campaign ID" },
+        },
+        required: ["id"],
+      },
+    },
+    {
+      name: "refresh_campaign",
+      description:
+        "Re-fetch view, like, comment and share counts for every post on a campaign from TikTok, Instagram and YouTube. Rate limited to once every 30 minutes per campaign; a call inside that window is refused and tells you how long is left. Takes minutes on a large campaign. Platforms challenge a large share of requests, so the result reports why posts did not update as well as how many did.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          id: { type: "string", description: "Campaign ID" },
+        },
+        required: ["id"],
+      },
+    },
   ];
 }
 
@@ -81,6 +106,46 @@ export async function executeMcpTool(
   args: Record<string, any>
 ): Promise<ToolResult> {
   switch (toolName) {
+    case "get_refresh_status": {
+      const state = await getRefreshCooldown(orgId, args.id);
+      if (!state) {
+        return { content: [{ type: "text", text: JSON.stringify({ error: "Campaign not found" }) }] };
+      }
+      return { content: [{ type: "text", text: JSON.stringify(state) }] };
+    }
+
+    case "refresh_campaign": {
+      /* The same call the Refresh Data button makes, under the same gate. The
+         limit is enforced inside refreshCampaign rather than here, so an agent
+         cannot spend a campaign's allowance out from under the person clicking
+         the button -- the platform being rationed does not distinguish them. */
+      const outcome = await refreshCampaign({ orgId, campaignId: args.id });
+
+      if (!outcome.ok && outcome.reason === "not-found") {
+        return { content: [{ type: "text", text: JSON.stringify({ error: "Campaign not found" }) }] };
+      }
+      if (!outcome.ok && outcome.reason === "cooldown") {
+        return {
+          content: [{
+            type: "text",
+            text: JSON.stringify({
+              refreshed: false,
+              error: outcome.message,
+              retryAfterSeconds: outcome.state.retryAfterSeconds,
+              nextRefreshAt: outcome.state.nextRefreshAt,
+              lastRefreshAt: outcome.state.lastRefreshAt,
+            }),
+          }],
+        };
+      }
+      if (!outcome.ok) {
+        return { content: [{ type: "text", text: JSON.stringify({ error: "Refresh failed" }) }] };
+      }
+      return {
+        content: [{ type: "text", text: JSON.stringify({ refreshed: true, ...outcome.result }) }],
+      };
+    }
+
     case "list_campaigns": {
       const campaigns = await db.campaign.findMany({
         where: {

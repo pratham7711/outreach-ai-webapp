@@ -317,6 +317,8 @@ model Organization {
   reports             Report[]
   mediakits           MediaKit[]
   auditLogs           AuditLog[]
+  emailLogs           EmailLog[]
+  refreshRuns         CampaignRefreshRun[]
   plans               Plan[]
   planConfig          OrgPlanConfig?
   invites             UserInvite[]
@@ -556,6 +558,7 @@ model Campaign {
   fraudFlags        ViewFraudFlag[]
   conversations     Conversation[]
   syncSlots         SyncSlot[]
+  refreshRuns       CampaignRefreshRun[]
 
   // 80 call sites read this table and every one of them scopes by orgId; it had
   // no index at all. deletedAt rides along because the scope is almost always
@@ -1773,4 +1776,86 @@ model OrgViewsSnapshot {
 
   @@unique([orgId, day])
   @@index([orgId, day])
+}
+
+/// Every message this system hands to the email provider, successful or not.
+///
+/// Separate from AuditLog on purpose. AuditLog answers "who did what" and is
+/// org-scoped, entitlement-gated and shown to customers; this answers "did the
+/// mail actually leave, and what did the provider say", which has to be true
+/// even for mail with no org behind it (ops alerts) and even for an org whose
+/// plan has the audit log switched off. Written from inside sendEmail so a new
+/// call site cannot forget to record itself.
+model EmailLog {
+  id         String   @id @default(cuid())
+  /// Null for platform mail that belongs to no tenant, e.g. ops alerts.
+  orgId      String?
+  /// Stable slug for what kind of mail this was: "invite", "invite_resend",
+  /// "password_reset", "notification", "ops_alert", "unknown".
+  kind       String
+  /// Recipients as given to the provider. Plural: notification fan-out is one
+  /// message to many addresses, and that is one row, not N.
+  recipients String[]
+  subject    String
+  /// "sent" | "failed" | "not_configured"
+  status     String
+  /// Resend's message id, when it got far enough to have one.
+  providerId String?
+  /// Provider status code and the head of its body, for a failed send.
+  error      String?
+  /// Who caused it, when a person did.
+  actorEmail String?
+  /// The row this mail was about (invite id, user id), for tracing back.
+  entityId   String?
+  createdAt  DateTime @default(now())
+
+  org Organization? @relation(fields: [orgId], references: [id])
+
+  // Listed newest-first, per tenant and across all of them.
+  @@index([orgId, createdAt])
+  @@index([createdAt])
+  @@index([kind, createdAt])
+}
+
+/// One press of Refresh Data, from start to finish.
+///
+/// Three jobs in one row, because they are the same fact seen from different
+/// sides. It is the cooldown -- "has this campaign been refreshed in the last
+/// 30 minutes" is a query, not a counter in one server's memory, and the
+/// in-memory limiter it replaces gave every new serverless instance a fresh
+/// allowance. It is the progress the button reads back while the run is still
+/// going. And it is the record of what went wrong: `reasons` holds the count
+/// per failure reason, so "87 didn't update" can say WHY without anyone
+/// opening the platform logs.
+model CampaignRefreshRun {
+  id         String  @id @default(cuid())
+  orgId      String
+  campaignId String
+  /// "running" | "done" | "failed"
+  status     String  @default("running")
+  /// Who pressed it. Null for a run started by the cron rather than a person.
+  userId     String?
+
+  total       Int @default(0)
+  /// Attempted so far, whatever the outcome -- this is the N in "N/M completed".
+  completed   Int @default(0)
+  measured    Int @default(0)
+  noMetrics   Int @default(0)
+  unfetchable Int @default(0)
+  failed      Int @default(0)
+  /// Posts the time budget never reached. Not a failure: the next run takes them.
+  remaining   Int @default(0)
+
+  /// { "platform-challenged": 62, "post-deleted": 4, ... } -- the point of failure.
+  reasons Json?
+
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+
+  org      Organization @relation(fields: [orgId], references: [id])
+  campaign Campaign     @relation(fields: [campaignId], references: [id])
+
+  // The cooldown check reads the newest run for one campaign.
+  @@index([campaignId, startedAt])
+  @@index([orgId, startedAt])
 }

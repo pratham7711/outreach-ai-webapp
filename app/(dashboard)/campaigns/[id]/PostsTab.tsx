@@ -261,6 +261,9 @@ export default function PostsTab({
   const [addForm, setAddForm] = useState({ postUrl: "", creatorId: "", mediaType: "" });
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [refreshingAll, setRefreshingAll] = useState(false);
+  /** How far a run in flight has got, so the button can say "12 of 88" the way
+      the same button does in CreatorCore. Null when nothing is running. */
+  const [refreshProgress, setRefreshProgress] = useState<{ completed: number; total: number } | null>(null);
   /** What the last refresh actually managed to fetch. Not an error -- a receipt. */
   const [refreshNote, setRefreshNote] = useState<string | null>(null);
 
@@ -392,9 +395,35 @@ export default function PostsTab({
   const handleRefreshAll = async () => {
     setRefreshingAll(true);
     setRefreshNote(null);
+    setRefreshProgress(null);
+
+    /* A campaign of eighty posts takes minutes, because the platform requests
+       are paced. Without this the button span the whole time with nothing to
+       show for it and looked hung; the server writes its progress as it goes,
+       so poll it. */
+    const poll = setInterval(async () => {
+      try {
+        const r = await fetch(`/api/campaigns/${campaignId}/refresh`);
+        if (!r.ok) return;
+        const state = await r.json();
+        if (state.running) {
+          setRefreshProgress({ completed: state.running.completed, total: state.running.total });
+        }
+      } catch {
+        /* A dropped poll is not worth telling anyone about; the run continues
+           on the server either way and the final response is authoritative. */
+      }
+    }, 2000);
+
     try {
       const res = await fetch(`/api/campaigns/${campaignId}/refresh`, { method: "POST" });
       const body = await res.json().catch(() => ({}));
+      if (res.status === 429) {
+        /* Transient, like CreatorCore's: the button is not broken and will work
+           again shortly, so this does not belong in the persistent receipt. */
+        toast.error(body.error ?? "Refreshed too recently.");
+        return;
+      }
       if (!res.ok) {
         setRefreshNote(body.error ?? "Refresh failed.");
         return;
@@ -403,9 +432,31 @@ export default function PostsTab({
       fetchPosts();
       onRefreshed?.();
     } finally {
+      clearInterval(poll);
       setRefreshingAll(false);
+      setRefreshProgress(null);
     }
   };
+
+  /* A run started in another tab -- or before a reload -- is still going on the
+     server. Without this the button would offer to start a second one, and the
+     cooldown would refuse it for reasons the page never explained. */
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch(`/api/campaigns/${campaignId}/refresh`);
+        if (!r.ok) return;
+        const state = await r.json();
+        if (cancelled || !state.running) return;
+        setRefreshingAll(true);
+        setRefreshProgress({ completed: state.running.completed, total: state.running.total });
+      } catch {
+        /* Nothing to recover; the button starts in its normal state. */
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [campaignId]);
 
   const openAddPost = () => {
     setShowAddPost(true);
@@ -865,7 +916,12 @@ export default function PostsTab({
 
           <Button variant="secondary" onClick={handleRefreshAll} loading={refreshingAll} disabled={posts.length === 0}>
             <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <RefreshCw size={14} /> Refresh Data
+              <RefreshCw size={14} />
+              {refreshingAll
+                ? refreshProgress
+                  ? `Refreshing ${refreshProgress.completed} of ${refreshProgress.total}`
+                  : "Refreshing"
+                : "Refresh Data"}
             </span>
           </Button>
 

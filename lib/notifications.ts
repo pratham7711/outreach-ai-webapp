@@ -207,6 +207,9 @@ export async function notifyAuditEvent(params: {
       if (recipients.length > 0) {
         jobs.push(
           sendEmail({
+            kind: "notification",
+            orgId: params.orgId,
+            actorEmail: params.actorEmail ?? null,
             to: recipients,
             subject: `${def.label}${params.entityLabel ? `: ${params.entityLabel}` : ""}`,
             text: `${text}\n\nYou receive this because "${def.label}" is on in your notification settings:\nhttps://campaign.madeboring.com/settings/notifications`,

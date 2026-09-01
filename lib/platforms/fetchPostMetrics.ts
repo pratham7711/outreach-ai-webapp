@@ -10,6 +10,20 @@ export type FetchMetricsContext = {
   instagramToken?: string;
   instagramHandle?: string;
   tiktokToken?: string;
+  /**
+   * Skip the metadata-only fallbacks when the counters could not be had.
+   *
+   * For a bulk refresh this is the difference between covering a campaign and
+   * covering half of it: oEmbed cannot return a single counter, so spending a
+   * paced slot on it buys a thumbnail we almost certainly already have, while
+   * the post behind it in the queue -- which might have returned real numbers
+   * -- never gets reached inside the time budget.
+   *
+   * Left off for the flows that are adding a post for the first time, where a
+   * title and a thumbnail are most of what the card needs and there is only one
+   * fetch to pay for.
+   */
+  countsOnly?: boolean;
 };
 
 export type PostMetrics = {
@@ -45,7 +59,36 @@ export type PostMetrics = {
   authorFollowers?: number;
   /** Absent when the platform did not say. Never today's date as a stand-in. */
   postedAt?: Date;
+  /**
+   * Why this fetch came back without counts, when it did.
+   *
+   * Carried on the metrics rather than thrown, because a fetch with no numbers
+   * is a normal outcome here, not an error -- and "87 of 88 posts did not
+   * update" is unactionable until it can say which of these it was. Absent on a
+   * fetch that worked.
+   */
+  fetchReason?: FetchReason;
 };
+
+/**
+ * The distinct ways a refresh can come back empty. Stored and counted, so keep
+ * the strings stable.
+ */
+export type FetchReason =
+  /** TikTok answered 200 with a WAF page instead of the post. */
+  | "platform-challenged"
+  /** The gate is shut, so we never asked. Not a failure -- a deferral. */
+  | "backing-off"
+  /** The platform says the post is gone. */
+  | "post-deleted"
+  /** Refused outright: 403, 429, 5xx, or the request threw. */
+  | "platform-refused"
+  /** We reached it and it simply carries no counters (oEmbed, and similar). */
+  | "no-counts-published"
+  /** Nothing here recognises the URL. */
+  | "unrecognised-url"
+  /** A key the deployment does not have. */
+  | "not-configured";
 
 export function hasMetricCounts(m: PostMetrics): boolean {
   if (typeof m.viewsCount !== "number") return false;
@@ -229,20 +272,43 @@ export async function fetchYouTubeMetricsBatch(videoIds: string[]): Promise<Map<
   return out;
 }
 
+export function reasonFromLookup(lookup: TikTokPostLookup): FetchReason {
+  if (lookup.state === "deleted") return "post-deleted";
+  if (lookup.reason === "breaker-open") return "backing-off";
+  if (lookup.reason === "no-parsable-payload") return "platform-challenged";
+  return "platform-refused";
+}
+
 export async function fetchTikTokMetrics(
   url: string,
   videoId?: string,
   accessToken?: string,
+  countsOnly = false,
 ): Promise<Partial<PostMetrics>> {
   if (videoId && accessToken) {
     const viaDisplay = await fetchTikTokMetricsDisplay(videoId, accessToken);
     if (viaDisplay) return viaDisplay;
   }
-  const viaDirect = await fetchTikTokMetricsDirect(url);
-  if (viaDirect) return viaDirect;
+
+  const lookup = await lookupTikTokPost(url);
+  if (lookup.metrics) return tiktokMetricsToPartial(lookup.metrics);
+  const reason = reasonFromLookup(lookup);
+
   const viaSocialKit = await fetchTikTokMetricsSocialKit(url);
   if (viaSocialKit) return viaSocialKit;
-  return fetchTikTokOEmbed(url);
+
+  /* Three reasons not to go on to oEmbed. A deleted post is a settled answer
+     and asking a second endpoint will not un-delete it; backing off has to mean
+     the host, not one endpoint on it; and a bulk refresh would rather spend the
+     slot on the next post than on a thumbnail. */
+  if (lookup.state === "deleted" || reason === "backing-off" || countsOnly) {
+    return stubMetrics(reason);
+  }
+
+  const viaOEmbed = await fetchTikTokOEmbed(url);
+  /* oEmbed answering does not mean the refresh succeeded, so the reason from
+     the attempt that could have carried counts is the one worth keeping. */
+  return { ...viaOEmbed, fetchReason: reason };
 }
 
 // video.query only returns posts owned by the token's account, so a post by a
@@ -298,11 +364,28 @@ export type RateGateOptions = {
   jitterMs: number;
   breakerThreshold: number;
   breakerCooldownMs: number;
+  /**
+   * How many challenges in a row before we stop for a while.
+   *
+   * Far higher than breakerThreshold, and answering a different question. A
+   * challenge is TikTok's ordinary reply to a datacenter IP -- roughly three in
+   * four of ours come back that way, and the other one in four carries real
+   * numbers -- so a run of them says nothing about whether we are in trouble.
+   * Five in a row is unremarkable at that rate and used to latch a fifteen
+   * minute blackout; the run then skipped every post it had left. This
+   * threshold is only there to stop a pointless grind when the channel really
+   * is dead, which is what a long unbroken streak means.
+   */
+  challengeThreshold: number;
+  challengeCooldownMs: number;
 };
 
 export type RateGate = {
   acquire: () => Promise<boolean>;
   recordSuccess: () => void;
+  /** 200 OK, no usable payload: TikTok's WAF, not a verdict on our behaviour. */
+  recordChallenged: () => void;
+  /** 403/429/5xx or a thrown request: the channel telling us to stop. */
   recordBlocked: () => void;
   isOpen: (now?: number) => boolean;
 };
@@ -310,10 +393,17 @@ export type RateGate = {
 export function createRateGate(options: RateGateOptions): RateGate {
   let nextAllowedAt = 0;
   let consecutiveBlocked = 0;
+  let consecutiveChallenged = 0;
   let breakerUntil = 0;
 
   function isOpen(now = Date.now()): boolean {
     return now < breakerUntil;
+  }
+
+  function open(cooldownMs: number) {
+    breakerUntil = Date.now() + cooldownMs;
+    consecutiveBlocked = 0;
+    consecutiveChallenged = 0;
   }
 
   return {
@@ -330,12 +420,21 @@ export function createRateGate(options: RateGateOptions): RateGate {
     },
     recordSuccess() {
       consecutiveBlocked = 0;
+      consecutiveChallenged = 0;
+    },
+    recordChallenged() {
+      /* Deliberately does not touch consecutiveBlocked. Mixing the two is what
+         made a normal afternoon of WAF pages look like a ban and stopped the
+         fetcher for a quarter of an hour at a time. */
+      consecutiveChallenged += 1;
+      if (consecutiveChallenged >= options.challengeThreshold) {
+        open(options.challengeCooldownMs);
+      }
     },
     recordBlocked() {
       consecutiveBlocked += 1;
       if (consecutiveBlocked >= options.breakerThreshold) {
-        breakerUntil = Date.now() + options.breakerCooldownMs;
-        consecutiveBlocked = 0;
+        open(options.breakerCooldownMs);
       }
     },
   };
@@ -351,6 +450,13 @@ const tiktokGate = createRateGate({
   jitterMs: envInt("TIKTOK_FETCH_JITTER_MS", 600),
   breakerThreshold: envInt("TIKTOK_FETCH_BREAKER_THRESHOLD", 5),
   breakerCooldownMs: envInt("TIKTOK_FETCH_BREAKER_COOLDOWN_MS", 15 * 60 * 1000),
+  /* Thirty in a row, at a measured challenge rate around three in four, is
+     about a one-in-fifty-thousand accident -- so it means the channel is
+     genuinely shut, not that we hit a bad patch. Five minutes rather than
+     fifteen, because a challenge is not an accusation and the next refresh
+     should not inherit most of a blackout. */
+  challengeThreshold: envInt("TIKTOK_FETCH_CHALLENGE_THRESHOLD", 30),
+  challengeCooldownMs: envInt("TIKTOK_FETCH_CHALLENGE_COOLDOWN_MS", 5 * 60 * 1000),
 });
 
 export function isBlockedStatus(status: number): boolean {
@@ -501,7 +607,7 @@ export async function lookupTikTokPost(url: string): Promise<TikTokPostLookup> {
         log.warn("TikTok says this post is gone", { statusCode });
         return { state: "deleted", statusCode, reason: null, metrics: null };
       }
-      tiktokGate.recordBlocked();
+      tiktokGate.recordChallenged();
       log.warn("TikTok direct fetch could not parse rehydration payload");
       return {
         state: "unavailable",
@@ -613,6 +719,15 @@ async function fetchTikTokMetricsSocialKit(url: string): Promise<Partial<PostMet
 }
 
 async function fetchTikTokOEmbed(url: string): Promise<Partial<PostMetrics>> {
+  /* Same host, same gate. This ran ungated, which quietly inverted the breaker:
+     the moment it latched, every remaining post skipped the paced path and went
+     straight to oembed instead -- so a 88-post refresh that decided it was being
+     blocked answered by firing ~79 unpaced requests at tiktok.com inside two
+     seconds. Backing off has to mean backing off from the host, not from one
+     endpoint on it, and a breaker that is open is a reason to stop rather than a
+     reason to try a different door. */
+  if (!(await tiktokGate.acquire())) return stubMetrics("backing-off");
+
   try {
     const res = await fetch(`https://www.tiktok.com/oembed?url=${encodeURIComponent(url)}`, {
       signal: fetchTimeoutSignal(),
@@ -622,12 +737,17 @@ async function fetchTikTokOEmbed(url: string): Promise<Partial<PostMetrics>> {
       return {
         thumbnailUrl: data.thumbnail_url ?? null,
         caption: data.title ?? null,
+        /* oEmbed is a title and a picture. It reaching us is not the post's
+           numbers reaching us, and reporting it as a plain empty result is what
+           made a blocked campaign look like a campaign of posts with no
+           engagement. */
+        fetchReason: "no-counts-published",
       };
     }
   } catch {
     // fall through
   }
-  return stubMetrics();
+  return stubMetrics("platform-refused");
 }
 
 export async function fetchInstagramMetrics(
@@ -685,7 +805,7 @@ export async function fetchInstagramMetrics(
   return stubMetrics();
 }
 
-function stubMetrics(): Partial<PostMetrics> {
+function stubMetrics(reason?: FetchReason): Partial<PostMetrics> {
   // No postedAt. A stub is what we return when the platform told us nothing, and
   // it knows least of all when the post went up -- filling in `new Date()` there
   // stamped today onto every post created while TikTok was unreachable, and the
@@ -694,6 +814,7 @@ function stubMetrics(): Partial<PostMetrics> {
   return {
     thumbnailUrl: null,
     caption: null,
+    ...(reason ? { fetchReason: reason } : {}),
   };
 }
 
@@ -711,7 +832,7 @@ export async function fetchPostMetrics(
       metrics = await fetchYouTubeMetrics(detected.id);
       break;
     case "TIKTOK":
-      metrics = await fetchTikTokMetrics(url, detected.id, context?.tiktokToken);
+      metrics = await fetchTikTokMetrics(url, detected.id, context?.tiktokToken, context?.countsOnly);
       break;
     case "INSTAGRAM":
       metrics = await fetchInstagramMetrics(url, context?.instagramToken, context?.instagramHandle);
@@ -732,6 +853,7 @@ function assemblePostMetrics(
     thumbnailUrl: m.thumbnailUrl ?? null,
     caption: m.caption ?? null,
     ...(m.postedAt ? { postedAt: m.postedAt } : {}),
+    ...(m.fetchReason ? { fetchReason: m.fetchReason } : {}),
   };
 
   const finite = (v: unknown): number | undefined =>

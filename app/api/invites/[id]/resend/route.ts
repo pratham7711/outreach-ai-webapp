@@ -67,6 +67,32 @@ export async function POST(
       origin,
       expiresAt: invite.expiresAt,
       invitedByEmail: gate.auth.actorEmail ?? null,
+      kind: "invite_resend",
+      orgId,
+      inviteId: invite.id,
+    });
+
+    /* Both outcomes are audited, and the failure is the one that matters more.
+       Until this branch existed a resend that the provider refused returned 502
+       and left nothing behind at all -- the audit trail showed the successful
+       resends only, so "we definitely sent it" and "we tried and it bounced"
+       were the same silence. */
+    await logAudit({
+      orgId,
+      ...getAuditActor(gate.auth),
+      action: sent.sent ? "invite.resend" : "invite.resend_failed",
+      entityType: "user_invite",
+      entityId: invite.id,
+      entityLabel: invite.email,
+      ipAddress: getRequestIp(request),
+      metadata: {
+        role: invite.role,
+        expiresAt: invite.expiresAt.toISOString(),
+        emailed: sent.sent,
+        ...(sent.sent
+          ? { providerId: sent.id }
+          : { failureReason: sent.reason }),
+      },
     });
 
     if (!sent.sent) {
@@ -81,17 +107,6 @@ export async function POST(
         { status: 502 }
       );
     }
-
-    await logAudit({
-      orgId,
-      ...getAuditActor(gate.auth),
-      action: "invite.resend",
-      entityType: "user_invite",
-      entityId: invite.id,
-      entityLabel: invite.email,
-      ipAddress: getRequestIp(request),
-      metadata: { role: invite.role, expiresAt: invite.expiresAt.toISOString() },
-    });
 
     return NextResponse.json({ success: true, emailed: true });
   } catch (error) {

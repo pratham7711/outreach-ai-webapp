@@ -1,6 +1,11 @@
 import { db } from "@/lib/db";
 import { MEASURED_FIELDS_KEY, type MetricField } from "@/lib/metricDisplay";
-import { fetchPostMetrics, hasMetricCounts, type PostMetrics } from "@/lib/platforms/fetchPostMetrics";
+import {
+  fetchPostMetrics,
+  hasMetricCounts,
+  type FetchReason,
+  type PostMetrics,
+} from "@/lib/platforms/fetchPostMetrics";
 import { getInstagramAccountForCreator } from "@/lib/platforms/instagramToken";
 import { getTikTokTokenForCreator } from "@/lib/platforms/tiktokToken";
 
@@ -31,9 +36,9 @@ export type SyncPostOutcome =
   /** Counts came back and were written, with a snapshot for the timeseries. */
   | { status: "measured"; post: Record<string, unknown> }
   /** The platform answered but carried no counts; only media/caption touched. */
-  | { status: "no-metrics"; post: Record<string, unknown> }
+  | { status: "no-metrics"; post: Record<string, unknown>; reason: FetchReason }
   /** Nothing usable at all -- an unrecognised URL, or the platform unreachable. */
-  | { status: "unfetchable" };
+  | { status: "unfetchable"; reason: FetchReason };
 
 type SyncablePost = {
   id: string;
@@ -109,7 +114,14 @@ export async function applyPostMetrics(
       },
       include: SYNC_POST_INCLUDE,
     });
-    return { status: "no-metrics", post: updated as unknown as Record<string, unknown> };
+    /* Why, not just that. A caller counting these can now say "62 challenged by
+       TikTok, 4 deleted" instead of "66 returned no metrics", which is the
+       difference between a report someone can act on and one they cannot. */
+    return {
+      status: "no-metrics",
+      post: updated as unknown as Record<string, unknown>,
+      reason: metrics.fetchReason ?? "no-counts-published",
+    };
   }
 
   const { counts, present } = countsFrom(metrics);
@@ -190,7 +202,11 @@ export async function applyPostMetrics(
   return { status: "measured", post: updated as unknown as Record<string, unknown> };
 }
 
-export async function syncPost(post: SyncablePost, orgId: string): Promise<SyncPostOutcome> {
+export async function syncPost(
+  post: SyncablePost,
+  orgId: string,
+  options: { countsOnly?: boolean } = {},
+): Promise<SyncPostOutcome> {
   const instagram =
     post.platform === "INSTAGRAM"
       ? await getInstagramAccountForCreator(post.creatorId, orgId)
@@ -202,8 +218,9 @@ export async function syncPost(post: SyncablePost, orgId: string): Promise<SyncP
     instagramToken: instagram?.token,
     instagramHandle: instagram?.handle,
     tiktokToken,
+    countsOnly: options.countsOnly,
   });
-  if (!metrics) return { status: "unfetchable" };
+  if (!metrics) return { status: "unfetchable", reason: "unrecognised-url" };
 
   return applyPostMetrics(post, metrics);
 }

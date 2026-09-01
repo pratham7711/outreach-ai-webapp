@@ -5,6 +5,8 @@ import { db } from "@/lib/db";
 import { rateLimit, rateLimitKey } from "@/lib/rateLimit";
 import { createLogger } from "@/lib/observability/logger";
 import { sendEmail, emailConfigured } from "@/lib/email";
+import { logAudit } from "@/lib/audit";
+import { getRequestIp } from "@/lib/request";
 import { BRAND } from "@/lib/brand";
 
 const RESET_PREFIX = "reset:";
@@ -47,7 +49,10 @@ export async function POST(request: NextRequest) {
   const generic = { ok: true as const, delivery };
 
   try {
-    const user = await db.user.findUnique({ where: { email }, select: { id: true } });
+    const user = await db.user.findUnique({
+      where: { email },
+      select: { id: true, orgId: true },
+    });
     if (!user) {
       log.info("forgot_password.unknown_email");
       return NextResponse.json(generic);
@@ -62,6 +67,7 @@ export async function POST(request: NextRequest) {
     const origin =
       process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || request.nextUrl.origin;
     const resetUrl = `${origin.replace(/\/+$/, "")}/reset-password?token=${token}`;
+    let delivered = false;
 
     if (!emailConfigured()) {
       // Keep the old escape hatch: without a provider the link only reaches the
@@ -73,6 +79,10 @@ export async function POST(request: NextRequest) {
       });
     } else {
       const sent = await sendEmail({
+        kind: "password_reset",
+        orgId: user.orgId,
+        actorEmail: email,
+        entityId: user.id,
         to: email,
         subject: `Reset your ${BRAND.name} password`,
         text: [
@@ -89,7 +99,28 @@ export async function POST(request: NextRequest) {
         // Still log the URL so a failed send is recoverable by hand.
         log.error("forgot_password.send_failed", { reason: sent.reason, resetUrl });
       }
+      delivered = sent.sent;
     }
+
+    /* A password reset is an unauthenticated request to mint a credential for
+       somebody's account, which makes it one of the few things here worth
+       seeing in an org's audit trail whether or not it succeeded. actorType is
+       "system": nobody was signed in, and the email in the request is a claim,
+       not an identity -- so it goes in actorEmail and no userId is attached.
+       The token and the reset URL are deliberately absent; an audit row that
+       contains a working credential is a second copy of the thing being
+       protected. */
+    await logAudit({
+      orgId: user.orgId,
+      actorType: "system",
+      actorEmail: email,
+      action: delivered ? "password_reset.requested" : "password_reset.send_failed",
+      entityType: "user",
+      entityId: user.id,
+      entityLabel: email,
+      ipAddress: getRequestIp(request),
+      metadata: { emailed: delivered },
+    });
 
     if (process.env.NODE_ENV !== "production") {
       return NextResponse.json({ ...generic, devResetUrl: resetUrl });

@@ -12,6 +12,7 @@ jest.mock("@/lib/db", () => ({
     post: { findMany: jest.fn(), aggregate: jest.fn() },
     payout: { findMany: jest.fn(), aggregate: jest.fn() },
     apiKey: { findUnique: jest.fn(), update: jest.fn() },
+    campaignRefreshRun: { findFirst: jest.fn(), create: jest.fn(), update: jest.fn() },
   },
 }));
 
@@ -82,20 +83,51 @@ describe("POST /api/mcp", () => {
     expect(body.result.protocolVersion).toBe("2025-03-26");
   });
 
-  it("lists 5 tools via tools/list", async () => {
+  it("lists 7 tools via tools/list", async () => {
     const req = makeJsonRpcRequest("tools/list");
     const res = await POST(req);
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.result.tools).toHaveLength(5);
+    expect(body.result.tools).toHaveLength(7);
     const toolNames = body.result.tools.map((t: any) => t.name).sort();
     expect(toolNames).toEqual([
       "get_campaign",
       "get_org_kpis",
+      "get_refresh_status",
       "list_campaigns",
       "list_creators",
+      "refresh_campaign",
       "search_creators",
     ]);
+  });
+
+  /* The refresh tool drives the same operation as the Refresh Data button and
+     is held to the same thirty-minute limit, because the limit lives inside
+     refreshCampaign rather than in the HTTP route. An agent that could refresh
+     freely would spend a campaign's platform allowance out from under the
+     person clicking the button, and TikTok does not distinguish the two. */
+  it("tells an agent how long is left rather than refreshing again", async () => {
+    mockDb.campaign.findFirst.mockResolvedValue({ id: "camp-1", song: null });
+    mockDb.campaignRefreshRun.findFirst.mockResolvedValue({
+      id: "run-0",
+      status: "done",
+      startedAt: new Date(Date.now() - 10 * 60 * 1000),
+      finishedAt: new Date(Date.now() - 9 * 60 * 1000),
+      total: 5, completed: 5, measured: 5,
+      noMetrics: 0, unfetchable: 0, failed: 0, remaining: 0, reasons: {},
+    });
+
+    const res = await POST(
+      makeJsonRpcRequest("tools/call", { name: "refresh_campaign", arguments: { id: "camp-1" } }),
+    );
+    const body = await res.json();
+    const payload = JSON.parse(body.result.content[0].text);
+
+    expect(payload.refreshed).toBe(false);
+    expect(payload.error).toContain("Please wait 20 mins");
+    expect(payload.retryAfterSeconds).toBe(20 * 60);
+    // The gate is only worth anything if it stops the fetching.
+    expect(mockDb.post.findMany).not.toHaveBeenCalled();
   });
 
   it("calls list_campaigns and returns data", async () => {

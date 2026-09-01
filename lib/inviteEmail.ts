@@ -1,5 +1,5 @@
 import { BRAND } from "@/lib/brand";
-import { sendEmail, type SendResult } from "@/lib/email";
+import { sendEmail, type EmailKind, type SendResult } from "@/lib/email";
 import type { UserRole } from "@/lib/rbac";
 
 /**
@@ -39,6 +39,13 @@ export async function sendInviteEmail(opts: {
   /** Who clicked invite, when we know. Gives the recipient someone to reply to
       and makes an unexpected invitation answerable rather than suspicious. */
   invitedByEmail?: string | null;
+  /* Carried through to EmailLog so a delivery question -- "did Sanskar ever get
+     it?" -- is answered by the record rather than by asking Sanskar. Create and
+     resend look identical in the mail itself, so the kind is what tells them
+     apart afterwards. */
+  kind?: EmailKind;
+  orgId?: string | null;
+  inviteId?: string | null;
 }): Promise<SendResult> {
   const url = inviteUrl(opts.origin, opts.token);
   const roleLabel = ROLE_LABEL[opts.role] ?? `a ${String(opts.role).toLowerCase()}`;
@@ -52,6 +59,10 @@ export async function sendInviteEmail(opts: {
     to: opts.to,
     subject: `You have been invited to ${opts.orgName} on ${BRAND.name}`,
     replyTo: opts.invitedByEmail ?? undefined,
+    kind: opts.kind ?? "invite",
+    orgId: opts.orgId ?? null,
+    actorEmail: opts.invitedByEmail ?? null,
+    entityId: opts.inviteId ?? null,
     text: [
       `You have been invited to join ${opts.orgName} on ${BRAND.name} as ${roleLabel}.`,
       "",

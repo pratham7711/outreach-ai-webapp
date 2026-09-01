@@ -177,7 +177,40 @@ describe("resending an invite", () => {
     expect(res.status).toBe(502);
     expect(body.emailed).toBe(false);
     expect(body.error).toContain("Copy the invite link");
-    expect(mockAudit).not.toHaveBeenCalled();
+  });
+
+  /* This used to write nothing at all. A resend the provider refused and a
+     resend nobody ever clicked left the same trace -- none -- so the audit log
+     could only ever show mail that worked, which is the opposite of what a log
+     is for. */
+  it("audits a failed resend under its own action, with the reason", async () => {
+    mockDb.userInvite.findUnique.mockResolvedValue(pending);
+    mockSend.mockResolvedValue({ sent: false, reason: "failed" });
+
+    await RESEND(req("http://localhost/api/invites/inv-1/resend"), ctx("inv-1"));
+
+    expect(mockAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "invite.resend_failed",
+        orgId: ORG,
+        entityLabel: "new@person.test",
+        metadata: expect.objectContaining({ emailed: false, failureReason: "failed" }),
+      })
+    );
+  });
+
+  it("records the provider id on a resend that worked", async () => {
+    mockDb.userInvite.findUnique.mockResolvedValue(pending);
+    mockSend.mockResolvedValue({ sent: true, id: "re_xyz" });
+
+    await RESEND(req("http://localhost/api/invites/inv-1/resend"), ctx("inv-1"));
+
+    expect(mockAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "invite.resend",
+        metadata: expect.objectContaining({ emailed: true, providerId: "re_xyz" }),
+      })
+    );
   });
 
   it("returns 401 without a session", async () => {

@@ -73,6 +73,10 @@ export async function alertOps(input: AlertInput): Promise<void> {
 
   try {
     await sendEmail({
+      /* No orgId on purpose: an ops alert is about the platform, usually a
+         cron spanning every tenant, so filing it under one of them would be a
+         lie. EmailLog.orgId is nullable for exactly this. */
+      kind: "ops_alert",
       to,
       subject: `[${severity === "critical" ? "CRITICAL" : "WARN"}] ${input.title}`,
       text: renderBody(input),

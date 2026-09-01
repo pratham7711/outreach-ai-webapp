@@ -177,7 +177,28 @@ export async function POST(request: NextRequest) {
       origin,
       expiresAt: invite.expiresAt,
       invitedByEmail: gate.auth.actorEmail ?? null,
+      kind: "invite",
+      orgId,
+      inviteId: invite.id,
     });
+
+    /* The invite.create row above is written before the send, because the row
+       is the thing that happened and it must survive a provider outage. That
+       leaves the delivery unrecorded, though, and "invite created" reads like
+       "invite delivered" to anyone scanning the log. A failed send gets its own
+       entry so the two are told apart. */
+    if (!sent.sent) {
+      await logAudit({
+        orgId,
+        ...getAuditActor(gate.auth),
+        action: "invite.send_failed",
+        entityType: "user_invite",
+        entityId: invite.id,
+        entityLabel: invite.email,
+        ipAddress: getRequestIp(request),
+        metadata: { role: invite.role, failureReason: sent.reason },
+      });
+    }
 
     return NextResponse.json({ ...invite, emailed: sent.sent }, { status: 201 });
   } catch (error) {

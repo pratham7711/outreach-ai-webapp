@@ -169,6 +169,8 @@ describe("createRateGate", () => {
       jitterMs: 0,
       breakerThreshold: 3,
       breakerCooldownMs: 60_000,
+      challengeThreshold: 10,
+      challengeCooldownMs: 30_000,
       ...over,
     });
   }
@@ -265,5 +267,75 @@ describe("parseTikTokDetailStatus", () => {
 
   it("returns null when the payload carries no video-detail scope", () => {
     expect(parseTikTokDetailStatus(page({ "webapp.user-detail": { statusCode: 0 } }))).toBeNull();
+  });
+});
+
+describe("a challenge is not a block", () => {
+  function gate(over: Partial<Parameters<typeof createRateGate>[0]> = {}) {
+    return createRateGate({
+      minGapMs: 0,
+      jitterMs: 0,
+      breakerThreshold: 3,
+      breakerCooldownMs: 60_000,
+      challengeThreshold: 10,
+      challengeCooldownMs: 30_000,
+      ...over,
+    });
+  }
+
+  /* The whole point of the split. TikTok answers roughly three in four of our
+     requests with a WAF page, so five of them in a row is an ordinary
+     afternoon -- and it used to latch a fifteen minute breaker that made the
+     rest of an 88-post refresh skip without asking. */
+  it("does not open the breaker on a run of challenges shorter than its own threshold", async () => {
+    const g = gate();
+    for (let i = 0; i < 9; i++) g.recordChallenged();
+
+    expect(g.isOpen()).toBe(false);
+    expect(await g.acquire()).toBe(true);
+  });
+
+  it("still stops once challenges are unbroken enough to mean the channel is shut", async () => {
+    const g = gate();
+    for (let i = 0; i < 10; i++) g.recordChallenged();
+
+    expect(g.isOpen()).toBe(true);
+    expect(await g.acquire()).toBe(false);
+  });
+
+  /* One good fetch proves the channel works, which is exactly what a streak
+     was measuring. It has to clear both counters or a slow drip of successes
+     would still accumulate its way to a blackout. */
+  it("a success clears the challenge streak", async () => {
+    const g = gate();
+    for (let i = 0; i < 9; i++) g.recordChallenged();
+    g.recordSuccess();
+    for (let i = 0; i < 9; i++) g.recordChallenged();
+
+    expect(g.isOpen()).toBe(false);
+  });
+
+  it("keeps the hard breaker on its own much shorter fuse", async () => {
+    const g = gate();
+    /* Three 403s still stop us at once. That signal has not been weakened --
+       it is the one that actually says we are being refused. */
+    g.recordBlocked();
+    g.recordBlocked();
+    g.recordBlocked();
+
+    expect(g.isOpen()).toBe(true);
+  });
+
+  it("does not let challenges and blocks add up to a breaker between them", () => {
+    const g = gate();
+    g.recordChallenged();
+    g.recordChallenged();
+    g.recordBlocked();
+    g.recordChallenged();
+    g.recordBlocked();
+
+    /* Two blocks, threshold three. The challenges in between must not count
+       toward it -- mixing the counters is the original bug. */
+    expect(g.isOpen()).toBe(false);
   });
 });

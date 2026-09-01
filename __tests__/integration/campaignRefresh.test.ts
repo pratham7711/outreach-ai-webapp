@@ -18,6 +18,7 @@ jest.mock('@/lib/db', () => ({
     post: { findFirst: jest.fn(), findMany: jest.fn(), update: jest.fn() },
     creator: { update: jest.fn() },
     postMetricSnapshot: { create: jest.fn() },
+    campaignRefreshRun: { findFirst: jest.fn(), create: jest.fn(), update: jest.fn() },
     $transaction: jest.fn(),
   },
 }));
@@ -29,8 +30,9 @@ jest.mock('@/lib/platforms/fetchPostMetrics', () => ({
 jest.mock('@/lib/platforms/instagramToken', () => ({ getInstagramAccountForCreator: jest.fn() }));
 jest.mock('@/lib/platforms/tiktokToken', () => ({ getTikTokTokenForCreator: jest.fn() }));
 jest.mock('@/lib/sounds/snapshot', () => ({ snapshotSounds: jest.fn() }));
-// Mocked so the suite does not quietly spend the real allowance and start
-// 429-ing whichever test happens to run seventh.
+/* The refresh cooldown is no longer an in-memory counter -- it is the newest
+   CampaignRefreshRun row, which is why it survives a reload and applies to the
+   MCP server too. Tests drive it by what campaignRefreshRun.findFirst returns. */
 jest.mock('@/lib/rateLimit', () => ({ rateLimit: jest.fn(), rateLimitKey: jest.fn() }));
 
 import { db } from '@/lib/db';
@@ -75,6 +77,10 @@ beforeEach(() => {
   mockDb.$transaction.mockImplementation((ops: any[]) => Promise.resolve(ops));
   mockSnapshot.mockResolvedValue({ snapshots: 1, failed: 0, skipped: 0 });
   mockRateLimit.mockReturnValue({ allowed: true, retryAfterSeconds: 0 });
+  // No prior run: the campaign is free to refresh. Tests that care override it.
+  mockDb.campaignRefreshRun.findFirst.mockResolvedValue(null);
+  mockDb.campaignRefreshRun.create.mockResolvedValue({ id: 'run-1' });
+  mockDb.campaignRefreshRun.update.mockResolvedValue({ id: 'run-1' });
 });
 
 const syncReq = () =>
@@ -258,12 +264,24 @@ describe('campaign-wide refresh', () => {
   });
 
   it('turns a held-down button away instead of re-fetching every post', async () => {
-    mockRateLimit.mockReturnValue({ allowed: false, retryAfterSeconds: 42 });
+    /* Started a minute ago, so 29 of the 30 minutes are left. The old limiter
+       kept this in a Map inside one process and handed every cold start a
+       fresh allowance; a row is the same answer everywhere. */
+    mockDb.campaignRefreshRun.findFirst.mockResolvedValue({
+      id: 'run-0', status: 'done',
+      startedAt: new Date(Date.now() - 60 * 1000),
+      finishedAt: new Date(Date.now() - 30 * 1000),
+      total: 1, completed: 1, measured: 1,
+      noMetrics: 0, unfetchable: 0, failed: 0, remaining: 0, reasons: {},
+    });
 
     const res = await refreshReq();
+    const body = await res.json();
 
     expect(res.status).toBe(429);
-    expect(res.headers.get('Retry-After')).toBe('42');
+    expect(body.error).toContain('Please wait 29 mins');
+    expect(res.headers.get('Retry-After')).toBe(String(29 * 60));
+    // Nothing was fetched: the point of the gate is the requests it prevents.
     expect(mockDb.post.findMany).not.toHaveBeenCalled();
   });
 
