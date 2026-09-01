@@ -38,12 +38,21 @@ URL goes to anyone outside the team.
 
 ### 2. Should `maxCampaigns` and `maxCreators` be enforced, or stopped being shown?
 Today they are reported by `/api/tenant/config` and rendered in the UI, and
-nothing refuses the eleventh campaign. Only `maxUsers` and `maxTrackers` are
-actually checked. Enforcing them as they stand would cap a fresh signup — LKay
-Media included — at 10 campaigns and 100 creators, which is below what an agency
-needs on day one. So the choice is: raise the starter numbers *and* enforce, or
-stop displaying a limit that does not exist. Not a call to make silently either
-way.
+nothing refuses the twenty-first campaign. Only `maxUsers` (invite seats) and
+`maxTrackers` are actually checked.
+
+The numbers, verified in `lib/plans.ts` rather than remembered: a fresh signup
+gets `plan: "starter"` with no `OrgPlanConfig` row, so it falls back to the code
+defaults — **20 campaigns, 500 creators, 5 users, 25 trackers**. The demo org is
+not representative: it carries an explicit `OrgPlanConfig` (`pro`, 50/500/10),
+which is why reading limits off demo gives different figures.
+
+500 creators is generous. **20 campaigns is not** — demo alone holds 551, so an
+agency of any age would pass it. Enforcing as-is would wall LKay Media early;
+displaying a limit nothing enforces means the first person to notice discovers
+the app does not mean what it says. So: raise the starter campaign ceiling *and*
+enforce, or stop displaying what is not enforced. Either is fine; drifting is
+not.
 
 ### 3. Plan pricing
 `Plan` still has no price field, and no billing is wired. Is this permanently

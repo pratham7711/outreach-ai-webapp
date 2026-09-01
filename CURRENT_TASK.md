@@ -40,10 +40,13 @@ clean.
    but the credential is guessable and the account can invite. Change the
    password or disable the account before anyone outside the team has the URL.
 2. **`maxCampaigns` and `maxCreators` are reported but never enforced.**
-   `/api/tenant/config` and the UI show a starter org 10 campaigns and 100
-   creators; nothing refuses the eleventh. Only `maxUsers` (invite seats) and
-   `maxTrackers` are actually checked. Either enforce them or stop showing them —
-   a limit that is displayed and not enforced is worse than neither.
+   A fresh signup is `plan: "starter"` with no `OrgPlanConfig`, so the code
+   defaults in `lib/plans.ts` apply: 20 campaigns, 500 creators, 5 users, 25
+   trackers. Only `maxUsers` and `maxTrackers` are actually checked. 500
+   creators is generous; 20 campaigns is not — demo holds 551. Either enforce
+   them or stop showing them; a limit that is displayed and not enforced is
+   worse than neither. (Do not read the limits off demo: it has an explicit
+   `OrgPlanConfig` of `pro` 50/500/10.)
 3. **TikTok post metrics DO auto-sync — the capability report used to deny it.**
    Corrected 2026-09-01. `fetchTikTokMetrics` tries a keyless read of the video
    page's rehydration blob first, and it prefers `statsV2`, so the counts are
