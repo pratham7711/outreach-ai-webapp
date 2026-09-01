@@ -56,8 +56,26 @@ export function OverviewSection({
               when they are absent the tiles are not drawn. */}
           {platforms.length > 0 && (
             <>
-              <MetricTile metric="totalViews" value={formatNumber(totalViews)} />
-              <MetricTile metric="totalPosts" value={formatNumber(totalPosts)} />
+              {/* These two are overridden on this screen because the chart
+                  below them is NOT scoped the same way, and the difference is
+                  large enough to look like a bug: the tiles cover posts
+                  published in the last six months (347M on production), the
+                  chart is a lifetime reading across every post the workspace
+                  holds (1.80bn). Saying "across everything this page is
+                  showing" was true of the tiles in isolation and false the
+                  moment you looked down the page. */}
+              <MetricTile
+                metric="totalViews"
+                what="How many times posts published in the last six months have been watched, counting each post's lifetime views."
+                how="Adds up the latest view count of every tracked post with a publish date in the last six months. The chart below covers every post the workspace holds, however old, so its numbers are larger."
+                value={formatNumber(totalViews)}
+              />
+              <MetricTile
+                metric="totalPosts"
+                what="How many pieces of content your creators published in the last six months."
+                how="Counts tracked posts with a publish date in the last six months, whether or not they are still live."
+                value={formatNumber(totalPosts)}
+              />
             </>
           )}
         </div>
@@ -80,7 +98,7 @@ export function OverviewSection({
              a running total (it only goes up), and the series starts the day the
              first reading landed -- there is no history to backfill, because
              history was never recorded. */
-          description="One reading per day, taken at 03:30 UTC: the lifetime views of every post in this workspace as of that morning. The line starts from the first reading — earlier days were never measured."
+          description="One reading per day, taken at 03:30 UTC: the lifetime views of every post in this workspace as of that morning — including posts older than the six-month window the tiles above use. The line starts from the first reading; earlier days were never measured."
         >
           {loading ? (
             <Skeleton className="h-[400px] w-full rounded-lg" />
