@@ -23,9 +23,12 @@ things. **If you answer an item here, delete it.**
 - **Campaign and creator limits.** Answered 2026-09-01: there are none, on any
   tier. Trackers are the only thing a plan limits (plus seats, which the invite
   endpoint enforces). `getOrgEntitlements` deliberately ignores the stored
-  `OrgPlanConfig.maxCampaigns`/`maxCreators` columns rather than reading them —
-  they default to 10/100 in the schema, so honouring them would reinstate a cap
-  nobody chose.
+  `OrgPlanConfig.maxCampaigns`/`maxCreators` columns rather than reading them.
+  Signup creates a `planConfig` row with only `planName` set, so the schema
+  defaults land (10 campaigns, 100 creators) and those were what a new tenant
+  actually saw — the `PLANS.starter` figures of 20/500 only applied to an org
+  with no row, which signup never produces. Honouring the columns would
+  reinstate a cap nobody chose.
 - **TikTok post metrics.** They sync, and always did — a keyless read of the
   video page, preferring `statsV2`, so the figures are exact. The old worry that
   TikTok counts were frozen came from `lib/capabilities.ts` gating them on the

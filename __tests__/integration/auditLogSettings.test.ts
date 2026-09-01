@@ -42,8 +42,9 @@ beforeEach(() => {
     planName: "pro",
     featureMap: { audit_log: true, reports: true, media_kits: true },
     limits: {
-      maxCampaigns: 20,
-      maxCreators: 500,
+      // Uncapped on every tier now; only seats and trackers are real limits.
+      maxCampaigns: Infinity,
+      maxCreators: Infinity,
       maxUsers: 5,
     },
   });
@@ -71,8 +72,8 @@ describe("GET /api/settings/audit-log", () => {
       planName: "enterprise",
       featureMap: { audit_log: false },
       limits: {
-        maxCampaigns: 100,
-        maxCreators: 1000,
+        maxCampaigns: Infinity,
+        maxCreators: Infinity,
         maxUsers: 25,
       },
     });
@@ -100,12 +101,13 @@ describe("PATCH /api/settings/audit-log", () => {
     expect(res.status).toBe(200);
     expect(body).toEqual({ enabled: false, plan: "pro" });
 
+    /* maxCampaigns and maxCreators must NOT appear in either branch. They are
+       uncapped, so the resolved value is Infinity, and the columns are non-null
+       Int -- Prisma rejects that write outright and the toggle would 500. */
     expect(mockDb.orgPlanConfig.upsert).toHaveBeenCalledWith({
       where: { orgId: "org-1" },
       update: {
         planName: "pro",
-        maxCampaigns: 20,
-        maxCreators: 500,
         maxUsers: 5,
         features: expect.objectContaining({
           audit_log: false,
@@ -116,8 +118,6 @@ describe("PATCH /api/settings/audit-log", () => {
       create: {
         orgId: "org-1",
         planName: "pro",
-        maxCampaigns: 20,
-        maxCreators: 500,
         maxUsers: 5,
         features: expect.objectContaining({
           audit_log: false,

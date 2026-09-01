@@ -65,20 +65,25 @@ export async function PATCH(request: NextRequest) {
 
   const nextFeatures = buildFeatureMap(entitlements.featureMap, parsed.data.enabled);
 
+  /* maxCampaigns and maxCreators are deliberately not written.
+     This route exists to toggle one feature flag, and it was copying the
+     resolved limits back into the row on the way past. Those two are now
+     uncapped, so the value being copied is Infinity, and the columns are
+     non-null Int -- Prisma rejects the write outright, which would turn the
+     audit-log toggle into a 500. Leaving them out keeps whatever the row
+     already holds; nothing reads either column any more (see
+     lib/entitlements.ts), so the stale number is inert.
+     maxUsers is still a real limit, so it is still kept in step. */
   await db.orgPlanConfig.upsert({
     where: { orgId },
     update: {
       planName: entitlements.planName,
-      maxCampaigns: entitlements.limits.maxCampaigns,
-      maxCreators: entitlements.limits.maxCreators,
       maxUsers: entitlements.limits.maxUsers,
       features: nextFeatures,
     },
     create: {
       orgId,
       planName: entitlements.planName,
-      maxCampaigns: entitlements.limits.maxCampaigns,
-      maxCreators: entitlements.limits.maxCreators,
       maxUsers: entitlements.limits.maxUsers,
       features: nextFeatures,
     },

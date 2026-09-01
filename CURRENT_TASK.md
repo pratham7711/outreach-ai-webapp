@@ -44,9 +44,13 @@ clean.
    tier.** Trackers are the only thing a plan limits, plus seats, which the
    invite endpoint does enforce. `PLANS` carries Infinity for both on every
    tier, `getOrgEntitlements` returns Infinity unconditionally, and it
-   deliberately does **not** read `OrgPlanConfig.maxCampaigns`/`maxCreators` —
-   those columns default to 10/100 in the schema, so any org with a plan
-   configured carries a small number nobody chose (demo holds 50/500 that way).
+   deliberately does **not** read `OrgPlanConfig.maxCampaigns`/`maxCreators`.
+   That column pair is why this is more than an edit to `PLANS`: signup creates
+   a `planConfig` row with only `planName` set, so the schema defaults land —
+   **10 campaigns and 100 creators** — and those, not the plan tier, were what a
+   new tenant was actually shown. `PLANS.starter` (20/500) only ever applied to
+   an org with no row at all, which signup never produces. Demo holds 50/500 the
+   same way.
    The columns stay, unread, because production was built with `db push` and has
    no migrations table. Billing now shows Tracked sounds and Max users as real
    numbers, and Campaigns and Creators as "Unlimited".
