@@ -36,6 +36,9 @@ export type CreatorSnapshotOptions = {
    * browser can trigger -- the same constraint as sounds. Absent means TikTok
    * creators keep their stored topPosts and only refresh stats. */
   readTikTokPosts?: (handle: string) => Promise<TikTokPostsRead | null>;
+  /** The sandbox-run curl for TikTok profile stats -- the read that works when
+   * the WAF shells the direct fetch. Injected for the same bundling reason. */
+  readTikTokProfileRemote?: (handle: string) => Promise<CreatorReadResult>;
 };
 
 /** Posts move much slower than follower counts; a grid read costs ~12s of
@@ -52,6 +55,7 @@ export async function snapshotCreators(
     dryRun = false,
     deadlineMs = 4 * 60 * 1000,
     readTikTokPosts,
+    readTikTokProfileRemote,
   } = options;
   const log = createLogger({ context: { job: "snapshot-creators", orgId: orgId ?? "all" } });
   const deadline = Date.now() + deadlineMs;
@@ -136,12 +140,27 @@ export async function snapshotCreators(
       };
     }
 
-    /* TikTok's WAF serves this deployment's egress a 1.4KB login shell instead
-       of the profile page -- plain fetch cannot get the numbers from here, ever.
-       The browser is let through (every sound read proves it hourly), and the
-       page it renders carries the same stats blob plus the post grid, so one
-       browser visit substitutes for the whole read rather than being layered
-       on top of a successful one. */
+    /* TikTok's WAF serves this deployment's egress a 1.4KB login shell for
+       profile pages -- to plain fetch and to headless Chromium alike -- so a
+       failed direct read goes to the sandbox fetcher, which runs the same
+       request from an egress TikTok answers. */
+    if (!result.ok && creator.platform === "TIKTOK" && readTikTokProfileRemote && !dryRun) {
+      const remote = await readTikTokProfileRemote(creator.handle).catch(
+        (e): CreatorReadResult => ({
+          ok: false,
+          reason: "unreadable",
+          detail: `sandbox: ${e instanceof Error ? e.message : String(e)}`,
+        })
+      );
+      if (remote.ok) result = remote;
+      else if (remote.detail && remote.detail !== result.detail) {
+        result = { ...result, detail: `${result.detail ?? result.reason}; ${remote.detail}` };
+      }
+    }
+
+    /* Last resort for stats, and normally pointless (the WAF shells the
+       browser too) -- but it is also how the grid read reports evidence, so it
+       stays behind the remote read rather than ahead of it. */
     let gridRead: TikTokPostsRead | null | undefined;
     if (!result.ok && creator.platform === "TIKTOK" && readTikTokPosts && !dryRun) {
       let browserDetail: string | null = null;

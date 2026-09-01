@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { snapshotCreators } from "@/lib/creators/snapshot";
 import { openTopPostsSession } from "@/lib/platforms/tiktokTopPostsBrowser";
+import { openSandboxProfileFetcher } from "@/lib/platforms/tiktokProfileSandbox";
 import { createLogger } from "@/lib/observability/logger";
 
 /* TikTok reads open a browser, which is the expensive case; Instagram and
@@ -33,17 +34,19 @@ export async function GET(request: NextRequest) {
        is launched lazily on the first grid actually due (daily cadence), and
        is shared across the sweep. */
     const grids = openTopPostsSession();
+    const remote = openSandboxProfileFetcher();
     try {
       const counts = await snapshotCreators({
         dryRun,
         // Leaves room to write a response before the platform ceiling.
         deadlineMs: 4 * 60 * 1000,
         readTikTokPosts: (handle) => grids.read(handle),
+        readTikTokProfileRemote: (handle) => remote.read(handle),
       });
       log.info("creator tracker cron complete", { ...counts, dryRun });
       return NextResponse.json({ ok: true, dryRun, ...counts });
     } finally {
-      await grids.close();
+      await Promise.all([grids.close(), remote.close()]);
     }
   } catch (error) {
     log.error("creator tracker cron failed", {

@@ -87,6 +87,16 @@ export async function fetchTikTokProfile(
     };
   }
 
+  return parseTikTokProfileHtml(html);
+}
+
+/**
+ * Parsing is separate from fetching because the same HTML arrives two ways:
+ * a plain fetch where TikTok's WAF permits it, and a sandbox-run curl from a
+ * region/egress that TikTok answers when it does not (see
+ * tiktokProfileSandbox.ts). One parser, so the two paths cannot drift.
+ */
+export function parseTikTokProfileHtml(html: string): CreatorReadResult {
   const match = BLOB.exec(html);
   if (!match) {
     /* A shell with no blob is what TikTok serves a client it does not trust, and
