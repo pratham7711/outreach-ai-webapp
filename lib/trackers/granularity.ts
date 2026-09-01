@@ -17,17 +17,42 @@ import type { TrackerSnapshot } from "./metrics";
  * daily points, about a year of history.
  */
 
-export const READ_CADENCES = ["hourly", "4hourly", "daily"] as const;
+export const READ_CADENCES = [
+  "hourly",
+  "2hourly",
+  "3hourly",
+  "4hourly",
+  "6hourly",
+  "12hourly",
+  "daily",
+] as const;
 export type ReadCadence = (typeof READ_CADENCES)[number];
 
 export const CHART_GRANULARITIES = ["hourly", "4hourly", "daily", "weekly"] as const;
 export type ChartGranularity = (typeof CHART_GRANULARITIES)[number];
 
+/**
+ * Hours between reads, per cadence.
+ *
+ * The cron itself runs hourly and asks this which sounds are actually due, so
+ * adding a cadence here is the whole change -- no new schedule, no new job. A
+ * 24/N reading of these gives snapshots per day: hourly is 24, 4hourly is 6,
+ * daily is 1.
+ */
 export const READ_CADENCE_HOURS: Record<ReadCadence, number> = {
   hourly: 1,
+  "2hourly": 2,
+  "3hourly": 3,
   "4hourly": 4,
+  "6hourly": 6,
+  "12hourly": 12,
   daily: 24,
 };
+
+/** Snapshots per day at a cadence — what the settings screen actually shows. */
+export function readsPerDay(cadence: ReadCadence): number {
+  return 24 / READ_CADENCE_HOURS[cadence];
+}
 
 export const CHART_BUCKET_HOURS: Record<ChartGranularity, number> = {
   hourly: 1,

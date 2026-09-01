@@ -14,6 +14,11 @@ import {
   velocityPerHour,
   type TrackerSnapshot,
 } from "@/lib/trackers/metrics";
+import {
+  DEFAULT_GRANULARITY,
+  isDueForRead,
+  parseGranularity,
+} from "@/lib/trackers/granularity";
 
 export const dynamic = "force-dynamic";
 
@@ -47,9 +52,17 @@ export async function GET(request: NextRequest) {
   let failed = 0;
 
   try {
+    /* Cadence is per-organisation, so the run needs each sound's owner. The
+       cron fires hourly and reads only what is actually due; an org on the
+       6-hourly setting therefore does work on one run in six, and changing the
+       setting needs no new schedule. */
+    const orgs = await db.organization.findMany({ select: { id: true, uiConfig: true } });
+    const cadenceByOrg = new Map(orgs.map((o) => [o.id, parseGranularity(o.uiConfig)]));
+
     const sounds = await db.tikTokSound.findMany({
       select: {
         id: true,
+        orgId: true,
         tiktokSoundId: true,
         snapshots: {
           orderBy: { recordedAt: "desc" },
@@ -73,12 +86,17 @@ export async function GET(request: NextRequest) {
         recordedAt: s.recordedAt,
       }));
 
+      /* MIN_INTERVAL_HOURS used to be a flat 1, which meant the org's chosen
+         cadence had no effect on anything: the setting existed, the screen
+         offered it, and the reader ignored it. */
+      const granularity = cadenceByOrg.get(sound.orgId) ?? DEFAULT_GRANULARITY;
       const newest = history.length > 0 ? history[0] : null;
-      if (
-        newest &&
-        (now.getTime() - newest.recordedAt.getTime()) / HOUR_MS < MIN_INTERVAL_HOURS
-      ) {
-        decisions.push({ soundId: sound.id, action: "skip", reason: "recently-snapshotted" });
+      if (!isDueForRead(newest?.recordedAt ?? null, granularity, now)) {
+        decisions.push({
+          soundId: sound.id,
+          action: "skip",
+          reason: `not-due (${granularity.readCadence})`,
+        });
         skipped++;
         continue;
       }

@@ -1,6 +1,8 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "regions": ["iad1"],
+  "regions": [
+    "iad1"
+  ],
   "crons": [
     {
       "path": "/api/cron/sync-posts",
@@ -16,7 +18,7 @@
     },
     {
       "path": "/api/cron/sync-trackers",
-      "schedule": "0 5 * * *"
+      "schedule": "0 * * * *"
     }
   ]
 }

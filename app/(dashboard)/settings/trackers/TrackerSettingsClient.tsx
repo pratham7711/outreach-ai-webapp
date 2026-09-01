@@ -6,8 +6,10 @@ import { Button } from "@/components/ds";
 import { apiFetch } from "@/lib/api/client";
 import { errorMessage } from "@/lib/api/errorMessage";
 
+type ReadCadence = "hourly" | "2hourly" | "3hourly" | "4hourly" | "6hourly" | "12hourly" | "daily";
+
 type Settings = {
-  readCadence: "hourly" | "4hourly" | "daily";
+  readCadence: ReadCadence;
   chartGranularity: "hourly" | "4hourly" | "daily" | "weekly";
   retentionDays: number;
   effectiveChartGranularity: string;
@@ -23,10 +25,17 @@ type Settings = {
  * copy for each says plainly what it spends.
  */
 
-const READ_OPTIONS: { value: Settings["readCadence"]; label: string; hint: string }[] = [
-  { value: "hourly", label: "Every hour", hint: "Fastest to notice a spike. 24 reads per sound per day." },
-  { value: "4hourly", label: "Every 4 hours", hint: "The default. Six reads a day is enough to catch a trend forming." },
-  { value: "daily", label: "Once a day", hint: "Cheapest. Enough for catalogue tracking, too slow for a launch." },
+/* Labelled by snapshots per day, because that is the number anyone actually
+   has an opinion about — "every 4 hours" and "6 a day" are the same setting,
+   and only one of them is the question being asked. */
+const READ_OPTIONS: { value: ReadCadence; label: string; hint: string }[] = [
+  { value: "hourly", label: "24 a day", hint: "Every hour. Fastest to catch a spike; the most reading time." },
+  { value: "2hourly", label: "12 a day", hint: "Every 2 hours. Good for an active launch week." },
+  { value: "3hourly", label: "8 a day", hint: "Every 3 hours." },
+  { value: "4hourly", label: "6 a day", hint: "Every 4 hours. The default — enough to see a trend forming." },
+  { value: "6hourly", label: "4 a day", hint: "Every 6 hours." },
+  { value: "12hourly", label: "2 a day", hint: "Every 12 hours. Steady catalogue tracking." },
+  { value: "daily", label: "1 a day", hint: "Cheapest. Too slow to watch a launch." },
 ];
 
 const CHART_OPTIONS: { value: Settings["chartGranularity"]; label: string; hint: string }[] = [
@@ -84,14 +93,14 @@ export function TrackerSettingsClient() {
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <Section
         title="Read cadence"
-        blurb="How often we check each tracked sound on TikTok. Every reading is a real page load on a machine outside India — this is the setting that costs something."
+        blurb="How many snapshots we take of each tracked sound per day. Every one is a real browser loading a real page, so this is the setting that costs something. The reader runs hourly and takes only the sounds that are due."
       >
         <RadioRow
           name="readCadence"
           options={READ_OPTIONS}
           value={settings.readCadence}
           disabled={saving}
-          onChange={(v) => save({ readCadence: v as Settings["readCadence"] })}
+          onChange={(v) => save({ readCadence: v as ReadCadence })}
         />
       </Section>
 
