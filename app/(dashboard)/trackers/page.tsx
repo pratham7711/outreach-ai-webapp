@@ -225,6 +225,27 @@ export default function TrackersPage() {
     onError: (error) => toast.error(errorMessage(error, "Could not refresh trackers")),
   });
 
+  /* One sound, read on demand from the detail modal. Separate from the sweep
+     above so its pending state belongs to the modal button alone -- sharing a
+     mutation would spin the page-level Refresh too. */
+  const refreshOneMutation = useMutation({
+    mutationFn: (soundId: string) =>
+      apiPost<{ snapshots: number; failed: number; skipped: number }>(
+        "/api/trackers/refresh",
+        { soundId }
+      ),
+    onSuccess: (result) => {
+      invalidate();
+      if (result.snapshots > 0) toast.success("Updated");
+      else if (result.failed > 0) toast.error("TikTok did not return a count for this sound");
+      /* skipped means the cadence gate declined it: the last reading is recent
+         enough that another would record the same number. Saying "updated" there
+         would be a lie, and saying nothing looks broken. */
+      else toast.success("Already up to date");
+    },
+    onError: (error) => toast.error(errorMessage(error, "Could not refresh this tracker")),
+  });
+
   const deleteMutation = useMutation({
     mutationFn: (id: string) => apiDelete(`/api/trackers/${id}`),
     onSuccess: () => {
@@ -666,6 +687,8 @@ export default function TrackersPage() {
         open={Boolean(openTracker)}
         onClose={() => setOpenTracker(null)}
         sound={allSounds.find((s) => s.id === openTracker) ?? null}
+        onRefresh={(soundId) => refreshOneMutation.mutate(soundId)}
+        refreshing={refreshOneMutation.isPending}
       />
     </div>
   );

@@ -1,6 +1,6 @@
 "use client";
 import { Modal, Badge } from "@pratham7711/ui";
-import { Music } from "lucide-react";
+import { Music, RefreshCw } from "lucide-react";
 import { formatCompact, formatDateAbs, timeAgo } from "@/lib/format";
 import type { ChartGranularity } from "@/lib/trackers/granularity";
 import { AudioUsesChart, VelocityChart, type SeriesPoint } from "./SoundCharts";
@@ -56,10 +56,17 @@ export function SoundDetailModal({
   sound,
   open,
   onClose,
+  onRefresh,
+  refreshing = false,
 }: {
   sound: DetailSound | null;
   open: boolean;
   onClose: () => void;
+  /* The reference offers refresh only per tracker, from this modal. The parent
+     owns the mutation so the list and the modal invalidate together -- refreshing
+     here and seeing the row behind still stale would read as a failed refresh. */
+  onRefresh?: (soundId: string) => void;
+  refreshing?: boolean;
 }) {
   if (!sound) return null;
   const stale = sound.health !== "live";
@@ -86,7 +93,27 @@ export function SoundDetailModal({
             {sound.artist || "Unknown artist"}
           </div>
         </div>
-        <div style={{ marginLeft: "auto" }}>
+        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
+          {onRefresh ? (
+            <button
+              onClick={() => onRefresh(sound.id)}
+              disabled={refreshing}
+              title="Read this sound from TikTok now"
+              style={{
+                display: "flex", alignItems: "center", gap: 6,
+                padding: "6px 12px", borderRadius: 8, fontSize: 13, fontWeight: 600,
+                border: "1px solid var(--cc-border)", background: "var(--cc-card)",
+                color: "var(--cc-text)", cursor: refreshing ? "default" : "pointer",
+                opacity: refreshing ? 0.6 : 1,
+              }}
+            >
+              <RefreshCw
+                size={14}
+                style={{ animation: refreshing ? "cc-spin 1s linear infinite" : undefined }}
+              />
+              {refreshing ? "Refreshing…" : "Refresh Data"}
+            </button>
+          ) : null}
           {stale ? (
             <Badge variant="warning" size="sm">
               {sound.health === "pending" ? "awaiting first reading" : "not updating"}

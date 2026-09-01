@@ -58,6 +58,15 @@ const nextConfig: NextConfig = {
   */
   serverExternalPackages: ["@sparticuz/chromium", "playwright-core"],
   outputFileTracingIncludes: {
+    /* Every route that can reach a browser reader needs the binary traced into
+       its own bundle -- tracing is per-route, so adding a second reader without
+       adding it here ships a function that crashes on the dynamic import rather
+       than one that merely returns nothing.
+
+       Only the sound sweep is listed. The creator routes were here too until
+       TikTok profile pages turned out to be server-rendered, which took the
+       browser off that path entirely; a route that never launches one should
+       not carry ~50MB of Chromium into its bundle. */
     "/api/cron/sync-trackers": [
       "./node_modules/@sparticuz/chromium/**",
       "./node_modules/playwright-core/**",

@@ -2,7 +2,22 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { authenticateRequest } from "@/lib/authenticate";
-import { isTrackerWindow, type TrackerWindow } from "@/lib/trackers/metrics";
+import {
+  changeOverWindow,
+  isMeasurable,
+  isTrackerWindow,
+  readHealthFor,
+  windowHours,
+  type TrackerSnapshot,
+  type TrackerWindow,
+} from "@/lib/trackers/metrics";
+import {
+  downsample,
+  effectiveChartGranularity,
+  parseGranularity,
+  snapshotFetchLimit,
+} from "@/lib/trackers/granularity";
+import { READ_FAILURE_COPY, type CreatorReadFailure } from "@/lib/platforms/creatorProfile";
 import {
   byMetricDescending,
   followerCount,
@@ -42,7 +57,18 @@ export async function GET(req: NextRequest) {
 
     const period = parseWindow(req.nextUrl.searchParams.get("period"));
     const sort = parseSort(req.nextUrl.searchParams.get("sort"));
-    const bounds = windowBounds(period, new Date());
+    // One clock for the whole request: the window bounds, the read-health cutoff
+    // and the change maths must all agree on when "now" is.
+    const now = new Date();
+    const bounds = windowBounds(period, now);
+
+    const org = await db.organization.findUnique({
+      where: { id: orgId },
+      select: { uiConfig: true },
+    });
+    const granularity = parseGranularity(org?.uiConfig ?? null);
+    const windowDays = windowHours(period) / 24;
+    const chartAt = effectiveChartGranularity(granularity);
 
     const tracked = await db.creator.findMany({
       where: { orgId, deletedAt: null, trackedSince: { not: null } },
@@ -54,6 +80,13 @@ export async function GET(req: NextRequest) {
         avatarUrl: true,
         followersCount: true,
         trackedSince: true,
+        trackerLastAttemptAt: true,
+        trackerLastError: true,
+        trackerSnapshots: {
+          orderBy: { recordedAt: "desc" },
+          take: snapshotFetchLimit(granularity, windowDays),
+          select: { followersCount: true, avgViews: true, recordedAt: true },
+        },
       },
       orderBy: { trackedSince: "desc" },
     });
@@ -113,16 +146,59 @@ export async function GET(req: NextRequest) {
       ])
     );
 
-    const creators = tracked.map((c) => ({
-      id: c.id,
-      name: c.name,
-      handle: c.handle,
-      platform: c.platform,
-      avatarUrl: c.avatarUrl,
-      trackedSince: c.trackedSince,
-      followersCount: followerCount(c.followersCount),
-      metrics: metricsFromRow(byCreator.get(c.id)),
-    }));
+    const creators = tracked.map((c) => {
+      /* Follower history, newest-first from the query, mapped into the shape the
+         shared window maths expects. Until the sweep has run twice for a creator
+         this is empty or single-valued, and changeOverWindow correctly returns
+         null rather than inventing a baseline. */
+      const followerHistory: TrackerSnapshot[] = c.trackerSnapshots.map((s) => ({
+        value: s.followersCount,
+        recordedAt: s.recordedAt,
+      }));
+      const latest = c.trackerSnapshots[0] ?? null;
+      const followerChange = changeOverWindow(followerHistory, period, now);
+
+      /* Age is served with the figure, never separately -- the same rule as the
+         sound tracker, learned the same way: a change computed from two readings
+         nine days old is arithmetically fine and completely misleading. */
+      const lastReadAt = latest?.recordedAt ?? null;
+      const health = readHealthFor(lastReadAt, now);
+      const measurable = isMeasurable(health);
+
+      /* A read that failed is not the same as a read that has not happened.
+         Instagram will never return figures for a personal account, and saying
+         so is more useful than a permanent blank. */
+      const reason = (c.trackerLastError ?? "").split(":")[0] as CreatorReadFailure;
+      const readError = c.trackerLastError
+        ? READ_FAILURE_COPY[reason] ?? "We could not read this creator's figures."
+        : null;
+
+      return {
+        id: c.id,
+        name: c.name,
+        handle: c.handle,
+        platform: c.platform,
+        avatarUrl: c.avatarUrl,
+        trackedSince: c.trackedSince,
+        /* Prefer the tracked reading over the denormalised column: the column is
+           populated on 11 of 1,834 creators, so it is usually a default rather
+           than a measurement. */
+        followersCount: latest ? latest.followersCount : followerCount(c.followersCount),
+        followersChangePercent: measurable ? followerChange?.percent ?? null : null,
+        followersDelta: measurable ? followerChange?.added ?? null : null,
+        lastReadAt,
+        lastAttemptAt: c.trackerLastAttemptAt,
+        health,
+        readError,
+        series: downsample(followerHistory, chartAt).map((s) => ({
+          value: s.value,
+          recordedAt: s.recordedAt,
+        })),
+        chartGranularity: chartAt,
+        snapshotCount: c.trackerSnapshots.length,
+        metrics: metricsFromRow(byCreator.get(c.id)),
+      };
+    });
 
     return NextResponse.json({
       creators: byMetricDescending(creators, sort),

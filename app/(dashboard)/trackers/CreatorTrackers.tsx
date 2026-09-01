@@ -9,6 +9,8 @@ import { Play, Trash2, User, Users } from "lucide-react";
 import { formatCompact } from "@/lib/format";
 import { imgSrc } from "@/lib/postMedia";
 import { apiDelete, apiFetch, apiPost } from "@/lib/api/client";
+import { CreatorDetailModal } from "./CreatorDetailModal";
+import type { ChartGranularity } from "@/lib/trackers/granularity";
 import { errorMessage } from "@/lib/api/errorMessage";
 
 /**
@@ -37,6 +39,16 @@ type TrackedCreator = {
   avatarUrl: string | null;
   trackedSince: string | null;
   followersCount: number | null;
+  followersChangePercent: number | null;
+  followersDelta: number | null;
+  lastReadAt: string | null;
+  lastAttemptAt: string | null;
+  health: "pending" | "live" | "regressed" | "stale";
+  /** Why the last read produced nothing, already worded for a reader. */
+  readError: string | null;
+  series: { value: number; recordedAt: string }[];
+  chartGranularity: ChartGranularity;
+  snapshotCount: number;
   metrics: CreatorMetrics;
 };
 
@@ -70,6 +82,27 @@ function changeReasonText(m: CreatorMetrics, period: string): string {
     default:
       return "";
   }
+}
+
+/**
+ * Why a follower trend is absent.
+ *
+ * Four different situations previously rendered as the same blank cell: never
+ * read, read once, read and failed permanently, and read but gone stale. They
+ * need four different things from the reader, so they say four different things.
+ */
+function followersReason(c: TrackedCreator, period: string): string {
+  if (c.readError) return c.readError;
+  if (c.health === "pending" || c.snapshotCount === 0) {
+    return "We have not read this creator yet. The first reading usually lands within a few hours.";
+  }
+  if (c.snapshotCount === 1) {
+    return "We have one reading so far. A change needs two, so this fills in on the next sweep.";
+  }
+  if (c.health !== "live") {
+    return "The last reading is too old to compare against, so no change is shown.";
+  }
+  return `No readings inside the last ${periodLabel(period).toLowerCase()}, so there is nothing to compare.`;
 }
 
 /** One bordered figure group: icon, a value, and its change. */
@@ -161,6 +194,9 @@ export function CreatorTrackers({
   setPickerOpen: (open: boolean) => void;
 }) {
   const [period, setPeriod] = useState("7d");
+  // Addressed as state rather than a route so closing does not pull the list out
+  // from under the reader, matching how the sound tracker opens its detail.
+  const [openCreator, setOpenCreator] = useState<string | null>(null);
   const [sort, setSort] = useState("views");
   const [search, setSearch] = useState("");
 
@@ -198,6 +234,23 @@ export function CreatorTrackers({
       setSearch("");
     },
     onError: (error) => toast.error(errorMessage(error, "Could not track that creator")),
+  });
+
+  const refreshOneMutation = useMutation({
+    mutationFn: (creatorId: string) =>
+      apiPost<{ snapshots: number; failed: number; skipped: number }>(
+        "/api/trackers/creators/refresh",
+        { creatorId }
+      ),
+    onSuccess: (result) => {
+      invalidate();
+      if (result.snapshots > 0) toast.success("Updated");
+      else if (result.failed > 0) toast.error("We could not read this creator's figures");
+      // skipped means the cadence gate declined: the last reading is recent
+      // enough that another would record the same number.
+      else toast.success("Already up to date");
+    },
+    onError: (error) => toast.error(errorMessage(error, "Could not refresh this creator")),
   });
 
   const untrackMutation = useMutation({
@@ -351,7 +404,10 @@ export function CreatorTrackers({
                         <User size={22} style={{ color: "var(--cc-text-muted)" }} />
                       </div>
                     )}
-                    <div style={{ minWidth: 0 }}>
+                    <div
+                      style={{ minWidth: 0, cursor: "pointer" }}
+                      onClick={() => setOpenCreator(c.id)}
+                    >
                       <div
                         title={c.name}
                         style={{
@@ -375,8 +431,18 @@ export function CreatorTrackers({
                     icon={<User size={22} />}
                     label="Followers"
                     value={c.followersCount === null ? "—" : formatCompact(c.followersCount)}
-                    changeNode={<NoData title="We keep no follower history, so there is nothing to compare a count against." />}
-                    changeTitle=""
+                    changeNode={
+                      c.followersChangePercent !== null ? (
+                        <ChangeValue percent={c.followersChangePercent} />
+                      ) : (
+                        <NoData title={followersReason(c, period)} />
+                      )
+                    }
+                    changeTitle={
+                      c.followersDelta !== null
+                        ? `${c.followersDelta >= 0 ? "+" : ""}${c.followersDelta.toLocaleString()} followers over ${periodLabel(period).toLowerCase()}`
+                        : ""
+                    }
                   />
 
                   <FigureGroup
@@ -421,6 +487,14 @@ export function CreatorTrackers({
           })}
         </>
       )}
+
+      <CreatorDetailModal
+        open={Boolean(openCreator)}
+        onClose={() => setOpenCreator(null)}
+        creator={creators.find((c) => c.id === openCreator) ?? null}
+        onRefresh={(id) => refreshOneMutation.mutate(id)}
+        refreshing={refreshOneMutation.isPending}
+      />
 
       <Modal
         open={pickerOpen}

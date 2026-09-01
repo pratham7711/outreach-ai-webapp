@@ -264,20 +264,20 @@ model VerificationToken {
 // ─── Organization & IAM ───────────────────────────────────────────────────────
 
 model Organization {
-  id                String    @id @default(cuid())
-  name              String
-  subdomain         String    @unique
-  logoUrl           String?
-  primaryColor      String    @default("#4F46E5")
-  secondaryColor    String    @default("#1E1B4B")
-  accentColor       String    @default("#F59E0B")
-  fontFamily        String    @default("Inter")
-  brandName         String?
-  customDomain      String?   @unique
-  faviconUrl        String?
-  timezone          String    @default("UTC")
-  plan              String    @default("starter")
-  planExpiresAt     DateTime?
+  id                 String             @id @default(cuid())
+  name               String
+  subdomain          String             @unique
+  logoUrl            String?
+  primaryColor       String             @default("#4F46E5")
+  secondaryColor     String             @default("#1E1B4B")
+  accentColor        String             @default("#F59E0B")
+  fontFamily         String             @default("Inter")
+  brandName          String?
+  customDomain       String?            @unique
+  faviconUrl         String?
+  timezone           String             @default("UTC")
+  plan               String             @default("starter")
+  planExpiresAt      DateTime?
   /// Whether this agency may use the platform. ACTIVE by default so adding this
   /// column changes nothing for anyone already using it — a billing field that
   /// locks people out on deploy is the one failure mode worth designing against.
@@ -290,18 +290,18 @@ model Organization {
   /// them rather than for us.
   suspendedAt        DateTime?
   suspendedReason    String?
-  syncSlotPoolSize  Int       @default(100)
-  currency          Currency  @default(USD)
-  orgType           OrgType   @default(AGENCY)
-  uiConfig          Json? // OrgUIConfig — features, nav, branding, limits, dashboard widgets
+  syncSlotPoolSize   Int                @default(100)
+  currency           Currency           @default(USD)
+  orgType            OrgType            @default(AGENCY)
+  uiConfig           Json? // OrgUIConfig — features, nav, branding, limits, dashboard widgets
   // Bank account
-  bankAccountName   String?
-  bankAccountNumber String?
-  bankIFSC          String?
-  bankSwift         String?
-  bankRoutingNumber String?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  bankAccountName    String?
+  bankAccountNumber  String?
+  bankIFSC           String?
+  bankSwift          String?
+  bankRoutingNumber  String?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
 
   users               User[]
   campaigns           Campaign[]
@@ -390,24 +390,24 @@ model CampaignPhase {
 }
 
 model User {
-  id            String    @id @default(cuid())
+  id            String        @id @default(cuid())
   orgId         String
-  email         String    @unique
+  email         String        @unique
   name          String
   avatarUrl     String?
-  role          UserRole  @default(VIEWER)
+  role          UserRole      @default(VIEWER)
   /// Row-level campaign visibility, independent of role. A MANAGER can be
   /// scoped to their own campaigns; a MEMBER can be given the full view. ALL by
   /// default, so existing users see exactly what they saw before.
   campaignScope CampaignScope @default(ALL)
   password      String?
   emailVerified DateTime?
-  isActive      Boolean   @default(true)
+  isActive      Boolean       @default(true)
   lastLoginAt   DateTime?
   lastLoginIp   String?
   invitedById   String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
 
   org             Organization         @relation(fields: [orgId], references: [id])
   campaignMembers CampaignTeamMember[]
@@ -417,6 +417,7 @@ model User {
   briefsUpdated   CreativeBrief[]
   accounts        Account[]
   sessions        Session[]
+
   @@index([orgId])
 }
 
@@ -551,6 +552,7 @@ model Campaign {
   fraudFlags        ViewFraudFlag[]
   conversations     Conversation[]
   syncSlots         SyncSlot[]
+
   // 80 call sites read this table and every one of them scopes by orgId; it had
   // no index at all. deletedAt rides along because the scope is almost always
   // "this org's live campaigns".
@@ -625,38 +627,45 @@ model CreativeBrief {
 // ─── Creators ─────────────────────────────────────────────────────────────────
 
 model Creator {
-  id             String         @id @default(cuid())
-  orgId          String
-  name           String
-  handle         String
-  platform       Platform       @default(TIKTOK)
-  platformUserId String?
-  avatarUrl      String?
-  followersCount Float          @default(0)
-  averageViews   Float          @default(0)
-  bio            String?
-  contactEmail   String?
-  paymentInfo    String?
-  rate           Float?
-  boostRate      Float?
-  niches         CreatorNiche[]
-  notes          String?
-  addedAt        DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-  deletedAt      DateTime?
+  id                   String         @id @default(cuid())
+  orgId                String
+  name                 String
+  handle               String
+  platform             Platform       @default(TIKTOK)
+  platformUserId       String?
+  avatarUrl            String?
+  followersCount       Float          @default(0)
+  averageViews         Float          @default(0)
+  bio                  String?
+  contactEmail         String?
+  paymentInfo          String?
+  rate                 Float?
+  boostRate            Float?
+  niches               CreatorNiche[]
+  notes                String?
+  addedAt              DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+  deletedAt            DateTime?
   // Watchlist membership for the Trackers page, mirroring TikTokSound.trackedSince.
   // A flag rather than a join table: a creator is tracked or not, the relation
   // carries no other attribute, and the row is already scoped to an org.
-  trackedSince   DateTime?
+  trackedSince         DateTime?
+  /// When the sweep last *attempted* this creator, successful or not. A snapshot
+  /// only exists for a successful read, so without this a permanently unreadable
+  /// account looks identical to one we have simply never got to.
+  trackerLastAttemptAt DateTime?
+  /// Machine-readable reason the last attempt produced no snapshot. Null on success.
+  trackerLastError     String?
 
-  org            Organization           @relation(fields: [orgId], references: [id])
-  listItems      CreatorListItem[]
-  activations    Activation[]
-  posts          Post[]
-  payouts        Payout[]
-  socialAccounts CreatorSocialAccount[]
-  tagLinks       CreatorTagLink[]
-  flagLinks      CreatorFlagLink[]
+  org              Organization             @relation(fields: [orgId], references: [id])
+  listItems        CreatorListItem[]
+  activations      Activation[]
+  posts            Post[]
+  payouts          Payout[]
+  socialAccounts   CreatorSocialAccount[]
+  tagLinks         CreatorTagLink[]
+  flagLinks        CreatorFlagLink[]
+  trackerSnapshots CreatorTrackerSnapshot[]
 
   @@index([orgId, trackedSince])
 }
@@ -723,13 +732,14 @@ model Activation {
 
   // The org's own granular status. Null means the enum bucket above is the whole
   // answer, which is what every row imported before this existed looks like.
-  statusDefId        String?
+  statusDefId String?
 
   campaign     Campaign             @relation(fields: [campaignId], references: [id])
   creator      Creator              @relation(fields: [creatorId], references: [id])
   posts        Post[]
   statusDef    ActivationStatusDef? @relation(fields: [statusDefId], references: [id])
   deliverables Deliverable[]
+
   // Joined per campaign by the roster and the share report.
   @@index([campaignId, deletedAt])
   @@index([creatorId])
@@ -858,6 +868,7 @@ model TikTokSound {
   trackedSince  DateTime @default(now())
   createdAt     DateTime @default(now())
 
+
   org       Organization           @relation(fields: [orgId], references: [id])
   snapshots SoundTrackerSnapshot[]
   songs     Song[]
@@ -873,6 +884,32 @@ model SoundTrackerSnapshot {
   recordedAt     DateTime @default(now())
 
   sound TikTokSound @relation(fields: [soundId], references: [id])
+}
+
+/// Follower and view history for a tracked creator, mirroring SoundTrackerSnapshot.
+///
+/// The creator tracker previously derived everything from Post rows already in
+/// this database, which meant it could only measure creators we already work
+/// with, and the Followers "Change" cell was hardcoded to "No data yet." because
+/// there was nowhere to keep yesterday's count. This is that missing somewhere.
+model CreatorTrackerSnapshot {
+  id             String   @id @default(cuid())
+  creatorId      String
+  /// Float, not Int, to match Creator.followersCount rather than silently round it.
+  followersCount Float
+  /// Lifetime post count as the platform reports it; not our Post row count.
+  postsCount     Int      @default(0)
+  /// Mean views of the recent media the reader could see. 0 when unreadable.
+  avgViews       Float    @default(0)
+  deltaFollowers Int      @default(0)
+  velocityScore  Float    @default(0)
+  recordedAt     DateTime @default(now())
+
+  creator Creator @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  /// The sweep reads "newest N for this creator" every run; SoundTrackerSnapshot
+  /// has no equivalent index and does a scan per sound.
+  @@index([creatorId, recordedAt])
 }
 
 // ─── Clients & Plans ──────────────────────────────────────────────────────────
@@ -1236,6 +1273,7 @@ model CreatorSession {
   createdAt     DateTime @default(now())
 
   creatorUser CreatorUser @relation(fields: [creatorUserId], references: [id])
+
   // Read on every authenticated creator-portal request.
   @@index([creatorUserId])
 }
@@ -1336,6 +1374,7 @@ model AuditLog {
   createdAt   DateTime @default(now())
 
   org Organization @relation(fields: [orgId], references: [id])
+
   // Listed newest-first within one org.
   @@index([orgId, createdAt])
 }
