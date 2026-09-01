@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { syncPost } from "@/lib/sync/syncPost";
-import { openSandboxPostFetcher } from "@/lib/platforms/tiktokPostSandbox";
+import { laneCountFor, openSandboxPostPool } from "@/lib/platforms/tiktokPostSandbox";
 import { snapshotSounds } from "@/lib/sounds/snapshot";
 import { createLogger } from "@/lib/observability/logger";
 import {
@@ -26,13 +26,40 @@ import {
 const DEADLINE_MS = 260 * 1000;
 
 /**
- * How many posts are in flight at once.
+ * How many posts are in flight at once, when there is no sandbox pool to match.
  *
  * These are idle waits, so overlapping them costs nothing but the burst -- and
  * the per-host gate in fetchPostMetrics paces the actual outbound requests
  * regardless, so this widens the pipeline without widening what TikTok sees.
+ *
+ * With a pool, concurrency tracks the number of lanes instead: each lane paces
+ * its own address, so a fifth worker against four lanes just queues behind a
+ * gate. Matching the two is what turns extra lanes into extra throughput.
  */
 const CONCURRENCY = 4;
+
+/**
+ * What a refresh should FEEL like, not what it is allowed to get away with.
+ * Lanes are sized toward this; the 260s deadline remains the hard ceiling.
+ *
+ * The number comes from the product we are being compared against. CreatorCore
+ * refreshed the same PARA PARA campaign -- 118 posts on their side -- in about
+ * 66 seconds, measured 2026-09-02: 20 done at 23s, 50 at 34s, 92 at 54s, 111 at
+ * 62s. That is a steady 2.33 posts/sec, roughly four of our lanes' worth.
+ *
+ * 35s rather than a rounder number because beating a RATE needs a minimum lane
+ * count, not merely a time target: at 45s an 88-post campaign rounded down to
+ * four lanes and finished in 39.6s, losing to their 37.8s. 35s clears them at
+ * every campaign size we actually hold.
+ *
+ * Small campaigns are the exception and deliberately not lane-heavy. Under
+ * ~60 posts CreatorCore is faster, because our per-address pace is a fixed
+ * floor and booting sandboxes to beat a twenty-post refresh would cost more in
+ * boot latency than the work itself. Note that boot cost is NOT modelled here
+ * at all -- these numbers are the paced work only, so small pools are the ones
+ * where reality will lag the arithmetic.
+ */
+const LANE_TARGET_SECONDS = 35;
 
 /** Progress is for a human watching a spinner; a write per post would cost more
     than the fetch it reports on. */
@@ -125,8 +152,16 @@ export async function refreshCampaign(input: {
      one sandbox rather than paying the WAF three times in four. Opened for the
      whole run and closed in the finally below; it boots lazily, so a campaign
      with no TikTok posts never pays for it. */
-  const hasTikTok = posts.some((p) => p.platform === "TIKTOK");
-  const tiktokSandbox = hasTikTok ? openSandboxPostFetcher() : undefined;
+  /* Sized from the work rather than fixed. Every sandbox gets its own egress
+     IP (measured: five sandboxes, five addresses, three of them in one region),
+     so lanes are capacity, not a queue -- and a 492-post campaign that could
+     never finish in one run on a single lane finishes on six. */
+  const tiktokPosts = posts.filter((p) => p.platform === "TIKTOK").length;
+  const lanes = laneCountFor(tiktokPosts, LANE_TARGET_SECONDS);
+  const tiktokSandbox = lanes > 0 ? openSandboxPostPool(lanes) : undefined;
+  if (tiktokSandbox) {
+    log.info("sandbox pool opened", { lanes, tiktokPosts });
+  }
 
   const deadline = Date.now() + DEADLINE_MS;
   let measured = 0;
@@ -182,9 +217,13 @@ export async function refreshCampaign(input: {
         }
       }
     };
-    await Promise.all(
-      Array.from({ length: Math.min(CONCURRENCY, posts.length) }, () => worker()),
+    /* One worker per lane, so every lane is busy and none is contended. Without
+       a pool this falls back to the fixed concurrency. */
+    const workers = Math.min(
+      Math.max(CONCURRENCY, tiktokSandbox?.size ?? 0),
+      posts.length,
     );
+    await Promise.all(Array.from({ length: workers }, () => worker()));
 
     // Counted from what finished rather than from the cursor, so a post claimed
     // as the deadline passed is reported as left over, not as done.

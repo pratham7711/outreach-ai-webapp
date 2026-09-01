@@ -1,4 +1,13 @@
 import { defineConfig, devices } from '@playwright/test';
+import { loadEnvConfig } from '@next/env';
+
+/* The Playwright runner is a plain Node process: unlike `next dev` it does not
+   read .env.local, so NEXTAUTH_SECRET was absent and e2e/fixtures/auth.setup.ts
+   silently fell back to its hardcoded default. That minted session cookies the
+   server could not decrypt -- JWTSessionError on every authenticated spec, for
+   a reason that looked nothing like a missing env var. Load it the way Next
+   itself does, before defineConfig reads anything. */
+loadEnvConfig(process.cwd());
 
 export default defineConfig({
   testDir: './e2e',
@@ -58,7 +67,10 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'npm run dev',
+    /* next dev binds 3000, which Leegality owns on this machine, while the url
+       below waits on 3009 -- so webServer could never start on its own and a
+       hand-started server was the only path that ever worked. */
+    command: 'PORT=3009 npm run dev',
     url: process.env.E2E_BASE_URL || 'http://localhost:3009',
     reuseExistingServer: true,
   },

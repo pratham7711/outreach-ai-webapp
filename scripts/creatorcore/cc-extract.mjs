@@ -132,6 +132,12 @@ async function ensureLoggedIn(page) {
 
 (async () => {
   const ctx = await chromium.launchPersistentContext(PROFILE, {
+    // System Google Chrome, not Playwright's bundled Chromium. The bundled
+    // build on this machine is incomplete -- its Framework binary is missing,
+    // so launch aborts with a dlopen error before any page exists. Every
+    // project in playwright.config.ts already uses channel 'chrome' for the
+    // same reason; this script was the one place that did not.
+    channel: "chrome",
     headless: false,
     viewport: { width: 1280, height: 900 },
   });
