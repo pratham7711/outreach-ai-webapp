@@ -31,7 +31,7 @@ const UA =
 /** How long to wait for the page to make its own API call once loaded. */
 const PAYLOAD_WAIT_MS = 25_000;
 
-type LaunchedBrowser = {
+export type LaunchedBrowser = {
   newPage: (opts: Record<string, unknown>) => Promise<any>;
   close: () => Promise<void>;
 };
@@ -44,7 +44,7 @@ type LaunchedBrowser = {
  * or the OS already has. Resolved dynamically so the serverless build does not
  * pull a development-only path into the bundle.
  */
-async function launch(): Promise<LaunchedBrowser> {
+export async function launch(): Promise<LaunchedBrowser> {
   const { chromium: pw } = await import("playwright-core");
 
   if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {

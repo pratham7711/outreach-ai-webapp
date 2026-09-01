@@ -656,6 +656,15 @@ model Creator {
   trackerLastAttemptAt DateTime?
   /// Machine-readable reason the last attempt produced no snapshot. Null on success.
   trackerLastError     String?
+  /// The creator's current best-performing recent posts, as
+  /// [{ postId, url, caption, coverUrl, views, likes, comments, postedAt }].
+  /// A cache of a platform read, not a record -- history is not kept, so Json
+  /// beats a table nothing would ever join against.
+  topPosts             Json?
+  /// When topPosts was last successfully refreshed. Separate from
+  /// trackerLastAttemptAt because stats and top posts come from different
+  /// reads and one can succeed while the other fails.
+  topPostsAt           DateTime?
 
   org              Organization             @relation(fields: [orgId], references: [id])
   listItems        CreatorListItem[]

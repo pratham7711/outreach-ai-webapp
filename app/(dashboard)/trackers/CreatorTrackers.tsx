@@ -9,7 +9,7 @@ import { Play, Trash2, User, Users } from "lucide-react";
 import { formatCompact } from "@/lib/format";
 import { imgSrc } from "@/lib/postMedia";
 import { apiDelete, apiFetch, apiPost } from "@/lib/api/client";
-import { CreatorDetailModal } from "./CreatorDetailModal";
+import { CreatorDetailModal, type TopPost } from "./CreatorDetailModal";
 import type { ChartGranularity } from "@/lib/trackers/granularity";
 import { errorMessage } from "@/lib/api/errorMessage";
 
@@ -50,6 +50,8 @@ type TrackedCreator = {
   chartGranularity: ChartGranularity;
   snapshotCount: number;
   metrics: CreatorMetrics;
+  topPosts: TopPost[] | null;
+  topPostsAt: string | null;
 };
 
 const PERIODS = [

@@ -82,6 +82,8 @@ export async function GET(req: NextRequest) {
         trackedSince: true,
         trackerLastAttemptAt: true,
         trackerLastError: true,
+        topPosts: true,
+        topPostsAt: true,
         trackerSnapshots: {
           orderBy: { recordedAt: "desc" },
           take: snapshotFetchLimit(granularity, windowDays),
@@ -196,6 +198,10 @@ export async function GET(req: NextRequest) {
         })),
         chartGranularity: chartAt,
         snapshotCount: c.trackerSnapshots.length,
+        /* Passed through as stored; the sweep wrote it in TopPost shape and the
+           client treats it as display data, not something to recompute. */
+        topPosts: c.topPosts ?? null,
+        topPostsAt: c.topPostsAt,
         metrics: metricsFromRow(byCreator.get(c.id)),
       };
     });

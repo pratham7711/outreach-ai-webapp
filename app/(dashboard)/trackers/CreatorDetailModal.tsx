@@ -31,6 +31,20 @@ export type DetailCreator = {
   chartGranularity: ChartGranularity;
   snapshotCount: number;
   metrics: { avgViews: number | null; postsInWindow: number };
+  topPosts?: TopPost[] | null;
+  topPostsAt?: string | null;
+};
+
+/** Matches the shape the sweep stores in Creator.topPosts. */
+export type TopPost = {
+  postId: string;
+  url: string | null;
+  caption: string | null;
+  coverUrl: string | null;
+  views: number | null;
+  likes: number | null;
+  comments: number | null;
+  postedAt: string | null;
 };
 
 export function CreatorDetailModal({
@@ -135,6 +149,72 @@ export function CreatorDetailModal({
         />
         <Figure label="Readings" value={String(creator.snapshotCount)} />
       </div>
+
+      {creator.topPosts?.length ? (
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 10 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "var(--cc-text)" }}>Top Posts</div>
+            {creator.topPostsAt ? (
+              <div style={{ fontSize: 11, color: "var(--cc-text-muted)" }}>
+                as of {timeAgo(creator.topPostsAt)}
+              </div>
+            ) : null}
+          </div>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))",
+              gap: 10,
+            }}
+          >
+            {creator.topPosts.map((post) => (
+              <a
+                key={post.postId}
+                href={post.url ?? undefined}
+                target="_blank"
+                rel="noreferrer"
+                style={{
+                  border: "1px solid var(--cc-border)", borderRadius: 12, overflow: "hidden",
+                  textDecoration: "none", color: "var(--cc-text)", display: "block",
+                  background: "var(--cc-card)",
+                }}
+              >
+                {post.coverUrl ? (
+                  <img
+                    src={post.coverUrl}
+                    alt=""
+                    style={{ width: "100%", aspectRatio: "9 / 12", objectFit: "cover", display: "block" }}
+                  />
+                ) : (
+                  <div
+                    style={{
+                      width: "100%", aspectRatio: "9 / 12",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      background: "var(--cc-primary-light)",
+                      fontSize: 12, color: "var(--cc-text-muted)", padding: 8, textAlign: "center",
+                    }}
+                  >
+                    {post.caption ? post.caption.slice(0, 60) : "No preview"}
+                  </div>
+                )}
+                <div style={{ padding: "8px 10px" }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "var(--cc-primary)" }}>
+                    {post.views !== null ? `${formatCompact(post.views)} views` : "views unavailable"}
+                  </div>
+                  <div style={{ fontSize: 11, color: "var(--cc-text-muted)" }}>
+                    {[
+                      post.likes !== null ? `${formatCompact(post.likes)} likes` : null,
+                      post.comments !== null ? `${formatCompact(post.comments)} comments` : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ") || (post.postedAt ? timeAgo(post.postedAt) : "")}
+                  </div>
+                </div>
+              </a>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       {series.length >= 2 ? (
         <AudioUsesChart series={series} granularity={creator.chartGranularity} />

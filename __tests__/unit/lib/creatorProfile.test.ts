@@ -78,3 +78,31 @@ describe("READ_FAILURE_COPY", () => {
     expect(READ_FAILURE_COPY["not-a-professional-account"]).toMatch(/Business and Creator/i);
   });
 });
+
+describe("rankTopPosts", () => {
+  const { rankTopPosts, TOP_POSTS_LIMIT } = jest.requireActual("@/lib/platforms/creatorProfile");
+  const post = (postId: string, views: number | null, likes: number | null = null) => ({
+    postId, url: null, caption: null, coverUrl: null,
+    views, likes, comments: null, postedAt: null,
+  });
+
+  it("ranks by views and caps at the limit", () => {
+    const posts = Array.from({ length: TOP_POSTS_LIMIT + 4 }, (_, i) => post(`p${i}`, i * 100));
+    const ranked = rankTopPosts(posts);
+    expect(ranked).toHaveLength(TOP_POSTS_LIMIT);
+    expect(ranked[0].postId).toBe(`p${TOP_POSTS_LIMIT + 3}`);
+  });
+
+  it("lets a still with only likes compete instead of excluding it", () => {
+    // Instagram omits view_count on stills rather than sending zero. A still
+    // with real engagement should rank above a reel nobody watched.
+    const ranked = rankTopPosts([post("reel", 5), post("still", null, 900)]);
+    expect(ranked[0].postId).toBe("still");
+  });
+
+  it("does not mutate the caller's array", () => {
+    const posts = [post("a", 1), post("b", 2)];
+    rankTopPosts(posts);
+    expect(posts[0].postId).toBe("a");
+  });
+});

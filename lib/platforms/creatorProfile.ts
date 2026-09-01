@@ -24,6 +24,22 @@ import { fetchTikTokProfile } from "./tiktokProfile";
  *              sound counts already are.
  */
 
+/** One entry in a creator's Top Posts, in the shape the Creator.topPosts JSON
+ * column stores. Nullable fields are platform gaps, not parse failures --
+ * Instagram omits view_count on stills, YouTube thumbnails can be absent on a
+ * just-uploaded video. */
+export type TopPost = {
+  postId: string;
+  url: string | null;
+  caption: string | null;
+  coverUrl: string | null;
+  views: number | null;
+  likes: number | null;
+  comments: number | null;
+  /** ISO string, so the value survives the JSON column round-trip unchanged. */
+  postedAt: string | null;
+};
+
 export type CreatorProfileRead = {
   followersCount: number;
   /** Lifetime post count as the platform reports it, not our Post row count. */
@@ -32,7 +48,23 @@ export type CreatorProfileRead = {
   avgViews: number;
   /** How many posts that mean was taken over — 0 means avgViews is not a measurement. */
   sampledPosts: number;
+  /** Best recent posts by views, when the read that produced the stats could
+   * also see the posts themselves. Absent means "not measured here" -- TikTok
+   * stats come from a page that renders no posts -- and the caller must keep
+   * whatever it already has rather than erase it. */
+  topPosts?: TopPost[];
 };
+
+export const TOP_POSTS_LIMIT = 6;
+
+export function rankTopPosts(posts: TopPost[]): TopPost[] {
+  /* Views rank first; a post the platform gave no view count for (an Instagram
+     still, typically) falls back to likes, which systematically underrates it
+     against reels but beats excluding it entirely. */
+  return [...posts]
+    .sort((a, b) => (b.views ?? b.likes ?? 0) - (a.views ?? a.likes ?? 0))
+    .slice(0, TOP_POSTS_LIMIT);
+}
 
 /** Why a read produced nothing. Stored on Creator.trackerLastError verbatim. */
 export type CreatorReadFailure =
@@ -99,6 +131,19 @@ async function readInstagram(handle: string): Promise<CreatorReadResult> {
     .map((p) => p.viewsCount)
     .filter((v): v is number => typeof v === "number");
 
+  const topPosts = rankTopPosts(
+    profile.recentPosts.map((p) => ({
+      postId: p.id,
+      url: p.permalink,
+      caption: p.caption,
+      coverUrl: p.thumbnailUrl,
+      views: typeof p.viewsCount === "number" ? p.viewsCount : null,
+      likes: typeof p.likesCount === "number" ? p.likesCount : null,
+      comments: typeof p.commentsCount === "number" ? p.commentsCount : null,
+      postedAt: p.postedAt ? p.postedAt.toISOString() : null,
+    }))
+  );
+
   return {
     ok: true,
     profile: {
@@ -106,6 +151,7 @@ async function readInstagram(handle: string): Promise<CreatorReadResult> {
       postsCount: profile.mediaCount ?? 0,
       avgViews: mean(views),
       sampledPosts: views.length,
+      ...(topPosts.length ? { topPosts } : {}),
     },
   };
 }
@@ -147,6 +193,7 @@ async function readYouTube(handle: string): Promise<CreatorReadResult> {
        the recent uploads instead costs two cheap calls and means the same thing. */
     let avgViews = 0;
     let sampledPosts = 0;
+    let topPosts: TopPost[] = [];
     if (uploads) {
       const pl = await api("playlistItems", {
         part: "contentDetails",
@@ -157,12 +204,34 @@ async function readYouTube(handle: string): Promise<CreatorReadResult> {
         .map((i: any) => i?.contentDetails?.videoId)
         .filter(Boolean);
       if (ids.length) {
-        const vids = await api("videos", { part: "statistics", id: ids.join(",") });
-        const views = (vids?.items ?? [])
+        // snippet rides along for the Top Posts card -- title, thumbnail,
+        // publish date -- at no extra quota unit beyond the part itself.
+        const vids = await api("videos", { part: "statistics,snippet", id: ids.join(",") });
+        const items: any[] = vids?.items ?? [];
+        const views = items
           .map((v: any) => Number(v?.statistics?.viewCount))
           .filter((n: number) => Number.isFinite(n));
         avgViews = mean(views);
         sampledPosts = views.length;
+        topPosts = rankTopPosts(
+          items.map((v: any) => ({
+            postId: String(v?.id ?? ""),
+            url: v?.id ? `https://www.youtube.com/watch?v=${v.id}` : null,
+            caption: v?.snippet?.title ?? null,
+            coverUrl:
+              v?.snippet?.thumbnails?.medium?.url ?? v?.snippet?.thumbnails?.default?.url ?? null,
+            views: Number.isFinite(Number(v?.statistics?.viewCount))
+              ? Number(v.statistics.viewCount)
+              : null,
+            likes: Number.isFinite(Number(v?.statistics?.likeCount))
+              ? Number(v.statistics.likeCount)
+              : null,
+            comments: Number.isFinite(Number(v?.statistics?.commentCount))
+              ? Number(v.statistics.commentCount)
+              : null,
+            postedAt: v?.snippet?.publishedAt ?? null,
+          }))
+        );
       }
     }
 
@@ -170,7 +239,16 @@ async function readYouTube(handle: string): Promise<CreatorReadResult> {
       // A channel that hides its subscriber count is readable in every other way.
       return { ok: false, reason: "unreadable", detail: "subscriberCount hidden" };
     }
-    return { ok: true, profile: { followersCount, postsCount, avgViews, sampledPosts } };
+    return {
+      ok: true,
+      profile: {
+        followersCount,
+        postsCount,
+        avgViews,
+        sampledPosts,
+        ...(topPosts.length ? { topPosts } : {}),
+      },
+    };
   } catch (e) {
     const detail = e instanceof Error ? e.message : String(e);
     if (detail.startsWith("quota:")) return { ok: false, reason: "rate-limited", detail };

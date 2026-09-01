@@ -63,11 +63,18 @@ const nextConfig: NextConfig = {
        adding it here ships a function that crashes on the dynamic import rather
        than one that merely returns nothing.
 
-       Only the sound sweep is listed. The creator routes were here too until
-       TikTok profile pages turned out to be server-rendered, which took the
-       browser off that path entirely; a route that never launches one should
-       not carry ~50MB of Chromium into its bundle. */
+       Creator stats are a plain fetch, but the creator routes are back on this
+       list for the TikTok post grid, which arrives from a signed XHR only a
+       real browser can trigger -- same constraint as sounds. */
     "/api/cron/sync-trackers": [
+      "./node_modules/@sparticuz/chromium/**",
+      "./node_modules/playwright-core/**",
+    ],
+    "/api/cron/sync-creator-trackers": [
+      "./node_modules/@sparticuz/chromium/**",
+      "./node_modules/playwright-core/**",
+    ],
+    "/api/trackers/creators/refresh": [
       "./node_modules/@sparticuz/chromium/**",
       "./node_modules/playwright-core/**",
     ],

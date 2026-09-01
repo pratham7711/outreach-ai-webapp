@@ -3,6 +3,7 @@ import { z } from "zod";
 import { authenticateRequest } from "@/lib/authenticate";
 import { rateLimit } from "@/lib/rateLimit";
 import { snapshotCreators } from "@/lib/creators/snapshot";
+import { openTopPostsSession } from "@/lib/platforms/tiktokTopPostsBrowser";
 import { createLogger } from "@/lib/observability/logger";
 
 /* TikTok opens a browser, so this is sized like the sound reader's route rather
@@ -53,11 +54,18 @@ export async function POST(req: NextRequest) {
   try {
     /* snapshotCreators keeps orgId in the filter alongside creatorId, so an id
        belonging to another org selects nothing rather than reading it. */
-    const counts = await snapshotCreators({
-      orgId,
-      creatorId,
-      deadlineMs: 90 * 1000,
-    });
+    const grids = openTopPostsSession();
+    let counts;
+    try {
+      counts = await snapshotCreators({
+        orgId,
+        creatorId,
+        deadlineMs: 90 * 1000,
+        readTikTokPosts: (handle) => grids.read(handle),
+      });
+    } finally {
+      await grids.close();
+    }
 
     /* Nothing matched at all means the creator is not ours or not tracked -- a
        404, not a success reporting zero. */

@@ -3,6 +3,7 @@ import { createLogger } from "@/lib/observability/logger";
 import { velocityBetween } from "@/lib/trackers/metrics";
 import { isDueForRead, parseGranularity, DEFAULT_GRANULARITY } from "@/lib/trackers/granularity";
 import { readCreatorProfile, type CreatorReadResult } from "@/lib/platforms/creatorProfile";
+import type { TikTokPostsRead } from "@/lib/platforms/tiktokTopPostsBrowser";
 
 /**
  * The creator half of the tracker sweep.
@@ -30,12 +31,28 @@ export type CreatorSnapshotOptions = {
   creatorId?: string;
   dryRun?: boolean;
   deadlineMs?: number;
+  /** Injected by routes that traced Chromium into their bundle. TikTok stats
+   * are a plain fetch, but the post grid arrives from a signed XHR only a real
+   * browser can trigger -- the same constraint as sounds. Absent means TikTok
+   * creators keep their stored topPosts and only refresh stats. */
+  readTikTokPosts?: (handle: string) => Promise<TikTokPostsRead | null>;
 };
+
+/** Posts move much slower than follower counts; a grid read costs ~12s of
+ * browser where a stats read costs one HTTP request. Once a day is the same
+ * cadence CreatorCore refreshes its own Top Posts at. */
+const TOP_POSTS_MAX_AGE_MS = 20 * 60 * 60 * 1000;
 
 export async function snapshotCreators(
   options: CreatorSnapshotOptions = {}
 ): Promise<CreatorSnapshotResult> {
-  const { orgId, creatorId, dryRun = false, deadlineMs = 4 * 60 * 1000 } = options;
+  const {
+    orgId,
+    creatorId,
+    dryRun = false,
+    deadlineMs = 4 * 60 * 1000,
+    readTikTokPosts,
+  } = options;
   const log = createLogger({ context: { job: "snapshot-creators", orgId: orgId ?? "all" } });
   const deadline = Date.now() + deadlineMs;
 
@@ -57,6 +74,7 @@ export async function snapshotCreators(
       orgId: true,
       handle: true,
       platform: true,
+      topPostsAt: true,
       trackerSnapshots: {
         orderBy: { recordedAt: "desc" },
         take: 1,
@@ -114,6 +132,29 @@ export async function snapshotCreators(
       };
     }
 
+    /* TikTok's WAF serves this deployment's egress a 1.4KB login shell instead
+       of the profile page -- plain fetch cannot get the numbers from here, ever.
+       The browser is let through (every sound read proves it hourly), and the
+       page it renders carries the same stats blob plus the post grid, so one
+       browser visit substitutes for the whole read rather than being layered
+       on top of a successful one. */
+    let gridRead: TikTokPostsRead | null | undefined;
+    if (!result.ok && creator.platform === "TIKTOK" && readTikTokPosts && !dryRun) {
+      gridRead = await readTikTokPosts(creator.handle).catch(() => null);
+      if (gridRead?.profile) {
+        result = {
+          ok: true,
+          profile: {
+            followersCount: gridRead.profile.followersCount,
+            postsCount: gridRead.profile.postsCount,
+            avgViews: gridRead.avgViews,
+            sampledPosts: gridRead.sampledPosts,
+            ...(gridRead.topPosts.length ? { topPosts: gridRead.topPosts } : {}),
+          },
+        };
+      }
+    }
+
     if (dryRun) {
       if (result.ok) snapshots++;
       else failed++;
@@ -149,6 +190,32 @@ export async function snapshotCreators(
     }
 
     const { profile } = result;
+
+    /* TikTok: the stats read cannot see posts, so the grid is a separate,
+       browser-priced read on its own daily cadence. A grid failure is not a
+       creator failure -- the follower snapshot still lands. */
+    let tiktokPosts: TikTokPostsRead | null = null;
+    if (
+      creator.platform === "TIKTOK" &&
+      readTikTokPosts &&
+      gridRead === undefined && // the WAF fallback above has not already read the page
+      (!creator.topPostsAt || now.getTime() - creator.topPostsAt.getTime() > TOP_POSTS_MAX_AGE_MS)
+    ) {
+      tiktokPosts = await readTikTokPosts(creator.handle).catch((e) => {
+        log.warn("tiktok grid read failed", {
+          creatorId: creator.id,
+          handle: creator.handle,
+          error: e instanceof Error ? e.message : String(e),
+        });
+        return null;
+      });
+    }
+    if (tiktokPosts && tiktokPosts.sampledPosts > 0) {
+      profile.avgViews = tiktokPosts.avgViews;
+      profile.sampledPosts = tiktokPosts.sampledPosts;
+      profile.topPosts = tiktokPosts.topPosts;
+    }
+
     const recordedAt = new Date();
     const deltaFollowers = previous
       ? Math.round(profile.followersCount - previous.followersCount)
@@ -182,6 +249,11 @@ export async function snapshotCreators(
         data: {
           followersCount: profile.followersCount,
           ...(profile.sampledPosts > 0 ? { averageViews: profile.avgViews } : {}),
+          /* topPosts only moves forward -- an absent list on this read means
+             "not measured here", never "the posts are gone". */
+          ...(profile.topPosts?.length
+            ? { topPosts: profile.topPosts, topPostsAt: recordedAt }
+            : {}),
           trackerLastAttemptAt: recordedAt,
           trackerLastError: null,
         },
