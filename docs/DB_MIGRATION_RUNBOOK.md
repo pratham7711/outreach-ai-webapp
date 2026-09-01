@@ -143,6 +143,31 @@ is no workaround and no way to export the data first. Sequence is therefore:
 4. Repoint `DATABASE_URL`, deploy.
 5. Keep the old project 7 days, then delete.
 
+### The migration was never finished — check before trusting any of this
+
+`outreach-prod` (`aws-us-east-1`) exists and holds a copy of the data **as of
+13 August**. Production was never repointed at it. The live `DATABASE_URL` still
+targets the original `OutreachAI` project in `aws-ap-southeast-1`, which is
+where every row written today has landed. Confirmed 1 September: the Singapore
+database holds the snapshots the tracker wrote minutes earlier; the us-east-1
+one stops dead on 13 August.
+
+So step 4 below ("repoint DATABASE_URL, deploy") did not happen. Until it does,
+`outreach-prod` is a stale copy and anything applied to it — schema included —
+misses production entirely.
+
+**How this bit, in case it bites again:** `.env.local` in the repo is a
+*development* file pointing at a dev branch, and it says `us-east-1`. Reading it
+and concluding "the production database is in Virginia" is wrong, and led to
+`vercel.json` being switched to `iad1` on 31 August — moving compute away from
+the database and reopening the Pacific hop the migration was meant to close.
+Reverted to `sin1` the same day.
+
+The only trustworthy sources for where production points are the Vercel
+production environment variable (which is Sensitive, so it cannot be read) and
+the data itself: connect to a candidate and check whether rows written minutes
+ago are there.
+
 ### Step 6, which was missed: check `vercel.json` regions afterwards
 
 The move above put the database in `us-east-1` on 21 Aug so it would sit beside
