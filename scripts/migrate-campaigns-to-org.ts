@@ -7,7 +7,19 @@
  *
  *   npx tsx --env-file=.env scripts/migrate-campaigns-to-org.ts -- \
  *     --to <org-id|subdomain> --campaigns "Shorts/IG LKM,LKM Shorts - April"
+ *
+ *   npx tsx --env-file=.env scripts/migrate-campaigns-to-org.ts -- \
+ *     --to <org> --from <org> --cc-imported
+ *
  *   ...same again with --apply to write.
+ *
+ * --cc-imported selects every campaign in --from that carries a CreatorCore
+ * marker (ccCampaignId), which is how the bulk import is told apart from the
+ * handful of campaigns seeded by hand. Names cannot do that job: the imported
+ * titles are things like "Movies Shorts (June)" with nothing in them to say
+ * whose they are. Verified on production before use -- 503 of 510 campaigns
+ * carry all four cc columns, the 7 that do not are the record-label demo rows,
+ * and all 503 join to a CcCampaign mirror row.
  *
  * Why this is not a one-line UPDATE of Campaign.orgId
  * ---------------------------------------------------
@@ -44,14 +56,20 @@ function arg(name: string): string | undefined {
 async function main() {
   const apply = process.argv.includes("--apply");
   const includeCommercial = process.argv.includes("--include-commercial");
+  const ccImported = process.argv.includes("--cc-imported");
   const toRef = arg("to");
+  const fromRef = arg("from");
   const titlesRaw = arg("campaigns");
 
-  if (!toRef || !titlesRaw) {
-    console.error(`need --to <org-id|subdomain> and --campaigns "Title A,Title B"`);
+  if (!toRef || (!titlesRaw && !ccImported)) {
+    console.error(`need --to <org-id|subdomain> and either --campaigns "Title A,Title B" or --cc-imported --from <org>`);
     process.exit(1);
   }
-  const titles = titlesRaw.split(",").map((t) => t.trim()).filter(Boolean);
+  if (ccImported && !fromRef) {
+    console.error(`--cc-imported needs --from <org-id|subdomain> to say which tenant to take them out of`);
+    process.exit(1);
+  }
+  const titles = (titlesRaw ?? "").split(",").map((t) => t.trim()).filter(Boolean);
 
   const target = await db.organization.findFirst({
     where: { OR: [{ id: toRef }, { subdomain: toRef }] },
@@ -70,15 +88,36 @@ async function main() {
     process.exit(1);
   }
 
-  const camps = await db.campaign.findMany({
-    where: { title: { in: titles }, deletedAt: null },
-    select: { id: true, title: true, orgId: true, createdById: true },
-  });
+  let camps: { id: string; title: string; orgId: string; createdById: string; ccCampaignId: string | null }[];
 
-  const missing = titles.filter((t) => !camps.some((c) => c.title === t));
-  if (missing.length) {
-    console.error(`no campaign found for: ${missing.join(", ")}`);
-    process.exit(1);
+  if (ccImported) {
+    const fromOrg = await db.organization.findFirst({
+      where: { OR: [{ id: fromRef! }, { subdomain: fromRef! }] },
+      select: { id: true, name: true },
+    });
+    if (!fromOrg) {
+      console.error(`no source org matched "${fromRef}" by id or subdomain`);
+      process.exit(1);
+    }
+    camps = await db.campaign.findMany({
+      where: { orgId: fromOrg.id, deletedAt: null, ccCampaignId: { not: null } },
+      select: { id: true, title: true, orgId: true, createdById: true, ccCampaignId: true },
+    });
+    if (!camps.length) {
+      console.log(`no CreatorCore-imported campaigns in ${fromOrg.name}. Nothing to do.`);
+      return;
+    }
+  } else {
+    camps = await db.campaign.findMany({
+      where: { title: { in: titles }, deletedAt: null },
+      select: { id: true, title: true, orgId: true, createdById: true, ccCampaignId: true },
+    });
+
+    const missing = titles.filter((t) => !camps.some((c) => c.title === t));
+    if (missing.length) {
+      console.error(`no campaign found for: ${missing.join(", ")}`);
+      process.exit(1);
+    }
   }
 
   const already = camps.filter((c) => c.orgId === target.id);
@@ -119,8 +158,10 @@ async function main() {
 
   console.log(`from   ${source?.name} (${sourceOrgId})`);
   console.log(`to     ${target.name} (${target.id}), owner ${newOwner.email}`);
-  console.log(`\ncampaigns (${camps.length}):`);
-  for (const c of camps) console.log(`  ${c.title}`);
+  console.log(`\ncampaigns (${camps.length})${ccImported ? " — every CreatorCore-imported campaign in the source org" : ""}:`);
+  const shown = camps.slice(0, 8);
+  for (const c of shown) console.log(`  ${c.title}`);
+  if (camps.length > shown.length) console.log(`  ...and ${camps.length - shown.length} more`);
   console.log(`\nposts        ${postCount}  (follow their campaign; Post has no orgId)`);
   console.log(`creators     ${usage.length} touched`);
   console.log(`  move       ${toMove.length}  exclusive to these campaigns`);
@@ -141,7 +182,10 @@ async function main() {
   }
 
   const copiedIds: Record<string, string> = {};
+  const mirrorCounts = { ccCampaign: 0, ccPost: 0 };
 
+  /* 503 campaigns, ~18k posts and 1.8k creators do not fit in Prisma's 5s
+     default. maxWait is the queue for a connection, timeout the work itself. */
   await db.$transaction(async (tx) => {
     for (const u of toCopy) {
       const src = await tx.creator.findUniqueOrThrow({ where: { id: u.id } });
@@ -187,7 +231,26 @@ async function main() {
       where: { id: { in: campIds } },
       data: { orgId: target.id, createdById: newOwner.id },
     });
-  });
+
+    /* The CreatorCore mirror tables are org-scoped raw archives of the import
+       -- CcCampaign.raw holds the complete original record. They are not read
+       by any app flow, only counted by /api/admin/cc-sync, but leaving another
+       tenant's imported records sitting in the source org is the same problem
+       as leaving the campaigns. They join by ccId, not by our campaign id. */
+    const ccIds = camps.map((c) => c.ccCampaignId).filter((v): v is string => !!v);
+    if (ccIds.length) {
+      const movedMirrors = await tx.ccCampaign.updateMany({
+        where: { ccId: { in: ccIds } },
+        data: { orgId: target.id },
+      });
+      const movedCcPosts = await tx.ccPost.updateMany({
+        where: { campaign: { in: ccIds } },
+        data: { orgId: target.id },
+      });
+      mirrorCounts.ccCampaign = movedMirrors.count;
+      mirrorCounts.ccPost = movedCcPosts.count;
+    }
+  }, { maxWait: 15_000, timeout: 600_000 });
 
   /* Prove it rather than assume it: after the move, no post in these campaigns
      may reference a creator living outside the target org. */
@@ -201,6 +264,7 @@ async function main() {
   console.log(`\napplied.`);
   console.log(`  ${camps.length} campaigns and ${postCount} posts now in ${target.name}`);
   console.log(`  ${toMove.length} creators moved, ${toCopy.length} copied`);
+  console.log(`  CreatorCore mirrors moved: ${mirrorCounts.ccCampaign} CcCampaign, ${mirrorCounts.ccPost} CcPost`);
   console.log(`  cross-tenant creator references remaining: ${stray}${stray === 0 ? " ✓" : "  <-- INVESTIGATE"}`);
   if (stray > 0) process.exitCode = 1;
 }
