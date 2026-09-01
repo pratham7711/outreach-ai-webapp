@@ -16,6 +16,21 @@ export function findCreatorsForHandle(handle: string) {
   });
 }
 
+/**
+ * The same match, narrowed to one org. Callers that resolve a portal session
+ * against a single org's roster must use this rather than an exact
+ * `handle: session.handle` equality: a roster stores handles with or without
+ * the leading @, so exact equality silently misses the existing row and the
+ * caller creates a duplicate creator instead of finding the real one.
+ */
+export function findCreatorInOrgForHandle(orgId: string, handle: string) {
+  return db.creator.findFirst({
+    where: { orgId, ...matchesHandle(handle) },
+    orderBy: { addedAt: "asc" },
+    select: { id: true },
+  });
+}
+
 export function findCreatorForHandle(handle: string) {
   return db.creator.findFirst({
     where: matchesHandle(handle),

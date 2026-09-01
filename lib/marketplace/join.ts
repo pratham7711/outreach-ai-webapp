@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import type { CreatorSession } from "@/lib/creator-auth";
+import { findCreatorInOrgForHandle } from "@/lib/portal/creatorLookup";
 
 export type JoinResult =
   | { ok: true; activationId: string; creatorId: string; alreadyJoined: boolean; campaignSlug: string }
@@ -16,10 +17,13 @@ export async function resolveOrgCreator(
   orgId: string,
   session: CreatorSession
 ): Promise<{ id: string }> {
-  const existing = await db.creator.findFirst({
-    where: { orgId, handle: session.handle, deletedAt: null },
-    select: { id: true },
-  });
+  /* Handle-insensitive to the leading @, via the shared matcher. An exact
+     `handle: session.handle` equality looked right and was the one place in the
+     portal that did not normalise: a roster row stored as "@blessingjolie"
+     never matched a session handle of "blessingjolie", so every marketplace
+     join created a SECOND creator in the same org and split that creator's
+     activations across two rows. */
+  const existing = await findCreatorInOrgForHandle(orgId, session.handle);
   if (existing) return existing;
 
   const profile = await db.creatorUser.findUnique({
