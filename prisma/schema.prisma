@@ -17,6 +17,17 @@ enum UserRole {
   VIEWER
 }
 
+/// Billing state of an agency's own subscription to this platform.
+/// PAST_DUE warns; only SUSPENDED and CANCELLED actually block a login, and both
+/// are reached by a human deciding, never by a clock.
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  SUSPENDED
+  CANCELLED
+}
+
 enum CampaignStatus {
   DRAFT
   PENDING
@@ -259,6 +270,18 @@ model Organization {
   timezone          String    @default("UTC")
   plan              String    @default("starter")
   planExpiresAt     DateTime?
+  /// Whether this agency may use the platform. ACTIVE by default so adding this
+  /// column changes nothing for anyone already using it — a billing field that
+  /// locks people out on deploy is the one failure mode worth designing against.
+  subscriptionStatus SubscriptionStatus @default(ACTIVE)
+  /// End of the period they have paid for. Null means they never have.
+  paidThrough        DateTime?
+  trialEndsAt        DateTime?
+  /// Set together, and only by a person: suspension is never a side effect of a
+  /// date passing. suspendedReason is shown to the agency, so it is written for
+  /// them rather than for us.
+  suspendedAt        DateTime?
+  suspendedReason    String?
   syncSlotPoolSize  Int       @default(100)
   currency          Currency  @default(USD)
   orgType           OrgType   @default(AGENCY)
