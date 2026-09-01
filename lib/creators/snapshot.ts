@@ -97,6 +97,10 @@ export async function snapshotCreators(
   const now = new Date();
 
   log.info("creator sweep starting", {
+    /* Which region this actually ran in -- preferredRegion is a request, and
+       whether Vercel honored it was exactly the question the last two hours of
+       debugging needed answered. */
+    region: process.env.VERCEL_REGION ?? "local",
     considered: creators.length,
     platforms: creators.reduce<Record<string, number>>((acc, c) => {
       acc[c.platform] = (acc[c.platform] ?? 0) + 1;

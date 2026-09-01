@@ -101,6 +101,15 @@ async function readWith(
 
     const deadline = Date.now() + PAYLOAD_WAIT_MS;
     while (!items && Date.now() < deadline) await page.waitForTimeout(500);
+    if (!items && !profile) {
+      /* Thrown rather than returned so the session's catch logs it: the page
+         title and size say whether this was the WAF shell (~1.4KB, "TikTok"),
+         a challenge page, or something new. */
+      const evidence = await page
+        .evaluate(() => `title="${document.title.slice(0, 60)}" len=${document.documentElement.outerHTML.length}`)
+        .catch(() => "page unreadable");
+      throw new Error(`no grid or stats for @${clean}: ${evidence}`);
+    }
     if (!items) {
       /* No grid, but a page that rendered stats is still a successful stats
          read; an empty topPosts list is "not measured", which the caller

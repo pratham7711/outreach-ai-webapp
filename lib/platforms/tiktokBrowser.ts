@@ -97,9 +97,14 @@ export function createBrowserSession<Arg, Out>(
       try {
         const browser = await browserPromise;
         return await withTimeout(readWith(browser, arg, timeoutMs), hardCapMs, "browser read");
-      } catch {
+      } catch (e) {
         /* Whatever wedged or died stays disposed; the next read relaunches
-           rather than queueing behind a browser that will never answer. */
+           rather than queueing behind a browser that will never answer. The
+           log line is the only trace a swallowed read leaves. */
+        console.warn(
+          `[tiktok-browser] read failed (${process.env.VERCEL_REGION ?? "local"}):`,
+          e instanceof Error ? e.message : String(e)
+        );
         dispose();
         return null;
       }
