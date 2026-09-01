@@ -33,6 +33,10 @@ export type DetailCreator = {
   metrics: { avgViews: number | null; postsInWindow: number };
   topPosts?: TopPost[] | null;
   topPostsAt?: string | null;
+  /** "platform" = the creator's own catalogue; "campaigns" = only the posts
+   *  this workspace tracks with them. Two different claims, so the heading
+   *  changes rather than letting the narrower one read as the broader one. */
+  topPostsSource?: "platform" | "campaigns" | null;
 };
 
 /** Matches the shape the sweep stores in Creator.topPosts. */
@@ -153,7 +157,9 @@ export function CreatorDetailModal({
       {creator.topPosts?.length ? (
         <div style={{ marginBottom: 20 }}>
           <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 10 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "var(--cc-text)" }}>Top Posts</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "var(--cc-text)" }}>
+              {creator.topPostsSource === "campaigns" ? "Top Posts in Your Campaigns" : "Top Posts"}
+            </div>
             {creator.topPostsAt ? (
               <div style={{ fontSize: 11, color: "var(--cc-text-muted)" }}>
                 as of {timeAgo(creator.topPostsAt)}

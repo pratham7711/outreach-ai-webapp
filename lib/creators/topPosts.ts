@@ -55,6 +55,10 @@ export async function recordTopPosts(
         data: {
           topPosts: topPosts as unknown as Prisma.InputJsonValue,
           topPostsAt: new Date(),
+          /* Every reading that reaches here came from the creator's own grid,
+             read by the worker -- so it replaces any earlier campaign-scoped
+             list, label included. */
+          topPostsSource: "platform",
         },
       });
     }

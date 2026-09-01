@@ -1,9 +1,11 @@
 import { db } from "@/lib/db";
+import type { Prisma } from "@/lib/generated/prisma";
 import { createLogger } from "@/lib/observability/logger";
 import { velocityBetween } from "@/lib/trackers/metrics";
 import { isDueForRead, parseGranularity, DEFAULT_GRANULARITY } from "@/lib/trackers/granularity";
 import { readCreatorProfile, type CreatorReadResult } from "@/lib/platforms/creatorProfile";
 import { readTikTokTopPostsOfficial } from "@/lib/platforms/tiktokTopPostsOfficial";
+import { readTopPostsFromCampaigns } from "./topPostsFromCampaigns";
 import type { TikTokPostsRead } from "@/lib/platforms/tiktokTopPostsBrowser";
 
 /**
@@ -46,6 +48,14 @@ export type CreatorSnapshotOptions = {
  * browser where a stats read costs one HTTP request. Once a day is the same
  * cadence CreatorCore refreshes its own Top Posts at. */
 const TOP_POSTS_MAX_AGE_MS = 20 * 60 * 60 * 1000;
+
+/** True when the stored list is old enough to be worth re-reading. A creator
+ *  we have never read has no list, which counts as stale. */
+function postsAreStaleFor(creator: { topPostsAt: Date | null }): boolean {
+  return (
+    !creator.topPostsAt || Date.now() - creator.topPostsAt.getTime() > TOP_POSTS_MAX_AGE_MS
+  );
+}
 
 export async function snapshotCreators(
   options: CreatorSnapshotOptions = {}
@@ -209,6 +219,16 @@ export async function snapshotCreators(
         reason: result.reason,
         detail: result.detail ?? null,
       });
+      /* A creator we cannot read is exactly the one whose tracked campaign
+         posts are the only Top Posts we will ever have -- a renamed handle
+         does not un-publish the videos they made for us. So the fallback runs
+         here too, on its own cadence, without pretending the follower read
+         succeeded. */
+      const salvaged =
+        postsAreStaleFor(creator) && !dryRun
+          ? await readTopPostsFromCampaigns(creator.id).catch(() => null)
+          : null;
+
       /* Stamped even though no snapshot exists, so the UI can tell "we tried and
          this account cannot be read" from "we have not got to it yet". */
       await db.creator
@@ -219,6 +239,13 @@ export async function snapshotCreators(
             trackerLastError: result.detail
               ? `${result.reason}: ${result.detail}`
               : result.reason,
+            ...(salvaged?.topPosts.length
+              ? {
+                  topPosts: salvaged.topPosts as unknown as Prisma.InputJsonValue,
+                  topPostsAt: new Date(),
+                  topPostsSource: "campaigns",
+                }
+              : {}),
           },
         })
         .catch(() => {});
@@ -239,10 +266,10 @@ export async function snapshotCreators(
             Vercel -- /api/post/item_list/ answers 200 with a zero-byte body to
             every browser measured. It is here for the day that changes, and
             because it costs nothing when rung 1 answers. */
-    const postsAreStale =
-      !creator.topPostsAt || now.getTime() - creator.topPostsAt.getTime() > TOP_POSTS_MAX_AGE_MS;
+    const postsAreStale = postsAreStaleFor(creator);
 
     let tiktokPosts: TikTokPostsRead | null = null;
+    let topPostsSource: "platform" | "campaigns" | null = null;
     if (creator.platform === "TIKTOK" && postsAreStale && !dryRun) {
       const official = await readTikTokTopPostsOfficial(creator.id, creator.orgId, creator.handle).catch(
         (e) => {
@@ -258,6 +285,7 @@ export async function snapshotCreators(
          consume the creator's daily slot for the browser rung below. */
       if (official) {
         tiktokPosts = { ...official, profile: null };
+        topPostsSource = "platform";
         log.info("tiktok top posts from official API", {
           creatorId: creator.id,
           handle: creator.handle,
@@ -281,7 +309,40 @@ export async function snapshotCreators(
         });
         return null;
       });
+      if (tiktokPosts && tiktokPosts.topPosts.length) topPostsSource = "platform";
     }
+
+    /* Last rung, and the only one that asks TikTok for nothing: the posts this
+       workspace already tracks for the creator, whose counts the sync cron
+       keeps current. It answers where the two rungs above cannot -- an
+       unconnected creator whose grid TikTok refuses -- and it is recorded as a
+       DIFFERENT source, because "their best videos in your campaigns" is a
+       narrower claim than "their best videos" and the panel has to say so.
+
+       Runs for every platform: an Instagram or YouTube creator whose API read
+       came back without posts gets the same fallback. */
+    if (!tiktokPosts?.topPosts.length && !profile.topPosts?.length && postsAreStale && !dryRun) {
+      const fromCampaigns = await readTopPostsFromCampaigns(creator.id).catch((e) => {
+        log.warn("campaign top posts read failed", {
+          creatorId: creator.id,
+          error: e instanceof Error ? e.message : String(e),
+        });
+        return null;
+      });
+      if (fromCampaigns?.topPosts.length) {
+        topPostsSource = "campaigns";
+        profile.topPosts = fromCampaigns.topPosts;
+        /* Deliberately NOT touching avgViews/sampledPosts: those feed the
+           follower-growth snapshot and must keep meaning "measured across the
+           creator's own catalogue", not "across the ones we happen to run". */
+        log.info("top posts from tracked campaign posts", {
+          creatorId: creator.id,
+          handle: creator.handle,
+          posts: fromCampaigns.topPosts.length,
+        });
+      }
+    }
+
     if (tiktokPosts && tiktokPosts.sampledPosts > 0) {
       profile.avgViews = tiktokPosts.avgViews;
       profile.sampledPosts = tiktokPosts.sampledPosts;
@@ -324,7 +385,14 @@ export async function snapshotCreators(
           /* topPosts only moves forward -- an absent list on this read means
              "not measured here", never "the posts are gone". */
           ...(profile.topPosts?.length
-            ? { topPosts: profile.topPosts, topPostsAt: recordedAt }
+            ? {
+                topPosts: profile.topPosts,
+                topPostsAt: recordedAt,
+                /* Recorded with the list, never on its own: the label has to
+                   describe the posts actually stored, so a read that changed
+                   nothing must not relabel what is already there. */
+                ...(topPostsSource ? { topPostsSource } : {}),
+              }
             : {}),
           trackerLastAttemptAt: recordedAt,
           trackerLastError: null,

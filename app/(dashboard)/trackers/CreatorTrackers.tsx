@@ -52,6 +52,7 @@ type TrackedCreator = {
   metrics: CreatorMetrics;
   topPosts: TopPost[] | null;
   topPostsAt: string | null;
+  topPostsSource: "platform" | "campaigns" | null;
 };
 
 const PERIODS = [

@@ -668,6 +668,11 @@ model Creator {
   /// trackerLastAttemptAt because stats and top posts come from different
   /// reads and one can succeed while the other fails.
   topPostsAt           DateTime?
+  /// Where topPosts came from: "platform" (the creator's own catalogue, via an
+  /// official API or a grid read) or "campaigns" (the posts this workspace
+  /// already tracks for them). The UI must say which, because "their best
+  /// videos" and "their best videos in your campaigns" are different claims.
+  topPostsSource       String?
 
   org              Organization             @relation(fields: [orgId], references: [id])
   listItems        CreatorListItem[]

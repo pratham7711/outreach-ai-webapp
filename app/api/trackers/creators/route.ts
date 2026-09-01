@@ -84,6 +84,7 @@ export async function GET(req: NextRequest) {
         trackerLastError: true,
         topPosts: true,
         topPostsAt: true,
+        topPostsSource: true,
         trackerSnapshots: {
           orderBy: { recordedAt: "desc" },
           take: snapshotFetchLimit(granularity, windowDays),
@@ -202,6 +203,9 @@ export async function GET(req: NextRequest) {
            client treats it as display data, not something to recompute. */
         topPosts: c.topPosts ?? null,
         topPostsAt: c.topPostsAt,
+        /* Which claim the list makes -- the creator's own catalogue, or only
+           the posts this workspace runs with them. The panel says so. */
+        topPostsSource: c.topPostsSource ?? null,
         metrics: metricsFromRow(byCreator.get(c.id)),
       };
     });
