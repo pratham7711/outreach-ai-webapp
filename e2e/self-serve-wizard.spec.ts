@@ -4,7 +4,14 @@ import fs from 'fs';
 import { encode } from 'next-auth/jwt';
 import { selectFromDropdown } from './helpers';
 
-const NEXTAUTH_SECRET = '4Ngtr3WB/HGm9bJ2K8GkcuWjAIt8sQB6zpt60AL2lFU=';
+/* The env secret first, literal only as a fallback -- the same order
+   messaging.spec.ts and negotiation.spec.ts already use. Pinning the literal
+   unconditionally meant this file signed its cookies with a key the dev server
+   does not hold whenever .env.local sets a real NEXTAUTH_SECRET, so every spec
+   here landed on /login and failed waiting for <main>. Nothing about the wizard
+   was broken; the session just could not be decrypted. */
+const NEXTAUTH_SECRET =
+  process.env.NEXTAUTH_SECRET ?? '4Ngtr3WB/HGm9bJ2K8GkcuWjAIt8sQB6zpt60AL2lFU=';
 const COOKIE_NAME = 'authjs.session-token';
 
 async function injectAdminSession(page: import('@playwright/test').Page) {
