@@ -32,6 +32,7 @@ export function OverviewSection({
   const platforms = financials?.platformBreakdown ?? [];
   const totalViews = platforms.reduce((n, p) => n + p.views, 0);
   const totalPosts = platforms.reduce((n, p) => n + p.postsCount, 0);
+  const series = financials?.viewsOverTime ?? [];
 
 
   return (
@@ -56,24 +57,26 @@ export function OverviewSection({
               when they are absent the tiles are not drawn. */}
           {platforms.length > 0 && (
             <>
-              {/* These two are overridden on this screen because the chart
-                  below them is NOT scoped the same way, and the difference is
-                  large enough to look like a bug: the tiles cover posts
-                  published in the last six months (347M on production), the
-                  chart is a lifetime reading across every post the workspace
-                  holds (1.80bn). Saying "across everything this page is
-                  showing" was true of the tiles in isolation and false the
-                  moment you looked down the page. */}
+              {/* Overridden on this screen because the chart below them is NOT
+                  scoped the same way, and the gap is large enough to look like
+                  a bug: on production the tiles read 334.3M and the chart's
+                  point reads 1.80bn.
+                  Both follow the range picker above -- these tiles cover posts
+                  PUBLISHED in the selected range, while a chart point is a
+                  lifetime reading across every post the workspace holds, taken
+                  on that day. Narrowing the range moves the tiles a lot and the
+                  chart's values not at all; it only drops older readings off
+                  the left. */}
               <MetricTile
                 metric="totalViews"
-                what="How many times posts published in the last six months have been watched, counting each post's lifetime views."
-                how="Adds up the latest view count of every tracked post with a publish date in the last six months. The chart below covers every post the workspace holds, however old, so its numbers are larger."
+                what="How many times posts published in the selected range have been watched, counting each post's lifetime views."
+                how="Adds up the latest view count of every tracked post published inside the range chosen above. The chart below is not filtered this way — each of its points covers every post the workspace holds, so its numbers are larger."
                 value={formatNumber(totalViews)}
               />
               <MetricTile
                 metric="totalPosts"
-                what="How many pieces of content your creators published in the last six months."
-                how="Counts tracked posts with a publish date in the last six months, whether or not they are still live."
+                what="How many pieces of content your creators published in the selected range."
+                how="Counts tracked posts with a publish date inside the range chosen above, whether or not they are still live."
                 value={formatNumber(totalPosts)}
               />
             </>
@@ -98,27 +101,45 @@ export function OverviewSection({
              a running total (it only goes up), and the series starts the day the
              first reading landed -- there is no history to backfill, because
              history was never recorded. */
-          description="One reading per day, taken at 03:30 UTC: the lifetime views of every post in this workspace as of that morning — including posts older than the six-month window the tiles above use. The line starts from the first reading; earlier days were never measured."
+          description="One reading per day, taken at 03:30 UTC: the lifetime views of every post in this workspace as of that morning — including posts older than the range the tiles above use. The line starts from the first reading; earlier days were never measured."
         >
           {loading ? (
             <Skeleton className="h-[400px] w-full rounded-lg" />
-          ) : !financials?.viewsOverTime.length ? (
-            /* An empty area chart is indistinguishable from a workspace with
-               zero views, and the real reason is almost always the third one:
-               the first daily reading has not been taken yet. Say so. */
-            <div className="flex h-[400px] flex-col items-center justify-center gap-2 text-center">
-              <p className="text-sm font-medium text-[var(--cc-text)]">No readings yet</p>
-              <p className="max-w-sm text-xs text-[var(--cc-text-muted)]">
-                Views are measured once a day at 03:30 UTC. The first point appears after the
-                next reading, and the line builds from there.
-              </p>
+          ) : series.length < 2 ? (
+            /* A chart needs two points to be a chart.
+               An empty area chart is indistinguishable from a workspace with
+               zero views, and ONE point is worse: a single dot floating in the
+               middle of a 400px card, against a y-axis running to 2B, reads as
+               a rendering failure rather than as a first reading. Both cases
+               get the reading stated plainly and a sentence saying when the
+               line starts. */
+            <div className="flex h-[400px] flex-col items-center justify-center gap-3 text-center">
+              {series.length === 1 ? (
+                <>
+                  <p className="text-[11px] font-medium tracking-[0.06em] text-[var(--cc-text-muted)] uppercase">
+                    First reading · {series[0].date}
+                  </p>
+                  <p className="text-[40px] leading-none font-bold tracking-[-0.02em] text-[var(--cc-text)] tabular-nums">
+                    {formatNumber(series[0].views)}
+                  </p>
+                  <p className="max-w-sm text-xs text-[var(--cc-text-muted)]">
+                    Lifetime views across {formatNumber(series[0].posts)} posts. The next reading
+                    is taken at 03:30 UTC — from two readings on, this becomes a line.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm font-medium text-[var(--cc-text)]">No readings yet</p>
+                  <p className="max-w-sm text-xs text-[var(--cc-text-muted)]">
+                    Views are measured once a day at 03:30 UTC. The first reading appears after
+                    the next run, and the line builds from there.
+                  </p>
+                </>
+              )}
             </div>
           ) : (
             <div className="h-[400px]">
-              <ViewsOverTimeArea
-                data={financials.viewsOverTime}
-                formatNumber={formatNumber}
-              />
+              <ViewsOverTimeArea data={series} formatNumber={formatNumber} />
             </div>
           )}
         </SectionCard>
