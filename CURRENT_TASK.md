@@ -39,14 +39,18 @@ clean.
    The demo org is the designated testing tenant, so its data does not matter,
    but the credential is guessable and the account can invite. Change the
    password or disable the account before anyone outside the team has the URL.
-2. **`maxCampaigns` and `maxCreators` are reported but never enforced.**
-   A fresh signup is `plan: "starter"` with no `OrgPlanConfig`, so the code
-   defaults in `lib/plans.ts` apply: 20 campaigns, 500 creators, 5 users, 25
-   trackers. Only `maxUsers` and `maxTrackers` are actually checked. 500
-   creators is generous; 20 campaigns is not — demo holds 551. Either enforce
-   them or stop showing them; a limit that is displayed and not enforced is
-   worse than neither. (Do not read the limits off demo: it has an explicit
-   `OrgPlanConfig` of `pro` 50/500/10.)
+2. ~~`maxCampaigns` and `maxCreators` reported but never enforced.~~
+   **Resolved 2026-09-01: there is no limit on campaigns or creators, on any
+   tier.** Trackers are the only thing a plan limits, plus seats, which the
+   invite endpoint does enforce. `PLANS` carries Infinity for both on every
+   tier, `getOrgEntitlements` returns Infinity unconditionally, and it
+   deliberately does **not** read `OrgPlanConfig.maxCampaigns`/`maxCreators` —
+   those columns default to 10/100 in the schema, so any org with a plan
+   configured carries a small number nobody chose (demo holds 50/500 that way).
+   The columns stay, unread, because production was built with `db push` and has
+   no migrations table. Billing now shows Tracked sounds and Max users as real
+   numbers, and Campaigns and Creators as "Unlimited".
+
 3. **TikTok post metrics DO auto-sync — the capability report used to deny it.**
    Corrected 2026-09-01. `fetchTikTokMetrics` tries a keyless read of the video
    page's rehydration blob first, and it prefers `statsV2`, so the counts are

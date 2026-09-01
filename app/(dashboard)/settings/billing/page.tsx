@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth";
 import { getOrgEntitlements, hasOrgFeature } from "@/lib/entitlements";
 import { AUDIT_LOG_FEATURE } from "@/lib/featureKeys";
 import { FEATURES, type FeatureKey } from "@/lib/features";
-import { BadgeDollarSign, CheckCircle2, Gauge, Layers3, Users } from "lucide-react";
+import { AudioLines, BadgeDollarSign, CheckCircle2, Gauge, Layers3, Users } from "lucide-react";
 import type { ComponentType } from "react";
 import AuditLogToggleCard from "./AuditLogToggleCard";
 
@@ -15,6 +15,16 @@ function formatLabel(value: string) {
     .filter(Boolean)
     .map((part) => LABEL_ACRONYMS[part.toLowerCase()] ?? part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
+}
+
+/**
+ * Infinity renders as the literal string "Infinity", which reads as a bug.
+ *
+ * Campaigns and creators are unlimited on every tier now, so this is the common
+ * case on this screen rather than an edge one.
+ */
+function formatLimit(value: number): string {
+  return Number.isFinite(value) ? String(value) : "Unlimited";
 }
 
 function limitCard({
@@ -86,10 +96,20 @@ export default async function BillingPage() {
           marginBottom: 20,
         }}
       >
+        {/* Trackers sit alongside the others because they are the one limit that
+            is actually enforced, and this screen is where somebody comes to find
+            out what their plan allows. Campaigns and creators stay listed, said
+            plainly as Unlimited, rather than being dropped: a missing row raises
+            the question of whether there is a hidden cap. */}
         {limitCard({ label: "Plan", value: formatLabel(entitlements.planName), icon: BadgeDollarSign })}
-        {limitCard({ label: "Max campaigns", value: entitlements.limits.maxCampaigns, icon: Gauge })}
-        {limitCard({ label: "Max creators", value: entitlements.limits.maxCreators, icon: Layers3 })}
-        {limitCard({ label: "Max users", value: entitlements.limits.maxUsers, icon: Users })}
+        {limitCard({
+          label: "Tracked sounds",
+          value: formatLimit(entitlements.limits.maxTrackers),
+          icon: AudioLines,
+        })}
+        {limitCard({ label: "Max users", value: formatLimit(entitlements.limits.maxUsers), icon: Users })}
+        {limitCard({ label: "Campaigns", value: formatLimit(entitlements.limits.maxCampaigns), icon: Gauge })}
+        {limitCard({ label: "Creators", value: formatLimit(entitlements.limits.maxCreators), icon: Layers3 })}
       </div>
 
       <div style={{ marginBottom: 20 }}>

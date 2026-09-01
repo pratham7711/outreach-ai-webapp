@@ -20,6 +20,12 @@ things. **If you answer an item here, delete it.**
   `AuditLog` rows exist for invite create/accept/delete.
 - **Confirmation modals.** `ConfirmProvider` is mounted in the dashboard layout;
   no `window.confirm` remains.
+- **Campaign and creator limits.** Answered 2026-09-01: there are none, on any
+  tier. Trackers are the only thing a plan limits (plus seats, which the invite
+  endpoint enforces). `getOrgEntitlements` deliberately ignores the stored
+  `OrgPlanConfig.maxCampaigns`/`maxCreators` columns rather than reading them —
+  they default to 10/100 in the schema, so honouring them would reinstate a cap
+  nobody chose.
 - **TikTok post metrics.** They sync, and always did — a keyless read of the
   video page, preferring `statsV2`, so the figures are exact. The old worry that
   TikTok counts were frozen came from `lib/capabilities.ts` gating them on the
@@ -36,37 +42,19 @@ Change the password, or disable the account and keep a private way in? This is
 the one item on this list with a security edge, and it wants deciding before the
 URL goes to anyone outside the team.
 
-### 2. Should `maxCampaigns` and `maxCreators` be enforced, or stopped being shown?
-Today they are reported by `/api/tenant/config` and rendered in the UI, and
-nothing refuses the twenty-first campaign. Only `maxUsers` (invite seats) and
-`maxTrackers` are actually checked.
-
-The numbers, verified in `lib/plans.ts` rather than remembered: a fresh signup
-gets `plan: "starter"` with no `OrgPlanConfig` row, so it falls back to the code
-defaults — **20 campaigns, 500 creators, 5 users, 25 trackers**. The demo org is
-not representative: it carries an explicit `OrgPlanConfig` (`pro`, 50/500/10),
-which is why reading limits off demo gives different figures.
-
-500 creators is generous. **20 campaigns is not** — demo alone holds 551, so an
-agency of any age would pass it. Enforcing as-is would wall LKay Media early;
-displaying a limit nothing enforces means the first person to notice discovers
-the app does not mean what it says. So: raise the starter campaign ceiling *and*
-enforce, or stop displaying what is not enforced. Either is fine; drifting is
-not.
-
-### 3. Plan pricing
+### 2. Plan pricing
 `Plan` still has no price field, and no billing is wired. Is this permanently
 feature-gating only, or is a billing integration coming? It changes whether
 `Plan` needs money on it at all.
 
-### 4. Who may manage plans
+### 3. Who may manage plans
 `/plans` and `/api/plans` have no role check — any authenticated member of the
 org can create and assign plans. `lib/rbac.ts` already has the vocabulary
 (`OWNER`, `ADMIN`, `MANAGER`, `MEMBER`, `VIEWER`). Should plan management be
 OWNER/ADMIN only? Probably yes; it is left open because it is a product rule, not
 an oversight to be quietly patched.
 
-### 5. Override persistence on plan change
+### 4. Override persistence on plan change
 When a client's plan changes, existing per-client `featureOverrides` are
 preserved. Should a plan change clear them instead? Carried over from the old
 file because it is still true and still undecided.

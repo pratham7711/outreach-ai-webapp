@@ -5,27 +5,27 @@ describe("PLANS config", () => {
     expect(Object.keys(PLANS)).toEqual(["free", "starter", "pro", "enterprise"]);
   });
 
-  it("free plan has correct limits", () => {
-    expect(PLANS.free.max_campaigns).toBe(3);
-    expect(PLANS.free.max_creators).toBe(50);
+  it("leaves campaigns and creators uncapped on every tier", () => {
+    /* Trackers are the only thing a plan limits. The lower tiers used to carry
+       3/50 and 20/500, and nothing ever enforced either number -- it was shown
+       on the billing screen and the next campaign was created anyway. */
+    for (const plan of Object.keys(PLANS) as PlanName[]) {
+      expect(PLANS[plan].max_campaigns).toBe(Infinity);
+      expect(PLANS[plan].max_creators).toBe(Infinity);
+    }
+  });
+
+  it("keeps seats and trackers real and rising by tier", () => {
+    /* The two limits that mean something: a seat is a person who can invite
+       more people, and a tracker is a recurring fetch on a schedule. */
     expect(PLANS.free.max_users).toBe(2);
-  });
-
-  it("starter plan has correct limits", () => {
-    expect(PLANS.starter.max_campaigns).toBe(20);
-    expect(PLANS.starter.max_creators).toBe(500);
     expect(PLANS.starter.max_users).toBe(5);
-  });
-
-  it("pro plan has unlimited campaigns and creators", () => {
-    expect(PLANS.pro.max_campaigns).toBe(Infinity);
-    expect(PLANS.pro.max_creators).toBe(Infinity);
-  });
-
-  it("enterprise plan has unlimited everything", () => {
-    expect(PLANS.enterprise.max_campaigns).toBe(Infinity);
-    expect(PLANS.enterprise.max_creators).toBe(Infinity);
     expect(PLANS.enterprise.max_users).toBe(Infinity);
+
+    expect(PLANS.free.max_trackers).toBe(3);
+    expect(PLANS.starter.max_trackers).toBe(25);
+    expect(PLANS.pro.max_trackers).toBe(200);
+    expect(PLANS.enterprise.max_trackers).toBe(Infinity);
   });
 
   it("every plan includes 'campaigns' feature", () => {

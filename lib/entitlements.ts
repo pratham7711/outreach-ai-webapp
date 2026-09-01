@@ -91,8 +91,18 @@ export async function getOrgEntitlements(orgId: string): Promise<OrgEntitlements
     features: featureMapToList(featureMap),
     featureMap,
     limits: {
-      maxCampaigns: org.planConfig?.maxCampaigns ?? fallbackPlan.max_campaigns,
-      maxCreators: org.planConfig?.maxCreators ?? fallbackPlan.max_creators,
+      /* Unlimited, and NOT read from planConfig — see lib/plans.ts for why
+         campaigns and creators are not capped at all.
+         Ignoring the stored column is the point rather than an oversight.
+         OrgPlanConfig.maxCampaigns defaults to 10 and maxCreators to 100 in the
+         schema, so any org that has ever had a plan configured carries a small
+         number in those columns whether anyone chose it or not — production's
+         demo org holds 50/500 that way. Honouring them would quietly reinstate
+         a cap the plan tiers no longer describe. The columns stay because
+         production was built with `db push` and has no migrations table; they
+         are simply no longer read. */
+      maxCampaigns: Infinity,
+      maxCreators: Infinity,
       maxUsers: org.planConfig?.maxUsers ?? fallbackPlan.max_users,
       maxTrackers: org.planConfig?.maxTrackers ?? fallbackPlan.max_trackers,
     },
