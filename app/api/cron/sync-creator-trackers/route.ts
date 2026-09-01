@@ -8,6 +8,14 @@ import { createLogger } from "@/lib/observability/logger";
    browser path, as the sound sweep's is. */
 export const maxDuration = 300;
 export const runtime = "nodejs";
+/* iad1, overriding the project's sin1 -- deliberately, and only here. TikTok
+   treats regions differently per endpoint: music/detail answers sin1 and
+   refuses iad1 (statusCode 10203), while profile pages serve sin1 a 1.4KB WAF
+   login shell and serve iad1 the full server-rendered page (verified both ways
+   -- sandbox fetch from iad1, diagnostic route from sin1). Sounds therefore
+   stay on the project default; creators read from where their pages answer. */
+export const preferredRegion = "iad1";
+
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
