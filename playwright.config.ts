@@ -21,7 +21,16 @@ export default defineConfig({
     baseURL: process.env.E2E_BASE_URL || 'http://localhost:3009',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
-    video: 'retain-on-failure',
+    /* No video, deliberately. Recording is the one feature that needs
+       Playwright's BUNDLED ffmpeg helper, and every project below sets
+       channel: 'chrome' precisely so this suite runs against system Chrome with
+       no managed download at all -- so asking for a managed binary contradicts
+       the choice the rest of the file makes. It failed loudly rather than
+       degrading: browserContext.newPage() threw "Executable doesn't exist at
+       ms-playwright/ffmpeg-1011/ffmpeg-mac" for every spec that opens a page,
+       ~120ms each, which read as 130 broken specs instead of one missing
+       binary. Traces embed screenshots and screenshot:'only-on-failure'
+       remains, so failure diagnostics are unchanged. */
     actionTimeout: 30000,
     navigationTimeout: 60000,
   },

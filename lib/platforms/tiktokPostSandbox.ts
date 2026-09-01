@@ -98,6 +98,12 @@ type Lane = {
 export function openSandboxPostPool(size: number): SandboxPostFetcher {
   const log = createLogger({ context: { platform: "TIKTOK", via: "sandbox-pool" } });
   const laneCount = Math.max(0, size);
+  /* How many different addresses one post is worth before we accept the answer.
+     Three because the wall is probabilistic per address, not per post: at the
+     ~25% pass rate the direct egress sees, three independent addresses miss
+     together about 4% of the time, and each extra attempt costs a paced slot
+     that another post is waiting for. */
+  const maxAttempts = envInt("TIKTOK_SANDBOX_MAX_ATTEMPTS", 3);
 
   const lanes: Lane[] = Array.from({ length: laneCount }, (_, i) => ({
     label: `lane-${i}`,
@@ -132,15 +138,79 @@ export function openSandboxPostPool(size: number): SandboxPostFetcher {
     return lane.sandbox;
   };
 
-  /** Round robin, skipping lanes that are dead or backing off. */
-  const pick = (): Lane | null => {
+  /** Round robin, skipping lanes that are dead, backing off, or already spent
+   *  on this post -- a retry is worth something only on a different address. */
+  const pick = (exclude?: Set<string>): Lane | null => {
     for (let i = 0; i < lanes.length; i++) {
       const lane = lanes[(cursor + i) % lanes.length];
       if (lane.dead || lane.gate.isOpen()) continue;
+      if (exclude?.has(lane.label)) continue;
       cursor = (cursor + i + 1) % lanes.length;
       return lane;
     }
     return null;
+  };
+
+  /** One read on one lane. Null means THIS LANE failed, not that the post is
+   *  unreadable -- the caller decides whether another address is worth trying. */
+  const attemptOn = async (lane: Lane, url: string): Promise<TikTokPostLookup | null> => {
+    // Paces this address only. Other lanes are unaffected by this wait.
+    if (!(await lane.gate.acquire())) return null;
+
+    try {
+      const sandbox = await boot(lane);
+      const result = await sandbox.runCommand(
+        "curl",
+        [
+          "-sL",
+          "--max-time",
+          "20",
+          "-A",
+          UA,
+          "-H",
+          "accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+          "-H",
+          "accept-language: en-US,en;q=0.9",
+          url,
+        ],
+        { timeoutMs: 30_000 }
+      );
+      const stdout: string =
+        typeof (result as any).stdout === "function"
+          ? await (result as any).stdout()
+          : (result as any).stdout;
+
+      if (!stdout) {
+        lane.gate.recordBlocked();
+        log.warn("sandbox curl returned nothing", { lane: lane.label, url });
+        return null;
+      }
+
+      const lookup = readTikTokPostHtml(stdout);
+      /* "Answered but unparseable" is the WAF shell reaching this lane too --
+         the early warning that this address is being walled. A deleted post is
+         a real answer and must not count against it. */
+      if (lookup.state === "unavailable") lane.gate.recordChallenged();
+      else lane.gate.recordSuccess();
+      return lookup;
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      /* A failure before this lane ever booted will repeat for every post sent
+         to it, so retire the lane rather than making each post pay the boot
+         timeout. The pool carries on with the rest. */
+      if (!lane.sandbox) {
+        lane.dead = true;
+        log.error("lane could not boot; retiring it for this run", {
+          lane: lane.label,
+          region: lane.region,
+          error: message,
+        });
+      } else {
+        lane.gate.recordBlocked();
+        log.warn("sandbox read failed", { lane: lane.label, url, error: message });
+      }
+      return null;
+    }
   };
 
   return {
@@ -149,66 +219,53 @@ export function openSandboxPostPool(size: number): SandboxPostFetcher {
     },
 
     async readPost(url) {
-      const lane = pick();
-      if (!lane) return null;
+      /* Ask a different address before giving up on the post.
+       *
+       * A wall is a fact about one IP at one moment, not about the post: the
+       * same URL that returns the Slardar shell to one lane returns the full
+       * page to the next, which is the whole premise of holding several. A
+       * single attempt threw that away and reported the post unmeasurable.
+       *
+       * Bounded three ways, because "retry until it works" against a WAF is how
+       * a refresh turns into an infinite loop: a fixed attempt budget, a lane
+       * set that each attempt removes from (so attempts cannot exceed the
+       * number of addresses we hold), and pick() refusing lanes whose breaker
+       * has latched. There is no path here that revisits an address. */
+      const tried = new Set<string>();
+      const budget = Math.min(maxAttempts, lanes.length);
+      let walled: TikTokPostLookup | null = null;
+      let asked = 0;
 
-      // Paces this address only. Other lanes are unaffected by this wait.
-      if (!(await lane.gate.acquire())) return null;
+      /* Bounded by `tried` before it is bounded by anything else: pick() refuses
+         a lane already in the set and the set gains exactly one lane per turn,
+         so this cannot run more times than there are lanes no matter what any
+         counter does. The budget below is the tighter of the two limits, not
+         the only one. */
+      while (asked < budget) {
+        const lane = pick(tried);
+        if (!lane) break; // every remaining lane is dead, tried, or backing off
+        tried.add(lane.label);
 
-      try {
-        const sandbox = await boot(lane);
-        const result = await sandbox.runCommand(
-          "curl",
-          [
-            "-sL",
-            "--max-time",
-            "20",
-            "-A",
-            UA,
-            "-H",
-            "accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            "-H",
-            "accept-language: en-US,en;q=0.9",
-            url,
-          ],
-          { timeoutMs: 30_000 }
-        );
-        const stdout: string =
-          typeof (result as any).stdout === "function"
-            ? await (result as any).stdout()
-            : (result as any).stdout;
-
-        if (!stdout) {
-          lane.gate.recordBlocked();
-          log.warn("sandbox curl returned nothing", { lane: lane.label, url });
-          return null;
+        const lookup = await attemptOn(lane, url);
+        if (lookup === null) {
+          /* A lane that could not boot never asked TikTok anything, so it must
+             not spend the post's attempts -- three failed boots would otherwise
+             exhaust the budget and the healthy lane behind them would never be
+             tried at all. Any other failure did reach the wire and counts. */
+          if (!lane.dead) asked++;
+          continue;
         }
-
-        const lookup = readTikTokPostHtml(stdout);
-        /* "Answered but unparseable" is the WAF shell reaching this lane too --
-           the early warning that this address is being walled. A deleted post is
-           a real answer and must not count against it. */
-        if (lookup.state === "unavailable") lane.gate.recordChallenged();
-        else lane.gate.recordSuccess();
-        return lookup;
-      } catch (e) {
-        const message = e instanceof Error ? e.message : String(e);
-        /* A failure before this lane ever booted will repeat for every post sent
-           to it, so retire the lane rather than making each post pay the boot
-           timeout. The pool carries on with the rest. */
-        if (!lane.sandbox) {
-          lane.dead = true;
-          log.error("lane could not boot; retiring it for this run", {
-            lane: lane.label,
-            region: lane.region,
-            error: message,
-          });
-        } else {
-          lane.gate.recordBlocked();
-          log.warn("sandbox read failed", { lane: lane.label, url, error: message });
-        }
-        return null;
+        asked++;
+        /* Live or deleted is TikTok actually answering about this post. Both are
+           final -- re-asking a deleted post from five addresses gets five
+           identical answers and costs five slots that other posts needed. */
+        if (lookup.state !== "unavailable") return lookup;
+        walled = lookup;
       }
+
+      /* Walled everywhere we tried, or no lane was available. Either way the
+         caller still gets its turn at the direct egress. */
+      return walled;
     },
 
     async close() {

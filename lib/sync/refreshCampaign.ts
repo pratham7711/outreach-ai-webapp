@@ -65,6 +65,38 @@ const LANE_TARGET_SECONDS = 35;
     than the fetch it reports on. */
 const PROGRESS_EVERY = 5;
 
+/**
+ * Which failures are worth asking again about.
+ *
+ * The distinction is between an answer about the POST and an answer about the
+ * MOMENT. A wall, a latched breaker, a 429, a thrown request -- those say
+ * something about the address we asked from and when; a different lane a few
+ * seconds later frequently gets the page. That is the entire reason a run can
+ * measure 80 of 88 and find nothing wrong with the other eight.
+ *
+ * Everything NOT listed here is settled and must never be retried, which is the
+ * half that keeps this bounded: "post-deleted" and "unrecognised-url" would
+ * return the identical answer from every address forever, and a retry loop that
+ * cannot tell those apart from a wall is a loop that never ends. Absent by
+ * design: post-deleted, no-counts-published, unrecognised-url, not-configured.
+ */
+const RETRYABLE_REASONS = new Set([
+  "platform-challenged",
+  "backing-off",
+  "platform-refused",
+  "error",
+]);
+
+/**
+ * A hard cap on sweeps, on top of the queue-must-shrink rule.
+ *
+ * Three because the value is almost entirely in the second pass -- it re-asks
+ * from lanes that were not the ones that failed -- and a third only mops up
+ * posts whose lane latched mid-run. A fourth has nothing left to route around,
+ * and every round is deadline the next campaign's refresh is waiting on.
+ */
+const MAX_ROUNDS = 3;
+
 export type RefreshTally = {
   runId: string;
   total: number;
@@ -164,70 +196,142 @@ export async function refreshCampaign(input: {
   }
 
   const deadline = Date.now() + DEADLINE_MS;
-  let measured = 0;
-  let noMetrics = 0;
-  let unfetchable = 0;
-  let failed = 0;
-  let completed = 0;
-  const reasons: Record<string, number> = {};
-  const note = (reason: string) => {
-    reasons[reason] = (reasons[reason] ?? 0) + 1;
+
+  /* One entry per post, overwritten rather than appended to.
+     A post that is walled in round one and measured in round two is ONE post
+     with one outcome, and the counters used to be incremented per attempt --
+     which with retries in play would report 94 results for 88 posts and a
+     "measured" count the totals do not add up to. The map is what makes the
+     summary a statement about posts instead of about attempts. */
+  type PostResult =
+    | { status: "measured" }
+    | { status: "no-metrics"; reason: string }
+    | { status: "unfetchable"; reason: string }
+    | { status: "failed"; reason: string };
+  const results = new Map<string, PostResult>();
+
+  const tally = () => {
+    let measured = 0;
+    let noMetrics = 0;
+    let unfetchable = 0;
+    let failed = 0;
+    const reasons: Record<string, number> = {};
+    for (const r of results.values()) {
+      if (r.status === "measured") {
+        measured++;
+        continue;
+      }
+      if (r.status === "no-metrics") noMetrics++;
+      else if (r.status === "unfetchable") unfetchable++;
+      else failed++;
+      reasons[r.reason] = (reasons[r.reason] ?? 0) + 1;
+    }
+    return { measured, noMetrics, unfetchable, failed, reasons };
   };
 
   try {
-    let next = 0;
-    let lastWritten = 0;
-    const worker = async () => {
-      while (next < posts.length) {
-        if (Date.now() > deadline) return;
-        const post = posts[next++];
-        try {
-          /* countsOnly: this run exists to move numbers. Spending a paced slot
-             on a metadata-only fallback costs the post behind it its turn. */
-          const outcome = await syncPost(post, orgId, { countsOnly: true, tiktokSandbox });
-          if (outcome.status === "measured") measured++;
-          else if (outcome.status === "no-metrics") {
-            noMetrics++;
-            note(outcome.reason);
-          } else {
-            unfetchable++;
-            note(outcome.reason);
-          }
-        } catch (error) {
-          // One bad post does not abandon the rest of the campaign.
-          failed++;
-          note("error");
-          log.error("post refresh failed", {
-            postId: post.id,
-            error: error instanceof Error ? error.message : String(error),
-          });
-        }
-        completed++;
+    let sinceWrite = 0;
 
-        if (completed - lastWritten >= PROGRESS_EVERY) {
-          lastWritten = completed;
-          await db.campaignRefreshRun
-            .update({
-              where: { id: run.id },
-              data: { completed, measured, noMetrics, unfetchable, failed },
-            })
-            .catch(() => {
-              /* Progress is a nicety. Losing a tick must not lose the run. */
+    const runPass = async (batch: typeof posts) => {
+      let next = 0;
+      const worker = async () => {
+        while (next < batch.length) {
+          if (Date.now() > deadline) return;
+          const post = batch[next++];
+          let result: PostResult;
+          try {
+            /* countsOnly: this run exists to move numbers. Spending a paced slot
+               on a metadata-only fallback costs the post behind it its turn. */
+            const outcome = await syncPost(post, orgId, { countsOnly: true, tiktokSandbox });
+            result =
+              outcome.status === "measured"
+                ? { status: "measured" }
+                : { status: outcome.status, reason: outcome.reason };
+          } catch (error) {
+            // One bad post does not abandon the rest of the campaign.
+            result = { status: "failed", reason: "error" };
+            log.error("post refresh failed", {
+              postId: post.id,
+              error: error instanceof Error ? error.message : String(error),
             });
+          }
+          results.set(post.id, result);
+
+          /* Counted in attempts, not in map size, so the later rounds report
+             progress too -- their whole job is to move posts from unmeasured to
+             measured without the completed count changing at all. */
+          if (++sinceWrite >= PROGRESS_EVERY) {
+            sinceWrite = 0;
+            const { measured, noMetrics, unfetchable, failed } = tally();
+            await db.campaignRefreshRun
+              .update({
+                where: { id: run.id },
+                data: { completed: results.size, measured, noMetrics, unfetchable, failed },
+              })
+              .catch(() => {
+                /* Progress is a nicety. Losing a tick must not lose the run. */
+              });
+          }
         }
-      }
+      };
+      /* One worker per lane, so every lane is busy and none is contended. Without
+         a pool this falls back to the fixed concurrency. */
+      const workers = Math.min(
+        Math.max(CONCURRENCY, tiktokSandbox?.size ?? 0),
+        batch.length,
+      );
+      await Promise.all(Array.from({ length: workers }, () => worker()));
     };
-    /* One worker per lane, so every lane is busy and none is contended. Without
-       a pool this falls back to the fixed concurrency. */
-    const workers = Math.min(
-      Math.max(CONCURRENCY, tiktokSandbox?.size ?? 0),
-      posts.length,
-    );
-    await Promise.all(Array.from({ length: workers }, () => worker()));
+
+    /* Sweep the campaign, then sweep what the first sweep could not measure.
+     *
+     * A refusal is mostly a fact about a moment and an address, not about the
+     * post: the run that measured 80 of 88 did not find eight bad posts, it
+     * found eight posts whose turn came up while a lane was walled or its
+     * breaker was latched. Those are exactly the ones a later pass gets, because
+     * by then the pool is routing around the lane that failed them.
+     *
+     * The termination argument, which matters more than the retry:
+     *   - the queue is rebuilt each round from the previous round's failures, so
+     *     it can only shrink;
+     *   - a round that shrinks it by nothing ends the loop, because every lane
+     *     is walled or latched and asking the same wall again only spends the
+     *     deadline;
+     *   - only transient reasons are eligible at all, so a deleted post leaves
+     *     the queue after its first answer and never returns;
+     *   - MAX_ROUNDS caps it regardless;
+     *   - and every worker re-checks the deadline before claiming a post.
+     * Any one of those alone terminates. "Retry until it works" against a WAF
+     * is how a refresh becomes an infinite loop, and none of these depend on
+     * TikTok eventually cooperating. */
+    let queue = posts;
+    for (let round = 1; round <= MAX_ROUNDS && queue.length > 0; round++) {
+      if (Date.now() > deadline) break;
+      if (round > 1) {
+        log.info("retrying what a transient refusal left unmeasured", {
+          round,
+          posts: queue.length,
+        });
+      }
+
+      await runPass(queue);
+
+      const again = queue.filter((post) => {
+        const r = results.get(post.id);
+        if (!r) return true; // never got its turn before the deadline
+        if (r.status === "measured") return false;
+        return RETRYABLE_REASONS.has(r.reason);
+      });
+      if (again.length >= queue.length) break;
+      queue = again;
+    }
+
+    const { measured, noMetrics, unfetchable, failed, reasons } = tally();
+    const completed = results.size;
 
     // Counted from what finished rather than from the cursor, so a post claimed
     // as the deadline passed is reported as left over, not as done.
-    const remaining = posts.length - (measured + noMetrics + unfetchable + failed);
+    const remaining = posts.length - completed;
     if (remaining > 0) log.warn("time budget reached; stopping early", { remaining });
 
     // The campaign's audio is part of "the campaign's data", and it comes from
