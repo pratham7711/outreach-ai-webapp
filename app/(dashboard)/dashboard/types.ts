@@ -28,6 +28,9 @@ export type PerformanceData = {
     creatorId: string;
     name: string;
     handle: string;
+    /* Two rows can share a handle across platforms; without this the table
+       cannot tell them apart. Null only when the creator row has gone. */
+    platform: string | null;
     activationCount: number;
     views: number;
     avgEngagement: number;

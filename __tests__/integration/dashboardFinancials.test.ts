@@ -83,7 +83,7 @@ describe("GET /api/dashboard/financials", () => {
         { creatorId: "c1", _sum: { viewsCount: 10000 }, _avg: { engagementRate: 5 }, _count: { _all: 1 } },
       ]);
     mockDb.creator.findMany.mockResolvedValue([
-      { id: "c1", name: "Creator One", handle: "creator1", _count: { activations: 1 } },
+      { id: "c1", name: "Creator One", handle: "creator1", platform: "TIKTOK", _count: { activations: 1 } },
     ]);
     mockDb.post.findMany.mockResolvedValue([
       {
@@ -106,6 +106,11 @@ describe("GET /api/dashboard/financials", () => {
     ]);
     expect(body.platformBreakdown).toEqual([{ platform: "TIKTOK", views: 10000, postsCount: 1 }]);
     expect(body.creatorPerformance[0]).toMatchObject({ name: "Creator One", views: 10000 });
+    /* The handle alone does not identify a creator. Production holds 22 handles
+       that exist on both TikTok and Instagram -- two real accounts, two rows --
+       and a table without the platform shows them as one creator listed twice.
+       That misreading is what this field exists to prevent. */
+    expect(body.creatorPerformance[0].platform).toBe("TIKTOK");
     expect(body.topPosts[0]).toMatchObject({ id: "post-1", viewsCount: 10000 });
   });
 

@@ -213,7 +213,15 @@ export function PerformanceSection({
                     <TableRow key={c.creatorId}>
                       <TableCell>
                         <div className="font-semibold text-foreground">{c.name}</div>
-                        <div className="text-xs text-muted-foreground">@{stripAt(c.handle)}</div>
+                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                          <span>@{stripAt(c.handle)}</span>
+                          {/* Same handle, different platform, different person's
+                              account -- and two rows here that look identical
+                              without it. */}
+                          {c.platform ? (
+                            <Badge variant="neutral" size="sm">{c.platform}</Badge>
+                          ) : null}
+                        </div>
                       </TableCell>
                       <TableCell className="text-right text-muted-foreground tabular-nums">
                         {c.activationCount}

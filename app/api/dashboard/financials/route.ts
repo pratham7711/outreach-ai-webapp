@@ -208,7 +208,16 @@ export async function GET(req: NextRequest) {
     const creatorRows = creatorIds.length
       ? await db.creator.findMany({
           where: { id: { in: creatorIds } },
-          select: { id: true, name: true, handle: true, _count: { select: { activations: true } } },
+          /* platform is not decoration. One person's TikTok and Instagram
+             accounts are two Creator rows with the SAME handle -- there is no
+             unique constraint on (orgId, handle) and there should not be -- so
+             a table showing only "@handle" lists them twice and reads as a
+             duplicated record. It fooled me during a review of this very
+             page. */
+          select: {
+            id: true, name: true, handle: true, platform: true,
+            _count: { select: { activations: true } },
+          },
         })
       : [];
     const creatorById = new Map(creatorRows.map((c) => [c.id, c]));
@@ -219,6 +228,7 @@ export async function GET(req: NextRequest) {
         creatorId: c.creatorId,
         name: creator?.name ?? "Unknown",
         handle: creator?.handle ?? "",
+        platform: creator?.platform ?? null,
         activationCount: creator?._count.activations ?? 0,
         views: c._sum.viewsCount ?? 0,
         avgEngagement: Math.round((c._avg.engagementRate ?? 0) * 100) / 100,
