@@ -63,12 +63,14 @@ export default function TeamClient({
 
   const pendingInvites = invites.filter((i) => i.status !== "accepted");
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
+  const [resendingId, setResendingId] = useState<string | null>(null);
+  const [resentId, setResentId] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
-  /* No email is sent when an invite is created, so without this the token was
-     generated, stored, and shown to nobody — the invited person received
-     nothing at all and the row sat there until it expired. Copying the link by
-     hand is the honest interim: it is how the invite actually reaches someone
-     until the mail path is wired up. */
+  /* An invite is emailed on creation now, so this is the fallback rather than
+     the delivery mechanism: it covers a provider outage, an invite created
+     before the mail path existed, and the case where someone simply wants to
+     paste the link into a DM. */
   const copyInviteLink = async (token: string) => {
     const url = `${window.location.origin}/accept-invite?token=${encodeURIComponent(token)}`;
     try {
@@ -94,6 +96,15 @@ export default function TeamClient({
         setError(data.error ?? "Failed to send invite");
         return;
       }
+      /* Say which of the two things happened. "Invite sent" when nothing was
+         sent is the failure the copy-link button existed to work around, and
+         silently succeeding would put us straight back there. */
+      const data = await res.json().catch(() => ({}));
+      setNotice(
+        data?.emailed
+          ? `Invite emailed to ${inviteEmail}.`
+          : `Invite created for ${inviteEmail}, but the email could not be sent. Use Link to copy it and send it yourself.`
+      );
       setShowModal(false);
       setInviteEmail("");
       setInviteRole("MEMBER");
@@ -102,6 +113,26 @@ export default function TeamClient({
       setError("Network error");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleResend(id: string, email: string) {
+    setNotice(null);
+    setResendingId(id);
+    try {
+      const res = await fetch(`/api/invites/${id}/resend`, { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setNotice(data?.error ?? "Could not resend the invite.");
+        return;
+      }
+      setResentId(id);
+      setNotice(`Invite re-sent to ${email}.`);
+      setTimeout(() => setResentId(null), 2500);
+    } catch {
+      setNotice("Network error while resending.");
+    } finally {
+      setResendingId(null);
     }
   }
 
@@ -255,6 +286,31 @@ export default function TeamClient({
         )}
       </Card>
 
+      {/* Whether the mail actually left is the one thing the person clicking
+          Invite cannot see for themselves, so it is said here rather than
+          assumed. Dismissible: it is confirmation, not an error to be cleared
+          by reloading. */}
+      {notice && (
+        <div
+          role="status"
+          style={{
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            gap: 12, margin: "0 0 16px", padding: "10px 14px",
+            background: "var(--cc-card)", border: "1px solid var(--cc-border)",
+            borderRadius: 8, fontSize: 13, color: "var(--cc-text)",
+          }}
+        >
+          <span>{notice}</span>
+          <button
+            onClick={() => setNotice(null)}
+            aria-label="Dismiss"
+            style={{ background: "none", border: "none", cursor: "pointer", color: "var(--cc-text-muted)", fontSize: 13, fontWeight: 600 }}
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
       {/* Pending Invites Table */}
       {pendingInvites.length > 0 && (
         <Card variant="solid" noPadding>
@@ -262,17 +318,20 @@ export default function TeamClient({
             <span style={{ fontWeight: 700, fontSize: 14, color: "var(--cc-text)" }}>Pending Invites</span>
           </div>
           <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
-            <div style={{ minWidth: 640 }}>
+            <div style={{ minWidth: 740 }}>
             {/* Table header */}
             <div style={{
               display: "grid",
-              gridTemplateColumns: "1fr 100px 120px 120px 80px 70px 60px",
+              gridTemplateColumns: "1fr 100px 120px 120px 80px 70px 85px 60px",
               padding: "10px 24px",
               borderBottom: "1px solid var(--cc-border)",
               gap: 16,
             }}>
-              {["Email", "Role", "Sent", "Expires", "Status", ""].map((h) => (
-                <span key={h} style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", color: "var(--cc-text-muted)" }}>
+              {/* One entry per grid column; the three trailing blanks are the
+                  Link, Resend and Cancel action cells. Indexed keys because
+                  several labels are empty and would collide as keys. */}
+              {["Email", "Role", "Sent", "Expires", "Status", "", "", ""].map((h, i) => (
+                <span key={i} style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", color: "var(--cc-text-muted)" }}>
                   {h}
                 </span>
               ))}
@@ -286,7 +345,7 @@ export default function TeamClient({
                   className="cc-table-row"
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "1fr 100px 120px 120px 80px 70px 60px",
+                    gridTemplateColumns: "1fr 100px 120px 120px 80px 70px 85px 60px",
                     padding: "12px 24px",
                     alignItems: "center",
                     borderBottom: "1px solid var(--cc-border)",
@@ -319,6 +378,25 @@ export default function TeamClient({
                     >
                       {copiedToken === invite.token ? <Check size={14} /> : <LinkIcon size={14} />}
                       {copiedToken === invite.token ? "Copied" : "Link"}
+                    </button>
+                  ) : <span />}
+                  {invite.status === "pending" ? (
+                    <button
+                      onClick={() => handleResend(invite.id, invite.email)}
+                      disabled={resendingId === invite.id}
+                      aria-label={`Resend invite email to ${invite.email}`}
+                      title="Send the invite email again"
+                      style={{
+                        background: "none", border: "none",
+                        cursor: resendingId === invite.id ? "wait" : "pointer",
+                        color: resentId === invite.id ? "var(--cc-success)" : "var(--cc-primary)",
+                        padding: 4, borderRadius: 6, display: "flex", alignItems: "center",
+                        fontSize: 12, fontWeight: 600, gap: 4,
+                        opacity: resendingId === invite.id ? 0.6 : 1,
+                      }}
+                    >
+                      {resentId === invite.id ? <Check size={14} /> : <Mail size={14} />}
+                      {resentId === invite.id ? "Sent" : resendingId === invite.id ? "Sending" : "Resend"}
                     </button>
                   ) : <span />}
                   <button

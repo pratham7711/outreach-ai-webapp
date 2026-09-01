@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { createAuditActor, logAudit } from "@/lib/audit";
 import { getOrgEntitlements } from "@/lib/entitlements";
 import { getRequestIp } from "@/lib/request";
+import { sendInviteEmail } from "@/lib/inviteEmail";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const VALID_ROLES = ["OWNER", "ADMIN", "MANAGER", "MEMBER", "VIEWER"] as const;
@@ -136,7 +137,28 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json(invite, { status: 201 });
+    /* The invite row is the source of truth; the mail is best-effort delivery
+       of it. A provider outage must not lose an invitation that is already
+       written and already audited, so a failed send is reported rather than
+       thrown -- the Team screen falls back to "copy link" when emailed is
+       false, which is exactly what everyone did before this existed. */
+    const origin =
+      process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || request.nextUrl.origin;
+    const org = await db.organization.findUnique({
+      where: { id: orgId },
+      select: { name: true, brandName: true },
+    });
+    const sent = await sendInviteEmail({
+      to: invite.email,
+      orgName: org?.brandName || org?.name || "the team",
+      role: invite.role,
+      token: invite.token,
+      origin,
+      expiresAt: invite.expiresAt,
+      invitedByEmail: session.user.email ?? null,
+    });
+
+    return NextResponse.json({ ...invite, emailed: sent.sent }, { status: 201 });
   } catch (error) {
     console.error("Failed to create invite:", error);
     return NextResponse.json({ error: "Failed to create invite" }, { status: 500 });
