@@ -3,7 +3,7 @@ import type { Prisma } from "@/lib/generated/prisma";
 import { createLogger } from "@/lib/observability/logger";
 import { velocityBetween } from "@/lib/trackers/metrics";
 import { isDueForRead, parseGranularity, DEFAULT_GRANULARITY } from "@/lib/trackers/granularity";
-import { readCreatorProfile, type CreatorReadResult } from "@/lib/platforms/creatorProfile";
+import { readCreatorProfile, type CreatorReadResult, type TopPost } from "@/lib/platforms/creatorProfile";
 import { readTikTokTopPostsOfficial } from "@/lib/platforms/tiktokTopPostsOfficial";
 import { readTopPostsFromCampaigns } from "./topPostsFromCampaigns";
 import type { TikTokPostsRead } from "@/lib/platforms/tiktokTopPostsBrowser";
@@ -55,6 +55,48 @@ function postsAreStaleFor(creator: { topPostsAt: Date | null }): boolean {
   return (
     !creator.topPostsAt || Date.now() - creator.topPostsAt.getTime() > TOP_POSTS_MAX_AGE_MS
   );
+}
+
+/** The posts ladder without the browser rung: one official-API call for a
+ *  connected TikTok creator, then the posts this workspace already tracks.
+ *  Cheap enough to run on paths where the follower read did not happen, which
+ *  matters because Top Posts keep their own (much slower) cadence -- gating
+ *  them behind the follower cadence meant a creator read 20 minutes ago could
+ *  not get posts for another whole period. */
+async function readPostsWithoutBrowser(creator: {
+  id: string;
+  orgId: string;
+  handle: string;
+  platform: string;
+}): Promise<{ topPosts: TopPost[]; source: "platform" | "campaigns" } | null> {
+  if (creator.platform === "TIKTOK") {
+    const official = await readTikTokTopPostsOfficial(creator.id, creator.orgId, creator.handle).catch(
+      () => null
+    );
+    if (official?.topPosts.length) return { topPosts: official.topPosts, source: "platform" };
+  }
+  const fromCampaigns = await readTopPostsFromCampaigns(creator.id).catch(() => null);
+  if (fromCampaigns?.topPosts.length) {
+    return { topPosts: fromCampaigns.topPosts, source: "campaigns" };
+  }
+  return null;
+}
+
+/** Writes only the posts columns, for the paths where no snapshot was taken. */
+async function storeTopPostsOnly(
+  creatorId: string,
+  read: { topPosts: TopPost[]; source: "platform" | "campaigns" }
+): Promise<void> {
+  await db.creator
+    .update({
+      where: { id: creatorId },
+      data: {
+        topPosts: read.topPosts as unknown as Prisma.InputJsonValue,
+        topPostsAt: new Date(),
+        topPostsSource: read.source,
+      },
+    })
+    .catch(() => {});
 }
 
 export async function snapshotCreators(
@@ -137,6 +179,10 @@ export async function snapshotCreators(
        a plateau that never happened. */
     if (!isDueForRead(previous?.recordedAt ?? null, cadence, now)) {
       skipped++;
+      if (!dryRun && postsAreStaleFor(creator)) {
+        const read = await readPostsWithoutBrowser(creator);
+        if (read) await storeTopPostsOnly(creator.id, read);
+      }
       continue;
     }
 
@@ -225,9 +271,7 @@ export async function snapshotCreators(
          here too, on its own cadence, without pretending the follower read
          succeeded. */
       const salvaged =
-        postsAreStaleFor(creator) && !dryRun
-          ? await readTopPostsFromCampaigns(creator.id).catch(() => null)
-          : null;
+        postsAreStaleFor(creator) && !dryRun ? await readPostsWithoutBrowser(creator) : null;
 
       /* Stamped even though no snapshot exists, so the UI can tell "we tried and
          this account cannot be read" from "we have not got to it yet". */
@@ -239,11 +283,11 @@ export async function snapshotCreators(
             trackerLastError: result.detail
               ? `${result.reason}: ${result.detail}`
               : result.reason,
-            ...(salvaged?.topPosts.length
+            ...(salvaged
               ? {
                   topPosts: salvaged.topPosts as unknown as Prisma.InputJsonValue,
                   topPostsAt: new Date(),
-                  topPostsSource: "campaigns",
+                  topPostsSource: salvaged.source,
                 }
               : {}),
           },
@@ -348,6 +392,11 @@ export async function snapshotCreators(
       profile.sampledPosts = tiktokPosts.sampledPosts;
       profile.topPosts = tiktokPosts.topPosts;
     }
+
+    /* A profile read that carried posts of its own (YouTube's uploads feed,
+       for one) is the creator's own catalogue -- label it, or the panel shows
+       an unlabelled list and the source column stops meaning anything. */
+    if (!topPostsSource && profile.topPosts?.length) topPostsSource = "platform";
 
     const recordedAt = new Date();
     const deltaFollowers = previous
