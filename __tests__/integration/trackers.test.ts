@@ -18,10 +18,14 @@ jest.mock("@/lib/db", () => ({
       findFirst: jest.fn(),
       create: jest.fn(),
       delete: jest.fn(),
+      count: jest.fn(),
     },
     soundTrackerSnapshot: {
       deleteMany: jest.fn(),
     },
+    // Read twice per request: once here for chart granularity, once inside
+    // getOrgEntitlements for the tracker limit.
+    organization: { findUnique: jest.fn() },
   },
 }));
 
@@ -29,6 +33,7 @@ jest.mock("@/lib/auth", () => ({ auth: jest.fn() }));
 
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
+import { orgFixture } from "../helpers/orgFixture";
 
 const mockAuth = auth as jest.Mock;
 const mockDb = db as any;
@@ -46,6 +51,8 @@ function makeParams(id: string) {
 beforeEach(() => {
   jest.clearAllMocks();
   mockAuth.mockResolvedValue(authedSession);
+  mockDb.organization.findUnique.mockResolvedValue(orgFixture());
+  mockDb.tikTokSound.count.mockResolvedValue(0);
 });
 
 // ─── GET /api/trackers ──────────────────────────────────────────────────────
@@ -166,10 +173,13 @@ describe("POST /api/trackers", () => {
   });
 
   it("creates a tracked sound", async () => {
+    /* A real TikTok sound id: the route requires 18-20 digits, deliberately, so
+       a typo or a video id is refused before it becomes a tracker that can
+       never be read. The old "tt-999" placeholder predates that rule. */
     const created = {
       id: "sound-new",
       orgId: "org-1",
-      tiktokSoundId: "tt-999",
+      tiktokSoundId: "7546394810303694849",
       title: "New Sound",
       artist: "New Artist",
       coverImageUrl: null,
@@ -181,7 +191,7 @@ describe("POST /api/trackers", () => {
     const req = makeRequest("http://localhost/api/trackers", {
       method: "POST",
       body: JSON.stringify({
-        tiktokSoundId: "tt-999",
+        tiktokSoundId: "7546394810303694849",
         title: "New Sound",
         artist: "New Artist",
       }),
@@ -190,11 +200,11 @@ describe("POST /api/trackers", () => {
     const body = await res.json();
 
     expect(res.status).toBe(201);
-    expect(body.tiktokSoundId).toBe("tt-999");
+    expect(body.tiktokSoundId).toBe("7546394810303694849");
     expect(mockDb.tikTokSound.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         orgId: "org-1",
-        tiktokSoundId: "tt-999",
+        tiktokSoundId: "7546394810303694849",
         title: "New Sound",
         artist: "New Artist",
         coverImageUrl: null,

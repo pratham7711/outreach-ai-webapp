@@ -1,30 +1,67 @@
-# NEEDS-HELP.md — Items Needing Pratham's Input
+# NEEDS-HELP.md — Decisions only Pratham can make
 
-## Design Decisions
+Rewritten 2026-09-01. Everything previously in this file had either been built
+or been answered by shipping something else; the old version described a project
+running on SQLite with no email, which had not been true for months. A stale
+question is worse than no question — it sends an agent to re-decide settled
+things. **If you answer an item here, delete it.**
 
-- **Feature flag names**: The current 10 feature flags in `lib/features.ts` (analytics, bulk_export, api_access, etc.) were chosen based on common SaaS patterns. Are these the right features to gate, or should they map to the sidebar nav items (campaigns, creators, payouts, etc.) as the task spec originally suggested?
-- **Plan pricing/billing**: Plans currently have no price field. Should we add pricing tiers, or is this purely feature-gating without billing?
-- **Override persistence**: When a client's plan changes, existing overrides are preserved. Should plan changes clear all overrides instead?
+## Resolved since the last version — do not re-ask
 
-## External Services Required
+- **Database.** PostgreSQL on Neon. `features` / `featureOverrides` are native
+  `Json`. Production is the `production` branch of Neon project
+  `billowing-frog-77604601`.
+- **Email.** Resend, working. The forgot-password round trip was verified
+  end-to-end on production, inbox not spam.
+- **Feature enforcement.** Enforced. `DASHBOARD_NAV_RULES` filters the sidebar
+  per org, and `lib/rbac.ts` (`resolvePermissions`, `hasPermission`) is used in
+  11 places.
+- **Audit trail.** Written. `lib/audit.ts` has 51 call sites and production
+  `AuditLog` rows exist for invite create/accept/delete.
+- **Confirmation modals.** `ConfirmProvider` is mounted in the dashboard layout;
+  no `window.confirm` remains.
+- **Google OAuth.** Not configured, and not missed — credentials login is the
+  only provider and signup works. Reopen it only if someone asks for SSO.
 
-- **Production database**: Currently using SQLite (`prisma/dev.db`). Need to choose and configure a production PostgreSQL provider (Neon recommended).
-- **OAuth providers**: Google OAuth for login is not yet configured — needs Google Cloud Console OAuth credentials.
-- **Email/notifications**: No email service configured for password reset or notifications.
+## Genuinely open
 
-## Feature Access System
+### 1. `admin@demo.com` / `admin123` on the public domain
+The demo org is the designated testing tenant, so its *data* is disposable, but
+the credential is guessable, the account is an OWNER, and it can send invites.
+Change the password, or disable the account and keep a private way in? This is
+the one item on this list with a security edge, and it wants deciding before the
+URL goes to anyone outside the team.
 
-- **Role-based access**: Feature access is currently org-wide (any logged-in user can manage plans). Should only OWNER/ADMIN roles be able to access `/admin` and `/plans`?
-- **Feature enforcement**: The feature flags exist in the UI but aren't enforced anywhere yet — sidebar items and pages are always accessible. Need Pratham's input on whether to actually hide/disable sidebar items based on the active client's plan.
-- **Audit trail**: The `AuditLog` model exists in the schema but isn't being written to when plan/feature changes happen.
+### 2. Should `maxCampaigns` and `maxCreators` be enforced, or stopped being shown?
+Today they are reported by `/api/tenant/config` and rendered in the UI, and
+nothing refuses the eleventh campaign. Only `maxUsers` and `maxTrackers` are
+actually checked. Enforcing them as they stand would cap a fresh signup — LKay
+Media included — at 10 campaigns and 100 creators, which is below what an agency
+needs on day one. So the choice is: raise the starter numbers *and* enforce, or
+stop displaying a limit that does not exist. Not a call to make silently either
+way.
 
-## Database Decisions
+### 3. Plan pricing
+`Plan` still has no price field, and no billing is wired. Is this permanently
+feature-gating only, or is a billing integration coming? It changes whether
+`Plan` needs money on it at all.
 
-- **Migration from SQLite to PostgreSQL**: The Prisma schema uses SQLite-specific `String` for JSON fields (features, featureOverrides). When migrating to PostgreSQL, these should become native `Json` type.
-- **Seed data in production**: The seed script creates demo data. Need a separate production seed or import scripts for real client data.
+### 4. Who may manage plans
+`/plans` and `/api/plans` have no role check — any authenticated member of the
+org can create and assign plans. `lib/rbac.ts` already has the vocabulary
+(`OWNER`, `ADMIN`, `MANAGER`, `MEMBER`, `VIEWER`). Should plan management be
+OWNER/ADMIN only? Probably yes; it is left open because it is a product rule, not
+an oversight to be quietly patched.
 
-## UI/UX Questions
+### 5. TikTok post metrics: rounded numbers or none?
+`SOCIALKIT_API_KEY` is unset, so TikTok post counts never refresh while
+Instagram and YouTube do. `https://www.tiktok.com/embed/v2/<videoId>` returns
+playCount, diggCount and commentCount from a Vercel Sandbox with **no
+`statsV2`** — so 30.7M where the true figure is 29,425,475. A rounded number
+that moves is arguably better than an exact number that is frozen, and arguably
+much worse in a client report. Your call.
 
-- **Mobile responsiveness**: The feature access dashboard and bulk operations bar are desktop-optimized. Mobile layout not addressed.
-- **Confirmation modals**: Bulk operations (assign plan, clear overrides) use browser `confirm()`. Should these use custom styled modals?
-- **Real-time updates**: After bulk operations, the page refreshes via `router.refresh()`. This works but could be smoother with optimistic updates.
+### 6. Override persistence on plan change
+When a client's plan changes, existing per-client `featureOverrides` are
+preserved. Should a plan change clear them instead? Carried over from the old
+file because it is still true and still undecided.

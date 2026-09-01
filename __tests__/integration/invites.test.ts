@@ -16,11 +16,16 @@ jest.mock('@/lib/db', () => ({
       create: jest.fn(),
       delete: jest.fn(),
       update: jest.fn(),
+      // Pending invites count against the seat total.
+      count: jest.fn(),
     },
     user: {
       findUnique: jest.fn(),
       create: jest.fn(),
+      // Seats in use, against the plan's maxUsers.
+      count: jest.fn(),
     },
+    organization: { findUnique: jest.fn() },
     $transaction: jest.fn(),
   },
 }));
@@ -35,6 +40,7 @@ jest.mock('bcryptjs', () => ({
 
 import { db } from '@/lib/db';
 import { auth } from '@/lib/auth';
+import { orgFixture } from '../helpers/orgFixture';
 
 const mockAuth = auth as jest.Mock;
 const mockDb = db as any;
@@ -52,6 +58,9 @@ function makeParams(id: string) {
 beforeEach(() => {
   jest.clearAllMocks();
   mockAuth.mockResolvedValue(authedSession);
+  mockDb.organization.findUnique.mockResolvedValue(orgFixture());
+  mockDb.user.count.mockResolvedValue(1);
+  mockDb.userInvite.count.mockResolvedValue(0);
 });
 
 // ─── POST /api/invites ───────────────────────────────────────────────────────

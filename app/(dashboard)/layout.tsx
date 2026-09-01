@@ -10,6 +10,7 @@ import { getOrgEntitlements } from "@/lib/entitlements";
 import { resolveDashboardPolicy } from "@/lib/dashboardPolicy";
 import { customBrandingValue } from "@/lib/brandingDefaults";
 import type { OrgUiConfig } from "@/lib/orgConfig";
+import { redirect } from "next/navigation";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
@@ -18,6 +19,17 @@ export default async function DashboardLayout({ children }: { children: React.Re
     ? { name: session.user.name ?? null, email: session.user.email ?? null }
     : null;
   const entitlements = orgId ? await getOrgEntitlements(orgId) : null;
+
+  /* A session whose organization has been removed. The JWT still carries the
+     orgId, so nothing else notices: the chrome renders, every panel loads
+     nothing, and /api/tenant/config answers 404 on every navigation. Signing
+     the session out says what happened once instead of failing quietly forever.
+     Free to detect -- the entitlements read above is the same one the layout
+     already needs. */
+  if (session?.user && orgId && !entitlements) {
+    redirect("/api/auth/session-invalid");
+  }
+
   const uiConfig = (entitlements?.uiConfig as OrgUiConfig | null) ?? null;
   const policy = resolveDashboardPolicy({ entitlements, uiConfig });
 

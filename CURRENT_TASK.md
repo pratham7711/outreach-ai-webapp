@@ -1,25 +1,64 @@
 # Current Task
 
-## Status: Sprint 0 · Task 1 — CODE COMPLETE (all 3 units); only ops remains (blocked on env key)
+## Status: Sprint 0 · Task 1 — DONE, including the ops steps. Nothing is blocked.
 
-## Task: Sprint 0 · Task 1 — AES-256-GCM token crypto (P0 hard blocker)
+Last verified 2026-09-01 against production.
 
-**Why first:** `CreatorSocialAccount` OAuth tokens were stored PLAINTEXT while the schema comment falsely claimed AES. No real provider credential ships until this lands. #1 P0 in `docs/BUILD_TRACKER.md`.
+## What was blocking, and is not any more
 
-## Done — code complete + verified:
-- **Unit 1 (committed `bc016a2`):** `webapp/lib/crypto/encrypt.ts` — AES-256-GCM `encrypt`/`decrypt`/`isEncrypted` (12-byte IV, 16-byte tag verified + length-validated, key from `TOKEN_ENCRYPTION_KEY`, AAD = version + optional `context`). 14 unit tests; passed a Loop-5 adversarial review.
-- **Unit 2 (verified 16/16; lives in your working-tree WIP batch — NOT separately committed):** wired `encrypt()` into `POST /api/creators/[id]/social-accounts` (accessToken + refreshToken encrypted before `create`, AAD = `orgId` → cross-tenant-safe); fixed the false schema comment (`prisma/schema.prisma:445-446`). These edits are interleaved with your ~40-file WIP in `route.ts` + `schema.prisma` — **commit them with your batch**.
-- **Unit 3 (committed `958c284`):** `lib/crypto/token-backfill.ts` (`planReencrypt` + `findPlaintext`, pure, idempotent, AAD = orgId) + `scripts/backfill-encrypt-tokens.ts` `[--dry-run]` + `scripts/assert-no-plaintext-tokens.ts` (CI guard). 6 unit tests green.
+**Sprint 0 · Task 1 — AES-256-GCM token crypto (was the #1 P0).** All three code
+units landed (`bc016a2`, `958c284`, plus the route wiring), and the three
+"operational only, BLOCKED on the env key" steps this file used to list are all
+complete:
 
-## Remaining — operational only (BLOCKED on the env key):
-1. Provision `TOKEN_ENCRYPTION_KEY` (`openssl rand -base64 32`) in prod + staging secrets.
-2. Run the backfill: `npx tsx scripts/backfill-encrypt-tokens.ts --dry-run`, then again without `--dry-run`.
-3. Wire `npx tsx scripts/assert-no-plaintext-tokens.ts` into CI as a gate.
-Once 1–3 land, flip the WS0 / Sprint-0 task to `[x]` in `docs/BUILD_TRACKER.md`.
+1. `TOKEN_ENCRYPTION_KEY` is provisioned in Vercel production.
+2. The backfill has run. `npx tsx scripts/assert-no-plaintext-tokens.ts` against
+   the production database answers *"OK: all 2 social-account token(s) are
+   encrypted at rest."*
+3. The guard is wired into CI twice, in `.github/workflows/ci.yml` — as
+   `prod-token-audit` (`workflow_dispatch` only, because it is the one job that
+   reads production) and inside `e2e-prod` against a throwaway Postgres, which
+   runs on every commit.
 
-## Deferred (tracked, not bugs):
-- Stop-hook `tsc` gate → baseline-diff ("no NEW errors"; repo has 170 pre-existing `tsc` errors).
-- Key rotation / keyring (the `v1` format tag reserves the path).
+The file claimed for weeks that this was blocked. It was not, and an agent
+reading it started by re-doing finished work. If you find a claim here you
+cannot reproduce with a command, delete it rather than working around it.
 
-## Next build task after this:
-WS0 item 2 — external intelligence catalog migration (CreatorProfile / AudienceProfile / ContentItem / ContentEmbedding / OrgMetricRollup / AuthenticitySnapshot) + pgvector. See `docs/BUILD_TRACKER.md`.
+## Where the product actually stands
+
+Production is `campaign.madeboring.com`, and it is handover-ready: signup →
+onboarding → campaigns → creators → posts → analytics → payouts all work
+end-to-end, tenant isolation is verified live, and the forgot-password email
+round-trip lands in an inbox. Test state: unit 126 suites / 1511 tests green,
+integration 81 suites / 915 tests green, `tsc --noEmit` clean, `npm run build`
+clean.
+
+## Known gaps, in the order they will bite
+
+1. **`admin@demo.com` / `admin123` is a live OWNER login on the public domain.**
+   The demo org is the designated testing tenant, so its data does not matter,
+   but the credential is guessable and the account can invite. Change the
+   password or disable the account before anyone outside the team has the URL.
+2. **`maxCampaigns` and `maxCreators` are reported but never enforced.**
+   `/api/tenant/config` and the UI show a starter org 10 campaigns and 100
+   creators; nothing refuses the eleventh. Only `maxUsers` (invite seats) and
+   `maxTrackers` are actually checked. Either enforce them or stop showing them —
+   a limit that is displayed and not enforced is worse than neither.
+3. **TikTok post metrics do not auto-sync.** `SOCIALKIT_API_KEY` is unset in
+   production, so Instagram and YouTube post counts refresh on their own and
+   TikTok's do not. The onboarding copy is honest about this — it names only the
+   platforms whose metrics are live — so this is a missing capability, not a lie.
+   `https://www.tiktok.com/embed/v2/<videoId>` does return playCount, diggCount
+   and commentCount from a Vercel Sandbox, but with **no `statsV2`**, so the
+   figures are rounded (30.7M where the true value is 29,425,475). Adopting it
+   is a deliberate precision trade-off, not an obvious win.
+4. **`docs/BUILD_TRACKER.md` does not exist on this machine.** The old
+   references to "#1 P0 in `docs/BUILD_TRACKER.md`" and "WS0 item 2" point at a
+   file that was never copied off the previous laptop, along with `AGENTS.md`
+   and `AGENTS_QUICKSTART.md`. Treat the sprint numbering in old commits as
+   history, not as a live plan.
+
+## Deferred, tracked, not bugs
+
+- Key rotation / keyring — the `v1` format tag reserves the path.
+- Stop-hook `tsc` gate as a baseline diff. Moot for now: the baseline is zero.

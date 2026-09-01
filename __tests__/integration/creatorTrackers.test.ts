@@ -15,6 +15,8 @@ import { NextRequest } from "next/server";
 jest.mock("@/lib/db", () => ({
   db: {
     creator: { findMany: jest.fn(), findFirst: jest.fn(), update: jest.fn(), delete: jest.fn() },
+    // Read for the org's chart granularity.
+    organization: { findUnique: jest.fn() },
     $queryRawUnsafe: jest.fn(),
   },
 }));
@@ -22,6 +24,7 @@ jest.mock("@/lib/authenticate", () => ({ authenticateRequest: jest.fn() }));
 
 import { db } from "@/lib/db";
 import { authenticateRequest } from "@/lib/authenticate";
+import { orgFixture } from "../helpers/orgFixture";
 import { GET, POST } from "@/app/api/trackers/creators/route";
 import { DELETE } from "@/app/api/trackers/creators/[id]/route";
 
@@ -39,6 +42,10 @@ function req(url: string, method = "GET", payload?: unknown) {
 
 const BASE = "http://localhost:3009/api/trackers/creators";
 
+/* Every column the route selects. It grew read-health fields, a Top Posts cache
+   and a snapshot history after these tests were written, and a row missing them
+   makes the handler throw where the assertion then reads `undefined` off a 500
+   body -- which points at the response rather than at the fixture. */
 const creatorRow = (over: Record<string, unknown> = {}) => ({
   id: "cr1",
   name: "sonheii",
@@ -47,6 +54,12 @@ const creatorRow = (over: Record<string, unknown> = {}) => ({
   avatarUrl: null,
   followersCount: 0,
   trackedSince: new Date("2026-08-01T00:00:00Z"),
+  trackerLastAttemptAt: null,
+  trackerLastError: null,
+  topPosts: null,
+  topPostsAt: null,
+  topPostsSource: null,
+  trackerSnapshots: [],
   ...over,
 });
 
@@ -55,6 +68,7 @@ beforeEach(() => {
   mockAuth.mockResolvedValue({ orgId: "org-1", userId: "u1" });
   mockDb.creator.findMany.mockResolvedValue([]);
   mockDb.$queryRawUnsafe.mockResolvedValue([]);
+  mockDb.organization.findUnique.mockResolvedValue(orgFixture());
 });
 
 describe("GET /api/trackers/creators", () => {
