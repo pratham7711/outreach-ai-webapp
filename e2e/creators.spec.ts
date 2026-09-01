@@ -22,11 +22,19 @@ test.describe('Creators', () => {
   });
 
   test('can navigate to creator detail', async ({ page }) => {
-    // Click on a creator to go to their profile
-    const creatorLink = page.getByText('Blessing Jolie').first();
+    /* Assert against the href the link actually carries, not the seed id
+       'creator-1'. The hardcoded id only held while exactly one row was named
+       Blessing Jolie; it says nothing about whether navigation worked, and it
+       failed the moment a second row with that name existed even though the
+       click had gone exactly where the link pointed. Reading the href first
+       tests the real behaviour -- the row you click is the row you land on --
+       and does not care which of them sorts first. */
+    const creatorLink = page.getByRole('link', { name: /Blessing Jolie/ }).first();
+    const href = await creatorLink.getAttribute('href');
+    expect(href).toMatch(/^\/creators\/[^/]+$/);
     await creatorLink.click();
     await waitForMain(page);
-    await expect(page).toHaveURL(/\/creators\/creator-1/);
+    await expect(page).toHaveURL(new RegExp(`${href}$`));
     await expect(page.getByText('Blessing Jolie').first()).toBeVisible({ timeout: 15000 });
   });
 });
