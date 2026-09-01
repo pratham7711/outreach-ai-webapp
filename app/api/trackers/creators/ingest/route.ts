@@ -8,16 +8,22 @@ import { createLogger } from "@/lib/observability/logger";
  * this server.
  *
  * Profile STATS run fine from here (a Sandbox curl gets the server-rendered
- * page). The post GRID needs a real Chrome with a real display: headless is
- * refused whether the binary is @sparticuz/chromium or google-chrome itself,
- * but google-chrome under Xvfb reads it — measured four ways, see
- * lib/platforms/tiktokTopPostsSandbox.ts.
+ * page). The post GRID does not, and the reason is narrower than "a browser":
+ * `/api/post/item_list/` answers 200 with a ZERO-BYTE body unless the request
+ * carries TikTok's signing params, and it did so in every configuration
+ * measured from Vercel egress on 2026-09-01 — @sparticuz/chromium headless,
+ * google-chrome new-headless, and google-chrome headed under Xvfb alike.
  *
- * That configuration now runs in-platform on a daily cron, so this endpoint is
- * the SCALE-OUT path rather than the only one: a box with Chrome already
- * installed (scripts/creator-worker/) pays no per-run setup and no 300s
- * ceiling, which is what a roster of a hundred creators will want. Both feed
- * the same recorder.
+ * (A caution paid for the hard way: `/api/repost/item_list/` DOES return 30
+ * items from the same page visit. They are the creator's reposts, authored by
+ * other people. Matching the endpoint on the substring "item_list" silently
+ * fills Top Posts with someone else's videos, which is worse than an empty
+ * panel. Match the exact path.)
+ *
+ * What has not been ruled out is a VPS outside a hyperscaler's IP ranges: the
+ * sound worker's equally-signed `/api/music/detail/` fails from Vercel and
+ * works from a rented box, so egress reputation is the live hypothesis and
+ * scripts/creator-worker/ is the way to test it.
  *
  * Same deliberate boundaries as that route:
  *  - The worker never gets DATABASE_URL; it holds one bearer token.

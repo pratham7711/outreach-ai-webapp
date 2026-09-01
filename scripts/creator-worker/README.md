@@ -1,37 +1,43 @@
 # Creator worker — the TikTok Top Posts reader
 
-The second thing this product cannot do from Vercel, and the reason this box
-needs **real Chrome** where the sound worker's Playwright Chromium was enough.
-
-## Do you need this box at all?
-
-Probably not yet. The same reader now runs **in-platform** on a daily cron
-(`/api/cron/sync-creator-top-posts`) using a Vercel Sandbox with real Chrome
-under Xvfb — no VPS, nothing to provision. That path pays ~90s of apt-get per
-run and lives under a 300s function ceiling, so it reads a few creators a day.
-
-This worker is the scale-out: Chrome already installed, no setup cost, no
-ceiling. Stand it up when the roster outgrows one cron run (roughly 4+ TikTok
-creators wanting a daily refresh), not before.
+The second thing this product cannot do from Vercel — and, as of 2026-09-01,
+**the last untested hypothesis** for reading a creator's post grid.
 
 ## Why it exists
 
 A creator's post grid arrives from `/api/post/item_list/`, signed by TikTok's
-client script the same way music-detail is. But the grid is gated harder — and
-the gate turned out to be the *display*, not the binary.
+client script the same way `/api/music/detail/` is. From Vercel egress it
+answers **200 with a zero-byte body** in every browser configuration measured
+against the same handle:
 
-**Resolved 2026-09-01 — it is the DISPLAY, not the binary.** Four cases, same
-handle, US egress:
-
-| Configuration | Grid |
+| Configuration (Vercel egress) | `/api/post/item_list/` |
 |---|---|
-| headless `@sparticuz/chromium` | ✗ `item_list` never fires |
-| new-headless `google-chrome` | ✗ fires, carries no `itemList` |
-| **headed `google-chrome` under Xvfb** | **✓ 30 posts, exact playCounts** |
-| real Chrome, India egress | ✗ placeholder page |
+| headless `@sparticuz/chromium`, function | ✗ never fires |
+| headless `@sparticuz/chromium`, Sandbox | ✗ never fires |
+| new-headless `google-chrome`, Sandbox | ✗ 200, 0 bytes |
+| headed `google-chrome` + Xvfb, Sandbox | ✗ 200, 0 bytes |
+| real Chrome, laptop (India egress) | ✗ placeholder page |
 
-So run this worker **headed under Xvfb** — `--headed` with `xvfb-run`, which the
-service file below already does. New-headless is not sufficient.
+**A trap worth naming.** The same page visit makes
+`/api/repost/item_list/` answer with 30 real items — the creator's *reposts*,
+authored by other people. Matching on the substring `item_list` picks those up
+and silently fills Top Posts with someone else's videos. It cost a wrong
+conclusion here; match the exact path.
+
+## So why is a VPS still worth trying?
+
+Because egress reputation is the one variable Vercel cannot change. The sound
+worker's `/api/music/detail/` is signed the same way, fails the same way from
+Vercel, and **works from a rented box** (measured: Netherlands egress, 9.7s, a
+real count). Vercel Sandbox runs on hyperscaler IP ranges TikTok has every
+reason to distrust; an ordinary VPS is a different reputation class.
+
+That is a hypothesis with precedent, not a certainty. The dry-run below is what
+settles it, and it costs one hour of a $5/mo box. If it fails there too, the
+self-hosted route is exhausted and ScrapeCreators (~$3–6/mo) is the answer.
+
+Run it **headed under Xvfb** regardless — headless is refused outright, so a
+display is necessary even if it is not sufficient.
 
 Profile **stats** never need any of this — they are server-rendered into the
 page HTML and the app reads them itself through a Sandbox curl. This worker is
@@ -93,11 +99,12 @@ cd /opt/outreach-creator-worker/creator-worker
 APP_URL=... CREATOR_INGEST_TOKEN=... xvfb-run -a node read-top-posts.mjs --dry-run --headed
 ```
 
-`--dry-run` reads every grid for real and writes nothing. Expect `ok` lines with
-post counts. If every creator reads stats but no posts (`skip ... page gave no
-posts`) **while running headed under Xvfb**, this box's IP range is the likely
-problem rather than the browser — the same command works from a Vercel Sandbox
-in iad1, so try one different provider or region before concluding anything.
+`--dry-run` reads every grid for real and writes nothing.
+
+**This run is the experiment.** `ok` lines with post counts mean the egress
+hypothesis held and the tracker is unblocked — schedule it. `skip ... page gave
+no posts` on every creator means this IP range is refused too; try one other
+provider before concluding, then stop paying for boxes and buy the scraper.
 
 ## Schedule
 
@@ -136,7 +143,7 @@ timer → read-top-posts.mjs
 UI: Trackers → creator modal → Top Posts grid (reads Creator.topPosts)
 ```
 
-The Vercel-side sweep keeps trying its own ladder (direct fetch → sandbox →
-browser) and still refuses to overwrite stored posts with an empty read, so
-worker-fed posts survive serverless failures, and the two paths never fight —
-last successful read wins, whichever side made it.
+The Vercel-side sweep keeps trying its own ladder (direct fetch → sandbox curl
+→ in-function browser) for STATS, and refuses to overwrite stored posts with an
+empty read — so worker-fed posts survive serverless failures and the two paths
+never fight. Last successful read wins, whichever side made it.

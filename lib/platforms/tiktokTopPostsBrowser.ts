@@ -15,11 +15,14 @@ import { rankTopPosts, type TopPost } from "./creatorProfile";
  * fails still gets a follower snapshot.
  *
  * NOTE (measured 2026-09-01): this in-function path does not actually get the
- * grid. TikTok's signing script refuses headless Chromium, and a Vercel
- * function has no display to offer it. It is kept as the last rung of the
- * ladder because it costs nothing when the rungs above succeed and it still
- * yields the rehydration-blob stats. The grid itself comes from
- * tiktokTopPostsSandbox (real Chrome under Xvfb) or the creator worker.
+ * grid, and neither does anything else on Vercel. /api/post/item_list/ answers
+ * 200 with a zero-byte body to headless Chromium (which never even fires it),
+ * to google-chrome new-headless, and to google-chrome headed under Xvfb in a
+ * Sandbox. It is kept as the last rung of the ladder because it costs nothing
+ * when the rungs above succeed and it still yields the rehydration-blob stats.
+ *
+ * Do NOT loosen the endpoint match to "item_list": /api/repost/item_list/
+ * answers the same visit with 30 items that belong to OTHER creators.
  */
 
 const UA =

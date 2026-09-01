@@ -1,14 +1,17 @@
 /**
  * Read a TikTok creator's post grid by rendering their profile in REAL Chrome.
  *
- * Why real Chrome, when the sound reader gets away with Playwright's Chromium:
- * the grid's /api/post/item_list/ is signed like the music-detail call, but
- * TikTok's client script refuses to produce the tokens under headless
- * SwiftShader Chromium — measured from a Vercel Sandbox with clean US egress
- * (page renders, blob present, grid never fires). Chrome's own binary in new
- * headless mode carries the real GPU/canvas surface the fingerprint checks.
- * So this launches `channel: "chrome"` and expects google-chrome-stable on the
- * box (see scripts/creator-worker/README.md).
+ * Why real Chrome and why headed: /api/post/item_list/ is signed like the
+ * music-detail call, and from Vercel egress it answers 200 with a zero-byte
+ * body under every browser tried -- @sparticuz/chromium headless (never fires),
+ * google-chrome new-headless, and google-chrome headed under Xvfb. Headless is
+ * refused outright, so this launches `channel: "chrome"` and expects to run
+ * under `xvfb-run`; whether a display plus a non-hyperscaler IP is enough is
+ * what the worker exists to find out (see scripts/creator-worker/README.md).
+ *
+ * Match the endpoint EXACTLY. /api/repost/item_list/ returns 30 items from the
+ * same visit -- the creator's reposts, authored by other people -- and a
+ * substring match on "item_list" fills Top Posts with the wrong videos.
  *
  * The browser is launched once and shared across creators in a run — pass the
  * launcher's result in, close it when the run ends.

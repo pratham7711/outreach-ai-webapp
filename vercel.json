@@ -23,10 +23,6 @@
     {
       "path": "/api/cron/sync-creator-trackers",
       "schedule": "30 * * * *"
-    },
-    {
-      "path": "/api/cron/sync-creator-top-posts",
-      "schedule": "40 2 * * *"
     }
   ]
 }

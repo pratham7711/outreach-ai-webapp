@@ -104,14 +104,18 @@ integration (org incoming webhook in `uiConfig.integrations.slack`, `/settings/i
 test + disconnect). Dispatch hooks `logAudit`; comments dispatch from their route.
 Requires `prisma db push` on dev + prod (new `notificationPrefs` column) before deploy.
 Also: Top Posts on creator trackers; TikTok profile stats via Vercel Sandbox curl
-(WAF-proof). **TikTok Top Posts SOLVED** (2026-09-01) — the gate was the
-*display*, not the binary. Measured four ways from US egress: headless
-@sparticuz/chromium never fires `item_list`; google-chrome new-headless fires it
-with no `itemList`; **google-chrome under Xvfb returns 30 posts with exact
-playCounts**; India egress gets a placeholder. So it runs in-platform: daily cron
-`/api/cron/sync-creator-top-posts` → Vercel Sandbox (iad1) → real Chrome under
-Xvfb. No VPS needed. `scripts/creator-worker/` remains the scale-out path (no
-~90s apt-get per run, no 300s ceiling) for when the roster outgrows one run. Fan Pages stays
+(WAF-proof). **TikTok Top Posts still blocked** (measured 2026-09-01).
+`/api/post/item_list/` answers 200 with a ZERO-BYTE body from every browser tried
+on Vercel egress: @sparticuz/chromium headless (never fires), google-chrome
+new-headless, google-chrome headed under Xvfb in a Sandbox. Headless is refused
+outright, so a display is necessary but NOT sufficient. Trap recorded: the same
+visit makes `/api/repost/item_list/` return 30 items — the creator's *reposts*,
+by other authors — so matching the substring `item_list` silently fills Top Posts
+with the wrong videos. Match the exact path.
+Remaining hypothesis: egress reputation. The sound worker's identically-signed
+`/api/music/detail/` also fails from Vercel and works from a rented box, so
+`scripts/creator-worker/` (real Chrome, headed under Xvfb, on a non-hyperscaler
+VPS) is the experiment — one dry-run settles it. If that fails, ScrapeCreators. Fan Pages stays
 parked per PRD scope (2026-08-21, reaffirmed 2026-09-01).
 
 ### Campaign Detail Page

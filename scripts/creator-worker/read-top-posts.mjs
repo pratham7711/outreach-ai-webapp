@@ -6,14 +6,18 @@
  * Three things have to be true of the machine, and no serverless function has
  * all of them:
  *
- *   1. It can run real Chrome WITH A DISPLAY (xvfb-run). Measured four ways
- *      from US egress: headless @sparticuz/chromium never fires item_list;
- *      google-chrome's new-headless fires it but gets no itemList; the same
- *      google-chrome under Xvfb returns 30 posts with exact playCounts.
+ *   1. It can run real Chrome WITH A DISPLAY (xvfb-run). Headless is refused
+ *      outright -- @sparticuz/chromium never fires item_list at all, and
+ *      google-chrome's new-headless gets 200 with a zero-byte body. A display
+ *      is necessary; whether it is SUFFICIENT is what this box tests, because
+ *      headed-under-Xvfb still got 0 bytes from Vercel's own egress.
  *   2. It is outside India, where tiktok.com serves a placeholder and the app
  *      never boots.
- *   3. It has an egress IP TikTok will serve profile pages to (any ordinary
- *      VPS in the US or EU has, on current measurements).
+ *   3. It has an egress IP TikTok will sign requests for. This is the live
+ *      hypothesis: the sound worker's identically-signed /api/music/detail/
+ *      fails from Vercel and works from a rented box, so a VPS outside the
+ *      hyperscaler ranges is the difference worth testing. If a headed run
+ *      here also returns nothing, the self-hosted route is exhausted.
  *
  * Same contract as the sound worker: one token, one endpoint, no DATABASE_URL.
  * The app decides what a post list means (ranking, the six kept, never
