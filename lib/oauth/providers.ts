@@ -35,7 +35,23 @@ const PROVIDERS: Record<OAuthPlatform, ProviderConfig> = {
     clientIdParam: "client_key",
     authorizeUrl: "https://www.tiktok.com/v2/auth/authorize/",
     tokenUrl: "https://open.tiktokapis.com/v2/oauth/token/",
-    scopes: ["user.info.basic", "video.list"],
+    /* These four are not aspirational -- lib/platforms/tiktokDisplay.ts already
+       asks /v2/user/info/ for eleven fields, and only four of them
+       (open_id, username, display_name, avatar_url) are covered by
+       user.info.basic. bio_description, profile_deep_link and is_verified need
+       user.info.profile; follower_count, following_count, likes_count and
+       video_count need user.info.stats. Requesting the narrower scope set and
+       the wider field set meant seven fields could only ever come back empty.
+
+       They are also exactly the scopes the developer-portal app declares, and
+       TikTok's review requires the two to agree: unused scopes must be removed
+       before review, and every declared scope must be demonstrated. */
+    scopes: [
+      "user.info.basic",
+      "user.info.profile",
+      "user.info.stats",
+      "video.list",
+    ],
     scopeSeparator: ",",
   },
   youtube: {

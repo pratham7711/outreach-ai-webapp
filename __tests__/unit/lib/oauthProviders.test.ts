@@ -1,3 +1,5 @@
+import { readFileSync } from "fs";
+import { join } from "path";
 import {
   OAUTH_PLATFORMS,
   isOAuthPlatform,
@@ -114,11 +116,59 @@ describe("buildAuthorizeUrl", () => {
     const parsed = new URL(url as string);
     expect(parsed.hostname).toBe("www.tiktok.com");
     expect(parsed.searchParams.get("client_key")).toBe("tt-key");
-    expect(parsed.searchParams.get("scope")).toBe("user.info.basic,video.list");
+    expect(parsed.searchParams.get("scope")).toBe(
+      "user.info.basic,user.info.profile,user.info.stats,video.list",
+    );
     expect(parsed.searchParams.get("redirect_uri")).toContain(
       "/api/portal/connections/tiktok/callback",
     );
     expect(parsed.searchParams.get("state")).toBe("st-2");
+  });
+
+  it("requests every scope the fields in tiktokDisplay actually need", () => {
+    /* The bug this exists to catch is silent: asking /v2/user/info/ for eleven
+       fields while authorising only user.info.basic returns the four basic ones
+       and quietly omits the other seven, so a creator's follower count -- the
+       number fees are agreed on -- reads as absent rather than as an
+       authorisation error. TikTok's own scope table, not our guess: */
+    const SCOPE_FOR_FIELD: Record<string, string> = {
+      open_id: "user.info.basic",
+      // TikTok's own table puts username under profile, not basic.
+      username: "user.info.profile",
+      display_name: "user.info.basic",
+      avatar_url: "user.info.basic",
+      bio_description: "user.info.profile",
+      profile_deep_link: "user.info.profile",
+      is_verified: "user.info.profile",
+      follower_count: "user.info.stats",
+      following_count: "user.info.stats",
+      likes_count: "user.info.stats",
+      video_count: "user.info.stats",
+    };
+
+    process.env.TIKTOK_CLIENT_KEY = "tt-key";
+    process.env.TIKTOK_CLIENT_SECRET = "tt-secret";
+    const granted = new Set(
+      new URL(buildAuthorizeUrl("tiktok", "st") as string).searchParams
+        .get("scope")!
+        .split(","),
+    );
+
+    const source = readFileSync(
+      join(process.cwd(), "lib/platforms/tiktokDisplay.ts"),
+      "utf8",
+    );
+    const userFields = source
+      .slice(source.indexOf("const USER_FIELDS"), source.indexOf("const VIDEO_FIELDS"))
+      .match(/"([a-z_]+)"/g)!
+      .map((q) => q.replace(/"/g, ""));
+
+    expect(userFields.length).toBeGreaterThan(4); // guard the parse itself
+    for (const field of userFields) {
+      const needed = SCOPE_FOR_FIELD[field];
+      expect(needed).toBeDefined(); // a new field must be classified here
+      expect(granted.has(needed)).toBe(true);
+    }
   });
 
   it("builds a Google URL for YouTube with the readonly scope", () => {
