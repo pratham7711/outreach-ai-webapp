@@ -3,6 +3,7 @@ import { createLogger } from "@/lib/observability/logger";
 import { velocityBetween } from "@/lib/trackers/metrics";
 import { isDueForRead, parseGranularity, DEFAULT_GRANULARITY } from "@/lib/trackers/granularity";
 import { readCreatorProfile, type CreatorReadResult } from "@/lib/platforms/creatorProfile";
+import { readTikTokTopPostsOfficial } from "@/lib/platforms/tiktokTopPostsOfficial";
 import type { TikTokPostsRead } from "@/lib/platforms/tiktokTopPostsBrowser";
 
 /**
@@ -226,15 +227,51 @@ export async function snapshotCreators(
 
     const { profile } = result;
 
-    /* TikTok: the stats read cannot see posts, so the grid is a separate,
-       browser-priced read on its own daily cadence. A grid failure is not a
-       creator failure -- the follower snapshot still lands. */
+    /* TikTok: the stats read cannot see posts, so posts are a separate read on
+       their own daily cadence. A posts failure is not a creator failure -- the
+       follower snapshot still lands either way.
+
+       Two sources, tried in that order:
+         1. The official Display API (video.list), for a creator who connected
+            their account through the portal. One HTTPS request, real counts,
+            no browser, no scraping.
+         2. The browser grid, which is kept as a rung but has never worked from
+            Vercel -- /api/post/item_list/ answers 200 with a zero-byte body to
+            every browser measured. It is here for the day that changes, and
+            because it costs nothing when rung 1 answers. */
+    const postsAreStale =
+      !creator.topPostsAt || now.getTime() - creator.topPostsAt.getTime() > TOP_POSTS_MAX_AGE_MS;
+
     let tiktokPosts: TikTokPostsRead | null = null;
+    if (creator.platform === "TIKTOK" && postsAreStale && !dryRun) {
+      const official = await readTikTokTopPostsOfficial(creator.id, creator.orgId, creator.handle).catch(
+        (e) => {
+          log.warn("tiktok official posts read failed", {
+            creatorId: creator.id,
+            handle: creator.handle,
+            error: e instanceof Error ? e.message : String(e),
+          });
+          return null;
+        }
+      );
+      /* null means "no usable connection", which is not a failure and must not
+         consume the creator's daily slot for the browser rung below. */
+      if (official) {
+        tiktokPosts = { ...official, profile: null };
+        log.info("tiktok top posts from official API", {
+          creatorId: creator.id,
+          handle: creator.handle,
+          posts: official.topPosts.length,
+        });
+      }
+    }
+
     if (
+      !tiktokPosts &&
       creator.platform === "TIKTOK" &&
       readTikTokPosts &&
       gridRead === undefined && // the WAF fallback above has not already read the page
-      (!creator.topPostsAt || now.getTime() - creator.topPostsAt.getTime() > TOP_POSTS_MAX_AGE_MS)
+      postsAreStale
     ) {
       tiktokPosts = await readTikTokPosts(creator.handle).catch((e) => {
         log.warn("tiktok grid read failed", {

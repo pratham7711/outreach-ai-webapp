@@ -112,10 +112,18 @@ outright, so a display is necessary but NOT sufficient. Trap recorded: the same
 visit makes `/api/repost/item_list/` return 30 items — the creator's *reposts*,
 by other authors — so matching the substring `item_list` silently fills Top Posts
 with the wrong videos. Match the exact path.
-Remaining hypothesis: egress reputation. The sound worker's identically-signed
-`/api/music/detail/` also fails from Vercel and works from a rented box, so
-`scripts/creator-worker/` (real Chrome, headed under Xvfb, on a non-hyperscaler
-VPS) is the experiment — one dry-run settles it. If that fails, ScrapeCreators. Fan Pages stays
+The server-rendered HTML carries no posts either (0 video ids, 0 `playCount`).
+**So Top Posts now reads the official Display API** (`video.list`, via
+`lib/platforms/tiktokTopPostsOfficial.ts`) as the first rung of the sweep's
+ladder: one HTTPS request, real view/like/comment counts and covers, no browser.
+It needs the creator to have connected TikTok through the portal, so it covers
+connected creators and returns null (not an error) for the rest — an empty panel
+rather than someone else's videos. The same call already runs in production for
+the creator portal's insights.
+Scraping stays unsolved for unconnected creators; `scripts/creator-worker/` on a
+non-hyperscaler VPS is the untested hypothesis (precedent: the sound worker's
+identically-signed `/api/music/detail/` fails from Vercel, works from a rented
+box), with ScrapeCreators as the fallback. Fan Pages stays
 parked per PRD scope (2026-08-21, reaffirmed 2026-09-01).
 
 ### Campaign Detail Page
