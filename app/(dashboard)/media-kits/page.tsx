@@ -81,6 +81,28 @@ export default function MediaKitsPage() {
     setCreating(false);
   }
 
+  const [copiedToken, setCopiedToken] = useState<string | null>(null);
+
+  async function togglePublic(kit: MediaKit) {
+    const res = await fetch(`/api/media-kits/${kit.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ isPublic: !kit.isPublic }),
+    });
+    if (res.ok) await fetchKits();
+  }
+
+  async function copyShareLink(token: string) {
+    const url = `${window.location.origin}/share/${token}`;
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch {
+      window.prompt("Copy this share link:", url);
+    }
+    setCopiedToken(token);
+    setTimeout(() => setCopiedToken(null), 2000);
+  }
+
   async function deleteKit(id: string) {
     const ok = await confirm({
       title: "Delete this media kit?",
@@ -206,7 +228,27 @@ export default function MediaKitsPage() {
                       {k.isPublic ? "Public" : "Private"}
                     </Badge>
                   </td>
-                  <td style={{ padding: "12px 20px", textAlign: "right" }}>
+                  <td style={{ padding: "12px 20px", textAlign: "right", display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                    {/* The share token has existed on every kit since the model
+                        was added and was rendered nowhere, so a "Public" kit had
+                        no public address anyone could be given. */}
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => togglePublic(k)}
+                      title={k.isPublic ? "Stop sharing this kit" : "Make this kit shareable by link"}
+                    >
+                      {k.isPublic ? "Unshare" : "Share"}
+                    </Button>
+                    {k.isPublic ? (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => copyShareLink(k.shareToken)}
+                      >
+                        {copiedToken === k.shareToken ? "Copied" : "Copy link"}
+                      </Button>
+                    ) : null}
                     <Button variant="danger" size="sm" onClick={() => deleteKit(k.id)}>Delete</Button>
                   </td>
                 </tr>
