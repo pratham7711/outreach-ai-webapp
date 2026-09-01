@@ -6,10 +6,10 @@
  * Three things have to be true of the machine, and no serverless function has
  * all of them:
  *
- *   1. It can run REAL Chrome. /api/post/item_list/ is signed by TikTok's
- *      client script, which refuses to produce the tokens under headless
- *      SwiftShader Chromium — measured from a Vercel Sandbox with clean US
- *      egress: full page, rehydration blob present, grid never fires.
+ *   1. It can run real Chrome WITH A DISPLAY (xvfb-run). Measured four ways
+ *      from US egress: headless @sparticuz/chromium never fires item_list;
+ *      google-chrome's new-headless fires it but gets no itemList; the same
+ *      google-chrome under Xvfb returns 30 posts with exact playCounts.
  *   2. It is outside India, where tiktok.com serves a placeholder and the app
  *      never boots.
  *   3. It has an egress IP TikTok will serve profile pages to (any ordinary
@@ -22,7 +22,10 @@
  * Usage:
  *   APP_URL=https://campaign.madeboring.com CREATOR_INGEST_TOKEN=... node read-top-posts.mjs
  *   ... --dry-run     read everything, write nothing
- *   ... --headed      run Chrome with a window (needs xvfb-run on a server)
+ *   ... --headless    force headless (diagnostic only — reads no grid)
+ *
+ * Always run it under `xvfb-run -a`: headed Chrome needs a display, and the
+ * display is what TikTok's signing script is actually checking.
  */
 import { fetchTopPostsViaBrowser, launchRealChrome } from "../dev/tiktokTopPostsViaBrowser.mjs";
 
@@ -30,7 +33,12 @@ const APP_URL = (process.env.APP_URL ?? "").replace(/\/+$/, "");
 const TOKEN =
   process.env.CREATOR_INGEST_TOKEN ?? process.env.SOUND_INGEST_TOKEN ?? process.env.CRON_SECRET;
 const DRY_RUN = process.argv.includes("--dry-run");
-const HEADED = process.argv.includes("--headed");
+/* Headed is the DEFAULT, because it is the only configuration measured to get
+   the grid: TikTok's signing script refuses headless Chrome (both
+   @sparticuz/chromium and google-chrome's own new-headless) and answers a real
+   Chrome under a virtual display. Run this under xvfb-run; --headless is kept
+   only for diagnosing that difference on a box. */
+const HEADED = !process.argv.includes("--headless");
 const INGEST = `${APP_URL}/api/trackers/creators/ingest`;
 
 if (!APP_URL || !TOKEN) {

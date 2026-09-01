@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { db } from "@/lib/db";
-import type { Prisma } from "@/lib/generated/prisma";
-import { rankTopPosts, type TopPost } from "@/lib/platforms/creatorProfile";
+import { recordTopPosts, tikTokCreatorsNeedingTopPosts } from "@/lib/creators/topPosts";
 import { createLogger } from "@/lib/observability/logger";
 
 /**
@@ -10,12 +8,16 @@ import { createLogger } from "@/lib/observability/logger";
  * this server.
  *
  * Profile STATS run fine from here (a Sandbox curl gets the server-rendered
- * page). The post GRID does not, from anywhere serverless: /api/post/item_list/
- * is signed by TikTok's client script, and that script refuses to produce the
- * tokens under headless SwiftShader Chromium even from clean Sandbox egress —
- * measured, not assumed. What passes is a real Chrome on a real box outside
- * India. So the grid read happens there and lands here, exactly the shape the
- * sound worker already established (see app/api/trackers/sounds/ingest).
+ * page). The post GRID needs a real Chrome with a real display: headless is
+ * refused whether the binary is @sparticuz/chromium or google-chrome itself,
+ * but google-chrome under Xvfb reads it — measured four ways, see
+ * lib/platforms/tiktokTopPostsSandbox.ts.
+ *
+ * That configuration now runs in-platform on a daily cron, so this endpoint is
+ * the SCALE-OUT path rather than the only one: a box with Chrome already
+ * installed (scripts/creator-worker/) pays no per-run setup and no 300s
+ * ceiling, which is what a roster of a hundred creators will want. Both feed
+ * the same recorder.
  *
  * Same deliberate boundaries as that route:
  *  - The worker never gets DATABASE_URL; it holds one bearer token.
@@ -24,11 +26,6 @@ import { createLogger } from "@/lib/observability/logger";
  *  - Empty lists are never written over stored posts — an unread grid is
  *    "not measured", not "no posts".
  */
-
-/** How recently a creator's grid must have been read for losing it to count as
-    an outage rather than a stale row. The worker's timer is daily; a month of
-    alerting before going quiet, same reasoning as the sound ingest. */
-const LIVE_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 
 const PostSchema = z.object({
   postId: z.string().min(1).max(64),
@@ -70,24 +67,7 @@ function isAuthorised(request: NextRequest): boolean {
  */
 export async function GET(request: NextRequest) {
   if (!isAuthorised(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const now = Date.now();
-  const creators = await db.creator.findMany({
-    where: { platform: "TIKTOK", trackedSince: { not: null }, deletedAt: null },
-    select: { id: true, handle: true, name: true, topPostsAt: true },
-    orderBy: { trackedSince: "asc" },
-  });
-
-  return NextResponse.json({
-    creators: creators.map((c) => ({
-      id: c.id,
-      handle: c.handle,
-      name: c.name,
-      /* readRecently is the worker's outage/stale split, computed here so the
-         window lives beside the data rather than on the remote box. */
-      readRecently: Boolean(c.topPostsAt && now - c.topPostsAt.getTime() < LIVE_WINDOW_MS),
-    })),
-  });
+  return NextResponse.json({ creators: await tikTokCreatorsNeedingTopPosts() });
 }
 
 export async function POST(request: NextRequest) {
@@ -100,23 +80,10 @@ export async function POST(request: NextRequest) {
   }
   const { readings, dryRun } = parsed.data;
 
-  let recorded = 0;
-  let unknown = 0;
-
-  for (const reading of readings) {
-    /* Existence re-checked per reading rather than trusted: the list the worker
-       is holding may predate an untrack or a delete by most of a day. */
-    const creator = await db.creator.findFirst({
-      where: { id: reading.creatorId, platform: "TIKTOK", deletedAt: null },
-      select: { id: true },
-    });
-    if (!creator) {
-      unknown += 1;
-      continue;
-    }
-
-    const topPosts: TopPost[] = rankTopPosts(
-      reading.posts.map((p) => ({
+  const result = await recordTopPosts(
+    readings.map((r) => ({
+      creatorId: r.creatorId,
+      posts: r.posts.map((p) => ({
         postId: p.postId,
         url: p.url,
         caption: p.caption ?? null,
@@ -125,21 +92,11 @@ export async function POST(request: NextRequest) {
         likes: p.likes ?? null,
         comments: p.comments ?? null,
         postedAt: p.postedAt ?? null,
-      }))
-    );
+      })),
+    })),
+    { dryRun: Boolean(dryRun) }
+  );
 
-    if (!dryRun) {
-      await db.creator.update({
-        where: { id: creator.id },
-        data: {
-          topPosts: topPosts as unknown as Prisma.InputJsonValue,
-          topPostsAt: new Date(),
-        },
-      });
-    }
-    recorded += 1;
-  }
-
-  log.info("creator top-posts ingest", { recorded, unknown, dryRun: Boolean(dryRun) });
-  return NextResponse.json({ recorded, unknown, dryRun: Boolean(dryRun) });
+  log.info("creator top-posts ingest", { ...result, dryRun: Boolean(dryRun) });
+  return NextResponse.json({ ...result, dryRun: Boolean(dryRun) });
 }

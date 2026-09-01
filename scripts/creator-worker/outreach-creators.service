@@ -7,7 +7,9 @@ Wants=network-online.target
 [Service]
 Type=oneshot
 WorkingDirectory=/opt/outreach-creator-worker/creator-worker
-ExecStart=/usr/bin/node read-top-posts.mjs
+# Headed under Xvfb, not headless: TikTok's signing script refuses headless
+# Chrome (measured both binaries) and reads the grid under a virtual display.
+ExecStart=/usr/bin/xvfb-run -a /usr/bin/node read-top-posts.mjs --headed
 
 # APP_URL and CREATOR_INGEST_TOKEN live here, root-owned and chmod 600, so the
 # token is never an argument in `ps` and never in a shell history.

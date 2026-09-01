@@ -13,6 +13,13 @@ import { rankTopPosts, type TopPost } from "./creatorProfile";
  * Kept separate from the stats read on purpose: stats are cheap and hourly,
  * posts cost ~12s of browser and refresh daily. A creator whose grid read
  * fails still gets a follower snapshot.
+ *
+ * NOTE (measured 2026-09-01): this in-function path does not actually get the
+ * grid. TikTok's signing script refuses headless Chromium, and a Vercel
+ * function has no display to offer it. It is kept as the last rung of the
+ * ladder because it costs nothing when the rungs above succeed and it still
+ * yields the rehydration-blob stats. The grid itself comes from
+ * tiktokTopPostsSandbox (real Chrome under Xvfb) or the creator worker.
  */
 
 const UA =

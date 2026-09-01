@@ -3,19 +3,35 @@
 The second thing this product cannot do from Vercel, and the reason this box
 needs **real Chrome** where the sound worker's Playwright Chromium was enough.
 
+## Do you need this box at all?
+
+Probably not yet. The same reader now runs **in-platform** on a daily cron
+(`/api/cron/sync-creator-top-posts`) using a Vercel Sandbox with real Chrome
+under Xvfb — no VPS, nothing to provision. That path pays ~90s of apt-get per
+run and lives under a 300s function ceiling, so it reads a few creators a day.
+
+This worker is the scale-out: Chrome already installed, no setup cost, no
+ceiling. Stand it up when the roster outgrows one cron run (roughly 4+ TikTok
+creators wanting a daily refresh), not before.
+
 ## Why it exists
 
 A creator's post grid arrives from `/api/post/item_list/`, signed by TikTok's
-client script the same way music-detail is. But the grid is gated harder: the
-script refuses to produce the tokens under headless SwiftShader Chromium. This
-was measured, not assumed — from a Vercel Sandbox with clean iad1 egress, a
-headless Chromium gets the full profile page (title, 489KB, rehydration blob)
-and the grid still never renders; `item_list` never fires, scrolled or not.
+client script the same way music-detail is. But the grid is gated harder — and
+the gate turned out to be the *display*, not the binary.
 
-Chrome's own binary carries the real GPU/canvas/WebGL surface the fingerprint
-checks, so the reader launches `channel: "chrome"` (new headless — the real
-binary, not the old stripped mode). If a particular box still reads nothing,
-run headed under Xvfb (below) before concluding anything.
+**Resolved 2026-09-01 — it is the DISPLAY, not the binary.** Four cases, same
+handle, US egress:
+
+| Configuration | Grid |
+|---|---|
+| headless `@sparticuz/chromium` | ✗ `item_list` never fires |
+| new-headless `google-chrome` | ✗ fires, carries no `itemList` |
+| **headed `google-chrome` under Xvfb** | **✓ 30 posts, exact playCounts** |
+| real Chrome, India egress | ✗ placeholder page |
+
+So run this worker **headed under Xvfb** — `--headed` with `xvfb-run`, which the
+service file below already does. New-headless is not sufficient.
 
 Profile **stats** never need any of this — they are server-rendered into the
 page HTML and the app reads them itself through a Sandbox curl. This worker is
@@ -74,24 +90,14 @@ secret that can only write creator readings.
 
 ```bash
 cd /opt/outreach-creator-worker/creator-worker
-APP_URL=... CREATOR_INGEST_TOKEN=... node read-top-posts.mjs --dry-run
+APP_URL=... CREATOR_INGEST_TOKEN=... xvfb-run -a node read-top-posts.mjs --dry-run --headed
 ```
 
-`--dry-run` reads every grid for real and writes nothing. Expect `ok` lines
-with post counts. If every creator reads stats but no posts (`skip ... page
-gave no posts`), the fingerprint gate is refusing this box's new-headless
-Chrome too — try headed under a virtual display before giving up:
-
-```bash
-sudo apt-get install -y xvfb
-xvfb-run -a node read-top-posts.mjs --dry-run --headed
-```
-
-If headed-under-Xvfb reads grids where new-headless did not, change `ExecStart`
-in the service to `/usr/bin/xvfb-run -a /usr/bin/node read-top-posts.mjs --headed`.
-If NEITHER reads a grid, this VPS's IP range may be the problem — that result
-is worth knowing before renting a second box: try one different provider/region
-before concluding the approach is dead.
+`--dry-run` reads every grid for real and writes nothing. Expect `ok` lines with
+post counts. If every creator reads stats but no posts (`skip ... page gave no
+posts`) **while running headed under Xvfb**, this box's IP range is the likely
+problem rather than the browser — the same command works from a Vercel Sandbox
+in iad1, so try one different provider or region before concluding anything.
 
 ## Schedule
 
