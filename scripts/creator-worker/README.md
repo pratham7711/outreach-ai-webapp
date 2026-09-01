@@ -61,29 +61,37 @@ in-process readers use). This box reads a list and hands it over.
 
 ## Install
 
+Two commands on a fresh Debian/Ubuntu box. `bootstrap.sh` is idempotent: node,
+Xvfb, Google Chrome stable, deps, the env file, the `creators` user, the
+systemd units, and the app-link check — then it **stops**, because scheduling
+comes after the experiment, not before it.
+
 ```bash
-# 1. Copy the two directories it needs. The worker imports the browser reader
-#    from ../dev, so keep the layout.
-ssh you@vps 'mkdir -p /opt/outreach-creator-worker'
-scp -r scripts/creator-worker scripts/dev you@vps:/opt/outreach-creator-worker/
+scp -r scripts/creator-worker scripts/dev root@vps:/opt/outreach-creator-worker/
+ssh root@vps 'APP_URL=https://campaign.madeboring.com CREATOR_INGEST_TOKEN=<the token> \
+    bash /opt/outreach-creator-worker/creator-worker/bootstrap.sh'
+```
 
-# 2. Node deps — one package.
-ssh you@vps
-cd /opt/outreach-creator-worker/creator-worker
-npm install --omit=dev
+It refuses an Indian egress before installing a browser, and warns if
+`status-email@.service` is absent — the unit's `OnFailure` points at it, and a
+missing handler means a failing worker fails silently, which is the one thing
+this alert exists to prevent.
 
-# 3. Real Chrome. On Debian/Ubuntu:
+<details><summary>The same steps by hand</summary>
+
+```bash
+cd /opt/outreach-creator-worker/creator-worker && npm install --omit=dev
 wget -qO- https://dl.google.com/linux/linux_signing_key.pub | sudo gpg --dearmor -o /usr/share/keyrings/google-chrome.gpg
 echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome.gpg] https://dl.google.com/linux/chrome/deb/ stable main" | sudo tee /etc/apt/sources.list.d/google-chrome.list
-sudo apt-get update && sudo apt-get install -y google-chrome-stable
-
-# 4. The token and the app it reports to.
+sudo apt-get update && sudo apt-get install -y google-chrome-stable xvfb
 sudo tee /etc/outreach-creator-worker.env >/dev/null <<'ENV'
 APP_URL=https://campaign.madeboring.com
 CREATOR_INGEST_TOKEN=<paste it here>
 ENV
 sudo chmod 600 /etc/outreach-creator-worker.env
 ```
+
+</details>
 
 `CREATOR_INGEST_TOKEN` is **already set on the Vercel project** (production,
 2026-09-01) — a 32-byte hex secret. Ask Pratham for it; it is not in this repo.
@@ -92,7 +100,7 @@ The endpoint would otherwise fall back to `SOUND_INGEST_TOKEN` and then
 sound worker's README gives: a box running a browser against a hostile page
 should hold a secret that can only write creator readings.
 
-### The app side is already verified against production
+### Everything except the egress is already verified
 
 Measured 2026-09-01 against `https://campaign.madeboring.com`, so that a failed
 dry-run on the box can only mean the box:
@@ -102,7 +110,17 @@ GET  /api/trackers/creators/ingest                → 200, 2 tracked TikTok crea
 GET  … with a wrong bearer                        → 401
 POST … {dryRun:true, one known + one bogus id}    → 200 {"recorded":1,"unknown":1,"empty":0}
 POST … with no bearer                             → 401
+node read-top-posts.mjs --self-test               → recorded=1, exit 0
+node read-top-posts.mjs --self-test (bad token)   → names CREATOR_INGEST_TOKEN, exit 1
+node read-top-posts.mjs --dry-run (from India)    → egress guard refuses, exit 3
+  … with SKIP_EGRESS_CHECK=1                      → Chrome runs, both creators
+                                                    `skip`, evidence printed
 ```
+
+`--self-test` is the browser-free half: it authenticates, reads the roster, and
+posts a reading in the exact shape the real run builds, always dry. Run it first
+on any new box — if it passes, nothing left can be wrong except Chrome and the
+egress, which is the only question this box was rented to answer.
 
 ## Check it before scheduling it
 

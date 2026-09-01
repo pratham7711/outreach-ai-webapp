@@ -27,6 +27,7 @@
  *   APP_URL=https://campaign.madeboring.com CREATOR_INGEST_TOKEN=... node read-top-posts.mjs
  *   ... --dry-run     read everything, write nothing
  *   ... --headless    force headless (diagnostic only — reads no grid)
+ *   ... --self-test   check the app link only: no browser, no TikTok, no write
  *
  * Always run it under `xvfb-run -a`: headed Chrome needs a display, and the
  * display is what TikTok's signing script is actually checking.
@@ -37,6 +38,12 @@ const APP_URL = (process.env.APP_URL ?? "").replace(/\/+$/, "");
 const TOKEN =
   process.env.CREATOR_INGEST_TOKEN ?? process.env.SOUND_INGEST_TOKEN ?? process.env.CRON_SECRET;
 const DRY_RUN = process.argv.includes("--dry-run");
+/* Everything the box does EXCEPT open a browser: reach the app, authenticate,
+   read the roster, and post a reading in the payload shape this script builds.
+   It runs anywhere, India included, because no TikTok page is involved -- so
+   when the real run fails on a new box, this says in one command whether the
+   box or the egress is at fault. Writes nothing: the POST is always dry. */
+const SELF_TEST = process.argv.includes("--self-test");
 /* Headed is the DEFAULT, because it is the only configuration measured to get
    the grid: TikTok's signing script refuses headless Chrome (both
    @sparticuz/chromium and google-chrome's own new-headless) and answers a real
@@ -80,7 +87,7 @@ async function assertEgressOutsideIndia() {
   console.log(`egress country: ${country ?? "unknown"}`);
 }
 
-await assertEgressOutsideIndia();
+if (!SELF_TEST) await assertEgressOutsideIndia();
 
 async function callApp(init, what) {
   let res;
@@ -108,6 +115,49 @@ const { creators } = await listRes.json();
 if (!creators?.length) {
   console.log("no TikTok creators are being tracked; nothing to do");
   process.exit(0);
+}
+
+if (SELF_TEST) {
+  console.log(`app link ok: ${creators.length} tracked creator(s)`);
+  for (const c of creators) {
+    console.log(`  @${c.handle}  readRecently=${c.readRecently}`);
+  }
+  /* A reading in exactly the shape the real run posts, for the first creator
+     on the roster. If the app answers recorded=1 the contract holds end to
+     end; the only untested thing left is whether TikTok answers Chrome. */
+  const probe = {
+    creatorId: creators[0].id,
+    posts: [
+      {
+        postId: "0".repeat(19),
+        url: `https://www.tiktok.com/@${creators[0].handle}/video/${"0".repeat(19)}`,
+        caption: "self-test",
+        coverUrl: "https://p16-sign.tiktokcdn-us.com/self-test.jpg",
+        views: 1,
+        likes: 0,
+        comments: 0,
+        postedAt: new Date().toISOString(),
+      },
+    ],
+  };
+  const res = await callApp(
+    {
+      method: "POST",
+      headers: { ...auth, "content-type": "application/json" },
+      body: JSON.stringify({ readings: [probe], dryRun: true }),
+    },
+    "post a self-test reading"
+  );
+  const body = await res.json().catch(() => ({}));
+  const ok = body.recorded === 1 && body.dryRun === true;
+  console.log(`self-test POST -> ${JSON.stringify(body)}`);
+  console.log(
+    ok
+      ? "self-test passed: the app link, the token and the payload shape are all good.\n" +
+          "  Anything that fails now is Chrome or the egress, not this wiring."
+      : "self-test FAILED: the app did not record the probe reading."
+  );
+  process.exit(ok ? 0 : 1);
 }
 
 /* One browser for the whole run. Real Chrome does not have the sound worker's
