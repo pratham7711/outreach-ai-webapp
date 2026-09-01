@@ -1,3 +1,11 @@
+import { randomBytes } from "crypto";
+
+// The token helpers encrypt and decrypt with TOKEN_ENCRYPTION_KEY, which is a
+// real secret and so is absent from CI and from a fresh checkout. Generate a
+// throwaway one here — the same thing the crypto and backfill suites do — so
+// this suite never depends on a .env being present.
+process.env.TOKEN_ENCRYPTION_KEY = randomBytes(32).toString("base64");
+
 const mockUpdate = jest.fn();
 jest.mock("@/lib/db", () => ({
   db: {

@@ -61,13 +61,61 @@ async function launch(): Promise<LaunchedBrowser> {
   return (await pw.launch({ channel: "chrome", headless: true })) as unknown as LaunchedBrowser;
 }
 
+export type SoundBrowserSession = {
+  read: (
+    tiktokSoundId: string,
+    opts?: { timeoutMs?: number }
+  ) => Promise<TikTokSoundStats | null>;
+  close: () => Promise<void>;
+};
+
+/**
+ * One browser for a whole sweep.
+ *
+ * Launching per sound pays the launch -- about half of each read -- once per
+ * sound, and the creator sweep proved the sharper failure: two launches close
+ * together race on the binary @sparticuz/chromium extracts to /tmp and die
+ * with ETXTBSY. Launch is lazy so a sweep where every sound is skipped, or
+ * where the plain fetch answers first, never starts a browser at all.
+ */
+export function openSoundBrowserSession(): SoundBrowserSession {
+  let browserPromise: Promise<LaunchedBrowser> | null = null;
+
+  return {
+    async read(tiktokSoundId, { timeoutMs = 45_000 } = {}) {
+      if (!browserPromise) browserPromise = launch();
+      const browser = await browserPromise;
+      return readWith(browser, tiktokSoundId, timeoutMs);
+    },
+    async close() {
+      if (!browserPromise) return;
+      const browser = await browserPromise.catch(() => null);
+      await browser?.close().catch(() => {});
+    },
+  };
+}
+
+/** One-shot form for callers reading a single sound. */
 export async function fetchSoundStatsViaBrowser(
   tiktokSoundId: string,
-  { timeoutMs = 45_000 }: { timeoutMs?: number } = {}
+  opts: { timeoutMs?: number } = {}
 ): Promise<TikTokSoundStats | null> {
-  const browser = await launch();
+  const session = openSoundBrowserSession();
   try {
-    const page = await browser.newPage({ userAgent: UA, viewport: { width: 1400, height: 1000 } });
+    return await session.read(tiktokSoundId, opts);
+  } finally {
+    await session.close();
+  }
+}
+
+async function readWith(
+  browser: LaunchedBrowser,
+  tiktokSoundId: string,
+  timeoutMs: number
+): Promise<TikTokSoundStats | null> {
+  let page: any = null;
+  try {
+    page = await browser.newPage({ userAgent: UA, viewport: { width: 1400, height: 1000 } });
 
     // Take the JSON the page fetches for itself rather than scraping the DOM:
     // same numbers, plus title, artist and cover, and no dependence on how
@@ -104,6 +152,8 @@ export async function fetchSoundStatsViaBrowser(
       coverImageUrl: music?.coverLarge ?? music?.coverMedium ?? music?.coverThumb ?? null,
     };
   } finally {
-    await browser.close();
+    /* Only the page. The browser belongs to the session, and closing it here
+       would end a sweep after its first sound. */
+    await page?.close().catch(() => {});
   }
 }

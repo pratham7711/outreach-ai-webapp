@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 import { db } from "@/lib/db";
 import { createLogger } from "@/lib/observability/logger";
 import { fetchTikTokSoundStats } from "@/lib/platforms/tiktokSound";
-import { fetchSoundStatsViaBrowser } from "@/lib/platforms/tiktokSoundBrowser";
+import { openSoundBrowserSession } from "@/lib/platforms/tiktokSoundBrowser";
 import {
   changeOverWindow,
   previousOf,
@@ -50,6 +50,12 @@ export async function GET(request: NextRequest) {
   let snapshotted = 0;
   let skipped = 0;
   let failed = 0;
+
+  /* One browser for the whole sweep -- launched lazily on the first sound that
+     actually needs a read, so a run where everything is skipped stays cheap.
+     Per-sound launches paid the launch cost ~93 times and raced on the binary
+     extracted to /tmp (ETXTBSY), which is how the creator sweep first failed. */
+  const tiktok = openSoundBrowserSession();
 
   try {
     /* Cadence is per-organisation, so the run needs each sound's owner. The
@@ -111,7 +117,7 @@ export async function GET(request: NextRequest) {
       // plain fetch below is kept as a fallback only because it costs nothing
       // when the browser is unavailable — on its own it has never produced a
       // reading, which is why this cron ran daily for ten days and wrote none.
-      let stats = await fetchSoundStatsViaBrowser(sound.tiktokSoundId).catch((e) => {
+      let stats = await tiktok.read(sound.tiktokSoundId).catch((e) => {
         log.warn("browser read failed", { soundId: sound.id, error: String(e).slice(0, 120) });
         return null;
       });
@@ -163,5 +169,7 @@ export async function GET(request: NextRequest) {
       error: error instanceof Error ? error.message : String(error),
     });
     return NextResponse.json({ error: "Tracker sweep failed" }, { status: 500 });
+  } finally {
+    await tiktok.close();
   }
 }

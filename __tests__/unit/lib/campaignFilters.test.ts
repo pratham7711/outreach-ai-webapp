@@ -9,11 +9,15 @@ import { readCampaignFilters, campaignWhere, countCampaignFilters } from "@/lib/
 /**
  * Covers the Tags and Team Member filters added for the campaigns list.
  *
- * Neither join table has a row in any environment yet and nothing in the app
- * writes one, so the drawer hides both controls — which means the query path
- * gets no exercise from clicking around. These assertions are the exercise. The
- * shapes were confirmed against the real database once (a tag and a team member
- * created on one campaign, both filters returning exactly that campaign, an
+ * The tag filter now runs through `tagLinks` — the org's own tag definitions
+ * from Settings → General, joined to the campaign and matched on the tag's
+ * *name*. It used to read a free-string `tags` join table that nothing ever
+ * wrote; that table is still in the schema but is neither read nor written.
+ * Matching on the name rather than the id is deliberate: a shared filter URL
+ * stays readable, and one that was shared before the switch keeps working.
+ *
+ * The shapes were confirmed against the real database once (a tag and a team
+ * member on one campaign, both filters returning exactly that campaign, an
  * unknown tag returning nothing), and this pins that behaviour without needing
  * a database to run.
  */
@@ -38,13 +42,14 @@ describe("campaign tag and team-member filters", () => {
 
   it("emits no tag or team clause when neither is set", () => {
     const where = campaignWhere(ORG, readCampaignFilters({}));
-    expect(where).not.toHaveProperty("tags");
+    expect(where).not.toHaveProperty("tagLinks");
     expect(where).not.toHaveProperty("teamMembers");
   });
 
   it("narrows through the join tables, matching ANY of the selected values", () => {
     const where = campaignWhere(ORG, readCampaignFilters({ tags: "launch,q3", teamMemberIds: "u1" }));
-    expect(where.tags).toEqual({ some: { tag: { in: ["launch", "q3"] } } });
+    // Through the link table, onto the tag definition, matched by name.
+    expect(where.tagLinks).toEqual({ some: { tag: { name: { in: ["launch", "q3"] } } } });
     expect(where.teamMembers).toEqual({ some: { userId: { in: ["u1"] } } });
     // Still scoped to the org and to live rows — a filter must not widen either.
     expect(where.orgId).toBe(ORG);
@@ -56,7 +61,7 @@ describe("campaign tag and team-member filters", () => {
     // filter fall open and return every campaign, reading as "no matches found"
     // when it is really "filter ignored".
     const where = campaignWhere(ORG, readCampaignFilters({ tags: "__nope__" }));
-    expect(where.tags).toEqual({ some: { tag: { in: ["__nope__"] } } });
+    expect(where.tagLinks).toEqual({ some: { tag: { name: { in: ["__nope__"] } } } });
   });
 
   it("counts each as one filter for the drawer badge", () => {
