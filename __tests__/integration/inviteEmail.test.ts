@@ -51,7 +51,9 @@ function req(url: string, body?: unknown) {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  mockAuth.mockResolvedValue({ user: { orgId: ORG, email: "owner@acme.test" } });
+  /* OWNER: every invite endpoint now requires users:manage, and inviting at
+     OWNER requires being one. Authorization itself is covered separately. */
+  mockAuth.mockResolvedValue({ user: { id: "u-1", orgId: ORG, email: "owner@acme.test", role: "OWNER" } });
   mockSend.mockResolvedValue({ sent: true, id: "re_1" });
   mockDb.organization.findUnique.mockResolvedValue({ name: "Acme", brandName: "Acme Studio" });
   mockDb.userInvite.findFirst.mockResolvedValue(null);

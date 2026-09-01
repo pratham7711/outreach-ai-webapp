@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
-import { createAuditActor, logAudit } from "@/lib/audit";
+import { requirePermission } from "@/lib/authz";
+import { getAuditActor } from "@/lib/authenticate";
+import { logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
 
 // DELETE /api/invites/[id] — Cancel/delete an invite
@@ -10,9 +11,11 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    const orgId = (session.user as any).orgId;
+    /* Cancelling is team management too: without this any member could revoke
+       a pending OWNER invite and stall somebody's access. */
+    const gate = await requirePermission(_request, "users:manage");
+    if (!gate.ok) return gate.response;
+    const { orgId } = gate.auth;
 
     const { id } = await params;
 
@@ -26,7 +29,7 @@ export async function DELETE(
 
     await logAudit({
       orgId,
-      ...createAuditActor(session),
+      ...getAuditActor(gate.auth),
       action: "invite.delete",
       entityType: "user_invite",
       entityId: invite.id,

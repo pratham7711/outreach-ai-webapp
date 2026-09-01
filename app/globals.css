@@ -1296,3 +1296,55 @@ h1, h2, h3, h4, h5, h6 {
   border: none;
   border-top: 1px solid var(--cc-border);
 }
+
+/* Pending invites table.
+   Eight columns need ~740px. On a 390px phone that put the Link / Resend /
+   Cancel buttons about 370px past the right edge of the screen, inside a
+   horizontal scroller that advertised nothing -- the Resend button rendered
+   and was, for practical purposes, invisible.
+   Mobile-first, matching the other rsp- rules: each invite is a stacked card
+   with its actions on their own row, and the grid is restored at 768px. */
+.rsp-invites-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; }
+.rsp-invites-inner { min-width: 0; }
+
+.rsp-invites-head { display: none; }
+
+.rsp-invites-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 14px 20px;
+}
+/* Actions get a full-width row of their own, spaced for thumbs rather than
+   crammed against the right edge. */
+.rsp-invites-actions {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-top: 4px;
+  width: 100%;
+}
+/* The blank action cells that pad the desktop grid are noise when stacked. */
+.rsp-invites-actions > .rsp-invites-spacer { display: none; }
+
+@media (min-width: 768px) {
+  .rsp-invites-inner { min-width: 740px; }
+  .rsp-invites-head,
+  .rsp-invites-row {
+    display: grid;
+    grid-template-columns: 1fr 100px 120px 120px 80px 70px 85px 60px;
+    gap: 16px;
+    align-items: center;
+  }
+  .rsp-invites-head { padding: 10px 24px; }
+  .rsp-invites-row { padding: 12px 24px; }
+  /* display:contents dissolves the wrapper so its three buttons become grid
+     items again, filling the last three columns. */
+  .rsp-invites-actions {
+    display: contents;
+    margin-top: 0;
+    width: auto;
+  }
+  .rsp-invites-actions > .rsp-invites-spacer { display: block; }
+}

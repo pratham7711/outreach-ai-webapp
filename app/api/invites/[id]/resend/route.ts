@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
-import { createAuditActor, logAudit } from "@/lib/audit";
+import { requirePermission } from "@/lib/authz";
+import { getAuditActor } from "@/lib/authenticate";
+import { logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
 import { sendInviteEmail } from "@/lib/inviteEmail";
 import { rateLimit, rateLimitKey } from "@/lib/rateLimit";
@@ -20,9 +21,9 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    const orgId = (session.user as any).orgId;
+    const gate = await requirePermission(request, "users:manage");
+    if (!gate.ok) return gate.response;
+    const { orgId } = gate.auth;
 
     /* Resend puts mail in somebody's inbox on demand, so it is the one action
        here worth rate limiting -- otherwise it is a button that spams a third
@@ -65,7 +66,7 @@ export async function POST(
       token: invite.token,
       origin,
       expiresAt: invite.expiresAt,
-      invitedByEmail: session.user.email ?? null,
+      invitedByEmail: gate.auth.actorEmail ?? null,
     });
 
     if (!sent.sent) {
@@ -83,7 +84,7 @@ export async function POST(
 
     await logAudit({
       orgId,
-      ...createAuditActor(session),
+      ...getAuditActor(gate.auth),
       action: "invite.resend",
       entityType: "user_invite",
       entityId: invite.id,

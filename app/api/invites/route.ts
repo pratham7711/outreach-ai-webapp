@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
-import { createAuditActor, logAudit } from "@/lib/audit";
+import { requirePermission } from "@/lib/authz";
+import { getAuditActor } from "@/lib/authenticate";
+import { logAudit } from "@/lib/audit";
 import { getOrgEntitlements } from "@/lib/entitlements";
 import { getRequestIp } from "@/lib/request";
 import { sendInviteEmail } from "@/lib/inviteEmail";
@@ -10,11 +11,15 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const VALID_ROLES = ["OWNER", "ADMIN", "MANAGER", "MEMBER", "VIEWER"] as const;
 
 // GET /api/invites — List all invites for the org
-export async function GET() {
+/* Gated on users:manage rather than mere membership, because the rows carry
+   `token`. That token is the entire credential: the accept endpoint checks it
+   and never the address it was mailed to, so anyone who can read this list can
+   accept any pending invite in the org -- including one issued at OWNER. */
+export async function GET(request: NextRequest) {
   try {
-    const session = await auth();
-    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    const orgId = (session.user as any).orgId;
+    const gate = await requirePermission(request, "users:manage");
+    if (!gate.ok) return gate.response;
+    const { orgId } = gate.auth;
 
     const invites = await db.userInvite.findMany({
       where: { orgId },
@@ -41,9 +46,14 @@ export async function GET() {
 // POST /api/invites — Create a new invite
 export async function POST(request: NextRequest) {
   try {
-    const session = await auth();
-    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    const orgId = (session.user as any).orgId;
+    /* Anyone signed in could previously invite anyone at any role. A VIEWER
+       could mint an OWNER at an address they controlled, and the response body
+       handed back the token, so the mail path was not even needed. rbac.ts had
+       always said users:manage was OWNER/ADMIN only; this endpoint just never
+       asked. */
+    const gate = await requirePermission(request, "users:manage");
+    if (!gate.ok) return gate.response;
+    const { orgId } = gate.auth;
 
     const body = await request.json();
     const { email, role } = body;
@@ -56,6 +66,17 @@ export async function POST(request: NextRequest) {
     // Validate role if provided
     if (role && !VALID_ROLES.includes(role)) {
       return NextResponse.json({ error: "Invalid role" }, { status: 400 });
+    }
+
+    /* users:manage lets an ADMIN run the team, but handing out OWNER is not
+       running the team -- it is granting the one role that outranks you, at an
+       address of your choosing. An API key has no role to compare against, so
+       it is held to the same rule. */
+    if (role === "OWNER" && gate.auth.role !== "OWNER") {
+      return NextResponse.json(
+        { error: "Only an owner can invite another owner." },
+        { status: 403 }
+      );
     }
 
     /* Seats, counted before the invite is written.
@@ -123,7 +144,7 @@ export async function POST(request: NextRequest) {
 
     await logAudit({
       orgId,
-      ...createAuditActor(session),
+      ...getAuditActor(gate.auth),
       action: "invite.create",
       entityType: "user_invite",
       entityId: invite.id,
@@ -155,7 +176,7 @@ export async function POST(request: NextRequest) {
       token: invite.token,
       origin,
       expiresAt: invite.expiresAt,
-      invitedByEmail: session.user.email ?? null,
+      invitedByEmail: gate.auth.actorEmail ?? null,
     });
 
     return NextResponse.json({ ...invite, emailed: sent.sent }, { status: 201 });

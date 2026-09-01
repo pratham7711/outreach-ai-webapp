@@ -317,16 +317,14 @@ export default function TeamClient({
           <div style={{ padding: "14px 24px", borderBottom: "1px solid var(--cc-border)", background: "var(--cc-hover-bg)" }}>
             <span style={{ fontWeight: 700, fontSize: 14, color: "var(--cc-text)" }}>Pending Invites</span>
           </div>
-          <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
-            <div style={{ minWidth: 740 }}>
-            {/* Table header */}
-            <div style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 100px 120px 120px 80px 70px 85px 60px",
-              padding: "10px 24px",
-              borderBottom: "1px solid var(--cc-border)",
-              gap: 16,
-            }}>
+          <div className="rsp-invites-scroll">
+            <div className="rsp-invites-inner">
+            {/* Table header. Hidden below 768px, where each invite becomes a
+                stacked card and column headings have nothing to head. */}
+            <div
+              className="rsp-invites-head"
+              style={{ borderBottom: "1px solid var(--cc-border)" }}
+            >
               {/* One entry per grid column; the three trailing blanks are the
                   Link, Resend and Cancel action cells. Indexed keys because
                   several labels are empty and would collide as keys. */}
@@ -342,15 +340,8 @@ export default function TeamClient({
               return (
                 <div
                   key={invite.id}
-                  className="cc-table-row"
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr 100px 120px 120px 80px 70px 85px 60px",
-                    padding: "12px 24px",
-                    alignItems: "center",
-                    borderBottom: "1px solid var(--cc-border)",
-                    gap: 16,
-                  }}
+                  className="cc-table-row rsp-invites-row"
+                  style={{ borderBottom: "1px solid var(--cc-border)" }}
                 >
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <Mail size={14} style={{ color: "var(--cc-text-muted)", flexShrink: 0 }} />
@@ -359,11 +350,22 @@ export default function TeamClient({
                   <Badge style={{ background: roleStyle.bg, color: roleStyle.color, fontSize: 11, fontWeight: 600 }}>
                     {invite.role}
                   </Badge>
-                  <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{formatDate(invite.createdAt)}</span>
-                  <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{formatDate(invite.expiresAt)}</span>
+                  {/* Stacked on a phone these are two bare dates in a column
+                      with nothing to tell them apart; the column headings that
+                      did that job are hidden at this width. */}
+                  <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>
+                    <span className="rsp-only-mobile">Sent </span>{formatDate(invite.createdAt)}
+                  </span>
+                  <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>
+                    <span className="rsp-only-mobile">Expires </span>{formatDate(invite.expiresAt)}
+                  </span>
                   <Badge style={{ background: statusStyle.bg, color: statusStyle.color, fontSize: 10, fontWeight: 600, textTransform: "capitalize" }}>
                     {invite.status}
                   </Badge>
+                  {/* Wrapped so the three actions can become their own row on a
+                      phone; display:contents puts them back in the grid at
+                      768px. */}
+                  <div className="rsp-invites-actions">
                   {invite.status === "pending" ? (
                     <button
                       onClick={() => copyInviteLink(invite.token)}
@@ -379,7 +381,7 @@ export default function TeamClient({
                       {copiedToken === invite.token ? <Check size={14} /> : <LinkIcon size={14} />}
                       {copiedToken === invite.token ? "Copied" : "Link"}
                     </button>
-                  ) : <span />}
+                  ) : <span className="rsp-invites-spacer" />}
                   {invite.status === "pending" ? (
                     <button
                       onClick={() => handleResend(invite.id, invite.email)}
@@ -398,7 +400,7 @@ export default function TeamClient({
                       {resentId === invite.id ? <Check size={14} /> : <Mail size={14} />}
                       {resentId === invite.id ? "Sent" : resendingId === invite.id ? "Sending" : "Resend"}
                     </button>
-                  ) : <span />}
+                  ) : <span className="rsp-invites-spacer" />}
                   <button
                     onClick={() => handleCancel(invite.id)}
                     aria-label="Cancel invite"
@@ -419,6 +421,7 @@ export default function TeamClient({
                   >
                     <Trash2 size={15} />
                   </button>
+                  </div>
                 </div>
               );
             })}

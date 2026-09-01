@@ -45,7 +45,10 @@ import { orgFixture } from '../helpers/orgFixture';
 const mockAuth = auth as jest.Mock;
 const mockDb = db as any;
 
-const authedSession = { user: { id: 'user-1', orgId: 'org-1' } };
+/* OWNER, because every endpoint in this file now requires users:manage. The
+   role-gate cases live in inviteAuthorization.test.ts; these tests are about
+   what the endpoints do once you are allowed through. */
+const authedSession = { user: { id: 'user-1', orgId: 'org-1', role: 'OWNER' } };
 
 function makeRequest(url: string, options?: ConstructorParameters<typeof NextRequest>[1]) {
   return new NextRequest(url, options);
@@ -188,7 +191,7 @@ describe('GET /api/invites', () => {
     mockDb.userInvite.findMany.mockResolvedValue(invites);
 
     const req = makeRequest('http://localhost/api/invites');
-    const res = await GET();
+    const res = await GET(makeRequest('http://localhost/api/invites'));
     const body = await res.json();
 
     expect(res.status).toBe(200);
@@ -200,7 +203,7 @@ describe('GET /api/invites', () => {
   it('returns 401 without session', async () => {
     mockAuth.mockResolvedValue(null);
 
-    const res = await GET();
+    const res = await GET(makeRequest('http://localhost/api/invites'));
 
     expect(res.status).toBe(401);
   });
