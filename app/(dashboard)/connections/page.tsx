@@ -199,7 +199,7 @@ export default function ConnectionsPage() {
         <div>
           <h1 style={{ fontSize: 28, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Connections</h1>
           <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>
-            Connect your platforms and payment providers
+            Record which platforms and providers your team uses
           </p>
         </div>
         <div style={{ display: "flex", gap: 12 }}>

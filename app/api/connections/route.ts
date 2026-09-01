@@ -3,20 +3,33 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { authenticateRequest } from "@/lib/authenticate";
 
+/**
+ * These are a record, not an integration.
+ *
+ * Marking a platform "connected" writes {connected, accountName} into
+ * uiConfig and nothing else: there is no OAuth, no token, no verification and
+ * no call to any of these services. The descriptions used to promise otherwise
+ * — "Process creator payouts via PayPal", "Send campaign updates via WhatsApp
+ * Business" — which meant a user could click Connect on a payment provider and
+ * reasonably believe payouts would now process. That is the most consequential
+ * false claim in the product, so the copy now says what the button does.
+ *
+ * When a real integration lands, its description changes with it.
+ */
 const PLATFORMS = [
-  { platform: "TIKTOK", name: "TikTok", description: "Import creator profiles and analytics.", icon: "🎵", category: "social" },
-  { platform: "INSTAGRAM", name: "Instagram", description: "Sync creator data and engagement metrics.", icon: "📸", category: "social" },
-  { platform: "YOUTUBE", name: "YouTube", description: "Connect channels and track video performance.", icon: "▶️", category: "social" },
-  { platform: "TWITTER", name: "Twitter/X", description: "Monitor tweets and audience analytics.", icon: "🐦", category: "social" },
-  { platform: "SPOTIFY", name: "Spotify", description: "Track music streams and artist analytics.", icon: "🎧", category: "social" },
+  { platform: "TIKTOK", name: "TikTok", description: "Note that your team uses TikTok. No data is imported yet.", icon: "🎵", category: "social" },
+  { platform: "INSTAGRAM", name: "Instagram", description: "Note that your team uses Instagram. No data is synced yet.", icon: "📸", category: "social" },
+  { platform: "YOUTUBE", name: "YouTube", description: "Note that your team uses YouTube. No channels are connected yet.", icon: "▶️", category: "social" },
+  { platform: "TWITTER", name: "Twitter/X", description: "Note that your team uses Twitter/X. No data is monitored yet.", icon: "🐦", category: "social" },
+  { platform: "SPOTIFY", name: "Spotify", description: "Note that your team uses Spotify. No streams are tracked yet.", icon: "🎧", category: "social" },
   // Messaging channels
-  { platform: "WHATSAPP", name: "WhatsApp", description: "Send campaign updates and creator messages via WhatsApp Business.", icon: "💬", category: "messaging" },
-  { platform: "TELEGRAM", name: "Telegram", description: "Notify creators and manage campaign flows through a Telegram bot.", icon: "✈️", category: "messaging" },
-  { platform: "DISCORD", name: "Discord", description: "Connect your Discord bot using an API key to manage campaigns from any server.", icon: "🎮", category: "messaging" },
+  { platform: "WHATSAPP", name: "WhatsApp", description: "Note that your team uses WhatsApp. No messages are sent from here yet.", icon: "💬", category: "messaging" },
+  { platform: "TELEGRAM", name: "Telegram", description: "Note that your team uses Telegram. No bot is connected yet.", icon: "✈️", category: "messaging" },
+  { platform: "DISCORD", name: "Discord", description: "Note that your team uses Discord. No bot is connected yet.", icon: "🎮", category: "messaging" },
   // Payment gateways
-  { platform: "PAYPAL", name: "PayPal", description: "Process creator payouts via PayPal.", icon: "💳", category: "payment" },
-  { platform: "STRIPE", name: "Stripe", description: "Accept deposits and manage payments.", icon: "💸", category: "payment" },
-  { platform: "RAZORPAY", name: "Razorpay", description: "Indian payment processing for payouts.", icon: "🏦", category: "payment" },
+  { platform: "PAYPAL", name: "PayPal", description: "Note that your team uses PayPal. Payouts are not processed from here.", icon: "💳", category: "payment" },
+  { platform: "STRIPE", name: "Stripe", description: "Note that your team uses Stripe. Payments are not processed from here.", icon: "💸", category: "payment" },
+  { platform: "RAZORPAY", name: "Razorpay", description: "Note that your team uses Razorpay. Payouts are not processed from here.", icon: "🏦", category: "payment" },
 ];
 
 export { PLATFORMS };
