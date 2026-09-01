@@ -85,12 +85,24 @@ ENV
 sudo chmod 600 /etc/outreach-creator-worker.env
 ```
 
-`CREATOR_INGEST_TOKEN` is a Vercel environment variable you set on the project.
-Absent that, the endpoint falls back to `SOUND_INGEST_TOKEN`, then
-`CRON_SECRET` — the fallbacks work immediately, but set the dedicated token
-before pointing anything real at it, for the same reason the sound worker's
-README gives: a box running a browser against a hostile page should hold a
-secret that can only write creator readings.
+`CREATOR_INGEST_TOKEN` is **already set on the Vercel project** (production,
+2026-09-01) — a 32-byte hex secret. Ask Pratham for it; it is not in this repo.
+The endpoint would otherwise fall back to `SOUND_INGEST_TOKEN` and then
+`CRON_SECRET`, but the dedicated token is the one to use, for the reason the
+sound worker's README gives: a box running a browser against a hostile page
+should hold a secret that can only write creator readings.
+
+### The app side is already verified against production
+
+Measured 2026-09-01 against `https://campaign.madeboring.com`, so that a failed
+dry-run on the box can only mean the box:
+
+```
+GET  /api/trackers/creators/ingest                → 200, 2 tracked TikTok creators
+GET  … with a wrong bearer                        → 401
+POST … {dryRun:true, one known + one bogus id}    → 200 {"recorded":1,"unknown":1,"empty":0}
+POST … with no bearer                             → 401
+```
 
 ## Check it before scheduling it
 
@@ -100,6 +112,12 @@ APP_URL=... CREATOR_INGEST_TOKEN=... xvfb-run -a node read-top-posts.mjs --dry-r
 ```
 
 `--dry-run` reads every grid for real and writes nothing.
+
+Note the worker asks the app which creators to read, and the app now answers
+with **every** TikTok creator whose stored list did not come from a platform
+read. A creator sitting on the campaign-scoped fallback is therefore offered to
+this box, not hidden from it — the fallback is the weaker claim and exists to be
+replaced.
 
 **This run is the experiment.** `ok` lines with post counts mean the egress
 hypothesis held and the tracker is unblocked — schedule it. `skip ... page gave
@@ -147,3 +165,15 @@ The Vercel-side sweep keeps trying its own ladder (direct fetch → sandbox curl
 → in-function browser) for STATS, and refuses to overwrite stored posts with an
 empty read — so worker-fed posts survive serverless failures and the two paths
 never fight. Last successful read wins, whichever side made it.
+
+### What the panel shows while this box does not exist
+
+The app's own ladder is: official Display API (a creator who connected through
+the portal) → browser grid → **the posts this workspace already tracks for
+them**. That last rung is live and populates all four tracked creators today,
+labelled "Top Posts in Your Campaigns" in the creator modal, with
+`Creator.topPostsSource = "campaigns"`.
+
+It is a narrower claim than this worker's, deliberately so: their best videos
+*in your campaigns*, not their best videos. That is exactly what this box is
+for, and why the app hands a campaign-sourced creator straight back to it.

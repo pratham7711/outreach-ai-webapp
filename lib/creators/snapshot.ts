@@ -57,6 +57,17 @@ function postsAreStaleFor(creator: { topPostsAt: Date | null }): boolean {
   );
 }
 
+/** The same question for the PLATFORM rungs, which a campaign-scoped list must
+ *  never hold off: it is the weaker claim, so a creator sitting on one is
+ *  always worth asking the platform about again. Otherwise a creator who
+ *  connects their TikTok today would keep the campaign list for another day. */
+function platformPostsAreStaleFor(creator: {
+  topPostsAt: Date | null;
+  topPostsSource: string | null;
+}): boolean {
+  return creator.topPostsSource !== "platform" || postsAreStaleFor(creator);
+}
+
 /** The posts ladder without the browser rung: one official-API call for a
  *  connected TikTok creator, then the posts this workspace already tracks.
  *  Cheap enough to run on paths where the follower read did not happen, which
@@ -132,6 +143,7 @@ export async function snapshotCreators(
       handle: true,
       platform: true,
       topPostsAt: true,
+      topPostsSource: true,
       trackerSnapshots: {
         orderBy: { recordedAt: "desc" },
         take: 1,
@@ -179,7 +191,7 @@ export async function snapshotCreators(
        a plateau that never happened. */
     if (!isDueForRead(previous?.recordedAt ?? null, cadence, now)) {
       skipped++;
-      if (!dryRun && postsAreStaleFor(creator)) {
+      if (!dryRun && platformPostsAreStaleFor(creator)) {
         const read = await readPostsWithoutBrowser(creator);
         if (read) await storeTopPostsOnly(creator.id, read);
       }
@@ -271,7 +283,7 @@ export async function snapshotCreators(
          here too, on its own cadence, without pretending the follower read
          succeeded. */
       const salvaged =
-        postsAreStaleFor(creator) && !dryRun ? await readPostsWithoutBrowser(creator) : null;
+        platformPostsAreStaleFor(creator) && !dryRun ? await readPostsWithoutBrowser(creator) : null;
 
       /* Stamped even though no snapshot exists, so the UI can tell "we tried and
          this account cannot be read" from "we have not got to it yet". */
@@ -311,10 +323,11 @@ export async function snapshotCreators(
             every browser measured. It is here for the day that changes, and
             because it costs nothing when rung 1 answers. */
     const postsAreStale = postsAreStaleFor(creator);
+    const platformPostsAreStale = platformPostsAreStaleFor(creator);
 
     let tiktokPosts: TikTokPostsRead | null = null;
     let topPostsSource: "platform" | "campaigns" | null = null;
-    if (creator.platform === "TIKTOK" && postsAreStale && !dryRun) {
+    if (creator.platform === "TIKTOK" && platformPostsAreStale && !dryRun) {
       const official = await readTikTokTopPostsOfficial(creator.id, creator.orgId, creator.handle).catch(
         (e) => {
           log.warn("tiktok official posts read failed", {
@@ -343,7 +356,7 @@ export async function snapshotCreators(
       creator.platform === "TIKTOK" &&
       readTikTokPosts &&
       gridRead === undefined && // the WAF fallback above has not already read the page
-      postsAreStale
+      platformPostsAreStale
     ) {
       tiktokPosts = await readTikTokPosts(creator.handle).catch((e) => {
         log.warn("tiktok grid read failed", {

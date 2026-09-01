@@ -112,9 +112,25 @@ describe("tikTokCreatorsNeedingTopPosts", () => {
 
   it("splits readRecently on the 30-day window", async () => {
     mockFindMany.mockResolvedValue([
-      { id: "a", handle: "fresh", name: "F", topPostsAt: new Date() },
-      { id: "b", handle: "old", name: "O", topPostsAt: new Date(Date.now() - 40 * 864e5) },
-      { id: "c", handle: "never", name: "N", topPostsAt: null },
+      { id: "a", handle: "fresh", name: "F", topPostsAt: new Date(), topPostsSource: "platform" },
+      {
+        id: "b", handle: "old", name: "O",
+        topPostsAt: new Date(Date.now() - 40 * 864e5), topPostsSource: "platform",
+      },
+      { id: "c", handle: "never", name: "N", topPostsAt: null, topPostsSource: null },
+    ]);
+    const rows = await tikTokCreatorsNeedingTopPosts();
+    expect(rows.map((r) => r.readRecently)).toEqual([true, false, false]);
+  });
+});
+
+describe("a campaign-scoped list must not suppress the platform reader", () => {
+  it("counts only a platform list as recently read", async () => {
+    const fresh = new Date(Date.now() - 60 * 60 * 1000);
+    mockFindMany.mockResolvedValue([
+      { id: "a", handle: "one", name: "One", topPostsAt: fresh, topPostsSource: "platform" },
+      { id: "b", handle: "two", name: "Two", topPostsAt: fresh, topPostsSource: "campaigns" },
+      { id: "c", handle: "three", name: "Three", topPostsAt: fresh, topPostsSource: null },
     ]);
     const rows = await tikTokCreatorsNeedingTopPosts();
     expect(rows.map((r) => r.readRecently)).toEqual([true, false, false]);

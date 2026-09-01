@@ -92,7 +92,7 @@ export async function tikTokCreatorsNeedingTopPosts(
   const now = Date.now();
   const creators = await db.creator.findMany({
     where: { platform: "TIKTOK", trackedSince: { not: null }, deletedAt: null },
-    select: { id: true, handle: true, name: true, topPostsAt: true },
+    select: { id: true, handle: true, name: true, topPostsAt: true, topPostsSource: true },
     orderBy: [{ topPostsAt: { sort: "asc", nulls: "first" } }, { trackedSince: "asc" }],
     ...(limit ? { take: limit } : {}),
   });
@@ -101,6 +101,14 @@ export async function tikTokCreatorsNeedingTopPosts(
     id: c.id,
     handle: c.handle,
     name: c.name,
-    readRecently: Boolean(c.topPostsAt && now - c.topPostsAt.getTime() < TOP_POSTS_LIVE_WINDOW_MS),
+    /* Only a PLATFORM list counts as read. A campaign-scoped list is the
+       fallback the app writes when no platform rung answered -- treating it as
+       a recent read would let it suppress the very reader that would replace
+       it, and the creator would sit on the narrower claim forever. */
+    readRecently: Boolean(
+      c.topPostsSource === "platform" &&
+        c.topPostsAt &&
+        now - c.topPostsAt.getTime() < TOP_POSTS_LIVE_WINDOW_MS
+    ),
   }));
 }
