@@ -32,7 +32,10 @@ describe("describeReasons", () => {
 });
 
 describe("summariseRefresh with reasons", () => {
-  it("explains the shortfall instead of only counting it", () => {
+  /* The breakdown is collected, counted and logged -- and deliberately not
+     shown. describeReasons above is where the wording lives for whoever is
+     reading a run record; the campaign screen gets the count and stops. */
+  it("keeps the breakdown out of the sentence the user reads", () => {
     const text = summariseRefresh({
       total: 88,
       measured: 22,
@@ -41,18 +44,17 @@ describe("summariseRefresh with reasons", () => {
       reasons: { "platform-challenged": 62, "post-deleted": 4 },
     });
 
-    expect(text).toBe(
-      "22 of 88 posts updated, 62 blocked by the platform, 4 no longer exist.",
+    expect(text).toBe("22 of 88 posts updated.");
+    expect(text).not.toMatch(/blocked by the platform|no longer exist/);
+  });
+
+  it("reads the same whether or not the run recorded reasons", () => {
+    expect(summariseRefresh({ total: 10, measured: 3, noMetrics: 7 })).toBe(
+      "3 of 10 posts updated.",
     );
   });
 
-  /* Runs recorded before reasons existed still have to read sensibly. */
-  it("falls back to the old wording when a run carries no reasons", () => {
-    const text = summariseRefresh({ total: 10, measured: 3, noMetrics: 7 });
-    expect(text).toBe("3 of 10 posts updated, 7 returned no metrics.");
-  });
-
-  it("still reports what the next run will pick up", () => {
+  it("does not announce the batch the next run will pick up", () => {
     const text = summariseRefresh({
       total: 88,
       measured: 20,
@@ -60,6 +62,6 @@ describe("summariseRefresh with reasons", () => {
       remaining: 63,
       reasons: { "platform-challenged": 5 },
     });
-    expect(text).toContain("63 left for the next run");
+    expect(text).toBe("20 of 88 posts updated.");
   });
 });

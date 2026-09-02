@@ -63,11 +63,17 @@ const REASON_LABEL: Record<string, (n: number) => string> = {
   "post-deleted": (n) => `${n} no longer exist`,
   "platform-refused": (n) => `${n} refused by the platform`,
   "no-counts-published": (n) => `${n} publish no counts`,
+  unknown: (n) => `${n} could not be read`,
   "unrecognised-url": (n) => `${n} have an unrecognised link`,
   "not-configured": (n) => `${n} need an API key`,
   error: (n) => `${n} errored`,
 };
 
+/**
+ * No longer part of the sentence the user reads -- see summariseRefresh. Kept
+ * because the breakdown is still the right thing to put in front of whoever is
+ * debugging a bad run, and it is the only place these slugs have wording.
+ */
 export function describeReasons(reasons?: Record<string, number>): string | null {
   if (!reasons) return null;
   const parts = Object.entries(reasons)
@@ -79,6 +85,22 @@ export function describeReasons(reasons?: Record<string, number>): string | null
   return parts.join(", ");
 }
 
+/**
+ * What the user is told after a refresh: how much landed, and nothing else.
+ *
+ * The breakdown this used to append -- "15 blocked by the platform, 13 publish
+ * no counts, 3 no longer exist" -- was accurate and was the wrong audience. It
+ * described OUR delivery problem in the platform's terms, in the middle of
+ * somebody's campaign screen, and there is no action for the reader in any of
+ * it: they cannot un-wall a TikTok WAF or make a deleted post exist. It read as
+ * the product blaming itself in public.
+ *
+ * The reasons have not stopped being collected. Every one is still counted onto
+ * CampaignRefreshRun.reasons and still logged per post, so the diagnostic
+ * question is answered from the run record instead of from the toolbar --
+ * describeReasons() below stays exported for exactly that. This is a change of
+ * audience, not a loss of data.
+ */
 export function summariseRefresh(r: RefreshResult): string {
   const total = r.total ?? 0;
   const audio = describeAudioRefresh(r.sound);
@@ -87,17 +109,10 @@ export function summariseRefresh(r: RefreshResult): string {
     return audio ? `No posts to refresh yet. ${audio}` : "No posts to refresh yet.";
   }
 
-  const parts = [`${r.measured ?? 0} of ${total} post${total === 1 ? "" : "s"} updated`];
-
-  /* Prefer the breakdown over the bare total. Falls back to the old wording
-     when a run predates reason tracking, or when every reason is unknown. */
-  const why = describeReasons(r.reasons);
-  const empty = (r.noMetrics ?? 0) + (r.unfetchable ?? 0);
-  if (why) parts.push(why);
-  else if (empty > 0) parts.push(`${empty} returned no metrics`);
-
-  if (r.failed && !r.reasons?.error) parts.push(`${r.failed} failed`);
-  if (r.remaining) parts.push(`${r.remaining} left for the next run`);
-
-  return `${parts.join(", ")}.${audio ? ` ${audio}` : ""}`;
+  /* The count stays. "Updated." on a run that moved 27 of 58 would be the
+     opposite mistake -- hiding that most of the campaign holds numbers from an
+     hour ago, which is the one part of this the reader can act on by pressing
+     it again later. */
+  const sentence = `${r.measured ?? 0} of ${total} post${total === 1 ? "" : "s"} updated.`;
+  return audio ? `${sentence} ${audio}` : sentence;
 }

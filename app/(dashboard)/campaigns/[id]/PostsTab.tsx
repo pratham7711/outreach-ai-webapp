@@ -959,13 +959,16 @@ export default function PostsTab({
           </div>
 
           <Button variant="secondary" onClick={handleRefreshAll} loading={refreshingAll} disabled={posts.length === 0}>
+            {/* The label must NOT change while loading. components/ds/Button
+                keeps the children as the button's sizing element and lays the
+                spinner over them, so swapping in "Refreshing 12 of 58" made the
+                button grow -- and grow again on every progress tick as the
+                digits widened, which reads as a loader swelling on the screen.
+                Progress belongs in the note card below, where its width costs
+                nothing. */}
             <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
               <RefreshCw size={14} />
-              {refreshingAll
-                ? refreshProgress
-                  ? `Refreshing ${refreshProgress.completed} of ${refreshProgress.total}`
-                  : "Refreshing"
-                : "Refresh Data"}
+              Refresh Data
             </span>
           </Button>
 
@@ -986,17 +989,26 @@ export default function PostsTab({
         </Card>
       )}
 
-      {refreshNote && (
+      {(refreshNote || (refreshingAll && refreshProgress)) && (
         <Card variant="outlined" style={{ padding: 12 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-            <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{refreshNote}</span>
-            <button
-              onClick={() => setRefreshNote(null)}
-              aria-label="Dismiss refresh summary"
-              style={{ background: "none", border: "none", cursor: "pointer", color: "var(--cc-text-muted)", display: "flex" }}
-            >
-              <X size={14} />
-            </button>
+            <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>
+              {refreshingAll && refreshProgress
+                ? `Refreshing ${refreshProgress.completed} of ${refreshProgress.total}\u2026`
+                : refreshNote}
+            </span>
+            {/* No dismiss while a run is in flight: the card is live progress
+                at that point, and closing it would only make it reappear on the
+                next tick. */}
+            {!refreshingAll && (
+              <button
+                onClick={() => setRefreshNote(null)}
+                aria-label="Dismiss refresh summary"
+                style={{ background: "none", border: "none", cursor: "pointer", color: "var(--cc-text-muted)", display: "flex" }}
+              >
+                <X size={14} />
+              </button>
+            )}
           </div>
         </Card>
       )}

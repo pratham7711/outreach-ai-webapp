@@ -3,24 +3,26 @@ import { summariseRefresh, describeAudioRefresh } from "@/lib/refreshSummary";
 describe("summariseRefresh", () => {
   it("leads with what actually landed", () => {
     expect(summariseRefresh({ total: 17, measured: 3, noMetrics: 14 })).toBe(
-      "3 of 17 posts updated, 14 returned no metrics."
+      "3 of 17 posts updated."
     );
   });
 
-  it("counts unfetchable posts alongside the ones that returned nothing", () => {
-    // Both mean "no counters came back", so the reader gets one number, not two.
-    expect(summariseRefresh({ total: 5, measured: 1, noMetrics: 2, unfetchable: 2 })).toBe(
-      "1 of 5 posts updated, 4 returned no metrics."
-    );
+  it("says nothing about the posts that came back empty", () => {
+    /* Deliberate. The reader cannot act on "14 returned no metrics" and it read
+       as the product apologising in the middle of their campaign; the numbers
+       are still on CampaignRefreshRun for whoever is debugging the run. */
+    const text = summariseRefresh({ total: 5, measured: 1, noMetrics: 2, unfetchable: 2 });
+    expect(text).toBe("1 of 5 posts updated.");
+    expect(text).not.toMatch(/no metrics|unfetchable/i);
   });
 
   it("says post, not posts, for a campaign with one", () => {
     expect(summariseRefresh({ total: 1, measured: 1 })).toBe("1 of 1 post updated.");
   });
 
-  it("mentions failures and a remaining batch only when there are some", () => {
+  it("does not mention failures or a deferred batch either", () => {
     expect(summariseRefresh({ total: 40, measured: 20, failed: 2, remaining: 18 })).toBe(
-      "20 of 40 posts updated, 2 failed, 18 left for the next run."
+      "20 of 40 posts updated."
     );
   });
 
@@ -33,7 +35,7 @@ describe("summariseRefresh", () => {
 describe("summariseRefresh audio", () => {
   it("reports an unreachable sound, which used to pass as a clean success", () => {
     expect(summariseRefresh({ total: 17, measured: 3, noMetrics: 14, sound: { failed: 1 } })).toBe(
-      "3 of 17 posts updated, 14 returned no metrics. The campaign audio could not be reached."
+      "3 of 17 posts updated. The campaign audio could not be reached."
     );
   });
 
