@@ -122,6 +122,10 @@ export function describeReasons(reasons?: Record<string, number>): string | null
  * question is answered from the run record instead of from the toolbar --
  * describeReasons() below stays exported for exactly that. This is a change of
  * audience, not a loss of data.
+ *
+ * This held for the shared report, was briefly reversed for the operator's own
+ * screen, and is now the rule everywhere (2026-09-03): the count, and nothing
+ * about whose fault it was.
  */
 export function summariseRefresh(r: RefreshResult): string {
   const total = r.total ?? 0;
@@ -138,15 +142,22 @@ export function summariseRefresh(r: RefreshResult): string {
   const measured = r.measured ?? 0;
   const sentence = `${measured} of ${total} post${total === 1 ? "" : "s"} updated.`;
 
-  /* And, when some did not land, why -- on this screen only.
-     
-     Removing this was right for the shared client report and wrong here. This
-     is the operator's own campaign screen, and "41 of 62 updated" with the
-     cause withheld is the one thing they cannot act on: the reason was sitting
-     in the response the whole time and the answer to "why?" was a log dig. The
-     public report at (public)/share renders its own summary and never reaches
-     this branch, so the brand still never sees it. */
-  const why = measured < total ? describeReasons(r.reasons) : null;
-  const parts = [sentence, why ? `${why}.` : null, audio].filter(Boolean);
+  /* The breakdown is deliberately NOT here. Owner's call, 2026-09-03.
+
+     An earlier version appended it on this screen -- "41 of 62 posts updated.
+     16 blocked by the platform, 3 no longer exist, 2 refused by the platform."
+     The argument for it was that the operator cannot act on a withheld cause.
+     In practice the sentence read as the product apologising for itself, and
+     the three clauses are not one question but three, none of which the reader
+     can do anything about mid-refresh.
+
+     Nothing is lost, and that is the condition of removing it. Every reason is
+     still recorded in three places, none of which is this string:
+       - CampaignRefreshRun.reasons, the whole tally, one row per run
+       - Post.platformMetrics.__lastFetch, per post, with a timestamp
+       - the "campaign refresh finished" log line
+     describeReasons() stays exported and is where the wording lives for
+     whoever is reading those. Do not re-append it here. */
+  const parts = [sentence, audio].filter(Boolean);
   return parts.join(" ");
 }

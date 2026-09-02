@@ -44,18 +44,15 @@ describe("describeReasons", () => {
 
 describe("summariseRefresh with reasons", () => {
   /* The breakdown is collected, counted and logged -- and deliberately not
-     shown. describeReasons above is where the wording lives for whoever is
-     reading a run record; the campaign screen gets the count and stops. */
-  /* This assertion is the reverse of what it was, deliberately.
-   *
-   * The breakdown was removed from here on the grounds that a brand reading a
-   * campaign screen can do nothing about a TikTok challenge page. That holds
-   * for the shared report, which renders its own summary and never calls this.
-   * It does not hold for the operator's dashboard, where withholding the cause
-   * made "41 of 62 posts updated" a question that could only be answered by
-   * reading platform logs -- with the reason sitting unused in the response
-   * body the whole time. */
-  it("says why, when some posts did not land", () => {
+     shown. Owner's call, 2026-09-03.
+
+     This assertion has flipped twice, so it is worth pinning why it is where it
+     is: the reasons are not missing, they are addressed to someone else. A
+     person watching a refresh gets the count; a person debugging a bad run
+     reads CampaignRefreshRun.reasons, Post.platformMetrics.__lastFetch, or the
+     "campaign refresh finished" log line, and describeReasons() -- tested
+     above -- is where the wording for those lives. */
+  it("gives the count and never the cause, however bad the run was", () => {
     const text = summariseRefresh({
       total: 88,
       measured: 22,
@@ -64,12 +61,11 @@ describe("summariseRefresh with reasons", () => {
       reasons: { "platform-challenged": 62, "post-deleted": 4 },
     });
 
-    expect(text).toBe("22 of 88 posts updated. 62 blocked by the platform, 4 no longer exist.");
+    expect(text).toBe("22 of 88 posts updated.");
+    expect(text).not.toMatch(/blocked|no longer exist|refused|platform/i);
   });
 
   it("stays a single clean sentence when everything landed", () => {
-    // Nothing to explain, so nothing is appended -- the breakdown is for the
-    // posts that did not make it, not decoration on a clean run.
     const text = summariseRefresh({
       total: 40,
       measured: 40,
@@ -80,9 +76,16 @@ describe("summariseRefresh with reasons", () => {
   });
 
   it("reads the same whether or not the run recorded reasons", () => {
-    expect(summariseRefresh({ total: 10, measured: 3, noMetrics: 7 })).toBe(
-      "3 of 10 posts updated.",
-    );
+    const withReasons = summariseRefresh({
+      total: 10,
+      measured: 3,
+      noMetrics: 7,
+      reasons: { "platform-challenged": 7 },
+    });
+    const without = summariseRefresh({ total: 10, measured: 3, noMetrics: 7 });
+
+    expect(withReasons).toBe("3 of 10 posts updated.");
+    expect(withReasons).toBe(without);
   });
 
   it("does not announce the batch the next run will pick up", () => {
@@ -93,40 +96,42 @@ describe("summariseRefresh with reasons", () => {
       remaining: 63,
       reasons: { "platform-challenged": 5 },
     });
-    /* The subject of this test is `remaining`, which is still not announced --
-       the reason breakdown that now follows the count is a different thing. */
-    expect(text).toBe("20 of 88 posts updated. 5 blocked by the platform.");
+
+    expect(text).toBe("20 of 88 posts updated.");
     expect(text).not.toMatch(/63|remaining/);
+  });
+
+  /* The audio half is not a failure reason and is not covered by the rule
+     above: a campaign built around a sound needs to know the sound was missed,
+     and that is a fact about the run, not an apology for a platform. */
+  it("still reports the campaign audio", () => {
+    expect(summariseRefresh({ total: 4, measured: 1, reasons: { "post-deleted": 3 }, sound: { failed: 1 } }))
+      .toBe("1 of 4 posts updated. The campaign audio could not be reached.");
   });
 });
 
 /**
- * The one failure on the list that is ours. Its wording says "we", because a
- * reader who is told "blocked by the platform" for our own outage goes and
- * asks TikTok why -- which is the wrong place, and the reason this reason
- * exists at all.
+ * The wording still matters -- it just has a different audience now. These
+ * assertions moved off summariseRefresh, which no longer renders any of it,
+ * onto describeReasons, which is what a person debugging a run record reads.
+ *
+ * The distinction being protected: "blocked by the platform" for OUR own outage
+ * sends that person to ask TikTok why, which is the wrong place, and is the
+ * reason `reader-unavailable` exists as a separate reason at all.
  */
 describe("reader-unavailable wording", () => {
   it("says we could not read it, not that the platform blocked it", () => {
-    const sentence = summariseRefresh({
-      total: 62,
-      measured: 41,
-      reasons: { "reader-unavailable": 16, "post-deleted": 3, "platform-refused": 2 },
-    } as any);
+    const text = describeReasons({
+      "reader-unavailable": 16,
+      "post-deleted": 3,
+      "platform-refused": 2,
+    });
 
-    expect(sentence).toContain("41 of 62 posts updated");
-    expect(sentence).toContain("16 we could not read, retrying");
-    // The old, misleading wording must not be what this maps to.
-    expect(sentence).not.toContain("16 blocked by the platform");
+    expect(text).toContain("16 we could not read, retrying");
+    expect(text).not.toContain("16 blocked by the platform");
   });
 
   it("still blames the platform when the platform is what refused us", () => {
-    const sentence = summariseRefresh({
-      total: 10,
-      measured: 4,
-      reasons: { "platform-challenged": 6 },
-    } as any);
-
-    expect(sentence).toContain("6 blocked by the platform");
+    expect(describeReasons({ "platform-challenged": 6 })).toContain("6 blocked by the platform");
   });
 });
