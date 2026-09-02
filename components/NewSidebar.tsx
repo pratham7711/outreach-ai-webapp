@@ -7,7 +7,8 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   LayoutDashboard, Megaphone, Play, Calendar, CalendarClock, Users, Users2, LineChart,
   Search, List, Link2, CreditCard, Shield, FileText,
-  ChevronDown, Settings, LogOut, Menu, X, ChevronsLeft, Key, BarChart2, Activity, Music, Tags
+  ChevronDown, Settings, LogOut, Menu, X, ChevronsLeft, Key, BarChart2, Activity, Music, Tags,
+  Globe
 } from "lucide-react";
 import { mediaUrl } from "@/lib/postMedia";
 import { useSidebar } from "@/components/providers/SidebarProvider";
@@ -72,8 +73,28 @@ export const NAV_SECTIONS = [
   },
 ];
 
+/**
+ * Deliberately NOT in NAV_SECTIONS, and deliberately not subject to
+ * allowedNavHrefs.
+ *
+ * Those are per-org entitlements -- what this tenant has paid for. This is a
+ * different axis entirely: whether the person signed in operates the platform,
+ * decided by the PLATFORM_ADMIN_EMAILS allowlist. Putting it through the nav
+ * rules would let an org's entitlement config decide who can read every other
+ * org, which is exactly the confusion /platform exists on the far side of.
+ *
+ * Hiding the link is cosmetic, not the control: the page itself calls
+ * isPlatformAdmin() and 404s. This only keeps it out of tenants' sight.
+ */
+const PLATFORM_SECTION = {
+  label: "Platform",
+  items: [{ href: "/platform", icon: Globe, label: "All Organizations" }],
+};
+
 type SidebarProps = {
   allowedNavHrefs?: string[] | null;
+  /** Whether to show the operator-only Platform section. See PLATFORM_SECTION. */
+  isPlatformOperator?: boolean;
   brandName?: string | null;
   /** The tenant's own mark. CreatorCore shows one here; we fall back to initials. */
   brandLogoUrl?: string | null;
@@ -108,7 +129,7 @@ function UserMenuTooltip({
   );
 }
 
-export default function NewSidebar({ allowedNavHrefs, brandName, brandLogoUrl, user }: SidebarProps = {}) {
+export default function NewSidebar({ allowedNavHrefs, isPlatformOperator, brandName, brandLogoUrl, user }: SidebarProps = {}) {
   const [logoBroken, setLogoBroken] = useState(false);
   const userName = user?.name || user?.email || "Account";
   const userInitial = sidebarInitials(user?.name, user?.email);
@@ -314,8 +335,11 @@ export default function NewSidebar({ allowedNavHrefs, brandName, brandLogoUrl, u
 
         {/* Nav Sections */}
         <nav className="cc-sidebar-nav flex-1 overflow-y-auto px-2 py-2" aria-label="Main navigation">
-          {NAV_SECTIONS.map((section) => {
-            const filteredItems = allowedNavHrefs == null
+          {[...NAV_SECTIONS, ...(isPlatformOperator ? [PLATFORM_SECTION] : [])].map((section) => {
+            /* The platform section skips the entitlement filter on purpose --
+               it answers to the email allowlist, not to what an org bought. */
+            const exemptFromNavRules = section.label === PLATFORM_SECTION.label;
+            const filteredItems = allowedNavHrefs == null || exemptFromNavRules
               ? section.items
               : section.items.filter((item) => allowedHrefSet.has(item.href));
             if (filteredItems.length === 0) return null;

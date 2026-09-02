@@ -6,6 +6,7 @@ import { DashboardContent } from "@/components/layout/DashboardContent";
 import { ConfirmProvider } from "@/components/ds";
 import { Toaster } from "sonner";
 import { auth } from "@/lib/auth";
+import { isPlatformAdmin } from "@/lib/billing/subscription";
 import { getOrgEntitlements } from "@/lib/entitlements";
 import { resolveDashboardPolicy } from "@/lib/dashboardPolicy";
 import { customBrandingValue } from "@/lib/brandingDefaults";
@@ -72,6 +73,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
           <Toaster richColors position="bottom-right" />
           <NewSidebar
             allowedNavHrefs={orgId ? policy.allowedNavHrefs : null}
+            /* A separate axis from allowedNavHrefs: that is what this org bought,
+               this is whether the person signed in operates the platform. Read
+               from the email rather than the JWT because the token is minted at
+               sign-in and never revisited, so a change to the allowlist would
+               otherwise not take effect until everyone signed out. */
+            isPlatformOperator={isPlatformAdmin(session?.user?.email ?? null)}
             brandName={orgId ? policy.brandName : null}
             brandLogoUrl={orgId ? policy.logoUrl : null}
             user={user}
