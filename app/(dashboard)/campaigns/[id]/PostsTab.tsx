@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { Card, Badge, Input, Modal, EmptyState, Skeleton, Avatar } from "@pratham7711/ui";
 import { Dropdown, StatusTabs, Pagination, Button } from "@/components/ds";
 import { Grid3X3, List, Plus, Check, X, Eye, Heart, MessageCircle, TrendingUp, BarChart3, ArrowUp, ArrowDown, ArrowUpDown, Flag, Video, AlertTriangle, RefreshCw, Image as ImageIcon, Share2, Bookmark } from "lucide-react";
@@ -289,6 +289,12 @@ export default function PostsTab({
     }
   }, [campaignId, statusFilter, platformFilter, mediaTypeFilter]);
 
+  /* fetchPosts is rebuilt whenever a filter changes. The recovery poller below
+     keys on campaignId alone, so it reaches the current one through a ref
+     rather than tearing itself down and restarting on every filter change. */
+  const fetchPostsRef = useRef(fetchPosts);
+  useEffect(() => { fetchPostsRef.current = fetchPosts; }, [fetchPosts]);
+
   useEffect(() => { fetchPosts(); }, [fetchPosts]);
   useEffect(() => { setPage(1); }, [statusFilter, platformFilter, mediaTypeFilter, minViews, creatorSearch, postedFrom, postedTo, sortKey, sortDir]);
 
@@ -440,22 +446,60 @@ export default function PostsTab({
 
   /* A run started in another tab -- or before a reload -- is still going on the
      server. Without this the button would offer to start a second one, and the
-     cooldown would refuse it for reasons the page never explained. */
+     cooldown would refuse it for reasons the page never explained.
+
+     This POLLS rather than reading once, because the single read had nothing
+     that could ever undo it. It set refreshingAll and the only reset lives in
+     handleRefreshAll's finally, which this path never runs -- and Button
+     renders `disabled: disabled || loading`, so opening a campaign while a run
+     was in flight left Refresh Data spinning and PERMANENTLY unclickable, with
+     the "N of M" beside it frozen at whatever that one read happened to see.
+     It looked like the button was broken; the POST it would have sent was
+     simply never reachable. */
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+    let timer: ReturnType<typeof setInterval> | null = null;
+    /* Only keep polling through a failed read once a run is known to exist --
+       otherwise a blip on the very first read would start a poller for a run
+       that was never there. */
+    let sawRun = false;
+
+    const stop = () => {
+      if (timer) { clearInterval(timer); timer = null; }
+    };
+
+    /** True while the server still reports a run in flight. */
+    const read = async (): Promise<boolean> => {
       try {
         const r = await fetch(`/api/campaigns/${campaignId}/refresh`);
-        if (!r.ok) return;
+        if (!r.ok) return sawRun;
         const state = await r.json();
-        if (cancelled || !state.running) return;
+        if (cancelled) return false;
+        if (!state.running) return false;
+        sawRun = true;
         setRefreshingAll(true);
         setRefreshProgress({ completed: state.running.completed, total: state.running.total });
+        return true;
       } catch {
-        /* Nothing to recover; the button starts in its normal state. */
+        /* A dropped poll says nothing about the run itself. */
+        return sawRun;
       }
+    };
+
+    (async () => {
+      if (!(await read()) || cancelled) return;
+      timer = setInterval(async () => {
+        if (await read()) return;
+        stop();
+        if (cancelled) return;
+        setRefreshingAll(false);
+        setRefreshProgress(null);
+        /* The run that just ended is what moved these numbers. */
+        fetchPostsRef.current();
+      }, 2000);
     })();
-    return () => { cancelled = true; };
+
+    return () => { cancelled = true; stop(); };
   }, [campaignId]);
 
   const openAddPost = () => {
