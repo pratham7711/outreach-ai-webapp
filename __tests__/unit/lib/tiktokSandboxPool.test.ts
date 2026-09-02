@@ -1,4 +1,8 @@
-import { laneCountFor, LANE_SECONDS_PER_POST } from "@/lib/platforms/tiktokPostSandbox";
+import {
+  laneCountFor,
+  LANE_SECONDS_PER_POST,
+  openSandboxPostFetcher,
+} from "@/lib/platforms/tiktokPostSandbox";
 
 /**
  * Lanes are capacity, not a queue. Every sandbox gets its own egress IP
@@ -105,5 +109,35 @@ describe("laneCountFor", () => {
   it("grows with the work rather than staying fixed", () => {
     // The regression this catches: a pool hardcoded to one lane.
     expect(laneCountFor(1000, BUDGET)).toBeGreaterThan(laneCountFor(100, BUDGET));
+  });
+});
+
+/**
+ * The one-lane fetcher had no caller and no test, and that is how "Sync Now"
+ * stayed broken for TikTok.
+ *
+ * openSandboxPostFetcher was written for a caller reading a single post, and
+ * nothing ever used it: the per-post sync route called syncPost with no fetcher
+ * at all, so a TikTok post was read from the function egress in sin1 -- the one
+ * TikTok's WAF answers with a login shell about three times in four. Measured
+ * on production 2026-09-02: Refresh Data returned real counts for a post while
+ * Sync Now, on the same post on the same page, reported metricsFound:false.
+ *
+ * Asserted here so the helper cannot quietly go back to having no purpose.
+ */
+describe("openSandboxPostFetcher", () => {
+  it("is a pool of exactly one lane", () => {
+    const fetcher = openSandboxPostFetcher();
+    /* One address is the point: a single post is not worth booting several, and
+       one sandbox egress is still categorically different from the function
+       egress, which is what the route actually needed. */
+    expect(fetcher.size).toBe(1);
+  });
+
+  it("exposes the same shape a caller can close", () => {
+    const fetcher = openSandboxPostFetcher();
+    // Sandboxes bill by lifetime, so a caller that cannot close is a leak.
+    expect(typeof fetcher.close).toBe("function");
+    expect(typeof fetcher.readPost).toBe("function");
   });
 });
