@@ -16,6 +16,16 @@ export const authConfig = {
       // Public marketplace (Phase 2M) — unauthenticated /explore browsing.
       const isPublicMarketplacePage = nextUrl.pathname.startsWith("/explore");
       const isPublicSharePage = nextUrl.pathname.startsWith("/share/");
+      /* Reachable in EITHER auth state, which is why it does not belong with
+         the auth pages below.
+         Signed out, because a confirmation link is opened from a mail client
+         and routinely on a device with no session: bouncing it to /login
+         spends nothing and leaves the address unproven, the one outcome this
+         flow exists to prevent. Signed IN as well, because isAuthPage sends a
+         logged-in visitor to /dashboard -- and somebody who signed up, signed
+         in, then went back to the email is the ordinary case, not the edge. It
+         reads the token, never the session, so neither state is special. */
+      const isVerifyEmailPage = nextUrl.pathname.startsWith("/verify-email");
       const isPublicLegalPage =
         nextUrl.pathname.startsWith("/privacy") ||
         nextUrl.pathname.startsWith("/terms");
@@ -51,7 +61,8 @@ export const authConfig = {
         isPublicCreatorPage ||
         isPublicMarketplacePage ||
         isPublicSharePage ||
-        isPublicLegalPage
+        isPublicLegalPage ||
+        isVerifyEmailPage
       )
         return true;
       if (!isLoggedIn && !isAuthPage) {
