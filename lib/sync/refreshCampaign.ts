@@ -306,6 +306,27 @@ export async function refreshCampaign(input: {
           }
           results.set(post.id, result);
 
+          /* One line per post that did not come back with numbers, carrying the
+             post's identity and the cause together.
+             
+             Until this existed the platform logs held the cause and the run
+             record held the count, and nothing held both -- so "41 of 62
+             updated" could not be turned into "these 21, for this reason"
+             without reading the whole log by hand and guessing which line
+             belonged to which post. One line per FAILURE, never per attempt and
+             never per success: a 500-post campaign that works logs nothing here
+             at all, and a campaign that fails logs exactly as many lines as
+             there are problems to fix. */
+          if (result.status !== "measured") {
+            log.warn("post left unmeasured", {
+              postId: post.id,
+              platform: post.platform,
+              postUrl: post.postUrl,
+              reason: result.reason,
+              outcome: result.status,
+            });
+          }
+
           /* Counted in attempts, not in map size, so the later rounds report
              progress too -- their whole job is to move posts from unmeasured to
              measured without the completed count changing at all. */

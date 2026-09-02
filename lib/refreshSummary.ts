@@ -127,6 +127,18 @@ export function summariseRefresh(r: RefreshResult): string {
      opposite mistake -- hiding that most of the campaign holds numbers from an
      hour ago, which is the one part of this the reader can act on by pressing
      it again later. */
-  const sentence = `${r.measured ?? 0} of ${total} post${total === 1 ? "" : "s"} updated.`;
-  return audio ? `${sentence} ${audio}` : sentence;
+  const measured = r.measured ?? 0;
+  const sentence = `${measured} of ${total} post${total === 1 ? "" : "s"} updated.`;
+
+  /* And, when some did not land, why -- on this screen only.
+     
+     Removing this was right for the shared client report and wrong here. This
+     is the operator's own campaign screen, and "41 of 62 updated" with the
+     cause withheld is the one thing they cannot act on: the reason was sitting
+     in the response the whole time and the answer to "why?" was a log dig. The
+     public report at (public)/share renders its own summary and never reaches
+     this branch, so the brand still never sees it. */
+  const why = measured < total ? describeReasons(r.reasons) : null;
+  const parts = [sentence, why ? `${why}.` : null, audio].filter(Boolean);
+  return parts.join(" ");
 }

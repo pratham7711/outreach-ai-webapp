@@ -67,6 +67,47 @@ export function unwrittenMetricValue(value: number | null | undefined): number |
  */
 export const MEASURED_FIELDS_KEY = "__measured";
 
+/**
+ * Where the last unsuccessful read's cause is kept, on the post itself.
+ *
+ * Lives in the platformMetrics bag rather than a column because production was
+ * built with `db push` and has no migration table, so adding one is a schema
+ * change nobody can review as a diff. The bag is already the home of
+ * __measured, already merged rather than replaced, and already read here.
+ *
+ * It exists because a reason that lives only in a log line cannot be asked a
+ * question later. "41 of 62 updated" was unanswerable an hour after the run:
+ * the aggregate sat on CampaignRefreshRun, the per-source detail had scrolled
+ * out of the platform logs, and the posts themselves recorded nothing at all --
+ * so which 21, and why, was gone. Written on every read that comes back
+ * without counts and cleared by the next one that succeeds, so it always
+ * describes the post's current state and never an old one.
+ */
+export const LAST_FETCH_KEY = "__lastFetch";
+
+export type LastFetchNote = {
+  /** The FetchReason slug; the wording for it lives in lib/refreshSummary. */
+  reason: string;
+  /** ISO timestamp, so "still failing" and "failed once yesterday" differ. */
+  at: string;
+  /** Which caller saw it: cron, api, or a named backfill. */
+  via: string;
+};
+
+/** The stored cause, or null when the last read succeeded. */
+export function lastFetchNote(platformMetrics: unknown): LastFetchNote | null {
+  if (typeof platformMetrics !== "object" || platformMetrics === null) return null;
+  const raw = (platformMetrics as Record<string, unknown>)[LAST_FETCH_KEY];
+  if (typeof raw !== "object" || raw === null) return null;
+  const note = raw as Record<string, unknown>;
+  if (typeof note.reason !== "string") return null;
+  return {
+    reason: note.reason,
+    at: typeof note.at === "string" ? note.at : "",
+    via: typeof note.via === "string" ? note.via : "",
+  };
+}
+
 export type MetricField = "views" | "likes" | "comments" | "shares" | "saves" | "downloads";
 
 export function measuredFields(platformMetrics: unknown): MetricField[] | null {

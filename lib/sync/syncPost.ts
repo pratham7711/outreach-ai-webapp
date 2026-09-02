@@ -1,6 +1,6 @@
 import type { SandboxPostFetcher } from "@/lib/platforms/tiktokPostSandbox";
 import { db } from "@/lib/db";
-import { MEASURED_FIELDS_KEY, type MetricField } from "@/lib/metricDisplay";
+import { LAST_FETCH_KEY, MEASURED_FIELDS_KEY, type MetricField } from "@/lib/metricDisplay";
 import {
   fetchPostMetrics,
   hasMetricCounts,
@@ -98,6 +98,14 @@ export function countsFrom(metrics: PostMetrics): {
   return { counts, present, measuredPatch: { [MEASURED_FIELDS_KEY]: present } };
 }
 
+/* The importer's raw record also lives in this bag, so it is always merged and
+   never replaced. */
+function currentBag(post: SyncablePost): Record<string, unknown> {
+  return typeof post.platformMetrics === "object" && post.platformMetrics !== null
+    ? (post.platformMetrics as Record<string, unknown>)
+    : {};
+}
+
 /**
  * Write metrics that were already fetched.
  *
@@ -119,6 +127,7 @@ export async function applyPostMetrics(
 ): Promise<SyncPostOutcome> {
   const syncSource = options.syncSource ?? "api";
   if (!hasMetricCounts(metrics)) {
+    const reason = metrics.fetchReason ?? "unknown";
     // Worth keeping if the fetch produced one: a thumbnail with no counts is
     // still better than an empty card. No lastSyncedAt -- see above.
     const updated = await db.post.update({
@@ -126,6 +135,14 @@ export async function applyPostMetrics(
       data: {
         thumbnailUrl: metrics.thumbnailUrl ?? post.thumbnailUrl,
         caption: metrics.caption ?? post.caption,
+        /* The cause, on the post, in the write this branch already made.
+           Costs no extra query and is the only record that survives the run:
+           the aggregate on CampaignRefreshRun says 21 posts went unmeasured
+           but never which, and the platform log lines age out. */
+        platformMetrics: {
+          ...currentBag(post),
+          [LAST_FETCH_KEY]: { reason, at: new Date().toISOString(), via: syncSource },
+        },
       },
       include: SYNC_POST_INCLUDE,
     });
@@ -139,7 +156,7 @@ export async function applyPostMetrics(
          has told us nothing about the post, and the old default turned that
          silence into the claim that the post publishes no counters -- which
          refreshCampaign treats as settled and never retries. */
-      reason: metrics.fetchReason ?? "unknown",
+      reason,
     };
   }
 
@@ -195,10 +212,12 @@ export async function applyPostMetrics(
         engagementRate,
         /* Merged, not replaced: this bag also holds the importer's raw record. */
         platformMetrics: {
-          ...(typeof post.platformMetrics === "object" && post.platformMetrics !== null
-            ? (post.platformMetrics as Record<string, unknown>)
-            : {}),
+          ...currentBag(post),
           [MEASURED_FIELDS_KEY]: present,
+          /* Cleared, not left behind. A post that reads fine today must not keep
+             advertising why it failed last week -- a stale cause is worse than
+             none, because it invites someone to go and fix a live post. */
+          [LAST_FETCH_KEY]: null,
         },
       },
       include: SYNC_POST_INCLUDE,

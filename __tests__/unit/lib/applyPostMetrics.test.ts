@@ -153,3 +153,68 @@ describe("applyPostMetrics — snapshot provenance", () => {
     expect(mockSnapshotCreate.mock.calls[0][0].data.syncSource).toBe("cron");
   });
 });
+
+/**
+ * The cause of a failed read, kept on the post.
+ *
+ * The aggregate on CampaignRefreshRun says how many posts went unmeasured and
+ * never which, and the platform log lines age out of the retention window -- so
+ * an hour after a run, "41 of 62 updated" could not be turned back into "these
+ * 21, for this reason". These assertions are what make the post itself answer
+ * that.
+ */
+describe("applyPostMetrics — the post records why a read came back empty", () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it("writes the reason, the time and the caller onto the post", async () => {
+    mockUpdate.mockResolvedValue({ id: "post_1" });
+
+    await applyPostMetrics(
+      post as any,
+      metrics({ viewsCount: undefined, likesCount: undefined, commentsCount: undefined,
+                sharesCount: undefined, fetchReason: "credentials-rejected" }),
+      { syncSource: "cron" },
+    );
+
+    const bag = mockUpdate.mock.calls[0][0].data.platformMetrics;
+    expect(bag.__lastFetch).toMatchObject({ reason: "credentials-rejected", via: "cron" });
+    expect(typeof bag.__lastFetch.at).toBe("string");
+    // No lastSyncedAt on this branch -- the rule this whole suite exists for.
+    expect(mockUpdate.mock.calls[0][0].data.lastSyncedAt).toBeUndefined();
+  });
+
+  it("keeps the importer's own record in the bag rather than replacing it", async () => {
+    mockUpdate.mockResolvedValue({ id: "post_1" });
+
+    await applyPostMetrics(
+      { ...post, platformMetrics: { ccRaw: { id: 9 } } } as any,
+      metrics({ viewsCount: undefined, likesCount: undefined, commentsCount: undefined,
+                sharesCount: undefined, fetchReason: "platform-challenged" }),
+    );
+
+    const bag = mockUpdate.mock.calls[0][0].data.platformMetrics;
+    expect(bag.ccRaw).toEqual({ id: 9 });
+    expect(bag.__lastFetch.reason).toBe("platform-challenged");
+  });
+
+  it("clears the reason once the post reads successfully again", async () => {
+    mockTransaction.mockResolvedValue([{ id: "post_1" }, {}]);
+
+    await applyPostMetrics(
+      { ...post, platformMetrics: { __lastFetch: { reason: "platform-challenged", at: "x", via: "cron" } } } as any,
+      metrics({ viewsCount: 10, likesCount: 2, commentsCount: 1 }),
+    );
+
+    /* A stale cause is worse than none: it sends someone to reconnect an
+       account that is already working.
+
+       Read straight off the post.update call -- it is recorded even though the
+       success path wraps it in $transaction, because db.post.update is what is
+       mocked. Asserted without a fallback on purpose: an `undefined ?? null`
+       here would pass whether or not the field was ever written. */
+    expect(mockUpdate).toHaveBeenCalled();
+    const bag = mockUpdate.mock.calls[0][0].data.platformMetrics;
+    expect(bag).toHaveProperty("__lastFetch", null);
+    expect(bag.__measured).toEqual(expect.arrayContaining(["views"]));
+  });
+});
