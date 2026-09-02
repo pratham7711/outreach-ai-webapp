@@ -155,3 +155,87 @@ describe("fetchTikTokMetrics with a sandbox", () => {
     expect(metrics.viewsCount).toBe(42);
   });
 });
+
+/**
+ * Whose fault a failure was, kept honest.
+ *
+ * The bug these exist to catch: a dead sandbox lane falls back to this
+ * project's function egress, which TikTok refuses BY POLICY, and that refusal
+ * used to be reported as "blocked by the platform". So an outage of our own
+ * reader was displayed to the operator as TikTok walling them -- pointing
+ * whoever was debugging at the one party who had done nothing.
+ */
+describe("failure attribution: ours vs the platform's", () => {
+  const realFetch = global.fetch;
+  let directFetch: jest.Mock;
+
+  /** What TikTok serves our function egress every time: HTTP 200, WAF shell. */
+  const wallDirectly = () =>
+    directFetch.mockImplementation(async () => ({
+      ok: true,
+      status: 200,
+      text: async () => WAF_SHELL,
+    }));
+
+  beforeEach(() => {
+    directFetch = jest.fn();
+    global.fetch = directFetch as unknown as typeof fetch;
+  });
+
+  afterEach(() => {
+    global.fetch = realFetch;
+  });
+
+  it("blames our reader when the lane died and the fallback was merely walled", async () => {
+    const sandbox = stubSandbox(null); // lane failed: we never asked TikTok
+    wallDirectly();
+
+    const metrics = await fetchTikTokMetrics(URL, undefined, undefined, true, sandbox);
+
+    expect(metrics.fetchReason).toBe("reader-unavailable");
+  });
+
+  it("keeps the sandbox's own refusal over whatever the fallback saw", async () => {
+    /* Deliberately two DIFFERENT refusals, or this test cannot tell precedence
+       from coincidence: the sandbox was refused outright (403 -> refused) while
+       the fallback only got the WAF shell (-> challenged). The sandbox is the
+       egress TikTok actually answers, so its verdict is the truthful one and
+       must be what survives. */
+    const sandbox = stubSandbox({
+      state: "unavailable",
+      statusCode: null,
+      reason: "http-403",
+      metrics: null,
+    });
+    wallDirectly();
+
+    const metrics = await fetchTikTokMetrics(URL, undefined, undefined, true, sandbox);
+
+    expect(metrics.fetchReason).toBe("platform-refused");
+  });
+
+  it("keeps a real verdict from the fallback over blaming our reader", async () => {
+    // A dead lane does not make a deletion untrue: 10204 is a statement about
+    // the post, not about our egress, so it must survive.
+    const sandbox = stubSandbox(null);
+    directFetch.mockImplementation(async () => ({
+      ok: true,
+      status: 200,
+      text: async () => page(videoDetail(10204)),
+    }));
+
+    const metrics = await fetchTikTokMetrics(URL, undefined, undefined, true, sandbox);
+
+    expect(metrics.fetchReason).toBe("post-deleted");
+  });
+
+  it("still blames the platform when no sandbox was in play at all", async () => {
+    // No lanes were opened, so there was no reader of ours to fail; a walled
+    // direct fetch is the only evidence there is.
+    wallDirectly();
+
+    const metrics = await fetchTikTokMetrics(URL, undefined, undefined, true, undefined);
+
+    expect(metrics.fetchReason).toBe("platform-challenged");
+  });
+});

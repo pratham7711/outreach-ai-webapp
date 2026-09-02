@@ -185,6 +185,70 @@ describe("cron sync hardening — dead-letter", () => {
     expect(resetArg.where.id).toBe("p-recover");
     expect(resetArg.data.syncFailCount).toBe(0);
   });
+
+  /**
+   * syncFailCount exists to stop us asking a post the platform will never
+   * answer for. Our own reader being down is not that, and charging it to the
+   * post would walk a healthy one to MAX_SYNC_FAILURES and set syncDisabledAt
+   * -- taking it out of the queue for good, silently.
+   *
+   * Defensive today: the cron opens no sandbox, so "reader-unavailable" cannot
+   * arise on this path yet. It is here so that giving the cron a sandbox later
+   * cannot quietly start dead-lettering good posts.
+   */
+  it("does not spend a post's retry budget when our own reader was what failed", async () => {
+    mockDb.post.findMany.mockResolvedValue([
+      makePost({ id: "p-ours", syncFailCount: 4 }), // one away from dead-letter
+    ]);
+    mockFetch.mockResolvedValue({
+      platform: "TIKTOK",
+      platformPostId: "1",
+      thumbnailUrl: null,
+      caption: null,
+      fetchReason: "reader-unavailable",
+      postedAt: new Date(),
+    });
+    mockDb.$transaction.mockResolvedValue([{}, {}]);
+
+    const res = await cronSync(cronReq());
+    const body = await res.json();
+
+    expect(body.deadLettered).toBe(0);
+    const charged = mockDb.post.update.mock.calls
+      .map((call: any[]) => call[0])
+      .find((arg: any) => arg.data?.syncFailCount !== undefined);
+    expect(charged).toBeUndefined();
+    expect(
+      mockDb.post.update.mock.calls
+        .map((call: any[]) => call[0])
+        .find((arg: any) => arg.data?.syncDisabledAt !== undefined)
+    ).toBeUndefined();
+  });
+
+  it("still spends the budget when the platform is what refused us", async () => {
+    // The control for the test above: a platform refusal must still count, or
+    // the backoff that stops us hammering a dead post is gone.
+    mockDb.post.findMany.mockResolvedValue([makePost({ id: "p-theirs", syncFailCount: 4 })]);
+    mockFetch.mockResolvedValue({
+      platform: "TIKTOK",
+      platformPostId: "1",
+      thumbnailUrl: null,
+      caption: null,
+      fetchReason: "platform-challenged",
+      postedAt: new Date(),
+    });
+    mockDb.$transaction.mockResolvedValue([{}, {}]);
+
+    const res = await cronSync(cronReq());
+    const body = await res.json();
+
+    expect(body.deadLettered).toBe(1);
+    const charged = mockDb.post.update.mock.calls
+      .map((call: any[]) => call[0])
+      .find((arg: any) => arg.data?.syncFailCount !== undefined);
+    expect(charged.data.syncFailCount).toBe(5);
+    expect(charged.data.syncDisabledAt).toBeInstanceOf(Date);
+  });
 });
 
 describe("cron sync hardening — sealing", () => {

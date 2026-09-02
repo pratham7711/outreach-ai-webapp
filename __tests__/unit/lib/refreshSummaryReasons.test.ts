@@ -99,3 +99,34 @@ describe("summariseRefresh with reasons", () => {
     expect(text).not.toMatch(/63|remaining/);
   });
 });
+
+/**
+ * The one failure on the list that is ours. Its wording says "we", because a
+ * reader who is told "blocked by the platform" for our own outage goes and
+ * asks TikTok why -- which is the wrong place, and the reason this reason
+ * exists at all.
+ */
+describe("reader-unavailable wording", () => {
+  it("says we could not read it, not that the platform blocked it", () => {
+    const sentence = summariseRefresh({
+      total: 62,
+      measured: 41,
+      reasons: { "reader-unavailable": 16, "post-deleted": 3, "platform-refused": 2 },
+    } as any);
+
+    expect(sentence).toContain("41 of 62 posts updated");
+    expect(sentence).toContain("16 we could not read, retrying");
+    // The old, misleading wording must not be what this maps to.
+    expect(sentence).not.toContain("16 blocked by the platform");
+  });
+
+  it("still blames the platform when the platform is what refused us", () => {
+    const sentence = summariseRefresh({
+      total: 10,
+      measured: 4,
+      reasons: { "platform-challenged": 6 },
+    } as any);
+
+    expect(sentence).toContain("6 blocked by the platform");
+  });
+});

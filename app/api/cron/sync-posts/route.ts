@@ -265,6 +265,22 @@ export async function GET(request: NextRequest) {
               reason: outcome.reason,
             });
           }
+          /* Our own reader failing must not spend the post's retry budget.
+             syncFailCount exists to stop us hammering a post the platform will
+             never answer for; five nights of dead sandbox lanes is a statement
+             about our infrastructure, and letting it reach MAX_SYNC_FAILURES
+             would switch off a perfectly healthy post -- silently, because
+             syncDisabledAt takes it out of the queue entirely. Counted and
+             logged, just not charged to the post. */
+          if (outcome.reason === "reader-unavailable") {
+            log.warn("left unmeasured by our own reader; not counting it against the post", {
+              postId: post.id,
+              platform: post.platform,
+              reason: outcome.reason,
+              syncFailCount: post.syncFailCount,
+            });
+            continue;
+          }
           const settled = SETTLED_REASONS.has(outcome.reason);
           const nextFailCount = settled ? MAX_SYNC_FAILURES : post.syncFailCount + 1;
           const failData: Record<string, unknown> = { syncFailCount: nextFailCount };

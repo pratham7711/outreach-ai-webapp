@@ -85,6 +85,18 @@ export type PostMetrics = {
 export type FetchReason =
   /** TikTok answered 200 with a WAF page instead of the post. */
   | "platform-challenged"
+  /**
+   * OUR reader could not run -- every sandbox lane failed -- so nothing ever
+   * put the question to the platform.
+   *
+   * Distinct from platform-challenged on purpose. When a lane dies the caller
+   * falls back to this project's function egress, which TikTok refuses by
+   * policy; labelling that refusal "blocked by the platform" blames TikTok for
+   * our reader being down, and sends whoever is debugging to the wrong place.
+   * A fallback that returns a real verdict about the post (deleted, 404) still
+   * wins over this -- see NON_VERDICT_REASONS.
+   */
+  | "reader-unavailable"
   /** The gate is shut, so we never asked. Not a failure -- a deferral. */
   | "backing-off"
   /** The platform says the post is gone. */
@@ -343,6 +355,35 @@ export function reasonFromLookup(lookup: TikTokPostLookup): FetchReason {
   return "platform-refused";
 }
 
+/**
+ * Reasons that state nothing about the post itself -- only that the attempt
+ * came back empty. These are the ones a dead lane is allowed to overwrite,
+ * because a refusal from our fallback egress is not evidence either way.
+ * "post-deleted" and the rest are positive verdicts and always survive.
+ */
+const NON_VERDICT_REASONS: ReadonlySet<FetchReason> = new Set<FetchReason>([
+  "platform-challenged",
+  "platform-refused",
+]);
+
+/**
+ * Whose failure was it: TikTok's, or ours?
+ *
+ * Ordered by what each attempt actually establishes. A refusal the sandbox got
+ * from TikTok outranks anything the fallback egress says, because the sandbox
+ * is the egress TikTok answers. Failing that, a dead lane means we never asked,
+ * so a non-verdict from the fallback is reported as our reader being down
+ * rather than as the platform blocking us.
+ */
+export function attributeFailure(
+  fallbackReason: FetchReason,
+  origin: { laneFailed: boolean; sandboxRefusal: FetchReason | null },
+): FetchReason {
+  if (origin.sandboxRefusal) return origin.sandboxRefusal;
+  if (origin.laneFailed && NON_VERDICT_REASONS.has(fallbackReason)) return "reader-unavailable";
+  return fallbackReason;
+}
+
 export async function fetchTikTokMetrics(
   url: string,
   videoId?: string,
@@ -367,15 +408,23 @@ export async function fetchTikTokMetrics(
      challenges that describe an egress this run is not even using. Null means
      the sandbox failed rather than TikTok refusing, so the direct path below
      still gets its turn. */
+  /* Which of the two failures the sandbox had, kept apart. A null answer is our
+     lane dying; an "unavailable" answer is TikTok refusing an egress it does
+     answer for other posts -- the only one of the two that is evidence about
+     the platform. */
+  let laneFailed = false;
+  let sandboxRefusal: FetchReason | null = null;
   if (sandbox) {
     const viaSandbox = await sandbox.readPost(url);
     if (viaSandbox?.metrics) return tiktokMetricsToPartial(viaSandbox.metrics);
     if (viaSandbox?.state === "deleted") return stubMetrics("post-deleted");
+    if (viaSandbox === null) laneFailed = true;
+    else if (viaSandbox.state === "unavailable") sandboxRefusal = reasonFromLookup(viaSandbox);
   }
 
   const lookup = await lookupTikTokPost(url);
   if (lookup.metrics) return tiktokMetricsToPartial(lookup.metrics);
-  const reason = reasonFromLookup(lookup);
+  const reason = attributeFailure(reasonFromLookup(lookup), { laneFailed, sandboxRefusal });
 
   const viaSocialKit = await fetchTikTokMetricsSocialKit(url);
   if (viaSocialKit) return viaSocialKit;

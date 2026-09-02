@@ -110,6 +110,10 @@ export type RefreshFailReason = FetchReason | "error";
 
 const REASON_IS_RETRYABLE: Record<RefreshFailReason, boolean> = {
   "platform-challenged": true,
+  /* Our lanes died, so the question was never asked. The most worth retrying
+     of anything on this list: a later round gets a fresh sandbox, which is a
+     fresh address. */
+  "reader-unavailable": true,
   "backing-off": true,
   "platform-refused": true,
   /* An empty answer with no reason attached. Retryable because we cannot show

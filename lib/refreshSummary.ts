@@ -61,6 +61,10 @@ export function describeAudioRefresh(sound?: SoundRefreshResult | null): string 
  */
 const REASON_LABEL: Record<RefreshFailReason, (n: number) => string> = {
   "platform-challenged": (n) => `${n} blocked by the platform`,
+  /* Says "we", not "the platform". This is the one failure on the list that is
+     ours, and the reader who sees it should know the post is fine and the retry
+     is on us -- not go asking TikTok why it blocked them. */
+  "reader-unavailable": (n) => `${n} we could not read, retrying`,
   "backing-off": (n) => `${n} skipped while backing off`,
   "post-deleted": (n) => `${n} no longer exist`,
   "platform-refused": (n) => `${n} refused by the platform`,
