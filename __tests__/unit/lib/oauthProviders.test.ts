@@ -101,8 +101,12 @@ describe("buildAuthorizeUrl", () => {
     expect(parsed.searchParams.get("redirect_uri")).toContain(
       "/api/portal/connections/instagram/callback",
     );
+    /* pages_show_list is load-bearing, not decoration: resolveIgUserId reads
+       the me/accounts PAGES edge to find the linked IG Business account, and
+       instagram_basic does not grant that listing. Asserted here so it cannot
+       be dropped as "unused" -- nothing in the Graph call site names it. */
     expect(parsed.searchParams.get("scope")).toBe(
-      "instagram_basic,instagram_manage_insights",
+      "instagram_basic,instagram_manage_insights,pages_show_list",
     );
     expect(parsed.searchParams.get("state")).toBe("state-123");
     expect(parsed.searchParams.get("response_type")).toBe("code");

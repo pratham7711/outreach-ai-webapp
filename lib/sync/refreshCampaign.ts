@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { syncPost } from "@/lib/sync/syncPost";
+import type { FetchReason } from "@/lib/platforms/fetchPostMetrics";
 import { laneCountFor, openSandboxPostPool } from "@/lib/platforms/tiktokPostSandbox";
 import { snapshotSounds } from "@/lib/sounds/snapshot";
 import { createLogger } from "@/lib/observability/logger";
@@ -81,16 +82,48 @@ const PROGRESS_EVERY = 5;
  * cannot tell those apart from a wall is a loop that never ends. Absent by
  * design: post-deleted, no-counts-published, unrecognised-url, not-configured.
  */
-const RETRYABLE_REASONS = new Set([
-  "platform-challenged",
-  "backing-off",
-  "platform-refused",
-  "error",
+/**
+ * Every FetchReason, classified as worth another sweep or not.
+ *
+ * A total Record over the union rather than a Set of strings, and that is the
+ * point: adding a reason to FetchReason without deciding this now fails to
+ * compile. The Set it replaced could not do that -- it silently defaulted any
+ * unlisted reason to "settled, never retry", which is the more damaging of the
+ * two answers, and it carried an "error" entry that is not a member of the
+ * union at all and therefore matched nothing.
+ *
+ * Retryable means the obstacle is about the moment or about us: a WAF
+ * challenge, a refusal, a shut gate, an unexplained empty. Settled means a
+ * platform stated something positive about the post, or the deployment is
+ * missing a key that three sweeps in one minute will not conjure.
+ */
+/**
+ * Every reason a post can leave a sweep unmeasured.
+ *
+ * FetchReason plus "error", which is deliberately not one: a FetchReason is
+ * something a platform told us, and "error" is our own code throwing. Folding
+ * it into platform-refused would read as TikTok saying no when in fact we
+ * never got a coherent answer out of our own call -- a distinction worth
+ * keeping in the logs and in the debug breakdown.
+ */
+type RefreshFailReason = FetchReason | "error";
+
+const REASON_IS_RETRYABLE: Record<RefreshFailReason, boolean> = {
+  "platform-challenged": true,
+  "backing-off": true,
+  "platform-refused": true,
   /* An empty answer with no reason attached. Retryable because we cannot show
-     it is settled: the two settled reasons -- post-deleted, unrecognised-url --
-     are things a fetcher states positively, and silence is not one of them. */
-  "unknown",
-]);
+     it is settled: a settled reason is something a fetcher states positively,
+     and silence is not one of them. */
+  unknown: true,
+  "post-deleted": false,
+  "unrecognised-url": false,
+  "no-counts-published": false,
+  /* Three sweeps inside one request will not make the key appear. */
+  "not-configured": false,
+  // Our bug, not their verdict -- and a thrown call is often transient.
+  error: true,
+};
 
 /**
  * A hard cap on sweeps, on top of the queue-must-shrink rule.
@@ -215,9 +248,9 @@ export async function refreshCampaign(input: {
      summary a statement about posts instead of about attempts. */
   type PostResult =
     | { status: "measured" }
-    | { status: "no-metrics"; reason: string }
-    | { status: "unfetchable"; reason: string }
-    | { status: "failed"; reason: string };
+    | { status: "no-metrics"; reason: RefreshFailReason }
+    | { status: "unfetchable"; reason: RefreshFailReason }
+    | { status: "failed"; reason: RefreshFailReason };
   const results = new Map<string, PostResult>();
 
   const tally = () => {
@@ -330,7 +363,7 @@ export async function refreshCampaign(input: {
         const r = results.get(post.id);
         if (!r) return true; // never got its turn before the deadline
         if (r.status === "measured") return false;
-        return RETRYABLE_REASONS.has(r.reason);
+        return REASON_IS_RETRYABLE[r.reason];
       });
       if (again.length >= queue.length) break;
       queue = again;

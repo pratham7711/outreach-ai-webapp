@@ -268,3 +268,110 @@ describe("fetchPostMetrics — Instagram names its own failure", () => {
     expect(m.fetchReason).toBe("platform-refused");
   });
 });
+
+/**
+ * An Instagram photo has likes and comments and no play count, and used to be
+ * unmeasurable because of it.
+ *
+ * hasMetricCounts required viewsCount to be a number, so an image post with
+ * 4,100 real likes failed the check, took applyPostMetrics' no-metrics branch,
+ * and had those likes DISCARDED -- then got reported as a post that publishes
+ * no counters. The numbers were in a response we had already paid for.
+ */
+describe("hasMetricCounts — any counter, not views specifically", () => {
+  const base = {
+    platform: "INSTAGRAM",
+    platformPostId: "Cabc",
+    thumbnailUrl: null,
+    caption: null,
+    postedAt: new Date(0),
+  } as unknown as PostMetrics;
+
+  it("counts an Instagram photo that reports likes and comments but no views", () => {
+    expect(hasMetricCounts({ ...base, likesCount: 4100, commentsCount: 87 })).toBe(true);
+  });
+
+  it("counts a single counter on its own", () => {
+    expect(hasMetricCounts({ ...base, likesCount: 12 })).toBe(true);
+    expect(hasMetricCounts({ ...base, commentsCount: 3 })).toBe(true);
+    expect(hasMetricCounts({ ...base, sharesCount: 1 })).toBe(true);
+    expect(hasMetricCounts({ ...base, savesCount: 9 })).toBe(true);
+  });
+
+  it("still rejects an answer carrying no counters at all", () => {
+    expect(hasMetricCounts(base)).toBe(false);
+  });
+
+  it("counts a real zero, which is not the same as an absent counter", () => {
+    // 0 likes is a fact. It only becomes a lie when nobody measured it, and
+    // that case is the one above -- absent, not zero.
+    expect(hasMetricCounts({ ...base, likesCount: 0 })).toBe(true);
+  });
+
+  it("applies the likes-exceed-views guard only when both are present", () => {
+    // Both present and impossible: still rejected, unchanged behaviour.
+    expect(hasMetricCounts({ ...base, viewsCount: 406, likesCount: 1092 })).toBe(false);
+    // Views absent: a large likes count is not evidence of anything wrong,
+    // because there is no views figure for it to exceed.
+    expect(hasMetricCounts({ ...base, likesCount: 1092 })).toBe(true);
+  });
+});
+
+/**
+ * Every YouTube path names what happened.
+ *
+ * All five returned a bare stub carrying no reason, which syncPost then filed
+ * as "no-counts-published" -- settled, so never retried -- or, after that
+ * default was fixed, as "unknown", which is retryable and made a deployment
+ * with no API key burn all three of refreshCampaign's sweeps re-asking a
+ * question that could not be answered without a credential.
+ */
+describe("fetchPostMetrics — YouTube names its own failure", () => {
+  const realFetch = global.fetch;
+  const realKey = process.env.YOUTUBE_API_KEY;
+
+  afterEach(() => {
+    global.fetch = realFetch;
+    if (realKey === undefined) delete process.env.YOUTUBE_API_KEY;
+    else process.env.YOUTUBE_API_KEY = realKey;
+    jest.restoreAllMocks();
+  });
+
+  const fetchYt = () =>
+    fetchPostMetrics("https://youtu.be/abc123XYZ_1") as Promise<PostMetrics>;
+
+  it("says not-configured when the deployment holds no API key", async () => {
+    delete process.env.YOUTUBE_API_KEY;
+    const m = await fetchYt();
+    // Settled on purpose: three sweeps in one minute will not conjure a key.
+    expect(m.fetchReason).toBe("not-configured");
+    expect(hasMetricCounts(m)).toBe(false);
+  });
+
+  it("says platform-refused when the API returns non-OK", async () => {
+    process.env.YOUTUBE_API_KEY = "test-key";
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 403,
+      text: async () => "quotaExceeded",
+    }) as unknown as typeof fetch;
+    expect((await fetchYt()).fetchReason).toBe("platform-refused");
+  });
+
+  it("says post-deleted when YouTube returns no video for a well-formed id", async () => {
+    process.env.YOUTUBE_API_KEY = "test-key";
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ items: [] }),
+    }) as unknown as typeof fetch;
+    // The platform stating the video is not there -- the same fact as a 404,
+    // and settled, so the post can dead-letter instead of being re-asked hourly.
+    expect((await fetchYt()).fetchReason).toBe("post-deleted");
+  });
+
+  it("says platform-refused when the request throws", async () => {
+    process.env.YOUTUBE_API_KEY = "test-key";
+    global.fetch = jest.fn().mockRejectedValue(new Error("socket hang up"));
+    expect((await fetchYt()).fetchReason).toBe("platform-refused");
+  });
+});

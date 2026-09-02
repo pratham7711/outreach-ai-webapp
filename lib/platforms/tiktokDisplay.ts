@@ -58,6 +58,34 @@ export type TikTokVideo = {
   likesCount: number;
   commentsCount: number;
   sharesCount: number;
+  /**
+   * The same four counters and the timestamp, UNCOERCED -- absent stays absent.
+   *
+   * The fields above run every value through num(), which turns a missing
+   * counter into 0. That is the right shape for the three display consumers
+   * (the creator page, portal insights, the top-posts ranker) which want a
+   * number to render or average and treat 0 as "nothing to show".
+   *
+   * It is the wrong shape for lib/platforms/fetchPostMetrics, which WRITES what
+   * it is given: a coerced 0 arrives at applyPostMetrics indistinguishable from
+   * a real zero, gets lastSyncedAt stamped beside it, and becomes a measured
+   * fact that no later sync can correct. Every other stats mapper in this
+   * codebase already returns optional counters for exactly this reason -- see
+   * TikTokDirectMetrics in fetchPostMetrics, whose doc comment says every field
+   * in TikTok's stats block is optional. This path was the one that had not
+   * learned it.
+   *
+   * `createdAt` is here for the same reason: postedAt above falls back to
+   * Date.now() when create_time is missing, which stamps today's date onto a
+   * post published months ago.
+   */
+  exact: {
+    views?: number;
+    likes?: number;
+    comments?: number;
+    shares?: number;
+    createdAt?: Date;
+  };
 };
 
 function timeoutSignal(ms = 8000): AbortSignal | undefined {
@@ -69,6 +97,11 @@ function timeoutSignal(ms = 8000): AbortSignal | undefined {
 
 function num(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+/** num()'s honest sibling: absent stays absent. See TikTokVideo.exact. */
+function optionalNum(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
 function str(value: unknown): string | null {
@@ -95,6 +128,21 @@ function mapVideo(v: Record<string, unknown>): TikTokVideo[] {
       likesCount: num(v.like_count),
       commentsCount: num(v.comment_count),
       sharesCount: num(v.share_count),
+      exact: {
+        ...(optionalNum(v.view_count) !== undefined
+          ? { views: optionalNum(v.view_count) }
+          : {}),
+        ...(optionalNum(v.like_count) !== undefined
+          ? { likes: optionalNum(v.like_count) }
+          : {}),
+        ...(optionalNum(v.comment_count) !== undefined
+          ? { comments: optionalNum(v.comment_count) }
+          : {}),
+        ...(optionalNum(v.share_count) !== undefined
+          ? { shares: optionalNum(v.share_count) }
+          : {}),
+        ...(createdSeconds > 0 ? { createdAt: new Date(createdSeconds * 1000) } : {}),
+      },
     },
   ];
 }

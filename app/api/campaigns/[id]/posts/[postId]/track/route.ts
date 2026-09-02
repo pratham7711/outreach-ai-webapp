@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { authenticateRequest } from "@/lib/authenticate";
-import { fetchPostMetrics, hasMetricCounts } from "@/lib/platforms/fetchPostMetrics";
+import { fetchPostMetrics } from "@/lib/platforms/fetchPostMetrics";
+import { applyPostMetrics } from "@/lib/sync/syncPost";
 import { getInstagramAccountForCreator } from "@/lib/platforms/instagramToken";
 import { getTikTokTokenForCreator } from "@/lib/platforms/tiktokToken";
 import { z } from "zod";
@@ -55,38 +56,14 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
           instagramHandle: instagram?.handle,
           tiktokToken,
         });
-        if (metrics && hasMetricCounts(metrics)) {
-          const views = metrics.viewsCount ?? 0;
-          const likes = metrics.likesCount ?? 0;
-          const comments = metrics.commentsCount ?? 0;
-          const shares = metrics.sharesCount ?? 0;
-          const engagementRate =
-            metrics.engagementRate ?? (views > 0 ? ((likes + comments) / views) * 100 : 0);
-
-          await db.$transaction([
-            db.post.update({
-              where: { id: postId },
-              data: {
-                viewsCount: views,
-                likesCount: likes,
-                commentsCount: comments,
-                sharesCount: shares,
-                engagementRate,
-                lastSyncedAt: now,
-              },
-            }),
-            db.postMetricSnapshot.create({
-              data: {
-                postId,
-                viewsCount: views,
-                likesCount: likes,
-                commentsCount: comments,
-                sharesCount: shares,
-                engagementRate,
-                syncSource: "track-enable",
-              },
-            }),
-          ]);
+        /* The shared writer rather than a third hand-rolled copy of it. The
+           version here coerced every absent counter with `?? 0` and wrote all
+           five columns unconditionally, so turning tracking on for an Instagram
+           photo -- which reports likes and comments and has no play count --
+           stamped a measured 0 views onto it. applyPostMetrics writes only the
+           counters that actually arrived. */
+        if (metrics) {
+          await applyPostMetrics(post, metrics, { syncSource: "track-enable" });
         }
       } catch (err) {
         console.error(`Failed initial tracking fetch for post ${postId}:`, err);

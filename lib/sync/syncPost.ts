@@ -15,9 +15,17 @@ import { getTikTokTokenForCreator } from "@/lib/platforms/tiktokToken";
  *
  * Lives here rather than in the route because two callers drive it: the per-post
  * "Sync Now" button and the campaign-wide Refresh, which loops it. The cron in
- * app/api/cron/sync-posts deliberately keeps its own copy -- it batches YouTube
- * ids, spends per-platform budgets and applies backoff, none of which an
- * on-demand refresh wants.
+ * app/api/cron/sync-posts keeps its own SCHEDULING -- it batches YouTube ids,
+ * spends per-platform budgets and applies backoff, none of which an on-demand
+ * refresh wants -- but it no longer keeps its own WRITE. It calls
+ * applyPostMetrics below.
+ *
+ * That distinction was not academic. Its private copy stamped
+ * `{ lastSyncedAt: now, syncFailCount: 0 }` on every post it fetched, including
+ * the ones that came back with no counts -- so once an hour, in production, it
+ * converted unknowns into measured zeros and reset the fail counters that let a
+ * dead post dead-letter. Any fix to the refresh path was undone within the
+ * hour. Two copies of a rule this load-bearing is one copy too many.
  *
  * The rule that matters: lastSyncedAt is stamped only when counts actually came
  * back. Every counter is a non-nullable Float defaulting to 0, so lastSyncedAt
@@ -103,7 +111,13 @@ export function countsFrom(metrics: PostMetrics): {
 export async function applyPostMetrics(
   post: SyncablePost,
   metrics: PostMetrics,
+  /* Stamped on the snapshot only. /settings/ingestion groups snapshots by this
+     and the post detail page shows it as a badge, so a caller sharing this
+     writer must still be able to sign its own work -- otherwise adopting it
+     would relabel every cron snapshot as "api" and lose the provenance. */
+  options: { syncSource?: string } = {},
 ): Promise<SyncPostOutcome> {
+  const syncSource = options.syncSource ?? "api";
   if (!hasMetricCounts(metrics)) {
     // Worth keeping if the fetch produced one: a thumbnail with no counts is
     // still better than an empty card. No lastSyncedAt -- see above.
@@ -198,7 +212,7 @@ export async function applyPostMetrics(
         sharesCount: shares,
         savesCount: saves,
         engagementRate,
-        syncSource: "api",
+        syncSource,
       },
     }),
     ...creatorUpdate,

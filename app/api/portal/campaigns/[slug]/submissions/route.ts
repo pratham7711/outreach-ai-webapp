@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getCreatorSession } from "@/lib/creator-auth";
-import { detectPlatform, fetchPostMetrics } from "@/lib/platforms/fetchPostMetrics";
+import { detectPlatform, fetchPostMetrics, hasMetricCounts } from "@/lib/platforms/fetchPostMetrics";
+import { countsFrom } from "@/lib/sync/syncPost";
 import { getInstagramAccountForCreator } from "@/lib/platforms/instagramToken";
 import { getTikTokTokenForCreator } from "@/lib/platforms/tiktokToken";
 import { parseRatePerThousand } from "@/lib/marketplace/earnings";
@@ -131,6 +132,11 @@ export async function POST(
       metrics = null;
     }
 
+    const measured =
+      metrics && hasMetricCounts(metrics)
+        ? countsFrom(metrics)
+        : { counts: {}, present: [], measuredPatch: {} };
+
     const post = await db.post.create({
       data: {
         campaignId: campaign.id,
@@ -141,14 +147,26 @@ export async function POST(
         postUrl,
         thumbnailUrl: metrics?.thumbnailUrl ?? null,
         caption: metrics?.caption ?? null,
-        viewsCount: metrics?.viewsCount ?? 0,
-        likesCount: metrics?.likesCount ?? 0,
-        commentsCount: metrics?.commentsCount ?? 0,
-        sharesCount: metrics?.sharesCount ?? 0,
-        engagementRate: metrics?.engagementRate ?? 0,
+        /* Only the counters the platform actually reported, and lastSyncedAt
+           only if at least one arrived.
+           
+           This used to coerce all five with `?? 0` and stamp lastSyncedAt
+           whenever `metrics` was merely non-null -- and a fetch that reaches a
+           post but reads no counters off it returns a non-null object. So a
+           creator submitting a link while TikTok was walling us created a post
+           recording five measured zeros, which is indistinguishable downstream
+           from a post that genuinely got no engagement. The counters are
+           non-nullable Floats defaulting to 0, so omitting them leaves the
+           column at 0 with lastSyncedAt null -- the shape lib/metricDisplay
+           reads as "not measured yet". */
+        ...measured.counts,
+        ...(metrics?.engagementRate !== undefined
+          ? { engagementRate: metrics.engagementRate }
+          : {}),
         postedAt: metrics?.postedAt ?? new Date(),
         status: "PENDING_REVIEW",
-        lastSyncedAt: metrics ? new Date() : null,
+        lastSyncedAt: measured.present.length > 0 ? new Date() : null,
+        ...(measured.present.length > 0 ? { platformMetrics: measured.measuredPatch } : {}),
       },
       select: {
         id: true,

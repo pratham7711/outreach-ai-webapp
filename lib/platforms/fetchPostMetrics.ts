@@ -106,9 +106,38 @@ export type FetchReason =
    *  to read as a post with no engagement and was never asked about again. */
   | "unknown";
 
+/**
+ * Did the platform give us any real number for this post?
+ *
+ * ANY counter, not views specifically. Requiring views made an Instagram photo
+ * post unmeasurable by construction: the Graph API reports `like_count` and
+ * `comments_count` for an image and no play count, because an image has none.
+ * So a post with 4,100 real likes failed this check, took applyPostMetrics'
+ * no-metrics branch, and had those likes thrown away -- then got reported as a
+ * post that publishes no counters. Feeds of IG images read as flat zero while
+ * the numbers sat in a response we had already paid for.
+ *
+ * Writing only the present fields is already handled downstream: countsFrom
+ * records exactly which counters arrived and applyPostMetrics stores that list
+ * under MEASURED_FIELDS_KEY, so the UI can tell "zero likes" from "likes not
+ * reported". Nothing here has to invent a views figure to compensate.
+ *
+ * The likes-exceed-views guard stays, but only where it means something -- when
+ * both numbers are present. A missing views count is not evidence of a bad
+ * likes count.
+ */
 export function hasMetricCounts(m: PostMetrics): boolean {
-  if (typeof m.viewsCount !== "number") return false;
-  const likesExceedViews = typeof m.likesCount === "number" && m.likesCount > m.viewsCount;
+  const anyCount =
+    typeof m.viewsCount === "number" ||
+    typeof m.likesCount === "number" ||
+    typeof m.commentsCount === "number" ||
+    typeof m.sharesCount === "number" ||
+    typeof m.savesCount === "number";
+  if (!anyCount) return false;
+  const likesExceedViews =
+    typeof m.viewsCount === "number" &&
+    typeof m.likesCount === "number" &&
+    m.likesCount > m.viewsCount;
   return !likesExceedViews;
 }
 
@@ -189,7 +218,8 @@ export async function fetchYouTubeMetrics(videoId: string): Promise<Partial<Post
   const apiKey = process.env.YOUTUBE_API_KEY;
   if (!apiKey) {
     log.warn("YOUTUBE_API_KEY not set; storing no metric counts for this post");
-    return stubMetrics();
+    // Settled, not retryable: a missing key is identical on all three sweeps.
+    return stubMetrics("not-configured");
   }
 
   try {
@@ -200,19 +230,23 @@ export async function fetchYouTubeMetrics(videoId: string): Promise<Partial<Post
     if (!res.ok) {
       const reason = await res.text().catch(() => "");
       log.error("YouTube API request failed", { status: res.status, reason: reason.slice(0, 300) });
-      return stubMetrics();
+      return stubMetrics("platform-refused");
     }
 
     const data = await res.json();
     const item = data.items?.[0];
     if (!item) {
       log.warn("YouTube API returned no video (deleted, private, or invalid id)");
-      return stubMetrics();
+      /* YouTube answering with an empty items[] for a well-formed id is the
+         platform stating the video is not there -- the same fact as a TikTok
+         404. Settled, so the post can dead-letter instead of being re-asked
+         every hour forever. */
+      return stubMetrics("post-deleted");
     }
     return mapYouTubeItem(item);
   } catch (err) {
     log.error("YouTube API fetch threw", { error: err instanceof Error ? err.message : String(err) });
-    return stubMetrics();
+    return stubMetrics("platform-refused");
   }
 }
 
@@ -277,7 +311,9 @@ export async function fetchYouTubeMetricsBatch(videoIds: string[]): Promise<Map<
         out.set(item.id, assemblePostMetrics("YOUTUBE", item.id, mapYouTubeItem(item)));
       }
       for (const id of chunk) {
-        if (!returned.has(id)) out.set(id, assemblePostMetrics("YOUTUBE", id, stubMetrics()));
+        // Same verdict as the single-video path above, for the same reason.
+        if (!returned.has(id))
+          out.set(id, assemblePostMetrics("YOUTUBE", id, stubMetrics("post-deleted")));
       }
     } catch (err) {
       log.error("YouTube batch fetch threw", {
@@ -304,7 +340,13 @@ export async function fetchTikTokMetrics(
 ): Promise<Partial<PostMetrics>> {
   if (videoId && accessToken) {
     const viaDisplay = await fetchTikTokMetricsDisplay(videoId, accessToken);
-    if (viaDisplay) return viaDisplay;
+    /* Accepted only if it actually carries counts. video.query answering with
+       the video but no counters is no longer coerced into zeros, so an empty
+       stats block would otherwise return a countless object here and skip the
+       sandbox and oEmbed paths below -- which is a step backwards, because the
+       sandbox reads the public page and frequently does have the numbers.
+       Thumbnail and caption are not worth forfeiting a counted read for. */
+    if (viaDisplay && hasMetricCounts(viaDisplay as PostMetrics)) return viaDisplay;
   }
 
   /* Sandbox first, not as a fallback. TikTok answers it and refuses this
@@ -350,18 +392,24 @@ async function fetchTikTokMetricsDisplay(
   const video = videos.find((v) => v.id === videoId);
   if (!video) return null;
 
-  const views = video.viewsCount;
-  const likes = video.likesCount;
-  const comments = video.commentsCount;
+  /* video.exact, not video.viewsCount: the flat fields are num()-coerced for
+     display, so an absent counter reads as 0 there. Writing that 0 would make
+     it a measured zero forever (see TikTokVideo.exact). */
+  const { views, likes, comments, shares, createdAt } = video.exact;
   return {
     thumbnailUrl: video.coverImageUrl,
     caption: video.description || video.title || null,
-    viewsCount: views,
-    likesCount: likes,
-    commentsCount: comments,
-    sharesCount: video.sharesCount,
-    engagementRate: views > 0 ? ((likes + comments) / views) * 100 : 0,
-    postedAt: new Date(video.postedAt),
+    ...(views !== undefined ? { viewsCount: views } : {}),
+    ...(likes !== undefined ? { likesCount: likes } : {}),
+    ...(comments !== undefined ? { commentsCount: comments } : {}),
+    ...(shares !== undefined ? { sharesCount: shares } : {}),
+    /* Only when it can be computed from real numbers. A rate derived from a
+       coerced 0 views is not 0% engagement, it is no answer. */
+    ...(views !== undefined && views > 0 && likes !== undefined && comments !== undefined
+      ? { engagementRate: ((likes + comments) / views) * 100 }
+      : {}),
+    // No invented date. postedAt is left alone unless TikTok stated create_time.
+    ...(createdAt ? { postedAt: createdAt } : {}),
   };
 }
 
@@ -872,7 +920,23 @@ export async function fetchInstagramMetrics(
   return stubMetrics(reason);
 }
 
-function stubMetrics(reason?: FetchReason): Partial<PostMetrics> {
+/**
+ * The empty answer, and why it is empty.
+ *
+ * `reason` is REQUIRED, and that is the whole point of this signature. It used
+ * to be optional, and five YouTube paths plus one Instagram path took the
+ * default -- so they returned an empty result carrying no reason at all, and
+ * the writer downstream filled the blank in with "no-counts-published". That
+ * slug is a positive claim about the POST (it publishes no counters) and it is
+ * settled, so a refresh never asked again. Every Instagram post in a campaign
+ * read as a post with no engagement, permanently, because a parameter had a
+ * default.
+ *
+ * Making it required moves that from something a reviewer has to notice to
+ * something the compiler will not let anyone write. A new fetch path cannot
+ * return silence; it has to say what it saw.
+ */
+function stubMetrics(reason: FetchReason): Partial<PostMetrics> {
   // No postedAt. A stub is what we return when the platform told us nothing, and
   // it knows least of all when the post went up -- filling in `new Date()` there
   // stamped today onto every post created while TikTok was unreachable, and the
@@ -881,7 +945,7 @@ function stubMetrics(reason?: FetchReason): Partial<PostMetrics> {
   return {
     thumbnailUrl: null,
     caption: null,
-    ...(reason ? { fetchReason: reason } : {}),
+    fetchReason: reason,
   };
 }
 

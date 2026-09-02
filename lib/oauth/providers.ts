@@ -25,7 +25,21 @@ const PROVIDERS: Record<OAuthPlatform, ProviderConfig> = {
     clientIdParam: "client_id",
     authorizeUrl: "https://www.facebook.com/v19.0/dialog/oauth",
     tokenUrl: "https://graph.facebook.com/v19.0/oauth/access_token",
-    scopes: ["instagram_basic", "instagram_manage_insights"],
+    /* pages_show_list is not optional, and its absence is why the creator-token
+       Graph path has almost certainly never returned a number.
+       resolveIgUserId (lib/platforms/instagram.ts) reads
+       `me/accounts?fields=instagram_business_account{id}` -- the PAGES edge --
+       because an IG Business account is reachable only through the Facebook
+       Page it is linked to. instagram_basic grants the IG object once you hold
+       its id; it does not grant the listing that yields the id. Without
+       pages_show_list that call returns an empty data array for every token
+       this app has ever minted, resolveIgUserId returns null, and the fetch
+       falls through to the Business Discovery path or to nothing.
+
+       instagram_manage_insights stays: it is what /insights (the views metric)
+       needs, and views is the counter Instagram will not put on the media
+       object itself. */
+    scopes: ["instagram_basic", "instagram_manage_insights", "pages_show_list"],
     scopeSeparator: ",",
   },
   tiktok: {

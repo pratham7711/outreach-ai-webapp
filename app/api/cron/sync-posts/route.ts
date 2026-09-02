@@ -4,9 +4,10 @@ import {
   detectPlatform,
   fetchPostMetrics,
   fetchYouTubeMetricsBatch,
-  hasMetricCounts,
+  type FetchReason,
   type PostMetrics,
 } from "@/lib/platforms/fetchPostMetrics";
+import { applyPostMetrics } from "@/lib/sync/syncPost";
 import { decryptInstagramToken } from "@/lib/platforms/instagramToken";
 import { ensureFreshTikTokToken } from "@/lib/platforms/tiktokToken";
 import { decideSyncAction, SyncAction } from "@/lib/sync/cadence";
@@ -15,6 +16,16 @@ import { createLogger } from "@/lib/observability/logger";
 
 const MAX_SYNC_FAILURES = 5;
 const DEFAULT_PLATFORM_BUDGET = 100;
+
+/* Reasons a further attempt cannot change. Both are things a platform states
+   positively about the post, so re-asking hourly for five hours before
+   dead-lettering only delays the same answer. Everything else -- a WAF
+   challenge, a refusal, a shut gate, an unexplained empty -- is about the
+   moment or about us, and deserves the retries. */
+const SETTLED_REASONS: ReadonlySet<FetchReason> = new Set<FetchReason>([
+  "post-deleted",
+  "unrecognised-url",
+]);
 
 type Decision = { postId: string; platform: string; action: SyncAction; reason: string };
 
@@ -45,6 +56,8 @@ export async function GET(request: NextRequest) {
   const attempts: Record<string, number> = {};
 
   let synced = 0;
+  let noCounts = 0;
+  const noCountReasons: Record<string, number> = {};
   let sealed = 0;
   let failed = 0;
   let deadLettered = 0;
@@ -66,6 +79,15 @@ export async function GET(request: NextRequest) {
         platform: true,
         postUrl: true,
         postedAt: true,
+        /* The last four are for applyPostMetrics, which needs a SyncablePost:
+           creatorId to write back the author's follower count, thumbnail and
+           caption so an absent one is not clobbered with null, and
+           platformMetrics because the measured-fields list is merged into that
+           bag alongside the importer's raw record rather than replacing it. */
+        creatorId: true,
+        thumbnailUrl: true,
+        caption: true,
+        platformMetrics: true,
         lastSyncedAt: true,
         viewsCount: true,
         likesCount: true,
@@ -199,41 +221,45 @@ export async function GET(request: NextRequest) {
           }));
         if (!metrics) continue;
 
-        const postData: Record<string, unknown> = { lastSyncedAt: now, syncFailCount: 0 };
-        if (metrics.thumbnailUrl !== null) postData.thumbnailUrl = metrics.thumbnailUrl;
-        if (metrics.caption !== null) postData.caption = metrics.caption;
+        /* The shared writer, not a local one.
+         *
+         * What used to be here built `{ lastSyncedAt: now, syncFailCount: 0 }`
+         * and wrote it on BOTH branches -- so a fetch that came back with no
+         * counts still marked the post as synced and cleared its fail streak.
+         * Since lastSyncedAt is the only thing distinguishing "no likes" from
+         * "nobody looked" (see lib/sync/syncPost), this ran hourly against
+         * production and turned unknowns into measured zeros, while the reset
+         * counter meant a genuinely dead post could never reach
+         * MAX_SYNC_FAILURES and dead-letter. It also silently undid every
+         * repair the on-demand refresh made.
+         *
+         * applyPostMetrics stamps lastSyncedAt only when counts actually
+         * arrived, and writes only the counters the platform reported. */
+        const outcome = await applyPostMetrics(post, metrics, { syncSource: "cron" });
 
-        if (hasMetricCounts(metrics)) {
-          const views = metrics.viewsCount ?? 0;
-          const likes = metrics.likesCount ?? 0;
-          const comments = metrics.commentsCount ?? 0;
-          const shares = metrics.sharesCount ?? 0;
-          const engagementRate =
-            metrics.engagementRate ?? (views > 0 ? ((likes + comments) / views) * 100 : 0);
-          postData.viewsCount = views;
-          postData.likesCount = likes;
-          postData.commentsCount = comments;
-          postData.sharesCount = shares;
-          postData.engagementRate = engagementRate;
-
-          await db.$transaction([
-            db.post.update({ where: { id: post.id }, data: postData }),
-            db.postMetricSnapshot.create({
-              data: {
-                postId: post.id,
-                viewsCount: views,
-                likesCount: likes,
-                commentsCount: comments,
-                sharesCount: shares,
-                engagementRate,
-                syncSource: "cron",
-              },
-            }),
-          ]);
+        if (outcome.status === "measured") {
+          // A real answer clears the streak. Only a real answer.
+          if (post.syncFailCount > 0) {
+            await db.post.update({ where: { id: post.id }, data: { syncFailCount: 0 } });
+          }
+          synced++;
         } else {
-          await db.post.update({ where: { id: post.id }, data: postData });
+          /* Answered, but with nothing countable. That is a failed attempt for
+             backoff purposes -- counting it is what lets a post the platform
+             will never answer for eventually stop being asked. A settled reason
+             goes straight to the dead letter rather than spending five hours
+             re-confirming a deletion. */
+          noCounts++;
+          noCountReasons[outcome.reason] = (noCountReasons[outcome.reason] ?? 0) + 1;
+          const settled = SETTLED_REASONS.has(outcome.reason);
+          const nextFailCount = settled ? MAX_SYNC_FAILURES : post.syncFailCount + 1;
+          const failData: Record<string, unknown> = { syncFailCount: nextFailCount };
+          if (nextFailCount >= MAX_SYNC_FAILURES) {
+            failData.syncDisabledAt = now;
+            deadLettered++;
+          }
+          await db.post.update({ where: { id: post.id }, data: failData });
         }
-        synced++;
       } catch (err) {
         log.error("failed to sync post", { postId: post.id, error: String(err) });
         failed++;
@@ -282,8 +308,8 @@ export async function GET(request: NextRequest) {
     const skipped = Object.values(skippedByReason).reduce((a, b) => a + b, 0);
 
     log.info("sync complete", {
-      synced, sealed, failed, deadLettered, skipped, skippedByReason,
-      skippedForBudget, total: posts.length,
+      synced, noCounts, noCountReasons, sealed, failed, deadLettered, skipped,
+      skippedByReason, skippedForBudget, total: posts.length,
     });
 
     // One digest per run, never per post: a platform outage fails the whole
@@ -306,6 +332,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       ok: true,
       synced,
+      /* Surfaced because "fetched but nothing countable came back" is the state
+         this route used to report as a success, and it is the one worth
+         watching: a run of synced:0 noCounts:300 is a platform locking us out,
+         not a quiet hour. */
+      noCounts,
+      noCountReasons,
       sealed,
       failed,
       deadLettered,
