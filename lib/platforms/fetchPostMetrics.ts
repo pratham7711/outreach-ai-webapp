@@ -1,5 +1,9 @@
 import type { SandboxPostFetcher } from "./tiktokPostSandbox";
-import { fetchInstagramMetricsGraph, InstagramAuthError } from "./instagram";
+import {
+  fetchInstagramMetricsGraph,
+  InstagramAuthError,
+  InstagramTimeoutError,
+} from "./instagram";
 import {
   businessDiscoveryToken,
   fetchInstagramPublicPostMetrics,
@@ -97,6 +101,16 @@ export type FetchReason =
    * wins over this -- see NON_VERDICT_REASONS.
    */
   | "reader-unavailable"
+  /**
+   * OUR deadline ran out before the platform answered.
+   *
+   * A sibling of reader-unavailable: both say the failure was ours. Separate
+   * because the remedy differs -- a dead lane needs a fresh address, a timeout
+   * needs a longer budget or fewer round trips -- and because this one used to
+   * be filed as "platform-refused", which blamed Meta for our own clock and
+   * sent whoever was reading the summary to check a healthy token.
+   */
+  | "reader-timeout"
   /** The gate is shut, so we never asked. Not a failure -- a deferral. */
   | "backing-off"
   /** The platform says the post is gone. */
@@ -164,6 +178,17 @@ export function hasMetricCounts(m: PostMetrics): boolean {
     m.likesCount > m.viewsCount;
   return !likesExceedViews;
 }
+
+/**
+ * Budget for a whole Instagram Graph WALK, as opposed to one round trip.
+ *
+ * graphGet now gives each request its own 5s budget, so this is the ceiling on
+ * the sequence: id resolution plus up to five media pages plus insights. It is
+ * larger than the old 8s precisely because 8s was never a walk budget -- it was
+ * one request's budget being asked to cover seven, which is why a slow first
+ * page returned an empty result for the whole post.
+ */
+const GRAPH_WALK_TIMEOUT_MS = 20000;
 
 function fetchTimeoutSignal(ms = 8000): AbortSignal | undefined {
   return typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function"
@@ -364,6 +389,42 @@ export function reasonFromLookup(lookup: TikTokPostLookup): FetchReason {
 const NON_VERDICT_REASONS: ReadonlySet<FetchReason> = new Set<FetchReason>([
   "platform-challenged",
   "platform-refused",
+  /* The gate is ours, so a gate that refused us is our reader being unavailable
+     -- not a deferral the post should be labelled with. Without this, a run
+     whose lanes had died reported "110 skipped while backing off", which reads
+     as politeness toward TikTok when it was actually our own breaker, latched
+     by our own dead lanes, describing an egress the run never wanted. */
+  "backing-off",
+]);
+
+/**
+ * Reasons that must never spend a post's retry budget.
+ *
+ * A superset of NON_VERDICT_REASONS, and answering a different question. That
+ * set decides ATTRIBUTION inside one fetch -- whose failure was this. This one
+ * decides CONSEQUENCE across runs: whether the failure is allowed to count
+ * toward switching the post off.
+ *
+ * Everything here is a statement about us, or about the moment, and never about
+ * the post: a shut gate we never asked through, a WAF challenge to our egress,
+ * a dead sandbox lane, a token that lapsed, a key the deployment never had. A
+ * post whose creator reconnects, or whose next read comes from a fresh address,
+ * measures fine -- so charging any of these toward MAX_SYNC_FAILURES switches
+ * off a healthy post, permanently, for something it did not do.
+ *
+ * Deliberately absent, and still chargeable: "no-counts-published" (a claim
+ * about the post), "unknown" (unexplained, so it still deserves a bound), and
+ * the settled verdicts "post-deleted" / "unrecognised-url", which go straight
+ * to the dead letter rather than spending five runs re-confirming themselves.
+ */
+export const UNCHARGEABLE_REASONS: ReadonlySet<FetchReason> = new Set<FetchReason>([
+  "platform-challenged",
+  "platform-refused",
+  "backing-off",
+  "reader-unavailable",
+  "reader-timeout",
+  "credentials-rejected",
+  "not-configured",
 ]);
 
 /**
@@ -422,7 +483,13 @@ export async function fetchTikTokMetrics(
     else if (viaSandbox.state === "unavailable") sandboxRefusal = reasonFromLookup(viaSandbox);
   }
 
-  const lookup = await lookupTikTokPost(url);
+  /* Still attempted after a dead lane -- this egress answers about one time in
+     four, and throwing that away to save a request would cost real coverage --
+     but its outcome is not allowed to move the shared breaker. See the options
+     docblock on lookupTikTokPost: a lane dying says nothing about how this
+     egress is standing with TikTok, and letting it latch the gate is what
+     turned 12 failures into 110 posts reported as backing off. */
+  const lookup = await lookupTikTokPost(url, { recordToGate: !laneFailed });
   if (lookup.metrics) return tiktokMetricsToPartial(lookup.metrics);
   const reason = attributeFailure(reasonFromLookup(lookup), { laneFailed, sandboxRefusal });
 
@@ -729,8 +796,31 @@ export function readTikTokPostHtml(html: string): TikTokPostLookup {
   return { state: "unavailable", statusCode: null, reason: "no-parsable-payload", metrics: null };
 }
 
-export async function lookupTikTokPost(url: string): Promise<TikTokPostLookup> {
+export async function lookupTikTokPost(
+  url: string,
+  /**
+   * Whether this attempt's outcome may move the shared breaker.
+   *
+   * tiktokGate is a module-level singleton: one per serverless instance, shared
+   * by every campaign, every org and the cron. That is correct when this
+   * function IS the reader -- five refusals in a row really should stop us
+   * knocking. It is wrong when this call is only a fallback after a sandbox
+   * lane died, because then the failure describes an egress the run was not
+   * even meant to use, and latching on it stops the healthy lanes too.
+   *
+   * Measured: 12 dead lanes became 110 posts reported as "backing off", none of
+   * which was ever asked. Pacing still applies either way -- acquire() is not
+   * conditional -- so this only suppresses the bookkeeping, never the courtesy.
+   */
+  options: { recordToGate?: boolean } = {},
+): Promise<TikTokPostLookup> {
   const log = createLogger({ context: { platform: "TIKTOK", url } });
+  const recordToGate = options.recordToGate ?? true;
+  const gate = {
+    blocked: () => recordToGate && tiktokGate.recordBlocked(),
+    challenged: () => recordToGate && tiktokGate.recordChallenged(),
+    success: () => recordToGate && tiktokGate.recordSuccess(),
+  };
 
   if (!(await tiktokGate.acquire())) {
     log.warn("TikTok direct fetch skipped; breaker open");
@@ -747,8 +837,8 @@ export async function lookupTikTokPost(url: string): Promise<TikTokPostLookup> {
       signal: fetchTimeoutSignal(15000),
     });
     if (!res.ok) {
-      if (isBlockedStatus(res.status)) tiktokGate.recordBlocked();
-      else tiktokGate.recordSuccess();
+      if (isBlockedStatus(res.status)) gate.blocked();
+      else gate.success();
       log.warn("TikTok direct fetch returned non-OK", { status: res.status });
       return {
         state: "unavailable",
@@ -765,20 +855,20 @@ export async function lookupTikTokPost(url: string): Promise<TikTokPostLookup> {
       // A removed post answers 200 with a non-zero statusCode. Counting that as
       // a block let five deleted posts in a row latch the breaker for 15
       // minutes and stall every healthy fetch behind them.
-      tiktokGate.recordSuccess();
+      gate.success();
       log.warn("TikTok says this post is gone", { statusCode: lookup.statusCode });
       return lookup;
     }
     if (lookup.state === "unavailable") {
-      tiktokGate.recordChallenged();
+      gate.challenged();
       log.warn("TikTok direct fetch could not parse rehydration payload");
       return lookup;
     }
 
-    tiktokGate.recordSuccess();
+    gate.success();
     return lookup;
   } catch (err) {
-    tiktokGate.recordBlocked();
+    gate.blocked();
     log.error("TikTok direct fetch threw", {
       error: err instanceof Error ? err.message : String(err),
     });
@@ -964,12 +1054,26 @@ export async function fetchInstagramMetrics(
      without numbers. Both arrive here as an absence of counts, and only this
      tells them apart. */
   let authFailed = false;
+  /* Set when OUR deadline ended the attempt. Kept apart from authFailed for the
+     same reason authFailed exists: all three arrive here as an absence of
+     counts, and only these flags say which. */
+  let timedOut = false;
 
   if (token) {
     let graph: Awaited<ReturnType<typeof fetchInstagramMetricsGraph>> = null;
     try {
-      graph = await fetchInstagramMetricsGraph(url, token, fetchTimeoutSignal());
+      graph = await fetchInstagramMetricsGraph(url, token, fetchTimeoutSignal(GRAPH_WALK_TIMEOUT_MS));
     } catch (err) {
+      if (err instanceof InstagramTimeoutError) {
+        /* Keep going: Business Discovery and the embed are separate endpoints
+           with their own budgets, and the most common shape of this failure is
+           one slow page rather than Meta being unreachable. */
+        timedOut = true;
+        createLogger({ context: { platform: "INSTAGRAM", call: "graph.metrics" } }).warn(
+          "Graph walk timed out; trying the remaining sources",
+          { path: err.path },
+        );
+      } else {
       if (!(err instanceof InstagramAuthError)) throw err;
       // The creator's token is dead. Business Discovery uses our own token and
       // may still answer, so keep going — but remember, so a dry result is not
@@ -979,6 +1083,7 @@ export async function fetchInstagramMetrics(
         "Instagram token rejected; connection needs re-authorisation",
         { status: err.status, code: err.code },
       );
+      }
     }
     if (graph) {
       fill("graph", {
@@ -1000,8 +1105,21 @@ export async function fetchInstagramMetrics(
   if (bizToken && handle) {
     let post: Awaited<ReturnType<typeof fetchInstagramPublicPostMetrics>> = null;
     try {
-      post = await fetchInstagramPublicPostMetrics(handle, url, bizToken, fetchTimeoutSignal());
+      post = await fetchInstagramPublicPostMetrics(
+        handle,
+        url,
+        bizToken,
+        fetchTimeoutSignal(GRAPH_WALK_TIMEOUT_MS),
+      );
     } catch (err) {
+      if (err instanceof InstagramTimeoutError) {
+        timedOut = true;
+        createLogger({ context: { platform: "INSTAGRAM", call: "businessDiscovery" } }).warn(
+          "Business Discovery walk timed out; falling through to the embed",
+          { path: err.path },
+        );
+        post = null;
+      } else {
       if (!(err instanceof InstagramAuthError)) throw err;
       // INSTAGRAM_BUSINESS_TOKEN itself is rejected — an operator problem, not a
       // creator one, and not something to record as a post with no engagement.
@@ -1010,6 +1128,7 @@ export async function fetchInstagramMetrics(
         "INSTAGRAM_BUSINESS_TOKEN rejected; Business Discovery is down until it is replaced",
         { status: err.status, code: err.code },
       );
+      }
     }
     if (post) {
       fill("business-discovery", {
@@ -1089,11 +1208,17 @@ export async function fetchInstagramMetrics(
      would send this back through the retry cycle every hour with the same dead
      token and report it as the platform's doing; naming it is what lets the
      count of these reach an operator. */
+  /* Ordered by what each says about who must act. A rejected credential is a
+     person's job and outranks everything. Our own deadline comes next: it is
+     not evidence that Instagram refused us, and filing it as such sent people
+     to check tokens that were fine. Only then is a refusal the platform's. */
   const reason: FetchReason = authFailed
     ? "credentials-rejected"
-    : attempted
-      ? "platform-refused"
-      : "not-configured";
+    : timedOut
+      ? "reader-timeout"
+      : attempted
+        ? "platform-refused"
+        : "not-configured";
   log.warn("instagram metrics unavailable from every source", { reason, sources });
 
   try {

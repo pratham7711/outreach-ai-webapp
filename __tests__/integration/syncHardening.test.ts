@@ -7,6 +7,7 @@ import { GET as cronSync } from "@/app/api/cron/sync-posts/route";
 jest.mock("@/lib/db", () => ({
   db: {
     post: { findMany: jest.fn(), update: jest.fn() },
+    campaign: { findMany: jest.fn(), updateMany: jest.fn() },
     postMetricSnapshot: { create: jest.fn() },
     $transaction: jest.fn(),
   },
@@ -33,11 +34,25 @@ function hoursAgo(hours: number): Date {
   return new Date(Date.now() - hours * HOUR_MS);
 }
 
+/**
+ * Instagram, deliberately -- and it does not matter which platform it is.
+ *
+ * Every test in this file is about platform-agnostic machinery: retry
+ * accounting, sealing, per-platform budgets, dry-run reporting. These fixtures
+ * were TikTok only because TikTok was the first platform to exist here, and
+ * that became load-bearing the moment the cron started skipping TikTok
+ * outright (it has no sandbox, so those reads are ~75% doomed) -- every test
+ * below went green-on-nothing, asserting behaviour that no longer ran.
+ *
+ * The TikTok skip has its own test, `cron sync -- TikTok` below. Do not flip
+ * these back to TIKTOK to "cover" it.
+ */
 function makePost(overrides: Record<string, unknown> = {}) {
   return {
     id: "post-1",
-    platform: "TIKTOK",
-    postUrl: "https://www.tiktok.com/@u/video/1",
+    campaignId: "campaign-1",
+    platform: "INSTAGRAM",
+    postUrl: "https://www.instagram.com/reel/AAA1/",
     postedAt: hoursAgo(1),
     lastSyncedAt: null,
     viewsCount: 100,
@@ -58,20 +73,28 @@ function cronReq(url = "http://localhost/api/cron/sync-posts") {
 }
 
 const realSecret = process.env.CRON_SECRET;
-const realTikTokBudget = process.env.SYNC_BUDGET_TIKTOK;
+const realInstagramBudget = process.env.SYNC_BUDGET_INSTAGRAM;
 
 beforeEach(() => {
   jest.clearAllMocks();
   jest.spyOn(console, "error").mockImplementation(() => {});
   process.env.CRON_SECRET = "secret";
+  /* One live, due campaign by default. The route now asks which campaigns are
+     due before it reads a single post, so even a suite about failure accounting
+     has to answer that question -- an unmocked campaign.findMany resolves to
+     undefined and the route 500s on .filter. */
+  mockDb.campaign.findMany.mockResolvedValue([
+    { id: "campaign-1", refreshActive: null, refreshInterval: null, lastRefreshAt: null },
+  ]);
+  mockDb.campaign.updateMany.mockResolvedValue({ count: 1 });
 });
 
 afterEach(() => {
   (console.error as jest.Mock).mockRestore();
   if (realSecret === undefined) delete process.env.CRON_SECRET;
   else process.env.CRON_SECRET = realSecret;
-  if (realTikTokBudget === undefined) delete process.env.SYNC_BUDGET_TIKTOK;
-  else process.env.SYNC_BUDGET_TIKTOK = realTikTokBudget;
+  if (realInstagramBudget === undefined) delete process.env.SYNC_BUDGET_INSTAGRAM;
+  else process.env.SYNC_BUDGET_INSTAGRAM = realInstagramBudget;
 });
 
 describe("cron sync hardening — dry run", () => {
@@ -97,11 +120,11 @@ describe("cron sync hardening — dry run", () => {
     expect(body.dryRun).toBe(true);
     expect(body.total).toBe(5);
     expect(body.decisions).toEqual([
-      { postId: "fresh", platform: "TIKTOK", action: "sync", reason: "due" },
-      { postId: "old", platform: "TIKTOK", action: "seal", reason: "age-over-30d" },
-      { postId: "disabled", platform: "TIKTOK", action: "skip", reason: "dead-letter" },
-      { postId: "done", platform: "TIKTOK", action: "skip", reason: "sealed" },
-      { postId: "cadence", platform: "TIKTOK", action: "skip", reason: "cadence-1-7d" },
+      { postId: "fresh", platform: "INSTAGRAM", action: "sync", reason: "due" },
+      { postId: "old", platform: "INSTAGRAM", action: "seal", reason: "age-over-30d" },
+      { postId: "disabled", platform: "INSTAGRAM", action: "skip", reason: "dead-letter" },
+      { postId: "done", platform: "INSTAGRAM", action: "skip", reason: "sealed" },
+      { postId: "cadence", platform: "INSTAGRAM", action: "skip", reason: "cadence-1-7d" },
     ]);
     expect(body.summary.byAction).toEqual({ sync: 1, seal: 1, skip: 3 });
     expect(body.summary.byReason).toEqual({
@@ -118,7 +141,7 @@ describe("cron sync hardening — dead-letter", () => {
   it("increments syncFailCount on thrown error and dead-letters at 5", async () => {
     mockDb.post.findMany.mockResolvedValue([
       makePost({ id: "p-low", syncFailCount: 0 }),
-      makePost({ id: "p-edge", postUrl: "https://www.tiktok.com/@u/video/2", syncFailCount: 4 }),
+      makePost({ id: "p-edge", postUrl: "https://www.instagram.com/reel/AAA2/", syncFailCount: 4 }),
     ]);
     mockFetch.mockRejectedValue(new Error("platform down"));
     mockDb.post.update.mockResolvedValue({});
@@ -158,7 +181,7 @@ describe("cron sync hardening — dead-letter", () => {
   it("resets syncFailCount to 0 on successful sync", async () => {
     mockDb.post.findMany.mockResolvedValue([makePost({ id: "p-recover", syncFailCount: 3 })]);
     mockFetch.mockResolvedValue({
-      platform: "TIKTOK",
+      platform: "INSTAGRAM",
       platformPostId: "1",
       thumbnailUrl: null,
       caption: null,
@@ -201,7 +224,7 @@ describe("cron sync hardening — dead-letter", () => {
       makePost({ id: "p-ours", syncFailCount: 4 }), // one away from dead-letter
     ]);
     mockFetch.mockResolvedValue({
-      platform: "TIKTOK",
+      platform: "INSTAGRAM",
       platformPostId: "1",
       thumbnailUrl: null,
       caption: null,
@@ -225,16 +248,24 @@ describe("cron sync hardening — dead-letter", () => {
     ).toBeUndefined();
   });
 
-  it("still spends the budget when the platform is what refused us", async () => {
-    // The control for the test above: a platform refusal must still count, or
-    // the backoff that stops us hammering a dead post is gone.
+  /**
+   * The control for the test above: something that IS about the post must still
+   * count, or the backoff that stops us hammering a dead post is gone.
+   *
+   * This used to use "platform-challenged" and that was the bug. A WAF
+   * challenge to our datacenter egress says nothing whatsoever about the post
+   * -- the same URL loads fine from a browser -- yet it walked healthy posts to
+   * syncDisabledAt in five hourly runs. "no-counts-published" is the real
+   * control: the platform answered, about this post, and published no numbers.
+   */
+  it("still spends the budget when the post is what has nothing to report", async () => {
     mockDb.post.findMany.mockResolvedValue([makePost({ id: "p-theirs", syncFailCount: 4 })]);
     mockFetch.mockResolvedValue({
-      platform: "TIKTOK",
+      platform: "INSTAGRAM",
       platformPostId: "1",
       thumbnailUrl: null,
       caption: null,
-      fetchReason: "platform-challenged",
+      fetchReason: "no-counts-published",
       postedAt: new Date(),
     });
     mockDb.$transaction.mockResolvedValue([{}, {}]);
@@ -309,10 +340,10 @@ describe("cron sync hardening — sealing", () => {
 
 describe("cron sync hardening — per-platform budgets", () => {
   it("skips remaining posts of a platform once its budget is exhausted", async () => {
-    process.env.SYNC_BUDGET_TIKTOK = "1";
+    process.env.SYNC_BUDGET_INSTAGRAM = "1";
     mockDb.post.findMany.mockResolvedValue([
-      makePost({ id: "t-1" }),
-      makePost({ id: "t-2", postUrl: "https://www.tiktok.com/@u/video/2" }),
+      makePost({ id: "ig-1" }),
+      makePost({ id: "ig-2", postUrl: "https://www.instagram.com/reel/AAA2/" }),
       makePost({
         id: "y-1",
         platform: "YOUTUBE",
@@ -320,7 +351,7 @@ describe("cron sync hardening — per-platform budgets", () => {
       }),
     ]);
     mockFetch.mockResolvedValue({
-      platform: "TIKTOK",
+      platform: "INSTAGRAM",
       platformPostId: "1",
       thumbnailUrl: null,
       caption: null,
@@ -333,9 +364,9 @@ describe("cron sync hardening — per-platform budgets", () => {
 
     const fetchedUrls = mockFetch.mock.calls.map((call) => call[0]);
     expect(mockFetch).toHaveBeenCalledTimes(2);
-    expect(fetchedUrls).toContain("https://www.tiktok.com/@u/video/1");
+    expect(fetchedUrls).toContain("https://www.instagram.com/reel/AAA1/");
     expect(fetchedUrls).toContain("https://www.youtube.com/watch?v=abc123");
-    expect(fetchedUrls).not.toContain("https://www.tiktok.com/@u/video/2");
+    expect(fetchedUrls).not.toContain("https://www.instagram.com/reel/AAA2/");
     expect(body.skippedForBudget).toBe(1);
     /* The budget is what this test is about, and the two assertions above are
        it. These two only pin down where the fetched posts landed: the mock
@@ -345,10 +376,10 @@ describe("cron sync hardening — per-platform budgets", () => {
   });
 
   it("reports budget skips in dry-run decisions", async () => {
-    process.env.SYNC_BUDGET_TIKTOK = "1";
+    process.env.SYNC_BUDGET_INSTAGRAM = "1";
     mockDb.post.findMany.mockResolvedValue([
-      makePost({ id: "t-1" }),
-      makePost({ id: "t-2", postUrl: "https://www.tiktok.com/@u/video/2" }),
+      makePost({ id: "ig-1" }),
+      makePost({ id: "ig-2", postUrl: "https://www.instagram.com/reel/AAA2/" }),
     ]);
 
     const res = await cronSync(cronReq("http://localhost/api/cron/sync-posts?dryRun=1"));
@@ -357,9 +388,239 @@ describe("cron sync hardening — per-platform budgets", () => {
     expect(mockFetch).not.toHaveBeenCalled();
     expect(mockDb.post.update).not.toHaveBeenCalled();
     expect(body.decisions).toEqual([
-      { postId: "t-1", platform: "TIKTOK", action: "sync", reason: "due" },
-      { postId: "t-2", platform: "TIKTOK", action: "skip", reason: "budget" },
+      { postId: "ig-1", platform: "INSTAGRAM", action: "sync", reason: "due" },
+      { postId: "ig-2", platform: "INSTAGRAM", action: "skip", reason: "budget" },
     ]);
     expect(body.summary.byReason.budget).toBe(1);
+  });
+});
+
+/**
+ * The cron does not read TikTok. This is the test for that decision.
+ *
+ * TikTok answers a datacenter IP with a WAF shell roughly three times in four,
+ * so the only way to read it reliably is a Vercel Sandbox -- which the on-demand
+ * refresh opens and this route deliberately does not, because sandbox lanes for
+ * every campaign every hour cost real money (measured: $111-174/mo at 500
+ * campaigns daily). Attempting the read anyway was not free either: it burned
+ * function seconds and Neon writes, and its failures latched the process-wide
+ * TikTok breaker, so real users' on-demand refreshes came back "backing off"
+ * because a cron had just spent the budget failing.
+ *
+ * TikTok numbers therefore move only on Refresh. That is the price of holding
+ * the Vercel bill flat, and it is reversible.
+ */
+describe("cron sync — TikTok", () => {
+  const tiktokPost = (overrides: Record<string, unknown> = {}) =>
+    makePost({
+      platform: "TIKTOK",
+      postUrl: "https://www.tiktok.com/@u/video/1",
+      ...overrides,
+    });
+
+  it("skips TikTok posts without fetching them", async () => {
+    mockDb.post.findMany.mockResolvedValue([tiktokPost({ id: "tt-1" })]);
+
+    const res = await cronSync(cronReq());
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(mockFetch).not.toHaveBeenCalled();
+    expect(mockDb.post.update).not.toHaveBeenCalled();
+    expect(body.synced).toBe(0);
+    expect(body.failed).toBe(0);
+    /* And specifically not counted as a failure of any kind: a post we chose
+       not to read must not look like a post we could not read. */
+    expect(body.noCounts).toBe(0);
+    expect(body.deadLettered).toBe(0);
+  });
+
+  it("names the reason in dry-run rather than reporting it as due", async () => {
+    mockDb.post.findMany.mockResolvedValue([tiktokPost({ id: "tt-1" })]);
+
+    const res = await cronSync(cronReq("http://localhost/api/cron/sync-posts?dryRun=1"));
+    const body = await res.json();
+
+    expect(body.decisions).toEqual([
+      { postId: "tt-1", platform: "TIKTOK", action: "skip", reason: "tiktok-needs-sandbox" },
+    ]);
+  });
+
+  it("does not dead-letter a TikTok post it declined to read", async () => {
+    // The failure mode this replaced: five hourly runs of doomed egress reads
+    // took a healthy post to syncDisabledAt, which nothing in the codebase ever
+    // clears. A skip must never move that counter.
+    mockDb.post.findMany.mockResolvedValue([tiktokPost({ id: "tt-edge", syncFailCount: 4 })]);
+
+    const res = await cronSync(cronReq());
+    const body = await res.json();
+
+    expect(body.deadLettered).toBe(0);
+    expect(mockDb.post.update).not.toHaveBeenCalled();
+  });
+
+  it("still sweeps the other platforms in the same run", async () => {
+    mockDb.post.findMany.mockResolvedValue([
+      tiktokPost({ id: "tt-1" }),
+      makePost({ id: "ig-1" }),
+    ]);
+    mockFetch.mockResolvedValue({
+      platform: "INSTAGRAM",
+      platformPostId: "1",
+      thumbnailUrl: null,
+      caption: null,
+      viewsCount: 500,
+      likesCount: 5,
+      commentsCount: 1,
+      sharesCount: 0,
+      engagementRate: 1.2,
+      postedAt: new Date(),
+    });
+    mockDb.$transaction.mockResolvedValue([{}, {}]);
+
+    const res = await cronSync(cronReq());
+    const body = await res.json();
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(mockFetch.mock.calls[0][0]).toBe("https://www.instagram.com/reel/AAA1/");
+    expect(body.synced).toBe(1);
+  });
+});
+
+/**
+ * Which campaigns the cron sweeps at all.
+ *
+ * Campaign.refreshInterval / refreshActive / lastRefreshAt were migrated from
+ * CreatorCore onto all 506 campaigns and then read by nothing -- the cron swept
+ * every post of every live campaign, every hour, regardless. Honouring them is
+ * the largest single cost saving here: most campaigns are not due in a given
+ * hour, and a campaign that is not due costs zero function seconds and zero
+ * Neon reads instead of a full sweep.
+ */
+describe("cron sync — campaign cadence", () => {
+  it("does not read posts when no campaign is due", async () => {
+    mockDb.campaign.findMany.mockResolvedValue([
+      { id: "campaign-1", refreshActive: true, refreshInterval: 24, lastRefreshAt: hoursAgo(1) },
+    ]);
+    mockDb.post.findMany.mockResolvedValue([]);
+
+    const res = await cronSync(cronReq());
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.total).toBe(0);
+    expect(mockFetch).not.toHaveBeenCalled();
+    // The saving is in the query, not in a later filter: an empty due-list must
+    // not become an unbounded post read.
+    const where = mockDb.post.findMany.mock.calls[0][0].where;
+    expect(where.campaignId).toEqual({ in: [] });
+  });
+
+  it("asks only for the due campaigns' posts", async () => {
+    mockDb.campaign.findMany.mockResolvedValue([
+      { id: "due-now", refreshActive: true, refreshInterval: 8, lastRefreshAt: hoursAgo(9) },
+      { id: "too-soon", refreshActive: true, refreshInterval: 8, lastRefreshAt: hoursAgo(2) },
+      { id: "never-swept", refreshActive: true, refreshInterval: 8, lastRefreshAt: null },
+      { id: "paused", refreshActive: false, refreshInterval: 8, lastRefreshAt: null },
+      // 9999 is CreatorCore's "off" sentinel, not a 416-day interval.
+      { id: "off", refreshActive: true, refreshInterval: 9999, lastRefreshAt: null },
+    ]);
+    mockDb.post.findMany.mockResolvedValue([]);
+
+    await cronSync(cronReq());
+
+    const where = mockDb.post.findMany.mock.calls[0][0].where;
+    expect(where.campaignId.in.sort()).toEqual(["due-now", "never-swept"]);
+  });
+
+  it("stamps lastRefreshAt only on the campaigns it actually swept", async () => {
+    mockDb.campaign.findMany.mockResolvedValue([
+      { id: "campaign-1", refreshActive: true, refreshInterval: 1, lastRefreshAt: hoursAgo(4) },
+      { id: "campaign-2", refreshActive: true, refreshInterval: 1, lastRefreshAt: hoursAgo(4) },
+    ]);
+    // Due, but only campaign-1 has a post in this run.
+    mockDb.post.findMany.mockResolvedValue([makePost({ id: "ig-1", campaignId: "campaign-1" })]);
+    mockFetch.mockResolvedValue({
+      platform: "INSTAGRAM",
+      platformPostId: "1",
+      thumbnailUrl: null,
+      caption: null,
+      viewsCount: 7,
+      likesCount: 1,
+      commentsCount: 0,
+      sharesCount: 0,
+      engagementRate: 1,
+      postedAt: new Date(),
+    });
+    mockDb.$transaction.mockResolvedValue([{}, {}]);
+
+    await cronSync(cronReq());
+
+    expect(mockDb.campaign.updateMany).toHaveBeenCalledTimes(1);
+    const arg = mockDb.campaign.updateMany.mock.calls[0][0];
+    expect(arg.where.id.in).toEqual(["campaign-1"]);
+    expect(arg.data.lastRefreshAt).toBeInstanceOf(Date);
+  });
+
+  it("stamps nothing when there was nothing to sweep", async () => {
+    mockDb.campaign.findMany.mockResolvedValue([
+      { id: "campaign-1", refreshActive: true, refreshInterval: 1, lastRefreshAt: hoursAgo(4) },
+    ]);
+    mockDb.post.findMany.mockResolvedValue([]);
+
+    await cronSync(cronReq());
+
+    expect(mockDb.campaign.updateMany).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Reasons that are about us, not about the post.
+ *
+ * Each of these used to spend a strike against syncFailCount, and five strikes
+ * sets syncDisabledAt -- which removes the post from this route's own query and
+ * is never written back to null by anything, including a successful on-demand
+ * refresh. A WAF challenge to our egress, our own gate, a dead sandbox lane, a
+ * lapsed token and a missing API key were all one bad afternoon away from
+ * permanently switching off a perfectly healthy post.
+ */
+describe("cron sync — uncharged reasons", () => {
+  const uncharged = [
+    "platform-challenged",
+    "platform-refused",
+    "backing-off",
+    "reader-unavailable",
+    "reader-timeout",
+    "credentials-rejected",
+    "not-configured",
+  ] as const;
+
+  it.each(uncharged)("does not charge %s to the post", async (fetchReason) => {
+    mockDb.post.findMany.mockResolvedValue([makePost({ id: "p-ours", syncFailCount: 4 })]);
+    mockFetch.mockResolvedValue({
+      platform: "INSTAGRAM",
+      platformPostId: "1",
+      thumbnailUrl: null,
+      caption: null,
+      fetchReason,
+      postedAt: new Date(),
+    });
+    mockDb.$transaction.mockResolvedValue([{}, {}]);
+
+    const res = await cronSync(cronReq());
+    const body = await res.json();
+
+    expect(body.deadLettered).toBe(0);
+    const touched = mockDb.post.update.mock.calls
+      .map((call: any[]) => call[0])
+      .filter(
+        (arg: any) =>
+          arg.data?.syncFailCount !== undefined || arg.data?.syncDisabledAt !== undefined,
+      );
+    expect(touched).toEqual([]);
+    /* Uncharged is not unreported: the run still counts it and still names it,
+       or the summary line goes back to saying nothing moved and not why. */
+    expect(body.noCounts).toBe(1);
+    expect(body.noCountReasons[fetchReason]).toBe(1);
   });
 });

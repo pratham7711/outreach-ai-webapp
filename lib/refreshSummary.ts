@@ -65,6 +65,10 @@ const REASON_LABEL: Record<RefreshFailReason, (n: number) => string> = {
      ours, and the reader who sees it should know the post is fine and the retry
      is on us -- not go asking TikTok why it blocked them. */
   "reader-unavailable": (n) => `${n} we could not read, retrying`,
+  /* Also ours, and worded so nobody goes looking at Instagram for the cause.
+     "timed out" without "on our side" reads as the platform being slow, which
+     is the same misdirection this reason was added to end. */
+  "reader-timeout": (n) => `${n} timed out on our side, retrying`,
   "backing-off": (n) => `${n} skipped while backing off`,
   "post-deleted": (n) => `${n} no longer exist`,
   "platform-refused": (n) => `${n} refused by the platform`,

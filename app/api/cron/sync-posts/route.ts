@@ -4,6 +4,7 @@ import {
   detectPlatform,
   fetchPostMetrics,
   fetchYouTubeMetricsBatch,
+  UNCHARGEABLE_REASONS,
   type FetchReason,
   type PostMetrics,
 } from "@/lib/platforms/fetchPostMetrics";
@@ -11,11 +12,37 @@ import { applyPostMetrics } from "@/lib/sync/syncPost";
 import { ensureFreshInstagramToken } from "@/lib/platforms/instagramToken";
 import { ensureFreshTikTokToken } from "@/lib/platforms/tiktokToken";
 import { decideSyncAction, SyncAction } from "@/lib/sync/cadence";
+import { LAST_FETCH_KEY } from "@/lib/metricDisplay";
 import { alertOps, shouldAlertOnBatch } from "@/lib/alerts";
 import { createLogger } from "@/lib/observability/logger";
 
 const MAX_SYNC_FAILURES = 5;
 const DEFAULT_PLATFORM_BUDGET = 100;
+
+/* Campaigns with no interval of their own keep exactly today's behaviour --
+   swept every run -- so this filter can never make an existing campaign staler
+   than it already is. Only campaigns carrying an explicit interval slow down. */
+const DEFAULT_REFRESH_INTERVAL_HOURS = 1;
+/* The reference product's off switch, and it arrived in our data with the
+   import: Campaign.refreshInterval is populated on every migrated campaign and
+   9999 is the value it uses for "do not auto-refresh this". Honouring it is the
+   difference between sweeping 506 campaigns an hour and sweeping the handful
+   that asked to be swept. */
+const REFRESH_OFF_SENTINEL = 9999;
+
+type RefreshCadence = {
+  refreshActive: boolean | null;
+  refreshInterval: number | null;
+  lastRefreshAt: Date | null;
+};
+
+export function isCampaignDue(campaign: RefreshCadence, now: Date): boolean {
+  if (campaign.refreshActive === false) return false;
+  const interval = campaign.refreshInterval ?? DEFAULT_REFRESH_INTERVAL_HOURS;
+  if (interval >= REFRESH_OFF_SENTINEL) return false;
+  if (!campaign.lastRefreshAt) return true;
+  return now.getTime() - campaign.lastRefreshAt.getTime() >= interval * 60 * 60 * 1000;
+}
 
 /* Reasons a further attempt cannot change. Both are things a platform states
    positively about the post, so re-asking hourly for five hours before
@@ -28,6 +55,22 @@ const SETTLED_REASONS: ReadonlySet<FetchReason> = new Set<FetchReason>([
 ]);
 
 type Decision = { postId: string; platform: string; action: SyncAction; reason: string };
+
+/**
+ * When this post was last ASKED about, from the __lastFetch stamp that
+ * applyPostMetrics writes on every countless attempt and clears on a measured
+ * one. Feeds the cadence throttles so a post that never succeeds is spaced out
+ * like any other, instead of being the one post retried on every single run.
+ */
+function lastAttemptFrom(platformMetrics: unknown): Date | null {
+  if (!platformMetrics || typeof platformMetrics !== "object") return null;
+  const stamp = (platformMetrics as Record<string, unknown>)[LAST_FETCH_KEY];
+  if (!stamp || typeof stamp !== "object") return null;
+  const at = (stamp as Record<string, unknown>).at;
+  if (typeof at !== "string") return null;
+  const parsed = new Date(at);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
 
 function parseBudget(raw: string | undefined): number {
   const parsed = Number(raw);
@@ -64,14 +107,32 @@ export async function GET(request: NextRequest) {
   let deadLettered = 0;
   let skippedForBudget = 0;
   const decisions: Decision[] = [];
+  /* Campaigns this run actually spent a request on. Only these get their
+     lastRefreshAt moved -- a campaign whose posts were all throttled by cadence,
+     or cut off by the deadline, has not been refreshed and must stay due. */
+  const sweptCampaigns = new Set<string>();
 
   try {
+    /* Ask which campaigns are due before pulling a single post.
+       This route used to take the oldest 300 posts across every live campaign,
+       every hour, regardless of whether anyone wanted those numbers refreshed.
+       Most campaigns are not due in a given hour, so filtering here is the one
+       change in this file that reduces both bills at once: fewer rows read from
+       Neon, fewer rows written back, and fewer function-seconds spent on posts
+       whose owners had already said how often they wanted them looked at. */
+    const campaigns = await db.campaign.findMany({
+      where: { status: { in: ["IN_PROGRESS", "PENDING"] }, deletedAt: null },
+      select: { id: true, refreshActive: true, refreshInterval: true, lastRefreshAt: true },
+    });
+    const dueCampaignIds = campaigns.filter((c) => isCampaignDue(c, now)).map((c) => c.id);
+    log.info("campaign refresh cadence", {
+      liveCampaigns: campaigns.length,
+      dueCampaigns: dueCampaignIds.length,
+    });
+
     const posts = await db.post.findMany({
       where: {
-        campaign: {
-          status: { in: ["IN_PROGRESS", "PENDING"] },
-          deletedAt: null,
-        },
+        campaignId: { in: dueCampaignIds },
         syncDisabledAt: null,
         snapshots: { none: { isFinalSnapshot: true } },
       },
@@ -80,6 +141,7 @@ export async function GET(request: NextRequest) {
         platform: true,
         postUrl: true,
         postedAt: true,
+        campaignId: true,
         /* The last four are for applyPostMetrics, which needs a SyncablePost:
            creatorId to write back the author's follower count, thumbnail and
            caption so an absent one is not clobbered with null, and
@@ -142,6 +204,7 @@ export async function GET(request: NextRequest) {
       let { action, reason } = decideSyncAction({
         postedAt: new Date(post.postedAt),
         lastSyncedAt: post.lastSyncedAt ? new Date(post.lastSyncedAt) : null,
+        lastAttemptAt: lastAttemptFrom(post.platformMetrics),
         syncFailCount: post.syncFailCount,
         syncDisabledAt: post.syncDisabledAt ? new Date(post.syncDisabledAt) : null,
         hasFinalSnapshot: post.snapshots.length > 0,
@@ -149,6 +212,23 @@ export async function GET(request: NextRequest) {
         trackingStartedAt: post.trackingStartedAt ? new Date(post.trackingStartedAt) : null,
         now,
       });
+
+      /* This route cannot read TikTok, so it should stop trying.
+         It opens no sandbox, so a TikTok read here goes out through function
+         egress -- which TikTok answers with a 1.4KB WAF shell about three times
+         in four. Those attempts cost function-seconds and a Neon write each, and
+         until the guard below they also spent the post's retry budget, which is
+         how an unreadable TikTok post reached a permanent dead-letter in five
+         hours. They also record into the process-wide breaker, so an hourly cron
+         could latch it and silence a real user's Refresh on the same instance.
+         TikTok refreshes on demand, where a sandbox pool is already opened.
+         Giving this route its own pool is the way to bring it back, and it costs
+         real Vercel compute -- see the plan; it is a deliberate omission, not an
+         oversight. */
+      if (action === "sync" && post.platform === "TIKTOK") {
+        action = "skip";
+        reason = "tiktok-needs-sandbox";
+      }
 
       if (action === "sync") {
         const platform = post.platform as string;
@@ -159,6 +239,7 @@ export async function GET(request: NextRequest) {
           reason = "budget";
         } else {
           attempts[platform] = used + 1;
+          sweptCampaigns.add(post.campaignId);
         }
       }
 
@@ -265,15 +346,20 @@ export async function GET(request: NextRequest) {
               reason: outcome.reason,
             });
           }
-          /* Our own reader failing must not spend the post's retry budget.
-             syncFailCount exists to stop us hammering a post the platform will
-             never answer for; five nights of dead sandbox lanes is a statement
-             about our infrastructure, and letting it reach MAX_SYNC_FAILURES
-             would switch off a perfectly healthy post -- silently, because
-             syncDisabledAt takes it out of the queue entirely. Counted and
-             logged, just not charged to the post. */
-          if (outcome.reason === "reader-unavailable") {
-            log.warn("left unmeasured by our own reader; not counting it against the post", {
+          /* None of these is a statement about the post, so none of them may
+             spend the post's retry budget. syncFailCount exists to stop us
+             hammering a post the platform will never answer for; a shut gate, a
+             WAF challenge to our egress, a dead sandbox lane, a lapsed token and
+             a missing API key are all about US or about the moment.
+
+             Letting any of them reach MAX_SYNC_FAILURES switches off a healthy
+             post for good, and silently: syncDisabledAt removes it from this
+             route's own query, nothing in this codebase ever sets that column
+             back to null, and a successful on-demand refresh does not clear it
+             either. Five hourly runs is five hours to permanent. Counted and
+             logged, just never charged. */
+          if (UNCHARGEABLE_REASONS.has(outcome.reason)) {
+            log.warn("left unmeasured by something other than the post; not charged to it", {
               postId: post.id,
               platform: post.platform,
               reason: outcome.reason,
@@ -321,6 +407,17 @@ export async function GET(request: NextRequest) {
         total: posts.length,
         decisions,
         summary: { byAction, byReason },
+      });
+    }
+
+    /* One write for the whole run, not one per campaign. Without this the
+       cadence filter never advances and every campaign stays permanently due,
+       which would quietly restore the old sweep-everything behaviour while
+       looking like it had been fixed. */
+    if (sweptCampaigns.size > 0) {
+      await db.campaign.updateMany({
+        where: { id: { in: [...sweptCampaigns] } },
+        data: { lastRefreshAt: now },
       });
     }
 

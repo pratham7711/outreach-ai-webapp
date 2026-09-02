@@ -7,7 +7,7 @@ import { GET as cronSync } from "@/app/api/cron/sync-posts/route";
 
 jest.mock("@/lib/db", () => ({
   db: {
-    campaign: { findFirst: jest.fn() },
+    campaign: { findFirst: jest.fn(), findMany: jest.fn(), updateMany: jest.fn() },
     post: { findFirst: jest.fn(), findMany: jest.fn(), update: jest.fn() },
     postMetricSnapshot: { create: jest.fn() },
     $transaction: jest.fn(),
@@ -42,6 +42,14 @@ function makeParams(id: string, postId: string) {
 beforeEach(() => {
   jest.clearAllMocks();
   mockAuth.mockResolvedValue(authedSession);
+  /* One live, due campaign by default. The route now asks which campaigns are
+     due before it reads a single post, so even a suite about failure accounting
+     has to answer that question -- an unmocked campaign.findMany resolves to
+     undefined and the route 500s on .filter. */
+  mockDb.campaign.findMany.mockResolvedValue([
+    { id: "camp-1", refreshActive: null, refreshInterval: null, lastRefreshAt: null },
+  ]);
+  mockDb.campaign.updateMany.mockResolvedValue({ count: 1 });
 });
 
 describe("manual sync — never overwrites real counts with unknowns", () => {
@@ -118,8 +126,13 @@ describe("cron sync — never overwrites real counts with unknowns", () => {
     mockDb.post.findMany.mockResolvedValue([
       {
         id: "post-1",
-        platform: "TIKTOK",
-        postUrl: "https://www.tiktok.com/@u/video/1",
+        campaignId: "camp-1",
+        /* Instagram, not TikTok: the cron skips TikTok outright (no sandbox on
+           that path, so those reads are ~75% doomed) and this test is about the
+           present-only write rule, which is platform-agnostic. The manual-sync
+           block above stays on TikTok -- that route does open a sandbox. */
+        platform: "INSTAGRAM",
+        postUrl: "https://www.instagram.com/reel/AAA1/",
         postedAt: new Date(),
         lastSyncedAt: null,
         viewsCount: 9999,
@@ -134,7 +147,7 @@ describe("cron sync — never overwrites real counts with unknowns", () => {
       },
     ]);
     mockFetch.mockResolvedValue({
-      platform: "TIKTOK",
+      platform: "INSTAGRAM",
       platformPostId: "1",
       thumbnailUrl: "new.jpg",
       caption: "new",

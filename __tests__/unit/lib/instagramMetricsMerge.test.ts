@@ -10,23 +10,21 @@
  * captioned embed had the real figure available the whole time.
  */
 jest.mock("@/lib/platforms/instagram", () => {
-  /* Real shape, not a stand-in: fetchPostMetrics narrows on `instanceof`, so a
-     mock without this class makes every auth branch compare against undefined
-     and throw a TypeError instead of doing what it was written to do. */
-  class InstagramAuthError extends Error {
-    status: number;
-    code: number | undefined;
-    constructor(status: number, code: number | undefined, message: string) {
-      super(message);
-      this.name = "InstagramAuthError";
-      this.status = status;
-      this.code = code;
-    }
-  }
+  /* The real classes, taken from the real module rather than re-declared here:
+     fetchPostMetrics narrows on `instanceof`, so a mock that omits one of them
+     makes that branch compare against undefined and throw
+     "Right-hand side of 'instanceof' is not an object" instead of doing what it
+     was written to do.
+
+     This used to hand-roll InstagramAuthError, which worked until a second
+     error class was added upstream and five tests here failed for a reason that
+     had nothing to do with what they assert. Spreading the actual module means
+     only the network call is a stub, so that cannot happen again. */
+  const actual = jest.requireActual("@/lib/platforms/instagram");
   return {
+    ...actual,
     fetchInstagramMetricsGraph: jest.fn(),
     shortcodeFromUrl: (u: string) => u.match(/\/(?:p|reel)\/([\w-]+)/)?.[1] ?? null,
-    InstagramAuthError,
   };
 });
 jest.mock("@/lib/platforms/instagramBusinessDiscovery", () => ({

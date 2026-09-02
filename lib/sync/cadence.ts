@@ -12,6 +12,21 @@ export type SyncSlotContext = {
 export type SyncDecisionInput = {
   postedAt: Date;
   lastSyncedAt: Date | null;
+  /**
+   * When we last ASKED, as opposed to when we last succeeded.
+   *
+   * Every throttle below was written against lastSyncedAt, which
+   * applyPostMetrics stamps only when counts actually arrive. So a post that
+   * has never once measured has lastSyncedAt === null, reads as
+   * lastSyncHours === Infinity, and clears every interval check ever -- it is
+   * "due" on every single hourly run, forever. That is exactly the population
+   * least likely to succeed, asked the most often, and it is how an unreadable
+   * TikTok post used to reach five strikes in five hours.
+   *
+   * Sourced from the __lastFetch stamp that the no-counts branch already writes
+   * to platformMetrics, so this costs no extra column and no extra query.
+   */
+  lastAttemptAt?: Date | null;
   syncFailCount: number;
   syncDisabledAt: Date | null;
   hasFinalSnapshot: boolean;
@@ -66,9 +81,19 @@ export function decideSyncAction(input: SyncDecisionInput): SyncDecision {
   }
 
   const ageHours = (input.now.getTime() - input.postedAt.getTime()) / HOUR_MS;
-  const lastSyncHours = input.lastSyncedAt
-    ? (input.now.getTime() - input.lastSyncedAt.getTime()) / HOUR_MS
-    : Infinity;
+  /* The later of "last measured" and "last attempted". Every interval below is
+     really asking "how long since we last spent a request on this post", and
+     answering that with successes only made failure self-perpetuating: a post
+     that never measures is never throttled, so it is retried every run while
+     posts that work are politely spaced out. Taking the max keeps the intended
+     meaning for healthy posts -- a success clears __lastFetch, so lastSyncedAt
+     is the later one for them anyway. */
+  const lastTouchMs = Math.max(
+    input.lastSyncedAt?.getTime() ?? -Infinity,
+    input.lastAttemptAt?.getTime() ?? -Infinity,
+  );
+  const lastSyncHours =
+    lastTouchMs === -Infinity ? Infinity : (input.now.getTime() - lastTouchMs) / HOUR_MS;
 
   const settlementOpen =
     input.settlementClosesAt != null && input.now < input.settlementClosesAt;

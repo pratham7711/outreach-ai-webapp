@@ -114,6 +114,10 @@ const REASON_IS_RETRYABLE: Record<RefreshFailReason, boolean> = {
      of anything on this list: a later round gets a fresh sandbox, which is a
      fresh address. */
   "reader-unavailable": true,
+  /* Our clock, not their answer. A second attempt costs one more walk and
+     frequently succeeds, because the usual cause is a single slow page rather
+     than Meta being unreachable. */
+  "reader-timeout": true,
   "backing-off": true,
   "platform-refused": true,
   /* An empty answer with no reason attached. Retryable because we cannot show

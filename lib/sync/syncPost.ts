@@ -149,6 +149,18 @@ export async function applyPostMetrics(
       data: {
         thumbnailUrl: metrics.thumbnailUrl ?? post.thumbnailUrl,
         caption: metrics.caption ?? post.caption,
+        /* UNAVAILABLE on exactly one reason, and never on the others.
+           "post-deleted" is the platform stating positively that the post is
+           gone; every other failure here is us failing to read it, and the
+           measured branch below explains at length why writing UNAVAILABLE on
+           those would tell a brand its creators had pulled the campaign.
+
+           No ERROR state is written. It would need to mean "persistently
+           unreadable", and there is no longer a counter for that: the reasons
+           that used to accumulate toward one are precisely the reasons the cron
+           now refuses to charge. The honest per-post record of a failed read is
+           __lastFetch, written just below. */
+        ...(reason === "post-deleted" ? { fetchState: "UNAVAILABLE" as const } : {}),
         /* The cause, on the post, in the write this branch already made.
            Costs no extra query and is the only record that survives the run:
            the aggregate on CampaignRefreshRun says 21 posts went unmeasured
@@ -256,6 +268,19 @@ export async function applyPostMetrics(
         savesCount: saves,
         engagementRate,
         syncSource,
+        /* Which of the numbers above were actually measured.
+           The post's own columns are protected by countsFrom's present-only
+           rule, but every counter here is a non-nullable Float defaulting to 0,
+           so the `?? 0` coercions above write a fabricated zero for anything the
+           platform did not report. That matters most for a partial read: an
+           Instagram post whose Graph call times out but whose embed returns a
+           comment count is "measured", and lands in this table claiming zero
+           views and zero likes forever.
+           Making the columns nullable would need a schema change pushed to a
+           production database that has no migration history, so the absence is
+           recorded here instead -- same __measured key the post bag uses, so a
+           reader can already interpret it. */
+        platformMetrics: { [MEASURED_FIELDS_KEY]: present },
       },
     }),
     ...creatorUpdate,

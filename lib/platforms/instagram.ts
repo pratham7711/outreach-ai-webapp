@@ -55,6 +55,43 @@ export function isAuthFailure(status: number, code: unknown): boolean {
   return typeof code === "number" && AUTH_ERROR_CODES.has(code);
 }
 
+/**
+ * Our own deadline ran out. Not Meta refusing us.
+ *
+ * Thrown rather than collapsed to null because null here is indistinguishable
+ * from "Graph answered, and the post was not in the pages we walked" -- so a
+ * timeout used to be filed as "platform-refused", which reads as Instagram
+ * turning us away and sends someone to check a token that was never the problem.
+ */
+export class InstagramTimeoutError extends Error {
+  constructor(readonly path: string) {
+    super(`Graph request timed out: ${path}`);
+    this.name = "InstagramTimeoutError";
+  }
+}
+
+/**
+ * How long ONE Graph round trip may take.
+ *
+ * Callers pass a signal covering the whole walk, and that walk is not one
+ * request: resolving the IG user id, up to five pages of media and an insights
+ * call is seven round trips for the creator-token path, and Business Discovery
+ * re-resolves the user id per page for up to ten. All of them shared a single
+ * 8-second budget, so one slow page consumed the deadline for everything behind
+ * it and the walk returned empty having barely started. Each request now gets
+ * its own budget, and the caller's signal still bounds the walk as a whole.
+ */
+const GRAPH_REQUEST_TIMEOUT_MS = 5000;
+
+function requestSignal(walk?: AbortSignal): AbortSignal | undefined {
+  if (typeof AbortSignal === "undefined" || typeof AbortSignal.timeout !== "function") {
+    return walk;
+  }
+  const perRequest = AbortSignal.timeout(GRAPH_REQUEST_TIMEOUT_MS);
+  if (!walk) return perRequest;
+  return typeof AbortSignal.any === "function" ? AbortSignal.any([walk, perRequest]) : perRequest;
+}
+
 export async function graphGet(
   path: string,
   params: Record<string, string>,
@@ -64,7 +101,7 @@ export async function graphGet(
   for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
   const log = createLogger({ context: { platform: "INSTAGRAM", call: `graph.${path}` } });
   try {
-    const res = await fetch(url.toString(), { signal });
+    const res = await fetch(url.toString(), { signal: requestSignal(signal) });
     if (!res.ok) {
       // Every failure here collapses to null, so an expired token, a missing
       // scope and a genuinely empty result are indistinguishable to callers.
@@ -99,6 +136,14 @@ export async function graphGet(
     return await res.json();
   } catch (err) {
     if (err instanceof InstagramAuthError) throw err;
+    /* An abort is ours, so it is named and thrown rather than folded in with
+       Graph 500s and empty results. AbortSignal.timeout raises TimeoutError;
+       an explicitly aborted caller signal raises AbortError. */
+    const name = err instanceof Error ? err.name : "";
+    if (name === "TimeoutError" || name === "AbortError") {
+      log.warn("Graph request timed out", { timeoutMs: GRAPH_REQUEST_TIMEOUT_MS, error: name });
+      throw new InstagramTimeoutError(path);
+    }
     log.error("Graph request threw", {
       error: err instanceof Error ? err.message : String(err),
     });
