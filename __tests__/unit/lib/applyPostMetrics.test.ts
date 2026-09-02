@@ -170,7 +170,8 @@ describe("applyPostMetrics — the post records why a read came back empty", () 
     mockUpdate.mockResolvedValue({ id: "post_1" });
 
     await applyPostMetrics(
-      post as any,
+      // platformMetrics present -- i.e. the caller selected it, as all of them do.
+      { ...post, platformMetrics: {} } as any,
       metrics({ viewsCount: undefined, likesCount: undefined, commentsCount: undefined,
                 sharesCount: undefined, fetchReason: "credentials-rejected" }),
       { syncSource: "cron" },
@@ -216,5 +217,40 @@ describe("applyPostMetrics — the post records why a read came back empty", () 
     const bag = mockUpdate.mock.calls[0][0].data.platformMetrics;
     expect(bag).toHaveProperty("__lastFetch", null);
     expect(bag.__measured).toEqual(expect.arrayContaining(["views"]));
+  });
+});
+
+describe("applyPostMetrics — recording the cause never costs the bag", () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it("leaves platformMetrics untouched when the caller did not load it", async () => {
+    mockUpdate.mockResolvedValue({ id: "post_1" });
+
+    /* `post` here has no platformMetrics property at all -- what Prisma returns
+       for a select that omits the column. Merging into {} and writing it back
+       would replace the real bag with just the failure note, discarding
+       __measured and the importer's record. */
+    await applyPostMetrics(
+      post as any,
+      metrics({ viewsCount: undefined, likesCount: undefined, commentsCount: undefined,
+                sharesCount: undefined, fetchReason: "platform-refused" }),
+    );
+
+    expect(mockUpdate.mock.calls[0][0].data).not.toHaveProperty("platformMetrics");
+  });
+
+  it("still records the cause when the column is loaded but empty", async () => {
+    mockUpdate.mockResolvedValue({ id: "post_1" });
+
+    // Selected and genuinely NULL is a different thing from not selected, and
+    // Prisma reports them differently -- so this one is safe to write.
+    await applyPostMetrics(
+      { ...post, platformMetrics: null } as any,
+      metrics({ viewsCount: undefined, likesCount: undefined, commentsCount: undefined,
+                sharesCount: undefined, fetchReason: "platform-refused" }),
+    );
+
+    expect(mockUpdate.mock.calls[0][0].data.platformMetrics.__lastFetch.reason)
+      .toBe("platform-refused");
   });
 });

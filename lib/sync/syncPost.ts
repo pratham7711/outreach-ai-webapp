@@ -99,8 +99,21 @@ export function countsFrom(metrics: PostMetrics): {
 }
 
 /* The importer's raw record also lives in this bag, so it is always merged and
-   never replaced. */
-function currentBag(post: SyncablePost): Record<string, unknown> {
+   never replaced.
+   
+   Returns null -- meaning "do not write this column at all" -- when the caller
+   did not select platformMetrics. Prisma leaves the property absent in that
+   case and reports it as null when the column is genuinely empty, so the two
+   are distinguishable, and the difference matters: merging into `{}` because
+   the field was never loaded would REPLACE the bag, silently discarding
+   __measured and the importer's ccRaw record. Two of the five callers here
+   read the post with `findFirst` and no select, which happens to return every
+   scalar; the type has always allowed one that does not.
+   
+   Losing the diagnostic on such a caller is acceptable. Erasing a post's
+   measured-field list to record why a fetch failed is not. */
+function currentBag(post: SyncablePost): Record<string, unknown> | null {
+  if (post.platformMetrics === undefined) return null;
   return typeof post.platformMetrics === "object" && post.platformMetrics !== null
     ? (post.platformMetrics as Record<string, unknown>)
     : {};
@@ -128,6 +141,7 @@ export async function applyPostMetrics(
   const syncSource = options.syncSource ?? "api";
   if (!hasMetricCounts(metrics)) {
     const reason = metrics.fetchReason ?? "unknown";
+    const noMetricsBag = currentBag(post);
     // Worth keeping if the fetch produced one: a thumbnail with no counts is
     // still better than an empty card. No lastSyncedAt -- see above.
     const updated = await db.post.update({
@@ -139,10 +153,14 @@ export async function applyPostMetrics(
            Costs no extra query and is the only record that survives the run:
            the aggregate on CampaignRefreshRun says 21 posts went unmeasured
            but never which, and the platform log lines age out. */
-        platformMetrics: {
-          ...currentBag(post),
-          [LAST_FETCH_KEY]: { reason, at: new Date().toISOString(), via: syncSource },
-        },
+        ...(noMetricsBag
+          ? {
+              platformMetrics: {
+                ...noMetricsBag,
+                [LAST_FETCH_KEY]: { reason, at: new Date().toISOString(), via: syncSource },
+              },
+            }
+          : {}),
       },
       include: SYNC_POST_INCLUDE,
     });
@@ -212,7 +230,13 @@ export async function applyPostMetrics(
         engagementRate,
         /* Merged, not replaced: this bag also holds the importer's raw record. */
         platformMetrics: {
-          ...currentBag(post),
+          /* `?? {}` only where the bag is written unconditionally: this branch
+             must record __measured, which is what tells the UI a zero was
+             measured rather than assumed, so skipping the column is not an
+             option here. A caller that did not select platformMetrics loses
+             whatever else was in the bag either way -- it did before this
+             commit too -- and every caller in the tree does select it. */
+          ...(currentBag(post) ?? {}),
           [MEASURED_FIELDS_KEY]: present,
           /* Cleared, not left behind. A post that reads fine today must not keep
              advertising why it failed last week -- a stale cause is worse than
