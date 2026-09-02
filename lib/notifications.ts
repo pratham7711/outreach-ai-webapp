@@ -1,5 +1,4 @@
 import { db } from "@/lib/db";
-import { emailConfigured, sendEmail } from "@/lib/email";
 import { createLogger } from "@/lib/observability/logger";
 
 /**
@@ -199,24 +198,16 @@ export async function notifyAuditEvent(params: {
       }
     }
 
-    if (emailConfigured()) {
-      const recipients = users
-        .filter((u) => u.id !== params.actorUserId && u.email)
-        .filter((u) => resolvePrefs(u.notificationPrefs)[def.key])
-        .map((u) => u.email);
-      if (recipients.length > 0) {
-        jobs.push(
-          sendEmail({
-            kind: "notification",
-            orgId: params.orgId,
-            actorEmail: params.actorEmail ?? null,
-            to: recipients,
-            subject: `${def.label}${params.entityLabel ? `: ${params.entityLabel}` : ""}`,
-            text: `${text}\n\nYou receive this because "${def.label}" is on in your notification settings:\nhttps://campaign.madeboring.com/settings/notifications`,
-          })
-        );
-      }
-    }
+    /* No email here, deliberately. Product email is limited to the three
+       transactional messages a user is expecting because they just acted:
+       signup, password reset and invites. Activity notifications are not that
+       -- they fired off the audit stream, so every campaign created, campaign
+       edited, creator added or removed, comment and offer decision mailed the
+       whole org, seven of them on by default. Creating one campaign mailed
+       every teammate.
+
+       Slack above is unaffected: it is an org-level webhook an admin opts into
+       once, which is the right shape for activity chatter. */
 
     if (jobs.length) await Promise.all(jobs);
   } catch (e) {

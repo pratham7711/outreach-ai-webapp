@@ -120,7 +120,13 @@ describe("notifyAuditEvent", () => {
     expect(mockOrgFindUnique).not.toHaveBeenCalled();
   });
 
-  it("emails opted-in users, excluding the actor", async () => {
+  /* Product email is limited to signup, password reset and invites. Activity
+     notifications rode the audit stream and mailed the whole org -- creating a
+     single campaign mailed every teammate -- so they send no email at all now,
+     whatever a user's stored prefs say. This asserts the policy rather than the
+     absence of a line of code: an opted-IN user and a default-on event is
+     exactly the case that used to send. */
+  it("sends no email for a notifiable action, even to opted-in users", async () => {
     mockOrgFindUnique.mockResolvedValue(org());
     mockUserFindMany.mockResolvedValue([
       ...users,
@@ -132,10 +138,7 @@ describe("notifyAuditEvent", () => {
       actorUserId: "actor",
       entityLabel: "UFC EDITS",
     });
-    expect(mockSendEmail).toHaveBeenCalledTimes(1);
-    const call = mockSendEmail.mock.calls[0][0];
-    expect(call.to).toEqual(["a@x.com"]); // u2 opted out, actor excluded
-    expect(call.subject).toBe("Campaign Created: UFC EDITS");
+    expect(mockSendEmail).not.toHaveBeenCalled();
   });
 
   it("posts to Slack when connected and the event is on", async () => {
