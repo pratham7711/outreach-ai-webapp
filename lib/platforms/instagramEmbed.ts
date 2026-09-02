@@ -1,3 +1,6 @@
+import https from "node:https";
+import { gunzipSync, inflateSync } from "node:zlib";
+
 import { createLogger } from "../observability/logger";
 import { shortcodeFromUrl } from "./instagram";
 
@@ -165,24 +168,114 @@ export function parseInstagramEmbed(html: string): InstagramEmbedPost | null {
 }
 
 /*
- * The headers are the whole trick, so they are named rather than inlined.
+ * The headers are the whole trick, and ONE of them is the whole trick.
  *
- * Drop the referer or any one of the three sec-fetch values and Instagram
- * serves the login shell instead -- a 623KB page with no counters that parses
- * to null. It is not an auth check we are evading; it is that the embed only
- * renders for a request shaped like the cross-site iframe load it was built to
- * serve.
+ * Measured, one header at a time, against a real post:
+ *
+ *   sec-fetch-mode: navigate   262KB, real payload
+ *   sec-fetch-mode: cors       624KB login shell
+ *   sec-fetch-mode omitted     624KB login shell
+ *   dest+site, no mode         624KB login shell
+ *   referer only               624KB login shell
+ *   user-agent only            624KB login shell
+ *
+ * So `navigate` is load-bearing and the rest are corroboration. It is not an
+ * auth check being evaded; the embed only renders for a request shaped like the
+ * cross-site iframe navigation it exists to serve.
  */
 const EMBED_HEADERS: Record<string, string> = {
   "user-agent":
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
   accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
   "accept-language": "en-US,en;q=0.9",
+  "accept-encoding": "gzip",
   referer: "https://www.instagram.com/",
   "sec-fetch-dest": "iframe",
   "sec-fetch-mode": "navigate",
   "sec-fetch-site": "cross-site",
 };
+
+/**
+ * Read the page over node:https rather than fetch, and NOT as a preference.
+ *
+ * `Sec-Fetch-*` are forbidden header names in the Fetch standard: the runtime
+ * owns them, and undici enforces that by overwriting what a caller supplies.
+ * It rewrote `sec-fetch-mode: navigate` to `cors` -- the exact value measured
+ * above to return the login shell -- so the one header this depends on never
+ * left the process. The header object read correctly, the parser was correct,
+ * every unit test passed because they mocked fetch, and the whole path returned
+ * nothing against real Instagram.
+ *
+ * node:https does not police header names, so it can send the request the embed
+ * actually answers. Confirmed against the live endpoint: 262KB with the payload,
+ * where fetch got 628KB of login wall from the identical header object.
+ *
+ * Instagram serves this gzipped and ignores `accept-encoding: identity`, so the
+ * response is decompressed here rather than assumed to be text.
+ */
+function getEmbedHtml(path: string, signal?: AbortSignal): Promise<string | null> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const done = (value: string | null) => {
+      if (!settled) {
+        settled = true;
+        resolve(value);
+      }
+    };
+
+    const req = https.request(
+      { hostname: "www.instagram.com", path, method: "GET", headers: EMBED_HEADERS },
+      (res) => {
+        if (res.statusCode !== 200) {
+          log.warn("instagram embed refused", { path, status: res.statusCode });
+          res.resume();
+          return done(null);
+        }
+        const chunks: Buffer[] = [];
+        res.on("data", (c: Buffer) => chunks.push(c));
+        res.on("end", () => {
+          try {
+            const buf = Buffer.concat(chunks);
+            const encoding = res.headers["content-encoding"];
+            const text =
+              encoding === "gzip"
+                ? gunzipSync(buf).toString("utf8")
+                : encoding === "deflate"
+                  ? inflateSync(buf).toString("utf8")
+                  : buf.toString("utf8");
+            done(text);
+          } catch (error) {
+            log.warn("instagram embed body could not be decoded", {
+              path,
+              error: error instanceof Error ? error.message : String(error),
+            });
+            done(null);
+          }
+        });
+        res.on("error", () => done(null));
+      },
+    );
+
+    req.on("error", (error) => {
+      log.warn("instagram embed request failed", { path, error: error.message });
+      done(null);
+    });
+
+    /* The chain's other legs take an AbortSignal, so this one honours it too --
+       a refresh's time budget has to be able to cut this off. */
+    if (signal) {
+      if (signal.aborted) {
+        req.destroy();
+        return done(null);
+      }
+      signal.addEventListener("abort", () => {
+        req.destroy();
+        done(null);
+      }, { once: true });
+    }
+    req.end();
+  });
+}
 
 export async function fetchInstagramEmbedPost(
   url: string,
@@ -191,34 +284,21 @@ export async function fetchInstagramEmbedPost(
   const shortcode = shortcodeFromUrl(url);
   if (!shortcode) return null;
 
-  try {
-    const res = await fetch(`https://www.instagram.com/p/${shortcode}/embed/captioned/`, {
-      headers: EMBED_HEADERS,
-      signal,
-    });
-    if (!res.ok) {
-      log.warn("instagram embed refused", { shortcode, status: res.status });
-      return null;
-    }
-    const html = await res.text();
-    const parsed = parseInstagramEmbed(html);
-    if (!parsed) {
-      /* Size is the tell worth logging: ~262KB is the real embed, ~623KB is the
-         login shell. Without it a null here is indistinguishable from a shape
-         change, and those need different fixes. */
-      log.warn("instagram embed carried no post payload", {
-        shortcode,
-        bytes: html.length,
-        loginWall: html.includes("Sorry, this page isn't available") || html.length > 400_000,
-      });
-      return null;
-    }
-    return parsed;
-  } catch (error) {
-    log.warn("instagram embed fetch failed", {
+  const html = await getEmbedHtml(`/p/${shortcode}/embed/captioned/`, signal);
+  if (!html) return null;
+
+  const parsed = parseInstagramEmbed(html);
+  if (!parsed) {
+    /* Size is the tell worth logging: ~262KB is the real embed, ~624KB is the
+       login shell. Without it a null here is indistinguishable from a shape
+       change, and those need different fixes. This is the field that caught the
+       forbidden-header rewrite described above. */
+    log.warn("instagram embed carried no post payload", {
       shortcode,
-      error: error instanceof Error ? error.message : String(error),
+      bytes: html.length,
+      loginWall: html.length > 400_000,
     });
     return null;
   }
+  return parsed;
 }

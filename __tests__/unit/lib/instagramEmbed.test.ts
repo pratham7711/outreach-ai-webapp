@@ -1,3 +1,7 @@
+import http from "node:http";
+import https from "node:https";
+import { gzipSync } from "node:zlib";
+
 import {
   parseInstagramEmbed,
   fetchInstagramEmbedPost,
@@ -155,60 +159,170 @@ describe("parseInstagramEmbed", () => {
   });
 });
 
-describe("fetchInstagramEmbedPost", () => {
-  const realFetch = global.fetch;
-  afterEach(() => {
-    global.fetch = realFetch;
+/**
+ * These drive the REAL transport against a REAL local server and read the
+ * headers off the wire.
+ *
+ * The previous version of this block mocked global.fetch and asserted the
+ * header OBJECT, which is worthless here and worse than nothing, because it
+ * passed while the code was completely broken. `Sec-Fetch-*` are forbidden
+ * header names in the Fetch standard, so undici overwrites them: it rewrote
+ * `sec-fetch-mode: navigate` to `cors`, which is exactly the value Instagram
+ * answers with a login shell. The header object was right, the parser was
+ * right, sixteen tests were green, and the feature returned nothing against
+ * real Instagram every single time.
+ *
+ * So the assertion has to be what leaves the process, not what was passed in.
+ * That is only observable through an actual socket.
+ */
+describe("fetchInstagramEmbedPost — the request on the wire", () => {
+  let server: http.Server;
+  let port: number;
+  let seen: Record<string, string> = {};
+  let respondWith: { status: number; body: string; gzip?: boolean } = {
+    status: 200,
+    body: "",
+  };
+
+  beforeAll(async () => {
+    server = http.createServer((req, res) => {
+      seen = {};
+      for (let i = 0; i < req.rawHeaders.length; i += 2) {
+        seen[req.rawHeaders[i].toLowerCase()] = req.rawHeaders[i + 1];
+      }
+      if (respondWith.gzip) {
+        res.writeHead(respondWith.status, { "content-encoding": "gzip" });
+        res.end(gzipSync(Buffer.from(respondWith.body, "utf8")));
+      } else {
+        res.writeHead(respondWith.status);
+        res.end(respondWith.body);
+      }
+    });
+    await new Promise<void>((r) => server.listen(0, "127.0.0.1", () => r()));
+    port = (server.address() as any).port;
   });
 
-  /**
-   * The headers are the mechanism, not decoration: without the referer and the
-   * three sec-fetch values the same URL returns the login shell. Asserting them
-   * means a well-meaning cleanup that trims them fails here rather than in
-   * production, where it would look like Instagram having closed the endpoint.
-   */
-  it("requests the captioned embed with the headers that make it answer", async () => {
-    const calls: Array<[string, any]> = [];
-    global.fetch = jest.fn(async (url: any, init: any) => {
-      calls.push([String(url), init]);
-      return {
-        ok: true,
-        status: 200,
-        text: async () => embedHtml(context({ ...BASE, edge_liked_by: { count: 12 } })),
-      } as any;
-    }) as any;
-
-    const out = await fetchInstagramEmbedPost("https://www.instagram.com/reel/DcQFHR5pdYw/");
-    expect(out?.likesCount).toBe(12);
-
-    const [url, init] = calls[0];
-    expect(url).toBe("https://www.instagram.com/p/DcQFHR5pdYw/embed/captioned/");
-    expect(init.headers["sec-fetch-dest"]).toBe("iframe");
-    expect(init.headers["sec-fetch-mode"]).toBe("navigate");
-    expect(init.headers["sec-fetch-site"]).toBe("cross-site");
-    expect(init.headers.referer).toContain("instagram.com");
-    expect(init.headers["user-agent"]).toContain("Chrome");
+  afterAll(async () => {
+    await new Promise<void>((r) => server.close(() => r()));
   });
 
-  it("returns null on a non-OK response without throwing", async () => {
-    global.fetch = jest.fn(async () => ({ ok: false, status: 429, text: async () => "" })) as any;
+  /* The module targets www.instagram.com by hostname, so the test server is put
+     in its place at the https layer rather than by changing the module to take
+     an injectable base URL -- a seam added for a test is a seam that can differ
+     from production, and that difference is the whole bug being guarded here. */
+  function redirectToTestServer() {
+    const real = https.request;
+    jest.spyOn(https, "request").mockImplementation(((opts: any, cb: any) => {
+      return http.request(
+        { ...opts, hostname: "127.0.0.1", port, protocol: "http:", agent: undefined },
+        cb,
+      );
+    }) as any);
+    return () => {
+      (https.request as any).mockRestore?.();
+      https.request = real;
+    };
+  }
+
+  afterEach(() => jest.restoreAllMocks());
+
+  it("puts sec-fetch-mode: navigate on the wire, unrewritten", async () => {
+    // THE regression guard. Anything that reintroduces fetch/undici here, or
+    // any runtime that polices forbidden header names, fails on this line.
+    respondWith = {
+      status: 200,
+      body: embedHtml(context({ ...BASE, edge_liked_by: { count: 12 } })),
+    };
+    const restore = redirectToTestServer();
+    try {
+      const out = await fetchInstagramEmbedPost("https://www.instagram.com/reel/DcQFHR5pdYw/");
+      expect(out?.likesCount).toBe(12);
+    } finally {
+      restore();
+    }
+    expect(seen["sec-fetch-mode"]).toBe("navigate");
+    expect(seen["sec-fetch-dest"]).toBe("iframe");
+    expect(seen["sec-fetch-site"]).toBe("cross-site");
+    expect(seen.referer).toContain("instagram.com");
+    expect(seen["user-agent"]).toContain("Chrome");
+  });
+
+  it("decompresses a gzipped body", async () => {
+    // Instagram serves this gzipped and ignores accept-encoding: identity, so
+    // treating the bytes as text yields binary and a null parse.
+    respondWith = {
+      status: 200,
+      gzip: true,
+      body: embedHtml(context({ ...BASE, edge_liked_by: { count: 34 } })),
+    };
+    const restore = redirectToTestServer();
+    try {
+      const out = await fetchInstagramEmbedPost("https://www.instagram.com/p/DcQFHR5pdYw/");
+      expect(out?.likesCount).toBe(34);
+    } finally {
+      restore();
+    }
+  });
+
+  it("returns null on a non-OK response", async () => {
+    respondWith = { status: 429, body: "" };
+    const restore = redirectToTestServer();
+    try {
+      await expect(
+        fetchInstagramEmbedPost("https://www.instagram.com/p/DcQFHR5pdYw/"),
+      ).resolves.toBeNull();
+    } finally {
+      restore();
+    }
+  });
+
+  it("returns null for the login shell instead of throwing", async () => {
+    respondWith = { status: 200, body: "<html><title>Instagram</title></html>" };
+    const restore = redirectToTestServer();
+    try {
+      await expect(
+        fetchInstagramEmbedPost("https://www.instagram.com/p/DcQFHR5pdYw/"),
+      ).resolves.toBeNull();
+    } finally {
+      restore();
+    }
+  });
+
+  it("returns null when the connection fails", async () => {
+    // A real refused connection rather than a hand-rolled emitter: the point is
+    // that a dead socket cannot put an unhandled rejection into the middle of a
+    // campaign refresh, and only the real path proves that.
+    const dead = http.createServer();
+    await new Promise<void>((r) => dead.listen(0, "127.0.0.1", () => r()));
+    const deadPort = (dead.address() as any).port;
+    await new Promise<void>((r) => dead.close(() => r()));
+
+    jest.spyOn(https, "request").mockImplementation(((opts: any, cb: any) =>
+      http.request(
+        { ...opts, hostname: "127.0.0.1", port: deadPort, protocol: "http:", agent: undefined },
+        cb,
+      )) as any);
+
     await expect(
       fetchInstagramEmbedPost("https://www.instagram.com/p/DcQFHR5pdYw/"),
     ).resolves.toBeNull();
   });
 
-  it("returns null when the fetch itself fails", async () => {
-    global.fetch = jest.fn(async () => {
-      throw new Error("socket hang up");
-    }) as any;
-    await expect(
-      fetchInstagramEmbedPost("https://www.instagram.com/p/DcQFHR5pdYw/"),
-    ).resolves.toBeNull();
+  it("gives up when the signal is already aborted", async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const restore = redirectToTestServer();
+    try {
+      await expect(
+        fetchInstagramEmbedPost("https://www.instagram.com/p/DcQFHR5pdYw/", controller.signal),
+      ).resolves.toBeNull();
+    } finally {
+      restore();
+    }
   });
 
-  it("does not call Instagram at all for a URL with no shortcode", async () => {
-    const spy = jest.fn();
-    global.fetch = spy as any;
+  it("does not open a socket for a URL with no shortcode", async () => {
+    const spy = jest.spyOn(https, "request");
     await expect(fetchInstagramEmbedPost("https://example.com/nope")).resolves.toBeNull();
     expect(spy).not.toHaveBeenCalled();
   });
