@@ -149,7 +149,13 @@ describe("cron sync — never overwrites real counts with unknowns", () => {
     const body = await res.json();
 
     expect(res.status).toBe(200);
-    expect(body.synced).toBe(1);
+    /* Not synced:1. The fetch returned metadata and no counters, and the route
+       no longer files that as a successful sync -- lastSyncedAt is the only
+       thing separating "no likes" from "nobody looked", so a countless fetch is
+       reported as what it is. The metadata is still written, which is what the
+       rest of this test checks. */
+    expect(body.synced).toBe(0);
+    expect(body.noCounts).toBe(1);
     expect(mockDb.$transaction).not.toHaveBeenCalled();
     expect(mockDb.postMetricSnapshot.create).not.toHaveBeenCalled();
 

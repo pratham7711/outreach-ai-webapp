@@ -8,7 +8,7 @@ import {
   type PostMetrics,
 } from "@/lib/platforms/fetchPostMetrics";
 import { applyPostMetrics } from "@/lib/sync/syncPost";
-import { decryptInstagramToken } from "@/lib/platforms/instagramToken";
+import { ensureFreshInstagramToken } from "@/lib/platforms/instagramToken";
 import { ensureFreshTikTokToken } from "@/lib/platforms/tiktokToken";
 import { decideSyncAction, SyncAction } from "@/lib/sync/cadence";
 import { alertOps, shouldAlertOnBatch } from "@/lib/alerts";
@@ -59,6 +59,7 @@ export async function GET(request: NextRequest) {
   let noCounts = 0;
   const noCountReasons: Record<string, number> = {};
   let sealed = 0;
+  let unavailable = 0;
   let failed = 0;
   let deadLettered = 0;
   let skippedForBudget = 0;
@@ -200,7 +201,7 @@ export async function GET(request: NextRequest) {
         const ttAccount = post.creator.socialAccounts.find((a) => a.platform === "TIKTOK");
         const instagramToken =
           post.platform === "INSTAGRAM"
-            ? decryptInstagramToken(igAccount?.accessToken, post.creator.orgId)
+            ? await ensureFreshInstagramToken(igAccount, post.creator.orgId)
             : undefined;
         const instagramHandle =
           post.platform === "INSTAGRAM"
@@ -251,6 +252,19 @@ export async function GET(request: NextRequest) {
              re-confirming a deletion. */
           noCounts++;
           noCountReasons[outcome.reason] = (noCountReasons[outcome.reason] ?? 0) + 1;
+          /* A rejected credential is not the platform being coy about a post --
+             an unauthenticated read returns no counts, which looks exactly like
+             a post with no engagement. applyPostMetrics has already declined to
+             stamp lastSyncedAt, so nothing is recorded as a success; this is
+             what puts the cause somewhere a person will see it. */
+          if (outcome.reason === "credentials-rejected") {
+            unavailable++;
+            log.warn("skipped post; platform credentials could not be used", {
+              postId: post.id,
+              platform: post.platform,
+              reason: outcome.reason,
+            });
+          }
           const settled = SETTLED_REASONS.has(outcome.reason);
           const nextFailCount = settled ? MAX_SYNC_FAILURES : post.syncFailCount + 1;
           const failData: Record<string, unknown> = { syncFailCount: nextFailCount };
@@ -308,7 +322,7 @@ export async function GET(request: NextRequest) {
     const skipped = Object.values(skippedByReason).reduce((a, b) => a + b, 0);
 
     log.info("sync complete", {
-      synced, noCounts, noCountReasons, sealed, failed, deadLettered, skipped,
+      synced, noCounts, noCountReasons, unavailable, sealed, failed, deadLettered, skipped,
       skippedByReason, skippedForBudget, total: posts.length,
     });
 
@@ -338,6 +352,11 @@ export async function GET(request: NextRequest) {
          not a quiet hour. */
       noCounts,
       noCountReasons,
+      /* Broken out of noCountReasons by name because it is the one entry there
+         with a human remedy: a creator must reconnect Instagram, or an operator
+         must replace INSTAGRAM_BUSINESS_TOKEN. Left inside the map it reads as
+         just another way a fetch came back thin. */
+      unavailable,
       sealed,
       failed,
       deadLettered,

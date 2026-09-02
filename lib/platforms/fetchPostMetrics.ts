@@ -1,5 +1,5 @@
 import type { SandboxPostFetcher } from "./tiktokPostSandbox";
-import { fetchInstagramMetricsGraph } from "./instagram";
+import { fetchInstagramMetricsGraph, InstagramAuthError } from "./instagram";
 import {
   businessDiscoveryToken,
   fetchInstagramPublicPostMetrics,
@@ -97,6 +97,17 @@ export type FetchReason =
   | "unrecognised-url"
   /** A key the deployment does not have. */
   | "not-configured"
+  /** The platform rejected the credential we hold: expired, revoked, or short a
+   *  scope. Distinct from "platform-refused" (which is about the moment) and
+   *  from "not-configured" (which is about a key we never had), because the
+   *  remedy is different and belongs to a person: the creator reconnects, or an
+   *  operator replaces INSTAGRAM_BUSINESS_TOKEN.
+   *
+   *  Deliberately NOT in SETTLED_REASONS. An unauthenticated read returns no
+   *  counts and so looks exactly like a post with no engagement -- recording
+   *  that would stamp lastSyncedAt and report a success -- but it becomes
+   *  readable the moment the token is replaced, so it must keep its retries. */
+  | "credentials-rejected"
   /** A fetcher came back empty without saying why.
    *
    *  Exists so that "we do not know" stops being spelled
@@ -900,8 +911,26 @@ export async function fetchInstagramMetrics(
     typeof merged.likesCount === "number" ||
     typeof merged.commentsCount === "number";
 
+  /* Set when a platform REJECTED a credential, as distinct from answering
+     without numbers. Both arrive here as an absence of counts, and only this
+     tells them apart. */
+  let authFailed = false;
+
   if (token) {
-    const graph = await fetchInstagramMetricsGraph(url, token, fetchTimeoutSignal());
+    let graph: Awaited<ReturnType<typeof fetchInstagramMetricsGraph>> = null;
+    try {
+      graph = await fetchInstagramMetricsGraph(url, token, fetchTimeoutSignal());
+    } catch (err) {
+      if (!(err instanceof InstagramAuthError)) throw err;
+      // The creator's token is dead. Business Discovery uses our own token and
+      // may still answer, so keep going — but remember, so a dry result is not
+      // reported as a successful read.
+      authFailed = true;
+      createLogger({ context: { platform: "INSTAGRAM", call: "graph.metrics" } }).warn(
+        "Instagram token rejected; connection needs re-authorisation",
+        { status: err.status, code: err.code },
+      );
+    }
     if (graph) {
       fill("graph", {
         thumbnailUrl: graph.thumbnailUrl,
@@ -920,7 +949,19 @@ export async function fetchInstagramMetrics(
 
   const bizToken = businessDiscoveryToken();
   if (bizToken && handle) {
-    const post = await fetchInstagramPublicPostMetrics(handle, url, bizToken, fetchTimeoutSignal());
+    let post: Awaited<ReturnType<typeof fetchInstagramPublicPostMetrics>> = null;
+    try {
+      post = await fetchInstagramPublicPostMetrics(handle, url, bizToken, fetchTimeoutSignal());
+    } catch (err) {
+      if (!(err instanceof InstagramAuthError)) throw err;
+      // INSTAGRAM_BUSINESS_TOKEN itself is rejected — an operator problem, not a
+      // creator one, and not something to record as a post with no engagement.
+      authFailed = true;
+      createLogger({ context: { platform: "INSTAGRAM", call: "businessDiscovery" } }).error(
+        "INSTAGRAM_BUSINESS_TOKEN rejected; Business Discovery is down until it is replaced",
+        { status: err.status, code: err.code },
+      );
+    }
     if (post) {
       fill("business-discovery", {
         thumbnailUrl: post.thumbnailUrl,
@@ -995,7 +1036,15 @@ export async function fetchInstagramMetrics(
      is still something the deployment has to supply, not something Instagram
      refused us. */
   const attempted = Boolean(token) || Boolean(bizToken && handle);
-  const reason: FetchReason = attempted ? "platform-refused" : "not-configured";
+  /* A rejected credential outranks both other verdicts. "platform-refused"
+     would send this back through the retry cycle every hour with the same dead
+     token and report it as the platform's doing; naming it is what lets the
+     count of these reach an operator. */
+  const reason: FetchReason = authFailed
+    ? "credentials-rejected"
+    : attempted
+      ? "platform-refused"
+      : "not-configured";
   log.warn("instagram metrics unavailable from every source", { reason, sources });
 
   try {
@@ -1006,7 +1055,7 @@ export async function fetchInstagramMetrics(
        a thumbnail and a title, so it stays last and its reason stays the one
        from the attempt that could have carried counts. */
     const res = await fetch(
-      `https://graph.facebook.com/v19.0/instagram_oembed?url=${encodeURIComponent(url)}&fields=thumbnail_url,title`,
+      `https://graph.facebook.com/v26.0/instagram_oembed?url=${encodeURIComponent(url)}&fields=thumbnail_url,title`,
       { signal: fetchTimeoutSignal() },
     );
     if (res.ok) {

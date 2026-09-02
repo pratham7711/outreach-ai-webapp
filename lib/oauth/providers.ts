@@ -23,8 +23,8 @@ const PROVIDERS: Record<OAuthPlatform, ProviderConfig> = {
     clientIdEnv: "INSTAGRAM_CLIENT_ID",
     clientSecretEnv: "INSTAGRAM_CLIENT_SECRET",
     clientIdParam: "client_id",
-    authorizeUrl: "https://www.facebook.com/v19.0/dialog/oauth",
-    tokenUrl: "https://graph.facebook.com/v19.0/oauth/access_token",
+    authorizeUrl: "https://www.facebook.com/v26.0/dialog/oauth",
+    tokenUrl: "https://graph.facebook.com/v26.0/oauth/access_token",
     /* pages_show_list is not optional, and its absence is why the creator-token
        Graph path has almost certainly never returned a number.
        resolveIgUserId (lib/platforms/instagram.ts) reads

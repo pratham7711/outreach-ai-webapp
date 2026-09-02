@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { getCreatorSession } from "@/lib/creator-auth";
 import { findCreatorForHandle } from "@/lib/portal/creatorLookup";
 import { encrypt } from "@/lib/crypto/encrypt";
+import { exchangeForLongLivedToken } from "@/lib/platforms/instagram";
 import {
   buildTokenRequest,
   isOAuthPlatform,
@@ -11,7 +12,6 @@ import {
   type OAuthPlatform,
 } from "@/lib/oauth/providers";
 import { fetchTikTokUserInfo } from "@/lib/platforms/tiktokDisplay";
-import { exchangeForLongLivedInstagramToken } from "@/lib/platforms/instagramToken";
 import { returnToWithQuery } from "@/lib/oauth/returnTo";
 
 const STATE_COOKIE = "portal_oauth_state";
@@ -75,26 +75,30 @@ export async function GET(
     if (!creator) return failureRedirect(req, platform);
 
     const platformEnum = toPlatformEnum(platform);
-
     /* Meta's code exchange hands back a token good for an hour or two. Trading
        it for the long-lived one here is the difference between a connection
        that works until lunchtime and one that works for two months; nothing
        downstream can recover a token that has already expired, because there is
        no refresh grant for a Facebook user token.
 
-       Falls back to the short-lived token when the exchange is unavailable or
-       fails -- a working connection with an honest two-hour expiry beats
-       refusing the connection outright. */
+       Falls back to the short-lived token when the exchange is unavailable,
+       fails, or is rejected outright (graphGet throws InstagramAuthError for
+       that) -- a working connection with an honest two-hour expiry beats
+       refusing the connection at the last step of the flow. */
     let storedToken = accessToken;
-    let storedExpiresIn =
+    let storedExpiry =
       typeof tokens.expires_in === "number" && tokens.expires_in > 0
-        ? tokens.expires_in
-        : undefined;
+        ? new Date(Date.now() + tokens.expires_in * 1000)
+        : null;
     if (platform === "instagram") {
-      const longLived = await exchangeForLongLivedInstagramToken(accessToken);
-      if (longLived) {
-        storedToken = longLived.token;
-        storedExpiresIn = longLived.expiresInSeconds ?? storedExpiresIn;
+      try {
+        const longLived = await exchangeForLongLivedToken(accessToken);
+        if (longLived) {
+          storedToken = longLived.accessToken;
+          storedExpiry = longLived.expiresAt ?? storedExpiry;
+        }
+      } catch {
+        // Keep the short-lived token; its recorded expiry stays honest.
       }
     }
 
@@ -103,8 +107,7 @@ export async function GET(
       typeof tokens.refresh_token === "string" && tokens.refresh_token
         ? encrypt(tokens.refresh_token, creator.orgId)
         : null;
-    const tokenExpiry =
-      storedExpiresIn !== undefined ? new Date(Date.now() + storedExpiresIn * 1000) : null;
+    const tokenExpiry = storedExpiry;
 
     await db.creatorSocialAccount.upsert({
       where: {

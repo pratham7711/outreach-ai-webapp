@@ -9,10 +9,26 @@
  * `__measured: ["views","comments"]` and reported no likes for weeks, while the
  * captioned embed had the real figure available the whole time.
  */
-jest.mock("@/lib/platforms/instagram", () => ({
-  fetchInstagramMetricsGraph: jest.fn(),
-  shortcodeFromUrl: (u: string) => u.match(/\/(?:p|reel)\/([\w-]+)/)?.[1] ?? null,
-}));
+jest.mock("@/lib/platforms/instagram", () => {
+  /* Real shape, not a stand-in: fetchPostMetrics narrows on `instanceof`, so a
+     mock without this class makes every auth branch compare against undefined
+     and throw a TypeError instead of doing what it was written to do. */
+  class InstagramAuthError extends Error {
+    status: number;
+    code: number | undefined;
+    constructor(status: number, code: number | undefined, message: string) {
+      super(message);
+      this.name = "InstagramAuthError";
+      this.status = status;
+      this.code = code;
+    }
+  }
+  return {
+    fetchInstagramMetricsGraph: jest.fn(),
+    shortcodeFromUrl: (u: string) => u.match(/\/(?:p|reel)\/([\w-]+)/)?.[1] ?? null,
+    InstagramAuthError,
+  };
+});
 jest.mock("@/lib/platforms/instagramBusinessDiscovery", () => ({
   businessDiscoveryToken: jest.fn(),
   fetchInstagramPublicPostMetrics: jest.fn(),
@@ -28,6 +44,7 @@ import {
   fetchInstagramPublicPostMetrics,
 } from "@/lib/platforms/instagramBusinessDiscovery";
 import { fetchInstagramEmbedPost } from "@/lib/platforms/instagramEmbed";
+import { InstagramAuthError } from "@/lib/platforms/instagram";
 
 const graph = fetchInstagramMetricsGraph as jest.Mock;
 const bizToken = businessDiscoveryToken as jest.Mock;
@@ -221,5 +238,82 @@ describe("fetchInstagramMetrics — sources are merged, not raced", () => {
     expect(urls[0]).not.toContain("api.instagram.com");
     expect(out.thumbnailUrl).toBe("https://cdn/oembed.jpg");
     expect(out.fetchReason).toBe("platform-refused");
+  });
+});
+
+/**
+ * A rejected credential is not the same answer as "this post has no numbers".
+ *
+ * Both arrive as an absence of counts, and for months they were reported
+ * identically -- which is how an expired token came to read as a campaign of
+ * posts with no engagement. graphGet now throws InstagramAuthError for it, and
+ * these assertions are what say the throw is caught, does not abort the
+ * remaining sources, and comes out named.
+ */
+describe("fetchInstagramMetrics — a rejected credential is named, not silently empty", () => {
+  const realFetch = global.fetch;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    graph.mockResolvedValue(null);
+    bizToken.mockReturnValue(undefined);
+    bizPost.mockResolvedValue(null);
+    embed.mockResolvedValue(null);
+    global.fetch = jest.fn(async () => ({ ok: false, status: 500 })) as any;
+  });
+  afterEach(() => {
+    global.fetch = realFetch;
+  });
+
+  it("reports a dead creator token as credentials-rejected, not platform-refused", async () => {
+    graph.mockRejectedValue(new InstagramAuthError(400, 190, "token expired"));
+
+    const m = await fetchInstagramMetrics(URL, "dead-token", undefined);
+
+    expect(m.fetchReason).toBe("credentials-rejected");
+  });
+
+  it("reports a rejected INSTAGRAM_BUSINESS_TOKEN as credentials-rejected too", async () => {
+    bizToken.mockReturnValue("dead-biz-token");
+    bizPost.mockRejectedValue(new InstagramAuthError(401, 190, "bad token"));
+
+    const m = await fetchInstagramMetrics(URL, undefined, "somehandle");
+
+    expect(m.fetchReason).toBe("credentials-rejected");
+  });
+
+  it("keeps asking the remaining sources after the token is rejected", async () => {
+    graph.mockRejectedValue(new InstagramAuthError(400, 190, "token expired"));
+    bizToken.mockReturnValue("biz-token");
+
+    await fetchInstagramMetrics(URL, "dead-token", "somehandle");
+
+    // The creator's token dying says nothing about our own token or the embed.
+    expect(bizPost).toHaveBeenCalled();
+    expect(embed).toHaveBeenCalled();
+  });
+
+  it("does not call it a credential problem when a later source answers", async () => {
+    graph.mockRejectedValue(new InstagramAuthError(400, 190, "token expired"));
+    embed.mockResolvedValue({
+      likesCount: 1428,
+      commentsCount: 12,
+      likesHidden: false,
+      thumbnailUrl: "t.jpg",
+      caption: "c",
+    });
+
+    const m = await fetchInstagramMetrics(URL, "dead-token", undefined);
+
+    expect(m.likesCount).toBe(1428);
+    expect(m.fetchReason).toBeUndefined();
+  });
+
+  it("lets a non-auth failure out rather than mislabelling it", async () => {
+    graph.mockRejectedValue(new Error("socket hang up"));
+
+    await expect(fetchInstagramMetrics(URL, "some-token", undefined)).rejects.toThrow(
+      "socket hang up",
+    );
   });
 });

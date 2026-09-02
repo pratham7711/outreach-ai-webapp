@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
-import { analyzePostForFraud } from "@/lib/fraud-detection";
+import { analyzePostForFraud, fraudFlagKey } from "@/lib/fraud-detection";
 
 // POST /api/campaigns/[id]/fraud-scan
 export async function POST(
@@ -34,7 +34,16 @@ export async function POST(
       },
     });
 
+    const existingFlags = await db.viewFraudFlag.findMany({
+      where: { orgId, campaignId },
+      select: { postId: true, flagType: true, evidence: true },
+    });
+    const seen = new Set(
+      existingFlags.map((f) => fraudFlagKey(f.postId, f.flagType, f.evidence))
+    );
+
     const createdFlags = [];
+    let skippedFlags = 0;
 
     for (const post of posts) {
       const detectedFlags = analyzePostForFraud(
@@ -60,6 +69,13 @@ export async function POST(
       );
 
       for (const flag of detectedFlags) {
+        const key = fraudFlagKey(post.id, flag.flagType, flag.evidence);
+        if (seen.has(key)) {
+          skippedFlags++;
+          continue;
+        }
+        seen.add(key);
+
         const created = await db.viewFraudFlag.create({
           data: {
             orgId,
@@ -78,6 +94,7 @@ export async function POST(
 
     return NextResponse.json({
       flagsCreated: createdFlags.length,
+      flagsSkipped: skippedFlags,
       flags: createdFlags,
     });
   } catch (error) {

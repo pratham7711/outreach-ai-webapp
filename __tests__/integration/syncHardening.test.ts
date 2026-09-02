@@ -175,9 +175,15 @@ describe("cron sync hardening — dead-letter", () => {
     const body = await res.json();
 
     expect(body.synced).toBe(1);
-    const updateArg = mockDb.post.update.mock.calls[0][0];
-    expect(updateArg.where.id).toBe("p-recover");
-    expect(updateArg.data.syncFailCount).toBe(0);
+    /* Found by content, not by position. applyPostMetrics writes the counters
+       in its own post.update, so the streak reset is no longer the first call
+       -- and indexing [0] made this assert on the metrics write, where
+       syncFailCount is simply absent. */
+    const resetArg = mockDb.post.update.mock.calls
+      .map((call: any[]) => call[0])
+      .find((arg: any) => arg.data?.syncFailCount !== undefined);
+    expect(resetArg.where.id).toBe("p-recover");
+    expect(resetArg.data.syncFailCount).toBe(0);
   });
 });
 
@@ -267,7 +273,11 @@ describe("cron sync hardening — per-platform budgets", () => {
     expect(fetchedUrls).toContain("https://www.youtube.com/watch?v=abc123");
     expect(fetchedUrls).not.toContain("https://www.tiktok.com/@u/video/2");
     expect(body.skippedForBudget).toBe(1);
-    expect(body.synced).toBe(2);
+    /* The budget is what this test is about, and the two assertions above are
+       it. These two only pin down where the fetched posts landed: the mock
+       returns no counters, so both are noCounts rather than synced. */
+    expect(body.synced).toBe(0);
+    expect(body.noCounts).toBe(2);
   });
 
   it("reports budget skips in dry-run decisions", async () => {

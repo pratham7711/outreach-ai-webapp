@@ -121,6 +121,12 @@ const REASON_IS_RETRYABLE: Record<RefreshFailReason, boolean> = {
   "no-counts-published": false,
   /* Three sweeps inside one request will not make the key appear. */
   "not-configured": false,
+  /* Settled for THIS request only, and for the same reason as the line above:
+     re-asking inside one sweep spends the budget on a credential that cannot
+     revive before the response goes out. It is deliberately absent from the
+     cron route's SETTLED_REASONS, because across runs it is very much
+     retryable -- the moment a creator reconnects, the post reads again. */
+  "credentials-rejected": false,
   // Our bug, not their verdict -- and a thrown call is often transient.
   error: true,
 };

@@ -295,14 +295,20 @@ describe("GET /api/portal/connections/[platform]/callback", () => {
   it("exchanges the code and stores encrypted tokens on valid state", async () => {
     process.env.INSTAGRAM_CLIENT_ID = "ig-id";
     process.env.INSTAGRAM_CLIENT_SECRET = "ig-secret";
-    global.fetch = jest.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        access_token: "real-provider-token",
-        refresh_token: "real-refresh-token",
-        expires_in: 3600,
-      }),
-    });
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          access_token: "real-provider-token",
+          refresh_token: "real-refresh-token",
+          expires_in: 3600,
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ access_token: "long-lived-token", expires_in: 60 * 24 * 3600 }),
+      });
 
     const res = await oauthCallback(
       makeRequest(
@@ -313,17 +319,28 @@ describe("GET /api/portal/connections/[platform]/callback", () => {
     );
 
     expect(res.headers.get("location")).toContain("/portal/settings?connected=instagram");
-    expect(global.fetch).toHaveBeenCalledTimes(1);
+    // Two calls: the code exchange, then the trade for a long-lived token. The
+    // short-lived one lasts about an hour and Facebook issues no refresh_token,
+    // so storing the first token would leave the connection dead by the next
+    // cron run.
+    expect(global.fetch).toHaveBeenCalledTimes(2);
     const [tokenUrl, fetchInit] = (global.fetch as jest.Mock).mock.calls[0];
     expect(tokenUrl).toContain("graph.facebook.com");
     expect((fetchInit.body as URLSearchParams).get("code")).toBe("code-1");
 
+    const [exchangeUrl] = (global.fetch as jest.Mock).mock.calls[1];
+    expect(String(exchangeUrl)).toContain("grant_type=fb_exchange_token");
+    expect(String(exchangeUrl)).toContain("fb_exchange_token=real-provider-token");
+
     const args = mockDb.creatorSocialAccount.upsert.mock.calls[0][0];
     expect(isEncrypted(args.update.accessToken)).toBe(true);
-    expect(decrypt(args.update.accessToken, "org-1")).toBe("real-provider-token");
+    expect(decrypt(args.update.accessToken, "org-1")).toBe("long-lived-token");
     expect(isEncrypted(args.update.refreshToken)).toBe(true);
     expect(decrypt(args.update.refreshToken, "org-1")).toBe("real-refresh-token");
-    expect(args.update.tokenExpiry).toBeInstanceOf(Date);
+    // ~60 days out, not ~1 hour.
+    const expiry = args.update.tokenExpiry as Date;
+    expect(expiry).toBeInstanceOf(Date);
+    expect(expiry.getTime() - Date.now()).toBeGreaterThan(30 * 24 * 3600 * 1000);
   });
 
   it("redirects with error when the provider is unconfigured", async () => {

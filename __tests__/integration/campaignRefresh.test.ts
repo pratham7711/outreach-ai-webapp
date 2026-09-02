@@ -254,13 +254,38 @@ describe('campaign-wide refresh', () => {
     expect(mockSnapshot).not.toHaveBeenCalled();
   });
 
-  it('keeps going when one post throws', async () => {
+  it('recovers a post whose first fetch throws, rather than writing it off', async () => {
     mockDb.post.findMany.mockResolvedValue([post, { ...post, id: 'post-2' }]);
     mockFetch.mockRejectedValueOnce(new Error('boom')).mockResolvedValue(withCounts);
 
     const body = await (await refreshReq()).json();
 
-    expect(body).toMatchObject({ total: 2, measured: 1, failed: 1 });
+    /* Was measured:1 failed:1, from when the sweep was single-pass. A thrown
+       call is our own code failing, not a verdict from the platform, so it is
+       retryable -- and the retry inside the same request now picks the post up.
+       Both posts end measured; nothing is reported as failed. */
+    expect(body).toMatchObject({ total: 2, measured: 2, failed: 0 });
+  });
+
+  it('reports a post that throws every time as failed, without abandoning the others', async () => {
+    /* The other half of the test above, and the reason it was worth keeping
+       both: once a transient throw is retried away, nothing was left proving
+       that a post which NEVER answers is still counted and still does not take
+       the rest of the sweep down with it. */
+    mockDb.post.findMany.mockResolvedValue([
+      { ...post, id: 'post-throws', postUrl: 'https://www.tiktok.com/@u/video/99' },
+      { ...post, id: 'post-ok' },
+    ]);
+    mockFetch.mockImplementation((url: string) =>
+      url.includes('/video/99')
+        ? Promise.reject(new Error('boom'))
+        : Promise.resolve(withCounts),
+    );
+
+    const body = await (await refreshReq()).json();
+
+    expect(body).toMatchObject({ total: 2, measured: 1 });
+    expect(body.failed).toBeGreaterThanOrEqual(1);
   });
 
   it('turns a held-down button away instead of re-fetching every post', async () => {

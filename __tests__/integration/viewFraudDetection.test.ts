@@ -43,7 +43,55 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockAuth.mockResolvedValue(authedSession);
   mockDb.campaign.findFirst.mockResolvedValue(mockCampaign);
+  mockDb.viewFraudFlag.findMany.mockResolvedValue([]);
+  mockDb.viewFraudFlag.create.mockImplementation(({ data }: any) =>
+    Promise.resolve({ id: `flag-${data.flagType}`, isResolved: false, ...data })
+  );
 });
+
+function postWithSnapshots(snapshots: any[], overrides: any = {}) {
+  const last = snapshots[snapshots.length - 1];
+  return {
+    id: "post-1",
+    campaignId: "camp-1",
+    creatorId: "creator-1",
+    viewsCount: last.viewsCount,
+    likesCount: last.likesCount,
+    commentsCount: last.commentsCount,
+    sharesCount: last.sharesCount,
+    engagementRate: last.engagementRate,
+    snapshots,
+    ...overrides,
+  };
+}
+
+function snapshot(
+  id: string,
+  viewsCount: number,
+  likesCount: number,
+  commentsCount: number,
+  sharesCount: number,
+  recordedAt: string
+) {
+  const interactions = likesCount + commentsCount + sharesCount;
+  return {
+    id,
+    viewsCount,
+    likesCount,
+    commentsCount,
+    sharesCount,
+    engagementRate: viewsCount > 0 ? (interactions / viewsCount) * 100 : 0,
+    recordedAt: new Date(recordedAt),
+  };
+}
+
+async function runScan() {
+  const req = makeRequest("http://localhost/api/campaigns/camp-1/fraud-scan", {
+    method: "POST",
+  });
+  const res = await fraudScan(req, makeParams("camp-1"));
+  return { res, body: await res.json() };
+}
 
 // ── POST /api/campaigns/[id]/fraud-scan ──────────────────────────────────────
 
@@ -66,64 +114,71 @@ describe("POST /api/campaigns/[id]/fraud-scan", () => {
     expect(res.status).toBe(403);
   });
 
-  it("detects VIEW_SPIKE when snapshots show >300% jump", async () => {
+  it("flags VIEW_SPIKE when a view jump brings no engagement with it", async () => {
     mockDb.post.findMany.mockResolvedValue([
-      {
-        id: "post-1",
-        campaignId: "camp-1",
-        creatorId: "creator-1",
-        viewsCount: 5000,
-        likesCount: 200,
-        commentsCount: 50,
-        sharesCount: 30,
-        engagementRate: 5.6,
-        snapshots: [
-          {
-            id: "snap-1",
-            viewsCount: 1000,
-            likesCount: 50,
-            commentsCount: 10,
-            sharesCount: 5,
-            engagementRate: 6.5,
-            recordedAt: new Date("2026-01-01T00:00:00Z"),
-          },
-          {
-            id: "snap-2",
-            viewsCount: 5000,
-            likesCount: 200,
-            commentsCount: 50,
-            sharesCount: 30,
-            engagementRate: 5.6,
-            recordedAt: new Date("2026-01-02T00:00:00Z"),
-          },
-        ],
-      },
+      postWithSnapshots([
+        snapshot("snap-1", 1000, 50, 10, 5, "2026-01-01T00:00:00Z"),
+        snapshot("snap-2", 9000, 52, 10, 5, "2026-01-02T00:00:00Z"),
+      ]),
     ]);
 
-    const createdFlag = {
-      id: "flag-1",
-      orgId: "org-1",
-      campaignId: "camp-1",
-      creatorId: "creator-1",
-      postId: "post-1",
-      flagType: "VIEW_SPIKE",
-      severity: "MEDIUM",
-      description: "Views increased by 400% between snapshots (1000 -> 5000)",
-      evidence: {},
-      isResolved: false,
-    };
-    mockDb.viewFraudFlag.create.mockResolvedValue(createdFlag);
-
-    const req = makeRequest("http://localhost/api/campaigns/camp-1/fraud-scan", {
-      method: "POST",
-    });
-    const res = await fraudScan(req, makeParams("camp-1"));
-    const body = await res.json();
+    const { res, body } = await runScan();
 
     expect(res.status).toBe(200);
     expect(body.flagsCreated).toBe(1);
-    expect(body.flags).toHaveLength(1);
     expect(body.flags[0].flagType).toBe("VIEW_SPIKE");
+    expect(body.flags[0].severity).toBe("MEDIUM");
+    expect(body.flags[0].evidence.marginalEngagementRate).toBeCloseTo(0.03, 2);
+  });
+
+  it("does not flag an organically viral post whose engagement holds", async () => {
+    mockDb.post.findMany.mockResolvedValue([
+      postWithSnapshots([
+        snapshot("snap-1", 1000, 50, 10, 5, "2026-01-01T00:00:00Z"),
+        snapshot("snap-2", 5000, 200, 50, 30, "2026-01-02T00:00:00Z"),
+      ]),
+    ]);
+
+    const { res, body } = await runScan();
+
+    expect(res.status).toBe(200);
+    expect(body.flagsCreated).toBe(0);
+    expect(mockDb.viewFraudFlag.create).not.toHaveBeenCalled();
+  });
+
+  it("leaves VIEW_SPIKE quiet on a post that was always low-engagement", async () => {
+    mockDb.post.findMany.mockResolvedValue([
+      postWithSnapshots([
+        snapshot("snap-1", 10000, 25, 5, 0, "2026-01-01T00:00:00Z"),
+        snapshot("snap-2", 50000, 125, 25, 0, "2026-01-02T00:00:00Z"),
+      ]),
+    ]);
+
+    const { body } = await runScan();
+
+    expect(body.flags.map((f: any) => f.flagType)).toEqual(["LOW_ENGAGEMENT"]);
+  });
+
+  it("does not re-create a flag an earlier scan already raised", async () => {
+    mockDb.post.findMany.mockResolvedValue([
+      postWithSnapshots([
+        snapshot("snap-1", 1000, 50, 10, 5, "2026-01-01T00:00:00Z"),
+        snapshot("snap-2", 9000, 52, 10, 5, "2026-01-02T00:00:00Z"),
+      ]),
+    ]);
+    mockDb.viewFraudFlag.findMany.mockResolvedValue([
+      {
+        postId: "post-1",
+        flagType: "VIEW_SPIKE",
+        evidence: { snapshotAfterId: "snap-2" },
+      },
+    ]);
+
+    const { body } = await runScan();
+
+    expect(body.flagsCreated).toBe(0);
+    expect(body.flagsSkipped).toBe(1);
+    expect(mockDb.viewFraudFlag.create).not.toHaveBeenCalled();
   });
 });
 
