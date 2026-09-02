@@ -59,7 +59,8 @@ const CONCURRENCY = 4;
  * at all -- these numbers are the paced work only, so small pools are the ones
  * where reality will lag the arithmetic.
  */
-const LANE_TARGET_SECONDS = 35;
+/* Kept for reference only; sizing moved into laneCountFor so the environment
+   variable that was always meant to control it actually does. */
 
 /** Progress is for a human watching a spinner; a write per post would cost more
     than the fetch it reports on. */
@@ -85,6 +86,10 @@ const RETRYABLE_REASONS = new Set([
   "backing-off",
   "platform-refused",
   "error",
+  /* An empty answer with no reason attached. Retryable because we cannot show
+     it is settled: the two settled reasons -- post-deleted, unrecognised-url --
+     are things a fetcher states positively, and silence is not one of them. */
+  "unknown",
 ]);
 
 /**
@@ -189,7 +194,12 @@ export async function refreshCampaign(input: {
      so lanes are capacity, not a queue -- and a 492-post campaign that could
      never finish in one run on a single lane finishes on six. */
   const tiktokPosts = posts.filter((p) => p.platform === "TIKTOK").length;
-  const lanes = laneCountFor(tiktokPosts, LANE_TARGET_SECONDS);
+  /* No target passed on purpose. Handing laneCountFor a hardcoded 35 overrode
+     its own env-aware default, so TIKTOK_SANDBOX_TARGET_SECONDS was dead for
+     the only code path that opens a pool -- the knob existed and tuned
+     nothing. Sizing now lives in one place, where it can be tuned without a
+     deploy. */
+  const lanes = laneCountFor(tiktokPosts);
   const tiktokSandbox = lanes > 0 ? openSandboxPostPool(lanes) : undefined;
   if (tiktokSandbox) {
     log.info("sandbox pool opened", { lanes, tiktokPosts });

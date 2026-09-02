@@ -66,9 +66,23 @@ export const LANE_SECONDS_PER_POST = 1.8;
  * has established a safe floor below it, so throughput comes from opening more
  * addresses rather than leaning harder on one.
  */
+/* 15s, down from 35s.
+ *
+ * The target is really a lever on how many ADDRESSES a run holds, and 35 sized
+ * a 58-post refresh at three lanes -- ~19 requests per egress IP, and the same
+ * three IPs reused by all three of refreshCampaign's retry sweeps, because the
+ * pool is opened once for the whole run. A post's attempt budget is 3, so its
+ * retries spent every address the run had; and pick() skips a lane whose
+ * breaker has latched, so a few challenges removed the whole capacity at once.
+ * 15 of 58 posts came back walled against a design expecting about 4%.
+ *
+ * At 15s the same refresh opens seven lanes: ~8 requests per address, each
+ * keeping the low-volume profile TikTok tolerates. Total sandbox-seconds are
+ * close to unchanged -- lanes are closed with the run, so the same work is
+ * spread wider rather than held longer. */
 export function laneCountFor(
   postCount: number,
-  targetSeconds: number = envInt("TIKTOK_SANDBOX_TARGET_SECONDS", 35),
+  targetSeconds: number = envInt("TIKTOK_SANDBOX_TARGET_SECONDS", 15),
 ): number {
   const maxLanes = envInt("TIKTOK_SANDBOX_MAX_LANES", 8);
   if (postCount <= 0) return 0;

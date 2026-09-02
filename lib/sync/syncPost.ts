@@ -121,7 +121,11 @@ export async function applyPostMetrics(
     return {
       status: "no-metrics",
       post: updated as unknown as Record<string, unknown>,
-      reason: metrics.fetchReason ?? "no-counts-published",
+      /* "unknown", not "no-counts-published". A fetcher that named no reason
+         has told us nothing about the post, and the old default turned that
+         silence into the claim that the post publishes no counters -- which
+         refreshCampaign treats as settled and never retries. */
+      reason: metrics.fetchReason ?? "unknown",
     };
   }
 

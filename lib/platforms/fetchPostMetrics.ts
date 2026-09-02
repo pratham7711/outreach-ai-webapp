@@ -95,7 +95,16 @@ export type FetchReason =
   /** Nothing here recognises the URL. */
   | "unrecognised-url"
   /** A key the deployment does not have. */
-  | "not-configured";
+  | "not-configured"
+  /** A fetcher came back empty without saying why.
+   *
+   *  Exists so that "we do not know" stops being spelled
+   *  "no-counts-published". That slug is a claim about the POST -- it publishes
+   *  no counters -- and it is settled, so refreshCampaign never retries it. Any
+   *  path that returned empty without naming a reason was inheriting that
+   *  verdict by accident, which is how every Instagram post in a campaign came
+   *  to read as a post with no engagement and was never asked about again. */
+  | "unknown";
 
 export function hasMetricCounts(m: PostMetrics): boolean {
   if (typeof m.viewsCount !== "number") return false;
@@ -828,6 +837,20 @@ export async function fetchInstagramMetrics(
       };
     }
   }
+  /* Decided BEFORE oEmbed, which can only ever return a title and a picture.
+     Both outcomes below used to return a bare stub carrying no reason at all,
+     so syncPost's `?? "no-counts-published"` fallback filed them as posts that
+     publish no counters -- a settled verdict, excluded from retries. Instagram
+     posts therefore reported zero engagement and were never re-asked, whether
+     the deployment simply held no credential or the Graph call had failed.
+
+     "not-configured" covers a missing handle as well as a missing token: with
+     no handle there is no Business Discovery lookup to make, so the shortfall
+     is still something the deployment has to supply, not something Instagram
+     refused us. */
+  const attempted = Boolean(token) || Boolean(bizToken && handle);
+  const reason: FetchReason = attempted ? "platform-refused" : "not-configured";
+
   try {
     const res = await fetch(`https://api.instagram.com/oembed?url=${encodeURIComponent(url)}`, {
       signal: fetchTimeoutSignal(),
@@ -837,12 +860,16 @@ export async function fetchInstagramMetrics(
       return {
         thumbnailUrl: data.thumbnail_url ?? null,
         caption: data.title ?? null,
+        /* Same reasoning as the TikTok oEmbed path: oEmbed answering is not the
+           post's numbers arriving, so the reason from the attempt that could
+           have carried counts is the one worth keeping. */
+        fetchReason: reason,
       };
     }
   } catch {
     // fall through
   }
-  return stubMetrics();
+  return stubMetrics(reason);
 }
 
 function stubMetrics(reason?: FetchReason): Partial<PostMetrics> {

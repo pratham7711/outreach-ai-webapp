@@ -199,3 +199,72 @@ describe("fetchPostMetrics — unknown vs known counts", () => {
     expect(hasMetricCounts({ ...base, likesCount: 406 })).toBe(true);
   });
 });
+
+/**
+ * Instagram has to say WHY it came back empty.
+ *
+ * It used to return a bare stub carrying no fetchReason at all, and syncPost's
+ * `?? "no-counts-published"` fallback then filed it as a post that publishes no
+ * counters -- a verdict about the POST, and one refreshCampaign treats as
+ * settled and never retries. So every Instagram post in a campaign reported
+ * zero engagement and was never asked about again, whether the deployment held
+ * no credential or the Graph call had failed. Those are different problems with
+ * different fixes and they were indistinguishable in the run record.
+ */
+describe("fetchPostMetrics — Instagram names its own failure", () => {
+  const realFetch = global.fetch;
+  const realBizToken = process.env.INSTAGRAM_BUSINESS_TOKEN;
+
+  afterEach(() => {
+    global.fetch = realFetch;
+    if (realBizToken === undefined) delete process.env.INSTAGRAM_BUSINESS_TOKEN;
+    else process.env.INSTAGRAM_BUSINESS_TOKEN = realBizToken;
+    jest.restoreAllMocks();
+  });
+
+  it("reports not-configured when it held no credential to try", async () => {
+    delete process.env.INSTAGRAM_BUSINESS_TOKEN;
+    global.fetch = jest.fn().mockResolvedValue({ ok: false }) as unknown as typeof fetch;
+
+    const m = (await fetchPostMetrics("https://instagram.com/reel/Cabc")) as PostMetrics;
+    expect(m.fetchReason).toBe("not-configured");
+  });
+
+  /* The bug in one assertion: this is the value that used to be undefined. */
+  it("never comes back without a reason", async () => {
+    delete process.env.INSTAGRAM_BUSINESS_TOKEN;
+    global.fetch = jest.fn().mockResolvedValue({ ok: false }) as unknown as typeof fetch;
+
+    const m = (await fetchPostMetrics("https://instagram.com/reel/Cabc")) as PostMetrics;
+    expect(m.fetchReason).toBeDefined();
+    expect(m.fetchReason).not.toBe("no-counts-published");
+  });
+
+  /* oEmbed answering is a title and a picture, not the post's numbers -- the
+     same reasoning the TikTok path already applies to its own oEmbed call. */
+  it("keeps the reason even when oEmbed supplies metadata", async () => {
+    delete process.env.INSTAGRAM_BUSINESS_TOKEN;
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ thumbnail_url: "ig.jpg", title: "cap" }),
+    }) as unknown as typeof fetch;
+
+    const m = (await fetchPostMetrics("https://instagram.com/reel/Cabc")) as PostMetrics;
+    expect(m.thumbnailUrl).toBe("ig.jpg");
+    expect(hasMetricCounts(m)).toBe(false);
+    expect(m.fetchReason).toBe("not-configured");
+  });
+
+  it("distinguishes a credential that was tried and came back empty", async () => {
+    process.env.INSTAGRAM_BUSINESS_TOKEN = "biz-token";
+    global.fetch = jest.fn().mockResolvedValue({ ok: false }) as unknown as typeof fetch;
+
+    const m = (await fetchPostMetrics("https://instagram.com/reel/Cabc", {
+      instagramHandle: "someone",
+    })) as PostMetrics;
+    /* Retryable, unlike the settled verdict this used to inherit -- an expired
+       token and a walled request look the same from here, and neither is a
+       statement that the post has no engagement. */
+    expect(m.fetchReason).toBe("platform-refused");
+  });
+});

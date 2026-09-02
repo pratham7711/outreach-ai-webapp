@@ -61,9 +61,17 @@ describe("laneCountFor", () => {
     /* Under ~60 posts CreatorCore is faster and we accept that: the per-address
        pace is a floor, and booting sandboxes to win a twenty-post refresh costs
        more in boot latency -- which this arithmetic does not even model -- than
-       the work it saves. */
+       the work it saves.
+
+       Twenty posts now opens three lanes rather than two, and that is not the
+       benchmark creeping back in: the default target moved 35s -> 15s because
+       lane count is really the lever on how many EGRESS ADDRESSES a run holds.
+       At 35s a 58-post refresh got three lanes and ~19 requests per address,
+       reused across all three retry sweeps, and 15 of those posts came back
+       walled. The single-lane case below is the one this test exists to
+       protect, and it is unchanged. */
     expect(laneCountFor(5)).toBe(1);
-    expect(laneCountFor(20)).toBeLessThanOrEqual(2);
+    expect(laneCountFor(20)).toBeLessThanOrEqual(3);
   });
 
   it("scales up for a campaign that could never finish on one lane", () => {
