@@ -29,6 +29,17 @@ describe("describeReasons", () => {
   it("ignores zero counts", () => {
     expect(describeReasons({ "platform-challenged": 0 })).toBeNull();
   });
+
+  /* This reason arrived with a merge and had no wording, which the "drops
+     reasons it has no wording for" rule above would have hidden completely --
+     the one outcome on the list with something a person can actually do about
+     it, silently absent from the breakdown. REASON_LABEL is now typed against
+     the reason union so the build fails without wording; this is the assertion
+     that the wording is the right wording. */
+  it("names a rejected credential as something a person can fix", () => {
+    expect(describeReasons({ "credentials-rejected": 12 }))
+      .toBe("12 need Instagram reconnected");
+  });
 });
 
 describe("summariseRefresh with reasons", () => {

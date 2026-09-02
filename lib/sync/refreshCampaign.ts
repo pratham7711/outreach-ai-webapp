@@ -106,7 +106,7 @@ const PROGRESS_EVERY = 5;
  * never got a coherent answer out of our own call -- a distinction worth
  * keeping in the logs and in the debug breakdown.
  */
-type RefreshFailReason = FetchReason | "error";
+export type RefreshFailReason = FetchReason | "error";
 
 const REASON_IS_RETRYABLE: Record<RefreshFailReason, boolean> = {
   "platform-challenged": true,

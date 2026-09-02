@@ -7,6 +7,8 @@
  * "measured" is the only count that means new data landed, and the rest exist to
  * explain why nothing moved.
  */
+import type { RefreshFailReason } from "@/lib/sync/refreshCampaign";
+
 
 export type RefreshResult = {
   total?: number;
@@ -57,7 +59,7 @@ export function describeAudioRefresh(sound?: SoundRefreshResult | null): string 
  * of the sentence rather than printed raw -- a slug in the UI is worse than a
  * slightly shorter summary.
  */
-const REASON_LABEL: Record<string, (n: number) => string> = {
+const REASON_LABEL: Record<RefreshFailReason, (n: number) => string> = {
   "platform-challenged": (n) => `${n} blocked by the platform`,
   "backing-off": (n) => `${n} skipped while backing off`,
   "post-deleted": (n) => `${n} no longer exist`,
@@ -66,8 +68,20 @@ const REASON_LABEL: Record<string, (n: number) => string> = {
   unknown: (n) => `${n} could not be read`,
   "unrecognised-url": (n) => `${n} have an unrecognised link`,
   "not-configured": (n) => `${n} need an API key`,
+  /* The only reason on this list with a remedy belonging to a person, so it
+     says whose: a creator reconnects, or an operator replaces the business
+     token. "refused by the platform" -- which is where this used to land --
+     reads as nothing anyone can do. */
+  "credentials-rejected": (n) => `${n} need Instagram reconnected`,
   error: (n) => `${n} errored`,
 };
+
+/* Widened deliberately: the map is exhaustive over the union so that adding a
+   reason without wording fails the build, but `reasons` is parsed from a JSON
+   payload and can carry a slug from a newer deployment than this bundle. */
+function labelFor(key: string): ((n: number) => string) | undefined {
+  return (REASON_LABEL as Record<string, (n: number) => string>)[key];
+}
 
 /**
  * No longer part of the sentence the user reads -- see summariseRefresh. Kept
@@ -79,8 +93,8 @@ export function describeReasons(reasons?: Record<string, number>): string | null
   const parts = Object.entries(reasons)
     // Biggest first: the dominant reason is the one worth acting on.
     .sort((a, b) => b[1] - a[1])
-    .filter(([key, n]) => n > 0 && REASON_LABEL[key])
-    .map(([key, n]) => REASON_LABEL[key](n));
+    .filter(([key, n]) => n > 0 && labelFor(key))
+    .map(([key, n]) => labelFor(key)!(n));
   if (!parts.length) return null;
   return parts.join(", ");
 }
