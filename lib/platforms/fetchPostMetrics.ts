@@ -4,6 +4,7 @@ import {
   businessDiscoveryToken,
   fetchInstagramPublicPostMetrics,
 } from "./instagramBusinessDiscovery";
+import { fetchInstagramEmbedPost } from "./instagramEmbed";
 import { fetchTikTokVideosByIds } from "./tiktokDisplay";
 import { createLogger } from "../observability/logger";
 
@@ -847,15 +848,62 @@ async function fetchTikTokOEmbed(url: string): Promise<Partial<PostMetrics>> {
   return stubMetrics("platform-refused");
 }
 
+/**
+ * Every Instagram source, merged -- not the first one that answers.
+ *
+ * This used to `return` inside each branch, and that early return was the live
+ * bug. Business Discovery drops like_count whenever a creator hides their
+ * likes, so it answers with views and comments and no likes; the function
+ * returned right there, and the like figure was never asked of anything else.
+ * Production showed it exactly: two of three Instagram posts carried
+ * `__measured: ["views","comments"]` and reported no likes, while the captioned
+ * embed had the real number sitting there for the asking -- 1428 on the third
+ * post, matching Business Discovery's own figure to the digit.
+ *
+ * So the sources are now ranked by trust and each one fills only the holes the
+ * ones above it left:
+ *
+ *   1. Graph, with the creator's own token -- their own post, their own numbers
+ *   2. Business Discovery, with our business token -- official, but partial
+ *   3. The captioned embed -- unofficial, credential-free, fills what is left
+ *
+ * A field written by a higher source is never overwritten by a lower one, so
+ * adding the scrape cannot degrade an official number. And a source failing
+ * outright no longer costs us the fields the next one could have supplied.
+ */
 export async function fetchInstagramMetrics(
   url: string,
   token?: string,
   handle?: string,
 ): Promise<Partial<PostMetrics>> {
+  const log = createLogger({ context: { platform: "INSTAGRAM" } });
+  const merged: Partial<PostMetrics> = {};
+  const sources: string[] = [];
+
+  /* First writer wins. `undefined` is not a value here: an absent counter has
+     to stay absent so the next source down can still fill it, which is the
+     same absent-is-not-zero rule the writer downstream depends on. */
+  const fill = (source: string, patch: Partial<PostMetrics>): boolean => {
+    let used = false;
+    for (const [key, value] of Object.entries(patch)) {
+      if (value === undefined || value === null) continue;
+      if (merged[key as keyof PostMetrics] !== undefined) continue;
+      (merged as Record<string, unknown>)[key] = value;
+      used = true;
+    }
+    if (used) sources.push(source);
+    return used;
+  };
+
+  const counted = (): boolean =>
+    typeof merged.viewsCount === "number" ||
+    typeof merged.likesCount === "number" ||
+    typeof merged.commentsCount === "number";
+
   if (token) {
     const graph = await fetchInstagramMetricsGraph(url, token, fetchTimeoutSignal());
     if (graph) {
-      return {
+      fill("graph", {
         thumbnailUrl: graph.thumbnailUrl,
         caption: graph.caption,
         ...(typeof graph.viewsCount === "number" ? { viewsCount: graph.viewsCount } : {}),
@@ -866,14 +914,15 @@ export async function fetchInstagramMetrics(
            make -- and CreatorCore's report of the same posts shows no shares row
            for them either. */
         postedAt: graph.postedAt,
-      };
+      });
     }
   }
+
   const bizToken = businessDiscoveryToken();
   if (bizToken && handle) {
     const post = await fetchInstagramPublicPostMetrics(handle, url, bizToken, fetchTimeoutSignal());
     if (post) {
-      return {
+      fill("business-discovery", {
         thumbnailUrl: post.thumbnailUrl,
         caption: post.caption,
         ...(typeof post.viewsCount === "number" ? { viewsCount: post.viewsCount } : {}),
@@ -882,15 +931,64 @@ export async function fetchInstagramMetrics(
         ...(typeof post.authorFollowers === "number" ? { authorFollowers: post.authorFollowers } : {}),
         // Same as above: Instagram reports no shares, so we claim none.
         postedAt: post.postedAt ?? undefined,
-      };
+      });
     }
   }
-  /* Decided BEFORE oEmbed, which can only ever return a title and a picture.
-     Both outcomes below used to return a bare stub carrying no reason at all,
-     so syncPost's `?? "no-counts-published"` fallback filed them as posts that
-     publish no counters -- a settled verdict, excluded from retries. Instagram
-     posts therefore reported zero engagement and were never re-asked, whether
-     the deployment simply held no credential or the Graph call had failed.
+
+  /* The fallback runs whenever a hole is left, which includes the case where
+     the official sources answered well. Two reasons it is not gated on total
+     failure:
+     - a hidden like_count is a hole in an otherwise successful answer, and it
+       is the single most common one;
+     - Business Discovery reads a creator's newest 100 media with no paging, so
+       an older post is not merely unmeasured by it, it is unreachable.
+
+     It is skipped only once nothing is left to gain, so a fully-answered post
+     costs no extra request. */
+  const wantsFallback =
+    merged.likesCount === undefined ||
+    merged.commentsCount === undefined ||
+    merged.thumbnailUrl === undefined ||
+    merged.thumbnailUrl === null;
+
+  let likesHidden = false;
+  if (wantsFallback) {
+    const embed = await fetchInstagramEmbedPost(url, fetchTimeoutSignal(10000));
+    if (embed) {
+      likesHidden = embed.likesHidden;
+      fill("embed", {
+        thumbnailUrl: embed.thumbnailUrl,
+        caption: embed.caption,
+        /* likesCount is present here only when the embed reported a POSITIVE
+           number; see instagramEmbed.ts for why its zero is an absence. */
+        ...(typeof embed.likesCount === "number" ? { likesCount: embed.likesCount } : {}),
+        ...(typeof embed.commentsCount === "number" ? { commentsCount: embed.commentsCount } : {}),
+        ...(typeof embed.authorFollowers === "number"
+          ? { authorFollowers: embed.authorFollowers }
+          : {}),
+        /* embed.embedViewCount is deliberately NOT mapped to viewsCount. It
+           read 3337 against Business Discovery's 24245 for the same post at the
+           same moment -- a different quantity, wrong by a factor we cannot
+           predict, so no better than nothing and considerably more convincing. */
+      });
+    }
+  }
+
+  if (counted()) {
+    log.info("instagram metrics resolved", {
+      sources,
+      fields: Object.keys(merged).filter((k) => k.endsWith("Count")),
+      likesHidden,
+    });
+    return merged;
+  }
+
+  /* Decided BEFORE the metadata-only endpoint below, which can never return a
+     counter. Both outcomes here used to return a bare stub carrying no reason at
+     all, so syncPost's `?? "no-counts-published"` fallback filed them as posts
+     that publish no counters -- a settled verdict, excluded from retries.
+     Instagram posts therefore reported zero engagement and were never re-asked,
+     whether the deployment simply held no credential or the Graph call failed.
 
      "not-configured" covers a missing handle as well as a missing token: with
      no handle there is no Business Discovery lookup to make, so the shortfall
@@ -898,27 +996,39 @@ export async function fetchInstagramMetrics(
      refused us. */
   const attempted = Boolean(token) || Boolean(bizToken && handle);
   const reason: FetchReason = attempted ? "platform-refused" : "not-configured";
+  log.warn("instagram metrics unavailable from every source", { reason, sources });
 
   try {
-    const res = await fetch(`https://api.instagram.com/oembed?url=${encodeURIComponent(url)}`, {
-      signal: fetchTimeoutSignal(),
-    });
+    /* graph.facebook.com/instagram_oembed, NOT api.instagram.com/oembed.
+       The latter is what this called for months and it now answers 500 flat --
+       measured 2026-09-02, "Oops, an error occurred." The Graph host serves the
+       same payload and, unusually for Graph, needs no token at all. Still only
+       a thumbnail and a title, so it stays last and its reason stays the one
+       from the attempt that could have carried counts. */
+    const res = await fetch(
+      `https://graph.facebook.com/v19.0/instagram_oembed?url=${encodeURIComponent(url)}&fields=thumbnail_url,title`,
+      { signal: fetchTimeoutSignal() },
+    );
     if (res.ok) {
       const data = await res.json();
       return {
-        thumbnailUrl: data.thumbnail_url ?? null,
-        caption: data.title ?? null,
-        /* Same reasoning as the TikTok oEmbed path: oEmbed answering is not the
-           post's numbers arriving, so the reason from the attempt that could
-           have carried counts is the one worth keeping. */
+        ...merged,
+        thumbnailUrl: merged.thumbnailUrl ?? data.thumbnail_url ?? null,
+        caption: merged.caption ?? data.title ?? null,
         fetchReason: reason,
       };
     }
   } catch {
     // fall through
   }
-  return stubMetrics(reason);
+  /* The stub's nulls go FIRST so anything the sources did recover survives.
+     Spread the other way round -- which it was -- and a post whose embed
+     answered with a caption and a thumbnail but no counters had both erased on
+     the way out, because stubMetrics supplies `thumbnailUrl: null` as its
+     default. A failed measurement is not a reason to discard metadata we hold. */
+  return { ...stubMetrics(reason), ...merged, fetchReason: reason };
 }
+
 
 /**
  * The empty answer, and why it is empty.

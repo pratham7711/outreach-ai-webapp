@@ -23,6 +23,14 @@ export type IgPublicProfile = {
   followersCount?: number;
   mediaCount?: number;
   recentPosts: IgPublicPost[];
+  /**
+   * Instagram's cursor for the NEXT page of this profile's media, when one
+   * exists. Business Discovery caps a single read at 100 media, and for a
+   * prolific creator the post a campaign is tracking is routinely older than
+   * that -- so without following this, those posts are not merely unmeasured,
+   * they are unreachable, permanently, no matter how often a refresh retries.
+   */
+  nextMediaCursor?: string;
 };
 
 type DiscoveryMediaNode = {
@@ -62,18 +70,34 @@ export function parseBusinessDiscovery(data: any, username: string): IgPublicPro
   const bd = data?.business_discovery;
   if (!bd) return null;
   const nodes: DiscoveryMediaNode[] = bd.media?.data ?? [];
+  const after = bd.media?.paging?.cursors?.after;
   return {
     username: normalizeUsername(username),
     ...(typeof bd.followers_count === "number" ? { followersCount: bd.followers_count } : {}),
     ...(typeof bd.media_count === "number" ? { mediaCount: bd.media_count } : {}),
     recentPosts: nodes.map(mapMedia),
+    ...(typeof after === "string" && after.length > 0 ? { nextMediaCursor: after } : {}),
   };
 }
+
+export const MEDIA_PAGE_SIZE = 100;
+
+/**
+ * How many pages a post lookup will walk before giving up.
+ *
+ * 5 x 100 covers a creator's newest 500 media, which is past the tail of every
+ * campaign we track, while bounding the worst case at five Graph round trips
+ * inside a refresh that has a 260s budget for the whole campaign. Each page is
+ * one request, and the walk stops the moment the post is found -- so the common
+ * case still costs exactly one.
+ */
+export const MAX_MEDIA_PAGES = 5;
 
 export async function fetchInstagramProfile(
   username: string,
   token: string,
   signal?: AbortSignal,
+  after?: string,
 ): Promise<IgPublicProfile | null> {
   const handle = normalizeUsername(username);
   if (!handle) return null;
@@ -81,8 +105,11 @@ export async function fetchInstagramProfile(
   const igUserId = await resolveIgUserId(token, signal);
   if (!igUserId) return null;
 
-  const mediaFields =
-    "media.limit(100){id,caption,view_count,like_count,comments_count,timestamp,permalink,media_url,thumbnail_url}";
+  /* `.after(cursor)` before `.limit()` -- Graph reads the edge modifiers left to
+     right and silently ignores an unknown ordering rather than erroring, which
+     is exactly the kind of failure that looks like "there are no more pages". */
+  const pageArgs = after ? `.after(${after}).limit(${MEDIA_PAGE_SIZE})` : `.limit(${MEDIA_PAGE_SIZE})`;
+  const mediaFields = `media${pageArgs}{id,caption,view_count,like_count,comments_count,timestamp,permalink,media_url,thumbnail_url}`;
   const data = await graphGet(
     igUserId,
     {
@@ -107,15 +134,33 @@ export async function fetchInstagramPublicPostMetrics(
   signal?: AbortSignal,
 ): Promise<(IgPublicPost & { authorFollowers?: number }) | null> {
   const shortcode = shortcodeFromUrl(postUrl);
-  const profile = await fetchInstagramProfile(username, token, signal);
-  if (!profile) return null;
   if (!shortcode) return null;
-  const post = profile.recentPosts.find(
-    (p) => typeof p.permalink === "string" && p.permalink.includes(`/${shortcode}`),
-  );
-  if (!post) return null;
-  return {
-    ...post,
-    ...(typeof profile.followersCount === "number" ? { authorFollowers: profile.followersCount } : {}),
-  };
+
+  let cursor: string | undefined;
+  let followers: number | undefined;
+
+  for (let page = 0; page < MAX_MEDIA_PAGES; page++) {
+    const profile = await fetchInstagramProfile(username, token, signal, cursor);
+    if (!profile) return null;
+    /* Carried across pages because Instagram repeats followers_count on every
+       page and the caller wants it even when the post turns up on page four. */
+    if (typeof profile.followersCount === "number") followers = profile.followersCount;
+
+    const post = profile.recentPosts.find(
+      (p) => typeof p.permalink === "string" && p.permalink.includes(`/${shortcode}`),
+    );
+    if (post) {
+      return {
+        ...post,
+        ...(typeof followers === "number" ? { authorFollowers: followers } : {}),
+      };
+    }
+
+    /* No cursor means we have seen the creator's whole library, so the post is
+       genuinely not on this account -- a different answer from "we ran out of
+       pages", and only the latter is worth a fallback's time. */
+    if (!profile.nextMediaCursor) return null;
+    cursor = profile.nextMediaCursor;
+  }
+  return null;
 }
