@@ -147,7 +147,8 @@ export default function LoginPage() {
                 marginBottom: 16,
               }}
             >
-              Account created. Sign in to get started.
+              Account created. We have emailed you a link to confirm your address
+              &mdash; sign in to get started.
             </motion.div>
           )}
 

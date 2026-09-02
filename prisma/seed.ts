@@ -70,7 +70,12 @@ async function main() {
   const hashed = await bcrypt.hash("admin123", 10);
   const user = await prisma.user.upsert({
     where: { email: "admin@demo.com" },
-    update: { role: "OWNER" },
+    /* Fixtures are verified. Nobody can click a confirmation link for
+       admin@demo.com -- the mailbox does not exist -- so a seeded account left
+       unverified would be permanently stuck the moment enforcement is switched
+       on, and every e2e run that signs in as it would fail for a reason that
+       has nothing to do with the test. */
+    update: { role: "OWNER", emailVerified: new Date() },
     create: {
       id: "cmnbxspfv00016vfdz6yuds55",
       orgId: org.id,
@@ -78,6 +83,7 @@ async function main() {
       name: "Admin",
       password: hashed,
       role: "OWNER",
+      emailVerified: new Date(),
     },
   });
 

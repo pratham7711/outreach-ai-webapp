@@ -59,6 +59,13 @@ export async function POST(request: NextRequest) {
           name,
           password: hashedPassword,
           role: invite.role,
+          /* Already proven, so do not ask again. The address is not one the
+             user typed -- an admin entered it and we mailed a token there, and
+             somebody with access to that mailbox has just spent it. That is
+             exactly the same evidence a signup confirmation link produces, no
+             more forwardable and no less, so a second round trip would collect
+             nothing new and would nag a teammate on their first minute here. */
+          emailVerified: new Date(),
         },
       });
 

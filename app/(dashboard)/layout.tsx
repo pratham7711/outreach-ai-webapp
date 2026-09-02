@@ -11,6 +11,8 @@ import { resolveDashboardPolicy } from "@/lib/dashboardPolicy";
 import { customBrandingValue } from "@/lib/brandingDefaults";
 import type { OrgUiConfig } from "@/lib/orgConfig";
 import { redirect } from "next/navigation";
+import { db } from "@/lib/db";
+import { VerifyEmailBanner } from "@/components/layout/VerifyEmailBanner";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
@@ -29,6 +31,16 @@ export default async function DashboardLayout({ children }: { children: React.Re
   if (session?.user && orgId && !entitlements) {
     redirect("/api/auth/session-invalid");
   }
+
+  /* Read rather than taken from the session. The JWT is minted at sign-in and
+     never revisited, so a user who confirms their address mid-session would
+     keep being told to confirm it until the token expired. One indexed lookup
+     by primary key is the cheaper half of that trade. */
+  const userId = (session?.user as any)?.id as string | undefined;
+  const account = userId
+    ? await db.user.findUnique({ where: { id: userId }, select: { email: true, emailVerified: true } })
+    : null;
+  const needsEmailVerification = Boolean(account && !account.emailVerified);
 
   const uiConfig = (entitlements?.uiConfig as OrgUiConfig | null) ?? null;
   const policy = resolveDashboardPolicy({ entitlements, uiConfig });
@@ -66,6 +78,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
           />
           <DashboardContent>
             <TopBar user={user} />
+            {needsEmailVerification && account?.email && (
+              <VerifyEmailBanner email={account.email} />
+            )}
             <main id="main-content" className="flex-1 overflow-y-auto" role="main">
               <div className="page-enter">
                 {children}

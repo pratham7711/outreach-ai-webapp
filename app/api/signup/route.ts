@@ -5,6 +5,7 @@ import { z } from "zod";
 import type { OrgType } from "@/lib/generated/prisma/client";
 import { requestLogger } from "@/lib/observability/requestLogger";
 import { rateLimit, rateLimitKey } from "@/lib/rateLimit";
+import { issueEmailVerification, appOrigin } from "@/lib/emailVerification";
 
 const signupSchema = z.object({
   orgName: z.string().trim().min(1, "Organization name is required").max(120),
@@ -70,6 +71,8 @@ export async function POST(req: NextRequest) {
     const subdomain = await uniqueSubdomain(slugify(orgName));
     const passwordHash = await bcrypt.hash(password, 10);
 
+    let createdUser: { id: string; orgId: string } | null = null;
+
     await db.$transaction(async (tx) => {
       /* free, not starter. This endpoint is the self-serve door, and the free
          tier is what a self-serve signup is meant to get: the whole product,
@@ -87,7 +90,7 @@ export async function POST(req: NextRequest) {
         },
       });
 
-      await tx.user.create({
+      const created = await tx.user.create({
         data: {
           orgId: org.id,
           email,
@@ -95,7 +98,9 @@ export async function POST(req: NextRequest) {
           password: passwordHash,
           role: "OWNER",
         },
+        select: { id: true, orgId: true },
       });
+      createdUser = created;
 
       /* Kept in step with Organization.plan above; getOrgEntitlements reads
          planName from here first. The other columns are left to the schema
@@ -108,8 +113,37 @@ export async function POST(req: NextRequest) {
       });
     });
 
-    logger.info("signup.done", { status: 201 });
-    return NextResponse.json({ success: true }, { status: 201 });
+    /* Outside the transaction, and deliberately not awaited into the response
+       contract. The account exists by this point; a mail provider having a bad
+       afternoon must not turn a created account into a 500, because the user
+       would retry, be told the email is already taken, and be left holding an
+       account they can neither verify nor recreate. issueEmailVerification
+       swallows its own failures and leaves the token in place, so
+       /api/auth/resend-verification is enough to recover. */
+    const verification = createdUser
+      ? await issueEmailVerification({
+          email,
+          name,
+          orgId: (createdUser as { id: string; orgId: string }).orgId,
+          userId: (createdUser as { id: string; orgId: string }).id,
+          origin: appOrigin(req.nextUrl.origin),
+        })
+      : null;
+
+    logger.info("signup.done", { status: 201, verificationSent: verification?.sent ?? false });
+    return NextResponse.json(
+      {
+        success: true,
+        /* The signup page tells the user to go and confirm. Without this it
+           would have to assume a mail went out, and say "check your inbox" on
+           a deployment that has no mail provider at all. */
+        verificationEmail: verification?.sent ? "sent" : "unavailable",
+        ...(process.env.NODE_ENV !== "production" && verification
+          ? { devVerifyUrl: verification.url }
+          : {}),
+      },
+      { status: 201 }
+    );
   } catch (error) {
     if (typeof error === "object" && error !== null && (error as { code?: string }).code === "P2002") {
       return NextResponse.json({ error: "An account with this email already exists" }, { status: 409 });

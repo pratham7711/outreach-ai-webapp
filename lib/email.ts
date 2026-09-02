@@ -30,6 +30,7 @@ export type EmailKind =
   | "invite"
   | "invite_resend"
   | "password_reset"
+  | "email_verification"
   | "notification"
   | "ops_alert"
   | "unknown";

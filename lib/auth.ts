@@ -4,6 +4,7 @@ import { PrismaAdapter } from "@auth/prisma-adapter";
 import { db } from "@/lib/db";
 import bcrypt from "bcryptjs";
 import { CredentialsSignin } from "next-auth";
+import { loginBlockedForUnverified } from "@/lib/emailVerification";
 import { accessFor, isPlatformAdmin } from "@/lib/billing/subscription";
 import { authConfig } from "@/lib/auth.config";
 
@@ -26,6 +27,17 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (!user || !user.password) return null;
         const valid = await bcrypt.compare(credentials.password as string, user.password);
         if (!valid) return null;
+
+        /* After the password, for the same reason billing is: telling an
+           unauthenticated stranger that an address exists but is unconfirmed
+           is still telling them the address exists. Thrown rather than null so
+           the login screen can say what to do about it -- "invalid credentials"
+           would send someone to reset a password that is perfectly correct. */
+        if (loginBlockedForUnverified(user)) {
+          throw new CredentialsSignin(
+            "Confirm your email address first. Check your inbox for the link, or request a new one at /verify-email."
+          );
+        }
 
         /* Billing is checked after the password, never before: answering
            "your subscription lapsed" to an unauthenticated stranger tells them
