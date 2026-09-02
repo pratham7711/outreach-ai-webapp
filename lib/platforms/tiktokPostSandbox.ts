@@ -101,12 +101,20 @@ export type SandboxPostFetcher = {
 };
 
 type Lane = {
+  /** Changes when the lane is replaced: a fresh sandbox is a fresh ADDRESS, so
+   *  a post that was walled on lane-0 must be allowed to try lane-0#2. The
+   *  per-post `tried` set is keyed on this. */
   label: string;
   region: string;
   gate: ReturnType<typeof createRateGate>;
   sandbox: Promise<Sandbox> | null;
   /** This lane is done for the run: it could not boot. Others carry on. */
   dead: boolean;
+  /** How many times this slot has been re-addressed. Bounds the churn. */
+  generation: number;
+  /** Index into REGIONS, advanced on replacement so a region-wide block does
+   *  not simply reproduce itself. */
+  regionIndex: number;
 };
 
 export function openSandboxPostPool(size: number): SandboxPostFetcher {
@@ -119,23 +127,82 @@ export function openSandboxPostPool(size: number): SandboxPostFetcher {
      that another post is waiting for. */
   const maxAttempts = envInt("TIKTOK_SANDBOX_MAX_ATTEMPTS", 3);
 
-  const lanes: Lane[] = Array.from({ length: laneCount }, (_, i) => ({
-    label: `lane-${i}`,
-    region: REGIONS[i % REGIONS.length],
-    /* Its own gate, and not shared with the direct fetch's tiktokGate: those are
-       two different identities, and one breaker across both would let either
-       silence the other. Same reasoning separates the lanes from each other. */
-    gate: createRateGate({
+  /* Its own gate, and not shared with the direct fetch's tiktokGate: those are
+     two different identities, and one breaker across both would let either
+     silence the other. Same reasoning separates the lanes from each other. */
+  const newGate = () =>
+    createRateGate({
       minGapMs: envInt("TIKTOK_SANDBOX_MIN_GAP_MS", 1500),
       jitterMs: envInt("TIKTOK_SANDBOX_JITTER_MS", 600),
       breakerThreshold: envInt("TIKTOK_SANDBOX_BREAKER_THRESHOLD", 5),
       breakerCooldownMs: envInt("TIKTOK_SANDBOX_BREAKER_COOLDOWN_MS", 10 * 60 * 1000),
       challengeThreshold: envInt("TIKTOK_SANDBOX_CHALLENGE_THRESHOLD", 10),
       challengeCooldownMs: envInt("TIKTOK_SANDBOX_CHALLENGE_COOLDOWN_MS", 5 * 60 * 1000),
-    }),
+    });
+
+  const lanes: Lane[] = Array.from({ length: laneCount }, (_, i) => ({
+    label: `lane-${i}`,
+    region: REGIONS[i % REGIONS.length],
+    gate: newGate(),
     sandbox: null,
     dead: false,
+    generation: 1,
+    regionIndex: i,
   }));
+
+  /**
+   * Replacing a burned lane, rather than writing it off for the run.
+   *
+   * This is the fix for a measured production failure: a 58-post refresh
+   * reported 27 measured, 15 "skipped while backing off", 13 refused. The
+   * backing-off fifteen were never asked about at all.
+   *
+   * The cause is a mismatch of timescales. A latched gate stays shut for its
+   * cooldown -- 10 minutes for the breaker, 5 for challenges -- and the whole
+   * refresh has a 260-second deadline. So "backing off" inside one run does not
+   * mean "wait and retry", it means "this lane is gone", and pick() then had
+   * fewer and fewer addresses to offer until posts fell through to the direct
+   * function egress, whose own gate promptly latched too. The retry sweeps could
+   * not help: they re-entered the same pool holding the same burned addresses.
+   *
+   * But a cooldown is a statement about ONE IP, and every sandbox gets its own.
+   * Stopping the sandbox and booting another is a brand-new address with a clean
+   * gate -- which is the thing the cooldown was waiting for, obtained in a few
+   * seconds instead of ten minutes.
+   *
+   * Bounded, because "boot until it works" against a WAF is how a refresh turns
+   * into a bill: a per-run replacement budget, and the region advances each time
+   * so a region-wide block does not just reproduce itself.
+   */
+  const maxReplacements = envInt("TIKTOK_SANDBOX_MAX_REPLACEMENTS", laneCount * 2);
+  let replacements = 0;
+
+  const replaceLane = (lane: Lane): boolean => {
+    if (replacements >= maxReplacements) return false;
+    replacements += 1;
+
+    const spent = lane.sandbox;
+    lane.sandbox = null;
+    // Not awaited: the run should not pay the teardown before it can ask again.
+    if (spent) spent.then((sb) => sb.stop()).catch(() => {});
+
+    lane.generation += 1;
+    lane.regionIndex += laneCount;
+    lane.region = REGIONS[lane.regionIndex % REGIONS.length];
+    /* A NEW label, so the per-post `tried` set does not refuse the fresh
+       address as though it were the one that just walled the post. */
+    lane.label = `lane-${lane.label.split("#")[0].replace("lane-", "")}#${lane.generation}`;
+    lane.gate = newGate();
+    lane.dead = false;
+
+    log.warn("lane burned; replacing it with a fresh address", {
+      lane: lane.label,
+      region: lane.region,
+      replacementsUsed: replacements,
+      budget: maxReplacements,
+    });
+    return true;
+  };
 
   let cursor = 0;
 
@@ -159,6 +226,22 @@ export function openSandboxPostPool(size: number): SandboxPostFetcher {
       const lane = lanes[(cursor + i) % lanes.length];
       if (lane.dead || lane.gate.isOpen()) continue;
       if (exclude?.has(lane.label)) continue;
+      cursor = (cursor + i + 1) % lanes.length;
+      return lane;
+    }
+
+    /* Nothing usable. Before reporting that, try to buy an address.
+     *
+     * Every remaining lane is latched, dead, or already spent on this post, and
+     * a latched lane will not reopen inside this run -- its cooldown outlasts
+     * the deadline. Returning null here is what produced fifteen posts reported
+     * as "skipped while backing off" without a single request being made on
+     * their behalf. A replacement is a different IP with a clean gate, so it is
+     * a real answer to the situation rather than a wait. */
+    for (let i = 0; i < lanes.length; i++) {
+      const lane = lanes[(cursor + i) % lanes.length];
+      if (!lane.dead && !lane.gate.isOpen()) continue; // usable but excluded
+      if (!replaceLane(lane)) break; // budget spent; stop asking
       cursor = (cursor + i + 1) % lanes.length;
       return lane;
     }
@@ -206,6 +289,10 @@ export function openSandboxPostPool(size: number): SandboxPostFetcher {
          a real answer and must not count against it. */
       if (lookup.state === "unavailable") lane.gate.recordChallenged();
       else lane.gate.recordSuccess();
+      /* Retire it as soon as it latches rather than leaving the next post to
+         find out. The answer this call obtained is still returned -- the lane
+         being finished does not invalidate what it just said. */
+      if (lane.gate.isOpen()) replaceLane(lane);
       return lookup;
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
@@ -246,7 +333,12 @@ export function openSandboxPostPool(size: number): SandboxPostFetcher {
        * number of addresses we hold), and pick() refusing lanes whose breaker
        * has latched. There is no path here that revisits an address. */
       const tried = new Set<string>();
-      const budget = Math.min(maxAttempts, lanes.length);
+      /* Not capped at lanes.length any more. That cap was correct while the set
+         of addresses was fixed; with replacement available, a one-lane pool --
+         which is what the per-post "Sync Now" button opens -- could otherwise
+         make exactly one attempt on exactly one address and report the post
+         unmeasurable if that single IP happened to be walled. */
+      const budget = Math.max(1, maxAttempts);
       let walled: TikTokPostLookup | null = null;
       let asked = 0;
 
@@ -256,8 +348,28 @@ export function openSandboxPostPool(size: number): SandboxPostFetcher {
          counter does. The budget below is the tighter of the two limits, not
          the only one. */
       while (asked < budget) {
-        const lane = pick(tried);
-        if (!lane) break; // every remaining lane is dead, tried, or backing off
+        let lane = pick(tried);
+        /* Every address we hold has already been asked about this post and
+           walled it. A wall is a fact about one IP at one moment, so the useful
+           move is to obtain an IP we have not used -- not to re-ask one that
+           just said no, and not to give up while the attempt budget is unspent.
+           
+           This is the path the per-post Sync Now button takes: it opens a
+           single lane, so `tried` covers the whole pool after one attempt.
+           Without this it made exactly one request and reported the post
+           unmeasurable, which is what it was observed doing on production while
+           Refresh Data measured the same post successfully. The gate has not
+           latched at that point -- one wall is far below challengeThreshold --
+           so replacing burned lanes alone does not reach this case. */
+        if (!lane && walled) {
+          for (const candidate of lanes) {
+            if (!tried.has(candidate.label)) continue;
+            if (!replaceLane(candidate)) break; // budget spent
+            lane = candidate;
+            break;
+          }
+        }
+        if (!lane) break; // no address left, and none obtainable
         tried.add(lane.label);
 
         const lookup = await attemptOn(lane, url);

@@ -72,6 +72,8 @@ afterEach(() => {
   delete process.env.TIKTOK_SANDBOX_MIN_GAP_MS;
   delete process.env.TIKTOK_SANDBOX_JITTER_MS;
   delete process.env.TIKTOK_SANDBOX_MAX_ATTEMPTS;
+  delete process.env.TIKTOK_SANDBOX_CHALLENGE_THRESHOLD;
+  delete process.env.TIKTOK_SANDBOX_MAX_REPLACEMENTS;
 });
 
 describe("readPost retries on a different address", () => {
@@ -120,13 +122,28 @@ describe("readPost is bounded", () => {
     expect(mockCalls).toHaveLength(3); // the default budget, not the 4 lanes
   });
 
-  it("stops at the lane count when it is smaller than the budget", async () => {
+  it("buys a fresh address rather than stopping at the lane count", async () => {
+    /* CHANGED DELIBERATELY. This asserted one call for a one-lane pool -- the
+       attempt budget was capped at the number of addresses held, so a walled
+       post on a one-lane pool was asked once and written off.
+       
+       That cap was right while addresses were fixed, and it is what the per-post
+       Sync Now button hit on production: it opens a single lane, so one wall
+       exhausted the pool. Refresh Data measured the same post successfully at
+       the same moment, because it holds several lanes. Sandboxes are addresses
+       on demand, so the budget is now the attempt budget (default 3) and the
+       lane count is no longer a ceiling on it.
+       
+       Still bounded, and by two separate things: maxAttempts, and the per-run
+       replacement budget asserted in the suite below. */
     mockRespond = () => WALL;
     const pool = openSandboxPostPool(1);
 
     await pool.readPost(URL);
 
-    expect(mockCalls).toHaveLength(1);
+    expect(mockCalls).toHaveLength(3); // the default attempt budget
+    // Three requests means three DIFFERENT addresses, which is the whole point.
+    expect(mockCreated).toEqual(["iad1", "sfo1", "cle1"]);
   });
 
   it("honours a configured budget", async () => {
@@ -211,5 +228,95 @@ describe("readPost spends its attempts on addresses, not on wreckage", () => {
 
     expect(lookup?.state).toBe("live");
     expect(mockCalls.map((c) => c.region)).toEqual(["cdg1"]);
+  });
+});
+
+/**
+ * A burned lane is replaced, not written off.
+ *
+ * Measured in production on 2026-09-02: a 58-post refresh reported 27 measured,
+ * 15 "skipped while backing off" and 13 refused. The fifteen were never asked
+ * about at all -- their lanes had latched, and a latched gate stays shut for its
+ * cooldown (10 minutes for the breaker, 5 for challenges) while the whole
+ * refresh has a 260-second deadline. So inside one run "backing off" did not
+ * mean "wait", it meant "this address is gone", and the retry sweeps re-entered
+ * the same pool holding the same burned addresses.
+ *
+ * A cooldown is a statement about ONE IP and every sandbox gets its own, so
+ * booting another IS the wait, completed in seconds.
+ */
+describe("a latched lane is re-addressed", () => {
+  beforeEach(() => {
+    // One wall latches the gate, so these tests do not need ten round trips.
+    process.env.TIKTOK_SANDBOX_CHALLENGE_THRESHOLD = "1";
+  });
+
+  it("gets a one-lane pool a second and third address when the first is walled", async () => {
+    /* The per-post Sync Now button opens exactly one lane. Before replacement
+       existed its budget was min(maxAttempts, lanes.length) = 1: one attempt on
+       one address, and if that IP was walled the post was reported unmeasurable
+       having been asked once. */
+    mockRespond = () => WALL;
+    process.env.TIKTOK_SANDBOX_MAX_ATTEMPTS = "3";
+
+    const pool = openSandboxPostPool(1);
+    await pool.readPost(URL);
+
+    // Three distinct sandboxes, hence three distinct egress IPs, from one lane.
+    expect(mockCreated).toEqual(["iad1", "sfo1", "cle1"]);
+    expect(mockCalls).toHaveLength(3);
+  });
+
+  it("finds the page on a replacement address", async () => {
+    // The first address walls; anything booted afterwards answers properly.
+    let booted = 0;
+    mockRespond = () => (booted++ === 0 ? WALL : page());
+    process.env.TIKTOK_SANDBOX_MAX_ATTEMPTS = "3";
+
+    const pool = openSandboxPostPool(1);
+    const lookup = await pool.readPost(URL);
+
+    /* The post is measured. This is the outcome the production run could not
+       reach: one lane, walled, and previously that was the end of it. */
+    expect(lookup?.state).toBe("live");
+    expect(lookup?.metrics?.viewsCount).toBe(4165);
+  });
+
+  it("stays inside its replacement budget", async () => {
+    // "Boot until it works" against a WAF is how a refresh turns into a bill.
+    mockRespond = () => WALL;
+    process.env.TIKTOK_SANDBOX_MAX_ATTEMPTS = "50";
+    process.env.TIKTOK_SANDBOX_MAX_REPLACEMENTS = "2";
+
+    const pool = openSandboxPostPool(1);
+    await pool.readPost(URL);
+
+    // The original plus exactly two replacements, never more.
+    expect(mockCreated).toHaveLength(3);
+  });
+
+  it("does not replace a lane that is answering", async () => {
+    mockRespond = () => page();
+    const pool = openSandboxPostPool(2);
+
+    await pool.readPost(URL);
+    await pool.readPost(URL);
+    await pool.readPost(URL);
+
+    /* A working address is the thing we are trying to obtain, so churning it
+       would be strictly worse than doing nothing -- and each boot costs seconds
+       the refresh does not have. */
+    expect(mockCreated).toEqual(["iad1", "sfo1"]);
+  });
+
+  it("spends no replacements when nothing has latched", async () => {
+    mockRespond = () => page();
+    process.env.TIKTOK_SANDBOX_MAX_REPLACEMENTS = "0";
+
+    const pool = openSandboxPostPool(1);
+    const lookup = await pool.readPost(URL);
+
+    expect(lookup?.state).toBe("live");
+    expect(mockCreated).toEqual(["iad1"]);
   });
 });
