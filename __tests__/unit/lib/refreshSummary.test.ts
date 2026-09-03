@@ -1,10 +1,18 @@
 import { summariseRefresh, describeAudioRefresh } from "@/lib/refreshSummary";
 
 describe("summariseRefresh", () => {
-  it("leads with what actually landed", () => {
-    expect(summariseRefresh({ total: 17, measured: 3, noMetrics: 14 })).toBe(
-      "3 of 17 posts updated."
-    );
+  it("says a refresh happened and nothing more", () => {
+    expect(summariseRefresh({ total: 17, measured: 3, noMetrics: 14 })).toBe("Posts updated.");
+  });
+
+  it("does not give the ratio either", () => {
+    /* The count went the same way as the reasons, and for the same reason:
+       "3 of 17" invited the question the breakdown used to answer badly. How
+       fresh any single post is already sits on that post's own row, which is
+       where the reader can act on it. */
+    const text = summariseRefresh({ total: 17, measured: 3, noMetrics: 14 });
+    expect(text).not.toMatch(/\d/);
+    expect(text).not.toMatch(/of 17|3 of/);
   });
 
   it("says nothing about the posts that came back empty", () => {
@@ -12,17 +20,27 @@ describe("summariseRefresh", () => {
        as the product apologising in the middle of their campaign; the numbers
        are still on CampaignRefreshRun for whoever is debugging the run. */
     const text = summariseRefresh({ total: 5, measured: 1, noMetrics: 2, unfetchable: 2 });
-    expect(text).toBe("1 of 5 posts updated.");
+    expect(text).toBe("Post updated.");
     expect(text).not.toMatch(/no metrics|unfetchable/i);
   });
 
-  it("says post, not posts, for a campaign with one", () => {
-    expect(summariseRefresh({ total: 1, measured: 1 })).toBe("1 of 1 post updated.");
+  it("says post, not posts, when exactly one landed", () => {
+    expect(summariseRefresh({ total: 1, measured: 1 })).toBe("Post updated.");
+    expect(summariseRefresh({ total: 40, measured: 1 })).toBe("Post updated.");
+  });
+
+  it("does not claim an update when nothing was measured", () => {
+    /* The one line the shortened wording must not cross. A run that read no new
+       numbers has not updated anything, and "Posts updated." there would be the
+       toolbar telling the user something false. Still no cause named -- that
+       stays in the run record -- but not a false claim either. */
+    expect(summariseRefresh({ total: 62, measured: 0, noMetrics: 62 })).toBe("No new data yet.");
+    expect(summariseRefresh({ total: 62 })).toBe("No new data yet.");
   });
 
   it("does not mention failures or a deferred batch either", () => {
     expect(summariseRefresh({ total: 40, measured: 20, failed: 2, remaining: 18 })).toBe(
-      "20 of 40 posts updated."
+      "Posts updated."
     );
   });
 
@@ -35,13 +53,19 @@ describe("summariseRefresh", () => {
 describe("summariseRefresh audio", () => {
   it("reports an unreachable sound, which used to pass as a clean success", () => {
     expect(summariseRefresh({ total: 17, measured: 3, noMetrics: 14, sound: { failed: 1 } })).toBe(
-      "3 of 17 posts updated. The campaign audio could not be reached."
+      "Posts updated. The campaign audio could not be reached."
     );
   });
 
   it("reports a snapshot that landed", () => {
     expect(summariseRefresh({ total: 2, measured: 2, sound: { snapshots: 1 } })).toBe(
-      "2 of 2 posts updated. Campaign audio updated."
+      "Posts updated. Campaign audio updated."
+    );
+  });
+
+  it("still reports the audio when no post data landed", () => {
+    expect(summariseRefresh({ total: 4, measured: 0, sound: { failed: 1 } })).toBe(
+      "No new data yet. The campaign audio could not be reached."
     );
   });
 
@@ -59,7 +83,7 @@ describe("summariseRefresh audio", () => {
 
   it("says nothing about a sound that was too fresh to re-fetch", () => {
     expect(summariseRefresh({ total: 4, measured: 4, sound: { skipped: 1 } })).toBe(
-      "4 of 4 posts updated."
+      "Posts updated."
     );
   });
 

@@ -108,7 +108,7 @@ export function describeReasons(reasons?: Record<string, number>): string | null
 }
 
 /**
- * What the user is told after a refresh: how much landed, and nothing else.
+ * What the user is told after a refresh: that it happened, and nothing else.
  *
  * The breakdown this used to append -- "15 blocked by the platform, 13 publish
  * no counts, 3 no longer exist" -- was accurate and was the wrong audience. It
@@ -123,9 +123,12 @@ export function describeReasons(reasons?: Record<string, number>): string | null
  * describeReasons() below stays exported for exactly that. This is a change of
  * audience, not a loss of data.
  *
- * This held for the shared report, was briefly reversed for the operator's own
- * screen, and is now the rule everywhere (2026-09-03): the count, and nothing
- * about whose fault it was.
+ * Reduced twice on the same day (2026-09-03): first to drop the breakdown and
+ * keep "41 of 62", then to drop the ratio too. The end state is a single
+ * sentence that a refresh happened, because everything more specific was either
+ * an unactionable apology (the reasons) or an invitation to ask for one (the
+ * ratio). Per-post freshness still lives on each post's own row, where the
+ * reader can do something about it.
  */
 export function summariseRefresh(r: RefreshResult): string {
   const total = r.total ?? 0;
@@ -135,29 +138,29 @@ export function summariseRefresh(r: RefreshResult): string {
     return audio ? `No posts to refresh yet. ${audio}` : "No posts to refresh yet.";
   }
 
-  /* The count stays. "Updated." on a run that moved 27 of 58 would be the
-     opposite mistake -- hiding that most of the campaign holds numbers from an
-     hour ago, which is the one part of this the reader can act on by pressing
-     it again later. */
+  /* No count either, owner's call 2026-09-03. The earlier version said
+     "41 of 62 posts updated." on the grounds that "n of m" is the one part a
+     reader can act on -- press it again later for the rest. Overruled: the
+     ratio invited exactly the question the breakdown used to answer badly, and
+     the freshness of any single post is already on that post's own row.
+
+     The one thing this must not become is a false claim. A run that measured
+     nothing has not updated anything, and "Posts updated." there would be a
+     lie told by the toolbar -- so that case says so, still without naming a
+     cause. Everything about why remains in the run record and the log. */
   const measured = r.measured ?? 0;
-  const sentence = `${measured} of ${total} post${total === 1 ? "" : "s"} updated.`;
+  const sentence =
+    measured === 0
+      ? "No new data yet."
+      : `Post${measured === 1 ? "" : "s"} updated.`;
 
-  /* The breakdown is deliberately NOT here. Owner's call, 2026-09-03.
-
-     An earlier version appended it on this screen -- "41 of 62 posts updated.
-     16 blocked by the platform, 3 no longer exist, 2 refused by the platform."
-     The argument for it was that the operator cannot act on a withheld cause.
-     In practice the sentence read as the product apologising for itself, and
-     the three clauses are not one question but three, none of which the reader
-     can do anything about mid-refresh.
-
-     Nothing is lost, and that is the condition of removing it. Every reason is
-     still recorded in three places, none of which is this string:
+  /* Do not re-append the breakdown here. Nothing is lost by its absence, and
+     that is the condition of having removed it -- every reason is still
+     recorded in three places, none of which is this string:
        - CampaignRefreshRun.reasons, the whole tally, one row per run
        - Post.platformMetrics.__lastFetch, per post, with a timestamp
        - the "campaign refresh finished" log line
-     describeReasons() stays exported and is where the wording lives for
-     whoever is reading those. Do not re-append it here. */
+     describeReasons() above is where the wording for those lives. */
   const parts = [sentence, audio].filter(Boolean);
   return parts.join(" ");
 }
