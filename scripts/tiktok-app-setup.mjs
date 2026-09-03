@@ -85,7 +85,15 @@ from here.`);
 async function browser({ headless = false } = {}) {
   mkdirSync(PROFILE_DIR, { recursive: true });
   mkdirSync(OUT_DIR, { recursive: true });
+  /* System Chrome, not the bundled Chromium. The download at
+     ms-playwright/chromium-1208 is incomplete on this machine -- its Framework
+     binary is absent, so launching it dies with SIGABRT before a window opens,
+     which reads exactly like a login problem and is not one. Every other
+     Playwright entry point in this repo already pins channel: "chrome" for the
+     same reason. A real Chrome is also the less bot-flagged browser to present
+     to a login page that is actively looking for automation. */
   const ctx = await chromium.launchPersistentContext(PROFILE_DIR, {
+    channel: "chrome",
     headless,
     viewport: { width: 1440, height: 900 },
     args: ["--disable-blink-features=AutomationControlled"],
