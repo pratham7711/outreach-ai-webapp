@@ -366,7 +366,9 @@ export default function PostsTab({
             results[i] = {
               ...results[i],
               state: "failed",
-              error: body?.error ?? `Rejected (${res.status})`,
+              /* message first: it is the sentence written for a person,
+                 where error is the machine reason ("duplicate_post"). */
+              error: body?.message ?? body?.error ?? `Rejected (${res.status})`,
             };
           }
         } catch {
@@ -377,7 +379,14 @@ export default function PostsTab({
 
       const added = results.filter((r) => r.state === "done").length;
       const failed = results.filter((r) => r.state === "failed");
-      if (added > 0) fetchPosts();
+      /* The campaign's own totals live on the page above this tab -- the
+         Posts tab counter among them -- so adding posts has to tell it,
+         the same way Refresh Data does. Ten at once made the stale 0
+         impossible to miss. */
+      if (added > 0) {
+        fetchPosts();
+        onRefreshed?.();
+      }
 
       /* A partial batch keeps the dialog open showing only what failed, so the
          eight that worked are not re-submitted to retry the two that did not. */

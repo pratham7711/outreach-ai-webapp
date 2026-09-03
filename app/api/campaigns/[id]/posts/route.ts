@@ -113,6 +113,24 @@ export async function POST(
     }
 
     const { postUrl, mediaType, activationId } = parsed.data;
+
+    /* The same link twice is a second Post row, and every metric it carries is
+       then counted twice in the campaign's totals. Adding posts one at a time
+       made that a rare slip; pasting batches makes overlapping two pastes the
+       normal way to do it, so the second copy is refused by name rather than
+       created quietly. Scoped to the campaign -- the same post legitimately
+       appears in two campaigns. */
+    const already = await db.post.findFirst({
+      where: { campaignId, postUrl },
+      select: { id: true },
+    });
+    if (already) {
+      return NextResponse.json(
+        { error: "duplicate_post", message: "Already in this campaign." },
+        { status: 409 }
+      );
+    }
+
     const detected = detectPlatform(postUrl);
 
     /* An explicitly chosen creator always wins; the handle in the URL is only
