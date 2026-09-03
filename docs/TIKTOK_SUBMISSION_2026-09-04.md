@@ -100,22 +100,25 @@ cannot run unattended:
 DEMO_CREATOR_ID=<id> node scripts/record-tiktok-demo.mjs
 ```
 
-### 3.3 `TIKTOK_SCOPES` cannot be read back, and it overrides the code
+### 3.3 `TIKTOK_SCOPES` drift — fixed in code, no action needed
 
-`buildAuthorizeUrl` lets `process.env.TIKTOK_SCOPES` **override** the four
-scopes in code. It is set in production, marked sensitive, and
-`vercel env pull` returns `[SENSITIVE]` — so its value is unverifiable from
-here. If it has drifted from the declared four, review fails on the rule that
-requested and declared scopes must agree.
+**Resolved.** `buildAuthorizeUrl` used to pass `process.env.TIKTOK_SCOPES`
+through verbatim, so a stray value in one production variable could make the
+app request a scope the portal entry does not declare -- which fails review on
+its own, with every scope in the code still correct. The variable is sensitive
+in production and reads back as `[SENSITIVE]`, so it cannot be audited from a
+laptop.
 
-Not changed unilaterally, because removing a variable whose current value is
-unknown is a production change with an unknown blast radius. The safe fix is
-to make code the single source of truth:
+`resolveScopes` now intersects the override with the declared set: it can
+narrow the request, never widen it, and an override naming nothing declared
+falls back to the declared four rather than requesting nothing. Six unit tests
+in `__tests__/unit/lib/tiktokScopeOverride.test.ts` pin it, including the
+general property that no override can produce a scope outside the declared
+set.
 
-```bash
-vercel env rm TIKTOK_SCOPES production --yes
-vercel deploy --prod --yes    # env changes need a rebuild
-```
+The earlier advice to `vercel env rm TIKTOK_SCOPES production` is withdrawn:
+deleting a variable whose value nobody can read was a guess, and this makes
+the guess unnecessary.
 
 ### 3.4 Contact address stays off-domain, deliberately
 

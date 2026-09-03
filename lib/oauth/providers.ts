@@ -107,6 +107,40 @@ export function isProviderConfigured(platform: OAuthPlatform): boolean {
   );
 }
 
+/**
+ * TIKTOK_SCOPES may narrow the requested scopes; it may never widen them.
+ *
+ * TikTok's review fails an app that asks for a scope its portal entry does not
+ * declare, and the override used to be passed through verbatim -- so a stray
+ * value in one environment variable could sink a submission while every scope
+ * in the code stayed correct. The variable is marked sensitive in production
+ * and reads back as [SENSITIVE], so its value cannot be audited from a laptop;
+ * the only safe assumption is that it might be wrong.
+ *
+ * Intersecting keeps the reason the override exists -- asking for less while
+ * testing a narrower grant -- and makes the failure mode impossible, without
+ * anyone needing to read the secret. An override naming nothing declared is
+ * ignored rather than obeyed: requesting no scopes at all is not a safer
+ * outcome than requesting the declared set.
+ */
+function resolveScopes(
+  platform: OAuthPlatform,
+  provider: ProviderConfig,
+): string {
+  const raw =
+    platform === "tiktok" ? process.env.TIKTOK_SCOPES?.trim() : undefined;
+  if (!raw) return provider.scopes.join(provider.scopeSeparator);
+
+  const declared = new Set(provider.scopes);
+  const kept = raw
+    .split(/[\s,]+/)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0 && declared.has(s));
+
+  if (kept.length === 0) return provider.scopes.join(provider.scopeSeparator);
+  return kept.join(provider.scopeSeparator);
+}
+
 export function buildAuthorizeUrl(
   platform: OAuthPlatform,
   state: string,
@@ -118,12 +152,7 @@ export function buildAuthorizeUrl(
   url.searchParams.set(provider.clientIdParam, clientId);
   url.searchParams.set("redirect_uri", redirectUri(platform));
   url.searchParams.set("response_type", "code");
-  const scopeOverride =
-    platform === "tiktok" ? process.env.TIKTOK_SCOPES?.trim() : undefined;
-  url.searchParams.set(
-    "scope",
-    scopeOverride || provider.scopes.join(provider.scopeSeparator),
-  );
+  url.searchParams.set("scope", resolveScopes(platform, provider));
   url.searchParams.set("state", state);
   if (platform === "tiktok") url.searchParams.set("disable_auto_auth", "1");
   return url.toString();
