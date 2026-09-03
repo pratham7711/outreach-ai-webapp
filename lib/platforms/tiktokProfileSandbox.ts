@@ -47,6 +47,11 @@ export function openSandboxProfileFetcher(): SandboxProfileFetcher {
         // region, and deliberately so.
         region: "iad1",
         timeout: SANDBOX_LIFETIME_MS,
+        // Without this, stopping the sandbox snapshots its whole filesystem --
+        // 642MB that then bills as Sandbox Snapshot Storage for 30 days. Two
+        // hourly crons open one of these each, so it accrues ~31GB/day forever.
+        // We only ever run curl in here; there is no filesystem worth keeping.
+        persistent: false,
       });
       sandboxPromise.catch(() => {
         sandboxPromise = null;
@@ -160,7 +165,7 @@ export function openSandboxProfileFetcher(): SandboxProfileFetcher {
       const p = sandboxPromise;
       sandboxPromise = null;
       if (!p) return;
-      await p.then((s) => s.stop()).catch(() => {});
+      await p.then((s) => s.delete({ deleteOrphanSnapshots: true })).catch(() => {});
     },
   };
 }

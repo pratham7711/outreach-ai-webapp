@@ -184,7 +184,7 @@ export function openSandboxPostPool(size: number): SandboxPostFetcher {
     const spent = lane.sandbox;
     lane.sandbox = null;
     // Not awaited: the run should not pay the teardown before it can ask again.
-    if (spent) spent.then((sb) => sb.stop()).catch(() => {});
+    if (spent) spent.then((sb) => sb.delete({ deleteOrphanSnapshots: true })).catch(() => {});
 
     lane.generation += 1;
     lane.regionIndex += laneCount;
@@ -211,6 +211,10 @@ export function openSandboxPostPool(size: number): SandboxPostFetcher {
       lane.sandbox = Sandbox.create({
         region: lane.region as any,
         timeout: SANDBOX_LIFETIME_MS,
+        // See tiktokProfileSandbox: a stop with persistence on snapshots the
+        // whole 642MB filesystem and bills it for 30 days. Lanes are replaced
+        // aggressively, so this is the single largest storage line if left on.
+        persistent: false,
       });
       lane.sandbox.catch(() => {
         lane.sandbox = null;
@@ -400,7 +404,7 @@ export function openSandboxPostPool(size: number): SandboxPostFetcher {
           const p = lane.sandbox;
           lane.sandbox = null;
           if (!p) return;
-          await p.then((s) => s.stop()).catch(() => {});
+          await p.then((s) => s.delete({ deleteOrphanSnapshots: true })).catch(() => {});
         })
       );
     },
