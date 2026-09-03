@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Modal, Input, Badge } from "@pratham7711/ui";
 import { ChevronLeft, ChevronRight, Check } from "lucide-react";
 import { Dropdown, Button } from "@/components/ds";
+import { SOUND_URL_ERRORS, parseSoundUrl } from "@/lib/trackers/soundUrl";
 
 type Client = { id: string; name: string };
 
@@ -13,20 +14,21 @@ type TypeConfig =
   | { model: "per_view"; ratePerThousandViews: number; capAmount: number; currency: string; trackingWindowDays: number }
   | { model: "negotiated"; baseRate?: number; currency: string; allowCounterOffer: boolean };
 
+type PayoutModel = "fixed" | "per_view" | "negotiated";
+
 type WizardForm = {
-  // Step 1 — Basic info
+  // Step 1 — Basics
   title: string;
   clientId: string;
   thumbnailUrl: string;
   notes: string;
-  // Step 2 — Campaign type
-  campaignType: "BUDGET_BASED" | "VIEW_BASED" | "OPEN_COMMUNITY" | "PRIVATE_INVITE";
+  hasAudio: boolean;
+  audioUrl: string;
+  // Step 2 — Payout
+  payoutModel: PayoutModel;
   budget: string;
   currency: "USD" | "EUR" | "GBP" | "INR";
-  // Step 3 — Payment mode
   paymentMode: "MANAGED" | "SELF_MANAGED";
-  // Step 4 — Payout model
-  payoutModel: "fixed" | "per_view" | "negotiated";
   ratePerPost: string;
   maxPosts: string;
   ratePerThousandViews: string;
@@ -34,26 +36,41 @@ type WizardForm = {
   trackingWindowDays: string;
   baseRate: string;
   allowCounterOffer: boolean;
-  // Step 5 — Settings
+  // Step 3 — Settings
   postApprovalMode: "MANUAL" | "AUTO_APPROVED";
   paymentRelease: "MANUAL" | "ON_POST_APPROVAL" | "ON_CREATOR_REQUEST";
   enrollmentOpen: boolean;
 };
 
 const STEPS = [
-  { label: "Basic Info", icon: "1" },
-  { label: "Campaign Type", icon: "2" },
-  { label: "Payment Mode", icon: "3" },
-  { label: "Payout Model", icon: "4" },
-  { label: "Settings", icon: "5" },
+  { label: "Basics" },
+  { label: "Payout" },
+  { label: "Settings" },
 ];
 
-const CAMPAIGN_TYPES = [
-  { value: "BUDGET_BASED", label: "Budget Based", desc: "Fixed budget allocated to creators" },
-  { value: "VIEW_BASED", label: "View Based", desc: "Pay based on post performance" },
-  { value: "OPEN_COMMUNITY", label: "Open Community", desc: "Any creator can join and participate" },
-  { value: "PRIVATE_INVITE", label: "Private Invite", desc: "Invite-only campaign for select creators" },
-] as const;
+/**
+ * How the campaign gets paid for. This used to be asked twice: once as
+ * "Campaign Type" (Budget Based / View Based) and again as "Payout Model"
+ * (Fixed / Per 1K Views), in words so close they were indistinguishable --
+ * and as two independent fields, so "Budget Based" + "Per 1K Views" was
+ * selectable and produced a campaign whose payout calculator refuses to run,
+ * because that route requires campaignType === "VIEW_BASED" while the rates
+ * come from the payout model. Asking once and deriving the type removes the
+ * contradiction rather than documenting it.
+ */
+const PAYOUT_MODELS: { value: PayoutModel; label: string; desc: string }[] = [
+  { value: "fixed", label: "Fixed rate per post", desc: "A set amount for each approved post." },
+  { value: "per_view", label: "Per 1K views, with a cap", desc: "Pay on performance, capped at a maximum." },
+  { value: "negotiated", label: "Negotiated", desc: "Agree a rate with each creator individually." },
+];
+
+/** The stored campaignType follows from the payout choice. The two remaining
+ *  enum values (OPEN_COMMUNITY, PRIVATE_INVITE) describe *access*, which the
+ *  Open enrollment switch on the last step already decides -- the second place
+ *  the old form asked one question twice. */
+export function campaignTypeFor(model: PayoutModel): "VIEW_BASED" | "BUDGET_BASED" {
+  return model === "per_view" ? "VIEW_BASED" : "BUDGET_BASED";
+}
 
 const selectStyle = {
   width: "100%",
@@ -88,16 +105,18 @@ export default function CampaignWizard({ clients, onClose }: { clients: Client[]
   const router = useRouter();
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState<WizardForm>({
     title: "",
     clientId: "",
     thumbnailUrl: "",
     notes: "",
-    campaignType: "BUDGET_BASED",
+    hasAudio: false,
+    audioUrl: "",
+    payoutModel: "fixed",
     budget: "",
     currency: "USD",
     paymentMode: "SELF_MANAGED",
-    payoutModel: "fixed",
     ratePerPost: "",
     maxPosts: "",
     ratePerThousandViews: "",
@@ -111,6 +130,18 @@ export default function CampaignWizard({ clients, onClose }: { clients: Client[]
   });
 
   const set = (patch: Partial<WizardForm>) => setForm((f) => ({ ...f, ...patch }));
+
+  /* The same parser the server runs, so the form cannot accept a link the API
+     will reject -- and a post link is named as one before a request is made. */
+  const audioError = useMemo(() => {
+    if (!form.hasAudio) return null;
+    const raw = form.audioUrl.trim();
+    if (!raw) return null;
+    const parsed = parseSoundUrl(raw);
+    if (parsed.kind === "sound" || parsed.kind === "short-link") return null;
+    const reason = parsed.kind === "video" ? "video_url" : parsed.reason;
+    return SOUND_URL_ERRORS[reason] ?? SOUND_URL_ERRORS.unrecognised;
+  }, [form.hasAudio, form.audioUrl]);
 
   const buildTypeConfig = (): TypeConfig => {
     if (form.payoutModel === "fixed") {
@@ -140,6 +171,7 @@ export default function CampaignWizard({ clients, onClose }: { clients: Client[]
 
   const handleSubmit = async () => {
     setLoading(true);
+    setError(null);
     try {
       const res = await fetch("/api/campaigns", {
         method: "POST",
@@ -149,7 +181,7 @@ export default function CampaignWizard({ clients, onClose }: { clients: Client[]
           clientId: form.clientId || null,
           thumbnailUrl: form.thumbnailUrl || null,
           notes: form.notes || null,
-          campaignType: form.campaignType,
+          campaignType: campaignTypeFor(form.payoutModel),
           budget: form.budget ? Number(form.budget) : null,
           currency: form.currency,
           paymentMode: form.paymentMode,
@@ -157,6 +189,7 @@ export default function CampaignWizard({ clients, onClose }: { clients: Client[]
           postApprovalMode: form.postApprovalMode,
           enrollmentOpen: form.enrollmentOpen,
           typeConfig: buildTypeConfig(),
+          ...(form.hasAudio && form.audioUrl.trim() ? { audioUrl: form.audioUrl.trim() } : {}),
         }),
       });
       if (res.ok) {
@@ -164,14 +197,21 @@ export default function CampaignWizard({ clients, onClose }: { clients: Client[]
         router.push(`/campaigns/${data.id}`);
         router.refresh();
         onClose();
+        return;
       }
+      /* A rejected audio link is the likely failure and it happens on the step
+         the operator has already left, so say what went wrong instead of
+         closing silently -- the old form swallowed this. */
+      const body = await res.json().catch(() => null);
+      setError(body?.message ?? body?.error ?? "Could not create that campaign.");
+      if (body?.error && SOUND_URL_ERRORS[body.error]) setStep(0);
     } finally {
       setLoading(false);
     }
   };
 
   const canNext = () => {
-    if (step === 0) return form.title.trim().length > 0;
+    if (step === 0) return form.title.trim().length > 0 && !audioError;
     return true;
   };
 
@@ -211,7 +251,6 @@ export default function CampaignWizard({ clients, onClose }: { clients: Client[]
         </div>
       }
     >
-      {/* Step indicator */}
       <div style={{ display: "flex", gap: 4, marginBottom: 24 }}>
         {STEPS.map((s, i) => (
           <div
@@ -230,7 +269,13 @@ export default function CampaignWizard({ clients, onClose }: { clients: Client[]
         Step {step + 1} of {STEPS.length} — {STEPS[step].label}
       </p>
 
-      {/* Step 1 — Basic Info */}
+      {error && (
+        <div role="alert" style={{ fontSize: 13, color: "var(--cc-danger)", marginBottom: 16 }}>
+          {error}
+        </div>
+      )}
+
+      {/* ── Step 1 — Basics ─────────────────────────────────────────────── */}
       {step === 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
           <Input
@@ -254,6 +299,42 @@ export default function CampaignWizard({ clients, onClose }: { clients: Client[]
               ]}
             />
           </div>
+
+          {/* Audio is asked here rather than in a later step because it is a
+              fact about the campaign, known when it is set up, not a payment
+              decision. Off by default: brand work has no sound behind it. */}
+          <div>
+            <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+              <input
+                type="checkbox"
+                checked={form.hasAudio}
+                onChange={(e) => set({ hasAudio: e.target.checked, ...(e.target.checked ? {} : { audioUrl: "" }) })}
+              />
+              <span style={{ fontSize: 14, color: "var(--cc-text)" }}>This campaign promotes a sound</span>
+            </label>
+            {form.hasAudio && (
+              <div style={{ marginTop: 12 }}>
+                <Input
+                  label="Sound link"
+                  value={form.audioUrl}
+                  onChange={(e) => set({ audioUrl: e.target.value })}
+                  placeholder="tiktok.com/music/... or instagram.com/reels/audio/..."
+                  aria-invalid={audioError !== null}
+                />
+                {audioError ? (
+                  <p role="alert" style={{ fontSize: 12, color: "var(--cc-danger)", margin: "6px 0 0" }}>
+                    {audioError}
+                  </p>
+                ) : (
+                  <p style={{ fontSize: 12, color: "var(--cc-text-muted)", margin: "6px 0 0" }}>
+                    We start tracking the sound&apos;s usage from here. Title and artwork fill in
+                    after the first reading.
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+
           <Input
             label="Thumbnail URL"
             value={form.thumbnailUrl}
@@ -274,76 +355,11 @@ export default function CampaignWizard({ clients, onClose }: { clients: Client[]
         </div>
       )}
 
-      {/* Step 2 — Campaign Type */}
+      {/* ── Step 2 — Payout ─────────────────────────────────────────────── */}
       {step === 1 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            {CAMPAIGN_TYPES.map((ct) => (
-              <div
-                key={ct.value}
-                onClick={() => set({ campaignType: ct.value })}
-                style={cardOptionStyle(form.campaignType === ct.value)}
-              >
-                <p style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)", marginBottom: 4 }}>{ct.label}</p>
-                <p style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{ct.desc}</p>
-              </div>
-            ))}
-          </div>
-          <div style={{ display: "flex", gap: 12 }}>
-            <div style={{ flex: 1 }}>
-              <Input
-                label="Budget"
-                type="number"
-                value={form.budget}
-                onChange={(e) => set({ budget: e.target.value })}
-                placeholder="e.g. 10000"
-              />
-            </div>
-            <div style={{ width: 110 }}>
-              <label htmlFor="wz-currency" style={labelStyle}>Currency</label>
-              <Dropdown
-                ariaLabel="Currency"
-                align="left"
-                fullWidth
-                value={form.currency}
-                onChange={(v) => set({ currency: v as WizardForm["currency"] })}
-                options={["USD", "EUR", "GBP", "INR"].map((c) => ({ value: c, label: c }))}
-              />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Step 3 — Payment Mode */}
-      {step === 2 && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <p style={{ fontSize: 14, color: "var(--cc-text-muted)", marginBottom: 8 }}>
-            How will creator payments be handled for this campaign?
-          </p>
-          {[
-            { value: "MANAGED" as const, label: "Managed", desc: "We hold the deposit and release payments to creators through the platform." },
-            { value: "SELF_MANAGED" as const, label: "Self-managed", desc: "Your organization tracks and pays creators directly outside the platform." },
-          ].map((opt) => (
-            <div key={opt.value} onClick={() => set({ paymentMode: opt.value })} style={cardOptionStyle(form.paymentMode === opt.value)}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                <p style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>{opt.label}</p>
-                {form.paymentMode === opt.value && <Badge variant="accent">Selected</Badge>}
-              </div>
-              <p style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{opt.desc}</p>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Step 4 — Payout Model */}
-      {step === 3 && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {[
-              { value: "fixed" as const, label: "Fixed Rate per Post", desc: "Pay a set amount per approved post" },
-              { value: "per_view" as const, label: "Per 1K Views (with cap)", desc: "Pay based on post performance, capped at a maximum" },
-              { value: "negotiated" as const, label: "Negotiated", desc: "Negotiate rates individually with each creator" },
-            ].map((opt) => (
+            {PAYOUT_MODELS.map((opt) => (
               <div key={opt.value} onClick={() => set({ payoutModel: opt.value })} style={cardOptionStyle(form.payoutModel === opt.value)}>
                 <p style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>{opt.label}</p>
                 <p style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{opt.desc}</p>
@@ -351,7 +367,6 @@ export default function CampaignWizard({ clients, onClose }: { clients: Client[]
             ))}
           </div>
 
-          {/* Config fields per model */}
           {form.payoutModel === "fixed" && (
             <div style={{ display: "flex", gap: 12 }}>
               <div style={{ flex: 1 }}>
@@ -384,11 +399,52 @@ export default function CampaignWizard({ clients, onClose }: { clients: Client[]
               </label>
             </div>
           )}
+
+          <div style={{ display: "flex", gap: 12 }}>
+            <div style={{ flex: 1 }}>
+              <Input
+                label="Budget"
+                type="number"
+                value={form.budget}
+                onChange={(e) => set({ budget: e.target.value })}
+                placeholder="e.g. 10000"
+              />
+            </div>
+            <div style={{ width: 110 }}>
+              <label htmlFor="wz-currency" style={labelStyle}>Currency</label>
+              <Dropdown
+                ariaLabel="Currency"
+                align="left"
+                fullWidth
+                value={form.currency}
+                onChange={(v) => set({ currency: v as WizardForm["currency"] })}
+                options={["USD", "EUR", "GBP", "INR"].map((c) => ({ value: c, label: c }))}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label style={labelStyle}>Who handles payment?</label>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {[
+                { value: "MANAGED" as const, label: "Managed", desc: "We hold the deposit and release payments through the platform." },
+                { value: "SELF_MANAGED" as const, label: "Self-managed", desc: "Your organization pays creators directly, outside the platform." },
+              ].map((opt) => (
+                <div key={opt.value} onClick={() => set({ paymentMode: opt.value })} style={cardOptionStyle(form.paymentMode === opt.value)}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                    <p style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>{opt.label}</p>
+                    {form.paymentMode === opt.value && <Badge variant="accent">Selected</Badge>}
+                  </div>
+                  <p style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{opt.desc}</p>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       )}
 
-      {/* Step 5 — Settings */}
-      {step === 4 && (
+      {/* ── Step 3 — Settings ───────────────────────────────────────────── */}
+      {step === 2 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
           <div>
             <label style={labelStyle}>Post Approval Mode</label>

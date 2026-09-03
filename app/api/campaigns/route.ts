@@ -7,6 +7,7 @@ import { logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
 import { z } from "zod";
 import { pageParam, pageSizeParam, parseQuery } from "@/lib/http/queryParams";
+import { resolveAudioLink } from "@/lib/campaigns/audioLink";
 import { CAMPAIGN_STATUSES, CAMPAIGN_TYPES, campaignFilterSchema, campaignWhere } from "@/lib/listFilters";
 import type { PaymentMode, PaymentRelease, PostApprovalMode } from "@/lib/generated/prisma/client";
 
@@ -36,6 +37,9 @@ const createCampaignSchema = z.object({
   paymentRelease: z.enum(PAYMENT_RELEASES).optional(),
   postApprovalMode: z.enum(POST_APPROVAL_MODES).optional(),
   enrollmentOpen: z.boolean().optional(),
+  /* A pasted TikTok or Instagram sound link. Resolved server-side into the
+     Song -> TikTokSound pair a campaign points at; the client never sends ids. */
+  audioUrl: z.string().trim().min(1).nullable().optional(),
 });
 
 // GET /api/campaigns - List campaigns with filters and pagination
@@ -111,7 +115,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { title, status, campaignType, typeConfig, budget, currency, notes, clientId, folderId, thumbnailUrl, paymentMode, paymentRelease, postApprovalMode, enrollmentOpen } = parsed.data;
+    const { title, status, campaignType, typeConfig, budget, currency, notes, clientId, folderId, thumbnailUrl, paymentMode, paymentRelease, postApprovalMode, enrollmentOpen, audioUrl } = parsed.data;
 
     // clientId and folderId arrive in the body, so they have to be proven to
     // belong to this org before they are written. Without this a caller could
@@ -122,9 +126,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: `${foreign === "client" ? "Client" : "Folder"} not found` }, { status: 404 });
     }
 
+    /* Resolved before the campaign is written, so a bad link is a 400 that
+       names the problem rather than a campaign created without the audio the
+       operator asked for. */
+    let songId: string | null = null;
+    if (audioUrl) {
+      const audio = await resolveAudioLink(db, orgId, audioUrl, title);
+      if (!audio.ok) {
+        return NextResponse.json({ error: audio.reason, message: audio.message }, { status: 400 });
+      }
+      songId = audio.songId;
+    }
+
     const campaign = await db.campaign.create({
       data: {
         title,
+        songId,
         status: status ?? "DRAFT",
         campaignType: campaignType ?? "BUDGET_BASED",
         typeConfig: typeConfig ?? null,

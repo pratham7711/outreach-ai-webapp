@@ -41,8 +41,23 @@ const INSTAGRAM_HOSTS = new Set([
 /** Instagram audio record ids are plain numerics, well short of a snowflake. */
 const IG_ID_RE = /^(\d{8,25})$/;
 
-/** The platforms whose audio we can track. No YouTube: CreatorCore has no
- *  YouTube audio tracker either, so there is no shape to model one on. */
+/**
+ * The platforms whose audio we can track.
+ *
+ * No YouTube, and this is measured rather than assumed (2026-09-03, read out of
+ * CreatorCore's own option-set and record payloads rather than its UI, which
+ * shows a capped account): their tracker_type option set is exactly
+ * `creator | sound`; all 93 stored soundURL values are tiktok.com (73) or
+ * instagram.com (20); and the platform field on tracker records only ever holds
+ * tiktok or instagram. YouTube is in their app-wide 17-member Platform option
+ * set and on the *creator* type (youtubeAccountId, youtubeFlag,
+ * youtubePublicDemo) -- it is a creator platform there, never a sound.
+ *
+ * That matches what the platforms expose: TikTok and Instagram each publish an
+ * audio page carrying a use count, which is the number a tracker exists to
+ * follow. YouTube's Shorts source page publishes no equivalent counter, so
+ * adding it would mean inventing both a URL shape and a metric.
+ */
 export type SoundPlatform = "TIKTOK" | "INSTAGRAM";
 
 export type ParsedSoundUrl =
