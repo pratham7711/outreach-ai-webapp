@@ -2,7 +2,12 @@ import { chromium } from "playwright";
 import fs from "node:fs";
 import path from "node:path";
 
-const APP = "https://app.prathamsharma.in";
+/* TikTok's web rule: the demo video's domain must match the submitted
+   Website URL. This was hardcoded to app.prathamsharma.in, which no longer
+   resolves at all -- a recording made with it would have failed review for
+   the same field that failed last time. Defaults to the submitted domain
+   and stays overridable for a local rehearsal. */
+const APP = process.env.DEMO_APP_URL || "https://campaign.madeboring.com";
 const CREATOR_ID = process.env.DEMO_CREATOR_ID;
 const STATE = process.env.DEMO_STATE || "/Users/pratham/.playwright-mcp/demo-state.json";
 const OUT_DIR = process.env.DEMO_OUT || "/Users/pratham/.playwright-mcp/demo";
