@@ -16,6 +16,7 @@ import { metricValue, unwrittenMetricValue, fieldMetricValue, engagementRateValu
 import { summariseRefresh } from "@/lib/refreshSummary";
 import { toast } from "sonner";
 import { detectPlatform } from "@/lib/platforms/fetchPostMetrics";
+import { MAX_BULK_POSTS, parsePastedPostUrls } from "@/lib/posts/pastedUrls";
 
 type SnapshotLite = { id: string; viewsCount: number; recordedAt: string };
 
@@ -67,6 +68,18 @@ const STATUS_TABS = [
 
 const PLATFORM_FILTERS = ["ALL", "TIKTOK", "INSTAGRAM", "YOUTUBE"] as const;
 const MEDIA_TYPE_FILTERS = ["ALL", "REEL", "STORY", "POST", "SHORT"] as const;
+
+type AddRow = {
+  url: string;
+  /** Blank means "let the server read the creator off the link". */
+  creatorId: string;
+  /** Blank means auto-detect. */
+  mediaType: string;
+  state: "idle" | "saving" | "done" | "failed";
+  error?: string;
+};
+
+
 const PAGE_SIZE = 25;
 
 const STATUS_BADGE: Record<string, "warning" | "success" | "danger" | "neutral"> = {
@@ -258,7 +271,11 @@ export default function PostsTab({
   const [showRejectModal, setShowRejectModal] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [addForm, setAddForm] = useState({ postUrl: "", creatorId: "", mediaType: "" });
+  /* One pasted blob, many posts. Operators receive links in batches (a client
+     sends the week's ten in one message), and adding them one modal at a time
+     was ten round trips through the same three fields. */
+  const [addText, setAddText] = useState("");
+  const [addRows, setAddRows] = useState<AddRow[]>([]);
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [refreshingAll, setRefreshingAll] = useState(false);
   /** How far a run in flight has got, so the button can say "12 of 88" the way
@@ -301,38 +318,81 @@ export default function PostsTab({
   /* Pure URL parsing, so it runs as the operator types with no request behind
      it. The server re-derives all of this from the same function -- this copy
      exists to show the answer, never to be the answer. */
-  const addDetected = useMemo(
-    () => (addForm.postUrl ? detectPlatform(addForm.postUrl) : null),
-    [addForm.postUrl]
+  const addDetections = useMemo(
+    () => addRows.map((r) => detectPlatform(r.url)),
+    [addRows]
   );
 
-  const handleAddPost = async () => {
-    if (!addForm.postUrl) return;
+  /* Every row needs a creator: either chosen, or one the link gave up. The
+     button stays disabled until that is true of all of them, so a batch cannot
+     half-fail on a rule we could see in advance. */
+  const addReady =
+    addRows.length > 0 &&
+    addRows.every((r, i) => r.state === "done" || r.creatorId || addDetections[i]?.handle);
+
+  const handleAddPosts = async () => {
+    const pending = addRows.filter((r) => r.state !== "done");
+    if (pending.length === 0) return;
     setSubmitting(true);
     try {
-      /* Absent keys, not nulls. mediaType is z.enum().optional(), which accepts
-         undefined and rejects null, so sending `mediaType: null` for the
-         "Auto-detect" option -- the default -- failed validation before it could
-         reach the detector, and the old `if (res.ok)` with no else swallowed the
-         400 and left the dialog sitting there. Same for creatorId, whose absence
-         is now what asks the server to read the creator off the URL. */
-      const res = await fetch(`/api/campaigns/${campaignId}/posts`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          postUrl: addForm.postUrl,
-          ...(addForm.creatorId ? { creatorId: addForm.creatorId } : {}),
-          ...(addForm.mediaType ? { mediaType: addForm.mediaType } : {}),
-        }),
-      });
-      if (res.ok) {
-        setShowAddPost(false);
-        setAddForm({ postUrl: "", creatorId: "", mediaType: "" });
-        fetchPosts();
-        return;
+      /* Sequential on purpose. Each add triggers a first metrics read server
+         side, and firing ten at once is what trips the platform rate limits the
+         sync path spends its life working around. Ten links is a few seconds. */
+      const results: AddRow[] = [...addRows];
+      for (let i = 0; i < results.length; i++) {
+        if (results[i].state === "done") continue;
+        results[i] = { ...results[i], state: "saving", error: undefined };
+        setAddRows([...results]);
+
+        /* Absent keys, not nulls. mediaType is z.enum().optional(), which accepts
+           undefined and rejects null, so sending `mediaType: null` for the
+           "Auto-detect" option -- the default -- failed validation before it could
+           reach the detector. Same for creatorId, whose absence is now what asks
+           the server to read the creator off the URL. */
+        try {
+          const res = await fetch(`/api/campaigns/${campaignId}/posts`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              postUrl: results[i].url,
+              ...(results[i].creatorId ? { creatorId: results[i].creatorId } : {}),
+              ...(results[i].mediaType ? { mediaType: results[i].mediaType } : {}),
+            }),
+          });
+          if (res.ok) {
+            results[i] = { ...results[i], state: "done" };
+          } else {
+            const body = await res.json().catch(() => null);
+            results[i] = {
+              ...results[i],
+              state: "failed",
+              error: body?.error ?? `Rejected (${res.status})`,
+            };
+          }
+        } catch {
+          results[i] = { ...results[i], state: "failed", error: "Network error" };
+        }
+        setAddRows([...results]);
       }
-      const body = await res.json().catch(() => null);
-      toast.error(body?.error ?? "Could not add that post.");
+
+      const added = results.filter((r) => r.state === "done").length;
+      const failed = results.filter((r) => r.state === "failed");
+      if (added > 0) fetchPosts();
+
+      /* A partial batch keeps the dialog open showing only what failed, so the
+         eight that worked are not re-submitted to retry the two that did not. */
+      if (failed.length === 0) {
+        setShowAddPost(false);
+        setAddRows([]);
+        setAddText("");
+        toast.success(added === 1 ? "Post added." : `${added} posts added.`);
+      } else {
+        toast.error(
+          added > 0
+            ? `${added} added, ${failed.length} could not be added.`
+            : "None of those could be added."
+        );
+      }
     } finally {
       setSubmitting(false);
     }
@@ -503,6 +563,10 @@ export default function PostsTab({
   }, [campaignId]);
 
   const openAddPost = () => {
+    /* Reset here rather than on close: a failed batch leaves its rows on screen
+       so the operator can read what went wrong, and only reopening clears them. */
+    setAddText("");
+    setAddRows([]);
     setShowAddPost(true);
   };
 
@@ -1320,53 +1384,158 @@ export default function PostsTab({
       ) : null}
 
       {showAddPost && (
-        <Modal open={true} onClose={() => setShowAddPost(false)} title="Add Post" size="md" footer={
-          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-            <Button variant="secondary" onClick={() => setShowAddPost(false)}>Cancel</Button>
-            <Button variant="primary" loading={submitting} onClick={handleAddPost} disabled={!addForm.postUrl || !(addForm.creatorId || addDetected?.handle)}>Submit Post</Button>
-          </div>
-        }>
+        <Modal
+          open={true}
+          onClose={() => setShowAddPost(false)}
+          title={addRows.length > 1 ? `Add ${addRows.length} Posts` : "Add Post"}
+          size="lg"
+          footer={
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <Button variant="secondary" onClick={() => setShowAddPost(false)}>Cancel</Button>
+              <Button variant="primary" loading={submitting} onClick={handleAddPosts} disabled={!addReady}>
+                {addRows.length > 1 ? `Submit ${addRows.filter((r) => r.state !== "done").length} Posts` : "Submit Post"}
+              </Button>
+            </div>
+          }
+        >
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            <Input label="Post URL" value={addForm.postUrl} onChange={(e) => setAddForm((f) => ({ ...f, postUrl: e.target.value }))} placeholder="https://youtube.com/watch?v=..." required />
             <div>
-              <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>
-                Creator{addDetected?.handle ? " (optional)" : ""}
+              <label htmlFor="add-post-urls" style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>
+                Post links
               </label>
-              <CreatorSelect
-                value={addForm.creatorId}
-                onChange={(id) => setAddForm((f) => ({ ...f, creatorId: id }))}
+              <textarea
+                id="add-post-urls"
+                autoFocus
+                value={addText}
+                onChange={(e) => {
+                  const text = e.target.value;
+                  setAddText(text);
+                  const urls = parsePastedPostUrls(text).slice(0, MAX_BULK_POSTS);
+                  /* Keep whatever the operator already chose for a link that is
+                     still in the list -- retyping ten creators because one line
+                     changed would defeat the point of the batch. */
+                  setAddRows((prev) =>
+                    urls.map(
+                      (url) =>
+                        prev.find((r) => r.url === url) ?? {
+                          url,
+                          creatorId: "",
+                          mediaType: "",
+                          state: "idle" as const,
+                        }
+                    )
+                  );
+                }}
+                placeholder={"Paste one link per line — or a whole batch at once:\nhttps://www.tiktok.com/@someone/video/123...\nhttps://www.instagram.com/reel/ABC...\nhttps://youtube.com/watch?v=..."}
+                rows={4}
+                style={{
+                  width: "100%",
+                  padding: "10px 14px",
+                  borderRadius: 10,
+                  border: "1px solid var(--cc-border)",
+                  fontSize: 13,
+                  fontFamily: "inherit",
+                  color: "var(--cc-text)",
+                  background: "var(--cc-card)",
+                  outline: "none",
+                  boxSizing: "border-box",
+                  resize: "vertical",
+                }}
               />
-              {/* Says what the link gave away, so the operator can see it was
-                  read correctly rather than trusting a silent match. */}
-              {addDetected?.handle && !addForm.creatorId && (
-                <p style={{ fontSize: 12, color: "var(--cc-text-muted)", margin: "6px 0 0" }}>
-                  Detected <strong style={{ color: "var(--cc-text)" }}>@{addDetected.handle}</strong> from the link. Leave this blank to use them.
-                </p>
-              )}
+              <p style={{ fontSize: 12, color: "var(--cc-text-muted)", margin: "6px 0 0" }}>
+                {addRows.length === 0
+                  ? `Separated by new lines, spaces or commas. Up to ${MAX_BULK_POSTS} at a time.`
+                  : `${addRows.length} link${addRows.length === 1 ? "" : "s"} found${
+                      parsePastedPostUrls(addText).length > MAX_BULK_POSTS
+                        ? ` — only the first ${MAX_BULK_POSTS} are used`
+                        : ""
+                    }.`}
+              </p>
             </div>
-            <div>
-              <label htmlFor="add-post-mediatype" style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Media Type</label>
-              <Dropdown
-                ariaLabel="Media Type"
-                align="left"
-                fullWidth
-                value={addForm.mediaType}
-                onChange={(v) => setAddForm((f) => ({ ...f, mediaType: v }))}
-                options={[
-                  {
-                    value: "",
-                    label: addDetected?.mediaType
-                      ? `Auto-detect (${addDetected.mediaType.toLowerCase()})`
-                      : "Auto-detect",
-                  },
-                  { value: "REEL", label: "Reel" },
-                  { value: "STORY", label: "Story" },
-                  { value: "POST", label: "Post" },
-                  { value: "SHORT", label: "Short" },
-                  { value: "VIDEO", label: "Video" },
-                ]}
-              />
-            </div>
+
+            {addRows.map((row, i) => {
+              const det = addDetections[i];
+              const needsCreator = !row.creatorId && !det?.handle;
+              return (
+                <div
+                  key={row.url}
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 10,
+                    padding: 12,
+                    borderRadius: 10,
+                    border: `1px solid ${row.state === "failed" ? "var(--cc-danger)" : "var(--cc-border)"}`,
+                    background: row.state === "done" ? "var(--cc-primary-light)" : "var(--cc-card)",
+                    opacity: row.state === "done" ? 0.7 : 1,
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, justifyContent: "space-between" }}>
+                    <span style={{ fontSize: 12, color: "var(--cc-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
+                      {det ? `${det.platform} · ` : ""}{row.url}
+                    </span>
+                    {row.state === "done" && <Badge variant="success">Added</Badge>}
+                    {row.state === "saving" && <Badge variant="neutral">Adding…</Badge>}
+                    {row.state === "failed" && <Badge variant="danger">{row.error ?? "Failed"}</Badge>}
+                    {row.state === "idle" && (
+                      <button
+                        type="button"
+                        aria-label={`Remove ${row.url}`}
+                        onClick={() => {
+                          setAddRows((prev) => prev.filter((r) => r.url !== row.url));
+                          setAddText((t) => t.split(/\r?\n/).filter((l) => !l.includes(row.url)).join("\n"));
+                        }}
+                        style={{ border: "none", background: "none", cursor: "pointer", color: "var(--cc-text-muted)", fontSize: 16, lineHeight: 1 }}
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+
+                  {row.state !== "done" && (
+                    <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                      <div style={{ flex: "1 1 220px", minWidth: 200 }}>
+                        <CreatorSelect
+                          value={row.creatorId}
+                          onChange={(id) =>
+                            setAddRows((prev) => prev.map((r) => (r.url === row.url ? { ...r, creatorId: id } : r)))
+                          }
+                        />
+                        {det?.handle && !row.creatorId && (
+                          <p style={{ fontSize: 12, color: "var(--cc-text-muted)", margin: "6px 0 0" }}>
+                            Detected <strong style={{ color: "var(--cc-text)" }}>@{det.handle}</strong> — leave blank to use them.
+                          </p>
+                        )}
+                        {needsCreator && (
+                          <p style={{ fontSize: 12, color: "var(--cc-danger)", margin: "6px 0 0" }}>
+                            This link doesn&apos;t name a creator — pick one.
+                          </p>
+                        )}
+                      </div>
+                      <div style={{ flex: "0 1 180px", minWidth: 160 }}>
+                        <Dropdown
+                          ariaLabel={`Media type for ${row.url}`}
+                          align="left"
+                          fullWidth
+                          value={row.mediaType}
+                          onChange={(v) =>
+                            setAddRows((prev) => prev.map((r) => (r.url === row.url ? { ...r, mediaType: v } : r)))
+                          }
+                          options={[
+                            { value: "", label: det?.mediaType ? `Auto (${det.mediaType.toLowerCase()})` : "Auto-detect" },
+                            { value: "REEL", label: "Reel" },
+                            { value: "STORY", label: "Story" },
+                            { value: "POST", label: "Post" },
+                            { value: "SHORT", label: "Short" },
+                            { value: "VIDEO", label: "Video" },
+                          ]}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </Modal>
       )}
