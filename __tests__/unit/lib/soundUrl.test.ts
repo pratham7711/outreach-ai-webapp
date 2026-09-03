@@ -5,7 +5,7 @@ const REAL = "7546394810303694849"; // "Wherever I Go" — the one real tracked 
 describe("parseSoundUrl — canonical music links", () => {
   it("reads the id off a normal music URL", () => {
     const r = parseSoundUrl(`https://www.tiktok.com/music/Wherever-I-Go-${REAL}`);
-    expect(r).toEqual({ kind: "sound", tiktokSoundId: REAL, provisionalTitle: "Wherever I Go" });
+    expect(r).toEqual({ kind: "sound", platform: "TIKTOK", tiktokSoundId: REAL, provisionalTitle: "Wherever I Go" });
   });
 
   it("takes the TRAILING digit run, not the first number in the slug", () => {
@@ -34,6 +34,7 @@ describe("parseSoundUrl — canonical music links", () => {
   it("accepts a slug that is only the id", () => {
     expect(parseSoundUrl(`https://www.tiktok.com/music/${REAL}`)).toEqual({
       kind: "sound",
+      platform: "TIKTOK",
       tiktokSoundId: REAL,
       provisionalTitle: null,
     });
@@ -42,6 +43,7 @@ describe("parseSoundUrl — canonical music links", () => {
   it("still accepts a bare id, which is what ops paste", () => {
     expect(parseSoundUrl(REAL)).toEqual({
       kind: "sound",
+      platform: "TIKTOK",
       tiktokSoundId: REAL,
       provisionalTitle: null,
     });
@@ -124,5 +126,65 @@ describe("deslugTitle", () => {
 
   it("returns null when the slug is only an id", () => {
     expect(deslugTitle(REAL)).toBeNull();
+  });
+});
+
+/**
+ * Instagram audio. The URL shape and the sample id are taken verbatim from a
+ * live CreatorCore audio tracker (soundurl_text), so these assert against what
+ * the reference app actually stores rather than a guess at the format.
+ */
+describe("parseSoundUrl — Instagram audio", () => {
+  const IG = "477633528619317"; // BMW FUNK (SLOWED), a real CreatorCore tracker
+
+  it("reads the id off the canonical reels/audio link", () => {
+    expect(parseSoundUrl(`https://www.instagram.com/reels/audio/${IG}/`)).toEqual({
+      kind: "sound",
+      platform: "INSTAGRAM",
+      tiktokSoundId: IG,
+      provisionalTitle: null,
+    });
+  });
+
+  it("accepts the singular /reel/audio/ spelling and a missing trailing slash", () => {
+    expect(parseSoundUrl(`https://instagram.com/reel/audio/${IG}`)).toMatchObject({
+      kind: "sound",
+      platform: "INSTAGRAM",
+      tiktokSoundId: IG,
+    });
+  });
+
+  it("ignores share query params", () => {
+    const a = parseSoundUrl(`https://www.instagram.com/reels/audio/${IG}/?igsh=abc123`);
+    const b = parseSoundUrl(`https://www.instagram.com/reels/audio/${IG}/`);
+    expect(a).toEqual(b);
+  });
+
+  it("names a reel permalink as a post link, not a sound", () => {
+    // The shortcode is the reel's, not the audio's -- tracking it would follow
+    // something that does not exist, the same trap as a TikTok video link.
+    expect(parseSoundUrl("https://www.instagram.com/reel/C8xYzAbCdEf/")).toEqual({
+      kind: "video",
+      reason: "video_url",
+    });
+  });
+
+  it("names a feed post link the same way", () => {
+    expect(parseSoundUrl("https://www.instagram.com/p/C8xYzAbCdEf/")).toEqual({
+      kind: "video",
+      reason: "video_url",
+    });
+  });
+
+  it("does not mistake an Instagram profile for a sound", () => {
+    expect(parseSoundUrl("https://www.instagram.com/remembxredphonk/")).toMatchObject({
+      kind: "invalid",
+    });
+  });
+
+  it("keeps TikTok ids on TikTok — an IG id is too short for a snowflake", () => {
+    // A bare 15-digit id is not a TikTok snowflake and must not be accepted as
+    // one; platform comes from the host, never from the id's shape.
+    expect(parseSoundUrl(IG)).toMatchObject({ kind: "invalid" });
   });
 });

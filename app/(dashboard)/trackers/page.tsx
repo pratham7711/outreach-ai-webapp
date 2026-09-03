@@ -309,7 +309,7 @@ export default function TrackersPage() {
       <div className="rsp-header">
         <div>
           <h1 style={{ fontSize: 26, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Trackers</h1>
-          <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>Track TikTok sounds and creators</p>
+          <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>Track TikTok and Instagram sounds, and creators</p>
         </div>
         {/* The two tabs track different things, so they get different actions in
             the same place rather than one tab's buttons sitting inert. */}
@@ -680,12 +680,12 @@ export default function TrackersPage() {
       }>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <label htmlFor="sound-url" style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>
-            TikTok sound link
+            TikTok or Instagram sound link
           </label>
           <Input
             id="sound-url"
             autoFocus
-            placeholder="https://www.tiktok.com/music/..."
+            placeholder="tiktok.com/music/... or instagram.com/reels/audio/..."
             value={urlInput}
             onChange={(e) => setUrlInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter" && !clientError && urlInput.trim()) handleCreate(); }}
@@ -698,9 +698,9 @@ export default function TrackersPage() {
             </div>
           ) : (
             <div id="sound-url-help" style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>
-              Open the sound&apos;s page on TikTok — tap the spinning record on any video, or the
-              sound name at the bottom — then copy that link. The title and artwork fill in
-              automatically after the first reading.
+              Open the sound&apos;s own page — on TikTok tap the spinning record on any video (or
+              the sound name at the bottom); on Instagram tap the audio name under a reel — then
+              copy that link. The title and artwork fill in automatically after the first reading.
             </div>
           )}
         </div>

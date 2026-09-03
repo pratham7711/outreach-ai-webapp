@@ -276,6 +276,14 @@ export const SONG_PHASE_SLOT_DDL: string[] = [
   `ALTER TABLE "Song" ADD COLUMN IF NOT EXISTS "soundId" TEXT`,
   `CREATE INDEX IF NOT EXISTS "Song_soundId_idx" ON "Song"("soundId")`,
 
+  // Which platform a tracked sound belongs to. CreatorCore's audio trackers are
+  // tiktok + instagram (73 and 20 of 93, measured 2026-09-03) and it has no
+  // YouTube one, so those are the only two values reachable. Reuses the existing
+  // "Platform" enum type deliberately: a new type would need CREATE TYPE, which
+  // has no IF NOT EXISTS and would break this script's re-runnability. Every
+  // pre-existing row is TikTok, which is exactly what the default backfills.
+  `ALTER TABLE "TikTokSound" ADD COLUMN IF NOT EXISTS "platform" "Platform" NOT NULL DEFAULT 'TIKTOK'`,
+
   // Postgres has no ADD CONSTRAINT IF NOT EXISTS. These are not cosmetic: the
   // referential actions below are where `onDelete: SetNull` and `Cascade` in
   // schema.prisma actually live, so without them deleting a campaign fails or

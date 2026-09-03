@@ -238,6 +238,10 @@ export async function POST(req: NextRequest) {
     }
 
     let tiktokSoundId: string;
+    /* Which platform's audio this is. It comes from the URL's host, never from
+       the id's shape: an Instagram record id is far shorter than a TikTok
+       snowflake, and guessing from length would misfile one as the other. */
+    let platform: "TIKTOK" | "INSTAGRAM" = "TIKTOK";
     let title: string;
     let artist: string;
     let coverImageUrl: string | null = null;
@@ -274,6 +278,7 @@ export async function POST(req: NextRequest) {
       }
 
       tiktokSoundId = result.tiktokSoundId;
+      platform = result.platform;
       // Marked provisional wherever it is shown; the first reading replaces it
       // with whatever TikTok actually calls the sound.
       title = result.provisionalTitle ?? `Sound ${result.tiktokSoundId.slice(-6)}`;
@@ -293,7 +298,7 @@ export async function POST(req: NextRequest) {
     const entitlements = await getOrgEntitlements(orgId);
     const maxTrackers = entitlements?.limits.maxTrackers ?? Infinity;
     if (Number.isFinite(maxTrackers)) {
-      const already = await db.tikTokSound.findFirst({ where: { orgId, tiktokSoundId } });
+      const already = await db.tikTokSound.findFirst({ where: { orgId, platform, tiktokSoundId } });
       if (!already) {
         const tracked = await db.tikTokSound.count({ where: { orgId } });
         if (tracked >= maxTrackers) {
@@ -317,14 +322,16 @@ export async function POST(req: NextRequest) {
     // sound would read the same page twice and diverge. Return what is already
     // tracked instead of creating a duplicate or failing.
     const existing = await db.tikTokSound.findFirst({
-      where: { orgId, tiktokSoundId },
+      // Scoped by platform: the same numeric id can exist on both, and merging
+      // them would point one platform's tracker at the other's usage curve.
+      where: { orgId, platform, tiktokSoundId },
     });
     if (existing) {
       return NextResponse.json({ ...existing, alreadyTracked: true }, { status: 200 });
     }
 
     const sound = await db.tikTokSound.create({
-      data: { orgId, tiktokSoundId, title, artist, coverImageUrl },
+      data: { orgId, platform, tiktokSoundId, title, artist, coverImageUrl },
     });
 
     return NextResponse.json(sound, { status: 201 });

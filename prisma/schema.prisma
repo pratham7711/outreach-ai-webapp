@@ -882,6 +882,12 @@ model PostMetricSnapshot {
 model TikTokSound {
   id            String   @id @default(cuid())
   orgId         String
+  /// Which platform's audio this row is. Reuses the shared Platform enum so
+  /// prod needs no CREATE TYPE. Only TIKTOK and INSTAGRAM are reachable --
+  /// CreatorCore tracks exactly those two and has no YouTube audio tracker.
+  platform      Platform @default(TIKTOK)
+  /// The platform-native sound id. Keeps its TikTok-era name because the
+  /// column is called that in prod and renaming it is not worth a DDL.
   tiktokSoundId String
   title         String
   artist        String
