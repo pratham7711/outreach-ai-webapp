@@ -128,6 +128,33 @@ address that answers. Route mail for the domain before flipping
 
 ---
 
+## 3.5 A reviewer needs an account, and there is no demo login
+
+Measured today: `/` and `/explore` are public, but `/campaigns` and
+`/creators` both 302 to `/login`. The TikTok integration lives behind that
+wall -- connecting an account, and the campaign dashboard the connected data
+is shown on, cannot be reached signed out.
+
+TikTok's review requires working demo credentials whenever the app needs a
+login, so the reviewer can exercise the integration rather than take the
+video's word for it. **No demo account is recorded in any doc in this repo**,
+and the submission fields in §2 have nowhere to put one because the portal
+asks for it separately.
+
+This is the most likely cause of a *second* rejection now that Website URL is
+fixed: the first reviewer never got past the front door, so it was never
+reached. What is needed:
+
+- a real org on prod with a seeded campaign and at least one connected TikTok
+  creator, so the dashboard shows actual metrics rather than empty state;
+- credentials for it pasted into the review notes alongside the video;
+- the account left enabled until the review closes.
+
+It cannot be created from a session: `~/.config/outreach-prod/credentials.env`
+holds placeholders, so there is no way in to prod to make one.
+
+---
+
 ## 4. Order of operations
 
 1. Log in to the portal (3.1).
