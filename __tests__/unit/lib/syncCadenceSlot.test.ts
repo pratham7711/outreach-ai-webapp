@@ -24,11 +24,15 @@ function input(overrides: Partial<SyncDecisionInput> = {}): SyncDecisionInput {
   };
 }
 
+/* These all sit past SEAL_AGE_HOURS deliberately. The settlement escape lives
+   inside the seal branch, so it only has anything to override once a post is
+   old enough to be sealed. Below that horizon a post is already synced daily by
+   the ordinary cadence, which is what settlement wanted in the first place. */
 describe("settlement poll is never metered by the tracker", () => {
-  it("does not seal a >30d post while its payout window is still open", () => {
+  it("does not seal a >180d post while its payout window is still open", () => {
     const decision = decideSyncAction(
       input({
-        postedAt: hoursAgo(45 * 24),
+        postedAt: hoursAgo(200 * 24),
         lastSyncedAt: hoursAgo(30),
         settlementClosesAt: hoursAhead(24 * 10),
       })
@@ -39,7 +43,7 @@ describe("settlement poll is never metered by the tracker", () => {
   it("keeps settling daily even with no tracker attached at all", () => {
     const decision = decideSyncAction(
       input({
-        postedAt: hoursAgo(60 * 24),
+        postedAt: hoursAgo(220 * 24),
         lastSyncedAt: hoursAgo(25),
         slot: null,
         settlementClosesAt: hoursAhead(48),
@@ -51,7 +55,7 @@ describe("settlement poll is never metered by the tracker", () => {
   it("keeps settling after the tracker has been released", () => {
     const decision = decideSyncAction(
       input({
-        postedAt: hoursAgo(40 * 24),
+        postedAt: hoursAgo(190 * 24),
         lastSyncedAt: hoursAgo(26),
         slot: { state: "RELEASED", hotUntil: null },
         settlementClosesAt: hoursAhead(72),
@@ -63,7 +67,7 @@ describe("settlement poll is never metered by the tracker", () => {
   it("throttles settlement to daily rather than polling it hourly", () => {
     const decision = decideSyncAction(
       input({
-        postedAt: hoursAgo(45 * 24),
+        postedAt: hoursAgo(200 * 24),
         lastSyncedAt: hoursAgo(2),
         settlementClosesAt: hoursAhead(24),
       })
@@ -74,17 +78,17 @@ describe("settlement poll is never metered by the tracker", () => {
   it("seals once the payout window has closed", () => {
     const decision = decideSyncAction(
       input({
-        postedAt: hoursAgo(45 * 24),
+        postedAt: hoursAgo(200 * 24),
         lastSyncedAt: hoursAgo(30),
         settlementClosesAt: hoursAgo(1),
       })
     );
-    expect(decision).toEqual({ action: "seal", reason: "age-over-30d" });
+    expect(decision).toEqual({ action: "seal", reason: "age-over-180d" });
   });
 
-  it("still seals at 30d when no settlement window is supplied", () => {
-    const decision = decideSyncAction(input({ postedAt: hoursAgo(31 * 24) }));
-    expect(decision).toEqual({ action: "seal", reason: "age-over-30d" });
+  it("still seals at 180d when no settlement window is supplied", () => {
+    const decision = decideSyncAction(input({ postedAt: hoursAgo(181 * 24) }));
+    expect(decision).toEqual({ action: "seal", reason: "age-over-180d" });
   });
 });
 

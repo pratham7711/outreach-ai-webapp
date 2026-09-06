@@ -40,6 +40,36 @@ export type SyncDecisionInput = {
 const HOUR_MS = 1000 * 60 * 60;
 const TRACKING_WINDOW_HOURS = 72;
 
+/**
+ * How old a post gets before its numbers are sealed and it leaves the sweep
+ * for good.
+ *
+ * This was 30 days, and 30 days was wrong in a way that only shows up in
+ * production data. The seal is measured from `postedAt` -- the publish date --
+ * with no reference to whether anyone still cares about the campaign, and it
+ * is one-way: sealing writes an `isFinalSnapshot` row, and the cron's candidate
+ * query excludes `snapshots: { none: { isFinalSnapshot: true } }` permanently.
+ * Nothing in this codebase ever removes one.
+ *
+ * The sweep only ever looks at campaigns that are `IN_PROGRESS` or `PENDING`,
+ * so every post reaching this decision belongs to a campaign someone still has
+ * open. A 30-day publish-date horizon therefore closed posts *inside running
+ * campaigns*: a campaign that runs 60 days lost its early posts halfway
+ * through, while still live, and they never came back. Measured in prod on
+ * 2026-09-06, that had sealed 57 of 169 live posts -- including 35 of the 46
+ * YouTube posts in one campaign, which is the whole reason YouTube had gone
+ * dark. The platform correlation was a coincidence of age, not a fetcher bug.
+ *
+ * 180 days is a terminus, not an absence of one. Past 30 days a post falls
+ * through to the `cadence-over-7d` rung below and is read once a day rather than
+ * hourly, so the extra cost of the longer horizon is bounded and small: 53 of
+ * the 169 live posts sit in the freed 30-180d band, which is ~2.2 reads/hour.
+ * The bound matters -- a campaign left open forever must not sweep forever --
+ * and 180 days is comfortably longer than any campaign in this data while
+ * still guaranteeing every post eventually stops costing anything.
+ */
+export const SEAL_AGE_HOURS = 180 * 24;
+
 const HOT_INTERVAL_HOURS = 5 / 60;
 const WARM_INTERVAL_HOURS = 1;
 const COOLING_INTERVAL_HOURS = 6;
@@ -98,9 +128,9 @@ export function decideSyncAction(input: SyncDecisionInput): SyncDecision {
   const settlementOpen =
     input.settlementClosesAt != null && input.now < input.settlementClosesAt;
 
-  if (ageHours > 30 * 24) {
+  if (ageHours > SEAL_AGE_HOURS) {
     if (!settlementOpen) {
-      return { action: "seal", reason: "age-over-30d" };
+      return { action: "seal", reason: "age-over-180d" };
     }
     if (lastSyncHours >= SETTLEMENT_INTERVAL_HOURS) {
       return { action: "sync", reason: "settlement-daily" };
@@ -126,8 +156,13 @@ export function decideSyncAction(input: SyncDecisionInput): SyncDecision {
     }
   }
 
+  /* Named for its lower bound only. It used to be the 7-30d band because the
+     seal took everything past 30 days; with SEAL_AGE_HOURS at 180 days this
+     rung now catches everything from 7 to 180, which is where the bulk of a
+     live campaign's posts sit. A label that still said "7-30d" would be the
+     fourth signal tonight that reads as one thing and means another. */
   if (ageHours > 7 * 24 && lastSyncHours < 24) {
-    return { action: "skip", reason: "cadence-7-30d" };
+    return { action: "skip", reason: "cadence-over-7d" };
   }
   if (ageHours > 24 && lastSyncHours < 6) {
     return { action: "skip", reason: "cadence-1-7d" };

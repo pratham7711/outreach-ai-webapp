@@ -57,30 +57,49 @@ describe("decideSyncAction", () => {
     });
   });
 
-  describe("seal at 30d", () => {
-    it("seals a >30d post without a final snapshot", () => {
-      const decision = decideSyncAction(input({ postedAt: hoursAgo(31 * 24) }));
+  describe("seal at 180d", () => {
+    it("seals a >180d post without a final snapshot", () => {
+      const decision = decideSyncAction(input({ postedAt: hoursAgo(181 * 24) }));
       expect(decision.action).toBe("seal");
     });
 
-    it("seals just past the 30d boundary", () => {
-      const decision = decideSyncAction(input({ postedAt: hoursAgo(30 * 24 + 0.01) }));
+    it("seals just past the 180d boundary", () => {
+      const decision = decideSyncAction(input({ postedAt: hoursAgo(180 * 24 + 0.01) }));
       expect(decision.action).toBe("seal");
     });
 
-    it("does not seal at exactly 30d", () => {
+    it("does not seal at exactly 180d", () => {
       const decision = decideSyncAction(
-        input({ postedAt: hoursAgo(30 * 24), lastSyncedAt: hoursAgo(48) })
+        input({ postedAt: hoursAgo(180 * 24), lastSyncedAt: hoursAgo(48) })
       );
       expect(decision.action).toBe("sync");
     });
 
     it("seals even if the last sync was recent", () => {
       const decision = decideSyncAction(
-        input({ postedAt: hoursAgo(35 * 24), lastSyncedAt: hoursAgo(1) })
+        input({ postedAt: hoursAgo(200 * 24), lastSyncedAt: hoursAgo(1) })
       );
       expect(decision.action).toBe("seal");
     });
+
+    /* The regression this horizon exists for. A post between 30 and 180 days
+       old sits in a campaign that is still open -- the sweep only ever asks
+       about IN_PROGRESS and PENDING campaigns -- and the old 30-day horizon
+       sealed it there, permanently, mid-campaign. In prod that had closed 57 of
+       169 live posts, 35 of them the YouTube posts of a single running
+       campaign. It must now fall through to the daily rung instead. */
+    it.each([31, 45, 60, 90, 179])(
+      "does not seal a %sd post in a live campaign; throttles it to daily",
+      (days) => {
+        expect(
+          decideSyncAction(input({ postedAt: hoursAgo(days * 24), lastSyncedAt: hoursAgo(25) }))
+        ).toEqual({ action: "sync", reason: "due" });
+
+        expect(
+          decideSyncAction(input({ postedAt: hoursAgo(days * 24), lastSyncedAt: hoursAgo(23) }))
+        ).toEqual({ action: "skip", reason: "cadence-over-7d" });
+      }
+    );
   });
 
   describe("tracking window (72h)", () => {
@@ -188,11 +207,11 @@ describe("decideSyncAction", () => {
       ).toEqual({ action: "skip", reason: "sealed" });
     });
 
-    it("30d seal still wins over tracking", () => {
+    it("180d seal still wins over tracking", () => {
       expect(
         decideSyncAction(
           input({
-            postedAt: hoursAgo(31 * 24),
+            postedAt: hoursAgo(181 * 24),
             trackingEnabled: true,
             trackingStartedAt: hoursAgo(1),
             lastSyncedAt: hoursAgo(2),
@@ -202,17 +221,17 @@ describe("decideSyncAction", () => {
     });
   });
 
-  describe("7-30d cadence", () => {
+  describe("over-7d cadence", () => {
     it("skips when last sync is under 24h old", () => {
       expect(
         decideSyncAction(input({ postedAt: hoursAgo(10 * 24), lastSyncedAt: hoursAgo(23) }))
-      ).toEqual({ action: "skip", reason: "cadence-7-30d" });
+      ).toEqual({ action: "skip", reason: "cadence-over-7d" });
     });
 
     it("skips when last sync is just under 24h old", () => {
       expect(
         decideSyncAction(input({ postedAt: hoursAgo(29 * 24), lastSyncedAt: hoursAgo(23.99) }))
-      ).toEqual({ action: "skip", reason: "cadence-7-30d" });
+      ).toEqual({ action: "skip", reason: "cadence-over-7d" });
     });
 
     it("syncs when last sync is 24h or older", () => {

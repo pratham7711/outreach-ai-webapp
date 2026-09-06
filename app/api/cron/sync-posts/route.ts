@@ -50,7 +50,15 @@ type RefreshCadence = {
 };
 
 export function isCampaignDue(campaign: RefreshCadence, now: Date): boolean {
-  if (campaign.refreshActive === false) return false;
+  /* `refreshActive === false` is deliberately NOT a block here, and that is a
+     reversal -- it used to return false on this line.
+
+     The flag arrived with the CreatorCore import rather than from anyone
+     choosing it in this product. Measured in prod on 2026-09-06 it sat false
+     on 4 of the 10 live campaigns, holding 129 of the 169 live posts and 40 of
+     the 46 YouTube ones, and those campaigns had not been swept since 08-18.
+     The explicit off switch is REFRESH_OFF_SENTINEL below, which is still
+     honoured, so a campaign anyone actually turned off stays off. */
   const interval = campaign.refreshInterval ?? DEFAULT_REFRESH_INTERVAL_HOURS;
   if (interval >= REFRESH_OFF_SENTINEL) return false;
   if (!campaign.lastRefreshAt) return true;
@@ -187,6 +195,7 @@ export async function GET(request: NextRequest) {
         likesCount: true,
         commentsCount: true,
         sharesCount: true,
+        reachCount: true,
         engagementRate: true,
         syncFailCount: true,
         syncDisabledAt: true,
@@ -350,6 +359,12 @@ export async function GET(request: NextRequest) {
                 likesCount: post.likesCount,
                 commentsCount: post.commentsCount,
                 sharesCount: post.sharesCount,
+                /* Absent here, the seal asserted reach was never measured on
+                   the one row nothing ever revisits. savesCount and
+                   downloadsCount are still missing on this branch for the same
+                   reason -- flagged, not fixed here, to keep this change to
+                   what it claims to be. */
+                reachCount: post.reachCount,
                 engagementRate: post.engagementRate,
                 isFinalSnapshot: true,
                 syncSource: "cron-seal",

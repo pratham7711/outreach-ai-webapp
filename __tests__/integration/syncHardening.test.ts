@@ -121,7 +121,7 @@ describe("cron sync hardening — dry run", () => {
   it("performs no fetches or writes and returns per-post decisions with a summary", async () => {
     mockDb.post.findMany.mockResolvedValue([
       makePost({ id: "fresh" }),
-      makePost({ id: "old", postedAt: hoursAgo(31 * 24) }),
+      makePost({ id: "old", postedAt: hoursAgo(200 * 24) }),
       makePost({ id: "disabled", syncDisabledAt: hoursAgo(2) }),
       makePost({ id: "done", snapshots: [{ id: "snap-final" }] }),
       makePost({ id: "cadence", postedAt: hoursAgo(3 * 24), lastSyncedAt: hoursAgo(1) }),
@@ -141,7 +141,7 @@ describe("cron sync hardening — dry run", () => {
     expect(body.total).toBe(5);
     expect(body.decisions).toEqual([
       { postId: "fresh", platform: "INSTAGRAM", action: "sync", reason: "due" },
-      { postId: "old", platform: "INSTAGRAM", action: "seal", reason: "age-over-30d" },
+      { postId: "old", platform: "INSTAGRAM", action: "seal", reason: "age-over-180d" },
       { postId: "disabled", platform: "INSTAGRAM", action: "skip", reason: "dead-letter" },
       { postId: "done", platform: "INSTAGRAM", action: "skip", reason: "sealed" },
       { postId: "cadence", platform: "INSTAGRAM", action: "skip", reason: "cadence-1-7d" },
@@ -149,7 +149,7 @@ describe("cron sync hardening — dry run", () => {
     expect(body.summary.byAction).toEqual({ sync: 1, seal: 1, skip: 3 });
     expect(body.summary.byReason).toEqual({
       due: 1,
-      "age-over-30d": 1,
+      "age-over-180d": 1,
       "dead-letter": 1,
       sealed: 1,
       "cadence-1-7d": 1,
@@ -310,11 +310,11 @@ describe("cron sync hardening — dead-letter", () => {
 });
 
 describe("cron sync hardening — sealing", () => {
-  it("seals a >30d post from stored counts without a platform fetch", async () => {
+  it("seals a >180d post from stored counts without a platform fetch", async () => {
     mockDb.post.findMany.mockResolvedValue([
       makePost({
         id: "p-old",
-        postedAt: hoursAgo(31 * 24),
+        postedAt: hoursAgo(200 * 24),
         viewsCount: 4321,
         likesCount: 21,
         commentsCount: 3,
@@ -354,7 +354,7 @@ describe("cron sync hardening — sealing", () => {
 
   it("stamps lastSyncedAt on the seal only when the post was measured before", async () => {
     mockDb.post.findMany.mockResolvedValue([
-      makePost({ id: "p-measured", postedAt: hoursAgo(31 * 24), lastSyncedAt: hoursAgo(40 * 24) }),
+      makePost({ id: "p-measured", postedAt: hoursAgo(200 * 24), lastSyncedAt: hoursAgo(40 * 24) }),
     ]);
     mockDb.$transaction.mockResolvedValue([{}, {}]);
     mockDb.post.update.mockResolvedValue({});
@@ -370,7 +370,7 @@ describe("cron sync hardening — sealing", () => {
 
   it("is idempotent — skips when a final snapshot already exists", async () => {
     mockDb.post.findMany.mockResolvedValue([
-      makePost({ id: "p-done", postedAt: hoursAgo(31 * 24), snapshots: [{ id: "snap-1" }] }),
+      makePost({ id: "p-done", postedAt: hoursAgo(200 * 24), snapshots: [{ id: "snap-1" }] }),
     ]);
 
     const res = await cronSync(cronReq());
@@ -591,7 +591,11 @@ describe("cron sync — campaign cadence", () => {
       { id: "due-now", refreshActive: true, refreshInterval: 8, lastRefreshAt: hoursAgo(9) },
       { id: "too-soon", refreshActive: true, refreshInterval: 8, lastRefreshAt: hoursAgo(2) },
       { id: "never-swept", refreshActive: true, refreshInterval: 8, lastRefreshAt: null },
-      { id: "paused", refreshActive: false, refreshInterval: 8, lastRefreshAt: null },
+      /* refreshActive=false must NOT exclude a campaign. The flag came from the
+         CreatorCore import, not from a user choice, and honouring it left 129 of
+         169 live posts unswept since 08-18. Renamed from "paused" because that
+         is what it was wrongly assumed to mean. */
+      { id: "flag-false-still-due", refreshActive: false, refreshInterval: 8, lastRefreshAt: null },
       // 9999 is CreatorCore's "off" sentinel, not a 416-day interval.
       { id: "off", refreshActive: true, refreshInterval: 9999, lastRefreshAt: null },
     ]);
@@ -600,7 +604,9 @@ describe("cron sync — campaign cadence", () => {
     await cronSync(cronReq());
 
     const where = mockDb.post.findMany.mock.calls[0][0].where;
-    expect(where.campaignId.in.sort()).toEqual(["due-now", "never-swept"]);
+    expect(where.campaignId.in.sort()).toEqual(["due-now", "flag-false-still-due", "never-swept"]);
+    // The real off switch still works; only the imported flag stopped counting.
+    expect(where.campaignId.in).not.toContain("off");
   });
 
   it("treats a campaign a few minutes short of its interval as due, so hourly stays hourly", async () => {
