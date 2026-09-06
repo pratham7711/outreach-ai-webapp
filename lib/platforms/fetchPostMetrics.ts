@@ -10,6 +10,7 @@ import {
 } from "./instagramBusinessDiscovery";
 import { fetchInstagramEmbedPost } from "./instagramEmbed";
 import { fetchTikTokVideosByIds } from "./tiktokDisplay";
+import { fetchTwitchMetrics } from "./twitch";
 import { createLogger } from "../observability/logger";
 
 export type FetchMetricsContext = {
@@ -39,7 +40,7 @@ export type FetchMetricsContext = {
 };
 
 export type PostMetrics = {
-  platform: "TIKTOK" | "INSTAGRAM" | "YOUTUBE";
+  platform: "TIKTOK" | "INSTAGRAM" | "YOUTUBE" | "TWITCH";
   platformPostId: string;
   thumbnailUrl: string | null;
   caption: string | null;
@@ -58,6 +59,20 @@ export type PostMetrics = {
    * here: a field nothing can ever fill is worse than an absent one.
    */
   savesCount?: number;
+  /**
+   * How many distinct accounts saw the post, as opposed to how many times it
+   * played.
+   *
+   * Instagram only, and only for a creator who has connected their account:
+   * it comes from the insights endpoint under instagram_manage_insights. No
+   * public endpoint and no discovery-based vendor can return it, which makes it
+   * the one figure we can show that CreatorCore structurally cannot -- their
+   * own exported data carries it for 0 of 18,638 posts.
+   *
+   * Absent until Meta App Review lands. Absent, never 0: see savesCount above
+   * for what writing a zero here would claim.
+   */
+  reachCount?: number;
   engagementRate?: number;
   /**
    * The post author's follower count, when the payload happened to carry it.
@@ -143,6 +158,52 @@ export type FetchReason =
    *  verdict by accident, which is how every Instagram post in a campaign came
    *  to read as a post with no engagement and was never asked about again. */
   | "unknown";
+
+/**
+ * Does this reason mean the SOURCE went quiet, or that WE did?
+ *
+ * The distinction is the whole reason an alert on it can be trusted. A sandbox
+ * that would not boot, a deadline we blew, a breaker we opened ourselves and a
+ * credential we let lapse are all our problems, and paging someone for them at
+ * 04:00 is how a monitor gets muted and then ignored. Only a completed round
+ * trip that carried no numbers is evidence the platform changed under us --
+ * which is exactly what an HTML restructure or a withdrawn endpoint looks like
+ * from here: HTTP 200, no error, nothing to parse.
+ *
+ * Declared total over FetchReason, so a new reason cannot be added without
+ * deciding which side of that line it falls on. Adding one without a mapping is
+ * a compile error, not a silently un-alerted outage.
+ */
+const SOURCE_WENT_QUIET: Record<FetchReason, boolean> = {
+  /* A round trip that completed and carried nothing. The signature. */
+  "no-counts-published": true,
+  /* Empty, and not willing to say why -- the shape a 200-with-an-empty-shell
+     takes once a parser has found nothing in it. */
+  unknown: true,
+
+  /* Ours. */
+  "reader-unavailable": false,
+  "reader-timeout": false,
+  "backing-off": false,
+  "not-configured": false,
+  "credentials-rejected": false,
+  "unrecognised-url": false,
+
+  /* Theirs, but said out loud. A 403, a challenge page or an explicit refusal
+     is already visible in the failure counts and needs no second alarm; this
+     alert exists for the failure that does not announce itself. */
+  "platform-challenged": false,
+  "platform-refused": false,
+
+  /* A real verdict about the post, and the commonest one in any large library. */
+  "post-deleted": false,
+};
+
+/** True when a reason is evidence the platform stopped answering, not that we did. */
+export function isSourceWentQuiet(reason: string | null | undefined): boolean {
+  if (!reason) return true;
+  return SOURCE_WENT_QUIET[reason as FetchReason] === true;
+}
 
 /**
  * Did the platform give us any real number for this post?
@@ -256,6 +317,29 @@ export function detectPlatform(
       id: igMatch[3],
       mediaType: igMatch[2].startsWith("reel") ? "REEL" : "POST",
       ...(igMatch[1] ? { handle: igMatch[1] } : {}),
+    };
+  }
+
+
+  /* Twitch: a VOD is /videos/<numeric id>, a clip is either clips.twitch.tv/<slug>
+     or /<channel>/clip/<slug>. The two are served by different Helix endpoints,
+     which is why fetchTwitchMetrics re-reads the kind off the url. Clips are
+     short-form, so they map to SHORT rather than VIDEO. */
+  const twVod = url.match(/twitch\.tv\/videos\/(\d+)/i);
+  if (twVod) {
+    return { platform: "TWITCH", id: twVod[1], mediaType: "VIDEO" };
+  }
+  const twClipHosted = url.match(/clips\.twitch\.tv\/([\w-]+)/i);
+  if (twClipHosted) {
+    return { platform: "TWITCH", id: twClipHosted[1], mediaType: "SHORT" };
+  }
+  const twClipChannel = url.match(/twitch\.tv\/(\w+)\/clip\/([\w-]+)/i);
+  if (twClipChannel) {
+    return {
+      platform: "TWITCH",
+      id: twClipChannel[2],
+      mediaType: "SHORT",
+      handle: twClipChannel[1],
     };
   }
 
@@ -966,6 +1050,25 @@ async function fetchTikTokMetricsSocialKit(url: string): Promise<Partial<PostMet
   }
 }
 
+/**
+ * The cover alone, for a post whose numbers we are not asking for.
+ *
+ * TikTok signs every cover URL with an `x-expires` a few days out, so a stored
+ * one rots: measured in production on 2026-09-06, 14 of 14 signed TikTok covers
+ * had already expired and the whole post grid painted blank boxes. Refreshing
+ * the picture does not need the sandbox that reading the counters needs -- this
+ * is the plain oEmbed endpoint, behind the same breaker as everything else on
+ * the host, and it returns a fresh signature.
+ *
+ * Deliberately returns only the URL. A caller that wanted counters would use
+ * fetchPostMetrics; letting this one write anything else would make a cheap
+ * cosmetic refresh look like a measurement and reset the cadence with it.
+ */
+export async function refreshTikTokCover(url: string): Promise<string | null> {
+  const { thumbnailUrl } = await fetchTikTokOEmbed(url);
+  return thumbnailUrl ?? null;
+}
+
 async function fetchTikTokOEmbed(url: string): Promise<Partial<PostMetrics>> {
   /* Same host, same gate. This ran ungated, which quietly inverted the breaker:
      the moment it latched, every remaining post skipped the paced path and went
@@ -1092,6 +1195,7 @@ export async function fetchInstagramMetrics(
         ...(typeof graph.viewsCount === "number" ? { viewsCount: graph.viewsCount } : {}),
         ...(typeof graph.likesCount === "number" ? { likesCount: graph.likesCount } : {}),
         ...(typeof graph.commentsCount === "number" ? { commentsCount: graph.commentsCount } : {}),
+        ...(typeof graph.reachCount === "number" ? { reachCount: graph.reachCount } : {}),
         /* No sharesCount at all. Instagram publishes no share count on any
            endpoint we can reach, so writing 0 asserted a measurement we cannot
            make -- and CreatorCore's report of the same posts shows no shares row
@@ -1306,6 +1410,9 @@ export async function fetchPostMetrics(
       break;
     case "INSTAGRAM":
       metrics = await fetchInstagramMetrics(url, context?.instagramToken, context?.instagramHandle);
+      break;
+    case "TWITCH":
+      metrics = await fetchTwitchMetrics(url, detected.id, fetchTimeoutSignal());
       break;
   }
 

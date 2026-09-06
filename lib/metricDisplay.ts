@@ -110,7 +110,7 @@ export function lastFetchNote(platformMetrics: unknown): LastFetchNote | null {
   };
 }
 
-export type MetricField = "views" | "likes" | "comments" | "shares" | "saves" | "downloads";
+export type MetricField = "views" | "likes" | "comments" | "shares" | "saves" | "downloads" | "reach";
 
 export function measuredFields(platformMetrics: unknown): MetricField[] | null {
   if (!platformMetrics || typeof platformMetrics !== "object") return null;

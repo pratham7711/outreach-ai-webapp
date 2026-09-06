@@ -95,6 +95,7 @@ export function countsFrom(metrics: PostMetrics): {
   record("comments", "commentsCount", metrics.commentsCount);
   record("shares", "sharesCount", metrics.sharesCount);
   record("saves", "savesCount", metrics.savesCount);
+  record("reach", "reachCount", metrics.reachCount);
   return { counts, present, measuredPatch: { [MEASURED_FIELDS_KEY]: present } };
 }
 

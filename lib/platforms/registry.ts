@@ -73,7 +73,13 @@ export const PLATFORMS: readonly PlatformDef[] = [
     brandColor: "#000000",
     chartVar: "var(--chart-4)",
     tone: "accent",
-    tracking: "manual", // X API v2 read access is paid (~$200/mo) — manual until approved
+    // Manual until a fetcher exists. The "~$200/mo" this comment used to claim
+    // is out of date: X closed the free tier to new developers on 2026-02-06
+    // and moved them to pay-per-use -- $0.005 per post read, $0.010 per user
+    // read, NO monthly minimum. At our volume that is cents, so the blocker is
+    // the fetcher, not the price. (Legacy $200 Basic survives only for existing
+    // subscribers.)
+    tracking: "manual",
     urlPatterns: [/(?:twitter\.com|x\.com)\/[\w]+\/status\/(\d+)/i],
   },
   {
@@ -82,7 +88,11 @@ export const PLATFORMS: readonly PlatformDef[] = [
     brandColor: "#1877F2",
     chartVar: "var(--chart-1)",
     tone: "accent",
-    tracking: "auto", // Meta Graph API (same app as Instagram)
+    // Manual until Meta Advanced Access lands. The Graph app holds these
+    // scopes at Standard Access, which is granted only to users with a ROLE on
+    // the app, so a real creator's connect is declined -- see the note in
+    // lib/oauth/providers.ts. Unblocked by the same App Review as Instagram.
+    tracking: "manual",
     urlPatterns: [
       /facebook\.com\/[\w.]+\/(?:posts|videos)\/(\d+)/i,
       /facebook\.com\/reel\/(\d+)/i,
@@ -95,7 +105,12 @@ export const PLATFORMS: readonly PlatformDef[] = [
     brandColor: "#9146FF",
     chartVar: "var(--chart-2)",
     tone: "accent",
-    tracking: "auto", // Helix API (free app access token)
+    // Auto: lib/platforms/twitch.ts reads Helix with an app access token, which
+    // is free at 800 req/min and needs no review or partner programme -- the
+    // only platform on this list that is genuinely open. Inert until
+    // TWITCH_CLIENT_ID / TWITCH_CLIENT_SECRET are set, and a post fetched
+    // without them settles as "not-configured" rather than retrying forever.
+    tracking: "auto",
     urlPatterns: [
       /twitch\.tv\/videos\/(\d+)/i,
       /clips\.twitch\.tv\/([\w-]+)/i,
@@ -108,7 +123,10 @@ export const PLATFORMS: readonly PlatformDef[] = [
     brandColor: "#000000",
     chartVar: "var(--chart-3)",
     tone: "neutral",
-    tracking: "auto", // Meta Threads API
+    // Manual until Meta App Review. The Threads API is free with no paid tier,
+    // but threads_manage_insights -- the scope that reads post metrics -- is
+    // review-gated at 2-4 weeks per permission. Same submission as Instagram.
+    tracking: "manual",
     urlPatterns: [/threads\.net\/(?:@[\w.]+\/post|t)\/([\w-]+)/i],
   },
   {
@@ -117,7 +135,11 @@ export const PLATFORMS: readonly PlatformDef[] = [
     brandColor: "#BD081C",
     chartVar: "var(--chart-4)",
     tone: "danger",
-    tracking: "auto", // Pinterest API v5 (OAuth)
+    // Manual until Pinterest Standard tier. API v5 is free, but Trial ->
+    // Standard needs a video-demo review, and Pinterest's data-storage rule
+    // bars caching most API data -- which is what CreatorTrackerSnapshot does.
+    // Resolve the caching question before writing a fetcher, not after.
+    tracking: "manual",
     urlPatterns: [/pinterest\.[\w.]+\/pin\/(\d+)/i],
   },
   {
@@ -126,7 +148,12 @@ export const PLATFORMS: readonly PlatformDef[] = [
     brandColor: "#FFFC00",
     chartVar: "var(--chart-1)",
     tone: "warning",
-    tracking: "manual", // no third-party creator-metrics API
+    // Manual until Snap allowlists us. The old claim here -- that no
+    // creator-metrics API exists -- is wrong. The Snapchat Public Profile API
+    // returns Public Profile metadata and stats, and its stats endpoints are
+    // reachable publicly via a /public prefix. The gate is that the OAuth app
+    // must be allowlisted by a Snap contact. A relationship, not a missing API.
+    tracking: "manual",
     urlPatterns: [/snapchat\.com\/(?:spotlight|@[\w.]+|t|p)\/([\w.-]+)/i],
   },
   {
@@ -135,7 +162,12 @@ export const PLATFORMS: readonly PlatformDef[] = [
     brandColor: "#0A66C2",
     chartVar: "var(--chart-2)",
     tone: "accent",
-    tracking: "manual", // Community Management API is partner-gated
+    // Manual, and the hardest of the set. The Community Management API needs a
+    // legally registered entity -- LinkedIn's access docs exclude solo
+    // developers and unregistered side projects outright -- and even once
+    // approved it covers only company Pages you administer, not creator
+    // profiles. It is not a creator-metrics source at all.
+    tracking: "manual",
     urlPatterns: [/linkedin\.com\/(?:posts|feed\/update)\/[\w:%-]*?(\d{10,})/i],
   },
 ];
