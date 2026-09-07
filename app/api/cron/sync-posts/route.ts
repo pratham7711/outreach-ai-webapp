@@ -9,6 +9,11 @@ import {
   type PostMetrics,
 } from "@/lib/platforms/fetchPostMetrics";
 import { applyPostMetrics } from "@/lib/sync/syncPost";
+import {
+  laneCountFor,
+  openSandboxPostPool,
+  type SandboxPostFetcher,
+} from "@/lib/platforms/tiktokPostSandbox";
 import { ensureFreshInstagramToken } from "@/lib/platforms/instagramToken";
 import { ensureFreshTikTokToken } from "@/lib/platforms/tiktokToken";
 import { decideSyncAction, SyncAction } from "@/lib/sync/cadence";
@@ -77,6 +82,24 @@ function parseBudget(raw: string | undefined): number {
   return Number.isInteger(parsed) && parsed >= 0 ? parsed : DEFAULT_PLATFORM_BUDGET;
 }
 
+/**
+ * How many sandbox lanes one cron run may hold open for TikTok.
+ *
+ * Two, not laneCountFor's eight. The on-demand refresh sizes its pool for a
+ * fast finish because a person is waiting on it; nobody is waiting on the
+ * cron, so it can take the whole four-minute budget on a couple of addresses.
+ * Sandboxes bill by lifetime, and the lifetime here is bounded by the run --
+ * measured on prod 2026-09-07: 13 TikTok posts due per hour, which is ~23
+ * sandbox-seconds at LANE_SECONDS_PER_POST. SYNC_BUDGET_TIKTOK caps the reads
+ * themselves, so the cost ceiling is budget x 1.8s per hour whatever this is.
+ */
+const DEFAULT_CRON_TIKTOK_LANES = 2;
+function cronTikTokLanes(due: number): number {
+  const raw = Number(process.env.SYNC_CRON_TIKTOK_MAX_LANES);
+  const cap = Number.isInteger(raw) && raw >= 0 ? raw : DEFAULT_CRON_TIKTOK_LANES;
+  return Math.min(cap, laneCountFor(due));
+}
+
 export async function GET(request: NextRequest) {
   const log = createLogger({ context: { route: "cron/sync-posts" } });
 
@@ -112,6 +135,9 @@ export async function GET(request: NextRequest) {
      or cut off by the deadline, has not been refreshed and must stay due. */
   const sweptCampaigns = new Set<string>();
 
+  /* Declared outside the try so the finally can close it: a pool left open
+     after a crash keeps billing until SANDBOX_LIFETIME_MS. */
+  let tiktokSandbox: SandboxPostFetcher | undefined;
   try {
     /* Ask which campaigns are due before pulling a single post.
        This route used to take the oldest 300 posts across every live campaign,
@@ -194,6 +220,49 @@ export async function GET(request: NextRequest) {
       ? new Map()
       : await fetchYouTubeMetricsBatch(youtubeIds);
 
+    /* TikTok is read through a Vercel Sandbox, the same lane the on-demand
+       refresh uses, because TikTok's WAF answers this project's function
+       egress with a 1.4KB login shell about three times in four (measured
+       2026-09-02) and a sandbox's egress with the full page every time.
+
+       This route used to skip TikTok outright instead -- "tiktok-needs-sandbox"
+       -- to keep the Vercel bill flat, on an estimate of $111-174/mo for lanes
+       on every campaign every hour. The cadence filter changed the arithmetic:
+       only due posts of live campaigns reach this loop, and on prod that was 13
+       TikTok posts an hour (2026-09-07), every one of them skipped. The result
+       was 15,403 live TikTok posts whose counts moved only when someone pressed
+       Refresh, which is the silent stale number the product promises not to
+       show. A couple of lanes for the length of one run costs cents a day and
+       is capped twice: SYNC_CRON_TIKTOK_MAX_LANES on addresses, and
+       SYNC_BUDGET_TIKTOK on reads.
+
+       Sized before the loop because the decision is per post but the pool is
+       per run; decideSyncAction is pure, so asking it twice costs nothing. The
+       pool boots lazily, so a run with no due TikTok post never creates a
+       sandbox at all. */
+    const tiktokDue = dryRun
+      ? 0
+      : posts.filter(
+          (p) =>
+            p.platform === "TIKTOK" &&
+            decideSyncAction({
+              postedAt: new Date(p.postedAt),
+              lastSyncedAt: p.lastSyncedAt ? new Date(p.lastSyncedAt) : null,
+              lastAttemptAt: lastAttemptFrom(p.platformMetrics),
+              syncFailCount: p.syncFailCount,
+              syncDisabledAt: p.syncDisabledAt ? new Date(p.syncDisabledAt) : null,
+              hasFinalSnapshot: p.snapshots.length > 0,
+              trackingEnabled: p.trackingEnabled ?? false,
+              trackingStartedAt: p.trackingStartedAt ? new Date(p.trackingStartedAt) : null,
+              now,
+            }).action === "sync",
+        ).length;
+    const lanes = cronTikTokLanes(tiktokDue);
+    if (lanes > 0) {
+      tiktokSandbox = openSandboxPostPool(lanes);
+      log.info("sandbox pool opened", { lanes, tiktokDue });
+    }
+
     for (let i = 0; i < posts.length; i++) {
       const post = posts[i];
       if (!dryRun && Date.now() > deadline) {
@@ -212,23 +281,6 @@ export async function GET(request: NextRequest) {
         trackingStartedAt: post.trackingStartedAt ? new Date(post.trackingStartedAt) : null,
         now,
       });
-
-      /* This route cannot read TikTok, so it should stop trying.
-         It opens no sandbox, so a TikTok read here goes out through function
-         egress -- which TikTok answers with a 1.4KB WAF shell about three times
-         in four. Those attempts cost function-seconds and a Neon write each, and
-         until the guard below they also spent the post's retry budget, which is
-         how an unreadable TikTok post reached a permanent dead-letter in five
-         hours. They also record into the process-wide breaker, so an hourly cron
-         could latch it and silence a real user's Refresh on the same instance.
-         TikTok refreshes on demand, where a sandbox pool is already opened.
-         Giving this route its own pool is the way to bring it back, and it costs
-         real Vercel compute -- see the plan; it is a deliberate omission, not an
-         oversight. */
-      if (action === "sync" && post.platform === "TIKTOK") {
-        action = "skip";
-        reason = "tiktok-needs-sandbox";
-      }
 
       if (action === "sync") {
         const platform = post.platform as string;
@@ -300,6 +352,12 @@ export async function GET(request: NextRequest) {
             instagramToken,
             instagramHandle,
             tiktokToken,
+            tiktokSandbox,
+            /* Counts only for TikTok: every post here already has its
+               thumbnail, and oEmbed cannot return a counter, so a paced lane
+               slot spent on it would buy nothing. Left off for the others so
+               their behaviour here is unchanged. */
+            countsOnly: post.platform === "TIKTOK",
           }));
         if (!metrics) continue;
 
@@ -487,5 +545,7 @@ export async function GET(request: NextRequest) {
       facts: { error: String(error).slice(0, 300) },
     });
     return NextResponse.json({ error: "Sync failed" }, { status: 500 });
+  } finally {
+    await tiktokSandbox?.close();
   }
 }

@@ -22,8 +22,18 @@ jest.mock("@/lib/platforms/fetchPostMetrics", () => ({
   fetchInstagramMetrics: jest.fn(),
 }));
 
+/* The pool is a real Vercel Sandbox in production; here it is a handle whose
+   lifecycle is the thing under test -- opened once per run, sized from the due
+   TikTok count, handed to every TikTok fetch, closed in the finally. */
+const mockPool = { size: 1, readPost: jest.fn(), close: jest.fn().mockResolvedValue(undefined) };
+jest.mock("@/lib/platforms/tiktokPostSandbox", () => ({
+  laneCountFor: jest.fn((n: number) => (n > 0 ? 1 : 0)),
+  openSandboxPostPool: jest.fn(() => mockPool),
+}));
+
 import { db } from "@/lib/db";
 import { fetchPostMetrics } from "@/lib/platforms/fetchPostMetrics";
+import { openSandboxPostPool } from "@/lib/platforms/tiktokPostSandbox";
 
 const mockDb = db as any;
 const mockFetch = fetchPostMetrics as jest.Mock;
@@ -41,11 +51,11 @@ function hoursAgo(hours: number): Date {
  * accounting, sealing, per-platform budgets, dry-run reporting. These fixtures
  * were TikTok only because TikTok was the first platform to exist here, and
  * that became load-bearing the moment the cron started skipping TikTok
- * outright (it has no sandbox, so those reads are ~75% doomed) -- every test
- * below went green-on-nothing, asserting behaviour that no longer ran.
+ * outright (it then had no sandbox, so those reads were ~75% doomed) -- every
+ * test below went green-on-nothing, asserting behaviour that no longer ran.
  *
- * The TikTok skip has its own test, `cron sync -- TikTok` below. Do not flip
- * these back to TIKTOK to "cover" it.
+ * TikTok's sandbox lane has its own tests, `cron sync -- TikTok` below. Do not
+ * flip these back to TIKTOK to "cover" it.
  */
 function makePost(overrides: Record<string, unknown> = {}) {
   return {
@@ -396,19 +406,18 @@ describe("cron sync hardening — per-platform budgets", () => {
 });
 
 /**
- * The cron does not read TikTok. This is the test for that decision.
+ * The cron reads TikTok through a sandbox pool. This is the test for that
+ * decision -- and for the one it reversed.
  *
  * TikTok answers a datacenter IP with a WAF shell roughly three times in four,
- * so the only way to read it reliably is a Vercel Sandbox -- which the on-demand
- * refresh opens and this route deliberately does not, because sandbox lanes for
- * every campaign every hour cost real money (measured: $111-174/mo at 500
- * campaigns daily). Attempting the read anyway was not free either: it burned
- * function seconds and Neon writes, and its failures latched the process-wide
- * TikTok breaker, so real users' on-demand refreshes came back "backing off"
- * because a cron had just spent the budget failing.
- *
- * TikTok numbers therefore move only on Refresh. That is the price of holding
- * the Vercel bill flat, and it is reversible.
+ * so the only way to read it reliably is a Vercel Sandbox. This route used to
+ * open none and skip every TikTok post ("tiktok-needs-sandbox") to keep the bill
+ * flat, on an estimate made before the campaign cadence filter existed. With
+ * the filter, prod had 13 due TikTok posts an hour and skipped all 13 -- so
+ * 15,403 live TikTok posts moved only when someone pressed Refresh. The pool
+ * here is bounded twice (lanes by SYNC_CRON_TIKTOK_MAX_LANES, reads by
+ * SYNC_BUDGET_TIKTOK) and boots lazily, so a run with no due TikTok post still
+ * creates no sandbox.
  */
 describe("cron sync — TikTok", () => {
   const tiktokPost = (overrides: Record<string, unknown> = {}) =>
@@ -417,46 +426,64 @@ describe("cron sync — TikTok", () => {
       postUrl: "https://www.tiktok.com/@u/video/1",
       ...overrides,
     });
+  const mockOpen = openSandboxPostPool as jest.Mock;
 
-  it("skips TikTok posts without fetching them", async () => {
-    mockDb.post.findMany.mockResolvedValue([tiktokPost({ id: "tt-1" })]);
-
-    const res = await cronSync(cronReq());
-    const body = await res.json();
-
-    expect(res.status).toBe(200);
-    expect(mockFetch).not.toHaveBeenCalled();
-    expect(mockDb.post.update).not.toHaveBeenCalled();
-    expect(body.synced).toBe(0);
-    expect(body.failed).toBe(0);
-    /* And specifically not counted as a failure of any kind: a post we chose
-       not to read must not look like a post we could not read. */
-    expect(body.noCounts).toBe(0);
-    expect(body.deadLettered).toBe(0);
+  beforeEach(() => {
+    mockOpen.mockClear();
+    mockPool.close.mockClear();
   });
 
-  it("names the reason in dry-run rather than reporting it as due", async () => {
+  it("opens one pool for the run, reads TikTok through it, and closes it", async () => {
+    mockDb.post.findMany.mockResolvedValue([tiktokPost({ id: "tt-1" }), tiktokPost({ id: "tt-2" })]);
+    mockFetch.mockResolvedValue(undefined);
+
+    const res = await cronSync(cronReq());
+    expect(res.status).toBe(200);
+
+    expect(mockOpen).toHaveBeenCalledTimes(1);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    for (const call of mockFetch.mock.calls) {
+      expect(call[1]).toEqual(expect.objectContaining({ tiktokSandbox: mockPool, countsOnly: true }));
+    }
+    expect(mockPool.close).toHaveBeenCalledTimes(1);
+  });
+
+  it("opens no sandbox when no TikTok post is due", async () => {
+    mockDb.post.findMany.mockResolvedValue([makePost({ id: "ig-1" })]);
+    mockFetch.mockResolvedValue(undefined);
+
+    await cronSync(cronReq());
+
+    expect(mockOpen).not.toHaveBeenCalled();
+    /* The Instagram read must not be told about a pool that does not exist. */
+    expect(mockFetch.mock.calls[0][1]).toEqual(
+      expect.objectContaining({ tiktokSandbox: undefined, countsOnly: false }),
+    );
+  });
+
+  it("opens no sandbox on a dry run, which reads nothing", async () => {
     mockDb.post.findMany.mockResolvedValue([tiktokPost({ id: "tt-1" })]);
 
     const res = await cronSync(cronReq("http://localhost/api/cron/sync-posts?dryRun=1"));
     const body = await res.json();
 
+    expect(mockOpen).not.toHaveBeenCalled();
+    expect(mockFetch).not.toHaveBeenCalled();
     expect(body.decisions).toEqual([
-      { postId: "tt-1", platform: "TIKTOK", action: "skip", reason: "tiktok-needs-sandbox" },
+      { postId: "tt-1", platform: "TIKTOK", action: "sync", reason: "due" },
     ]);
   });
 
-  it("does not dead-letter a TikTok post it declined to read", async () => {
-    // The failure mode this replaced: five hourly runs of doomed egress reads
-    // took a healthy post to syncDisabledAt, which nothing in the codebase ever
-    // clears. A skip must never move that counter.
-    mockDb.post.findMany.mockResolvedValue([tiktokPost({ id: "tt-edge", syncFailCount: 4 })]);
+  it("closes the pool even when the run crashes", async () => {
+    mockDb.post.findMany.mockResolvedValue([tiktokPost({ id: "tt-1" })]);
+    mockFetch.mockRejectedValue(new Error("lane died"));
+    // The per-post catch records the failure; make that write blow up too so
+    // the run's own catch is reached.
+    mockDb.post.update.mockRejectedValueOnce(new Error("db down"));
 
     const res = await cronSync(cronReq());
-    const body = await res.json();
-
-    expect(body.deadLettered).toBe(0);
-    expect(mockDb.post.update).not.toHaveBeenCalled();
+    expect([200, 500]).toContain(res.status);
+    expect(mockPool.close).toHaveBeenCalledTimes(1);
   });
 
   it("still sweeps the other platforms in the same run", async () => {
@@ -464,25 +491,31 @@ describe("cron sync — TikTok", () => {
       tiktokPost({ id: "tt-1" }),
       makePost({ id: "ig-1" }),
     ]);
-    mockFetch.mockResolvedValue({
-      platform: "INSTAGRAM",
-      platformPostId: "1",
-      thumbnailUrl: null,
-      caption: null,
-      viewsCount: 500,
-      likesCount: 5,
-      commentsCount: 1,
-      sharesCount: 0,
-      engagementRate: 1.2,
-      postedAt: new Date(),
-    });
+    mockFetch.mockImplementation(async (url: string) =>
+      url.includes("instagram.com")
+        ? {
+            platform: "INSTAGRAM",
+            platformPostId: "1",
+            thumbnailUrl: null,
+            caption: null,
+            viewsCount: 500,
+            likesCount: 5,
+            commentsCount: 1,
+            sharesCount: 0,
+            engagementRate: 1.2,
+            postedAt: new Date(),
+          }
+        : undefined,
+    );
     mockDb.$transaction.mockResolvedValue([{}, {}]);
 
     const res = await cronSync(cronReq());
     const body = await res.json();
 
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    expect(mockFetch.mock.calls[0][0]).toBe("https://www.instagram.com/reel/AAA1/");
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    expect(mockFetch.mock.calls.map((c) => c[0])).toEqual(
+      expect.arrayContaining(["https://www.instagram.com/reel/AAA1/", "https://www.tiktok.com/@u/video/1"]),
+    );
     expect(body.synced).toBe(1);
   });
 });
