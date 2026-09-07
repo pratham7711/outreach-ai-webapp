@@ -153,8 +153,25 @@ reached. What is needed:
 - credentials for it pasted into the review notes alongside the video;
 - the account left enabled until the review closes.
 
-It cannot be created from a session: `~/.config/outreach-prod/credentials.env`
-holds placeholders, so there is no way in to prod to make one.
+**Correction (4 Sep, measured): it does not need prod admin credentials.**
+An earlier draft of this section said the demo account could not be made
+because `~/.config/outreach-prod/credentials.env` holds placeholders. That
+conflated two different doors. Prod signup is **open and self-serve** --
+`/signup` returns 200 to a signed-out visitor, `app/api/signup/route.ts` has
+no invite code, allowlist or feature flag, and it creates the org as well as
+the user. So the account can be made through the front door with any mailbox
+we can read, and `secrets-sharmapratham290.env` is one.
+
+What still needs a person is the decision, not the access: signing up writes a
+real User and Organization into the production database, and this repo has no
+route that deletes either -- `Campaign` soft-deletes, `User` and `Organization`
+do not. That makes it a one-way write to prod, so it is being surfaced rather
+than done.
+
+Note also that the reviewer does not need pre-connected data. TikTok asks that
+they can *exercise* the integration; an org with one campaign and a reachable
+Connect TikTok button satisfies that, and connecting a live creator account is
+circular anyway, since the OAuth being demonstrated is the thing under review.
 
 ---
 
