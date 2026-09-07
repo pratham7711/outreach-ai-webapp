@@ -1036,6 +1036,40 @@ Access verification is *In review*. Everything below was driven in Chrome via th
   `post_impressions`, invalid in Graph v24 → Facebook views render null on prod. Valid there:
   `post_clicks`, `post_reactions_like_total`, `post_media_view`; page-level `page_impressions` is also
   invalid (use `page_views_total`, `page_follows`, `page_post_engagements`, `page_media_view`).
+- **2026-09-07 17:10 IST — found a real cause for `pages_read_user_content`, and fired both Facebook
+  permissions at their dedicated endpoints.** Pratham decided against the split ("we need these"), so
+  the question became what would actually make the counters move.
+
+  **The app never called the endpoint that only `pages_read_user_content` can satisfy.** Grepped the
+  tree: `lib/platforms/facebookPage.ts` asks for comments *only* as a field expansion on the posts
+  edge — `comments.summary(true).limit(0)` inside `POST_FIELDS` — and there is no `/{post-id}/comments`
+  call anywhere in `lib/` or `app/`. That is a plausible reason this one counter sat at 0 while
+  everything else in the same use case has hundreds of calls: Facebook answers `/{page}/posts` with
+  `pages_read_engagement` (which reads **Completed**), so Meta appears to credit the call to that
+  permission and never to `pages_read_user_content`.
+
+  Fired both from the **Graph API Explorer** — the route Meta's own Testing page prescribes — with a
+  **Morax Page token** (a user token is refused: code 190 subcode 2069032, "A Page access token is
+  required for this call for the new Pages experience"):
+  - `GET 872463439283803_122146626471134008/comments?summary=true` → **200**, returning the real
+    comment authored by Pratham Sharma (id `38159353687045384`), i.e. content by someone other than
+    the Page. First time this edge has ever been hit for this app.
+  - `GET 872463439283803_122146626471134008/insights?metric=post_media_view` → **200**, `value: 7`.
+
+  **Threads needs no equivalent fix.** `lib/platforms/threads.ts` already calls the dedicated
+  endpoints — `me/threads` with `PROFILE_FIELDS` (threads_basic), `me/threads_insights?metric=followers_count`
+  and `{postId}/insights` (threads_manage_insights). The Explorer cannot help there in any case: it
+  targets `graph.facebook.com` and Threads lives on `graph.threads.net`. So Threads at 0 is ingestion
+  lag, not a missing call.
+
+  **Follow-up worth doing:** give the app a real `/{post-id}/comments` read so production keeps
+  exercising the permission instead of leaning on a one-off Explorer call. Note the current
+  justification text says no comments from other users are stored, so any such read should stay a
+  count/preview and not persist third-party content.
+
+  Cron `59c5d761` deleted on request. Suites re-run for the push that preceded this: unit 155 suites /
+  1841 tests, build clean, E2E **168 passed / 5 skipped** in 13.1m (baseline was 167 passed / 5
+  skipped / 1 flake — same skip count, one more pass).
 - **2026-09-07 16:35 IST — audited the form itself: nothing is unfilled, the API-call gate is the only
   thing outstanding.** Pratham asked whether Submit is unavailable because we got something wrong in
   the form rather than because we are waiting. Opened all four incomplete blocks and read their fields
