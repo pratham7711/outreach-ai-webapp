@@ -1,8 +1,9 @@
 "use client";
 import React from "react";
 import {
-  ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid,
+  PieChart, Pie, Cell, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid,
 } from "recharts";
+import { ChartFrame } from "@/components/ds";
 
 type PieDatum = { name?: string; value: number; fill?: string };
 type BarDatum = { name: string; views: number; likes: number };
@@ -25,7 +26,7 @@ export function PlatformViewsPie({
   formatNumber: (n: number) => string;
 }) {
   return (
-    <ResponsiveContainer width="100%" height="100%">
+    <ChartFrame minHeight={200}>
       <PieChart>
         <Pie data={data} cx="50%" cy="50%" innerRadius={55} outerRadius={85} dataKey="value" nameKey="name" paddingAngle={2} label={false} stroke="var(--cc-card)" strokeWidth={2}>
           {data.map((entry, i) => (
@@ -38,7 +39,7 @@ export function PlatformViewsPie({
         />
         <Legend verticalAlign="bottom" height={24} wrapperStyle={{ fontSize: 12 }} formatter={(value: any) => <span style={{ color: "var(--cc-text-muted)" }}>{value}</span>} />
       </PieChart>
-    </ResponsiveContainer>
+    </ChartFrame>
   );
 }
 
@@ -50,7 +51,7 @@ export function CreatorPerformanceBar({
   formatNumber: (n: number) => string;
 }) {
   return (
-    <ResponsiveContainer width="100%" height="100%">
+    <ChartFrame minHeight={200}>
       <BarChart data={data} margin={{ top: 4, right: 0, bottom: 0, left: -8 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
         <XAxis dataKey="name" tick={axisTick} axisLine={false} tickLine={false} />
@@ -79,7 +80,7 @@ export function CreatorPerformanceBar({
         <Bar yAxisId="views" dataKey="views" name="Views" fill="var(--chart-1)" radius={[4, 4, 0, 0]} />
         <Bar yAxisId="likes" dataKey="likes" name="Likes" fill="var(--chart-3)" radius={[4, 4, 0, 0]} />
       </BarChart>
-    </ResponsiveContainer>
+    </ChartFrame>
   );
 }
 
@@ -93,7 +94,7 @@ export function BudgetBreakdownPie({
   currency: string;
 }) {
   return (
-    <ResponsiveContainer width="100%" height="100%">
+    <ChartFrame minHeight={200}>
       <PieChart>
         <Pie data={data} cx="50%" cy="50%" innerRadius={60} outerRadius={80} dataKey="value" paddingAngle={2}>
           <Cell fill="var(--cc-primary)" />
@@ -101,6 +102,6 @@ export function BudgetBreakdownPie({
         </Pie>
         <Tooltip formatter={(v: any) => formatCurrency(Number(v ?? 0), currency)} contentStyle={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12 }} />
       </PieChart>
-    </ResponsiveContainer>
+    </ChartFrame>
   );
 }

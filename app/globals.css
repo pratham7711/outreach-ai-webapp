@@ -735,7 +735,7 @@ h1, h2, h3, h4, h5, h6 {
 
 .cc-card-interactive:hover {
   box-shadow: var(--ui-shadow-md);
-  border-color: rgba(91, 91, 214, 0.2);
+  border-color: var(--cc-primary-medium);
 }
 
 /* ── Stat card enhancements ── */
@@ -811,13 +811,14 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .cc-btn-dark {
-  background: #1E1B4B;
-  color: #ffffff;
+  background: var(--foreground);
+  color: var(--background);
 }
 
 .cc-btn-dark:hover {
-  background: #2D2A5E;
-  box-shadow: 0 2px 8px rgba(28, 32, 72, 0.16);
+  background: var(--foreground);
+  opacity: 0.88;
+  box-shadow: var(--ui-shadow-sm);
 }
 
 .cc-btn-ghost {
@@ -850,12 +851,12 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .cc-search:hover {
-  border-color: #D0D3E8;
+  border-color: var(--ui-border-strong);
 }
 
 .cc-search:focus {
   border-color: var(--cc-primary);
-  box-shadow: 0 0 0 3px rgba(91, 91, 214, 0.1);
+  box-shadow: 0 0 0 3px var(--cc-primary-light);
 }
 
 /* ── Status filter tabs ── */
@@ -912,7 +913,7 @@ h1, h2, h3, h4, h5, h6 {
 
 /* ── Skeleton loader ── */
 .cc-skeleton {
-  background: linear-gradient(90deg, #F0F1F8 25%, #E8EAF4 50%, #F0F1F8 75%);
+  background: linear-gradient(90deg, var(--muted) 25%, var(--ui-bg-3) 50%, var(--muted) 75%);
   background-size: 200% 100%;
   animation: cc-shimmer 1.5s ease-in-out infinite;
   border-radius: 8px;
@@ -1072,7 +1073,7 @@ h1, h2, h3, h4, h5, h6 {
   100% { background-position: calc(200px + 100%) 0; }
 }
 .skeleton {
-  background: linear-gradient(90deg, var(--cc-border) 25%, rgba(91,91,214,0.05) 50%, var(--cc-border) 75%);
+  background: linear-gradient(90deg, var(--cc-border) 25%, var(--muted) 50%, var(--cc-border) 75%);
   background-size: 200px 100%;
   animation: skeleton-shimmer 1.5s infinite;
   border-radius: 6px;

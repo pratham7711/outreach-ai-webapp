@@ -1,8 +1,9 @@
 "use client";
 import React from "react";
 import {
-  AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar,
+  AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, BarChart, Bar,
 } from "recharts";
+import { ChartFrame } from "@/components/ds";
 import { formatNumber, SERIES_COLORS } from "./shared";
 
 type MonthlyTrend = { month: string; campaigns: number; active: number };
@@ -21,7 +22,7 @@ const chartTooltipStyle: React.CSSProperties = {
 
 export function MonthlyTrendArea({ data }: { data: MonthlyTrend[] }) {
   return (
-    <ResponsiveContainer width="100%" height="100%">
+    <ChartFrame minHeight={200}>
       <AreaChart data={data} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
         <defs>
           <linearGradient id="analyticsGradient" x1="0" y1="0" x2="0" y2="1">
@@ -57,13 +58,13 @@ export function MonthlyTrendArea({ data }: { data: MonthlyTrend[] }) {
           dot={false}
         />
       </AreaChart>
-    </ResponsiveContainer>
+    </ChartFrame>
   );
 }
 
 export function PlatformBreakdownBar({ data }: { data: PlatformBreakdown[] }) {
   return (
-    <ResponsiveContainer width="100%" height="100%">
+    <ChartFrame minHeight={200}>
       <BarChart data={data} layout="vertical" margin={{ left: 8, right: 8 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" horizontal={false} />
         <XAxis
@@ -87,7 +88,7 @@ export function PlatformBreakdownBar({ data }: { data: PlatformBreakdown[] }) {
         />
         <Bar dataKey="views" radius={[0, 4, 4, 0]} fill="var(--chart-1)" />
       </BarChart>
-    </ResponsiveContainer>
+    </ChartFrame>
   );
 }
 
@@ -103,7 +104,7 @@ export function CampaignComparisonLine({
   colorById: Record<string, string>;
 }) {
   return (
-    <ResponsiveContainer width="100%" height="100%">
+    <ChartFrame minHeight={200}>
       <LineChart data={series} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
         <XAxis dataKey="date" tick={axisTickSm} axisLine={false} tickLine={false} />
@@ -129,6 +130,6 @@ export function CampaignComparisonLine({
           />
         ))}
       </LineChart>
-    </ResponsiveContainer>
+    </ChartFrame>
   );
 }

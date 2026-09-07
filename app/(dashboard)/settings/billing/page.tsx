@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
+import { PageHeader } from "@/components/ds";
 import { getOrgEntitlements, hasOrgFeature } from "@/lib/entitlements";
 import { AUDIT_LOG_FEATURE } from "@/lib/featureKeys";
 import { FEATURES, type FeatureKey } from "@/lib/features";
@@ -52,7 +53,7 @@ function limitCard({
             width: 38,
             height: 38,
             borderRadius: 12,
-            background: "rgba(79, 70, 229, 0.08)",
+            background: "var(--cc-primary-light)",
             color: "var(--cc-primary)",
             display: "flex",
             alignItems: "center",
@@ -80,14 +81,10 @@ export default async function BillingPage() {
 
   return (
     <div className="rsp-page page-enter">
-      <div style={{ marginBottom: 32 }}>
-        <h1 style={{ fontSize: 26, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>
-          Billing
-        </h1>
-        <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>
-          Review your current plan, usage limits, and enabled capabilities.
-        </p>
-      </div>
+      <PageHeader
+        title="Billing"
+        subtitle="Review your current plan, usage limits, and enabled capabilities."
+      />
 
       <div
         style={{
@@ -144,7 +141,7 @@ export default async function BillingPage() {
               fontSize: 13,
               fontWeight: 600,
               color: "var(--cc-primary)",
-              background: "rgba(79, 70, 229, 0.08)",
+              background: "var(--cc-primary-light)",
               padding: "8px 12px",
               borderRadius: 999,
             }}
@@ -178,7 +175,7 @@ export default async function BillingPage() {
                   background: "var(--cc-bg)",
                 }}
               >
-                <CheckCircle2 size={16} style={{ color: "#059669", flexShrink: 0 }} />
+                <CheckCircle2 size={16} style={{ color: "var(--cc-success)", flexShrink: 0 }} />
                 <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>
                   {FEATURES[feature as FeatureKey]?.label ?? formatLabel(feature)}
                 </span>

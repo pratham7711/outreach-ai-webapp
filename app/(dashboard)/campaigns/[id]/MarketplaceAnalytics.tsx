@@ -3,8 +3,9 @@ import React, { useState, useEffect, useCallback } from "react";
 import { Card, EmptyState, Skeleton } from "@pratham7711/ui";
 import { AlertTriangle, Users } from "lucide-react";
 import {
-  ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
 } from "recharts";
+import { ChartFrame } from "@/components/ds";
 import { formatCompact } from "@/lib/format";
 
 type Analytics = {
@@ -147,27 +148,25 @@ export default function MarketplaceAnalytics({
             Creators joined over time
           </span>
           {data.joinsOverTime.length > 0 ? (
-            <div style={{ height: 240 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={data.joinsOverTime}>
-                  <defs>
-                    <linearGradient id="mktJoins" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="var(--cc-primary)" stopOpacity={0.35} />
-                      <stop offset="100%" stopColor="var(--cc-primary)" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
-                  <XAxis dataKey="date" tickFormatter={formatDate} tick={{ fontSize: 12, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} />
-                  <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} />
-                  <Tooltip
-                    labelFormatter={(l) => formatDate(String(l))}
-                    formatter={(v: any, name: any) => [formatNumber(Number(v ?? 0)), String(name)]}
-                    contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 12, color: "var(--popover-foreground)", fontSize: 13 }}
-                  />
-                  <Area type="monotone" dataKey="cumulative" name="Total joined" stroke="var(--cc-primary)" strokeWidth={2} fill="url(#mktJoins)" />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
+            <ChartFrame height={240}>
+              <AreaChart data={data.joinsOverTime}>
+                <defs>
+                  <linearGradient id="mktJoins" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="var(--cc-primary)" stopOpacity={0.35} />
+                    <stop offset="100%" stopColor="var(--cc-primary)" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
+                <XAxis dataKey="date" tickFormatter={formatDate} tick={{ fontSize: 12, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} />
+                <Tooltip
+                  labelFormatter={(l) => formatDate(String(l))}
+                  formatter={(v: any, name: any) => [formatNumber(Number(v ?? 0)), String(name)]}
+                  contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 12, color: "var(--popover-foreground)", fontSize: 13 }}
+                />
+                <Area type="monotone" dataKey="cumulative" name="Total joined" stroke="var(--cc-primary)" strokeWidth={2} fill="url(#mktJoins)" />
+              </AreaChart>
+            </ChartFrame>
           ) : (
             <EmptyState icon={<Users size={32} color="var(--cc-text-subtle)" />} title="No joins yet" description="Creator joins will appear here once they enroll." />
           )}

@@ -1,9 +1,9 @@
 "use client";
 import React from "react";
 import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, LabelList, ReferenceLine,
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell, BarChart, Bar, LabelList, ReferenceLine,
 } from "recharts";
-import { MetricHint } from "@/components/ds";
+import { ChartFrame, MetricHint } from "@/components/ds";
 import { cpm } from "@/lib/metrics";
 
 type ViewsPoint = { date: string; views: number };
@@ -48,48 +48,46 @@ export function ViewsOverTimeArea({
     <div className="flex h-full flex-col">
       <div className="flex min-h-0 flex-1 flex-col">
         <PanelHeading title="Views" metric="views" />
-        <div className="min-h-0 flex-1">
-          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-            <AreaChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
-              <defs>
-                <linearGradient id="viewsGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="var(--chart-3)" stopOpacity={0.18} />
-                  <stop offset="95%" stopColor="var(--chart-3)" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
-              <XAxis dataKey="date" tick={axisTick} axisLine={false} tickLine={false} />
-              <YAxis
-                tick={axisTick}
-                axisLine={false}
-                tickLine={false}
-                width={56}
-                tickFormatter={(v) => formatNumber(Number(v))}
-              />
-              <Tooltip
-                contentStyle={chartTooltipStyle}
-                formatter={(value) => [formatNumber(Number(value)), "Views"]}
-              />
-              <Area
-                type="monotone"
-                dataKey="views"
-                stroke="var(--chart-3)"
-                strokeWidth={2}
-                fill="url(#viewsGradient)"
-                /* A line through one or two points draws nothing you can see,
-                   and this series starts at one point: the daily snapshot cron
-                   has to run before there is a second reading to join to. Show
-                   the markers until the line can carry itself. */
-                dot={
-                  data.length <= 3
-                    ? { fill: "var(--chart-3)", stroke: "var(--card)", strokeWidth: 2, r: 4 }
-                    : false
-                }
-                activeDot={{ fill: "var(--chart-3)", stroke: "var(--card)", strokeWidth: 2, r: 5 }}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
+        <ChartFrame className="min-h-0 flex-1" minHeight={120}>
+          <AreaChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+            <defs>
+              <linearGradient id="viewsGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="var(--chart-3)" stopOpacity={0.18} />
+                <stop offset="95%" stopColor="var(--chart-3)" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
+            <XAxis dataKey="date" tick={axisTick} axisLine={false} tickLine={false} />
+            <YAxis
+              tick={axisTick}
+              axisLine={false}
+              tickLine={false}
+              width={56}
+              tickFormatter={(v) => formatNumber(Number(v))}
+            />
+            <Tooltip
+              contentStyle={chartTooltipStyle}
+              formatter={(value) => [formatNumber(Number(value)), "Views"]}
+            />
+            <Area
+              type="monotone"
+              dataKey="views"
+              stroke="var(--chart-3)"
+              strokeWidth={2}
+              fill="url(#viewsGradient)"
+              /* A line through one or two points draws nothing you can see,
+                 and this series starts at one point: the daily snapshot cron
+                 has to run before there is a second reading to join to. Show
+                 the markers until the line can carry itself. */
+              dot={
+                data.length <= 3
+                  ? { fill: "var(--chart-3)", stroke: "var(--card)", strokeWidth: 2, r: 4 }
+                  : false
+              }
+              activeDot={{ fill: "var(--chart-3)", stroke: "var(--card)", strokeWidth: 2, r: 5 }}
+            />
+          </AreaChart>
+        </ChartFrame>
       </div>
     </div>
   );
@@ -105,7 +103,7 @@ export function PlatformBreakdownPie({
   formatNumber: Fmt;
 }) {
   return (
-    <ResponsiveContainer width="100%" height={200}>
+    <ChartFrame height={200}>
       <PieChart>
         <Pie
           data={data}
@@ -128,7 +126,7 @@ export function PlatformBreakdownPie({
           formatter={(v, name) => [`${formatNumber(Number(v))} views`, String(name)]}
         />
       </PieChart>
-    </ResponsiveContainer>
+    </ChartFrame>
   );
 }
 
@@ -164,7 +162,7 @@ export function CpmTrendLine({
   const best = Math.min(...points.map((p) => p.cpm));
 
   return (
-    <ResponsiveContainer width="100%" height={200}>
+    <ChartFrame height={200}>
       <AreaChart data={points} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
         <defs>
           <linearGradient id="cpmFill" x1="0" y1="0" x2="0" y2="1">
@@ -193,7 +191,7 @@ export function CpmTrendLine({
         />
         <Area type="monotone" dataKey="cpm" stroke="var(--chart-3)" strokeWidth={2} fill="url(#cpmFill)" />
       </AreaChart>
-    </ResponsiveContainer>
+    </ChartFrame>
   );
 }
 
@@ -205,7 +203,7 @@ export function ViewsByCampaignBar({
   formatNumber: Fmt;
 }) {
   return (
-    <ResponsiveContainer width="100%" height={200}>
+    <ChartFrame height={200}>
       <BarChart data={data} layout="vertical" margin={{ top: 0, right: 48, bottom: 0, left: 0 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" horizontal={false} />
         <XAxis type="number" tick={axisTick} axisLine={false} tickLine={false} tickFormatter={(v) => formatNumber(Number(v))} />
@@ -223,6 +221,6 @@ export function ViewsByCampaignBar({
           />
         </Bar>
       </BarChart>
-    </ResponsiveContainer>
+    </ChartFrame>
   );
 }

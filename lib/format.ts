@@ -1,3 +1,10 @@
+/**
+ * What we print when a number is not known. A measured zero and an unmeasured value
+ * look identical once both render as "0", and the second one is a claim we cannot make —
+ * a sound tracker that has never been snapshotted is not a sound with no uses.
+ */
+export const UNKNOWN = "—";
+
 export function formatCompact(n: number): string {
   if (!Number.isFinite(n)) return "0";
   return new Intl.NumberFormat("en-US", {
@@ -85,9 +92,11 @@ export function formatDateTimeAbs(iso: string | Date | null | undefined): string
 }
 
 export function timeAgo(iso: string | Date | null | undefined): string {
-  if (!iso) return "Recently";
+  // A missing timestamp used to render as "Recently", which is a freshness claim we
+  // have no basis for — "Last updated Recently" on a row nobody has touched in a year.
+  if (!iso) return UNKNOWN;
   const d = iso instanceof Date ? iso : new Date(iso);
-  if (Number.isNaN(d.getTime())) return "Recently";
+  if (Number.isNaN(d.getTime())) return UNKNOWN;
   const mins = Math.floor((Date.now() - d.getTime()) / 60000);
   if (mins < 1) return "Just now";
   if (mins < 60) return `${mins}m ago`;
