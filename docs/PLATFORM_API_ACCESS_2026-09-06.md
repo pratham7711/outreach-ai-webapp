@@ -983,6 +983,60 @@ Console traps (add to 9.1's list):
 
 Open on the platform side after this section: Meta App Review needs the irreversible **"Become a Tech Provider"** click (Business verification + Access verification) — Pratham's decision; TikTok not started (VPN + sandbox creds).
 
+### 9.13 Meta App Review SUBMITTED — split into two submissions (2026-09-07 17:15–17:28 IST, measured)
+
+**Submission `28290068043945736` is now `Review in progress`** ("Most submissions are reviewed within
+20 days"). URL after the confirm dialog: `…/app-review/submissions/?show_post_submission_survey_modal=true&business_id=856537137010036`.
+Screenshot: `~/.claude/playwright-mcp/meta-submitted-in-review-2026-09-07.png`.
+
+Pratham's call was **"split it"** — ship the 14 permissions whose testing counters were satisfied now,
+and re-file the four blocked ones once their counters clear. The four API-call counters ("0 of 1 API
+call(s) required") were the *only* thing keeping `Submit for review` disabled, and Meta's ingestion lag
+is documented at up to 24h with no manual override, so the alternative was a blind wait.
+
+**Removed from this submission (4):** `read_insights`, `threads_basic`, `threads_manage_insights`,
+`pages_read_user_content`. Each via the row's trash icon → "Yes, remove" in a confirm dialog that
+**does not name the permission it is about to remove**.
+
+**Submitted (14):** `Business Asset User Profile Access`, `Instagram Public Content Access`,
+`instagram_business_basic`, `instagram_branded_content_ads_brand`, `pages_show_list`,
+`instagram_creator_marketplace_discovery`, `instagram_branded_content_brand`, `business_management`,
+`instagram_branded_content_creator`, `pages_read_engagement`, `public_profile`,
+`instagram_manage_insights`, `instagram_basic`, `email` — all 14 measured `complete` on Allowed usage,
+zero `Get started`, zero `API call(s) required` warnings.
+
+Measured mechanics, all of which cost time:
+
+- **Row order is not stable across page loads.** Between two reads the list re-ordered (the two
+  *features* moved from the tail to the head), which is what made an earlier index-based removal look
+  wrong enough to cancel. Do not remove by remembered position.
+- **The remove controls are invisible to a `querySelectorAll` name filter.** Neither
+  `aria-label="remove"` nor `innerText === 'remove'` matches anything —
+  `document.querySelectorAll('div[role=button],button')` filtered that way returns `[]`, while
+  Playwright's `getByRole('button', { name: 'remove', exact: true })` finds all 17. The accessible
+  name is computed, not present in the DOM.
+- **Map each control to its permission by DOM containment, then assert before clicking.** Walk up from
+  the button until exactly *one* known permission name matches with word boundaries; more than one
+  match means you are above the row. Indices 0–1 are the two features (their containers hold every
+  name), 2+ map 1:1. Every removal here re-derived the mapping and aborted on mismatch.
+- **`Submit for review` was `aria-disabled="true"` before the removals and `null` after** — with
+  `tabindex="0"`, `pointer-events: auto`, `opacity: 1` and a solid `rgb(10,120,190)` background. That
+  attribute, not the footer text, is the signal.
+- **The footer line "You must complete all steps before you can submit for review." is static.** It is
+  still on the page when the button is live, and it was still there when the submit succeeded.
+- **The confirm dialog has its own gate:** "Submit for App Review?" carries an acknowledgement
+  `input[type=checkbox]` (unchecked) and its `Submit` is `aria-disabled="true"` until ticked.
+- Navigation traps: the edit-submission page's `Next` is an `<a role="link">`, not a button
+  (`getByRole('button', {name:'Next'})` times out); on the wizard the step bodies only render after
+  clicking the step's `Go to <step>` button, so a completeness scan of a collapsed wizard reads
+  0 blocks and looks empty.
+
+**Still to do:** the four removed permissions need their own submission once the counters ingest. The
+Explorer calls that should feed them were fired at 11:38Z 2026-09-07, so the earliest useful re-read is
+**~17:10 IST 2026-09-08**. `read_insights` and `pages_read_user_content` were both exercised against
+the Morax Page with a Page token; the two Threads permissions already call dedicated endpoints in
+`lib/platforms/threads.ts`.
+
 ### 9.12 Meta App Review submission `28290068043945736` built out (2026-09-07 04:40–11:40 IST, measured)
 
 App `27669383676014179` (business `856537137010036`). Pratham clicked **Become a Tech Provider**;
