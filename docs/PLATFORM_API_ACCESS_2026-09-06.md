@@ -1036,6 +1036,42 @@ Access verification is *In review*. Everything below was driven in Chrome via th
   `post_impressions`, invalid in Graph v24 → Facebook views render null on prod. Valid there:
   `post_clicks`, `post_reactions_like_total`, `post_media_view`; page-level `page_impressions` is also
   invalid (use `page_views_total`, `page_follows`, `page_post_engagements`, `page_media_view`).
+- **2026-09-07 16:35 IST — audited the form itself: nothing is unfilled, the API-call gate is the only
+  thing outstanding.** Pratham asked whether Submit is unavailable because we got something wrong in
+  the form rather than because we are waiting. Opened all four incomplete blocks and read their fields
+  directly:
+
+  | Permission | Description | Screencast | Compliance box | API calls |
+  |---|---|---|---|---|
+  | `pages_read_user_content` | filled | uploaded | checked | **0 of 1** |
+  | `threads_manage_insights` | 276 chars | uploaded | checked | **0 of 1** |
+  | `threads_basic` | 302 chars | uploaded | checked | **0 of 1** |
+  | `read_insights` | 300 chars | uploaded | checked | **0 of 1** |
+
+  Allowed usage holds **18** blocks; 14 render an `Edit` button (complete) and these four render
+  `Get started`. **Correction to an earlier claim in this session:** the `Get started` state and its
+  four unticked checklist items do *not* mean the fields are empty — every field inside is populated.
+  The block simply is not marked complete while the API-call requirement is unmet. Clicking Save on a
+  fully-filled block does not flip it to `Edit` either (tried on `pages_read_user_content`; the block
+  stayed `Get started` and the Get-started count stayed 4).
+
+  Meta's own wording inside the dialog: "Make sure you've completed the required API test calls for
+  added permissions. Completed test calls can take up to 24 hours to show for your app." And: "If you
+  haven't completed the required testing, save any information you've added above and go to Testing to
+  complete the requirements. Then come back here to complete the App Review submission."
+
+  Also checked for a manual override on the Testing page — there is **no per-permission "Actions"
+  button**; "Actions" is only a column header. So there is no way to assert a test call was made; the
+  counter is fed solely by recorded traffic.
+
+  Both dependency notes are satisfied: the submission includes `pages_show_list` (required for
+  `pages_read_user_content`) and `threads_basic` (required for `threads_manage_insights`).
+
+  **Verdict: the form is not the problem. Waiting is correct.** `Submit for review` stays
+  `aria-disabled="true"` until Meta ingests the calls production is already making.
+
+  Operational note: the Chrome session died mid-audit (all 11 tabs closed, facebook.com served the
+  login form) and Pratham logged back in. Any cron run during that window would have found no session.
 - **2026-09-07 16:05 IST — the photo post landed too, so the Page now has a photo to measure.**
   Pratham authorised the retry explicitly. Switched into the Page (Switch Now), opened the composer,
   attached `mb-card.png` and published as Morax, Public, Publish now, Boost off. Verified on the Page:
