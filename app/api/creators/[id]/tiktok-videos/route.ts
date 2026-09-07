@@ -22,9 +22,14 @@ export async function GET(
   if (!creator)
     return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const account = await db.creatorSocialAccount.findUnique({
-    where: { creatorId_platform: { creatorId: id, platform: "TIKTOK" } },
+  /* The creator's first-connected TikTok account. A creator may now link more
+     than one, so this is no longer a unique lookup — when this route needs to
+     serve a specific one it will have to take an account id, rather than
+     silently pick. */
+  const account = await db.creatorSocialAccount.findFirst({
+    where: { creatorId: id, platform: "TIKTOK" },
     select: { id: true, accessToken: true, refreshToken: true, tokenExpiry: true },
+    orderBy: { createdAt: "asc" },
   });
   if (!account)
     return NextResponse.json(

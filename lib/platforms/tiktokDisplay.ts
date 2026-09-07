@@ -1,4 +1,5 @@
 import { createLogger } from "../observability/logger";
+import { clientCredentialsFor } from "../oauth/providers";
 
 const API_BASE = "https://open.tiktokapis.com/v2";
 
@@ -159,12 +160,12 @@ export async function refreshTikTokAccessToken(
   refreshToken: string,
 ): Promise<RefreshedTikTokToken | null> {
   const log = createLogger({ context: { platform: "TIKTOK", call: "oauth.refresh" } });
-  const clientKey = process.env.TIKTOK_CLIENT_KEY;
-  const clientSecret = process.env.TIKTOK_CLIENT_SECRET;
-  if (!clientKey || !clientSecret) {
+  const creds = clientCredentialsFor("tiktok");
+  if (!creds) {
     log.error("TikTok client credentials not configured; cannot refresh");
     return null;
   }
+  const { clientId: clientKey, clientSecret } = creds;
 
   try {
     const res = await fetch(`${API_BASE}/oauth/token/`, {
@@ -214,9 +215,9 @@ export async function refreshTikTokAccessToken(
 
 export async function revokeTikTokToken(accessToken: string): Promise<boolean> {
   const log = createLogger({ context: { platform: "TIKTOK", call: "oauth.revoke" } });
-  const clientKey = process.env.TIKTOK_CLIENT_KEY;
-  const clientSecret = process.env.TIKTOK_CLIENT_SECRET;
-  if (!clientKey || !clientSecret) return false;
+  const creds = clientCredentialsFor("tiktok");
+  if (!creds) return false;
+  const { clientId: clientKey, clientSecret } = creds;
   try {
     const res = await fetch(`${API_BASE}/oauth/revoke/`, {
       method: "POST",

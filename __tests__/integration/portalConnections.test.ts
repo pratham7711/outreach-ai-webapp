@@ -10,6 +10,7 @@ import { GET as listConnections, DELETE as deleteConnection } from "@/app/api/po
 import { GET as startConnect } from "@/app/api/portal/connections/[platform]/start/route";
 import { GET as oauthCallback } from "@/app/api/portal/connections/[platform]/callback/route";
 import { encrypt, decrypt, isEncrypted } from "@/lib/crypto/encrypt";
+import { OAUTH_PLATFORMS } from "@/lib/oauth/providers";
 
 jest.mock("@/lib/db", () => ({
   db: {
@@ -18,7 +19,9 @@ jest.mock("@/lib/db", () => ({
       findMany: jest.fn(),
       findFirst: jest.fn(),
       upsert: jest.fn(),
+      update: jest.fn(),
       delete: jest.fn(),
+      count: jest.fn(),
     },
   },
 }));
@@ -35,7 +38,9 @@ const mockDb = db as unknown as {
     findMany: jest.Mock;
     findFirst: jest.Mock;
     upsert: jest.Mock;
+    update: jest.Mock;
     delete: jest.Mock;
+    count: jest.Mock;
   };
 };
 
@@ -73,6 +78,7 @@ beforeEach(() => {
   mockDb.creatorSocialAccount.findMany.mockResolvedValue([]);
   mockDb.creatorSocialAccount.upsert.mockResolvedValue({ id: "sa-1" });
   mockDb.creatorSocialAccount.delete.mockResolvedValue({ id: "sa-1" });
+  mockDb.creatorSocialAccount.count.mockResolvedValue(0);
 });
 
 describe("GET /api/portal/connections", () => {
@@ -105,7 +111,11 @@ describe("GET /api/portal/connections", () => {
       connected: true,
       encrypted: true,
     });
-    expect(body.providers).toEqual({ instagram: false, tiktok: false, youtube: false });
+    /* Derived, not listed: the payload is built from OAUTH_PLATFORMS, so a
+       hand-written literal here would have to be edited every time a provider
+       is added and would fail for a reason unrelated to what this test checks. */
+    expect(Object.keys(body.providers).sort()).toEqual([...OAUTH_PLATFORMS].sort());
+    expect(Object.values(body.providers).every((v) => v === false)).toBe(true);
     const raw = JSON.stringify(body);
     expect(raw).not.toContain(plaintext);
     expect(raw).not.toContain(ciphertext);
@@ -167,6 +177,53 @@ describe("DELETE /api/portal/connections", () => {
     expect(res.status).toBe(200);
     expect(mockDb.creatorSocialAccount.delete).toHaveBeenCalledWith({ where: { id: "sa-1" } });
   });
+
+  it("revokes at Meta when the Facebook row is the creator's last Meta connection", async () => {
+    mockDb.creatorSocialAccount.findFirst.mockResolvedValue({
+      id: "sa-fb",
+      creatorId: "c1",
+      platform: "FACEBOOK",
+      accessToken: encrypt("fb-user-token", "org-1"),
+    });
+    mockDb.creatorSocialAccount.count.mockResolvedValue(0);
+    const fetchMock = jest.fn().mockResolvedValue({ ok: true, json: async () => ({ success: true }) });
+    global.fetch = fetchMock;
+    const res = await deleteConnection(
+      makeRequest("http://localhost:3009/api/portal/connections?id=sa-fb", { method: "DELETE" }),
+    );
+    expect(res.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(String(fetchMock.mock.calls[0][0])).toContain("/me/permissions");
+    expect(mockDb.creatorSocialAccount.delete).toHaveBeenCalledWith({ where: { id: "sa-fb" } });
+  });
+
+  it("does NOT revoke at Meta while an Instagram row shares the grant, so that token survives", async () => {
+    // Measured on prod 2026-09-07: DELETE /me/permissions for the Facebook row
+    // invalidated the Instagram token (Graph code 190) because both rows are one
+    // Meta user grant. The row still goes; only the Graph revoke is deferred.
+    mockDb.creatorSocialAccount.findFirst.mockResolvedValue({
+      id: "sa-fb",
+      creatorId: "c1",
+      platform: "FACEBOOK",
+      accessToken: encrypt("fb-user-token", "org-1"),
+    });
+    mockDb.creatorSocialAccount.count.mockResolvedValue(1);
+    const fetchMock = jest.fn();
+    global.fetch = fetchMock;
+    const res = await deleteConnection(
+      makeRequest("http://localhost:3009/api/portal/connections?id=sa-fb", { method: "DELETE" }),
+    );
+    expect(res.status).toBe(200);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(mockDb.creatorSocialAccount.count).toHaveBeenCalledWith({
+      where: {
+        creatorId: "c1",
+        platform: { in: ["INSTAGRAM", "FACEBOOK"] },
+        id: { not: "sa-fb" },
+      },
+    });
+    expect(mockDb.creatorSocialAccount.delete).toHaveBeenCalledWith({ where: { id: "sa-fb" } });
+  });
 });
 
 describe("GET /api/portal/connections/[platform]/start", () => {
@@ -197,8 +254,15 @@ describe("GET /api/portal/connections/[platform]/start", () => {
 
     expect(mockDb.creatorSocialAccount.upsert).toHaveBeenCalledTimes(1);
     const args = mockDb.creatorSocialAccount.upsert.mock.calls[0][0];
+    // Keyed on the platform account, so a creator can link several accounts on
+    // one platform. Dev connections have no real account id, so they get a
+    // stable synthetic one instead of colliding or duplicating.
     expect(args.where).toEqual({
-      creatorId_platform: { creatorId: "c1", platform: "INSTAGRAM" },
+      creatorId_platform_platformUserId: {
+        creatorId: "c1",
+        platform: "INSTAGRAM",
+        platformUserId: "dev-instagram-c1",
+      },
     });
     const stored = args.create.accessToken;
     expect(isEncrypted(stored)).toBe(true);
@@ -277,7 +341,7 @@ describe("GET /api/portal/connections/[platform]/callback", () => {
       ),
       makeParams("instagram"),
     );
-    expect(res.headers.get("location")).toContain("/portal/settings?error=instagram");
+    expect(res.headers.get("location")).toContain("/portal/settings?error=instagram&reason=state");
     expect(global.fetch).not.toHaveBeenCalled();
     expect(mockDb.creatorSocialAccount.upsert).not.toHaveBeenCalled();
   });
@@ -288,7 +352,7 @@ describe("GET /api/portal/connections/[platform]/callback", () => {
       makeRequest("http://localhost:3009/api/portal/connections/instagram/callback?state=s1&code=c1"),
       makeParams("instagram"),
     );
-    expect(res.headers.get("location")).toContain("/portal/settings?error=instagram");
+    expect(res.headers.get("location")).toContain("/portal/settings?error=instagram&reason=state");
     expect(global.fetch).not.toHaveBeenCalled();
   });
 
@@ -308,6 +372,29 @@ describe("GET /api/portal/connections/[platform]/callback", () => {
       .mockResolvedValueOnce({
         ok: true,
         json: async () => ({ access_token: "long-lived-token", expires_in: 60 * 24 * 3600 }),
+      })
+      // The identity call. Every platform now resolves who the connected
+      // account actually is; Instagram rows used to be stored under the
+      // creator's PORTAL username, so the settings screen named the wrong
+      // account. See lib/platforms/accountSync.ts.
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: [
+            {
+              instagram_business_account: {
+                id: "ig-17841400000000000",
+                username: "realhandle",
+                name: "Real Handle",
+                biography: "bio text",
+                profile_picture_url: "https://cdn.example/avatar.jpg",
+                followers_count: 4321,
+                follows_count: 120,
+                media_count: 88,
+              },
+            },
+          ],
+        }),
       });
 
     const res = await oauthCallback(
@@ -319,11 +406,11 @@ describe("GET /api/portal/connections/[platform]/callback", () => {
     );
 
     expect(res.headers.get("location")).toContain("/portal/settings?connected=instagram");
-    // Two calls: the code exchange, then the trade for a long-lived token. The
-    // short-lived one lasts about an hour and Facebook issues no refresh_token,
-    // so storing the first token would leave the connection dead by the next
-    // cron run.
-    expect(global.fetch).toHaveBeenCalledTimes(2);
+    // Three calls: the code exchange, the trade for a long-lived token, then
+    // the identity read. The short-lived token lasts about an hour and Facebook
+    // issues no refresh_token, so storing the first one would leave the
+    // connection dead by the next cron run.
+    expect(global.fetch).toHaveBeenCalledTimes(3);
     const [tokenUrl, fetchInit] = (global.fetch as jest.Mock).mock.calls[0];
     expect(tokenUrl).toContain("graph.facebook.com");
     expect((fetchInit.body as URLSearchParams).get("code")).toBe("code-1");
@@ -341,6 +428,30 @@ describe("GET /api/portal/connections/[platform]/callback", () => {
     const expiry = args.update.tokenExpiry as Date;
     expect(expiry).toBeInstanceOf(Date);
     expect(expiry.getTime() - Date.now()).toBeGreaterThan(30 * 24 * 3600 * 1000);
+
+    // The identity read went out on the creator's own token, and what came
+    // back landed on the account row rather than on the shared Creator row.
+    const [identityUrl] = (global.fetch as jest.Mock).mock.calls[2];
+    expect(String(identityUrl)).toContain("me/accounts");
+    expect(String(identityUrl)).toContain("instagram_business_account");
+
+    // The identity is resolved BEFORE the write, because platformUserId is part
+    // of the account's unique key — that is what lets a creator link a second
+    // account on the same platform instead of overwriting the first.
+    expect(args.where).toEqual({
+      creatorId_platform_platformUserId: {
+        creatorId: "c1",
+        platform: "INSTAGRAM",
+        platformUserId: "ig-17841400000000000",
+      },
+    });
+    expect(args.update.handle).toBe("realhandle");
+    expect(args.update.platformUserId).toBe("ig-17841400000000000");
+    expect(args.update.followersCount).toBe(4321);
+    expect(args.update.mediaCount).toBe(88);
+    // Instagram publishes no lifetime like total, so it must stay null rather
+    // than be summed from a sample and presented as a career figure.
+    expect(args.update.totalLikes).toBeNull();
   });
 
   it("redirects with error when the provider is unconfigured", async () => {
@@ -352,7 +463,7 @@ describe("GET /api/portal/connections/[platform]/callback", () => {
       ),
       makeParams("instagram"),
     );
-    expect(res.headers.get("location")).toContain("/portal/settings?error=instagram");
+    expect(res.headers.get("location")).toContain("/portal/settings?error=instagram&reason=provider");
     expect(global.fetch).not.toHaveBeenCalled();
   });
 
@@ -367,7 +478,7 @@ describe("GET /api/portal/connections/[platform]/callback", () => {
       ),
       makeParams("instagram"),
     );
-    expect(res.headers.get("location")).toContain("/portal/settings?error=instagram");
+    expect(res.headers.get("location")).toContain("/portal/settings?error=instagram&reason=token_exchange");
     expect(mockDb.creatorSocialAccount.upsert).not.toHaveBeenCalled();
   });
 });

@@ -6,6 +6,11 @@ import { Card, Input, Skeleton, Textarea, Badge, Tag } from "@pratham7711/ui";
 import { toast } from "sonner";
 import { Save } from "lucide-react";
 import type { PlatformCapability } from "@/lib/capabilities";
+import {
+  OAUTH_PLATFORMS,
+  toPlatformEnum,
+  type OAuthPlatform,
+} from "@/lib/oauth/providers";
 import { Dropdown, Button } from "@/components/ds";
 
 const PLATFORMS = [
@@ -27,15 +32,33 @@ type Connection = {
   tokenExpiry: string | null;
   connected: boolean;
   encrypted: boolean;
+  avatarUrl: string | null;
+  profileUrl: string | null;
+  isVerified: boolean;
+  followersCount: number;
+  mediaCount: number | null;
 };
 
-type ProviderFlags = { instagram: boolean; tiktok: boolean; youtube: boolean };
+type ProviderFlags = Partial<Record<OAuthPlatform, boolean>>;
 
-const CONNECT_PLATFORMS: { key: keyof ProviderFlags; enumValue: string; label: string }[] = [
-  { key: "instagram", enumValue: "INSTAGRAM", label: "Instagram" },
-  { key: "tiktok", enumValue: "TIKTOK", label: "TikTok" },
-  { key: "youtube", enumValue: "YOUTUBE", label: "YouTube" },
-];
+const PLATFORM_LABELS: Record<OAuthPlatform, string> = {
+  instagram: "Instagram",
+  tiktok: "TikTok",
+  youtube: "YouTube",
+  facebook: "Facebook",
+  threads: "Threads",
+};
+
+/* Derived from OAUTH_PLATFORMS, so a provider added to the code shows up here
+   instead of having to be remembered in a second hand-written list. Declared
+   after PLATFORM_LABELS on purpose: this evaluates at module load and a const
+   read before its initialiser throws. */
+const CONNECT_PLATFORMS: { key: OAuthPlatform; enumValue: string; label: string }[] =
+  OAUTH_PLATFORMS.map((key) => ({
+    key,
+    enumValue: toPlatformEnum(key),
+    label: PLATFORM_LABELS[key],
+  }));
 
 type Profile = {
   name: string;
@@ -102,8 +125,21 @@ export default function PortalSettingsPage() {
     const params = new URLSearchParams(window.location.search);
     const connected = params.get("connected");
     const failed = params.get("error");
+    /* The callback names which step failed (state, token_exchange, identity…);
+       showing it turns "Failed to connect facebook" into something a reader
+       can act on without opening the server log. */
+    const reason = params.get("reason");
     if (connected) toast.success(`${connected.charAt(0).toUpperCase()}${connected.slice(1)} connected`);
-    if (failed) toast.error(`Failed to connect ${failed}`);
+    if (failed && reason === "creator")
+      toast.error(
+        `Couldn't connect ${failed}: no brand has added you to a campaign yet. Join a campaign from Discover, then connect.`,
+      );
+    else if (failed)
+      toast.error(
+        reason
+          ? `Failed to connect ${failed} (${reason.replace(/_/g, " ")})`
+          : `Failed to connect ${failed}`,
+      );
     if (connected || failed) window.history.replaceState(null, "", "/portal/settings");
   }, []);
 
@@ -306,68 +342,128 @@ export default function PortalSettingsPage() {
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               {CONNECT_PLATFORMS.map(({ key, enumValue, label }) => {
-                const account = connections.find((c) => c.platform === enumValue);
+                /* Every account on this platform, not just the first. A creator
+                   can link several — a personal and a brand handle — and this
+                   used to `.find()` one, so the second one they authorised was
+                   invisible even once it was stored. */
+                const accounts = connections.filter((c) => c.platform === enumValue);
                 const configured = providers?.[key] ?? false;
                 const capability = capabilities.find((c) => c.platform === key);
                 const connectStatus = capability?.connect ?? "gated";
+                const comingSoon = connectStatus === "coming_soon";
                 return (
                   <div
                     key={key}
                     style={{
                       display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      gap: 12,
+                      flexDirection: "column",
+                      gap: 10,
                       padding: "12px 16px",
                       border: "1px solid var(--cc-border)",
                       borderRadius: 10,
                     }}
                   >
-                    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                      <span style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)", minWidth: 80 }}>
-                        {label}
-                      </span>
-                      {account ? (
-                        <>
-                          <Badge variant="success" size="sm">Connected</Badge>
-                          <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>
-                            {account.handle}
-                          </span>
-                          {!configured && (
-                            <Tag variant="warning" outlined>Dev mode</Tag>
-                          )}
-                        </>
-                      ) : connectStatus === "coming_soon" ? (
-                        <>
-                          <Badge variant="neutral" size="sm">Coming soon</Badge>
-                          <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>
-                            {capability?.connectNote}
-                          </span>
-                        </>
-                      ) : (
-                        <Badge variant="neutral" size="sm">Not connected</Badge>
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: 12,
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                        <span style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)", minWidth: 80 }}>
+                          {label}
+                        </span>
+                        {accounts.length > 0 ? (
+                          <>
+                            <Badge variant="success" size="sm">
+                              {accounts.length === 1
+                                ? "Connected"
+                                : `${accounts.length} accounts`}
+                            </Badge>
+                            {!configured && <Tag variant="warning" outlined>Dev mode</Tag>}
+                          </>
+                        ) : comingSoon ? (
+                          <>
+                            <Badge variant="neutral" size="sm">Coming soon</Badge>
+                            <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>
+                              {capability?.connectNote}
+                            </span>
+                          </>
+                        ) : (
+                          <Badge variant="neutral" size="sm">Not connected</Badge>
+                        )}
+                      </div>
+                      {!comingSoon && (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => {
+                            window.location.href = `/api/portal/connections/${key}/start`;
+                          }}
+                        >
+                          {accounts.length > 0 ? `Add another ${label}` : "Connect"}
+                        </Button>
                       )}
                     </div>
-                    {account ? (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        loading={disconnectingId === account.id}
-                        onClick={() => handleDisconnect(account.id)}
-                      >
-                        Disconnect
-                      </Button>
-                    ) : connectStatus === "coming_soon" ? null : (
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => {
-                          window.location.href = `/api/portal/connections/${key}/start`;
+
+                    {accounts.map((account) => (
+                      <div
+                        key={account.id}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          gap: 12,
+                          padding: "8px 12px",
+                          background: "var(--cc-bg)",
+                          borderRadius: 8,
                         }}
                       >
-                        Connect
-                      </Button>
-                    )}
+                        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                          {account.avatarUrl && (
+                            /* eslint-disable-next-line @next/next/no-img-element */
+                            <img
+                              src={account.avatarUrl}
+                              alt=""
+                              width={24}
+                              height={24}
+                              style={{ borderRadius: "50%", objectFit: "cover" }}
+                            />
+                          )}
+                          <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>
+                            {account.profileUrl ? (
+                              <a
+                                href={account.profileUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                style={{ color: "var(--cc-text)" }}
+                              >
+                                {account.handle}
+                              </a>
+                            ) : (
+                              account.handle
+                            )}
+                          </span>
+                          {account.isVerified && <Tag variant="accent" outlined>Verified</Tag>}
+                          <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>
+                            {new Intl.NumberFormat("en", { notation: "compact" }).format(
+                              account.followersCount,
+                            )}{" "}
+                            followers
+                          </span>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          loading={disconnectingId === account.id}
+                          onClick={() => handleDisconnect(account.id)}
+                        >
+                          Disconnect
+                        </Button>
+                      </div>
+                    ))}
                   </div>
                 );
               })}

@@ -23,12 +23,20 @@ const LABELS: Record<OAuthPlatform, string> = {
   instagram: "Instagram",
   tiktok: "TikTok",
   youtube: "YouTube",
+  facebook: "Facebook",
+  threads: "Threads",
 };
 
 const DEFAULT_CONNECT: Record<OAuthPlatform, StatusRule> = {
   instagram: "gated",
   tiktok: "coming_soon",
   youtube: "auto",
+  /* Both are "auto": live wherever their client id and secret are configured,
+     and absent everywhere else. Neither is gated behind approval the way
+     Instagram is, because until the Meta review clears, the credentials simply
+     will not be set in an environment a real creator can reach. */
+  facebook: "auto",
+  threads: "auto",
 };
 
 /**
@@ -55,6 +63,12 @@ const METRICS_ENV: Record<OAuthPlatform, string | null> = {
   instagram: "INSTAGRAM_BUSINESS_TOKEN",
   tiktok: null,
   youtube: "YOUTUBE_API_KEY",
+  /* Neither has an agency-side collector: there is no app token that reads a
+     stranger's Page or Threads profile the way INSTAGRAM_BUSINESS_TOKEN reads a
+     business account. Both are creator-authorised only, so the metrics path is
+     live as soon as a creator connects and needs no credential of ours. */
+  facebook: null,
+  threads: null,
 };
 
 function isStatusRule(value: string): value is StatusRule {

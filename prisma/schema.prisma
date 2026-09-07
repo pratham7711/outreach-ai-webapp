@@ -691,6 +691,15 @@ model Creator {
   @@index([orgId, trackedSince])
 }
 
+/// One authorised platform account belonging to a creator.
+///
+/// This model — not Creator — is the record of "who this account is on that
+/// platform". Creator carries a single `platform`/`platformUserId`/`avatarUrl`/
+/// `bio`/`followersCount` set, which can only ever describe ONE platform, so an
+/// OAuth callback writing identity there overwrites whichever platform
+/// connected first. Connecting Instagram would have erased the TikTok identity
+/// on the same row. The identity and stat columns below exist so each linked
+/// platform keeps its own, and OAuth callbacks no longer touch Creator.
 model CreatorSocialAccount {
   id             String    @id @default(cuid())
   creatorId      String
@@ -699,14 +708,33 @@ model CreatorSocialAccount {
   accessToken    String // AES-256-GCM ciphertext at rest — lib/crypto/encrypt.ts (AAD = orgId)
   refreshToken   String? // AES-256-GCM ciphertext at rest — lib/crypto/encrypt.ts (AAD = orgId)
   tokenExpiry    DateTime?
+  platformUserId String?
+  avatarUrl      String?
+  bio            String?
+  profileUrl     String?
+  isVerified     Boolean   @default(false)
   followersCount Float     @default(0)
+  followingCount Float?
+  mediaCount     Int?
+  totalLikes     Float?
   avgViews       Float     @default(0)
+  statsSyncedAt  DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
   creator Creator @relation(fields: [creatorId], references: [id], onDelete: Cascade)
 
-  @@unique([creatorId, platform])
+  /// Keyed on the platform account, not just the platform, so one creator can
+  /// link SEVERAL accounts on the same platform — two TikTok handles, a
+  /// personal and a brand Instagram. The old key was [creatorId, platform],
+  /// which silently capped every creator at one account per platform and made
+  /// connecting a second one overwrite the first.
+  ///
+  /// `platformUserId` is nullable only for rows written before it existed;
+  /// every new connection requires one, because without it two accounts on the
+  /// same platform are indistinguishable and a reconnect cannot tell "same
+  /// account again" from "a second account".
+  @@unique([creatorId, platform, platformUserId])
 }
 
 model CreatorList {

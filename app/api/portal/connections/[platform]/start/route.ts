@@ -35,6 +35,23 @@ export async function GET(
       { status: 503 },
     );
 
+  /* A connection is stored on the org-side Creator row that mirrors this
+     portal account, so a creator no brand has rostered yet has nowhere to put
+     one. Checked here, before the provider dialog, because the callback used
+     to discover this only after the creator had completed consent at Google or
+     Meta and then bounce them back with a bare "Failed to connect". */
+  const rosterCreator = await findCreatorForHandle(session.handle);
+  if (!rosterCreator)
+    return NextResponse.redirect(
+      new URL(
+        returnToWithQuery(
+          req.nextUrl.searchParams.get("returnTo"),
+          `error=${platform}&reason=creator`,
+        ),
+        req.url,
+      ),
+    );
+
   if (isProviderConfigured(platform)) {
     const state = randomBytes(16).toString("hex");
     const authorizeUrl = buildAuthorizeUrl(platform, state);
@@ -66,11 +83,7 @@ export async function GET(
   const devReturnTo = req.nextUrl.searchParams.get("returnTo");
 
   try {
-    const creator = await findCreatorForHandle(session.handle);
-    if (!creator)
-      return NextResponse.redirect(
-        new URL(returnToWithQuery(devReturnTo, `error=${platform}`), req.url),
-      );
+    const creator = rosterCreator;
 
     const platformEnum = toPlatformEnum(platform);
     const accessToken = encrypt(
@@ -78,13 +91,24 @@ export async function GET(
       creator.orgId,
     );
 
+    /* A stable synthetic account id, so repeating the dev connect updates the
+       same row instead of piling up duplicates. Accounts are keyed on
+       [creatorId, platform, platformUserId] now that a creator can link
+       several per platform, and a dev connection has no real one. */
+    const devPlatformUserId = `dev-${platform}-${creator.id}`;
+
     await db.creatorSocialAccount.upsert({
       where: {
-        creatorId_platform: { creatorId: creator.id, platform: platformEnum },
+        creatorId_platform_platformUserId: {
+          creatorId: creator.id,
+          platform: platformEnum,
+          platformUserId: devPlatformUserId,
+        },
       },
       create: {
         creatorId: creator.id,
         platform: platformEnum,
+        platformUserId: devPlatformUserId,
         handle: session.handle,
         accessToken,
       },

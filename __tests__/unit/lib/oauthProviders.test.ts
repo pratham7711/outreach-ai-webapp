@@ -8,6 +8,8 @@ import {
   isProviderConfigured,
   buildAuthorizeUrl,
   buildTokenRequest,
+  clientCredentialsFor,
+  clientSecretFor,
 } from "@/lib/oauth/providers";
 
 const ENV_KEYS = [
@@ -17,6 +19,16 @@ const ENV_KEYS = [
   "TIKTOK_CLIENT_SECRET",
   "GOOGLE_CLIENT_ID",
   "GOOGLE_CLIENT_SECRET",
+  "FACEBOOK_CLIENT_ID",
+  "FACEBOOK_CLIENT_SECRET",
+  "THREADS_CLIENT_ID",
+  "THREADS_CLIENT_SECRET",
+  /* Reset between tests like any other credential. It was absent, so a test
+     that set it narrowed the TikTok scopes for every test that ran after. */
+  "TIKTOK_SCOPES",
+  "TIKTOK_USE_SANDBOX",
+  "TIKTOK_SANDBOX_CLIENT_KEY",
+  "TIKTOK_SANDBOX_CLIENT_SECRET",
   "APP_URL",
   "NEXT_PUBLIC_APP_URL",
 ] as const;
@@ -39,8 +51,14 @@ afterAll(() => {
 });
 
 describe("lib/oauth/providers — platform helpers", () => {
-  it("recognises exactly the three OAuth platforms", () => {
-    expect(OAUTH_PLATFORMS).toEqual(["instagram", "tiktok", "youtube"]);
+  it("recognises exactly the five OAuth platforms", () => {
+    expect(OAUTH_PLATFORMS).toEqual([
+      "instagram",
+      "tiktok",
+      "youtube",
+      "facebook",
+      "threads",
+    ]);
     for (const p of OAUTH_PLATFORMS) expect(isOAuthPlatform(p)).toBe(true);
     expect(isOAuthPlatform("twitter")).toBe(false);
     expect(isOAuthPlatform("INSTAGRAM")).toBe(false);
@@ -51,6 +69,8 @@ describe("lib/oauth/providers — platform helpers", () => {
     expect(toPlatformEnum("instagram")).toBe("INSTAGRAM");
     expect(toPlatformEnum("tiktok")).toBe("TIKTOK");
     expect(toPlatformEnum("youtube")).toBe("YOUTUBE");
+    expect(toPlatformEnum("facebook")).toBe("FACEBOOK");
+    expect(toPlatformEnum("threads")).toBe("THREADS");
   });
 
   it("builds the callback redirect URI on the app base URL", () => {
@@ -81,7 +101,155 @@ describe("isProviderConfigured", () => {
     process.env.TIKTOK_CLIENT_SECRET = "tt-secret";
     process.env.GOOGLE_CLIENT_ID = "g-id";
     process.env.GOOGLE_CLIENT_SECRET = "g-secret";
+    process.env.FACEBOOK_CLIENT_ID = "fb-id";
+    process.env.FACEBOOK_CLIENT_SECRET = "fb-secret";
+    process.env.THREADS_CLIENT_ID = "th-id";
+    process.env.THREADS_CLIENT_SECRET = "th-secret";
     for (const p of OAUTH_PLATFORMS) expect(isProviderConfigured(p)).toBe(true);
+  });
+
+  it("lets Facebook fall back to the Instagram pair, since it is the same Meta app", () => {
+    // Prod holds the app's secret only under the Instagram names, and a Vercel
+    // secret cannot be read back to copy it — so without this, Facebook would
+    // be stuck behind a value nobody can retrieve.
+    process.env.INSTAGRAM_CLIENT_ID = "ig-id";
+    process.env.INSTAGRAM_CLIENT_SECRET = "ig-secret";
+    expect(isProviderConfigured("facebook")).toBe(true);
+    const parsed = new URL(buildAuthorizeUrl("facebook", "st") as string);
+    expect(parsed.searchParams.get("client_id")).toBe("ig-id");
+  });
+
+  it("prefers Facebook's own pair over the fallback when both are set", () => {
+    process.env.INSTAGRAM_CLIENT_ID = "ig-id";
+    process.env.INSTAGRAM_CLIENT_SECRET = "ig-secret";
+    process.env.FACEBOOK_CLIENT_ID = "fb-id";
+    process.env.FACEBOOK_CLIENT_SECRET = "fb-secret";
+    const parsed = new URL(buildAuthorizeUrl("facebook", "st") as string);
+    expect(parsed.searchParams.get("client_id")).toBe("fb-id");
+  });
+
+  it("never mixes halves of two different pairs", () => {
+    // FACEBOOK_CLIENT_ID with INSTAGRAM_CLIENT_SECRET is not a credential.
+    process.env.FACEBOOK_CLIENT_ID = "fb-id";
+    process.env.INSTAGRAM_CLIENT_SECRET = "ig-secret";
+    expect(isProviderConfigured("facebook")).toBe(false);
+  });
+});
+
+describe("TikTok sandbox override", () => {
+  /* The review demo runs on campaign.madeboring.com against the sandbox app,
+     because an unapproved TikTok app can only authorize sandbox target users.
+     The production pair is a Vercel sensitive variable that cannot be read
+     back, so the sandbox must be a switch beside it, never an overwrite. */
+  it("uses the sandbox pair for authorize, token exchange and clientCredentialsFor while the flag is on", () => {
+    process.env.TIKTOK_CLIENT_KEY = "prod-key";
+    process.env.TIKTOK_CLIENT_SECRET = "prod-secret";
+    process.env.TIKTOK_USE_SANDBOX = "1";
+    process.env.TIKTOK_SANDBOX_CLIENT_KEY = "sbaw-key";
+    process.env.TIKTOK_SANDBOX_CLIENT_SECRET = "sbaw-secret";
+
+    const url = buildAuthorizeUrl("tiktok", "state-1");
+    expect(new URL(url!).searchParams.get("client_key")).toBe("sbaw-key");
+
+    const token = buildTokenRequest("tiktok", "code-1");
+    expect(token!.body.get("client_key")).toBe("sbaw-key");
+    expect(token!.body.get("client_secret")).toBe("sbaw-secret");
+
+    expect(clientCredentialsFor("tiktok")).toEqual({
+      clientId: "sbaw-key",
+      clientSecret: "sbaw-secret",
+    });
+    expect(clientSecretFor("tiktok")).toBe("sbaw-secret");
+  });
+
+  it("accepts 'true' as well as '1', and nothing else", () => {
+    process.env.TIKTOK_CLIENT_KEY = "prod-key";
+    process.env.TIKTOK_CLIENT_SECRET = "prod-secret";
+    process.env.TIKTOK_SANDBOX_CLIENT_KEY = "sbaw-key";
+    process.env.TIKTOK_SANDBOX_CLIENT_SECRET = "sbaw-secret";
+
+    process.env.TIKTOK_USE_SANDBOX = "true";
+    expect(clientCredentialsFor("tiktok")?.clientId).toBe("sbaw-key");
+    process.env.TIKTOK_USE_SANDBOX = "0";
+    expect(clientCredentialsFor("tiktok")?.clientId).toBe("prod-key");
+    process.env.TIKTOK_USE_SANDBOX = "yes";
+    expect(clientCredentialsFor("tiktok")?.clientId).toBe("prod-key");
+  });
+
+  it("ignores a staged sandbox pair while the flag is off", () => {
+    process.env.TIKTOK_CLIENT_KEY = "prod-key";
+    process.env.TIKTOK_CLIENT_SECRET = "prod-secret";
+    process.env.TIKTOK_SANDBOX_CLIENT_KEY = "sbaw-key";
+    process.env.TIKTOK_SANDBOX_CLIENT_SECRET = "sbaw-secret";
+    expect(buildTokenRequest("tiktok", "c")!.body.get("client_key")).toBe("prod-key");
+  });
+
+  it("falls through to the production pair when the flag is on but the sandbox pair is incomplete", () => {
+    process.env.TIKTOK_CLIENT_KEY = "prod-key";
+    process.env.TIKTOK_CLIENT_SECRET = "prod-secret";
+    process.env.TIKTOK_USE_SANDBOX = "1";
+    process.env.TIKTOK_SANDBOX_CLIENT_KEY = "sbaw-key";
+    expect(buildTokenRequest("tiktok", "c")!.body.get("client_key")).toBe("prod-key");
+    expect(isProviderConfigured("tiktok")).toBe(true);
+  });
+
+  it("is configured by the sandbox pair alone, so a preview with no production pair can still connect", () => {
+    process.env.TIKTOK_USE_SANDBOX = "1";
+    process.env.TIKTOK_SANDBOX_CLIENT_KEY = "sbaw-key";
+    process.env.TIKTOK_SANDBOX_CLIENT_SECRET = "sbaw-secret";
+    expect(isProviderConfigured("tiktok")).toBe(true);
+    delete process.env.TIKTOK_USE_SANDBOX;
+    expect(isProviderConfigured("tiktok")).toBe(false);
+  });
+
+  it("never lets the TikTok sandbox flag touch another platform", () => {
+    process.env.TIKTOK_USE_SANDBOX = "1";
+    process.env.TIKTOK_SANDBOX_CLIENT_KEY = "sbaw-key";
+    process.env.TIKTOK_SANDBOX_CLIENT_SECRET = "sbaw-secret";
+    process.env.THREADS_CLIENT_ID = "th-id";
+    process.env.THREADS_CLIENT_SECRET = "th-secret";
+    expect(clientCredentialsFor("threads")).toEqual({ clientId: "th-id", clientSecret: "th-secret" });
+    expect(clientCredentialsFor("instagram")).toBeNull();
+  });
+});
+
+describe("buildAuthorizeUrl — Facebook and Threads", () => {
+  it("sends Facebook to the Meta dialog with the four Page permissions", () => {
+    process.env.FACEBOOK_CLIENT_ID = "fb-id";
+    process.env.FACEBOOK_CLIENT_SECRET = "fb-secret";
+    const parsed = new URL(buildAuthorizeUrl("facebook", "st") as string);
+    expect(parsed.hostname).toBe("www.facebook.com");
+    expect(parsed.searchParams.get("scope")?.split(",").sort()).toEqual([
+      "pages_read_engagement",
+      "pages_read_user_content",
+      "pages_show_list",
+      "read_insights",
+    ]);
+  });
+
+  it("sends Threads to threads.net, not to the Facebook dialog", () => {
+    // Threads is a separate API on a separate host with its own app id; using
+    // the Meta dialog here would authorise the wrong app entirely.
+    process.env.THREADS_CLIENT_ID = "th-id";
+    process.env.THREADS_CLIENT_SECRET = "th-secret";
+    const parsed = new URL(buildAuthorizeUrl("threads", "st") as string);
+    expect(parsed.hostname).toBe("threads.net");
+    expect(parsed.searchParams.get("scope")).toBe(
+      "threads_basic,threads_manage_insights",
+    );
+    expect(parsed.searchParams.get("state")).toBe("st");
+  });
+
+  it("keeps the TikTok scope override away from every other platform", () => {
+    // resolveScopes only consults TIKTOK_SCOPES for tiktok; a stray value must
+    // not be able to narrow Facebook's or Threads' request.
+    process.env.TIKTOK_SCOPES = "user.info.basic";
+    process.env.THREADS_CLIENT_ID = "th-id";
+    process.env.THREADS_CLIENT_SECRET = "th-secret";
+    const parsed = new URL(buildAuthorizeUrl("threads", "st") as string);
+    expect(parsed.searchParams.get("scope")).toBe(
+      "threads_basic,threads_manage_insights",
+    );
   });
 });
 
@@ -104,14 +272,42 @@ describe("buildAuthorizeUrl", () => {
     /* pages_show_list is load-bearing, not decoration: resolveIgUserId reads
        the me/accounts PAGES edge to find the linked IG Business account, and
        instagram_basic does not grant that listing. Asserted here so it cannot
-       be dropped as "unused" -- nothing in the Graph call site names it. */
+       be dropped as "unused" -- nothing in the Graph call site names it.
+
+       pages_read_engagement is here for the same reason and is just as
+       invisible at the call site: Meta's business_discovery reference names it
+       as one of three required permissions, and that edge is the path prod
+       actually reads Instagram through. Order matters to this assertion, so it
+       also pins the order the authorize URL sends. */
     expect(parsed.searchParams.get("scope")).toBe(
-      "instagram_basic,instagram_manage_insights,pages_show_list",
+      "instagram_basic,instagram_manage_insights,pages_show_list,pages_read_engagement",
     );
     expect(parsed.pathname).toContain("/v26.0/");
     expect(parsed.searchParams.get("state")).toBe("state-123");
     expect(parsed.searchParams.get("response_type")).toBe("code");
     expect(url).not.toContain("ig-secret");
+  });
+
+  it("asks Google for offline access so YouTube gets a refresh token", () => {
+    /* Without access_type=offline Google issues no refresh token, and the
+       connection died 60 minutes after consent on prod (2026-09-07). Only
+       YouTube needs it: Meta and TikTok mint long-lived/refresh tokens on
+       their own token endpoints. */
+    process.env.GOOGLE_CLIENT_ID = "g-id";
+    process.env.GOOGLE_CLIENT_SECRET = "g-secret";
+    const parsed = new URL(buildAuthorizeUrl("youtube", "st-y") as string);
+    expect(parsed.hostname).toBe("accounts.google.com");
+    expect(parsed.searchParams.get("access_type")).toBe("offline");
+    expect(parsed.searchParams.get("prompt")).toBe("consent");
+    expect(parsed.searchParams.get("scope")).toBe(
+      "https://www.googleapis.com/auth/youtube.readonly",
+    );
+
+    process.env.INSTAGRAM_CLIENT_ID = "ig-id";
+    process.env.INSTAGRAM_CLIENT_SECRET = "ig-secret";
+    const meta = new URL(buildAuthorizeUrl("instagram", "st") as string);
+    expect(meta.searchParams.get("access_type")).toBeNull();
+    expect(meta.searchParams.get("prompt")).toBeNull();
   });
 
   it("builds a TikTok URL using client_key with the tiktok scopes", () => {

@@ -4,6 +4,7 @@ import { getCreatorSession } from "@/lib/creator-auth";
 import { findCreatorForHandle } from "@/lib/portal/creatorLookup";
 import { encrypt } from "@/lib/crypto/encrypt";
 import { exchangeForLongLivedToken } from "@/lib/platforms/instagram";
+import { exchangeThreadsToken } from "@/lib/platforms/threads";
 import {
   buildTokenRequest,
   isOAuthPlatform,
@@ -11,7 +12,11 @@ import {
   toPlatformEnum,
   type OAuthPlatform,
 } from "@/lib/oauth/providers";
-import { fetchTikTokUserInfo } from "@/lib/platforms/tiktokDisplay";
+import {
+  fetchAccountIdentity,
+  identityWriteData,
+} from "@/lib/platforms/accountSync";
+import { createLogger } from "@/lib/observability/logger";
 import { returnToWithQuery } from "@/lib/oauth/returnTo";
 
 const STATE_COOKIE = "portal_oauth_state";
@@ -26,9 +31,29 @@ function finishRedirect(req: NextRequest, query: string) {
   return res;
 }
 
-function failureRedirect(req: NextRequest, platform: OAuthPlatform) {
-  return finishRedirect(req, `error=${platform}`);
+/* Every failure used to collapse to the same `error=<platform>` redirect, so a
+   consent that completed at Meta and then bounced back as "Failed to connect"
+   gave no hint which of seven branches had fired. The reason rides along in the
+   URL (no secrets, a fixed vocabulary) so it can be read off the address bar
+   when the runtime log is not at hand. */
+export type CallbackFailure =
+  | "state"
+  | "provider"
+  | "token_exchange"
+  | "token_missing"
+  | "creator"
+  | "identity"
+  | "exception";
+
+function failureRedirect(
+  req: NextRequest,
+  platform: OAuthPlatform,
+  reason: CallbackFailure,
+) {
+  return finishRedirect(req, `error=${platform}&reason=${reason}`);
 }
+
+const log = createLogger({ context: { call: "oauth.callback" } });
 
 export async function GET(
   req: NextRequest,
@@ -45,14 +70,22 @@ export async function GET(
   const state = req.nextUrl.searchParams.get("state");
   const code = req.nextUrl.searchParams.get("code");
   const cookieState = req.cookies.get(STATE_COOKIE)?.value;
-  if (!state || !code || !cookieState || state !== cookieState)
-    return failureRedirect(req, platform);
+  if (!state || !code || !cookieState || state !== cookieState) {
+    log.warn("OAuth state check failed", {
+      platform,
+      hasState: Boolean(state),
+      hasCode: Boolean(code),
+      hasCookie: Boolean(cookieState),
+    });
+    return failureRedirect(req, platform, "state");
+  }
 
-  if (!isProviderConfigured(platform)) return failureRedirect(req, platform);
+  if (!isProviderConfigured(platform))
+    return failureRedirect(req, platform, "provider");
 
   try {
     const tokenRequest = buildTokenRequest(platform, code);
-    if (!tokenRequest) return failureRedirect(req, platform);
+    if (!tokenRequest) return failureRedirect(req, platform, "provider");
 
     const tokenRes = await fetch(tokenRequest.url, {
       method: "POST",
@@ -60,7 +93,23 @@ export async function GET(
       body: tokenRequest.body,
       signal: AbortSignal.timeout(8000),
     });
-    if (!tokenRes.ok) return failureRedirect(req, platform);
+    if (!tokenRes.ok) {
+      /* The provider's error body names the cause (bad secret, redirect_uri
+         mismatch, reused code); the request body is never logged because it
+         carries the client secret. */
+      let detail: unknown = null;
+      try {
+        detail = await tokenRes.json();
+      } catch {
+        // non-JSON error body; the status alone has to do
+      }
+      log.warn("OAuth code exchange rejected", {
+        platform,
+        status: tokenRes.status,
+        detail,
+      });
+      return failureRedirect(req, platform, "token_exchange");
+    }
 
     const tokens = (await tokenRes.json()) as {
       access_token?: unknown;
@@ -68,11 +117,19 @@ export async function GET(
       expires_in?: unknown;
     };
     const accessToken = tokens.access_token;
-    if (typeof accessToken !== "string" || !accessToken)
-      return failureRedirect(req, platform);
+    if (typeof accessToken !== "string" || !accessToken) {
+      log.warn("OAuth code exchange returned no access_token", {
+        platform,
+        keys: Object.keys(tokens ?? {}),
+      });
+      return failureRedirect(req, platform, "token_missing");
+    }
 
     const creator = await findCreatorForHandle(session.handle);
-    if (!creator) return failureRedirect(req, platform);
+    if (!creator) {
+      log.warn("No creator row matches the portal handle", { platform });
+      return failureRedirect(req, platform, "creator");
+    }
 
     const platformEnum = toPlatformEnum(platform);
     /* Meta's code exchange hands back a token good for an hour or two. Trading
@@ -90,9 +147,27 @@ export async function GET(
       typeof tokens.expires_in === "number" && tokens.expires_in > 0
         ? new Date(Date.now() + tokens.expires_in * 1000)
         : null;
-    if (platform === "instagram") {
+    /* Facebook takes the same exchange as Instagram: both are Meta user tokens
+       from the same dialog, and the short-lived one lasts about two hours. */
+    if (platform === "instagram" || platform === "facebook") {
       try {
         const longLived = await exchangeForLongLivedToken(accessToken);
+        if (longLived) {
+          storedToken = longLived.accessToken;
+          storedExpiry = longLived.expiresAt ?? storedExpiry;
+        }
+      } catch {
+        // Keep the short-lived token; its recorded expiry stays honest.
+      }
+    }
+
+    /* Threads has its own exchange on its own host, and it matters more here
+       than elsewhere: Threads refreshes IN PLACE with no refresh token, so a
+       short-lived token stored now cannot be extended later — it simply dies in
+       an hour and the creator has to reconnect. */
+    if (platform === "threads") {
+      try {
+        const longLived = await exchangeThreadsToken(accessToken);
         if (longLived) {
           storedToken = longLived.accessToken;
           storedExpiry = longLived.expiresAt ?? storedExpiry;
@@ -109,53 +184,66 @@ export async function GET(
         : null;
     const tokenExpiry = storedExpiry;
 
+    /* The identity call comes BEFORE the write, because `platformUserId` is
+       part of the account's unique key. That is what lets one creator link
+       several accounts on the same platform: keyed on the platform account,
+       authorising a second TikTok handle creates a second row, while
+       re-authorising the first one updates it in place. Keyed on
+       [creatorId, platform] — as it was — the second connection would silently
+       overwrite the first.
+
+       No identity means no key, so the connection fails rather than storing a
+       row that cannot be told apart from the creator's other accounts. */
+    /* storedToken, not accessToken: for Threads especially these differ, and the
+       identity must be read with the credential the row will actually hold — a
+       token that reads an identity but is not the one we keep proves nothing
+       about whether the stored connection works. */
+    const identity = await fetchAccountIdentity(platform, storedToken);
+    if (!identity?.platformUserId) {
+      createLogger({
+        context: { platform: platformEnum, call: "oauth.callback" },
+      }).warn("Authorised but no account identity could be read; not storing", {
+        creatorId: creator.id,
+      });
+      return failureRedirect(req, platform, "identity");
+    }
+
+    const identityData = identityWriteData(identity);
+
     await db.creatorSocialAccount.upsert({
       where: {
-        creatorId_platform: { creatorId: creator.id, platform: platformEnum },
+        creatorId_platform_platformUserId: {
+          creatorId: creator.id,
+          platform: platformEnum,
+          platformUserId: identity.platformUserId,
+        },
       },
       create: {
         creatorId: creator.id,
         platform: platformEnum,
-        handle: session.handle,
+        /* Falls back to the portal username only when the platform returned a
+           blank handle, so the row never renders as an empty account. */
+        handle: identity.handle || session.handle,
         accessToken: encryptedAccess,
         refreshToken: encryptedRefresh,
         tokenExpiry,
+        ...identityData,
       },
       update: {
         accessToken: encryptedAccess,
         refreshToken: encryptedRefresh,
         tokenExpiry,
+        ...identityData,
       },
+      select: { id: true },
     });
 
-    if (platform === "tiktok") {
-      const info = await fetchTikTokUserInfo(accessToken);
-      if (info) {
-        const handle = info.username || session.handle;
-        await db.creatorSocialAccount.update({
-          where: {
-            creatorId_platform: {
-              creatorId: creator.id,
-              platform: platformEnum,
-            },
-          },
-          data: { handle, followersCount: info.followerCount },
-        });
-        await db.creator.update({
-          where: { id: creator.id },
-          data: {
-            platformUserId: info.openId,
-            followersCount: info.followerCount,
-            ...(info.avatarUrl ? { avatarUrl: info.avatarUrl } : {}),
-            ...(info.bio ? { bio: info.bio } : {}),
-          },
-        });
-      }
-    }
-
     return finishRedirect(req, `connected=${platform}`);
-  } catch {
-    console.error(`OAuth callback failed for ${platform}`);
-    return failureRedirect(req, platform);
+  } catch (error) {
+    log.error("OAuth callback threw", {
+      platform,
+      message: error instanceof Error ? error.message : String(error),
+    });
+    return failureRedirect(req, platform, "exception");
   }
 }
