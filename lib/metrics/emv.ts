@@ -2,6 +2,32 @@ import { roundMoney, toCount } from "./numbers";
 
 export type EmvPlatform = "TIKTOK" | "INSTAGRAM" | "YOUTUBE";
 
+/**
+ * The rate card is quoted in US dollars and nothing here converts it.
+ *
+ * EMV_RATES is the Ayzenberg table (see docs/METRICS_FORMULAS.md), published in
+ * USD per interaction. A campaign carries its own currency, and every surface
+ * that printed EMV formatted it with that currency -- so an INR campaign's
+ * $23,211 of earned media rendered with a rupee sign in front of it, a figure
+ * roughly 83x smaller in real money than the one shown. There is no FX rate
+ * anywhere in the product, so inventing one here would be worse than saying
+ * plainly which unit this is.
+ */
+export const EMV_CURRENCY = "USD";
+
+/**
+ * "EMV" for a USD campaign, "EMV (USD)" for any other.
+ *
+ * A USD campaign needs no disambiguation and the plain label is what the
+ * reference report prints; anywhere else the unit has to travel with the number
+ * or the reader will assume it matches the budget beside it.
+ */
+export function emvLabel(campaignCurrency: string | null | undefined, base = "EMV"): string {
+  return (campaignCurrency ?? EMV_CURRENCY).toUpperCase() === EMV_CURRENCY
+    ? base
+    : `${base} (${EMV_CURRENCY})`;
+}
+
 export type EmvRateCard = {
   view: number;
   like: number;

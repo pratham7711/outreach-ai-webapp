@@ -15,6 +15,7 @@ import { BRAND, POWERED_BY } from "@/lib/brand";
 import { AudioCard } from "@/components/campaigns/AudioCard";
 import { shareImgSrc } from "@/lib/postMedia";
 import { campaignStatusLabel } from "@/lib/statusColors";
+import { EMV_CURRENCY, emvLabel } from "@/lib/metrics/emv";
 import SharedPostList from "./SharedPostList";
 
 const SERIES = [
@@ -276,7 +277,7 @@ export default function SharedPerformanceReport({
                 <StatTile value={`${(kpis.engagementRate * 100).toFixed(2)}%`} label="Eng. Rate" />
               )}
               {kpis.emv !== null && (
-                <StatTile value={formatCurrency(kpis.emv, currency)} label="EMV" />
+                <StatTile value={formatCurrency(kpis.emv, EMV_CURRENCY)} label={emvLabel(currency)} />
               )}
               {budget !== null && (
                 <StatTile value={formatCurrency(budget, currency)} label="Total Budget" />
@@ -410,7 +411,7 @@ export default function SharedPerformanceReport({
                         display: "grid", gridTemplateColumns: rowCols,
                         gap: 12, padding: "10px 24px", borderBottom: "1px solid var(--cc-border)", background: "var(--cc-bg)",
                       }}>
-                        {["Creator", "Posts", "Views", ...(anyEngagementMeasured ? ["Eng."] : []), ...(showEmvColumn ? ["EMV"] : [])].map((h) => (
+                        {["Creator", "Posts", "Views", ...(anyEngagementMeasured ? ["Eng."] : []), ...(showEmvColumn ? [emvLabel(currency)] : [])].map((h) => (
                           <span key={h} style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--cc-text-subtle)" }}>{h}</span>
                         ))}
                       </div>
@@ -472,10 +473,10 @@ export default function SharedPerformanceReport({
                           )}
                           {row.emv !== null && (
                             <span
-                              title={formatCurrency(row.emv, currency)}
+                              title={formatCurrency(row.emv, EMV_CURRENCY)}
                               style={{ fontSize: 13, fontWeight: 700, color: "var(--cc-primary)", whiteSpace: "nowrap" }}
                             >
-                              {formatCompactCurrency(row.emv, currency)}
+                              {formatCompactCurrency(row.emv, EMV_CURRENCY)}
                             </span>
                           )}
 
