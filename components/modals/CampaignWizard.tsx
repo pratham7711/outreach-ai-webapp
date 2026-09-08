@@ -232,8 +232,35 @@ export default function CampaignWizard({
     }
   };
 
+  /**
+   * The payout step's own validation, which did not exist.
+   *
+   * canNext() only ever looked at step 0, so "Fixed rate per post" with the
+   * rate left blank walked through to the end and buildTypeConfig()'s
+   * `Number("") || 0` shipped ratePerPost: 0 -- a campaign that promises every
+   * creator nothing per post, created without a word of complaint. Per-view is
+   * the same shape: a zero rate pays nothing and a zero cap caps at nothing.
+   *
+   * It disables Create Campaign as well as Next, because by the time that
+   * button is on screen the payout step is two steps behind and nothing else
+   * between here and the API looks at the rate.
+   */
+  const payoutError = useMemo(() => {
+    const positive = (v: string) => Number(v) > 0;
+    if (form.payoutModel === "fixed" && !positive(form.ratePerPost)) {
+      return "Enter the rate you pay per approved post.";
+    }
+    if (form.payoutModel === "per_view") {
+      if (!positive(form.ratePerThousandViews)) return "Enter the rate you pay per 1,000 views.";
+      if (!positive(form.capAmount)) return "Enter the maximum you will pay a creator.";
+    }
+    // Negotiated agrees a rate per creator later, so there is nothing to hold here.
+    return null;
+  }, [form.payoutModel, form.ratePerPost, form.ratePerThousandViews, form.capAmount]);
+
   const canNext = () => {
     if (step === 0) return form.title.trim().length > 0 && !audioError;
+    if (step === 1) return !payoutError;
     return true;
   };
 
@@ -263,7 +290,7 @@ export default function CampaignWizard({
                 </span>
               </Button>
             ) : (
-              <Button variant="primary" loading={loading} onClick={handleSubmit}>
+              <Button variant="primary" loading={loading} disabled={Boolean(payoutError)} onClick={handleSubmit}>
                 <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
                   <Check size={14} /> Create Campaign
                 </span>
@@ -420,6 +447,12 @@ export default function CampaignWizard({
                 <span style={{ fontSize: 14, color: "var(--cc-text)" }}>Allow creators to counter-offer</span>
               </label>
             </div>
+          )}
+
+          {payoutError && (
+            <p role="alert" style={{ fontSize: 12, color: "var(--cc-danger)", margin: 0 }}>
+              {payoutError}
+            </p>
           )}
 
           <div style={{ display: "flex", gap: 12 }}>
