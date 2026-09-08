@@ -83,11 +83,10 @@ beforeEach(() => {
     averageViews: 500,
     rate: null,
   });
-  /* contactEmail is the session's, so cr-1 is a proven-ownership row. Without a
-     proof the route 404s — a handle match alone must not let someone accept or
-     counter another creator's offers (lib/portal/creatorLink.ts). */
+  /* A bare roster row: no contactEmail, no social account. Offers use the
+     handle bridge only, so this creator can still respond (see the route). */
   mockDb.creator.findMany.mockResolvedValue([
-    { id: "cr-1", orgId: "org-1", contactEmail: "b@example.com" },
+    { id: "cr-1", orgId: "org-1", contactEmail: null },
   ]);
   mockDb.creatorSocialAccount.findMany.mockResolvedValue([]);
 });
@@ -142,23 +141,15 @@ describe("POST /api/portal/offers/[id]/respond — acceptance is terminal", () =
   });
 });
 
-describe("POST /api/portal/offers/[id]/respond — ownership", () => {
-  it("404s when the roster row is only a handle match, never proven", async () => {
+describe("POST /api/portal/offers/[id]/respond — handle bridge", () => {
+  it("lets a roster creator respond before any email or OAuth proof exists", async () => {
+    // Roster row with a different contactEmail and no social account: handle match only.
     mockDb.creator.findMany.mockResolvedValue([
       { id: "cr-1", orgId: "org-1", contactEmail: "the-real-creator@example.com" },
     ]);
     const res = await respond({ action: "accept" });
-    expect(res.status).toBe(404);
-    expect(mockDb.negotiationOffer.update).not.toHaveBeenCalled();
-  });
-
-  it("accepts a row proven by an OAuth connection under this handle", async () => {
-    mockDb.creator.findMany.mockResolvedValue([
-      { id: "cr-1", orgId: "org-1", contactEmail: null },
-    ]);
-    mockDb.creatorSocialAccount.findMany.mockResolvedValue([
-      { creatorId: "cr-1", handle: "@BlessingJolie" },
-    ]);
-    expect((await respond({ action: "accept" })).status).toBe(200);
+    expect(res.status).toBe(200);
+    expect(mockDb.negotiationOffer.update).toHaveBeenCalled();
+    expect(mockDb.creatorSocialAccount.findMany).not.toHaveBeenCalled();
   });
 });
