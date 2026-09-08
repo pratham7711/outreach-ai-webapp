@@ -47,6 +47,18 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
+
+  /* proxy.ts runs the edge half of the auth config, which only checks that the
+     cookie decodes -- it cannot reach the database. The jwt callback in
+     lib/auth.ts is what notices a deactivated or deleted user, and it only runs
+     here, on the Node side. Without this guard a removed teammate kept the whole
+     dashboard shell: every API call 401ed, but the chrome and the routes still
+     rendered, which reads as "the app is broken" rather than "you were removed".
+     Measured 2026-09-08: /api/org answered 401 while /dashboard answered 200. */
+  if (!session?.user) {
+    redirect("/login");
+  }
+
   const orgId = (session?.user as any)?.orgId;
   const user = session?.user
     ? { name: session.user.name ?? null, email: session.user.email ?? null }
