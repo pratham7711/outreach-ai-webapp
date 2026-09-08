@@ -120,6 +120,31 @@ describe('POST /api/invites', () => {
     );
   });
 
+  /* User.email is globally unique, so an address that already has an account
+     can never accept an invitation — /api/invites/accept 409s at the very end,
+     after the guest has typed a name and chosen a password. The invite used to
+     be written and mailed anyway, so the failure landed on the person who could
+     do nothing about it. */
+  it('refuses an address that already belongs to an account, before writing or mailing', async () => {
+    mockDb.userInvite.findFirst.mockResolvedValue(null);
+    mockDb.user.findUnique.mockResolvedValue({ id: 'u-existing' });
+
+    const req = makeRequest('http://localhost/api/invites', {
+      method: 'POST',
+      body: JSON.stringify({ email: 'Taken@Example.com' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const res = await POST(req);
+    const body = await res.json();
+
+    expect(res.status).toBe(409);
+    expect(body.error).toMatch(/already belongs to an account/i);
+    expect(mockDb.user.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { email: 'taken@example.com' } })
+    );
+    expect(mockDb.userInvite.create).not.toHaveBeenCalled();
+  });
+
   it('rejects duplicate pending invite for same email', async () => {
     mockDb.userInvite.findFirst.mockResolvedValue(createdInvite);
 

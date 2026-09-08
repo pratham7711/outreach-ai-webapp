@@ -131,6 +131,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    /* User.email is globally unique, so an address that already has an account
+       -- in this org or any other -- can never accept an invitation: the accept
+       endpoint 409s at the very end, after the invitee has typed a name and
+       chosen a password. Nothing said so at invite time, so the row was
+       written, the mail was sent, and the failure landed on the guest.
+       Refuse here, where the person who can do something about it is looking. */
+    const existingUser = await db.user.findUnique({
+      where: { email: email.toLowerCase() },
+      select: { id: true },
+    });
+    if (existingUser) {
+      return NextResponse.json(
+        {
+          error:
+            "That email already belongs to an account; they must sign in with it.",
+        },
+        { status: 409 }
+      );
+    }
+
     const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // 7 days
 
     const invite = await db.userInvite.create({
