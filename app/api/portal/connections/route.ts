@@ -8,7 +8,7 @@ import { revokeTikTokToken } from "@/lib/platforms/tiktokDisplay";
 import { revokeInstagramToken } from "@/lib/platforms/instagramAccount";
 import { revokeYouTubeToken } from "@/lib/platforms/youtube";
 import { revokeFacebookToken } from "@/lib/platforms/facebookPage";
-import { findCreatorsForHandle } from "@/lib/portal/creatorLookup";
+import { findLinkedCreatorsForHandle } from "@/lib/portal/creatorLink";
 
 export async function GET() {
   try {
@@ -16,7 +16,11 @@ export async function GET() {
     if (!session)
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const creators = await findCreatorsForHandle(session.handle);
+/* findLinkedCreatorsForHandle, not findCreatorsForHandle: a handle match alone
+   is not ownership. Registration checks uniqueness only against CreatorUser, so
+   signing up as an existing roster creator's handle used to hand the new
+   account this data. See lib/portal/creatorLink.ts. */
+    const creators = await findLinkedCreatorsForHandle(session);
     const creatorIds = creators.map((c) => c.id);
 
     const accounts =
@@ -93,7 +97,11 @@ export async function DELETE(req: NextRequest) {
     if (!account)
       return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-    const creator = (await findCreatorsForHandle(session.handle)).find(
+    /* Linked rows only. Unproven, this endpoint let anyone who registered a
+       roster creator's handle REVOKE that creator's OAuth grants at TikTok,
+       Meta and Google — the one action here that reaches outside our database
+       and cannot be undone from our side. */
+    const creator = (await findLinkedCreatorsForHandle(session)).find(
       (c) => c.id === account.creatorId,
     );
     if (!creator)

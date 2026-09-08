@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { getCreatorSession, creatorHandleVariants } from "@/lib/creator-auth";
+import { getCreatorSession } from "@/lib/creator-auth";
+import { findLinkedCreatorsForHandle } from "@/lib/portal/creatorLink";
 
 // GET /api/portal/offers — negotiation offers addressed to the signed-in creator
 export async function GET() {
@@ -8,11 +9,11 @@ export async function GET() {
     const session = await getCreatorSession();
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    // Bridge CreatorUser -> org-side Creator rows by handle match.
-    const creators = await db.creator.findMany({
-      where: { handle: { in: creatorHandleVariants(session.handle) }, deletedAt: null },
-      select: { id: true, orgId: true },
-    });
+/* findLinkedCreatorsForHandle, not findCreatorsForHandle: a handle match alone
+   is not ownership. Registration checks uniqueness only against CreatorUser, so
+   signing up as an existing roster creator's handle used to hand the new
+   account this data. See lib/portal/creatorLink.ts. */
+    const creators = await findLinkedCreatorsForHandle(session);
     if (creators.length === 0) {
       return NextResponse.json({ offers: [] });
     }

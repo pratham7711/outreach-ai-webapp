@@ -18,7 +18,8 @@ import { POST } from "@/app/api/portal/offers/[id]/respond/route";
 jest.mock("@/lib/db", () => ({
   db: {
     negotiationOffer: { findFirst: jest.fn(), update: jest.fn() },
-    creator: { findFirst: jest.fn() },
+    creator: { findFirst: jest.fn(), findMany: jest.fn() },
+    creatorSocialAccount: { findMany: jest.fn() },
   },
 }));
 jest.mock("@/lib/creator-auth", () => ({
@@ -82,6 +83,13 @@ beforeEach(() => {
     averageViews: 500,
     rate: null,
   });
+  /* contactEmail is the session's, so cr-1 is a proven-ownership row. Without a
+     proof the route 404s — a handle match alone must not let someone accept or
+     counter another creator's offers (lib/portal/creatorLink.ts). */
+  mockDb.creator.findMany.mockResolvedValue([
+    { id: "cr-1", orgId: "org-1", contactEmail: "b@example.com" },
+  ]);
+  mockDb.creatorSocialAccount.findMany.mockResolvedValue([]);
 });
 
 describe("POST /api/portal/offers/[id]/respond — acceptance is terminal", () => {
@@ -131,5 +139,26 @@ describe("POST /api/portal/offers/[id]/respond — acceptance is terminal", () =
   it("404s an offer whose creator does not bridge to this portal user", async () => {
     mockDb.creator.findFirst.mockResolvedValue(null);
     expect((await respond({ action: "accept" })).status).toBe(404);
+  });
+});
+
+describe("POST /api/portal/offers/[id]/respond — ownership", () => {
+  it("404s when the roster row is only a handle match, never proven", async () => {
+    mockDb.creator.findMany.mockResolvedValue([
+      { id: "cr-1", orgId: "org-1", contactEmail: "the-real-creator@example.com" },
+    ]);
+    const res = await respond({ action: "accept" });
+    expect(res.status).toBe(404);
+    expect(mockDb.negotiationOffer.update).not.toHaveBeenCalled();
+  });
+
+  it("accepts a row proven by an OAuth connection under this handle", async () => {
+    mockDb.creator.findMany.mockResolvedValue([
+      { id: "cr-1", orgId: "org-1", contactEmail: null },
+    ]);
+    mockDb.creatorSocialAccount.findMany.mockResolvedValue([
+      { creatorId: "cr-1", handle: "@BlessingJolie" },
+    ]);
+    expect((await respond({ action: "accept" })).status).toBe(200);
   });
 });

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getCreatorSession } from "@/lib/creator-auth";
 import { findCreatorForHandle } from "@/lib/portal/creatorLookup";
+import { findLinkedCreatorsForHandle } from "@/lib/portal/creatorLink";
 import { encrypt } from "@/lib/crypto/encrypt";
 import { exchangeForLongLivedToken } from "@/lib/platforms/instagram";
 import { exchangeThreadsToken } from "@/lib/platforms/threads";
@@ -18,6 +19,7 @@ import {
 } from "@/lib/platforms/accountSync";
 import { createLogger } from "@/lib/observability/logger";
 import { returnToWithQuery } from "@/lib/oauth/returnTo";
+import { stripAt } from "@/lib/format";
 
 const STATE_COOKIE = "portal_oauth_state";
 
@@ -206,6 +208,29 @@ export async function GET(
         creatorId: creator.id,
       });
       return failureRedirect(req, platform, "identity");
+    }
+
+    /* Where the token is allowed to land. findCreatorForHandle matches on the
+       handle alone, so without this an account that signed up as an existing
+       roster creator's handle could staple its own OAuth token onto that
+       creator's row. Two ways through, and they are the two proofs in
+       lib/portal/creatorLink.ts:
+         - the row is already linked (contactEmail match, or an earlier
+           connection), or
+         - the account that just authorised IS this handle, which is what makes
+           the very first connection able to establish the link. */
+    const linkedIds = new Set(
+      (await findLinkedCreatorsForHandle(session)).map((c) => c.id),
+    );
+    const identityProvesHandle =
+      stripAt(identity.handle ?? "").trim().toLowerCase() ===
+      stripAt(session.handle).trim().toLowerCase();
+    if (!linkedIds.has(creator.id) && !identityProvesHandle) {
+      log.warn("Authorised account does not belong to this portal handle", {
+        platform,
+        creatorId: creator.id,
+      });
+      return failureRedirect(req, platform, "creator");
     }
 
     const identityData = identityWriteData(identity);

@@ -1,25 +1,17 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getCreatorSession } from "@/lib/creator-auth";
+import { findLinkedCreatorsForHandle } from "@/lib/portal/creatorLink";
 
 export async function GET() {
   const session = await getCreatorSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  // Find all org-side Creator records with matching handle
-  // The handle on Creator is stored as "@handle" (with @) in some seed data
-  // Check both with and without @ prefix
-  const handle = session.handle;
-  const creators = await db.creator.findMany({
-    where: {
-      OR: [
-        { handle: handle },
-        { handle: `@${handle}` },
-        { handle: handle.replace(/^@/, "") },
-      ],
-    },
-    select: { id: true },
-  });
+/* findLinkedCreatorsForHandle, not findCreatorsForHandle: a handle match alone
+   is not ownership. Registration checks uniqueness only against CreatorUser, so
+   signing up as an existing roster creator's handle used to hand the new
+   account this data. See lib/portal/creatorLink.ts. */
+  const creators = await findLinkedCreatorsForHandle(session);
 
   if (creators.length === 0) return NextResponse.json({ reviews: [] });
 

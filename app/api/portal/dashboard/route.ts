@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { getCreatorSession } from "@/lib/creator-auth";
 import { resolveCapabilities } from "@/lib/capabilities";
 import { creatorOnboardingProgress } from "@/lib/onboarding/portalSteps";
-import { findCreatorsForHandle } from "@/lib/portal/creatorLookup";
+import { findLinkedCreatorsForHandle } from "@/lib/portal/creatorLink";
 
 // GET /api/portal/dashboard — Creator dashboard summary
 export async function GET() {
@@ -47,7 +47,8 @@ export async function GET() {
         orderBy: { createdAt: "desc" },
         take: 5,
       }),
-      findCreatorsForHandle(session.handle),
+      // Linked rows only: the count is of the creator's OWN connections.
+      findLinkedCreatorsForHandle(session),
     ]);
 
     const connectedAccounts =

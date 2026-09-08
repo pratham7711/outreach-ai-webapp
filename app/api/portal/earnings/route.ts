@@ -8,7 +8,7 @@ export async function GET() {
     const session = await getCreatorSession();
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const earnings = await computeCreatorEarnings(session.creatorUserId, session.handle);
+    const earnings = await computeCreatorEarnings(session);
 
     const campaigns = earnings.map((e) => ({
       campaignId: e.campaignId,
@@ -20,6 +20,9 @@ export async function GET() {
       pendingMinor: e.pendingMinor,
       minPayoutMinor: e.minPayoutMinor,
       submissionCount: e.submissionCount,
+      /* False when this portal account has not proven it owns the org-side
+         creator row (lib/portal/creatorLink.ts); every amount above reads 0. */
+      linked: e.linked,
       canRequestPayout:
         e.minPayoutMinor == null ? e.approvedMinor > 0 : e.approvedMinor >= e.minPayoutMinor,
     }));

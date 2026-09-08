@@ -8,7 +8,7 @@ export async function GET() {
     const session = await getCreatorSession();
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const earnings = await computeCreatorEarnings(session.creatorUserId, session.handle);
+    const earnings = await computeCreatorEarnings(session);
 
     const campaigns = earnings.map((e) => ({
       campaignId: e.campaignId,
@@ -21,6 +21,8 @@ export async function GET() {
       approvedMinor: e.approvedMinor,
       pendingMinor: e.pendingMinor,
       minPayoutMinor: e.minPayoutMinor,
+      // Amounts read 0 until ownership of the roster row is proven.
+      linked: e.linked,
     }));
 
     return NextResponse.json({ campaigns });

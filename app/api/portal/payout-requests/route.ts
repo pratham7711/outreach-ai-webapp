@@ -125,7 +125,7 @@ export async function POST(req: NextRequest) {
         - negotiated: the flat rate on an ACCEPTED proposal.
        A campaign is in practice one or the other, and summing is right when it
        is somehow both — they pay for different work. */
-    const earnings = await computeCreatorEarnings(session.creatorUserId, session.handle);
+    const earnings = await computeCreatorEarnings(session);
     const marketplaceMajor =
       (earnings.find((e) => e.campaignId === campaignId)?.approvedMinor ?? 0) / 100;
     const proposalMajor = proposal?.proposedRate ?? 0;

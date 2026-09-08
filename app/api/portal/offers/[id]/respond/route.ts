@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getCreatorSession, creatorHandleVariants } from "@/lib/creator-auth";
+import { isCreatorLinked } from "@/lib/portal/creatorLink";
 import { getOrCreateConversation, appendMessage } from "@/lib/negotiation/conversation";
 import { getAdvisor } from "@/lib/negotiation/engine";
 import { z } from "zod";
@@ -41,6 +42,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       select: { id: true, followersCount: true, averageViews: true, rate: true },
     });
     if (!creator) return NextResponse.json({ error: "Offer not found" }, { status: 404 });
+
+    /* The handle bridge above is not ownership — see lib/portal/creatorLink.ts.
+       Unproven, someone who registered a roster creator's handle could accept
+       or counter that creator's offers and sign them to a rate. */
+    if (!(await isCreatorLinked(creator.id, session))) {
+      return NextResponse.json({ error: "Offer not found" }, { status: 404 });
+    }
 
     if (offer.status === "ACCEPTED" || offer.status === "REJECTED") {
       return NextResponse.json({ error: "Offer is no longer actionable" }, { status: 409 });

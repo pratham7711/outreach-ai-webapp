@@ -6,6 +6,7 @@ import { GET as getPortalReviews } from "@/app/api/portal/reviews/route";
 jest.mock("@/lib/db", () => ({
   db: {
     creator: { findMany: jest.fn() },
+    creatorSocialAccount: { findMany: jest.fn() },
     creatorReview: { findMany: jest.fn() },
   },
 }));
@@ -29,7 +30,11 @@ const authedCreatorSession = {
 beforeEach(() => {
   jest.clearAllMocks();
   mockGetCreatorSession.mockResolvedValue(authedCreatorSession);
-  mockDb.creator.findMany.mockResolvedValue([{ id: "c1" }]);
+  // contactEmail matches the session email, so c1 is a proven-ownership row.
+  mockDb.creator.findMany.mockResolvedValue([
+    { id: "c1", orgId: "org-1", contactEmail: "creator@demo.com" },
+  ]);
+  mockDb.creatorSocialAccount.findMany.mockResolvedValue([]);
   mockDb.creatorReview.findMany.mockResolvedValue([]);
 });
 
@@ -76,5 +81,20 @@ describe("GET /api/portal/reviews", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.reviews).toHaveLength(0);
+  });
+});
+
+/* A handle match is not ownership. Registering an existing roster creator's
+   handle used to surface every brand review written about that creator.
+   See lib/portal/creatorLink.ts. */
+describe("GET /api/portal/reviews — ownership", () => {
+  it("returns no reviews for a bare handle match with no proof", async () => {
+    mockDb.creator.findMany.mockResolvedValue([
+      { id: "c1", orgId: "org-1", contactEmail: "the-real-creator@example.com" },
+    ]);
+    const res = await getPortalReviews();
+    expect(res.status).toBe(200);
+    expect((await res.json()).reviews).toEqual([]);
+    expect(mockDb.creatorReview.findMany).not.toHaveBeenCalled();
   });
 });
