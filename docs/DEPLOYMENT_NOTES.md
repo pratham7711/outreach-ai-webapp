@@ -40,7 +40,6 @@ call sites do not need to change; only the internal storage does. Keep the same
 | `/api/portal/auth/register` | POST | public | 5 / hour / IP | limiter first |
 | `/api/portal/auth/login` | POST | public | 10 / min / IP | limiter first (credential-stuffing guard) |
 | `/api/public/marketplace` | GET | public | 120 / min / IP | limiter first |
-| `/api/r/[token]` | GET | public (share token) | 60 / min / IP | limiter first |
 | `/api/portal/campaigns/join` | POST | creator session | 20 / hour / IP | limiter **after** auth |
 
 Placement rules:
@@ -50,6 +49,10 @@ Placement rules:
   unauthenticated caller receives `401`, never `429` — the limiter never leaks whether a
   resource/session exists.
 - NextAuth-internal routes (`/api/auth/[...nextauth]`) are intentionally left untouched.
+- `/api/r/[token]` was removed (2026-09-08). It returned the whole `Campaign` row —
+  notes, budget, rate card, invite code, profit totals — to anyone holding a share
+  token, bypassing `lib/reports/shareVisibility.ts`. Nothing referenced it; the
+  supported share surfaces are `/share/[token]` and `/api/share/[token]/export`.
 
 On a limit breach the route returns `429` with body `{ "error": "Too many requests" }`
 and a `Retry-After` header (seconds until the oldest in-window request expires).
