@@ -3,8 +3,13 @@ import { db } from "@/lib/db";
 import { getCreatorSession } from "@/lib/creator-auth";
 import { z } from "zod";
 
+/* No `orgId`. It used to be required here and written to the row verbatim
+   while authorisation was checked against campaignId alone, so a creator with
+   one accepted proposal could post a testimonial attributed to ANY org — and
+   it surfaces on the public creator page as an endorsement of a brand they
+   never worked with. zod strips unknown keys, so an orgId on the body is
+   ignored rather than trusted; the org is the campaign's. */
 const createTestimonialSchema = z.object({
-  orgId: z.string().min(1),
   campaignId: z.string().min(1),
   content: z.string().min(10).max(1000),
 });
@@ -47,7 +52,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid input", details: parsed.error.flatten() }, { status: 400 });
     }
 
-    const { orgId, campaignId, content } = parsed.data;
+    const { campaignId, content } = parsed.data;
 
     // Check for duplicate testimonial on this campaign
     const existing = await db.creatorTestimonial.findFirst({
@@ -65,8 +70,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "You must have an accepted proposal for this campaign" }, { status: 403 });
     }
 
+    // The org is the campaign's — the same row authorisation was checked against.
+    const campaign = await db.campaign.findUnique({
+      where: { id: campaignId },
+      select: { orgId: true },
+    });
+    if (!campaign) {
+      return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
+    }
+
     const testimonial = await db.creatorTestimonial.create({
-      data: { creatorUserId, orgId, campaignId, content },
+      data: { creatorUserId, orgId: campaign.orgId, campaignId, content },
     });
 
     return NextResponse.json({ testimonial }, { status: 201 });
