@@ -15,14 +15,15 @@ export function formatCompact(n: number): string {
 }
 
 export function formatCompactCurrency(n: number, currency = "USD"): string {
-  if (!Number.isFinite(n)) return "$0";
+  // Zero in the caller's currency, not a hardcoded "$0": the whole point of the
+  // currency argument is that this function is not USD-only.
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency,
     notation: "compact",
     maximumFractionDigits: 1,
     trailingZeroDisplay: "stripIfInteger",
-  }).format(n);
+  }).format(Number.isFinite(n) ? n : 0);
 }
 
 export function stripAt(handle: string | null | undefined): string {

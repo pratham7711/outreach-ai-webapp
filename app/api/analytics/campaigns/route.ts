@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { READ_CACHE_HEADERS } from "@/lib/http/readCache";
 import { authenticateRequest } from "@/lib/authenticate";
+import { carryForwardViewsByDay } from "@/lib/analytics/viewsSeries";
 import {
   computeCampaignEmv,
   computeEngagementRate,
@@ -22,10 +23,6 @@ function parsePlatform(req: NextRequest): string | null {
   const raw = req.nextUrl.searchParams.get("platform");
   if (!raw || raw === "ALL") return null;
   return (PLATFORMS as readonly string[]).includes(raw) ? raw : null;
-}
-
-function dayKey(d: Date): string {
-  return d.toISOString().slice(0, 10);
 }
 
 export async function GET(req: NextRequest) {
@@ -131,25 +128,11 @@ export async function GET(req: NextRequest) {
   );
 
   const selByCampaign: Record<string, CampAgg> = {};
-  const daySets: Record<string, Record<string, number>> = {};
-  const allDayKeys = new Set<string>();
   for (const id of campaignIds) {
     selByCampaign[id] = emptyAgg();
-    daySets[id] = {};
   }
   for (const p of posts) {
     pushPost(selByCampaign[p.campaignId], p);
-    if (p.snapshots.length > 0) {
-      for (const s of p.snapshots) {
-        const k = dayKey(s.recordedAt);
-        allDayKeys.add(k);
-        daySets[p.campaignId][k] = (daySets[p.campaignId][k] ?? 0) + s.viewsCount;
-      }
-    } else {
-      const k = dayKey(p.postedAt);
-      allDayKeys.add(k);
-      daySets[p.campaignId][k] = (daySets[p.campaignId][k] ?? 0) + p.viewsCount;
-    }
   }
 
   const titleById = Object.fromEntries(ownedCampaigns.map((c) => [c.id, c.title]));
@@ -174,14 +157,29 @@ export async function GET(req: NextRequest) {
     };
   });
 
-  const sortedDays = Array.from(allDayKeys).sort();
-  const series = sortedDays.map((day) => {
-    const row: Record<string, number | string> = { date: day };
-    for (const id of campaignIds) {
-      row[id] = daySets[id][day] ?? 0;
-    }
-    return row;
-  });
+  /* PostMetricSnapshot.viewsCount is a post's lifetime total as of that reading,
+     not that day's takings. This chart used to ADD every snapshot landing on a
+     day, so an hourly-synced post counted its whole view count up to 24 times
+     over and the comparison lines ran an order of magnitude above the campaigns'
+     own KPI totals. carryForwardViewsByDay is the rule the campaign performance
+     report already applied -- latest reading per post per day, carried forward
+     until a newer one replaces it -- shared now so the two agree. */
+  const series = carryForwardViewsByDay({
+    posts: posts.map((p) => ({
+      id: p.id,
+      group: p.campaignId,
+      postedAt: p.postedAt,
+      viewsCount: p.viewsCount,
+    })),
+    snapshots: posts.flatMap((p) =>
+      p.snapshots.map((s) => ({
+        postId: p.id,
+        recordedAt: s.recordedAt,
+        viewsCount: s.viewsCount,
+      }))
+    ),
+    groups: campaignIds,
+  }).map(({ date, totals }) => ({ date, ...totals } as Record<string, number | string>));
 
   return NextResponse.json({
     campaigns: ownedCampaigns,

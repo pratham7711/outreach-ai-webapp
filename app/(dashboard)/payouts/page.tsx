@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { summarizePayoutTotals } from "@/lib/payouts/totals";
 import PayoutsClient from "./PayoutsClient";
 
 export default async function PayoutsPage() {
@@ -12,7 +13,11 @@ export default async function PayoutsPage() {
      down. They belong to a dialog that is usually never opened, and they were
      1,837 rows and 521 rows of it in every page load, so they now load from
      /api/payouts/options when the dialog does. */
-  const [payouts, totalAgg, sentAgg, pendingAgg, processingAgg, failedAgg] = await Promise.all([
+  /* One groupBy instead of five whole-table aggregates, and grouped by currency
+     as well as status. A payout carries its own currency -- POST /api/payouts
+     takes USD, EUR, GBP and INR -- so the old `_sum.amount` over every row added
+     pounds to rupees and the tiles printed the result with a dollar sign. */
+  const [payouts, totalsRows] = await Promise.all([
     db.payout.findMany({
       where: { orgId },
       include: {
@@ -22,11 +27,11 @@ export default async function PayoutsPage() {
       orderBy: { createdAt: "desc" },
       take: 50,
     }),
-    db.payout.aggregate({ where: { orgId }, _sum: { amount: true } }),
-    db.payout.aggregate({ where: { orgId, status: "SUCCESS" }, _sum: { amount: true } }),
-    db.payout.aggregate({ where: { orgId, status: "PENDING" }, _sum: { amount: true } }),
-    db.payout.aggregate({ where: { orgId, status: "PROCESSING" }, _sum: { amount: true } }),
-    db.payout.aggregate({ where: { orgId, status: "FAILED" }, _sum: { amount: true } }),
+    db.payout.groupBy({
+      by: ["currency", "status"],
+      where: { orgId },
+      _sum: { amount: true },
+    }),
   ]);
 
   return (
@@ -46,13 +51,7 @@ export default async function PayoutsPage() {
         creator: p.creator,
         campaign: p.campaign,
       }))}
-      stats={{
-        total: Number(totalAgg._sum.amount ?? 0),
-        sent: Number(sentAgg._sum.amount ?? 0),
-        pending: Number(pendingAgg._sum.amount ?? 0),
-        processing: Number(processingAgg._sum.amount ?? 0),
-        failed: Number(failedAgg._sum.amount ?? 0),
-      }}
+      stats={summarizePayoutTotals(totalsRows)}
     />
   );
 }

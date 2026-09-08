@@ -12,6 +12,8 @@
  * column or tile entirely rather than printing a placeholder for it.
  */
 
+import { sumEngagements } from "@/lib/metrics/costs";
+
 /** Sentinel for "we never measured this", so callers can format it their own way. */
 export const UNKNOWN = null;
 
@@ -147,6 +149,74 @@ export function engagementRateValue(
   return (((l ?? 0) + (c ?? 0)) / views) * 100;
 }
 
+/**
+ * THE engagement rate. One definition, one implementation, every caller.
+ *
+ * It was three. The campaign Overview tile took an unweighted mean of
+ * Post.engagementRate across every post including the ones nobody ever
+ * measured, so an imported campaign's real 6% was divided by seventeen zeroes
+ * and shown as 0.4%. The Posts tab divided a five-term engagement (with
+ * downloads) by measured views. The Performance tab and the client report
+ * divided a four-term one. Three screens, one campaign, three numbers.
+ *
+ * The Performance-tab formula wins because it is the one the client-facing PDF
+ * and share link already print, and a brand comparing the dashboard against the
+ * report it was sent must not find them disagreeing:
+ *
+ *   (likes + comments + shares + saves) / views
+ *
+ * over MEASURED posts only -- a post whose counters were never fetched reads
+ * as zeroes it never earned, so counting its views in the denominator would
+ * dilute the rate towards zero. metricValue's lastSyncedAt rule decides which
+ * posts those are, exactly as it does for every other total on these screens.
+ *
+ * Returns a FRACTION, not a percentage: the report seam, the PDF and both tabs
+ * already multiply by 100 at the point of display.
+ */
+export type EngagementRatePost = {
+  viewsCount?: number | null;
+  likesCount?: number | null;
+  commentsCount?: number | null;
+  sharesCount?: number | null;
+  savesCount?: number | null;
+  lastSyncedAt?: string | Date | null;
+};
+
+export type EngagementRollup = {
+  /** likes + comments + shares + saves over measured posts; null when none are. */
+  engagements: number | null;
+  /** Views belonging to the measured posts -- the rate's denominator. */
+  measuredViews: number;
+  /** engagements / measuredViews as a fraction, or null when unmeasurable. */
+  rate: number | null;
+};
+
+export function rollupEngagement(
+  posts: readonly EngagementRatePost[]
+): EngagementRollup {
+  const measured = posts.filter((p) => metricValue(p.likesCount, p.lastSyncedAt) !== UNKNOWN);
+  if (measured.length === 0) return { engagements: null, measuredViews: 0, rate: null };
+
+  const engagements = measured.reduce(
+    (sum, p) =>
+      sum +
+      sumEngagements({
+        likes: p.likesCount,
+        comments: p.commentsCount,
+        shares: p.sharesCount,
+        saves: p.savesCount,
+      }),
+    0
+  );
+  const measuredViews = measured.reduce((sum, p) => sum + (p.viewsCount || 0), 0);
+
+  return {
+    engagements,
+    measuredViews,
+    rate: measuredViews > 0 ? engagements / measuredViews : null,
+  };
+}
+
 export type MeasurablePost = {
   viewsCount: number;
   likesCount: number;
@@ -194,9 +264,15 @@ export function summarizePostMetrics(posts: readonly MeasurablePost[]) {
       ? UNKNOWN
       : perPostRates.reduce((a, b) => a + b, 0) / perPostRates.length;
 
-  const measuredViews = measured.reduce((acc, p) => acc + (p.viewsCount || 0), 0);
-  const campaignRate =
-    engagement !== UNKNOWN && measuredViews > 0 ? (engagement / measuredViews) * 100 : UNKNOWN;
+  /* The rate is rollupEngagement's, not `engagement`/views. The two differ by
+     downloads: `engagement` above is CreatorCore's own five-term field, kept
+     because it is what their export carries and what this column is audited
+     against, while the RATE has one definition across the whole product and
+     that definition is the four-term one the client report prints. A tab that
+     rated the same campaign differently from the PDF sent to the brand was the
+     bug; a five-term total beside a four-term rate is the documented seam. */
+  const { rate } = rollupEngagement(posts);
+  const campaignRate = rate === null ? UNKNOWN : rate * 100;
 
   return {
     posts: posts.length,

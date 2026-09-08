@@ -75,7 +75,15 @@ export async function GET(req: NextRequest) {
     /* The date range means "what happened in this period", so it reads the day
        the creator posted, not the day we imported the row. Filtering on
        createdAt made a six-month view depend on our own import history. */
-    const postWhere = { campaign: { orgId }, postedAt: { gte: from, lte: to } };
+    /* deletedAt: null, the same filter activeCampaigns and campaignTitles carry.
+       Without it the Total Views and Total Posts tiles counted posts belonging to
+       soft-deleted campaigns, and "Views by campaign" drew a bar for a campaign
+       the title lookup deliberately omits -- which rendered as "Unknown campaign".
+       Two tiles and a chart on one screen disagreeing about which campaigns exist. */
+    const postWhere = {
+      campaign: { orgId, deletedAt: null },
+      postedAt: { gte: from, lte: to },
+    };
     const truncUnit = granularity === "daily" ? "day" : granularity === "weekly" ? "week" : "month";
 
     const [
