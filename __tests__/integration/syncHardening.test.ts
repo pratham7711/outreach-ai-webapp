@@ -566,6 +566,24 @@ describe("cron sync — campaign cadence", () => {
     expect(where.campaignId.in.sort()).toEqual(["due-now", "never-swept"]);
   });
 
+  it("treats a campaign a few minutes short of its interval as due, so hourly stays hourly", async () => {
+    // Vercel fires near :00, not at it; the previous run stamped its own start.
+    // 03:00:40 -> 04:00:10 is 59m30s, and an exact compare would skip the hour.
+    const minutesAgo = (m: number) => new Date(Date.now() - m * 60 * 1000);
+    mockDb.campaign.findMany.mockResolvedValue([
+      { id: "jitter", refreshActive: true, refreshInterval: 1, lastRefreshAt: minutesAgo(58) },
+      { id: "recent", refreshActive: true, refreshInterval: 1, lastRefreshAt: minutesAgo(50) },
+      { id: "daily-jitter", refreshActive: true, refreshInterval: 24, lastRefreshAt: minutesAgo(24 * 60 - 2) },
+      { id: "daily-recent", refreshActive: true, refreshInterval: 24, lastRefreshAt: minutesAgo(23 * 60) },
+    ]);
+    mockDb.post.findMany.mockResolvedValue([]);
+
+    await cronSync(cronReq());
+
+    const where = mockDb.post.findMany.mock.calls[0][0].where;
+    expect(where.campaignId.in.sort()).toEqual(["daily-jitter", "jitter"]);
+  });
+
   it("stamps lastRefreshAt only on the campaigns it actually swept", async () => {
     mockDb.campaign.findMany.mockResolvedValue([
       { id: "campaign-1", refreshActive: true, refreshInterval: 1, lastRefreshAt: hoursAgo(4) },

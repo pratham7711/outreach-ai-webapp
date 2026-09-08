@@ -35,6 +35,13 @@ const DEFAULT_REFRESH_INTERVAL_HOURS = 1;
    difference between sweeping 506 campaigns an hour and sweeping the handful
    that asked to be swept. */
 const REFRESH_OFF_SENTINEL = 9999;
+/* Vercel fires an hourly cron near :00, not at it, and the previous run stamped
+   lastRefreshAt with its own start time. Compared exactly, a campaign on a 1h
+   interval swept at 03:00:40 is 59m30s old at 04:00:10 and not due, so every
+   other hour is skipped and "hourly" quietly means "every two hours" about half
+   the time. Five minutes of grace absorbs the jitter and cannot double-sweep:
+   the next run is ~55 minutes away, not five. */
+const REFRESH_GRACE_MS = 5 * 60 * 1000;
 
 type RefreshCadence = {
   refreshActive: boolean | null;
@@ -47,7 +54,7 @@ export function isCampaignDue(campaign: RefreshCadence, now: Date): boolean {
   const interval = campaign.refreshInterval ?? DEFAULT_REFRESH_INTERVAL_HOURS;
   if (interval >= REFRESH_OFF_SENTINEL) return false;
   if (!campaign.lastRefreshAt) return true;
-  return now.getTime() - campaign.lastRefreshAt.getTime() >= interval * 60 * 60 * 1000;
+  return now.getTime() - campaign.lastRefreshAt.getTime() >= interval * 60 * 60 * 1000 - REFRESH_GRACE_MS;
 }
 
 /* Reasons a further attempt cannot change. Both are things a platform states
@@ -153,10 +160,6 @@ export async function GET(request: NextRequest) {
       select: { id: true, refreshActive: true, refreshInterval: true, lastRefreshAt: true },
     });
     const dueCampaignIds = campaigns.filter((c) => isCampaignDue(c, now)).map((c) => c.id);
-    log.info("campaign refresh cadence", {
-      liveCampaigns: campaigns.length,
-      dueCampaigns: dueCampaignIds.length,
-    });
 
     const posts = await db.post.findMany({
       where: {
@@ -210,6 +213,20 @@ export async function GET(request: NextRequest) {
       },
       orderBy: { lastSyncedAt: { sort: "asc", nulls: "first" } },
       take: 300,
+    });
+    /* A due campaign with nothing syncable -- no posts yet, or every post sealed
+       -- never spends a request, so it is never stamped and is due again every
+       hour. Harmless, but "dueCampaigns:5 total:0" read as a cron that found
+       work and did none of it (2026-09-08). Counted only when the read was not
+       capped: under the cap, an absent campaign truly had nothing; at the cap it
+       may simply have been crowded out. */
+    const campaignsWithPosts = new Set(posts.map((p) => p.campaignId));
+    const emptyDueCampaigns =
+      posts.length < 300 ? dueCampaignIds.filter((id) => !campaignsWithPosts.has(id)).length : null;
+    log.info("campaign refresh cadence", {
+      liveCampaigns: campaigns.length,
+      dueCampaigns: dueCampaignIds.length,
+      emptyDueCampaigns,
     });
 
     const youtubeIds: string[] = [];
