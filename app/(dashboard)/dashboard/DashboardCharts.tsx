@@ -26,6 +26,29 @@ const chartTooltipStyle: React.CSSProperties = {
 
 const axisTick = { fill: "var(--muted-foreground)", fontSize: 12, fontWeight: 500 } as const;
 
+/* Recharts draws a category tick as a plain <text> and does not ellipsize it,
+   so a campaign title longer than the axis was clipped mid-word with no way to
+   read the rest. This truncates explicitly and hangs the full title off an SVG
+   <title>, which is the browser's own tooltip. */
+const CATEGORY_AXIS_WIDTH = 104;
+/* 12px of the UI stack averages a little under 7px per character; the 8 is the
+   gap Recharts leaves between the tick and the plot area. */
+const CATEGORY_TICK_CHARS = Math.floor((CATEGORY_AXIS_WIDTH - 8) / 7);
+
+export function truncateCategoryTick(value: string, max = CATEGORY_TICK_CHARS): string {
+  return value.length > max ? `${value.slice(0, max - 1).trimEnd()}\u2026` : value;
+}
+
+function CategoryTick({ x, y, payload }: { x?: number; y?: number; payload?: { value?: unknown } }) {
+  const full = String(payload?.value ?? "");
+  return (
+    <text x={x} y={y} dy={4} textAnchor="end" {...axisTick}>
+      <title>{full}</title>
+      {truncateCategoryTick(full)}
+    </text>
+  );
+}
+
 function PanelHeading({ title, metric }: { title: string; metric: "views" }) {
   return (
     <div className="mb-1 flex items-center gap-1.5">
@@ -207,7 +230,7 @@ export function ViewsByCampaignBar({
       <BarChart data={data} layout="vertical" margin={{ top: 0, right: 48, bottom: 0, left: 0 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" horizontal={false} />
         <XAxis type="number" tick={axisTick} axisLine={false} tickLine={false} tickFormatter={(v) => formatNumber(Number(v))} />
-        <YAxis dataKey="title" type="category" tick={axisTick} axisLine={false} tickLine={false} width={104} />
+        <YAxis dataKey="title" type="category" tick={<CategoryTick />} axisLine={false} tickLine={false} width={CATEGORY_AXIS_WIDTH} />
         <Tooltip
           contentStyle={chartTooltipStyle}
           formatter={(v) => [formatNumber(Number(v)), "Views"]}

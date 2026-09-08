@@ -315,15 +315,18 @@ export const METRIC_DEFINITIONS = {
     what: "Sounds you are watching for campaign ideas. This is the number your plan limits.",
     how: "Counts every sound tracker in this workspace that has not been deleted.",
   },
+  /* Readings come from the snapshot-sounds cron, which vercel.json schedules
+     "0 4 * * *" -- once a day. Nothing on this page is measured now, so no
+     definition here may say "right now", "today" or "this week". */
   trackerUses: {
     label: "Total uses",
     what: "How many posts across the platform use the sounds you track — a proxy for how big the trend is, not for how much of it is yours.",
-    how: "Adds up the newest reading from every tracker. Each reading is a lifetime total for that sound, so this is not a figure for any particular period.",
+    how: "Adds up the newest reading from every tracker. Each reading is a lifetime total for that sound, so this is not a figure for any particular period, and the newest reading can be up to a day old.",
   },
   trackersTrending: {
     label: "Trending",
-    what: "Trackers whose usage is climbing right now — the ones worth briefing creators on this week.",
-    how: "Counts trackers gaining at least 10 uses an hour over the selected period. A tracker whose reading has gone stale is left out rather than counted as flat.",
+    what: "Trackers whose usage was climbing over the period selected above — the ones worth briefing creators on. It describes the last stretch that was measured, not this minute.",
+    how: "Counts trackers gaining at least 10 uses an hour across the selected period, from a daily reading. A tracker whose reading has gone stale is left out rather than counted as flat, and one with a single reading inside the period is compared against its previous reading, which can sit further back than the period.",
   },
   /* Was labelled "New today" and explained as "first recorded today", and it is
      neither: it is the growth over the window the period buttons above it

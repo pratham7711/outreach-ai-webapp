@@ -15,7 +15,7 @@ import { OverviewSection } from "./sections/OverviewSection";
 import { PerformanceSection } from "./sections/PerformanceSection";
 import { ActivitySection } from "./sections/ActivitySection";
 import { GettingStarted } from "./sections/GettingStarted";
-import type { Campaign, PerformanceData } from "./types";
+import type { ActivityEvent, Campaign, PerformanceData } from "./types";
 
 const DATE_PRESETS = [
   { label: "7D", days: 7 },
@@ -51,6 +51,7 @@ type Props = {
   campaignCount: number;
   creatorCount: number;
   recentCampaigns: Campaign[];
+  recentEvents: ActivityEvent[];
   dashboardWidgets: string[] | null;
 };
 
@@ -230,7 +231,7 @@ export default function DashboardClient(props: Props) {
         )}
 
         <TabsContent value="activity">
-          <ActivitySection recentCampaigns={props.recentCampaigns} />
+          <ActivitySection recentCampaigns={props.recentCampaigns} recentEvents={props.recentEvents} />
         </TabsContent>
       </Tabs>
     </div>

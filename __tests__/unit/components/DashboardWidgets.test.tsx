@@ -34,6 +34,8 @@ const baseProps = {
   recentCampaigns: [
     { id: "1", title: "Test Campaign", status: "PENDING", client: { name: "Acme" } },
   ],
+  // The activity feed reads AuditLog now; none of these gating tests open it.
+  recentEvents: [],
 };
 
 const ALL_WIDGETS = [

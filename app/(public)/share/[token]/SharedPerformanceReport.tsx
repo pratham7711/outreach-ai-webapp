@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   PieChart, Pie, Cell, Legend,
@@ -56,17 +56,28 @@ function formatDate(iso: string): string {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 }
 
-function useIsMobile(): boolean {
-  const [isMobile, setIsMobile] = useState(false);
-  useEffect(() => {
-    const mq = window.matchMedia("(max-width: 767px)");
-    const update = () => setIsMobile(mq.matches);
-    update();
-    mq.addEventListener("change", update);
-    return () => mq.removeEventListener("change", update);
-  }, []);
-  return isMobile;
+/* The layout used to branch on a useIsMobile() hook that initialised to false
+   and corrected in an effect, so the server HTML and the first client paint
+   always laid a phone out as a desktop: the lower row ran "1fr 1.4fr" in a
+   343px viewport, which gives the pie's column about 95px of content box for a
+   chart whose outerRadius alone is 85. The pie drew collapsed, then jumped.
+   A media query is right on the first frame and needs no JavaScript at all --
+   which also matters here, because this is the public client report. */
+const REPORT_CSS = `
+.spr-page { padding: 40px 24px 80px; }
+.spr-title { font-size: 28px; }
+/* minmax(0, …) rather than a bare fr: a grid track's default min-content floor
+   keeps a chart card wider than its column on a narrow viewport. */
+.spr-lower { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 24px; }
+.spr-board { min-width: 520px; }
+.spr-stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 16px; }
+@media (max-width: 767px) {
+  .spr-page { padding: 24px 16px 64px; }
+  .spr-title { font-size: 22px; }
+  .spr-lower { grid-template-columns: minmax(0, 1fr); }
+  .spr-board { min-width: 420px; }
 }
+`;
 
 function StatTile({ value, label }: { value: string; label: string }) {
   return (
@@ -101,7 +112,6 @@ export default function SharedPerformanceReport({
   /** Already gated by the server — null both when hidden and when unset. */
   budget?: number | null;
 }) {
-  const isMobile = useIsMobile();
   /* A creator whose picture would not decode, so the circle shows their initial
      instead of an empty ring. Keyed by creator, because the same avatar can
      appear on more than one row of a re-brief. */
@@ -134,23 +144,15 @@ export default function SharedPerformanceReport({
 
   const isEmpty = kpis.views === 0 && leaderboard.length === 0 && timeSeries.length === 0;
 
-  const kpiColumns = isMobile ? "repeat(2, 1fr)" : "repeat(3, 1fr)";
-  const lowerColumns = isMobile ? "1fr" : "1fr 1.4fr";
-
-  const kpiGridStyle: React.CSSProperties = {
-    display: "grid",
-    gridTemplateColumns: kpiColumns,
-    gap: 16,
-  };
-
   return (
     <div style={{ minHeight: "100vh", background: "var(--cc-bg)" }}>
+      <style>{REPORT_CSS}</style>
       {/* 1280, because the reference report measures 1256px of content at a
           1440 viewport and we were capped at 960. The narrower page was not a
           neutral choice: it is what squeezed the KPI row to five tiles where
           CreatorCore fits seven, and it left the post grid too narrow to reach
           the column count their report uses. */}
-      <div style={{ maxWidth: 1280, margin: "0 auto", padding: isMobile ? "24px 16px 64px" : "40px 24px 80px" }}>
+      <div className="spr-page" style={{ maxWidth: 1280, margin: "0 auto" }}>
         <div
           style={{
             display: "flex",
@@ -165,7 +167,7 @@ export default function SharedPerformanceReport({
             <div style={{ fontSize: 12, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--cc-text-muted)", marginBottom: 6 }}>
               Campaign Performance Report
             </div>
-            <h1 style={{ fontSize: isMobile ? 22 : 28, fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>
+            <h1 className="spr-title" style={{ fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>
               {campaignTitle}
             </h1>
           </div>
@@ -231,7 +233,6 @@ export default function SharedPerformanceReport({
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-            <style>{".spr-stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 16px; }"}</style>
             <div className="spr-stat-grid">
               {/* CreatorCore's client report leads with the per-counter totals and
                   breaks them out one tile each, rather than showing a single
@@ -334,7 +335,7 @@ export default function SharedPerformanceReport({
               )}
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: lowerColumns, gap: 24 }}>
+            <div className="spr-lower">
               <div
                 style={{
                   background: "var(--cc-card)",
@@ -400,7 +401,7 @@ export default function SharedPerformanceReport({
                 </div>
                 {leaderboard.length > 0 ? (
                   <div style={{ overflowX: "auto" }}>
-                    <div style={{ minWidth: isMobile ? 420 : 520 }}>
+                    <div className="spr-board">
                       <div style={{
                         display: "grid", gridTemplateColumns: rowCols,
                         gap: 12, padding: "10px 24px", borderBottom: "1px solid var(--cc-border)", background: "var(--cc-bg)",

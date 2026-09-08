@@ -98,7 +98,11 @@ export function BudgetBreakdownPie({
       <PieChart>
         <Pie data={data} cx="50%" cy="50%" innerRadius={60} outerRadius={80} dataKey="value" paddingAngle={2}>
           <Cell fill="var(--cc-primary)" />
-          <Cell fill="var(--cc-bg)" />
+          {/* The "remaining" arc used --cc-bg, the page background, which sits
+              on a --cc-card surface: #F7F7F5 on #FFFFFF is not a visible arc.
+              --ui-bg-3 is the neutral one step past the card in all three
+              themes (#E8E7E1 / #2C2C2A / #DDE3FD). */}
+          <Cell fill="var(--ui-bg-3)" />
         </Pie>
         <Tooltip formatter={(v: any) => formatCurrency(Number(v ?? 0), currency)} contentStyle={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12 }} />
       </PieChart>
