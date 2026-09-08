@@ -56,6 +56,17 @@ export type CreatorSnapshotOptions = {
   readTikTokEmbedHtml?: (handle: string) => Promise<string | null>;
 };
 
+/**
+ * Creators examined in one run.
+ *
+ * The deadline is still what ends a run; this bounds the READ, which used to be
+ * every tracked creator in the database whatever the budget could get through.
+ * Ordered by trackerLastAttemptAt (see the query), so these are the staleest
+ * rows and the rest rotate in next run. Not applied to a single-creator refresh,
+ * which selects one row by id.
+ */
+const MAX_CREATORS_PER_RUN = 200;
+
 /** Posts move much slower than follower counts; a grid read costs ~12s of
  * browser where a stats read costs one HTTP request. Once a day is the same
  * cadence CreatorCore refreshes its own Top Posts at. */
@@ -166,6 +177,7 @@ export async function snapshotCreators(
       ...(creatorId ? { id: creatorId } : {}),
       ...(orgId ? { orgId } : {}),
     },
+    ...(creatorId ? {} : { take: MAX_CREATORS_PER_RUN }),
     select: {
       id: true,
       orgId: true,
@@ -179,7 +191,21 @@ export async function snapshotCreators(
         select: { followersCount: true, recordedAt: true },
       },
     },
-    orderBy: { trackedSince: "asc" },
+    /* Rotating, not fixed.
+     *
+     * This was `trackedSince: "asc"` with no `take`, which is two problems in
+     * one line. Unbounded, the run reads every tracked creator on the platform
+     * to process however many the deadline allows -- and it processes the SAME
+     * prefix every time, because trackedSince never changes. A workspace whose
+     * head takes the whole budget therefore has a tail that is never once read,
+     * and no amount of waiting fixes it.
+     *
+     * trackerLastAttemptAt is stamped on every attempt, success or failure, so
+     * ascending-nulls-first is "whoever has waited longest, and never-attempted
+     * first". The head of the read is then exactly the population that is due,
+     * the tail rotates in on the next run, and a creator that was just read
+     * sorts to the back rather than being re-examined and skipped. */
+    orderBy: { trackerLastAttemptAt: { sort: "asc", nulls: "first" } },
   });
 
   if (creators.length === 0) return { snapshots, failed, skipped };
@@ -206,10 +232,19 @@ export async function snapshotCreators(
     }, {}),
   });
 
-  for (const creator of creators) {
+  for (let i = 0; i < creators.length; i++) {
+    const creator = creators[i];
+    /* Break, not continue. Past the deadline every remaining creator is skipped
+       for the same reason, and walking the rest of the list one `continue` at a
+       time spends the overrun re-asking a clock that has already answered. The
+       remainder is counted in one go so the tally still adds up to the read. */
     if (Date.now() > deadline) {
-      skipped++;
-      continue;
+      skipped += creators.length - i;
+      log.warn("creator sweep hit its deadline", {
+        processed: i,
+        remaining: creators.length - i,
+      });
+      break;
     }
 
     const cadence = cadenceByOrg.get(creator.orgId) ?? DEFAULT_GRANULARITY;
@@ -220,7 +255,18 @@ export async function snapshotCreators(
        a plateau that never happened. */
     if (!isDueForRead(previous?.recordedAt ?? null, cadence, now)) {
       skipped++;
-      if (!dryRun && platformPostsAreStaleFor(creator)) {
+      /* Top Posts keep their own, much slower cadence, so a creator whose
+         follower read is not due can still be due a posts read -- that is why
+         this rung exists here at all.
+      
+         It asks postsAreStaleFor (age) and NOT platformPostsAreStaleFor
+         (age OR source !== "platform"). The source clause is permanently true
+         for every creator whose list came from campaign posts, so on this path
+         it meant an official-API call, an embed fetch and a database read for
+         each of them on EVERY run, forever, for a list that is at most 20 hours
+         old. The upgrade from a campaigns list to a platform list still
+         happens; it happens once a day, like every other posts read. */
+      if (!dryRun && postsAreStaleFor(creator)) {
         const read = await readPostsWithoutBrowser(creator, readTikTokEmbedHtml);
         if (read) await storeTopPostsOnly(creator.id, read);
       }
@@ -489,47 +535,76 @@ export async function snapshotCreators(
       ? velocityBetween(previous.followersCount, profile.followersCount)
       : 0;
 
-    await db.$transaction([
-      db.creatorTrackerSnapshot.create({
-        data: {
-          creatorId: creator.id,
-          followersCount: profile.followersCount,
-          postsCount: profile.postsCount,
-          avgViews: profile.avgViews,
-          deltaFollowers,
-          velocityScore,
-          recordedAt,
-        },
-      }),
-      /* The denormalised columns on Creator are what the rest of the product
-         reads (rosters, media kits, exports). Leaving them stale would mean the
-         tracker knew a number the rest of the app did not.
-         averageViews is only written when the mean came from real samples --
-         writing 0 for a creator whose posts carry no view counts would report a
-         measured zero for something we simply could not see. */
-      db.creator.update({
-        where: { id: creator.id },
-        data: {
-          followersCount: profile.followersCount,
-          ...(profile.sampledPosts > 0 ? { averageViews: profile.avgViews } : {}),
-          /* topPosts only moves forward -- an absent list on this read means
-             "not measured here", never "the posts are gone". */
-          ...(profile.topPosts?.length
-            ? {
-                topPosts: profile.topPosts,
-                topPostsAt: recordedAt,
-                /* Recorded with the list, never on its own: the label has to
-                   describe the posts actually stored, so a read that changed
-                   nothing must not relabel what is already there. */
-                ...(topPostsSource ? { topPostsSource } : {}),
-              }
-            : {}),
-          trackerLastAttemptAt: recordedAt,
-          trackerLastError: null,
-        },
-      }),
-    ]);
-    snapshots++;
+    /* The one unguarded await in the sweep, and the only write that ends it.
+       Every read above is wrapped, so a creator TikTok refuses costs one
+       `failed` and the run continues -- but a unique-constraint clash, a lost
+       Neon connection or a deadlock here threw straight out of snapshotCreators
+       and abandoned every creator after this one, after paying for their
+       browser and sandbox time. One creator's write failing is one creator's
+       problem. */
+    try {
+      await db.$transaction([
+        db.creatorTrackerSnapshot.create({
+          data: {
+            creatorId: creator.id,
+            followersCount: profile.followersCount,
+            postsCount: profile.postsCount,
+            avgViews: profile.avgViews,
+            deltaFollowers,
+            velocityScore,
+            recordedAt,
+          },
+        }),
+        /* The denormalised columns on Creator are what the rest of the product
+           reads (rosters, media kits, exports). Leaving them stale would mean the
+           tracker knew a number the rest of the app did not.
+           averageViews is only written when the mean came from real samples --
+           writing 0 for a creator whose posts carry no view counts would report a
+           measured zero for something we simply could not see. */
+        db.creator.update({
+          where: { id: creator.id },
+          data: {
+            followersCount: profile.followersCount,
+            ...(profile.sampledPosts > 0 ? { averageViews: profile.avgViews } : {}),
+            /* topPosts only moves forward -- an absent list on this read means
+               "not measured here", never "the posts are gone". */
+            ...(profile.topPosts?.length
+              ? {
+                  topPosts: profile.topPosts,
+                  topPostsAt: recordedAt,
+                  /* Recorded with the list, never on its own: the label has to
+                     describe the posts actually stored, so a read that changed
+                     nothing must not relabel what is already there. */
+                  ...(topPostsSource ? { topPostsSource } : {}),
+                }
+              : {}),
+            trackerLastAttemptAt: recordedAt,
+            trackerLastError: null,
+          },
+        }),
+      ]);
+      snapshots++;
+    } catch (e) {
+      failed++;
+      log.error("creator snapshot write failed", {
+        creatorId: creator.id,
+        handle: creator.handle,
+        error: e instanceof Error ? e.message : String(e),
+      });
+      /* Best-effort breadcrumb for the UI, on the same column the read-failure
+         path uses. Swallowed: this is already the failure handler. */
+      await db.creator
+        .update({
+          where: { id: creator.id },
+          data: {
+            trackerLastAttemptAt: new Date(),
+            trackerLastError: `snapshot-write-failed: ${
+              e instanceof Error ? e.message : String(e)
+            }`,
+          },
+        })
+        .catch(() => {});
+    }
   }
 
   log.info("creator sweep complete", { snapshots, failed, skipped, considered: creators.length });

@@ -48,7 +48,10 @@ type Row = {
   };
 };
 
-function makeRow(i: number, over: Partial<Row> & { campaign?: Partial<Row["campaign"]> } = {}): Row {
+function makeRow(
+  i: number,
+  over: Omit<Partial<Row>, "campaign"> & { campaign?: Partial<Row["campaign"]> } = {},
+): Row {
   const { campaign, ...rest } = over;
   return {
     id: `post-${String(i).padStart(4, "0")}`,
