@@ -8,9 +8,13 @@ import { toast } from "sonner";
 import { DollarSign, Clock, CheckCircle, XCircle, Plus, Banknote } from "lucide-react";
 import { formatDateAbs } from "@/lib/format";
 
+/* Field names are the API's, not invented ones. This read `amount` while
+   GET /api/portal/payout-requests returns `requestedAmount`, so every row
+   rendered "$NaN"; the POST below sent `{ amount }` while the route's zod
+   schema requires `requestedAmount`, so the modal always 400'd. */
 type PayoutRequest = {
   id: string;
-  amount: number;
+  requestedAmount: number;
   currency: string;
   status: string;
   createdAt: string;
@@ -30,8 +34,14 @@ const STATUS_BADGE: Record<string, "warning" | "success" | "danger" | "neutral">
   REJECTED: "danger",
 };
 
-function formatCurrency(n: number, currency = "USD") {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(n);
+function formatCurrency(n: number, currency?: string | null) {
+  const code = currency || "USD";
+  try {
+    return new Intl.NumberFormat("en-US", { style: "currency", currency: code }).format(n);
+  } catch {
+    // Intl throws RangeError on an unknown code rather than degrading.
+    return `${code} ${n.toFixed(2)}`;
+  }
 }
 
 export default function PortalPayoutRequestsPage() {
@@ -91,7 +101,7 @@ export default function PortalPayoutRequestsPage() {
       const res = await fetch("/api/portal/payout-requests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ campaignId: selectedCampaignId, amount: numAmount }),
+        body: JSON.stringify({ campaignId: selectedCampaignId, requestedAmount: numAmount }),
       });
       if (res.ok) {
         toast.success("Payout request submitted");
@@ -108,8 +118,20 @@ export default function PortalPayoutRequestsPage() {
     }
   };
 
-  // Stats
-  const totalRequested = requests.reduce((sum, r) => sum + r.amount, 0);
+  /* Totalled per currency and never across them: the API stamps each row with
+     its campaign's currency, so one creator's list can hold USD and INR rows
+     and adding those numbers together produces a figure in no currency at all. */
+  const totalsByCurrency = requests.reduce<Record<string, number>>((acc, r) => {
+    const code = r.currency || "USD";
+    acc[code] = (acc[code] ?? 0) + r.requestedAmount;
+    return acc;
+  }, {});
+  const totalRequestedLabel =
+    Object.keys(totalsByCurrency).length === 0
+      ? formatCurrency(0)
+      : Object.entries(totalsByCurrency)
+          .map(([code, total]) => formatCurrency(total, code))
+          .join(" · ");
   const pendingCount = requests.filter((r) => r.status === "PENDING").length;
   const approvedCount = requests.filter((r) => r.status === "APPROVED").length;
   const rejectedCount = requests.filter((r) => r.status === "REJECTED").length;
@@ -149,7 +171,7 @@ export default function PortalPayoutRequestsPage() {
 
       {/* Stats */}
       <div className="rsp-grid-tiles" style={{ marginBottom: 32 }}>
-        <MetricTile metric="portalTotalRequested" value={formatCurrency(totalRequested)} />
+        <MetricTile metric="portalTotalRequested" value={totalRequestedLabel} />
         <MetricTile metric="requestsPending" label="Pending" value={String(pendingCount)} />
         <MetricTile metric="portalApproved" value={String(approvedCount)} />
         <MetricTile metric="portalRejected" value={String(rejectedCount)} />
@@ -214,7 +236,7 @@ export default function PortalPayoutRequestsPage() {
                 {req.campaign?.title ?? "—"}
               </span>
               <span style={{ fontSize: 13, fontWeight: 700, color: "var(--cc-text)" }}>
-                {formatCurrency(req.amount, req.currency)}
+                {formatCurrency(req.requestedAmount, req.currency)}
               </span>
               <Badge variant={STATUS_BADGE[req.status] ?? "neutral"}>
                 {req.status}
