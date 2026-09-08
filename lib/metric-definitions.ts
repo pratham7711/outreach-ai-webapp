@@ -71,7 +71,7 @@ export const METRIC_DEFINITIONS = {
   engagementRate: {
     label: "Engagement rate",
     what: "How actively people responded to the posts, rather than just scrolling past. Higher usually means the content landed.",
-    how: "Likes plus comments plus shares, divided by views.",
+    how: "Likes plus comments plus shares plus saves, divided by the views of the posts we have actually measured.",
   },
   cpm: {
     label: "Cost per 1,000 views",

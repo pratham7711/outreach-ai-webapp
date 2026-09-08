@@ -25,6 +25,7 @@ import {
 import Link from "next/link";
 import { toast } from "sonner";
 import { formatCompact, formatCompactCurrency, formatDateAbs } from "@/lib/format";
+import { rollupEngagement } from "@/lib/metricDisplay";
 import { CreatorSelect } from "@/components/CreatorSelect";
 import { platformColor } from "@/app/(dashboard)/analytics/shared";
 import { loadCharts } from "@/components/charts/lazyCharts";
@@ -99,7 +100,12 @@ type Post = {
   likesCount: number;
   commentsCount: number;
   sharesCount: number;
+  savesCount: number;
   engagementRate: number;
+  /* Provenance for the counters above. GET /api/campaigns/[id] has always
+     returned it -- the type here simply did not name it, which is how the
+     Overview tile came to average a column of never-measured zeroes. */
+  lastSyncedAt: string | null;
   creator: {
     id: string; name: string; handle: string; platform: string;
     avatarUrl: string | null; followersCount: number; rate: number | null;
@@ -660,9 +666,14 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
 
   const totalViews = campaign.posts.reduce((s, p) => s + p.viewsCount, 0);
   const totalLikes = campaign.posts.reduce((s, p) => s + p.likesCount, 0);
-  const avgEngagement = campaign.posts.length > 0
-    ? campaign.posts.reduce((s, p) => s + p.engagementRate, 0) / campaign.posts.length
-    : 0;
+  /* The product's one engagement-rate definition, shared with the Posts tab, the
+     Performance tab and the client report. This used to be an unweighted mean of
+     Post.engagementRate over EVERY post, so the 18,602 imported posts that carry
+     a default 0 (nobody ever fetched their engagement) dragged a real rate
+     towards zero, and the same campaign read one way here and another two tabs
+     across. null means no post on the campaign has been measured at all. */
+  const engagement = rollupEngagement(campaign.posts);
+  const avgEngagement = engagement.rate === null ? null : engagement.rate * 100;
 
   // Platform breakdown for analytics
   const platformStats = campaign.posts.reduce((acc, p) => {
@@ -756,8 +767,10 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                 gets a zero or a dash standing in for the real number. */}
             <div className="rsp-grid-tiles">
               <MetricTile metric="totalViews" value={formatNumber(totalViews)} />
-              {avgEngagement > 0 && (
-                <MetricTile metric="engagementRate" label="Avg engagement" value={avgEngagement.toFixed(1) + "%"} />
+              {/* "Engagement rate", not "Avg engagement": the label described the
+                  old mean-of-means and would now misname the figure below it. */}
+              {avgEngagement !== null && (
+                <MetricTile metric="engagementRate" value={avgEngagement.toFixed(2) + "%"} />
               )}
               <MetricTile metric="campaignCreators" value={String(roster.length)} />
               {campaign.budget != null && (
@@ -910,8 +923,11 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                     <div style={{ fontSize: 22, fontWeight: 700, color: "var(--cc-text)" }}>{formatNumber(totalLikes)}</div>
                   </div>
                   <div style={{ padding: 16, borderRadius: 10, background: "var(--cc-bg)" }}>
-                    <div style={{ fontSize: 11, color: "var(--cc-text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>Avg Engagement</div>
-                    <div style={{ fontSize: 22, fontWeight: 700, color: "var(--cc-primary)" }}>{avgEngagement.toFixed(1)}%</div>
+                    <div style={{ fontSize: 11, color: "var(--cc-text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>Engagement Rate</div>
+                    {/* An em dash, not 0.0%: a campaign whose engagement nobody
+                        has fetched has no rate, and printing one asserts a
+                        measurement we never took. */}
+                    <div style={{ fontSize: 22, fontWeight: 700, color: "var(--cc-primary)" }}>{avgEngagement === null ? "—" : avgEngagement.toFixed(2) + "%"}</div>
                   </div>
                   <div style={{ padding: 16, borderRadius: 10, background: "var(--cc-bg)" }}>
                     <div style={{ fontSize: 11, color: "var(--cc-text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>Posts</div>

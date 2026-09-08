@@ -5,7 +5,7 @@ import {
   computeEngagementRate,
   sumEngagements,
 } from "@/lib/metrics";
-import { metricValue, unwrittenMetricValue, fieldMetricValue } from "@/lib/metricDisplay";
+import { unwrittenMetricValue, fieldMetricValue, rollupEngagement } from "@/lib/metricDisplay";
 import type { MetricField } from "@/lib/metricDisplay";
 import { isPostRemoved } from "@/lib/postRemoval";
 import type { SharePlatform } from "@/lib/reports/shareVisibility";
@@ -403,30 +403,11 @@ async function computeCampaignPerformanceUncached(
   /* Engagement counters default to 0 for posts we never fetched, so summing them
      all would report a measured zero for an imported campaign. Only posts whose
      engagement is actually known contribute, and a campaign with none reports
-     null rather than 0. */
-  const measured = posts.filter(
-    (p) => metricValue(p.likesCount, p.lastSyncedAt) !== null
-  );
-  const engagements =
-    measured.length === 0
-      ? null
-      : measured.reduce(
-          (s, p) =>
-            s +
-            sumEngagements({
-              likes: p.likesCount,
-              comments: p.commentsCount,
-              shares: p.sharesCount,
-              saves: p.savesCount,
-            }),
-          0
-        );
-
-  const measuredViews = measured.reduce((s, p) => s + (p.viewsCount ?? 0), 0);
-  const engagementRate =
-    engagements !== null && measuredViews > 0
-      ? computeEngagementRate({ views: measuredViews, likes: engagements })
-      : null;
+     null rather than 0. rollupEngagement is that rule, and it is the product's
+     single definition of the rate -- the campaign Overview tile and the Posts
+     tab now read the same function, so the three screens can no longer print
+     three different engagement rates for one campaign. */
+  const { engagements, rate: engagementRate } = rollupEngagement(posts);
   const emv = computeCampaignEmv(
     posts.map((p) => ({
       platform: p.platform,
@@ -564,57 +545,29 @@ async function computeCampaignPerformanceUncached(
     .map(([platform, v]) => ({ platform, views: v.views, posts: v.posts }))
     .sort((a, b) => b.views - a.views);
 
-  const leaderboardMap = new Map<
-    string,
-    {
-      creatorId: string;
-      name: string;
-      avatarUrl: string | null;
-      posts: number;
-      views: number;
-      engagements: number | null;
-      measuredViews: number;
-    }
-  >();
+  /* Grouped first, rated afterwards by the same rollupEngagement the KPI tile
+     uses. Accumulating the numerator and denominator inline here was a second
+     copy of the definition sitting twenty lines below the first. */
+  const postsByCreator = new Map<string, typeof posts>();
   for (const p of posts) {
-    const key = p.creator.id;
-    const entry =
-      leaderboardMap.get(key) ??
-      {
-        creatorId: p.creator.id,
-        name: p.creator.name,
-        avatarUrl: p.creator.avatarUrl,
-        posts: 0,
-        views: 0,
-        engagements: null as number | null,
-        measuredViews: 0,
-      };
-    entry.posts += 1;
-    entry.views += p.viewsCount ?? 0;
-    if (metricValue(p.likesCount, p.lastSyncedAt) !== null) {
-      entry.engagements =
-        (entry.engagements ?? 0) +
-        sumEngagements({
-          likes: p.likesCount,
-          comments: p.commentsCount,
-          shares: p.sharesCount,
-          saves: p.savesCount,
-        });
-      entry.measuredViews += p.viewsCount ?? 0;
-    }
-    leaderboardMap.set(key, entry);
+    const bucket = postsByCreator.get(p.creator.id);
+    if (bucket) bucket.push(p);
+    else postsByCreator.set(p.creator.id, [p]);
   }
-  const leaderboard = Array.from(leaderboardMap.values())
-    .map(({ measuredViews, ...c }) => ({
-      ...c,
-      engagementRate:
-        c.engagements !== null && measuredViews > 0
-          ? computeEngagementRate({ views: measuredViews, likes: c.engagements })
-          : null,
-      emv: computeCampaignEmv(
-        posts
-          .filter((p) => p.creator.id === c.creatorId)
-          .map((p) => ({
+  const leaderboard = Array.from(postsByCreator.values())
+    .map((creatorPosts) => {
+      const creator = creatorPosts[0].creator;
+      const { engagements: creatorEngagements, rate } = rollupEngagement(creatorPosts);
+      return {
+        creatorId: creator.id,
+        name: creator.name,
+        avatarUrl: creator.avatarUrl,
+        posts: creatorPosts.length,
+        views: creatorPosts.reduce((s, p) => s + (p.viewsCount ?? 0), 0),
+        engagements: creatorEngagements,
+        engagementRate: rate,
+        emv: computeCampaignEmv(
+          creatorPosts.map((p) => ({
             platform: p.platform,
             views: p.viewsCount,
             likes: p.likesCount,
@@ -622,9 +575,10 @@ async function computeCampaignPerformanceUncached(
             shares: p.sharesCount,
             saves: p.savesCount,
           }))
-      ),
-      status: statusByCreator.get(c.creatorId) ?? null,
-    }))
+        ),
+        status: statusByCreator.get(creator.id) ?? null,
+      };
+    })
     .sort((a, b) => b.views - a.views)
     .slice(0, 10);
 
