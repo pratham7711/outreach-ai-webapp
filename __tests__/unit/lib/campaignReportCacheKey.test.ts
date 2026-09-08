@@ -17,7 +17,7 @@ jest.mock("@/lib/db", () => ({
   db: {
     post: { findMany: jest.fn().mockResolvedValue([]) },
     $queryRawUnsafe: jest.fn().mockResolvedValue([]),
-    $queryRaw: jest.fn().mockResolvedValue([{ posts: 0n, synced: null, views: null }]),
+    $queryRaw: jest.fn().mockResolvedValue([{ posts: BigInt(0), synced: null, views: null }]),
     activation: { findMany: jest.fn().mockResolvedValue([]) },
     campaign: { findUnique: jest.fn().mockResolvedValue(null) },
     soundTrackerSnapshot: { findMany: jest.fn().mockResolvedValue([]) },
