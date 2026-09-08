@@ -7,6 +7,7 @@ import { CredentialsSignin } from "next-auth";
 import { loginBlockedForUnverified } from "@/lib/emailVerification";
 import { accessFor, isPlatformAdmin } from "@/lib/billing/subscription";
 import { authConfig } from "@/lib/auth.config";
+import { getRequestIp } from "@/lib/request";
 
 /** How stale a JWT's copy of role/isActive may get. See the jwt callback. */
 const ROLE_REFRESH_MS = 60_000;
@@ -21,7 +22,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
       },
-      authorize: async (credentials) => {
+      authorize: async (credentials, request) => {
         if (!credentials?.email || !credentials?.password) return null;
         const user = await db.user.findUnique({
           where: { email: credentials.email as string },
@@ -76,6 +77,22 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             user.org.suspendedReason?.trim() || decision.message
           );
         }
+
+        /* The Team screen has always rendered a "Last Login" column and
+           lastLoginAt has always been null, because nothing wrote it -- every
+           member read "Never", including the one signing in at that moment.
+           Fire-and-forget: a failed write is a stale column, and refusing a
+           correct password over it would be the worse bug. Nothing beyond the
+           two columns the schema already has is recorded. */
+        db.user
+          .update({
+            where: { id: user.id },
+            data: {
+              lastLoginAt: new Date(),
+              lastLoginIp: request ? getRequestIp(request) : null,
+            },
+          })
+          .catch(() => {});
 
         return { id: user.id, email: user.email, name: user.name, orgId: user.orgId, role: user.role, campaignScope: user.campaignScope };
       },

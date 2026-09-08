@@ -1,6 +1,7 @@
-import type { NextRequest } from "next/server";
-
-export function getRequestIp(request: NextRequest): string | null {
+/* Typed on the one thing it reads rather than on NextRequest, so the bare
+   `Request` NextAuth hands `authorize` can be passed without a cast. Every
+   existing NextRequest caller still satisfies it. */
+export function getRequestIp(request: { headers: Headers }): string | null {
   const realIp = request.headers.get("x-real-ip");
   if (realIp?.trim()) return realIp.trim();
 

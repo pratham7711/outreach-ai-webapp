@@ -84,6 +84,38 @@ describe("credentials login", () => {
     expect(user).toMatchObject({ id: "u-1", orgId: "org-1", role: "ADMIN" });
   });
 
+  /* The Team screen has rendered a Last Login column since it existed, and the
+     column has always said "Never" because nothing wrote the field. */
+  it("stamps lastLoginAt and the request IP", async () => {
+    mockDb.user.findUnique.mockResolvedValue(dbUser());
+    const request = { headers: new Headers({ "x-real-ip": "203.0.113.9" }) };
+    await authorize()(creds, request);
+    expect(mockDb.user.update).toHaveBeenCalledWith({
+      where: { id: "u-1" },
+      data: { lastLoginAt: expect.any(Date), lastLoginIp: "203.0.113.9" },
+    });
+  });
+
+  it("does not block the login when that write fails", async () => {
+    mockDb.user.findUnique.mockResolvedValue(dbUser());
+    mockDb.user.update.mockRejectedValue(new Error("ECONNRESET"));
+    const user = await authorize()(creds, { headers: new Headers() });
+    expect(user).toMatchObject({ id: "u-1" });
+  });
+
+  it("writes no IP when the request carries no forwarding header", async () => {
+    mockDb.user.findUnique.mockResolvedValue(dbUser());
+    await authorize()(creds, { headers: new Headers() });
+    expect(mockDb.user.update.mock.calls[0][0].data.lastLoginIp).toBeNull();
+  });
+
+  it("stamps nothing on a refused login", async () => {
+    mockDb.user.findUnique.mockResolvedValue(dbUser());
+    mockCompare.mockResolvedValue(false);
+    await authorize()(creds, { headers: new Headers() });
+    expect(mockDb.user.update).not.toHaveBeenCalled();
+  });
+
   it("still refuses a wrong password before it ever looks at isActive", async () => {
     mockDb.user.findUnique.mockResolvedValue(dbUser({ isActive: false }));
     mockCompare.mockResolvedValue(false);
