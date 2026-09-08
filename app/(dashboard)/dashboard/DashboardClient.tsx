@@ -14,7 +14,7 @@ import {
 import { OverviewSection } from "./sections/OverviewSection";
 import { PerformanceSection } from "./sections/PerformanceSection";
 import { ActivitySection } from "./sections/ActivitySection";
-import { GettingStarted } from "./sections/GettingStarted";
+import { GettingStarted } from "@/components/onboarding/GettingStarted";
 import type { ActivityEvent, Campaign, PerformanceData } from "./types";
 import { PageHeader } from "@/components/ds";
 

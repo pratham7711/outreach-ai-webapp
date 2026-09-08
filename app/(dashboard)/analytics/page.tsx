@@ -189,6 +189,16 @@ export default function AnalyticsPage() {
 
           <TabsContent value="overview">
             <div className="flex flex-col gap-6">
+              {/* No post in range means nothing was measured, so 0 views / 0
+                  likes / 0 comments are not three findings — they are the same
+                  absence stated three times, with the authority of a figure. */}
+              {k.totalPosts === 0 ? (
+                <EmptyState
+                  icon={<BarChart3 size={32} color="var(--cc-text-subtle)" />}
+                  title="Nothing published in this range"
+                  description="Track a post on a campaign, or widen the date range, and the totals appear here."
+                />
+              ) : (
               <div className="grid grid-cols-2 gap-5 lg:grid-cols-3">
                 <MetricTile
                   metric="totalViews"
@@ -210,6 +220,7 @@ export default function AnalyticsPage() {
                   />
                 )}
               </div>
+              )}
 
               <SectionCard
                 icon={Calendar}

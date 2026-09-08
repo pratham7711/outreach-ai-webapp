@@ -10,7 +10,7 @@ export type OnboardingSnapshot = {
   postsTracked: number;
   teamMembers: number;
   pendingInvites: number;
-  payouts: number;
+  reports: number;
 };
 
 export type OnboardingStep = {
@@ -96,13 +96,19 @@ export function buildOnboardingSteps(
       cta: "Invite a teammate",
       done: snapshot.teamMembers > 1 || snapshot.pendingInvites > 0,
     },
+    /* This was "Pay a creator", pointing at /payouts. Payments are parked --
+       NewSidebar.tsx says so in as many words, and the route is deliberately
+       unlinked -- so the last thing a first-run checklist asked of anyone was
+       to go and use the one surface the product is not offering. Sharing the
+       numbers is the actual end of the delivery loop, and /reports is gated on
+       basic_reports, which every tier including free carries. */
     {
-      key: "payout",
-      title: "Pay a creator",
-      body: "The payout records against the creator who earned it, so what you approved and what left the account stay reconciled.",
-      href: "/payouts",
-      cta: "Record a payout",
-      done: snapshot.payouts > 0,
+      key: "report",
+      title: "Share the numbers with your client",
+      body: "A report turns the posts on a campaign into one link you can send out, and you decide whether it is public.",
+      href: "/reports",
+      cta: "Create a report",
+      done: snapshot.reports > 0,
     },
   );
 

@@ -41,7 +41,7 @@ export default async function CampaignsPage({
     ...scopeWhere,
   };
 
-  const [campaigns, filteredTotal, statusGroups, creatorCount, clients, orgTags, orgTeam, folderRows, folderCounts, unfiledCount, statusDefs] =
+  const [campaigns, filteredTotal, statusGroups, creatorCount, org, clients, orgTags, orgTeam, folderRows, folderCounts, unfiledCount, statusDefs] =
     await Promise.all([
     db.campaign.findMany({
       where,
@@ -62,6 +62,9 @@ export default async function CampaignsPage({
     // One grouped query replaces counting each status tab off the full array.
     db.campaign.groupBy({ by: ["status"], where: tabBase, _count: true }),
     db.creator.count({ where: { orgId, deletedAt: null } }),
+    // The org's own currency, so the wizard does not open on USD for an agency
+    // that bills in something else. /campaigns/self-serve already reads this.
+    db.organization.findUnique({ where: { id: orgId }, select: { currency: true } }),
     db.client.findMany({ where: { orgId }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
     // Options for the Tags and Team Member filters come from the rows that
     // exist, not from every user in the org. Offering all 113 users when none
@@ -186,6 +189,7 @@ export default async function CampaignsPage({
       unfiledCount={unfiledCount}
       sort={sort}
       canDelete={hasPermission((session.user as any).role, "campaigns:delete")}
+      defaultCurrency={org?.currency ?? "USD"}
     />
   );
 }

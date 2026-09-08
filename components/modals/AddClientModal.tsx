@@ -8,6 +8,9 @@ import { Button } from "@/components/ds";
 export default function AddClientModal({ onClose }: { onClose: () => void }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  /* Every non-ok response used to be dropped -- `if (res.ok)` and no else -- so
+     a rejected logo URL or an expired session left the button doing nothing. */
+  const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -17,25 +20,42 @@ export default function AddClientModal({ onClose }: { onClose: () => void }) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return;
     setLoading(true);
+    setError(null);
     try {
-      const contactInfo = JSON.stringify({
-        ...(form.email && { email: form.email }),
-        ...(form.phone && { phone: form.phone }),
-      });
+      const contact = {
+        ...(form.email.trim() && { email: form.email.trim() }),
+        ...(form.phone.trim() && { phone: form.phone.trim() }),
+      };
+      /* Omitted rather than sent, when both fields are blank. This used to
+         stringify the empty object and store the literal "{}" on every client
+         added without contact details -- present, non-null, and meaning
+         nothing, so "has contact info" was true for all of them. */
+      const contactInfo = Object.keys(contact).length > 0 ? JSON.stringify(contact) : undefined;
       const res = await fetch("/api/clients", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: form.name,
-          logoUrl: form.logoUrl || undefined,
+          logoUrl: form.logoUrl.trim() || undefined,
           contactInfo,
         }),
       });
       if (res.ok) {
         router.refresh();
         onClose();
+        return;
       }
+      const body = await res.json().catch(() => null);
+      setError(
+        body?.error ??
+          (res.status === 401
+            ? "Your session has expired. Sign in again and retry."
+            : "Could not add that client.")
+      );
+    } catch {
+      setError("Could not reach the server. Check your connection and try again.");
     } finally {
       setLoading(false);
     }
@@ -57,6 +77,21 @@ export default function AddClientModal({ onClose }: { onClose: () => void }) {
       }
     >
       <form id="add-client-form" onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        {error && (
+          <div
+            role="alert"
+            style={{
+              padding: "10px 12px",
+              borderRadius: 10,
+              background: "color-mix(in srgb, var(--cc-danger) 10%, transparent)",
+              border: "1px solid color-mix(in srgb, var(--cc-danger) 30%, transparent)",
+              color: "var(--cc-danger)",
+              fontSize: 13,
+            }}
+          >
+            {error}
+          </div>
+        )}
         <Input
           label="Company Name"
           value={form.name}

@@ -17,16 +17,31 @@ export type AudioLinkResult =
   | { ok: true; songId: string }
   | { ok: false; reason: string; message: string };
 
+/** What a usable audio link resolves to, before anything is written. */
+export type ResolvedAudio = {
+  platform: "TIKTOK" | "INSTAGRAM";
+  tiktokSoundId: string;
+  provisionalTitle?: string | null;
+};
+
+export type AudioLinkParse =
+  | { ok: true; audio: ResolvedAudio }
+  | { ok: false; reason: string; message: string };
+
+/* Deliberately narrow, so a transaction client satisfies it: the two writes
+   below belong inside the caller's transaction (see identifyAudioLink). */
 type Db = Pick<PrismaClient, "tikTokSound" | "song">;
 
-export async function resolveAudioLink(
-  db: Db,
-  orgId: string,
-  url: string,
-  /** Used when the link carries no title of its own -- an Instagram audio URL
-   *  never does, and a TikTok one only sometimes. */
-  fallbackTitle: string
-): Promise<AudioLinkResult> {
+/**
+ * The half of this that touches the network, kept separate from the half that
+ * writes.
+ *
+ * A short TikTok link is resolved by following it, which is an HTTP round trip
+ * against a third party. That cannot happen inside a database transaction --
+ * it would hold the transaction open for as long as TikTok feels like taking.
+ * So the caller parses first, out here, and opens the transaction afterwards.
+ */
+export async function identifyAudioLink(url: string): Promise<AudioLinkParse> {
   let parsed = parseSoundUrl(url);
 
   if (parsed.kind === "short-link") {
@@ -50,6 +65,28 @@ export async function resolveAudioLink(
   }
 
   const { platform, tiktokSoundId, provisionalTitle } = parsed;
+  return { ok: true, audio: { platform, tiktokSoundId, provisionalTitle } };
+}
+
+/**
+ * The writing half: find-or-create the TikTokSound and the Song.
+ *
+ * Takes a `Db` rather than reaching for the module client so the caller can
+ * hand it a transaction client. It used to run on the global client while the
+ * campaign that needed it was created separately afterwards -- so a campaign
+ * insert that failed (a foreign key, a constraint, a dropped connection) left
+ * a TikTokSound and a Song behind with nothing pointing at them, and a tracker
+ * row is a standing instruction to fetch a page on a schedule.
+ */
+export async function ensureSongForAudio(
+  db: Db,
+  orgId: string,
+  audio: ResolvedAudio,
+  /** Used when the link carries no title of its own -- an Instagram audio URL
+   *  never does, and a TikTok one only sometimes. */
+  fallbackTitle: string
+): Promise<string> {
+  const { platform, tiktokSoundId, provisionalTitle } = audio;
 
   /* Scoped by platform as well as id: the same numeric id can exist on both,
      and merging them would point one platform's tracker at the other's curve. */
@@ -89,5 +126,17 @@ export async function resolveAudioLink(
       select: { id: true },
     }));
 
-  return { ok: true, songId: song.id };
+  return song.id;
+}
+
+/** The two halves together, for callers with nothing to keep them atomic. */
+export async function resolveAudioLink(
+  db: Db,
+  orgId: string,
+  url: string,
+  fallbackTitle: string
+): Promise<AudioLinkResult> {
+  const parsed = await identifyAudioLink(url);
+  if (!parsed.ok) return parsed;
+  return { ok: true, songId: await ensureSongForAudio(db, orgId, parsed.audio, fallbackTitle) };
 }

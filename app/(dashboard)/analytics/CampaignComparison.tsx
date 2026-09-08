@@ -33,15 +33,21 @@ type ComparisonResponse = {
   series: Record<string, number | string>[];
 };
 
-function DeltaBadge({ pct }: { pct: number | null }) {
+export function DeltaBadge({ pct }: { pct: number | null }) {
   if (pct === null || !Number.isFinite(pct)) {
     return <span style={{ fontSize: 11, color: "var(--cc-text-subtle)" }}>—</span>;
   }
   const positive = pct >= 0;
-  const color = positive ? "var(--cc-success)" : "#DC2626";
+  /* `color + "16"` appended hex alpha to whatever `color` held. That works for
+     a literal like "#DC2626" and produces "var(--cc-success)16" for the other
+     branch -- not a colour at all, so a positive delta drew its text on no
+     background while a negative one got a tint. Both are tokens now, and the
+     tint comes from color-mix, which takes a variable. */
+  const color = positive ? "var(--cc-success)" : "var(--cc-danger)";
+  const tint = `color-mix(in srgb, ${color} 12%, transparent)`;
   const Icon = positive ? ArrowUpRight : ArrowDownRight;
   return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 2, fontSize: 11, fontWeight: 600, color, background: color + "16", borderRadius: 6, padding: "2px 6px" }}>
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 2, fontSize: 11, fontWeight: 600, color, background: tint, borderRadius: 6, padding: "2px 6px" }}>
       <Icon size={11} />
       {Math.abs(pct).toFixed(0)}%
     </span>

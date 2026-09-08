@@ -8,6 +8,7 @@ import { Card, Badge, Input, EmptyState, Avatar } from "@pratham7711/ui";
 import { PageHeader, StatusTabs, Pagination, FilterDrawer, FilterButton, Dropdown, useConfirm, Button } from "@/components/ds";
 import type { FilterDef, FilterValues } from "@/components/ds";
 import CampaignWizard from "@/components/modals/CampaignWizard";
+import { GettingStarted } from "@/components/onboarding/GettingStarted";
 import { formatCompactCurrency, timeAgo } from "@/lib/format";
 import { useListQuery } from "@/lib/useListQuery";
 import { CAMPAIGNS_PAGE_SIZE } from "@/lib/listPageSize";
@@ -485,6 +486,7 @@ export default function CampaignsClient({
   sort,
   canDelete,
   statusDefs,
+  defaultCurrency,
 }: {
   campaigns: Campaign[];
   stats: { total: number; active: number; creatorCount: number };
@@ -504,6 +506,8 @@ export default function CampaignsClient({
   sort: CampaignSort;
   canDelete: boolean;
   statusDefs: StatusDef[];
+  /** Organization.currency, so a new campaign starts in the money the org bills in. */
+  defaultCurrency: string;
 }) {
   const [search, setSearch] = useState(q);
   const [showModal, setShowModal] = useState(false);
@@ -642,6 +646,15 @@ export default function CampaignsClient({
         }
       />
 
+      {/* Sign-in lands here, not on /dashboard (lib/auth.config.ts), and the
+          getting-started checklist was mounted only there -- so the thing that
+          exists to walk a new org through its first campaign sat on a page a
+          new org had no reason to open. It hides itself once complete or
+          dismissed, so an established org sees nothing. */}
+      <div className="mb-5 empty:mb-0">
+        <GettingStarted />
+      </div>
+
       {/* Search + filters */}
       <div style={{ marginBottom: 20, display: "flex", gap: 10, alignItems: "flex-start" }}>
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -680,7 +693,12 @@ export default function CampaignsClient({
         </div>
       )}
 
-      {/* Status Tabs */}
+      {/* Status Tabs — hidden while the org has no campaigns at all. Five pills
+          reading All 0 / Pending 0 / Active 0 / Complete 0 / Canceled 0 above
+          "No campaigns yet" is a status breakdown of nothing, and this is the
+          page sign-in lands on. statusCounts is the unfiltered tab base, so
+          this asks "any campaigns", not "any matches". */}
+      {statusCounts.ALL > 0 && (
       <StatusTabs
         ariaLabel="Filter by campaign status"
         style={{ marginBottom: 24 }}
@@ -693,6 +711,7 @@ export default function CampaignsClient({
         active={status}
         onChange={(key) => push({ status: key === "ALL" ? null : key, page: null })}
       />
+      )}
 
       {/* Campaign List */}
       {filtered.length === 0 ? (
@@ -856,7 +875,13 @@ export default function CampaignsClient({
         onSelect={(next) => push({ folderId: next, page: null })}
       />
 
-      {showModal && <CampaignWizard clients={clients} onClose={() => setShowModal(false)} />}
+      {showModal && (
+        <CampaignWizard
+          clients={clients}
+          defaultCurrency={defaultCurrency}
+          onClose={() => setShowModal(false)}
+        />
+      )}
     </div>
   );
 }

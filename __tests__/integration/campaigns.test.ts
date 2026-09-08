@@ -6,8 +6,12 @@ import { GET, POST } from '@/app/api/campaigns/route';
 import { GET as GETById, PATCH, DELETE } from '@/app/api/campaigns/[id]/route';
 
 // Mock db before any imports use it
-jest.mock('@/lib/db', () => ({
-  db: {
+jest.mock('@/lib/db', () => {
+  /* POST now writes the campaign inside db.$transaction, so the Song and
+     TikTokSound rows an audio link creates cannot outlive a failed insert.
+     The mock runs the callback against itself, which is what a real
+     interactive transaction hands the callback. */
+  const db: any = {
     campaign: {
       findMany: jest.fn(),
       count: jest.fn(),
@@ -16,8 +20,12 @@ jest.mock('@/lib/db', () => ({
       findFirst: jest.fn(),
       update: jest.fn(),
     },
-  },
-}));
+    tikTokSound: { findFirst: jest.fn(), create: jest.fn() },
+    song: { findFirst: jest.fn(), create: jest.fn() },
+  };
+  db.$transaction = jest.fn((fn: any) => fn(db));
+  return { db };
+});
 
 jest.mock('@/lib/auth', () => ({
   auth: jest.fn(),
@@ -157,6 +165,73 @@ describe('POST /api/campaigns', () => {
 
     expect(res.status).toBe(201);
     expect(body.title).toBe('New Campaign');
+  });
+
+  /* The Song and TikTokSound rows an audio link creates exist only to be
+     pointed at by the campaign. They used to be written first, on the global
+     client, so a campaign insert that then failed left both behind with nothing
+     referencing them -- and a TikTokSound is a standing instruction to fetch a
+     page on a schedule, so the orphan keeps costing something. */
+  describe('audio link', () => {
+    const withAudio = {
+      title: 'Sound Campaign',
+      audioUrl: 'https://www.tiktok.com/music/Test-7123456789012345678',
+    };
+
+    it('creates the sound and song inside the same transaction as the campaign', async () => {
+      mockDb.tikTokSound.findFirst.mockResolvedValue(null);
+      mockDb.tikTokSound.create.mockResolvedValue({ id: 'sound-1' });
+      mockDb.song.findFirst.mockResolvedValue(null);
+      mockDb.song.create.mockResolvedValue({ id: 'song-1' });
+      mockDb.campaign.create.mockResolvedValue({ ...newCampaign, songId: 'song-1' });
+
+      const req = makeRequest('http://localhost/api/campaigns', {
+        method: 'POST',
+        body: JSON.stringify(withAudio),
+        headers: { 'Content-Type': 'application/json' },
+      });
+      expect((await POST(req)).status).toBe(201);
+
+      expect(mockDb.$transaction).toHaveBeenCalledTimes(1);
+      expect(mockDb.tikTokSound.create).toHaveBeenCalled();
+      expect(mockDb.song.create).toHaveBeenCalled();
+      expect(mockDb.campaign.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ songId: 'song-1' }) })
+      );
+    });
+
+    it('rolls the sound and song back when the campaign insert fails', async () => {
+      mockDb.tikTokSound.findFirst.mockResolvedValue(null);
+      mockDb.tikTokSound.create.mockResolvedValue({ id: 'sound-1' });
+      mockDb.song.findFirst.mockResolvedValue(null);
+      mockDb.song.create.mockResolvedValue({ id: 'song-1' });
+      mockDb.campaign.create.mockRejectedValue(new Error('insert failed'));
+
+      const req = makeRequest('http://localhost/api/campaigns', {
+        method: 'POST',
+        body: JSON.stringify(withAudio),
+        headers: { 'Content-Type': 'application/json' },
+      });
+      expect((await POST(req)).status).toBe(500);
+
+      // The proof that they are inside it: the throw came out of $transaction,
+      // which is what makes the two inserts above disappear with it.
+      await expect(mockDb.$transaction.mock.results[0].value).rejects.toThrow('insert failed');
+    });
+
+    it('rejects a post link with a 400 before opening a transaction at all', async () => {
+      const req = makeRequest('http://localhost/api/campaigns', {
+        method: 'POST',
+        body: JSON.stringify({
+          title: 'Sound Campaign',
+          audioUrl: 'https://www.tiktok.com/@someone/video/7123456789012345678',
+        }),
+        headers: { 'Content-Type': 'application/json' },
+      });
+      expect((await POST(req)).status).toBe(400);
+      expect(mockDb.$transaction).not.toHaveBeenCalled();
+      expect(mockDb.tikTokSound.create).not.toHaveBeenCalled();
+    });
   });
 
   it('returns 400 for invalid input (empty title)', async () => {

@@ -304,38 +304,47 @@ export default function ActivationsClient({ activations, stats, statusDefs }: {
         actions={<Button variant="primary" iconLeft={<Plus size={15} />} onClick={() => setShowCreate(true)}>Add Activation</Button>}
       />
 
-      {/* Stats */}
-      <div className="rsp-grid-tiles" style={{ marginBottom: 20 }}>
-        <MetricTile metric="activationsTotal" value={String(stats.total)} />
-        <MetricTile metric="activationsActive" value={String(stats.active)} />
-        <MetricTile metric="activationsComplete" value={String(countByStatuses(activations, ["COMPLETE"]))} />
-      </div>
-
-      {/* The reference's four stage counters: what is waiting, and on whom. These
-          are counts of work outstanding, so Complete and Posted are in none of
-          them — a total that included terminal rows would not be actionable. */}
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 28 }}>
-        {ACTIVATION_STAGE_COUNTERS.map((c) => (
-          <div
-            key={c.label}
-            style={{
-              background: "var(--cc-card)",
-              border: "1px solid var(--cc-border)",
-              borderRadius: 10,
-              padding: "10px 14px",
-              display: "flex",
-              flexDirection: "column",
-              gap: 2,
-              minWidth: 150,
-            }}
-          >
-            <span style={{ fontSize: 11, color: "var(--cc-text-muted)" }}>{c.label}</span>
-            <span style={{ fontSize: 20, fontWeight: 700, color: "var(--cc-text)", fontVariantNumeric: "tabular-nums" }}>
-              {countByStatuses(activations, c.statuses)}
-            </span>
+      {/* Seven counters, every one of them 0, stacked above "No activations
+          yet" -- a wall of measurements of nothing, on the screen a new org
+          sees first. A count only says something once there is something to
+          count, so the tiles wait for the first row. /songs does the same with
+          its search box. */}
+      {activations.length > 0 && (
+        <>
+          {/* Stats */}
+          <div className="rsp-grid-tiles" style={{ marginBottom: 20 }}>
+            <MetricTile metric="activationsTotal" value={String(stats.total)} />
+            <MetricTile metric="activationsActive" value={String(stats.active)} />
+            <MetricTile metric="activationsComplete" value={String(countByStatuses(activations, ["COMPLETE"]))} />
           </div>
-        ))}
-      </div>
+
+          {/* The reference's four stage counters: what is waiting, and on whom. These
+              are counts of work outstanding, so Complete and Posted are in none of
+              them — a total that included terminal rows would not be actionable. */}
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 28 }}>
+            {ACTIVATION_STAGE_COUNTERS.map((c) => (
+              <div
+                key={c.label}
+                style={{
+                  background: "var(--cc-card)",
+                  border: "1px solid var(--cc-border)",
+                  borderRadius: 10,
+                  padding: "10px 14px",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 2,
+                  minWidth: 150,
+                }}
+              >
+                <span style={{ fontSize: 11, color: "var(--cc-text-muted)" }}>{c.label}</span>
+                <span style={{ fontSize: 20, fontWeight: 700, color: "var(--cc-text)", fontVariantNumeric: "tabular-nums" }}>
+                  {countByStatuses(activations, c.statuses)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
 
       {activations.length === 0 ? (
         <EmptyState

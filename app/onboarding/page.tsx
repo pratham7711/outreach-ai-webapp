@@ -59,9 +59,12 @@ function Notice({ tone, children }: { tone: "error" | "info"; children: React.Re
       style={{
         fontSize: 13,
         lineHeight: 1.5,
-        color: error ? "#DC2626" : "var(--cc-text-muted)",
-        background: error ? "#FEE2E2" : "var(--cc-bg)",
-        border: `1px solid ${error ? "#FECACA" : "var(--cc-border)"}`,
+        /* Was #DC2626 / #FEE2E2 / #FECACA. Hardcoded, so this notice ignored
+           the org's theme and every future change to the danger token. Same
+           color-mix tints the login page's own notices use. */
+        color: error ? "var(--cc-danger)" : "var(--cc-text-muted)",
+        background: error ? "color-mix(in srgb, var(--cc-danger) 12%, transparent)" : "var(--cc-bg)",
+        border: `1px solid ${error ? "color-mix(in srgb, var(--cc-danger) 32%, transparent)" : "var(--cc-border)"}`,
         borderRadius: 8,
         padding: "10px 12px",
         marginBottom: 16,

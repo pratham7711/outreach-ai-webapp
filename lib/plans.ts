@@ -28,6 +28,24 @@
  * product except the one feature with a recurring cost per row. Note that 0 is a
  * real limit and must survive every falsy check between here and the gate --
  * `?? Infinity` is correct, `|| Infinity` would turn "none" into "unlimited".
+ *
+ * A feature name here is not decoration: getOrgEntitlements builds an org's
+ * featureMap from this list, so a key a route gates on and no tier grants is a
+ * 403 for every org on every plan. That is what happened to `creator_discovery`
+ * and `ai_assistant` -- both gated (app/api/discovery, app/api/ai/*,
+ * campaigns/[id]/outreach/draft) and listed in no tier, so only the seed script,
+ * which writes them straight into OrgPlanConfig.features, ever saw them work.
+ *
+ * `creator_discovery` is on every tier including free. It searches the org's own
+ * Creator rows and nothing else -- no external call, no recurring cost -- and
+ * the sidebar shows /discovery to every org (the rule in lib/dashboardPolicy.ts
+ * is keyed, not feature-gated), so withholding it only produces a 403 behind a
+ * link everyone can see. `ai_assistant` starts at pro, because that one bills
+ * per request.
+ *
+ * `ai_creator_discovery` was removed at the same time: an enterprise-only name
+ * one character away from the key the discovery route actually reads, which is
+ * how the real key came to be missing in the first place.
  */
 export const PLANS = {
   free: {
@@ -35,28 +53,28 @@ export const PLANS = {
     max_creators: Infinity,
     max_users: Infinity,
     max_trackers: 0,
-    features: ["campaigns", "creator_database", "basic_reports"] as const,
+    features: ["campaigns", "creator_database", "basic_reports", "creator_discovery"] as const,
   },
   starter: {
     max_campaigns: Infinity,
     max_creators: Infinity,
     max_users: Infinity,
     max_trackers: 25,
-    features: ["campaigns", "creator_database", "basic_reports", "media_kits", "shareable_links", "draft_approvals"] as const,
+    features: ["campaigns", "creator_database", "basic_reports", "creator_discovery", "media_kits", "shareable_links", "draft_approvals"] as const,
   },
   pro: {
     max_campaigns: Infinity,
     max_creators: Infinity,
     max_users: Infinity,
     max_trackers: 100,
-    features: ["campaigns", "creator_database", "basic_reports", "advanced_reports", "media_kits", "shareable_links", "draft_approvals", "creator_portal", "audio_analytics", "payments", "export_csv", "api_access"] as const,
+    features: ["campaigns", "creator_database", "basic_reports", "advanced_reports", "creator_discovery", "media_kits", "shareable_links", "draft_approvals", "creator_portal", "audio_analytics", "payments", "export_csv", "api_access", "ai_assistant"] as const,
   },
   enterprise: {
     max_campaigns: Infinity,
     max_creators: Infinity,
     max_users: Infinity,
     max_trackers: Infinity,
-    features: ["campaigns", "creator_database", "basic_reports", "advanced_reports", "media_kits", "shareable_links", "draft_approvals", "creator_portal", "audio_analytics", "payments", "export_csv", "api_access", "custom_domain", "sso", "audit_log", "dedicated_support", "ai_creator_discovery"] as const,
+    features: ["campaigns", "creator_database", "basic_reports", "advanced_reports", "creator_discovery", "media_kits", "shareable_links", "draft_approvals", "creator_portal", "audio_analytics", "payments", "export_csv", "api_access", "ai_assistant", "custom_domain", "sso", "audit_log", "dedicated_support"] as const,
   },
 } as const;
 

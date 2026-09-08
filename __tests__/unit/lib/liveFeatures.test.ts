@@ -22,7 +22,7 @@ describe("partitionLiveFeatures", () => {
   it("separates the enterprise names nothing in the product reads", () => {
     const { live, notBuilt } = partitionLiveFeatures([...PLANS.enterprise.features]);
 
-    for (const key of ["custom_domain", "sso", "dedicated_support", "ai_creator_discovery"]) {
+    for (const key of ["custom_domain", "sso", "dedicated_support"]) {
       expect(notBuilt).toContain(key);
       expect(live).not.toContain(key);
       expect(isLiveFeature(key)).toBe(false);

@@ -88,7 +88,27 @@ describe("PLANS config", () => {
     const exclusiveToEnterprise = enterpriseFeatures.filter((f) => !proFeatures.includes(f));
     expect(exclusiveToEnterprise).toContain("custom_domain");
     expect(exclusiveToEnterprise).toContain("sso");
-    expect(exclusiveToEnterprise).toContain("ai_creator_discovery");
+    expect(exclusiveToEnterprise).toContain("dedicated_support");
+  });
+
+  /* `ai_creator_discovery` used to live here: an enterprise-only name one
+     character away from `creator_discovery`, the key app/api/discovery actually
+     gates on. Nothing read it, and its resemblance to the real key is why the
+     real key's absence went unnoticed. */
+  it("no longer carries the ai_creator_discovery near-miss", () => {
+    for (const plan of Object.keys(PLANS) as PlanName[]) {
+      expect(PLANS[plan].features as readonly string[]).not.toContain("ai_creator_discovery");
+    }
+  });
+
+  it("grants creator_discovery on every tier and ai_assistant from pro up", () => {
+    for (const plan of Object.keys(PLANS) as PlanName[]) {
+      expect(hasFeature(plan, "creator_discovery")).toBe(true);
+    }
+    expect(hasFeature("free", "ai_assistant")).toBe(false);
+    expect(hasFeature("starter", "ai_assistant")).toBe(false);
+    expect(hasFeature("pro", "ai_assistant")).toBe(true);
+    expect(hasFeature("enterprise", "ai_assistant")).toBe(true);
   });
 });
 

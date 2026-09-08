@@ -200,9 +200,64 @@ describe('POST /api/creators', () => {
     await POST(req);
 
     expect(mockDb.creator.findFirst).toHaveBeenCalledWith({
-      where: { orgId: 'org-1', handle: '@bobcreator', deletedAt: null },
+      where: {
+        orgId: 'org-1',
+        deletedAt: null,
+        OR: [
+          { handle: { equals: 'bobcreator', mode: 'insensitive' } },
+          { handle: { equals: '@bobcreator', mode: 'insensitive' } },
+        ],
+      },
       select: { id: true },
     });
+  });
+
+  /* Handles are stored verbatim — org creators as "@blessingjolie", portal
+     accounts as "blessingjolie" — and lib/creator-auth.ts bridges the two with
+     creatorHandleVariants(). The clash check matched the exact string, so
+     "@jane" and "jane" were two rows and the portal and proposal-accept paths
+     then disagreed about which one is real. Storage is unchanged; only the
+     comparison widened. */
+  it.each([
+    ['bobcreator', '@bobcreator'],
+    ['@bobcreator', 'bobcreator'],
+    ['@BobCreator', '@bobcreator'],
+  ])('treats %s as already taken when the org holds %s', async (typed) => {
+    mockDb.creator.findFirst.mockResolvedValue({ id: 'creator-existing' });
+
+    const req = makeRequest('http://localhost/api/creators', {
+      method: 'POST',
+      body: JSON.stringify({ ...validBody, handle: typed }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const res = await POST(req);
+
+    expect(res.status).toBe(409);
+    expect(mockDb.creator.create).not.toHaveBeenCalled();
+
+    // Both spellings are asked for, and case is left to the database.
+    const where = mockDb.creator.findFirst.mock.calls[0][0].where;
+    expect(where.OR.map((c: any) => c.handle.equals.toLowerCase())).toEqual([
+      'bobcreator',
+      '@bobcreator',
+    ]);
+    expect(where.OR.every((c: any) => c.handle.mode === 'insensitive')).toBe(true);
+  });
+
+  it('still stores the handle exactly as it was typed', async () => {
+    mockDb.creator.findFirst.mockResolvedValue(null);
+    mockDb.creator.create.mockResolvedValue({ id: 'creator-1' });
+
+    const req = makeRequest('http://localhost/api/creators', {
+      method: 'POST',
+      body: JSON.stringify({ ...validBody, handle: '@BobCreator' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    await POST(req);
+
+    expect(mockDb.creator.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ handle: '@BobCreator' }) })
+    );
   });
 
   it('returns 400 for missing name', async () => {

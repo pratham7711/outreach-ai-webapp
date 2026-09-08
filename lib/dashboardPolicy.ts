@@ -59,6 +59,12 @@ export const DASHBOARD_NAV_RULES: DashboardNavRule[] = [
   { href: "/payouts", key: "payouts" },
   { href: "/requests", key: "requests" },
   { href: "/recipients", key: "recipients" },
+  /* Parked with the rest of the money side -- Payouts, Requests, Recipients --
+     but it had no rule here at all, which is a different thing from being
+     parked: parked means "a rule exists and no sidebar item does". A route with
+     no rule is invisible to getDashboardNavHref and to every consumer of the
+     allowlist, and nothing anywhere says so. */
+  { href: "/financial-reports", key: "financial-reports" },
   { href: "/reports", key: "reports", featureKeys: [...REPORTS_FEATURE_KEYS] },
   { href: "/media-kits", key: "media-kits", featureKeys: [MEDIA_KITS_FEATURE] },
   { href: "/settings", alwaysVisible: true },
@@ -73,6 +79,15 @@ export const DASHBOARD_NAV_RULES: DashboardNavRule[] = [
   { href: "/settings/api-keys", alwaysVisible: true },
   { href: "/settings/billing", alwaysVisible: true },
   { href: "/settings/ingestion", alwaysVisible: true },
+  /* Cards on the Settings hub (app/(dashboard)/settings/page.tsx) with no rule
+     here. The hub is not filtered by the allowlist, so they were reachable --
+     but they were missing from the one place that lists every dashboard route,
+     which is how /deadlines, /analytics and /settings/general each went missing
+     from the sidebar in turn. Rules now exist for all three; whether they also
+     get a sidebar item is a separate, deliberate choice. */
+  { href: "/settings/profile", alwaysVisible: true },
+  { href: "/settings/notifications", alwaysVisible: true },
+  { href: "/settings/integrations", alwaysVisible: true },
   { href: "/audit-log", key: "audit-log", featureKeys: [AUDIT_LOG_FEATURE] },
   { href: "/admin", alwaysVisible: true },
   { href: "/plans", alwaysVisible: true },

@@ -14,6 +14,43 @@ export function formatCompact(n: number): string {
   }).format(n);
 }
 
+export type ParsedCount =
+  | { ok: true; value: number | undefined }
+  | { ok: false; error: string };
+
+export const COUNT_INPUT_ERROR =
+  'Enter a whole number of people — "2.4m", "890k" and "1,200,000" all work.';
+
+/**
+ * The inverse of formatCompact, for a field a human types into.
+ *
+ * Follower counts are read off a profile page, where they are already written
+ * as "2.4M" — so that is what gets pasted in. `Number("2.4m")` is NaN, which
+ * JSON.stringify turns into `null`, which the route's `z.number().int()`
+ * rejects with a 400 the modal used to swallow whole: the button simply did
+ * nothing. Parsing here means the form either sends an integer or says why it
+ * cannot.
+ *
+ * Blank is not an error — both fields are optional — and comes back as
+ * `undefined` so the caller can omit the key rather than send a zero it was
+ * never given.
+ */
+export function parseCountInput(raw: string): ParsedCount {
+  const trimmed = raw.trim();
+  if (!trimmed) return { ok: true, value: undefined };
+
+  // Thousands separators and the spaces people leave before a suffix.
+  const cleaned = trimmed.replace(/[,\s_]/g, "");
+  const match = /^(\d+(?:\.\d+)?)([kmb])?$/i.exec(cleaned);
+  if (!match) return { ok: false, error: COUNT_INPUT_ERROR };
+
+  const multiplier = { k: 1e3, m: 1e6, b: 1e9 }[match[2]?.toLowerCase() ?? ""] ?? 1;
+  const value = Math.round(Number(match[1]) * multiplier);
+  if (!Number.isSafeInteger(value)) return { ok: false, error: COUNT_INPUT_ERROR };
+
+  return { ok: true, value };
+}
+
 export function formatCompactCurrency(n: number, currency = "USD"): string {
   // Zero in the caller's currency, not a hardcoded "$0": the whole point of the
   // currency argument is that this function is not USD-only.

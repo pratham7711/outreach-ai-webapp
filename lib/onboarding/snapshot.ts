@@ -3,7 +3,7 @@ import { resolveCapabilities } from "@/lib/capabilities";
 import { onboardingProgress, type OnboardingProgress, type OnboardingSnapshot } from "./steps";
 
 export async function readOnboardingSnapshot(orgId: string): Promise<OnboardingSnapshot> {
-  const [org, clients, campaigns, creators, activations, postsTracked, teamMembers, pendingInvites, payouts] =
+  const [org, clients, campaigns, creators, activations, postsTracked, teamMembers, pendingInvites, reports] =
     await Promise.all([
       db.organization.findUnique({ where: { id: orgId }, select: { orgType: true } }),
       db.client.count({ where: { orgId } }),
@@ -13,7 +13,7 @@ export async function readOnboardingSnapshot(orgId: string): Promise<OnboardingS
       db.post.count({ where: { campaign: { orgId, deletedAt: null } } }),
       db.user.count({ where: { orgId } }),
       db.userInvite.count({ where: { orgId, acceptedAt: null, expiresAt: { gt: new Date() } } }),
-      db.payout.count({ where: { orgId } }),
+      db.report.count({ where: { orgId } }),
     ]);
 
   return {
@@ -25,7 +25,7 @@ export async function readOnboardingSnapshot(orgId: string): Promise<OnboardingS
     postsTracked,
     teamMembers,
     pendingInvites,
-    payouts,
+    reports,
   };
 }
 
