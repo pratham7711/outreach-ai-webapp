@@ -83,7 +83,7 @@ Includes **middleware/proxy bypass** in App Router (`GHSA-6gpp-xcg3-4w24`), **SS
 
 ### F6 — User enumeration + weak passwords on register *(Low)*
 
-`/api/auth/register` returns `"Email already in use"` (400) → lets anyone enumerate registered brand emails. And it only checks `!password` — **no minimum length/complexity**, so `"a"` is accepted.
+`/api/auth/register` returns `"Email already in use"` (400) → lets anyone enumerate registered brand emails. And it only checks `!password` — **no minimum length/complexity**, so `"a"` is accepted. *(The route no longer exists — deleted 2026-09-08; `/api/signup` is the only signup door.)*
 
 **Fix:** generic success/"check your email" response regardless of existence; add a `z.string().min(10)` (or similar) password rule. The creator-portal register already validates more strictly — mirror that.
 
@@ -116,7 +116,7 @@ Applied during the `campaign.madeboring.com` deploy prep. All verified locally a
 | F2 | **Fixed** | `getRequestIp` now prefers `x-real-ip` (Vercel-set, client can't spoof), else the **last** `x-forwarded-for` hop — not the client-controlled leftmost. | tsc + build clean; unit suite green. |
 | F3 | **Fixed** | `next.config.ts` `headers()` block: HSTS (2y, preload), `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy`, `Permissions-Policy`. Skipped a content-CSP for pilot (app is inline-`style`-heavy — a strict CSP needs live testing; tracked as follow-up). | All five headers confirmed present at runtime on `/login`. |
 | F4 | **Fixed** | `next 16.2.10 → 16.2.11` (middleware bypass + SSRF CVEs). Chose the patch, not the 16.3.0 minor. | Build + `next start` on 16.2.11. |
-| F6 | **Fixed (partial)** | `/api/auth/register` now rejects passwords `< 10` chars. User-enumeration message left as-is (Low severity; generic-success degrades UX on an auto-login register). | tsc + build clean. |
+| F6 | **Fixed (route deleted 2026-09-08)** | `/api/auth/register` was a duplicate of `/api/signup` with weaker validation and no callers anywhere in the repo, so it was removed rather than hardened further. The enumeration message and the `< 10` password rule went with it. | grep for callers came back empty; tsc clean. |
 | F5 | **Deferred** | In-memory rate-limit — post-pilot infra call (Upstash/Vercel KV). Unchanged. | — |
 | F7 | **Deferred** | Residual transitive advisories (`next`-high via deps, `handlebars` critical via build tooling, `xlsx`) — not in a runtime auth/tenant path. Post-pilot triage. | — |
 

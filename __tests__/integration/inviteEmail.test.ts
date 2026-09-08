@@ -15,7 +15,7 @@ import { NextRequest } from "next/server";
 jest.mock("@/lib/db", () => ({
   db: {
     userInvite: { findFirst: jest.fn(), findUnique: jest.fn(), create: jest.fn(), count: jest.fn() },
-    user: { count: jest.fn() },
+    user: { count: jest.fn(), findUnique: jest.fn() },
     organization: { findUnique: jest.fn() },
   },
 }));
@@ -57,6 +57,9 @@ beforeEach(() => {
   mockSend.mockResolvedValue({ sent: true, id: "re_1" });
   mockDb.organization.findUnique.mockResolvedValue({ name: "Acme", brandName: "Acme Studio" });
   mockDb.userInvite.findFirst.mockResolvedValue(null);
+  /* No account exists at the invited address — a collision is a 409 before any
+     mail is attempted, and lives in invites.test.ts. */
+  mockDb.user.findUnique.mockResolvedValue(null);
 });
 
 describe("creating an invite sends the mail", () => {

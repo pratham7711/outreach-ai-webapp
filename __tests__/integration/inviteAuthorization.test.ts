@@ -16,7 +16,7 @@ import { NextRequest } from "next/server";
 jest.mock("@/lib/db", () => ({
   db: {
     userInvite: { findMany: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn(), create: jest.fn(), delete: jest.fn(), count: jest.fn() },
-    user: { count: jest.fn() },
+    user: { count: jest.fn(), findUnique: jest.fn() },
     organization: { findUnique: jest.fn() },
   },
 }));
@@ -55,6 +55,9 @@ beforeEach(() => {
   mockDb.organization.findUnique.mockResolvedValue({ name: "Acme", brandName: "Acme" });
   mockDb.userInvite.findFirst.mockResolvedValue(null);
   mockDb.userInvite.findMany.mockResolvedValue([]);
+  /* No account exists at the invited address; the collision case lives in
+     invites.test.ts. */
+  mockDb.user.findUnique.mockResolvedValue(null);
   mockDb.userInvite.create.mockResolvedValue({
     id: "inv-1", orgId: ORG, email: "x@y.test", role: "MEMBER",
     token: "tok", expiresAt: new Date(Date.now() + 864e5),
@@ -142,6 +145,7 @@ describe("handing out the role above your own", () => {
       jest.clearAllMocks();
       mockDb.organization.findUnique.mockResolvedValue({ name: "Acme", brandName: "Acme" });
       mockDb.userInvite.findFirst.mockResolvedValue(null);
+      mockDb.user.findUnique.mockResolvedValue(null);
       mockDb.userInvite.create.mockResolvedValue({
         id: "inv-1", orgId: ORG, email: "x@y.test", role,
         token: "tok", expiresAt: new Date(Date.now() + 864e5),

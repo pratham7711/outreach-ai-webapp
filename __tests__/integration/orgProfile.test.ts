@@ -26,7 +26,10 @@ import { auth } from "@/lib/auth";
 const mockAuth = auth as jest.Mock;
 const mockDb = db as any;
 
-const authedSession = { user: { id: "user-1", orgId: "org-1" } };
+/* Reading the workspace is a member's right; changing it, and reading its bank
+   block, are settings:manage. The session therefore has to carry a role now —
+   an unroled one is a 403 on PATCH, which is the point of the gate. */
+const authedSession = { user: { id: "user-1", orgId: "org-1", role: "OWNER" } };
 
 const sampleOrg = {
   id: "org-1",
@@ -149,5 +152,88 @@ describe("PATCH /api/org", () => {
     const req = makePatch({ customDomain: "taken.com" });
     const res = await patchOrg(req);
     expect(res.status).toBe(409);
+  });
+});
+
+// ─── Who may read and rewrite the workspace ──────────────────────────────────
+
+/* Both verbs took nothing but "are you signed in". GET handed the org's bank
+   account name, number, IFSC, SWIFT and routing number to every member,
+   VIEWER included; PATCH let the same VIEWER rename the workspace, repaint its
+   branding, change its currency, claim a custom domain and overwrite those
+   bank details. */
+const MANAGERS = ["OWNER", "ADMIN"];
+const NON_MANAGERS = ["MANAGER", "MEMBER", "VIEWER"];
+
+const asRole = (role: string | null) =>
+  mockAuth.mockResolvedValue({ user: { id: "user-1", orgId: "org-1", ...(role ? { role } : {}) } });
+
+const orgWithBank = {
+  ...sampleOrg,
+  bankAccountName: "Demo Org Ltd",
+  bankAccountNumber: "000123456789",
+  bankIFSC: "SBIN0001234",
+  bankSwift: "SBININBB",
+  bankRoutingNumber: "021000021",
+};
+
+describe("GET /api/org bank details", () => {
+  it.each(NON_MANAGERS)("does not select or return the bank block for %s", async (role) => {
+    asRole(role);
+    mockDb.organization.findUnique.mockResolvedValue(sampleOrg);
+    const res = await getOrg(new NextRequest("http://localhost/api/org"));
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.canManageSettings).toBe(false);
+    const select = mockDb.organization.findUnique.mock.calls[0][0].select;
+    expect(select.bankAccountNumber).toBeUndefined();
+    expect(select.bankIFSC).toBeUndefined();
+    expect(body).not.toHaveProperty("bankAccountNumber");
+  });
+
+  it.each(NON_MANAGERS)("still returns name, logo and currency to %s, which the layout needs", async (role) => {
+    asRole(role);
+    mockDb.organization.findUnique.mockResolvedValue(sampleOrg);
+    const body = await (await getOrg(new NextRequest("http://localhost/api/org"))).json();
+    expect(body.name).toBe("Demo Org");
+    expect(body.currency).toBe("USD");
+    expect(body.primaryColor).toBe("#5B5BD6");
+  });
+
+  it.each(MANAGERS)("returns the bank block to %s", async (role) => {
+    asRole(role);
+    mockDb.organization.findUnique.mockResolvedValue(orgWithBank);
+    const body = await (await getOrg(new NextRequest("http://localhost/api/org"))).json();
+    expect(body.canManageSettings).toBe(true);
+    expect(body.bankAccountNumber).toBe("000123456789");
+    const select = mockDb.organization.findUnique.mock.calls[0][0].select;
+    expect(select.bankAccountNumber).toBe(true);
+  });
+
+  it("treats a session with no role at all as unable to read the bank block", async () => {
+    asRole(null);
+    mockDb.organization.findUnique.mockResolvedValue(sampleOrg);
+    const body = await (await getOrg(new NextRequest("http://localhost/api/org"))).json();
+    expect(body.canManageSettings).toBe(false);
+  });
+});
+
+describe("PATCH /api/org authorization", () => {
+  it.each(NON_MANAGERS)("refuses %s and writes nothing", async (role) => {
+    asRole(role);
+    mockDb.organization.findUnique.mockResolvedValue(sampleOrg);
+    const res = await patchOrg(makePatch({ name: "Hijacked", bankAccountNumber: "999" }));
+    expect(res.status).toBe(403);
+    expect(mockDb.organization.update).not.toHaveBeenCalled();
+  });
+
+  it.each(MANAGERS)("allows %s", async (role) => {
+    asRole(role);
+    mockDb.organization.findUnique.mockResolvedValue(sampleOrg);
+    mockDb.organization.update.mockResolvedValue(sampleOrg);
+    const res = await patchOrg(makePatch({ name: "Renamed" }));
+    expect(res.status).toBe(200);
+    expect(mockDb.organization.update).toHaveBeenCalled();
   });
 });

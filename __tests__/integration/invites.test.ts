@@ -38,6 +38,15 @@ jest.mock('bcryptjs', () => ({
   hash: jest.fn().mockResolvedValue('hashed-password'),
 }));
 
+/* The accept endpoint is rate limited per IP and every request in this file
+   shares the same (absent) IP, so the real limiter would start refusing part
+   way through the suite. The limiter itself is covered in
+   inviteAcceptPreflight.test.ts. */
+jest.mock('@/lib/rateLimit', () => ({
+  rateLimit: jest.fn(() => ({ allowed: true, remaining: 9, retryAfterSeconds: 0 })),
+  rateLimitKey: jest.fn(() => 'invites/accept:test'),
+}));
+
 import { db } from '@/lib/db';
 import { auth } from '@/lib/auth';
 import { orgFixture } from '../helpers/orgFixture';
@@ -118,6 +127,31 @@ describe('POST /api/invites', () => {
         data: expect.objectContaining({ role: 'ADMIN' }),
       })
     );
+  });
+
+  /* User.email is globally unique, so an address that already has an account
+     can never accept an invitation — /api/invites/accept 409s at the very end,
+     after the guest has typed a name and chosen a password. The invite used to
+     be written and mailed anyway, so the failure landed on the person who could
+     do nothing about it. */
+  it('refuses an address that already belongs to an account, before writing or mailing', async () => {
+    mockDb.userInvite.findFirst.mockResolvedValue(null);
+    mockDb.user.findUnique.mockResolvedValue({ id: 'u-existing' });
+
+    const req = makeRequest('http://localhost/api/invites', {
+      method: 'POST',
+      body: JSON.stringify({ email: 'Taken@Example.com' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const res = await POST(req);
+    const body = await res.json();
+
+    expect(res.status).toBe(409);
+    expect(body.error).toMatch(/already belongs to an account/i);
+    expect(mockDb.user.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { email: 'taken@example.com' } })
+    );
+    expect(mockDb.userInvite.create).not.toHaveBeenCalled();
   });
 
   it('rejects duplicate pending invite for same email', async () => {

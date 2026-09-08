@@ -1,9 +1,9 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Mail, Trash2, Users, Clock, User, Link as LinkIcon, Check } from "lucide-react";
+import { Plus, Mail, Trash2, Users, Clock, User, Link as LinkIcon, Check, UserMinus } from "lucide-react";
 import { Card, Badge, Avatar, EmptyState, Modal, Input } from "@pratham7711/ui";
-import { PageHeader, Dropdown, Button } from "@/components/ds";
+import { PageHeader, Dropdown, Button, useConfirm } from "@/components/ds";
 
 type User = {
   id: string;
@@ -45,8 +45,19 @@ const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
 type Seats = { used: number; pending: number; max: number | null };
 
 export default function TeamClient({
-  users, invites, seats,
-}: { users: User[]; invites: Invite[]; seats?: Seats }) {
+  users, invites, seats, canManage = false, currentUserId = null, viewerRole = null,
+}: {
+  users: User[];
+  invites: Invite[];
+  seats?: Seats;
+  /* users:manage, decided on the server. Everything that mints, reveals or
+     revokes access hangs off this — the invite form, the invite tokens behind
+     the copy-link button, and the per-member role and remove controls. A
+     member without it gets the roster and nothing else. */
+  canManage?: boolean;
+  currentUserId?: string | null;
+  viewerRole?: string | null;
+}) {
   /* Infinity is a number, so `max != null` was true once seats were uncapped
      and the header rendered "3/Infinity seats" with the Invite button still
      live. A limit only exists if it is finite. */
@@ -66,6 +77,77 @@ export default function TeamClient({
   const [resendingId, setResendingId] = useState<string | null>(null);
   const [resentId, setResentId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const confirm = useConfirm();
+  const [busyUserId, setBusyUserId] = useState<string | null>(null);
+
+  /* Only an owner may hand out or take back OWNER, and the API enforces it —
+     offering the option to an admin would just produce a 403 they cannot act
+     on. The list is otherwise every role an invite can be issued at. */
+  const assignableRoles: readonly string[] =
+    viewerRole === "OWNER" ? ["OWNER", ...ROLE_OPTIONS] : ROLE_OPTIONS;
+  /* Managers get two extra cells per row — the role becomes a control and a
+     Remove button appears — so the grid has to widen with them. */
+  const memberGridColumns = canManage ? "1fr 1fr 150px 140px 110px" : "1fr 1fr 120px 140px";
+  const activeOwners = users.filter((u) => u.role === "OWNER" && u.isActive).length;
+
+  /** Why this row's controls are locked, or null if they are not. */
+  function lockedReason(user: User): string | null {
+    if (user.id === currentUserId) return "You cannot change your own role or remove yourself.";
+    if (user.role === "OWNER" && viewerRole !== "OWNER") return "Only an owner can change another owner.";
+    if (user.role === "OWNER" && activeOwners <= 1) return "This is the last owner of the workspace.";
+    return null;
+  }
+
+  async function handleRoleChange(user: User, role: string) {
+    if (role === user.role) return;
+    setNotice(null);
+    setBusyUserId(user.id);
+    try {
+      const res = await fetch(`/api/team/${user.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setNotice(data?.error ?? "Could not change that role.");
+        return;
+      }
+      setNotice(`${user.name || user.email} is now ${role.toLowerCase()}.`);
+      router.refresh();
+    } catch {
+      setNotice("Network error while changing the role.");
+    } finally {
+      setBusyUserId(null);
+    }
+  }
+
+  async function handleRemove(user: User) {
+    const ok = await confirm({
+      title: `Remove ${user.name || user.email}?`,
+      description:
+        "They lose access within a minute, and cannot sign in again. Their campaigns, comments and history stay exactly where they are — nothing is deleted. An owner or admin can restore the account later.",
+      confirmLabel: "Remove from workspace",
+      tone: "danger",
+    });
+    if (!ok) return;
+    setNotice(null);
+    setBusyUserId(user.id);
+    try {
+      const res = await fetch(`/api/team/${user.id}`, { method: "DELETE" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setNotice(data?.error ?? "Could not remove that member.");
+        return;
+      }
+      setNotice(`${user.name || user.email} no longer has access.`);
+      router.refresh();
+    } catch {
+      setNotice("Network error while removing the member.");
+    } finally {
+      setBusyUserId(null);
+    }
+  }
 
   /* An invite is emailed on creation now, so this is the fallback rather than
      the delivery mechanism: it covers a provider outage, an invite created
@@ -181,16 +263,18 @@ export default function TeamClient({
               {seatLimit != null ? `${seatsUsed}/${seatLimit} seats` : `${seatsUsed} seat${seatsUsed === 1 ? "" : "s"} in use`}
             </span>
           ) : null}
-          <Button
-            variant="primary"
-            iconLeft={<Plus size={15} />}
-            size="sm"
-            disabled={seatsFull}
-            title={seatsFull ? "All seats are in use or invited" : undefined}
-            onClick={() => setShowModal(true)}
-          >
-            Invite Member
-          </Button>
+          {canManage ? (
+            <Button
+              variant="primary"
+              iconLeft={<Plus size={15} />}
+              size="sm"
+              disabled={seatsFull}
+              title={seatsFull ? "All seats are in use or invited" : undefined}
+              onClick={() => setShowModal(true)}
+            >
+              Invite Member
+            </Button>
+          ) : null}
           </>
         }
       />
@@ -236,47 +320,109 @@ export default function TeamClient({
           </div>
         ) : (
           <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
-            <div style={{ minWidth: 560 }}>
-            {/* Table header */}
+            <div style={{ minWidth: canManage ? 760 : 560 }}>
+            {/* Table header. The trailing blank is the remove-button cell. */}
             <div style={{
               display: "grid",
-              gridTemplateColumns: "1fr 1fr 120px 140px",
+              gridTemplateColumns: memberGridColumns,
               padding: "10px 24px",
               borderBottom: "1px solid var(--cc-border)",
               gap: 16,
             }}>
-              {["Name", "Email", "Role", "Last Login"].map((h) => (
-                <span key={h} style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", color: "var(--cc-text-muted)" }}>
+              {(canManage
+                ? ["Name", "Email", "Role", "Last Login", ""]
+                : ["Name", "Email", "Role", "Last Login"]
+              ).map((h, i) => (
+                <span key={i} style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", color: "var(--cc-text-muted)" }}>
                   {h}
                 </span>
               ))}
             </div>
             {users.map((user) => {
               const roleStyle = ROLE_COLORS[user.role] ?? ROLE_COLORS.MEMBER;
+              const locked = canManage ? lockedReason(user) : "read-only";
+              const busy = busyUserId === user.id;
               return (
                 <div
                   key={user.id}
                   className="cc-table-row"
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "1fr 1fr 120px 140px",
+                    gridTemplateColumns: memberGridColumns,
                     padding: "12px 24px",
                     alignItems: "center",
                     borderBottom: "1px solid var(--cc-border)",
                     gap: 16,
+                    opacity: user.isActive ? 1 : 0.55,
                   }}
                 >
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                     <Avatar name={user.name} src={user.avatarUrl ?? undefined} size="sm" />
                     <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>{user.name}</span>
+                    {!user.isActive && (
+                      <Badge style={{ background: "var(--cc-hover-bg)", color: "var(--cc-text-muted)", fontSize: 10, fontWeight: 600 }}>
+                        Removed
+                      </Badge>
+                    )}
                   </div>
                   <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{user.email}</span>
-                  <Badge style={{ background: roleStyle.bg, color: roleStyle.color, fontSize: 11, fontWeight: 600 }}>
-                    {user.role}
-                  </Badge>
+                  {/* A manager gets the role as a control; everyone else gets
+                      it as a label, because /api/team refuses them anyway. */}
+                  {canManage && !locked && user.isActive ? (
+                    <Dropdown
+                      ariaLabel={`Role for ${user.name || user.email}`}
+                      align="left"
+                      fullWidth
+                      disabled={busy}
+                      value={user.role}
+                      onChange={(role) => handleRoleChange(user, role)}
+                      options={assignableRoles.map((r) => ({
+                        value: r,
+                        label: r.charAt(0) + r.slice(1).toLowerCase(),
+                      }))}
+                    />
+                  ) : (
+                    <Badge
+                      title={canManage && locked !== "read-only" ? locked ?? undefined : undefined}
+                      style={{ background: roleStyle.bg, color: roleStyle.color, fontSize: 11, fontWeight: 600 }}
+                    >
+                      {user.role}
+                    </Badge>
+                  )}
                   <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>
                     {formatDate(user.lastLoginAt)}
                   </span>
+                  {canManage && (
+                    <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                      {user.isActive && !locked ? (
+                        <button
+                          onClick={() => handleRemove(user)}
+                          disabled={busy}
+                          aria-label={`Remove ${user.name || user.email} from the workspace`}
+                          title="Remove from workspace"
+                          style={{
+                            background: "none", border: "none",
+                            cursor: busy ? "wait" : "pointer",
+                            color: "var(--cc-text-muted)", padding: 4, borderRadius: 6,
+                            display: "flex", alignItems: "center", gap: 4,
+                            fontSize: 12, fontWeight: 600, opacity: busy ? 0.6 : 1,
+                          }}
+                          onMouseEnter={(e) => { e.currentTarget.style.color = "var(--cc-danger)"; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.color = "var(--cc-text-muted)"; }}
+                        >
+                          <UserMinus size={15} />
+                          Remove
+                        </button>
+                      ) : (
+                        <span
+                          title={locked ?? undefined}
+                          style={{ fontSize: 11, color: "var(--cc-text-subtle)" }}
+                        >
+                          {user.isActive ? "—" : "No access"}
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -310,8 +456,11 @@ export default function TeamClient({
         </div>
       )}
 
-      {/* Pending Invites Table */}
-      {pendingInvites.length > 0 && (
+      {/* Pending Invites Table. Manager-only: the rows carry `token`, which is
+          the whole credential — the accept endpoint checks the token and never
+          the address it was mailed to. The server does not even load them for
+          anyone else, so this is belt and braces. */}
+      {canManage && pendingInvites.length > 0 && (
         <Card variant="solid" noPadding>
           <div style={{ padding: "14px 24px", borderBottom: "1px solid var(--cc-border)", background: "var(--cc-hover-bg)" }}>
             <span style={{ fontWeight: 700, fontSize: 14, color: "var(--cc-text)" }}>Pending Invites</span>
@@ -430,7 +579,7 @@ export default function TeamClient({
       )}
 
       {/* Invite Modal */}
-      <Modal open={showModal} onClose={() => { setShowModal(false); setError(null); }} title="Invite Team Member">
+      <Modal open={canManage && showModal} onClose={() => { setShowModal(false); setError(null); }} title="Invite Team Member">
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div>
             <label style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6, display: "block" }}>

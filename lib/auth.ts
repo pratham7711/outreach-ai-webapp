@@ -7,6 +7,10 @@ import { CredentialsSignin } from "next-auth";
 import { loginBlockedForUnverified } from "@/lib/emailVerification";
 import { accessFor, isPlatformAdmin } from "@/lib/billing/subscription";
 import { authConfig } from "@/lib/auth.config";
+import { getRequestIp } from "@/lib/request";
+
+/** How stale a JWT's copy of role/isActive may get. See the jwt callback. */
+const ROLE_REFRESH_MS = 60_000;
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
@@ -18,7 +22,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
       },
-      authorize: async (credentials) => {
+      authorize: async (credentials, request) => {
         if (!credentials?.email || !credentials?.password) return null;
         const user = await db.user.findUnique({
           where: { email: credentials.email as string },
@@ -27,6 +31,18 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (!user || !user.password) return null;
         const valid = await bcrypt.compare(credentials.password as string, user.password);
         if (!valid) return null;
+
+        /* isActive is how a teammate is removed -- the row is kept because it
+           owns audit entries, comments and campaign memberships, so the flag is
+           the whole revocation. It was written by nobody and read by nobody:
+           somebody "removed" from a workspace could sign straight back in.
+           After the password, like the two checks below, so an unauthenticated
+           stranger learns nothing about which addresses exist. */
+        if (user.isActive === false) {
+          throw new CredentialsSignin(
+            "This account has been deactivated. Ask an owner or admin of your workspace to restore it."
+          );
+        }
 
         /* After the password, for the same reason billing is: telling an
            unauthenticated stranger that an address exists but is unconfirmed
@@ -62,6 +78,22 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           );
         }
 
+        /* The Team screen has always rendered a "Last Login" column and
+           lastLoginAt has always been null, because nothing wrote it -- every
+           member read "Never", including the one signing in at that moment.
+           Fire-and-forget: a failed write is a stale column, and refusing a
+           correct password over it would be the worse bug. Nothing beyond the
+           two columns the schema already has is recorded. */
+        db.user
+          .update({
+            where: { id: user.id },
+            data: {
+              lastLoginAt: new Date(),
+              lastLoginIp: request ? getRequestIp(request) : null,
+            },
+          })
+          .catch(() => {});
+
         return { id: user.id, email: user.email, name: user.name, orgId: user.orgId, role: user.role, campaignScope: user.campaignScope };
       },
     }),
@@ -73,6 +105,38 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.orgId = (user as any).orgId;
         token.role = (user as any).role;
         token.campaignScope = (user as any).campaignScope;
+        (token as any).checkedAt = Date.now();
+        return token;
+      }
+
+      /* Role and orgId were copied in at sign-in and never looked at again, so
+         a demotion or a removal did nothing until the person happened to log
+         out: a VIEWER demoted from ADMIN kept every admin route for the life of
+         a session, and a removed teammate kept all of it.
+         Re-read at most once a minute. That is one indexed lookup by primary
+         key per user per minute -- cheaper than the request it rides on -- and
+         it bounds how long a revoked session survives to under a minute
+         instead of the session lifetime. */
+      const last = typeof (token as any).checkedAt === "number" ? (token as any).checkedAt : 0;
+      if (!token.id || Date.now() - last < ROLE_REFRESH_MS) return token;
+
+      try {
+        const fresh = await db.user.findUnique({
+          where: { id: token.id as string },
+          select: { role: true, isActive: true, campaignScope: true, orgId: true },
+        });
+        /* Null destroys the session, which is what a deleted or deactivated
+           user should get. Only reached when the query actually answered -- a
+           database blip lands in the catch below and leaves the token alone,
+           because signing the whole workspace out over a dropped connection is
+           the worse failure. */
+        if (!fresh || fresh.isActive === false) return null;
+        token.role = fresh.role;
+        token.orgId = fresh.orgId;
+        token.campaignScope = fresh.campaignScope;
+        (token as any).checkedAt = Date.now();
+      } catch {
+        /* Keep the token as it stands. */
       }
       return token;
     },

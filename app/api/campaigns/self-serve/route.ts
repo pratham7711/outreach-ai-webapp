@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { authenticateRequest, getAuditActor } from "@/lib/authenticate";
+import { requirePermission } from "@/lib/authz";
 import { logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
 import { z } from "zod";
@@ -26,8 +27,11 @@ const selfServeSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    const result = await authenticateRequest(request);
-    if (!result) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    /* It creates a campaign, so it takes the same key /api/campaigns POST
+       already does. A VIEWER could previously spend a budget. */
+    const gate = await requirePermission(request, "campaigns:create");
+    if (!gate.ok) return gate.response;
+    const result = gate.auth;
     const { orgId } = result;
 
     const body = await request.json().catch(() => null);
