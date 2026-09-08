@@ -38,6 +38,15 @@ jest.mock('bcryptjs', () => ({
   hash: jest.fn().mockResolvedValue('hashed-password'),
 }));
 
+/* The accept endpoint is rate limited per IP and every request in this file
+   shares the same (absent) IP, so the real limiter would start refusing part
+   way through the suite. The limiter itself is covered in
+   inviteAcceptPreflight.test.ts. */
+jest.mock('@/lib/rateLimit', () => ({
+  rateLimit: jest.fn(() => ({ allowed: true, remaining: 9, retryAfterSeconds: 0 })),
+  rateLimitKey: jest.fn(() => 'invites/accept:test'),
+}));
+
 import { db } from '@/lib/db';
 import { auth } from '@/lib/auth';
 import { orgFixture } from '../helpers/orgFixture';

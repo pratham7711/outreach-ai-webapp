@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Input } from "@pratham7711/ui";
@@ -32,6 +32,41 @@ function AcceptInviteForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  /* The page used to render the same form for a live invitation, an expired
+     one and one somebody had already used, and the reader only found out which
+     on submit — after typing a name and choosing a password. Ask first. */
+  type Preview = { orgName: string; role: string; email: string; expiresAt: string };
+  const [preview, setPreview] = useState<Preview | null>(null);
+  const [checking, setChecking] = useState(true);
+  const [deadLink, setDeadLink] = useState("");
+
+  useEffect(() => {
+    if (!token) {
+      setChecking(false);
+      return;
+    }
+    let cancelled = false;
+    fetch(`/api/invites/accept?token=${encodeURIComponent(token)}`)
+      .then(async (res) => {
+        const data = await res.json().catch(() => ({}));
+        if (cancelled) return;
+        if (!res.ok) {
+          setDeadLink(data?.error ?? "That invitation is no longer valid.");
+          return;
+        }
+        setPreview(data as Preview);
+      })
+      .catch(() => {
+        if (!cancelled) setDeadLink("Could not reach the server. Check your connection and reload.");
+      })
+      .finally(() => {
+        if (!cancelled) setChecking(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -78,13 +113,42 @@ function AcceptInviteForm() {
     );
   }
 
+  if (checking) {
+    return (
+      <Shell>
+        <h1 style={H1}>Checking your invitation…</h1>
+        <p style={{ ...P, marginBottom: 0 }}>One moment.</p>
+      </Shell>
+    );
+  }
+
+  if (deadLink) {
+    return (
+      <Shell>
+        <h1 style={H1}>This invitation can&apos;t be used</h1>
+        <p style={P}>{deadLink}</p>
+        <Link href="/login" style={{ color: "var(--cc-primary)", fontSize: 14 }}>
+          Go to sign in
+        </Link>
+      </Shell>
+    );
+  }
+
   return (
     <Shell>
       <h1 style={H1}>Accept your invitation</h1>
       <p style={P}>
-        You&apos;ve been invited to join a workspace on {BRAND.name}. Choose a password and
-        you&apos;re in — the email address is already set by the invitation.
+        {preview
+          ? `You've been invited to join ${preview.orgName} as ${
+              /^[AEIOU]/.test(preview.role) ? "an" : "a"
+            } ${preview.role.toLowerCase()}. Choose a password and you're in.`
+          : `You've been invited to join a workspace on ${BRAND.name}. Choose a password and you're in — the email address is already set by the invitation.`}
       </p>
+      {preview ? (
+        <p style={{ ...P, marginTop: -12 }}>
+          Your sign-in address will be <strong style={{ color: "var(--cc-text)" }}>{preview.email}</strong>.
+        </p>
+      ) : null}
 
       <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         <div>

@@ -15,6 +15,10 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [registered, setRegistered] = useState(false);
+  /* Sent here by /accept-invite after the account is created. Landing on a
+     bare sign-in form with no word about what just happened reads like the
+     invitation failed. */
+  const [invited, setInvited] = useState(false);
   const [notice, setNotice] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const emailRef = useRef<HTMLInputElement>(null);
@@ -24,6 +28,7 @@ export default function LoginPage() {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       setRegistered(params.get("registered") === "1");
+      setInvited(params.get("invited") === "1");
       /* Sent here by /api/auth/session-invalid. Without a line of explanation,
          being signed out mid-session looks like the app losing your login. */
       if (params.get("reason") === "org-removed") {
@@ -149,6 +154,27 @@ export default function LoginPage() {
             >
               Account created. We have emailed you a link to confirm your address
               &mdash; sign in to get started.
+            </motion.div>
+          )}
+
+          {invited && !registered && !error && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.2 }}
+              role="status"
+              style={{
+                padding: "12px 16px",
+                borderRadius: 12,
+                background: "color-mix(in srgb, var(--cc-success) 12%, transparent)",
+                border: "1px solid color-mix(in srgb, var(--cc-success) 32%, transparent)",
+                color: "var(--cc-success)",
+                fontSize: 13,
+                marginBottom: 16,
+              }}
+            >
+              Invitation accepted. Sign in with the address it was sent to and the
+              password you just chose.
             </motion.div>
           )}
 

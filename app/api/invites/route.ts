@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { randomBytes } from "crypto";
 import { db } from "@/lib/db";
 import { requirePermission } from "@/lib/authz";
 import { getAuditActor } from "@/lib/authenticate";
@@ -159,6 +160,12 @@ export async function POST(request: NextRequest) {
         email: email.toLowerCase(),
         role: role ?? "MEMBER",
         expiresAt,
+        /* The token is the whole credential -- accept checks it and never the
+           address it was mailed to -- and the schema default is cuid(), which
+           is a sortable, timestamp-seeded identifier, not a secret. 32 bytes
+           from the CSPRNG instead. Passed explicitly, so no migration is
+           needed and rows created elsewhere keep working. */
+        token: randomBytes(32).toString("hex"),
       },
     });
 

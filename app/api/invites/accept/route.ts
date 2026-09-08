@@ -3,10 +3,78 @@ import { db } from "@/lib/db";
 import bcrypt from "bcryptjs";
 import { logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
+import { rateLimit, rateLimitKey } from "@/lib/rateLimit";
+
+/* Public and unauthenticated by definition -- the whole point is that the
+   caller has no account yet -- and the only thing standing between a stranger
+   and a workspace is one token. Ten attempts per ten minutes per IP, matching
+   the other credential doors in this app. */
+const ACCEPT_LIMIT = { limit: 10, windowMs: 10 * 60 * 1000 };
+
+function tooMany(retryAfterSeconds: number) {
+  return NextResponse.json(
+    { error: "Too many attempts. Try again shortly." },
+    { status: 429, headers: { "Retry-After": String(retryAfterSeconds) } }
+  );
+}
+
+/**
+ * GET /api/invites/accept?token=… — what the invite page needs before it can
+ * ask for anything.
+ *
+ * Without this the page rendered the same name-and-password form for a live
+ * invitation, an expired one and one somebody had already used; the reader
+ * only learned which on submit, after choosing a password. Answers with the
+ * four facts the page displays and nothing else -- no id, no orgId, no token
+ * echo -- so a guessed token that happens to be real reveals only what the
+ * mail it came from already said.
+ */
+export async function GET(request: NextRequest) {
+  const rl = rateLimit({ key: rateLimitKey("invites/accept", request), ...ACCEPT_LIMIT });
+  if (!rl.allowed) return tooMany(rl.retryAfterSeconds);
+
+  const token = request.nextUrl.searchParams.get("token")?.trim();
+  if (!token) return NextResponse.json({ error: "Invalid invite token" }, { status: 404 });
+
+  const invite = await db.userInvite.findUnique({
+    where: { token },
+    select: {
+      email: true,
+      role: true,
+      expiresAt: true,
+      acceptedAt: true,
+      organization: { select: { name: true, brandName: true } },
+    },
+  });
+
+  if (!invite) return NextResponse.json({ error: "Invalid invite token" }, { status: 404 });
+  if (invite.acceptedAt) {
+    return NextResponse.json(
+      { error: "This invitation has already been used. Sign in with that address instead." },
+      { status: 410 }
+    );
+  }
+  if (new Date(invite.expiresAt) < new Date()) {
+    return NextResponse.json(
+      { error: "This invitation has expired. Ask whoever invited you to send a new one." },
+      { status: 410 }
+    );
+  }
+
+  return NextResponse.json({
+    orgName: invite.organization?.brandName || invite.organization?.name || "the team",
+    role: invite.role,
+    email: invite.email,
+    expiresAt: invite.expiresAt,
+  });
+}
 
 // POST /api/invites/accept — Accept an invite by token
 export async function POST(request: NextRequest) {
   try {
+    const rl = rateLimit({ key: rateLimitKey("invites/accept", request), ...ACCEPT_LIMIT });
+    if (!rl.allowed) return tooMany(rl.retryAfterSeconds);
+
     const body = await request.json();
     const { token, name, password } = body;
 
