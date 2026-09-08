@@ -2,7 +2,17 @@ import { db } from "@/lib/db";
 import { findCreatorsForHandle } from "@/lib/portal/creatorLookup";
 import { findLinkedCreatorsForHandle, type LinkSubject } from "@/lib/portal/creatorLink";
 
-export type PlatformKey = "TIKTOK" | "INSTAGRAM" | "YOUTUBE";
+/**
+ * The platforms a campaign can pay for, and the single source of that truth.
+ *
+ * TWITCH is readable by the fetchers but deliberately absent here: making a
+ * platform payable is a pricing decision, not a consequence of being able to
+ * read it. A campaign reports "does not accept TWITCH submissions" rather than
+ * paying at a rate nobody set.
+ */
+export const PAYABLE_PLATFORMS = ["TIKTOK", "INSTAGRAM", "YOUTUBE"] as const;
+
+export type PlatformKey = (typeof PAYABLE_PLATFORMS)[number];
 
 /**
  * Parse the campaign.ratePerThousand JSON into a typed per-platform map of
@@ -12,7 +22,7 @@ export type PlatformKey = "TIKTOK" | "INSTAGRAM" | "YOUTUBE";
 export function parseRatePerThousand(raw: unknown): Partial<Record<PlatformKey, number>> {
   if (!raw || typeof raw !== "object") return {};
   const out: Partial<Record<PlatformKey, number>> = {};
-  for (const key of ["TIKTOK", "INSTAGRAM", "YOUTUBE"] as PlatformKey[]) {
+  for (const key of PAYABLE_PLATFORMS) {
     const v = (raw as Record<string, unknown>)[key];
     if (typeof v === "number" && Number.isFinite(v) && v >= 0) out[key] = Math.round(v);
   }

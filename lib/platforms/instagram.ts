@@ -14,6 +14,9 @@ export type InstagramCounts = {
   viewsCount?: number;
   likesCount?: number;
   commentsCount?: number;
+  /* Optional, not defaulted: Instagram omits reach rather than sending zero,
+     and a missing reach must not be sealed as a measured zero. */
+  reachCount?: number;
   postedAt?: Date;
 };
 
@@ -224,14 +227,39 @@ export async function resolveIgUserId(token: string, signal?: AbortSignal): Prom
   return null;
 }
 
-async function fetchViews(mediaId: string, token: string, signal?: AbortSignal): Promise<number | undefined> {
+/**
+ * Read the per-media insights we care about in ONE round trip.
+ *
+ * `views` and `reach` are asked for together because this endpoint bills per
+ * call, not per metric, so splitting them would double the cost of the media
+ * walk for nothing. Each is parsed independently: an image publishes no play
+ * count, and until Meta App Review lands reach is absent on every post, so a
+ * missing one of the pair must not discard the other.
+ *
+ * Both stay `undefined` when absent rather than becoming 0 -- a measured zero
+ * and "Instagram did not tell us" are different facts, and the seal makes
+ * whichever one it is stored permanently.
+ */
+async function fetchInsights(
+  mediaId: string,
+  token: string,
+  signal?: AbortSignal,
+): Promise<{ views?: number; reach?: number }> {
   const data = await graphGet(
     `${mediaId}/insights`,
-    { metric: "views", access_token: token },
+    { metric: "views,reach", access_token: token },
     signal,
   );
-  const value = data?.data?.find((d: { name?: string }) => d.name === "views")?.values?.[0]?.value;
-  return typeof value === "number" ? value : undefined;
+  const read = (name: string): number | undefined => {
+    const value = data?.data?.find((d: { name?: string }) => d.name === name)?.values?.[0]?.value;
+    return typeof value === "number" ? value : undefined;
+  };
+  const views = read("views");
+  const reach = read("reach");
+  return {
+    ...(views === undefined ? {} : { views }),
+    ...(reach === undefined ? {} : { reach }),
+  };
 }
 
 export async function fetchInstagramMetricsGraph(
@@ -261,7 +289,7 @@ export async function fetchInstagramMetricsGraph(
       (n) => typeof n.permalink === "string" && n.permalink.includes(`/${shortcode}`),
     );
     if (match) {
-      const views = match.id ? await fetchViews(match.id, token, signal) : undefined;
+      const insights = match.id ? await fetchInsights(match.id, token, signal) : {};
       return {
         thumbnailUrl: match.thumbnail_url ?? match.media_url ?? null,
         caption: match.caption ?? null,
@@ -273,7 +301,8 @@ export async function fetchInstagramMetricsGraph(
            applyPostMetrics writes only what arrived. */
         ...(typeof match.like_count === "number" ? { likesCount: match.like_count } : {}),
         ...(typeof match.comments_count === "number" ? { commentsCount: match.comments_count } : {}),
-        ...(typeof views === "number" ? { viewsCount: views } : {}),
+        ...(typeof insights.views === "number" ? { viewsCount: insights.views } : {}),
+        ...(typeof insights.reach === "number" ? { reachCount: insights.reach } : {}),
         postedAt: match.timestamp ? new Date(match.timestamp) : undefined,
       };
     }

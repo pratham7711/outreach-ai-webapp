@@ -204,7 +204,7 @@ describe("fetchTwitchMetrics", () => {
  * ever read.
  */
 describe("marketplace rates only price platforms we can measure", () => {
-  it.each(PAYABLE_PLATFORMS)("%s is auto-tracked", (key) => {
+  it.each([...PAYABLE_PLATFORMS])("%s is auto-tracked", (key) => {
     expect(AUTO_TRACK_PLATFORMS).toContain(key);
   });
 });

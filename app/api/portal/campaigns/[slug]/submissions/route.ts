@@ -5,7 +5,7 @@ import { detectPlatform, fetchPostMetrics, hasMetricCounts } from "@/lib/platfor
 import { countsFrom } from "@/lib/sync/syncPost";
 import { getInstagramAccountForCreator } from "@/lib/platforms/instagramToken";
 import { getTikTokTokenForCreator } from "@/lib/platforms/tiktokToken";
-import { parseRatePerThousand } from "@/lib/marketplace/earnings";
+import { parseRatePerThousand, type PlatformKey } from "@/lib/marketplace/earnings";
 import { computeCampaignAccrual } from "@/lib/marketplace/cap";
 import { isPortalCampaignVisible, isPortalCampaignActionable } from "@/lib/marketplace/portalVisibility";
 import { findCreatorInOrgForHandle } from "@/lib/portal/creatorLookup";
@@ -116,7 +116,9 @@ export async function POST(
 
     // Campaign must have a rate for the detected platform
     const rates = parseRatePerThousand(campaign.ratePerThousand);
-    if (!rates[detected.platform]) {
+    /* detected.platform includes TWITCH, which is not a PlatformKey: the
+         lookup yields undefined and the 400 below is the correct answer. */
+      if (!rates[detected.platform as PlatformKey]) {
       return NextResponse.json(
         { error: `This campaign does not accept ${detected.platform} submissions` },
         { status: 400 }
