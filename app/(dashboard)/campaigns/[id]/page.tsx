@@ -1,6 +1,6 @@
 "use client";
 import type { CSSProperties } from "react";
-import { useState, useEffect, use } from "react";
+import { useState, useEffect, useCallback, use } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import { motion } from "framer-motion";
@@ -20,7 +20,7 @@ import ReviewsSection from "./ReviewsSection";
 import {
   ArrowLeft, Eye, Heart, MessageCircle, Share2, TrendingUp, Users,
   Calendar, Play, ChevronRight, ExternalLink, DollarSign,
-  ClipboardList, BarChart3, Wallet, Trash2,
+  ClipboardList, BarChart3, Wallet, Trash2, AlertTriangle,
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -428,14 +428,32 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
   });
   const [savingMkt, setSavingMkt] = useState(false);
   const [rotatingCode, setRotatingCode] = useState(false);
+  const [loadError, setLoadError] = useState(false);
 
-  useEffect(() => {
+  const loadCampaign = useCallback(() => {
+    setLoading(true);
+    setLoadError(false);
     fetch(`/api/campaigns/${id}`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => { setCampaign(data && !data.error ? data : null); })
-      .catch(() => setCampaign(null))
+      .then(async (r) => {
+        // A 500 and a 404 used to collapse to the same null, so a dropped
+        // connection told the reader their campaign had been deleted.
+        if (r.status === 404) return { notFound: true, campaign: null } as const;
+        if (!r.ok) throw new Error(String(r.status));
+        const data = await r.json();
+        if (!data || data.error) return { notFound: true, campaign: null } as const;
+        return { notFound: false, campaign: data as Campaign } as const;
+      })
+      .then((result) => {
+        setCampaign(result.notFound ? null : result.campaign);
+      })
+      .catch(() => {
+        setCampaign(null);
+        setLoadError(true);
+      })
       .finally(() => setLoading(false));
   }, [id]);
+
+  useEffect(() => { loadCampaign(); }, [loadCampaign]);
 
   useEffect(() => {
     if (campaign) {
@@ -624,6 +642,16 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
   ];
 
   if (loading) return <LoadingSkeleton />;
+  if (loadError) return (
+    <div className="cc-page-content">
+      <EmptyState
+        icon={<AlertTriangle size={32} color="var(--cc-text-subtle)" />}
+        title="Couldn't load this campaign"
+        description="The request failed. The campaign is still there — try again."
+        action={<Button variant="secondary" onClick={loadCampaign}>Retry</Button>}
+      />
+    </div>
+  );
   if (!campaign) return (
     <div className="cc-page-content">
       <EmptyState icon={<ClipboardList size={32} color="var(--cc-text-subtle)" />} title="Campaign not found" description="This campaign may have been deleted." />

@@ -30,6 +30,11 @@ const PAGE_TITLES: Record<string, string> = {
   "/fan-pages": "Fan Pages",
   "/requests": "Requests",
   "/recipients": "Recipients",
+  "/inbox": "Inbox",
+  "/deadlines": "Deadlines",
+  "/financial-reports": "Financial Reports",
+  "/songs": "Songs",
+  "/platform": "All Organizations",
 };
 
 function initials(name?: string | null, email?: string | null): string {
@@ -51,9 +56,12 @@ export function TopBar({ user }: { user?: TopBarUser }) {
   const [activeIdx, setActiveIdx] = useState(-1);
   const blurTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const prettySlug = (s: string) => s.replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
   const segments = pathname.split("/").filter(Boolean);
   const currentPage = "/" + (segments[0] ?? "dashboard");
-  const title = PAGE_TITLES[currentPage] ?? "Dashboard";
+  // Falling back to "Dashboard" made the breadcrumb lie on any route missing from
+  // the map -- /deadlines read "Dashboard". The slug is at least the page you are on.
+  const title = PAGE_TITLES[currentPage] ?? prettySlug(segments[0] ?? "Dashboard");
   const isDetailPage = segments.length > 1;
 
   // Breadcrumb leaf = the detail page's own <h1> (real entity name), not a literal "Detail".
@@ -73,7 +81,6 @@ export function TopBar({ user }: { user?: TopBarUser }) {
     return () => obs.disconnect();
   }, [pathname, isDetailPage]);
 
-  const prettySlug = (s: string) => s.replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
   const leafLabel = leaf ?? prettySlug(segments[segments.length - 1] ?? "");
 
   const q = query.trim().toLowerCase();

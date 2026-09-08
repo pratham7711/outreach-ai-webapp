@@ -91,6 +91,16 @@ const PLATFORM_SECTION = {
   items: [{ href: "/platform", icon: Globe, label: "All Organizations" }],
 };
 
+/**
+ * Nav hrefs that are a prefix of another nav item's href. Those match exactly, so
+ * /settings/billing lights Billing alone rather than Settings and Billing together.
+ */
+const CHILD_NAV_PARENTS = new Set(
+  [...NAV_SECTIONS, PLATFORM_SECTION]
+    .flatMap((s) => s.items.map((i) => i.href))
+    .filter((href, _i, all) => all.some((other) => other !== href && other.startsWith(href + "/")))
+);
+
 type SidebarProps = {
   allowedNavHrefs?: string[] | null;
   /** Whether to show the operator-only Platform section. See PLATFORM_SECTION. */
@@ -366,7 +376,12 @@ export default function NewSidebar({ allowedNavHrefs, isPlatformOperator, brandN
                   label: string;
                   badge?: string;
                 }) => {
-                  const active = pathname === href || pathname.startsWith(href + "/");
+                  // Prefix matching lit both "Settings" and "Billing" on
+                  // /settings/billing, because /settings is itself a nav item and a
+                  // parent of the rest of that section.
+                  const active = CHILD_NAV_PARENTS.has(href)
+                    ? pathname === href
+                    : pathname === href || pathname.startsWith(href + "/");
                   const navLink = (
                     <Link
                       href={href}
