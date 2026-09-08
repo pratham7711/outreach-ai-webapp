@@ -22,12 +22,16 @@ type OrgProfile = {
   secondaryColor: string;
   accentColor: string;
   fontFamily: string;
-  bankAccountName: string | null;
-  bankAccountNumber: string | null;
-  bankIFSC: string | null;
-  bankSwift: string | null;
-  bankRoutingNumber: string | null;
+  /* Absent unless the viewer has settings:manage — /api/org leaves the bank
+     block out of its SELECT for everyone else rather than fetching it and
+     trimming the response. */
+  bankAccountName?: string | null;
+  bankAccountNumber?: string | null;
+  bankIFSC?: string | null;
+  bankSwift?: string | null;
+  bankRoutingNumber?: string | null;
   createdAt: string;
+  canManageSettings?: boolean;
 };
 
 const CURRENCIES = ["USD", "EUR", "GBP", "INR"];
@@ -62,6 +66,10 @@ export default function OrgProfilePage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  /* settings:manage, decided by /api/org rather than guessed here. PATCH
+     refuses without it, so an editable form for a member who cannot save is a
+     promise the API will not keep. */
+  const [canManage, setCanManage] = useState(false);
 
   // Form state
   const [name, setName] = useState("");
@@ -92,6 +100,7 @@ export default function OrgProfilePage() {
       .then(r => r.json())
       .then((data: OrgProfile) => {
         setOrg(data);
+        setCanManage(data.canManageSettings === true);
         setName(data.name);
         setBrandName(data.brandName ?? "");
         setTimezone(data.timezone);
@@ -114,6 +123,7 @@ export default function OrgProfilePage() {
   }, []);
 
   const save = async () => {
+    if (!canManage) return;
     setSaving(true);
     setError(null);
     try {
@@ -169,12 +179,18 @@ export default function OrgProfilePage() {
 
       <PageHeader
         title="Organization Profile"
-        subtitle="Manage your workspace settings, branding, and bank details"
+        subtitle={
+          canManage
+            ? "Manage your workspace settings, branding, and bank details"
+            : "Your workspace settings. Only an owner or admin can change them."
+        }
         actions={
-          <Button variant="primary" onClick={save} disabled={saving || loading}>
-            <Save size={14} style={{ marginRight: 6 }} />
-            {saving ? "Saving…" : "Save Changes"}
-          </Button>
+          canManage ? (
+            <Button variant="primary" onClick={save} disabled={saving || loading}>
+              <Save size={14} style={{ marginRight: 6 }} />
+              {saving ? "Saving…" : "Save Changes"}
+            </Button>
+          ) : null
         }
       />
 
@@ -198,10 +214,10 @@ export default function OrgProfilePage() {
             <SectionHeader icon={Building2} title="General" description="Basic organization details" />
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               <FormRow label="Organization Name">
-                <Input value={name} onChange={e => setName(e.target.value)} placeholder="Acme Inc." />
+                <Input value={name} onChange={e => setName(e.target.value)} placeholder="Acme Inc." disabled={!canManage} />
               </FormRow>
               <FormRow label="Brand Name">
-                <Input value={brandName} onChange={e => setBrandName(e.target.value)} placeholder="Optional display name" />
+                <Input value={brandName} onChange={e => setBrandName(e.target.value)} placeholder="Optional display name" disabled={!canManage} />
               </FormRow>
               <FormRow label="Subdomain">
                 <div style={{ display: "flex", alignItems: "center", gap: 8, paddingTop: 8 }}>
@@ -218,6 +234,7 @@ export default function OrgProfilePage() {
                   fullWidth
                   value={timezone}
                   onChange={setTimezone}
+                  disabled={!canManage}
                   options={TIMEZONES.map(tz => ({ value: tz, label: tz }))}
                 />
               </FormRow>
@@ -228,6 +245,7 @@ export default function OrgProfilePage() {
                   fullWidth
                   value={currency}
                   onChange={setCurrency}
+                  disabled={!canManage}
                   options={CURRENCIES.map(c => ({ value: c, label: c }))}
                 />
               </FormRow>
@@ -252,12 +270,12 @@ export default function OrgProfilePage() {
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               <FormRow label="Logo URL">
                 <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                  <Input value={logoUrl} onChange={e => setLogoUrl(e.target.value)} placeholder="https://..." style={{ flex: 1 }} />
+                  <Input value={logoUrl} onChange={e => setLogoUrl(e.target.value)} placeholder="https://..." style={{ flex: 1 }} disabled={!canManage} />
                   {logoUrl && <img src={logoUrl} alt="Logo preview" style={{ width: 40, height: 40, borderRadius: 8, objectFit: "cover", border: "1px solid var(--cc-border)" }} onError={e => (e.currentTarget.style.display = "none")} />}
                 </div>
               </FormRow>
               <FormRow label="Favicon URL">
-                <Input value={faviconUrl} onChange={e => setFaviconUrl(e.target.value)} placeholder="https://..." />
+                <Input value={faviconUrl} onChange={e => setFaviconUrl(e.target.value)} placeholder="https://..." disabled={!canManage} />
               </FormRow>
               {/* Disabled, not removed. Organization.customDomain is written by
                   this form and read by nothing: no route, no middleware, no
@@ -296,6 +314,7 @@ export default function OrgProfilePage() {
                       value={value}
                       onChange={e => set(e.target.value)}
                       aria-label={label}
+                      disabled={!canManage}
                       style={{ width: 40, height: 36, borderRadius: 6, border: "1px solid var(--cc-border)", cursor: "pointer", padding: 2, background: "var(--cc-card)" }}
                     />
                     <Input
@@ -303,20 +322,21 @@ export default function OrgProfilePage() {
                       onChange={e => set(e.target.value)}
                       placeholder="#5B5BD6"
                       style={{ width: 120 }}
+                      disabled={!canManage}
                     />
                     <div style={{ width: 28, height: 28, borderRadius: 6, background: value, border: "1px solid var(--cc-border)" }} />
                   </div>
                 </FormRow>
               ))}
               <FormRow label="Font Family">
-                <Input value={fontFamily} onChange={e => setFontFamily(e.target.value)} placeholder="Inter" />
+                <Input value={fontFamily} onChange={e => setFontFamily(e.target.value)} placeholder="Inter" disabled={!canManage} />
               </FormRow>
               <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", borderTop: "1px solid var(--cc-border)", paddingTop: 16 }}>
                 <Button
                   variant="secondary"
                   size="sm"
                   type="button"
-                  disabled={isDefaultBranding}
+                  disabled={isDefaultBranding || !canManage}
                   onClick={() => {
                     setPrimaryColor(PLATFORM_DEFAULT_BRANDING.primaryColor);
                     setSecondaryColor(PLATFORM_DEFAULT_BRANDING.secondaryColor);
@@ -335,7 +355,9 @@ export default function OrgProfilePage() {
             </div>
           </Card>
 
-          {/* Bank Details */}
+          {/* Bank Details. Owner/admin only — /api/org does not even SELECT
+              these columns for anyone else, so there is nothing to render. */}
+          {canManage && (
           <Card variant="outlined" style={{ padding: 24 }}>
             {/* The description used to say "Used for payouts and financial
                 reports". These five columns are written here and read back by
@@ -370,6 +392,7 @@ export default function OrgProfilePage() {
               </FormRow>
             </div>
           </Card>
+          )}
 
         </div>
       )}
