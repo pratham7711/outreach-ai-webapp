@@ -90,6 +90,41 @@ describe('POST /api/campaigns/[id]/deposits/release', () => {
     expect(body.releasedAmount).toBe(1000);
   });
 
+  /* 500.31 released in thirds: 166.77 + 166.77 + 166.77 is 500.31000000000006
+     as a float, so the last instalment of a legitimate release was rejected and
+     the deposit could never reach FULLY_RELEASED. The comparison is in cents. */
+  it('accepts the final instalment of a deposit split into thirds', async () => {
+    mockDb.campaignDeposit.findFirst.mockResolvedValue({
+      id: 'd1', amountUsd: 500.31, releasedAmount: 333.54, status: 'PARTIALLY_RELEASED',
+    });
+    mockDb.campaignDeposit.update.mockResolvedValue({ id: 'd1', releasedAmount: 500.31, status: 'FULLY_RELEASED' });
+
+    const res = await RELEASE(makeRequest('http://localhost/api/campaigns/camp-1/deposits/release', {
+      method: 'POST',
+      body: JSON.stringify({ amount: 166.77 }),
+      headers: { 'Content-Type': 'application/json' },
+    }), makeParams('camp-1'));
+
+    expect(res.status).toBe(200);
+    expect(mockDb.campaignDeposit.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { releasedAmount: 500.31, status: 'FULLY_RELEASED' } })
+    );
+  });
+
+  it('still refuses a release a cent over the deposit', async () => {
+    mockDb.campaignDeposit.findFirst.mockResolvedValue({
+      id: 'd1', amountUsd: 500.31, releasedAmount: 333.54, status: 'PARTIALLY_RELEASED',
+    });
+
+    const res = await RELEASE(makeRequest('http://localhost/api/campaigns/camp-1/deposits/release', {
+      method: 'POST',
+      body: JSON.stringify({ amount: 166.78 }),
+      headers: { 'Content-Type': 'application/json' },
+    }), makeParams('camp-1'));
+
+    expect(res.status).toBe(400);
+  });
+
   it('returns 400 when release exceeds remaining', async () => {
     mockDb.campaignDeposit.findFirst.mockResolvedValue({ id: 'd1', amountUsd: 5000, releasedAmount: 4500, status: 'PARTIALLY_RELEASED' });
 

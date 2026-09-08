@@ -37,12 +37,26 @@ export async function POST(
       return NextResponse.json({ error: "Invalid input", details: parsed.error.flatten() }, { status: 400 });
     }
 
-    const newReleased = deposit.releasedAmount + parsed.data.amount;
-    if (newReleased > deposit.amountUsd) {
+    /* Compared in cents, because a deposit released in instalments cannot be
+       compared as a float. 500.31 in thirds is 166.77 + 166.77 + 166.77, and
+       in IEEE 754 that sum is 500.31000000000006 -- greater than the deposit,
+       so the last instalment of a fully-legitimate release was rejected with
+       "Release amount exceeds remaining deposit" and the deposit could never
+       reach FULLY_RELEASED. Rounding to minor units first makes the three
+       instalments add up to exactly the deposit, which is what they are. */
+    const toCents = (n: number) => Math.round(n * 100);
+    const totalCents = toCents(deposit.amountUsd);
+    const newReleasedCents = toCents(deposit.releasedAmount) + toCents(parsed.data.amount);
+    if (newReleasedCents > totalCents) {
       return NextResponse.json({ error: "Release amount exceeds remaining deposit" }, { status: 400 });
     }
 
-    const newStatus: DepositStatus = newReleased >= deposit.amountUsd ? "FULLY_RELEASED" : "PARTIALLY_RELEASED";
+    /* Back to major units for storage: the column is a Float in the campaign's
+       own unit, and rounding here is what keeps the stored figure free of the
+       drift the comparison above just stepped around. */
+    const newReleased = newReleasedCents / 100;
+    const newStatus: DepositStatus =
+      newReleasedCents >= totalCents ? "FULLY_RELEASED" : "PARTIALLY_RELEASED";
 
     const updated = await db.campaignDeposit.update({
       where: { id: deposit.id },
