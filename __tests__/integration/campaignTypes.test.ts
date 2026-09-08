@@ -5,8 +5,12 @@ import { NextRequest } from 'next/server';
 import { POST, GET } from '@/app/api/campaigns/route';
 import { GET as GETById, PATCH } from '@/app/api/campaigns/[id]/route';
 
-jest.mock('@/lib/db', () => ({
-  db: {
+jest.mock('@/lib/db', () => {
+  /* POST now writes the campaign inside db.$transaction, so the Song and
+     TikTokSound rows an audio link creates cannot outlive a failed insert.
+     The mock runs the callback against itself, which is what a real
+     interactive transaction hands the callback. */
+  const db: any = {
     campaign: {
       findMany: jest.fn(),
       count: jest.fn(),
@@ -15,8 +19,12 @@ jest.mock('@/lib/db', () => ({
       findFirst: jest.fn(),
       update: jest.fn(),
     },
-  },
-}));
+    tikTokSound: { findFirst: jest.fn(), create: jest.fn() },
+    song: { findFirst: jest.fn(), create: jest.fn() },
+  };
+  db.$transaction = jest.fn((fn: any) => fn(db));
+  return { db };
+});
 
 jest.mock('@/lib/auth', () => ({
   auth: jest.fn(),

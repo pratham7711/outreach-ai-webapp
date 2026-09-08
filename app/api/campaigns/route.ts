@@ -7,7 +7,7 @@ import { logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
 import { z } from "zod";
 import { pageParam, pageSizeParam, parseQuery } from "@/lib/http/queryParams";
-import { resolveAudioLink } from "@/lib/campaigns/audioLink";
+import { ensureSongForAudio, identifyAudioLink, type ResolvedAudio } from "@/lib/campaigns/audioLink";
 import { CAMPAIGN_STATUSES, CAMPAIGN_TYPES, campaignFilterSchema, campaignWhere } from "@/lib/listFilters";
 import type { PaymentMode, PaymentRelease, PostApprovalMode } from "@/lib/generated/prisma/client";
 
@@ -126,19 +126,31 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: `${foreign === "client" ? "Client" : "Folder"} not found` }, { status: 404 });
     }
 
-    /* Resolved before the campaign is written, so a bad link is a 400 that
-       names the problem rather than a campaign created without the audio the
-       operator asked for. */
-    let songId: string | null = null;
+    /* Parsed before the campaign is written, so a bad link is a 400 that names
+       the problem rather than a campaign created without the audio the operator
+       asked for. Only parsing happens here: a short link is resolved by
+       following it over the network, which must not sit inside the transaction
+       opened below. */
+    let audio: ResolvedAudio | null = null;
     if (audioUrl) {
-      const audio = await resolveAudioLink(db, orgId, audioUrl, title);
-      if (!audio.ok) {
-        return NextResponse.json({ error: audio.reason, message: audio.message }, { status: 400 });
+      const parsedAudio = await identifyAudioLink(audioUrl);
+      if (!parsedAudio.ok) {
+        return NextResponse.json(
+          { error: parsedAudio.reason, message: parsedAudio.message },
+          { status: 400 }
+        );
       }
-      songId = audio.songId;
+      audio = parsedAudio.audio;
     }
 
-    const campaign = await db.campaign.create({
+    /* One transaction, because the Song and TikTokSound rows exist only to be
+       pointed at by this campaign. They used to be created first, on the global
+       client; a campaign insert that then failed left both behind with nothing
+       referencing them -- and a TikTokSound is a standing instruction to fetch
+       a page on a schedule, so the orphan keeps costing something. */
+    const campaign = await db.$transaction(async (tx) => {
+      const songId = audio ? await ensureSongForAudio(tx, orgId, audio, title) : null;
+      return tx.campaign.create({
       data: {
         title,
         songId,
@@ -171,6 +183,7 @@ export async function POST(request: NextRequest) {
           select: { activations: true, posts: true },
         },
       },
+      });
     });
 
     await logAudit({
