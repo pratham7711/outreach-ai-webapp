@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import type { CreatorSession } from "@/lib/creator-auth";
 import { findCreatorInOrgForHandle } from "@/lib/portal/creatorLookup";
+import { isPortalCampaignActionable } from "@/lib/marketplace/portalVisibility";
 
 export type JoinResult =
   | { ok: true; activationId: string; creatorId: string; alreadyJoined: boolean; campaignSlug: string }
@@ -96,6 +97,17 @@ export async function joinCampaignBySlug(
     if (!inviteCode || !campaign.inviteCode || inviteCode.trim().toUpperCase() !== campaign.inviteCode.toUpperCase()) {
       return { ok: false, status: 403, error: "A valid invite code is required to join this campaign" };
     }
+  }
+
+  /* Status gate. `status` was selected here from the start and never read, so
+     a COMPLETE or CANCELLED campaign kept admitting new creators through its
+     public slug. Matches the rule /api/portal/proposals already enforced. */
+  if (!isPortalCampaignActionable(campaign.status)) {
+    return {
+      ok: false,
+      status: 409,
+      error: `This campaign is not currently open to creators (status: ${campaign.status})`,
+    };
   }
 
   // Deadline gate

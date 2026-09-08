@@ -139,7 +139,7 @@ describe("POST /api/portal/campaigns/[slug]/draft", () => {
      creator with no activation instead of reporting its deadline. See
      __tests__/integration/portalCampaignWrites.test.ts for that gate. */
   const joinedCampaign = {
-    id: "camp-1", orgId: "org-1", deletedAt: null, submissionDeadline: null,
+    id: "camp-1", orgId: "org-1", status: "IN_PROGRESS", deletedAt: null, submissionDeadline: null,
     marketplaceVisibility: "GLOBAL",
   };
 

@@ -71,6 +71,7 @@ const PASSED = new Date("2020-01-01");
 const campaign = (over: Record<string, unknown> = {}) => ({
   id: "camp-1",
   orgId: "org-1",
+  status: "IN_PROGRESS",
   deletedAt: null,
   ratePerThousand: { TIKTOK: 100 },
   submissionDeadline: null,
@@ -166,6 +167,71 @@ describe.each([
           deletedAt: null,
           OR: [{ handle: "awxyken" }, { handle: "@awxyken" }],
         }),
+      })
+    );
+  });
+});
+
+/* A campaign an agency has closed keeps its public slug forever. Until now the
+   two write routes never looked at campaign.status, so a COMPLETE or CANCELLED
+   campaign went on taking posts and drafts and accruing marketplace liability
+   against a budget nobody was watching. /api/portal/proposals already required
+   IN_PROGRESS; these now agree with it. */
+describe.each([
+  ["submissions", submitReq, /not accepting submissions/i],
+  ["draft", draftReq, /not accepting drafts/i],
+] as const)("POST /api/portal/campaigns/[slug]/%s — closed campaigns", (_name, call, message) => {
+  it.each(["COMPLETE", "CANCELLED", "DRAFT", "PENDING"])("409s a %s campaign", async (status) => {
+    joined();
+    mockDb.campaign.findUnique.mockResolvedValue(campaign({ status }));
+    const res = await call();
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toMatch(message);
+    expect(mockDb.post.create).not.toHaveBeenCalled();
+    expect(mockDb.activation.update).not.toHaveBeenCalled();
+  });
+
+  it("does not disclose the status of a campaign the caller cannot see", async () => {
+    mockDb.campaign.findUnique.mockResolvedValue(
+      campaign({ status: "CANCELLED", marketplaceVisibility: "PRIVATE" })
+    );
+    const res = await call();
+    expect(res.status).toBe(404);
+    expect((await res.json()).error).toBe("Campaign not found");
+  });
+});
+
+/* A post URL is public. Scoped to creatorId, the duplicate check let creator B
+   paste a URL creator A had already submitted (and been approved on) and accrue
+   the same views a second time against the same budget. One post, one claim. */
+describe("POST /api/portal/campaigns/[slug]/submissions — one post, one claim", () => {
+  it("409s a platformPostId already submitted by ANOTHER creator", async () => {
+    joined();
+    mockDb.post.findFirst.mockResolvedValue({ id: "post-9", creatorId: "cr-someone-else" });
+
+    const res = await submitReq();
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toBe(
+      "This post has already been submitted to this campaign"
+    );
+    expect(mockDb.post.create).not.toHaveBeenCalled();
+  });
+
+  it("keeps the first-person wording when the creator re-submits their own post", async () => {
+    joined();
+    mockDb.post.findFirst.mockResolvedValue({ id: "post-9", creatorId: "cr-1" });
+
+    const res = await submitReq();
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toBe("You already submitted this post to this campaign");
+  });
+
+  it("looks the post up by campaign, never narrowed to the caller", async () => {
+    joined();
+    await submitReq();
+    expect(mockDb.post.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { campaignId: "camp-1", platformPostId: "999", platform: "TIKTOK" },
       })
     );
   });

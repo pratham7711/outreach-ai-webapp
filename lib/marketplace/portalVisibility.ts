@@ -34,3 +34,20 @@ export function isPortalCampaignVisible(input: {
 }): boolean {
   return input.marketplaceVisibility === PUBLIC_VISIBILITY || input.hasActivation;
 }
+
+/**
+ * The only campaign status a portal creator may act on.
+ *
+ * /api/portal/proposals already required it (`status: "IN_PROGRESS"` in its
+ * campaign lookup) and nothing else did: joinCampaignBySlug SELECTED
+ * campaign.status and never read it, and the /submissions and /draft routes did
+ * not select it at all. So a campaign an agency had marked COMPLETE or
+ * CANCELLED went on accepting joins, posts and drafts through its still-valid
+ * public slug, quietly accruing marketplace liability against a closed budget.
+ * The three surfaces now agree with proposals.
+ */
+export const PORTAL_ACTIONABLE_CAMPAIGN_STATUS = "IN_PROGRESS";
+
+export function isPortalCampaignActionable(status: string | null | undefined): boolean {
+  return status === PORTAL_ACTIONABLE_CAMPAIGN_STATUS;
+}
