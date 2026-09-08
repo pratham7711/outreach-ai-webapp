@@ -13,9 +13,10 @@ import { openSandboxProfileFetcher } from "@/lib/platforms/tiktokProfileSandbox"
 import {
   changeOverWindow,
   previousOf,
-  velocityPerHour,
+  velocityBetween,
   type TrackerSnapshot,
 } from "@/lib/trackers/metrics";
+import { alertOps, shouldAlertOnBatch } from "@/lib/alerts";
 import {
   DEFAULT_GRANULARITY,
   isDueForRead,
@@ -70,20 +71,51 @@ export async function GET(request: NextRequest) {
     const orgs = await db.organization.findMany({ select: { id: true, uiConfig: true } });
     const cadenceByOrg = new Map(orgs.map((o) => [o.id, parseGranularity(o.uiConfig)]));
 
-    const sounds = await db.tikTokSound.findMany({
+    /* Which MAX_SOUNDS, decided by when each was last read rather than when it
+       was added.
+
+       This was `orderBy: createdAt asc, take: MAX_SOUNDS`, and createdAt never
+       changes: sound #201 was never read, on any run, for as long as the first
+       200 existed. Ordering by the newest snapshot ascending (never-read
+       first) makes the window rotate, so the tail comes in on a later run
+       instead of waiting for someone to delete a sound above it.
+
+       Two queries because Prisma cannot order by a relation's max(recordedAt).
+       The first is one row per sound with its newest snapshot only -- light
+       enough to run over the whole table -- and the second pulls the 30-point
+       history for just the window that won. */
+    const candidates = await db.tikTokSound.findMany({
       select: {
         id: true,
-        orgId: true,
-        tiktokSoundId: true,
-        snapshots: {
-          orderBy: { recordedAt: "desc" },
-          take: 30,
-          select: { usesCount: true, recordedAt: true },
-        },
+        snapshots: { orderBy: { recordedAt: "desc" }, take: 1, select: { recordedAt: true } },
       },
-      orderBy: { createdAt: "asc" },
-      take: MAX_SOUNDS,
     });
+    const dueOrder = candidates
+      .map((c) => ({ id: c.id, lastReadAt: c.snapshots[0]?.recordedAt ?? null }))
+      .sort((a, b) => {
+        // Never read sorts first; it is the staleest thing there is.
+        if (!a.lastReadAt) return b.lastReadAt ? -1 : 0;
+        if (!b.lastReadAt) return 1;
+        return a.lastReadAt.getTime() - b.lastReadAt.getTime();
+      })
+      .slice(0, MAX_SOUNDS);
+    const orderIndex = new Map(dueOrder.map((d, i) => [d.id, i]));
+
+    const sounds = (
+      await db.tikTokSound.findMany({
+        where: { id: { in: dueOrder.map((d) => d.id) } },
+        select: {
+          id: true,
+          orgId: true,
+          tiktokSoundId: true,
+          snapshots: {
+            orderBy: { recordedAt: "desc" },
+            take: 30,
+            select: { usesCount: true, recordedAt: true },
+          },
+        },
+      })
+    ).sort((a, b) => (orderIndex.get(a.id) ?? 0) - (orderIndex.get(b.id) ?? 0));
 
     for (const sound of sounds) {
       if (Date.now() > deadline) {
@@ -153,25 +185,54 @@ export async function GET(request: NextRequest) {
       const latest: TrackerSnapshot = { value: stats.usesCount, recordedAt: now };
       const withLatest = [...history, latest];
 
-      const velocity = velocityPerHour(previousOf(withLatest), latest);
+      /* PERCENT growth against the previous reading, not uses/hour.
+
+         velocityScore had two writers in two units: recordSoundSnapshot (and
+         the creator sweep, and the seed) store velocityBetween, a percentage,
+         while this route stored velocityPerHour. The column is one column, so
+         a sound read by one writer and then the other produced a series that
+         changes unit halfway along, and its one consumer -- the campaign audio
+         card, via lib/reports/campaignPerformance -- renders every point with a
+         "%" suffix. So percent is what the reader expects, and this was the
+         writer that disagreed. The trackers page does not read the column at
+         all; it recomputes velocityPerHour from the series (see
+         app/api/trackers/route.ts), which is why the mismatch stayed invisible
+         there. */
+      const previous = previousOf(withLatest);
+      const velocity = previous ? velocityBetween(previous.value, latest.value) : 0;
       const day = changeOverWindow(withLatest, "24h", now);
 
-      await db.soundTrackerSnapshot.create({
-        data: {
+      try {
+        await db.soundTrackerSnapshot.create({
+          data: {
+            soundId: sound.id,
+            usesCount: stats.usesCount,
+            /* A count of new videos cannot be negative, and TikTok's uses figure
+               does fall — it fell by one here, and the report duly showed
+               "-1 videos added". deltaUses24h is the signed change and keeps the
+               sign; videosAdded24h is a count and is floored, exactly as
+               recordSoundSnapshot does it. Third copy of this arithmetic; the
+               second one put a percentage in the same column. */
+            videosAdded24h: day ? Math.max(0, Math.round(day.added)) : 0,
+            deltaUses24h: day ? Math.round(day.added) : 0,
+            // Unit: percent change since the previous reading. See above.
+            velocityScore: velocity,
+            recordedAt: now,
+          },
+        });
+      } catch (e) {
+        /* One bad write is one sound. Unguarded, a constraint clash or a
+           dropped connection threw out of the loop and abandoned every sound
+           after it -- having already paid for their browser and sandbox
+           time, which is the expensive half of this job. */
+        log.error("snapshot write failed", {
           soundId: sound.id,
-          usesCount: stats.usesCount,
-          /* A count of new videos cannot be negative, and TikTok's uses figure
-             does fall — it fell by one here, and the report duly showed
-             "-1 videos added". deltaUses24h is the signed change and keeps the
-             sign; videosAdded24h is a count and is floored, exactly as
-             recordSoundSnapshot does it. Third copy of this arithmetic; the
-             second one put a percentage in the same column. */
-          videosAdded24h: day ? Math.max(0, Math.round(day.added)) : 0,
-          deltaUses24h: day ? Math.round(day.added) : 0,
-          velocityScore: velocity ?? 0,
-          recordedAt: now,
-        },
-      });
+          error: e instanceof Error ? e.message : String(e),
+        });
+        decisions.push({ soundId: sound.id, action: "fail", reason: "write-failed" });
+        failed++;
+        continue;
+      }
 
       decisions.push({
         soundId: sound.id,
@@ -184,6 +245,20 @@ export async function GET(request: NextRequest) {
 
     log.info("tracker sweep complete", { snapshotted, skipped, failed, dryRun });
 
+    /* One digest per run, at the cron boundary, exactly as snapshot-sounds
+       does it -- and for the same reason it lowered minFailures: an org tracks
+       a handful of sounds, so the whole corpus failing sits well under the
+       default of 5 and this reader has been able to fail completely, every
+       hour, in silence. A dry run reads nothing and so can report nothing. */
+    if (!dryRun && shouldAlertOnBatch({ failed, total: snapshotted + failed, minFailures: 1 })) {
+      await alertOps({
+        source: "cron/sync-trackers",
+        title: `Sound tracker sweep failing: ${failed} of ${snapshotted + failed}`,
+        severity: "critical",
+        facts: { snapshotted, failed, skipped, considered: sounds.length },
+      });
+    }
+
     return NextResponse.json({
       dryRun,
       considered: sounds.length,
@@ -195,6 +270,15 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     log.error("tracker sweep threw", {
       error: error instanceof Error ? error.message : String(error),
+    });
+    /* A crash used to leave nothing but a log line: this cron writes the only
+       numbers the sound trackers ever show, so a run that dies on its first
+       query looks identical, from the product, to a quiet hour. */
+    await alertOps({
+      source: "cron/sync-trackers",
+      title: "Sound tracker sweep crashed",
+      severity: "critical",
+      facts: { error: error instanceof Error ? error.message : String(error) },
     });
     return NextResponse.json({ error: "Tracker sweep failed" }, { status: 500 });
   } finally {

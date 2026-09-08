@@ -25,6 +25,14 @@ jest.mock("@/lib/platforms/fetchPostMetrics", () => ({
 /* The pool is a real Vercel Sandbox in production; here it is a handle whose
    lifecycle is the thing under test -- opened once per run, sized from the due
    TikTok count, handed to every TikTok fetch, closed in the finally. */
+/* alertOps is the only thing in lib/alerts that reaches outward (it mails);
+   shouldAlertOnBatch is the pure threshold the route composes with, so it stays
+   real -- mocking it would make the alerting tests below assert the mock. */
+jest.mock("@/lib/alerts", () => ({
+  ...jest.requireActual("@/lib/alerts"),
+  alertOps: jest.fn().mockResolvedValue(undefined),
+}));
+
 const mockPool = { size: 1, readPost: jest.fn(), close: jest.fn().mockResolvedValue(undefined) };
 jest.mock("@/lib/platforms/tiktokPostSandbox", () => ({
   laneCountFor: jest.fn((n: number) => (n > 0 ? 1 : 0)),
@@ -32,11 +40,13 @@ jest.mock("@/lib/platforms/tiktokPostSandbox", () => ({
 }));
 
 import { db } from "@/lib/db";
+import { alertOps } from "@/lib/alerts";
 import { fetchPostMetrics } from "@/lib/platforms/fetchPostMetrics";
 import { openSandboxPostPool } from "@/lib/platforms/tiktokPostSandbox";
 
 const mockDb = db as any;
 const mockFetch = fetchPostMetrics as jest.Mock;
+const mockAlert = alertOps as jest.Mock;
 
 const HOUR_MS = 60 * 60 * 1000;
 
@@ -148,7 +158,15 @@ describe("cron sync hardening — dry run", () => {
 });
 
 describe("cron sync hardening — dead-letter", () => {
-  it("increments syncFailCount on thrown error and dead-letters at 5", async () => {
+  /**
+   * A throw is ours, not the post's.
+   *
+   * This used to assert the opposite -- five thrown errors dead-lettered the
+   * post -- which is the bug: the throw path bypassed UNCHARGEABLE_REASONS
+   * entirely, so five transient DB or token blips switched off a healthy post
+   * for good and nothing in this codebase ever clears syncDisabledAt again.
+   */
+  it("does not charge a thrown error to the post, and leaves it eligible", async () => {
     mockDb.post.findMany.mockResolvedValue([
       makePost({ id: "p-low", syncFailCount: 0 }),
       makePost({ id: "p-edge", postUrl: "https://www.instagram.com/reel/AAA2/", syncFailCount: 4 }),
@@ -160,18 +178,17 @@ describe("cron sync hardening — dead-letter", () => {
     const body = await res.json();
 
     expect(res.status).toBe(200);
+    // Still reported: uncharged is not unrecorded.
     expect(body.failed).toBe(2);
-    expect(body.deadLettered).toBe(1);
+    expect(body.deadLettered).toBe(0);
     expect(body.synced).toBe(0);
 
-    const updates = mockDb.post.update.mock.calls.map((c: any[]) => c[0]);
-    const lowUpdate = updates.find((u: any) => u.where.id === "p-low");
-    expect(lowUpdate.data.syncFailCount).toBe(1);
-    expect(lowUpdate.data.syncDisabledAt).toBeUndefined();
-
-    const edgeUpdate = updates.find((u: any) => u.where.id === "p-edge");
-    expect(edgeUpdate.data.syncFailCount).toBe(5);
-    expect(edgeUpdate.data.syncDisabledAt).toBeInstanceOf(Date);
+    const touched = mockDb.post.update.mock.calls
+      .map((c: any[]) => c[0])
+      .filter(
+        (u: any) => u.data?.syncFailCount !== undefined || u.data?.syncDisabledAt !== undefined,
+      );
+    expect(touched).toEqual([]);
   });
 
   it("skips a dead-lettered post without fetching", async () => {
@@ -326,8 +343,28 @@ describe("cron sync hardening — sealing", () => {
       syncSource: "cron-seal",
     });
 
+    /* The fixture has lastSyncedAt: null -- never measured -- so the seal must
+       not stamp it. lastSyncedAt is the sole "was this ever measured" flag
+       (lib/metricDisplay), and stamping it here turned the post's default-zero
+       counters into measured zeros on the Posts tab, the report and the PDF. */
+    expect(mockDb.post.update).not.toHaveBeenCalled();
+    const txArg = mockDb.$transaction.mock.calls[0][0];
+    expect(txArg).toHaveLength(1);
+  });
+
+  it("stamps lastSyncedAt on the seal only when the post was measured before", async () => {
+    mockDb.post.findMany.mockResolvedValue([
+      makePost({ id: "p-measured", postedAt: hoursAgo(31 * 24), lastSyncedAt: hoursAgo(40 * 24) }),
+    ]);
+    mockDb.$transaction.mockResolvedValue([{}, {}]);
+    mockDb.post.update.mockResolvedValue({});
+
+    const res = await cronSync(cronReq());
+    const body = await res.json();
+
+    expect(body.sealed).toBe(1);
     const updateArg = mockDb.post.update.mock.calls[0][0];
-    expect(updateArg.where.id).toBe("p-old");
+    expect(updateArg.where.id).toBe("p-measured");
     expect(updateArg.data.lastSyncedAt).toBeInstanceOf(Date);
   });
 
@@ -635,6 +672,84 @@ describe("cron sync — campaign cadence", () => {
  * lapsed token and a missing API key were all one bad afternoon away from
  * permanently switching off a perfectly healthy post.
  */
+/**
+ * Total lockout is the loudest outage and used to be the quietest alert.
+ *
+ * shouldAlertOnBatch was fed `failed`, which only the throw path increments. A
+ * platform answering every post with a WAF challenge produces clean no-counts
+ * outcomes, so a run that measured nothing at all reported failed:0 and mailed
+ * nobody.
+ */
+describe("cron sync — alerting on a run that measured nothing", () => {
+  function challengedPosts(n: number) {
+    return Array.from({ length: n }, (_, i) =>
+      makePost({ id: `p-${i}`, postUrl: `https://www.instagram.com/reel/A${i}/` }),
+    );
+  }
+
+  it("alerts when every attempt came back with no counts, though nothing threw", async () => {
+    mockDb.post.findMany.mockResolvedValue(challengedPosts(6));
+    mockFetch.mockResolvedValue({
+      platform: "INSTAGRAM",
+      platformPostId: "1",
+      thumbnailUrl: null,
+      caption: null,
+      fetchReason: "platform-challenged",
+      postedAt: new Date(),
+    });
+    mockDb.post.update.mockResolvedValue({});
+
+    const res = await cronSync(cronReq());
+    const body = await res.json();
+
+    expect(body.synced).toBe(0);
+    expect(body.failed).toBe(0);
+    expect(body.noCounts).toBe(6);
+
+    expect(mockAlert).toHaveBeenCalledTimes(1);
+    const alert = mockAlert.mock.calls[0][0];
+    expect(alert.source).toBe("cron/sync-posts");
+    expect(alert.severity).toBe("critical");
+    expect(alert.facts).toMatchObject({ noCounts: 6, attempted: 6, synced: 0 });
+  });
+
+  it("stays quiet when the same run mostly measured", async () => {
+    mockDb.post.findMany.mockResolvedValue(challengedPosts(6));
+    mockFetch.mockImplementation((url: string) =>
+      Promise.resolve(
+        url.endsWith("A0/")
+          ? {
+              platform: "INSTAGRAM",
+              platformPostId: "1",
+              thumbnailUrl: null,
+              caption: null,
+              fetchReason: "platform-challenged",
+              postedAt: new Date(),
+            }
+          : {
+              platform: "INSTAGRAM",
+              platformPostId: "1",
+              thumbnailUrl: null,
+              caption: null,
+              viewsCount: 10,
+              likesCount: 1,
+              commentsCount: 0,
+              postedAt: new Date(),
+            },
+      ),
+    );
+    mockDb.post.update.mockResolvedValue({});
+    mockDb.$transaction.mockResolvedValue([{}, {}]);
+
+    const res = await cronSync(cronReq());
+    const body = await res.json();
+
+    expect(body.synced).toBe(5);
+    expect(body.noCounts).toBe(1);
+    expect(mockAlert).not.toHaveBeenCalled();
+  });
+});
+
 describe("cron sync — uncharged reasons", () => {
   const uncharged = [
     "platform-challenged",
