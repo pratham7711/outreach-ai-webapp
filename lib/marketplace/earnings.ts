@@ -1,4 +1,6 @@
 import { db } from "@/lib/db";
+import { findCreatorsForHandle } from "@/lib/portal/creatorLookup";
+import { findLinkedCreatorsForHandle, type LinkSubject } from "@/lib/portal/creatorLink";
 
 export type PlatformKey = "TIKTOK" | "INSTAGRAM" | "YOUTUBE";
 
@@ -50,9 +52,15 @@ export type CampaignEarnings = {
   minPayoutMinor: number | null;
   rates: Partial<Record<PlatformKey, number>>;
   submissions: SubmissionEarning[];
-  approvedMinor: number; // accrued (APPROVED only)
-  pendingMinor: number; // potential from PENDING_REVIEW
+  approvedMinor: number; // accrued (APPROVED only) — 0 unless `linked`
+  pendingMinor: number; // potential from PENDING_REVIEW — 0 unless `linked`
   submissionCount: number;
+  /* Whether this portal user has PROVEN they own the org-side Creator row this
+     campaign hangs off (lib/portal/creatorLink.ts). A handle match alone gets
+     the campaign listed — agencies roster a creator before that person signs up
+     and the portal has to show them their work — but it does not release money.
+     False here means every amount on this row is reported as 0. */
+  linked: boolean;
 };
 
 /**
@@ -62,16 +70,24 @@ export type CampaignEarnings = {
  * MINOR units — callers convert to major for display.
  */
 export async function computeCreatorEarnings(
-  creatorUserId: string,
-  handle: string
+  subject: LinkSubject
 ): Promise<CampaignEarnings[]> {
-  // Find every org-side Creator row mirroring this portal user (handle match).
-  const creators = await db.creator.findMany({
-    where: { handle, deletedAt: null },
-    select: { id: true, orgId: true },
-  });
+  const { handle } = subject;
+  // Find every org-side Creator row mirroring this portal user. Normalised
+  // through the shared matcher: an exact `handle` equality missed rows stored
+  // as "@handle" and reported zero earnings for campaigns the creator had
+  // joined and been approved on.
+  const creators = await findCreatorsForHandle(handle);
   if (creators.length === 0) return [];
   const creatorIds = creators.map((c) => c.id);
+
+  /* Money is gated on proven ownership, the campaign list is not. Registering
+     an existing roster creator's handle used to report that creator's accrued
+     earnings as the new account's own — and /api/portal/payout-requests now
+     sizes a withdrawal off exactly this number. */
+  const linkedIds = new Set(
+    (await findLinkedCreatorsForHandle(subject)).map((c) => c.id)
+  );
 
   // Activations = the join links. Only marketplace campaigns (publicSlug set).
   const activations = await db.activation.findMany({
@@ -127,13 +143,16 @@ export async function computeCreatorEarnings(
   const result: CampaignEarnings[] = [];
   for (const act of marketplaceActivations) {
     const c = act.campaign;
+    const linked = linkedIds.has(act.creatorId);
     const rates = parseRatePerThousand(c.ratePerThousand);
     const actPosts = postsByActivation.get(act.id) ?? [];
 
     let approvedMinor = 0;
     let pendingMinor = 0;
     const submissions: SubmissionEarning[] = actPosts.map((p) => {
-      const potentialMinor = earnedMinorForPost(p.viewsCount, p.platform, rates);
+      const potentialMinor = linked
+        ? earnedMinorForPost(p.viewsCount, p.platform, rates)
+        : 0;
       const earnedMinor = p.status === "APPROVED" ? potentialMinor : 0;
       if (p.status === "APPROVED") approvedMinor += earnedMinor;
       if (p.status === "PENDING_REVIEW") pendingMinor += potentialMinor;
@@ -163,6 +182,7 @@ export async function computeCreatorEarnings(
       approvedMinor,
       pendingMinor,
       submissionCount: actPosts.length,
+      linked,
     });
   }
 

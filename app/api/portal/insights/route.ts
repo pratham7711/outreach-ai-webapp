@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getCreatorSession } from "@/lib/creator-auth";
-import { findCreatorsForHandle } from "@/lib/portal/creatorLookup";
+import { findLinkedCreatorsForHandle } from "@/lib/portal/creatorLink";
 import { buildPlatformInsights, type PlatformInsights } from "@/lib/portal/creatorInsights";
 
 export const dynamic = "force-dynamic";
@@ -21,7 +21,11 @@ export async function GET() {
     const session = await getCreatorSession();
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const creators = await findCreatorsForHandle(session.handle);
+/* findLinkedCreatorsForHandle, not findCreatorsForHandle: a handle match alone
+   is not ownership. Registration checks uniqueness only against CreatorUser, so
+   signing up as an existing roster creator's handle used to hand the new
+   account this data. See lib/portal/creatorLink.ts. */
+    const creators = await findLinkedCreatorsForHandle(session);
     if (creators.length === 0)
       return NextResponse.json({ connected: false, platforms: [] });
 

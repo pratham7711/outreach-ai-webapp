@@ -42,6 +42,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Email already registered" }, { status: 409 });
     }
 
+    /* Uniqueness is checked against CreatorUser only, and deliberately NOT
+       against the org-side Creator roster: agencies add a creator to their
+       roster before that person has an account and expect them to sign up
+       later with the same handle and find their campaigns waiting. Refusing
+       the registration would break onboarding for every legitimate creator.
+
+       What the handle no longer buys is access to that roster row's private
+       data. Connections, insights, reviews, offers and earnings are gated on
+       proven ownership — an email match or an OAuth connection for this exact
+       handle — in lib/portal/creatorLink.ts. */
     const existingHandle = await db.creatorUser.findUnique({ where: { handle } });
     if (existingHandle) {
       return NextResponse.json({ error: "Handle already taken" }, { status: 409 });

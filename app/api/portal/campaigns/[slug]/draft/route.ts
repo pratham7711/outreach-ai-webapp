@@ -3,7 +3,8 @@ import { db } from "@/lib/db";
 import { getCreatorSession } from "@/lib/creator-auth";
 import { z } from "zod";
 import { httpUrl } from "@/lib/validation/url";
-import { isPortalCampaignVisible } from "@/lib/marketplace/portalVisibility";
+import { isPortalCampaignVisible, isPortalCampaignActionable } from "@/lib/marketplace/portalVisibility";
+import { findCreatorInOrgForHandle } from "@/lib/portal/creatorLookup";
 
 // Statuses from which a creator may (re)submit a draft for approval.
 const SUBMITTABLE = ["AWAITING_DRAFT", "DECLINED", "DRAFT_SUBMITTED"];
@@ -38,6 +39,7 @@ export async function POST(
       select: {
         id: true,
         orgId: true,
+        status: true,
         deletedAt: true,
         submissionDeadline: true,
         marketplaceVisibility: true,
@@ -53,10 +55,10 @@ export async function POST(
        deadline had passed — the detail route behind the same slug 404s them.
        The write was never at risk; the 403 below has always required an
        activation. */
-    const creator = await db.creator.findFirst({
-      where: { orgId: campaign.orgId, handle: session.handle, deletedAt: null },
-      select: { id: true },
-    });
+    /* Normalised via the shared matcher — the exact equality this used to do
+       missed a roster row stored as "@handle" and 403'd a creator who had
+       already joined. */
+    const creator = await findCreatorInOrgForHandle(campaign.orgId, session.handle);
     const activation = creator
       ? await db.activation.findFirst({
           where: { campaignId: campaign.id, creatorId: creator.id, deletedAt: null },
@@ -69,6 +71,15 @@ export async function POST(
       hasActivation: !!activation,
     })) {
       return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
+    }
+
+    /* Status gate, after the visibility gate so a stranger learns nothing.
+       A COMPLETE or CANCELLED campaign accepted drafts. */
+    if (!isPortalCampaignActionable(campaign.status)) {
+      return NextResponse.json(
+        { error: `This campaign is not accepting drafts (status: ${campaign.status})` },
+        { status: 409 }
+      );
     }
 
     if (campaign.submissionDeadline && campaign.submissionDeadline.getTime() < Date.now()) {

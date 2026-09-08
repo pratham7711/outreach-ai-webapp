@@ -73,7 +73,12 @@ beforeEach(() => {
   jest.clearAllMocks();
   for (const key of PROVIDER_ENV_KEYS) delete process.env[key];
   mockGetCreatorSession.mockResolvedValue(authedCreatorSession);
-  mockDb.creator.findMany.mockResolvedValue([{ id: "c1", orgId: "org-1" }]);
+  /* contactEmail is the session's, so c1 is a LINKED row — proven ownership.
+     A bare handle match no longer reaches any of this; see
+     lib/portal/creatorLink.ts. */
+  mockDb.creator.findMany.mockResolvedValue([
+    { id: "c1", orgId: "org-1", contactEmail: "creator@demo.com" },
+  ]);
   mockDb.creator.findFirst.mockResolvedValue({ id: "c1", orgId: "org-1" });
   mockDb.creatorSocialAccount.findMany.mockResolvedValue([]);
   mockDb.creatorSocialAccount.upsert.mockResolvedValue({ id: "sa-1" });
@@ -480,5 +485,136 @@ describe("GET /api/portal/connections/[platform]/callback", () => {
     );
     expect(res.headers.get("location")).toContain("/portal/settings?error=instagram&reason=token_exchange");
     expect(mockDb.creatorSocialAccount.upsert).not.toHaveBeenCalled();
+  });
+});
+
+/* The highest-severity hole in the portal: /api/portal/auth/register checks the
+   handle against CreatorUser only, and everything here bridged to the org-side
+   roster by handle alone. Registering as an existing roster creator therefore
+   listed that creator's connected accounts and — worse — let the new account
+   REVOKE their grants at TikTok, Meta and Google, the one action here that
+   reaches outside our database and cannot be undone from our side.
+   lib/portal/creatorLink.ts is the gate; these are its edges. */
+describe("portal connections — ownership of the roster row", () => {
+  /** A handle match whose contactEmail is somebody else's: no proof. */
+  const unproven = () => {
+    mockDb.creator.findMany.mockResolvedValue([
+      { id: "c1", orgId: "org-1", contactEmail: "the-real-creator@example.com" },
+    ]);
+    mockDb.creatorSocialAccount.findMany.mockResolvedValue([]);
+  };
+
+  it("lists nothing for a bare handle match", async () => {
+    unproven();
+    const res = await listConnections();
+    expect((await res.json()).accounts).toEqual([]);
+    // No creatorId set to query with, so the account read never happens.
+    expect(mockDb.creatorSocialAccount.findMany).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses to revoke a connection on a row it has not proven it owns", async () => {
+    unproven();
+    mockDb.creatorSocialAccount.findFirst.mockResolvedValue({
+      id: "acc-1",
+      creatorId: "c1",
+      platform: "TIKTOK",
+      accessToken: encrypt("tok", "org-1"),
+    });
+
+    const res = await deleteConnection(
+      makeRequest("http://localhost:3009/api/portal/connections?id=acc-1", { method: "DELETE" }),
+    );
+    expect(res.status).toBe(404);
+    expect(mockDb.creatorSocialAccount.delete).not.toHaveBeenCalled();
+  });
+
+  it("still revokes once an OAuth connection under this handle proves the row", async () => {
+    mockDb.creator.findMany.mockResolvedValue([
+      { id: "c1", orgId: "org-1", contactEmail: null },
+    ]);
+    mockDb.creatorSocialAccount.findMany.mockResolvedValue([
+      { creatorId: "c1", handle: "@BlessingJolie" },
+    ]);
+    mockDb.creatorSocialAccount.findFirst.mockResolvedValue({
+      id: "acc-1",
+      creatorId: "c1",
+      platform: "TIKTOK",
+      accessToken: encrypt("tok", "org-1"),
+    });
+    mockDb.creatorSocialAccount.count.mockResolvedValue(0);
+    mockDb.creatorSocialAccount.delete.mockResolvedValue({ id: "acc-1" });
+    global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => ({}) });
+
+    const res = await deleteConnection(
+      makeRequest("http://localhost:3009/api/portal/connections?id=acc-1", { method: "DELETE" }),
+    );
+    expect(res.status).toBe(200);
+    expect(mockDb.creatorSocialAccount.delete).toHaveBeenCalledWith({ where: { id: "acc-1" } });
+  });
+});
+
+/* Where a freshly minted token is allowed to land. findCreatorForHandle matches
+   on the handle alone, so without this guard an account that registered an
+   existing roster creator's handle could staple its OWN OAuth token onto that
+   creator's row. The first connection still has a way in: the identity the
+   provider returns is the handle of the account that actually authorised, so
+   "this account IS this handle" is itself the proof. */
+describe("GET /api/portal/connections/[platform]/callback — where the token may land", () => {
+  const originalFetch = global.fetch;
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  const runCallback = (identityUsername: string) => {
+    process.env.INSTAGRAM_CLIENT_ID = "ig-id";
+    process.env.INSTAGRAM_CLIENT_SECRET = "ig-secret";
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ access_token: "t", expires_in: 3600 }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ access_token: "ll", expires_in: 5_184_000 }) })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: [
+            {
+              instagram_business_account: {
+                id: "ig-1",
+                username: identityUsername,
+                followers_count: 1,
+                follows_count: 1,
+                media_count: 1,
+              },
+            },
+          ],
+        }),
+      });
+    return oauthCallback(
+      makeRequest(
+        "http://localhost:3009/api/portal/connections/instagram/callback?state=st-ok&code=code-1",
+        { headers: { cookie: "portal_oauth_state=st-ok" } },
+      ),
+      makeParams("instagram"),
+    );
+  };
+
+  beforeEach(() => {
+    // A bare handle match: contactEmail belongs to somebody else.
+    mockDb.creator.findMany.mockResolvedValue([
+      { id: "c1", orgId: "org-1", contactEmail: "the-real-creator@example.com" },
+    ]);
+    mockDb.creatorSocialAccount.findMany.mockResolvedValue([]);
+    mockDb.creatorSocialAccount.upsert.mockResolvedValue({ id: "acc-1" });
+  });
+
+  it("refuses to attach somebody else's account to an unproven roster row", async () => {
+    const res = await runCallback("some_other_account");
+    expect(res.headers.get("location")).toContain("error=instagram&reason=creator");
+    expect(mockDb.creatorSocialAccount.upsert).not.toHaveBeenCalled();
+  });
+
+  it("attaches when the authorised account IS this handle, establishing the link", async () => {
+    const res = await runCallback("BlessingJolie");
+    expect(res.headers.get("location")).toContain("connected=instagram");
+    expect(mockDb.creatorSocialAccount.upsert).toHaveBeenCalled();
   });
 });

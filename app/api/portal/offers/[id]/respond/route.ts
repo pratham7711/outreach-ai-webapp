@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getCreatorSession, creatorHandleVariants } from "@/lib/creator-auth";
+import { isCreatorLinked } from "@/lib/portal/creatorLink";
 import { getOrCreateConversation, appendMessage } from "@/lib/negotiation/conversation";
 import { getAdvisor } from "@/lib/negotiation/engine";
 import { z } from "zod";
@@ -42,8 +43,36 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     });
     if (!creator) return NextResponse.json({ error: "Offer not found" }, { status: 404 });
 
+    /* The handle bridge above is not ownership — see lib/portal/creatorLink.ts.
+       Unproven, someone who registered a roster creator's handle could accept
+       or counter that creator's offers and sign them to a rate. */
+    if (!(await isCreatorLinked(creator.id, session))) {
+      return NextResponse.json({ error: "Offer not found" }, { status: 404 });
+    }
+
     if (offer.status === "ACCEPTED" || offer.status === "REJECTED") {
       return NextResponse.json({ error: "Offer is no longer actionable" }, { status: 409 });
+    }
+
+    /* An acceptance is terminal for the creator, and the status column cannot
+       express that on its own. ACCEPTED is the BRAND's final say — set by
+       app/api/negotiations/approve, which (like the org PATCH) refuses an offer
+       that is already ACCEPTED — so writing ACCEPTED here would lock the brand
+       out of its own approval step. The creator's acceptance is recorded as
+       finalRate instead, and finalRate is written in exactly two places: here
+       and the brand's approve.
+
+       Without this second guard the ACCEPTED/REJECTED check above never fires
+       for a creator, because accept leaves the row at COUNTERED. A creator
+       could accept at the standing rate and then counter HIGHER: the counter
+       runs its AI round, aiCounterRate moves up, and the brand's approve —
+       which recomputes standingRate — pays the new number. They could also
+       simply re-accept and rewrite finalRate. */
+    if (offer.finalRate != null) {
+      return NextResponse.json(
+        { error: "You have already accepted this offer; it is awaiting brand approval." },
+        { status: 409 }
+      );
     }
 
     const conversationId =

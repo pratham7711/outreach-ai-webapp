@@ -46,7 +46,9 @@ export default function PortalReviewsPage() {
   const [showModal, setShowModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [acceptedProposals, setAcceptedProposals] = useState<AcceptedProposal[]>([]);
-  const [form, setForm] = useState({ campaignId: "", orgId: "", content: "" });
+  /* No orgId: the API reads it off the campaign row now, because a body orgId
+     let a testimonial be attributed to an org the creator never worked with. */
+  const [form, setForm] = useState({ campaignId: "", content: "" });
 
   useEffect(() => {
     Promise.all([
@@ -68,7 +70,6 @@ export default function PortalReviewsPage() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        orgId: form.orgId,
         campaignId: form.campaignId,
         content: form.content,
       }),
@@ -77,7 +78,7 @@ export default function PortalReviewsPage() {
     if (res.status === 201) {
       toast.success("Testimonial submitted");
       setShowModal(false);
-      setForm({ campaignId: "", orgId: "", content: "" });
+      setForm({ campaignId: "", content: "" });
       // re-fetch testimonials
       fetch("/api/portal/testimonials")
         .then((r) => (r.ok ? r.json() : null))
@@ -282,14 +283,7 @@ export default function PortalReviewsPage() {
             align="left"
             fullWidth
             value={form.campaignId}
-            onChange={(v) => {
-              const p = acceptedProposals.find((p) => p.campaignId === v);
-              setForm((f) => ({
-                ...f,
-                campaignId: v,
-                orgId: p?.campaign?.org?.id ?? "",
-              }));
-            }}
+            onChange={(v) => setForm((f) => ({ ...f, campaignId: v }))}
             options={[
               { value: "", label: "Select campaign..." },
               ...acceptedProposals

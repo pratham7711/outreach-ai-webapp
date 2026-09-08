@@ -7,7 +7,8 @@ import { getInstagramAccountForCreator } from "@/lib/platforms/instagramToken";
 import { getTikTokTokenForCreator } from "@/lib/platforms/tiktokToken";
 import { parseRatePerThousand } from "@/lib/marketplace/earnings";
 import { computeCampaignAccrual } from "@/lib/marketplace/cap";
-import { isPortalCampaignVisible } from "@/lib/marketplace/portalVisibility";
+import { isPortalCampaignVisible, isPortalCampaignActionable } from "@/lib/marketplace/portalVisibility";
+import { findCreatorInOrgForHandle } from "@/lib/portal/creatorLookup";
 import { httpUrl } from "@/lib/validation/url";
 import { z } from "zod";
 
@@ -46,6 +47,7 @@ export async function POST(
       select: {
         id: true,
         orgId: true,
+        status: true,
         deletedAt: true,
         ratePerThousand: true,
         submissionDeadline: true,
@@ -65,10 +67,11 @@ export async function POST(
        TikTok submissions" — a running status report on a campaign the detail
        route two paths up already 404s them out of. The write was never at risk:
        the 403 below has always required an activation. The disclosure was. */
-    const creator = await db.creator.findFirst({
-      where: { orgId: campaign.orgId, handle: session.handle, deletedAt: null },
-      select: { id: true },
-    });
+    /* findCreatorInOrgForHandle, not an exact `handle: session.handle`: a roster
+       stores handles with or without the leading @, and join (lib/marketplace/join.ts)
+       resolves the same row case/@-insensitively. Exact equality here 403'd
+       "You must join this campaign" at a creator who had just joined successfully. */
+    const creator = await findCreatorInOrgForHandle(campaign.orgId, session.handle);
     const activation = creator
       ? await db.activation.findFirst({
           where: { campaignId: campaign.id, creatorId: creator.id, deletedAt: null },
@@ -81,6 +84,16 @@ export async function POST(
       hasActivation: !!activation,
     })) {
       return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
+    }
+
+    /* Status gate, after the visibility gate so a stranger learns nothing.
+       `status` was not even selected here, so a COMPLETE or CANCELLED campaign
+       went on accepting posts against a closed budget. */
+    if (!isPortalCampaignActionable(campaign.status)) {
+      return NextResponse.json(
+        { error: `This campaign is not accepting submissions (status: ${campaign.status})` },
+        { status: 409 }
+      );
     }
 
     // Deadline gate
@@ -116,18 +129,35 @@ export async function POST(
       return NextResponse.json({ error: "You must join this campaign before submitting" }, { status: 403 });
     }
 
-    // Idempotency: same post URL / platform post id not submitted twice to this campaign
+    /* One post, one claim: the lookup is scoped to the CAMPAIGN, not to the
+       creator. Scoped to creatorId (as it was) a post already submitted and
+       approved for creator A could be re-submitted verbatim by creator B, who
+       then accrues the same views a second time against the same budget — the
+       URL is public, so nothing stops a second creator pasting it.
+
+       RACE: there is no unique index on (campaignId, platform, platformPostId)
+       — prisma/schema.prisma is frozen for this change — so two simultaneous
+       submissions of the same URL can both pass this read and both insert. The
+       window is small and the duplicate is visible to the reviewer; the index
+       is the durable fix and ships with the next schema migration. */
     const duplicate = await db.post.findFirst({
       where: {
         campaignId: campaign.id,
-        creatorId: creator.id,
         platformPostId: detected.id,
         platform: detected.platform,
       },
-      select: { id: true },
+      select: { id: true, creatorId: true },
     });
     if (duplicate) {
-      return NextResponse.json({ error: "You already submitted this post to this campaign" }, { status: 409 });
+      return NextResponse.json(
+        {
+          error:
+            duplicate.creatorId === creator.id
+              ? "You already submitted this post to this campaign"
+              : "This post has already been submitted to this campaign",
+        },
+        { status: 409 }
+      );
     }
 
     // Best-effort metrics fetch (thumbnail / caption / views). Never blocks submission.

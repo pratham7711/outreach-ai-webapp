@@ -69,7 +69,11 @@ export async function PATCH(req: NextRequest) {
 
     const data = parsed.data;
 
-    // Handle uniqueness check
+    /* Uniqueness against CreatorUser only, for the same reason registration
+       does it that way (see app/api/portal/auth/register/route.ts). Renaming
+       to an existing roster creator's handle grants nothing: the link is
+       recomputed from scratch on every request and needs a proof this rename
+       cannot manufacture — lib/portal/creatorLink.ts. */
     if (data.handle && data.handle !== session.handle) {
       const existing = await db.creatorUser.findUnique({
         where: { handle: data.handle },
