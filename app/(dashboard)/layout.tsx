@@ -9,11 +9,41 @@ import { auth } from "@/lib/auth";
 import { isPlatformAdmin } from "@/lib/billing/subscription";
 import { getOrgEntitlements } from "@/lib/entitlements";
 import { resolveDashboardPolicy } from "@/lib/dashboardPolicy";
-import { customBrandingValue } from "@/lib/brandingDefaults";
+import { customBrandingValue, usableIconHref } from "@/lib/brandingDefaults";
 import type { OrgUiConfig } from "@/lib/orgConfig";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { VerifyEmailBanner } from "@/components/layout/VerifyEmailBanner";
+import type { Metadata } from "next";
+
+/**
+ * The org's own favicon, which was stored and never applied.
+ *
+ * Organization.faviconUrl is written by Settings → Organization Profile and
+ * was only ever echoed back by /api/tenant/config, whose one consumer
+ * (TenantProvider) reads colours and fonts off that payload and ignores this
+ * field. So a white-labelled workspace kept our tab icon.
+ *
+ * Scoped to the dashboard segment on purpose: the marketing and auth pages are
+ * not a tenant's, so they keep the platform mark. An org with no favicon (or a
+ * junk value) returns no `icons` at all, which leaves Next's file conventions —
+ * app/icon.png and app/favicon.ico — in charge, rather than substituting an
+ * empty href that resolves to the page itself.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  const session = await auth();
+  const orgId = (session?.user as any)?.orgId as string | undefined;
+  if (!orgId) return {};
+
+  const org = await db.organization.findUnique({
+    where: { id: orgId },
+    select: { faviconUrl: true },
+  });
+  const icon = usableIconHref(org?.faviconUrl);
+  if (!icon) return {};
+
+  return { icons: { icon, shortcut: icon, apple: icon } };
+}
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
