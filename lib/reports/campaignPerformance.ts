@@ -260,7 +260,10 @@ export function redactForShare(
  * not whenever a cache entry happens to expire.
  *
  * The platform filter is part of the key too, because two links on one campaign
- * can show different platforms and their totals legitimately differ.
+ * can show different platforms and their totals legitimately differ. So is the
+ * currency: it is carried straight through onto the report and is not part of
+ * the stamp (which only watches posts), so switching a campaign from USD to INR
+ * used to keep serving the old symbol for up to an hour.
  */
 export async function computeCampaignPerformance(
   campaign: { id: string; orgId: string; budget: number | null; currency: string },
@@ -271,7 +274,7 @@ export async function computeCampaignPerformance(
 
   const cached = unstable_cache(
     () => computeCampaignPerformanceUncached(campaign, platforms),
-    ["campaign-performance", BUILD_KEY, campaign.id, platformKey, stamp],
+    ["campaign-performance", BUILD_KEY, campaign.id, campaign.currency, platformKey, stamp],
     /* An entry is unreachable once the stamp moves, so it only has to outlive
        the run of views that share a stamp. Tagged so a deploy or an operator
        can still drop the lot. */
