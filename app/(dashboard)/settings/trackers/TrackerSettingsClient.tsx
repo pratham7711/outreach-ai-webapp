@@ -48,14 +48,19 @@ const CHART_OPTIONS: { value: Settings["chartGranularity"]; label: string; hint:
 export function TrackerSettingsClient() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
+  const load = useCallback(() => {
+    setLoading(true);
+    setLoadError(null);
     apiFetch<Settings>("/api/settings/trackers")
-      .then(setSettings)
-      .catch((e) => toast.error(errorMessage(e, "Could not load tracker settings")))
+      .then((s) => setSettings(s))
+      .catch((e) => setLoadError(errorMessage(e, "Could not load tracker settings")))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => { load(); }, [load]);
 
   const save = useCallback(
     async (patch: Partial<Settings>) => {
@@ -85,7 +90,21 @@ export function TrackerSettingsClient() {
       </Card>
     );
   }
-  if (!settings) return null;
+  /* Never a blank page. A failed load says so and offers a retry; returning
+     null here left the header sitting above nothing at all. */
+  if (loadError || !settings) {
+    return (
+      <Card variant="outlined">
+        <h2 style={{ fontSize: 15, fontWeight: 700, color: "var(--cc-text)", marginBottom: 6 }}>
+          Tracker settings could not be loaded
+        </h2>
+        <p style={{ fontSize: 13, color: "var(--cc-text-muted)", marginBottom: 12 }}>
+          {loadError ?? "The server returned nothing for this workspace."}
+        </p>
+        <Button variant="secondary" size="sm" onClick={load}>Try again</Button>
+      </Card>
+    );
+  }
 
   const clamped = settings.effectiveChartGranularity !== settings.chartGranularity;
 
@@ -130,6 +149,14 @@ export function TrackerSettingsClient() {
         ) : null}
       </Section>
 
+      {/* Disabled rather than removed. The value is real and stored — it is
+          simply not connected to anything: nothing in the product deletes a
+          SoundTrackerSnapshot by age, so every reading is kept for as long as
+          the org exists. Offering a working-looking number box for a limit that
+          is never applied is the worse of the two, and silently treating
+          "365" as "forever" is worse still, so the copy says which it is.
+          Removing the field would throw away the value an org already chose,
+          which the pruning job will want when it lands. */}
       <Section
         title="History kept"
         blurb="How far back readings are retained for charting."
@@ -139,23 +166,32 @@ export function TrackerSettingsClient() {
             type="number"
             min={7}
             max={1095}
-            defaultValue={settings.retentionDays}
-            disabled={saving}
+            value={settings.retentionDays}
+            disabled
+            readOnly
             aria-label="Days of history to keep"
-            onBlur={(e) => {
-              const v = Number(e.target.value);
-              if (Number.isFinite(v) && v !== settings.retentionDays) save({ retentionDays: v });
-            }}
+            aria-describedby="retention-note"
             style={{
               width: 100, padding: "8px 10px", borderRadius: 8,
-              border: "1px solid var(--cc-border)", background: "var(--cc-card)",
-              color: "var(--cc-text)", fontSize: 14,
+              border: "1px solid var(--cc-border)", background: "var(--cc-bg)",
+              color: "var(--cc-text-muted)", fontSize: 14,
             }}
           />
           <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>
-            days (7–1095). The reference product shows about a year.
+            days (7–1095), stored but not yet applied.
           </span>
         </div>
+        <p
+          id="retention-note"
+          style={{
+            marginTop: 10, fontSize: 12, color: "var(--cc-text)",
+            borderLeft: "3px solid var(--cc-warning)", paddingLeft: 10,
+          }}
+        >
+          Nothing prunes readings yet — every snapshot is kept indefinitely,
+          whatever this number says. The setting is held for the pruning job and
+          is read-only until then.
+        </p>
       </Section>
     </div>
   );
