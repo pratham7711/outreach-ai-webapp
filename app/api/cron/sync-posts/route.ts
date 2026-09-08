@@ -19,6 +19,7 @@ import { ensureFreshTikTokToken } from "@/lib/platforms/tiktokToken";
 import { decideSyncAction, SyncAction } from "@/lib/sync/cadence";
 import { LAST_FETCH_KEY } from "@/lib/metricDisplay";
 import { alertOps, shouldAlertOnBatch } from "@/lib/alerts";
+import { alertIfInstagramSourceDown } from "@/lib/integrations/health";
 import { createLogger } from "@/lib/observability/logger";
 
 const MAX_SYNC_FAILURES = 5;
@@ -126,6 +127,7 @@ export async function GET(request: NextRequest) {
   const noCountReasons: Record<string, number> = {};
   let sealed = 0;
   let unavailable = 0;
+  let instagramCredentialsRejected = 0;
   let failed = 0;
   let deadLettered = 0;
   let skippedForBudget = 0;
@@ -398,6 +400,13 @@ export async function GET(request: NextRequest) {
              what puts the cause somewhere a person will see it. */
           if (outcome.reason === "credentials-rejected") {
             unavailable++;
+            /* Counted apart from `unavailable` because the two have different
+               owners. A rejected credential on a TikTok or YouTube post, or on
+               an Instagram post whose creator's own token lapsed, is not the
+               platform token -- and only the platform token is worth emailing
+               an operator about. The count is the trigger; the probe at the end
+               of the run is the diagnosis. */
+            if (post.platform === "INSTAGRAM") instagramCredentialsRejected++;
             log.warn("skipped post; platform credentials could not be used", {
               postId: post.id,
               platform: post.platform,
@@ -493,7 +502,8 @@ export async function GET(request: NextRequest) {
     const skipped = Object.values(skippedByReason).reduce((a, b) => a + b, 0);
 
     log.info("sync complete", {
-      synced, noCounts, noCountReasons, unavailable, sealed, failed, deadLettered, skipped,
+      synced, noCounts, noCountReasons, unavailable, instagramCredentialsRejected,
+      sealed, failed, deadLettered, skipped,
       skippedByReason, skippedForBudget, total: posts.length,
     });
 
@@ -514,6 +524,19 @@ export async function GET(request: NextRequest) {
         facts: { deadLettered, failed, total: posts.length },
       });
     }
+    /* Aggregation point, not the fetch loop: the loop runs per post and would
+       mail per post. A rejected Instagram credential is only the trigger here --
+       it can equally be one creator's own lapsed token -- so the probe inside
+       decides whether the platform token is what died, and its own 24h throttle
+       decides whether anyone hears about it again today. */
+    let instagramSourceAlert: { alerted: boolean; reason: string } | null = null;
+    if (instagramCredentialsRejected > 0) {
+      instagramSourceAlert = await alertIfInstagramSourceDown({
+        rejectedPosts: instagramCredentialsRejected,
+        totalPosts: posts.length,
+      });
+    }
+
     return NextResponse.json({
       ok: true,
       synced,
@@ -528,6 +551,11 @@ export async function GET(request: NextRequest) {
          must replace INSTAGRAM_BUSINESS_TOKEN. Left inside the map it reads as
          just another way a fetch came back thin. */
       unavailable,
+      /* Broken out again for the same reason `unavailable` is: this is the
+         subset with a platform-level remedy, and it is what decided whether an
+         operator was emailed. */
+      instagramCredentialsRejected,
+      instagramSourceAlert,
       sealed,
       failed,
       deadLettered,
