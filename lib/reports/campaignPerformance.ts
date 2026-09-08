@@ -31,6 +31,14 @@ const BUILD_KEY = process.env.VERCEL_DEPLOYMENT_ID ?? "local";
 type SeriesPlatform = "TIKTOK" | "INSTAGRAM" | "YOUTUBE";
 const SERIES_PLATFORMS: SeriesPlatform[] = ["TIKTOK", "INSTAGRAM", "YOUTUBE"];
 
+/**
+ * Ceiling on the views-over-time read, after the database has collapsed it to
+ * one row per post per day. The report itself charts every row it is given --
+ * there is no from/to on this seam -- so this is the bound, not a calendar
+ * window: exceed it and the chart starts later rather than reading unbounded.
+ */
+const SERIES_SNAPSHOT_ROW_CAP = 100_000;
+
 export type CampaignPerformance = {
   currency: string;
   kpis: {
@@ -349,7 +357,21 @@ async function computeCampaignPerformanceUncached(
     ...(platforms?.length && { platform: { in: platforms as unknown as never } }),
   };
 
-  const [posts, snapshots, activations] = await Promise.all([
+  /* The series has one column per SERIES_PLATFORM, so those are the only
+     platforms whose snapshots can reach the chart. SharePlatform is that same
+     set, so a caller's filter is always a subset and this list is never empty.
+     Values are bound, never interpolated: $1 is the campaign, the platforms
+     take $2 onward. */
+  const seriesPlatforms: readonly string[] = platforms?.length ? platforms : SERIES_PLATFORMS;
+  const snapshotParams: unknown[] = [campaign.id];
+  const platformFilter = ` AND p.platform::text IN (${seriesPlatforms
+    .map((p) => {
+      snapshotParams.push(p);
+      return `$${snapshotParams.length}`;
+    })
+    .join(", ")})`;
+
+  const [posts, snapshotDays, activations] = await Promise.all([
     db.post.findMany({
     where: postWhere,
     select: {
@@ -373,14 +395,49 @@ async function computeCampaignPerformanceUncached(
     },
     }),
 
-    /* The same platform filter as the posts above, not just the campaign: a
-       report restricted to Instagram must not draw a views-over-time line that
-       includes the TikTok snapshots its own KPIs exclude. */
-    db.postMetricSnapshot.findMany({
-      where: { post: postWhere },
-      select: { postId: true, viewsCount: true, recordedAt: true },
-      orderBy: { recordedAt: "asc" },
-    }),
+    /* Collapsed in the database to the rows the chart can actually use: ONE per
+       post per UTC day, the latest of that day.
+
+       This was an unbounded findMany over every snapshot the campaign ever
+       wrote, and PostMetricSnapshot is an append-only log -- an hourly-synced
+       post writes 24 rows a day. carryForwardViewsByDay then throws 23 of them
+       away, because a day's value is that day's LAST reading. So the report
+       read up to 24x the rows it charts, with no `take` at all: 500 posts
+       synced hourly for a year is 4.4M rows crossing the wire to draw 365
+       points. DISTINCT ON does the discarding in Postgres, where it is an index
+       walk rather than a network transfer, and the result is byte-identical
+       because the helper's rule and the ORDER BY are the same rule.
+
+       Narrowed to SERIES_PLATFORMS as well as the caller's platform filter: the
+       series only has TIKTOK, INSTAGRAM and YOUTUBE columns, so a TWITTER
+       post's snapshots were fetched and then dropped by the helper.
+
+       The day arrives as TEXT, not as a timestamp. PostMetricSnapshot.recordedAt
+       is `timestamp without time zone` holding UTC, and node-postgres reads that
+       as LOCAL time -- correct on Vercel, 5h30m out on an IST laptop, which
+       would move readings near midnight into the wrong day. to_char formats it
+       in the database, where the value is unambiguous. One row per post per day
+       also means there is nothing left to tie-break, so a midnight-UTC Date
+       rebuilt from that string carries all the information the helper needs. */
+    db.$queryRawUnsafe<{ postId: string; day: string; viewsCount: number | null }[]>(
+      `SELECT * FROM (
+         SELECT DISTINCT ON (s."postId", s."recordedAt"::date)
+                s."postId"                            AS "postId",
+                to_char(s."recordedAt", 'YYYY-MM-DD') AS "day",
+                s."viewsCount"                        AS "viewsCount"
+           FROM "PostMetricSnapshot" s
+           JOIN "Post" p ON p.id = s."postId"
+          WHERE p."campaignId" = $1${platformFilter}
+          ORDER BY s."postId", s."recordedAt"::date, s."recordedAt" DESC, s.id DESC
+       ) collapsed
+       /* A hard bound, so no single campaign can ever read the whole table.
+          Newest first, so a campaign large enough to hit it loses the LEFT edge
+          of its chart rather than its current numbers. At one row per post per
+          day this is 500 posts charted for 200 days. */
+       ORDER BY collapsed."day" DESC
+       LIMIT ${SERIES_SNAPSHOT_ROW_CAP}`,
+      ...snapshotParams
+    ),
 
     /* Statuses live on Activation, not on the posts, and a creator can hold more
        than one activation on the same campaign (a re-brief, a second deliverable).
@@ -477,7 +534,14 @@ async function computeCampaignPerformanceUncached(
         postedAt: p.postedAt,
         viewsCount: p.viewsCount,
       })),
-    snapshots,
+    /* Midnight UTC of the day the database collapsed the reading into. dayKey()
+       reads it straight back out, and there is exactly one row per post per
+       day, so nothing downstream needs the original clock time. */
+    snapshots: snapshotDays.map((s) => ({
+      postId: s.postId,
+      recordedAt: new Date(`${s.day}T00:00:00.000Z`),
+      viewsCount: s.viewsCount,
+    })),
     groups: SERIES_PLATFORMS,
   }).map(({ date, totals }) => ({ date, ...totals }));
 

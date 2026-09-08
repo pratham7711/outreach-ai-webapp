@@ -42,27 +42,40 @@ function stubRaw(monthRows: any[] = [], slotRows: any[] = []) {
 }
 
 const EMPTY_KPIS = {
-  _sum: { viewsCount: null, likesCount: null, commentsCount: null },
-  _avg: { engagementRate: null },
+  _sum: {
+    viewsCount: null,
+    likesCount: null,
+    commentsCount: null,
+    sharesCount: null,
+    savesCount: null,
+  },
   _count: { _all: 0 },
 };
 
 /**
  * aggregate is called twice: once for the totals over every post, then once
- * over only the posts carrying an engagement rate — the second is the average's
- * real sample, because the import left the column at 0 on 99.4% of rows.
+ * over only the MEASURED posts — the second carries both the rate's numerator
+ * and its denominator, because a post nobody fetched reads as zeroes it never
+ * earned and must not sit in the denominator.
  */
 function stubAggregates(totals: any, measured: any) {
   mockDb.post.aggregate.mockResolvedValueOnce(totals).mockResolvedValueOnce(measured);
 }
 
 /**
- * groupBy is called three times, in order: (creator, platform) totals,
+ * groupBy is called four times, in order: (creator, platform) totals, the
+ * per-creator measured sums behind the leaderboard's engagement rate,
  * (creator, campaign) pairs, then per-platform totals.
  */
-function stubGroupBy(creatorPlatform: any[] = [], creatorCampaign: any[] = [], byPlatform: any[] = []) {
+function stubGroupBy(
+  creatorPlatform: any[] = [],
+  creatorMeasured: any[] = [],
+  creatorCampaign: any[] = [],
+  byPlatform: any[] = []
+) {
   mockDb.post.groupBy
     .mockResolvedValueOnce(creatorPlatform)
+    .mockResolvedValueOnce(creatorMeasured)
     .mockResolvedValueOnce(creatorCampaign)
     .mockResolvedValueOnce(byPlatform);
 }
@@ -108,13 +121,30 @@ describe("GET /api/analytics", () => {
         _sum: { viewsCount: 30_000, likesCount: 1_500, commentsCount: 150 },
         _count: { _all: 2 },
       },
-      { _avg: { engagementRate: 5 }, _count: { _all: 2 } }
+      // 1,650 engagements over 30,000 measured views = 5.50%.
+      {
+        _sum: {
+          viewsCount: 30_000,
+          likesCount: 1_500,
+          commentsCount: 150,
+          sharesCount: 0,
+          savesCount: 0,
+        },
+        _count: { _all: 2 },
+      }
     );
     stubGroupBy(
       [
         {
           creatorId: "creator-1",
           platform: "TIKTOK",
+          _sum: { viewsCount: 30_000, likesCount: 1_500, commentsCount: 150, sharesCount: 0, savesCount: 0 },
+          _count: { _all: 2 },
+        },
+      ],
+      [
+        {
+          creatorId: "creator-1",
           _sum: { viewsCount: 30_000, likesCount: 1_500, commentsCount: 150, sharesCount: 0, savesCount: 0 },
           _count: { _all: 2 },
         },
@@ -134,7 +164,7 @@ describe("GET /api/analytics", () => {
       totalViews: 30_000,
       totalLikes: 1_500,
       totalComments: 150,
-      avgEngagementRate: 5,
+      avgEngagementRate: 5.5,
       totalPosts: 2,
       engagementSample: 2,
     });
@@ -150,10 +180,28 @@ describe("GET /api/analytics", () => {
     expect(body.platformBreakdown).toEqual([{ platform: "TIKTOK", views: 30_000, posts: 2 }]);
   });
 
-  it("averages engagement over measured posts only, and says how many", async () => {
+  /* The KPI was a mean of Post.engagementRate over the rows carrying one. That
+     is a different number three ways over: Post.engagementRate is
+     (likes + comments) / views, a mean of per-post rates is not the campaign's
+     rate, and `engagementRate > 0` excluded a post we fetched that genuinely
+     got no engagement. It is rollupEngagement now — the same function the
+     campaign tile, the Posts tab and the client report all read. */
+  it("rates engagement over the measured posts only, and says how many those were", async () => {
     stubAggregates(
       { _sum: { viewsCount: 1_000_000, likesCount: 500, commentsCount: 0 }, _count: { _all: 18_708 } },
-      { _avg: { engagementRate: 1.1 }, _count: { _all: 106 } }
+      // 106 measured posts: 11,000 engagements over 1,000,000 views = 1.10%.
+      // The other 18,602 carry 900k views nobody ever fetched, and counting
+      // those in the denominator is what reported 0.05% for this roster.
+      {
+        _sum: {
+          viewsCount: 1_000_000,
+          likesCount: 9_000,
+          commentsCount: 1_000,
+          sharesCount: 800,
+          savesCount: 200,
+        },
+        _count: { _all: 106 },
+      }
     );
 
     const body = await (await getAnalytics(makeRequest())).json();
@@ -161,9 +209,76 @@ describe("GET /api/analytics", () => {
     expect(body.kpis.engagementSample).toBe(106);
     expect(body.kpis.totalPosts).toBe(18_708);
 
-    // The second aggregate is the one that excludes the unmeasured rows.
+    // The second aggregate is the one that excludes the unmeasured rows, by the
+    // same predicate rollupEngagement applies in Node.
     const [, measuredCall] = mockDb.post.aggregate.mock.calls;
-    expect(measuredCall[0].where.engagementRate).toEqual({ gt: 0 });
+    expect(measuredCall[0].where.OR).toEqual([
+      { likesCount: { gt: 0 } },
+      { lastSyncedAt: { not: null } },
+    ]);
+    expect(measuredCall[0]._sum.savesCount).toBe(true);
+    // Saves are the fourth term, and the old mean did not have them.
+    expect(measuredCall[0]._avg).toBeUndefined();
+  });
+
+  it("reports no rate at all for an org with nothing measured", async () => {
+    stubAggregates(
+      { _sum: { viewsCount: 500_000, likesCount: 0, commentsCount: 0 }, _count: { _all: 900 } },
+      { _sum: { viewsCount: null, likesCount: null, commentsCount: null, sharesCount: null, savesCount: null }, _count: { _all: 0 } }
+    );
+
+    const body = await (await getAnalytics(makeRequest())).json();
+    expect(body.kpis.engagementSample).toBe(0);
+    // The tile is hidden on a zero sample, so 0 here is "nothing to show".
+    expect(body.kpis.avgEngagementRate).toBe(0);
+  });
+
+  it("rates a leaderboard creator over their measured posts, not all of them", async () => {
+    stubGroupBy(
+      [
+        {
+          creatorId: "creator-1",
+          platform: "TIKTOK",
+          // Every post: 100k views, of which only 10k were ever fetched.
+          _sum: { viewsCount: 100_000, likesCount: 600, commentsCount: 0, sharesCount: 0, savesCount: 0 },
+          _count: { _all: 10 },
+        },
+      ],
+      [
+        {
+          creatorId: "creator-1",
+          _sum: { viewsCount: 10_000, likesCount: 600, commentsCount: 0, sharesCount: 0, savesCount: 0 },
+          _count: { _all: 1 },
+        },
+      ]
+    );
+    mockDb.creator.findMany.mockResolvedValue([
+      { id: "creator-1", name: "Alice", handle: "alice", platform: "TIKTOK", avatarUrl: null, followersCount: 0 },
+    ]);
+
+    const body = await (await getAnalytics(makeRequest())).json();
+    // 600 / 10,000, not 600 / 100,000. Views on the same row stay the full total.
+    expect(body.leaderboard[0].engagementRate).toBeCloseTo(0.06, 6);
+    expect(body.leaderboard[0].engagements).toBe(600);
+    expect(body.leaderboard[0].views).toBe(100_000);
+  });
+
+  it("reports zero for a leaderboard creator with no measured post", async () => {
+    stubGroupBy([
+      {
+        creatorId: "creator-1",
+        platform: "TIKTOK",
+        _sum: { viewsCount: 100_000, likesCount: 0, commentsCount: 0, sharesCount: 0, savesCount: 0 },
+        _count: { _all: 10 },
+      },
+    ]);
+    mockDb.creator.findMany.mockResolvedValue([
+      { id: "creator-1", name: "Alice", handle: "alice", platform: "TIKTOK", avatarUrl: null, followersCount: 0 },
+    ]);
+
+    const body = await (await getAnalytics(makeRequest())).json();
+    expect(body.leaderboard[0].engagementRate).toBe(0);
+    expect(body.leaderboard[0].engagements).toBe(0);
   });
 
   it("prices EMV off each platform's summed counts", async () => {

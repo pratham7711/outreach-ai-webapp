@@ -8,7 +8,10 @@
 jest.mock("@/lib/db", () => ({
   db: {
     post: { findMany: jest.fn() },
-    postMetricSnapshot: { findMany: jest.fn() },
+    // The views-over-time read is raw SQL: DISTINCT ON collapses the
+    // append-only snapshot log to one row per post per UTC day in the database
+    // rather than shipping every hourly reading to Node.
+    $queryRawUnsafe: jest.fn(),
     activation: { findMany: jest.fn() },
     // The report also reaches campaign -> song -> sound for the audio card.
     campaign: { findUnique: jest.fn() },
@@ -23,7 +26,7 @@ import { computeCampaignPerformance } from "@/lib/reports/campaignPerformance";
 
 const mockDb = db as unknown as {
   post: { findMany: jest.Mock };
-  postMetricSnapshot: { findMany: jest.Mock };
+  $queryRawUnsafe: jest.Mock;
   activation: { findMany: jest.Mock };
   campaign: { findUnique: jest.Mock };
   soundTrackerSnapshot: { findMany: jest.Mock };
@@ -60,7 +63,7 @@ function post(over: Record<string, unknown> = {}) {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  mockDb.postMetricSnapshot.findMany.mockResolvedValue([]);
+  mockDb.$queryRawUnsafe.mockResolvedValue([]);
   // No activations by default — which is the state of every imported campaign,
   // and the reason a leaderboard status is null rather than a default status.
   mockDb.activation.findMany.mockResolvedValue([]);
@@ -358,5 +361,93 @@ describe("computeCampaignPerformance per-counter totals", () => {
 
     expect(result.kpis.saves).toBe(12);
     expect(result.kpis.downloads).toBe(3);
+  });
+});
+
+/**
+ * The views-over-time read. PostMetricSnapshot is append-only and an
+ * hourly-synced post writes 24 rows a day, of which the chart uses exactly one.
+ * The report used to pull all of them, with no `take` at all.
+ */
+describe("computeCampaignPerformance views-over-time read", () => {
+  const sqlOfSeriesRead = () => String(mockDb.$queryRawUnsafe.mock.calls[0][0]);
+
+  beforeEach(() => {
+    mockDb.post.findMany.mockResolvedValue([post()]);
+  });
+
+  it("collapses the snapshot log to one row per post per UTC day in the database", async () => {
+    await computeCampaignPerformance(campaign);
+
+    const sql = sqlOfSeriesRead();
+    expect(sql).toContain('DISTINCT ON (s."postId", s."recordedAt"::date)');
+    // Latest reading of the day, which is the rule carryForwardViewsByDay
+    // applies in Node — same rule, moved to where the rows already are.
+    expect(sql).toContain('ORDER BY s."postId", s."recordedAt"::date, s."recordedAt" DESC');
+  });
+
+  it("bounds the read and drops the oldest days first when it hits the bound", async () => {
+    await computeCampaignPerformance(campaign);
+
+    const sql = sqlOfSeriesRead();
+    expect(sql).toMatch(/LIMIT \d+/);
+    expect(sql).toContain('ORDER BY collapsed."day" DESC');
+  });
+
+  it("selects only the three columns the series needs", async () => {
+    await computeCampaignPerformance(campaign);
+
+    const sql = sqlOfSeriesRead();
+    for (const column of ["likesCount", "commentsCount", "sharesCount", "platformMetrics", "syncSource"]) {
+      expect(sql).not.toContain(column);
+    }
+    // The day is formatted in Postgres: recordedAt is `timestamp without time
+    // zone` holding UTC, and node-postgres reads that as LOCAL time, which would
+    // move a reading near midnight into the wrong bucket on an IST laptop.
+    expect(sql).toContain("to_char(s.\"recordedAt\", 'YYYY-MM-DD')");
+  });
+
+  it("scopes the read to the campaign, with the id bound rather than interpolated", async () => {
+    await computeCampaignPerformance(campaign);
+
+    const [sql, ...params] = mockDb.$queryRawUnsafe.mock.calls[0];
+    expect(String(sql)).toContain('p."campaignId" = $1');
+    expect(params[0]).toBe("camp-1");
+    expect(String(sql)).not.toContain("camp-1");
+  });
+
+  it("narrows to the three platforms the chart has columns for", async () => {
+    // A TWITTER post's snapshots were fetched and then silently discarded by
+    // carryForwardViewsByDay, which has no column to put them in.
+    await computeCampaignPerformance(campaign);
+
+    const [sql, ...params] = mockDb.$queryRawUnsafe.mock.calls[0];
+    expect(String(sql)).toContain("p.platform::text IN ($2, $3, $4)");
+    expect(params).toEqual(["camp-1", "TIKTOK", "INSTAGRAM", "YOUTUBE"]);
+  });
+
+  it("narrows further to the caller's own platform filter", async () => {
+    await computeCampaignPerformance(campaign, ["INSTAGRAM"]);
+
+    const [sql, ...params] = mockDb.$queryRawUnsafe.mock.calls[0];
+    expect(String(sql)).toContain("p.platform::text IN ($2)");
+    expect(params).toEqual(["camp-1", "INSTAGRAM"]);
+  });
+
+  it("charts the day the database bucketed, not the laptop's reading of it", async () => {
+    mockDb.post.findMany.mockResolvedValue([
+      post({ id: "p1", platform: "TIKTOK", postedAt: new Date("2026-08-01T00:00:00Z"), viewsCount: 10 }),
+    ]);
+    mockDb.$queryRawUnsafe.mockResolvedValue([
+      { postId: "p1", day: "2026-08-02", viewsCount: 4_000 },
+      { postId: "p1", day: "2026-08-03", viewsCount: 5_000 },
+    ]);
+
+    const result = await computeCampaignPerformance(campaign);
+
+    expect(result.timeSeries).toEqual([
+      { date: "2026-08-02", TIKTOK: 4_000, INSTAGRAM: 0, YOUTUBE: 0 },
+      { date: "2026-08-03", TIKTOK: 5_000, INSTAGRAM: 0, YOUTUBE: 0 },
+    ]);
   });
 });

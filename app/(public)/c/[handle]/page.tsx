@@ -87,12 +87,32 @@ export default async function CreatorProfilePage({
      _prisma_migrations table, so it is deferred rather than done here. Until
      then the safe reading of an unlabelled row is "private". */
 
+  /* The same argument, one model over. A CreatorTestimonial IS the creator's
+     own words -- they write it from their portal, about an org -- so unlike a
+     CreatorReview the text itself is theirs to publish. The ATTRIBUTION is not.
+     "Org One" and "Summer Drop 2026" on an unauthenticated page state that a
+     named brand ran a named campaign with this creator, which is the brand's
+     fact about its own roster and spend, and no one on the org side was ever
+     asked. It is the same disclosure the review fix above removed, arriving
+     through the one row a creator can write.
+
+     Checked before deciding: CreatorTestimonial has no isPublic, no status and
+     no approvedAt (prisma/schema.prisma), /api/portal/testimonials writes it
+     straight through on an accepted proposal, and the authoring UI
+     (app/(portal)/portal/reviews/page.tsx) says only "Share your experience
+     working with orgs" -- nothing anywhere tells either party this lands on a
+     public page. With no publish step to honour, the safe reading of an
+     unlabelled row is again "not published", and the narrowest fix that keeps
+     the creator's own voice is to print the quote without naming who it is
+     about.
+
+     The durable design is the same one the reviews comment describes: a column
+     the author sets, plus the org's consent for the attribution. That needs a
+     migration, and production was built with `db push` and has no
+     _prisma_migrations table, so it is deferred rather than done here. */
   const testimonials = await db.creatorTestimonial.findMany({
     where: { creatorUserId: user.id },
-    include: {
-      org: { select: { name: true } },
-      campaign: { select: { title: true } },
-    },
+    select: { id: true, content: true },
     orderBy: { createdAt: "desc" },
     take: 5,
   });
@@ -391,20 +411,9 @@ export default async function CreatorProfilePage({
                 >
                   {t.content}
                 </p>
-                <div style={{ paddingLeft: 32 }}>
-                  <div
-                    style={{
-                      fontSize: 13,
-                      fontWeight: 600,
-                      color: "var(--cc-text)",
-                    }}
-                  >
-                    {t.org.name}
-                  </div>
-                  <div style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>
-                    {t.campaign.title}
-                  </div>
-                </div>
+                {/* No org name and no campaign title: see the query above. The
+                    quote is the creator's; naming the brand and the campaign is
+                    the brand's disclosure to make. */}
               </div>
             ))}
           </div>

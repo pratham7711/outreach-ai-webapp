@@ -149,6 +149,30 @@ describe("GET /api/dashboard/financials", () => {
     }
   });
 
+  /* Total Creators is a roster count, and a roster is the campaigns that still
+     exist. The activation query carried its OWN deletedAt but not the
+     campaign's, so a creator activated only on a soft-deleted campaign kept
+     the tile inflated while every post tile, activeCampaigns and the campaign
+     title lookup on the same screen had already dropped that campaign. */
+  it("counts roster creators only from campaigns that are not soft-deleted", async () => {
+    await GET(makeRequest("http://localhost/api/dashboard/financials"));
+
+    const [rosterCall] = mockDb.activation.findMany.mock.calls;
+    expect(rosterCall[0].where.campaign).toEqual({ orgId: "org-1", deletedAt: null });
+    // The activation's own soft-delete flag stays too — both, not either.
+    expect(rosterCall[0].where.deletedAt).toBeNull();
+  });
+
+  it("drops a creator whose only activation is on a deleted campaign", async () => {
+    /* The filter lives in the query, so the mock stands in for the database
+       having applied it: the deleted campaign's activation never comes back. */
+    mockDb.campaign.count.mockResolvedValue(0);
+    mockDb.activation.findMany.mockResolvedValueOnce([]);
+
+    const body = await (await GET(makeRequest("http://localhost/api/dashboard/financials"))).json();
+    expect(body.summary.totalCreators).toBe(0);
+  });
+
   /* The point of the snapshot table. If the chart ever goes back to reading
      Post.viewsCount, the past starts moving again and a screenshot from last
      week stops matching today's chart. */

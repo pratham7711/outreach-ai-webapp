@@ -129,3 +129,113 @@ describe("carryForwardViewsByDay", () => {
     expect(carryForwardViewsByDay({ posts: [], snapshots: [], groups: ["g"] })).toEqual([]);
   });
 });
+
+/**
+ * The day loop used to re-sum every post's last known reading on every day it
+ * emitted -- O(posts x days) to produce one row per day. It now carries running
+ * per-group totals and moves them by the delta of the posts that actually got a
+ * reading that day. That is a rewrite of the arithmetic, not a refactor of it,
+ * so the old implementation is kept HERE, in the test, and the two are compared
+ * on randomized inputs. It exists only to be the oracle; nothing ships it.
+ */
+function carryForwardViewsByDay_reSum<G extends string>(input: {
+  posts: readonly { id: string; group: G; postedAt: Date; viewsCount: number | null }[];
+  snapshots: readonly { postId: string; recordedAt: Date; viewsCount: number | null }[];
+  groups: readonly G[];
+}): { date: string; totals: Record<G, number> }[] {
+  const { posts, snapshots, groups } = input;
+  const groupByPost = new Map<string, G>(posts.map((p) => [p.id, p.group]));
+  const latest = new Map<string, Map<string, { at: number; views: number }>>();
+  const withSnapshots = new Set<string>();
+  const days = new Set<string>();
+
+  for (const snap of snapshots) {
+    if (!groupByPost.has(snap.postId)) continue;
+    const day = snap.recordedAt.toISOString().slice(0, 10);
+    const at = snap.recordedAt.getTime();
+    let ofDay = latest.get(day);
+    if (!ofDay) latest.set(day, (ofDay = new Map()));
+    const existing = ofDay.get(snap.postId);
+    if (!existing || at >= existing.at) {
+      ofDay.set(snap.postId, { at, views: snap.viewsCount ?? 0 });
+    }
+    withSnapshots.add(snap.postId);
+    days.add(day);
+  }
+
+  const firstSeen = new Map<string, { postId: string; views: number }[]>();
+  for (const post of posts) {
+    if (withSnapshots.has(post.id)) continue;
+    const day = post.postedAt.toISOString().slice(0, 10);
+    days.add(day);
+    const bucket = firstSeen.get(day);
+    const entry = { postId: post.id, views: post.viewsCount ?? 0 };
+    if (bucket) bucket.push(entry);
+    else firstSeen.set(day, [entry]);
+  }
+
+  const lastKnown = new Map<string, number>();
+  const rows: { date: string; totals: Record<G, number> }[] = [];
+  for (const day of Array.from(days).sort()) {
+    for (const [postId, reading] of latest.get(day) ?? []) lastKnown.set(postId, reading.views);
+    for (const entry of firstSeen.get(day) ?? []) lastKnown.set(entry.postId, entry.views);
+
+    const totals = Object.fromEntries(groups.map((g) => [g, 0])) as Record<G, number>;
+    for (const [postId, views] of lastKnown) {
+      const group = groupByPost.get(postId);
+      if (group !== undefined && group in totals) totals[group] += views;
+    }
+    rows.push({ date: day, totals });
+  }
+  return rows;
+}
+
+describe("carryForwardViewsByDay — equivalence with the re-summing implementation", () => {
+  /* A tiny deterministic PRNG, so a failure is reproducible from the seed
+     printed in the assertion rather than gone on the next run. */
+  function rng(seed: number) {
+    let s = seed >>> 0;
+    return () => {
+      s = (s * 1_664_525 + 1_013_904_223) >>> 0;
+      return s / 0x1_0000_0000;
+    };
+  }
+
+  const GROUPS = ["TIKTOK", "INSTAGRAM", "YOUTUBE"] as const;
+  const DAY_MS = 86_400_000;
+  const EPOCH = Date.UTC(2026, 0, 1);
+
+  it("produces identical rows on 300 randomized inputs", () => {
+    for (let seed = 1; seed <= 300; seed++) {
+      const rand = rng(seed);
+      const int = (n: number) => Math.floor(rand() * n);
+
+      // Small on purpose: overlapping days, repeated readings on one day, posts
+      // with no snapshots, snapshots for posts out of scope, and groups that
+      // never appear are all likely at these sizes.
+      const postCount = 1 + int(5);
+      const posts = Array.from({ length: postCount }, (_, i) => ({
+        id: `p${i}`,
+        group: GROUPS[int(GROUPS.length)],
+        postedAt: new Date(EPOCH + int(6) * DAY_MS + int(DAY_MS)),
+        // Whole view counts, as every writer of this column produces.
+        viewsCount: rand() < 0.15 ? null : int(5_000),
+      }));
+
+      const snapCount = int(14);
+      const snapshots = Array.from({ length: snapCount }, () => ({
+        // ~1 in 8 references a post that is not in scope at all.
+        postId: rand() < 0.125 ? "ghost" : `p${int(postCount)}`,
+        recordedAt: new Date(EPOCH + int(6) * DAY_MS + int(DAY_MS)),
+        viewsCount: rand() < 0.1 ? null : int(20_000),
+      }));
+
+      // A group with no posts must still get an explicit 0 column.
+      const groups = rand() < 0.3 ? GROUPS.slice(0, 2) : GROUPS;
+
+      const expected = carryForwardViewsByDay_reSum({ posts, snapshots, groups });
+      const actual = carryForwardViewsByDay({ posts, snapshots, groups });
+      expect({ seed, rows: actual }).toEqual({ seed, rows: expected });
+    }
+  });
+});

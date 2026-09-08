@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { MEASURED_POSTS_FILTER, rollupEngagementFromTotals } from "@/lib/metricDisplay";
 import { getRefreshCooldown, refreshCampaign } from "@/lib/sync/refreshCampaign";
 
 type ToolContent = { type: "text"; text: string };
@@ -210,8 +211,11 @@ export async function executeMcpTool(
        *
        * avgEngagementRate averaged `engagementRate ?? 0` across every post,
        * including the ones never measured, which drags the figure toward zero by
-       * however many are missing. It now covers only posts carrying a rate and
-       * says how many that was — the same rule /api/analytics follows.
+       * however many are missing. It is now rollupEngagement — the product's one
+       * definition, (likes + comments + shares + saves) over the views of the
+       * posts we actually measured — and says how many that was. An agent
+       * reading this over MCP and a brand reading the client report have to be
+       * told the same number.
        *
        * Counting also moved into the database. This read every post row in the
        * org to add up two columns.
@@ -223,8 +227,14 @@ export async function executeMcpTool(
           _count: { _all: true },
         }),
         db.post.aggregate({
-          where: { campaign: { orgId }, engagementRate: { gt: 0 } },
-          _avg: { engagementRate: true },
+          where: { campaign: { orgId }, ...MEASURED_POSTS_FILTER },
+          _sum: {
+            viewsCount: true,
+            likesCount: true,
+            commentsCount: true,
+            sharesCount: true,
+            savesCount: true,
+          },
           _count: { _all: true },
         }),
         db.payout.aggregate({
@@ -236,6 +246,14 @@ export async function executeMcpTool(
 
       const measuredPosts = ratedRow._count._all;
       const recordedPayouts = payoutRow._count._all;
+      const engagement = rollupEngagementFromTotals({
+        measuredPosts,
+        viewsCount: ratedRow._sum.viewsCount,
+        likesCount: ratedRow._sum.likesCount,
+        commentsCount: ratedRow._sum.commentsCount,
+        sharesCount: ratedRow._sum.sharesCount,
+        savesCount: ratedRow._sum.savesCount,
+      });
 
       return {
         content: [{
@@ -245,10 +263,10 @@ export async function executeMcpTool(
             totalPosts: viewRow._count._all,
             // null, not 0: no rate was measured, which is not the same as an
             // engagement rate of zero.
+            // A percentage, matching the dashboard tile: rollupEngagement
+            // returns a fraction and the ×100 lives at the display boundary.
             avgEngagementRate:
-              measuredPosts > 0
-                ? Math.round((ratedRow._avg.engagementRate ?? 0) * 100) / 100
-                : null,
+              engagement.rate === null ? null : Math.round(engagement.rate * 100 * 100) / 100,
             engagementSample: measuredPosts,
             // Named for its provenance. This is what completed payouts add up
             // to, which is only the campaign spend an org has actually recorded

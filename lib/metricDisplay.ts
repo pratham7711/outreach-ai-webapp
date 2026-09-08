@@ -217,6 +217,58 @@ export function rollupEngagement(
   };
 }
 
+/**
+ * rollupEngagement's "measured" test, written as a Prisma filter.
+ *
+ * rollupEngagement keeps a post when `metricValue(likesCount, lastSyncedAt)` is
+ * not UNKNOWN -- a positive likes count, or a sync stamp proving we looked. The
+ * routes that aggregate in the database cannot load posts to apply that in
+ * Node, and each one that reimplemented the denominator inline is how the
+ * product ended up with three engagement rates. This is the same predicate, in
+ * the one place, so a change to the rule reaches SQL and JavaScript together.
+ */
+export const MEASURED_POSTS_FILTER: {
+  OR: ({ likesCount: { gt: number } } | { lastSyncedAt: { not: null } })[];
+} = {
+  OR: [{ likesCount: { gt: 0 } }, { lastSyncedAt: { not: null } }],
+};
+
+/**
+ * rollupEngagement over sums the database already computed under
+ * MEASURED_POSTS_FILTER.
+ *
+ * (sum likes + sum comments + ...) / sum views is exactly what rollupEngagement
+ * produces from the individual rows -- the rate is a ratio of totals, not a mean
+ * of per-post rates -- so an aggregate answers it without reading a post. Pass
+ * `measuredPosts: 0` for an org that has none: the result is null, never 0.
+ */
+export function rollupEngagementFromTotals(input: {
+  measuredPosts: number;
+  viewsCount?: number | null;
+  likesCount?: number | null;
+  commentsCount?: number | null;
+  sharesCount?: number | null;
+  savesCount?: number | null;
+}): EngagementRollup {
+  if (input.measuredPosts <= 0) return { engagements: null, measuredViews: 0, rate: null };
+  return rollupEngagement([
+    {
+      viewsCount: input.viewsCount,
+      likesCount: input.likesCount,
+      commentsCount: input.commentsCount,
+      sharesCount: input.sharesCount,
+      savesCount: input.savesCount,
+      /* The rows behind these sums were already filtered by
+         MEASURED_POSTS_FILTER, so this only satisfies rollupEngagement's own
+         provenance test -- which would otherwise drop a genuine measured zero. */
+      lastSyncedAt: AGGREGATED,
+    },
+  ]);
+}
+
+/** Sentinel stamp for a row the database already proved was measured. */
+const AGGREGATED = new Date(0);
+
 export type MeasurablePost = {
   viewsCount: number;
   likesCount: number;
