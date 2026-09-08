@@ -30,6 +30,10 @@ const mockEmbed = jest.fn();
 jest.mock("@/lib/platforms/tiktokSoundEmbed", () => ({
   readTikTokSoundViaEmbed: (...a: any[]) => mockEmbed(...a),
 }));
+jest.mock("@/lib/alerts", () => ({
+  ...jest.requireActual("@/lib/alerts"),
+  alertOps: jest.fn().mockResolvedValue(undefined),
+}));
 jest.mock("@/lib/platforms/tiktokProfileSandbox", () => ({
   openSandboxProfileFetcher: () => ({
     readMusicEmbedHtml: jest.fn().mockResolvedValue(null),
@@ -40,6 +44,7 @@ jest.mock("@/lib/platforms/tiktokProfileSandbox", () => ({
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { fetchTikTokSoundStats } from "@/lib/platforms/tiktokSound";
+import { alertOps } from "@/lib/alerts";
 import { GET } from "@/app/api/cron/sync-trackers/route";
 
 const mockDb = db as unknown as {
@@ -48,6 +53,7 @@ const mockDb = db as unknown as {
   soundTrackerSnapshot: { create: jest.Mock };
 };
 const mockFetch = fetchTikTokSoundStats as unknown as jest.Mock;
+const mockAlert = alertOps as unknown as jest.Mock;
 
 const HOUR = 60 * 60 * 1000;
 
@@ -126,4 +132,109 @@ it("records zero rather than the lifetime total on a sound's first reading", asy
   // No predecessor to subtract: 46 uses is a level, not a day's growth.
   expect(written().videosAdded24h).toBe(0);
   expect(written().usesCount).toBe(46);
+});
+
+/**
+ * velocityScore has one unit, and this route was the writer that disagreed.
+ *
+ * recordSoundSnapshot, the creator sweep and the seed all store
+ * velocityBetween -- a percentage -- while this route stored velocityPerHour,
+ * uses per hour, into the same column. One sound read by both jobs therefore
+ * had a series that changed unit halfway along, and its only consumer (the
+ * campaign audio card, via lib/reports/campaignPerformance) prints every point
+ * with a "%" suffix.
+ */
+it("writes velocityScore as percent growth, the unit its reader prints", async () => {
+  // 40 -> 52 is +30%. As uses/hour over the 26-hour gap it would be ~0.46.
+  mockDb.tikTokSound.findMany.mockResolvedValue(soundWithHistory(40));
+  mockEmbed.mockResolvedValue({ usesCount: 52, title: null, artist: null, coverImageUrl: null });
+
+  await runCron();
+
+  expect(written().velocityScore).toBe(30);
+});
+
+it("counts a failed snapshot write as one sound, not the end of the sweep", async () => {
+  const sounds = [
+    { ...soundWithHistory(40)[0], id: "sound-bad", tiktokSoundId: "111" },
+    { ...soundWithHistory(40)[0], id: "sound-good", tiktokSoundId: "222" },
+  ];
+  mockDb.tikTokSound.findMany.mockResolvedValue(sounds);
+  mockEmbed.mockResolvedValue({ usesCount: 52, title: null, artist: null, coverImageUrl: null });
+  mockDb.soundTrackerSnapshot.create
+    .mockRejectedValueOnce(new Error("deadlock detected"))
+    .mockResolvedValue({});
+
+  const body = await (await runCron()).json();
+
+  expect(body.failed).toBe(1);
+  expect(body.snapshotted).toBe(1);
+  expect(mockDb.soundTrackerSnapshot.create).toHaveBeenCalledTimes(2);
+  expect(body.decisions).toContainEqual({
+    soundId: "sound-bad",
+    action: "fail",
+    reason: "write-failed",
+  });
+});
+
+it("alerts once when the whole sweep failed, instead of failing in silence", async () => {
+  mockDb.tikTokSound.findMany.mockResolvedValue(soundWithHistory(40));
+  // Every rung returns nothing: embed null, browser null, plain fetch null.
+  mockEmbed.mockResolvedValue(null);
+  mockFetch.mockResolvedValue(null);
+
+  const body = await (await runCron()).json();
+
+  expect(body.failed).toBe(1);
+  expect(mockAlert).toHaveBeenCalledTimes(1);
+  expect(mockAlert.mock.calls[0][0]).toMatchObject({
+    source: "cron/sync-trackers",
+    severity: "critical",
+  });
+});
+
+it("stays quiet on a sweep that worked", async () => {
+  mockDb.tikTokSound.findMany.mockResolvedValue(soundWithHistory(40));
+  mockEmbed.mockResolvedValue({ usesCount: 52, title: null, artist: null, coverImageUrl: null });
+
+  await runCron();
+
+  expect(mockAlert).not.toHaveBeenCalled();
+});
+
+/**
+ * `orderBy: createdAt asc, take: 200` meant sound #201 was never read on any
+ * run, for as long as the 200 above it existed -- a tracker that silently never
+ * updates. The window is chosen by staleness now, so the tail rotates in.
+ */
+it("chooses the window by when each sound was last read, never-read first", async () => {
+  const candidates = [
+    { id: "fresh", snapshots: [{ recordedAt: new Date(Date.now() - 1 * HOUR) }] },
+    { id: "never", snapshots: [] },
+    { id: "stale", snapshots: [{ recordedAt: new Date(Date.now() - 40 * HOUR) }] },
+  ];
+  mockDb.tikTokSound.findMany.mockResolvedValueOnce(candidates).mockResolvedValueOnce([]);
+  mockEmbed.mockResolvedValue(null);
+
+  await runCron();
+
+  const windowArgs = mockDb.tikTokSound.findMany.mock.calls[1][0];
+  expect(windowArgs.where.id.in).toEqual(["never", "stale", "fresh"]);
+});
+
+it("keeps the window at MAX_SOUNDS, taking the staleest end of a longer list", async () => {
+  const candidates = Array.from({ length: 260 }, (_, i) => ({
+    id: `s-${i}`,
+    // s-0 read longest ago, s-259 read most recently.
+    snapshots: [{ recordedAt: new Date(Date.now() - (260 - i) * HOUR) }],
+  }));
+  mockDb.tikTokSound.findMany.mockResolvedValueOnce(candidates).mockResolvedValueOnce([]);
+  mockEmbed.mockResolvedValue(null);
+
+  await runCron();
+
+  const ids = mockDb.tikTokSound.findMany.mock.calls[1][0].where.id.in;
+  expect(ids).toHaveLength(200);
+  expect(ids[0]).toBe("s-0");
+  expect(ids).not.toContain("s-259");
 });

@@ -161,6 +161,14 @@ export async function recordSoundSnapshot(
       // A count of videos, not a rate: velocityScore is where the percentage goes.
       videosAdded24h: Math.max(0, Math.round(delta)),
       deltaUses24h: Math.round(delta),
+      /* velocityScore's unit is PERCENT change since the previous reading, for
+         every writer of this column: here, the creator sweep, the seed, and
+         app/api/cron/sync-trackers -- which used to write uses/hour into it
+         instead, so one sound's series changed unit depending on which job read
+         it last. The consumer is the campaign audio card, which renders each
+         point with a "%" suffix (lib/reports/campaignPerformance -> AudioCard).
+         The trackers page does not read this column; it recomputes
+         velocityPerHour from the series. */
       velocityScore: baseline ? velocityBetween(baseline.usesCount, stats.usesCount) : 0,
     },
   });
