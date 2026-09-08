@@ -156,14 +156,24 @@ export async function GET(request: NextRequest) {
      *
      * Read in pages until the work is done or the clock runs out, so the bound
      * on a run is time rather than an arbitrary row count. */
-    const where = {
-      status: "PENDING_REVIEW" as const,
-      /* No open fraud flag. Post.fraudFlags is the relation; `none` here is the
-         same question the per-post findFirst used to ask once per row. */
-      fraudFlags: { none: { isResolved: false } },
+    /* No open fraud flag. ViewFraudFlag carries postId as a plain column with no
+       relation back to Post (the `fraudFlags` relation lives on Campaign), so
+       this cannot be a relation filter -- the 2026-09-08 06:00Z run 500ed on
+       `fraudFlags: { none: ... }`, which type-checked only because `where` was
+       an untyped object literal. Open flags are rare and never clear on their
+       own, so one distinct read of their post ids is the whole gate. */
+    const flagged = await db.viewFraudFlag.findMany({
+      where: { isResolved: false },
+      select: { postId: true },
+      distinct: ["postId"],
+    });
+    const flaggedPostIds = flagged.map((f) => f.postId);
+    const where: Prisma.PostWhereInput = {
+      status: "PENDING_REVIEW",
+      ...(flaggedPostIds.length ? { id: { notIn: flaggedPostIds } } : {}),
       campaign: {
         deletedAt: null,
-        marketplaceVisibility: { not: "PRIVATE" as const },
+        marketplaceVisibility: { not: "PRIVATE" },
         status: { notIn: STOPPED_STATUSES },
         OR: [{ submissionDeadline: null }, { submissionDeadline: { gte: now } }],
       },

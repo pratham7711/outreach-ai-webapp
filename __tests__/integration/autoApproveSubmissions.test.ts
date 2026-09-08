@@ -8,7 +8,7 @@ jest.mock("@/lib/db", () => ({
   db: {
     post: { findMany: jest.fn(), update: jest.fn() },
     campaign: { update: jest.fn() },
-    viewFraudFlag: { findFirst: jest.fn() },
+    viewFraudFlag: { findFirst: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
   },
 }));
 
@@ -83,6 +83,12 @@ function makeRow(
  * starvation test would pass for the wrong reason.
  */
 function installStore(rows: Row[]) {
+  // Open fraud flags are read once, up front, and excluded by post id: the
+  // flag table has no relation back to Post, so a relation filter is not
+  // expressible (and was exactly what 500ed in production on 2026-09-08).
+  mockDb.viewFraudFlag.findMany.mockResolvedValue(
+    rows.filter((r) => r.fraudOpen).map((r) => ({ postId: r.id })),
+  );
   mockDb.post.findMany.mockImplementation(async (args: any) => {
     const base = args.where.AND ? args.where.AND[0] : args.where;
     const keyset = args.where.AND ? args.where.AND[1] : null;
@@ -90,7 +96,7 @@ function installStore(rows: Row[]) {
 
     let out = rows.filter((r) => {
       if (r.status !== base.status) return false;
-      if (r.fraudOpen) return false;
+      if (base.id?.notIn?.includes(r.id)) return false;
       const c = r.campaign;
       if (c.deletedAt) return false;
       if (c.marketplaceVisibility === base.campaign.marketplaceVisibility.not) return false;
@@ -181,12 +187,17 @@ describe("auto-approve cron — a permanently gated head must not starve the que
   });
 
   it("pushes the permanent gates into the query rather than the loop", async () => {
-    installStore([makeRow(1)]);
+    installStore([makeRow(1), makeRow(2, { id: "post-flagged", fraudOpen: true })]);
     await autoApprove(cronReq());
 
     const where = mockDb.post.findMany.mock.calls[0][0].where;
     expect(where.status).toBe("PENDING_REVIEW");
-    expect(where.fraudFlags).toEqual({ none: { isResolved: false } });
+    expect(where.fraudFlags).toBeUndefined(); // no such relation on Post
+    expect(where.id.notIn).toEqual(["post-flagged"]);
+    expect(mockDb.viewFraudFlag.findMany.mock.calls[0][0]).toMatchObject({
+      where: { isResolved: false },
+      distinct: ["postId"],
+    });
     expect(where.campaign.status.notIn).toEqual(["COMPLETE", "CANCELLED"]);
     expect(where.campaign.OR[0]).toEqual({ submissionDeadline: null });
     expect(where.campaign.OR[1].submissionDeadline.gte).toBeInstanceOf(Date);
