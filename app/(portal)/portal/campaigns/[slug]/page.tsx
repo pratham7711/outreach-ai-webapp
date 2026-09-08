@@ -366,7 +366,7 @@ function CampaignDetailInner() {
                   onChange={(e) => setDraftCaption(e.target.value)}
                   rows={3}
                   placeholder="The caption you plan to post with…"
-                  style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-border)", fontSize: 14, color: "var(--cc-text)", background: "var(--cc-card)", outline: "none", resize: "vertical", fontFamily: "inherit", boxSizing: "border-box" }}
+                  style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-border)", fontSize: 14, color: "var(--cc-text)", background: "var(--cc-card)", resize: "vertical", fontFamily: "inherit", boxSizing: "border-box" }}
                 />
               </div>
               <div>

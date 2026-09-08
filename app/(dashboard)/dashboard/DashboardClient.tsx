@@ -60,6 +60,7 @@ export default function DashboardClient(props: Props) {
 
   const [financials, setFinancials] = useState<PerformanceData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [activeDays, setActiveDays] = useState(180);
   const [granularity, setGranularity] = useState<"daily" | "weekly" | "monthly">("monthly");
 
@@ -77,7 +78,15 @@ export default function DashboardClient(props: Props) {
       const res = await fetch(
         `/api/dashboard/financials?${new URLSearchParams({ from, to, granularity })}`
       );
-      if (res.ok) setFinancials(await res.json());
+      if (!res.ok) throw new Error(String(res.status));
+      setFinancials(await res.json());
+      setLoadError(false);
+    } catch {
+      // Without this branch a failed request left `financials` null silently, and
+      // the panel below then said "No readings yet" — a statement about the data
+      // when the truth is that we never received an answer.
+      setFinancials(null);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -166,6 +175,20 @@ export default function DashboardClient(props: Props) {
       <div className="mb-7 empty:mb-0">
         <GettingStarted />
       </div>
+
+      {loadError && (
+        <div
+          role="alert"
+          className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3"
+        >
+          <span className="text-sm text-foreground">
+            Couldn&apos;t load your totals. The figures below are unavailable, not zero.
+          </span>
+          <Button variant="outline" size="sm" onClick={fetchFinancials}>
+            Retry
+          </Button>
+        </div>
+      )}
 
       <Tabs defaultValue="overview" className="gap-6">
         <TabsList variant="line">

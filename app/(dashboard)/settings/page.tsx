@@ -94,7 +94,7 @@ export default async function SettingsPage() {
                     width: 44,
                     height: 44,
                     borderRadius: 12,
-                    background: "rgba(79, 70, 229, 0.08)",
+                    background: "var(--cc-primary-light)",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",

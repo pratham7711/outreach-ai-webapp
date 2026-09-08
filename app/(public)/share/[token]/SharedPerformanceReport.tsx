@@ -1,10 +1,11 @@
 "use client";
 import React, { useEffect, useState } from "react";
 import {
-  ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   PieChart, Pie, Cell, Legend,
 } from "recharts";
 import { BarChart3 } from "lucide-react";
+import { ChartFrame } from "@/components/ds";
 import type { SharedReportData } from "@/lib/reports/campaignPerformance";
 import { DEFAULT_SHARE_VISIBILITY, type ShareVisibility } from "@/lib/reports/shareVisibility";
 import { formatCompact } from "@/lib/format";
@@ -294,40 +295,38 @@ export default function SharedPerformanceReport({
                 Views Over Time by Platform
               </span>
               {timeSeries.length >= 3 ? (
-                <div style={{ height: 320 }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={timeSeries} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
-                      <defs>
-                        {SERIES.map((s) => (
-                          <linearGradient key={s.key} id={`shareGrad-${s.key}`} x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor={s.color} stopOpacity={0.3} />
-                            <stop offset="95%" stopColor={s.color} stopOpacity={0} />
-                          </linearGradient>
-                        ))}
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="var(--cc-border)" />
-                      <XAxis dataKey="date" tickFormatter={formatDate} tick={{ fontSize: 12, fill: "var(--cc-text-muted)" }} />
-                      <YAxis tickFormatter={(v) => formatNumber(Number(v))} tick={{ fontSize: 12, fill: "var(--cc-text-muted)" }} />
-                      <Tooltip
-                        labelFormatter={(l) => formatDate(String(l))}
-                        formatter={(v: unknown) => formatNumber(Number(v ?? 0))}
-                        contentStyle={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, fontSize: 13 }}
-                      />
-                      <Legend wrapperStyle={{ fontSize: 12 }} />
+                <ChartFrame height={320}>
+                  <AreaChart data={timeSeries} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
+                    <defs>
                       {SERIES.map((s) => (
-                        <Area
-                          key={s.key}
-                          type="monotone"
-                          dataKey={s.key}
-                          stackId="views"
-                          stroke={s.color}
-                          fill={`url(#shareGrad-${s.key})`}
-                          strokeWidth={2}
-                        />
+                        <linearGradient key={s.key} id={`shareGrad-${s.key}`} x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor={s.color} stopOpacity={0.3} />
+                          <stop offset="95%" stopColor={s.color} stopOpacity={0} />
+                        </linearGradient>
                       ))}
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--cc-border)" />
+                    <XAxis dataKey="date" tickFormatter={formatDate} tick={{ fontSize: 12, fill: "var(--cc-text-muted)" }} />
+                    <YAxis tickFormatter={(v) => formatNumber(Number(v))} tick={{ fontSize: 12, fill: "var(--cc-text-muted)" }} />
+                    <Tooltip
+                      labelFormatter={(l) => formatDate(String(l))}
+                      formatter={(v: unknown) => formatNumber(Number(v ?? 0))}
+                      contentStyle={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, fontSize: 13 }}
+                    />
+                    <Legend wrapperStyle={{ fontSize: 12 }} />
+                    {SERIES.map((s) => (
+                      <Area
+                        key={s.key}
+                        type="monotone"
+                        dataKey={s.key}
+                        stackId="views"
+                        stroke={s.color}
+                        fill={`url(#shareGrad-${s.key})`}
+                        strokeWidth={2}
+                      />
+                    ))}
+                  </AreaChart>
+                </ChartFrame>
               ) : (
                 <p style={{ fontSize: 14, color: "var(--cc-text-muted)", margin: 0 }}>
                   Views over time will appear as posts accumulate metrics.
@@ -348,37 +347,35 @@ export default function SharedPerformanceReport({
                   Views by Platform
                 </span>
                 {platformSplit.length > 0 ? (
-                  <div style={{ height: 260 }}>
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={platformSplit.filter((p) => p.views > 0)}
-                          cx="50%"
-                          cy="50%"
-                          innerRadius={55}
-                          outerRadius={85}
-                          dataKey="views"
-                          nameKey="platform"
-                          paddingAngle={2}
-                          label={false}
-                          stroke="var(--cc-card)"
-                          strokeWidth={2}
-                        >
-                          {platformSplit.filter((p) => p.views > 0).map((entry) => (
-                            <Cell key={entry.platform} fill={platformColor(entry.platform)} />
-                          ))}
-                        </Pie>
-                        <Legend verticalAlign="bottom" height={24} wrapperStyle={{ fontSize: 12 }} formatter={(value: unknown) => <span style={{ color: "var(--cc-text-muted)" }}>{String(value)}</span>} />
-                        <Tooltip
-                          formatter={(v: unknown, _n: unknown, item: { payload?: { posts?: number; platform?: string } }) => [
-                            `${formatNumber(Number(v ?? 0))} views · ${item?.payload?.posts ?? 0} posts`,
-                            item?.payload?.platform ?? "",
-                          ]}
-                          contentStyle={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, fontSize: 13 }}
-                        />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
+                  <ChartFrame height={260}>
+                    <PieChart>
+                      <Pie
+                        data={platformSplit.filter((p) => p.views > 0)}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={55}
+                        outerRadius={85}
+                        dataKey="views"
+                        nameKey="platform"
+                        paddingAngle={2}
+                        label={false}
+                        stroke="var(--cc-card)"
+                        strokeWidth={2}
+                      >
+                        {platformSplit.filter((p) => p.views > 0).map((entry) => (
+                          <Cell key={entry.platform} fill={platformColor(entry.platform)} />
+                        ))}
+                      </Pie>
+                      <Legend verticalAlign="bottom" height={24} wrapperStyle={{ fontSize: 12 }} formatter={(value: unknown) => <span style={{ color: "var(--cc-text-muted)" }}>{String(value)}</span>} />
+                      <Tooltip
+                        formatter={(v: unknown, _n: unknown, item: { payload?: { posts?: number; platform?: string } }) => [
+                          `${formatNumber(Number(v ?? 0))} views · ${item?.payload?.posts ?? 0} posts`,
+                          item?.payload?.platform ?? "",
+                        ]}
+                        contentStyle={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, fontSize: 13 }}
+                      />
+                    </PieChart>
+                  </ChartFrame>
                 ) : (
                   <div style={{ height: 260, display: "flex", alignItems: "center", justifyContent: "center" }}>
                     <p style={{ fontSize: 14, color: "var(--cc-text-muted)", margin: 0, textAlign: "center" }}>No platform data yet</p>

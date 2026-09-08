@@ -45,7 +45,14 @@ export default function ClientsClient({ clients, stats }: {
       {/* Stats */}
       <div className="cc-stagger grid grid-cols-1 sm:grid-cols-2" style={{ gap: 20, marginBottom: 32, maxWidth: 480 }}>
         <MetricTile metric="clientsTotal" value={String(stats.total)} />
-        <MetricTile metric="campaigns" label="Total campaigns" value={String(stats.totalCampaigns)} />
+        {/* Org-wide, not "campaigns belonging to these clients": the count includes
+            campaigns with no client assigned, so it does not add up from the rows. */}
+        <MetricTile
+          metric="campaigns"
+          label="Campaigns org-wide"
+          value={String(stats.totalCampaigns)}
+          footer="Across every client, including campaigns with none assigned"
+        />
       </div>
 
       {/* Search */}
@@ -66,16 +73,32 @@ export default function ClientsClient({ clients, stats }: {
 
         {filtered.length === 0 ? (
           <div style={{ padding: "48px 24px" }}>
-            <EmptyState
-              icon={<Building2 size={32} color="var(--cc-text-subtle)" />}
-              title="No clients yet"
-              description="Add your first client to start managing campaigns"
-              action={
-                <Button variant="primary" iconLeft={<Plus size={15} />} onClick={() => setShowModal(true)}>
-                  New Client
-                </Button>
-              }
-            />
+            {/* A filtered miss is not an empty account. Telling somebody with 40
+                clients to "add your first client" because their search matched
+                none of them offers the one action that will not help. */}
+            {search.trim() ? (
+              <EmptyState
+                icon={<Search size={32} color="var(--cc-text-subtle)" />}
+                title="No clients match that search"
+                description={`None of your ${clients.length} client${clients.length === 1 ? "" : "s"} match “${search.trim()}”.`}
+                action={
+                  <Button variant="secondary" onClick={() => setSearch("")}>
+                    Clear search
+                  </Button>
+                }
+              />
+            ) : (
+              <EmptyState
+                icon={<Building2 size={32} color="var(--cc-text-subtle)" />}
+                title="No clients yet"
+                description="Add your first client to start managing campaigns"
+                action={
+                  <Button variant="primary" iconLeft={<Plus size={15} />} onClick={() => setShowModal(true)}>
+                    New Client
+                  </Button>
+                }
+              />
+            )}
           </div>
         ) : (
           <div className="cc-stagger">

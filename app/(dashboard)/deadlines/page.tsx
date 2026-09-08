@@ -132,7 +132,6 @@ function InlineDateEditor({
         style={{
           fontSize: 12, padding: "3px 6px", border: "1px solid var(--cc-border)",
           borderRadius: 6, color: "var(--cc-text)", background: "var(--cc-card)",
-          outline: "none",
         }}
         autoFocus
       />

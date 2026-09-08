@@ -266,7 +266,6 @@ export default function ApiKeysClient() {
                 fontSize: 14,
                 borderRadius: 8,
                 border: "1px solid var(--cc-border)",
-                outline: "none",
                 color: "var(--cc-text)",
                 background: "var(--cc-card)",
                 boxSizing: "border-box",

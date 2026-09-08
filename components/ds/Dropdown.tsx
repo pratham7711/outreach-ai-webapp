@@ -274,7 +274,6 @@ export function Dropdown({
           color: isPrimary ? "#fff" : selected ? "var(--cc-text)" : "var(--cc-text-muted)",
           cursor: disabled ? "progress" : "pointer",
           opacity: disabled ? 0.65 : 1,
-          outline: "none",
           ...triggerStyle,
         }}
       >

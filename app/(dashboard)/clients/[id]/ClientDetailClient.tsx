@@ -254,7 +254,7 @@ export default function ClientDetailClient({ client, plans }: Props) {
                   value={editForm.notes}
                   onChange={e => setEditForm(f => ({ ...f, notes: e.target.value }))}
                   rows={3}
-                  style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-border)", fontSize: 14, color: "var(--cc-text)", outline: "none", resize: "vertical", fontFamily: "inherit" }}
+                  style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-border)", fontSize: 14, color: "var(--cc-text)", resize: "vertical", fontFamily: "inherit" }}
                 />
               </div>
               <div style={{ display: "flex", justifyContent: "flex-end" }}>

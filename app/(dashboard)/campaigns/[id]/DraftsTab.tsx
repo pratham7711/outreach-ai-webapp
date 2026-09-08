@@ -68,7 +68,7 @@ const labelStyle: React.CSSProperties = {
 
 const inputStyle: React.CSSProperties = {
   width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-border)",
-  fontSize: 14, color: "var(--cc-text)", background: "var(--cc-card)", outline: "none",
+  fontSize: 14, color: "var(--cc-text)", background: "var(--cc-card)",
   boxSizing: "border-box",
 };
 
@@ -303,7 +303,7 @@ export default function DraftsTab({
                       )}
                     </div>
                     {d.status === "DECLINED" && d.feedbackNotes && (
-                      <p style={{ fontSize: 12, color: "#DC2626", marginTop: 6 }}>
+                      <p style={{ fontSize: 12, color: "var(--cc-danger)", marginTop: 6 }}>
                         Revisions requested: {d.feedbackNotes}
                       </p>
                     )}
@@ -412,7 +412,7 @@ export default function DraftsTab({
           footer={
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
               <Button variant="secondary" onClick={() => { setDeclineId(null); setDeclineReason(""); }}>Cancel</Button>
-              <Button variant="primary" style={{ background: "#DC2626" }} onClick={handleDecline}>
+              <Button variant="danger" onClick={handleDecline}>
                 Send back for revision
               </Button>
             </div>
@@ -425,7 +425,7 @@ export default function DraftsTab({
             placeholder="What needs to change before this can be approved?"
             style={{
               width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-border)",
-              fontSize: 14, color: "var(--cc-text)", background: "var(--cc-card)", outline: "none",
+              fontSize: 14, color: "var(--cc-text)", background: "var(--cc-card)",
               resize: "vertical", fontFamily: "inherit", boxSizing: "border-box",
             }}
           />

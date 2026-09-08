@@ -193,7 +193,6 @@ export default function NegotiationsSection({
     fontSize: 14,
     color: "var(--cc-text)",
     background: "var(--cc-card)",
-    outline: "none",
     boxSizing: "border-box" as const,
   };
 

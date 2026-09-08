@@ -248,6 +248,6 @@ export default function DeliverablesModal({
 
 const fieldStyle: React.CSSProperties = {
   width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-border)",
-  fontSize: 14, color: "var(--cc-text)", background: "var(--cc-card)", outline: "none",
+  fontSize: 14, color: "var(--cc-text)", background: "var(--cc-card)",
   boxSizing: "border-box",
 };

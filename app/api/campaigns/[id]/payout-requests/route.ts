@@ -38,7 +38,25 @@ export async function GET(
       orderBy: { createdAt: "desc" },
     });
 
-    return NextResponse.json({ payoutRequests });
+    // PayoutRequest holds creatorId as a plain string with no relation, so the
+    // name has to be looked up — the same join /negotiations already does. The
+    // table rendered a truncated cuid ("cmt1m1wq...") in its Creator column,
+    // which is the one column an approver needs to read before paying.
+    const creatorIds = [...new Set(payoutRequests.map((r) => r.creatorId))];
+    const creators = creatorIds.length
+      ? await db.creator.findMany({
+          where: { id: { in: creatorIds }, orgId },
+          select: { id: true, name: true, handle: true },
+        })
+      : [];
+    const byId = new Map(creators.map((c) => [c.id, c]));
+
+    return NextResponse.json({
+      payoutRequests: payoutRequests.map((r) => ({
+        ...r,
+        creator: byId.get(r.creatorId) ?? null,
+      })),
+    });
   } catch (error) {
     console.error("Failed to fetch payout requests:", error);
     return NextResponse.json({ error: "Failed to fetch payout requests" }, { status: 500 });

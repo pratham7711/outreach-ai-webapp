@@ -4,7 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Badge, Card, Modal, Input, Skeleton, EmptyState } from "@pratham7711/ui";
-import { MetricTile, Button } from "@/components/ds";
+import { LastUpdated, MetricTile, Button, useConfirm } from "@/components/ds";
 import { Music, Plus, RefreshCw, Search, Trash2, TrendingUp } from "lucide-react";
 import { CreatorTrackers } from "./CreatorTrackers";
 import { SoundDetailModal } from "./SoundDetailModal";
@@ -101,6 +101,7 @@ function subFromParam(raw: string | null): Sub {
 }
 
 export default function TrackersPage() {
+  const confirm = useConfirm();
   /* In the URL, as the comment above always claimed: ?sub=creator opened the
      Audios tab, so a link to a creator watchlist -- and a reload of one --
      landed on the wrong half of the page. replace, not push, so switching tabs
@@ -287,9 +288,21 @@ export default function TrackersPage() {
     createMutation.mutate(raw);
   }, [createMutation, urlInput, clientError]);
 
+  /* Removing one tracker takes its whole reading history with it, and history is
+     the one thing a re-add cannot recover — the same reason "Remove all" is guarded.
+     A single row was destroying it on one unconfirmed click. */
   const handleDelete = useCallback(
-    (id: string) => deleteMutation.mutate(id),
-    [deleteMutation]
+    async (sound: TrackedSound) => {
+      const ok = await confirm({
+        title: "Remove this tracker?",
+        description: `“${sound.title}” and its entire reading history will be deleted. Readings are point-in-time — TikTok will not tell us what this sound was doing last week.`,
+        confirmLabel: "Remove tracker",
+        tone: "danger",
+      });
+      if (!ok) return;
+      deleteMutation.mutate(sound.id);
+    },
+    [confirm, deleteMutation]
   );
 
   const stats = useMemo(
@@ -641,20 +654,33 @@ export default function TrackersPage() {
                     </div>
                   )}
                 </div>
-                <div style={{ fontSize: 12, color: "var(--cc-text-muted)", minWidth: 80, textAlign: "right" }}>
-                  {formatDateAbs(s.trackedSince)}
+                <div style={{ minWidth: 110, textAlign: "right", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
+                  {/* Only while the reader is keeping up: when it is not, the trend
+                      slot above already carries "last read …", and saying it twice
+                      in two colours reads as two different facts. */}
+                  {s.health === "live" ? (
+                    <LastUpdated at={snap?.recordedAt ?? null} neverLabel="Never read" prefix="Read" />
+                  ) : null}
+                  <span style={{ fontSize: 11, color: "var(--cc-text-subtle)" }}>
+                    Tracked since {formatDateAbs(s.trackedSince)}
+                  </span>
                 </div>
                 <button
-                  onClick={() => handleDelete(s.id)}
+                  onClick={() => handleDelete(s)}
+                  /* The icon alone named nothing to a screen reader, and a 28px
+                     target is under the 44px minimum for a destructive control. */
+                  aria-label={`Remove tracker for ${s.title}`}
                   style={{
                     background: "none",
                     border: "none",
                     cursor: "pointer",
-                    padding: 6,
-                    borderRadius: 6,
+                    width: 44,
+                    height: 44,
+                    borderRadius: 8,
                     color: "var(--cc-text-muted)",
                     display: "flex",
                     alignItems: "center",
+                    justifyContent: "center",
                   }}
                   title="Remove tracker"
                 >

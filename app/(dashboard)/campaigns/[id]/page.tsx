@@ -1,6 +1,6 @@
 "use client";
 import type { CSSProperties } from "react";
-import { useState, useEffect, use } from "react";
+import { useState, useEffect, useCallback, use } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import { motion } from "framer-motion";
@@ -20,7 +20,7 @@ import ReviewsSection from "./ReviewsSection";
 import {
   ArrowLeft, Eye, Heart, MessageCircle, Share2, TrendingUp, Users,
   Calendar, Play, ChevronRight, ExternalLink, DollarSign,
-  ClipboardList, BarChart3, Wallet, Trash2,
+  ClipboardList, BarChart3, Wallet, Trash2, AlertTriangle,
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -185,7 +185,7 @@ const mktLabel: CSSProperties = {
 };
 const mktInput: CSSProperties = {
   width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-border)",
-  fontSize: 14, color: "var(--cc-text)", background: "var(--cc-card)", outline: "none", boxSizing: "border-box",
+  fontSize: 14, color: "var(--cc-text)", background: "var(--cc-card)", boxSizing: "border-box",
 };
 const mktTextarea: CSSProperties = {
   ...mktInput, resize: "vertical", fontFamily: "inherit",
@@ -428,14 +428,32 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
   });
   const [savingMkt, setSavingMkt] = useState(false);
   const [rotatingCode, setRotatingCode] = useState(false);
+  const [loadError, setLoadError] = useState(false);
 
-  useEffect(() => {
+  const loadCampaign = useCallback(() => {
+    setLoading(true);
+    setLoadError(false);
     fetch(`/api/campaigns/${id}`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => { setCampaign(data && !data.error ? data : null); })
-      .catch(() => setCampaign(null))
+      .then(async (r) => {
+        // A 500 and a 404 used to collapse to the same null, so a dropped
+        // connection told the reader their campaign had been deleted.
+        if (r.status === 404) return { notFound: true, campaign: null } as const;
+        if (!r.ok) throw new Error(String(r.status));
+        const data = await r.json();
+        if (!data || data.error) return { notFound: true, campaign: null } as const;
+        return { notFound: false, campaign: data as Campaign } as const;
+      })
+      .then((result) => {
+        setCampaign(result.notFound ? null : result.campaign);
+      })
+      .catch(() => {
+        setCampaign(null);
+        setLoadError(true);
+      })
       .finally(() => setLoading(false));
   }, [id]);
+
+  useEffect(() => { loadCampaign(); }, [loadCampaign]);
 
   useEffect(() => {
     if (campaign) {
@@ -624,6 +642,16 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
   ];
 
   if (loading) return <LoadingSkeleton />;
+  if (loadError) return (
+    <div className="cc-page-content">
+      <EmptyState
+        icon={<AlertTriangle size={32} color="var(--cc-text-subtle)" />}
+        title="Couldn't load this campaign"
+        description="The request failed. The campaign is still there — try again."
+        action={<Button variant="secondary" onClick={loadCampaign}>Retry</Button>}
+      />
+    </div>
+  );
   if (!campaign) return (
     <div className="cc-page-content">
       <EmptyState icon={<ClipboardList size={32} color="var(--cc-text-subtle)" />} title="Campaign not found" description="This campaign may have been deleted." />
@@ -921,7 +949,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                     type="text"
                     value={editForm.title}
                     onChange={e => setEditForm(f => ({ ...f, title: e.target.value }))}
-                    style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-border)", fontSize: 14, color: "var(--cc-text)", background: "var(--cc-card)", outline: "none", boxSizing: "border-box" }}
+                    style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-border)", fontSize: 14, color: "var(--cc-text)", background: "var(--cc-card)", boxSizing: "border-box" }}
                   />
                 </div>
                 <div className="rsp-grid-2">
@@ -966,7 +994,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                     placeholder="Leave blank if not tracking one"
                     value={editForm.budget}
                     onChange={e => setEditForm(f => ({ ...f, budget: e.target.value }))}
-                    style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-border)", fontSize: 14, color: "var(--cc-text)", background: "var(--cc-card)", outline: "none" }}
+                    style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-border)", fontSize: 14, color: "var(--cc-text)", background: "var(--cc-card)" }}
                   />
                 </div>
                 <div>
@@ -999,7 +1027,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                     value={editForm.notes}
                     onChange={e => setEditForm(f => ({ ...f, notes: e.target.value }))}
                     rows={3}
-                    style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-border)", fontSize: 14, color: "var(--cc-text)", background: "var(--cc-card)", outline: "none", resize: "vertical", fontFamily: "inherit", boxSizing: "border-box" }}
+                    style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-border)", fontSize: 14, color: "var(--cc-text)", background: "var(--cc-card)", resize: "vertical", fontFamily: "inherit", boxSizing: "border-box" }}
                   />
                 </div>
                 <div style={{ display: "flex", justifyContent: "flex-end" }}>
@@ -1085,7 +1113,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
 
                 {/* Brief editor */}
                 <div>
-                  <label style={mktLabel}>Guidelines {mkt.marketplaceVisibility === "GLOBAL" && <span style={{ color: "#DC2626" }}>*</span>}</label>
+                  <label style={mktLabel}>Guidelines {mkt.marketplaceVisibility === "GLOBAL" && <span style={{ color: "var(--cc-danger)" }}>*</span>}</label>
                   <textarea
                     value={mkt.guidelines}
                     onChange={(e) => setMkt((m) => ({ ...m, guidelines: e.target.value }))}
@@ -1118,7 +1146,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                 {/* Per-platform rates (major units → stored minor) */}
                 <div>
                   <label style={mktLabel}>
-                    Rate per 1,000 verified views {mkt.marketplaceVisibility === "GLOBAL" && <span style={{ color: "#DC2626" }}>*</span>}
+                    Rate per 1,000 verified views {mkt.marketplaceVisibility === "GLOBAL" && <span style={{ color: "var(--cc-danger)" }}>*</span>}
                   </label>
                   <p style={{ fontSize: 12, color: "var(--cc-text-muted)", marginBottom: 10 }}>
                     Set a payout rate per platform (in {campaign.currency}). Leave blank to exclude a platform.

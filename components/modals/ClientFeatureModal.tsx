@@ -127,7 +127,7 @@ export default function ClientFeatureModal({ open, onClose, client, plans, onSav
     >
       <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
         {error && (
-          <div style={{ padding: "10px 16px", borderRadius: 10, fontSize: 14, background: "rgba(239,68,68,0.08)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)" }}>
+          <div style={{ padding: "10px 16px", borderRadius: 10, fontSize: 14, background: "color-mix(in srgb, var(--cc-danger) 8%, transparent)", color: "var(--cc-danger)", border: "1px solid color-mix(in srgb, var(--cc-danger) 20%, transparent)" }}>
             {error}
           </div>
         )}
@@ -195,21 +195,21 @@ export default function ClientFeatureModal({ open, onClose, client, plans, onSav
                     <button
                       type="button"
                       onClick={() => setOverrides((prev) => ({ ...prev, [key]: "plan" }))}
-                      style={segmentStyle(ov === "plan", "#6B7280")}
+                      style={segmentStyle(ov === "plan", "var(--cc-text-muted)")}
                     >
                       Default
                     </button>
                     <button
                       type="button"
                       onClick={() => setOverrides((prev) => ({ ...prev, [key]: "on" }))}
-                      style={segmentStyle(ov === "on", "#16a34a")}
+                      style={segmentStyle(ov === "on", "var(--cc-success)")}
                     >
                       Force ON
                     </button>
                     <button
                       type="button"
                       onClick={() => setOverrides((prev) => ({ ...prev, [key]: "off" }))}
-                      style={segmentStyle(ov === "off", "#ef4444")}
+                      style={segmentStyle(ov === "off", "var(--cc-danger)")}
                     >
                       Force OFF
                     </button>
@@ -220,7 +220,7 @@ export default function ClientFeatureModal({ open, onClose, client, plans, onSav
                       width: 8,
                       height: 8,
                       borderRadius: "50%",
-                      background: effective ? "#22c55e" : "var(--cc-text-subtle)",
+                      background: effective ? "var(--cc-success)" : "var(--cc-text-subtle)",
                       flexShrink: 0,
                     }}
                     title={`Effective: ${effective ? "ON" : "OFF"}`}

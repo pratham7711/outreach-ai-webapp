@@ -202,8 +202,8 @@ export default function ReviewsSection({
                   <Star
                     key={i}
                     size={14}
-                    fill={i < review.rating ? "#F59E0B" : "none"}
-                    color={i < review.rating ? "#F59E0B" : "var(--cc-text-subtle)"}
+                    fill={i < review.rating ? "var(--cc-warning)" : "none"}
+                    color={i < review.rating ? "var(--cc-warning)" : "var(--cc-text-subtle)"}
                   />
                 ))}
               </div>
@@ -290,8 +290,8 @@ export default function ReviewsSection({
                 <Star
                   key={i}
                   size={24}
-                  fill={i < form.rating ? "#F59E0B" : "none"}
-                  color={i < form.rating ? "#F59E0B" : "var(--cc-text-subtle)"}
+                  fill={i < form.rating ? "var(--cc-warning)" : "none"}
+                  color={i < form.rating ? "var(--cc-warning)" : "var(--cc-text-subtle)"}
                   style={{ cursor: "pointer" }}
                   onClick={() => setForm((f) => ({ ...f, rating: i + 1 }))}
                 />
@@ -367,7 +367,6 @@ export default function ReviewsSection({
                 color: "var(--cc-text)",
                 background: "var(--cc-card)",
                 resize: "vertical",
-                outline: "none",
                 boxSizing: "border-box",
               }}
             />

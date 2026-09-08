@@ -451,7 +451,7 @@ export default function FeatureAccessClient({ clients: initialClients, plans }: 
           gap: 12,
           padding: "12px 24px",
           borderRadius: 12,
-          background: "#1E1B4B",
+          background: "var(--foreground)",
           color: "white",
           boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
           zIndex: 100,

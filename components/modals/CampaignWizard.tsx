@@ -79,7 +79,6 @@ const selectStyle = {
   border: "1px solid var(--cc-border)",
   fontSize: 14,
   color: "var(--cc-text)",
-  outline: "none",
   background: "var(--cc-card)",
   boxSizing: "border-box" as const,
 };

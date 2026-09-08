@@ -17,7 +17,15 @@ type List = {
   createdAt: string;
 };
 
-const ACCENT_COLORS = ["var(--cc-primary)", "#7C3AED", "#059669", "#DC2626", "#F59E0B"];
+/* Chart-series tokens, not the semantic status ramp: these are arbitrary list
+   accents, and the raw hexes were fixed to the old purple theme. */
+const ACCENT_COLORS = [
+  "var(--cc-primary)",
+  "var(--chart-2)",
+  "var(--chart-3)",
+  "var(--chart-4)",
+  "var(--chart-5)",
+];
 
 export default function ListsClient({ lists }: { lists: List[] }) {
   const router = useRouter();
@@ -110,7 +118,7 @@ export default function ListsClient({ lists }: { lists: List[] }) {
                 value={createForm.description}
                 onChange={e => setCreateForm(f => ({ ...f, description: e.target.value }))}
                 rows={3} placeholder="Optional description..."
-                style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-border)", fontSize: 14, color: "var(--cc-text)", outline: "none", resize: "vertical", fontFamily: "inherit" }}
+                style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-border)", fontSize: 14, color: "var(--cc-text)", resize: "vertical", fontFamily: "inherit" }}
               />
             </div>
           </div>
