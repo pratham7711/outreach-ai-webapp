@@ -6,6 +6,7 @@ import { getRequestIp } from "@/lib/request";
 import { z } from "zod";
 import { pageParam, pageSizeParam, parseQuery } from "@/lib/http/queryParams";
 import { creatorFilterSchema, creatorOrderBy, creatorWhere } from "@/lib/listFilters";
+import { creatorHandleVariants } from "@/lib/creator-auth";
 import { DEFAULT_CREATOR_SORT } from "@/lib/listParams";
 
 const listCreatorsQuerySchema = creatorFilterSchema.extend({
@@ -99,8 +100,20 @@ export async function POST(request: NextRequest) {
     // CreatorCore are already duplicated, and de-duplicating rows we did not
     // create is not this route's decision to make. The guard covers everything
     // created from here on.
+    /* Matched on both spellings and case-insensitively, not on the exact
+       string. Storage is unchanged -- whatever was typed is what is written --
+       but "@jane" and "jane" are one creator to everything downstream:
+       creatorHandleVariants() is how the portal bridges a CreatorUser to an org
+       Creator, and how the proposal-accept path does it too. An exact match let
+       both rows exist, and then those two paths disagreed about which is real. */
     const clash = await db.creator.findFirst({
-      where: { orgId, handle, deletedAt: null },
+      where: {
+        orgId,
+        deletedAt: null,
+        OR: creatorHandleVariants(handle).map((h) => ({
+          handle: { equals: h, mode: "insensitive" as const },
+        })),
+      },
       select: { id: true },
     });
     if (clash) {
