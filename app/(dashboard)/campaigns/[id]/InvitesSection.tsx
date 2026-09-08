@@ -5,7 +5,7 @@ import { Card, Badge, Modal, EmptyState, Skeleton } from "@pratham7711/ui";
 import { Send, Copy, RotateCcw, X, Mail, Sparkles } from "lucide-react";
 import { CreatorSelect } from "@/components/CreatorSelect";
 import { Dropdown, Button } from "@/components/ds";
-import { formatDateAbs } from "@/lib/format";
+import { formatDateAbs, stripAt } from "@/lib/format";
 import { OutreachDraftPanel } from "@/components/ai/OutreachDraftPanel";
 
 type AiDraft = {
@@ -18,6 +18,8 @@ type AiDraft = {
 type Invite = {
   id: string;
   creatorId: string;
+  /** Resolved by the route; null once the creator has been deleted. */
+  creator: { id: string; name: string; handle: string } | null;
   channel: string;
   inviteToken: string;
   status: string;
@@ -32,6 +34,14 @@ const STATUS_BADGE: Record<string, "warning" | "success" | "danger" | "neutral">
   DECLINED: "danger",
   EXPIRED: "neutral",
 };
+
+/* The Creator column is the whole point of this table and it was printing a
+   truncated cuid. The route resolves the name now; this only formats it. */
+function creatorName(creator: { name: string; handle: string } | null): string {
+  if (!creator) return "Deleted creator";
+  const handle = stripAt(creator.handle);
+  return handle ? `${creator.name} (@${handle})` : creator.name;
+}
 
 export default function InvitesSection({ campaignId }: { campaignId: string }) {
   const [invites, setInvites] = useState<Invite[]>([]);
@@ -158,7 +168,7 @@ export default function InvitesSection({ campaignId }: { campaignId: string }) {
               gap: 12, padding: "14px 24px", alignItems: "center",
               borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined,
             }}>
-              <span style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>{inv.creatorId.slice(0, 8)}...</span>
+              <span style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>{creatorName(inv.creator)}</span>
               <Badge variant="neutral" style={{ fontSize: 11 }}>{inv.channel}</Badge>
               <Badge variant={STATUS_BADGE[inv.status] ?? "neutral"}>{inv.status}</Badge>
               <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{inv.sentAt ? formatDateAbs(inv.sentAt) : "—"}</span>

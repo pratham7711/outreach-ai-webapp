@@ -30,7 +30,21 @@ export async function GET(
       orderBy: { createdAt: "desc" },
     });
 
-    return NextResponse.json({ invites });
+    // CampaignInvite holds creatorId as a plain string with no relation, so the
+    // name has to be looked up — the same join /negotiations already does. The
+    // table rendered a truncated cuid ("cmt1m1wq...") in its Creator column.
+    const creatorIds = [...new Set(invites.map((i) => i.creatorId))];
+    const creators = creatorIds.length
+      ? await db.creator.findMany({
+          where: { id: { in: creatorIds }, orgId },
+          select: { id: true, name: true, handle: true },
+        })
+      : [];
+    const byId = new Map(creators.map((c) => [c.id, c]));
+
+    return NextResponse.json({
+      invites: invites.map((i) => ({ ...i, creator: byId.get(i.creatorId) ?? null })),
+    });
   } catch (error) {
     console.error("Failed to fetch invites:", error);
     return NextResponse.json({ error: "Failed to fetch invites" }, { status: 500 });

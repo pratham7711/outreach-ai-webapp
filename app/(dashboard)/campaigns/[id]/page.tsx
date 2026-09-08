@@ -185,7 +185,7 @@ const mktLabel: CSSProperties = {
 };
 const mktInput: CSSProperties = {
   width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-border)",
-  fontSize: 14, color: "var(--cc-text)", background: "var(--cc-card)", outline: "none", boxSizing: "border-box",
+  fontSize: 14, color: "var(--cc-text)", background: "var(--cc-card)", boxSizing: "border-box",
 };
 const mktTextarea: CSSProperties = {
   ...mktInput, resize: "vertical", fontFamily: "inherit",
@@ -921,7 +921,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                     type="text"
                     value={editForm.title}
                     onChange={e => setEditForm(f => ({ ...f, title: e.target.value }))}
-                    style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-border)", fontSize: 14, color: "var(--cc-text)", background: "var(--cc-card)", outline: "none", boxSizing: "border-box" }}
+                    style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-border)", fontSize: 14, color: "var(--cc-text)", background: "var(--cc-card)", boxSizing: "border-box" }}
                   />
                 </div>
                 <div className="rsp-grid-2">
@@ -966,7 +966,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                     placeholder="Leave blank if not tracking one"
                     value={editForm.budget}
                     onChange={e => setEditForm(f => ({ ...f, budget: e.target.value }))}
-                    style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-border)", fontSize: 14, color: "var(--cc-text)", background: "var(--cc-card)", outline: "none" }}
+                    style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-border)", fontSize: 14, color: "var(--cc-text)", background: "var(--cc-card)" }}
                   />
                 </div>
                 <div>
@@ -999,7 +999,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                     value={editForm.notes}
                     onChange={e => setEditForm(f => ({ ...f, notes: e.target.value }))}
                     rows={3}
-                    style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-border)", fontSize: 14, color: "var(--cc-text)", background: "var(--cc-card)", outline: "none", resize: "vertical", fontFamily: "inherit", boxSizing: "border-box" }}
+                    style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-border)", fontSize: 14, color: "var(--cc-text)", background: "var(--cc-card)", resize: "vertical", fontFamily: "inherit", boxSizing: "border-box" }}
                   />
                 </div>
                 <div style={{ display: "flex", justifyContent: "flex-end" }}>
@@ -1085,7 +1085,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
 
                 {/* Brief editor */}
                 <div>
-                  <label style={mktLabel}>Guidelines {mkt.marketplaceVisibility === "GLOBAL" && <span style={{ color: "#DC2626" }}>*</span>}</label>
+                  <label style={mktLabel}>Guidelines {mkt.marketplaceVisibility === "GLOBAL" && <span style={{ color: "var(--cc-danger)" }}>*</span>}</label>
                   <textarea
                     value={mkt.guidelines}
                     onChange={(e) => setMkt((m) => ({ ...m, guidelines: e.target.value }))}
@@ -1118,7 +1118,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                 {/* Per-platform rates (major units → stored minor) */}
                 <div>
                   <label style={mktLabel}>
-                    Rate per 1,000 verified views {mkt.marketplaceVisibility === "GLOBAL" && <span style={{ color: "#DC2626" }}>*</span>}
+                    Rate per 1,000 verified views {mkt.marketplaceVisibility === "GLOBAL" && <span style={{ color: "var(--cc-danger)" }}>*</span>}
                   </label>
                   <p style={{ fontSize: 12, color: "var(--cc-text-muted)", marginBottom: 10 }}>
                     Set a payout rate per platform (in {campaign.currency}). Leave blank to exclude a platform.

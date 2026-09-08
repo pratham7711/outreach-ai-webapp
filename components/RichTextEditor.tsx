@@ -203,7 +203,7 @@ function Toolbar({ editor }: { editor: Editor }) {
             style={{
               flex: 1, padding: "6px 10px", borderRadius: 8, fontSize: 13,
               border: "1px solid var(--cc-border)", background: "var(--cc-card)",
-              color: "var(--cc-text)", outline: "none",
+              color: "var(--cc-text)",
             }}
           />
           <button

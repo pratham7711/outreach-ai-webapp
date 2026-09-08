@@ -59,7 +59,6 @@ const FIELD: React.CSSProperties = {
   background: "var(--cc-card)",
   border: "1px solid var(--cc-border)",
   borderRadius: 8,
-  outline: "none",
 };
 
 export function FilterDrawer({

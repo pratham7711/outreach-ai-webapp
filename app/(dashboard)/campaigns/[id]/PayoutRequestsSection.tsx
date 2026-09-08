@@ -5,11 +5,13 @@ import { Card, Badge, Input, Modal, EmptyState, Skeleton } from "@pratham7711/ui
 import { Dropdown, StatusTabs, Button } from "@/components/ds";
 import { Banknote, Check, X } from "lucide-react";
 import { CreatorSelect } from "@/components/CreatorSelect";
-import { formatDateAbs } from "@/lib/format";
+import { formatDateAbs, stripAt } from "@/lib/format";
 
 type PayoutReq = {
   id: string;
   creatorId: string;
+  /** Resolved by the route; null once the creator has been deleted. */
+  creator: { id: string; name: string; handle: string } | null;
   requestedAmount: number;
   currency: string;
   status: string;
@@ -17,6 +19,14 @@ type PayoutReq = {
   processedAt: string | null;
   createdAt: string;
 };
+
+/* Nobody can approve a payout to "cmt1m1wq...". The route resolves the name
+   now; this only formats it. */
+function creatorName(creator: { name: string; handle: string } | null): string {
+  if (!creator) return "Deleted creator";
+  const handle = stripAt(creator.handle);
+  return handle ? `${creator.name} (@${handle})` : creator.name;
+}
 
 const STATUS_TABS = [
   { key: "ALL", label: "All", bg: "#F3F4F6", color: "#374151" },
@@ -114,7 +124,6 @@ export default function PayoutRequestsSection({ campaignId }: { campaignId: stri
     fontSize: 14,
     color: "var(--cc-text)",
     background: "var(--cc-card)",
-    outline: "none",
     boxSizing: "border-box" as const,
   };
 
@@ -161,7 +170,7 @@ export default function PayoutRequestsSection({ campaignId }: { campaignId: stri
               gap: 12, padding: "14px 24px", alignItems: "center",
               borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined,
             }}>
-              <span style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>{req.creatorId.slice(0, 8)}...</span>
+              <span style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>{creatorName(req.creator)}</span>
               <span style={{ fontSize: 14, fontWeight: 700, color: "var(--cc-text)" }}>{formatCurrency(req.requestedAmount, req.currency)}</span>
               <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{req.currency}</span>
               <Badge variant={STATUS_BADGE[req.status] ?? "neutral"}>{req.status}</Badge>

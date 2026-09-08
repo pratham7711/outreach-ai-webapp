@@ -142,7 +142,6 @@ export function EntityPicker({
             flex: 1,
             minWidth: 0,
             border: "none",
-            outline: "none",
             background: "transparent",
             fontSize: 14,
             color: "var(--cc-text)",
