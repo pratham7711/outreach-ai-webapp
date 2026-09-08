@@ -15,6 +15,10 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [registered, setRegistered] = useState(false);
+  /* Whether signup's verification mail actually went out. "sent" and
+     "unavailable" are the two values /api/signup returns; an older link with no
+     verify param at all falls back to the cautious wording. */
+  const [verifyState, setVerifyState] = useState<"sent" | "unavailable" | "unknown">("unknown");
   const [notice, setNotice] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const emailRef = useRef<HTMLInputElement>(null);
@@ -24,6 +28,8 @@ export default function LoginPage() {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       setRegistered(params.get("registered") === "1");
+      const verify = params.get("verify");
+      if (verify === "sent" || verify === "unavailable") setVerifyState(verify);
       /* Sent here by /api/auth/session-invalid. Without a line of explanation,
          being signed out mid-session looks like the app losing your login. */
       if (params.get("reason") === "org-removed") {
@@ -131,6 +137,10 @@ export default function LoginPage() {
             </motion.div>
           )}
 
+          {/* Three states, because signup has three outcomes and only one of
+              them is an email that went out. Saying "we have emailed you a
+              link" on the other two sends a new account looking through spam
+              for a message nothing ever sent. */}
           {registered && !error && (
             <motion.div
               initial={{ opacity: 0, y: -8 }}
@@ -140,15 +150,26 @@ export default function LoginPage() {
               style={{
                 padding: "12px 16px",
                 borderRadius: 12,
-                background: "color-mix(in srgb, var(--cc-success) 12%, transparent)",
-                border: "1px solid color-mix(in srgb, var(--cc-success) 32%, transparent)",
-                color: "var(--cc-success)",
+                background:
+                  verifyState === "unavailable"
+                    ? "color-mix(in srgb, var(--cc-warning) 12%, transparent)"
+                    : "color-mix(in srgb, var(--cc-success) 12%, transparent)",
+                border:
+                  verifyState === "unavailable"
+                    ? "1px solid color-mix(in srgb, var(--cc-warning) 32%, transparent)"
+                    : "1px solid color-mix(in srgb, var(--cc-success) 32%, transparent)",
+                color: verifyState === "unavailable" ? "var(--cc-text)" : "var(--cc-success)",
                 fontSize: 13,
                 marginBottom: 16,
               }}
             >
-              Account created. We have emailed you a link to confirm your address
-              &mdash; sign in to get started.
+              {verifyState === "sent" ? (
+                <>Account created. We have emailed you a link to confirm your address &mdash; sign in to get started.</>
+              ) : verifyState === "unavailable" ? (
+                <>Account created, but we could not send the confirmation email just now. Sign in anyway &mdash; there is a Resend button in the banner at the top of the app.</>
+              ) : (
+                <>Account created. Sign in to get started.</>
+              )}
             </motion.div>
           )}
 

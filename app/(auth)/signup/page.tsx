@@ -70,7 +70,12 @@ export default function SignupPage() {
         setLoading(false);
         return;
       }
-      window.location.href = "/login?registered=1";
+      /* The route already tells us whether a verification mail actually left
+         the building. Dropping it here is what made the login page promise an
+         email on a deployment with no mail provider configured -- the one
+         moment a new account most needs to be told the truth. */
+      const verify = data.verificationEmail === "sent" ? "sent" : "unavailable";
+      window.location.href = `/login?registered=1&verify=${verify}`;
     } catch {
       setError("Something went wrong. Please try again.");
       setLoading(false);
