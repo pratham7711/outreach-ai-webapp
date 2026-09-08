@@ -72,12 +72,17 @@ function TaxonomyList({
   description,
   addLabel,
   emptyLabel,
+  canManage,
 }: {
   kind: Kind;
   title: string;
   description: string;
   addLabel: string;
   emptyLabel: string;
+  /** Editing these lists needs `settings:*`; reading them does not, because
+      every picker in the product is fed from here. Without this the add,
+      rename and remove controls were offered to everyone and answered 403. */
+  canManage: boolean;
 }) {
   const confirm = useConfirm();
   const buckets = bucketsFor(kind);
@@ -207,6 +212,15 @@ function TaxonomyList({
             <X size={14} aria-hidden="true" />
           </button>
         </>
+      ) : !canManage ? (
+        <>
+          <span style={{ fontSize: 13, color: "var(--cc-text)" }}>
+            {item.emoji ? `${item.emoji} ` : ""}{item.name}
+          </span>
+          {item.platform && (
+            <span style={{ fontSize: 11, color: "var(--cc-text-muted)" }}>{item.platform}</span>
+          )}
+        </>
       ) : (
         <>
           <button
@@ -240,11 +254,17 @@ function TaxonomyList({
       title={title}
       description={description}
       action={
-        !adding && (
-          <Button variant="secondary" size="sm" iconLeft={<Plus size={14} />} onClick={() => setAdding(true)}>
-            {addLabel}
-          </Button>
-        )
+        canManage
+          ? !adding && (
+              <Button variant="secondary" size="sm" iconLeft={<Plus size={14} />} onClick={() => setAdding(true)}>
+                {addLabel}
+              </Button>
+            )
+          : (
+            <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>
+              Read-only — only admins can change this list
+            </span>
+          )
       }
     >
       <div style={{ padding: 24, display: "flex", flexDirection: "column", gap: 16 }}>
@@ -337,7 +357,7 @@ function TaxonomyList({
   );
 }
 
-export default function GeneralClient() {
+export default function GeneralClient({ canManage }: { canManage: boolean }) {
   return (
     <div className="rsp-page page-enter">
       <PageHeader
@@ -347,6 +367,7 @@ export default function GeneralClient() {
 
       <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
         <TaxonomyList
+          canManage={canManage}
           kind="creator-tags"
           title="Creator Tags"
           description="Categorise and label creators by their general attributes."
@@ -354,6 +375,7 @@ export default function GeneralClient() {
           emptyLabel="No Creator Tags yet."
         />
         <TaxonomyList
+          canManage={canManage}
           kind="creator-flags"
           title="Creator Flags"
           description="Highlight a creator's current status, such as fast turnaround or on a break."
@@ -361,6 +383,7 @@ export default function GeneralClient() {
           emptyLabel="No Creator Flags yet."
         />
         <TaxonomyList
+          canManage={canManage}
           kind="campaign-tags"
           title="Campaign Tags"
           description="Categorise and label campaigns, for example “Fashion” or “Q4 Launch”."
@@ -368,6 +391,7 @@ export default function GeneralClient() {
           emptyLabel="No Campaign Tags Found"
         />
         <TaxonomyList
+          canManage={canManage}
           kind="deliverable-types"
           title="Deliverable Types"
           description="The deliverables campaigns can ask for, such as an Instagram Reel or a TikTok song promo."
@@ -375,6 +399,7 @@ export default function GeneralClient() {
           emptyLabel="No Deliverable Types yet."
         />
         <TaxonomyList
+          canManage={canManage}
           kind="campaign-statuses"
           title="Campaign Statuses"
           description="Your own names for where a campaign stands. Each one sits in a fixed group, and the group is what lists and reports filter on."
@@ -382,6 +407,7 @@ export default function GeneralClient() {
           emptyLabel="No Campaign Statuses yet."
         />
         <TaxonomyList
+          canManage={canManage}
           kind="activation-statuses"
           title="Activation Statuses"
           description="Your own names for where a single creator's activation stands within a campaign."

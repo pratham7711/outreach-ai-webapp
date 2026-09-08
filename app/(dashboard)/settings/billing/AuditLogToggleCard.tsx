@@ -7,6 +7,10 @@ import { Alert, Badge, Card, LoadingSpinner, Toggle } from "@pratham7711/ui";
 type AuditLogToggleCardProps = {
   initialEnabled: boolean;
   planName: string;
+  /** Whether this user holds `settings:*`. The PATCH has always refused
+      anybody else with a 403; the switch was live for them regardless, so it
+      flipped optimistically and then snapped back with an error. */
+  canManage: boolean;
 };
 
 function formatLabel(value: string) {
@@ -17,7 +21,7 @@ function formatLabel(value: string) {
     .join(" ");
 }
 
-export default function AuditLogToggleCard({ initialEnabled, planName }: AuditLogToggleCardProps) {
+export default function AuditLogToggleCard({ initialEnabled, planName, canManage }: AuditLogToggleCardProps) {
   const [enabled, setEnabled] = useState(initialEnabled);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -52,7 +56,7 @@ export default function AuditLogToggleCard({ initialEnabled, planName }: AuditLo
   }, []);
 
   async function handleToggle(nextEnabled: boolean) {
-    if (saving) return;
+    if (saving || !canManage) return;
 
     const previous = enabled;
     setError(null);
@@ -133,10 +137,20 @@ export default function AuditLogToggleCard({ initialEnabled, planName }: AuditLo
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8, flexShrink: 0 }}>
-            <Toggle checked={enabled} onChange={handleToggle} size="md" disabled={isBusy} />
-            <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>
+            <Toggle
+              checked={enabled}
+              onChange={handleToggle}
+              size="md"
+              disabled={isBusy || !canManage}
+            />
+            <span style={{ fontSize: 12, color: "var(--cc-text-muted)", textAlign: "right" }}>
               {enabled ? "Audit events are being recorded" : "Audit events are currently paused"}
             </span>
+            {!canManage && (
+              <span style={{ fontSize: 12, color: "var(--cc-text-muted)", textAlign: "right", maxWidth: 220 }}>
+                Only owners and admins can change this.
+              </span>
+            )}
           </div>
         </div>
 

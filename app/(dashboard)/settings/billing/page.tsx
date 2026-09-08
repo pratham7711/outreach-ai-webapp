@@ -3,8 +3,9 @@ import { auth } from "@/lib/auth";
 import { PageHeader } from "@/components/ds";
 import { getOrgEntitlements, hasOrgFeature } from "@/lib/entitlements";
 import { AUDIT_LOG_FEATURE } from "@/lib/featureKeys";
-import { FEATURES, type FeatureKey } from "@/lib/features";
-import { AudioLines, BadgeDollarSign, CheckCircle2, Gauge, Layers3, Users } from "lucide-react";
+import { FEATURES, partitionLiveFeatures, type FeatureKey } from "@/lib/features";
+import { hasPermission } from "@/lib/rbac";
+import { AudioLines, BadgeDollarSign, CheckCircle2, CircleDashed, Gauge, Layers3, Users } from "lucide-react";
 import type { ComponentType } from "react";
 import AuditLogToggleCard from "./AuditLogToggleCard";
 
@@ -77,7 +78,13 @@ export default async function BillingPage() {
   const entitlements = await getOrgEntitlements(orgId);
   if (!entitlements) redirect("/login");
 
-  const enabledFeatures = [...entitlements.features].sort((a, b) => a.localeCompare(b));
+  const sortedFeatures = [...entitlements.features].sort((a, b) => a.localeCompare(b));
+  /* Split rather than listed wholesale: see partitionLiveFeatures for why a
+     plan tier's feature names are not all things the product actually does. */
+  const { live: enabledFeatures, notBuilt: notYetBuilt } = partitionLiveFeatures(sortedFeatures);
+
+  const role = (session.user as any).role as string;
+  const canManageSettings = hasPermission(role, "settings:*");
 
   return (
     <div className="rsp-page page-enter">
@@ -116,6 +123,7 @@ export default async function BillingPage() {
         <AuditLogToggleCard
           initialEnabled={hasOrgFeature(entitlements, AUDIT_LOG_FEATURE)}
           planName={entitlements.planName}
+          canManage={canManageSettings}
         />
       </div>
 
@@ -181,6 +189,45 @@ export default async function BillingPage() {
                 </span>
               </div>
             ))}
+          </div>
+        )}
+
+        {notYetBuilt.length > 0 && (
+          <div style={{ marginTop: 24, borderTop: "1px solid var(--cc-border)", paddingTop: 16 }}>
+            <h3 style={{ fontSize: 14, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>
+              Listed on your plan, not built yet
+            </h3>
+            <p style={{ fontSize: 13, color: "var(--cc-text-muted)", marginBottom: 12 }}>
+              These names appear on the plan tier but nothing in the product reads them
+              today. They are shown so the list matches what you are paying for, not
+              because they do anything yet.
+            </p>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                gap: 12,
+              }}
+            >
+              {notYetBuilt.map((feature) => (
+                <div
+                  key={feature}
+                  style={{
+                    border: "1px dashed var(--cc-border)",
+                    borderRadius: 12,
+                    padding: "12px 14px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                  }}
+                >
+                  <CircleDashed size={16} style={{ color: "var(--cc-text-subtle)", flexShrink: 0 }} />
+                  <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text-muted)" }}>
+                    {formatLabel(feature)}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>

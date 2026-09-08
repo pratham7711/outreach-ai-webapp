@@ -259,8 +259,23 @@ export default function OrgProfilePage() {
               <FormRow label="Favicon URL">
                 <Input value={faviconUrl} onChange={e => setFaviconUrl(e.target.value)} placeholder="https://..." />
               </FormRow>
+              {/* Disabled, not removed. Organization.customDomain is written by
+                  this form and read by nothing: no route, no middleware, no
+                  tenant resolution. An editable box for a setting that does
+                  nothing is a promise the product does not keep. The value
+                  already stored is preserved — it is still sent on save. */}
               <FormRow label="Custom Domain">
-                <Input value={customDomain} onChange={e => setCustomDomain(e.target.value)} placeholder="app.yourdomain.com" />
+                <Input
+                  value={customDomain}
+                  onChange={e => setCustomDomain(e.target.value)}
+                  placeholder="app.yourdomain.com"
+                  disabled
+                  aria-describedby="custom-domain-note"
+                />
+                <p id="custom-domain-note" style={{ fontSize: 12, color: "var(--cc-text-muted)", marginTop: 6 }}>
+                  Not available yet — nothing serves the app from a custom domain today.
+                  Any value already saved here is kept.
+                </p>
               </FormRow>
             </div>
           </Card>
@@ -322,7 +337,21 @@ export default function OrgProfilePage() {
 
           {/* Bank Details */}
           <Card variant="outlined" style={{ padding: 24 }}>
-            <SectionHeader icon={Landmark} title="Bank Details" description="Used for payouts and financial reports" />
+            {/* The description used to say "Used for payouts and financial
+                reports". These five columns are written here and read back by
+                /api/org and this form only — no invoice, report or payout
+                surface touches them. Say where they actually go, which is
+                nowhere yet. */}
+            <SectionHeader
+              icon={Landmark}
+              title="Bank Details"
+              description="Your organization's own account, for invoices — coming soon"
+            />
+            <p style={{ fontSize: 12, color: "var(--cc-text-muted)", margin: "-8px 0 16px" }}>
+              Stored for when invoicing lands. Nothing displays these today. Creator
+              payout details are separate — each creator enters their own in the creator
+              portal.
+            </p>
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               <FormRow label="Account Name">
                 <Input value={bankAccountName} onChange={e => setBankAccountName(e.target.value)} placeholder="Account holder name" />

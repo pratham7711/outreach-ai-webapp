@@ -1,18 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
-import { authenticateRequest, getAuditActor } from "@/lib/authenticate";
+import { getAuditActor } from "@/lib/authenticate";
+import { requirePermission } from "@/lib/authz";
 import { logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
 import { TAXONOMY_KINDS, isTaxonomyKind } from "@/lib/taxonomy";
 
-/** Rename/reorder and remove, for any of the six lists in Settings → General. */
+/**
+ * Rename/reorder and remove, for any of the six lists in Settings → General.
+ *
+ * Both verbs are administration, so both go through the `settings:*` gate that
+ * the rest of the settings routes use. Deleting a definition rewrites what
+ * every campaign and creator in the org is labelled with; that was reachable by
+ * any MEMBER until this gate went in.
+ */
 
 // PATCH /api/settings/taxonomy/[kind]/[id]
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ kind: string; id: string }> },
 ) {
-  const result = await authenticateRequest(request);
-  if (!result) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const gate = await requirePermission(request, "settings:*");
+  if (!gate.ok) return gate.response;
+  const result = gate.auth;
   const { orgId } = result;
 
   const { kind, id } = await params;
@@ -73,8 +82,9 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ kind: string; id: string }> },
 ) {
-  const result = await authenticateRequest(request);
-  if (!result) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const gate = await requirePermission(request, "settings:*");
+  if (!gate.ok) return gate.response;
+  const result = gate.auth;
   const { orgId } = result;
 
   const { kind, id } = await params;

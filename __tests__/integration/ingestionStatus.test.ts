@@ -35,6 +35,29 @@ beforeEach(() => {
 });
 
 describe("GET /api/ingestion/status", () => {
+  it("returns an empty perPlatform list for an org with no posts at all", async () => {
+    const res = await ingestionStatusGET(getReq());
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.perPlatform).toEqual([]);
+  });
+
+  it("keeps platform order stable, following the enum rather than groupBy", async () => {
+    mockDb.post.groupBy.mockImplementation((args: any) =>
+      Promise.resolve(
+        args._max
+          ? [
+              { platform: "YOUTUBE", _count: { _all: 2 }, _max: { lastSyncedAt: null } },
+              { platform: "TIKTOK", _count: { _all: 1 }, _max: { lastSyncedAt: null } },
+            ]
+          : []
+      )
+    );
+
+    const body = await (await ingestionStatusGET(getReq())).json();
+    expect(body.perPlatform.map((p: any) => p.platform)).toEqual(["TIKTOK", "YOUTUBE"]);
+  });
+
   it("returns 401 when unauthenticated and runs no queries", async () => {
     mockAuth.mockResolvedValue(null);
     const res = await ingestionStatusGET(getReq());
@@ -111,12 +134,12 @@ describe("GET /api/ingestion/status", () => {
     const body = await res.json();
 
     expect(Array.isArray(body.perPlatform)).toBe(true);
-    // Every platform gets a row, zero-filled, so the panel does not silently
-    // omit one that simply has no posts yet. Asserted against the constant
-    // rather than a literal, so adding a platform does not fail this for the
-    // wrong reason.
-    expect(body.perPlatform).toHaveLength(PLATFORM_VALUES.length);
-    expect(body.perPlatform.map((p: any) => p.platform).sort()).toEqual([...PLATFORM_VALUES].sort());
+    /* Only platforms this org has posts on. Zero-filling all ten rendered
+       eight identical blocks of zeroes under "Ingestion Health", which reads
+       as everything being broken rather than unused. */
+    expect(body.perPlatform).toHaveLength(1);
+    expect(body.perPlatform.map((p: any) => p.platform)).toEqual(["TIKTOK"]);
+    expect(PLATFORM_VALUES.length).toBeGreaterThan(1);
 
     const tiktok = body.perPlatform.find((p: any) => p.platform === "TIKTOK");
     expect(tiktok).toMatchObject({
@@ -128,15 +151,8 @@ describe("GET /api/ingestion/status", () => {
       lastSyncAt: "2026-07-01T00:00:00.000Z",
     });
 
-    const youtube = body.perPlatform.find((p: any) => p.platform === "YOUTUBE");
-    expect(youtube).toMatchObject({
-      total: 0,
-      syncedLast24h: 0,
-      neverSynced: 0,
-      deadLettered: 0,
-      sealed: 0,
-      lastSyncAt: null,
-    });
+    // A platform with no posts is absent, not a row of zeroes.
+    expect(body.perPlatform.find((p: any) => p.platform === "YOUTUBE")).toBeUndefined();
 
     expect(body.deadLetter).toEqual([
       expect.objectContaining({

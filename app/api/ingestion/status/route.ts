@@ -42,7 +42,17 @@ export async function GET(req: NextRequest) {
   const countOf = (rows: { platform: string; _count: { _all: number } }[], platform: string) =>
     rows.find((r) => r.platform === platform)?._count._all ?? 0;
 
-  const perPlatform = PLATFORMS.map((platform) => {
+  /* Only platforms this org has posts on.
+     The full enum has ten entries and almost every org uses two or three, so
+     mapping over PLATFORMS rendered eight identical blocks of zeroes under an
+     "Ingestion Health" heading — a screen that says nothing is being ingested
+     anywhere. A platform with no posts has no ingestion to be healthy or
+     unhealthy about; the client shows an honest empty state when the list
+     comes back empty. Order follows PLATFORMS so it stays stable between
+     loads rather than following whatever order groupBy returned. */
+  const perPlatform = PLATFORMS.filter((platform) =>
+    totalRows.some((r) => r.platform === platform && r._count._all > 0)
+  ).map((platform) => {
     const totalRow = totalRows.find((r) => r.platform === platform);
     return {
       platform,

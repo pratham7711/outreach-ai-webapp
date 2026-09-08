@@ -99,6 +99,19 @@ export default function IngestionClient() {
       ) : (
         !error && (
           <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+            {/* The API now returns only platforms this org has posts on, so an
+                empty list means there is genuinely nothing to ingest yet —
+                not that every platform is broken. It used to render ten
+                all-zero blocks, which read as exactly that. */}
+            {perPlatform.length === 0 && (
+              <Card variant="outlined" style={{ padding: 24 }}>
+                <EmptyState
+                  icon={<CheckCircle2 size={32} color="var(--cc-text-subtle)" />}
+                  title="No posts to ingest yet"
+                  description="Add a post to a campaign and its platform will appear here with its sync health."
+                />
+              </Card>
+            )}
             {perPlatform.map((p) => (
               <div key={p.platform}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
