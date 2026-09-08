@@ -100,6 +100,21 @@ export async function POST(
 
     const { creatorId, rating, tags, comment } = parsed.data;
 
+    /* creatorId arrives in the body and is written onto a row whose orgId comes
+       from the session, so Prisma sees nothing wrong: the review belongs to this
+       org and names another org's Creator. That review then surfaces on the
+       public /c/[handle] page keyed by the Creator's handle. Proven here, before
+       the write, rather than in the rollup below — that lookup is inside a
+       try/catch that swallows its failure, so it could never have refused the
+       request. */
+    const creator = await db.creator.findFirst({
+      where: { id: creatorId, orgId, deletedAt: null },
+      select: { id: true, handle: true },
+    });
+    if (!creator) {
+      return NextResponse.json({ error: "Creator not found" }, { status: 404 });
+    }
+
     // Check for duplicate review (same org + campaign + creator)
     const existing = await db.creatorReview.findFirst({
       where: { orgId, campaignId, creatorId },
@@ -125,20 +140,20 @@ export async function POST(
 
     // Update CreatorUser averageRating + reviewCount if matched by handle
     try {
-      const creator = await db.creator.findFirst({
-        where: { id: creatorId, orgId },
-        select: { handle: true },
-      });
-
-      if (creator?.handle) {
+      if (creator.handle) {
         const creatorUser = await db.creatorUser.findFirst({
           where: { handle: creator.handle },
         });
 
         if (creatorUser) {
-          // Recalculate from all reviews for this creatorId
+          /* CreatorReview carries an orgId, so the recount carries one too. A
+             Creator row belongs to exactly one org today, which makes the two
+             forms agree on well-formed data — but the unscoped form would
+             average in any stray cross-org row rather than refusing to see it,
+             and a rollup is the wrong place to be the only query in the file
+             that is not tenant-scoped. */
           const allReviews = await db.creatorReview.findMany({
-            where: { creatorId },
+            where: { orgId, creatorId },
             select: { rating: true },
           });
 
