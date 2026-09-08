@@ -27,14 +27,16 @@ export default function RemovedPostOverlay({
   /** The `__lastFetch` note, when the caller has it. Only its `at` is used. */
   note?: LastFetchNote | null;
   variant?: "overlay" | "inline";
-  /** Smaller type for the dense list row. The wording never changes with it —
-      one post reading "Unavailable" in the table and "may have been deleted" on
-      its own page would look like two different findings. */
+  /** Smaller type for the dense list row, where the full sentence wrapped to
+      three lines inside the status column. The visible text drops to the noun
+      phrase ("Post unavailable"); the full sentence stays in title/aria, so the
+      finding reads the same everywhere and hover shows the rest. */
   compact?: boolean;
 }) {
   const label = removedPostLabel();
   const since = removedSince(note);
   const description = since ? `${label}. ${since}.` : label;
+  const visible = compact ? label.split(" — ")[0] : label;
 
   return (
     <span
@@ -58,6 +60,7 @@ export default function RemovedPostOverlay({
         fontWeight: 600,
         lineHeight: 1.35,
         textAlign: "left",
+        whiteSpace: compact ? "nowrap" : "normal",
         // The house warning treatment: the status token plus a tint mixed from
         // it, so all three themes re-colour this with the rest of the palette.
         color: "var(--cc-warning)",
@@ -66,7 +69,7 @@ export default function RemovedPostOverlay({
       }}
     >
       <AlertTriangle size={compact ? 11 : 13} aria-hidden="true" style={{ flexShrink: 0 }} />
-      {label}
+      {visible}
     </span>
   );
 }

@@ -10,11 +10,13 @@ import { REMOVED_FETCH_REASON } from "@/lib/postRemoval";
    same everywhere, and the timestamp has to be the one we measured. */
 
 describe("RemovedPostOverlay", () => {
-  it("carries the shared wording, compact or not", () => {
+  it("carries the shared wording; compact shows the noun phrase and keeps the sentence accessible", () => {
     const { rerender } = render(<RemovedPostOverlay />);
     expect(screen.getByText("Post unavailable — it may have been deleted")).toBeInTheDocument();
     rerender(<RemovedPostOverlay variant="inline" compact />);
-    expect(screen.getByText("Post unavailable — it may have been deleted")).toBeInTheDocument();
+    expect(screen.getByText("Post unavailable")).toBeInTheDocument();
+    expect(screen.queryByText("Post unavailable — it may have been deleted")).toBeNull();
+    expect(screen.getByRole("status")).toHaveAttribute("aria-label", "Post unavailable — it may have been deleted");
   });
 
   it("puts the last check in the accessible name, not the visible text", () => {
