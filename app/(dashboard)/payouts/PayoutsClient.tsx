@@ -11,6 +11,7 @@ import AddPayoutModal from "@/components/modals/AddPayoutModal";
 import PayoutDetailModal from "@/components/modals/PayoutDetailModal";
 import { stripAt, formatDateAbs } from "@/lib/format";
 import { downloadCsv, exportStamp } from "@/lib/csv";
+import type { PayoutCurrencyTotals } from "@/lib/payouts/totals";
 
 type Payout = {
   id: string;
@@ -48,13 +49,52 @@ const QUICK_ACTIONS: Record<string, { label: ReactNode; status: string }[]> = {
   PROCESSING: [{ label: <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><ArrowRight size={14} /> Success</span>, status: "SUCCESS" }],
 };
 
-function formatCurrency(n: number) {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
+/* The payout's own currency, never a blanket "USD". Every row carries one, the
+   CSV export has always written it, and POST /api/payouts accepts four of them,
+   so formatting a GBP payout as $1,200.00 restates it as a different amount of
+   money. */
+function formatCurrency(n: number, currency: string) {
+  return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(n);
+}
+
+/**
+ * A KPI tile's figure.
+ *
+ * One currency in the org's payouts and it reads exactly as it always did — one
+ * line, one number. Several, and it becomes one line per currency, because
+ * there is no honest single number to print: the four tiles used to sum
+ * `_sum.amount` across every currency at once and stamp a dollar sign on the
+ * result. A currency contributing nothing to this particular status is dropped
+ * from that tile rather than printed as a zero.
+ */
+function TileValue({
+  rows,
+  pick,
+}: {
+  rows: PayoutCurrencyTotals[];
+  pick: (row: PayoutCurrencyTotals) => number;
+}) {
+  if (rows.length <= 1) {
+    const row = rows[0];
+    return <>{formatCurrency(row ? pick(row) : 0, row?.currency ?? "USD")}</>;
+  }
+  const contributing = rows.filter((row) => pick(row) !== 0);
+  // Nothing at all in this status still needs a figure, so the leading currency
+  // (rows is sorted by total) shows its zero.
+  const shown = contributing.length > 0 ? contributing : rows.slice(0, 1);
+  return (
+    <span className="payout-tile-stack">
+      {shown.map((row) => (
+        <span key={row.currency}>{formatCurrency(pick(row), row.currency)}</span>
+      ))}
+    </span>
+  );
 }
 
 export default function PayoutsClient({ payouts, stats }: {
   payouts: Payout[];
-  stats: { total: number; sent: number; pending: number; processing: number; failed: number };
+  /** One entry per currency the org has payouts in, highest total first. */
+  stats: PayoutCurrencyTotals[];
 }) {
   const router = useRouter();
   const confirm = useConfirm();
@@ -208,6 +248,9 @@ export default function PayoutsClient({ payouts, stats }: {
         @media (min-width: 640px) { .payout-tiles { gap: 16px; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); } }
         .payout-tiles .ui-statcard { min-width: 0; }
         .payout-tiles .ui-statcard-value { overflow-wrap: anywhere; font-size: clamp(17px, 5vw, 30px); }
+        /* A tile holding several currencies gives each its own line, at a size
+           that fits four of them in the same box one figure used to occupy. */
+        .payout-tile-stack { display: flex; flex-direction: column; gap: 2px; font-size: clamp(15px, 3.2vw, 20px); line-height: 1.3; }
         .payout-inner { min-width: 780px; }
         .payout-head, .payout-row { display: grid; grid-template-columns: 40px 1fr 140px 100px 100px 120px 160px; gap: 12px; align-items: center; }
         .payout-head { padding: 12px 24px; border-bottom: 1px solid var(--cc-border); background: var(--cc-bg); }
@@ -225,10 +268,10 @@ export default function PayoutsClient({ payouts, stats }: {
         }
       `}</style>
       <div className="cc-stagger payout-tiles" style={{ marginBottom: 32 }}>
-        <MetricTile metric="totalPaid" value={formatCurrency(stats.sent)} />
-        <MetricTile metric="pendingPayouts" value={formatCurrency(stats.pending)} />
-        <MetricTile metric="processingPayouts" value={formatCurrency(stats.processing)} />
-        <MetricTile metric="failedPayouts" value={formatCurrency(stats.failed)} />
+        <MetricTile metric="totalPaid" value={<TileValue rows={stats} pick={(r) => r.sent} />} />
+        <MetricTile metric="pendingPayouts" value={<TileValue rows={stats} pick={(r) => r.pending} />} />
+        <MetricTile metric="processingPayouts" value={<TileValue rows={stats} pick={(r) => r.processing} />} />
+        <MetricTile metric="failedPayouts" value={<TileValue rows={stats} pick={(r) => r.failed} />} />
       </div>
 
       {/* Search + Status Filter */}
@@ -365,7 +408,7 @@ export default function PayoutsClient({ payouts, stats }: {
                   {/* Campaign */}
                   <span data-col="campaign" style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{p.campaign?.title ?? "—"}</span>
                   {/* Amount */}
-                  <span data-col="amount" style={{ fontSize: 14, fontWeight: 700, color: "var(--cc-text)" }}>{formatCurrency(p.amount)}</span>
+                  <span data-col="amount" style={{ fontSize: 14, fontWeight: 700, color: "var(--cc-text)" }}>{formatCurrency(p.amount, p.currency)}</span>
                   {/* Status */}
                   <div data-col="status">
                     <Badge variant={STATUS_BADGE_VARIANT[p.status] ?? "neutral"} dot>
