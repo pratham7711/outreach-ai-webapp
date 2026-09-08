@@ -230,8 +230,10 @@ describe("computeCampaignPerformance audio provenance", () => {
     // The query orders newest first, so the newest row is the current count and
     // the series has to come back reversed.
     mockDb.soundTrackerSnapshot.findMany.mockResolvedValue([
-      { usesCount: 44, videosAdded24h: 21, recordedAt: new Date("2026-08-22T00:00:00Z") },
-      { usesCount: 23, videosAdded24h: 9, recordedAt: new Date("2026-08-21T00:00:00Z") },
+      { usesCount: 44, videosAdded24h: 21, velocityScore: 91.3, recordedAt: new Date("2026-08-22T00:00:00Z") },
+      // The sound's first-ever reading: recordSoundSnapshot stores 0 because
+      // there is no earlier reading to divide by.
+      { usesCount: 23, videosAdded24h: 9, velocityScore: 0, recordedAt: new Date("2026-08-21T00:00:00Z") },
     ]);
 
     const result = await computeCampaignPerformance(campaign);
@@ -242,9 +244,13 @@ describe("computeCampaignPerformance audio provenance", () => {
        land on one date and the axis then printed the same label for all of
        them. It is the chart's own dataKey, so a row without it is not a
        cosmetic loss -- it is a report that does not render. */
+    /* The first point's velocity is NULL, not 0. The stored 0 is the absence of
+       a baseline, and charted it drew a real "0.00%" point that pulled the
+       velocity line down to it — the tracker's own VelocityChart has always
+       dropped its first point for exactly this reason. */
     expect(result.audio!.usageSeries).toEqual([
-      { date: "2026-08-21", at: "2026-08-21T00:00:00.000Z", uses: 23 },
-      { date: "2026-08-22", at: "2026-08-22T00:00:00.000Z", uses: 44 },
+      { date: "2026-08-21", at: "2026-08-21T00:00:00.000Z", uses: 23, velocity: null },
+      { date: "2026-08-22", at: "2026-08-22T00:00:00.000Z", uses: 44, velocity: 91.3 },
     ]);
     // The tracker's own cover wins over the song's art.
     expect(result.audio!.coverUrl).toBe("https://cdn/sound.jpg");
@@ -416,14 +422,17 @@ describe("computeCampaignPerformance views-over-time read", () => {
     expect(String(sql)).not.toContain("camp-1");
   });
 
-  it("narrows to the three platforms the chart has columns for", async () => {
-    // A TWITTER post's snapshots were fetched and then silently discarded by
-    // carryForwardViewsByDay, which has no column to put them in.
+  it("does not narrow by platform when the caller did not", async () => {
+    /* It used to narrow to TIKTOK/INSTAGRAM/YOUTUBE, because the chart had
+       exactly those three columns and a TWITTER post's snapshots would have
+       been fetched and then discarded. The chart now takes its columns from the
+       campaign, so narrowing here would only put the hole back one layer down —
+       and the pie beside the chart has always counted every platform. */
     await computeCampaignPerformance(campaign);
 
     const [sql, ...params] = mockDb.$queryRawUnsafe.mock.calls[0];
-    expect(String(sql)).toContain("p.platform::text IN ($2, $3, $4)");
-    expect(params).toEqual(["camp-1", "TIKTOK", "INSTAGRAM", "YOUTUBE"]);
+    expect(String(sql)).not.toContain("p.platform::text IN");
+    expect(params).toEqual(["camp-1"]);
   });
 
   it("narrows further to the caller's own platform filter", async () => {
@@ -445,9 +454,74 @@ describe("computeCampaignPerformance views-over-time read", () => {
 
     const result = await computeCampaignPerformance(campaign);
 
+    // One key per platform the campaign posted on, and this campaign is
+    // TikTok-only, so INSTAGRAM and YOUTUBE are absent rather than zero.
     expect(result.timeSeries).toEqual([
-      { date: "2026-08-02", TIKTOK: 4_000, INSTAGRAM: 0, YOUTUBE: 0 },
-      { date: "2026-08-03", TIKTOK: 5_000, INSTAGRAM: 0, YOUTUBE: 0 },
+      { date: "2026-08-02", TIKTOK: 4_000 },
+      { date: "2026-08-03", TIKTOK: 5_000 },
     ]);
+    expect(result.seriesPlatforms).toEqual(["TIKTOK"]);
+  });
+
+  /**
+   * The stacked area and the pie beside it must add up to the same number.
+   *
+   * The pie split ALL posts by platform while the series was filtered to
+   * TIKTOK/INSTAGRAM/YOUTUBE, so a campaign with a Twitter or Facebook post
+   * drew a stack whose total sat below the Total Views tile above it.
+   */
+  it("charts every platform the campaign posted on, most-viewed first", async () => {
+    mockDb.post.findMany.mockResolvedValue([
+      post({ id: "p1", platform: "TWITTER", postedAt: new Date("2026-08-01T00:00:00Z"), viewsCount: 900 }),
+      post({ id: "p2", platform: "TIKTOK", postedAt: new Date("2026-08-01T00:00:00Z"), viewsCount: 100 }),
+    ]);
+    mockDb.$queryRawUnsafe.mockResolvedValue([]);
+
+    const result = await computeCampaignPerformance(campaign);
+
+    expect(result.seriesPlatforms).toEqual(["TWITTER", "TIKTOK"]);
+    const last = result.timeSeries[result.timeSeries.length - 1];
+    expect(last).toEqual({ date: "2026-08-01", TWITTER: 900, TIKTOK: 100 });
+    // Which is the whole point: the stack now totals the Total Views tile.
+    expect(Number(last.TWITTER) + Number(last.TIKTOK)).toBe(result.kpis.views);
+  });
+});
+
+/**
+ * A velocity of 0 on a sound's first reading is a placeholder, not a
+ * measurement — but only when that reading really is the first. The series is
+ * capped at 60 points, so the oldest point CHARTED usually has a predecessor
+ * the chart simply does not show, and its stored velocity is real.
+ */
+describe("first-reading velocity", () => {
+  const song = {
+    song: {
+      coverUrl: null,
+      sound: { id: "s1", tiktokSoundId: "999", title: "T", artist: "A", coverImageUrl: null },
+    },
+  };
+
+  const snapshot = (i: number) => ({
+    usesCount: 100 + i,
+    videosAdded24h: 1,
+    velocityScore: 5,
+    recordedAt: new Date(Date.UTC(2026, 6, 1 + i)),
+  });
+
+  beforeEach(() => {
+    mockDb.post.findMany.mockResolvedValue([post()]);
+    mockDb.campaign.findUnique.mockResolvedValue(song);
+  });
+
+  it("keeps the oldest point's velocity when an earlier reading exists beyond the window", async () => {
+    // 61 rows come back: the 61st exists only to prove the 60th has a
+    // predecessor, and it is not charted.
+    const rows = Array.from({ length: 61 }, (_, i) => snapshot(60 - i));
+    mockDb.soundTrackerSnapshot.findMany.mockResolvedValue(rows);
+
+    const result = await computeCampaignPerformance(campaign);
+
+    expect(result.audio!.usageSeries).toHaveLength(60);
+    expect(result.audio!.usageSeries[0].velocity).toBe(5);
   });
 });

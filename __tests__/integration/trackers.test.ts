@@ -23,6 +23,9 @@ jest.mock("@/lib/db", () => ({
     soundTrackerSnapshot: {
       deleteMany: jest.fn(),
     },
+    // The plan limit counts sounds AND tracked creators against one
+    // max_trackers — see lib/trackers/limit.
+    creator: { count: jest.fn() },
     // Read twice per request: once here for chart granularity, once inside
     // getOrgEntitlements for the tracker limit.
     organization: { findUnique: jest.fn() },
@@ -53,6 +56,7 @@ beforeEach(() => {
   mockAuth.mockResolvedValue(authedSession);
   mockDb.organization.findUnique.mockResolvedValue(orgFixture());
   mockDb.tikTokSound.count.mockResolvedValue(0);
+  mockDb.creator.count.mockResolvedValue(0);
 });
 
 // ─── GET /api/trackers ──────────────────────────────────────────────────────
@@ -172,6 +176,29 @@ describe("POST /api/trackers", () => {
     expect(res.status).toBe(400);
   });
 
+  /**
+   * Instagram audio parses and is then refused.
+   *
+   * Both readers (lib/sounds/snapshot and the hourly cron) ignore `platform`
+   * and query TikTok, so an Instagram row would sit at "awaiting first reading"
+   * forever while holding a plan slot. Accepting it was worse than saying no.
+   */
+  it("refuses an Instagram audio link with a message that says why", async () => {
+    mockDb.tikTokSound.findFirst.mockResolvedValue(null);
+    const req = makeRequest("http://localhost/api/trackers", {
+      method: "POST",
+      body: JSON.stringify({ url: "https://www.instagram.com/reels/audio/1234567890123456/" }),
+    });
+
+    const res = await postTracker(req);
+
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toBe("instagram_unsupported");
+    expect(body.message).toMatch(/Instagram audio tracking is not supported yet/);
+    expect(mockDb.tikTokSound.create).not.toHaveBeenCalled();
+  });
+
   /* The free tier allows 0 trackers, and 0 is exactly the value a falsy check
      swallows. If `?? Infinity` ever becomes `|| Infinity`, or the gate becomes
      `if (maxTrackers)`, the free tier silently turns unlimited and these are
@@ -181,6 +208,7 @@ describe("POST /api/trackers", () => {
       mockDb.organization.findUnique.mockResolvedValue(orgFixture({ plan: "free" }));
       mockDb.tikTokSound.findFirst.mockResolvedValue(null);
       mockDb.tikTokSound.count.mockResolvedValue(0);
+  mockDb.creator.count.mockResolvedValue(0);
     };
 
     it("refuses the very first tracker", async () => {
@@ -216,7 +244,7 @@ describe("POST /api/trackers", () => {
       const body = await (await postTracker(req)).json();
 
       expect(body.error).toBe(
-        "Your plan does not include sound trackers. Upgrade to start tracking sounds."
+        "Your plan does not include trackers. Upgrade to start tracking sounds."
       );
       expect(body.error).not.toContain("Remove one");
       expect(body.trackers).toEqual({ used: 0, max: 0 });
@@ -287,11 +315,14 @@ describe("GET /api/trackers/[id]", () => {
     expect(res.status).toBe(401);
   });
 
-  it("returns 403 when sound not in org", async () => {
+  /* 404, not 403. The query is scoped to the org, so a miss is either "no such
+     tracker" or "not yours" — and 403 tells a stranger the id exists somewhere
+     while reading, to the owner, like a permissions bug. */
+  it("returns 404 when sound not in org", async () => {
     mockDb.tikTokSound.findFirst.mockResolvedValue(null);
     const req = makeRequest("http://localhost/api/trackers/sound-1");
     const res = await getTrackerDetail(req, makeParams("sound-1"));
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(404);
   });
 
   it("returns sound detail with all snapshots", async () => {
@@ -345,13 +376,16 @@ describe("DELETE /api/trackers/[id]", () => {
     expect(res.status).toBe(401);
   });
 
-  it("returns 403 when sound not in org", async () => {
+  /* 404, not 403. The query is scoped to the org, so a miss is either "no such
+     tracker" or "not yours" — and 403 tells a stranger the id exists somewhere
+     while reading, to the owner, like a permissions bug. */
+  it("returns 404 when sound not in org", async () => {
     mockDb.tikTokSound.findFirst.mockResolvedValue(null);
     const req = makeRequest("http://localhost/api/trackers/sound-1", {
       method: "DELETE",
     });
     const res = await deleteTracker(req, makeParams("sound-1"));
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(404);
   });
 
   it("deletes sound and its snapshots", async () => {

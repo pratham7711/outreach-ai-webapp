@@ -13,7 +13,9 @@ import { TrackersIntro } from "./TrackersIntro";
 import { formatCompact, formatDateAbs, timeAgo } from "@/lib/format";
 import { apiDelete, apiFetch, apiPost } from "@/lib/api/client";
 import { errorMessage } from "@/lib/api/errorMessage";
+import { describeTrackerSweep } from "@/lib/refreshSummary";
 import { SOUND_URL_ERRORS, parseSoundUrl } from "@/lib/trackers/soundUrl";
+import { changeSpanLabel, isTrackerWindow } from "@/lib/trackers/metrics";
 
 interface SoundSnapshot {
   usesCount: number;
@@ -224,13 +226,9 @@ export default function TrackersPage() {
       apiPost<{ snapshots: number; failed: number; skipped: number }>("/api/trackers/refresh", {}),
     onSuccess: (result) => {
       invalidate();
-      if (result.snapshots > 0) {
-        toast.success(`Updated ${result.snapshots} sound${result.snapshots === 1 ? "" : "s"}`);
-      } else if (result.failed > 0) {
-        toast.error("TikTok did not return counts for any tracked sound");
-      } else {
-        toast.success("Nothing to refresh");
-      }
+      // One sentence covering both halves of the result — see describeTrackerSweep.
+      const { tone, text } = describeTrackerSweep(result);
+      toast[tone](text);
     },
     onError: (error) => toast.error(errorMessage(error, "Could not refresh trackers")),
   });
@@ -273,6 +271,11 @@ export default function TrackersPage() {
     const raw = urlInput.trim();
     if (!raw) return null;
     const parsed = parseSoundUrl(raw);
+    // Parseable and still refused: nothing reads Instagram audio, so the route
+    // 400s rather than parking a tracker that never gets a reading.
+    if (parsed.kind === "sound" && parsed.platform === "INSTAGRAM") {
+      return SOUND_URL_ERRORS.instagram_unsupported;
+    }
     if (parsed.kind === "sound" || parsed.kind === "short-link") return null;
     const reason = parsed.kind === "video" ? "video_url" : parsed.reason;
     return SOUND_URL_ERRORS[reason] ?? SOUND_URL_ERRORS.unrecognised;
@@ -556,6 +559,9 @@ export default function TrackersPage() {
             const snap = s.latestSnapshot;
             const added = s.addedInPeriod;
             const measured = s.change !== null;
+            const spanLabel = isTrackerWindow(period)
+              ? changeSpanLabel(s.change, period, periodLabel(period))
+              : periodLabel(period);
             return (
               <div
                 key={s.id}
@@ -627,9 +633,21 @@ export default function TrackersPage() {
                     {snap ? formatCount(snap.usesCount) : "—"}
                   </div>
                   {measured && added !== null ? (
-                    <div style={{ fontSize: 12, color: added >= 0 ? "var(--cc-primary)" : "var(--cc-danger)" }}>
+                    /* The span is the one changeOverWindow actually measured, not
+                       the one that was asked for. With fewer than two readings
+                       inside the window it falls back to the last two of all
+                       time, and printing "/ 24h" over a ten-day gain overstated
+                       the rate by a factor of ten. */
+                    <div
+                      style={{ fontSize: 12, color: added >= 0 ? "var(--cc-primary)" : "var(--cc-danger)" }}
+                      title={
+                        spanLabel !== periodLabel(period)
+                          ? `Only ${spanLabel} of readings are available inside the ${periodLabel(period)} window.`
+                          : undefined
+                      }
+                    >
                       {added >= 0 ? "+" : ""}
-                      {formatCount(added)} / {periodLabel(period)}
+                      {formatCount(added)} / {spanLabel}
                       {s.growthPercentage !== null
                         ? ` (${s.growthPercentage >= 0 ? "+" : ""}${s.growthPercentage.toFixed(1)}%)`
                         : ""}
@@ -711,12 +729,12 @@ export default function TrackersPage() {
       }>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <label htmlFor="sound-url" style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>
-            TikTok or Instagram sound link
+            TikTok sound link
           </label>
           <Input
             id="sound-url"
             autoFocus
-            placeholder="tiktok.com/music/... or instagram.com/reels/audio/..."
+            placeholder="tiktok.com/music/..."
             value={urlInput}
             onChange={(e) => setUrlInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter" && !clientError && urlInput.trim()) handleCreate(); }}
@@ -729,9 +747,9 @@ export default function TrackersPage() {
             </div>
           ) : (
             <div id="sound-url-help" style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>
-              Open the sound&apos;s own page — on TikTok tap the spinning record on any video (or
-              the sound name at the bottom); on Instagram tap the audio name under a reel — then
-              copy that link. The title and artwork fill in automatically after the first reading.
+              Open the sound&apos;s own page — tap the spinning record on any video, or the sound
+              name at the bottom — then copy that link. The title and artwork fill in
+              automatically after the first reading. Instagram audio is not supported yet.
             </div>
           )}
         </div>

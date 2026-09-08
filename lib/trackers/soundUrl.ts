@@ -201,4 +201,13 @@ export const SOUND_URL_ERRORS: Record<string, string> = {
     "We couldn't find a sound in that link. Open the sound's own page on TikTok or Instagram and copy the link from there.",
   short_link_unresolvable:
     "We couldn't open that short link right now. Try again, or paste the full tiktok.com/music/ link instead.",
+  /* Parsed, named, and then refused. The parser understands Instagram audio
+     URLs -- CreatorCore stores them verbatim -- but no reader does: both
+     lib/sounds/snapshot and the hourly cron ignore `platform` and query
+     TikTok's music endpoints with whatever id the row holds. An Instagram
+     tracker therefore sat at "awaiting first reading" forever while occupying a
+     plan slot, which is worse than not accepting it. Rejected at the front door
+     until a reader exists. */
+  instagram_unsupported:
+    "Instagram audio tracking is not supported yet. We can only read usage counts from TikTok sound pages — paste a tiktok.com/music/ link instead.",
 };

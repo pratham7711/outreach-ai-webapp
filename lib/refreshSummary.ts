@@ -55,6 +55,36 @@ export function describeAudioRefresh(sound?: SoundRefreshResult | null): string 
 }
 
 /**
+ * What a tracker sweep actually did, in one sentence.
+ *
+ * The page said "Updated 1 sound" and stopped, so a sweep answering
+ * {snapshots: 1, failed: 40} — a near-total outage — was reported as a plain
+ * success and the 40 sounds that got nothing were visible only by opening each
+ * row. A partial result is a warning, and it says how partial.
+ */
+export function describeTrackerSweep(result: {
+  snapshots: number;
+  failed: number;
+  skipped?: number;
+}): { tone: "success" | "warning" | "error"; text: string } {
+  const { snapshots, failed } = result;
+  const sounds = (n: number) => `${n} sound${n === 1 ? "" : "s"}`;
+
+  if (snapshots > 0 && failed > 0) {
+    return {
+      tone: "warning",
+      text: `Updated ${sounds(snapshots)} — TikTok returned no count for ${failed} other${failed === 1 ? "" : "s"}`,
+    };
+  }
+  if (snapshots > 0) return { tone: "success", text: `Updated ${sounds(snapshots)}` };
+  if (failed > 0) return { tone: "error", text: "TikTok did not return counts for any tracked sound" };
+  /* Nothing read and nothing failed: the cadence gate declined every sound
+     because its last reading is recent enough that another would record the
+     same number. Saying "updated" there would be a lie. */
+  return { tone: "success", text: "Nothing to refresh" };
+}
+
+/**
  * Plain English for each reason. Anything unrecognised is deliberately left out
  * of the sentence rather than printed raw -- a slug in the UI is worse than a
  * slightly shorter summary.

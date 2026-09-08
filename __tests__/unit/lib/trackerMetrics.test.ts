@@ -8,6 +8,9 @@ import {
   isTrackerWindow,
   readHealthFor,
   isMeasurable,
+  formatSpanHours,
+  spanMatchesWindow,
+  changeSpanLabel,
 } from "@/lib/trackers/metrics";
 
 const NOW = new Date("2026-08-14T12:00:00.000Z");
@@ -183,5 +186,41 @@ describe("readHealthFor — a count and its age are one fact", () => {
 
     // ...and this is why that must never be rendered.
     expect(isMeasurable(readHealthFor(hoursAgo(nineDays), NOW))).toBe(false);
+  });
+});
+
+/**
+ * A change is labelled with the span it actually covers.
+ *
+ * changeOverWindow falls back to the last two readings of all time when fewer
+ * than two land inside the window, so the number it returns can span ten days
+ * while the caller prints "24h". spanHours has always said so and nobody read
+ * it.
+ */
+describe("span labelling", () => {
+  it("names a span in the unit a reader can hold", () => {
+    expect(formatSpanHours(0.5)).toBe("30m");
+    expect(formatSpanHours(20)).toBe("20h");
+    expect(formatSpanHours(240)).toBe("10d");
+  });
+
+  it("keeps the window's own label when the readings nearly fill it", () => {
+    // Four-hourly readings put the oldest in-window baseline 20h back.
+    expect(spanMatchesWindow(20, "24h")).toBe(true);
+    expect(changeSpanLabel({ spanHours: 20 }, "24h", "24h")).toBe("24h");
+  });
+
+  it("prints the real span when it is not the window that was asked for", () => {
+    // The reported case: a 60-row series is ten days at the four-hourly
+    // cadence, so 14d and 30d both measured ten days and both said otherwise.
+    expect(spanMatchesWindow(240, "30d")).toBe(false);
+    expect(changeSpanLabel({ spanHours: 240 }, "30d", "30d")).toBe("10d");
+    expect(changeSpanLabel({ spanHours: 240 }, "14d", "14d")).toBe("10d");
+    // And the "+50,000 / 24h" case, which was a ten-day gain.
+    expect(changeSpanLabel({ spanHours: 240 }, "24h", "24h")).toBe("10d");
+  });
+
+  it("leaves the label alone when there is no change to label", () => {
+    expect(changeSpanLabel(null, "7d", "7d")).toBe("7d");
   });
 });

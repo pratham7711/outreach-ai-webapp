@@ -150,6 +150,44 @@ export function changeOverWindow(
   };
 }
 
+/**
+ * How long a change ACTUALLY covers, for the label above it.
+ *
+ * changeOverWindow is allowed to answer with a span that is not the window it
+ * was asked for: fewer than two readings inside the window and it falls back to
+ * the last two of all time, which can be far older. It has always returned
+ * `spanHours` saying so, and every caller printed the window label anyway — so
+ * a ten-day gain read "+50,000 / 24h".
+ */
+export function formatSpanHours(spanHours: number): string {
+  if (spanHours < 1) return `${Math.max(1, Math.round(spanHours * 60))}m`;
+  if (spanHours < 48) return `${Math.round(spanHours)}h`;
+  return `${Math.round(spanHours / 24)}d`;
+}
+
+/**
+ * Whether the window's own name is an honest label for this span.
+ *
+ * A window is never filled exactly — a four-hourly reader's oldest in-window
+ * baseline sits 20 hours back on a 24-hour window — so a modest shortfall keeps
+ * the label rather than printing "20h" every hour of every day. A span outside
+ * a quarter either way is a different span, and gets its own length.
+ */
+export function spanMatchesWindow(spanHours: number, window: TrackerWindow): boolean {
+  const target = windowHours(window);
+  return spanHours >= target * 0.75 && spanHours <= target * 1.25;
+}
+
+/** The label to print beside a change: the window's name, or its real span. */
+export function changeSpanLabel(
+  change: { spanHours: number } | null,
+  window: TrackerWindow,
+  windowLabel: string
+): string {
+  if (!change || spanMatchesWindow(change.spanHours, window)) return windowLabel;
+  return formatSpanHours(change.spanHours);
+}
+
 export function statusFor(velocityPerHour: number | null): TrackerStatus {
   if (velocityPerHour === null) return "unknown";
   if (velocityPerHour < 0) return "declining";

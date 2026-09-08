@@ -76,6 +76,9 @@ export async function GET(request: NextRequest) {
   if (!isAuthorised(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const sounds = await db.tikTokSound.findMany({
+    // The worker reads TikTok music pages; an Instagram row is not something it
+    // can answer, and handing it one only produces a permanent failure.
+    where: { platform: "TIKTOK" },
     select: {
       id: true,
       tiktokSoundId: true,
@@ -135,8 +138,20 @@ export async function POST(request: NextRequest) {
   }
   const { readings, dryRun = false } = parsed.data;
 
+  /* Every tracker row for these ids, across every org, and the reading is
+     written to ALL of them.
+
+     A tiktokSoundId is TikTok's, not ours: two agencies promoting the same
+     release track the same sound, and each owns a separate TikTokSound row.
+     Keyed by id alone, the Map kept whichever row Prisma returned last and the
+     other org's tracker silently stopped receiving readings — it stayed at
+     "awaiting first reading" while a perfectly good count was being written one
+     row away. Keyed by platform + id, because the same numeric id can exist on
+     both platforms and merging them would point one platform's tracker at the
+     other's curve; the worker reads TikTok music pages, so that is the platform
+     these readings describe. */
   const sounds = await db.tikTokSound.findMany({
-    where: { tiktokSoundId: { in: readings.map((r) => r.tiktokSoundId) } },
+    where: { platform: "TIKTOK", tiktokSoundId: { in: readings.map((r) => r.tiktokSoundId) } },
     select: {
       id: true,
       tiktokSoundId: true,
@@ -146,15 +161,20 @@ export async function POST(request: NextRequest) {
       snapshots: { orderBy: { recordedAt: "desc" }, take: 1, select: { usesCount: true } },
     },
   });
-  const byTikTokId = new Map(sounds.map((s) => [s.tiktokSoundId, s]));
+  const byTikTokId = new Map<string, typeof sounds>();
+  for (const sound of sounds) {
+    const bucket = byTikTokId.get(sound.tiktokSoundId);
+    if (bucket) bucket.push(sound);
+    else byTikTokId.set(sound.tiktokSoundId, [sound]);
+  }
 
   let recorded = 0;
   let unknown = 0;
   let skipped = 0;
 
   for (const reading of readings) {
-    const sound = byTikTokId.get(reading.tiktokSoundId);
-    if (!sound) {
+    const tracked = byTikTokId.get(reading.tiktokSoundId);
+    if (!tracked || tracked.length === 0) {
       // A sound removed from the app between the worker's GET and its POST. Not
       // an error on either side, and inventing a row for it would resurrect it.
       unknown += 1;
@@ -167,11 +187,15 @@ export async function POST(request: NextRequest) {
       continue;
     }
     if (dryRun) {
-      recorded += 1;
+      recorded += tracked.length;
       continue;
     }
-    await recordSoundSnapshot(sound, reading);
-    recorded += 1;
+    // One reading, one snapshot per tracker row: each org's delta is computed
+    // against its OWN previous reading, which is what recordSoundSnapshot does.
+    for (const sound of tracked) {
+      await recordSoundSnapshot(sound, reading);
+      recorded += 1;
+    }
   }
 
   log.info("sound readings ingested", { recorded, unknown, skipped, dryRun });

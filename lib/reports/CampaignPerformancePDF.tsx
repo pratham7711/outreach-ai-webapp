@@ -69,6 +69,13 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     overflow: "hidden",
   },
+  /* Same frame as `table`, without `overflow: hidden`. The posts table is the
+     one that runs past a page break, and clipping it would take the overflow
+     with it. */
+  postsTable: {
+    border: "1px solid #E4E6F0",
+    borderRadius: 6,
+  },
   tableHeader: {
     flexDirection: "row",
     backgroundColor: "#F8F9FC",
@@ -119,6 +126,29 @@ function fmtCurrency(n: number, currency: string): string {
   return new Intl.NumberFormat("en-US", { style: "currency", currency, maximumFractionDigits: 2 }).format(n);
 }
 
+/** A measured counter, or an em dash — never a zero we did not measure. */
+function fmtMaybe(n: number | null): string {
+  return n === null ? "—" : formatCompact(n);
+}
+
+function fmtPostedAt(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+/**
+ * How many post rows the PDF prints before it stops and says how many are left.
+ *
+ * A campaign here runs to hundreds of posts, and a react-pdf document lays every
+ * row out in memory. The cap keeps the render bounded; the "+N more" line keeps
+ * it honest, because a table that silently ends at 200 reads as a complete list.
+ */
+const MAX_POST_ROWS = 200;
+
 export function CampaignPerformancePDF({
   campaignTitle,
   data,
@@ -132,7 +162,14 @@ export function CampaignPerformancePDF({
   budget?: number | null;
 }) {
   // Redacted server-side before it gets here, same as the web report.
-  const { kpis, platformSplit, leaderboard, currency } = data;
+  const { kpis, platformSplit, leaderboard, posts, currency } = data;
+  /* redactForShare has already nulled the creator on every row of a
+     hide-creators link, exactly as it nulls the leaderboard — so the column is
+     dropped rather than printing a page of em dashes, and the handle a post URL
+     would have carried never reaches the document either. */
+  const showPostCreators = visibility.showCreators && posts.some((p) => p.creator !== null);
+  const postRows = posts.slice(0, MAX_POST_ROWS);
+  const hiddenPosts = posts.length - postRows.length;
   const showEmvColumn = leaderboard.some((r) => r.emv !== null);
   // Matches the web report: dropped entirely when nobody on it has a status.
   const showStatusColumn = leaderboard.some((r) => r.status !== null);
@@ -147,6 +184,8 @@ export function CampaignPerformancePDF({
     kpis.engagementRate !== null
       ? { label: "Eng. Rate", value: `${(kpis.engagementRate * 100).toFixed(2)}%` }
       : null,
+    // The web report leads with this tile; the PDF simply did not have it.
+    { label: "Total Posts", value: fmtNumber(kpis.posts) },
     kpis.emv !== null
       ? { label: emvLabel(currency), value: fmtCurrency(kpis.emv, EMV_CURRENCY) }
       : null,
@@ -230,6 +269,47 @@ export function CampaignPerformancePDF({
             <Text style={styles.emptyText}>No creators yet.</Text>
           )}
           </>
+          )}
+
+          {/* The post list, which is what a client report fundamentally is.
+              The PDF carried a ten-row creator leaderboard and nothing else,
+              while the web report at the same URL listed every post. Same rows,
+              same redaction — `posts` arrives from redactForShare. */}
+          <Text style={styles.sectionTitle}>Posts</Text>
+          {postRows.length > 0 ? (
+            <View style={styles.postsTable}>
+              <View style={styles.tableHeader} fixed>
+                {showPostCreators && (
+                  <Text style={[styles.tableHeaderCell, { flex: 1.6 }]}>Creator</Text>
+                )}
+                <Text style={[styles.tableHeaderCell, { flex: 1.1 }]}>Platform</Text>
+                <Text style={[styles.tableHeaderCell, { flex: 1.2 }]}>Posted</Text>
+                <Text style={[styles.tableHeaderCell, { flex: 1 }]}>Views</Text>
+                <Text style={[styles.tableHeaderCell, { flex: 1 }]}>Likes</Text>
+                <Text style={[styles.tableHeaderCell, { flex: 1 }]}>Comments</Text>
+              </View>
+              {postRows.map((row) => (
+                <View key={row.id} style={styles.tableRow} wrap={false}>
+                  {showPostCreators && (
+                    <Text style={[styles.tableCell, { flex: 1.6 }]}>
+                      {row.creator?.handle ? `@${row.creator.handle}` : row.creator?.name ?? "—"}
+                    </Text>
+                  )}
+                  <Text style={[styles.tableCell, { flex: 1.1 }]}>{row.platform}</Text>
+                  <Text style={[styles.tableCell, { flex: 1.2 }]}>{fmtPostedAt(row.postedAt)}</Text>
+                  <Text style={[styles.tableCell, { flex: 1 }]}>{fmtNumber(row.views)}</Text>
+                  <Text style={[styles.tableCell, { flex: 1 }]}>{fmtMaybe(row.likes)}</Text>
+                  <Text style={[styles.tableCell, { flex: 1 }]}>{fmtMaybe(row.comments)}</Text>
+                </View>
+              ))}
+            </View>
+          ) : (
+            <Text style={styles.emptyText}>No posts yet.</Text>
+          )}
+          {hiddenPosts > 0 && (
+            <Text style={[styles.emptyText, { marginTop: 8 }]}>
+              {`+${hiddenPosts} more post${hiddenPosts === 1 ? "" : "s"} not shown. Use Export Posts on the online report for the full list.`}
+            </Text>
           )}
         </View>
 

@@ -20,7 +20,7 @@ import {
 } from "@/lib/trackers/granularity";
 import { SOUND_URL_ERRORS, parseSoundUrl } from "@/lib/trackers/soundUrl";
 import { expandShortLink } from "@/lib/trackers/expandShortLink";
-import { getOrgEntitlements } from "@/lib/entitlements";
+import { trackerLimitError, trackerUsage } from "@/lib/trackers/limit";
 
 const SORTS = ["velocity", "uses", "added"] as const;
 type SortKey = (typeof SORTS)[number];
@@ -127,8 +127,11 @@ export async function GET(req: NextRequest) {
       return bv - av;
     });
 
-    const ent = await getOrgEntitlements(orgId);
-    const maxTrackers = ent?.limits.maxTrackers ?? Infinity;
+    /* The counter counts what the gate counts: sounds AND tracked creators,
+       against the one max_trackers limit. Reporting sounds alone made "12/25"
+       true of half the pool and let the other half push the org past its plan
+       without the screen ever saying so. */
+    const usage = await trackerUsage(orgId);
     return NextResponse.json({
       sounds: sorted,
       period,
@@ -136,8 +139,8 @@ export async function GET(req: NextRequest) {
       // Infinity does not survive JSON, so an unlimited plan sends null and the
       // UI shows no counter rather than "3/null".
       limits: {
-        used: sounds.length,
-        max: Number.isFinite(maxTrackers) ? maxTrackers : null,
+        used: usage.used,
+        max: Number.isFinite(usage.max) ? usage.max : null,
       },
     });
   } catch (error) {
@@ -237,6 +240,17 @@ export async function POST(req: NextRequest) {
         );
       }
 
+      /* No reader can serve this row, so refusing it is the honest answer.
+         The column and the parser stay — existing Instagram rows are left
+         alone — but a new one would be a tracker that never reads and still
+         costs a plan slot. See SOUND_URL_ERRORS.instagram_unsupported. */
+      if (result.platform === "INSTAGRAM") {
+        return NextResponse.json(
+          { error: "instagram_unsupported", message: SOUND_URL_ERRORS.instagram_unsupported },
+          { status: 400 }
+        );
+      }
+
       tiktokSoundId = result.tiktokSoundId;
       platform = result.platform;
       // Marked provisional wherever it is shown; the first reading replaces it
@@ -250,44 +264,26 @@ export async function POST(req: NextRequest) {
       coverImageUrl = parsed.data.coverImageUrl ?? null;
     }
 
-    /* The seat-equivalent for trackers, checked before the row is written.
-       Deliberately after the duplicate check below would be wrong: re-adding a
-       sound you already track must not be refused for being over the limit,
-       since it adds nothing. So the count is taken here and the duplicate path
-       returns early further down. */
-    const entitlements = await getOrgEntitlements(orgId);
-    const maxTrackers = entitlements?.limits.maxTrackers ?? Infinity;
-    if (Number.isFinite(maxTrackers)) {
-      const already = await db.tikTokSound.findFirst({ where: { orgId, platform, tiktokSoundId } });
-      if (!already) {
-        const tracked = await db.tikTokSound.count({ where: { orgId } });
-        if (tracked >= maxTrackers) {
-          /* Zero is a real limit and needs its own sentence. "Remove one" is
-             nonsense advice to someone who has none, and the free tier is
-             exactly that case -- it is not that they have filled the plan up,
-             it is that the plan does not include this. */
-          const error =
-            maxTrackers === 0
-              ? "Your plan does not include sound trackers. Upgrade to start tracking sounds."
-              : `Your plan includes ${maxTrackers} tracker${maxTrackers === 1 ? "" : "s"} and ${tracked} are in use. Remove one, or ask us to raise the limit.`;
-          return NextResponse.json(
-            { error, trackers: { used: tracked, max: maxTrackers } },
-            { status: 409 }
-          );
-        }
-      }
+    /* Pasting the same link twice is a normal thing to do, and two rows for one
+       sound would read the same page twice and diverge — so this lookup answers
+       both questions: is it a duplicate, and (if not) is there room for it.
+       Scoped by platform: the same numeric id can exist on both, and merging
+       them would point one platform's tracker at the other's usage curve.
+       Re-adding a sound you already track must not be refused for being over
+       the limit, since it adds nothing. */
+    const already = await db.tikTokSound.findFirst({ where: { orgId, platform, tiktokSoundId } });
+    if (already) {
+      return NextResponse.json({ ...already, alreadyTracked: true }, { status: 200 });
     }
 
-    // Pasting the same link twice is a normal thing to do, and two rows for one
-    // sound would read the same page twice and diverge. Return what is already
-    // tracked instead of creating a duplicate or failing.
-    const existing = await db.tikTokSound.findFirst({
-      // Scoped by platform: the same numeric id can exist on both, and merging
-      // them would point one platform's tracker at the other's usage curve.
-      where: { orgId, platform, tiktokSoundId },
-    });
-    if (existing) {
-      return NextResponse.json({ ...existing, alreadyTracked: true }, { status: 200 });
+    // The seat-equivalent for trackers, checked before the row is written.
+    const usage = await trackerUsage(orgId);
+    const limitError = trackerLimitError(usage, "sounds");
+    if (limitError) {
+      return NextResponse.json(
+        { error: limitError, trackers: { used: usage.used, max: usage.max } },
+        { status: 409 }
+      );
     }
 
     const sound = await db.tikTokSound.create({

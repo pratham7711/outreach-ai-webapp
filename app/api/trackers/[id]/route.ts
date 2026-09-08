@@ -23,10 +23,14 @@ export async function GET(
       },
     });
 
+    /* 404, not 403. The query is already scoped to the org, so a miss means
+       either "no such tracker" or "not yours" — and 403 answers the second out
+       loud, confirming to a stranger that the id exists somewhere. It also read
+       as a permissions bug to the owner of a tracker they had just deleted. */
     if (!sound)
       return NextResponse.json(
         { error: "Sound not found" },
-        { status: 403 }
+        { status: 404 }
       );
 
     return NextResponse.json(sound);
@@ -55,10 +59,14 @@ export async function DELETE(
       where: { id, orgId },
     });
 
+    /* 404, not 403. The query is already scoped to the org, so a miss means
+       either "no such tracker" or "not yours" — and 403 answers the second out
+       loud, confirming to a stranger that the id exists somewhere. It also read
+       as a permissions bug to the owner of a tracker they had just deleted. */
     if (!sound)
       return NextResponse.json(
         { error: "Sound not found" },
-        { status: 403 }
+        { status: 404 }
       );
 
     // Delete snapshots first, then the sound

@@ -18,11 +18,18 @@ import { campaignStatusLabel } from "@/lib/statusColors";
 import { EMV_CURRENCY, emvLabel } from "@/lib/metrics/emv";
 import SharedPostList from "./SharedPostList";
 
-const SERIES = [
-  { key: "TIKTOK", color: platformColor("TIKTOK") },
-  { key: "INSTAGRAM", color: platformColor("INSTAGRAM") },
-  { key: "YOUTUBE", color: platformColor("YOUTUBE") },
-] as const;
+/**
+ * The chart's series come from the campaign, not from a fixed triple.
+ *
+ * The pie beside this chart splits every post by platform while the chart only
+ * ever drew TikTok, Instagram and YouTube, so a campaign carrying a Twitter or
+ * Facebook post stacked to a total below the Total Views tile above it.
+ * platformColor falls back to a generic series token for a platform with no
+ * colour of its own, so nothing has to be added here when one appears.
+ */
+function seriesFor(platforms: string[]): { key: string; color: string }[] {
+  return platforms.map((key, i) => ({ key, color: platformColor(key, i) }));
+}
 
 function formatNumber(num: number): string {
   return formatCompact(num);
@@ -118,12 +125,14 @@ export default function SharedPerformanceReport({
   const [brokenAvatars, setBrokenAvatars] = useState<Set<string>>(new Set());
   // Already redacted server-side — a hidden leaderboard arrives empty rather
   // than arriving whole and being skipped at render time.
-  const { kpis, timeSeries, platformSplit, leaderboard, currency } = data;
+  const { kpis, timeSeries, seriesPlatforms, platformSplit, leaderboard, currency } = data;
   /* Stacked areas draw every series, so a platform with no views still paints
      its stroke along the top of the stack -- a TikTok-only campaign showed a
      green "YouTube" line (measured on the misery - pupsies report). Only
      platforms that actually have views get an area and a legend entry. */
-  const activeSeries = SERIES.filter((s) => timeSeries.some((row) => (row[s.key] ?? 0) > 0));
+  const activeSeries = seriesFor(seriesPlatforms).filter((s) =>
+    timeSeries.some((row) => Number(row[s.key] ?? 0) > 0)
+  );
   const showEmvColumn = leaderboard.some((r) => r.emv !== null);
   /* Engagement exists only for posts we fetched ourselves, so the column is
      dropped when no creator in this campaign has one. */
