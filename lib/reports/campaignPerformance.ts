@@ -196,7 +196,13 @@ export function redactForShare(
 ): SharedReportData {
   return {
     ...data,
-    kpis: { ...data.kpis, emv: visibility.showEmv ? data.kpis.emv : null },
+    kpis: {
+      ...data.kpis,
+      emv: visibility.showEmv ? data.kpis.emv : null,
+      // "35 posts, 30 live" tells the brand five posts are gone as plainly as a
+      // badge would. The tile only exists when the link chooses to flag removals.
+      livePosts: visibility.markRemovedPosts === true ? data.kpis.livePosts : null,
+    },
     leaderboard: visibility.showCreators
       ? data.leaderboard.map((row) => ({
           ...row,

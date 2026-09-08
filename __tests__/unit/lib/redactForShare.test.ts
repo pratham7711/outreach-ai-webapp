@@ -112,6 +112,14 @@ describe("redactForShare", () => {
 });
 
 describe("redactForShare — removed posts", () => {
+  it("drops the Live Posts count unless removals are flagged: 35 posts / 30 live is a deletion tell", () => {
+    const base = data as unknown as { kpis: Record<string, unknown> };
+    const withLive = { ...base, kpis: { ...base.kpis, posts: 35, livePosts: 30 } } as never;
+    expect(redactForShare(withLive, OPEN).kpis.livePosts).toBeNull();
+    expect(redactForShare(withLive, { ...OPEN, markRemovedPosts: false }).kpis.livePosts).toBeNull();
+    expect(redactForShare(withLive, { ...OPEN, markRemovedPosts: true }).kpis.livePosts).toBe(30);
+  });
+
   /* The default behaviour is the surprising one and therefore the one worth
      pinning: a deleted post renders on a share link exactly like a live one,
      with the counters it earned while it was up. The flag is not a formatting
