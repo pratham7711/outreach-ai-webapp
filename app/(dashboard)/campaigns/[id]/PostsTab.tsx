@@ -195,7 +195,7 @@ const COL_WIDTHS = {
   engRate: "84px",
   emv: "88px",
   delta: "148px",
-  status: "104px",
+  status: "136px", // "PENDING REVIEW" is ~130px at this type size; 104 ran into Last synced
   lastSynced: "140px",
   actions: "140px",
 } as const;
