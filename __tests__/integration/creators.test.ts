@@ -33,7 +33,10 @@ import { auth } from '@/lib/auth';
 const mockAuth = auth as jest.Mock;
 const mockDb = (db as any);
 
-const authedSession = { user: { id: 'user-1', orgId: 'org-1' } };
+/* ADMIN: the POST below is gated on a create permission now, and a session
+   with no role at all resolves to none. The role-gate cases themselves live in
+   writeRouteRoles.test.ts. */
+const authedSession = { user: { id: 'user-1', orgId: 'org-1', role: 'ADMIN' } };
 
 function makeRequest(url: string, options?: ConstructorParameters<typeof NextRequest>[1]) {
   return new NextRequest(url, options);

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { authenticateRequest, getAuditActor } from "@/lib/authenticate";
+import { requirePermission } from "@/lib/authz";
 import { logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
 
@@ -56,8 +57,11 @@ export async function GET(request: NextRequest) {
 
 // POST /api/folders
 export async function POST(request: NextRequest) {
-  const result = await authenticateRequest(request);
-  if (!result) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  /* Folders hold campaigns and exist only on the campaigns list, so they take
+     the campaigns key rather than a folders one rbac.ts does not have. */
+  const gate = await requirePermission(request, "campaigns:create");
+  if (!gate.ok) return gate.response;
+  const result = gate.auth;
   const { orgId } = result;
 
   const parsed = createFolderSchema.safeParse(await request.json().catch(() => null));
