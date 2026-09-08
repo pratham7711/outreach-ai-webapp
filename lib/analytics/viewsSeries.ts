@@ -103,23 +103,40 @@ export function carryForwardViewsByDay<G extends string>(input: {
     else firstSeen.set(day, [entry]);
   }
 
+  /* Running totals, moved by DELTAS, rather than re-summing every post on every
+     day. The re-sum was O(posts x days) -- a campaign with 500 posts charted
+     over a year did 180,000 map lookups to emit 365 rows, and both callers run
+     it on a request path. A day only changes the posts that got a reading that
+     day, so adding (new - old) for those and copying the running totals is the
+     same arithmetic in O(readings + days x groups).
+
+     Same arithmetic, not merely the same answer: view counts are whole numbers
+     well inside 2^53, so the deltas are exact. The column is a Float, so a
+     fractional count could in principle differ from the re-sum in its last bits
+     -- nothing writes one, and the randomized test in
+     __tests__/unit/lib/viewsSeries.test.ts pins equivalence on integers. */
   const lastKnown = new Map<string, number>();
+  const running = Object.fromEntries(groups.map((g) => [g, 0])) as Record<G, number>;
   const rows: ViewsSeriesRow<G>[] = [];
+
+  const apply = (postId: string, views: number) => {
+    const previous = lastKnown.get(postId) ?? 0;
+    lastKnown.set(postId, views);
+    const group = groupByPost.get(postId);
+    if (group !== undefined && group in running) running[group] += views - previous;
+  };
 
   for (const day of Array.from(days).sort()) {
     for (const [postId, reading] of latest.get(day) ?? []) {
-      lastKnown.set(postId, reading.views);
+      apply(postId, reading.views);
     }
     for (const entry of firstSeen.get(day) ?? []) {
-      lastKnown.set(entry.postId, entry.views);
+      apply(entry.postId, entry.views);
     }
 
-    const totals = Object.fromEntries(groups.map((g) => [g, 0])) as Record<G, number>;
-    for (const [postId, views] of lastKnown) {
-      const group = groupByPost.get(postId);
-      if (group !== undefined && group in totals) totals[group] += views;
-    }
-    rows.push({ date: day, totals });
+    // A copy per row: the caller spreads these into chart data and would
+    // otherwise get every row pointing at the same mutating object.
+    rows.push({ date: day, totals: { ...running } });
   }
 
   return rows;
