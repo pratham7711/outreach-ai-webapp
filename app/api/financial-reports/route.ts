@@ -1,108 +1,32 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { authenticateRequest, getAuditActor } from "@/lib/authenticate";
-
-type PeriodKey = "THIS_MONTH" | "LAST_MONTH" | "THIS_QUARTER" | "LAST_QUARTER" | "THIS_YEAR" | "ALL_TIME";
-
-function getPeriodRange(period: PeriodKey): { start: Date; end: Date; label: string } {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = now.getMonth();
-
-  switch (period) {
-    case "THIS_MONTH":
-      return { start: new Date(y, m, 1), end: new Date(y, m + 1, 0, 23, 59, 59), label: now.toLocaleString("default", { month: "long", year: "numeric" }) };
-    case "LAST_MONTH":
-      return { start: new Date(y, m - 1, 1), end: new Date(y, m, 0, 23, 59, 59), label: new Date(y, m - 1).toLocaleString("default", { month: "long", year: "numeric" }) };
-    case "THIS_QUARTER": {
-      const q = Math.floor(m / 3);
-      return { start: new Date(y, q * 3, 1), end: new Date(y, q * 3 + 3, 0, 23, 59, 59), label: `Q${q + 1} ${y}` };
-    }
-    case "LAST_QUARTER": {
-      const q = Math.floor(m / 3) - 1;
-      const qy = q < 0 ? y - 1 : y;
-      const qm = q < 0 ? 3 : q;
-      return { start: new Date(qy, qm * 3, 1), end: new Date(qy, qm * 3 + 3, 0, 23, 59, 59), label: `Q${qm + 1} ${qy}` };
-    }
-    case "THIS_YEAR":
-      return { start: new Date(y, 0, 1), end: new Date(y, 11, 31, 23, 59, 59), label: `${y}` };
-    case "ALL_TIME":
-    default:
-      return { start: new Date(2020, 0, 1), end: new Date(y + 1, 0, 1), label: "All Time" };
-  }
-}
-
-function getPreviousPeriodRange(period: PeriodKey): { start: Date; end: Date; label: string } {
-  switch (period) {
-    case "THIS_MONTH":     return getPeriodRange("LAST_MONTH");
-    case "LAST_MONTH":     { const now = new Date(); const y = now.getFullYear(); const m = now.getMonth(); return { start: new Date(y, m - 2, 1), end: new Date(y, m - 1, 0, 23, 59, 59), label: new Date(y, m - 2).toLocaleString("default", { month: "long", year: "numeric" }) }; }
-    case "THIS_QUARTER":   return getPeriodRange("LAST_QUARTER");
-    case "LAST_QUARTER":   { const now = new Date(); const q = Math.floor(now.getMonth() / 3) - 2; const y = q < 0 ? now.getFullYear() - 1 : now.getFullYear(); const qm = ((q % 4) + 4) % 4; return { start: new Date(y, qm * 3, 1), end: new Date(y, qm * 3 + 3, 0, 23, 59, 59), label: `Q${qm + 1} ${y}` }; }
-    case "THIS_YEAR":      { const y = new Date().getFullYear() - 1; return { start: new Date(y, 0, 1), end: new Date(y, 11, 31, 23, 59, 59), label: `${y}` }; }
-    default:               return { start: new Date(2015, 0, 1), end: new Date(2020, 0, 1), label: "Before 2020" };
-  }
-}
-
-async function getPeriodStats(orgId: string, start: Date, end: Date) {
-  const [payouts, campaigns, payoutRequests] = await Promise.all([
-    db.payout.findMany({
-      where: { orgId, createdAt: { gte: start, lte: end } },
-      select: { amount: true, status: true, currency: true },
-    }),
-    db.campaign.findMany({
-      where: { orgId, deletedAt: null, createdAt: { gte: start, lte: end } },
-      select: { id: true, budget: true, status: true, currency: true },
-    }),
-    db.payoutRequest.findMany({
-      where: { orgId, createdAt: { gte: start, lte: end } },
-      select: { requestedAmount: true, status: true },
-    }),
-  ]);
-
-  const paidPayouts = payouts.filter(p => p.status === "SUCCESS").reduce((s, p) => s + p.amount, 0);
-  const pendingPayouts = payouts.filter(p => p.status === "PENDING").reduce((s, p) => s + p.amount, 0);
-  const totalPayouts = payouts.reduce((s, p) => s + p.amount, 0);
-  const totalBudget = campaigns.reduce((s, c) => s + (c.budget ?? 0), 0);
-  const campaignCount = campaigns.length;
-  const activeCampaigns = campaigns.filter(c => c.status === "IN_PROGRESS").length;
-  const approvedRequests = payoutRequests.filter(r => r.status === "APPROVED").reduce((s, r) => s + r.requestedAmount, 0);
-  const pendingRequests = payoutRequests.filter(r => r.status === "PENDING").reduce((s, r) => s + r.requestedAmount, 0);
-
-  const byCurrency: Record<string, { paid: number; pending: number; total: number; budget: number }> = {};
-  const bucket = (cur: string) => (byCurrency[cur] ??= { paid: 0, pending: 0, total: 0, budget: 0 });
-  for (const p of payouts) {
-    const b = bucket(p.currency);
-    b.total += p.amount;
-    if (p.status === "SUCCESS") b.paid += p.amount;
-    else if (p.status === "PENDING") b.pending += p.amount;
-  }
-  for (const c of campaigns) {
-    if (c.budget) bucket(c.currency).budget += c.budget;
-  }
-
-  return { paidPayouts, pendingPayouts, totalPayouts, totalBudget, campaignCount, activeCampaigns, approvedRequests, pendingRequests, byCurrency };
-}
-
-function pctChange(current: number, previous: number): number | null {
-  if (previous === 0) return current > 0 ? 100 : null;
-  return Math.round(((current - previous) / previous) * 100);
-}
+import { authenticateRequest } from "@/lib/authenticate";
+import {
+  getMonthlyTrend,
+  getPeriodRange,
+  getPeriodStats,
+  getPreviousPeriodRange,
+  getTopCampaigns,
+  isPeriodKey,
+  pctChange,
+  type PeriodKey,
+} from "@/lib/reports/financialPeriod";
 
 export async function GET(req: NextRequest) {
   const result = await authenticateRequest(req);
   if (!result) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { orgId } = result;
 
-  const periodParam = (req.nextUrl.searchParams.get("period") ?? "THIS_MONTH") as PeriodKey;
-  const validPeriods: PeriodKey[] = ["THIS_MONTH", "LAST_MONTH", "THIS_QUARTER", "LAST_QUARTER", "THIS_YEAR", "ALL_TIME"];
-  if (!validPeriods.includes(periodParam)) {
+  const periodParam = req.nextUrl.searchParams.get("period") ?? "THIS_MONTH";
+  if (!isPeriodKey(periodParam)) {
     return NextResponse.json({ error: "Invalid period" }, { status: 400 });
   }
+  const period: PeriodKey = periodParam;
 
-  const currentRange = getPeriodRange(periodParam);
-  const previousRange = getPreviousPeriodRange(periodParam);
+  const currentRange = getPeriodRange(period);
+  const previousRange = getPreviousPeriodRange(period);
 
-  const [org, currentStats, previousStats, balances, monthlyPayouts, topCampaigns] = await Promise.all([
+  const [org, currentStats, previousStats, balances, monthlyTrend, topCampaigns] = await Promise.all([
     db.organization.findUnique({ where: { id: orgId }, select: { currency: true } }),
     getPeriodStats(orgId, currentRange.start, currentRange.end),
     getPeriodStats(orgId, previousRange.start, previousRange.end),
@@ -110,52 +34,9 @@ export async function GET(req: NextRequest) {
       where: { orgId },
       select: { label: true, currentBalance: true, currency: true },
     }),
-    // Last 6 months of payout data for trend chart
-    db.payout.findMany({
-      where: {
-        orgId,
-        createdAt: { gte: new Date(new Date().setMonth(new Date().getMonth() - 5)) },
-      },
-      select: { amount: true, status: true, createdAt: true, completedAt: true },
-      orderBy: { createdAt: "asc" },
-    }),
-    // Top 5 campaigns by budget in current period
-    db.campaign.findMany({
-      where: { orgId, deletedAt: null, createdAt: { gte: currentRange.start, lte: currentRange.end } },
-      select: {
-        id: true,
-        title: true,
-        status: true,
-        budget: true,
-        currency: true,
-        financials: { select: { totalBudget: true, spentAmount: true } },
-      },
-      orderBy: { budget: "desc" },
-      take: 5,
-    }),
+    getMonthlyTrend(orgId),
+    getTopCampaigns(orgId, currentRange),
   ]);
-
-  /* Monthly trend, grouped by YYYY-MM. Money paid is dated to the month it was
-     actually paid, not the month the payout was raised: a payout opened in June
-     and settled in August is August's spend, and dating it to June told the
-     wrong month twice over. Pending has no completion date yet, so it stays on
-     the month it was raised, which is the question being asked of it -- how
-     long has this been outstanding. */
-  const trendMap: Record<string, { paid: number; pending: number }> = {};
-  for (const p of monthlyPayouts) {
-    if (p.status === "SUCCESS") {
-      const key = (p.completedAt ?? p.createdAt).toISOString().slice(0, 7);
-      if (!trendMap[key]) trendMap[key] = { paid: 0, pending: 0 };
-      trendMap[key].paid += p.amount;
-    } else if (p.status === "PENDING") {
-      const key = p.createdAt.toISOString().slice(0, 7);
-      if (!trendMap[key]) trendMap[key] = { paid: 0, pending: 0 };
-      trendMap[key].pending += p.amount;
-    }
-  }
-  const monthlyTrend = Object.entries(trendMap)
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([month, data]) => ({ month, ...data }));
 
   const comparison = {
     payoutsChange: pctChange(currentStats.paidPayouts, previousStats.paidPayouts),
@@ -168,11 +49,11 @@ export async function GET(req: NextRequest) {
   const currenciesPresent = Array.from(
     new Set([
       ...Object.keys(currentStats.byCurrency),
-      ...balances.map(b => b.currency),
-      ...topCampaigns.map(c => c.currency),
+      ...balances.map((b) => b.currency),
+      ...topCampaigns.map((c) => c.currency),
     ])
   );
-  const hasMixedCurrencies = currenciesPresent.filter(c => c !== reportCurrency).length > 0;
+  const hasMixedCurrencies = currenciesPresent.filter((c) => c !== reportCurrency).length > 0;
 
   return NextResponse.json({
     period: currentRange.label,
@@ -184,17 +65,7 @@ export async function GET(req: NextRequest) {
     previous: previousStats,
     comparison,
     monthlyTrend,
-    topCampaigns: topCampaigns.map(c => ({
-      id: c.id,
-      title: c.title,
-      status: c.status,
-      budget: c.budget ?? 0,
-      currency: c.currency,
-      spend: c.financials?.spentAmount ?? 0,
-      utilization: c.financials && c.financials.totalBudget > 0
-        ? Math.round((c.financials.spentAmount / c.financials.totalBudget) * 100)
-        : 0,
-    })),
+    topCampaigns,
     balances,
   });
 }

@@ -198,6 +198,53 @@ describe("GET /api/financial-reports", () => {
     expect(body.currenciesPresent).toContain("EUR");
   });
 
+  /* `ORDER BY budget DESC` puts NULLs first in Postgres, so the table opened
+     with "$0.00 / 0%" rows while the real top campaigns fell off the bottom. */
+  it("excludes campaigns with no budget from Top Campaigns", async () => {
+    await getFinancials(makeRequest("THIS_MONTH"));
+    const topCall = mockDb.campaign.findMany.mock.calls[2][0];
+    expect(topCall.where.budget).toEqual({ not: null });
+  });
+
+  /* Utilisation used to divide CampaignFinancials.totalBudget while the Budget
+     column printed Campaign.budget, so a reader could not reproduce the
+     percentage from the two numbers beside it. */
+  it("computes utilisation against the budget the column shows", async () => {
+    mockDb.campaign.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          id: "camp-1",
+          title: "Leak It",
+          status: "IN_PROGRESS",
+          budget: 10000,
+          currency: "USD",
+          // A stale financials row: the budget was raised and this was not.
+          financials: { spentAmount: 5000 },
+        },
+      ]);
+
+    const body = await (await getFinancials(makeRequest("THIS_MONTH"))).json();
+
+    expect(body.topCampaigns[0]).toMatchObject({ budget: 10000, spend: 5000, utilization: 50 });
+  });
+
+  it("drops payouts and requests belonging to a soft-deleted campaign", async () => {
+    await getFinancials(makeRequest("THIS_MONTH"));
+    for (const call of mockDb.payout.findMany.mock.calls) {
+      expect(call[0].where.OR).toEqual([
+        { campaignId: null },
+        { campaign: { deletedAt: null } },
+      ]);
+    }
+    expect(mockDb.payoutRequest.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ campaign: { deletedAt: null } }),
+      })
+    );
+  });
+
   it("buckets payout amounts by their own currency (no cross-currency sum)", async () => {
     mockDb.payout.findMany.mockResolvedValueOnce([
       { amount: 100, status: "SUCCESS", currency: "USD", createdAt: new Date() },
