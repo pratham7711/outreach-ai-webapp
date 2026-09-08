@@ -6,6 +6,7 @@ import { StatusTabs } from "@/components/ds";
 import { formatDateAbs } from "@/lib/format";
 import { Inbox, Search, Download } from "lucide-react";
 import { downloadCsv, exportStamp } from "@/lib/csv";
+import { toast } from "sonner";
 
 /**
  * Mirrors what `GET /api/payout-requests` actually returns.
@@ -88,9 +89,13 @@ export default function RequestsPage() {
       });
       if (res.ok) {
         await fetchRequests();
+      } else {
+        // Approve/Reject used to fail silently: the row stayed Pending and the
+        // reviewer had no way to tell the click had been rejected.
+        toast.error(`Couldn't ${status === "APPROVED" ? "approve" : "reject"} that request. It is unchanged.`);
       }
     } catch {
-      // silent
+      toast.error("The request didn't go through. Nothing was changed.");
     } finally {
       setActionLoading(null);
     }

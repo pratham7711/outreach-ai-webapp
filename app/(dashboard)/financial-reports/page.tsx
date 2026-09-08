@@ -7,6 +7,7 @@ import { TrendingUp, TrendingDown, Minus, DollarSign, Wallet, BarChart2, Clock, 
 import { loadCharts } from "@/components/charts/lazyCharts";
 import { downloadCsv } from "@/lib/csv";
 import { campaignStatusCss, STATUS_PILL_RADIUS } from "@/lib/statusColors";
+import { toast } from "sonner";
 
 const PayoutTrendChart = dynamic(() => loadCharts().then((m) => m.PayoutTrendChart), {
   ssr: false,
@@ -195,7 +196,12 @@ export default function FinancialReportsPage() {
         a.download = `financial-report-${data.period.replace(/\s+/g, "-").toLowerCase()}.${format}`;
         a.click();
         URL.revokeObjectURL(url);
+      } else {
+        // The button simply stopped saying "Generating..." and no file arrived.
+        toast.error(`Couldn't generate the ${format.toUpperCase()} export. Try again.`);
       }
+    } catch {
+      toast.error(`Couldn't generate the ${format.toUpperCase()} export. Try again.`);
     } finally {
       setter(false);
     }

@@ -141,9 +141,13 @@ export default function TeamClient({
       const res = await fetch(`/api/invites/${id}`, { method: "DELETE" });
       if (res.ok) {
         router.refresh();
+        return;
       }
+      // The invite row stayed put with nothing said, which reads as a click
+      // that never registered.
+      setNotice("Couldn't cancel that invite. It is still open.");
     } catch {
-      // silent
+      setNotice("Network error while cancelling the invite.");
     }
   }
 
