@@ -1,13 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
 import { authenticateRequest, getAuditActor } from "@/lib/authenticate";
+import { requirePermission } from "@/lib/authz";
 import { logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
-import { TAXONOMY_KINDS, isTaxonomyKind } from "@/lib/taxonomy";
+import { TAXONOMY_KINDS, isTaxonomyKind, seedReferenceDefaults } from "@/lib/taxonomy";
 
 /**
  * Settings → General, the reference's six org-configurable lists.
  * See lib/taxonomy.ts for why one route covers all six.
+ *
+ * Reading is open to any member — these lists populate the pickers on the
+ * campaign and creator forms, so a MEMBER who cannot administer them still has
+ * to be able to choose from them. Writing is administration and goes through
+ * the same `settings:*` gate as every other settings route (audit-log,
+ * trackers): before this, any member could rename or delete an org's statuses.
  */
 
 // GET /api/settings/taxonomy/[kind]
@@ -20,6 +26,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   if (!isTaxonomyKind(kind)) return NextResponse.json({ error: "Unknown list" }, { status: 404 });
   const spec = TAXONOMY_KINDS[kind];
 
+  /* A brand-new org has no rows in any of these tables, so every picker in the
+     product renders empty until somebody thinks to visit Settings → General.
+     The reference ships an org with a starter set; seeding it on the first read
+     is what makes that true here without a migration or an org-creation hook to
+     backfill for the orgs that already exist. Idempotent and org-scoped: it
+     only ever fires against a list this org has left completely empty. */
+  await seedReferenceDefaults(kind, orgId);
+
   const items = await spec.delegate().findMany({
     where: { orgId },
     select: spec.select,
@@ -31,8 +45,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
 // POST /api/settings/taxonomy/[kind]
 export async function POST(request: NextRequest, { params }: { params: Promise<{ kind: string }> }) {
-  const result = await authenticateRequest(request);
-  if (!result) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const gate = await requirePermission(request, "settings:*");
+  if (!gate.ok) return gate.response;
+  const result = gate.auth;
   const { orgId } = result;
 
   const { kind } = await params;

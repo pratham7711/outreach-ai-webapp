@@ -24,6 +24,8 @@ type Delegate = {
   findMany: (args: unknown) => Promise<unknown[]>;
   findFirst: (args: unknown) => Promise<unknown>;
   create: (args: unknown) => Promise<unknown>;
+  createMany: (args: unknown) => Promise<{ count: number }>;
+  count: (args: unknown) => Promise<number>;
   update: (args: unknown) => Promise<unknown>;
   delete: (args: unknown) => Promise<unknown>;
 };
@@ -142,3 +144,49 @@ export const REFERENCE_DEFAULTS = {
     { name: "TikTok Brand Promo", platform: "TIKTOK", sortOrder: 4 },
   ],
 } as const;
+
+/**
+ * Which kinds have a starter set. Tags deliberately have none in either list:
+ * the reference ships no default creator or campaign tags, and inventing some
+ * would put words in an org's mouth that it then has to delete.
+ */
+const DEFAULTS_BY_KIND: Partial<Record<TaxonomyKind, readonly Record<string, unknown>[]>> = {
+  "campaign-statuses": REFERENCE_DEFAULTS.campaignStatuses,
+  "activation-statuses": REFERENCE_DEFAULTS.activationStatuses,
+  "creator-flags": REFERENCE_DEFAULTS.creatorFlags,
+  "deliverable-types": REFERENCE_DEFAULTS.deliverableTypes,
+};
+
+/**
+ * Seeds one list's reference defaults for an org that has none of them.
+ *
+ * Called from the list's own GET, so it costs one COUNT on the read path and
+ * fires at most once per org per list. Deliberately NOT "seed if fewer than N":
+ * an org that has deleted a status it does not use must not have it grow back.
+ * Empty is the only condition, and `skipDuplicates` makes two simultaneous
+ * first reads converge on the same rows rather than colliding on the
+ * (orgId, name) unique.
+ *
+ * Returns the number of rows created, 0 when there was nothing to do.
+ */
+export async function seedReferenceDefaults(kind: TaxonomyKind, orgId: string): Promise<number> {
+  const defaults = DEFAULTS_BY_KIND[kind];
+  if (!defaults || defaults.length === 0) return 0;
+
+  const delegate = TAXONOMY_KINDS[kind].delegate();
+  try {
+    const existing = await delegate.count({ where: { orgId } });
+    if (existing > 0) return 0;
+
+    const result = await delegate.createMany({
+      data: defaults.map((row) => ({ orgId, ...row })),
+      skipDuplicates: true,
+    });
+    return result?.count ?? 0;
+  } catch {
+    /* Seeding is a convenience on a read path. If it fails — a race that beat
+       skipDuplicates, a transient connection — the caller still gets whatever
+       rows exist, which is the answer it asked for. */
+    return 0;
+  }
+}
