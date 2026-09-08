@@ -324,6 +324,23 @@ export async function GET(request: NextRequest) {
       }
 
       if (action === "seal") {
+        /* A post older than 30 days is sealed even if we never once measured it.
+           Not sealing it is not an option: decideSyncAction returns "seal" for
+           it on every run forever, so an unsealed one is re-decided hourly and
+           never leaves the read. Sealing is what retires it, and thirty days is
+           long past the point where a number we never got is going to arrive.
+
+           What must NOT happen is the seal claiming a measurement. Every
+           counter is a non-nullable Float defaulting to 0, so lastSyncedAt is
+           the sole discriminator between "no likes" and "nobody looked" (see
+           lib/metricDisplay, metricValue). Stamping it here converted a whole
+           30-day cohort of never-measured posts into measured zeros across the
+           Posts tab, the report and the PDF, and dragged avgPostRate down with
+           them -- the same class of bug applyPostMetrics exists to prevent on
+           the fetch path. So the final snapshot always lands (it is what stops
+           the re-reading), and lastSyncedAt moves only for a post that had a
+           real reading to preserve. */
+        const neverMeasured = post.lastSyncedAt === null;
         try {
           await db.$transaction([
             db.postMetricSnapshot.create({
@@ -338,7 +355,9 @@ export async function GET(request: NextRequest) {
                 syncSource: "cron-seal",
               },
             }),
-            db.post.update({ where: { id: post.id }, data: { lastSyncedAt: now } }),
+            ...(neverMeasured
+              ? []
+              : [db.post.update({ where: { id: post.id }, data: { lastSyncedAt: now } })]),
           ]);
           sealed++;
         } catch (err) {
@@ -461,19 +480,29 @@ export async function GET(request: NextRequest) {
           await db.post.update({ where: { id: post.id }, data: failData });
         }
       } catch (err) {
-        log.error("failed to sync post", { postId: post.id, error: String(err) });
+        /* Counted and logged, never charged.
+
+           A throw out of this block is a token refresh that 500'd, a sandbox
+           lane that died, a Neon blip, a JSON parse against a WAF page -- ours
+           or the moment's, never a statement the platform made about the post.
+           The no-counts branch above already refuses to charge exactly that
+           class of cause (UNCHARGEABLE_REASONS), and this path bypassed the
+           whole distinction: any five thrown errors, however transient, walked
+           a healthy post to syncDisabledAt, which removes it from this route's
+           own query and which nothing in this codebase ever sets back to null.
+           Five hourly DB blips is five hours to permanently dark.
+
+           The post stays eligible, so the next run tries it again; `failed`
+           still counts it, so a run where everything throws still alerts. A
+           post the PLATFORM has nothing to say about still dead-letters, via
+           the charged branch above. */
+        log.error("failed to sync post; not charged to the post", {
+          postId: post.id,
+          platform: post.platform,
+          syncFailCount: post.syncFailCount,
+          error: String(err),
+        });
         failed++;
-        const nextFailCount = post.syncFailCount + 1;
-        const failData: Record<string, unknown> = { syncFailCount: nextFailCount };
-        if (nextFailCount >= MAX_SYNC_FAILURES) {
-          failData.syncDisabledAt = now;
-          deadLettered++;
-        }
-        try {
-          await db.post.update({ where: { id: post.id }, data: failData });
-        } catch (updateErr) {
-          log.error("failed to record sync failure", { postId: post.id, error: String(updateErr) });
-        }
       }
     }
 
@@ -524,14 +553,32 @@ export async function GET(request: NextRequest) {
       skippedByReason, skippedForBudget, total: posts.length,
     });
 
-    // One digest per run, never per post: a platform outage fails the whole
-    // batch, and 500 emails would be worse than none.
-    if (shouldAlertOnBatch({ failed, total: posts.length })) {
+    /* One digest per run, never per post: a platform outage fails the whole
+       batch, and 500 emails would be worse than none.
+
+       The signal is every attempt that produced no number, not just the ones
+       that threw. `failed` counts throws only, and a total lockout does not
+       throw: TikTok answering 300 posts with a WAF challenge is 300 clean
+       no-counts outcomes, failed:0, and the loudest possible outage went
+       unalerted. `noCounts` is that case, and the two are the same event from
+       the operator's side -- we asked and learned nothing.
+
+       Measured against attempts rather than posts.length, which includes every
+       post the cadence throttled: a run that attempted 6 and got nothing back
+       is an outage, and dividing it by 300 considered posts hides it under the
+       ratio. shouldAlertOnBatch's minFailures still keeps a two-post batch from
+       waking anyone. */
+    const attempted = synced + noCounts + failed;
+    const unproductive = noCounts + failed;
+    if (shouldAlertOnBatch({ failed: unproductive, total: attempted })) {
       await alertOps({
         source: "cron/sync-posts",
-        title: `Post metric sync failing: ${failed}/${posts.length} posts`,
+        title: `Post metric sync returning nothing: ${unproductive}/${attempted} attempts`,
         severity: "critical",
-        facts: { synced, sealed, failed, deadLettered, skippedForBudget, total: posts.length },
+        facts: {
+          synced, sealed, failed, noCounts, noCountReasons, deadLettered,
+          skippedForBudget, attempted, total: posts.length,
+        },
       });
     } else if (deadLettered > 0) {
       // Dead-lettered posts stop syncing forever until someone intervenes.
