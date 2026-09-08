@@ -179,8 +179,14 @@ export type CampaignAudio = {
    * `velocity` is the percentage change from the reading before it, which is what
    * CreatorCore's Velocity view of this chart plots -- the same series, asked a
    * different question: Usage is how many, Velocity is how fast.
+   *
+   * It is NULL on a sound's very first reading. recordSoundSnapshot stores a 0
+   * there because there is no earlier reading to divide by, and that 0 is the
+   * absence of a baseline rather than an observation of no growth -- charted, it
+   * drew a real "0.00%" point and pulled the line down to it. The tracker's own
+   * VelocityChart has always dropped its first point for the same reason.
    */
-  usageSeries: { date: string; at: string; uses: number; velocity: number }[];
+  usageSeries: { date: string; at: string; uses: number; velocity: number | null }[];
 };
 
 /**
@@ -712,12 +718,18 @@ async function loadCampaignAudio(campaignId: string): Promise<CampaignAudio | nu
 
   /* Newest first here so `take` keeps the most recent window, then reversed for
      the chart, which reads left to right. */
-  const snaps = await db.soundTrackerSnapshot.findMany({
+  const SERIES_POINTS = 60;
+  /* One past the window, purely to answer "is the oldest point we are about to
+     chart this sound's FIRST reading?". If a 61st exists, the oldest charted
+     point has a predecessor and its stored velocity is a real measurement. */
+  const rows = await db.soundTrackerSnapshot.findMany({
     where: { soundId: sound.id },
     select: { usesCount: true, videosAdded24h: true, velocityScore: true, recordedAt: true },
     orderBy: { recordedAt: "desc" },
-    take: 60,
+    take: SERIES_POINTS + 1,
   });
+  const hasEarlier = rows.length > SERIES_POINTS;
+  const snaps = rows.slice(0, SERIES_POINTS);
   const latest = snaps[0] ?? null;
 
   return {
@@ -734,14 +746,16 @@ async function loadCampaignAudio(campaignId: string): Promise<CampaignAudio | nu
     usageSeries: snaps
       .slice()
       .reverse()
-      .map((s) => ({
+      .map((s, i) => ({
         date: s.recordedAt.toISOString().slice(0, 10),
         // Several readings can land on one day -- a sync run taken four times
         // in an hour -- and then every point on the axis carried the same date.
         // The card needs the time to tell them apart.
         at: s.recordedAt.toISOString(),
         uses: s.usesCount,
-        velocity: s.velocityScore,
+        // The stored 0 on a sound's first-ever reading is a placeholder, not a
+        // measurement. Null so the velocity chart starts at the second point.
+        velocity: i === 0 && !hasEarlier ? null : s.velocityScore,
       })),
   };
 }

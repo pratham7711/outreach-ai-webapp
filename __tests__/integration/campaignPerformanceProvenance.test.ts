@@ -230,8 +230,10 @@ describe("computeCampaignPerformance audio provenance", () => {
     // The query orders newest first, so the newest row is the current count and
     // the series has to come back reversed.
     mockDb.soundTrackerSnapshot.findMany.mockResolvedValue([
-      { usesCount: 44, videosAdded24h: 21, recordedAt: new Date("2026-08-22T00:00:00Z") },
-      { usesCount: 23, videosAdded24h: 9, recordedAt: new Date("2026-08-21T00:00:00Z") },
+      { usesCount: 44, videosAdded24h: 21, velocityScore: 91.3, recordedAt: new Date("2026-08-22T00:00:00Z") },
+      // The sound's first-ever reading: recordSoundSnapshot stores 0 because
+      // there is no earlier reading to divide by.
+      { usesCount: 23, videosAdded24h: 9, velocityScore: 0, recordedAt: new Date("2026-08-21T00:00:00Z") },
     ]);
 
     const result = await computeCampaignPerformance(campaign);
@@ -242,9 +244,13 @@ describe("computeCampaignPerformance audio provenance", () => {
        land on one date and the axis then printed the same label for all of
        them. It is the chart's own dataKey, so a row without it is not a
        cosmetic loss -- it is a report that does not render. */
+    /* The first point's velocity is NULL, not 0. The stored 0 is the absence of
+       a baseline, and charted it drew a real "0.00%" point that pulled the
+       velocity line down to it — the tracker's own VelocityChart has always
+       dropped its first point for exactly this reason. */
     expect(result.audio!.usageSeries).toEqual([
-      { date: "2026-08-21", at: "2026-08-21T00:00:00.000Z", uses: 23 },
-      { date: "2026-08-22", at: "2026-08-22T00:00:00.000Z", uses: 44 },
+      { date: "2026-08-21", at: "2026-08-21T00:00:00.000Z", uses: 23, velocity: null },
+      { date: "2026-08-22", at: "2026-08-22T00:00:00.000Z", uses: 44, velocity: 91.3 },
     ]);
     // The tracker's own cover wins over the song's art.
     expect(result.audio!.coverUrl).toBe("https://cdn/sound.jpg");
@@ -478,5 +484,44 @@ describe("computeCampaignPerformance views-over-time read", () => {
     expect(last).toEqual({ date: "2026-08-01", TWITTER: 900, TIKTOK: 100 });
     // Which is the whole point: the stack now totals the Total Views tile.
     expect(Number(last.TWITTER) + Number(last.TIKTOK)).toBe(result.kpis.views);
+  });
+});
+
+/**
+ * A velocity of 0 on a sound's first reading is a placeholder, not a
+ * measurement — but only when that reading really is the first. The series is
+ * capped at 60 points, so the oldest point CHARTED usually has a predecessor
+ * the chart simply does not show, and its stored velocity is real.
+ */
+describe("first-reading velocity", () => {
+  const song = {
+    song: {
+      coverUrl: null,
+      sound: { id: "s1", tiktokSoundId: "999", title: "T", artist: "A", coverImageUrl: null },
+    },
+  };
+
+  const snapshot = (i: number) => ({
+    usesCount: 100 + i,
+    videosAdded24h: 1,
+    velocityScore: 5,
+    recordedAt: new Date(Date.UTC(2026, 6, 1 + i)),
+  });
+
+  beforeEach(() => {
+    mockDb.post.findMany.mockResolvedValue([post()]);
+    mockDb.campaign.findUnique.mockResolvedValue(song);
+  });
+
+  it("keeps the oldest point's velocity when an earlier reading exists beyond the window", async () => {
+    // 61 rows come back: the 61st exists only to prove the 60th has a
+    // predecessor, and it is not charted.
+    const rows = Array.from({ length: 61 }, (_, i) => snapshot(60 - i));
+    mockDb.soundTrackerSnapshot.findMany.mockResolvedValue(rows);
+
+    const result = await computeCampaignPerformance(campaign);
+
+    expect(result.audio!.usageSeries).toHaveLength(60);
+    expect(result.audio!.usageSeries[0].velocity).toBe(5);
   });
 });

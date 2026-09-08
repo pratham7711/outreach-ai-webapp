@@ -1,4 +1,4 @@
-import { summariseRefresh, describeAudioRefresh } from "@/lib/refreshSummary";
+import { summariseRefresh, describeAudioRefresh, describeTrackerSweep } from "@/lib/refreshSummary";
 
 describe("summariseRefresh", () => {
   it("says a refresh happened and nothing more", () => {
@@ -91,5 +91,43 @@ describe("summariseRefresh audio", () => {
     expect(describeAudioRefresh({ snapshots: 1, failed: 1 })).toBe(
       "The campaign audio could not be reached."
     );
+  });
+});
+
+/**
+ * The tracker sweep's toast.
+ *
+ * "Updated 1 sound" was the whole message on {snapshots: 1, failed: 40} — a
+ * near-total outage reported as a success.
+ */
+describe("describeTrackerSweep", () => {
+  it("names the failures alongside the successes", () => {
+    expect(describeTrackerSweep({ snapshots: 1, failed: 40 })).toEqual({
+      tone: "warning",
+      text: "Updated 1 sound — TikTok returned no count for 40 others",
+    });
+  });
+
+  it("stays a plain success when nothing failed", () => {
+    expect(describeTrackerSweep({ snapshots: 3, failed: 0 })).toEqual({
+      tone: "success",
+      text: "Updated 3 sounds",
+    });
+  });
+
+  it("is an error when nothing was read at all", () => {
+    expect(describeTrackerSweep({ snapshots: 0, failed: 4 })).toEqual({
+      tone: "error",
+      text: "TikTok did not return counts for any tracked sound",
+    });
+  });
+
+  it("says so plainly when the cadence gate declined everything", () => {
+    // Not a failure: every sound was read recently enough that another read
+    // would record the same number.
+    expect(describeTrackerSweep({ snapshots: 0, failed: 0, skipped: 12 })).toEqual({
+      tone: "success",
+      text: "Nothing to refresh",
+    });
   });
 });

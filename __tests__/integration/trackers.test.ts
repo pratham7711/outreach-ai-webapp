@@ -315,11 +315,14 @@ describe("GET /api/trackers/[id]", () => {
     expect(res.status).toBe(401);
   });
 
-  it("returns 403 when sound not in org", async () => {
+  /* 404, not 403. The query is scoped to the org, so a miss is either "no such
+     tracker" or "not yours" — and 403 tells a stranger the id exists somewhere
+     while reading, to the owner, like a permissions bug. */
+  it("returns 404 when sound not in org", async () => {
     mockDb.tikTokSound.findFirst.mockResolvedValue(null);
     const req = makeRequest("http://localhost/api/trackers/sound-1");
     const res = await getTrackerDetail(req, makeParams("sound-1"));
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(404);
   });
 
   it("returns sound detail with all snapshots", async () => {
@@ -373,13 +376,16 @@ describe("DELETE /api/trackers/[id]", () => {
     expect(res.status).toBe(401);
   });
 
-  it("returns 403 when sound not in org", async () => {
+  /* 404, not 403. The query is scoped to the org, so a miss is either "no such
+     tracker" or "not yours" — and 403 tells a stranger the id exists somewhere
+     while reading, to the owner, like a permissions bug. */
+  it("returns 404 when sound not in org", async () => {
     mockDb.tikTokSound.findFirst.mockResolvedValue(null);
     const req = makeRequest("http://localhost/api/trackers/sound-1", {
       method: "DELETE",
     });
     const res = await deleteTracker(req, makeParams("sound-1"));
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(404);
   });
 
   it("deletes sound and its snapshots", async () => {

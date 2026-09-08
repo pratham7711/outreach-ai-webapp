@@ -78,10 +78,15 @@ export function AudioUsesChart({
   series,
   granularity,
   height = 240,
+  /* What the values ARE. The chart is shared: the audio modal plots a sound's
+     uses, the creator modal plots a creator's followers, and the tooltip said
+     "uses" on both — so a creator's follower count read "1.2M uses". */
+  unit = "uses",
 }: {
   series: SeriesPoint[];
   granularity: ChartGranularity;
   height?: number;
+  unit?: string;
 }) {
   const data = useMemo(
     () => series.map((p) => ({ t: tickLabel(p.recordedAt, granularity), value: p.value })),
@@ -111,7 +116,7 @@ export function AudioUsesChart({
           domain={["dataMin", "dataMax"]}
           tickFormatter={(v: number) => formatCompact(v)}
         />
-        <Tooltip content={<TooltipBox suffix="uses" />} />
+        <Tooltip content={<TooltipBox suffix={unit} />} />
         <Area
           type="monotone"
           dataKey="value"

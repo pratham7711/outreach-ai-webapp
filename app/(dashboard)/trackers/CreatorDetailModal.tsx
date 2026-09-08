@@ -223,7 +223,7 @@ export function CreatorDetailModal({
       ) : null}
 
       {series.length >= 2 ? (
-        <AudioUsesChart series={series} granularity={creator.chartGranularity} />
+        <AudioUsesChart series={series} granularity={creator.chartGranularity} unit="followers" />
       ) : (
         <p style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>
           {/* Two points is the minimum for a line to mean anything; drawing one

@@ -13,6 +13,7 @@ import { TrackersIntro } from "./TrackersIntro";
 import { formatCompact, formatDateAbs, timeAgo } from "@/lib/format";
 import { apiDelete, apiFetch, apiPost } from "@/lib/api/client";
 import { errorMessage } from "@/lib/api/errorMessage";
+import { describeTrackerSweep } from "@/lib/refreshSummary";
 import { SOUND_URL_ERRORS, parseSoundUrl } from "@/lib/trackers/soundUrl";
 import { changeSpanLabel, isTrackerWindow } from "@/lib/trackers/metrics";
 
@@ -225,13 +226,9 @@ export default function TrackersPage() {
       apiPost<{ snapshots: number; failed: number; skipped: number }>("/api/trackers/refresh", {}),
     onSuccess: (result) => {
       invalidate();
-      if (result.snapshots > 0) {
-        toast.success(`Updated ${result.snapshots} sound${result.snapshots === 1 ? "" : "s"}`);
-      } else if (result.failed > 0) {
-        toast.error("TikTok did not return counts for any tracked sound");
-      } else {
-        toast.success("Nothing to refresh");
-      }
+      // One sentence covering both halves of the result — see describeTrackerSweep.
+      const { tone, text } = describeTrackerSweep(result);
+      toast[tone](text);
     },
     onError: (error) => toast.error(errorMessage(error, "Could not refresh trackers")),
   });
