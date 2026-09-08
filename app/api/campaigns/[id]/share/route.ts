@@ -49,6 +49,32 @@ async function readVisibility(req: NextRequest): Promise<ShareVisibility> {
   return sanitizeShareVisibility(body.visibility);
 }
 
+/**
+ * The campaign a share operation acts on.
+ *
+ * deletedAt is only filtered for POST. Deleting a campaign is a soft delete and
+ * leaves its share links live on purpose — the confirm copy tells the operator
+ * so. Filtering it everywhere therefore removed the one control that mattered:
+ * a link already emailed to a client could no longer be read, retargeted or
+ * revoked. Minting a *new* public link for a deleted campaign is a different
+ * act, and that one still refuses.
+ */
+async function findCampaignForShare(
+  auth: { orgId: string } & Parameters<typeof campaignScopeWhereFor>[0],
+  id: string,
+  opts: { allowDeleted: boolean }
+) {
+  return db.campaign.findFirst({
+    where: {
+      id,
+      orgId: auth.orgId,
+      ...(opts.allowDeleted ? null : { deletedAt: null }),
+      ...campaignScopeWhereFor(auth),
+    },
+    select: { id: true, title: true },
+  });
+}
+
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -62,10 +88,7 @@ export async function GET(
      campaign is the strongest thing a seat can do with it, so an ASSIGNED seat
      that cannot open the campaign must not be able to read, mint, retarget or
      revoke its share link either. */
-  const campaign = await db.campaign.findFirst({
-    where: { id, orgId, deletedAt: null, ...campaignScopeWhereFor(result) },
-    select: { id: true },
-  });
+  const campaign = await findCampaignForShare(result, id, { allowDeleted: true });
   if (!campaign) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
 
   const link = await findShareLink(orgId, id);
@@ -81,10 +104,7 @@ export async function POST(
   const { orgId, userId } = result;
   const { id } = await params;
 
-  const campaign = await db.campaign.findFirst({
-    where: { id, orgId, deletedAt: null, ...campaignScopeWhereFor(result) },
-    select: { id: true, title: true },
-  });
+  const campaign = await findCampaignForShare(result, id, { allowDeleted: false });
   if (!campaign) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
 
   const token = randomBytes(32).toString("base64url");
@@ -137,10 +157,7 @@ export async function PATCH(
   const { orgId } = result;
   const { id } = await params;
 
-  const campaign = await db.campaign.findFirst({
-    where: { id, orgId, deletedAt: null, ...campaignScopeWhereFor(result) },
-    select: { id: true },
-  });
+  const campaign = await findCampaignForShare(result, id, { allowDeleted: true });
   if (!campaign) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
 
   const link = await findShareLink(orgId, id);
@@ -166,10 +183,7 @@ export async function DELETE(
   const { orgId } = result;
   const { id } = await params;
 
-  const campaign = await db.campaign.findFirst({
-    where: { id, orgId, deletedAt: null, ...campaignScopeWhereFor(result) },
-    select: { id: true },
-  });
+  const campaign = await findCampaignForShare(result, id, { allowDeleted: true });
   if (!campaign) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
 
   const link = await findShareLink(orgId, id);
