@@ -94,11 +94,17 @@ export async function GET(
     orderBy: { viewsCount: "desc" },
   });
 
+  /* Post URL travels with the creator columns, not with the metrics.
+     redactForShare nulls postUrl on a hidden-creator link for the reason in its
+     comment — a TikTok or Instagram URL carries /@handle/ in its path, so the
+     column re-identifies every creator the link was set to hide, and one click
+     lands on their profile. The CSV emitted it unconditionally, which made the
+     export the way around the switch the page honours. */
   const header: string[] = [
     ...(visibility.showCreators ? ["Creator", "Handle"] : []),
     "Platform",
     "Posted",
-    "Post URL",
+    ...(visibility.showCreators ? ["Post URL"] : []),
     "Views",
     "Likes",
     "Comments",
@@ -114,7 +120,7 @@ export async function GET(
       ...(visibility.showCreators ? [p.creator.name, p.creator.handle ? `@${p.creator.handle.replace(/^@/, "")}` : ""] : []),
       p.platform,
       p.postedAt ? p.postedAt.toISOString().slice(0, 10) : "",
-      p.postUrl,
+      ...(visibility.showCreators ? [p.postUrl] : []),
       p.viewsCount,
       fieldMetricValue(p.likesCount, p.lastSyncedAt, p.platformMetrics, "likes"),
       fieldMetricValue(p.commentsCount, p.lastSyncedAt, p.platformMetrics, "comments"),
