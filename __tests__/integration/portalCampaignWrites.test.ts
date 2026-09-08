@@ -153,11 +153,19 @@ describe.each([
     expect(mockDb.creator.findFirst).not.toHaveBeenCalled();
   });
 
+  /* Scoped to the campaign's org AND matched the way join matches — both
+     spellings of the handle. An exact `handle: session.handle` equality here
+     403'd "you must join this campaign" at a creator whose roster row is
+     stored as "@awxyken", immediately after their join had succeeded. */
   it("resolves the creator inside the campaign's org, never from the request", async () => {
     await call();
     expect(mockDb.creator.findFirst).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: expect.objectContaining({ orgId: "org-1", handle: "awxyken", deletedAt: null }),
+        where: expect.objectContaining({
+          orgId: "org-1",
+          deletedAt: null,
+          OR: [{ handle: "awxyken" }, { handle: "@awxyken" }],
+        }),
       })
     );
   });

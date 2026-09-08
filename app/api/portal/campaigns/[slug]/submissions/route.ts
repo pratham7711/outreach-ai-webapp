@@ -8,6 +8,7 @@ import { getTikTokTokenForCreator } from "@/lib/platforms/tiktokToken";
 import { parseRatePerThousand } from "@/lib/marketplace/earnings";
 import { computeCampaignAccrual } from "@/lib/marketplace/cap";
 import { isPortalCampaignVisible } from "@/lib/marketplace/portalVisibility";
+import { findCreatorInOrgForHandle } from "@/lib/portal/creatorLookup";
 import { httpUrl } from "@/lib/validation/url";
 import { z } from "zod";
 
@@ -65,10 +66,11 @@ export async function POST(
        TikTok submissions" — a running status report on a campaign the detail
        route two paths up already 404s them out of. The write was never at risk:
        the 403 below has always required an activation. The disclosure was. */
-    const creator = await db.creator.findFirst({
-      where: { orgId: campaign.orgId, handle: session.handle, deletedAt: null },
-      select: { id: true },
-    });
+    /* findCreatorInOrgForHandle, not an exact `handle: session.handle`: a roster
+       stores handles with or without the leading @, and join (lib/marketplace/join.ts)
+       resolves the same row case/@-insensitively. Exact equality here 403'd
+       "You must join this campaign" at a creator who had just joined successfully. */
+    const creator = await findCreatorInOrgForHandle(campaign.orgId, session.handle);
     const activation = creator
       ? await db.activation.findFirst({
           where: { campaignId: campaign.id, creatorId: creator.id, deletedAt: null },

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getCreatorSession } from "@/lib/creator-auth";
 import { z } from "zod";
+import { findCreatorInOrgForHandle } from "@/lib/portal/creatorLookup";
 
 // GET /api/portal/payout-requests — List payout requests for current creator user
 export async function GET() {
@@ -63,11 +64,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
     }
 
-    // Find org-side Creator matching this CreatorUser by handle
-    const creator = await db.creator.findFirst({
-      where: { orgId: campaign.orgId, handle: session.handle },
-      select: { id: true },
-    });
+    // Find org-side Creator matching this CreatorUser by handle. Normalised
+    // (case/@-insensitive, deleted rows excluded) so it agrees with the row
+    // lib/marketplace/join.ts resolves; exact equality missed "@handle" rows.
+    const creator = await findCreatorInOrgForHandle(campaign.orgId, session.handle);
 
     // Fallback authorization: a joined marketplace Activation (Whop-style
     // content-rewards flow) also grants access.

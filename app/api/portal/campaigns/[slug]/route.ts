@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { getCreatorSession } from "@/lib/creator-auth";
 import { parseRatePerThousand, earnedMinorForPost } from "@/lib/marketplace/earnings";
 import { isPortalCampaignVisible } from "@/lib/marketplace/portalVisibility";
+import { findCreatorInOrgForHandle } from "@/lib/portal/creatorLookup";
 
 // GET /api/portal/campaigns/[slug] — detail for a joined marketplace campaign
 export async function GET(
@@ -40,11 +41,11 @@ export async function GET(
       return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
     }
 
-    // Resolve the creator link (handle match within campaign org) — must be joined.
-    const creator = await db.creator.findFirst({
-      where: { orgId: campaign.orgId, handle: session.handle, deletedAt: null },
-      select: { id: true },
-    });
+    /* Resolve the creator link (handle match within campaign org) — must be
+       joined. Normalised: exact equality missed a roster row stored as
+       "@handle", so a creator who had joined saw joined:false and no
+       submissions. */
+    const creator = await findCreatorInOrgForHandle(campaign.orgId, session.handle);
     const activation = creator
       ? await db.activation.findFirst({
           where: { campaignId: campaign.id, creatorId: creator.id, deletedAt: null },

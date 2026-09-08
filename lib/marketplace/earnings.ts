@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { findCreatorsForHandle } from "@/lib/portal/creatorLookup";
 
 export type PlatformKey = "TIKTOK" | "INSTAGRAM" | "YOUTUBE";
 
@@ -65,11 +66,11 @@ export async function computeCreatorEarnings(
   creatorUserId: string,
   handle: string
 ): Promise<CampaignEarnings[]> {
-  // Find every org-side Creator row mirroring this portal user (handle match).
-  const creators = await db.creator.findMany({
-    where: { handle, deletedAt: null },
-    select: { id: true, orgId: true },
-  });
+  // Find every org-side Creator row mirroring this portal user. Normalised
+  // through the shared matcher: an exact `handle` equality missed rows stored
+  // as "@handle" and reported zero earnings for campaigns the creator had
+  // joined and been approved on.
+  const creators = await findCreatorsForHandle(handle);
   if (creators.length === 0) return [];
   const creatorIds = creators.map((c) => c.id);
 
