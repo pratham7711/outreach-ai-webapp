@@ -131,6 +131,24 @@ describe("GET /api/dashboard/financials", () => {
     expect(sql).toContain('s."orgId" = $1');
   });
 
+  /* Soft-deleted campaigns are gone from activeCampaigns and from the title
+     lookup, so a post aggregate that still counted them made the Total Views
+     and Total Posts tiles disagree with the campaign list beside them, and gave
+     "Views by campaign" a bar whose title lookup missed -- an "Unknown campaign"
+     that is really a campaign somebody deleted. */
+  it("excludes posts belonging to soft-deleted campaigns from every post aggregate", async () => {
+    await GET(makeRequest("http://localhost/api/dashboard/financials"));
+
+    const postWheres = [
+      ...mockDb.post.groupBy.mock.calls.map((c: any[]) => c[0].where),
+      ...mockDb.post.findMany.mock.calls.map((c: any[]) => c[0].where),
+    ];
+    expect(postWheres.length).toBeGreaterThan(0);
+    for (const where of postWheres) {
+      expect(where.campaign).toEqual({ orgId: "org-1", deletedAt: null });
+    }
+  });
+
   /* The point of the snapshot table. If the chart ever goes back to reading
      Post.viewsCount, the past starts moving again and a screenshot from last
      week stops matching today's chart. */
