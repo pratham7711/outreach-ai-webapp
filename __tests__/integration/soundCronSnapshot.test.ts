@@ -238,3 +238,42 @@ it("keeps the window at MAX_SOUNDS, taking the staleest end of a longer list", a
   expect(ids[0]).toBe("s-0");
   expect(ids).not.toContain("s-259");
 });
+
+/**
+ * The delta columns mean "since the previous reading", not "over the last day".
+ *
+ * Two writers filled them: this cron used changeOverWindow(…, "24h"), whose
+ * baseline is the oldest reading still inside the window, while
+ * recordSoundSnapshot (manual Refresh, worker ingest) subtracts the reading
+ * immediately before. The campaign audio card labels the column "Videos Added
+ * (Since Last Sync)", so the second is the true one and the cron now agrees.
+ *
+ * Readings inside the window are what separates the two — the fixture above
+ * puts everything 26h+ back, where both definitions collapse onto the same
+ * baseline and the disagreement is invisible.
+ */
+function soundReadWithinTheDay() {
+  return [
+    {
+      id: "sound-1",
+      orgId: "org-1",
+      tiktokSoundId: "7546394810303694849",
+      snapshots: [
+        // Newest first. 5h old, so the 4-hourly cadence says it is due.
+        { usesCount: 900, recordedAt: new Date(Date.now() - 5 * HOUR) },
+        { usesCount: 500, recordedAt: new Date(Date.now() - 20 * HOUR) },
+      ],
+    },
+  ];
+}
+
+it("writes the change since the previous reading, not the whole day's gain", async () => {
+  mockDb.tikTokSound.findMany.mockResolvedValue(soundReadWithinTheDay());
+  mockEmbed.mockResolvedValue({ usesCount: 1000, title: null, artist: null, coverImageUrl: null });
+
+  await runCron();
+
+  // 1000 - 900. The 24-hour window would have said 1000 - 500 = 500.
+  expect(written().videosAdded24h).toBe(100);
+  expect(written().deltaUses24h).toBe(100);
+});

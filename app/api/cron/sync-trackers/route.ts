@@ -11,7 +11,6 @@ import { openSoundBrowserSession } from "@/lib/platforms/tiktokSoundBrowser";
 import { readTikTokSoundViaEmbed } from "@/lib/platforms/tiktokSoundEmbed";
 import { openSandboxProfileFetcher } from "@/lib/platforms/tiktokProfileSandbox";
 import {
-  changeOverWindow,
   previousOf,
   velocityBetween,
   type TrackerSnapshot,
@@ -200,7 +199,16 @@ export async function GET(request: NextRequest) {
          there. */
       const previous = previousOf(withLatest);
       const velocity = previous ? velocityBetween(previous.value, latest.value) : 0;
-      const day = changeOverWindow(withLatest, "24h", now);
+      /* LATEST MINUS PREVIOUS, not a 24-hour window.
+
+         The column had two writers and two meanings: this route wrote
+         changeOverWindow(..., "24h").added — a whole day's gain — while
+         recordSoundSnapshot (manual Refresh, and the worker ingest) writes the
+         change since the reading before it. On an hourly cadence those are 24
+         readings apart, and the one label both feed, "Videos Added (Since Last
+         Sync)" on the campaign audio card, is only true of the second. So the
+         label picks the meaning, and both writers now agree on it. */
+      const delta = previous ? latest.value - previous.value : 0;
 
       try {
         await db.soundTrackerSnapshot.create({
@@ -213,8 +221,8 @@ export async function GET(request: NextRequest) {
                sign; videosAdded24h is a count and is floored, exactly as
                recordSoundSnapshot does it. Third copy of this arithmetic; the
                second one put a percentage in the same column. */
-            videosAdded24h: day ? Math.max(0, Math.round(day.added)) : 0,
-            deltaUses24h: day ? Math.round(day.added) : 0,
+            videosAdded24h: Math.max(0, Math.round(delta)),
+            deltaUses24h: Math.round(delta),
             // Unit: percent change since the previous reading. See above.
             velocityScore: velocity,
             recordedAt: now,
