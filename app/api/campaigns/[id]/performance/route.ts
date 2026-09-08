@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { authenticateRequest } from "@/lib/authenticate";
+import { campaignScopeWhereFor } from "@/lib/campaignScope";
 import { computeCampaignPerformance } from "@/lib/reports/campaignPerformance";
 
 export async function GET(
@@ -13,8 +14,12 @@ export async function GET(
     const { orgId } = result;
     const { id } = await params;
 
+    /* Same scope as GET /api/campaigns/[id]. An ASSIGNED-scoped seat that 404s
+       on the campaign detail must 404 here too, or the numbers the detail page
+       withholds are one URL away. campaignScopeWhereFor returns {} for everyone
+       else, including OWNER/ADMIN and machine callers. */
     const campaign = await db.campaign.findFirst({
-      where: { id, orgId, deletedAt: null },
+      where: { id, orgId, deletedAt: null, ...campaignScopeWhereFor(result) },
       select: { id: true, orgId: true, budget: true, currency: true },
     });
     if (!campaign) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });

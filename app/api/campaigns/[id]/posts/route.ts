@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
+import { campaignScopeWhere, scopeSubjectFromSession } from "@/lib/campaignScope";
 import { httpUrl } from "@/lib/validation/url";
 import { z } from "zod";
 import {
@@ -46,8 +47,16 @@ export async function GET(
     const orgId = (session.user as any).orgId;
     const { id: campaignId } = await params;
 
-    // Verify campaign belongs to org
-    const campaign = await db.campaign.findFirst({ where: { id: campaignId, orgId, deletedAt: null } });
+    /* Org first, then row scope. This route authenticates through auth() rather
+       than authenticateRequest, so it composes campaignScopeWhere off the
+       session the same way the campaigns list page does; the rule itself lives
+       in one file either way. An ASSIGNED seat that 404s on the campaign detail
+       must 404 on its post list too — otherwise every post, creator handle and
+       view count of a campaign it cannot open is one URL away. */
+    const scope = scopeSubjectFromSession(session.user);
+    const campaign = await db.campaign.findFirst({
+      where: { id: campaignId, orgId, deletedAt: null, ...(scope ? campaignScopeWhere(scope) : {}) },
+    });
     if (!campaign) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
 
     const { searchParams } = request.nextUrl;
@@ -103,7 +112,12 @@ export async function POST(
     const orgId = (session.user as any).orgId;
     const { id: campaignId } = await params;
 
-    const campaign = await db.campaign.findFirst({ where: { id: campaignId, orgId, deletedAt: null } });
+    // Adding a post is a write against the campaign, so it is scoped at least
+    // as tightly as reading one.
+    const scope = scopeSubjectFromSession(session.user);
+    const campaign = await db.campaign.findFirst({
+      where: { id: campaignId, orgId, deletedAt: null, ...(scope ? campaignScopeWhere(scope) : {}) },
+    });
     if (!campaign) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
 
     const body = await request.json();

@@ -4,6 +4,7 @@ import * as XLSX from "xlsx";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { db } from "@/lib/db";
 import { authenticateRequest } from "@/lib/authenticate";
+import { campaignScopeWhereFor } from "@/lib/campaignScope";
 import { computeCampaignPerformance } from "@/lib/reports/campaignPerformance";
 import { CampaignPerformancePDF } from "@/lib/reports/CampaignPerformancePDF";
 import { computeCampaignEmv, computeEngagementRate, sumEngagements } from "@/lib/metrics";
@@ -36,8 +37,10 @@ export async function GET(
       );
     }
 
+    /* Scoped like the campaign detail: an export is the whole report in a file,
+       so it cannot be reachable where the page it exports is not. */
     const campaign = await db.campaign.findFirst({
-      where: { id, orgId, deletedAt: null },
+      where: { id, orgId, deletedAt: null, ...campaignScopeWhereFor(result) },
       select: {
         id: true,
         orgId: true,
