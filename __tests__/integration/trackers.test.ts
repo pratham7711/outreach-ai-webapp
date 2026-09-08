@@ -23,6 +23,9 @@ jest.mock("@/lib/db", () => ({
     soundTrackerSnapshot: {
       deleteMany: jest.fn(),
     },
+    // The plan limit counts sounds AND tracked creators against one
+    // max_trackers — see lib/trackers/limit.
+    creator: { count: jest.fn() },
     // Read twice per request: once here for chart granularity, once inside
     // getOrgEntitlements for the tracker limit.
     organization: { findUnique: jest.fn() },
@@ -53,6 +56,7 @@ beforeEach(() => {
   mockAuth.mockResolvedValue(authedSession);
   mockDb.organization.findUnique.mockResolvedValue(orgFixture());
   mockDb.tikTokSound.count.mockResolvedValue(0);
+  mockDb.creator.count.mockResolvedValue(0);
 });
 
 // ─── GET /api/trackers ──────────────────────────────────────────────────────
@@ -204,6 +208,7 @@ describe("POST /api/trackers", () => {
       mockDb.organization.findUnique.mockResolvedValue(orgFixture({ plan: "free" }));
       mockDb.tikTokSound.findFirst.mockResolvedValue(null);
       mockDb.tikTokSound.count.mockResolvedValue(0);
+  mockDb.creator.count.mockResolvedValue(0);
     };
 
     it("refuses the very first tracker", async () => {
@@ -239,7 +244,7 @@ describe("POST /api/trackers", () => {
       const body = await (await postTracker(req)).json();
 
       expect(body.error).toBe(
-        "Your plan does not include sound trackers. Upgrade to start tracking sounds."
+        "Your plan does not include trackers. Upgrade to start tracking sounds."
       );
       expect(body.error).not.toContain("Remove one");
       expect(body.trackers).toEqual({ used: 0, max: 0 });

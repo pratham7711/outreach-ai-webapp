@@ -14,7 +14,15 @@ import { NextRequest } from "next/server";
 
 jest.mock("@/lib/db", () => ({
   db: {
-    creator: { findMany: jest.fn(), findFirst: jest.fn(), update: jest.fn(), delete: jest.fn() },
+    creator: {
+      findMany: jest.fn(),
+      findFirst: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
+      // Sounds and tracked creators share one max_trackers — lib/trackers/limit.
+      count: jest.fn(),
+    },
+    tikTokSound: { count: jest.fn() },
     // Read for the org's chart granularity.
     organization: { findUnique: jest.fn() },
     $queryRawUnsafe: jest.fn(),
@@ -69,6 +77,8 @@ beforeEach(() => {
   mockDb.creator.findMany.mockResolvedValue([]);
   mockDb.$queryRawUnsafe.mockResolvedValue([]);
   mockDb.organization.findUnique.mockResolvedValue(orgFixture());
+  mockDb.creator.count.mockResolvedValue(0);
+  mockDb.tikTokSound.count.mockResolvedValue(0);
 });
 
 describe("GET /api/trackers/creators", () => {
@@ -236,5 +246,52 @@ describe("DELETE /api/trackers/creators/[id]", () => {
     const res = await DELETE(req(`${BASE}/cr1`, "DELETE"), ctx("cr1"));
     expect(res.status).toBe(200);
     expect(mockDb.creator.update).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Creator trackers were free.
+ *
+ * The sound route has counted against max_trackers since the limit existed;
+ * this one had no entitlement check at all, so an org on the free tier — whose
+ * plan allows zero trackers — could put every creator it owned on the sweep's
+ * schedule. One limit covers both pools, so the count is the union.
+ */
+describe("POST /api/trackers/creators is gated by the plan", () => {
+  const untracked = () =>
+    mockDb.creator.findFirst.mockResolvedValue({ id: "cr1", trackedSince: null });
+
+  it("refuses a new creator tracker when the plan's trackers are all in use", async () => {
+    untracked();
+    mockDb.organization.findUnique.mockResolvedValue(orgFixture({ plan: "starter" }));
+    mockDb.tikTokSound.count.mockResolvedValue(20);
+    mockDb.creator.count.mockResolvedValue(5); // 25 of 25 on starter
+
+    const res = await POST(req(BASE, "POST", { creatorId: "cr1" }));
+
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body.trackers).toEqual({ used: 25, max: 25 });
+    expect(mockDb.creator.update).not.toHaveBeenCalled();
+  });
+
+  it("says the plan excludes trackers rather than telling a free org to remove one", async () => {
+    untracked();
+    mockDb.organization.findUnique.mockResolvedValue(orgFixture({ plan: "free" }));
+
+    const body = await (await POST(req(BASE, "POST", { creatorId: "cr1" }))).json();
+
+    expect(body.error).toBe("Your plan does not include trackers. Upgrade to start tracking creators.");
+    expect(body.error).not.toContain("Remove one");
+  });
+
+  it("never refuses a creator that is already tracked", async () => {
+    mockDb.creator.findFirst.mockResolvedValue({ id: "cr1", trackedSince: new Date() });
+    mockDb.organization.findUnique.mockResolvedValue(orgFixture({ plan: "free" }));
+
+    const res = await POST(req(BASE, "POST", { creatorId: "cr1" }));
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ tracked: true, alreadyTracked: true });
   });
 });

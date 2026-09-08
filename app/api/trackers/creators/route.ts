@@ -18,6 +18,7 @@ import {
   snapshotFetchLimit,
 } from "@/lib/trackers/granularity";
 import { READ_FAILURE_COPY, type CreatorReadFailure } from "@/lib/platforms/creatorProfile";
+import { trackerLimitError, trackerUsage } from "@/lib/trackers/limit";
 import {
   byMetricDescending,
   followerCount,
@@ -249,6 +250,21 @@ export async function POST(req: NextRequest) {
     // date -- that date is how long we have been watching.
     if (creator.trackedSince) {
       return NextResponse.json({ tracked: true, alreadyTracked: true });
+    }
+
+    /* The same gate the sound route has, against the same limit.
+       A tracked creator is a standing instruction to fetch a profile on a
+       schedule — exactly what lib/plans.ts says max_trackers exists to bound —
+       but this route had no check at all, so a free org (max 0) could track
+       every creator it owned and the sound route's 409 was the only cap in the
+       product. Counted together, because there is one limit, not two. */
+    const usage = await trackerUsage(orgId);
+    const limitError = trackerLimitError(usage, "creators");
+    if (limitError) {
+      return NextResponse.json(
+        { error: limitError, trackers: { used: usage.used, max: usage.max } },
+        { status: 409 }
+      );
     }
 
     await db.creator.update({ where: { id: creator.id }, data: { trackedSince: new Date() } });
