@@ -528,11 +528,24 @@ async function computeCampaignPerformanceUncached(
       buckets.set(day, row);
     }
   } else {
+    /* No snapshots (a campaign imported with its final numbers, or never
+       synced): the only dates we have are post dates. The chart is still titled
+       "over time", so it must read as one -- a running total of the views the
+       posts published so far have earned, not each day's own batch. The batch
+       version drew a line that fell to zero on the last posting day and looked
+       like the campaign collapsing (measured on a 35-post import: 1.4M, 453K, 0). */
+    const byDay = new Map<string, ReturnType<typeof emptyRow>>();
     for (const p of posts) {
       if (!SERIES_PLATFORMS.includes(p.platform as SeriesPlatform)) continue;
       const day = dateKey(p.postedAt);
-      if (!buckets.has(day)) buckets.set(day, emptyRow());
-      buckets.get(day)![p.platform as SeriesPlatform] += p.viewsCount ?? 0;
+      if (!byDay.has(day)) byDay.set(day, emptyRow());
+      byDay.get(day)![p.platform as SeriesPlatform] += p.viewsCount ?? 0;
+    }
+    const running = emptyRow();
+    for (const day of Array.from(byDay.keys()).sort()) {
+      const add = byDay.get(day)!;
+      for (const platform of SERIES_PLATFORMS) running[platform] += add[platform];
+      buckets.set(day, { ...running });
     }
   }
 
