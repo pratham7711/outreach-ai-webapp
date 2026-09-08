@@ -62,15 +62,19 @@ it("signs out a session whose organization has been removed", async () => {
   expect(mockRedirect).toHaveBeenCalledWith("/api/auth/session-invalid");
 });
 
-it("leaves a signed-out visitor alone", async () => {
-  /* No session at all is the ordinary state on a public route rendered by this
-     layout, and it must not be mistaken for a removed org -- signing out
-     someone who is already signed out would loop. */
+it("sends a signed-out visitor to /login rather than rendering the shell", async () => {
+  /* Every route under app/(dashboard) is private -- the public ones (/explore,
+     /share, /c, /portal, /privacy, /terms, /verify-email) live outside this
+     group -- so a null session here is a revoked or expired one, not a public
+     page. proxy.ts cannot catch it: the edge auth config only decodes the
+     cookie, while the jwt callback that reads isActive runs Node-side. Measured
+     2026-09-08 before this guard: a deactivated teammate got 401 from /api/org
+     and 200 from /dashboard. /login is outside this layout, so no loop. */
   mockAuth.mockResolvedValue(null);
 
-  await renderLayout();
+  await expect(renderLayout()).rejects.toThrow("NEXT_REDIRECT:/login");
 
-  expect(mockRedirect).not.toHaveBeenCalled();
+  expect(mockRedirect).toHaveBeenCalledWith("/login");
   expect(mockEntitlements).not.toHaveBeenCalled();
 });
 
