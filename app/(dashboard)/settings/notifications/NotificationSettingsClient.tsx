@@ -106,9 +106,16 @@ export function NotificationSettingsClient() {
           </div>
         </Card>
       ))}
+      {/* Says what these switches do and, just as importantly, what they do
+          not. They used to be described as email preferences while no sender
+          read them: activity email was removed on purpose (one campaign
+          created mailed the whole org), and nothing has replaced it. What they
+          genuinely control now is the bell in the top bar. */}
       <p style={{ fontSize: 12.5, color: "var(--cc-text-muted)" }}>
-        Email must be configured on the server for these to send. Slack delivery is separate — an
-        admin sets it up once for the whole team under Settings → Integrations.
+        These switches control the notification bell in the top bar. Activity email is
+        not sent for these events — only sign-up, password reset and invites go out by
+        email. Slack delivery is separate and org-wide: an admin sets it up once for the
+        whole team under Settings → Integrations.
       </p>
     </div>
   );
