@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { ArrowRight, Bell, BellRing, Building2, CreditCard, LineChart, Plug, Tags, Users } from "lucide-react";
+import { PageHeader } from "@/components/ds";
 
 const cards = [
   {
@@ -60,14 +61,10 @@ export default async function SettingsPage() {
 
   return (
     <div className="rsp-page page-enter">
-      <div style={{ marginBottom: 32 }}>
-        <h1 style={{ fontSize: 26, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>
-          Settings
-        </h1>
-        <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>
-          Manage access, security, and plan details for your workspace.
-        </p>
-      </div>
+      <PageHeader
+        title="Settings"
+        subtitle="Manage access, security, and plan details for your workspace."
+      />
 
       <div
         style={{

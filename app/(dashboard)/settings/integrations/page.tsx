@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { hasPermission } from "@/lib/rbac";
 import { IntegrationsClient } from "./IntegrationsClient";
+import { PageHeader } from "@/components/ds";
 
 export const metadata = { title: "Integrations" };
 
@@ -13,14 +14,10 @@ export default async function IntegrationsPage() {
 
   return (
     <div className="rsp-page page-enter">
-      <div style={{ marginBottom: 28 }}>
-        <h1 style={{ fontSize: 26, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>
-          Integrations
-        </h1>
-        <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>
-          Connect with Slack to receive updates and notifications directly in your selected channel.
-        </p>
-      </div>
+      <PageHeader
+        title="Integrations"
+        subtitle="Connect with Slack to receive updates and notifications directly in your selected channel."
+      />
       <IntegrationsClient />
     </div>
   );

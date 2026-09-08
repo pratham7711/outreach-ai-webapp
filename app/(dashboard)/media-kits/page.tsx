@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Plus, Lock, AlertTriangle, Folder } from "lucide-react";
 import { Modal, Input, EmptyState, Card, Badge, LoadingSpinner } from "@pratham7711/ui";
 import { formatDateAbs } from "@/lib/format";
-import { useConfirm, Button } from "@/components/ds";
+import { PageHeader, useConfirm, Button } from "@/components/ds";
 
 interface MediaKit {
   id: string;
@@ -130,15 +130,15 @@ export default function MediaKitsPage() {
 
   return (
     <div className="rsp-page">
-      <div className="rsp-header">
-        <div>
-          <h1 style={{ fontSize: 26, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Media Kits</h1>
-          <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>Build and share creator media kits</p>
-        </div>
-        <Button variant="primary" iconLeft={<Plus size={15} />} onClick={() => setOpen(true)}>
-          New Media Kit
-        </Button>
-      </div>
+      <PageHeader
+        title="Media Kits"
+        subtitle="Build and share creator media kits"
+        actions={
+          <Button variant="primary" iconLeft={<Plus size={15} />} onClick={() => setOpen(true)}>
+            New Media Kit
+          </Button>
+        }
+      />
 
       {loading ? (
         <div style={{ display: "flex", justifyContent: "center", padding: 48 }}>

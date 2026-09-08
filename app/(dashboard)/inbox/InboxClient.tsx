@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Avatar, Badge, Tag, EmptyState, Skeleton } from "@pratham7711/ui";
 import { Send, ArrowLeft, MessageSquare, Mail, AlertTriangle } from "lucide-react";
+import { PageHeader } from "@/components/ds";
 
 const inboxStyles = `
   .inbox-panes {
@@ -201,10 +202,7 @@ export default function InboxClient() {
   return (
     <div className="rsp-page" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       <style>{inboxStyles}</style>
-      <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 28, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Inbox</h1>
-        <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>Direct messages with your creators</p>
-      </div>
+      <PageHeader title="Inbox" subtitle="Direct messages with your creators" />
 
       <div className="inbox-panes" data-active={activeId ? "true" : "false"}>
         <div className="inbox-list">

@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { Badge, Card, Avatar, Skeleton, EmptyState, Input } from "@pratham7711/ui";
-import { MetricTile, Button } from "@/components/ds";
+import { PageHeader, MetricTile, Button } from "@/components/ds";
 import { StatusTabs } from "@/components/ds";
 import { formatDateAbs } from "@/lib/format";
 import { Inbox, Search, Download } from "lucide-react";
@@ -141,22 +141,21 @@ export default function RequestsPage() {
 
   return (
     <div className="rsp-page">
-      {/* Header */}
-      <div className="rsp-header">
-        <div>
-          <h1 style={{ fontSize: 26, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Requests</h1>
-          <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>View and manage payout requests</p>
-        </div>
-        <Button
-          variant="secondary"
-          size="sm"
-          iconLeft={<Download size={15} />}
-          disabled={filtered.length === 0}
-          onClick={exportData}
-        >
-          Export Data
-        </Button>
-      </div>
+      <PageHeader
+        title="Requests"
+        subtitle="View and manage payout requests"
+        actions={
+          <Button
+            variant="secondary"
+            size="sm"
+            iconLeft={<Download size={15} />}
+            disabled={filtered.length === 0}
+            onClick={exportData}
+          >
+            Export Data
+          </Button>
+        }
+      />
 
       {/* Stat Cards */}
       {loading ? (

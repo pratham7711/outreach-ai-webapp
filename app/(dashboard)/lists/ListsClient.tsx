@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Users, Search, ClipboardList } from "lucide-react";
 import { Card, EmptyState, Input, Avatar, Modal } from "@pratham7711/ui";
-import { Button } from "@/components/ds";
+import { PageHeader, Button } from "@/components/ds";
 import { formatDateAbs } from "@/lib/format";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -58,13 +58,11 @@ export default function ListsClient({ lists }: { lists: List[] }) {
 
   return (
     <div className="rsp-page">
-      <div className="rsp-header">
-        <div>
-          <h1 style={{ fontSize: 26, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Lists</h1>
-          <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>Organize creators into curated lists</p>
-        </div>
-        <Button variant="primary" iconLeft={<Plus size={15} />} onClick={() => setShowCreate(true)}>New List</Button>
-      </div>
+      <PageHeader
+        title="Lists"
+        subtitle="Organize creators into curated lists"
+        actions={<Button variant="primary" iconLeft={<Plus size={15} />} onClick={() => setShowCreate(true)}>New List</Button>}
+      />
 
       <div style={{ marginBottom: 24 }}>
         <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search Lists" iconLeft={<Search size={16} />} />
