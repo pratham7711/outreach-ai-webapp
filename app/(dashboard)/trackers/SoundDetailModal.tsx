@@ -4,6 +4,7 @@ import { Music, RefreshCw } from "lucide-react";
 import { formatCompact, formatDateAbs, timeAgo } from "@/lib/format";
 import type { ChartGranularity } from "@/lib/trackers/granularity";
 import { AudioUsesChart, VelocityChart, type SeriesPoint } from "./SoundCharts";
+import { changeOver } from "./horizonChange";
 
 /**
  * The audio detail, mirroring the reference: a cumulative level chart beside a
@@ -28,22 +29,6 @@ export type DetailSound = {
   series: SeriesPoint[];
   chartGranularity: ChartGranularity;
 };
-
-/** Change across a horizon, computed from the same series the charts draw so a
- *  number and the picture above it can never disagree. */
-function changeOver(series: SeriesPoint[], days: number) {
-  if (series.length < 2) return null;
-  const latest = series[series.length - 1];
-  const cutoff = new Date(latest.recordedAt).getTime() - days * 86400_000;
-  const baseline =
-    [...series].reverse().find((p) => new Date(p.recordedAt).getTime() <= cutoff) ?? series[0];
-  if (baseline === latest) return null;
-  const added = latest.value - baseline.value;
-  return {
-    added,
-    percent: baseline.value > 0 ? (added / baseline.value) * 100 : null,
-  };
-}
 
 const HORIZONS: { label: string; days: number }[] = [
   { label: "24H Change", days: 1 },
@@ -172,7 +157,14 @@ export function SoundDetailModal({
               return (
                 <div key={h.label} style={{ minWidth: 84 }}>
                   <div style={{ fontSize: 11, color: "var(--cc-text-muted)" }}>{h.label}</div>
-                  {c ? (
+                  {c === "short-history" ? (
+                    <div
+                      style={{ fontSize: 14, fontWeight: 700, color: "var(--cc-text-muted)" }}
+                      title={`Not enough history — this sound has no reading from ${h.days} days ago yet.`}
+                    >
+                      —
+                    </div>
+                  ) : c ? (
                     <div style={{ fontSize: 14, fontWeight: 700, color: c.added < 0 ? "var(--cc-danger)" : "var(--cc-text)" }}>
                       {c.added >= 0 ? "+" : ""}
                       {formatCompact(c.added)}

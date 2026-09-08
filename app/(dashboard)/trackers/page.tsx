@@ -14,6 +14,7 @@ import { formatCompact, formatDateAbs, timeAgo } from "@/lib/format";
 import { apiDelete, apiFetch, apiPost } from "@/lib/api/client";
 import { errorMessage } from "@/lib/api/errorMessage";
 import { SOUND_URL_ERRORS, parseSoundUrl } from "@/lib/trackers/soundUrl";
+import { changeSpanLabel, isTrackerWindow } from "@/lib/trackers/metrics";
 
 interface SoundSnapshot {
   usesCount: number;
@@ -556,6 +557,9 @@ export default function TrackersPage() {
             const snap = s.latestSnapshot;
             const added = s.addedInPeriod;
             const measured = s.change !== null;
+            const spanLabel = isTrackerWindow(period)
+              ? changeSpanLabel(s.change, period, periodLabel(period))
+              : periodLabel(period);
             return (
               <div
                 key={s.id}
@@ -627,9 +631,21 @@ export default function TrackersPage() {
                     {snap ? formatCount(snap.usesCount) : "—"}
                   </div>
                   {measured && added !== null ? (
-                    <div style={{ fontSize: 12, color: added >= 0 ? "var(--cc-primary)" : "var(--cc-danger)" }}>
+                    /* The span is the one changeOverWindow actually measured, not
+                       the one that was asked for. With fewer than two readings
+                       inside the window it falls back to the last two of all
+                       time, and printing "/ 24h" over a ten-day gain overstated
+                       the rate by a factor of ten. */
+                    <div
+                      style={{ fontSize: 12, color: added >= 0 ? "var(--cc-primary)" : "var(--cc-danger)" }}
+                      title={
+                        spanLabel !== periodLabel(period)
+                          ? `Only ${spanLabel} of readings are available inside the ${periodLabel(period)} window.`
+                          : undefined
+                      }
+                    >
                       {added >= 0 ? "+" : ""}
-                      {formatCount(added)} / {periodLabel(period)}
+                      {formatCount(added)} / {spanLabel}
                       {s.growthPercentage !== null
                         ? ` (${s.growthPercentage >= 0 ? "+" : ""}${s.growthPercentage.toFixed(1)}%)`
                         : ""}
