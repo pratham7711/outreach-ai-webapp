@@ -229,7 +229,7 @@ export default function RequestsPage() {
         <EmptyState
           icon={<Search size={32} color="var(--cc-text-subtle)" />}
           title="No requests match that search"
-          description={`Nothing here matches "${query}".`}
+          description={`No requests match "${query}".`}
           action={<Button variant="secondary" onClick={() => setQuery("")}>Clear search</Button>}
         />
       ) : filtered.length === 0 ? (
