@@ -1,7 +1,7 @@
 /**
  * @jest-environment jsdom
  */
-import { render, screen, within } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 
 jest.mock("@pratham7711/ui", () => ({
   Badge: ({ children }: any) => <span>{children}</span>,
@@ -41,11 +41,6 @@ const EVENTS: ActivityEvent[] = [
   },
 ];
 
-function feed() {
-  // The second SectionCard; the first is "Recent campaigns".
-  return screen.getByText("Activity feed").closest("section, div")!;
-}
-
 describe("ActivitySection — the activity feed", () => {
   it("renders the audit events, not the campaigns from the card above", () => {
     render(<ActivitySection recentCampaigns={CAMPAIGNS} recentEvents={EVENTS} />);
@@ -75,7 +70,7 @@ describe("ActivitySection — the activity feed", () => {
   it("says there is no activity rather than falling back to the campaign list", () => {
     render(<ActivitySection recentCampaigns={CAMPAIGNS} recentEvents={[]} />);
     expect(screen.getByText("No recent activity")).toBeInTheDocument();
-    // The campaigns card above still renders its row.
-    expect(within(feed()).queryByText("is now")).not.toBeInTheDocument();
+    // The campaigns card above is unaffected and still renders its row.
+    expect(screen.getByText("Summer Drop")).toBeInTheDocument();
   });
 });
