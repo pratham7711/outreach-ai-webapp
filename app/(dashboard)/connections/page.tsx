@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Card, Badge, Modal, Input, Skeleton, EmptyState } from "@pratham7711/ui";
-import { Button } from "@/components/ds";
+import { PageHeader, Button } from "@/components/ds";
 import { AlertTriangle } from "lucide-react";
 
 type PlatformConnection = {
@@ -118,14 +118,7 @@ export default function ConnectionsPage() {
   if (failed) {
     return (
       <div className="rsp-page">
-        <div className="rsp-header">
-          <div>
-            <h1 style={{ fontSize: 28, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Connections</h1>
-            <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>
-              Connect your platforms and payment providers
-            </p>
-          </div>
-        </div>
+        <PageHeader title="Connections" subtitle="Connect your platforms and payment providers" />
         <Card variant="outlined" style={{ padding: 32 }}>
           <EmptyState
             icon={<AlertTriangle size={32} color="var(--cc-text-subtle)" />}
@@ -194,19 +187,16 @@ export default function ConnectionsPage() {
         </div>
       )}
 
-      {/* Header */}
-      <div className="rsp-header">
-        <div>
-          <h1 style={{ fontSize: 28, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Connections</h1>
-          <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>
-            Record which platforms and providers your team uses
-          </p>
-        </div>
-        <div style={{ display: "flex", gap: 12 }}>
-          <Badge variant="neutral" size="sm">{connectedCount} connected</Badge>
-          <Badge variant="neutral" size="sm">{platforms.length - connectedCount} available</Badge>
-        </div>
-      </div>
+      <PageHeader
+        title="Connections"
+        subtitle="Record which platforms and providers your team uses"
+        actions={
+          <>
+            <Badge variant="neutral" size="sm">{connectedCount} connected</Badge>
+            <Badge variant="neutral" size="sm">{platforms.length - connectedCount} available</Badge>
+          </>
+        }
+      />
 
       {/* Social Platforms */}
       <div style={{ marginBottom: 32 }}>

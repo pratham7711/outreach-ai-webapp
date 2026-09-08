@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Mail, Trash2, Users, Clock, User, Link as LinkIcon, Check } from "lucide-react";
 import { Card, Badge, Avatar, EmptyState, Modal, Input } from "@pratham7711/ui";
-import { Dropdown, Button } from "@/components/ds";
+import { PageHeader, Dropdown, Button } from "@/components/ds";
 
 type User = {
   id: string;
@@ -161,17 +161,11 @@ export default function TeamClient({
 
   return (
     <div className="rsp-page page-enter">
-      {/* Header */}
-      <div className="rsp-header">
-        <div>
-          <h1 style={{ fontSize: 26, fontWeight: 800, color: "var(--cc-text)", letterSpacing: "-0.02em", marginBottom: 4 }}>
-            Team Members
-          </h1>
-          <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>
-            Manage your team and invite new members
-          </p>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+      <PageHeader
+        title="Team Members"
+        subtitle="Manage your team and invite new members"
+        actions={
+          <>
           {seats ? (
             <span
               style={{ fontSize: 13, color: seatsFull ? "var(--cc-warning)" : "var(--cc-text-muted)" }}
@@ -193,8 +187,9 @@ export default function TeamClient({
           >
             Invite Member
           </Button>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       {/* Stats */}
       <div className="cc-stagger grid grid-cols-1 sm:grid-cols-2" style={{ gap: 20, marginBottom: 32, maxWidth: 480 }}>

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Plus, Zap } from "lucide-react";
 import { EmptyState, Card, Avatar, Modal } from "@pratham7711/ui";
-import { MetricTile, EntityPicker, Button } from "@/components/ds";
+import { PageHeader, MetricTile, EntityPicker, Button } from "@/components/ds";
 import type { PickerOption } from "@/components/ds";
 import { toast } from "sonner";
 import { stripAt } from "@/lib/format";
@@ -298,14 +298,11 @@ export default function ActivationsClient({ activations, stats, statusDefs }: {
 
   return (
     <div className="rsp-page">
-      {/* Header */}
-      <div className="rsp-header">
-        <div>
-          <h1 style={{ fontSize: 26, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Activations</h1>
-          <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>Track creator deliverables and posts</p>
-        </div>
-        <Button variant="primary" iconLeft={<Plus size={15} />} onClick={() => setShowCreate(true)}>Add Activation</Button>
-      </div>
+      <PageHeader
+        title="Activations"
+        subtitle="Track creator deliverables and posts"
+        actions={<Button variant="primary" iconLeft={<Plus size={15} />} onClick={() => setShowCreate(true)}>Add Activation</Button>}
+      />
 
       {/* Stats */}
       <div className="rsp-grid-tiles" style={{ marginBottom: 20 }}>

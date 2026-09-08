@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from "react";
 import dynamic from "next/dynamic";
 import { Card, Badge, Skeleton, EmptyState } from "@pratham7711/ui";
-import { MetricTile, Button } from "@/components/ds";
+import { PageHeader, MetricTile, Button } from "@/components/ds";
 import { TrendingUp, TrendingDown, Minus, DollarSign, Wallet, BarChart2, Clock, Download, FileText, Table, TriangleAlert } from "lucide-react";
 import { loadCharts } from "@/components/charts/lazyCharts";
 import { downloadCsv } from "@/lib/csv";
@@ -203,16 +203,11 @@ export default function FinancialReportsPage() {
 
   return (
     <div className="rsp-page page-enter">
-      {/* Header */}
-      <div className="rsp-header">
-        <div>
-          <h1 style={{ fontSize: 26, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Financial Reports</h1>
-          <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>
-            {data ? `${data.period} vs ${data.previousPeriod}` : "Payout and budget summary with period comparison"}
-          </p>
-        </div>
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          {data && (
+      <PageHeader
+        title="Financial Reports"
+        subtitle={data ? `${data.period} vs ${data.previousPeriod}` : "Payout and budget summary with period comparison"}
+        actions={
+          data ? (
             <>
               <Button variant="secondary" size="sm" onClick={() => exportGenerated("pdf")} disabled={exportingPdf}>
                 <FileText size={14} style={{ marginRight: 6 }} />
@@ -227,9 +222,9 @@ export default function FinancialReportsPage() {
                 Export CSV
               </Button>
             </>
-          )}
-        </div>
-      </div>
+          ) : null
+        }
+      />
 
       {/* Period Tabs */}
       <div style={{ display: "flex", gap: 4, marginBottom: 24, flexWrap: "wrap" }}>

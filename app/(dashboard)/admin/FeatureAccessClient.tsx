@@ -7,7 +7,7 @@ import Link from "next/link";
 import { Input, Badge, EmptyState, Card, Avatar } from "@pratham7711/ui";
 import ClientFeatureModal from "@/components/modals/ClientFeatureModal";
 import { FEATURES, type FeatureKey } from "@/lib/features";
-import { Dropdown, useConfirm, Button } from "@/components/ds";
+import { PageHeader, Dropdown, useConfirm, Button } from "@/components/ds";
 
 const featureKeys = Object.keys(FEATURES) as FeatureKey[];
 
@@ -153,20 +153,15 @@ export default function FeatureAccessClient({ clients: initialClients, plans }: 
 
   return (
     <div className="rsp-page page-enter">
-      {/* Header */}
-      <div className="rsp-header">
-        <div>
-          <h1 style={{ fontSize: 26, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>
-            Feature Access
-          </h1>
-          <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>
-            Manage plan assignments and feature overrides per client
-          </p>
-        </div>
-        <Badge variant="accent" size="md">
-          {initialClients.length} clients
-        </Badge>
-      </div>
+      <PageHeader
+        title="Feature Access"
+        subtitle="Manage plan assignments and feature overrides per client"
+        actions={
+          <Badge variant="accent" size="md">
+            {initialClients.length} clients
+          </Badge>
+        }
+      />
 
       {/* Tabs */}
       <div style={{ display: "flex", gap: 8, marginBottom: 24, flexWrap: "wrap" }}>

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Key, Plus, Trash2, Copy, Check, AlertTriangle } from "lucide-react";
+import { PageHeader } from "@/components/ds";
 
 interface ApiKeyItem {
   id: string;
@@ -86,24 +87,11 @@ export default function ApiKeysClient() {
 
   return (
     <div className="rsp-page page-enter" style={{ paddingBottom: 64 }}>
-      {/* Page Header */}
-      <div className="rsp-header">
-        <div>
-          <h1
-            style={{
-              fontSize: 28,
-              fontWeight: 700,
-              color: "var(--cc-text)",
-              marginBottom: 4,
-            }}
-          >
-            API Keys
-          </h1>
-          <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>
-            Manage API access to your organization
-          </p>
-        </div>
-        <button
+      <PageHeader
+        title="API Keys"
+        subtitle="Manage API access to your organization"
+        actions={
+          <button
           onClick={() => {
             setShowCreate(true);
             setCreatedKey(null);
@@ -125,8 +113,9 @@ export default function ApiKeysClient() {
         >
           <Plus size={16} />
           Create API Key
-        </button>
-      </div>
+          </button>
+        }
+      />
 
       {/* Created Key Banner */}
       {createdKey && (

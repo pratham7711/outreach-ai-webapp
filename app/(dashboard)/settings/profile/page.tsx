@@ -4,7 +4,7 @@ import { Card, Input, Skeleton } from "@pratham7711/ui";
 import { Building2, Palette, Landmark, Globe, Save } from "lucide-react";
 import { formatDateAbs } from "@/lib/format";
 import { PLATFORM_DEFAULT_BRANDING } from "@/lib/brandingDefaults";
-import { Dropdown, Button } from "@/components/ds";
+import { PageHeader, Dropdown, Button } from "@/components/ds";
 
 type OrgProfile = {
   id: string;
@@ -167,16 +167,16 @@ export default function OrgProfilePage() {
         </div>
       )}
 
-      <div className="rsp-header">
-        <div>
-          <h1 style={{ fontSize: 26, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Organization Profile</h1>
-          <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>Manage your workspace settings, branding, and bank details</p>
-        </div>
-        <Button variant="primary" onClick={save} disabled={saving || loading}>
-          <Save size={14} style={{ marginRight: 6 }} />
-          {saving ? "Saving…" : "Save Changes"}
-        </Button>
-      </div>
+      <PageHeader
+        title="Organization Profile"
+        subtitle="Manage your workspace settings, branding, and bank details"
+        actions={
+          <Button variant="primary" onClick={save} disabled={saving || loading}>
+            <Save size={14} style={{ marginRight: 6 }} />
+            {saving ? "Saving…" : "Save Changes"}
+          </Button>
+        }
+      />
 
       {error && (
         <div style={{ background: "color-mix(in srgb, var(--cc-danger) 14%, transparent)", border: "1px solid color-mix(in srgb, var(--cc-danger) 30%, transparent)", borderRadius: 8, padding: "12px 16px", marginBottom: 20, fontSize: 13, color: "var(--cc-danger)" }}>

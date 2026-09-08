@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Plus, Search, Target, Sun, Zap, CheckCircle2, XCircle, Wallet, Users, FileText, LayoutList, Folder, Share2, ArrowUpDown, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { Card, Badge, Input, EmptyState, Avatar } from "@pratham7711/ui";
-import { StatusTabs, Pagination, FilterDrawer, FilterButton, Dropdown, useConfirm, Button } from "@/components/ds";
+import { PageHeader, StatusTabs, Pagination, FilterDrawer, FilterButton, Dropdown, useConfirm, Button } from "@/components/ds";
 import type { FilterDef, FilterValues } from "@/components/ds";
 import CampaignWizard from "@/components/modals/CampaignWizard";
 import { formatCompactCurrency, timeAgo } from "@/lib/format";
@@ -598,17 +598,11 @@ export default function CampaignsClient({
 
   return (
     <div className="cc-page-content rsp-page">
-      {/* Header */}
-      <div className="rsp-header">
-        <div>
-          <h1 style={{ fontSize: 26, fontWeight: 800, color: "var(--cc-text)", letterSpacing: "-0.02em", marginBottom: 4 }}>
-            Campaigns
-          </h1>
-          <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>
-            {countLabel}
-          </p>
-        </div>
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+      <PageHeader
+        title="Campaigns"
+        subtitle={countLabel}
+        actions={
+          <>
           <Button
             variant="secondary"
             iconLeft={<Folder size={15} />}
@@ -644,8 +638,9 @@ export default function CampaignsClient({
           <Button variant="primary" iconLeft={<Plus size={15} />} size="sm" onClick={() => setShowModal(true)}>
             New Campaign
           </Button>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       {/* Search + filters */}
       <div style={{ marginBottom: 20, display: "flex", gap: 10, alignItems: "flex-start" }}>

@@ -8,6 +8,7 @@
 import { useMemo, useState } from "react";
 import { Badge, Card, Input } from "@pratham7711/ui";
 import type { PlatformStats, TenantRow } from "@/lib/platform/stats";
+import { PageHeader } from "@/components/ds";
 
 const NUM = new Intl.NumberFormat("en-US");
 const fmt = (n: number) => NUM.format(n);
@@ -221,15 +222,10 @@ export default function PlatformDashboardClient({ stats }: { stats: PlatformStat
 
   return (
     <div>
-      <div style={{ marginBottom: 32 }}>
-        <h1 style={{ fontSize: 28, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>
-          Platform
-        </h1>
-        <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>
-          Every organization on the platform. Operator-only — this is the one screen that reads
-          across tenants.
-        </p>
-      </div>
+      <PageHeader
+        title="Platform"
+        subtitle="Every organization on the platform. Operator-only — this is the one screen that reads across tenants."
+      />
 
       <Section title="Who we serve">
         <div

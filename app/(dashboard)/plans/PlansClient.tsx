@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Plus, Pencil, Trash2, Users, ClipboardList } from "lucide-react";
 import { Card, Modal, Input, Textarea, EmptyState, Badge } from "@pratham7711/ui";
 import { FEATURES, type FeatureKey } from "@/lib/features";
-import { useConfirm, Button } from "@/components/ds";
+import { PageHeader, useConfirm, Button } from "@/components/ds";
 
 type Plan = {
   id: string;
@@ -228,16 +228,15 @@ export default function PlansClient({ plans: initialPlans }: { plans: Plan[] }) 
   return (
     <div className="rsp-page page-enter">
       <style>{`.plan-feat-grid{display:grid;grid-template-columns:1fr;gap:8px 16px}@media(min-width:480px){.plan-feat-grid{grid-template-columns:1fr 1fr}}`}</style>
-      {/* Page Header */}
-      <div className="rsp-header">
-        <div>
-          <h1 style={{ fontSize: 26, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Plans & Feature Access</h1>
-          <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>Manage subscription plans and feature access for clients</p>
-        </div>
-        <Button variant="primary" iconLeft={<Plus size={15} />} onClick={() => setShowCreate(true)}>
-          New Plan
-        </Button>
-      </div>
+      <PageHeader
+        title="Plans & Feature Access"
+        subtitle="Manage subscription plans and feature access for clients"
+        actions={
+          <Button variant="primary" iconLeft={<Plus size={15} />} onClick={() => setShowCreate(true)}>
+            New Plan
+          </Button>
+        }
+      />
 
       {plans.length === 0 ? (
         <EmptyState

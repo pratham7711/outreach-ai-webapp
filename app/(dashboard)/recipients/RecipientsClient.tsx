@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { Search, Mailbox } from "lucide-react";
 import { Card, Badge, EmptyState, Input, Tag, Avatar } from "@pratham7711/ui";
-import { MetricTile } from "@/components/ds";
+import { PageHeader, MetricTile } from "@/components/ds";
 import type { Recipient, RecipientStats } from "@/lib/recipients/aggregate";
 import { stripAt } from "@/lib/format";
 
@@ -74,14 +74,10 @@ export default function RecipientsClient({
           .recip-row > [data-col="count"]::before { content: "Payouts · "; }
         }
       `}</style>
-      <div style={{ marginBottom: 32 }}>
-        <h1 style={{ fontSize: 26, fontWeight: 800, color: "var(--cc-text)", letterSpacing: "-0.02em", marginBottom: 4 }}>
-          Recipients
-        </h1>
-        <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>
-          Everyone you've paid, with totals derived from payout history
-        </p>
-      </div>
+      <PageHeader
+        title="Recipients"
+        subtitle="Everyone you've paid, with totals derived from payout history"
+      />
 
       <div className="cc-stagger rsp-grid-tiles" style={{ marginBottom: 32 }}>
         <MetricTile metric="recipients" value={String(stats.recipientCount)} />
