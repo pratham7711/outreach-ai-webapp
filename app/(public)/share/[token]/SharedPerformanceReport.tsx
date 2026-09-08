@@ -119,6 +119,11 @@ export default function SharedPerformanceReport({
   // Already redacted server-side — a hidden leaderboard arrives empty rather
   // than arriving whole and being skipped at render time.
   const { kpis, timeSeries, platformSplit, leaderboard, currency } = data;
+  /* Stacked areas draw every series, so a platform with no views still paints
+     its stroke along the top of the stack -- a TikTok-only campaign showed a
+     green "YouTube" line (measured on the misery - pupsies report). Only
+     platforms that actually have views get an area and a legend entry. */
+  const activeSeries = SERIES.filter((s) => timeSeries.some((row) => (row[s.key] ?? 0) > 0));
   const showEmvColumn = leaderboard.some((r) => r.emv !== null);
   /* Engagement exists only for posts we fetched ourselves, so the column is
      dropped when no creator in this campaign has one. */
@@ -299,7 +304,7 @@ export default function SharedPerformanceReport({
                 <ChartFrame height={320}>
                   <AreaChart data={timeSeries} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
                     <defs>
-                      {SERIES.map((s) => (
+                      {activeSeries.map((s) => (
                         <linearGradient key={s.key} id={`shareGrad-${s.key}`} x1="0" y1="0" x2="0" y2="1">
                           <stop offset="5%" stopColor={s.color} stopOpacity={0.3} />
                           <stop offset="95%" stopColor={s.color} stopOpacity={0} />
@@ -315,7 +320,7 @@ export default function SharedPerformanceReport({
                       contentStyle={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, fontSize: 13 }}
                     />
                     <Legend wrapperStyle={{ fontSize: 12 }} />
-                    {SERIES.map((s) => (
+                    {activeSeries.map((s) => (
                       <Area
                         key={s.key}
                         type="monotone"
