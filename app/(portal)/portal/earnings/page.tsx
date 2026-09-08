@@ -7,6 +7,7 @@ import { Card, Badge, EmptyState, Skeleton } from "@pratham7711/ui";
 import { MetricTile, Button } from "@/components/ds";
 import { toast } from "sonner";
 import { Wallet, Clock, Info } from "lucide-react";
+import { formatCurrencyTotals } from "@/lib/money";
 
 type CampaignEarning = {
   campaignId: string;
@@ -21,15 +22,24 @@ type CampaignEarning = {
   canRequestPayout: boolean;
 };
 
+type CurrencyMinor = { currency: string; minor: number };
+
 function fmtMoney(minor: number, currency = "USD") {
   return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(minor / 100);
+}
+
+/* One figure per currency. A creator earning on a USD campaign and an INR one
+   has no single balance, and the flat sum this replaced printed the two added
+   together behind a dollar sign. */
+function fmtTotals(totals: CurrencyMinor[]) {
+  return formatCurrencyTotals(totals.map((t) => ({ currency: t.currency, amount: t.minor / 100 })));
 }
 
 export default function PortalEarningsPage() {
   const router = useRouter();
   const [campaigns, setCampaigns] = useState<CampaignEarning[]>([]);
-  const [totalApprovedMinor, setTotalApprovedMinor] = useState(0);
-  const [totalPendingMinor, setTotalPendingMinor] = useState(0);
+  const [approvedByCurrency, setApprovedByCurrency] = useState<CurrencyMinor[]>([]);
+  const [pendingByCurrency, setPendingByCurrency] = useState<CurrencyMinor[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [requestingId, setRequestingId] = useState<string | null>(null);
@@ -44,8 +54,8 @@ export default function PortalEarningsPage() {
       if (res.ok) {
         const data = await res.json();
         setCampaigns(data.campaigns ?? []);
-        setTotalApprovedMinor(data.totalApprovedMinor ?? 0);
-        setTotalPendingMinor(data.totalPendingMinor ?? 0);
+        setApprovedByCurrency(data.approvedByCurrency ?? []);
+        setPendingByCurrency(data.pendingByCurrency ?? []);
       } else {
         setError("Failed to load earnings");
       }
@@ -122,8 +132,8 @@ export default function PortalEarningsPage() {
 
       {/* Totals */}
       <div className="rsp-grid-2" style={{ marginBottom: 32 }}>
-        <MetricTile metric="portalAvailableBalance" label="Available balance (approved)" value={fmtMoney(totalApprovedMinor)} />
-        <MetricTile metric="portalPendingReview" value={fmtMoney(totalPendingMinor)} />
+        <MetricTile metric="portalAvailableBalance" label="Available balance (approved)" value={fmtTotals(approvedByCurrency)} />
+        <MetricTile metric="portalPendingReview" value={fmtTotals(pendingByCurrency)} />
       </div>
 
       {campaigns.length === 0 && !error ? (

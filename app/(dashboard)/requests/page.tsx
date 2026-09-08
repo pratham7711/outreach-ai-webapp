@@ -6,6 +6,7 @@ import { StatusTabs } from "@/components/ds";
 import { formatDateAbs } from "@/lib/format";
 import { Inbox, Search, Download } from "lucide-react";
 import { downloadCsv, exportStamp } from "@/lib/csv";
+import { formatMoney, formatRowsByCurrency } from "@/lib/money";
 import { toast } from "sonner";
 
 /**
@@ -117,9 +118,15 @@ export default function RequestsPage() {
   // Stats
   const totalRequests = requests.length;
   const pendingCount = requests.filter((r) => r.status === "PENDING").length;
-  const approvedTotal = requests
-    .filter((r) => r.status === "APPROVED")
-    .reduce((sum, r) => sum + r.requestedAmount, 0);
+  /* Per currency, not one sum behind one symbol. A payout request carries its
+     own currency -- the portal posts whatever the campaign is in -- so adding
+     an INR request to a USD one and printing "$" produced a figure that is not
+     true in either. Mixed currencies render as "₹40,000 · $500". */
+  const approvedTotal = formatRowsByCurrency(
+    requests
+      .filter((r) => r.status === "APPROVED")
+      .map((r) => ({ currency: r.currency, amount: r.requestedAmount }))
+  );
   const rejectedCount = requests.filter((r) => r.status === "REJECTED").length;
 
   // Exports the rows on screen, so a status tab or a search narrows the file
@@ -137,11 +144,6 @@ export default function RequestsPage() {
         r.status,
       ]),
     ]);
-  };
-
-  const formatCurrency = (amount: number, currency?: string) => {
-    const sym = currency === "INR" ? "\u20B9" : "$";
-    return `${sym}${amount.toLocaleString()}`;
   };
 
   return (
@@ -176,7 +178,7 @@ export default function RequestsPage() {
         <div className="rsp-grid-tiles" style={{ marginBottom: 32 }}>
           <MetricTile metric="requestsTotal" value={String(totalRequests)} />
           <MetricTile metric="requestsPending" value={String(pendingCount)} />
-          <MetricTile metric="requestsApprovedAmount" value={formatCurrency(approvedTotal)} />
+          <MetricTile metric="requestsApprovedAmount" value={approvedTotal} />
           <MetricTile metric="requestsRejected" value={String(rejectedCount)} />
         </div>
       )}
@@ -274,7 +276,7 @@ export default function RequestsPage() {
                 </div>
                 <Badge variant={STATUS_BADGE[r.status] ?? "neutral"} size="sm">{r.status.toLowerCase()}</Badge>
                 <div style={{ textAlign: "right", minWidth: 80 }}>
-                  <div style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)" }}>{formatCurrency(r.requestedAmount, r.currency)}</div>
+                  <div style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)" }}>{formatMoney(r.requestedAmount, r.currency)}</div>
                   <div style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{formatDateAbs(r.createdAt)}</div>
                 </div>
                 {r.status === "PENDING" && (

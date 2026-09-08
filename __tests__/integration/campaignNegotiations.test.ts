@@ -51,6 +51,39 @@ describe('GET /api/campaigns/[id]/negotiations', () => {
     expect(body.negotiations).toEqual([{ ...negotiations[0], creator: null }]);
   });
 
+  /* Every offer carries its own currency, so the running budget line has to be
+     one total per currency. It used to be two scalars summed across currencies
+     and rendered with offers[0].currency -- the newest offer's, which is not a
+     property of the sum. */
+  it('totals accepted and pending offers per currency', async () => {
+    mockDb.negotiationOffer.findMany.mockResolvedValue([
+      { id: 'n1', creatorId: 'cr-1', currency: 'INR', offeredRate: 40000, status: 'ACCEPTED', finalRate: 40000 },
+      { id: 'n2', creatorId: 'cr-2', currency: 'EUR', offeredRate: 500, status: 'ACCEPTED', finalRate: null },
+      { id: 'n3', creatorId: 'cr-3', currency: 'INR', offeredRate: 10000, status: 'PENDING' },
+      { id: 'n4', creatorId: 'cr-4', currency: 'INR', offeredRate: 5000, status: 'REJECTED' },
+    ]);
+
+    const res = await GET(makeRequest('http://localhost/api/campaigns/camp-1/negotiations'), makeParams('camp-1'));
+    const body = await res.json();
+
+    expect(body.aggregate.acceptedTotals).toEqual([
+      { currency: 'INR', amount: 40000 },
+      { currency: 'EUR', amount: 500 },
+    ]);
+    expect(body.aggregate.pendingTotals).toEqual([{ currency: 'INR', amount: 10000 }]);
+  });
+
+  it('defaults an offer with no currency to USD rather than its own bucket', async () => {
+    mockDb.negotiationOffer.findMany.mockResolvedValue([
+      { id: 'n1', creatorId: 'cr-1', offeredRate: 100, status: 'ACCEPTED', finalRate: null },
+    ]);
+
+    const res = await GET(makeRequest('http://localhost/api/campaigns/camp-1/negotiations'), makeParams('camp-1'));
+    const body = await res.json();
+
+    expect(body.aggregate.acceptedTotals).toEqual([{ currency: 'USD', amount: 100 }]);
+  });
+
   /* NegotiationOffer stores creatorId as a bare string with no relation. The
      page used to resolve it client-side against whatever its creator picker had
      fetched — which was the first 20 creators, and only after that modal had

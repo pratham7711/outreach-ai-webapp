@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { createAuditActor, logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
 import { z } from "zod";
+import { totalsByCurrency } from "@/lib/money";
 
 const createOfferSchema = z.object({
   creatorId: z.string().min(1),
@@ -37,22 +38,31 @@ export async function GET(
       orderBy: { createdAt: "desc" },
     });
 
-    let acceptedTotal = 0;
-    let pendingEstimate = 0;
+    /* Every offer carries its own currency, so the running budget line is a
+       total per currency rather than one number. The two scalars this replaced
+       were added across currencies and then rendered by the client with
+       `offers[0].currency` -- the currency of whichever offer happened to be
+       newest, which is not a property of the sum at all. */
+    const acceptedRows: { currency: string; amount: number }[] = [];
+    const pendingRows: { currency: string; amount: number }[] = [];
     for (const n of negotiations as Array<{
       status?: string;
+      currency?: string | null;
       offeredRate?: number;
       counterRate?: number | null;
       aiCounterRate?: number | null;
       finalRate?: number | null;
     }>) {
       const standing = n.aiCounterRate ?? n.counterRate ?? n.offeredRate ?? 0;
+      const currency = n.currency ?? "USD";
       if (n.status === "ACCEPTED") {
-        acceptedTotal += n.finalRate ?? standing;
+        acceptedRows.push({ currency, amount: n.finalRate ?? standing });
       } else if (n.status === "PENDING" || n.status === "COUNTERED") {
-        pendingEstimate += standing;
+        pendingRows.push({ currency, amount: standing });
       }
     }
+    const acceptedTotals = totalsByCurrency(acceptedRows);
+    const pendingTotals = totalsByCurrency(pendingRows);
 
     // NegotiationOffer holds creatorId as a plain string with no relation, so
     // the name has to be looked up. The client used to do it against whatever
@@ -70,7 +80,7 @@ export async function GET(
 
     return NextResponse.json({
       negotiations: negotiations.map((n) => ({ ...n, creator: byId.get(n.creatorId) ?? null })),
-      aggregate: { acceptedTotal, pendingEstimate },
+      aggregate: { acceptedTotals, pendingTotals },
     });
   } catch (error) {
     console.error("Failed to fetch negotiations:", error);
