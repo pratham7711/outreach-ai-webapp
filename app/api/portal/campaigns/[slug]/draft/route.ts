@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { getCreatorSession } from "@/lib/creator-auth";
 import { z } from "zod";
 import { httpUrl } from "@/lib/validation/url";
+import { isPortalCampaignVisible } from "@/lib/marketplace/portalVisibility";
 
 // Statuses from which a creator may (re)submit a draft for approval.
 const SUBMITTABLE = ["AWAITING_DRAFT", "DECLINED", "DRAFT_SUBMITTED"];
@@ -34,17 +35,24 @@ export async function POST(
 
     const campaign = await db.campaign.findUnique({
       where: { publicSlug: slug },
-      select: { id: true, orgId: true, deletedAt: true, submissionDeadline: true },
+      select: {
+        id: true,
+        orgId: true,
+        deletedAt: true,
+        submissionDeadline: true,
+        marketplaceVisibility: true,
+      },
     });
     if (!campaign || campaign.deletedAt) {
       return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
     }
 
-    if (campaign.submissionDeadline && campaign.submissionDeadline.getTime() < Date.now()) {
-      return NextResponse.json({ error: "The submission deadline has passed" }, { status: 409 });
-    }
-
-    // Must be joined — resolve creator + activation (never trust client orgId).
+    /* Resolved BEFORE the deadline check, and never trusting a client orgId.
+       marketplaceVisibility was not even selected here, so a stranger with a
+       stale slug for a PRIVATE campaign learned from the 409 whether its
+       deadline had passed — the detail route behind the same slug 404s them.
+       The write was never at risk; the 403 below has always required an
+       activation. */
     const creator = await db.creator.findFirst({
       where: { orgId: campaign.orgId, handle: session.handle, deletedAt: null },
       select: { id: true },
@@ -55,6 +63,18 @@ export async function POST(
           select: { id: true, status: true },
         })
       : null;
+
+    if (!isPortalCampaignVisible({
+      marketplaceVisibility: campaign.marketplaceVisibility,
+      hasActivation: !!activation,
+    })) {
+      return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
+    }
+
+    if (campaign.submissionDeadline && campaign.submissionDeadline.getTime() < Date.now()) {
+      return NextResponse.json({ error: "The submission deadline has passed" }, { status: 409 });
+    }
+
     if (!creator || !activation) {
       return NextResponse.json({ error: "You must join this campaign before submitting a draft" }, { status: 403 });
     }

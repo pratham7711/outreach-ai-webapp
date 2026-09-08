@@ -7,6 +7,7 @@ import { getInstagramAccountForCreator } from "@/lib/platforms/instagramToken";
 import { getTikTokTokenForCreator } from "@/lib/platforms/tiktokToken";
 import { parseRatePerThousand } from "@/lib/marketplace/earnings";
 import { computeCampaignAccrual } from "@/lib/marketplace/cap";
+import { isPortalCampaignVisible } from "@/lib/marketplace/portalVisibility";
 import { httpUrl } from "@/lib/validation/url";
 import { z } from "zod";
 
@@ -56,6 +57,32 @@ export async function POST(
       return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
     }
 
+    /* Resolved BEFORE the deadline, budget-cap and rate checks below, because
+       those checks answer with the campaign's own state. marketplaceVisibility
+       was selected here and never read, so a stranger holding a stale slug for a
+       PRIVATE campaign was told "the submission deadline has passed", "this
+       campaign has reached its budget cap" or "this campaign does not accept
+       TikTok submissions" — a running status report on a campaign the detail
+       route two paths up already 404s them out of. The write was never at risk:
+       the 403 below has always required an activation. The disclosure was. */
+    const creator = await db.creator.findFirst({
+      where: { orgId: campaign.orgId, handle: session.handle, deletedAt: null },
+      select: { id: true },
+    });
+    const activation = creator
+      ? await db.activation.findFirst({
+          where: { campaignId: campaign.id, creatorId: creator.id, deletedAt: null },
+          select: { id: true },
+        })
+      : null;
+
+    if (!isPortalCampaignVisible({
+      marketplaceVisibility: campaign.marketplaceVisibility,
+      hasActivation: !!activation,
+    })) {
+      return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
+    }
+
     // Deadline gate
     if (campaign.submissionDeadline && campaign.submissionDeadline.getTime() < Date.now()) {
       return NextResponse.json({ error: "The submission deadline has passed" }, { status: 409 });
@@ -83,17 +110,8 @@ export async function POST(
       );
     }
 
-    // Must be joined — resolve creator + activation (never trust client orgId)
-    const creator = await db.creator.findFirst({
-      where: { orgId: campaign.orgId, handle: session.handle, deletedAt: null },
-      select: { id: true },
-    });
-    const activation = creator
-      ? await db.activation.findFirst({
-          where: { campaignId: campaign.id, creatorId: creator.id, deletedAt: null },
-          select: { id: true },
-        })
-      : null;
+    // Must be joined. Resolved above, with the visibility gate; the 403 stays
+    // here so a GLOBAL campaign still reports its deadline and cap first.
     if (!creator || !activation) {
       return NextResponse.json({ error: "You must join this campaign before submitting" }, { status: 403 });
     }
