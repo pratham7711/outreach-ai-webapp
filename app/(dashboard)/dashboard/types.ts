@@ -8,6 +8,20 @@ export type Campaign = {
   updatedAt?: string | null;
 };
 
+/* One AuditLog row, already narrowed to the notification catalog. The activity
+   feed used to re-render the five campaigns from the card above it, so an edit
+   of any kind read as a status change; this is the real event stream, the same
+   one the top bar's bell reads. */
+export type ActivityEvent = {
+  id: string;
+  action: string;
+  entityType: string;
+  entityId: string | null;
+  entityLabel: string | null;
+  actorEmail: string | null;
+  createdAt: string;
+};
+
 export type PerformanceData = {
   summary: {
     activeCampaigns: number;
