@@ -4,6 +4,7 @@ import { CheckCircle2 } from "lucide-react";
 import { Card, Badge, EmptyState, Skeleton } from "@pratham7711/ui";
 import { MetricTile, Button } from "@/components/ds";
 import { formatDateAbs, formatDateTimeAbs } from "@/lib/format";
+import { InstagramSourceBanner } from "@/components/integrations/InstagramSourceBanner";
 
 type PlatformStats = {
   platform: string;
@@ -74,6 +75,12 @@ export default function IngestionClient() {
         <h1 style={{ fontSize: 28, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Ingestion Health</h1>
         <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>Sync status per platform, dead-lettered posts, and snapshot sources</p>
       </div>
+
+      {/* Above the per-platform tables, and outside the loading branch: the
+          Instagram rows below keep reporting healthy syncs while views are
+          frozen, because the embed fallback still answers. This is the line that
+          says which number stopped. */}
+      <InstagramSourceBanner style={{ marginBottom: 20 }} />
 
       {error && (
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, border: "1px solid var(--cc-border)", borderRadius: 8, padding: "12px 16px", marginBottom: 20, fontSize: 13, color: "var(--cc-text-muted)" }}>

@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Badge, Card, Modal, Input, Skeleton, EmptyState } from "@pratham7711/ui";
 import { LastUpdated, MetricTile, Button, useConfirm } from "@/components/ds";
 import { Music, Plus, RefreshCw, Search, Trash2, TrendingUp } from "lucide-react";
+import { InstagramSourceBanner } from "@/components/integrations/InstagramSourceBanner";
 import { CreatorTrackers } from "./CreatorTrackers";
 import { SoundDetailModal } from "./SoundDetailModal";
 import { TrackersIntro } from "./TrackersIntro";
@@ -391,6 +392,11 @@ export default function TrackersPage() {
           </Button>
         )}
       </div>
+
+      {/* Above the tabs, not inside one: creator trackers carry Instagram view
+          counts, so the warning has to be visible before a reader picks a tab
+          and starts believing a number. Renders nothing while the source is up. */}
+      <InstagramSourceBanner style={{ marginBottom: 16 }} />
 
       {/* Sub-tabs: Audios | Creators */}
       <div style={{ display: "flex", gap: 8, marginBottom: 24 }}>
