@@ -39,10 +39,14 @@ export type FeatureKey = keyof typeof FEATURES;
  * (media_kits, creator_discovery, api_access, ai_assistant and audit_log are
  * checked by their own routes; the reports keys gate the /reports nav rule).
  * The plan tiers in lib/plans.ts additionally list names nothing has ever read
- * — custom_domain, sso, dedicated_support, ai_creator_discovery, export_csv,
- * shareable_links, draft_approvals, creator_portal, audio_analytics, payments,
+ * — custom_domain, sso, dedicated_support, export_csv, shareable_links,
+ * draft_approvals, creator_portal, audio_analytics, payments,
  * creator_database. The billing screen was rendering all of them with a green
  * tick, which told an enterprise customer they had bought working features.
+ * (ai_creator_discovery was one of these until it was deleted: an
+ * enterprise-only near-miss for creator_discovery, the key /api/discovery
+ * really gates on, which is why that key's absence from every tier went
+ * unnoticed. See lib/plans.ts.)
  */
 const LIVE_FEATURE_KEYS = new Set<string>([...Object.keys(FEATURES), ...REPORTS_FEATURE_KEYS]);
 
