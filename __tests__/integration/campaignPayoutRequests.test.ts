@@ -9,6 +9,8 @@ jest.mock('@/lib/db', () => ({
   db: {
     campaign: { findFirst: jest.fn() },
     payoutRequest: { findMany: jest.fn(), create: jest.fn(), findFirst: jest.fn(), update: jest.fn() },
+    // The list joins creator names by hand (PayoutRequest.creatorId has no relation).
+    creator: { findMany: jest.fn().mockResolvedValue([]) },
   },
 }));
 jest.mock('@/lib/auth', () => ({ auth: jest.fn() }));
@@ -41,12 +43,16 @@ describe('GET /api/campaigns/[id]/payout-requests', () => {
   });
 
   it('returns payout requests list', async () => {
-    const requests = [{ id: 'pr-1', requestedAmount: 500, status: 'PENDING' }];
+    const requests = [{ id: 'pr-1', creatorId: 'c1', requestedAmount: 500, status: 'PENDING' }];
     mockDb.payoutRequest.findMany.mockResolvedValue(requests);
+    const creator = { id: 'c1', name: 'Cee Creator', handle: 'cee' };
+    mockDb.creator.findMany.mockResolvedValue([creator]);
     const res = await GET(makeRequest('http://localhost/api/campaigns/camp-1/payout-requests'), makeParams('camp-1'));
     const body = await res.json();
     expect(res.status).toBe(200);
-    expect(body.payoutRequests).toEqual(requests);
+    // An approver reads a name before paying, so each row carries its creator.
+    expect(body.payoutRequests).toEqual([{ ...requests[0], creator }]);
+    expect(mockDb.creator.findMany.mock.calls[0][0].where).toEqual({ id: { in: ['c1'] }, orgId: 'org-1' });
   });
 });
 

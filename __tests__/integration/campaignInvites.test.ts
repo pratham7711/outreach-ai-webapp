@@ -9,6 +9,8 @@ jest.mock('@/lib/db', () => ({
   db: {
     campaign: { findFirst: jest.fn() },
     campaignInvite: { findMany: jest.fn(), create: jest.fn(), findUnique: jest.fn(), update: jest.fn() },
+    // The list joins creator names by hand (CampaignInvite.creatorId has no relation).
+    creator: { findMany: jest.fn().mockResolvedValue([]) },
   },
 }));
 jest.mock('@/lib/auth', () => ({ auth: jest.fn() }));
@@ -42,10 +44,15 @@ describe('GET /api/campaigns/[id]/invites', () => {
   it('returns invite list', async () => {
     const invites = [{ id: 'inv-1', creatorId: 'c1', status: 'PENDING' }];
     mockDb.campaignInvite.findMany.mockResolvedValue(invites);
+    const creator = { id: 'c1', name: 'Cee Creator', handle: 'cee' };
+    mockDb.creator.findMany.mockResolvedValue([creator]);
     const res = await GET(makeRequest('http://localhost/api/campaigns/camp-1/invites'), makeParams('camp-1'));
     const body = await res.json();
     expect(res.status).toBe(200);
-    expect(body.invites).toEqual(invites);
+    // The table shows a name, not a cuid, so each row carries its creator.
+    expect(body.invites).toEqual([{ ...invites[0], creator }]);
+    // Looked up inside the caller's org only.
+    expect(mockDb.creator.findMany.mock.calls[0][0].where).toEqual({ id: { in: ['c1'] }, orgId: 'org-1' });
   });
 });
 
