@@ -3,7 +3,9 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip,
 } from "recharts";
-import { ChartFrame } from "@/components/ds";
+// The deep path, not the ds barrel: MonthlySpendChart.test.tsx mocks recharts and
+// would otherwise pull @pratham7711/ui and every other primitive in with it.
+import { ChartFrame } from "@/components/ds/ChartFrame";
 
 export default function MonthlySpendChart({ data }: { data: { month: string; spend: number }[] }) {
   return (

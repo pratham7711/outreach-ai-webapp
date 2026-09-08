@@ -37,6 +37,9 @@ export function LastUpdated({
   return (
     <span
       className={className}
+      // jsdom's CSS parser drops a var() colour, so the amber state would be
+      // unobservable from a test without this.
+      data-stale={stale ? "true" : "false"}
       title={valid ? formatDateTimeAbs(valid) : undefined}
       style={{
         display: "inline-flex",
