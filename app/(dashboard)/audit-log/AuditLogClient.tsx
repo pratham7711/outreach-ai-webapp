@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Search, RefreshCw, Filter, Download, Receipt } from "lucide-react";
-import { PageHeader, Dropdown, Pagination } from "@/components/ds";
+import { PageHeader, Dropdown, Pagination, LoadError } from "@/components/ds";
 import { Card, EmptyState, LoadingSpinner } from "@pratham7711/ui";
 
 type AuditLogItem = {
@@ -56,6 +56,9 @@ export default function AuditLogClient({
   const [logs, setLogs] = useState<AuditLogItem[]>(initialLogs);
   const [pagination, setPagination] = useState<Pagination>(initialPagination);
   const [loading, setLoading] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
+  /** Bumped by Try again; the fetch effect reads it so a retry re-runs the same query. */
+  const [reloadKey, setReloadKey] = useState(0);
   const [action, setAction] = useState("");
   const [entityType, setEntityType] = useState("");
   const [q, setQ] = useState("");
@@ -78,6 +81,7 @@ export default function AuditLogClient({
 
     async function run() {
       setLoading(true);
+      setLoadFailed(false);
       try {
         const params = new URLSearchParams();
         params.set("page", String(filters.page));
@@ -89,7 +93,14 @@ export default function AuditLogClient({
         const res = await fetch(`/api/audit-logs?${params.toString()}`, {
           signal: controller.signal,
         });
-        if (!res.ok) return;
+        /* This used to be a bare `return`, which left the previous (or empty)
+           logs on screen under the "No audit events" empty state -- an org
+           being told nothing had happened, when in fact nothing had been read.
+           An audit log is the one surface where that distinction matters most. */
+        if (!res.ok) {
+          if (!cancelled) { setLogs([]); setLoadFailed(true); }
+          return;
+        }
 
         const data = (await res.json()) as ApiResponse;
         if (cancelled) return;
@@ -98,6 +109,7 @@ export default function AuditLogClient({
       } catch (error) {
         if (!controller.signal.aborted) {
           console.error("Failed to load audit logs:", error);
+          if (!cancelled) { setLogs([]); setLoadFailed(true); }
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -109,7 +121,7 @@ export default function AuditLogClient({
       cancelled = true;
       controller.abort();
     };
-  }, [filters, initialPagination]);
+  }, [filters, initialPagination, reloadKey]);
 
 
   const actions = Array.from(new Set(logs.map((log) => log.action))).sort();
@@ -231,6 +243,14 @@ export default function AuditLogClient({
         {loading ? (
           <div style={{ display: "flex", justifyContent: "center", padding: 40 }}>
             <LoadingSpinner size={24} />
+          </div>
+        ) : loadFailed ? (
+          <div style={{ padding: 24 }}>
+            <LoadError
+              title="We couldn't load the audit log"
+              description="These events were not read, which is not the same as no events having happened."
+              onRetry={() => setReloadKey((k) => k + 1)}
+            />
           </div>
         ) : logs.length === 0 ? (
           <div style={{ padding: 24 }}>

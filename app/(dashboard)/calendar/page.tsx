@@ -1,7 +1,7 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, Badge, Skeleton, EmptyState } from "@pratham7711/ui";
-import { PageHeader, Button } from "@/components/ds";
+import { PageHeader, Button, LoadError } from "@/components/ds";
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from "lucide-react";
 import {
   startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval,
@@ -39,20 +39,34 @@ export default function CalendarPage() {
   const [campaigns, setCampaigns] = useState<CalendarCampaign[]>([]);
   const [activations, setActivations] = useState<CalendarActivation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
 
   const monthStr = format(currentMonth, "yyyy-MM");
 
-  useEffect(() => {
+  /* `.finally` with no `.catch` was the whole bug: a failed month left
+     campaigns and activations at their previous (or empty) value, cleared the
+     spinner, and the grid announced "Nothing scheduled" for a month whose
+     contents were never read. An outage rendered as a fact about the calendar. */
+  const load = useCallback(async () => {
     setLoading(true);
-    fetch(`/api/calendar?month=${monthStr}`)
-      .then(r => r.json())
-      .then(data => {
-        setCampaigns(data.campaigns ?? []);
-        setActivations(data.activations ?? []);
-      })
-      .finally(() => setLoading(false));
+    setLoadFailed(false);
+    try {
+      const r = await fetch(`/api/calendar?month=${monthStr}`);
+      if (!r.ok) throw new Error(String(r.status));
+      const data = await r.json();
+      setCampaigns(data.campaigns ?? []);
+      setActivations(data.activations ?? []);
+    } catch {
+      setCampaigns([]);
+      setActivations([]);
+      setLoadFailed(true);
+    } finally {
+      setLoading(false);
+    }
   }, [monthStr]);
+
+  useEffect(() => { void load(); }, [load]);
 
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
@@ -123,6 +137,12 @@ export default function CalendarPage() {
         <div style={{ flex: 1, minWidth: 0 }}>
           {loading ? (
             <Skeleton width="100%" height="500px" borderRadius="12px" />
+          ) : loadFailed ? (
+            <LoadError
+              title="We couldn't load this month"
+              description={`${format(currentMonth, "MMMM yyyy")} could not be read. This is not the same as nothing being scheduled.`}
+              onRetry={() => { void load(); }}
+            />
           ) : (
             <Card variant="outlined" noPadding>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", borderBottom: "1px solid var(--cc-border)" }}>

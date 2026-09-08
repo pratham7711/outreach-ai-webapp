@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Plus, Search, SlidersHorizontal, X, Lock } from "lucide-react";
 import { Card, EmptyState, Input, Avatar, Badge, Skeleton, StatCard } from "@pratham7711/ui";
-import { PageHeader, Dropdown, Pagination, Button } from "@/components/ds";
+import { PageHeader, Dropdown, Pagination, Button, LoadError } from "@/components/ds";
 import Link from "next/link";
 import { toast } from "sonner";
 import { formatCompact, stripAt, platformLabel } from "@/lib/format";
@@ -50,6 +50,7 @@ export default function DiscoveryPage() {
   const [lists, setLists] = useState<CreatorList[]>([]);
   const [loading, setLoading] = useState(true);
   const [featureDisabled, setFeatureDisabled] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [total, setTotal] = useState(0);
   const [selectedCreator, setSelectedCreator] = useState<Creator | null>(null);
   const [selectedListId, setSelectedListId] = useState("");
@@ -69,8 +70,13 @@ export default function DiscoveryPage() {
     (maxFollowers ? 1 : 0) +
     0;
 
+  /* There was no try/catch and no finally here. A rejected fetch -- offline,
+     a 500, a JSON body that will not parse -- threw out of the callback with
+     setLoading(true) already applied and nothing to clear it, so the six
+     skeletons kept pulsing for as long as the tab stayed open. */
   const fetchCreators = useCallback(async () => {
     setLoading(true);
+    setLoadFailed(false);
     const params = new URLSearchParams();
     if (search) params.set("search", search);
     if (platform !== "All") params.set("platform", platform);
@@ -81,13 +87,20 @@ export default function DiscoveryPage() {
     if (minFollowers) params.set("minFollowers", minFollowers);
     if (maxFollowers) params.set("maxFollowers", maxFollowers);
 
-    const r = await fetch(`/api/discovery?${params}`);
-    if (r.status === 403) { setFeatureDisabled(true); setLoading(false); return; }
-    const data = await r.json();
-    setCreators(data.creators ?? []);
-    setTotal(data.pagination?.total ?? 0);
-    setTotalPages(data.pagination?.totalPages ?? 1);
-    setLoading(false);
+    try {
+      const r = await fetch(`/api/discovery?${params}`);
+      if (r.status === 403) { setFeatureDisabled(true); return; }
+      if (!r.ok) { setLoadFailed(true); return; }
+      const data = await r.json();
+      setFeatureDisabled(false);
+      setCreators(data.creators ?? []);
+      setTotal(data.pagination?.total ?? 0);
+      setTotalPages(data.pagination?.totalPages ?? 1);
+    } catch {
+      setLoadFailed(true);
+    } finally {
+      setLoading(false);
+    }
   }, [search, platform, sort, page, selectedNiches, minFollowers, maxFollowers]);
 
   // Reset page to 1 when filters change (but not when page itself changes)
@@ -335,6 +348,12 @@ export default function DiscoveryPage() {
             <Skeleton key={i} height="220px" borderRadius="12px" />
           ))}
         </div>
+      ) : loadFailed ? (
+        <LoadError
+          title="We couldn't load creators"
+          description="This is a problem reading the list, not an empty roster. Your creators are still here."
+          onRetry={() => { void fetchCreators(); }}
+        />
       ) : featureDisabled ? (
         <div style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, padding: 24 }}>
           <EmptyState
