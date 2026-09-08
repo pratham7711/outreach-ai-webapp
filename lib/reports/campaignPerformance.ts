@@ -8,6 +8,7 @@ import {
 import { unwrittenMetricValue, fieldMetricValue, rollupEngagement } from "@/lib/metricDisplay";
 import type { MetricField } from "@/lib/metricDisplay";
 import { isPostRemoved } from "@/lib/postRemoval";
+import { carryForwardViewsByDay } from "@/lib/analytics/viewsSeries";
 import type { SharePlatform } from "@/lib/reports/shareVisibility";
 import type { ActivationStatus } from "@/lib/generated/prisma/client";
 
@@ -29,10 +30,6 @@ const BUILD_KEY = process.env.VERCEL_DEPLOYMENT_ID ?? "local";
 
 type SeriesPlatform = "TIKTOK" | "INSTAGRAM" | "YOUTUBE";
 const SERIES_PLATFORMS: SeriesPlatform[] = ["TIKTOK", "INSTAGRAM", "YOUTUBE"];
-
-function dateKey(d: Date): string {
-  return d.toISOString().slice(0, 10);
-}
 
 export type CampaignPerformance = {
   currency: string;
@@ -465,74 +462,24 @@ async function computeCampaignPerformanceUncached(
     downloads: unwritten((p) => p.downloadsCount),
   };
 
-  const platformByPost = new Map(posts.map((p) => [p.id, p.platform]));
-  const buckets = new Map<string, Record<SeriesPlatform, number>>();
-  const emptyRow = (): Record<SeriesPlatform, number> => ({
-    TIKTOK: 0,
-    INSTAGRAM: 0,
-    YOUTUBE: 0,
-  });
-
-  if (snapshots.length > 0) {
-    /* A view count is a running total, not a day's takings, so a day is worth
-       the latest reading of every post -- not the sum of whichever posts
-       happened to be synced that day. Summing only the day's own readings made
-       the line fall whenever a sync covered fewer posts than the one before:
-       17 posts of 17 one day, 4 the next, and the chart showed the campaign
-       losing three quarters of its views overnight.
-
-       So each post's last known reading is carried forward until a newer one
-       replaces it. Snapshots arrive oldest first, which is what makes the
-       overwrite below land on the latest reading within each day. */
-    const latestPerPostDay = new Map<string, number>();
-    const days = new Set<string>();
-    for (const snap of snapshots) {
-      const platform = platformByPost.get(snap.postId);
-      if (!platform || !SERIES_PLATFORMS.includes(platform as SeriesPlatform)) continue;
-      const day = dateKey(snap.recordedAt);
-      days.add(day);
-      latestPerPostDay.set(`${snap.postId}|${day}`, snap.viewsCount ?? 0);
-    }
-
-    const lastKnown = new Map<string, number>();
-    for (const day of Array.from(days).sort()) {
-      for (const [composite, viewsCount] of latestPerPostDay) {
-        const sep = composite.lastIndexOf("|");
-        if (composite.slice(sep + 1) !== day) continue;
-        lastKnown.set(composite.slice(0, sep), viewsCount);
-      }
-      const row = emptyRow();
-      for (const [postId, viewsCount] of lastKnown) {
-        const platform = platformByPost.get(postId) as SeriesPlatform | undefined;
-        if (platform && SERIES_PLATFORMS.includes(platform)) row[platform] += viewsCount;
-      }
-      buckets.set(day, row);
-    }
-  } else {
-    /* No snapshots (a campaign imported with its final numbers, or never
-       synced): the only dates we have are post dates. The chart is still titled
-       "over time", so it must read as one -- a running total of the views the
-       posts published so far have earned, not each day's own batch. The batch
-       version drew a line that fell to zero on the last posting day and looked
-       like the campaign collapsing (measured on a 35-post import: 1.4M, 453K, 0). */
-    const byDay = new Map<string, ReturnType<typeof emptyRow>>();
-    for (const p of posts) {
-      if (!SERIES_PLATFORMS.includes(p.platform as SeriesPlatform)) continue;
-      const day = dateKey(p.postedAt);
-      if (!byDay.has(day)) byDay.set(day, emptyRow());
-      byDay.get(day)![p.platform as SeriesPlatform] += p.viewsCount ?? 0;
-    }
-    const running = emptyRow();
-    for (const day of Array.from(byDay.keys()).sort()) {
-      const add = byDay.get(day)!;
-      for (const platform of SERIES_PLATFORMS) running[platform] += add[platform];
-      buckets.set(day, { ...running });
-    }
-  }
-
-  const timeSeries = Array.from(buckets.entries())
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([date, row]) => ({ date, ...row }));
+  /* One carry-forward, snapshots or not. The two branches this replaced treated
+     an unsnapshotted post two ways -- charted from its posting day when NO post
+     had snapshots, dropped from the chart entirely when some other post did --
+     so a campaign where half the posts were synced drew a line below its own
+     Total Views tile. lib/analytics/viewsSeries carries the rule, and
+     /api/analytics/campaigns now reads the same function. */
+  const timeSeries = carryForwardViewsByDay({
+    posts: posts
+      .filter((p) => SERIES_PLATFORMS.includes(p.platform as SeriesPlatform))
+      .map((p) => ({
+        id: p.id,
+        group: p.platform as SeriesPlatform,
+        postedAt: p.postedAt,
+        viewsCount: p.viewsCount,
+      })),
+    snapshots,
+    groups: SERIES_PLATFORMS,
+  }).map(({ date, totals }) => ({ date, ...totals }));
 
   const platformSplitMap = new Map<string, { views: number; posts: number }>();
   for (const p of posts) {
