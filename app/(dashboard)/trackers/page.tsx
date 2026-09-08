@@ -436,6 +436,11 @@ export default function TrackersPage() {
             </div>
           ))}
         </div>
+      ) : allSounds.length === 0 ? (
+        /* Four zeroes above TrackersIntro, which is the screen that explains
+           what a tracker is. Nothing has been measured yet, so there is nothing
+           to report; the tiles arrive with the first tracked sound. */
+        null
       ) : (
         <div className="rsp-grid-tiles" style={{ marginBottom: 32 }}>
           <MetricTile metric="trackersActive" value={String(totalTrackers)} />

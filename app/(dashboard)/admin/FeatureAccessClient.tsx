@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, ExternalLink, ArrowRight, Settings } from "lucide-react";
+import { Search, ExternalLink, ArrowRight, Settings, Layers } from "lucide-react";
 import Link from "next/link";
 import { Input, Badge, EmptyState, Card, Avatar } from "@pratham7711/ui";
 import ClientFeatureModal from "@/components/modals/ClientFeatureModal";
@@ -214,8 +214,14 @@ export default function FeatureAccessClient({ clients: initialClients, plans }: 
           {filtered.length === 0 ? (
             <EmptyState
               icon={<Search size={32} color="var(--cc-text-subtle)" />}
-              title="No clients found"
-              description="Try adjusting your search"
+              /* "Try adjusting your search" with an empty search box is advice
+                 about a filter nobody set. */
+              title={search ? "No clients found" : "No clients yet"}
+              description={
+                search
+                  ? "Try adjusting your search"
+                  : "Clients you add show up here, with the plan and feature overrides that apply to each."
+              }
             />
           ) : (
             <div className="rsp-table-wrap">
@@ -330,7 +336,24 @@ export default function FeatureAccessClient({ clients: initialClients, plans }: 
       )}
 
       {/* Tab: By Plan */}
-      {tab === "by-plan" && (
+      {/* Every group here renders `null` when it holds no clients, so an org
+          with no clients — or a search that matches none — got a blank page
+          with no heading, no message and nothing to click: indistinguishable
+          from the tab being broken. */}
+      {tab === "by-plan" && filtered.length === 0 && (
+        <Card variant="outlined" noPadding>
+          <EmptyState
+            icon={<Layers size={32} color="var(--cc-text-subtle)" />}
+            title={search ? "No clients found" : "No clients yet"}
+            description={
+              search
+                ? "Try adjusting your search"
+                : "Add a client and it appears here, grouped by the plan it is on."
+            }
+          />
+        </Card>
+      )}
+      {tab === "by-plan" && filtered.length > 0 && (
         <div className="cc-stagger" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 20 }}>
           {(() => {
             const noPlanClients = filtered.filter((c) => !c.planId);

@@ -693,7 +693,12 @@ export default function CampaignsClient({
         </div>
       )}
 
-      {/* Status Tabs */}
+      {/* Status Tabs — hidden while the org has no campaigns at all. Five pills
+          reading All 0 / Pending 0 / Active 0 / Complete 0 / Canceled 0 above
+          "No campaigns yet" is a status breakdown of nothing, and this is the
+          page sign-in lands on. statusCounts is the unfiltered tab base, so
+          this asks "any campaigns", not "any matches". */}
+      {statusCounts.ALL > 0 && (
       <StatusTabs
         ariaLabel="Filter by campaign status"
         style={{ marginBottom: 24 }}
@@ -706,6 +711,7 @@ export default function CampaignsClient({
         active={status}
         onChange={(key) => push({ status: key === "ALL" ? null : key, page: null })}
       />
+      )}
 
       {/* Campaign List */}
       {filtered.length === 0 ? (

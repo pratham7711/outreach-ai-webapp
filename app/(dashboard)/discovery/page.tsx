@@ -371,7 +371,18 @@ export default function DiscoveryPage() {
           />
         </div>
       ) : creators.length === 0 ? (
-        <EmptyState icon={<Search size={32} color="var(--cc-text-subtle)" />} title="No creators found" description="Try adjusting your search or filters" />
+        /* "Try adjusting your search or filters" was shown with no search term
+           and no filter set — telling a new org to loosen a filter it never
+           applied, in front of a roster it has not built yet. */
+        <EmptyState
+          icon={<Search size={32} color="var(--cc-text-subtle)" />}
+          title={search || activeCount > 0 || platform !== "All" ? "No creators found" : "No creators yet"}
+          description={
+            search || activeCount > 0 || platform !== "All"
+              ? "Try adjusting your search or filters"
+              : "Discovery searches the creators on your own roster. Add one and it shows up here."
+          }
+        />
       ) : (
         <div className="cc-stagger rsp-grid-3">
           {creators.map((c) => (

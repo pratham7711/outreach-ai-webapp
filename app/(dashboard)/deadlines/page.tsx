@@ -207,11 +207,18 @@ export default function DeadlinesPage() {
     return isBefore(new Date(a.deliverableDueDate), new Date());
   };
 
+  /* Five tiles all reading 0 above "No deadlines found" is five measurements of
+     nothing. The stats come from the API and describe the whole org, not the
+     current tab, so this is "has this org any deliverables at all" rather than
+     "did this filter match". */
+  const hasAnyDeadlineData = Object.values(stats).some((v) => v > 0);
+
   return (
     <div className="rsp-page">
       <PageHeader title="Deadlines" subtitle="Track deliverable due dates across all campaigns" />
 
       {/* Stat Cards */}
+      {(loading || hasAnyDeadlineData) && (
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 16, marginBottom: 24 }}>
         <Card variant="outlined" style={{ padding: 20 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
@@ -263,6 +270,7 @@ export default function DeadlinesPage() {
           </div>
         </Card>
       </div>
+      )}
 
       {/* Filter Tabs */}
       <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
@@ -306,8 +314,17 @@ export default function DeadlinesPage() {
       ) : activations.length === 0 ? (
         <EmptyState
           icon={<CalendarClock size={40} color="var(--cc-text-subtle)" />}
-          title="No deadlines found"
-          description={filter === "NO_DATE" ? "All activations have due dates set." : "No activations match this filter."}
+          title={filter === "ALL" ? "No deadlines yet" : "No deadlines found"}
+          /* "No activations match this filter" was shown on the All tab too,
+             where nothing is filtered — telling a new org to narrow a filter it
+             has not set. */
+          description={
+            filter === "NO_DATE"
+              ? "All activations have due dates set."
+              : filter === "ALL"
+                ? "Due dates you set on an activation's deliverable show up here."
+                : "No activations match this filter."
+          }
         />
       ) : (
         <Card variant="outlined" noPadding>
