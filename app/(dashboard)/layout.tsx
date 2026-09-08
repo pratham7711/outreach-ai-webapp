@@ -54,9 +54,14 @@ export default async function DashboardLayout({ children }: { children: React.Re
      here, on the Node side. Without this guard a removed teammate kept the whole
      dashboard shell: every API call 401ed, but the chrome and the routes still
      rendered, which reads as "the app is broken" rather than "you were removed".
-     Measured 2026-09-08: /api/org answered 401 while /dashboard answered 200. */
+     Measured 2026-09-08: /api/org answered 401 while /dashboard answered 200.
+
+     Through the sign-out route, not straight to /login: the cookie still
+     decodes, so the middleware treats the visitor as logged in and bounces them
+     off /login and back here. Measured the same day as ERR_TOO_MANY_REDIRECTS.
+     Clearing the cookie is the part that has to happen. */
   if (!session?.user) {
-    redirect("/login");
+    redirect("/api/auth/session-invalid?reason=account-inactive");
   }
 
   const orgId = (session?.user as any)?.orgId;

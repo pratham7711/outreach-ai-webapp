@@ -47,15 +47,15 @@ import DashboardLayout from "@/app/(dashboard)/layout";
 beforeEach(() => jest.clearAllMocks());
 
 describe("dashboard layout — a revoked session cannot keep the shell", () => {
-  it("sends a null session to /login instead of rendering", async () => {
+  it("signs a null session out instead of rendering the shell", async () => {
     mockAuth.mockResolvedValue(null);
     await expect(DashboardLayout({ children: null })).rejects.toThrow("NEXT_REDIRECT");
-    expect(redirect).toHaveBeenCalledWith("/login");
+    expect(redirect).toHaveBeenCalledWith("/api/auth/session-invalid?reason=account-inactive");
   });
 
-  it("sends a session with no user to /login as well", async () => {
+  it("signs a session with no user out as well", async () => {
     mockAuth.mockResolvedValue({});
     await expect(DashboardLayout({ children: null })).rejects.toThrow("NEXT_REDIRECT");
-    expect(redirect).toHaveBeenCalledWith("/login");
+    expect(redirect).toHaveBeenCalledWith("/api/auth/session-invalid?reason=account-inactive");
   });
 });

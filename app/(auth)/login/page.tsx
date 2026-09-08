@@ -40,6 +40,9 @@ export default function LoginPage() {
       if (params.get("reason") === "org-removed") {
         setNotice("Your workspace is no longer available, so you have been signed out. Sign in again, or ask whoever manages the workspace to invite you.");
       }
+      if (params.get("reason") === "account-inactive") {
+        setNotice("Your access to this workspace has been removed, so you have been signed out. Ask whoever manages the workspace if you think this is a mistake.");
+      }
     }
   }, []);
 

@@ -15,6 +15,14 @@ import { signOut } from "@/lib/auth";
  * cookie is the part that has to happen: without it the visitor is sent to
  * /login, found to be logged in, and sent back to the dashboard.
  */
-export async function GET() {
-  await signOut({ redirectTo: "/login?reason=org-removed" });
+/* The two states that reach here, both of which need the cookie cleared before
+   /login will hold: the organization is gone, or the account itself is gone or
+   deactivated. Anything else falls back to the org wording rather than echoing
+   a caller-supplied string into the page. */
+const REASONS = new Set(["org-removed", "account-inactive"]);
+
+export async function GET(request: Request) {
+  const asked = new URL(request.url).searchParams.get("reason") ?? "";
+  const reason = REASONS.has(asked) ? asked : "org-removed";
+  await signOut({ redirectTo: `/login?reason=${reason}` });
 }
