@@ -15,6 +15,10 @@ interface ApiKeyItem {
 export default function ApiKeysClient() {
   const [keys, setKeys] = useState<ApiKeyItem[]>([]);
   const [loading, setLoading] = useState(true);
+  /* Three states, not two. A failed or refused load left `keys` at [] and the
+     page said "No API keys yet" — which is a claim about the org's keys, and
+     it was being made on no evidence at all. */
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState("");
   const [creating, setCreating] = useState(false);
@@ -24,12 +28,23 @@ export default function ApiKeysClient() {
   const [confirmRevoke, setConfirmRevoke] = useState<string | null>(null);
 
   const fetchKeys = useCallback(async () => {
+    setLoading(true);
+    setLoadError(null);
     try {
       const res = await fetch("/api/keys");
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(
+          body?.error ??
+            (res.status === 403
+              ? "You do not have permission to view this organization's API keys."
+              : `Could not load API keys (${res.status}).`)
+        );
+      }
       const data = await res.json();
-      setKeys(data.keys ?? []);
-    } catch {
-      // ignore
+      setKeys(Array.isArray(data?.keys) ? data.keys : []);
+    } catch (e) {
+      setLoadError(e instanceof Error ? e.message : "Could not load API keys.");
     } finally {
       setLoading(false);
     }
@@ -478,6 +493,36 @@ export default function ApiKeysClient() {
             <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>
               Loading...
             </p>
+          </div>
+        ) : loadError ? (
+          <div style={{ padding: "60px 40px", textAlign: "center" }}>
+            <AlertTriangle
+              size={40}
+              style={{ color: "var(--cc-danger)", marginBottom: 12 }}
+              aria-hidden="true"
+            />
+            <h3 style={{ fontSize: 16, fontWeight: 600, color: "var(--cc-text)", marginBottom: 4 }}>
+              Could not load your API keys
+            </h3>
+            <p style={{ fontSize: 14, color: "var(--cc-text-muted)", marginBottom: 16 }}>
+              {loadError} This is not the same as having none — nothing has been
+              revoked or lost.
+            </p>
+            <button
+              onClick={() => void fetchKeys()}
+              style={{
+                background: "var(--cc-card)",
+                color: "var(--cc-primary)",
+                border: "1.5px solid var(--cc-primary)",
+                borderRadius: 8,
+                padding: "9px 16px",
+                fontSize: 14,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              Try again
+            </button>
           </div>
         ) : keys.length === 0 ? (
           <div
