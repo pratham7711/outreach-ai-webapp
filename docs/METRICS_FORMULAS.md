@@ -27,6 +27,12 @@ campaignEMV = roundMoney( sum(postEMV_unrounded for each post) )
 
 A platform string outside the rate table (e.g. `TWITTER`, which exists in the Prisma `Platform` enum but is not an EMV surface for this product) resolves to a zero rate card and contributes $0. Rates can be inspected via the exported `EMV_RATES` constant or `getEmvRates(platform)`.
 
+### Currency: EMV is always USD
+
+The rate card is published in US dollars and nothing in this codebase converts it, so **every EMV figure is a USD figure regardless of the campaign's own currency**. There is no FX rate in the product and none is invented here.
+
+Display surfaces therefore format EMV with `EMV_CURRENCY` (`"USD"`) rather than the campaign currency, and label the tile or column with `emvLabel(campaignCurrency)` — plain `EMV` for a USD campaign, `EMV (USD)` for any other, so the unit travels with the number when it differs from the budget shown beside it. Both are exported from `lib/metrics/emv.ts`.
+
 ### Rate table (USD per interaction)
 
 | Platform  | View  | Like  | Comment | Share | Save  |

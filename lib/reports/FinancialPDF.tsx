@@ -1,45 +1,25 @@
 import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
 import { BRAND } from "@/lib/brand";
+import { formatCurrencyTotals, formatMoney } from "@/lib/money";
+import { statsByCurrency, type PeriodStats, type MonthlyTrendRow, type TopCampaign } from "@/lib/reports/financialPeriod";
 
 export type ReportData = {
   period: string;
   previousPeriod: string;
-  current: {
-    paidPayouts: number;
-    pendingPayouts: number;
-    totalPayouts: number;
-    totalBudget: number;
-    campaignCount: number;
-    activeCampaigns: number;
-    approvedRequests: number;
-    pendingRequests: number;
-  };
-  previous: {
-    paidPayouts: number;
-    pendingPayouts: number;
-    totalPayouts: number;
-    totalBudget: number;
-    campaignCount: number;
-    activeCampaigns: number;
-    approvedRequests: number;
-    pendingRequests: number;
-  };
+  /** The org's own currency — what a figure with no per-row currency is in. */
+  reportCurrency: string;
+  /** Every currency this org holds money in during the period, unconverted. */
+  currenciesPresent: string[];
+  current: PeriodStats;
+  previous: PeriodStats;
   comparison: {
     payoutsChange: number | null;
     budgetChange: number | null;
     campaignCountChange: number | null;
     requestsChange: number | null;
   };
-  monthlyTrend: { month: string; paid: number; pending: number }[];
-  topCampaigns: {
-    id: string;
-    title: string;
-    status: string;
-    budget: number;
-    currency: string;
-    spend: number;
-    utilization: number;
-  }[];
+  monthlyTrend: MonthlyTrendRow[];
+  topCampaigns: TopCampaign[];
   balances: { label: string; currentBalance: number; currency: string }[];
 };
 
@@ -194,8 +174,21 @@ const styles = StyleSheet.create({
   },
 });
 
-function fmtCurrency(n: number): string {
-  return "$" + n.toLocaleString("en-US", { maximumFractionDigits: 0 });
+/**
+ * Money in the currency it is actually in.
+ *
+ * Every figure on this page used to be prefixed with a hardcoded "$", so an
+ * agency working in rupees was handed a PDF claiming its budgets and payouts
+ * were dollars. There is no FX rate in the product, so where a period holds
+ * more than one currency the KPI prints one figure per currency rather than a
+ * sum that is true in none of them.
+ */
+function fmtCurrency(n: number, currency: string): string {
+  return formatMoney(n, currency, { maximumFractionDigits: 0 });
+}
+
+function fmtTotals(totals: { currency: string; amount: number }[], fallback: string): string {
+  return formatCurrencyTotals(totals, fallback, { maximumFractionDigits: 0 });
 }
 
 function fmtChange(value: number | null): string {
@@ -211,6 +204,8 @@ function getChangeStyle(value: number | null) {
 
 export function FinancialPDF({ data }: { data: ReportData }) {
   const today = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+  const reportCurrency = data.reportCurrency || "USD";
+  const otherCurrencies = (data.currenciesPresent ?? []).filter((c) => c !== reportCurrency);
 
   return (
     <Document>
@@ -233,7 +228,9 @@ export function FinancialPDF({ data }: { data: ReportData }) {
             <View style={styles.kpiBox}>
               <View style={styles.accentBar} />
               <Text style={styles.kpiLabel}>Paid Payouts</Text>
-              <Text style={styles.kpiValue}>{fmtCurrency(data.current.paidPayouts)}</Text>
+              <Text style={styles.kpiValue}>
+                {fmtTotals(statsByCurrency(data.current, "paid"), reportCurrency)}
+              </Text>
               <Text style={getChangeStyle(data.comparison.payoutsChange)}>
                 {fmtChange(data.comparison.payoutsChange)}
               </Text>
@@ -241,13 +238,17 @@ export function FinancialPDF({ data }: { data: ReportData }) {
             <View style={styles.kpiBox}>
               <View style={styles.accentBar} />
               <Text style={styles.kpiLabel}>Pending Payouts</Text>
-              <Text style={styles.kpiValue}>{fmtCurrency(data.current.pendingPayouts)}</Text>
+              <Text style={styles.kpiValue}>
+                {fmtTotals(statsByCurrency(data.current, "pending"), reportCurrency)}
+              </Text>
               <Text style={styles.kpiChange}>current period</Text>
             </View>
             <View style={styles.kpiBox}>
               <View style={styles.accentBar} />
               <Text style={styles.kpiLabel}>Total Budget</Text>
-              <Text style={styles.kpiValue}>{fmtCurrency(data.current.totalBudget)}</Text>
+              <Text style={styles.kpiValue}>
+                {fmtTotals(statsByCurrency(data.current, "budget"), reportCurrency)}
+              </Text>
               <Text style={getChangeStyle(data.comparison.budgetChange)}>
                 {fmtChange(data.comparison.budgetChange)}
               </Text>
@@ -278,12 +279,19 @@ export function FinancialPDF({ data }: { data: ReportData }) {
                 return (
                   <View key={row.month} style={isLast ? styles.tableRowLast : styles.tableRow}>
                     <Text style={[styles.tableCell, { flex: 2 }]}>{row.month}</Text>
-                    <Text style={[styles.tableCell, { flex: 1 }]}>{fmtCurrency(row.paid)}</Text>
-                    <Text style={[styles.tableCell, { flex: 1 }]}>{fmtCurrency(row.pending)}</Text>
+                    <Text style={[styles.tableCell, { flex: 1 }]}>{fmtCurrency(row.paid, reportCurrency)}</Text>
+                    <Text style={[styles.tableCell, { flex: 1 }]}>{fmtCurrency(row.pending, reportCurrency)}</Text>
                   </View>
                 );
               })}
             </View>
+          )}
+
+          {otherCurrencies.length > 0 && (
+            <Text style={styles.kpiChange}>
+              Monthly Trend is shown in {reportCurrency}. This org also holds amounts in{" "}
+              {otherCurrencies.join(", ")}; nothing here is converted.
+            </Text>
           )}
 
           {/* Top Campaigns */}
@@ -305,8 +313,8 @@ export function FinancialPDF({ data }: { data: ReportData }) {
                   <View key={c.id} style={isLast ? styles.tableRowLast : styles.tableRow}>
                     <Text style={[styles.tableCell, { flex: 3 }]}>{c.title}</Text>
                     <Text style={[styles.tableCell, { flex: 1, fontSize: 9 }]}>{c.status.replace(/_/g, " ")}</Text>
-                    <Text style={[styles.tableCell, { flex: 1 }]}>{fmtCurrency(c.budget)}</Text>
-                    <Text style={[styles.tableCell, { flex: 1 }]}>{fmtCurrency(c.spend)}</Text>
+                    <Text style={[styles.tableCell, { flex: 1 }]}>{fmtCurrency(c.budget, c.currency)}</Text>
+                    <Text style={[styles.tableCell, { flex: 1 }]}>{fmtCurrency(c.spend, c.currency)}</Text>
                     <Text style={[styles.tableCell, { flex: 1 }]}>{c.utilization}%</Text>
                   </View>
                 );

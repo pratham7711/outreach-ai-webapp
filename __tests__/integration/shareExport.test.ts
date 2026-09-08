@@ -233,3 +233,17 @@ it('quotes a value that would otherwise break the row', async () => {
 
   expect(body).toContain('"Doe, Jane ""JD"""');
 });
+
+/* Creator display names are user text and this file is opened in Excel more
+   often than anywhere else, so a name beginning with "=" was a formula the
+   brand's spreadsheet would run. */
+it('neutralises a creator name a spreadsheet would run as a formula', async () => {
+  mockDb.post.findMany.mockResolvedValue([
+    post({ creator: { name: '=cmd|\'/c calc\'!A0', handle: 'awxyken' } }),
+  ]);
+
+  const body = await (await call()).text();
+
+  expect(body).toContain("'=cmd");
+  expect(body).not.toMatch(/(^|,|")=cmd/m);
+});

@@ -4,6 +4,10 @@ import { parseShareVisibility } from "@/lib/reports/shareVisibility";
 import { rateLimit } from "@/lib/rateLimit";
 import { getRequestIp } from "@/lib/request";
 import { fieldMetricValue, unwrittenMetricValue } from "@/lib/metricDisplay";
+// The shared cell writer: quotes only where needed, and neutralises the cells a
+// spreadsheet would run rather than read -- a creator display name is user text
+// and this file is opened in Excel more often than anywhere else.
+import { csvCell } from "@/lib/csv";
 
 /**
  * GET /api/share/[token]/export — the post list behind a shared report, as CSV.
@@ -23,13 +27,6 @@ import { fieldMetricValue, unwrittenMetricValue } from "@/lib/metricDisplay";
  */
 
 const SHARE_KIND = "campaign-performance";
-
-/** Quote only when needed, and never let a value break the row. */
-function csvCell(value: string | number | null): string {
-  if (value === null) return "";
-  const s = String(value);
-  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-}
 
 function csv(rows: (string | number | null)[][]): string {
   // CRLF and a BOM, because these land in Excel more often than anywhere else

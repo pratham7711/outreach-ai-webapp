@@ -6,6 +6,7 @@ import { Handshake, Check, X, ArrowRightLeft, Sparkles, AlertTriangle } from "lu
 import { CreatorSelect, type PickableCreator } from "@/components/CreatorSelect";
 import { stripAt } from "@/lib/format";
 import { Dropdown, Button } from "@/components/ds";
+import { formatCurrencyTotals, type CurrencyAmount } from "@/lib/money";
 
 type Offer = {
   id: string;
@@ -23,7 +24,11 @@ type Offer = {
   createdAt: string;
 };
 
-type Aggregate = { acceptedTotal: number; pendingEstimate: number };
+/* Totals per currency, not two scalars. An offer carries its own currency, so
+   a campaign negotiated in rupees and dollars has no single accepted total --
+   and the client used to render whatever sum the route produced with
+   `offers[0].currency`, the currency of the newest offer. */
+type Aggregate = { acceptedTotals: CurrencyAmount[]; pendingTotals: CurrencyAmount[] };
 
 type Creator = { id: string; name: string; handle: string };
 
@@ -45,12 +50,15 @@ function standingRate(o: Offer): number {
 export default function NegotiationsSection({
   campaignId,
   platformFeeMinor = 0,
+  currency = "USD",
 }: {
   campaignId: string;
   platformFeeMinor?: number;
+  /** The campaign's currency — what platformFeeMinor is denominated in. */
+  currency?: string;
 }) {
   const [offers, setOffers] = useState<Offer[]>([]);
-  const [aggregate, setAggregate] = useState<Aggregate>({ acceptedTotal: 0, pendingEstimate: 0 });
+  const [aggregate, setAggregate] = useState<Aggregate>({ acceptedTotals: [], pendingTotals: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
@@ -200,7 +208,6 @@ export default function NegotiationsSection({
     offer.creator ? `${offer.creator.name} (@${stripAt(offer.creator.handle)})` : "Deleted creator";
 
   const platformFee = platformFeeMinor > 0 ? platformFeeMinor / 100 : 0;
-  const currency = offers[0]?.currency ?? "USD";
 
   if (loading) return <Skeleton width="100%" height="120px" borderRadius="12px" />;
 
@@ -249,11 +256,11 @@ export default function NegotiationsSection({
         >
           <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>
             Accepted total:{" "}
-            <strong style={{ color: "var(--cc-text)" }}>{formatCurrency(aggregate.acceptedTotal, currency)}</strong>
+            <strong style={{ color: "var(--cc-text)" }}>{formatCurrencyTotals(aggregate.acceptedTotals, currency)}</strong>
           </span>
           <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>
             Pending estimate:{" "}
-            <strong style={{ color: "var(--cc-text)" }}>{formatCurrency(aggregate.pendingEstimate, currency)}</strong>
+            <strong style={{ color: "var(--cc-text)" }}>{formatCurrencyTotals(aggregate.pendingTotals, currency)}</strong>
           </span>
           {platformFee > 0 && (
             <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>

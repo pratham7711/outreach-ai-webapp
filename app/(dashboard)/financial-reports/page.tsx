@@ -133,8 +133,15 @@ function fmt(n: number, currency = "USD") {
 }
 
 function exportCSV(data: ReportData) {
+  /* The currency the screen shows travels with the file. A "Budget 40000" cell
+     with no currency beside it is not a figure anyone can act on, and this org
+     may hold several -- the page already says so in its mixed-currency banner
+     and in the Top Campaigns table, and only the download dropped it. */
+  const others = (data.currenciesPresent ?? []).filter((c) => c !== data.reportCurrency);
   const rows: string[][] = [
     ["Org Financial Report", data.period],
+    ["Report Currency", data.reportCurrency],
+    ...(others.length > 0 ? [["Currencies Present (not converted)", others.join(", ")]] : []),
     [],
     ["Metric", "Current", "Previous", "Change %"],
     ["Paid Payouts", String(data.current.paidPayouts), String(data.previous.paidPayouts), String(data.comparison.payoutsChange ?? "—")],
@@ -147,8 +154,8 @@ function exportCSV(data: ReportData) {
     ...data.monthlyTrend.map(r => [r.month, String(r.paid), String(r.pending)]),
     [],
     ["Top Campaigns"],
-    ["Title", "Status", "Budget", "Spend", "Utilization %"],
-    ...data.topCampaigns.map(c => [c.title, c.status, String(c.budget), String(c.spend), String(c.utilization)]),
+    ["Title", "Status", "Budget", "Currency", "Spend", "Utilization %"],
+    ...data.topCampaigns.map(c => [c.title, c.status, String(c.budget), c.currency, String(c.spend), String(c.utilization)]),
   ];
 
   downloadCsv(`financial-report-${data.period.replace(/\s+/g, "-").toLowerCase()}`, rows);

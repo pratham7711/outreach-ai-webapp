@@ -4,6 +4,7 @@ import { DEFAULT_SHARE_VISIBILITY, type ShareVisibility } from "@/lib/reports/sh
 import { formatCompact } from "@/lib/format";
 import { ACTIVATION_STATUS_LABEL } from "@/lib/activationQueues";
 import { POWERED_BY } from "@/lib/brand";
+import { EMV_CURRENCY, emvLabel } from "@/lib/metrics/emv";
 
 const styles = StyleSheet.create({
   page: {
@@ -146,7 +147,9 @@ export function CampaignPerformancePDF({
     kpis.engagementRate !== null
       ? { label: "Eng. Rate", value: `${(kpis.engagementRate * 100).toFixed(2)}%` }
       : null,
-    kpis.emv !== null ? { label: "EMV", value: fmtCurrency(kpis.emv, currency) } : null,
+    kpis.emv !== null
+      ? { label: emvLabel(currency), value: fmtCurrency(kpis.emv, EMV_CURRENCY) }
+      : null,
     budget !== null ? { label: "Total Budget", value: fmtCurrency(budget, currency) } : null,
   ].filter((cell): cell is { label: string; value: string } => cell !== null);
 
@@ -199,7 +202,9 @@ export function CampaignPerformancePDF({
                 <Text style={[styles.tableHeaderCell, { flex: 1 }]}>Posts</Text>
                 <Text style={[styles.tableHeaderCell, { flex: 1 }]}>Views</Text>
                 <Text style={[styles.tableHeaderCell, { flex: 1 }]}>Eng.</Text>
-                {showEmvColumn && <Text style={[styles.tableHeaderCell, { flex: 1 }]}>EMV</Text>}
+                {showEmvColumn && (
+                  <Text style={[styles.tableHeaderCell, { flex: 1 }]}>{emvLabel(currency)}</Text>
+                )}
                 {showStatusColumn && <Text style={[styles.tableHeaderCell, { flex: 1.4 }]}>Status</Text>}
               </View>
               {leaderboard.map((row) => (
@@ -211,7 +216,7 @@ export function CampaignPerformancePDF({
                     {row.engagementRate !== null ? (row.engagementRate * 100).toFixed(1) + "%" : "—"}
                   </Text>
                   {row.emv !== null && (
-                    <Text style={[styles.tableCell, { flex: 1 }]}>{fmtCurrency(row.emv, currency)}</Text>
+                    <Text style={[styles.tableCell, { flex: 1 }]}>{fmtCurrency(row.emv, EMV_CURRENCY)}</Text>
                   )}
                   {showStatusColumn && (
                     <Text style={[styles.tableCell, { flex: 1.4 }]}>
