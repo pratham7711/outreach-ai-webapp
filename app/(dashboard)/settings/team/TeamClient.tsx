@@ -45,8 +45,19 @@ const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
 type Seats = { used: number; pending: number; max: number | null };
 
 export default function TeamClient({
-  users, invites, seats,
-}: { users: User[]; invites: Invite[]; seats?: Seats }) {
+  users, invites, seats, canManage = false, currentUserId = null, viewerRole = null,
+}: {
+  users: User[];
+  invites: Invite[];
+  seats?: Seats;
+  /* users:manage, decided on the server. Everything that mints, reveals or
+     revokes access hangs off this — the invite form, the invite tokens behind
+     the copy-link button, and the per-member role and remove controls. A
+     member without it gets the roster and nothing else. */
+  canManage?: boolean;
+  currentUserId?: string | null;
+  viewerRole?: string | null;
+}) {
   /* Infinity is a number, so `max != null` was true once seats were uncapped
      and the header rendered "3/Infinity seats" with the Invite button still
      live. A limit only exists if it is finite. */
@@ -181,16 +192,18 @@ export default function TeamClient({
               {seatLimit != null ? `${seatsUsed}/${seatLimit} seats` : `${seatsUsed} seat${seatsUsed === 1 ? "" : "s"} in use`}
             </span>
           ) : null}
-          <Button
-            variant="primary"
-            iconLeft={<Plus size={15} />}
-            size="sm"
-            disabled={seatsFull}
-            title={seatsFull ? "All seats are in use or invited" : undefined}
-            onClick={() => setShowModal(true)}
-          >
-            Invite Member
-          </Button>
+          {canManage ? (
+            <Button
+              variant="primary"
+              iconLeft={<Plus size={15} />}
+              size="sm"
+              disabled={seatsFull}
+              title={seatsFull ? "All seats are in use or invited" : undefined}
+              onClick={() => setShowModal(true)}
+            >
+              Invite Member
+            </Button>
+          ) : null}
           </>
         }
       />
@@ -310,8 +323,11 @@ export default function TeamClient({
         </div>
       )}
 
-      {/* Pending Invites Table */}
-      {pendingInvites.length > 0 && (
+      {/* Pending Invites Table. Manager-only: the rows carry `token`, which is
+          the whole credential — the accept endpoint checks the token and never
+          the address it was mailed to. The server does not even load them for
+          anyone else, so this is belt and braces. */}
+      {canManage && pendingInvites.length > 0 && (
         <Card variant="solid" noPadding>
           <div style={{ padding: "14px 24px", borderBottom: "1px solid var(--cc-border)", background: "var(--cc-hover-bg)" }}>
             <span style={{ fontWeight: 700, fontSize: 14, color: "var(--cc-text)" }}>Pending Invites</span>
@@ -430,7 +446,7 @@ export default function TeamClient({
       )}
 
       {/* Invite Modal */}
-      <Modal open={showModal} onClose={() => { setShowModal(false); setError(null); }} title="Invite Team Member">
+      <Modal open={canManage && showModal} onClose={() => { setShowModal(false); setError(null); }} title="Invite Team Member">
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div>
             <label style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6, display: "block" }}>
