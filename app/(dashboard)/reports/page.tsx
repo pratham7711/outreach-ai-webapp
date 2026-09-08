@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Plus, Lock, AlertTriangle, BarChart3 } from "lucide-react";
 import { Modal, Input, Badge, EmptyState, Card, LoadingSpinner } from "@pratham7711/ui";
 import { formatDateAbs } from "@/lib/format";
-import { useConfirm, Button } from "@/components/ds";
+import { PageHeader, useConfirm, Button } from "@/components/ds";
 
 interface Report {
   id: string;
@@ -130,15 +130,15 @@ export default function ReportsPage() {
 
   return (
     <div className="rsp-page page-enter">
-      <div className="rsp-header">
-        <div>
-          <h1 style={{ fontSize: 26, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Reports</h1>
-          <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>Create and share campaign reports</p>
-        </div>
-        <Button variant="primary" iconLeft={<Plus size={15} />} onClick={() => setOpen(true)}>
-          New Report
-        </Button>
-      </div>
+      <PageHeader
+        title="Reports"
+        subtitle="Create and share campaign reports"
+        actions={
+          <Button variant="primary" iconLeft={<Plus size={15} />} onClick={() => setOpen(true)}>
+            New Report
+          </Button>
+        }
+      />
 
       {loading ? (
         <div style={{ display: "flex", justifyContent: "center", padding: 48 }}>

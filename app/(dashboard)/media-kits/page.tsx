@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Plus, Lock, AlertTriangle, Folder } from "lucide-react";
 import { Modal, Input, EmptyState, Card, Badge, LoadingSpinner } from "@pratham7711/ui";
 import { formatDateAbs } from "@/lib/format";
-import { useConfirm, Button } from "@/components/ds";
+import { PageHeader, useConfirm, Button } from "@/components/ds";
 
 interface MediaKit {
   id: string;
@@ -84,12 +84,27 @@ export default function MediaKitsPage() {
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
 
   async function togglePublic(kit: MediaKit) {
-    const res = await fetch(`/api/media-kits/${kit.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ isPublic: !kit.isPublic }),
-    });
-    if (res.ok) await fetchKits();
+    // Mirrors reports/page.tsx: a refused toggle used to leave the switch
+    // showing the old value with no explanation of why it snapped back.
+    try {
+      const res = await fetch(`/api/media-kits/${kit.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isPublic: !kit.isPublic }),
+      });
+      if (res.status === 403) {
+        setFeatureDisabled(true);
+        setError(null);
+        return;
+      }
+      if (!res.ok) {
+        setError("We couldn't change that media kit's visibility right now.");
+        return;
+      }
+      await fetchKits();
+    } catch {
+      setError("We couldn't change that media kit's visibility right now.");
+    }
   }
 
   async function copyShareLink(token: string) {
@@ -130,15 +145,15 @@ export default function MediaKitsPage() {
 
   return (
     <div className="rsp-page">
-      <div className="rsp-header">
-        <div>
-          <h1 style={{ fontSize: 26, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Media Kits</h1>
-          <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>Build and share creator media kits</p>
-        </div>
-        <Button variant="primary" iconLeft={<Plus size={15} />} onClick={() => setOpen(true)}>
-          New Media Kit
-        </Button>
-      </div>
+      <PageHeader
+        title="Media Kits"
+        subtitle="Build and share creator media kits"
+        actions={
+          <Button variant="primary" iconLeft={<Plus size={15} />} onClick={() => setOpen(true)}>
+            New Media Kit
+          </Button>
+        }
+      />
 
       {loading ? (
         <div style={{ display: "flex", justifyContent: "center", padding: 48 }}>

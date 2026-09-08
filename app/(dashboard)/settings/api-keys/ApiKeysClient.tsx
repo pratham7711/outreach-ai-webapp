@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Key, Plus, Trash2, Copy, Check, AlertTriangle } from "lucide-react";
+import { PageHeader } from "@/components/ds";
+import { toast } from "sonner";
 
 interface ApiKeyItem {
   id: string;
@@ -51,7 +53,11 @@ export default function ApiKeysClient() {
         setCreatedKey(data.key);
         setNewName("");
         fetchKeys();
+      } else {
+        toast.error("Couldn't create that key. Nothing was issued.");
       }
+    } catch {
+      toast.error("The request didn't go through. No key was issued.");
     } finally {
       setCreating(false);
     }
@@ -60,8 +66,16 @@ export default function ApiKeysClient() {
   const handleRevoke = async (id: string) => {
     setRevoking(id);
     try {
-      await fetch(`/api/keys/${id}`, { method: "DELETE" });
-      setKeys((prev) => prev.filter((k) => k.id !== id));
+      // The row used to be dropped whatever came back, so a failed revoke left
+      // a live key that the screen said was gone.
+      const res = await fetch(`/api/keys/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        setKeys((prev) => prev.filter((k) => k.id !== id));
+      } else {
+        toast.error("Couldn't revoke that key. It is still active.");
+      }
+    } catch {
+      toast.error("The request didn't go through. The key is still active.");
     } finally {
       setRevoking(null);
       setConfirmRevoke(null);
@@ -86,24 +100,11 @@ export default function ApiKeysClient() {
 
   return (
     <div className="rsp-page page-enter" style={{ paddingBottom: 64 }}>
-      {/* Page Header */}
-      <div className="rsp-header">
-        <div>
-          <h1
-            style={{
-              fontSize: 28,
-              fontWeight: 700,
-              color: "var(--cc-text)",
-              marginBottom: 4,
-            }}
-          >
-            API Keys
-          </h1>
-          <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>
-            Manage API access to your organization
-          </p>
-        </div>
-        <button
+      <PageHeader
+        title="API Keys"
+        subtitle="Manage API access to your organization"
+        actions={
+          <button
           onClick={() => {
             setShowCreate(true);
             setCreatedKey(null);
@@ -125,8 +126,9 @@ export default function ApiKeysClient() {
         >
           <Plus size={16} />
           Create API Key
-        </button>
-      </div>
+          </button>
+        }
+      />
 
       {/* Created Key Banner */}
       {createdKey && (

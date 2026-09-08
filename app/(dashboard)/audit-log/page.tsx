@@ -7,6 +7,7 @@ import { AUDIT_LOG_FEATURE } from "@/lib/featureKeys";
 import { Badge, Card, EmptyState } from "@pratham7711/ui";
 import { Lock } from "lucide-react";
 import AuditLogClient from "./AuditLogClient";
+import { PageHeader } from "@/components/ds";
 
 const PAGE_SIZE = 20;
 
@@ -23,14 +24,7 @@ export default async function AuditLogPage() {
   if (!auditLogEnabled) {
     return (
       <div className="rsp-page page-enter">
-        <div style={{ marginBottom: 32 }}>
-          <h1 style={{ fontSize: 26, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>
-            Audit Log
-          </h1>
-          <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>
-            Track changes across your organization
-          </p>
-        </div>
+        <PageHeader title="Audit Log" subtitle="Track changes across your organization" />
 
         <Card variant="outlined" noPadding>
           <div style={{ padding: 24 }}>

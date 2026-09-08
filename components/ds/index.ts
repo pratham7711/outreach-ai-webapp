@@ -7,7 +7,7 @@ export { MetricTile } from "./MetricTile";
 export { SectionCard } from "./SectionCard";
 export { ChartFrame, CHART_FRAME_MIN_HEIGHT } from "./ChartFrame";
 export type { ChartFrameProps } from "./ChartFrame";
-export { PageHeader } from "./PageHeader";
+export { PageHeader, PAGE_TITLE_STYLE } from "./PageHeader";
 export type { PageHeaderProps } from "./PageHeader";
 export { LastUpdated } from "./LastUpdated";
 export type { LastUpdatedProps } from "./LastUpdated";

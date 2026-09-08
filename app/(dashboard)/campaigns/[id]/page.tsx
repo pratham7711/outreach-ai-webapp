@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import { motion } from "framer-motion";
 import { Card, Badge, EmptyState, Avatar, Skeleton, Modal } from "@pratham7711/ui";
-import { Dropdown, MetricTile, EntityPicker, Button } from "@/components/ds";
+import { PAGE_TITLE_STYLE, Dropdown, MetricTile, EntityPicker, Button } from "@/components/ds";
 import PostsTab from "./PostsTab";
 import ActivityFeed from "./ActivityFeed";
 import DraftsTab from "./DraftsTab";
@@ -717,7 +717,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
 
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8, flexWrap: "wrap" }}>
-        <h1 style={{ fontSize: 26, fontWeight: 700, color: "var(--cc-text)" }}>{campaign.title}</h1>
+        <h1 style={{ ...PAGE_TITLE_STYLE }}>{campaign.title}</h1>
         <Badge variant={STATUS_BADGE[campaign.status] ?? "neutral"}>{campaign.status.replace(/_/g, " ")}</Badge>
         {campaign.campaignType && (
           <Badge variant={CAMPAIGN_TYPE_BADGE[campaign.campaignType] ?? "neutral"}>

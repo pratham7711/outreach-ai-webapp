@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Check, Plus, Tags, Trash2, X } from "lucide-react";
 import { Input } from "@pratham7711/ui";
-import { SectionCard, Dropdown, useConfirm, Button } from "@/components/ds";
+import { PageHeader, SectionCard, Dropdown, useConfirm, Button } from "@/components/ds";
 
 /**
  * Settings → General, mirroring the reference's Tags & Statuses page.
@@ -340,14 +340,10 @@ function TaxonomyList({
 export default function GeneralClient() {
   return (
     <div className="rsp-page page-enter">
-      <div style={{ marginBottom: 32 }}>
-        <h1 style={{ fontSize: 26, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>
-          General
-        </h1>
-        <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>
-          The tags, flags, deliverable types and statuses this workspace uses.
-        </p>
-      </div>
+      <PageHeader
+        title="General"
+        subtitle="The tags, flags, deliverable types and statuses this workspace uses."
+      />
 
       <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
         <TaxonomyList

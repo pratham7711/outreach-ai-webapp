@@ -1,11 +1,12 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { Badge, Card, Avatar, Skeleton, EmptyState, Input } from "@pratham7711/ui";
-import { MetricTile, Button } from "@/components/ds";
+import { PageHeader, MetricTile, Button } from "@/components/ds";
 import { StatusTabs } from "@/components/ds";
 import { formatDateAbs } from "@/lib/format";
 import { Inbox, Search, Download } from "lucide-react";
 import { downloadCsv, exportStamp } from "@/lib/csv";
+import { toast } from "sonner";
 
 /**
  * Mirrors what `GET /api/payout-requests` actually returns.
@@ -88,9 +89,13 @@ export default function RequestsPage() {
       });
       if (res.ok) {
         await fetchRequests();
+      } else {
+        // Approve/Reject used to fail silently: the row stayed Pending and the
+        // reviewer had no way to tell the click had been rejected.
+        toast.error(`Couldn't ${status === "APPROVED" ? "approve" : "reject"} that request. It is unchanged.`);
       }
     } catch {
-      // silent
+      toast.error("The request didn't go through. Nothing was changed.");
     } finally {
       setActionLoading(null);
     }
@@ -141,22 +146,21 @@ export default function RequestsPage() {
 
   return (
     <div className="rsp-page">
-      {/* Header */}
-      <div className="rsp-header">
-        <div>
-          <h1 style={{ fontSize: 26, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Requests</h1>
-          <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>View and manage payout requests</p>
-        </div>
-        <Button
-          variant="secondary"
-          size="sm"
-          iconLeft={<Download size={15} />}
-          disabled={filtered.length === 0}
-          onClick={exportData}
-        >
-          Export Data
-        </Button>
-      </div>
+      <PageHeader
+        title="Requests"
+        subtitle="View and manage payout requests"
+        actions={
+          <Button
+            variant="secondary"
+            size="sm"
+            iconLeft={<Download size={15} />}
+            disabled={filtered.length === 0}
+            onClick={exportData}
+          >
+            Export Data
+          </Button>
+        }
+      />
 
       {/* Stat Cards */}
       {loading ? (
@@ -229,7 +233,7 @@ export default function RequestsPage() {
         <EmptyState
           icon={<Search size={32} color="var(--cc-text-subtle)" />}
           title="No requests match that search"
-          description={`Nothing here matches "${query}".`}
+          description={`No requests match "${query}".`}
           action={<Button variant="secondary" onClick={() => setQuery("")}>Clear search</Button>}
         />
       ) : filtered.length === 0 ? (

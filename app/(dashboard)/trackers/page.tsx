@@ -4,7 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Badge, Card, Modal, Input, Skeleton, EmptyState } from "@pratham7711/ui";
-import { LastUpdated, MetricTile, Button, useConfirm } from "@/components/ds";
+import { PageHeader, LastUpdated, MetricTile, Button, useConfirm } from "@/components/ds";
 import { Music, Plus, RefreshCw, Search, Trash2, TrendingUp } from "lucide-react";
 import { InstagramSourceBanner } from "@/components/integrations/InstagramSourceBanner";
 import { CreatorTrackers } from "./CreatorTrackers";
@@ -319,16 +319,14 @@ export default function TrackersPage() {
 
   return (
     <div className="rsp-page">
-      {/* Header */}
-      <div className="rsp-header">
-        <div>
-          <h1 style={{ fontSize: 26, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Trackers</h1>
-          <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>Track TikTok and Instagram sounds, and creators</p>
-        </div>
-        {/* The two tabs track different things, so they get different actions in
-            the same place rather than one tab's buttons sitting inert. */}
-        {sub === "sound" ? (
-          <div style={{ display: "flex", gap: 8 }}>
+      <PageHeader
+        title="Trackers"
+        subtitle="Track TikTok and Instagram sounds, and creators"
+        /* The two tabs track different things, so they get different actions in
+           the same place rather than one tab's buttons sitting inert. */
+        actions={
+          sub === "sound" ? (
+          <>
             <Button
               variant="secondary"
               onClick={() => refreshMutation.mutate()}
@@ -384,14 +382,15 @@ export default function TrackersPage() {
               <Plus size={16} style={{ marginRight: 6 }} />
               Track Sound
             </Button>
-          </div>
-        ) : (
-          <Button variant="primary" onClick={() => setCreatorPickerOpen(true)}>
-            <Plus size={16} style={{ marginRight: 6 }} />
-            Track Creator
-          </Button>
-        )}
-      </div>
+          </>
+          ) : (
+            <Button variant="primary" onClick={() => setCreatorPickerOpen(true)}>
+              <Plus size={16} style={{ marginRight: 6 }} />
+              Track Creator
+            </Button>
+          )
+        }
+      />
 
       {/* Above the tabs, not inside one: creator trackers carry Instagram view
           counts, so the warning has to be visible before a reader picks a tab

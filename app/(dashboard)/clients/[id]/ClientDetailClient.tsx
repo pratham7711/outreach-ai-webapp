@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { ArrowLeft, Save, Building2, Settings2, Briefcase, Edit3, ClipboardList } from "lucide-react";
 import { Card, Badge, StatCard, Avatar, EmptyState, Input } from "@pratham7711/ui";
-import { Button } from "@/components/ds";
+import { PAGE_TITLE_STYLE, Button } from "@/components/ds";
 import { FEATURES, type FeatureKey, clientHasFeature } from "@/lib/features";
 import ClientFeatureModal from "@/components/modals/ClientFeatureModal";
 import { formatDateAbs } from "@/lib/format";
@@ -123,7 +123,7 @@ export default function ClientDetailClient({ client, plans }: Props) {
       <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 24 }}>
         <Avatar name={client.name} size="lg" style={{ width: 56, height: 56, fontSize: 18, borderRadius: 14 }} />
         <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, color: "var(--cc-text)", marginBottom: 2 }}>{client.name}</h1>
+          <h1 style={{ ...PAGE_TITLE_STYLE, marginBottom: 2 }}>{client.name}</h1>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{client.campaignCount} campaign{client.campaignCount !== 1 ? "s" : ""}</span>
             {contact.industry && <Badge variant="neutral">{contact.industry}</Badge>}

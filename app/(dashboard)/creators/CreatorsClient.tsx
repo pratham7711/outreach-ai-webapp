@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Plus, LayoutGrid, List as ListIcon, Users } from "lucide-react";
 import { Badge, Card, Input, Avatar, EmptyState } from "@pratham7711/ui";
 import { imgSrc } from "@/lib/postMedia";
-import { StatusTabs, Pagination, FilterDrawer, FilterButton, SortableTh, Button } from "@/components/ds";
+import { PageHeader, StatusTabs, Pagination, FilterDrawer, FilterButton, SortableTh, Button } from "@/components/ds";
 import type { FilterDef, FilterValues } from "@/components/ds";
 import { Search } from "lucide-react";
 import AddCreatorModal from "@/components/modals/AddCreatorModal";
@@ -155,20 +155,15 @@ export default function CreatorsClient({
 
   return (
     <div className="rsp-page">
-      {/* Header */}
-      <div className="rsp-header">
-        <div>
-          <h1 style={{ fontSize: 26, fontWeight: 800, color: "var(--cc-text)", letterSpacing: "-0.02em", marginBottom: 4 }}>
-            Creators
-          </h1>
-          <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>
-            Discover and manage your creator roster
-          </p>
-        </div>
-        <Button variant="primary" iconLeft={<Plus size={15} />} size="sm" onClick={() => setShowModal(true)}>
-          New Creator
-        </Button>
-      </div>
+      <PageHeader
+        title="Creators"
+        subtitle="Discover and manage your creator roster"
+        actions={
+          <Button variant="primary" iconLeft={<Plus size={15} />} size="sm" onClick={() => setShowModal(true)}>
+            New Creator
+          </Button>
+        }
+      />
 
       {/* Filters */}
       <div style={{ marginBottom: 24, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>

@@ -3,6 +3,8 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Avatar, Badge, Tag, EmptyState, Skeleton } from "@pratham7711/ui";
 import { Send, ArrowLeft, MessageSquare, Mail, AlertTriangle } from "lucide-react";
+import { PageHeader } from "@/components/ds";
+import { toast } from "sonner";
 
 const inboxStyles = `
   .inbox-panes {
@@ -185,7 +187,13 @@ export default function InboxClient() {
         setDraft("");
         await loadThread(activeId, true);
         await loadConversations();
+      } else {
+        // The draft is kept: clearing the box on a failed send loses what the
+        // sender wrote, and the empty thread reads as if it went out.
+        toast.error("That message didn't send. Your draft is still here.");
       }
+    } catch {
+      toast.error("That message didn't send. Your draft is still here.");
     } finally {
       setSending(false);
     }
@@ -201,10 +209,7 @@ export default function InboxClient() {
   return (
     <div className="rsp-page" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       <style>{inboxStyles}</style>
-      <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 28, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Inbox</h1>
-        <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>Direct messages with your creators</p>
-      </div>
+      <PageHeader title="Inbox" subtitle="Direct messages with your creators" />
 
       <div className="inbox-panes" data-active={activeId ? "true" : "false"}>
         <div className="inbox-list">

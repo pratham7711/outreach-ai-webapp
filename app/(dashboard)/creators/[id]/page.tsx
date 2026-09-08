@@ -8,8 +8,9 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Card, Badge, Avatar, EmptyState, Skeleton, Modal, Input, Tooltip } from "@pratham7711/ui";
-import { Dropdown, MetricTile } from "@/components/ds";
+import { PAGE_TITLE_STYLE, Dropdown, MetricTile } from "@/components/ds";
 import { formatCompact, formatDateAbs, platformLabel } from "@/lib/format";
+import { toast } from "sonner";
 
 function formatNumber(num: number): string {
   return formatCompact(num);
@@ -464,7 +465,14 @@ function EditCreatorModal({ open, onClose, creator, onSaved }: { open: boolean; 
       if (res.ok) {
         onSaved();
         onClose();
+      } else {
+        // The modal used to stay open with no message, so an invalid handle
+        // read as a dead Save button.
+        const payload = await res.json().catch(() => ({}));
+        toast.error(payload.error ?? "Couldn't save those changes.");
       }
+    } catch {
+      toast.error("The request didn't go through. Nothing was saved.");
     } finally {
       setSaving(false);
     }
@@ -545,6 +553,7 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
   const [showAddSocial, setShowAddSocial] = useState(false);
   const [addSocialForm, setAddSocialForm] = useState({ platform: "INSTAGRAM", handle: "", followersCount: "", avgViews: "" });
   const [addingSocial, setAddingSocial] = useState(false);
+  const [removingSocial, setRemovingSocial] = useState<string | null>(null);
 
   const [tiktokVideos, setTiktokVideos] = useState<TikTokVideo[]>([]);
   const [tiktokLoading, setTiktokLoading] = useState(false);
@@ -594,15 +603,31 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
         setShowAddSocial(false);
         setAddSocialForm({ platform: "INSTAGRAM", handle: "", followersCount: "", avgViews: "" });
         fetchSocialAccounts();
+      } else {
+        const payload = await res.json().catch(() => ({}));
+        toast.error(payload.error ?? "Couldn't add that account.");
       }
+    } catch {
+      toast.error("The request didn't go through. No account was added.");
     } finally {
       setAddingSocial(false);
     }
   };
 
   const handleRemoveSocial = async (accountId: string) => {
-    const res = await fetch(`/api/creators/${id}/social-accounts?accountId=${accountId}`, { method: "DELETE" });
-    if (res.ok) fetchSocialAccounts();
+    setRemovingSocial(accountId);
+    try {
+      const res = await fetch(`/api/creators/${id}/social-accounts?accountId=${accountId}`, { method: "DELETE" });
+      if (res.ok) {
+        fetchSocialAccounts();
+        return;
+      }
+      toast.error("Couldn't remove that account. It is still linked.");
+    } catch {
+      toast.error("The request didn't go through. The account is still linked.");
+    } finally {
+      setRemovingSocial(null);
+    }
   };
 
   const refreshCreator = () => {
@@ -661,7 +686,7 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
             <Avatar name={creator.name} size="lg" style={{ width: 72, height: 72, fontSize: 22, border: "4px solid var(--cc-card)", flexShrink: 0 }} />
             <div className="cd-profile-info">
               <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                <h1 style={{ fontSize: 20, fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>{creator.name}</h1>
+                <h1 style={{ ...PAGE_TITLE_STYLE, margin: 0 }}>{creator.name}</h1>
                 <Badge variant="neutral">{platformLabel(creator.platform)}</Badge>
               </div>
               <div style={{ fontSize: 14, color: "var(--cc-text-muted)", marginTop: 2 }}>
@@ -976,9 +1001,14 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
                       </Badge>
                       <button
                         onClick={() => handleRemoveSocial(acct.id)}
+                        disabled={removingSocial === acct.id}
+                        aria-busy={removingSocial === acct.id}
                         aria-label={`Remove ${acct.platform} account ${acct.handle}`}
                         style={{
-                          background: "none", border: "none", cursor: "pointer", padding: 4,
+                          background: "none", border: "none",
+                          cursor: removingSocial === acct.id ? "not-allowed" : "pointer",
+                          opacity: removingSocial === acct.id ? 0.5 : 1,
+                          padding: 4,
                           color: "var(--cc-text-muted)", borderRadius: 4,
                         }}
                       >

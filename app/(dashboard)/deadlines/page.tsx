@@ -1,10 +1,11 @@
 "use client";
 import { useState, useEffect } from "react";
 import { Card, Badge, Skeleton, EmptyState } from "@pratham7711/ui";
-import { Button } from "@/components/ds";
+import { PageHeader, Button } from "@/components/ds";
 import { CalendarClock, AlertTriangle, CheckCircle2, Clock, CalendarOff, Edit2, X, Check } from "lucide-react";
 import { format, isAfter, isBefore, differenceInDays } from "date-fns";
 import { stripAt } from "@/lib/format";
+import { ACTIVATION_STATUS_LABEL, activationStatusBadgeStyle } from "@/lib/activationQueues";
 
 type DeadlineActivation = {
   id: string;
@@ -31,21 +32,10 @@ const FILTER_TABS = [
   { key: "NO_DATE", label: "No Date Set" },
 ];
 
-const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
-  AWAITING_DRAFT: { bg: "#F3F4F6", color: "#6B7280" },
-  DRAFT_SUBMITTED: { bg: "#FEF3C7", color: "#D97706" },
-  AWAITING_APPROVAL: { bg: "#EEF2FF", color: "#4F46E5" },
-  APPROVED: { bg: "#D1FAE5", color: "#059669" },
-  POSTING: { bg: "#DBEAFE", color: "#2563EB" },
-  POSTED: { bg: "#E0E7FF", color: "#4338CA" },
-  COMPLETE: { bg: "#D1FAE5", color: "#059669" },
-  DECLINED: { bg: "#FEE2E2", color: "#DC2626" },
-};
-
 function DaysLeft({ dueDate, status }: { dueDate: string | null; status: string }) {
   if (!dueDate) return null;
   if (["COMPLETE", "DECLINED"].includes(status)) {
-    return <span style={{ fontSize: 12, color: "#059669" }}>Done</span>;
+    return <span style={{ fontSize: 12, color: "var(--cc-success)" }}>Done</span>;
   }
 
   const due = new Date(dueDate);
@@ -54,16 +44,16 @@ function DaysLeft({ dueDate, status }: { dueDate: string | null; status: string 
 
   if (days < 0) {
     return (
-      <span style={{ fontSize: 12, fontWeight: 600, color: "#DC2626" }}>
+      <span style={{ fontSize: 12, fontWeight: 600, color: "var(--cc-danger)" }}>
         {Math.abs(days)}d overdue
       </span>
     );
   }
   if (days === 0) {
-    return <span style={{ fontSize: 12, fontWeight: 600, color: "#D97706" }}>Due today</span>;
+    return <span style={{ fontSize: 12, fontWeight: 600, color: "var(--cc-warning)" }}>Due today</span>;
   }
   if (days <= 3) {
-    return <span style={{ fontSize: 12, fontWeight: 600, color: "#D97706" }}>{days}d left</span>;
+    return <span style={{ fontSize: 12, fontWeight: 600, color: "var(--cc-warning)" }}>{days}d left</span>;
   }
   return <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{days}d left</span>;
 }
@@ -80,31 +70,40 @@ function InlineDateEditor({
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(current ? format(new Date(current), "yyyy-MM-dd") : "");
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // A rejected PATCH used to close the editor and paint the new date anyway, so
+  // the row lied until the next reload. Keep the editor open and say what failed.
+  const patch = async (isoDate: string | null) => {
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/activations/${activationId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ deliverableDueDate: isoDate }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(body?.error ?? "Could not save the due date");
+      }
+      setEditing(false);
+      onSaved(activationId, isoDate);
+      return true;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not save the due date");
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const save = async () => {
-    setSaving(true);
-    const isoDate = value ? new Date(value).toISOString() : null;
-    await fetch(`/api/activations/${activationId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ deliverableDueDate: isoDate }),
-    });
-    setSaving(false);
-    setEditing(false);
-    onSaved(activationId, isoDate);
+    await patch(value ? new Date(value).toISOString() : null);
   };
 
   const clear = async () => {
-    setSaving(true);
-    await fetch(`/api/activations/${activationId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ deliverableDueDate: null }),
-    });
-    setSaving(false);
-    setValue("");
-    setEditing(false);
-    onSaved(activationId, null);
+    if (await patch(null)) setValue("");
   };
 
   if (!editing) {
@@ -124,7 +123,7 @@ function InlineDateEditor({
   }
 
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
       <input
         type="date"
         value={value}
@@ -138,7 +137,9 @@ function InlineDateEditor({
       <button
         onClick={save}
         disabled={saving}
-        style={{ background: "var(--cc-primary)", border: "none", borderRadius: 4, padding: "3px 6px", cursor: "pointer", display: "flex", alignItems: "center" }}
+        aria-busy={saving}
+        aria-label={saving ? "Saving due date" : "Save due date"}
+        style={{ background: "var(--cc-primary)", border: "none", borderRadius: 4, padding: "3px 6px", cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.6 : 1, display: "flex", alignItems: "center" }}
       >
         <Check size={12} color="white" />
       </button>
@@ -146,17 +147,23 @@ function InlineDateEditor({
         <button
           onClick={clear}
           disabled={saving}
-          style={{ background: "#FEE2E2", border: "none", borderRadius: 4, padding: "3px 6px", cursor: "pointer", display: "flex", alignItems: "center" }}
+          aria-label="Clear due date"
+          style={{ background: "color-mix(in srgb, var(--cc-danger) 14%, transparent)", border: "none", borderRadius: 4, padding: "3px 6px", cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.6 : 1, display: "flex", alignItems: "center" }}
         >
-          <X size={12} color="#DC2626" />
+          <X size={12} color="var(--cc-danger)" />
         </button>
       )}
       <button
-        onClick={() => setEditing(false)}
+        onClick={() => { setEditing(false); setError(null); }}
         style={{ background: "none", border: "none", cursor: "pointer", color: "var(--cc-text-muted)", padding: 2 }}
       >
         <X size={12} />
       </button>
+      {error && (
+        <span role="alert" style={{ fontSize: 11, color: "var(--cc-danger)", width: "100%" }}>
+          {error}
+        </span>
+      )}
     </div>
   );
 }
@@ -202,13 +209,7 @@ export default function DeadlinesPage() {
 
   return (
     <div className="rsp-page">
-      {/* Header */}
-      <div className="rsp-header">
-        <div>
-          <h1 style={{ fontSize: 26, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Deadlines</h1>
-          <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>Track deliverable due dates across all campaigns</p>
-        </div>
-      </div>
+      <PageHeader title="Deadlines" subtitle="Track deliverable due dates across all campaigns" />
 
       {/* Stat Cards */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 16, marginBottom: 24 }}>
@@ -224,17 +225,17 @@ export default function DeadlinesPage() {
 
         <Card variant="outlined" style={{ padding: 20 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
-            <AlertTriangle size={18} color="#DC2626" />
+            <AlertTriangle size={18} color="var(--cc-danger)" />
             <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>Overdue</span>
           </div>
-          <div style={{ fontSize: 28, fontWeight: 700, color: stats.overdue > 0 ? "#DC2626" : "var(--cc-text)", margin: 0 }}>
+          <div style={{ fontSize: 28, fontWeight: 700, color: stats.overdue > 0 ? "var(--cc-danger)" : "var(--cc-text)", margin: 0 }}>
             {loading ? <Skeleton width="48px" height="32px" borderRadius="6px" /> : stats.overdue}
           </div>
         </Card>
 
         <Card variant="outlined" style={{ padding: 20 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
-            <Clock size={18} color="#D97706" />
+            <Clock size={18} color="var(--cc-warning)" />
             <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>Due This Week</span>
           </div>
           <div style={{ fontSize: 28, fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>
@@ -244,7 +245,7 @@ export default function DeadlinesPage() {
 
         <Card variant="outlined" style={{ padding: 20 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
-            <CheckCircle2 size={18} color="#059669" />
+            <CheckCircle2 size={18} color="var(--cc-success)" />
             <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>Completed</span>
           </div>
           <div style={{ fontSize: 28, fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>
@@ -279,12 +280,12 @@ export default function DeadlinesPage() {
           >
             {tab.label}
             {tab.key === "OVERDUE" && stats.overdue > 0 && (
-              <span style={{ marginLeft: 6, background: "#FEE2E2", color: "#DC2626", borderRadius: 10, padding: "1px 6px", fontSize: 11, fontWeight: 600 }}>
+              <span style={{ marginLeft: 6, background: "color-mix(in srgb, var(--cc-danger) 14%, transparent)", color: "var(--cc-danger)", borderRadius: 10, padding: "1px 6px", fontSize: 11, fontWeight: 600 }}>
                 {stats.overdue}
               </span>
             )}
             {tab.key === "THIS_WEEK" && stats.dueThisWeek > 0 && (
-              <span style={{ marginLeft: 6, background: "#FEF3C7", color: "#D97706", borderRadius: 10, padding: "1px 6px", fontSize: 11, fontWeight: 600 }}>
+              <span style={{ marginLeft: 6, background: "color-mix(in srgb, var(--cc-warning) 18%, transparent)", color: "var(--cc-warning)", borderRadius: 10, padding: "1px 6px", fontSize: 11, fontWeight: 600 }}>
                 {stats.dueThisWeek}
               </span>
             )}
@@ -295,7 +296,7 @@ export default function DeadlinesPage() {
       {/* Table */}
       {error ? (
         <Card variant="outlined" style={{ padding: 40, textAlign: "center" }}>
-          <p style={{ color: "#DC2626", fontSize: 14 }}>{error}</p>
+          <p role="alert" style={{ color: "var(--cc-danger)", fontSize: 14 }}>{error}</p>
           <Button variant="secondary" size="sm" onClick={() => load(filter)} style={{ marginTop: 12 }}>Retry</Button>
         </Card>
       ) : loading ? (
@@ -335,7 +336,7 @@ export default function DeadlinesPage() {
                     key={a.id}
                     style={{
                       borderBottom: idx < activations.length - 1 ? "1px solid var(--cc-border)" : "none",
-                      background: overdue ? "rgba(220,38,38,0.03)" : "transparent",
+                      background: overdue ? "color-mix(in srgb, var(--cc-danger) 5%, transparent)" : "transparent",
                       transition: "background 0.1s",
                     }}
                   >
@@ -363,10 +364,9 @@ export default function DeadlinesPage() {
                     <td style={{ padding: "14px 16px" }}>
                       <span style={{
                         fontSize: 11, fontWeight: 600, padding: "3px 8px", borderRadius: 12,
-                        background: STATUS_COLORS[a.status]?.bg ?? "#F3F4F6",
-                        color: STATUS_COLORS[a.status]?.color ?? "#6B7280",
+                        ...activationStatusBadgeStyle(a.status),
                       }}>
-                        {a.status.replace(/_/g, " ")}
+                        {ACTIVATION_STATUS_LABEL[a.status] ?? a.status.replace(/_/g, " ")}
                       </span>
                     </td>
 

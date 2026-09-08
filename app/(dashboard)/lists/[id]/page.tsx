@@ -6,7 +6,7 @@ import Link from "next/link";
 import { Card, Badge, Avatar, EmptyState, Skeleton, Input } from "@pratham7711/ui";
 import { toast } from "sonner";
 import { formatCompact, stripAt, formatDateAbs } from "@/lib/format";
-import { useConfirm, Button } from "@/components/ds";
+import { useConfirm, Button, PageHeader } from "@/components/ds";
 
 type CreatorItem = {
   id: string;
@@ -35,6 +35,7 @@ export default function ListDetailPage({ params }: { params: Promise<{ id: strin
   const confirm = useConfirm();
   const [list, setList] = useState<ListDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [deleting, setDeleting] = useState(false);
 
   const fetchList = () => {
     setLoading(true);
@@ -65,6 +66,7 @@ export default function ListDetailPage({ params }: { params: Promise<{ id: strin
   };
 
   const handleDeleteList = async () => {
+    if (deleting) return;
     const ok = await confirm({
       title: "Delete this entire list?",
       description:
@@ -72,15 +74,19 @@ export default function ListDetailPage({ params }: { params: Promise<{ id: strin
       confirmLabel: "Delete list",
     });
     if (!ok) return;
+    // The DELETE plus the route change take a beat, and the button used to stay
+    // live the whole time — a second click fired a second DELETE.
+    setDeleting(true);
     try {
       const res = await fetch(`/api/lists/${id}`, { method: "DELETE" });
       if (res.ok) {
         toast.success("List deleted");
         router.push("/lists");
-      } else {
-        toast.error("Failed to delete");
+        return;
       }
+      toast.error("Failed to delete");
     } catch { toast.error("Network error"); }
+    setDeleting(false);
   };
 
   if (loading) return (
@@ -109,18 +115,20 @@ export default function ListDetailPage({ params }: { params: Promise<{ id: strin
       </div>
 
       {/* Header */}
-      <div className="rsp-header">
-        <div>
-          <h1 style={{ fontSize: 26, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>{list.name}</h1>
-          {list.description && <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>{list.description}</p>}
+      <PageHeader
+        title={list.name}
+        subtitle={list.description || undefined}
+        meta={
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, fontSize: 13, color: "var(--cc-text-muted)" }}>
             <Users size={14} /> {list._count.items} creators
           </div>
-        </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <Button variant="danger" size="sm" iconLeft={<Trash2 size={14} />} onClick={handleDeleteList}>Delete List</Button>
-        </div>
-      </div>
+        }
+        actions={
+          <Button variant="danger" size="sm" iconLeft={<Trash2 size={14} />} onClick={handleDeleteList} disabled={deleting}>
+            {deleting ? "Deleting…" : "Delete List"}
+          </Button>
+        }
+      />
 
       {/* Creators table */}
       {list.items.length === 0 ? (

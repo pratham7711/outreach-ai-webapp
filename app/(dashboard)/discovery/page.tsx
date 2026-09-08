@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Plus, Search, SlidersHorizontal, X, Lock } from "lucide-react";
 import { Card, EmptyState, Input, Avatar, Badge, Skeleton, StatCard } from "@pratham7711/ui";
-import { Dropdown, Pagination, Button } from "@/components/ds";
+import { PageHeader, Dropdown, Pagination, Button } from "@/components/ds";
 import Link from "next/link";
 import { toast } from "sonner";
 import { formatCompact, stripAt, platformLabel } from "@/lib/format";
@@ -154,13 +154,7 @@ export default function DiscoveryPage() {
 
   return (
     <div className="rsp-page">
-      {/* Header */}
-      <div style={{ marginBottom: 32 }}>
-        <h1 style={{ fontSize: 26, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Discovery</h1>
-        <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>
-          Find and connect with creators · {total} total
-        </p>
-      </div>
+      <PageHeader title="Discovery" subtitle={`Find and connect with creators · ${total} total`} />
 
       {/* Search */}
       <div style={{ marginBottom: 20 }}>

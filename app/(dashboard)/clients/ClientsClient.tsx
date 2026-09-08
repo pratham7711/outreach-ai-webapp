@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Plus, Search, Building2 } from "lucide-react";
 import Link from "next/link";
 import { Card, Input, Avatar, EmptyState } from "@pratham7711/ui";
-import { MetricTile, Button } from "@/components/ds";
+import { PageHeader, MetricTile, Button } from "@/components/ds";
 import AddClientModal from "@/components/modals/AddClientModal";
 
 type Client = {
@@ -27,20 +27,15 @@ export default function ClientsClient({ clients, stats }: {
 
   return (
     <div className="rsp-page">
-      {/* Header */}
-      <div className="rsp-header">
-        <div>
-          <h1 style={{ fontSize: 26, fontWeight: 800, color: "var(--cc-text)", letterSpacing: "-0.02em", marginBottom: 4 }}>
-            Clients
-          </h1>
-          <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>
-            Manage your client relationships and billing
-          </p>
-        </div>
-        <Button variant="primary" iconLeft={<Plus size={15} />} size="sm" onClick={() => setShowModal(true)}>
-          New Client
-        </Button>
-      </div>
+      <PageHeader
+        title="Clients"
+        subtitle="Manage your client relationships and billing"
+        actions={
+          <Button variant="primary" iconLeft={<Plus size={15} />} size="sm" onClick={() => setShowModal(true)}>
+            New Client
+          </Button>
+        }
+      />
 
       {/* Stats */}
       <div className="cc-stagger grid grid-cols-1 sm:grid-cols-2" style={{ gap: 20, marginBottom: 32, maxWidth: 480 }}>

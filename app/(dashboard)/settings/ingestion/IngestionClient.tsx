@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { CheckCircle2 } from "lucide-react";
 import { Card, Badge, EmptyState, Skeleton } from "@pratham7711/ui";
-import { MetricTile, Button } from "@/components/ds";
+import { PageHeader, MetricTile, Button } from "@/components/ds";
 import { formatDateAbs, formatDateTimeAbs } from "@/lib/format";
 import { InstagramSourceBanner } from "@/components/integrations/InstagramSourceBanner";
 
@@ -71,10 +71,10 @@ export default function IngestionClient() {
 
   return (
     <div className="rsp-page page-enter">
-      <div style={{ marginBottom: 32 }}>
-        <h1 style={{ fontSize: 28, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Ingestion Health</h1>
-        <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>Sync status per platform, dead-lettered posts, and snapshot sources</p>
-      </div>
+      <PageHeader
+        title="Ingestion Health"
+        subtitle="Sync status per platform, dead-lettered posts, and snapshot sources"
+      />
 
       {/* Above the per-platform tables, and outside the loading branch: the
           Instagram rows below keep reporting healthy syncs while views are

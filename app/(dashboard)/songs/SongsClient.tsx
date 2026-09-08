@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { Music, Plus } from "lucide-react";
 import { Card, EmptyState, Input } from "@pratham7711/ui";
-import { Button } from "@/components/ds";
+import { PageHeader, Button } from "@/components/ds";
 import { formatCompact, platformLabel } from "@/lib/format";
 
 export type SongRow = {
@@ -75,19 +75,15 @@ export default function SongsClient({ songs: initial }: { songs: SongRow[] }) {
 
   return (
     <div className="rsp-page">
-      <div className="rsp-header">
-        <div>
-          <h1 style={{ fontSize: 26, fontWeight: 800, color: "var(--cc-text)", letterSpacing: "-0.02em", marginBottom: 4 }}>
-            Songs
-          </h1>
-          <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>
-            One release, every campaign promoting it, rolled up.
-          </p>
-        </div>
-        <Button variant="primary" iconLeft={<Plus size={15} />} size="sm" onClick={() => setCreating((v) => !v)}>
-          Add Song
-        </Button>
-      </div>
+      <PageHeader
+        title="Songs"
+        subtitle="One release, every campaign promoting it, rolled up."
+        actions={
+          <Button variant="primary" iconLeft={<Plus size={15} />} size="sm" onClick={() => setCreating((v) => !v)}>
+            Add Song
+          </Button>
+        }
+      />
 
       {creating && (
         <Card variant="solid" style={{ padding: 20, marginBottom: 20 }}>

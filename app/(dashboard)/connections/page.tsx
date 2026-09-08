@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Card, Badge, Modal, Input, Skeleton, EmptyState } from "@pratham7711/ui";
-import { Button } from "@/components/ds";
+import { PageHeader, Button } from "@/components/ds";
 import { AlertTriangle } from "lucide-react";
 
 type PlatformConnection = {
@@ -25,6 +25,10 @@ export default function ConnectionsPage() {
   const [accountName, setAccountName] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  /* A rejected connect/disconnect used to fall through the `if (res.ok)` with
+     no else: the modal simply sat there, and the only way to find out it had
+     not worked was to close it and read the card. */
+  const [modalError, setModalError] = useState<string | null>(null);
 
   const fetchPlatforms = useCallback(async () => {
     setFailed(false);
@@ -56,6 +60,7 @@ export default function ConnectionsPage() {
   const handleConnect = async () => {
     if (!connectModal) return;
     setSubmitting(true);
+    setModalError(null);
     try {
       const res = await fetch("/api/connections", {
         method: "POST",
@@ -67,7 +72,11 @@ export default function ConnectionsPage() {
         setConnectModal(null);
         setAccountName("");
         await fetchPlatforms();
+      } else {
+        setModalError(`Couldn't connect ${connectModal.name}. Nothing has changed — try again.`);
       }
+    } catch {
+      setModalError("The request didn't go through. Check your connection and try again.");
     } finally {
       setSubmitting(false);
     }
@@ -76,17 +85,36 @@ export default function ConnectionsPage() {
   const handleDisconnect = async () => {
     if (!disconnectModal) return;
     setSubmitting(true);
+    setModalError(null);
     try {
       const res = await fetch(`/api/connections?platform=${disconnectModal.platform}`, { method: "DELETE" });
       if (res.ok) {
         setToast(`${disconnectModal.name} disconnected`);
         setDisconnectModal(null);
         await fetchPlatforms();
+      } else {
+        setModalError(`Couldn't disconnect ${disconnectModal.name}. It is still connected — try again.`);
       }
+    } catch {
+      setModalError("The request didn't go through. Check your connection and try again.");
     } finally {
       setSubmitting(false);
     }
   };
+
+  const modalErrorBanner = modalError ? (
+    <div
+      role="alert"
+      style={{
+        marginBottom: 16, padding: "10px 14px", borderRadius: 8, fontSize: 13,
+        background: "color-mix(in srgb, var(--cc-danger) 12%, transparent)",
+        border: "1px solid color-mix(in srgb, var(--cc-danger) 30%, transparent)",
+        color: "var(--cc-danger)",
+      }}
+    >
+      {modalError}
+    </div>
+  ) : null;
 
   const socialPlatforms = platforms.filter(p => p.category === "social");
   const messagingPlatforms = platforms.filter(p => p.category === "messaging");
@@ -118,14 +146,7 @@ export default function ConnectionsPage() {
   if (failed) {
     return (
       <div className="rsp-page">
-        <div className="rsp-header">
-          <div>
-            <h1 style={{ fontSize: 28, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Connections</h1>
-            <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>
-              Connect your platforms and payment providers
-            </p>
-          </div>
-        </div>
+        <PageHeader title="Connections" subtitle="Connect your platforms and payment providers" />
         <Card variant="outlined" style={{ padding: 32 }}>
           <EmptyState
             icon={<AlertTriangle size={32} color="var(--cc-text-subtle)" />}
@@ -194,19 +215,16 @@ export default function ConnectionsPage() {
         </div>
       )}
 
-      {/* Header */}
-      <div className="rsp-header">
-        <div>
-          <h1 style={{ fontSize: 28, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Connections</h1>
-          <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>
-            Record which platforms and providers your team uses
-          </p>
-        </div>
-        <div style={{ display: "flex", gap: 12 }}>
-          <Badge variant="neutral" size="sm">{connectedCount} connected</Badge>
-          <Badge variant="neutral" size="sm">{platforms.length - connectedCount} available</Badge>
-        </div>
-      </div>
+      <PageHeader
+        title="Connections"
+        subtitle="Record which platforms and providers your team uses"
+        actions={
+          <>
+            <Badge variant="neutral" size="sm">{connectedCount} connected</Badge>
+            <Badge variant="neutral" size="sm">{platforms.length - connectedCount} available</Badge>
+          </>
+        }
+      />
 
       {/* Social Platforms */}
       <div style={{ marginBottom: 32 }}>
@@ -245,10 +263,11 @@ export default function ConnectionsPage() {
       {connectModal && (
         <Modal
           open={true}
-          onClose={() => setConnectModal(null)}
+          onClose={() => { setConnectModal(null); setModalError(null); }}
           title={`Connect ${connectModal.name}`}
         >
           <div style={{ padding: 24 }}>
+            {modalErrorBanner}
             <p style={{ fontSize: 14, color: "var(--cc-text-muted)", marginBottom: 16 }}>
               Enter your account name or identifier for {connectModal.name}.
             </p>
@@ -259,7 +278,7 @@ export default function ConnectionsPage() {
               style={{ marginBottom: 16, width: "100%" }}
             />
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-              <Button variant="ghost" onClick={() => setConnectModal(null)}>Cancel</Button>
+              <Button variant="ghost" onClick={() => { setConnectModal(null); setModalError(null); }}>Cancel</Button>
               <Button variant="primary" onClick={handleConnect} disabled={submitting}>
                 {submitting ? "Connecting..." : "Connect"}
               </Button>
@@ -272,15 +291,16 @@ export default function ConnectionsPage() {
       {disconnectModal && (
         <Modal
           open={true}
-          onClose={() => setDisconnectModal(null)}
+          onClose={() => { setDisconnectModal(null); setModalError(null); }}
           title={`Disconnect ${disconnectModal.name}?`}
         >
           <div style={{ padding: 24 }}>
+            {modalErrorBanner}
             <p style={{ fontSize: 14, color: "var(--cc-text-muted)", marginBottom: 16 }}>
               Are you sure you want to disconnect {disconnectModal.name}? You can reconnect it later.
             </p>
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-              <Button variant="ghost" onClick={() => setDisconnectModal(null)}>Cancel</Button>
+              <Button variant="ghost" onClick={() => { setDisconnectModal(null); setModalError(null); }}>Cancel</Button>
               <Button
                 variant="primary"
                 onClick={handleDisconnect}

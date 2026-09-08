@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Input, Textarea, Card } from "@pratham7711/ui";
-import { Button } from "@/components/ds";
+import { PageHeader, Button } from "@/components/ds";
 import { FEATURES, type FeatureKey } from "@/lib/features";
 
 type PlanFormProps = {
@@ -66,14 +66,10 @@ export default function PlanForm({ initial }: PlanFormProps) {
 
   return (
     <div className="rsp-page page-enter" style={{ maxWidth: 640 }}>
-      <div style={{ marginBottom: 32 }}>
-        <h1 style={{ fontSize: 26, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>
-          {isEdit ? "Edit Plan" : "New Plan"}
-        </h1>
-        <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>
-          {isEdit ? "Update plan name, description, and features." : "Create a custom plan with feature toggles."}
-        </p>
-      </div>
+      <PageHeader
+        title={isEdit ? "Edit Plan" : "New Plan"}
+        subtitle={isEdit ? "Update plan name, description, and features." : "Create a custom plan with feature toggles."}
+      />
 
       {error && (
         <div style={{ marginBottom: 24, padding: "12px 16px", borderRadius: 10, fontSize: 14, background: "color-mix(in srgb, var(--cc-danger) 12%, transparent)", color: "var(--cc-danger)", border: "1px solid color-mix(in srgb, var(--cc-danger) 28%, transparent)" }}>

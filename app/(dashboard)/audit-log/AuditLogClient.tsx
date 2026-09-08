@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Search, RefreshCw, Filter, Download, Receipt } from "lucide-react";
-import { Dropdown, Pagination } from "@/components/ds";
+import { PageHeader, Dropdown, Pagination } from "@/components/ds";
 import { Card, EmptyState, LoadingSpinner } from "@pratham7711/ui";
 
 type AuditLogItem = {
@@ -118,16 +118,11 @@ export default function AuditLogClient({
   return (
     <div className="rsp-page page-enter">
       <style>{`.audit-filters{display:grid;grid-template-columns:minmax(0,1fr);gap:12px}@media(min-width:768px){.audit-filters{grid-template-columns:1.2fr 1fr 1.4fr auto}}`}</style>
-      <div className="rsp-header">
-        <div>
-          <h1 style={{ fontSize: 26, fontWeight: 800, color: "var(--cc-text)", marginBottom: 4 }}>
-            Audit Log
-          </h1>
-          <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>
-            Track changes across your organization
-          </p>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+      <PageHeader
+        title="Audit Log"
+        subtitle="Track changes across your organization"
+        actions={
+          <>
           <span style={{ fontSize: 13, color: "var(--cc-text-muted)", display: "flex", alignItems: "center", gap: 6 }}>
             <Filter size={14} />
             {pagination.total} events
@@ -162,8 +157,9 @@ export default function AuditLogClient({
             <Download size={14} />
             Export CSV
           </a>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       <Card variant="outlined" noPadding>
         <div className="audit-filters" style={{ padding: 16, borderBottom: "1px solid var(--cc-border)" }}>

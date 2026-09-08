@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { Card, Badge, Skeleton, EmptyState } from "@pratham7711/ui";
-import { Button } from "@/components/ds";
+import { PageHeader, Button } from "@/components/ds";
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from "lucide-react";
 import {
   startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval,
@@ -85,24 +85,24 @@ export default function CalendarPage() {
           .cal-more { display: block; }
         }
       `}</style>
-      <div className="rsp-header">
-        <div>
-          <h1 style={{ fontSize: 26, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Calendar</h1>
-          <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>Campaign schedule and deadlines</p>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-          <Button variant="ghost" size="sm" onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}>
-            <ChevronLeft size={16} />
-          </Button>
-          <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)", minWidth: 140, textAlign: "center" }}>
-            {format(currentMonth, "MMMM yyyy")}
-          </span>
-          <Button variant="ghost" size="sm" onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}>
-            <ChevronRight size={16} />
-          </Button>
-          <Button variant="secondary" size="sm" onClick={() => setCurrentMonth(new Date())}>Today</Button>
-        </div>
-      </div>
+      <PageHeader
+        title="Calendar"
+        subtitle="Campaign schedule and deadlines"
+        actions={
+          <>
+            <Button variant="ghost" size="sm" aria-label="Previous month" onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}>
+              <ChevronLeft size={16} />
+            </Button>
+            <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)", minWidth: 140, textAlign: "center" }}>
+              {format(currentMonth, "MMMM yyyy")}
+            </span>
+            <Button variant="ghost" size="sm" aria-label="Next month" onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}>
+              <ChevronRight size={16} />
+            </Button>
+            <Button variant="secondary" size="sm" onClick={() => setCurrentMonth(new Date())}>Today</Button>
+          </>
+        }
+      />
 
       {/* Legend */}
       <div style={{ display: "flex", gap: 16, marginBottom: 16, fontSize: 12, color: "var(--cc-text-muted)", flexWrap: "wrap" }}>
