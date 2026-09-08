@@ -134,8 +134,13 @@ describe("PATCH /api/activations/[id] — draft approval", () => {
 // ─── Creator portal: submit a draft ──────────────────────────────────────────
 
 describe("POST /api/portal/campaigns/[slug]/draft", () => {
+  /* marketplaceVisibility is load-bearing now: the route applies the same gate
+     as /api/portal/campaigns/[slug], so a campaign that is not GLOBAL 404s a
+     creator with no activation instead of reporting its deadline. See
+     __tests__/integration/portalCampaignWrites.test.ts for that gate. */
   const joinedCampaign = {
     id: "camp-1", orgId: "org-1", deletedAt: null, submissionDeadline: null,
+    marketplaceVisibility: "GLOBAL",
   };
 
   beforeEach(() => {
