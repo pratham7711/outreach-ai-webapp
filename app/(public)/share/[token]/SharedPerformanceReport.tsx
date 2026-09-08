@@ -8,7 +8,7 @@ import { BarChart3 } from "lucide-react";
 import { ChartFrame } from "@/components/ds";
 import type { SharedReportData } from "@/lib/reports/campaignPerformance";
 import { DEFAULT_SHARE_VISIBILITY, type ShareVisibility } from "@/lib/reports/shareVisibility";
-import { formatCompact } from "@/lib/format";
+import { formatCompact, formatCompactCurrency } from "@/lib/format";
 import { ACTIVATION_STATUS_LABEL, activationStatusBadgeStyle } from "@/lib/activationQueues";
 import { platformColor } from "@/app/(dashboard)/analytics/shared";
 import { BRAND, POWERED_BY } from "@/lib/brand";
@@ -43,13 +43,12 @@ function formatCurrency(n: number, currency = "USD"): string {
  * the right edge of the card, so per-row money is compacted to $1.1B and the
  * exact figure moves to the cell's title. The KPI tiles keep the full number —
  * they have the room, and a headline figure should not be rounded.
+ *
+ * formatCompactCurrency, not a hand-rolled prefix: the version here symbol-cased
+ * USD alone and appended the code for anything else, so a GBP campaign read
+ * "1.1B GBP" in the leaderboard while the tile directly above it read
+ * "£1,100,000,000.00". Intl knows every currency's symbol, so both now agree.
  */
-function formatCurrencyCompact(n: number, currency = "USD"): string {
-  const symbol = currency === "USD" ? "$" : "";
-  return symbol
-    ? `${symbol}${formatCompact(n)}`
-    : `${formatCompact(n)} ${currency}`;
-}
 
 function formatDate(iso: string): string {
   const d = new Date(iso + "T00:00:00Z");
@@ -476,7 +475,7 @@ export default function SharedPerformanceReport({
                               title={formatCurrency(row.emv, currency)}
                               style={{ fontSize: 13, fontWeight: 700, color: "var(--cc-primary)", whiteSpace: "nowrap" }}
                             >
-                              {formatCurrencyCompact(row.emv, currency)}
+                              {formatCompactCurrency(row.emv, currency)}
                             </span>
                           )}
 
