@@ -116,12 +116,15 @@ it('exports a measured zero for a counter something does fetch', async () => {
   expect(row.slice(-6, -4)).toEqual(['0', '0']);
 });
 
-it('omits creator columns when the link hides creators', async () => {
+const hiddenCreatorsLink = () =>
   mockDb.report.findUnique.mockResolvedValue({
     isPublic: true,
     config: { kind: 'campaign-performance', visibility: { showCreators: false, showEmv: true } },
     campaign: { id: 'camp-1', title: 'C', currency: 'USD' },
   });
+
+it('omits creator columns when the link hides creators', async () => {
+  hiddenCreatorsLink();
 
   const body = await (await call()).text();
   const header = body.trim().split('\r\n')[0];
@@ -129,6 +132,42 @@ it('omits creator columns when the link hides creators', async () => {
   expect(header).not.toContain('Creator');
   expect(body).not.toContain('Awx Yken');
   expect(body).not.toContain('awxyken');
+});
+
+it('drops the Post URL column too, header and cells, when creators are hidden', async () => {
+  // A post URL carries /@handle/ in its path, so it re-identifies every creator
+  // the link was set to hide -- which is why redactForShare nulls postUrl for
+  // exactly this case. The CSV has to make the same call or it becomes the way
+  // around the switch.
+  hiddenCreatorsLink();
+
+  const body = await (await call()).text();
+  const [header, row] = body.trim().split('\r\n');
+
+  expect(header).not.toContain('Post URL');
+  expect(body).not.toContain('tiktok.com');
+  // Platform, Posted, Views, Likes, Comments, Shares, Saves, Downloads, Last synced.
+  expect(header.replace(/^\uFEFF/, '').split(',')).toEqual([
+    'Platform',
+    'Posted',
+    'Views',
+    'Likes',
+    'Comments',
+    'Shares',
+    'Saves',
+    'Downloads',
+    'Last synced',
+  ]);
+  // Cells stay aligned with the header rather than leaving a hole.
+  expect(row.split(',')).toHaveLength(9);
+});
+
+it('keeps the Post URL column on a link that shows creators', async () => {
+  const body = await (await call()).text();
+  const [header, row] = body.trim().split('\r\n');
+
+  expect(header).toContain('Post URL');
+  expect(row).toContain('https://www.tiktok.com/@a/video/1');
 });
 
 it('refuses a revoked link', async () => {

@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { REPORTS_FEATURE_KEYS } from "@/lib/featureKeys";
 import { getOrgEntitlements, hasAnyOrgFeature } from "@/lib/entitlements";
 import { hasPermission } from "@/lib/rbac";
+import { findForeignRef } from "@/lib/tenantRefs";
 
 export async function GET(
   _request: NextRequest,
@@ -52,6 +53,15 @@ export async function PATCH(
 
   const body = await request.json();
   const { title, isPublic, config, campaignId } = body;
+
+  /* Re-pointing a report is the same cross-tenant write as creating one: the
+     report row is ours, the campaign it names need not be. Guarded here too so
+     PATCH cannot do what POST is stopped from doing. Null detaches, which is
+     not a foreign reference. */
+  if (campaignId) {
+    const foreign = await findForeignRef(orgId, { campaignId });
+    if (foreign) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
+  }
 
   const report = await db.report.update({
     where: { id },

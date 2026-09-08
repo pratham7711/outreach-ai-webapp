@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getCreatorSession } from "@/lib/creator-auth";
 import { parseRatePerThousand, earnedMinorForPost } from "@/lib/marketplace/earnings";
+import { PUBLIC_VISIBILITY } from "@/lib/marketplace/public";
 
 // GET /api/portal/campaigns/[slug] — detail for a joined marketplace campaign
 export async function GET(
@@ -58,6 +59,23 @@ export async function GET(
           },
         })
       : null;
+
+    /* marketplaceVisibility was selected and never read, so a campaign pulled
+       back to PRIVATE (or one that was only ever INVITE_ONLY) kept serving its
+       guidelines, per-platform rates, deadline and internal id to any logged-in
+       portal creator who had the slug — the reverse of the filter every other
+       public surface applies (lib/marketplace/public.ts, and the join gate in
+       lib/marketplace/join.ts).
+
+       Mirrored here, with the one difference the route's own purpose demands:
+       this is the detail page for a campaign the creator has JOINED, and a join
+       is legitimately possible on an INVITE_ONLY campaign with a code. Gating on
+       GLOBAL alone would 404 those creators out of work they are already doing —
+       so an existing activation is the second way through, and only that. A
+       stranger with a stale slug has neither. */
+    if (campaign.marketplaceVisibility !== PUBLIC_VISIBILITY && !activation) {
+      return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
+    }
 
     const rates = parseRatePerThousand(campaign.ratePerThousand);
 

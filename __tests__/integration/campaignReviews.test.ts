@@ -9,6 +9,7 @@ jest.mock("@/lib/db", () => ({
     campaign: { findFirst: jest.fn() },
     creatorReview: { findMany: jest.fn(), findFirst: jest.fn(), create: jest.fn() },
     creator: { findMany: jest.fn(), findFirst: jest.fn() },
+    creatorUser: { findFirst: jest.fn(), update: jest.fn() },
   },
 }));
 
@@ -51,6 +52,8 @@ beforeEach(() => {
   mockDb.creatorReview.findFirst.mockResolvedValue(null);
   mockDb.creatorReview.create.mockResolvedValue({ id: "rev-1", creatorId: "c1", rating: 4, tags: ["on_time"], comment: null, createdAt: new Date(), orgId: "org-1", campaignId: "camp-1" });
   mockDb.creator.findFirst.mockResolvedValue({ id: "c1", name: "Test Creator", handle: "@test", orgId: "org-1" });
+  mockDb.creatorUser.findFirst.mockResolvedValue({ id: "cu-1", handle: "@test" });
+  mockDb.creatorUser.update.mockResolvedValue({ id: "cu-1" });
 });
 
 describe("GET /api/campaigns/[id]/reviews", () => {
@@ -100,5 +103,38 @@ describe("POST /api/campaigns/[id]/reviews", () => {
   it("returns 400 for invalid rating (> 5)", async () => {
     const res = await postReview(makePostRequest("camp-1", { creatorId: "c1", rating: 6, tags: [], comment: "" }), params());
     expect(res.status).toBe(400);
+  });
+});
+
+describe("POST /api/campaigns/[id]/reviews — creator tenancy", () => {
+  it("404s when the body names a creator outside the caller's org, and writes nothing", async () => {
+    // The Creator row exists, but not in org-1, so the scoped lookup misses.
+    mockDb.creator.findFirst.mockResolvedValue(null);
+    const res = await postReview(
+      makePostRequest("camp-1", { creatorId: "creator-of-org-2", rating: 1, tags: [], comment: "bad" }),
+      params()
+    );
+    expect(res.status).toBe(404);
+    expect(mockDb.creatorReview.create).not.toHaveBeenCalled();
+    expect(mockDb.creator.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ id: "creator-of-org-2", orgId: "org-1", deletedAt: null }),
+      })
+    );
+  });
+
+  it("scopes the averageRating recount by orgId", async () => {
+    mockDb.creatorReview.findMany.mockResolvedValue([{ rating: 4 }, { rating: 2 }]);
+    const res = await postReview(
+      makePostRequest("camp-1", { creatorId: "c1", rating: 4, tags: [], comment: "" }),
+      params()
+    );
+    expect(res.status).toBe(201);
+    expect(mockDb.creatorReview.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { orgId: "org-1", creatorId: "c1" } })
+    );
+    expect(mockDb.creatorUser.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { averageRating: 3, reviewCount: 2 } })
+    );
   });
 });

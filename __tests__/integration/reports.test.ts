@@ -17,6 +17,11 @@ jest.mock("@/lib/db", () => ({
       update: jest.fn(),
       delete: jest.fn(),
     },
+    // findForeignRef reaches for this to prove a body-supplied campaignId
+    // belongs to the caller's org.
+    campaign: {
+      findFirst: jest.fn(),
+    },
   },
 }));
 
@@ -49,6 +54,9 @@ function makeRequest(url: string, options?: ConstructorParameters<typeof NextReq
 beforeEach(() => {
   jest.clearAllMocks();
   mockAuth.mockResolvedValue(authedSession);
+  // Default: a body-supplied campaignId belongs to the caller's org. The
+  // cross-org block below overrides this to null.
+  mockDb.campaign.findFirst.mockResolvedValue({ id: "camp-1" });
   mockGetOrgEntitlements.mockResolvedValue({
     planName: "pro",
     featureMap: {
@@ -459,5 +467,90 @@ describe("PATCH /api/reports/[id] RBAC", () => {
     );
     expect(res.status).toBe(403);
     expect(mockDb.report.update).not.toHaveBeenCalled();
+  });
+});
+
+// ─── Cross-org campaignId (the body is not a tenant boundary) ────────────────
+
+describe("report campaignId ownership", () => {
+  const foreignCampaignId = "camp-of-org-2";
+
+  beforeEach(() => {
+    mockDb.report.findUnique.mockResolvedValue(null);
+    // The campaign exists, but not in org-1 — so the scoped lookup misses.
+    mockDb.campaign.findFirst.mockResolvedValue(null);
+  });
+
+  it("POST refuses to create a report over another org's campaign", async () => {
+    const res = await POST(
+      makeRequest("http://localhost/api/reports", {
+        method: "POST",
+        body: JSON.stringify({ title: "Leak", campaignId: foreignCampaignId, isPublic: true }),
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+    expect(res.status).toBe(404);
+    expect(mockDb.report.create).not.toHaveBeenCalled();
+    expect(mockDb.campaign.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ id: foreignCampaignId, orgId: "org-1", deletedAt: null }),
+      })
+    );
+  });
+
+  it("POST still creates when the campaign is the caller's own", async () => {
+    mockDb.campaign.findFirst.mockResolvedValue({ id: "camp-1" });
+    mockDb.report.create.mockResolvedValue({ id: "rep-new", campaign: { id: "camp-1", title: "Mine" } });
+    const res = await POST(
+      makeRequest("http://localhost/api/reports", {
+        method: "POST",
+        body: JSON.stringify({ title: "Mine", campaignId: "camp-1" }),
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+    expect(res.status).toBe(201);
+    expect(mockDb.report.create).toHaveBeenCalled();
+  });
+
+  it("POST with no campaignId does not run the guard", async () => {
+    mockDb.report.create.mockResolvedValue({ id: "rep-new", campaign: null });
+    const res = await POST(
+      makeRequest("http://localhost/api/reports", {
+        method: "POST",
+        body: JSON.stringify({ title: "Standalone" }),
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+    expect(res.status).toBe(201);
+    expect(mockDb.campaign.findFirst).not.toHaveBeenCalled();
+  });
+
+  it("PATCH refuses to re-point an owned report at another org's campaign", async () => {
+    mockDb.report.findFirst.mockResolvedValue({ id: "rep-1", orgId: "org-1", title: "Q1" });
+    const res = await PATCH_REPORT(
+      makeRequest("http://localhost/api/reports/rep-1", {
+        method: "PATCH",
+        body: JSON.stringify({ campaignId: foreignCampaignId, isPublic: true }),
+        headers: { "Content-Type": "application/json" },
+      }),
+      { params: Promise.resolve({ id: "rep-1" }) } as any
+    );
+    expect(res.status).toBe(404);
+    expect(mockDb.report.update).not.toHaveBeenCalled();
+  });
+
+  it("PATCH allows detaching the campaign (null is not a foreign reference)", async () => {
+    mockDb.report.findFirst.mockResolvedValue({ id: "rep-1", orgId: "org-1", title: "Q1" });
+    mockDb.report.update.mockResolvedValue({ id: "rep-1", campaign: null });
+    const res = await PATCH_REPORT(
+      makeRequest("http://localhost/api/reports/rep-1", {
+        method: "PATCH",
+        body: JSON.stringify({ campaignId: null }),
+        headers: { "Content-Type": "application/json" },
+      }),
+      { params: Promise.resolve({ id: "rep-1" }) } as any
+    );
+    expect(res.status).toBe(200);
+    expect(mockDb.campaign.findFirst).not.toHaveBeenCalled();
   });
 });

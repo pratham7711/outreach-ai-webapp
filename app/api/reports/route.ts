@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { REPORTS_FEATURE_KEYS } from "@/lib/featureKeys";
 import { getOrgEntitlements, hasAnyOrgFeature } from "@/lib/entitlements";
 import { hasPermission } from "@/lib/rbac";
+import { findForeignRef } from "@/lib/tenantRefs";
 
 function slugify(text: string): string {
   return text
@@ -53,6 +54,15 @@ export async function POST(request: NextRequest) {
 
   if (!title || typeof title !== "string") {
     return NextResponse.json({ error: "Title is required" }, { status: 400 });
+  }
+
+  /* campaignId arrives in the body, and the row it is written onto is one this
+     org owns — so Prisma sees nothing wrong while the report joins another
+     tenant's campaign. A report can then be flipped public, which makes that
+     the leak. Same guard, and the same shared helper, as the campaign routes. */
+  if (campaignId) {
+    const foreign = await findForeignRef(orgId, { campaignId });
+    if (foreign) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
   }
 
   const baseSlug = slugify(title);

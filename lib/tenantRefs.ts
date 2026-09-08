@@ -19,9 +19,16 @@ export type TenantRefs = {
   folderId?: string | null;
   songId?: string | null;
   statusDefId?: string | null;
+  /**
+   * A report's subject campaign. Unlike the others this one is not merely a
+   * label on a page: a Report can be made public, and a report row pointing at
+   * another org's campaign turns that org's performance into a share link the
+   * pointing org controls.
+   */
+  campaignId?: string | null;
 };
 
-export type ForeignRef = "client" | "folder" | "song" | "status";
+export type ForeignRef = "client" | "folder" | "song" | "status" | "campaign";
 
 /**
  * Returns the first reference that does not belong to the org, or null when
@@ -57,6 +64,14 @@ export async function findForeignRef(orgId: string, refs: TenantRefs): Promise<F
       db.campaignStatusDef
         .findFirst({ where: { id: refs.statusDefId, orgId }, select: { id: true } })
         .then((row) => (row ? null : ("status" as const)))
+    );
+  }
+
+  if (refs.campaignId) {
+    checks.push(
+      db.campaign
+        .findFirst({ where: { id: refs.campaignId, orgId, deletedAt: null }, select: { id: true } })
+        .then((row) => (row ? null : ("campaign" as const)))
     );
   }
 

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomBytes } from "crypto";
 import { db } from "@/lib/db";
 import { authenticateRequest } from "@/lib/authenticate";
+import { campaignScopeWhereFor } from "@/lib/campaignScope";
 import {
   DEFAULT_SHARE_VISIBILITY,
   parseShareVisibility,
@@ -57,8 +58,12 @@ export async function GET(
   const { orgId } = result;
   const { id } = await params;
 
+  /* Row scope, same as GET /api/campaigns/[id]. Creating a public link to a
+     campaign is the strongest thing a seat can do with it, so an ASSIGNED seat
+     that cannot open the campaign must not be able to read, mint, retarget or
+     revoke its share link either. */
   const campaign = await db.campaign.findFirst({
-    where: { id, orgId, deletedAt: null },
+    where: { id, orgId, deletedAt: null, ...campaignScopeWhereFor(result) },
     select: { id: true },
   });
   if (!campaign) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
@@ -77,7 +82,7 @@ export async function POST(
   const { id } = await params;
 
   const campaign = await db.campaign.findFirst({
-    where: { id, orgId, deletedAt: null },
+    where: { id, orgId, deletedAt: null, ...campaignScopeWhereFor(result) },
     select: { id: true, title: true },
   });
   if (!campaign) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
@@ -133,7 +138,7 @@ export async function PATCH(
   const { id } = await params;
 
   const campaign = await db.campaign.findFirst({
-    where: { id, orgId, deletedAt: null },
+    where: { id, orgId, deletedAt: null, ...campaignScopeWhereFor(result) },
     select: { id: true },
   });
   if (!campaign) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
@@ -162,7 +167,7 @@ export async function DELETE(
   const { id } = await params;
 
   const campaign = await db.campaign.findFirst({
-    where: { id, orgId, deletedAt: null },
+    where: { id, orgId, deletedAt: null, ...campaignScopeWhereFor(result) },
     select: { id: true },
   });
   if (!campaign) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
