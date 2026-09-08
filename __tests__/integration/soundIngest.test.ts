@@ -188,3 +188,39 @@ describe("bodies it should not accept", () => {
     expect(res.status).toBe(400);
   });
 });
+
+/**
+ * A tiktokSoundId is TikTok's, not ours.
+ *
+ * Two agencies promoting the same release each own a TikTokSound row with the
+ * same tiktokSoundId. The Map keyed by that id alone kept whichever row came
+ * back last, so one org's tracker sat at "awaiting first reading" while the
+ * reading it needed was being written to the other org's row.
+ */
+describe("two orgs tracking the same sound", () => {
+  const orgA = { ...TRACKED, id: "sound-a", snapshots: [{ usesCount: 40 }] };
+  const orgB = { ...TRACKED, id: "sound-b", snapshots: [{ usesCount: 12 }] };
+
+  beforeEach(() => {
+    mockDb.tikTokSound.findMany.mockResolvedValue([orgA, orgB]);
+  });
+
+  it("writes the reading to every tracker row that holds the id", async () => {
+    const res = await POST(post({ readings: [{ tiktokSoundId: TRACKED.tiktokSoundId, usesCount: 45 }] }));
+
+    expect(await res.json()).toMatchObject({ recorded: 2, unknown: 0, skipped: 0 });
+    const written = mockDb.soundTrackerSnapshot.create.mock.calls.map((c: any[]) => c[0].data);
+    expect(written.map((w) => w.soundId).sort()).toEqual(["sound-a", "sound-b"]);
+    // Each org's delta is measured against its OWN previous reading.
+    expect(written.find((w) => w.soundId === "sound-a").deltaUses24h).toBe(5);
+    expect(written.find((w) => w.soundId === "sound-b").deltaUses24h).toBe(33);
+  });
+
+  it("reads rows by platform as well as id, so the two never merge", async () => {
+    await POST(post({ readings: [{ tiktokSoundId: TRACKED.tiktokSoundId, usesCount: 45 }] }));
+
+    expect(mockDb.tikTokSound.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ platform: "TIKTOK" }) })
+    );
+  });
+});
