@@ -16,6 +16,7 @@ import { PerformanceSection } from "./sections/PerformanceSection";
 import { ActivitySection } from "./sections/ActivitySection";
 import { GettingStarted } from "./sections/GettingStarted";
 import type { ActivityEvent, Campaign, PerformanceData } from "./types";
+import { PageHeader } from "@/components/ds";
 
 const DATE_PRESETS = [
   { label: "7D", days: 7 },
@@ -112,19 +113,15 @@ export default function DashboardClient(props: Props) {
 
   return (
     <div className="cc-page-content rsp-page">
-      <div className="mb-7 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-[26px] font-extrabold tracking-[-0.02em] text-foreground">
-            Dashboard
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {activePreset
-              ? `Your totals for the last ${activePreset.label.replace("D", " days").replace("M", " months").replace("Y", " year")}.`
-              : "Your totals at a glance."}
-          </p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
+      <PageHeader
+        title="Dashboard"
+        subtitle={
+          activePreset
+            ? `Your totals for the last ${activePreset.label.replace("D", " days").replace("M", " months").replace("Y", " year")}.`
+            : "Your totals at a glance."
+        }
+        actions={
+          <>
           <div
             role="group"
             aria-label="Date range"
@@ -170,8 +167,9 @@ export default function DashboardClient(props: Props) {
             <Download aria-hidden="true" className="size-3.5" />
             Export CSV
           </Button>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       <div className="mb-7 empty:mb-0">
         <GettingStarted />

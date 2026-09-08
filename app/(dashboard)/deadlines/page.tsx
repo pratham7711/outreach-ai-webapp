@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { Card, Badge, Skeleton, EmptyState } from "@pratham7711/ui";
-import { Button } from "@/components/ds";
+import { PageHeader, Button } from "@/components/ds";
 import { CalendarClock, AlertTriangle, CheckCircle2, Clock, CalendarOff, Edit2, X, Check } from "lucide-react";
 import { format, isAfter, isBefore, differenceInDays } from "date-fns";
 import { stripAt } from "@/lib/format";
@@ -209,13 +209,7 @@ export default function DeadlinesPage() {
 
   return (
     <div className="rsp-page">
-      {/* Header */}
-      <div className="rsp-header">
-        <div>
-          <h1 style={{ fontSize: 26, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Deadlines</h1>
-          <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>Track deliverable due dates across all campaigns</p>
-        </div>
-      </div>
+      <PageHeader title="Deadlines" subtitle="Track deliverable due dates across all campaigns" />
 
       {/* Stat Cards */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 16, marginBottom: 24 }}>

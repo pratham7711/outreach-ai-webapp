@@ -7,7 +7,7 @@ import CampaignComparison from "./CampaignComparison";
 import { PostingTimeHeatmap } from "./PostingTimeHeatmap";
 import { resolveTimeZone } from "@/lib/analytics/postingTime";
 import CreatorLeaderboard, { LeaderboardCreator } from "./CreatorLeaderboard";
-import { MetricTile, SectionCard } from "@/components/ds";
+import { PageHeader, MetricTile, SectionCard } from "@/components/ds";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -143,12 +143,10 @@ export default function AnalyticsPage() {
 
   return (
     <div className="rsp-page page-enter">
-      <div className="mb-6">
-        <h1 className="text-[26px] font-extrabold tracking-[-0.02em] text-foreground">Analytics</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          How every campaign and creator performed across your whole account.
-        </p>
-      </div>
+      <PageHeader
+        title="Analytics"
+        subtitle="How every campaign and creator performed across your whole account."
+      />
 
       <div className="mb-6 flex flex-wrap items-start gap-5">
         <PillGroup legend="Date range" options={RANGE_PRESETS} active={range} onChange={setRange} />

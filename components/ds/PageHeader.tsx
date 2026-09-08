@@ -13,6 +13,22 @@ export type PageHeaderProps = {
 };
 
 /**
+ * The page-title type ramp, on its own so it can be reached without the layout.
+ *
+ * Detail pages (campaign, creator, client, post, song) own their header row —
+ * a breadcrumb above it, an avatar or cover beside it, status badges on the
+ * same line — so they cannot render PageHeader itself. They took the h1 with
+ * them, which is how 20/22/26/28 at 700/800 happened in the first place. They
+ * spread this instead.
+ */
+export const PAGE_TITLE_STYLE: React.CSSProperties = {
+  fontSize: 26,
+  fontWeight: 800,
+  letterSpacing: "-0.02em",
+  color: "var(--cc-text)",
+};
+
+/**
  * The one page header. Before this existed the h1 was re-declared inline on every page
  * and had drifted to three sizes (26/28) and two weights (700/800), which reads as three
  * different products when a client clicks through the nav.
@@ -26,10 +42,7 @@ export function PageHeader({ title, subtitle, actions, meta, className, style }:
       <div style={{ minWidth: 0 }}>
         <h1
           style={{
-            fontSize: 26,
-            fontWeight: 800,
-            letterSpacing: "-0.02em",
-            color: "var(--cc-text)",
+            ...PAGE_TITLE_STYLE,
             marginBottom: 4,
             // Long campaign and list names are user data: clamp rather than push the
             // action buttons off the row.

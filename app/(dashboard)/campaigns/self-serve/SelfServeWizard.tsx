@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { ChevronLeft, ChevronRight, Check, Search, Users, Info } from "lucide-react";
 import { computeSelfServeBudget } from "@/lib/campaigns/selfServeBudget";
 import { stripAt, formatCompact } from "@/lib/format";
-import { Dropdown, Button } from "@/components/ds";
+import { PageHeader, Dropdown, Button } from "@/components/ds";
 
 type Currency = "USD" | "EUR" | "GBP" | "INR";
 type Platform = "TIKTOK" | "INSTAGRAM" | "YOUTUBE" | "TWITTER";
@@ -225,14 +225,10 @@ export default function SelfServeWizard({
 
   return (
     <div className="cc-page-content" style={{ maxWidth: 860, margin: "0 auto" }}>
-      <div style={{ marginBottom: 28 }}>
-        <h1 style={{ fontSize: 26, fontWeight: 800, color: "var(--cc-text)", letterSpacing: "-0.02em", marginBottom: 4 }}>
-          Self-serve campaign
-        </h1>
-        <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>
-          Set a budget, shortlist creators, and pay a flat platform fee. Invite &amp; negotiate from the campaign page.
-        </p>
-      </div>
+      <PageHeader
+        title="Self-serve campaign"
+        subtitle={<>Set a budget, shortlist creators, and pay a flat platform fee. Invite &amp; negotiate from the campaign page.</>}
+      />
 
       <div style={{ display: "flex", gap: 4, marginBottom: 8 }}>
         {STEPS.map((s, i) => (
