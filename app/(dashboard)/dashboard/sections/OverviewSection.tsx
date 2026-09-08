@@ -34,6 +34,15 @@ export function OverviewSection({
   const totalPosts = platforms.reduce((n, p) => n + p.postsCount, 0);
   const series = financials?.viewsOverTime ?? [];
 
+  /* The server-rendered fallbacks are org-wide totals, while both tiles are
+     labelled for the range picked above. Until the ranged numbers land the tile
+     therefore states a number that is not the one it claims to be — measured on
+     /dashboard as "512 active campaigns" and "1832 creators" for several seconds
+     before 8 and 1 replaced them. A placeholder is honest; a wrong number the
+     reader has already taken in is not. */
+  const pending = loading && !s;
+  const tileValue = (value: React.ReactNode) =>
+    pending ? <Skeleton className="block h-7 w-24 rounded-md" /> : value;
 
   return (
     <div className="flex flex-col gap-6">
@@ -42,7 +51,7 @@ export function OverviewSection({
           <MetricTile
 
             metric="activeCampaigns"
-            value={String(s ? s.activeCampaigns : fallbackCampaignCount)}
+            value={tileValue(String(s ? s.activeCampaigns : fallbackCampaignCount))}
           />
           {/* workspaceCreators, not campaignCreators: this is every creator
               booked anywhere in the workspace, counted once. The campaign
@@ -50,7 +59,7 @@ export function OverviewSection({
               different number on any account running more than one. */}
           <MetricTile
             metric="workspaceCreators"
-            value={String(s ? s.totalCreators : fallbackCreatorCount)}
+            value={tileValue(String(s ? s.totalCreators : fallbackCreatorCount))}
           />
           {/* Both come from the same platform rollup, so they are either
               genuinely measured together or genuinely absent together — and

@@ -6,11 +6,12 @@ import { render, screen } from "@testing-library/react";
 // Recharts measures a real layout box, which jsdom does not have. The point of these
 // tests is the frame ChartFrame draws around it, so the container is stubbed.
 jest.mock("recharts", () => ({
-  ResponsiveContainer: ({ children, minWidth, minHeight }: any) => (
+  ResponsiveContainer: ({ children, minWidth, minHeight, initialDimension }: any) => (
     <div
       data-testid="responsive-container"
       data-min-width={String(minWidth)}
       data-min-height={String(minHeight)}
+      data-initial-height={String(initialDimension?.height)}
     >
       {children}
     </div>
@@ -51,6 +52,11 @@ describe("ChartFrame", () => {
   it("sets min-width:0 so a flex or grid child can shrink", () => {
     render(<ChartFrame><div /></ChartFrame>);
     expect(frame().style.minWidth).toBe("0");
+  });
+
+  it("seeds the first measurement so Recharts never logs a -1 dimension", () => {
+    render(<ChartFrame height={240}><div /></ChartFrame>);
+    expect(screen.getByTestId("responsive-container")).toHaveAttribute("data-initial-height", "240");
   });
 
   it("does not let ResponsiveContainer impose its own default minimums", () => {

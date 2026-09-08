@@ -29,6 +29,7 @@ export function ChartFrame({
   style,
   children,
 }: ChartFrameProps) {
+  const floor = Math.max(height ?? 0, minHeight);
   return (
     <div
       data-chart-frame=""
@@ -39,11 +40,23 @@ export function ChartFrame({
         // leaves the chart wider than its track on narrow viewports.
         minWidth: 0,
         height: height ?? "100%",
-        minHeight: Math.max(height ?? 0, minHeight),
+        minHeight: floor,
         ...style,
       }}
     >
-      <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+      <ResponsiveContainer
+        width="100%"
+        height="100%"
+        minWidth={0}
+        minHeight={0}
+        // Recharts starts its measured size at {-1, -1} and only reads the real box in
+        // an effect, so the first render of any percentage-sized container logs "The
+        // width(-1) and height(-1) of chart should be greater than 0" (recharts 3.8.0,
+        // component/ResponsiveContainer.js — the guard passes if either dimension is
+        // positive). Seeding the height with the floor makes that first render valid;
+        // the ResizeObserver replaces it with the real box on mount.
+        initialDimension={{ width: -1, height: floor }}
+      >
         {children}
       </ResponsiveContainer>
     </div>
