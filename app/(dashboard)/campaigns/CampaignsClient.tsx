@@ -8,6 +8,7 @@ import { Card, Badge, Input, EmptyState, Avatar } from "@pratham7711/ui";
 import { PageHeader, StatusTabs, Pagination, FilterDrawer, FilterButton, Dropdown, useConfirm, Button } from "@/components/ds";
 import type { FilterDef, FilterValues } from "@/components/ds";
 import CampaignWizard from "@/components/modals/CampaignWizard";
+import { GettingStarted } from "@/components/onboarding/GettingStarted";
 import { formatCompactCurrency, timeAgo } from "@/lib/format";
 import { useListQuery } from "@/lib/useListQuery";
 import { CAMPAIGNS_PAGE_SIZE } from "@/lib/listPageSize";
@@ -644,6 +645,15 @@ export default function CampaignsClient({
           </>
         }
       />
+
+      {/* Sign-in lands here, not on /dashboard (lib/auth.config.ts), and the
+          getting-started checklist was mounted only there -- so the thing that
+          exists to walk a new org through its first campaign sat on a page a
+          new org had no reason to open. It hides itself once complete or
+          dismissed, so an established org sees nothing. */}
+      <div className="mb-5 empty:mb-0">
+        <GettingStarted />
+      </div>
 
       {/* Search + filters */}
       <div style={{ marginBottom: 20, display: "flex", gap: 10, alignItems: "flex-start" }}>

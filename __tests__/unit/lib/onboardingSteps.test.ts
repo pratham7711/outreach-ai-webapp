@@ -15,7 +15,7 @@ const EMPTY: OnboardingSnapshot = {
   postsTracked: 0,
   teamMembers: 1,
   pendingInvites: 0,
-  payouts: 0,
+  reports: 0,
 };
 
 function capabilities(metrics: Record<string, CapabilityStatus>): CapabilityReport {
@@ -64,6 +64,23 @@ describe("buildOnboardingSteps", () => {
     expect(step.body).toMatch(/not switched on/i);
   });
 
+  /* The last step used to be "Pay a creator" at /payouts — the one surface
+     NewSidebar.tsx says in as many words the product is not offering, and
+     deliberately unlinked from the nav. A first-run checklist that ends by
+     sending someone into a parked feature cannot be finished in good faith. */
+  it("ends on a step the product actually offers, not the parked payouts screen", () => {
+    const steps = buildOnboardingSteps(EMPTY, NO_METRICS);
+    expect(steps.map((s) => s.href)).not.toContain("/payouts");
+    expect(steps.at(-1)).toMatchObject({ key: "report", href: "/reports" });
+  });
+
+  it("marks the report step done once the org has one", () => {
+    const step = (reports: number) =>
+      buildOnboardingSteps({ ...EMPTY, reports }, NO_METRICS).find((s) => s.key === "report")!;
+    expect(step(0).done).toBe(false);
+    expect(step(1).done).toBe(true);
+  });
+
   it("names the platforms that actually collect metrics", () => {
     const report = capabilities({ instagram: "live", tiktok: "coming_soon" });
     const step = buildOnboardingSteps(EMPTY, report).find((s) => s.key === "post")!;
@@ -107,7 +124,7 @@ describe("onboardingProgress", () => {
       postsTracked: 1,
       teamMembers: 2,
       pendingInvites: 0,
-      payouts: 1,
+      reports: 1,
     };
     const progress = onboardingProgress(full, NO_METRICS);
     expect(progress.complete).toBe(true);
