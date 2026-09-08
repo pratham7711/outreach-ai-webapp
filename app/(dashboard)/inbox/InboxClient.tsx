@@ -4,6 +4,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { Avatar, Badge, Tag, EmptyState, Skeleton } from "@pratham7711/ui";
 import { Send, ArrowLeft, MessageSquare, Mail, AlertTriangle } from "lucide-react";
 import { PageHeader } from "@/components/ds";
+import { toast } from "sonner";
 
 const inboxStyles = `
   .inbox-panes {
@@ -186,7 +187,13 @@ export default function InboxClient() {
         setDraft("");
         await loadThread(activeId, true);
         await loadConversations();
+      } else {
+        // The draft is kept: clearing the box on a failed send loses what the
+        // sender wrote, and the empty thread reads as if it went out.
+        toast.error("That message didn't send. Your draft is still here.");
       }
+    } catch {
+      toast.error("That message didn't send. Your draft is still here.");
     } finally {
       setSending(false);
     }

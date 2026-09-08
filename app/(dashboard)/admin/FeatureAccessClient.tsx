@@ -8,6 +8,7 @@ import { Input, Badge, EmptyState, Card, Avatar } from "@pratham7711/ui";
 import ClientFeatureModal from "@/components/modals/ClientFeatureModal";
 import { FEATURES, type FeatureKey } from "@/lib/features";
 import { PageHeader, Dropdown, useConfirm, Button } from "@/components/ds";
+import { toast } from "sonner";
 
 const featureKeys = Object.keys(FEATURES) as FeatureKey[];
 
@@ -111,7 +112,13 @@ export default function FeatureAccessClient({ clients: initialClients, plans }: 
         setSelected(new Set());
         setBulkPlanId("");
         router.refresh();
+      } else {
+        // A rejected bulk write used to clear nothing and say nothing, so the
+        // selection stayed put and read as if the plan had been assigned.
+        toast.error("Couldn't assign the plan. No client was changed.");
       }
+    } catch {
+      toast.error("The request didn't go through. No client was changed.");
     } finally {
       setBulkSaving(false);
     }
@@ -139,7 +146,11 @@ export default function FeatureAccessClient({ clients: initialClients, plans }: 
       if (res.ok) {
         setSelected(new Set());
         router.refresh();
+      } else {
+        toast.error("Couldn't clear the overrides. No client was changed.");
       }
+    } catch {
+      toast.error("The request didn't go through. No client was changed.");
     } finally {
       setBulkSaving(false);
     }

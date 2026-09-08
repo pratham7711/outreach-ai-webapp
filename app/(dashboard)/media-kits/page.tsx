@@ -84,12 +84,27 @@ export default function MediaKitsPage() {
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
 
   async function togglePublic(kit: MediaKit) {
-    const res = await fetch(`/api/media-kits/${kit.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ isPublic: !kit.isPublic }),
-    });
-    if (res.ok) await fetchKits();
+    // Mirrors reports/page.tsx: a refused toggle used to leave the switch
+    // showing the old value with no explanation of why it snapped back.
+    try {
+      const res = await fetch(`/api/media-kits/${kit.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isPublic: !kit.isPublic }),
+      });
+      if (res.status === 403) {
+        setFeatureDisabled(true);
+        setError(null);
+        return;
+      }
+      if (!res.ok) {
+        setError("We couldn't change that media kit's visibility right now.");
+        return;
+      }
+      await fetchKits();
+    } catch {
+      setError("We couldn't change that media kit's visibility right now.");
+    }
   }
 
   async function copyShareLink(token: string) {
