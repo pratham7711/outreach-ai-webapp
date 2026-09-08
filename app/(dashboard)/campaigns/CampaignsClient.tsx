@@ -485,6 +485,7 @@ export default function CampaignsClient({
   sort,
   canDelete,
   statusDefs,
+  defaultCurrency,
 }: {
   campaigns: Campaign[];
   stats: { total: number; active: number; creatorCount: number };
@@ -504,6 +505,8 @@ export default function CampaignsClient({
   sort: CampaignSort;
   canDelete: boolean;
   statusDefs: StatusDef[];
+  /** Organization.currency, so a new campaign starts in the money the org bills in. */
+  defaultCurrency: string;
 }) {
   const [search, setSearch] = useState(q);
   const [showModal, setShowModal] = useState(false);
@@ -856,7 +859,13 @@ export default function CampaignsClient({
         onSelect={(next) => push({ folderId: next, page: null })}
       />
 
-      {showModal && <CampaignWizard clients={clients} onClose={() => setShowModal(false)} />}
+      {showModal && (
+        <CampaignWizard
+          clients={clients}
+          defaultCurrency={defaultCurrency}
+          onClose={() => setShowModal(false)}
+        />
+      )}
     </div>
   );
 }

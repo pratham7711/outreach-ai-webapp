@@ -27,7 +27,7 @@ type WizardForm = {
   // Step 2 — Payout
   payoutModel: PayoutModel;
   budget: string;
-  currency: "USD" | "EUR" | "GBP" | "INR";
+  currency: WizardCurrency;
   paymentMode: "MANAGED" | "SELF_MANAGED";
   ratePerPost: string;
   maxPosts: string;
@@ -100,7 +100,30 @@ const cardOptionStyle = (selected: boolean) => ({
   transition: "all 0.15s",
 });
 
-export default function CampaignWizard({ clients, onClose }: { clients: Client[]; onClose: () => void }) {
+const CURRENCIES = ["USD", "EUR", "GBP", "INR"] as const;
+type WizardCurrency = (typeof CURRENCIES)[number];
+
+/** The org's own currency, or USD when it is missing or something we cannot
+ *  offer. Same narrowing the self-serve wizard does with its defaultCurrency. */
+function resolveCurrency(value: string | undefined | null): WizardCurrency {
+  return (CURRENCIES as readonly string[]).includes(value ?? "")
+    ? (value as WizardCurrency)
+    : "USD";
+}
+
+export default function CampaignWizard({
+  clients,
+  defaultCurrency,
+  onClose,
+}: {
+  clients: Client[];
+  /* Organization.currency. Hardcoding USD here meant an agency that bills in
+     INR got a USD campaign every time and had to change it on the last step,
+     for every campaign -- and the budget chip on the list reads whatever was
+     stored. app/(dashboard)/campaigns/self-serve/page.tsx already reads it. */
+  defaultCurrency?: string;
+  onClose: () => void;
+}) {
   const router = useRouter();
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -114,7 +137,7 @@ export default function CampaignWizard({ clients, onClose }: { clients: Client[]
     audioUrl: "",
     payoutModel: "fixed",
     budget: "",
-    currency: "USD",
+    currency: resolveCurrency(defaultCurrency),
     paymentMode: "SELF_MANAGED",
     ratePerPost: "",
     maxPosts: "",
@@ -417,7 +440,7 @@ export default function CampaignWizard({ clients, onClose }: { clients: Client[]
                 fullWidth
                 value={form.currency}
                 onChange={(v) => set({ currency: v as WizardForm["currency"] })}
-                options={["USD", "EUR", "GBP", "INR"].map((c) => ({ value: c, label: c }))}
+                options={CURRENCIES.map((c) => ({ value: c, label: c }))}
               />
             </div>
           </div>
