@@ -7,7 +7,13 @@ import { authenticateRequest } from "@/lib/authenticate";
 import { campaignScopeWhereFor } from "@/lib/campaignScope";
 import { computeCampaignPerformance } from "@/lib/reports/campaignPerformance";
 import { CampaignPerformancePDF } from "@/lib/reports/CampaignPerformancePDF";
-import { computeCampaignEmv, computeEngagementRate, sumEngagements } from "@/lib/metrics";
+import { computeCampaignEmv, emvLabel } from "@/lib/metrics";
+import {
+  engagementRateValue,
+  fieldMetricValue,
+  rollupEngagement,
+  unwrittenMetricValue,
+} from "@/lib/metricDisplay";
 
 type Format = "xlsx" | "csv" | "pdf";
 type Cell = string | number;
@@ -85,7 +91,10 @@ export async function GET(
           commentsCount: true,
           sharesCount: true,
           savesCount: true,
+          downloadsCount: true,
           engagementRate: true,
+          lastSyncedAt: true,
+          platformMetrics: true,
           creator: { select: { id: true, name: true, handle: true, platform: true } },
         },
         orderBy: { postedAt: "desc" },
@@ -101,6 +110,18 @@ export async function GET(
     ]);
 
     const { kpis } = performance;
+
+    /* One distinct-creator set, used by the Summary count and the Creators
+       sheet alike. They were two different answers: the count was
+       activations.length while the sheet was the union of activation creators
+       and post creators, so an imported campaign -- which has no activations at
+       all -- reported "Creators 0" above a sheet listing fourteen of them. */
+    const creatorIds = Array.from(
+      new Set<string>([
+        ...activations.map((a) => a.creator.id),
+        ...posts.map((p) => p.creator.id),
+      ])
+    );
 
     const summary: Section = {
       name: "Summary",
@@ -120,9 +141,9 @@ export async function GET(
         ["Engagements", kpis.engagements ?? ""],
         ["Engagement Rate %", kpis.engagementRate !== null ? +(kpis.engagementRate * 100).toFixed(2) : ""],
 
-        ["EMV", kpis.emv],
+        [emvLabel(performance.currency), kpis.emv],
         ["Posts", posts.length],
-        ["Creators", activations.length],
+        ["Creators", creatorIds.length],
         [],
         ["Platform", "Posts", "Views"],
         ...performance.platformSplit.map((p) => [p.platform, p.posts, p.views] as Cell[]),
@@ -146,44 +167,55 @@ export async function GET(
           "Saves",
           "Engagement Rate %",
         ],
-        ...posts.map((p) => [
-          day(p.postedAt),
-          p.creator.name,
-          p.creator.handle,
-          p.platform,
-          p.status,
-          p.postUrl,
-          p.viewsCount,
-          p.likesCount,
-          p.commentsCount,
-          p.sharesCount,
-          p.savesCount,
-          +(p.engagementRate * 100).toFixed(2),
-        ] as Cell[]),
+        /* Provenance, the same way the Posts tab and the share export apply it:
+           a counter nobody ever fetched is an empty cell, not a measured zero.
+           Post.engagementRate is ALREADY a percent (lib/sync/syncPost writes it
+           as one), so the x100 this row used to do printed 428% for a 4.28%
+           post -- and disagreed with the Summary sheet directly above it. */
+        ...posts.map((p) => {
+          const likes = fieldMetricValue(p.likesCount, p.lastSyncedAt, p.platformMetrics, "likes");
+          const comments = fieldMetricValue(
+            p.commentsCount,
+            p.lastSyncedAt,
+            p.platformMetrics,
+            "comments"
+          );
+          const rate =
+            likes === null && comments === null
+              ? null
+              : engagementRateValue(p.likesCount, p.commentsCount, p.viewsCount, p.lastSyncedAt) ??
+                p.engagementRate;
+          return [
+            day(p.postedAt),
+            p.creator.name,
+            p.creator.handle,
+            p.platform,
+            p.status,
+            p.postUrl,
+            // Views are always real -- every import carried them, so no
+            // provenance test here, exactly as the share export does it.
+            p.viewsCount,
+            likes ?? "",
+            comments ?? "",
+            fieldMetricValue(p.sharesCount, p.lastSyncedAt, p.platformMetrics, "shares") ?? "",
+            // Nothing here writes saves, so a sync stamp does not vouch for a 0.
+            unwrittenMetricValue(p.savesCount) ?? "",
+            rate === null ? "" : +rate.toFixed(2),
+          ] as Cell[];
+        }),
       ],
     };
 
-    const creatorIds = new Set<string>([
-      ...activations.map((a) => a.creator.id),
-      ...posts.map((p) => p.creator.id),
-    ]);
-    const creatorRows = Array.from(creatorIds).map((creatorId) => {
+    const creatorRows = creatorIds.map((creatorId) => {
       const activation = activations.find((a) => a.creator.id === creatorId);
       const creatorPosts = posts.filter((p) => p.creator.id === creatorId);
       const meta = activation?.creator ?? creatorPosts[0].creator;
       const views = creatorPosts.reduce((s, p) => s + p.viewsCount, 0);
-      const engagements = creatorPosts.reduce(
-        (s, p) =>
-          s +
-          sumEngagements({
-            likes: p.likesCount,
-            comments: p.commentsCount,
-            shares: p.sharesCount,
-            saves: p.savesCount,
-          }),
-        0
-      );
-      const rate = views > 0 ? computeEngagementRate({ views, likes: engagements }) : null;
+      /* rollupEngagement, not a bare sum: it is the product's one definition of
+         the rate and it drops posts nobody measured from both the numerator and
+         the denominator. Summing every post's counters here rated an imported
+         creator at 0.0% against the dashboard's real figure. */
+      const { engagements, rate } = rollupEngagement(creatorPosts);
       const emv = computeCampaignEmv(
         creatorPosts.map((p) => ({
           platform: p.platform,
@@ -202,7 +234,7 @@ export async function GET(
         day(activation?.deliverableDueDate),
         creatorPosts.length,
         views,
-        engagements,
+        engagements ?? "",
         rate !== null ? +(rate * 100).toFixed(2) : "",
         emv,
       ] as Cell[];
@@ -222,7 +254,7 @@ export async function GET(
           "Views",
           "Engagements",
           "Engagement Rate %",
-          "EMV",
+          emvLabel(performance.currency),
         ],
         ...creatorRows,
       ],
