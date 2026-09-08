@@ -274,6 +274,11 @@ export default function TrackersPage() {
     const raw = urlInput.trim();
     if (!raw) return null;
     const parsed = parseSoundUrl(raw);
+    // Parseable and still refused: nothing reads Instagram audio, so the route
+    // 400s rather than parking a tracker that never gets a reading.
+    if (parsed.kind === "sound" && parsed.platform === "INSTAGRAM") {
+      return SOUND_URL_ERRORS.instagram_unsupported;
+    }
     if (parsed.kind === "sound" || parsed.kind === "short-link") return null;
     const reason = parsed.kind === "video" ? "video_url" : parsed.reason;
     return SOUND_URL_ERRORS[reason] ?? SOUND_URL_ERRORS.unrecognised;
@@ -727,12 +732,12 @@ export default function TrackersPage() {
       }>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <label htmlFor="sound-url" style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>
-            TikTok or Instagram sound link
+            TikTok sound link
           </label>
           <Input
             id="sound-url"
             autoFocus
-            placeholder="tiktok.com/music/... or instagram.com/reels/audio/..."
+            placeholder="tiktok.com/music/..."
             value={urlInput}
             onChange={(e) => setUrlInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter" && !clientError && urlInput.trim()) handleCreate(); }}
@@ -745,9 +750,9 @@ export default function TrackersPage() {
             </div>
           ) : (
             <div id="sound-url-help" style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>
-              Open the sound&apos;s own page — on TikTok tap the spinning record on any video (or
-              the sound name at the bottom); on Instagram tap the audio name under a reel — then
-              copy that link. The title and artwork fill in automatically after the first reading.
+              Open the sound&apos;s own page — tap the spinning record on any video, or the sound
+              name at the bottom — then copy that link. The title and artwork fill in
+              automatically after the first reading. Instagram audio is not supported yet.
             </div>
           )}
         </div>

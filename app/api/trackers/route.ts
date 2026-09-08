@@ -237,6 +237,17 @@ export async function POST(req: NextRequest) {
         );
       }
 
+      /* No reader can serve this row, so refusing it is the honest answer.
+         The column and the parser stay — existing Instagram rows are left
+         alone — but a new one would be a tracker that never reads and still
+         costs a plan slot. See SOUND_URL_ERRORS.instagram_unsupported. */
+      if (result.platform === "INSTAGRAM") {
+        return NextResponse.json(
+          { error: "instagram_unsupported", message: SOUND_URL_ERRORS.instagram_unsupported },
+          { status: 400 }
+        );
+      }
+
       tiktokSoundId = result.tiktokSoundId;
       platform = result.platform;
       // Marked provisional wherever it is shown; the first reading replaces it

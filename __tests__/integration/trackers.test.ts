@@ -172,6 +172,29 @@ describe("POST /api/trackers", () => {
     expect(res.status).toBe(400);
   });
 
+  /**
+   * Instagram audio parses and is then refused.
+   *
+   * Both readers (lib/sounds/snapshot and the hourly cron) ignore `platform`
+   * and query TikTok, so an Instagram row would sit at "awaiting first reading"
+   * forever while holding a plan slot. Accepting it was worse than saying no.
+   */
+  it("refuses an Instagram audio link with a message that says why", async () => {
+    mockDb.tikTokSound.findFirst.mockResolvedValue(null);
+    const req = makeRequest("http://localhost/api/trackers", {
+      method: "POST",
+      body: JSON.stringify({ url: "https://www.instagram.com/reels/audio/1234567890123456/" }),
+    });
+
+    const res = await postTracker(req);
+
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toBe("instagram_unsupported");
+    expect(body.message).toMatch(/Instagram audio tracking is not supported yet/);
+    expect(mockDb.tikTokSound.create).not.toHaveBeenCalled();
+  });
+
   /* The free tier allows 0 trackers, and 0 is exactly the value a falsy check
      swallows. If `?? Infinity` ever becomes `|| Infinity`, or the gate becomes
      `if (maxTrackers)`, the free tier silently turns unlimited and these are
