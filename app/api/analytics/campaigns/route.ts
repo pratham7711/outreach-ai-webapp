@@ -3,12 +3,9 @@ import { db } from "@/lib/db";
 import { READ_CACHE_HEADERS } from "@/lib/http/readCache";
 import { authenticateRequest } from "@/lib/authenticate";
 import { carryForwardViewsByDay } from "@/lib/analytics/viewsSeries";
-import {
-  computeCampaignEmv,
-  computeEngagementRate,
-  sumEngagements,
-  campaignVsOrgAverage,
-} from "@/lib/metrics";
+import { computeCampaignEmv, campaignVsOrgAverage } from "@/lib/metrics";
+import { rollupEngagement } from "@/lib/metricDisplay";
+import type { EngagementRatePost } from "@/lib/metricDisplay";
 
 const PLATFORMS = ["TIKTOK", "INSTAGRAM", "YOUTUBE", "TWITTER"] as const;
 
@@ -69,6 +66,7 @@ export async function GET(req: NextRequest) {
         commentsCount: true,
         sharesCount: true,
         savesCount: true,
+        lastSyncedAt: true,
         snapshots: {
           where: from ? { recordedAt: { gte: from } } : undefined,
           select: { recordedAt: true, viewsCount: true },
@@ -86,26 +84,29 @@ export async function GET(req: NextRequest) {
         commentsCount: true,
         sharesCount: true,
         savesCount: true,
+        lastSyncedAt: true,
       },
     }),
   ]);
 
+  /* Views are a plain total -- every import carried them. Engagement is NOT:
+     rollupEngagement is the product's one definition of the rate, and it needs
+     the posts themselves, not a running sum, because it drops the posts nobody
+     ever measured before dividing. This route used to call computeEngagementRate
+     on the sums, which counts an unfetched post's views in the denominator
+     against the zeroes it never earned -- an imported campaign's real 6% came
+     out near 0.4%, disagreeing with the same campaign's Performance tab and the
+     client report it was sent. */
   type CampAgg = {
     views: number;
-    likes: number;
-    comments: number;
-    shares: number;
-    saves: number;
+    ratePosts: EngagementRatePost[];
     emvPosts: { platform: string; views: number; likes: number; comments: number; shares: number; saves: number }[];
   };
-  const emptyAgg = (): CampAgg => ({ views: 0, likes: 0, comments: 0, shares: 0, saves: 0, emvPosts: [] });
+  const emptyAgg = (): CampAgg => ({ views: 0, ratePosts: [], emvPosts: [] });
 
-  function pushPost(agg: CampAgg, p: { platform: string; viewsCount: number; likesCount: number; commentsCount: number; sharesCount: number; savesCount: number }) {
+  function pushPost(agg: CampAgg, p: { platform: string; viewsCount: number; likesCount: number; commentsCount: number; sharesCount: number; savesCount: number; lastSyncedAt: Date | null }) {
     agg.views += p.viewsCount;
-    agg.likes += p.likesCount;
-    agg.comments += p.commentsCount;
-    agg.shares += p.sharesCount;
-    agg.saves += p.savesCount;
+    agg.ratePosts.push(p);
     agg.emvPosts.push({
       platform: p.platform,
       views: p.viewsCount,
@@ -123,8 +124,10 @@ export async function GET(req: NextRequest) {
   }
   const orgEmvValues = Object.values(orgByCampaign).map((a) => computeCampaignEmv(a.emvPosts));
   const orgViewValues = Object.values(orgByCampaign).map((a) => a.views);
-  const orgEngRateValues = Object.values(orgByCampaign).map((a) =>
-    computeEngagementRate({ views: a.views, likes: a.likes, comments: a.comments, shares: a.shares, saves: a.saves })
+  /* The org distribution a campaign is compared against has to be measured the
+     same way the campaign is, or "above average" means nothing. */
+  const orgEngRateValues = Object.values(orgByCampaign).map(
+    (a) => rollupEngagement(a.ratePosts).rate
   );
 
   const selByCampaign: Record<string, CampAgg> = {};
@@ -139,16 +142,15 @@ export async function GET(req: NextRequest) {
 
   const comparison = campaignIds.map((id) => {
     const a = selByCampaign[id];
-    const engagements = sumEngagements({ likes: a.likes, comments: a.comments, shares: a.shares, saves: a.saves });
-    const engRate = computeEngagementRate({
-      views: a.views, likes: a.likes, comments: a.comments, shares: a.shares, saves: a.saves,
-    });
+    // One call, so the reported engagements are the rate's own numerator rather
+    // than a wider sum that happens to sit next to it.
+    const { engagements, rate: engRate } = rollupEngagement(a.ratePosts);
     const emv = computeCampaignEmv(a.emvPosts);
     return {
       id,
       title: titleById[id] ?? "Untitled",
       views: a.views,
-      engagements,
+      engagements: engagements ?? 0,
       engagementRate: engRate ?? 0,
       emv,
       viewsVsOrg: campaignVsOrgAverage({ campaignValue: a.views, orgValues: orgViewValues }),

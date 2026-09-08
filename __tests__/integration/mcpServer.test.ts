@@ -185,7 +185,11 @@ describe("POST /api/mcp", () => {
   it("returns KPIs from get_org_kpis", async () => {
     mockDb.post.aggregate
       .mockResolvedValueOnce({ _sum: { viewsCount: 30000 }, _count: { _all: 2 } })
-      .mockResolvedValueOnce({ _avg: { engagementRate: 4 }, _count: { _all: 2 } });
+      // 1,200 engagements over 30,000 measured views = 4.00%.
+      .mockResolvedValueOnce({
+        _sum: { viewsCount: 30000, likesCount: 1000, commentsCount: 100, sharesCount: 100, savesCount: 0 },
+        _count: { _all: 2 },
+      });
     mockDb.payout.aggregate.mockResolvedValue({ _sum: { amount: 800 }, _count: { _all: 2 } });
 
     const kpis = await callKpis();
@@ -203,7 +207,10 @@ describe("POST /api/mcp", () => {
     // no payout at all. Both inputs are still returned; the ratio is not.
     mockDb.post.aggregate
       .mockResolvedValueOnce({ _sum: { viewsCount: 30000 }, _count: { _all: 2 } })
-      .mockResolvedValueOnce({ _avg: { engagementRate: 4 }, _count: { _all: 2 } });
+      .mockResolvedValueOnce({
+        _sum: { viewsCount: 30000, likesCount: 1000, commentsCount: 100, sharesCount: 100, savesCount: 0 },
+        _count: { _all: 2 },
+      });
     mockDb.payout.aggregate.mockResolvedValue({ _sum: { amount: 800 }, _count: { _all: 1 } });
 
     const kpis = await callKpis();
@@ -214,7 +221,10 @@ describe("POST /api/mcp", () => {
   it("reports null, not zero, for figures nothing was measured for", async () => {
     mockDb.post.aggregate
       .mockResolvedValueOnce({ _sum: { viewsCount: null }, _count: { _all: 0 } })
-      .mockResolvedValueOnce({ _avg: { engagementRate: null }, _count: { _all: 0 } });
+      .mockResolvedValueOnce({
+        _sum: { viewsCount: null, likesCount: null, commentsCount: null, sharesCount: null, savesCount: null },
+        _count: { _all: 0 },
+      });
     mockDb.payout.aggregate.mockResolvedValue({ _sum: { amount: null }, _count: { _all: 0 } });
 
     const kpis = await callKpis();
@@ -229,7 +239,10 @@ describe("POST /api/mcp", () => {
   it("counts in the database instead of reading every post row", async () => {
     mockDb.post.aggregate
       .mockResolvedValueOnce({ _sum: { viewsCount: 1 }, _count: { _all: 1 } })
-      .mockResolvedValueOnce({ _avg: { engagementRate: 1 }, _count: { _all: 1 } });
+      .mockResolvedValueOnce({
+        _sum: { viewsCount: 100, likesCount: 1, commentsCount: 0, sharesCount: 0, savesCount: 0 },
+        _count: { _all: 1 },
+      });
     mockDb.payout.aggregate.mockResolvedValue({ _sum: { amount: 0 }, _count: { _all: 0 } });
 
     await callKpis();

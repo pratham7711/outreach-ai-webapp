@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { READ_CACHE_HEADERS } from "@/lib/http/readCache";
 import { authenticateRequest } from "@/lib/authenticate";
-import { computeCampaignEmv, computeEngagementRate, sumEngagements } from "@/lib/metrics";
+import { computeCampaignEmv } from "@/lib/metrics";
+import { MEASURED_POSTS_FILTER, rollupEngagementFromTotals } from "@/lib/metricDisplay";
 import type { Prisma } from "@/lib/generated/prisma/client";
 import { PLATFORM_VALUES } from "@/lib/platforms/constants";
 
@@ -101,10 +102,11 @@ export async function GET(req: NextRequest) {
 
   const [
     kpiRow,
-    engagementRow,
+    measuredRow,
     monthRows,
     slotRows,
     creatorPlatformRows,
+    creatorMeasuredRows,
     creatorCampaignPairs,
     platformRows,
     orgCampaigns,
@@ -115,15 +117,30 @@ export async function GET(req: NextRequest) {
         _sum: { viewsCount: true, likesCount: true, commentsCount: true },
         _count: { _all: true },
       }),
-      // engagementRate is 0 on 18,602 of 18,708 imported posts — CreatorCore's
-      // export carried views but no likes, comments, shares or saves, so the
-      // rate could not be computed and cannot be derived here either. Averaging
-      // those in reported 0.05% for a roster whose measured posts run near 1%,
-      // so the average covers only the posts that were actually measured and
-      // the response says how many that is.
+      /* The org's engagement rate, by the product's one definition:
+         (likes + comments + shares + saves) / views over MEASURED posts.
+
+         It was a mean of Post.engagementRate over the rows carrying one, which
+         is a different number three ways over. Post.engagementRate is written
+         as (likes + comments) / views -- two terms, not four. A mean of
+         per-post rates is not the campaign's rate: a 12-view post at 50%
+         outweighs a 400k-view post at 2%. And `engagementRate > 0` is a
+         narrower sample than "measured": a post we fetched that genuinely got
+         no engagement was excluded from its own denominator.
+
+         Still counted in the database -- rollupEngagementFromTotals is the same
+         ratio taken over sums, so no post row is read. engagementRate is 0 on
+         18,602 of 18,708 imported posts, which is why the sample is reported
+         beside the rate rather than the rate being quietly diluted. */
       db.post.aggregate({
-        where: { ...postWhere, engagementRate: { gt: 0 } },
-        _avg: { engagementRate: true },
+        where: { ...postWhere, ...MEASURED_POSTS_FILTER },
+        _sum: {
+          viewsCount: true,
+          likesCount: true,
+          commentsCount: true,
+          sharesCount: true,
+          savesCount: true,
+        },
         _count: { _all: true },
       }),
       // Month bucketing is the one thing Prisma groupBy cannot express.
@@ -166,6 +183,22 @@ export async function GET(req: NextRequest) {
       db.post.groupBy({
         by: ["creatorId", "platform"],
         where: postWhere,
+        _sum: {
+          viewsCount: true,
+          likesCount: true,
+          commentsCount: true,
+          sharesCount: true,
+          savesCount: true,
+        },
+        _count: { _all: true },
+      }),
+      /* A second pass over the measured posts only, because the leaderboard's
+         engagement rate is the same definition as the KPI above it. The rollup
+         beside it (views, posts, EMV) legitimately counts every post -- views
+         were always measured -- so the two cannot come from one groupBy. */
+      db.post.groupBy({
+        by: ["creatorId"],
+        where: { ...postWhere, ...MEASURED_POSTS_FILTER },
         _sum: {
           viewsCount: true,
           likesCount: true,
@@ -247,6 +280,20 @@ export async function GET(req: NextRequest) {
     campaignsPerCreator.set(pair.creatorId, (campaignsPerCreator.get(pair.creatorId) ?? 0) + 1);
   }
 
+  const measuredByCreator = new Map(
+    creatorMeasuredRows.map((row) => [
+      row.creatorId,
+      rollupEngagementFromTotals({
+        measuredPosts: row._count._all,
+        viewsCount: row._sum.viewsCount,
+        likesCount: row._sum.likesCount,
+        commentsCount: row._sum.commentsCount,
+        sharesCount: row._sum.sharesCount,
+        savesCount: row._sum.savesCount,
+      }),
+    ])
+  );
+
   // Rank first, then fetch profiles — only the visible 20 creators are read.
   const ranked = [...totals.entries()].sort((a, b) => b[1].views - a[1].views).slice(0, LEADERBOARD_SIZE);
   const profiles = ranked.length
@@ -270,17 +317,19 @@ export async function GET(req: NextRequest) {
       views: t.views,
       likes: t.likes,
       posts: t.posts,
-      engagements: sumEngagements({ likes: t.likes, comments: t.comments, shares: t.shares, saves: t.saves }),
-      engagementRate:
-        computeEngagementRate({
-          views: t.views,
-          likes: t.likes,
-          comments: t.comments,
-          shares: t.shares,
-          saves: t.saves,
-        }) ?? 0,
+      engagements: measuredByCreator.get(creatorId)?.engagements ?? 0,
+      engagementRate: measuredByCreator.get(creatorId)?.rate ?? 0,
       emv: computeCampaignEmv(t.emvInputs),
     };
+  });
+
+  const orgEngagement = rollupEngagementFromTotals({
+    measuredPosts: measuredRow._count._all,
+    viewsCount: measuredRow._sum.viewsCount,
+    likesCount: measuredRow._sum.likesCount,
+    commentsCount: measuredRow._sum.commentsCount,
+    sharesCount: measuredRow._sum.sharesCount,
+    savesCount: measuredRow._sum.savesCount,
   });
 
   const platformBreakdown = platformRows.map((row) => ({
@@ -295,9 +344,12 @@ export async function GET(req: NextRequest) {
         totalViews: kpiRow._sum.viewsCount ?? 0,
         totalLikes: kpiRow._sum.likesCount ?? 0,
         totalComments: kpiRow._sum.commentsCount ?? 0,
-        avgEngagementRate: parseFloat((engagementRow._avg.engagementRate ?? 0).toFixed(2)),
+        /* A percentage, as the tile prints it — rollupEngagement returns a
+           fraction, and the ×100 lives at the display boundary everywhere else
+           in the product, so it lives at this seam too. */
+        avgEngagementRate: parseFloat(((orgEngagement.rate ?? 0) * 100).toFixed(2)),
         totalPosts: kpiRow._count._all,
-        engagementSample: engagementRow._count._all,
+        engagementSample: measuredRow._count._all,
       },
       monthlyTrend,
       leaderboard,

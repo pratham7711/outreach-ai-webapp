@@ -42,6 +42,9 @@ function post(over: Record<string, unknown> = {}) {
     commentsCount: 0,
     sharesCount: 0,
     savesCount: 0,
+    // Null is the imported state: counters at their column default, nothing
+    // ever fetched. rollupEngagement reads that as "not measured".
+    lastSyncedAt: null,
     snapshots: [],
     ...over,
   };
@@ -112,6 +115,76 @@ describe("GET /api/analytics/campaigns", () => {
     ]);
     // The chart's last point now agrees with the comparison row's own total.
     expect(body.comparison[0].views).toBe(1_200);
+  });
+
+  /* The engagement rate on this chart used to be computeEngagementRate over the
+     summed counters, which puts an unmeasured post's views in the denominator
+     against zeroes it never earned. Same campaign, same day, a different rate
+     from the Performance tab and the client report. It is rollupEngagement now,
+     which is the one definition. */
+  describe("engagement rate", () => {
+    it("rates only the views of the posts it actually measured", async () => {
+      mockDb.post.findMany
+        .mockResolvedValueOnce([
+          post({
+            id: "measured",
+            viewsCount: 10_000,
+            likesCount: 500,
+            commentsCount: 100,
+            lastSyncedAt: new Date("2026-09-03"),
+          }),
+          // 90,000 views, never fetched. Counting these in the denominator was
+          // what turned 6% into 0.6%.
+          post({ id: "imported", viewsCount: 90_000 }),
+        ])
+        .mockResolvedValueOnce([]);
+
+      const body = await (await GET(req("?ids=camp-1"))).json();
+
+      // 600 / 10,000, not 600 / 100,000.
+      expect(body.comparison[0].engagementRate).toBeCloseTo(0.06, 6);
+      expect(body.comparison[0].engagements).toBe(600);
+      // Views are still every post's — those were always measured.
+      expect(body.comparison[0].views).toBe(100_000);
+    });
+
+    it("reports zero rather than a rate when no post on the campaign was measured", async () => {
+      mockDb.post.findMany
+        .mockResolvedValueOnce([post({ viewsCount: 5_000 })])
+        .mockResolvedValueOnce([]);
+
+      const body = await (await GET(req("?ids=camp-1"))).json();
+      expect(body.comparison[0].engagementRate).toBe(0);
+      expect(body.comparison[0].engagements).toBe(0);
+    });
+
+    it("measures the org distribution the same way as the campaign it compares", async () => {
+      // Selected campaign: 6%. The org's other campaign: 1%, on measured posts.
+      mockDb.campaign.findMany.mockResolvedValue([{ id: "camp-1", title: "Test" }]);
+      mockDb.post.findMany
+        .mockResolvedValueOnce([
+          post({ id: "m", viewsCount: 10_000, likesCount: 600, lastSyncedAt: new Date("2026-09-03") }),
+        ])
+        .mockResolvedValueOnce([
+          { campaignId: "camp-1", platform: "TIKTOK", viewsCount: 10_000, likesCount: 600, commentsCount: 0, sharesCount: 0, savesCount: 0, lastSyncedAt: new Date("2026-09-03") },
+          { campaignId: "camp-2", platform: "TIKTOK", viewsCount: 10_000, likesCount: 100, commentsCount: 0, sharesCount: 0, savesCount: 0, lastSyncedAt: new Date("2026-09-03") },
+          // Unmeasured, and on a third campaign, so it contributes no rate at
+          // all rather than a 0% that would drag the org average down.
+          { campaignId: "camp-3", platform: "TIKTOK", viewsCount: 500_000, likesCount: 0, commentsCount: 0, sharesCount: 0, savesCount: 0, lastSyncedAt: null },
+        ]);
+
+      const body = await (await GET(req("?ids=camp-1"))).json();
+      // 0.06 against a distribution of [0.06, 0.01, null] — comfortably above.
+      expect(body.comparison[0].engRateVsOrg).not.toBeNull();
+      expect(body.comparison[0].engagementRate).toBeCloseTo(0.06, 6);
+    });
+
+    it("selects lastSyncedAt, without which every post reads as measured-zero", async () => {
+      await GET(req("?ids=camp-1"));
+      for (const call of mockDb.post.findMany.mock.calls) {
+        expect(call[0].select.lastSyncedAt).toBe(true);
+      }
+    });
   });
 
   it("returns an empty payload when no requested campaign belongs to the org", async () => {

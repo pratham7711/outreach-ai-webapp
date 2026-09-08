@@ -68,6 +68,10 @@ export const METRIC_DEFINITIONS = {
     what: "How many times creator posts in this campaign were watched.",
     how: "Adds up the latest view count recorded for every tracked post.",
   },
+  /* lib/metricDisplay.ts rollupEngagement, word for word. Every engagement rate
+     in the product — the campaign tile, the Posts tab, the Performance tab, the
+     client report, /api/analytics and /api/analytics/campaigns — is that one
+     function, so this sentence is the only description any of them needs. */
   engagementRate: {
     label: "Engagement rate",
     what: "How actively people responded to the posts, rather than just scrolling past. Higher usually means the content landed.",
@@ -162,10 +166,16 @@ export const METRIC_DEFINITIONS = {
     what: "How often the video itself was downloaded, which is how sounds travel off-platform.",
     how: "Adds up the download count of every tracked post that reports one.",
   },
+  /* Same number as `engagementRate` above, over a wider set of posts, so it has
+     to be the same sentence. It said "likes plus comments plus shares, divided
+     by views, averaged across posts" — three departures from what any screen
+     computes: saves are in, a mean of per-post rates is not the rate (a 12-view
+     post at 50% would outweigh a 400k-view post at 2%), and posts we never
+     measured are excluded rather than averaged in as zeroes. */
   avgEngagementRate: {
     label: "Average engagement rate",
     what: "How actively people responded rather than just scrolling past. Higher usually means the content landed.",
-    how: "Likes plus comments plus shares, divided by views, averaged across posts.",
+    how: "Likes plus comments plus shares plus saves, divided by the views of the posts we have actually measured.",
   },
   avgCPM: {
     label: "Average cost per 1,000 views",
