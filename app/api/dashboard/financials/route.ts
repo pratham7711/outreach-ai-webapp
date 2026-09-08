@@ -97,9 +97,15 @@ export async function GET(req: NextRequest) {
       topPostRows,
     ] = await Promise.all([
       db.campaign.count({ where: { orgId, deletedAt: null, status: "IN_PROGRESS" } }),
-      // A creator is on the roster via an activation, whether or not a post exists.
+      /* A creator is on the roster via an activation, whether or not a post
+         exists -- and the campaign that activation belongs to has to still
+         exist. `deletedAt: null` here is the ACTIVATION's; the campaign's was
+         missing, so Total Creators counted anyone activated on a soft-deleted
+         campaign while the post tiles beside it, activeCampaigns and the title
+         lookup all excluded those campaigns. Delete a finished campaign and the
+         creator count stayed high with nothing on the screen to explain it. */
       db.activation.findMany({
-        where: { campaign: { orgId }, deletedAt: null },
+        where: { campaign: { orgId, deletedAt: null }, deletedAt: null },
         select: { creatorId: true },
         distinct: ["creatorId"],
       }),
