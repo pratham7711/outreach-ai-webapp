@@ -1,12 +1,13 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { Bell, Search, ChevronRight, Settings, LogOut } from "lucide-react";
+import { Search, ChevronRight, Settings, LogOut } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { Dropdown } from "@pratham7711/ui";
 import { signOut } from "next-auth/react";
 import ThemeToggle from "@/components/ThemeToggle";
+import { NotificationBell } from "@/components/layout/NotificationBell";
 
 const PAGE_TITLES: Record<string, string> = {
   "/dashboard": "Dashboard",
@@ -287,30 +288,7 @@ export function TopBar({ user }: { user?: TopBarUser }) {
         <ThemeToggle />
 
         {/* Notifications */}
-        <Dropdown
-          align="right"
-          tabIndex={0}
-          role="button"
-          aria-haspopup="menu"
-          aria-label="Notifications"
-          trigger={
-            <span
-              className="cc-btn-ghost"
-              style={{
-                width: 34,
-                height: 34,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                borderRadius: 8,
-                color: "var(--cc-text-muted)",
-              }}
-            >
-              <Bell size={17} aria-hidden="true" />
-            </span>
-          }
-          items={[{ label: "No new notifications" }]}
-        />
+        <NotificationBell />
 
         {/* Account menu */}
         <Dropdown

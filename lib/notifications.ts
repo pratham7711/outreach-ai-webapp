@@ -1,14 +1,18 @@
 import { db } from "@/lib/db";
 import { createLogger } from "@/lib/observability/logger";
+import { NOTIFICATION_EVENTS, isNotifiableAction, notificationEvent } from "@/lib/notificationCatalog";
+import type { NotificationEventDef } from "@/lib/notificationCatalog";
 
 /**
  * Team notifications — the reference's Settings → Notifications, and its Slack
  * integration, in one module.
  *
  * Everything notifiable already flows through logAudit with a stable action
- * string, so the catalog below is keyed by those actions rather than inventing
- * a parallel event vocabulary. An action that is not in the catalog can never
- * notify anyone; adding a row here is the whole act of making it notifiable.
+ * string, so the catalog — lib/notificationCatalog.ts, split out so a client
+ * component can read it without importing Prisma — is keyed by those actions
+ * rather than inventing a parallel event vocabulary. An action that is not in
+ * the catalog can never notify anyone; adding a row there is the whole act of
+ * making it notifiable.
  *
  * Two delivery channels, configured in two different places on purpose:
  *  - Email is a PER-USER choice, stored on User.notificationPrefs, because
@@ -22,51 +26,10 @@ import { createLogger } from "@/lib/observability/logger";
  * doing it with open eyes.
  */
 
-export type NotificationGroup = "Campaigns" | "Creators & Lists" | "Financial";
-
-export type NotificationEventDef = {
-  /** The logAudit action string this row listens for. */
-  key: string;
-  label: string;
-  description: string;
-  group: NotificationGroup;
-  /** What an untouched account gets. Mirrors the reference's defaults. */
-  defaultOn: boolean;
-  glyph: string;
-};
-
-export const NOTIFICATION_EVENTS: NotificationEventDef[] = [
-  // Campaigns — the reference's headline group.
-  { key: "campaign.create", label: "Campaign Created", description: "A new campaign is created", group: "Campaigns", defaultOn: true, glyph: "🎉" },
-  { key: "campaign.update", label: "Campaign Updated", description: "A campaign's status or details change", group: "Campaigns", defaultOn: true, glyph: "💡" },
-  { key: "campaign.delete", label: "Campaign Deleted", description: "A campaign is deleted", group: "Campaigns", defaultOn: false, glyph: "🗑️" },
-  { key: "activation.create", label: "Creator Added", description: "A creator is added to a campaign", group: "Campaigns", defaultOn: true, glyph: "➕" },
-  { key: "activation.delete", label: "Creator Removed", description: "A creator is removed from a campaign", group: "Campaigns", defaultOn: true, glyph: "➖" },
-  { key: "activation.update", label: "Activation Status Updated", description: "A creator's activation moves between statuses", group: "Campaigns", defaultOn: false, glyph: "🌀" },
-  { key: "post.create", label: "Post Uploaded", description: "A post is added to a campaign", group: "Campaigns", defaultOn: false, glyph: "🤳" },
-  { key: "post.auto_approved", label: "Post Auto-Approved", description: "The sync sweep approves a post automatically. Fires once per post — noisy on active campaigns", group: "Campaigns", defaultOn: false, glyph: "🤖" },
-  { key: "comment.create", label: "Comment", description: "Someone comments on a campaign", group: "Campaigns", defaultOn: true, glyph: "💬" },
-  { key: "document.create", label: "Document Added", description: "A document is attached to a campaign", group: "Campaigns", defaultOn: false, glyph: "📄" },
-
-  // Creators & Lists — the reference's "Lists" section, widened to creators.
-  { key: "creator.create", label: "Creator Created", description: "A creator is added to the roster", group: "Creators & Lists", defaultOn: false, glyph: "🧑‍🎤" },
-  { key: "list.create", label: "List Created", description: "A creator list is created", group: "Creators & Lists", defaultOn: false, glyph: "📋" },
-  { key: "list.add_creators", label: "Creators Added to List", description: "Creators are added to a list", group: "Creators & Lists", defaultOn: false, glyph: "📥" },
-  { key: "negotiation.approve", label: "Offer Accepted", description: "A creator accepts an offer", group: "Creators & Lists", defaultOn: true, glyph: "✅" },
-  { key: "negotiation.reject", label: "Offer Declined", description: "A creator declines an offer", group: "Creators & Lists", defaultOn: true, glyph: "❌" },
-
-  // Financial — mirrors the reference's payment rows, all quiet by default.
-  { key: "deposit.create", label: "New Payment", description: "A campaign deposit is recorded", group: "Financial", defaultOn: false, glyph: "💰" },
-  { key: "payout.create", label: "New Payout", description: "A payout is created", group: "Financial", defaultOn: false, glyph: "💸" },
-  { key: "payout.status_changed", label: "Payout Status Updated", description: "A payout moves between statuses", group: "Financial", defaultOn: false, glyph: "🔁" },
-  { key: "payout_request.create", label: "Payout Request", description: "A creator requests a payout", group: "Financial", defaultOn: false, glyph: "🙋" },
-];
-
-const EVENT_MAP = new Map(NOTIFICATION_EVENTS.map((e) => [e.key, e]));
-
-export function isNotifiableAction(action: string): boolean {
-  return EVENT_MAP.has(action);
-}
+/* Re-exported so the modules that already import the catalog from here keep
+   working. */
+export type { NotificationGroup, NotificationEventDef } from "@/lib/notificationCatalog";
+export { NOTIFICATION_EVENTS, isNotifiableAction } from "@/lib/notificationCatalog";
 
 /**
  * Stored prefs are a sparse override map; the catalog's defaults fill the rest.
@@ -160,7 +123,7 @@ export async function notifyAuditEvent(params: {
   actorEmail?: string | null;
   entityLabel?: string | null;
 }): Promise<void> {
-  const def = EVENT_MAP.get(params.action);
+  const def = notificationEvent(params.action);
   if (!def) return;
 
   const log = createLogger({ context: { lib: "notifications", action: params.action } });
