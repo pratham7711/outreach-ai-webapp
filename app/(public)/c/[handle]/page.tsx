@@ -46,14 +46,6 @@ const PLATFORM_COLORS: Record<string, { bg: string; color: string }> = {
   TWITCH: { bg: "#F5F3FF", color: "#7C3AED" },
 };
 
-const TAG_LABELS: Record<string, string> = {
-  on_time: "On Time",
-  high_quality: "High Quality",
-  creative: "Creative",
-  responsive: "Responsive",
-  professional: "Professional",
-};
-
 /* ── Page ────────────────────────────────────────────────────────────────── */
 
 export default async function CreatorProfilePage({
@@ -69,25 +61,31 @@ export default async function CreatorProfilePage({
 
   if (!user) notFound();
 
-  // Fetch reviews via org-side Creator records that share this handle
-  const creators = await db.creator.findMany({
-    where: { handle },
-    select: { id: true },
-  });
-  const creatorIds = creators.map((c) => c.id);
+  /* CreatorReview rows are NOT public content, and this page is reachable with
+     no session at all.
+     
+     A review is written from the campaign screen
+     (app/(dashboard)/campaigns/[id]/ReviewsSection.tsx), which presents it as an
+     internal note on how a creator performed. Nothing there says the text will
+     be published. This page used to read every org's reviews for the handle —
+     `where: { creatorId: { in: creatorIds } }`, no orgId, deliberately across
+     tenants — and render the comment, the reviewing org's name and the campaign
+     title. That is one agency's private assessment, plus the fact that a named
+     competitor ran a campaign of a given name with this creator, served to
+     anyone who guesses the handle.
 
-  const reviews =
-    creatorIds.length > 0
-      ? await db.creatorReview.findMany({
-          where: { creatorId: { in: creatorIds } },
-          include: {
-            org: { select: { name: true } },
-            campaign: { select: { title: true } },
-          },
-          orderBy: { createdAt: "desc" },
-          take: 10,
-        })
-      : [];
+     So the page now shows only what the creator's own CreatorUser row already
+     stores as a public aggregate: averageRating and reviewCount. No review text,
+     no reviewer org, no campaign titles, and no tag histogram — the histogram
+     was derived from the same private rows and would leak their contents in
+     summary.
+
+     The durable design is a `CreatorReview.isPublic` column (defaulting false)
+     set by whoever writes the review, with this page filtering on it — the
+     creator's public profile then carries the reviews people meant to publish.
+     That needs a migration, and production was built with `db push` and has no
+     _prisma_migrations table, so it is deferred rather than done here. Until
+     then the safe reading of an unlabelled row is "private". */
 
   const testimonials = await db.creatorTestimonial.findMany({
     where: { creatorUserId: user.id },
@@ -98,15 +96,6 @@ export default async function CreatorProfilePage({
     orderBy: { createdAt: "desc" },
     take: 5,
   });
-
-  // Aggregate tag counts across all reviews
-  const tagCounts: Record<string, number> = {};
-  for (const review of reviews) {
-    const tags = (review.tags as string[] | null) ?? [];
-    for (const tag of tags) {
-      tagCounts[tag] = (tagCounts[tag] || 0) + 1;
-    }
-  }
 
   const avgRating = user.averageRating;
   const platformStyle = PLATFORM_COLORS[user.platform] ?? {
@@ -329,7 +318,6 @@ export default async function CreatorProfilePage({
               display: "flex",
               alignItems: "center",
               gap: 16,
-              marginBottom: 20,
             }}
           >
             <div
@@ -348,158 +336,6 @@ export default async function CreatorProfilePage({
                 {user.reviewCount} review{user.reviewCount !== 1 ? "s" : ""}
               </div>
             </div>
-          </div>
-
-          {Object.keys(tagCounts).length > 0 && (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-              {Object.entries(tagCounts)
-                .sort((a, b) => b[1] - a[1])
-                .map(([tag, count]) => (
-                  <span
-                    key={tag}
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: 6,
-                      padding: "5px 12px",
-                      borderRadius: 20,
-                      fontSize: 12,
-                      fontWeight: 500,
-                      background: "#F3F4F6",
-                      color: "#374151",
-                    }}
-                  >
-                    {TAG_LABELS[tag] ?? tag}
-                    <span
-                      style={{
-                        background: "#E5E7EB",
-                        borderRadius: 10,
-                        padding: "1px 7px",
-                        fontSize: 11,
-                        fontWeight: 600,
-                      }}
-                    >
-                      {count}
-                    </span>
-                  </span>
-                ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ── Reviews ──────────────────────────────────────────────────── */}
-      {reviews.length > 0 && (
-        <div style={{ marginBottom: 32 }}>
-          <h2
-            style={{
-              fontSize: 16,
-              fontWeight: 600,
-              color: "var(--cc-text)",
-              marginBottom: 16,
-            }}
-          >
-            Reviews
-          </h2>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {reviews.map((review) => {
-              const reviewTags = (review.tags as string[] | null) ?? [];
-              return (
-                <div
-                  key={review.id}
-                  style={{
-                    background: "var(--cc-card)",
-                    border: "1px solid var(--cc-border)",
-                    borderRadius: 12,
-                    padding: 20,
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "flex-start",
-                      marginBottom: 8,
-                    }}
-                  >
-                    <div>
-                      <div
-                        style={{
-                          fontSize: 14,
-                          fontWeight: 600,
-                          color: "var(--cc-text)",
-                        }}
-                      >
-                        {review.org.name}
-                      </div>
-                      <div
-                        style={{
-                          fontSize: 12,
-                          color: "var(--cc-text-muted)",
-                          marginTop: 2,
-                        }}
-                      >
-                        {review.campaign.title}
-                      </div>
-                    </div>
-                    <div style={{ textAlign: "right" }}>
-                      <StarRating rating={review.rating} />
-                      <div
-                        style={{
-                          fontSize: 11,
-                          color: "var(--cc-text-muted)",
-                          marginTop: 2,
-                        }}
-                      >
-                        {formatDate(review.createdAt)}
-                      </div>
-                    </div>
-                  </div>
-
-                  {reviewTags.length > 0 && (
-                    <div
-                      style={{
-                        display: "flex",
-                        flexWrap: "wrap",
-                        gap: 6,
-                        marginBottom: 8,
-                      }}
-                    >
-                      {reviewTags.map((tag) => (
-                        <span
-                          key={tag}
-                          style={{
-                            display: "inline-block",
-                            padding: "3px 10px",
-                            borderRadius: 16,
-                            fontSize: 11,
-                            fontWeight: 500,
-                            background: "#EEF2FF",
-                            color: "#4F46E5",
-                          }}
-                        >
-                          {TAG_LABELS[tag] ?? tag}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-
-                  {review.comment && (
-                    <p
-                      style={{
-                        fontSize: 13,
-                        color: "var(--cc-text-muted)",
-                        lineHeight: 1.6,
-                        margin: 0,
-                      }}
-                    >
-                      {review.comment}
-                    </p>
-                  )}
-                </div>
-              );
-            })}
           </div>
         </div>
       )}
