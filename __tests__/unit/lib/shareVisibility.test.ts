@@ -85,6 +85,7 @@ describe("sanitizeShareVisibility", () => {
   it("drops unknown keys instead of persisting them", () => {
     const v = sanitizeShareVisibility({ showBudget: true, showSalaries: true, __proto__: { evil: 1 } });
     expect(Object.keys(v).sort()).toEqual([
+      "markRemovedPosts",
       "platforms",
       "showBudget",
       "showCreators",
@@ -137,6 +138,40 @@ describe("showStatuses", () => {
 
   it("survives a round trip through storage", () => {
     const stored = sanitizeShareVisibility({ showStatuses: true, showBudget: true });
+    expect(parseShareVisibility({ visibility: stored })).toEqual(stored);
+  });
+});
+
+describe("markRemovedPosts", () => {
+  /* The odd one out: every other switch decides whether a brand sees a number
+     we hold. This one decides whether it is told a post it already paid for is
+     no longer on the platform — a disclosure the agency makes deliberately or
+     not at all, so off is the default and off is where anything malformed lands. */
+
+  it("is off for a legacy link and off in the default", () => {
+    expect(parseShareVisibility({ kind: "campaign-performance" }).markRemovedPosts).toBe(false);
+    expect(DEFAULT_SHARE_VISIBILITY.markRemovedPosts).toBe(false);
+  });
+
+  it("is off unless stored as exactly true", () => {
+    for (const stored of ["true", 1, "yes", {}, [], null]) {
+      expect(
+        parseShareVisibility({ visibility: { markRemovedPosts: stored } }).markRemovedPosts
+      ).toBe(false);
+    }
+    expect(parseShareVisibility({ visibility: { markRemovedPosts: true } }).markRemovedPosts).toBe(
+      true
+    );
+  });
+
+  it("stays off when the client omits it", () => {
+    expect(sanitizeShareVisibility({}).markRemovedPosts).toBe(false);
+    expect(sanitizeShareVisibility({ markRemovedPosts: true }).markRemovedPosts).toBe(true);
+    expect(sanitizeShareVisibility({ markRemovedPosts: "true" }).markRemovedPosts).toBe(false);
+  });
+
+  it("survives a round trip through storage", () => {
+    const stored = sanitizeShareVisibility({ markRemovedPosts: true, platforms: ["TIKTOK"] });
     expect(parseShareVisibility({ visibility: stored })).toEqual(stored);
   });
 });

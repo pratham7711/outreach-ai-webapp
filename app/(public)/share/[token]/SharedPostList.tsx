@@ -5,6 +5,7 @@ import { ImageOff } from "lucide-react";
 import type { SharedReportData } from "@/lib/reports/campaignPerformance";
 import { shareImgSrc } from "@/lib/postMedia";
 import { stripAt, formatDateAbs, timeAgo } from "@/lib/format";
+import RemovedPostOverlay from "@/components/posts/RemovedPostOverlay";
 
 /**
  * The post list on a shared client report.
@@ -153,6 +154,19 @@ export default function SharedPostList({
                   </a>
                 ) : (
                   <span style={labelStyle}>{post.platform}</span>
+                )}
+
+                {/* Only ever true on a link whose owner turned "Flag removed
+                    posts" on -- redactForShare flattens it to false otherwise,
+                    so an unmarked link carries no removal in its payload at all.
+
+                    In the text column rather than over the 80px thumbnail the
+                    dashboard grid uses: the pill is wider than the image here.
+                    The counters below are untouched either way. */}
+                {post.removed && (
+                  <span>
+                    <RemovedPostOverlay variant="inline" compact />
+                  </span>
                 )}
 
                 <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>

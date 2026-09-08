@@ -7,6 +7,7 @@ import {
 } from "@/lib/metrics";
 import { metricValue, unwrittenMetricValue, fieldMetricValue } from "@/lib/metricDisplay";
 import type { MetricField } from "@/lib/metricDisplay";
+import { isPostRemoved } from "@/lib/postRemoval";
 import type { SharePlatform } from "@/lib/reports/shareVisibility";
 import type { ActivationStatus } from "@/lib/generated/prisma/client";
 
@@ -134,6 +135,16 @@ export type SharedPostRow = {
   saves: number | null;
   downloads: number | null;
   engagementRate: number | null;
+  /**
+   * Whether the platform has stopped serving this post.
+   *
+   * A boolean rather than the raw `fetchState`, because the column carries more
+   * than the report is entitled to say — ERROR and a null both describe our own
+   * sync, not the post, and neither belongs in a brand's payload. False on a
+   * link that does not mark removals, so a hidden removal is indistinguishable
+   * from a live post in the RSC payload rather than merely unrendered.
+   */
+  removed: boolean;
 };
 
 export type CampaignAudio = {
@@ -176,7 +187,12 @@ export type SharedReportData = Omit<CampaignPerformance, "kpis" | "leaderboard">
  */
 export function redactForShare(
   data: CampaignPerformance,
-  visibility: { showCreators: boolean; showEmv: boolean; showStatuses?: boolean }
+  visibility: {
+    showCreators: boolean;
+    showEmv: boolean;
+    showStatuses?: boolean;
+    markRemovedPosts?: boolean;
+  }
 ): SharedReportData {
   return {
     ...data,
@@ -193,16 +209,22 @@ export function redactForShare(
        merely left unrendered, since props reach the payload either way. The
        thumbnail and caption go with it: both identify the creator as surely as
        the name does. */
-    posts: visibility.showCreators
-      ? data.posts
-      : data.posts.map((row) => ({
-          ...row,
-          creator: null,
-          thumbnailUrl: null,
-          caption: null,
-          // The URL names the creator in its path, so it goes with them.
-          postUrl: null,
-        })),
+    posts: data.posts.map((row) => ({
+      ...row,
+      ...(visibility.showCreators
+        ? null
+        : {
+            creator: null,
+            thumbnailUrl: null,
+            caption: null,
+            // The URL names the creator in its path, so it goes with them.
+            postUrl: null,
+          }),
+      /* Flattened to false rather than left as-is, because the flag reaches the
+         payload whether the component renders it or not. A brand reading the
+         HTML of an unmarked link sees the same value on every post. */
+      removed: visibility.markRemovedPosts === true && row.removed,
+    })),
   };
 }
 
@@ -635,6 +657,12 @@ async function computeCampaignPerformanceUncached(
           engagements !== null && views > 0
             ? computeEngagementRate({ views, likes: engagements })
             : null,
+        /* Computed for every report and stripped in redactForShare, not the
+           other way round: the dashboard reads this same shape, and a flag that
+           only exists on marked links would be missing where it is always
+           wanted. The counters above are untouched either way -- a removed post
+           keeps the views it earned. */
+        removed: isPostRemoved({ fetchState: p.fetchState, platformMetrics: p.platformMetrics }),
       };
     });
 

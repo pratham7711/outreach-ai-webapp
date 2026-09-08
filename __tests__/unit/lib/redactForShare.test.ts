@@ -40,6 +40,7 @@ const postRow = {
   saves: null,
   downloads: null,
   engagementRate: 0.05,
+  removed: true,
 };
 
 const data = {
@@ -107,5 +108,53 @@ describe("redactForShare", () => {
     const out = redactForShare(data, { ...OPEN, showEmv: false });
     expect(out.kpis.emv).toBeNull();
     expect(out.leaderboard[0].emv).toBeNull();
+  });
+});
+
+describe("redactForShare — removed posts", () => {
+  /* The default behaviour is the surprising one and therefore the one worth
+     pinning: a deleted post renders on a share link exactly like a live one,
+     with the counters it earned while it was up. The flag is not a formatting
+     choice, it is a disclosure, and it has to be absent from the payload rather
+     than merely unrendered — the RSC props ship either way. */
+
+  it("hides the removal by default, keeping the post's last recorded stats", () => {
+    const out = redactForShare(data, OPEN);
+    expect(out.posts[0].removed).toBe(false);
+    // The numbers are untouched: the views were real while the post was up.
+    expect(out.posts[0].views).toBe(1000);
+    expect(out.posts[0].likes).toBe(50);
+    expect(out.posts[0].thumbnailUrl).toContain("tiktokcdn");
+  });
+
+  it("treats an omitted markRemovedPosts as closed", () => {
+    const out = redactForShare(data, { showCreators: true, showEmv: true });
+    expect(out.posts[0].removed).toBe(false);
+  });
+
+  it("marks the post only when the link asks for it", () => {
+    const out = redactForShare(data, { ...OPEN, markRemovedPosts: true });
+    expect(out.posts[0].removed).toBe(true);
+    expect(out.posts[0].views).toBe(1000);
+  });
+
+  it("never invents a removal on a live post", () => {
+    const live = { ...(data as object), posts: [{ ...postRow, removed: false }] } as never;
+    expect(redactForShare(live, { ...OPEN, markRemovedPosts: true }).posts[0].removed).toBe(false);
+  });
+
+  it("keeps the two toggles independent", () => {
+    // Hiding creators used to be the only branch that rewrote a post row, so a
+    // marked link with creators hidden is the combination most likely to drop
+    // one of the two rules.
+    const out = redactForShare(data, {
+      ...OPEN,
+      showCreators: false,
+      markRemovedPosts: true,
+    });
+    expect(out.posts[0].removed).toBe(true);
+    expect(out.posts[0].creator).toBeNull();
+    expect(out.posts[0].thumbnailUrl).toBeNull();
+    expect(out.posts[0].views).toBe(1000);
   });
 });

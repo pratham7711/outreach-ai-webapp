@@ -47,6 +47,17 @@ export type ShareVisibility = {
    * declined, is agency-internal until someone decides otherwise.
    */
   showStatuses: boolean;
+  /**
+   * Whether a post the platform has stopped serving is flagged as such.
+   *
+   * Off by default, and that default is the whole point. The dashboard shows
+   * removals because the agency has to chase them; a client report is a record
+   * of what a campaign delivered, and a post's views were earned while it was
+   * up whether or not the creator has since taken it down. Turning this on is a
+   * deliberate act of disclosure, not the safe setting — so it fails closed the
+   * same way budget and statuses do.
+   */
+  markRemovedPosts: boolean;
 };
 
 /**
@@ -65,6 +76,7 @@ export const DEFAULT_SHARE_VISIBILITY: ShareVisibility = {
   showEmv: true,
   showBudget: false,
   showStatuses: false,
+  markRemovedPosts: false,
 };
 
 function isSharePlatform(v: unknown): v is SharePlatform {
@@ -91,6 +103,7 @@ export function parseShareVisibility(raw: unknown): ShareVisibility {
     showEmv: o.showEmv === true,
     showBudget: o.showBudget === true,
     showStatuses: o.showStatuses === true,
+    markRemovedPosts: o.markRemovedPosts === true,
   };
 }
 
@@ -107,5 +120,6 @@ export function sanitizeShareVisibility(raw: unknown): ShareVisibility {
     showEmv: o.showEmv !== false,
     showBudget: o.showBudget === true,
     showStatuses: o.showStatuses === true,
+    markRemovedPosts: o.markRemovedPosts === true,
   };
 }

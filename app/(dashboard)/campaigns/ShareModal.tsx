@@ -271,6 +271,12 @@ export function ShareModal({
                   label="Creator statuses"
                   hint="Where each activation stands, including who declined. Off by default."
                 />
+                <VisibilityToggle
+                  checked={link.visibility.markRemovedPosts}
+                  onChange={(next) => setVisibility({ ...link.visibility, markRemovedPosts: next })}
+                  label="Flag removed posts"
+                  hint="Off: deleted posts look like normal posts with their last recorded stats."
+                />
               </div>
             </div>
 
