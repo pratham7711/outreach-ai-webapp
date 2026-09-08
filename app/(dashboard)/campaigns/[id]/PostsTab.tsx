@@ -13,6 +13,8 @@ import type { ComplianceFlag } from "@/lib/compliance/postCompliance";
 import PostMedia from "@/components/PostMedia";
 import { imgSrc } from "@/lib/postMedia";
 import { metricValue, unwrittenMetricValue, fieldMetricValue, engagementRateValue, summarizePostMetrics } from "@/lib/metricDisplay";
+import { isPostRemoved, removedNote } from "@/lib/postRemoval";
+import RemovedPostOverlay from "@/components/posts/RemovedPostOverlay";
 import { summariseRefresh } from "@/lib/refreshSummary";
 import { toast } from "sonner";
 import { detectPlatform } from "@/lib/platforms/fetchPostMetrics";
@@ -91,12 +93,15 @@ const STATUS_BADGE: Record<string, "warning" | "success" | "danger" | "neutral">
 // Whether the post is still live on the platform, independent of approval.
 // CreatorCore surfaces this prominently (Unavailable = removed at source), and
 // a large share of imported posts are dead, so hiding it would misrepresent them.
+//
+// UNAVAILABLE is no longer in this table: it now renders as RemovedPostOverlay,
+// so the row, the grid card and the post page all carry one wording instead of
+// a terse "Unavailable" chip here and a sentence elsewhere. ERROR stays — it is
+// a different claim ("we could not look"), not a milder version of this one.
 const FETCH_STATE_LABEL: Record<string, string> = {
-  UNAVAILABLE: "Unavailable",
   ERROR: "Fetch error",
 };
 const FETCH_STATE_BADGE: Record<string, "danger" | "warning"> = {
-  UNAVAILABLE: "danger",
   ERROR: "warning",
 };
 
@@ -1208,6 +1213,9 @@ export default function PostsTab({
                   )}
                   <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-start" }}>
                     <Badge variant={STATUS_BADGE[post.status] ?? "neutral"}>{post.status.replace(/_/g, " ")}</Badge>
+                    {/* The counters in this row stay exactly as stored: the post
+                        is gone, the reach it earned while it was up is not. */}
+                    {isPostRemoved(post) && <RemovedPostOverlay variant="inline" compact note={removedNote(post)} />}
                     {post.fetchState && FETCH_STATE_LABEL[post.fetchState] && (
                       <Badge variant={FETCH_STATE_BADGE[post.fetchState]} style={{ fontSize: 10 }}>
                         {FETCH_STATE_LABEL[post.fetchState]}
@@ -1313,6 +1321,11 @@ export default function PostsTab({
                       {post.status.replace(/_/g, " ")}
                     </Badge>
                   </span>
+                  {/* Across the frame, under the platform and status chips —
+                      the thumbnail and every count below it are left alone,
+                      because they are the last true reading of a post that has
+                      since come down, not a claim that it is still up. */}
+                  {isPostRemoved(post) && <RemovedPostOverlay note={removedNote(post)} />}
 
                   {/* Metrics read out over the frame itself \u2014 display only, never editable. */}
                   <div

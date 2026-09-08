@@ -9,6 +9,8 @@ import { ArrowLeft, ExternalLink, RefreshCw, Eye, Heart, MessageCircle, Share2, 
 import dynamic from "next/dynamic";
 import { computePostEmv, computeEngagementRate } from "@/lib/metrics";
 import { metricValue } from "@/lib/metricDisplay";
+import { isPostRemoved, removedNote } from "@/lib/postRemoval";
+import RemovedPostOverlay from "@/components/posts/RemovedPostOverlay";
 import { imgSrc, embedSrcFor } from "@/lib/postMedia";
 import { formatCompact, stripAt, formatDateAbs, formatDateTimeAbs } from "@/lib/format";
 import { loadCharts } from "@/components/charts/lazyCharts";
@@ -42,6 +44,11 @@ type PostDetail = {
   engagementRate: number;
   status: string;
   lastSyncedAt: string | null;
+  /* Both already arrive on the wire — the GET returns the whole Post row — they
+     were just never named here, so the header could not tell a live post from
+     one the platform has stopped serving. */
+  fetchState: string | null;
+  platformMetrics?: unknown;
   creator: { id: string; name: string; handle: string; avatarUrl: string | null; platform: string };
   snapshots: Snapshot[];
 };
@@ -372,6 +379,10 @@ export default function PostDetailPage() {
                 {post.caption?.slice(0, 80) ?? "Untitled Post"}
               </h1>
               <Badge variant={STATUS_BADGE[post.status] ?? "neutral"}>{post.status.replace(/_/g, " ")}</Badge>
+              {/* Beside the status rather than over the 120x80 thumbnail: the
+                  pill is wider than the image. Every metric card below stays
+                  put — they are the post's last real numbers. */}
+              {isPostRemoved(post) && <RemovedPostOverlay variant="inline" note={removedNote(post)} />}
             </div>
             <p style={{ fontSize: 13, color: "var(--cc-text-muted)", margin: 0 }}>
               by <strong>{post.creator.name}</strong> (@{stripAt(post.creator.handle)}) · {post.platform} · Posted {formatDateAbs(post.postedAt)}
