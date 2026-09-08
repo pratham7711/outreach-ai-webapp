@@ -11,6 +11,7 @@ import {
   DISCOVERY_FEATURE,
   MEDIA_KITS_FEATURE,
   MULTI_CURRENCY_FEATURE,
+  REPORTS_FEATURE_KEYS,
   SONGS_FEATURE,
 } from "@/lib/featureKeys";
 
@@ -30,6 +31,32 @@ export const FEATURES = {
 } as const;
 
 export type FeatureKey = keyof typeof FEATURES;
+
+/**
+ * A feature key only counts as live if something in the app reads it.
+ *
+ * FEATURES above is that register — every key in it has a gate behind it
+ * (media_kits, creator_discovery, api_access, ai_assistant and audit_log are
+ * checked by their own routes; the reports keys gate the /reports nav rule).
+ * The plan tiers in lib/plans.ts additionally list names nothing has ever read
+ * — custom_domain, sso, dedicated_support, ai_creator_discovery, export_csv,
+ * shareable_links, draft_approvals, creator_portal, audio_analytics, payments,
+ * creator_database. The billing screen was rendering all of them with a green
+ * tick, which told an enterprise customer they had bought working features.
+ */
+const LIVE_FEATURE_KEYS = new Set<string>([...Object.keys(FEATURES), ...REPORTS_FEATURE_KEYS]);
+
+export function isLiveFeature(key: string): boolean {
+  return LIVE_FEATURE_KEYS.has(key);
+}
+
+/** Splits a plan's feature list into the keys the app enforces and the rest. */
+export function partitionLiveFeatures(features: string[]): { live: string[]; notBuilt: string[] } {
+  const live: string[] = [];
+  const notBuilt: string[] = [];
+  for (const f of features) (isLiveFeature(f) ? live : notBuilt).push(f);
+  return { live, notBuilt };
+}
 
 export function clientHasFeature(
   plan: { features: Record<string, boolean> } | null,
