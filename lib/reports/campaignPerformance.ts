@@ -28,8 +28,9 @@ import type { ActivationStatus } from "@/lib/generated/prisma/client";
  */
 const BUILD_KEY = process.env.VERCEL_DEPLOYMENT_ID ?? "local";
 
-type SeriesPlatform = "TIKTOK" | "INSTAGRAM" | "YOUTUBE";
-const SERIES_PLATFORMS: SeriesPlatform[] = ["TIKTOK", "INSTAGRAM", "YOUTUBE"];
+/** Only a fallback now: the series takes its groups from the campaign's own
+ *  posts, and these are what an empty campaign charts. */
+const SERIES_PLATFORMS = ["TIKTOK", "INSTAGRAM", "YOUTUBE"] as const;
 
 /**
  * Ceiling on the views-over-time read, after the database has collapsed it to
@@ -72,7 +73,20 @@ export type CampaignPerformance = {
     saves: number | null;
     downloads: number | null;
   };
-  timeSeries: { date: string; TIKTOK: number; INSTAGRAM: number; YOUTUBE: number }[];
+  /**
+   * Views over time, one key per platform the campaign actually posted on.
+   *
+   * Not a fixed TIKTOK/INSTAGRAM/YOUTUBE triple any more. The pie beside this
+   * chart splits ALL posts by platform while the chart only ever charted three,
+   * so a campaign with a Twitter or Facebook post drew a stacked area whose
+   * total sat below the Total Views tile directly above it — the two answered
+   * the same question with different denominators. The platforms are named in
+   * `seriesPlatforms`; a platform with no colour of its own falls back to a
+   * generic series token (see platformColor).
+   */
+  timeSeries: ({ date: string } & { [platform: string]: number | string })[];
+  /** The keys in `timeSeries`, in the order the chart should stack them. */
+  seriesPlatforms: string[];
   platformSplit: { platform: string; views: number; posts: number }[];
   leaderboard: {
     creatorId: string;
@@ -357,19 +371,22 @@ async function computeCampaignPerformanceUncached(
     ...(platforms?.length && { platform: { in: platforms as unknown as never } }),
   };
 
-  /* The series has one column per SERIES_PLATFORM, so those are the only
-     platforms whose snapshots can reach the chart. SharePlatform is that same
-     set, so a caller's filter is always a subset and this list is never empty.
+  /* Only the CALLER's filter narrows this now. It used to also narrow to
+     SERIES_PLATFORMS, because the chart had three fixed columns and a Twitter
+     post's snapshots were fetched and then dropped — but the chart takes its
+     columns from the campaign now, so dropping them here would put the hole
+     back one layer down. The Post join already bounds this to one campaign.
      Values are bound, never interpolated: $1 is the campaign, the platforms
      take $2 onward. */
-  const seriesPlatforms: readonly string[] = platforms?.length ? platforms : SERIES_PLATFORMS;
   const snapshotParams: unknown[] = [campaign.id];
-  const platformFilter = ` AND p.platform::text IN (${seriesPlatforms
-    .map((p) => {
-      snapshotParams.push(p);
-      return `$${snapshotParams.length}`;
-    })
-    .join(", ")})`;
+  const platformFilter = platforms?.length
+    ? ` AND p.platform::text IN (${platforms
+        .map((p) => {
+          snapshotParams.push(p);
+          return `$${snapshotParams.length}`;
+        })
+        .join(", ")})`
+    : "";
 
   const [posts, snapshotDays, activations] = await Promise.all([
     db.post.findMany({
@@ -407,10 +424,6 @@ async function computeCampaignPerformanceUncached(
        points. DISTINCT ON does the discarding in Postgres, where it is an index
        walk rather than a network transfer, and the result is byte-identical
        because the helper's rule and the ORDER BY are the same rule.
-
-       Narrowed to SERIES_PLATFORMS as well as the caller's platform filter: the
-       series only has TIKTOK, INSTAGRAM and YOUTUBE columns, so a TWITTER
-       post's snapshots were fetched and then dropped by the helper.
 
        The day arrives as TEXT, not as a timestamp. PostMetricSnapshot.recordedAt
        is `timestamp without time zone` holding UTC, and node-postgres reads that
@@ -525,12 +538,25 @@ async function computeCampaignPerformanceUncached(
      so a campaign where half the posts were synced drew a line below its own
      Total Views tile. lib/analytics/viewsSeries carries the rule, and
      /api/analytics/campaigns now reads the same function. */
+  /* Every platform this campaign posted on, most-viewed first, so the stacked
+     total matches the Total Views tile and the legend reads in the same order
+     as the pie. SERIES_PLATFORMS is the fallback for a campaign with no posts
+     at all — an empty group list would draw nothing to say "nothing". */
+  const platformViews = new Map<string, number>();
+  for (const p of posts) {
+    platformViews.set(p.platform, (platformViews.get(p.platform) ?? 0) + (p.viewsCount ?? 0));
+  }
+  const seriesPlatforms: string[] =
+    platformViews.size > 0
+      ? Array.from(platformViews.entries())
+          .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+          .map(([platform]) => platform)
+      : [...SERIES_PLATFORMS];
+
   const timeSeries = carryForwardViewsByDay({
-    posts: posts
-      .filter((p) => SERIES_PLATFORMS.includes(p.platform as SeriesPlatform))
-      .map((p) => ({
+    posts: posts.map((p) => ({
         id: p.id,
-        group: p.platform as SeriesPlatform,
+        group: p.platform as string,
         postedAt: p.postedAt,
         viewsCount: p.viewsCount,
       })),
@@ -542,7 +568,7 @@ async function computeCampaignPerformanceUncached(
       recordedAt: new Date(`${s.day}T00:00:00.000Z`),
       viewsCount: s.viewsCount,
     })),
-    groups: SERIES_PLATFORMS,
+    groups: seriesPlatforms,
   }).map(({ date, totals }) => ({ date, ...totals }));
 
   const platformSplitMap = new Map<string, { views: number; posts: number }>();
@@ -654,6 +680,7 @@ async function computeCampaignPerformanceUncached(
     currency: campaign.currency,
     kpis,
     timeSeries,
+    seriesPlatforms,
     platformSplit,
     leaderboard,
     posts: postRows,

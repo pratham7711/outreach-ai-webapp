@@ -416,14 +416,17 @@ describe("computeCampaignPerformance views-over-time read", () => {
     expect(String(sql)).not.toContain("camp-1");
   });
 
-  it("narrows to the three platforms the chart has columns for", async () => {
-    // A TWITTER post's snapshots were fetched and then silently discarded by
-    // carryForwardViewsByDay, which has no column to put them in.
+  it("does not narrow by platform when the caller did not", async () => {
+    /* It used to narrow to TIKTOK/INSTAGRAM/YOUTUBE, because the chart had
+       exactly those three columns and a TWITTER post's snapshots would have
+       been fetched and then discarded. The chart now takes its columns from the
+       campaign, so narrowing here would only put the hole back one layer down —
+       and the pie beside the chart has always counted every platform. */
     await computeCampaignPerformance(campaign);
 
     const [sql, ...params] = mockDb.$queryRawUnsafe.mock.calls[0];
-    expect(String(sql)).toContain("p.platform::text IN ($2, $3, $4)");
-    expect(params).toEqual(["camp-1", "TIKTOK", "INSTAGRAM", "YOUTUBE"]);
+    expect(String(sql)).not.toContain("p.platform::text IN");
+    expect(params).toEqual(["camp-1"]);
   });
 
   it("narrows further to the caller's own platform filter", async () => {
@@ -445,9 +448,35 @@ describe("computeCampaignPerformance views-over-time read", () => {
 
     const result = await computeCampaignPerformance(campaign);
 
+    // One key per platform the campaign posted on, and this campaign is
+    // TikTok-only, so INSTAGRAM and YOUTUBE are absent rather than zero.
     expect(result.timeSeries).toEqual([
-      { date: "2026-08-02", TIKTOK: 4_000, INSTAGRAM: 0, YOUTUBE: 0 },
-      { date: "2026-08-03", TIKTOK: 5_000, INSTAGRAM: 0, YOUTUBE: 0 },
+      { date: "2026-08-02", TIKTOK: 4_000 },
+      { date: "2026-08-03", TIKTOK: 5_000 },
     ]);
+    expect(result.seriesPlatforms).toEqual(["TIKTOK"]);
+  });
+
+  /**
+   * The stacked area and the pie beside it must add up to the same number.
+   *
+   * The pie split ALL posts by platform while the series was filtered to
+   * TIKTOK/INSTAGRAM/YOUTUBE, so a campaign with a Twitter or Facebook post
+   * drew a stack whose total sat below the Total Views tile above it.
+   */
+  it("charts every platform the campaign posted on, most-viewed first", async () => {
+    mockDb.post.findMany.mockResolvedValue([
+      post({ id: "p1", platform: "TWITTER", postedAt: new Date("2026-08-01T00:00:00Z"), viewsCount: 900 }),
+      post({ id: "p2", platform: "TIKTOK", postedAt: new Date("2026-08-01T00:00:00Z"), viewsCount: 100 }),
+    ]);
+    mockDb.$queryRawUnsafe.mockResolvedValue([]);
+
+    const result = await computeCampaignPerformance(campaign);
+
+    expect(result.seriesPlatforms).toEqual(["TWITTER", "TIKTOK"]);
+    const last = result.timeSeries[result.timeSeries.length - 1];
+    expect(last).toEqual({ date: "2026-08-01", TWITTER: 900, TIKTOK: 100 });
+    // Which is the whole point: the stack now totals the Total Views tile.
+    expect(Number(last.TWITTER) + Number(last.TIKTOK)).toBe(result.kpis.views);
   });
 });

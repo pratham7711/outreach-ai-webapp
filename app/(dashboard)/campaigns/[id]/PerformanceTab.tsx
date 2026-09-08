@@ -20,7 +20,8 @@ type Kpis = CampaignPerformance["kpis"];
 const LEADERBOARD_COLS = (withEngagement: boolean) =>
   withEngagement ? "1fr 70px 90px 80px 90px" : "1fr 70px 90px 90px";
 
-type TimeSeriesPoint = { date: string; TIKTOK: number; INSTAGRAM: number; YOUTUBE: number };
+/** One key per platform the campaign posted on — see lib/reports/campaignPerformance. */
+type TimeSeriesPoint = { date: string } & { [platform: string]: number | string };
 type PlatformSplit = { platform: string; views: number; posts: number };
 type LeaderboardRow = {
   creatorId: string;
@@ -37,17 +38,26 @@ type PerformanceData = {
   currency: string;
   kpis: Kpis;
   timeSeries: TimeSeriesPoint[];
+  /** The keys in `timeSeries`, in the order the chart should stack them. */
+  seriesPlatforms: string[];
   platformSplit: PlatformSplit[];
   leaderboard: LeaderboardRow[];
   /** Null when the campaign has no song, or a song with no tracked sound. */
   audio: CampaignAudio | null;
 };
 
-const SERIES = [
-  { key: "TIKTOK", color: platformColor("TIKTOK") },
-  { key: "INSTAGRAM", color: platformColor("INSTAGRAM") },
-  { key: "YOUTUBE", color: platformColor("YOUTUBE") },
-] as const;
+/**
+ * The chart's series come from the campaign, not from a fixed triple.
+ *
+ * The pie beside this chart splits every post by platform while the chart only
+ * ever drew TikTok, Instagram and YouTube, so a campaign carrying a Twitter or
+ * Facebook post stacked to a total below the Total Views tile above it.
+ * platformColor falls back to a generic series token for a platform with no
+ * colour of its own, so nothing has to be added here when one appears.
+ */
+function seriesFor(platforms: string[]): { key: string; color: string }[] {
+  return platforms.map((key, i) => ({ key, color: platformColor(key, i) }));
+}
 
 function formatNumber(num: number): string {
   return formatCompact(num);
@@ -198,7 +208,13 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
   if (loading) return <LoadingState />;
   if (error || !data) return <ErrorState onRetry={load} />;
 
-  const { kpis, timeSeries, platformSplit, leaderboard, currency } = data;
+  const { kpis, timeSeries, seriesPlatforms, platformSplit, leaderboard, currency } = data;
+  /* Only platforms with views get an area: a stacked chart draws every series,
+     so a platform sitting at zero paints its stroke along the top of the stack
+     and the legend names a platform the campaign never used. */
+  const activeSeries = seriesFor(seriesPlatforms).filter((s) =>
+    timeSeries.some((row) => Number(row[s.key] ?? 0) > 0)
+  );
 
   const headerActions = (
     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -299,7 +315,7 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
           <ChartFrame height={320}>
             <AreaChart data={timeSeries} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
               <defs>
-                {SERIES.map((s) => (
+                {activeSeries.map((s) => (
                   <linearGradient key={s.key} id={`perfGrad-${s.key}`} x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor={s.color} stopOpacity={0.3} />
                     <stop offset="95%" stopColor={s.color} stopOpacity={0} />
@@ -315,7 +331,7 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
                 contentStyle={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, fontSize: 13 }}
               />
               <Legend wrapperStyle={{ fontSize: 12 }} />
-              {SERIES.map((s) => (
+              {activeSeries.map((s) => (
                 <Area
                   key={s.key}
                   type="monotone"
