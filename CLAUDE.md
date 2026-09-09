@@ -205,3 +205,37 @@ Built on top of the real app clone. Not in the real CreatorCore app.
 - Update `PROGRESS.md` after completing tasks
 - Keep all pages on light theme (CSS vars above)
 - Start dev server: `PORT=3009 npm run dev`
+
+## Testing — run the affected area, not all 37 specs
+
+The E2E suite is 37 spec files / 172 tests and runs sequentially (`workers: 1`),
+so a full sweep is ~15 minutes. Do not spend that on a change that touches one
+page. `e2e/areas.mjs` maps areas to specs AND to source paths; it is the single
+source of truth, shared by the runner and the deploy gate.
+
+```bash
+npm run test:e2e:list                    # the 10 areas and what each covers
+npm run test:e2e:area campaigns          # one area
+npm run test:e2e:area settings creators  # several
+npm run test:e2e:affected                # whatever this diff touches
+npm run test:e2e                         # everything (deploys still need this)
+```
+
+To earn a deploy-gate receipt for an area, go through the hook rather than
+calling playwright directly — a hand-filtered run is refused credit on purpose:
+
+```bash
+bash ~/.claude/hooks/verify.sh e2e:campaigns
+```
+
+Two rules the map enforces, both failing towards MORE testing:
+
+- A changed path matching no area is treated as cross-cutting and forces the
+  full suite. Add new routes to `e2e/areas.mjs` or every diff touching them
+  runs everything.
+- A touch to `lib/format`, `components/ds/`, `components/ui/`, `globals.css`,
+  `prisma/`, `package.json` or the config forces the full suite regardless of
+  diff size — those change how every screen renders.
+
+An area run records `playwright:<area>`, never `playwright`, so it cannot clear
+a gate that wants the whole suite.

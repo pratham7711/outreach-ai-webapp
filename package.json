@@ -14,6 +14,9 @@
     "test:unit:watch": "jest --config jest.config.js --watch",
     "test:integration": "jest --config jest.integration.config.js",
     "test:e2e": "playwright test --config=playwright.config.ts",
+    "test:e2e:area": "node scripts/e2e-area.mjs",
+    "test:e2e:affected": "node scripts/e2e-area.mjs --affected",
+    "test:e2e:list": "node scripts/e2e-area.mjs --list",
     "test:e2e:ui": "playwright test --config=playwright.config.ts --ui",
     "test:coverage": "jest --config jest.config.js --coverage"
   },
