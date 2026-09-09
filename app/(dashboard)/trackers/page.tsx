@@ -16,6 +16,7 @@ import { errorMessage } from "@/lib/api/errorMessage";
 import { describeTrackerSweep } from "@/lib/refreshSummary";
 import { SOUND_URL_ERRORS, parseSoundUrl } from "@/lib/trackers/soundUrl";
 import { changeSpanLabel, isTrackerWindow } from "@/lib/trackers/metrics";
+import type { ChartGranularity } from "@/lib/trackers/granularity";
 
 interface SoundSnapshot {
   usesCount: number;
@@ -51,7 +52,7 @@ interface TrackedSound {
   health: "pending" | "live" | "regressed" | "stale";
   lastReadAt: string | null;
   series: { value: number; recordedAt: string }[];
-  chartGranularity: "hourly" | "4hourly" | "daily" | "weekly";
+  chartGranularity: ChartGranularity;
 }
 
 /* The same four keys the API validates. The creator tab used to spell these

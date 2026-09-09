@@ -6,6 +6,8 @@ import {
   isDueForRead,
   parseGranularity,
   snapshotFetchLimit,
+  readCadenceLabel,
+  READ_CADENCES,
 } from "@/lib/trackers/granularity";
 
 const NOW = new Date("2026-09-01T12:00:00.000Z");
@@ -23,8 +25,23 @@ describe("parseGranularity", () => {
 
   it("reads a well-formed block", () => {
     expect(
-      parseGranularity({ trackers: { readCadence: "hourly", chartGranularity: "weekly", retentionDays: 90 } })
-    ).toEqual({ readCadence: "hourly", chartGranularity: "weekly", retentionDays: 90 });
+      parseGranularity({ trackers: { readCadence: "6hourly", chartGranularity: "weekly", retentionDays: 90 } })
+    ).toEqual({ readCadence: "6hourly", chartGranularity: "weekly", retentionDays: 90 });
+  });
+
+  it("coerces a cadence retired on 2026-09-09 instead of honouring it", () => {
+    // Rows written before the 6-hour floor still say "hourly" or "4hourly".
+    // Narrowing the union is only safe because they land on the default here
+    // rather than reaching the reader -- that is what makes the change a code
+    // change and not a migration.
+    for (const retired of ["hourly", "2hourly", "3hourly", "4hourly"]) {
+      expect(parseGranularity({ trackers: { readCadence: retired } }).readCadence).toBe("12hourly");
+    }
+  });
+
+  it("no longer honours a sub-6h chart bucket either", () => {
+    expect(parseGranularity({ trackers: { chartGranularity: "hourly" } }).chartGranularity).toBe("daily");
+    expect(parseGranularity({ trackers: { chartGranularity: "4hourly" } }).chartGranularity).toBe("daily");
   });
 
   it("falls back per-field, so one bad key cannot blank the rest", () => {
@@ -48,28 +65,30 @@ describe("parseGranularity", () => {
 describe("effectiveChartGranularity — never chart finer than you sample", () => {
   it("leaves a chart coarser than the reader alone", () => {
     expect(
-      effectiveChartGranularity({ readCadence: "4hourly", chartGranularity: "daily", retentionDays: 365 })
+      effectiveChartGranularity({ readCadence: "6hourly", chartGranularity: "daily", retentionDays: 365 })
     ).toBe("daily");
   });
 
-  it("clamps hourly charting on a daily reader up to daily", () => {
-    // Otherwise: one point per day drawn on an hourly axis, with 23 gaps that
-    // look exactly like an outage.
+  it("clamps 6-hourly charting on a daily reader up to daily", () => {
+    // Otherwise: one point per day drawn on a 6-hourly axis, with three gaps in
+    // every four that look exactly like an outage.
     expect(
-      effectiveChartGranularity({ readCadence: "daily", chartGranularity: "hourly", retentionDays: 365 })
+      effectiveChartGranularity({ readCadence: "daily", chartGranularity: "6hourly", retentionDays: 365 })
     ).toBe("daily");
   });
 
-  it("clamps hourly charting on a 4-hourly reader up to 4-hourly", () => {
+  it("clamps 6-hourly charting on a 12-hourly reader up to daily", () => {
+    // 12-hourly is not itself a chart bucket, so the clamp has to land on the
+    // next coarser one that is -- not on the reader's own cadence.
     expect(
-      effectiveChartGranularity({ readCadence: "4hourly", chartGranularity: "hourly", retentionDays: 365 })
-    ).toBe("4hourly");
+      effectiveChartGranularity({ readCadence: "12hourly", chartGranularity: "6hourly", retentionDays: 365 })
+    ).toBe("daily");
   });
 
-  it("allows hourly charting only when the reader is hourly", () => {
+  it("allows the finest chart bucket only when the reader is at the floor", () => {
     expect(
-      effectiveChartGranularity({ readCadence: "hourly", chartGranularity: "hourly", retentionDays: 365 })
-    ).toBe("hourly");
+      effectiveChartGranularity({ readCadence: "6hourly", chartGranularity: "6hourly", retentionDays: 365 })
+    ).toBe("6hourly");
   });
 });
 
@@ -89,7 +108,7 @@ describe("snapshotFetchLimit", () => {
   });
 
   it("caps the fetch so one sound cannot pull the table", () => {
-    expect(snapshotFetchLimit({ ...DEFAULT_GRANULARITY, readCadence: "hourly" }, 1095)).toBe(5000);
+    expect(snapshotFetchLimit({ ...DEFAULT_GRANULARITY, readCadence: "6hourly" }, 1095)).toBe(5000);
   });
 });
 
@@ -144,9 +163,38 @@ describe("isDueForRead", () => {
     expect(isDueForRead(hoursAgo(11.98), DEFAULT_GRANULARITY, NOW)).toBe(true);
   });
 
-  it("respects an hourly cadence", () => {
-    const g = { ...DEFAULT_GRANULARITY, readCadence: "hourly" as const };
-    expect(isDueForRead(hoursAgo(0.5), g, NOW)).toBe(false);
-    expect(isDueForRead(hoursAgo(1), g, NOW)).toBe(true);
+  it("respects the 6-hourly floor", () => {
+    const g = { ...DEFAULT_GRANULARITY, readCadence: "6hourly" as const };
+    expect(isDueForRead(hoursAgo(3), g, NOW)).toBe(false);
+    expect(isDueForRead(hoursAgo(6), g, NOW)).toBe(true);
+  });
+
+  it("has no cadence finer than six hours to offer", () => {
+    // The floor is the point of the 2026-09-09 change: nothing is read hourly.
+    expect(Math.min(...READ_CADENCES.map((c) => READ_CADENCE_HOURS[c]))).toBe(6);
+    expect(READ_CADENCES).not.toContain("hourly");
+  });
+});
+
+describe("readCadenceLabel", () => {
+  it("leaves the one cadence that is already an adverb alone", () => {
+    expect(readCadenceLabel("daily")).toBe("daily");
+  });
+
+  it("renders an interval cadence as an interval", () => {
+    // The stored key is "12hourly", which put "read every 12hourly" on the post
+    // detail card. Only the label changed; the key is still the key.
+    expect(readCadenceLabel("12hourly")).toBe("every 12h");
+    expect(readCadenceLabel("6hourly")).toBe("every 6h");
+  });
+
+  it("falls back to the default for anything it does not recognise", () => {
+    // It renders API data typed as a bare string, so a stale or hand-edited
+    // value must not put "every undefinedh" in front of a user. A cadence
+    // retired on 2026-09-09 is exactly such a value, and rows still hold them.
+    expect(readCadenceLabel("hourly")).toBe("every 12h");
+    expect(readCadenceLabel("4hourly")).toBe("every 12h");
+    expect(readCadenceLabel("banana")).toBe("every 12h");
+    expect(readCadenceLabel("")).toBe("every 12h");
   });
 });

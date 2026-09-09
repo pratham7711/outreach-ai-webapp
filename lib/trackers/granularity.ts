@@ -6,7 +6,7 @@
  * seconds a sound, sequentially, and doubling the rate doubles that bill.
  * Charting is a `take` and a downsample over rows that already exist, and costs
  * nothing anyone can feel. Collapsing them into one "granularity" control is how
- * someone picks "hourly" to get a smoother line and saturates the reader.
+ * someone picks the densest option for a smoother line and saturates the reader.
  *
  * So: readCadence is an operational budget, chartGranularity is a display
  * preference, and they are stored, validated and surfaced separately.
@@ -15,37 +15,55 @@
  * daily points, about a year of history.
  */
 
-export const READ_CADENCES = [
-  "hourly",
-  "2hourly",
-  "3hourly",
-  "4hourly",
-  "6hourly",
-  "12hourly",
-  "daily",
-] as const;
+/*
+ * Six hours is the floor, decided 2026-09-09.
+ *
+ * Nothing is read hourly any more. The sub-6h options existed to "catch a
+ * spike", but a spike is only visible if something also charts it, and the
+ * chart buckets are 6h at their densest -- so they bought worker time, egress
+ * and cron invocations for points nothing ever plotted. The reference product
+ * reads twice a day; 6-hourly is already twice as dense as that.
+ *
+ * Removing a value here is safe by construction: isReadCadence() rejects a
+ * stored "hourly" or "4hourly" and every parse path coerces it to
+ * DEFAULT_GRANULARITY.readCadence, so existing rows degrade to 12-hourly
+ * rather than throwing.
+ */
+export const READ_CADENCES = ["6hourly", "12hourly", "daily"] as const;
 export type ReadCadence = (typeof READ_CADENCES)[number];
 
-export const CHART_GRANULARITIES = ["hourly", "4hourly", "daily", "weekly"] as const;
+/* No bucket finer than the fastest read: an hourly or 4-hourly bucket against a
+   6-hourly reader is mostly empty buckets, and the settings screen admitted as
+   much -- it labelled them "only meaningful if you also read hourly". */
+export const CHART_GRANULARITIES = ["6hourly", "daily", "weekly"] as const;
 export type ChartGranularity = (typeof CHART_GRANULARITIES)[number];
 
 /**
  * Hours between reads, per cadence.
  *
- * The cron itself runs hourly and asks this which sounds are actually due, so
- * adding a cadence here is the whole change -- no new schedule, no new job. A
- * 24/N reading of these gives snapshots per day: hourly is 24, 4hourly is 6,
- * daily is 1.
+ * The cron fires every 6 hours and asks this which trackers are actually due,
+ * so adding a cadence at or above the floor is the whole change -- no new
+ * schedule, no new job. A 24/N reading of these gives snapshots per day:
+ * 6hourly is 4, 12hourly is 2, daily is 1.
  */
 export const READ_CADENCE_HOURS: Record<ReadCadence, number> = {
-  hourly: 1,
-  "2hourly": 2,
-  "3hourly": 3,
-  "4hourly": 4,
   "6hourly": 6,
   "12hourly": 12,
   daily: 24,
 };
+
+/**
+ * The cadence as a human reads it.
+ *
+ * The stored vocabulary is "12hourly", which is fine as a key and wrong in a
+ * sentence: "read every 12hourly" is what the post detail card actually shipped.
+ * `daily` is already an adverb; the rest are intervals and read as one.
+ */
+export function readCadenceLabel(cadence: string): string {
+  if (!isReadCadence(cadence)) return readCadenceLabel(DEFAULT_GRANULARITY.readCadence);
+  if (cadence === "daily") return "daily";
+  return `every ${READ_CADENCE_HOURS[cadence]}h`;
+}
 
 /** Snapshots per day at a cadence — what the settings screen actually shows. */
 export function readsPerDay(cadence: ReadCadence): number {
@@ -53,8 +71,7 @@ export function readsPerDay(cadence: ReadCadence): number {
 }
 
 export const CHART_BUCKET_HOURS: Record<ChartGranularity, number> = {
-  hourly: 1,
-  "4hourly": 4,
+  "6hourly": 6,
   daily: 24,
   weekly: 24 * 7,
 };
@@ -84,9 +101,7 @@ export const DEFAULT_GRANULARITY: TrackerGranularity = {
    * This used to be "4hourly", which read six times a day against a
    * reference product that reads twice -- three times the worker time and
    * three times the egress for points no chart ever plots, since
-   * chartGranularity is daily. The cron still FIRES hourly; this only
-   * decides which trackers come up due, so nothing about the schedule
-   * changes, only how often a given sound is actually fetched.
+   * chartGranularity is daily.
    */
   readCadence: "12hourly",
   chartGranularity: "daily",
@@ -216,11 +231,14 @@ export function downsample<T extends { recordedAt: Date }>(
  * Whether a sound is due for a reading, given when it was last read.
  *
  * The worker asks the app which sounds to read rather than keeping its own
- * list, so this is where cadence is actually enforced. A small tolerance stops
- * a timer that fires a few seconds early from deferring every sound by a whole
- * cycle.
+ * list, so this is where cadence is actually enforced. The tolerance stops a
+ * timer that fires early from deferring every sound by a whole cycle -- which
+ * since 2026-09-09 means six hours rather than one, so it is sized in tens of
+ * minutes, not minutes. It cannot cause an extra read: consecutive cron fires
+ * are six hours apart, so a sound can come up due at most once per fire
+ * however wide this is. See DUE_GRACE_MS in lib/sync/postTracking.ts.
  */
-const DUE_TOLERANCE_MS = 5 * 60 * 1000;
+const DUE_TOLERANCE_MS = 30 * 60 * 1000;
 
 export function isDueForRead(
   lastReadAt: Date | null,
@@ -256,7 +274,7 @@ export function isDueForRead(
  *      between one and thirty days. There is no "off" sentinel and no way to
  *      ask for an unbounded one: the bound is what buys the absent count limit.
  *      At the ceiling that is TTL_MAX_DAYS x readsPerDay(cadence) reads per
- *      post -- 180 at the 4-hourly default, 720 if an org asks for hourly --
+ *      post -- 60 at the 12-hourly default, 120 at the 6-hourly floor --
  *      and then the post seals itself and costs nothing again.
  * ──────────────────────────────────────────────────────────────────────────── */
 
@@ -275,12 +293,12 @@ export type PostTrackingGranularity = {
 };
 
 export const DEFAULT_POST_TRACKING: PostTrackingGranularity = {
-  /* The same 4-hourly default the sound and creator trackers carry, so the
+  /* The same 12-hourly default the sound and creator trackers carry, so the
      three read at one rate until someone deliberately separates them. */
   readCadence: DEFAULT_GRANULARITY.readCadence,
   chartGranularity: DEFAULT_GRANULARITY.chartGranularity,
   /* The ceiling, because a post's interesting life is its first few weeks and a
-     user who wanted less can say so. 30 days at 4-hourly is 180 reads. */
+     user who wanted less can say so. 30 days at 12-hourly is 60 reads. */
   defaultTtlDays: POST_TTL_MAX_DAYS,
 };
 

@@ -4,7 +4,8 @@
  *
  *   node scripts/e2e-area.mjs --list                 what areas exist
  *   node scripts/e2e-area.mjs campaigns analytics    run those areas
- *   node scripts/e2e-area.mjs --affected             run what this diff touches
+ *   node scripts/e2e-area.mjs --affected             run what is unreleased (vs origin/master)
+ *   node scripts/e2e-area.mjs --affected --since HEAD   run what you just changed
  *   node scripts/e2e-area.mjs --affected --print     just say what it would run
  *
  * The area table lives in e2e/areas.mjs and is shared with the deploy gate, so
@@ -53,7 +54,23 @@ if (has("--list")) {
 
 let areas;
 if (has("--affected")) {
-  const base = git(["rev-parse", "--verify", "--quiet", "origin/master"]).trim() ? "origin/master" : "HEAD";
+  /* Two different questions share this flag.
+     "What must pass before I deploy?" is measured against origin/master -- what
+     production is serving -- so everything unreleased counts.
+     "What did I just touch?" is measured against HEAD, and is the one you want
+     while iterating. Deploy safety uses the first; --since lets you ask the
+     second without pretending the rest of the branch is verified. */
+  const sinceIdx = argv.indexOf("--since");
+  const explicit = sinceIdx >= 0 ? argv[sinceIdx + 1] : null;
+  const base = explicit
+    ? explicit
+    : git(["rev-parse", "--verify", "--quiet", "origin/master"]).trim()
+      ? "origin/master"
+      : "HEAD";
+  if (explicit && !git(["rev-parse", "--verify", "--quiet", explicit]).trim()) {
+    console.error(`--since: no such git ref: ${explicit}`);
+    process.exit(2);
+  }
   const changed = [
     ...git(["diff", "--name-only", base]).split("\n"),
     ...git(["ls-files", "--others", "--exclude-standard"]).split("\n"),
@@ -81,7 +98,8 @@ if (has("--affected")) {
   }
   console.error(`Affected areas: ${areas.join(", ")}`);
 } else {
-  areas = argv.filter((a) => !a.startsWith("-"));
+  const sinceIdx = argv.indexOf("--since");
+  areas = argv.filter((a, i) => !a.startsWith("-") && !(sinceIdx >= 0 && i === sinceIdx + 1));
   if (!areas.length) {
     console.error(`usage: node scripts/e2e-area.mjs <area>... | --affected | --list\nareas: ${AREA_NAMES.join(", ")}`);
     process.exit(2);

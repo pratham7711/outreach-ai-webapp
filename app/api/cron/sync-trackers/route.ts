@@ -64,7 +64,7 @@ export async function GET(request: NextRequest) {
 
   try {
     /* Cadence is per-organisation, so the run needs each sound's owner. The
-       cron fires hourly and reads only what is actually due; an org on the
+       cron fires every six hours and reads only what is actually due; an org on the
        6-hourly setting therefore does work on one run in six, and changing the
        setting needs no new schedule. */
     const orgs = await db.organization.findMany({ select: { id: true, uiConfig: true } });

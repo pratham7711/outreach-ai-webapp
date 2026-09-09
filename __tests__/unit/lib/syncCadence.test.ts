@@ -103,17 +103,17 @@ describe("decideSyncAction", () => {
   });
 
   describe("tracking window (72h)", () => {
-    it("syncs hourly when tracking is on and last sync is 1h or older", () => {
+    it("syncs on the 6h boost when tracking is on and last sync is 6h or older", () => {
       expect(
         decideSyncAction(
           input({
             postedAt: hoursAgo(2 * 24),
-            lastSyncedAt: hoursAgo(1),
+            lastSyncedAt: hoursAgo(6),
             trackingEnabled: true,
-            trackingStartedAt: hoursAgo(2),
+            trackingStartedAt: hoursAgo(7),
           })
         )
-      ).toEqual({ action: "sync", reason: "tracking-hourly" });
+      ).toEqual({ action: "sync", reason: "tracking-boost" });
     });
 
     it("syncs a fresh tracked post that was never synced", () => {
@@ -126,17 +126,17 @@ describe("decideSyncAction", () => {
             trackingStartedAt: hoursAgo(1),
           })
         )
-      ).toEqual({ action: "sync", reason: "tracking-hourly" });
+      ).toEqual({ action: "sync", reason: "tracking-boost" });
     });
 
-    it("throttles a tracked post synced under 1h ago (does not fall through to normal cadence)", () => {
+    it("throttles a tracked post synced under 6h ago (does not fall through to normal cadence)", () => {
       expect(
         decideSyncAction(
           input({
             postedAt: hoursAgo(2 * 24),
-            lastSyncedAt: hoursAgo(0.5),
+            lastSyncedAt: hoursAgo(3),
             trackingEnabled: true,
-            trackingStartedAt: hoursAgo(2),
+            trackingStartedAt: hoursAgo(4),
           })
         )
       ).toEqual({ action: "skip", reason: "tracking-throttle" });

@@ -6,7 +6,7 @@
   "crons": [
     {
       "path": "/api/cron/sync-posts",
-      "schedule": "0 * * * *"
+      "schedule": "0 */6 * * *"
     },
     {
       "path": "/api/cron/auto-approve-submissions",
@@ -18,15 +18,15 @@
     },
     {
       "path": "/api/cron/sync-trackers",
-      "schedule": "0 * * * *"
+      "schedule": "15 */6 * * *"
     },
     {
       "path": "/api/cron/sync-creator-trackers",
-      "schedule": "30 * * * *"
+      "schedule": "30 */6 * * *"
     },
     {
       "path": "/api/cron/snapshot-org-views",
-      "schedule": "30 3 * * *"
+      "schedule": "30 0 * * *"
     }
   ]
 }

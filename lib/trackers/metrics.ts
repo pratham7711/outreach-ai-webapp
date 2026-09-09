@@ -44,10 +44,12 @@ export type ReadHealth = "pending" | "live" | "regressed" | "stale";
 /**
  * How old the newest reading may be before a number stops being current.
  *
- * The reader's timer is four-hourly, so this allows six consecutive misses
- * before the UI stops showing a live delta — late enough that one skipped run
- * is not an alarm, soon enough that a stopped reader cannot masquerade as calm
- * for nine days.
+ * The reader's timer is 12-hourly by default and 6-hourly at its fastest, so
+ * 24 hours is two consecutive misses at the default and four at the floor —
+ * late enough that one skipped run is not an alarm, soon enough that a stopped
+ * reader cannot masquerade as calm for nine days. It was written against a
+ * four-hourly reader (six misses); the window did not move on 2026-09-09, the
+ * number of misses it represents did.
  *
  * Deliberately distinct from the ingest route's 30-day LIVE_WINDOW_MS, which
  * answers a different question: that one separates "an outage worth shouting

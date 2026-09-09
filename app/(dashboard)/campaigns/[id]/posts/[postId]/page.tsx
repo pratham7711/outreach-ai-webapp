@@ -14,6 +14,7 @@ import RemovedPostOverlay from "@/components/posts/RemovedPostOverlay";
 import { imgSrc, embedSrcFor } from "@/lib/postMedia";
 import { stripAt, formatDateAbs, formatDateTimeAbs, formatFull, fitFigureSize } from "@/lib/format";
 import { loadCharts } from "@/components/charts/lazyCharts";
+import { readCadenceLabel, DEFAULT_POST_TRACKING } from "@/lib/trackers/granularity";
 
 const PerformanceOverTimeArea = dynamic(() => loadCharts().then((m) => m.PerformanceOverTimeArea), {
   ssr: false,
@@ -520,7 +521,7 @@ export default function PostDetailPage() {
             </div>
             <p style={{ fontSize: 13, color: "var(--cc-text-muted)", margin: 0 }}>
               {trackingEnabled
-                ? `Tracking on — read every ${timeseries?.readCadence ?? "4hourly"}, ${formatRemaining(timeseries?.hoursRemaining ?? null)}.`
+                ? `Tracking on — read ${readCadenceLabel(timeseries?.readCadence ?? DEFAULT_POST_TRACKING.readCadence)}, ${formatRemaining(timeseries?.hoursRemaining ?? null)}.`
                 : "Tracking off. Meta and IG only return lifetime totals, so enable tracking to record a real time series."}
             </p>
             {trackingEnabled && timeseries?.trackingExpiresAt && (

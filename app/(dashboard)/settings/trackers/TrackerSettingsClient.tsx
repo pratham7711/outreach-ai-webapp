@@ -5,12 +5,15 @@ import { Card, Skeleton } from "@pratham7711/ui";
 import { Button } from "@/components/ds";
 import { apiFetch } from "@/lib/api/client";
 import { errorMessage } from "@/lib/api/errorMessage";
-
-type ReadCadence = "hourly" | "2hourly" | "3hourly" | "4hourly" | "6hourly" | "12hourly" | "daily";
+/* Imported, not restated. This file used to declare its own copy of both
+   unions, so narrowing the real ones in lib/trackers/granularity.ts left a
+   settings screen still offering cadences the server no longer accepts --
+   the failure is silent, because the server just coerces them back. */
+import type { ReadCadence, ChartGranularity } from "@/lib/trackers/granularity";
 
 type Settings = {
   readCadence: ReadCadence;
-  chartGranularity: "hourly" | "4hourly" | "daily" | "weekly";
+  chartGranularity: ChartGranularity;
   retentionDays: number;
   effectiveChartGranularity: string;
 };
@@ -20,7 +23,7 @@ type Settings = {
  *
  * They look like one "granularity" setting and are not. Reading is bought from a
  * browser on a rented box at about ten seconds a sound; charting is a database
- * query over rows that already exist. Someone choosing "hourly" to get a
+ * query over rows that already exist. Someone choosing the densest option to get a
  * smoother line should not be quietly tripling an operational cost, so the
  * copy for each says plainly what it spends.
  */
@@ -29,18 +32,13 @@ type Settings = {
    has an opinion about — "every 4 hours" and "6 a day" are the same setting,
    and only one of them is the question being asked. */
 const READ_OPTIONS: { value: ReadCadence; label: string; hint: string }[] = [
-  { value: "hourly", label: "24 a day", hint: "Every hour. Fastest to catch a spike; the most reading time." },
-  { value: "2hourly", label: "12 a day", hint: "Every 2 hours. Good for an active launch week." },
-  { value: "3hourly", label: "8 a day", hint: "Every 3 hours." },
-  { value: "4hourly", label: "6 a day", hint: "Every 4 hours. Denser than the reference product; useful during a launch." },
-  { value: "6hourly", label: "4 a day", hint: "Every 6 hours." },
+  { value: "6hourly", label: "4 a day", hint: "Every 6 hours. The densest we read — twice the reference product." },
   { value: "12hourly", label: "2 a day", hint: "Every 12 hours. The default — the cadence CreatorCore itself reads at." },
   { value: "daily", label: "1 a day", hint: "Cheapest. Too slow to watch a launch." },
 ];
 
-const CHART_OPTIONS: { value: Settings["chartGranularity"]; label: string; hint: string }[] = [
-  { value: "hourly", label: "Hourly", hint: "Only meaningful if you also read hourly." },
-  { value: "4hourly", label: "4-hourly", hint: "Only meaningful if you read at least that often." },
+const CHART_OPTIONS: { value: ChartGranularity; label: string; hint: string }[] = [
+  { value: "6hourly", label: "6-hourly", hint: "Only meaningful if you also read every 6 hours." },
   { value: "daily", label: "Daily", hint: "The default, and what the reference product shows." },
   { value: "weekly", label: "Weekly", hint: "Smoothest. Good for a year-long view of a back catalogue." },
 ];

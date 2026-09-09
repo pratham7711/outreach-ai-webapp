@@ -13,9 +13,11 @@ export const maxDuration = 120;
 /**
  * The daily measurement behind "Views over time".
  *
- * Fixed time, 03:30 UTC (see vercel.json), chosen to sit just after the hourly
- * sync-posts run at :00 has refreshed what it can and before snapshot-sounds at
- * 04:00. The reading is therefore taken against numbers that are at most half an
+ * Fixed time, 00:30 UTC (see vercel.json), chosen to sit just after the
+ * sync-posts run at 00:00 has refreshed what it can and before snapshot-sounds
+ * at 04:00. It was 03:30 while sync-posts ran hourly, when :30 was half an hour
+ * after SOME run; once sync-posts moved to 00/06/12/18 on 2026-09-09, 03:30
+ * would have read numbers three and a half hours stale. The reading is therefore taken against numbers that are at most half an
  * hour stale, every day, at the same hour -- which is what makes consecutive
  * points comparable. A rollup taken at a drifting time would put a day's growth
  * partly in the neighbouring bucket.

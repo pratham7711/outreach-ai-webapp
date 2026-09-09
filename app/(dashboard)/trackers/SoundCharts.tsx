@@ -33,7 +33,7 @@ const AXIS = { fontSize: 11, fill: "var(--cc-text-muted)" } as const;
 function tickLabel(iso: string, granularity: ChartGranularity): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
-  if (granularity === "hourly" || granularity === "4hourly") {
+  if (granularity === "6hourly") {
     return d.toLocaleTimeString(undefined, { hour: "numeric", timeZone: "UTC" });
   }
   return d.toLocaleDateString(undefined, { month: "numeric", day: "numeric", timeZone: "UTC" });

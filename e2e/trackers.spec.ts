@@ -1,29 +1,31 @@
 import { test, expect } from '@playwright/test';
 
-async function navigateToFirstPostDetail(page: import('@playwright/test').Page): Promise<string | null> {
+async function navigateToFirstPostDetail(page: import('@playwright/test').Page): Promise<string> {
   await page.goto('/campaigns/camp-1');
   await page.waitForLoadState('networkidle');
   await page.getByText('Performance').first().waitFor({ state: 'visible', timeout: 20000 });
 
   const postsTab = page.getByRole('button', { name: /^Posts/i }).first();
   await postsTab.click();
-  await page.waitForTimeout(3000);
 
-  const postLinks = page.locator('a[href*="/posts/"]');
-  const count = await postLinks.count();
-  if (count === 0) return null;
+  /* camp-1 is seeded with four posts -- counted against the E2E database, not
+     assumed -- so an empty list here is a race with the tab's fetch, never a
+     data condition. This used to be a flat waitForTimeout(3000) followed by
+     `return null`, and every caller answered null with test.fixme(): the race
+     then reported as a SKIPPED test inside a green run, which is how a real
+     assertion failure in this file went unnoticed. Wait for the thing itself
+     and let its absence fail. */
+  const firstPostLink = page.locator('a[href*="/posts/"]').first();
+  await expect(firstPostLink).toBeVisible({ timeout: 20000 });
 
-  const href = await postLinks.first().getAttribute('href');
-  return href;
+  const href = await firstPostLink.getAttribute('href');
+  expect(href, 'seeded post link should carry an href').toBeTruthy();
+  return href as string;
 }
 
 test.describe('Post Tracking', () => {
   test('post detail tracking card: Track button toggles to Untrack, status line appears', async ({ page }) => {
     const href = await navigateToFirstPostDetail(page);
-    if (!href) {
-      test.fixme();
-      return;
-    }
 
     await page.goto(href);
     await page.waitForLoadState('networkidle');
@@ -43,20 +45,16 @@ test.describe('Post Tracking', () => {
 
       await expect(untrackBtn).toBeVisible({ timeout: 15000 });
 
-      const statusLine = page.getByText(/hourly snapshots for 72h/i).first();
+      const statusLine = page.getByText(/read (hourly|daily|every \d+h), .+(left|finished)/i).first();
       await expect(statusLine).toBeVisible({ timeout: 10000 });
     } else {
-      const statusLine = page.getByText(/hourly snapshots for 72h/i).first();
+      const statusLine = page.getByText(/read (hourly|daily|every \d+h), .+(left|finished)/i).first();
       await expect(statusLine).toBeVisible({ timeout: 10000 });
     }
   });
 
   test('tracking card: Bot Signals empty state renders with no snapshot', async ({ page }) => {
     const href = await navigateToFirstPostDetail(page);
-    if (!href) {
-      test.fixme();
-      return;
-    }
 
     await page.goto(href);
     await page.waitForLoadState('networkidle');
@@ -81,10 +79,6 @@ test.describe('Post Tracking', () => {
 
   test('Untrack button works: disables tracking after clicking', async ({ page }) => {
     const href = await navigateToFirstPostDetail(page);
-    if (!href) {
-      test.fixme();
-      return;
-    }
 
     await page.goto(href);
     await page.waitForLoadState('networkidle');
@@ -114,10 +108,6 @@ test.describe('Post Tracking', () => {
 
   test('timeseries chart section is present in tracking card', async ({ page }) => {
     const href = await navigateToFirstPostDetail(page);
-    if (!href) {
-      test.fixme();
-      return;
-    }
 
     await page.goto(href);
     await page.waitForLoadState('networkidle');

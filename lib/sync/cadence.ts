@@ -19,9 +19,9 @@ export type SyncDecisionInput = {
    * applyPostMetrics stamps only when counts actually arrive. So a post that
    * has never once measured has lastSyncedAt === null, reads as
    * lastSyncHours === Infinity, and clears every interval check ever -- it is
-   * "due" on every single hourly run, forever. That is exactly the population
-   * least likely to succeed, asked the most often, and it is how an unreadable
-   * TikTok post used to reach five strikes in five hours.
+   * "due" on every single run, forever. That is exactly the population least
+   * likely to succeed, asked the most often, and it is how an unreadable
+   * TikTok post used to reach five strikes in five runs.
    *
    * Sourced from the __lastFetch stamp that the no-counts branch already writes
    * to platformMetrics, so this costs no extra column and no extra query.
@@ -39,6 +39,21 @@ export type SyncDecisionInput = {
 
 const HOUR_MS = 1000 * 60 * 60;
 const TRACKING_WINDOW_HOURS = 72;
+/**
+ * The boost a freshly tracked post gets, in hours between reads.
+ *
+ * This was 1 -- an hourly re-read for the first 72 hours, so 72 reads per
+ * tracked post. Since 2026-09-09 nothing is read hourly: six hours is the
+ * floor everywhere, the cron only fires every six hours, and asking for an
+ * hourly sync here could not have been honoured anyway. 72h at six-hourly is
+ * 12 reads, not 72.
+ *
+ * It stays a separate constant from the tracker cadences in
+ * lib/trackers/granularity.ts because it answers a different question: that
+ * one is the org's standing preference, this is the fixed boost every tracked
+ * post gets while it is new.
+ */
+const TRACKING_BOOST_HOURS = 6;
 
 /**
  * How old a post gets before its numbers are sealed and it leaves the sweep
@@ -149,8 +164,8 @@ export function decideSyncAction(input: SyncDecisionInput): SyncDecision {
   if (input.trackingEnabled && input.trackingStartedAt) {
     const trackingHours = (input.now.getTime() - input.trackingStartedAt.getTime()) / HOUR_MS;
     if (trackingHours < TRACKING_WINDOW_HOURS) {
-      if (lastSyncHours >= 1) {
-        return { action: "sync", reason: "tracking-hourly" };
+      if (lastSyncHours >= TRACKING_BOOST_HOURS) {
+        return { action: "sync", reason: "tracking-boost" };
       }
       return { action: "skip", reason: "tracking-throttle" };
     }

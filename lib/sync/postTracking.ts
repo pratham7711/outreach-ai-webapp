@@ -59,10 +59,18 @@ export type PostTrackingInput = {
 };
 
 const HOUR_MS = 60 * 60 * 1000;
-/* A cron that fires at 04:00:10 must not defer a 1-hourly post read at
-   03:00:40 by a whole cycle. Five minutes absorbs Vercel's jitter and cannot
-   double-read: the next run is ~55 minutes away, not five. */
-const DUE_GRACE_MS = 5 * 60 * 1000;
+/* A cron that fires at 06:00:10 must not defer a 6-hourly post read taken at
+   00:05 by a whole cycle -- and since 2026-09-09 a whole cycle is six hours,
+   not one, so the old five minutes was far too tight: any read that landed
+   more than five minutes into a sweep lost its next slot entirely.
+
+   Thirty minutes cannot cause a double read. The cron fires every six hours,
+   so between two consecutive fires the elapsed time grows by exactly six
+   hours; a tracker can therefore come up due at most once per fire no matter
+   how wide this is. Grace only ever prevents a skipped cycle. It is sized
+   above the 300s function ceiling so a read taken at the very end of a long
+   sweep still keeps its slot. */
+const DUE_GRACE_MS = 30 * 60 * 1000;
 
 /**
  * The expiry to enforce, including for rows written before the column existed.

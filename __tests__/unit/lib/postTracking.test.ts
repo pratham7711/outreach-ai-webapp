@@ -67,9 +67,9 @@ describe("parsePostTracking", () => {
 
   it("keeps the good fields when one is garbage", () => {
     const g = parsePostTracking({
-      postTracking: { readCadence: "hourly", chartGranularity: "nonsense", defaultTtlDays: 900 },
+      postTracking: { readCadence: "6hourly", chartGranularity: "nonsense", defaultTtlDays: 900 },
     });
-    expect(g.readCadence).toBe("hourly");
+    expect(g.readCadence).toBe("6hourly");
     expect(g.chartGranularity).toBe(DEFAULT_POST_TRACKING.chartGranularity);
     // Out of bounds is not clamped on read — it is rejected, so an edited blob
     // cannot quietly buy a 900-day tracker.
@@ -82,9 +82,10 @@ describe("parsePostTracking", () => {
   });
 
   it("states the per-post read ceiling", () => {
-    // 4-hourly = 6 reads/day; 30 days = 180.
-    expect(readsPerTrackedPost({ ...DEFAULT_POST_TRACKING, readCadence: "4hourly" }, 30)).toBe(180);
-    expect(readsPerTrackedPost({ ...DEFAULT_POST_TRACKING, readCadence: "hourly" }, 30)).toBe(720);
+    // 6-hourly = 4 reads/day; 30 days = 120. That is the ceiling now that the
+    // sub-6h cadences are gone -- it used to be 720 at hourly.
+    expect(readsPerTrackedPost({ ...DEFAULT_POST_TRACKING, readCadence: "6hourly" }, 30)).toBe(120);
+    expect(readsPerTrackedPost({ ...DEFAULT_POST_TRACKING, readCadence: "12hourly" }, 30)).toBe(60);
     expect(readsPerTrackedPost({ ...DEFAULT_POST_TRACKING, readCadence: "daily" }, 1)).toBe(1);
   });
 });
@@ -136,24 +137,25 @@ describe("decidePostTracking", () => {
   });
 
   it("honours the org read cadence", () => {
-    const fourHourly = { ...DEFAULT_POST_TRACKING, readCadence: "4hourly" as const };
+    const sixHourly = { ...DEFAULT_POST_TRACKING, readCadence: "6hourly" as const };
     expect(
-      decidePostTracking(input({ granularity: fourHourly, lastSyncedAt: hoursAgo(4) })).action,
+      decidePostTracking(input({ granularity: sixHourly, lastSyncedAt: hoursAgo(6) })).action,
     ).toBe("sync");
     expect(
-      decidePostTracking(input({ granularity: fourHourly, lastSyncedAt: hoursAgo(2) })).action,
+      decidePostTracking(input({ granularity: sixHourly, lastSyncedAt: hoursAgo(3) })).action,
     ).toBe("skip");
   });
 
   it("gives five minutes of grace so an early cron does not defer a whole cycle", () => {
-    const hourly = { ...DEFAULT_POST_TRACKING, readCadence: "hourly" as const };
-    // 56 minutes: inside the hour, but within grace.
+    const sixHourly = { ...DEFAULT_POST_TRACKING, readCadence: "6hourly" as const };
+    // 5h40m: twenty minutes early, inside the thirty-minute grace. A read
+    // taken late in a previous sweep must not lose its next six-hour slot.
     expect(
-      decidePostTracking(input({ granularity: hourly, lastSyncedAt: hoursAgo(56 / 60) })).action,
+      decidePostTracking(input({ granularity: sixHourly, lastSyncedAt: hoursAgo(6 - 20 / 60) })).action,
     ).toBe("sync");
-    // 50 minutes: genuinely early.
+    // 5h15m: forty-five minutes early, genuinely not due.
     expect(
-      decidePostTracking(input({ granularity: hourly, lastSyncedAt: hoursAgo(50 / 60) })).action,
+      decidePostTracking(input({ granularity: sixHourly, lastSyncedAt: hoursAgo(6 - 45 / 60) })).action,
     ).toBe("skip");
   });
 
