@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
-import { ArrowRight, Bell, BellRing, Building2, CreditCard, LineChart, Plug, Tags, Users } from "lucide-react";
+import { ArrowRight, Bell, BellRing, Building2, CreditCard, LineChart, Plug, Sigma, Tags, Users } from "lucide-react";
 import { PageHeader } from "@/components/ds";
 
 const cards = [
@@ -34,6 +34,12 @@ const cards = [
     description: "How often tracked sounds are read from TikTok, and how densely their charts are drawn.",
     href: "/settings/trackers",
     icon: LineChart,
+  },
+  {
+    title: "Metrics",
+    description: "Which computed metrics appear across the workspace. EMV can be turned off entirely.",
+    href: "/settings/metrics",
+    icon: Sigma,
   },
   {
     title: "Notifications",

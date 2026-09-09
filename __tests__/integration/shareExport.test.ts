@@ -14,6 +14,7 @@ jest.mock('@/lib/db', () => ({
   db: {
     report: { findUnique: jest.fn() },
     post: { findMany: jest.fn() },
+    organization: { findUnique: jest.fn() },
   },
 }));
 jest.mock('@/lib/rateLimit', () => ({ rateLimit: jest.fn(), rateLimitKey: jest.fn() }));
@@ -53,6 +54,7 @@ beforeEach(() => {
     campaign: { id: 'camp-1', title: 'Wherever I go - Ellie Holcomb', currency: 'USD' },
   });
   mockDb.post.findMany.mockResolvedValue([post()]);
+  mockDb.organization.findUnique.mockResolvedValue({ uiConfig: null });
 });
 
 it('serves a CSV attachment named after the campaign', async () => {

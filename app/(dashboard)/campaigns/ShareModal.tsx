@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useTenant } from "@/components/providers/TenantProvider";
 import { Modal, Skeleton } from "@pratham7711/ui";
 import { SHARE_PLATFORMS, type SharePlatform, type ShareVisibility } from "@/lib/reports/shareVisibility";
 
@@ -77,6 +78,10 @@ export function ShareModal({
   campaignTitle?: string;
   onClose: () => void;
 }) {
+  /* No point offering to publish a metric this workspace has switched off. The
+     public page enforces it server-side too, for links made beforehand. */
+  const { showEmv: showEmvPref } = useTenant();
+  const orgShowsEmv = showEmvPref !== false;
   const [link, setLink] = useState<ShareLink | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -253,12 +258,14 @@ export function ShareModal({
                   label="Creator leaderboard"
                   hint="Names, post counts and views per creator."
                 />
-                <VisibilityToggle
-                  checked={link.visibility.showEmv}
-                  onChange={(next) => setVisibility({ ...link.visibility, showEmv: next })}
-                  label="Earned media value"
-                  hint="The EMV tile and the per-creator EMV column."
-                />
+                {orgShowsEmv && (
+                  <VisibilityToggle
+                    checked={link.visibility.showEmv}
+                    onChange={(next) => setVisibility({ ...link.visibility, showEmv: next })}
+                    label="Earned media value"
+                    hint="The EMV tile and the per-creator EMV column."
+                  />
+                )}
                 <VisibilityToggle
                   checked={link.visibility.showBudget}
                   onChange={(next) => setVisibility({ ...link.visibility, showBudget: next })}

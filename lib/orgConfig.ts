@@ -35,6 +35,10 @@ export type OrgUiConfig = {
     youtube?: boolean;
   };
   dashboard?: string[];
+  /** Which computed metrics the workspace wants to see at all. */
+  metrics?: {
+    showEmv?: boolean;
+  };
   integrations?: {
     /** Shape owned by lib/notifications.ts (SlackIntegration). */
     slack?: {

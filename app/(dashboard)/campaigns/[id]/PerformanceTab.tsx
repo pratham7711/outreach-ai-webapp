@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useEffect, useCallback } from "react";
+import { useTenant } from "@/components/providers/TenantProvider";
 import { Card, Badge, EmptyState, Skeleton, Avatar, Modal } from "@pratham7711/ui";
 import { ChartFrame, MetricTile, Button } from "@/components/ds";
 import {
@@ -179,6 +180,11 @@ function ExportModal({ campaignId, onClose }: { campaignId: string; onClose: () 
 }
 
 export default function PerformanceTab({ campaignId }: { campaignId: string }) {
+  /* Settings -> Organization -> "Show EMV". Seeded server-side by the
+     dashboard layout, so a workspace with EMV off never paints it. */
+  const { showEmv: showEmvPref } = useTenant();
+  const showEmv = showEmvPref !== false;
+
   const [data, setData] = useState<PerformanceData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -298,7 +304,7 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
             value={`${(kpis.engagementRate * 100).toFixed(2)}%`}
           />
         )}
-        <MetricTile metric="emv" value={formatCurrencyCompact(kpis.emv, currency)} />
+        {showEmv && <MetricTile metric="emv" value={formatCurrencyCompact(kpis.emv, currency)} />}
       </div>
 
       {/* Absent unless the campaign's song has a tracked sound, so campaigns
@@ -394,7 +400,7 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
                 display: "grid", gridTemplateColumns: LEADERBOARD_COLS(anyEngagementMeasured),
                 gap: 12, padding: "10px 24px", borderBottom: "1px solid var(--cc-border)", background: "var(--cc-bg)",
               }}>
-                {["Creator", "Posts", "Views", ...(anyEngagementMeasured ? ["Eng."] : []), "EMV"].map((h) => (
+                {["Creator", "Posts", "Views", ...(anyEngagementMeasured ? ["Eng."] : []), ...(showEmv ? ["EMV"] : [])].map((h) => (
                   <span key={h} style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--cc-text-subtle)" }}>{h}</span>
                 ))}
               </div>
@@ -420,7 +426,7 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
                       )}
                     </span>
                   )}
-                  <span style={{ fontSize: 13, fontWeight: 700, color: "var(--cc-primary)" }}>{formatCurrency(row.emv, currency)}</span>
+                  {showEmv && <span style={{ fontSize: 13, fontWeight: 700, color: "var(--cc-primary)" }}>{formatCurrency(row.emv, currency)}</span>}
                 </div>
               ))}
             </div>

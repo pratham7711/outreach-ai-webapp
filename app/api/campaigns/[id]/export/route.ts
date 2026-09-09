@@ -8,6 +8,7 @@ import { campaignScopeWhereFor } from "@/lib/campaignScope";
 import { computeCampaignPerformance } from "@/lib/reports/campaignPerformance";
 import { CampaignPerformancePDF } from "@/lib/reports/CampaignPerformancePDF";
 import { computeCampaignEmv, emvLabel } from "@/lib/metrics";
+import { emvEnabledFromRaw } from "@/lib/orgMetrics";
 import {
   engagementRateValue,
   fieldMetricValue,
@@ -60,6 +61,15 @@ export async function GET(
     });
     if (!campaign) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
 
+    /* A workspace that turned EMV off in Settings -> Metrics must not get it
+       back through the export button. Same policy the share export and the
+       posts-table CSV apply, read from the same place. */
+    const org = await db.organization.findUnique({
+      where: { id: orgId },
+      select: { uiConfig: true },
+    });
+    const showEmv = emvEnabledFromRaw(org?.uiConfig);
+
     const performance = await computeCampaignPerformance(campaign);
     const stem = `${campaign.title.replace(/[^a-z0-9]+/gi, "-").toLowerCase() || "campaign"}-export-${day(new Date())}`;
 
@@ -67,7 +77,13 @@ export async function GET(
       const buffer = await renderToBuffer(
         React.createElement(CampaignPerformancePDF, {
           campaignTitle: campaign.title,
-          data: performance,
+          data: showEmv
+            ? performance
+            : {
+                ...performance,
+                kpis: { ...performance.kpis, emv: null },
+                leaderboard: performance.leaderboard.map((r) => ({ ...r, emv: null })),
+              },
         }) as any
       );
       return new Response(new Uint8Array(buffer), {
@@ -141,7 +157,7 @@ export async function GET(
         ["Engagements", kpis.engagements ?? ""],
         ["Engagement Rate %", kpis.engagementRate !== null ? +(kpis.engagementRate * 100).toFixed(2) : ""],
 
-        [emvLabel(performance.currency), kpis.emv],
+        ...(showEmv ? [[emvLabel(performance.currency), kpis.emv] as Cell[]] : []),
         ["Posts", posts.length],
         ["Creators", creatorIds.length],
         [],
@@ -236,7 +252,7 @@ export async function GET(
         views,
         engagements ?? "",
         rate !== null ? +(rate * 100).toFixed(2) : "",
-        emv,
+        ...(showEmv ? [emv] : []),
       ] as Cell[];
     });
     creatorRows.sort((a, b) => Number(b[6]) - Number(a[6]));
@@ -254,7 +270,7 @@ export async function GET(
           "Views",
           "Engagements",
           "Engagement Rate %",
-          emvLabel(performance.currency),
+          ...(showEmv ? [emvLabel(performance.currency)] : []),
         ],
         ...creatorRows,
       ],

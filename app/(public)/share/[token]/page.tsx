@@ -3,7 +3,8 @@ import type { Metadata } from "next";
 import { Link2 } from "lucide-react";
 import { db } from "@/lib/db";
 import { computeCampaignPerformance, redactForShare } from "@/lib/reports/campaignPerformance";
-import { parseShareVisibility } from "@/lib/reports/shareVisibility";
+import { applyOrgMetricPolicy, parseShareVisibility } from "@/lib/reports/shareVisibility";
+import { emvEnabledFromRaw } from "@/lib/orgMetrics";
 import SharedPerformanceReport from "./SharedPerformanceReport";
 
 const SHARE_KIND = "campaign-performance";
@@ -110,7 +111,14 @@ export default async function SharedReportPage({
   const config = (link.config as { kind?: string } | null) ?? {};
   if (config.kind !== SHARE_KIND) return <RevokedState />;
 
-  const visibility = parseShareVisibility(link.config);
+  const org = await db.organization.findUnique({
+    where: { id: link.campaign.orgId },
+    select: { uiConfig: true },
+  });
+  const visibility = applyOrgMetricPolicy(
+    parseShareVisibility(link.config),
+    emvEnabledFromRaw(org?.uiConfig),
+  );
 
   const performance = await computeCampaignPerformance(
     {

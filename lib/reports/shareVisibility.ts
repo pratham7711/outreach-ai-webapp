@@ -123,3 +123,19 @@ export function sanitizeShareVisibility(raw: unknown): ShareVisibility {
     markRemovedPosts: o.markRemovedPosts === true,
   };
 }
+
+/**
+ * The org-wide "Show EMV" setting overrides whatever a share link stored.
+ *
+ * A link created while EMV was on keeps `showEmv: true` in Report.config
+ * forever. Switching the workspace setting off has to close those too, or
+ * "remove EMV from the UI" leaves it visible on exactly the surface the org
+ * does not control — a public URL already in a client's inbox. The override
+ * only ever removes, never adds.
+ */
+export function applyOrgMetricPolicy(
+  visibility: ShareVisibility,
+  orgShowsEmv: boolean,
+): ShareVisibility {
+  return orgShowsEmv ? visibility : { ...visibility, showEmv: false };
+}

@@ -8,7 +8,7 @@ import {
   LayoutDashboard, Megaphone, Play, Calendar, CalendarClock, Users, Users2, LineChart,
   Search, List, Link2, CreditCard, Shield, FileText,
   ChevronDown, Settings, LogOut, Menu, X, ChevronsLeft, Key, BarChart2, Activity, Music, Tags,
-  Globe
+  Globe, Sigma
 } from "lucide-react";
 import { mediaUrl } from "@/lib/postMedia";
 import { useSidebar } from "@/components/providers/SidebarProvider";
@@ -59,6 +59,7 @@ export const NAV_SECTIONS = [
       { href: "/connections", icon: Link2, label: "Connections" },
       { href: "/settings/team", icon: Users2, label: "Team" },
       { href: "/settings/trackers", icon: LineChart, label: "Tracker settings" },
+      { href: "/settings/metrics", icon: Sigma, label: "Metric settings" },
       { href: "/settings/api-keys", icon: Key, label: "API Keys" },
       { href: "/settings/billing", icon: CreditCard, label: "Billing" },
       { href: "/settings/ingestion", icon: Activity, label: "Ingestion" },

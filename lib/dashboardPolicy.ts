@@ -75,6 +75,7 @@ export const DASHBOARD_NAV_RULES: DashboardNavRule[] = [
   // was already fixed above for /deadlines and /analytics.
   { href: "/settings/general", alwaysVisible: true },
   { href: "/settings/trackers", alwaysVisible: true },
+  { href: "/settings/metrics", alwaysVisible: true },
   { href: "/settings/team", alwaysVisible: true },
   { href: "/settings/api-keys", alwaysVisible: true },
   { href: "/settings/billing", alwaysVisible: true },

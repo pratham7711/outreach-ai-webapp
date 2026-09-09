@@ -10,6 +10,8 @@ type TenantConfig = {
   fontFamily?: string;
   plan?: string;
   features?: string[];
+  /** Settings -> Organization -> "Show EMV". Undefined means "not answered yet". */
+  showEmv?: boolean;
 };
 
 const TenantContext = createContext<TenantConfig>({});
@@ -18,8 +20,21 @@ export function useTenant() {
   return useContext(TenantContext);
 }
 
-export function TenantProvider({ children }: { children: ReactNode }) {
-  const [config, setConfig] = useState<TenantConfig>({});
+/**
+ * `initial` is rendered by the server layout, which already holds the org's
+ * uiConfig. Anything the UI *hides* has to arrive that way: this provider's own
+ * fetch lands in an effect after first paint, so a client-only value would show
+ * EMV and then pull it away a moment later. Colours can tolerate that (they
+ * repaint), a whole column cannot.
+ */
+export function TenantProvider({
+  children,
+  initial,
+}: {
+  children: ReactNode;
+  initial?: TenantConfig;
+}) {
+  const [config, setConfig] = useState<TenantConfig>(initial ?? {});
 
   useEffect(() => {
     fetch("/api/tenant/config")
@@ -29,7 +44,9 @@ export function TenantProvider({ children }: { children: ReactNode }) {
       })
       .then((data) => {
         if (!data) return;
-        setConfig(data);
+        /* Server-provided keys win where the endpoint says nothing, so a
+           payload without showEmv cannot re-reveal a hidden metric. */
+        setConfig((prev) => ({ ...prev, ...data }));
         const root = document.documentElement;
         const primaryColor = customBrandingValue("primaryColor", data.primaryColor);
         const secondaryColor = customBrandingValue("secondaryColor", data.secondaryColor);

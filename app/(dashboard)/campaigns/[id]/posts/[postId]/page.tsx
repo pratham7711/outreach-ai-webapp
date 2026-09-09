@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { useTenant } from "@/components/providers/TenantProvider";
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Card, Badge, Skeleton, Tag, EmptyState } from "@pratham7711/ui";
@@ -164,6 +165,9 @@ const BASE_METRIC_CARDS = [
 ] as const;
 
 export default function PostDetailPage() {
+  /* Settings -> Organization -> "Show EMV", seeded server-side by the layout. */
+  const { showEmv: showEmvPref } = useTenant();
+  const showEmv = showEmvPref !== false;
   const params = useParams<{ id: string; postId: string }>();
   const router = useRouter();
   const [post, setPost] = useState<PostDetail | null>(null);
@@ -496,13 +500,15 @@ export default function PostDetailPage() {
             </span>
           </Card>
         )}
-        <Card variant="outlined" style={{ padding: "16px 20px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-            <DollarSign size={16} color="#059669" />
-            <span style={{ fontSize: 12, color: "var(--cc-text-muted)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em" }}>EMV</span>
-          </div>
-          <FigureValue text={formatMoney(emv)} />
-        </Card>
+        {showEmv && (
+          <Card variant="outlined" style={{ padding: "16px 20px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+              <DollarSign size={16} color="#059669" />
+              <span style={{ fontSize: 12, color: "var(--cc-text-muted)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em" }}>EMV</span>
+            </div>
+            <FigureValue text={formatMoney(emv)} />
+          </Card>
+        )}
       </div>
 
       {chartData.length > 1 && (

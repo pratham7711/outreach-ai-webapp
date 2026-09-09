@@ -11,6 +11,7 @@ import { getOrgEntitlements } from "@/lib/entitlements";
 import { resolveDashboardPolicy } from "@/lib/dashboardPolicy";
 import { customBrandingValue, usableIconHref } from "@/lib/brandingDefaults";
 import type { OrgUiConfig } from "@/lib/orgConfig";
+import { emvEnabled } from "@/lib/orgMetrics";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { VerifyEmailBanner } from "@/components/layout/VerifyEmailBanner";
@@ -98,7 +99,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     : null;
 
   return (
-    <TenantProvider>
+    <TenantProvider initial={{ showEmv: emvEnabled(uiConfig) }}>
       <SidebarProvider>
        <ConfirmProvider>
         <div

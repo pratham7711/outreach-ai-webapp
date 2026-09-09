@@ -20,6 +20,7 @@ jest.mock('@/lib/db', () => ({
     campaign: { findFirst: jest.fn() },
     post: { findMany: jest.fn() },
     activation: { findMany: jest.fn() },
+    organization: { findUnique: jest.fn() },
   },
 }));
 // @react-pdf/renderer ships ESM this config cannot parse, and the CSV path
@@ -91,6 +92,9 @@ beforeEach(() => {
   mockPerformance.mockResolvedValue(performance());
   mockDb.post.findMany.mockResolvedValue([measuredPost()]);
   mockDb.activation.findMany.mockResolvedValue([]);
+  // No metrics key at all -- the shape every workspace has until it opens
+  // Settings -> Metrics, and the one that must keep showing EMV.
+  mockDb.organization.findUnique.mockResolvedValue({ uiConfig: null });
 });
 
 it('returns 401 without a session', async () => {
@@ -165,5 +169,30 @@ it('labels EMV as USD when the campaign is not', async () => {
 it('keeps the plain EMV label for a USD campaign', async () => {
   const csv = await (await call()).text();
   expect(csv).not.toContain('EMV (USD)');
+  expect(section(csv, 'Summary')).toContain('EMV,61.5');
+});
+
+/* Settings -> Metrics turns EMV off for the whole workspace. The export button
+   is part of that workspace: leaving the column here would hand a client the
+   exact modelled figure the org chose not to publish, in the one artifact that
+   leaves the building. */
+it('drops the EMV column when the workspace turned EMV off', async () => {
+  mockDb.organization.findUnique.mockResolvedValue({
+    uiConfig: { metrics: { showEmv: false } },
+  });
+
+  const csv = await (await call()).text();
+
+  expect(csv).not.toContain('EMV');
+  // The rest of the export is untouched -- this hides one column, not the sheet.
+  expect(section(csv, 'Summary')).toContain('Views,');
+  expect(section(csv, 'Creators')).toContain('Engagement Rate %');
+});
+
+it('still exports EMV for a workspace that never opened the setting', async () => {
+  mockDb.organization.findUnique.mockResolvedValue({ uiConfig: { nav: ['campaigns'] } });
+
+  const csv = await (await call()).text();
+
   expect(section(csv, 'Summary')).toContain('EMV,61.5');
 });

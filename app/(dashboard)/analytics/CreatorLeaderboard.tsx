@@ -1,5 +1,6 @@
 "use client";
 import React from "react";
+import { useTenant } from "@/components/providers/TenantProvider";
 import Link from "next/link";
 import { Card, Avatar, EmptyState } from "@pratham7711/ui";
 import { User } from "lucide-react";
@@ -24,6 +25,11 @@ export type LeaderboardCreator = {
 };
 
 export default function CreatorLeaderboard({ creators }: { creators: LeaderboardCreator[] }) {
+  /* Settings -> Organization -> "Show EMV". Seeded server-side by the
+     dashboard layout, so a workspace with EMV off never paints it. */
+  const { showEmv: showEmvPref } = useTenant();
+  const showEmv = showEmvPref !== false;
+
   return (
     <Card variant="solid" noPadding>
       <div style={{ padding: "16px 24px", borderBottom: "1px solid var(--cc-border)" }}>
@@ -45,7 +51,7 @@ export default function CreatorLeaderboard({ creators }: { creators: Leaderboard
               borderBottom: "1px solid var(--cc-border)",
             }}
           >
-            {["", "Creator", "Camps", "Views", "Eng.", "EMV"].map((h, i) => (
+            {["", "Creator", "Camps", "Views", "Eng.", ...(showEmv ? ["EMV"] : [])].map((h, i) => (
               <span
                 key={i}
                 style={{
@@ -89,7 +95,7 @@ export default function CreatorLeaderboard({ creators }: { creators: Leaderboard
               <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)", textAlign: "right" }}>{creator.campaigns}</span>
               <span style={{ fontSize: 13, fontWeight: 700, color: "var(--cc-text)", textAlign: "right" }}>{formatNumber(creator.views)}</span>
               <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)", textAlign: "right" }}>{formatPercent(creator.engagementRate)}</span>
-              <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)", textAlign: "right" }}>{formatCurrency(creator.emv)}</span>
+              {showEmv && <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)", textAlign: "right" }}>{formatCurrency(creator.emv)}</span>}
             </Link>
           ))}
           </div>

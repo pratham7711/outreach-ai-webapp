@@ -4,7 +4,8 @@ import React from "react";
 import { db } from "@/lib/db";
 import { computeCampaignPerformance, redactForShare } from "@/lib/reports/campaignPerformance";
 import { CampaignPerformancePDF } from "@/lib/reports/CampaignPerformancePDF";
-import { parseShareVisibility } from "@/lib/reports/shareVisibility";
+import { applyOrgMetricPolicy, parseShareVisibility } from "@/lib/reports/shareVisibility";
+import { emvEnabledFromRaw } from "@/lib/orgMetrics";
 import { rateLimit } from "@/lib/rateLimit";
 import { getRequestIp } from "@/lib/request";
 
@@ -56,7 +57,14 @@ export async function GET(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const visibility = parseShareVisibility(link.config);
+  const orgForPolicy = await db.organization.findUnique({
+    where: { id: link.campaign.orgId },
+    select: { uiConfig: true },
+  });
+  const visibility = applyOrgMetricPolicy(
+    parseShareVisibility(link.config),
+    emvEnabledFromRaw(orgForPolicy?.uiConfig),
+  );
 
   const performance = await computeCampaignPerformance(
     {

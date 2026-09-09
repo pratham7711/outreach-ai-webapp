@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { parseShareVisibility } from "@/lib/reports/shareVisibility";
+import { applyOrgMetricPolicy, parseShareVisibility } from "@/lib/reports/shareVisibility";
+import { emvEnabledFromRaw } from "@/lib/orgMetrics";
 import { rateLimit } from "@/lib/rateLimit";
 import { getRequestIp } from "@/lib/request";
 import { fieldMetricValue, unwrittenMetricValue } from "@/lib/metricDisplay";
@@ -55,7 +56,7 @@ export async function GET(
     select: {
       isPublic: true,
       config: true,
-      campaign: { select: { id: true, title: true, currency: true } },
+      campaign: { select: { id: true, orgId: true, title: true, currency: true } },
     },
   });
 
@@ -67,7 +68,14 @@ export async function GET(
     return NextResponse.json({ error: "This link is no longer available" }, { status: 404 });
   }
 
-  const visibility = parseShareVisibility(link.config);
+  const orgForPolicy = await db.organization.findUnique({
+    where: { id: link.campaign.orgId },
+    select: { uiConfig: true },
+  });
+  const visibility = applyOrgMetricPolicy(
+    parseShareVisibility(link.config),
+    emvEnabledFromRaw(orgForPolicy?.uiConfig),
+  );
 
   const posts = await db.post.findMany({
     where: {

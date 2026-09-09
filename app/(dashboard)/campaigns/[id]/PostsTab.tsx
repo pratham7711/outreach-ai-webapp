@@ -2,6 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
+import { useTenant } from "@/components/providers/TenantProvider";
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { Card, Badge, Input, Modal, EmptyState, Skeleton, Avatar } from "@pratham7711/ui";
 import { Dropdown, StatusTabs, Pagination, Button } from "@/components/ds";
@@ -257,6 +258,12 @@ export default function PostsTab({
   /** Refreshing the posts moves the campaign's own totals, so the page reloads them too. */
   onRefreshed?: () => void;
 }) {
+  /* Settings -> Organization -> "Show EMV". Seeded server-side by the dashboard
+     layout, so a workspace with EMV off never paints the column. It drops out
+     of the grid template, the sort keys and the CSV alike -- a hidden column
+     that still exports is not hidden. */
+  const { showEmv: showEmvPref } = useTenant();
+  const showEmv = showEmvPref !== false;
   const [posts, setPosts] = useState<PostData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -673,13 +680,13 @@ export default function PostsTab({
         ...(anySaves ? (["saves"] as const) : []),
         ...(anyDownloads ? (["downloads"] as const) : []),
         ...(anyEngRate ? (["engRate"] as const) : []),
-        "emv",
+        ...(showEmv ? (["emv"] as const) : []),
         ...(anyDelta ? (["delta"] as const) : []),
         "status",
         "lastSynced",
         "actions",
       ] as const,
-    [anyLikes, anyComments, anyShares, anySaves, anyDownloads, anyEngRate, anyDelta]
+    [anyLikes, anyComments, anyShares, anySaves, anyDownloads, anyEngRate, anyDelta, showEmv]
   );
   const listGrid = useMemo(() => gridTemplate(listCols), [listCols]);
 
@@ -759,10 +766,10 @@ export default function PostsTab({
     if (anySaves) fields.push({ key: "saves", label: "Saves" });
     if (anyDownloads) fields.push({ key: "downloads", label: "Downloads" });
     if (anyEngRate) fields.push({ key: "engRate", label: "Eng %" });
-    fields.push({ key: "emv", label: "EMV" });
+    if (showEmv) fields.push({ key: "emv", label: "EMV" });
     if (anyDelta) fields.push({ key: "delta", label: "\u0394 Views" });
     return fields;
-  }, [anyLikes, anyComments, anyShares, anySaves, anyDownloads, anyEngRate, anyDelta]);
+  }, [anyLikes, anyComments, anyShares, anySaves, anyDownloads, anyEngRate, anyDelta, showEmv]);
 
   /* A refresh can fill in a counter nobody had, and in principle take one away.
      Sorting by a column that is no longer offered would leave the control
@@ -1114,7 +1121,7 @@ export default function PostsTab({
               {anySaves && <SortHeader label="Saves" sk="saves" align="right" />}
               {anyDownloads && <SortHeader label="Downloads" sk="downloads" align="right" />}
               {anyEngRate && <SortHeader label="Eng %" sk="engRate" align="right" />}
-              <SortHeader label="EMV" sk="emv" align="right" />
+              {showEmv && <SortHeader label="EMV" sk="emv" align="right" />}
               {anyDelta && <SortHeader label="Δ Views" sk="delta" align="right" />}
               <PlainHeader label="Status" />
               <PlainHeader label="Last Synced" />
@@ -1209,9 +1216,11 @@ export default function PostsTab({
                       {erShown === null ? "" : `${erShown.toFixed(1)}%`}
                     </span>
                   )}
-                  <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)", textAlign: "right" }}>
-                    {emv === null ? "" : formatMoney(emv)}
-                  </span>
+                  {showEmv && (
+                    <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)", textAlign: "right" }}>
+                      {emv === null ? "" : formatMoney(emv)}
+                    </span>
+                  )}
                   {anyDelta && (
                     <span style={{ fontSize: 13, fontWeight: 600, textAlign: "right", color: dv === null ? "var(--cc-text-subtle)" : dv >= 0 ? "var(--cc-success)" : "var(--cc-danger)" }}>
                       {dv === null ? "" : `${dv >= 0 ? "+" : ""}${formatNumber(dv)}`}
@@ -1399,9 +1408,11 @@ export default function PostsTab({
                           long form plus a "3 months ago" overflows a 240px card. */}
                       <span>Updated {formatSince(post.lastSyncedAt)}</span>
                     </div>
-                    <div style={{ marginTop: 4, fontSize: 10.5, color: "rgba(255,255,255,0.78)" }}>
-                      EMV {emv === null ? "\u2014" : formatMoney(emv)}
-                    </div>
+                    {showEmv && (
+                      <div style={{ marginTop: 4, fontSize: 10.5, color: "rgba(255,255,255,0.78)" }}>
+                        EMV {emv === null ? "\u2014" : formatMoney(emv)}
+                      </div>
+                    )}
                   </div>
                 </a>
                 {/* Sits over the tile's solid footer, to the right of the EMV
