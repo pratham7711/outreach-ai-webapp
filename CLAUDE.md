@@ -195,6 +195,8 @@ Built on top of the real app clone. Not in the real CreatorCore app.
 - Start `npm run dev` without `PORT=3009` (port 3000 is taken)
 - Use `PrismaClient` directly — always import `db` from `@/lib/db`
 - Point production at the Neon dev branch — prod gets its own Neon branch (Phase 4)
+- Deploy from a working tree — production comes from `master`, pushed (see below)
+- Commit directly on `master` — it only receives merges from `development`
 
 ## ALWAYS:
 
@@ -205,6 +207,49 @@ Built on top of the real app clone. Not in the real CreatorCore app.
 - Update `PROGRESS.md` after completing tasks
 - Keep all pages on light theme (CSS vars above)
 - Start dev server: `PORT=3009 npm run dev`
+
+## Branches and deploying — master is the only thing that ships
+
+Two long-lived branches, one direction of travel:
+
+| Branch | What it is for |
+|---|---|
+| `development` | All local and sandbox work. Cut short-lived branches from it; merge them back into it. |
+| `master` | **Deployment only.** Whatever is on `master` is what production is. |
+
+**Nothing reaches production except by being merged into `master` and pushed.**
+
+```bash
+# 1. work on development (or a short-lived branch cut from it)
+git switch development
+
+# 2. prove it — the deploy gate requires unit + playwright + build for THIS code state
+bash ~/.claude/hooks/verify.sh all
+
+# 3. merge into master and push; Vercel builds master as production
+git switch master
+git merge --ff-only development
+git push origin master
+```
+
+Vercel's **production branch is `master`** (project `prj_qG6uzSDP9ZLrJytmCGE4mlp20knf`,
+GitHub `pratham7711/outreach-ai-webapp`), so the push is the deploy. Confirm it landed with
+`bash ~/.claude/hooks/prod-status.sh --expect <deployment>`.
+
+**Never deploy a working tree.** `vercel --prod` uploads whatever is on disk — uncommitted
+edits, and untracked files belonging to other sessions, both of which then differ from every
+commit and from what anyone can review. This is how the repo used to ship, which is why
+`master` fell 436 commits behind before 2026-09-09. If a CLI deploy is genuinely unavoidable,
+run it from a **clean checkout of the master commit** (`git worktree add --detach <path> master`),
+never from a dirty tree, and say so.
+
+Corollaries:
+
+- A merge into `master` that is not a fast-forward means `development` and `master` diverged —
+  stop and reconcile rather than forcing it.
+- Do not commit directly on `master`. It only ever receives merges.
+- `git push` to `master` is gated: `~/.claude/hooks/deploy-gate.sh` denies it unless unit,
+  Playwright and build receipts all exist for the exact current code state.
 
 ## Concurrent sessions — one worktree per session
 
@@ -218,13 +263,14 @@ PORT=3010 npm run dev                                    # 3009 is taken; Playwr
 git worktree remove "$SCRATCHPAD/wt-<slug>"              # when done
 ```
 
-Branch off **HEAD, never `origin/master`** — master is hundreds of commits behind (434 on
-2026-09-09), because production is deployed with `vercel --prod` from the working tree
-rather than by pushing. That same fact is why sharing a checkout is dangerous here
-specifically:
+Branch off **`development`** — that is where local work lives (see the section above).
+Historically the rule here was "branch off HEAD, never `origin/master`", because master was
+434 commits behind on 2026-09-09; that gap is closed and master is now the deployment branch,
+so the stale-master caveat no longer applies. Sharing a checkout is still dangerous:
 
-- **A deploy ships the working tree.** Another session's uncommitted edit goes to
-  production alongside yours, and neither session sees it happen.
+- **A CLI deploy ships the working tree.** Another session's uncommitted edit would go to
+  production alongside yours, and neither session sees it happen. Deploying from `master`
+  instead of the working tree removes this risk — which is the main reason for that rule.
 - **A deploy receipt covers untracked files too.** `state_key` hashes HEAD, every
   uncommitted change, and the contents of untracked files. On 2026-09-09 another session
   added one untracked file to `docs/` during an 18-minute E2E run, which put the Playwright
@@ -232,7 +278,7 @@ specifically:
   were re-run. You cannot tell such a file from your own edit.
 
 If you must share a checkout, say so out loud before deploying and check
-`git status --porcelain` immediately before `vercel --prod`.
+`git status --porcelain` immediately before pushing.
 
 
 ## Testing — run the affected area, not all 37 specs
