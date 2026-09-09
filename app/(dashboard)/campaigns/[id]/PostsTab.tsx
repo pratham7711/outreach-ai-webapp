@@ -1,12 +1,12 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { Card, Badge, Input, Modal, EmptyState, Skeleton, Avatar } from "@pratham7711/ui";
 import { Dropdown, StatusTabs, Pagination, Button } from "@/components/ds";
 import { Grid3X3, List, Plus, Check, X, Eye, Heart, MessageCircle, TrendingUp, BarChart3, ArrowUp, ArrowDown, ArrowUpDown, Flag, Video, AlertTriangle, RefreshCw, Image as ImageIcon, Share2, Bookmark } from "lucide-react";
 import { CreatorSelect } from "@/components/CreatorSelect";
-import Link from "next/link";
 import { computePostEmv, computeEngagementRate } from "@/lib/metrics";
 import { stripAt, formatDateAbs, timeAgo, formatFull, formatFullCurrency } from "@/lib/format";
 import type { ComplianceFlag } from "@/lib/compliance/postCompliance";
@@ -1156,7 +1156,13 @@ export default function PostsTab({
                       thumbnailUrl={post.thumbnailUrl}
                       caption={post.caption}
                     />
-                    <Link prefetch={false} href={`/campaigns/${campaignId}/posts/${post.id}`} style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", minWidth: 0 }}>
+                    {/* Out to the platform, not in to our own detail page. Clicking a
+                        post means "let me see the post"; the thumbnail beside this
+                        already behaved that way (PostMedia opens postUrl), so the two
+                        halves of one row used to go to two different places. The
+                        detail page — tracking, EMV, bot signals — is still reached
+                        from the Performance tab's post table. */}
+                    <a href={post.postUrl} target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", minWidth: 0 }}>
                       <Avatar
                         name={post.creator.name}
                         size="sm"
@@ -1166,7 +1172,7 @@ export default function PostsTab({
                         <div title={post.creator.name} style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{post.creator.name}</div>
                         <div title={`@${stripAt(post.creator.handle)}`} style={{ fontSize: 12, color: "var(--cc-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>@{stripAt(post.creator.handle)}</div>
                       </div>
-                    </Link>
+                    </a>
                   </div>
                   <Badge variant={PLATFORM_BADGE[post.platform] ?? "neutral"} style={{ fontSize: 11 }}>{post.platform}</Badge>
                   <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{formatDateAbs(post.postedAt)}</span>
@@ -1235,6 +1241,12 @@ export default function PostsTab({
                   </div>
                   <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{formatSince(post.lastSyncedAt)}</span>
                   <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                    {/* The only way into our own post page now that the row itself
+                        goes out to the platform. Tracking, EMV and bot signals live
+                        there and nothing else in a campaign links to it. */}
+                    <Link href={`/campaigns/${campaignId}/posts/${post.id}`} aria-label="View post analytics" title="View post analytics" style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid var(--cc-border)", background: "var(--cc-card)", color: "var(--cc-text-muted)", fontSize: 12, display: "flex", alignItems: "center", gap: 2, textDecoration: "none" }}>
+                      <BarChart3 size={12} />
+                    </Link>
                     <button onClick={() => handleSyncNow(post.id)} disabled={syncingId === post.id} aria-label="Sync post metrics now" style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid var(--cc-border)", background: "var(--cc-card)", color: "var(--cc-text-muted)", cursor: syncingId === post.id ? "wait" : "pointer", fontSize: 12, display: "flex", alignItems: "center", gap: 2, opacity: syncingId === post.id ? 0.6 : 1 }}>
                       <TrendingUp size={12} />
                     </button>
@@ -1292,9 +1304,11 @@ export default function PostsTab({
               // background-image has no onError to fall back with.
               const thumb = imgSrc(post.thumbnailUrl, 320, 568);
               return (
-                <Link
-                  key={post.id}
-                  href={`/campaigns/${campaignId}/posts/${post.id}`}
+                <div key={post.id} style={{ position: "relative" }}>
+                <a
+                  href={post.postUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   style={{
                     position: "relative",
                     display: "block",
@@ -1389,7 +1403,13 @@ export default function PostsTab({
                       EMV {emv === null ? "\u2014" : formatMoney(emv)}
                     </div>
                   </div>
+                </a>
+                {/* Sits over the tile's solid footer, to the right of the EMV
+                    line, rather than inside the anchor -- an <a> cannot nest. */}
+                <Link href={`/campaigns/${campaignId}/posts/${post.id}`} aria-label="View post analytics" title="View post analytics" style={{ position: "absolute", right: 12, bottom: 10, display: "flex", alignItems: "center", color: "rgba(255,255,255,0.78)", textDecoration: "none" }}>
+                  <BarChart3 size={14} />
                 </Link>
+                </div>
               );
             })}
           </div>
