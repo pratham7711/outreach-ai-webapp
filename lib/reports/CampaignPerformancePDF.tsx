@@ -1,7 +1,7 @@
 import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
 import type { SharedReportData } from "@/lib/reports/campaignPerformance";
 import { DEFAULT_SHARE_VISIBILITY, type ShareVisibility } from "@/lib/reports/shareVisibility";
-import { formatCompact } from "@/lib/format";
+import { formatFull } from "@/lib/format";
 import { ACTIVATION_STATUS_LABEL } from "@/lib/activationQueues";
 import { POWERED_BY } from "@/lib/brand";
 import { EMV_CURRENCY, emvLabel } from "@/lib/metrics/emv";
@@ -119,7 +119,7 @@ const styles = StyleSheet.create({
 });
 
 function fmtNumber(num: number): string {
-  return formatCompact(num);
+  return formatFull(num);
 }
 
 function fmtCurrency(n: number, currency: string): string {
@@ -128,7 +128,7 @@ function fmtCurrency(n: number, currency: string): string {
 
 /** A measured counter, or an em dash — never a zero we did not measure. */
 function fmtMaybe(n: number | null): string {
-  return n === null ? "—" : formatCompact(n);
+  return n === null ? "—" : formatFull(n);
 }
 
 function fmtPostedAt(iso: string): string {

@@ -9,7 +9,7 @@ import type { FilterDef, FilterValues } from "@/components/ds";
 import { Search } from "lucide-react";
 import AddCreatorModal from "@/components/modals/AddCreatorModal";
 import Link from "next/link";
-import { formatCompact, stripAt, platformLabel } from "@/lib/format";
+import { stripAt, platformLabel, formatFull } from "@/lib/format";
 import { useListQuery } from "@/lib/useListQuery";
 import { CREATORS_PAGE_SIZE } from "@/lib/listPageSize";
 import type { CreatorSort } from "@/lib/listParams";
@@ -28,7 +28,7 @@ type Creator = {
 };
 
 function formatNumber(n: number): string {
-  return formatCompact(n);
+  return formatFull(n);
 }
 
 const PLATFORM_TABS = [

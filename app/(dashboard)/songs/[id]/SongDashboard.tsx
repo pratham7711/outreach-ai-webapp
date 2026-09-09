@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ArrowRight, Layers, Megaphone, Music } from "lucide-react";
 import { PostAnalysisTable, type AnalysisPost } from "@/components/posts/PostAnalysisTable";
 import { PostingTimeHeatmap } from "@/app/(dashboard)/analytics/PostingTimeHeatmap";
-import { formatCompact, platformLabel } from "@/lib/format";
+import { platformLabel, formatFull, fitFigureSize } from "@/lib/format";
 import { platformColor } from "@/app/(dashboard)/analytics/shared";
 import AttachCampaigns, { type AttachableCampaign } from "./AttachCampaigns";
 import { PAGE_TITLE_STYLE } from "@/components/ds";
@@ -98,7 +98,7 @@ function DistributionRow({
         />
       </span>
       <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)", fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>
-        {formatCompact(count)}{suffix}
+        {formatFull(count)}{suffix}
       </span>
     </Link>
   );
@@ -158,7 +158,7 @@ export default function SongDashboard({
           background: "linear-gradient(135deg, color-mix(in srgb, var(--cc-primary) 8%, transparent) 0%, var(--cc-card) 100%)",
         }}
       >
-        <HeroStat value={formatCompact(summary.totalViews)} label="Total views" sub={`across ${summary.postCount} posts`} />
+        <HeroStat value={formatFull(summary.totalViews)} label="Total views" sub={`across ${summary.postCount} posts`} />
         <span aria-hidden="true" style={{ width: 1, height: 48, background: "var(--cc-border)" }} />
         <HeroStat
           value={String(summary.campaignCount)}
@@ -240,7 +240,7 @@ export default function SongDashboard({
                   {c.postCount} posts
                 </span>
                 <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)", fontVariantNumeric: "tabular-nums", minWidth: 64, textAlign: "right" }}>
-                  {formatCompact(c.views)}
+                  {formatFull(c.views)}
                 </span>
               </Link>
             ))}
@@ -277,7 +277,7 @@ export default function SongDashboard({
 function HeroStat({ value, label, sub }: { value: string; label: string; sub: string }) {
   return (
     <div>
-      <p style={{ fontSize: 36, fontWeight: 700, color: "var(--cc-text)", lineHeight: 1, fontVariantNumeric: "tabular-nums", marginBottom: 6 }}>
+      <p title={value} style={{ fontSize: fitFigureSize(value, 36), fontWeight: 700, color: "var(--cc-text)", lineHeight: 1, fontVariantNumeric: "tabular-nums", marginBottom: 6, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
         {value}
       </p>
       <p style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>{label}</p>

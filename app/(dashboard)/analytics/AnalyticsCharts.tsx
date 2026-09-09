@@ -1,5 +1,6 @@
 "use client";
 import React from "react";
+import { formatCompact } from "@/lib/format";
 import {
   AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, BarChart, Bar,
 } from "recharts";
@@ -72,7 +73,7 @@ export function PlatformBreakdownBar({ data }: { data: PlatformBreakdown[] }) {
           tick={axisTickSm}
           axisLine={false}
           tickLine={false}
-          tickFormatter={(v) => formatNumber(v)}
+          tickFormatter={(v) => formatCompact(Number(v))}
         />
         <YAxis
           type="category"
@@ -112,7 +113,7 @@ export function CampaignComparisonLine({
           tick={axisTickSm}
           axisLine={false}
           tickLine={false}
-          tickFormatter={(v) => formatNumber(Number(v))}
+          tickFormatter={(v) => formatCompact(Number(v))}
         />
         <Tooltip
           contentStyle={chartTooltipStyle}

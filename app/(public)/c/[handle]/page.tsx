@@ -2,7 +2,7 @@ import { db } from "@/lib/db";
 import { notFound } from "next/navigation";
 import { Card, Badge, Avatar } from "@pratham7711/ui";
 import { Star } from "lucide-react";
-import { formatCompact, stripAt } from "@/lib/format";
+import { stripAt, formatFull } from "@/lib/format";
 import { POWERED_BY } from "@/lib/brand";
 
 /* ── Helpers ─────────────────────────────────────────────────────────────── */
@@ -23,7 +23,7 @@ function StarRating({ rating }: { rating: number }) {
 }
 
 function formatNumber(n: number) {
-  return formatCompact(n);
+  return formatFull(n);
 }
 
 function formatDate(d: Date) {

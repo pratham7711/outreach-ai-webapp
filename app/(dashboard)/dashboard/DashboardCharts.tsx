@@ -1,5 +1,6 @@
 "use client";
 import React from "react";
+import { formatCompact, formatCompactCurrency } from "@/lib/format";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell, BarChart, Bar, LabelList, ReferenceLine,
 } from "recharts";
@@ -86,7 +87,7 @@ export function ViewsOverTimeArea({
               axisLine={false}
               tickLine={false}
               width={56}
-              tickFormatter={(v) => formatNumber(Number(v))}
+              tickFormatter={(v) => formatCompact(Number(v))}
             />
             <Tooltip
               contentStyle={chartTooltipStyle}
@@ -195,7 +196,7 @@ export function CpmTrendLine({
         </defs>
         <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
         <XAxis dataKey="date" tick={axisTick} axisLine={false} tickLine={false} />
-        <YAxis tick={axisTick} axisLine={false} tickLine={false} tickFormatter={(v) => formatCurrency(Number(v))} width={64} />
+        <YAxis tick={axisTick} axisLine={false} tickLine={false} tickFormatter={(v) => formatCompactCurrency(Number(v))} width={72} />
         <Tooltip
           contentStyle={chartTooltipStyle}
           formatter={(v) => [formatCurrency(Number(v)), "CPM"]}
@@ -229,7 +230,7 @@ export function ViewsByCampaignBar({
     <ChartFrame height={200}>
       <BarChart data={data} layout="vertical" margin={{ top: 0, right: 48, bottom: 0, left: 0 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" horizontal={false} />
-        <XAxis type="number" tick={axisTick} axisLine={false} tickLine={false} tickFormatter={(v) => formatNumber(Number(v))} />
+        <XAxis type="number" tick={axisTick} axisLine={false} tickLine={false} tickFormatter={(v) => formatCompact(Number(v))} />
         <YAxis dataKey="title" type="category" tick={<CategoryTick />} axisLine={false} tickLine={false} width={CATEGORY_AXIS_WIDTH} />
         <Tooltip
           contentStyle={chartTooltipStyle}

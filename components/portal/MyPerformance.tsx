@@ -57,7 +57,7 @@ const PLATFORM_META: Record<PlatformEnum, { label: string; slug: string }> = {
   THREADS: { label: "Threads", slug: "threads" },
 };
 
-const compact = (n: number) => new Intl.NumberFormat("en", { notation: "compact" }).format(n);
+const compact = (n: number) => new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(n);
 
 /**
  * The header stats, in display order. A stat the platform did not report is

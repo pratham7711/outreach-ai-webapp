@@ -12,7 +12,7 @@ import { metricValue } from "@/lib/metricDisplay";
 import { isPostRemoved, removedNote } from "@/lib/postRemoval";
 import RemovedPostOverlay from "@/components/posts/RemovedPostOverlay";
 import { imgSrc, embedSrcFor } from "@/lib/postMedia";
-import { formatCompact, stripAt, formatDateAbs, formatDateTimeAbs } from "@/lib/format";
+import { stripAt, formatDateAbs, formatDateTimeAbs, formatFull, fitFigureSize } from "@/lib/format";
 import { loadCharts } from "@/components/charts/lazyCharts";
 
 const PerformanceOverTimeArea = dynamic(() => loadCharts().then((m) => m.PerformanceOverTimeArea), {
@@ -86,9 +86,27 @@ type TimeseriesSnapshot = {
 type Timeseries = {
   trackingEnabled: boolean;
   trackingStartedAt: string | null;
+  trackingTtlDays: number | null;
+  trackingExpiresAt: string | null;
+  hoursRemaining: number | null;
+  readCadence: string;
+  chartGranularity: string;
+  rawSnapshotCount: number;
   snapshots: TimeseriesSnapshot[];
   botSignals: BotSignal[];
 };
+
+/* The product rule, mirrored from lib/trackers/granularity.ts. A post tracker
+   always expires -- there is no unbounded option -- and the bound is what buys
+   the unlimited number of them. */
+const TTL_CHOICES = [1, 3, 7, 14, 30] as const;
+const DEFAULT_TTL_CHOICE = 30;
+
+function formatRemaining(hours: number | null): string {
+  if (hours === null || hours <= 0) return "finished";
+  if (hours < 48) return `${hours}h left`;
+  return `${Math.floor(hours / 24)}d left`;
+}
 
 const SIGNAL_LABEL: Record<BotSignal["type"], string> = {
   VIEW_SPIKE: "View spike",
@@ -108,8 +126,29 @@ const STATUS_BADGE: Record<string, "warning" | "success" | "danger" | "neutral">
   REJECTED: "danger",
 };
 
+/** A metric-card figure that shrinks to fit rather than running off the card. */
+function FigureValue({ text, color = "var(--cc-text)" }: { text: string; color?: string }) {
+  return (
+    <span
+      title={text}
+      style={{
+        fontSize: fitFigureSize(text, 24),
+        fontWeight: 700,
+        color,
+        whiteSpace: "nowrap",
+        fontVariantNumeric: "tabular-nums",
+        display: "block",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+      }}
+    >
+      {text}
+    </span>
+  );
+}
+
 function formatNumber(num: number): string {
-  return formatCompact(num);
+  return formatFull(num);
 }
 
 function formatMoney(num: number): string {
@@ -137,6 +176,7 @@ export default function PostDetailPage() {
   const [playing, setPlaying] = useState(false);
   const [timeseries, setTimeseries] = useState<Timeseries | null>(null);
   const [trackToggling, setTrackToggling] = useState(false);
+  const [ttlDays, setTtlDays] = useState<number>(DEFAULT_TTL_CHOICE);
 
   const fetchTimeseries = useCallback(async () => {
     try {
@@ -180,7 +220,9 @@ export default function PostDetailPage() {
       const res = await fetch(`/api/campaigns/${params.id}/posts/${params.postId}/track`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ enabled: enable }),
+        /* ttlDays only on the way in. Untracking clears the window rather than
+           shortening it, so sending one would be meaningless. */
+        body: JSON.stringify(enable ? { enabled: true, ttlDays: ttlDays } : { enabled: false }),
       });
       if (res.ok) {
         await fetchTimeseries();
@@ -432,16 +474,14 @@ export default function PostDetailPage() {
         </Card>
       )}
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 12, marginBottom: 24 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: 12, marginBottom: 24 }}>
         {metricCards.map(({ key, label, icon: Icon, color }) => (
           <Card key={key} variant="outlined" style={{ padding: "16px 20px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
               <Icon size={16} color={color} />
               <span style={{ fontSize: 12, color: "var(--cc-text-muted)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em" }}>{label}</span>
             </div>
-            <span style={{ fontSize: 24, fontWeight: 700, color: "var(--cc-text)" }}>
-              {formatNumber((post as any)[key] ?? 0)}
-            </span>
+            <FigureValue text={formatNumber((post as any)[key] ?? 0)} />
           </Card>
         ))}
         {engRate !== null && (
@@ -460,9 +500,7 @@ export default function PostDetailPage() {
             <DollarSign size={16} color="#059669" />
             <span style={{ fontSize: 12, color: "var(--cc-text-muted)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em" }}>EMV</span>
           </div>
-          <span style={{ fontSize: 24, fontWeight: 700, color: "var(--cc-text)" }}>
-            {formatMoney(emv)}
-          </span>
+          <FigureValue text={formatMoney(emv)} />
         </Card>
       </div>
 
@@ -482,13 +520,48 @@ export default function PostDetailPage() {
             </div>
             <p style={{ fontSize: 13, color: "var(--cc-text-muted)", margin: 0 }}>
               {trackingEnabled
-                ? "Tracking on — hourly snapshots for 72h build this post's time series."
+                ? `Tracking on — read every ${timeseries?.readCadence ?? "4hourly"}, ${formatRemaining(timeseries?.hoursRemaining ?? null)}.`
                 : "Tracking off. Meta and IG only return lifetime totals, so enable tracking to record a real time series."}
             </p>
+            {trackingEnabled && timeseries?.trackingExpiresAt && (
+              <p style={{ fontSize: 12, color: "var(--cc-text-subtle)", margin: "4px 0 0" }}>
+                Stops on {new Date(timeseries.trackingExpiresAt).toLocaleDateString()} and seals
+                its final numbers. Tracked posts are unlimited because each one expires.
+              </p>
+            )}
           </div>
-          <Button variant={trackingEnabled ? "secondary" : "primary"} onClick={handleToggleTracking} loading={trackToggling}>
-            {trackingEnabled ? "Untrack" : "Track"}
-          </Button>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {!trackingEnabled && (
+              /* Every post tracker carries an expiry, so this is a required
+                 choice presented as a default rather than an optional extra —
+                 there is no "forever" entry to pick. */
+              <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: "var(--cc-text-muted)" }}>
+                <span>Track for</span>
+                <select
+                  value={ttlDays}
+                  onChange={(e) => setTtlDays(Number(e.target.value))}
+                  disabled={trackToggling}
+                  style={{
+                    padding: "6px 8px",
+                    borderRadius: 6,
+                    border: "1px solid var(--cc-border)",
+                    background: "var(--cc-surface)",
+                    color: "var(--cc-text)",
+                    fontSize: 13,
+                  }}
+                >
+                  {TTL_CHOICES.map((d) => (
+                    <option key={d} value={d}>
+                      {d} day{d === 1 ? "" : "s"}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            <Button variant={trackingEnabled ? "secondary" : "primary"} onClick={handleToggleTracking} loading={trackToggling}>
+              {trackingEnabled ? "Untrack" : "Track"}
+            </Button>
+          </div>
         </div>
 
         {trackingSeries.length > 1 && (

@@ -4,7 +4,7 @@ import {
   AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
 import { MetricHint } from "@/components/ds";
-import { formatCompact } from "@/lib/format";
+import { formatCompact, formatFull } from "@/lib/format";
 
 type PerformancePoint = { date: string; views: number; likes: number; comments: number };
 type TrackingPoint = { ts: string; views: number; engagement: number };
@@ -67,7 +67,7 @@ export function PerformanceOverTimeArea({ data }: { data: PerformancePoint[] }) 
             />
             <Tooltip
               contentStyle={chartTooltipStyle}
-              formatter={(value) => [formatCompact(Number(value)), "Views"]}
+              formatter={(value) => [formatFull(Number(value)), "Views"]}
             />
             <Area
               type="monotone"
@@ -101,7 +101,7 @@ export function PerformanceOverTimeArea({ data }: { data: PerformancePoint[] }) 
             />
             <Tooltip
               contentStyle={chartTooltipStyle}
-              formatter={(value, name) => [formatCompact(Number(value)), String(name)]}
+              formatter={(value, name) => [formatFull(Number(value)), String(name)]}
             />
             <Legend wrapperStyle={{ fontSize: 12 }} />
             <Area
@@ -153,7 +153,7 @@ export function TrackingLine({ data }: { data: TrackingPoint[] }) {
             />
             <Tooltip
               contentStyle={chartTooltipStyle}
-              formatter={(value) => [formatCompact(Number(value)), "Views"]}
+              formatter={(value) => [formatFull(Number(value)), "Views"]}
             />
             <Line
               type="monotone"
@@ -187,7 +187,7 @@ export function TrackingLine({ data }: { data: TrackingPoint[] }) {
             />
             <Tooltip
               contentStyle={chartTooltipStyle}
-              formatter={(value) => [formatCompact(Number(value)), "Engagement"]}
+              formatter={(value) => [formatFull(Number(value)), "Engagement"]}
             />
             <Line
               type="monotone"

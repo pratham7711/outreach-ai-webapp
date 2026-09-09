@@ -4,7 +4,7 @@ import React, { useMemo, useState } from "react";
 import Link from "next/link";
 import { Badge } from "@pratham7711/ui";
 import { Dropdown, SortableTh, numericCell, type SortAccessors, useTableSort } from "@/components/ds";
-import { formatCompact, formatDateTimeAbs, platformLabel, stripAt, timeAgo } from "@/lib/format";
+import { formatDateTimeAbs, platformLabel, stripAt, timeAgo, formatFull } from "@/lib/format";
 import { PLATFORM_FILTER_OPTIONS } from "@/lib/platforms/constants";
 
 export type AnalysisPost = {
@@ -140,7 +140,7 @@ export function PostAnalysisTable({
           />
         )}
         <span style={{ fontSize: 13, color: "var(--cc-text-muted)", fontVariantNumeric: "tabular-nums" }}>
-          {totals.posts} posts · {formatCompact(totals.views)} views
+          {totals.posts} posts · {formatFull(totals.views)} views
         </span>
       </div>
 
@@ -189,9 +189,9 @@ export function PostAnalysisTable({
                       synced {p.lastSyncedAt ? timeAgo(p.lastSyncedAt) : "never"}
                     </div>
                   </td>
-                  <td style={numericCell}>{formatCompact(p.viewsCount)}</td>
-                  <td style={numericCell}>{formatCompact(p.likesCount)}</td>
-                  <td style={numericCell}>{formatCompact(p.commentsCount)}</td>
+                  <td style={numericCell}>{formatFull(p.viewsCount)}</td>
+                  <td style={numericCell}>{formatFull(p.likesCount)}</td>
+                  <td style={numericCell}>{formatFull(p.commentsCount)}</td>
                   <td style={numericCell}>{p.engagementRate.toFixed(1)}%</td>
                 </tr>
               ))}

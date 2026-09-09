@@ -43,6 +43,27 @@ export function MetricTile({
   const definition = metric ? METRIC_DEFINITIONS[metric] : undefined;
   const displayLabel = label ?? definition?.label ?? "";
 
+  /**
+   * Size the figure to fit the tile.
+   *
+   * These tiles are a six-column grid above 1280px, which leaves each one about
+   * 143px of text room. Full numbers are far wider than the compact ones this
+   * was built for: a bold tabular digit costs ~0.6em and a comma ~0.3em, so
+   * "300,500,000" is ~6.0em -- 168px at 28px, which overflows the card. Nothing
+   * wraps it either, because CSS finds no break opportunity inside a
+   * comma-grouped number.
+   *
+   * Stepping the size down by length keeps the whole figure visible, which is
+   * the entire point of showing the full number instead of "1.4M". Only strings
+   * can be measured; a ReactNode value keeps the base size.
+   */
+  const valueText = typeof value === "string" || typeof value === "number" ? String(value) : null;
+  const len = valueText?.length ?? 0;
+  const valueSize =
+    variant === "plain"
+      ? len >= 15 ? "text-[13px]" : len >= 12 ? "text-[15px]" : len >= 9 ? "text-[18px]" : "text-[22px]"
+      : len >= 15 ? "text-[15px]" : len >= 12 ? "text-[18px]" : len >= 9 ? "text-[22px]" : "text-[28px]";
+
   const deltaIsGood = delta ? (delta.isGood ?? delta.trend === "up") : false;
   const DeltaIcon = delta ? TREND_ICON[delta.trend] : null;
   const deltaTone =
@@ -62,9 +83,9 @@ export function MetricTile({
       </div>
 
       <span
-        className={`leading-none font-bold tracking-[-0.02em] text-foreground tabular-nums ${
-          variant === "plain" ? "text-[22px]" : "text-[28px]"
-        }`}
+        /* title so the figure is recoverable if a future layout does clip it. */
+        title={valueText ?? undefined}
+        className={`overflow-hidden leading-none font-bold tracking-[-0.02em] text-ellipsis whitespace-nowrap text-foreground tabular-nums ${valueSize}`}
       >
         {value}
       </span>
@@ -84,12 +105,12 @@ export function MetricTile({
   );
 
   if (variant === "plain") {
-    return <div className="flex flex-col gap-2">{body}</div>;
+    return <div className="flex min-w-0 flex-col gap-2">{body}</div>;
   }
 
   return (
     <Card className="gap-0" data-metric-tile="">
-      <CardContent className="flex flex-col gap-2">{body}</CardContent>
+      <CardContent className="flex min-w-0 flex-col gap-2">{body}</CardContent>
     </Card>
   );
 }

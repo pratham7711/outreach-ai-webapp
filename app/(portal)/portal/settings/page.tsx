@@ -448,7 +448,7 @@ export default function PortalSettingsPage() {
                           </span>
                           {account.isVerified && <Tag variant="accent" outlined>Verified</Tag>}
                           <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>
-                            {new Intl.NumberFormat("en", { notation: "compact" }).format(
+                            {new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(
                               account.followersCount,
                             )}{" "}
                             followers

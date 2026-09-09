@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { syncPost } from "@/lib/sync/syncPost";
-import { openSandboxPostFetcher } from "@/lib/platforms/tiktokPostSandbox";
+import { openTikTokPostFetcherForOne } from "@/lib/platforms/tiktokEgress";
 
 // POST /api/campaigns/[id]/posts/[postId]/sync — Trigger manual sync for a post
 export async function POST(
@@ -31,12 +31,15 @@ export async function POST(
      * the difference was invisible from the outside: same fetch code, same
      * post, different egress. Measured on prod 2026-09-02.
      *
-     * openSandboxPostFetcher is a one-lane pool and exists for precisely this
-     * caller -- a single post that would rather not pay to boot several. Only
-     * for TIKTOK: YouTube and Instagram answer their APIs from anywhere, and
-     * booting a sandbox for them would add seconds to every click for nothing.
+     * openTikTokPostFetcherForOne is a one-identity pool and exists for
+     * precisely this caller -- a single post that would rather not pay to boot
+     * several. It picks the best egress available: a residential proxy when one
+     * is configured (no boot latency at all, so the click returns seconds
+     * sooner), and the same one-lane sandbox as before when none is. Only for
+     * TIKTOK: YouTube and Instagram answer their APIs from anywhere, and
+     * booting an egress for them would add seconds to every click for nothing.
      */
-    const tiktokSandbox = post.platform === "TIKTOK" ? openSandboxPostFetcher() : undefined;
+    const tiktokSandbox = post.platform === "TIKTOK" ? openTikTokPostFetcherForOne() : undefined;
 
     let outcome;
     try {

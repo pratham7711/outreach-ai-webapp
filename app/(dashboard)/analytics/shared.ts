@@ -1,8 +1,8 @@
-import { formatCompact } from "@/lib/format";
+import { formatFull } from "@/lib/format";
 import { PLATFORM_FILTER_OPTIONS } from "@/lib/platforms/constants";
 
 export function formatNumber(n: number): string {
-  return formatCompact(n);
+  return formatFull(n);
 }
 
 export function formatCurrency(n: number): string {

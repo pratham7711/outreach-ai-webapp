@@ -83,7 +83,20 @@ export async function GET(request: NextRequest) {
        The first is one row per sound with its newest snapshot only -- light
        enough to run over the whole table -- and the second pulls the 30-point
        history for just the window that won. */
+    /* TikTok rows only, and the filter is load-bearing rather than defensive.
+       TikTokSound.platform also admits INSTAGRAM -- the create route parses it
+       off the pasted URL and stores it -- but every reader below builds a
+       TikTok sound URL out of `tiktokSoundId`. Without this filter an Instagram
+       audio tracker is not merely unread: the same numeric id can exist on both
+       platforms, so it would be read against TIKTOK's usage curve and stored as
+       if it were Instagram's. The create route already refuses to merge the two
+       ("the same numeric id can exist on both"); reading has to honour the same
+       line. Measured on prod 2026-09-09: 1 audio tracker, TIKTOK, so this is a
+       guard against a reachable state rather than a fix to a live one --
+       Instagram audio has no reader yet, and skipping is the honest behaviour
+       until it does. */
     const candidates = await db.tikTokSound.findMany({
+      where: { platform: "TIKTOK" },
       select: {
         id: true,
         snapshots: { orderBy: { recordedAt: "desc" }, take: 1, select: { recordedAt: true } },

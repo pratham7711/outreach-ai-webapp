@@ -7,7 +7,7 @@ import {
   PieChart, Pie, Cell, Legend,
 } from "recharts";
 import { Eye, Heart, Percent, DollarSign, Target, TrendingUp, Share2, AlertTriangle, BarChart3, PieChart as PieChartIcon, Trophy, Download } from "lucide-react";
-import { formatCompact } from "@/lib/format";
+import { formatFull, formatCompact } from "@/lib/format";
 import { platformColor } from "@/app/(dashboard)/analytics/shared";
 import { ShareModal } from "@/app/(dashboard)/campaigns/ShareModal";
 import { AudioCard } from "@/components/campaigns/AudioCard";
@@ -60,21 +60,19 @@ function seriesFor(platforms: string[]): { key: string; color: string }[] {
 }
 
 function formatNumber(num: number): string {
-  return formatCompact(num);
+  return formatFull(num);
 }
 
 function formatCurrency(n: number, currency = "USD"): string {
   return new Intl.NumberFormat("en-US", { style: "currency", currency, maximumFractionDigits: 2 }).format(n);
 }
 
+/* Kept under its old name so call sites read unchanged; it no longer
+   abbreviates. It already printed the full amount below $10k -- the compact
+   branch above that was the only place two different EMVs could render as the
+   same "$12K". */
 function formatCurrencyCompact(n: number, currency = "USD"): string {
-  if (Math.abs(n) < 10000) return formatCurrency(n, currency);
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency,
-    notation: "compact",
-    maximumFractionDigits: 1,
-  }).format(n);
+  return formatCurrency(n, currency);
 }
 
 function formatDate(iso: string): string {
@@ -324,7 +322,7 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--cc-border)" />
               <XAxis dataKey="date" tickFormatter={formatDate} tick={{ fontSize: 12, fill: "var(--cc-text-muted)" }} />
-              <YAxis tickFormatter={(v) => formatNumber(Number(v))} tick={{ fontSize: 12, fill: "var(--cc-text-muted)" }} />
+              <YAxis tickFormatter={(v) => formatCompact(Number(v))} tick={{ fontSize: 12, fill: "var(--cc-text-muted)" }} width={72} />
               <Tooltip
                 labelFormatter={(l) => formatDate(String(l))}
                 formatter={(v: any) => formatNumber(Number(v ?? 0))}

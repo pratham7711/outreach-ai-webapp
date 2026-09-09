@@ -23,16 +23,40 @@ const read = (p: string) => fs.readFileSync(path.join(ROOT, p), "utf8");
 describe("fetch capabilities are wired to a caller", () => {
   const WIRINGS: Array<{ capability: string; caller: string; why: string }> = [
     {
-      capability: "openSandboxPostFetcher",
+      capability: "openTikTokPostFetcherForOne",
       caller: "app/api/campaigns/[id]/posts/[postId]/sync/route.ts",
       why:
         "TikTok serves function egress a WAF login shell roughly three times in four. " +
-        "Without a sandbox, Sync Now on a TikTok post fails while the bulk refresh succeeds.",
+        "Without a better egress, Sync Now on a TikTok post fails while the bulk refresh succeeds.",
+    },
+    {
+      capability: "openTikTokPostFetcher",
+      caller: "lib/sync/refreshCampaign.ts",
+      why: "The bulk refresh needs several egress addresses to cover a campaign inside its budget.",
+    },
+    {
+      capability: "openTikTokPostFetcher",
+      caller: "app/api/cron/sync-posts/route.ts",
+      why:
+        "The tracker sweep reads TikTok too. Wired separately from the bulk refresh because " +
+        "it was once the path that quietly kept using the weaker egress after the others moved.",
+    },
+    {
+      capability: "openTikTokProxyPool",
+      caller: "lib/platforms/tiktokEgress.ts",
+      why:
+        "A residential proxy is the only lever that raises TikTok's pass RATE rather than the " +
+        "number of attempts at it. Written and unreachable, it would buy exactly nothing.",
+    },
+    {
+      capability: "openSandboxPostFetcher",
+      caller: "lib/platforms/tiktokEgress.ts",
+      why: "Still the single-post reader whenever no proxy is configured.",
     },
     {
       capability: "openSandboxPostPool",
-      caller: "lib/sync/refreshCampaign.ts",
-      why: "The bulk refresh needs several egress addresses to cover a campaign inside its budget.",
+      caller: "lib/platforms/tiktokEgress.ts",
+      why: "Still the bulk reader with no proxies, and the fallback for posts a proxy could not deliver.",
     },
     {
       capability: "fetchInstagramEmbedPost",
@@ -60,7 +84,7 @@ describe("fetch capabilities are wired to a caller", () => {
    * that already bit us. Any `openSandbox*` export is, by construction, a thing
    * whose entire value is being called from a request path.
    */
-  it("every exported openSandbox* helper is called from outside its own module", () => {
+  it("every exported egress-opening helper is called from outside its own module", () => {
     const platformsDir = path.join(ROOT, "lib/platforms");
     const sources = fs
       .readdirSync(platformsDir)
@@ -69,7 +93,10 @@ describe("fetch capabilities are wired to a caller", () => {
 
     const exported: Array<{ name: string; file: string }> = [];
     for (const { file, text } of sources) {
-      for (const m of text.matchAll(/export\s+function\s+(openSandbox\w+)/g)) {
+      /* openTikTok* as well as openSandbox*: the ladder gained a second family
+         of egress openers, and a helper in the newer one is exactly as useless
+         unwired as the one that originally shipped with no callers. */
+      for (const m of text.matchAll(/export\s+function\s+(open(?:Sandbox|TikTok)\w+)/g)) {
         exported.push({ name: m[1], file });
       }
     }

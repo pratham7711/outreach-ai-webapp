@@ -1,4 +1,4 @@
-import { formatCompact } from "@/lib/format";
+import { formatFull } from "@/lib/format";
 
 export type Campaign = {
   id: string;
@@ -73,7 +73,7 @@ export const STATUS_BADGE_VARIANT: Record<string, StatusVariant> = {
 
 
 export function formatNumber(n: number) {
-  return formatCompact(n);
+  return formatFull(n);
 }
 
 /* Re-exported rather than redefined. This file used to hold its own copy that

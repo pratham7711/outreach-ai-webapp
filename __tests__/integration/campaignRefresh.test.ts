@@ -79,7 +79,18 @@ beforeEach(() => {
   mockRateLimit.mockReturnValue({ allowed: true, retryAfterSeconds: 0 });
   // No prior run: the campaign is free to refresh. Tests that care override it.
   mockDb.campaignRefreshRun.findFirst.mockResolvedValue(null);
-  mockDb.campaignRefreshRun.create.mockResolvedValue({ id: 'run-1' });
+  /* startedAt and total are selected now, not just id: a run can be continued
+     in a later invocation, and both the leftover query ("not synced since this
+     run began") and the twenty-minute wall bound are measured from them. */
+  /* Echoes the row it was asked to write, as the database does. Hardcoding a
+     total here instead would make every assertion about "N of M" a statement
+     about the fixture rather than about the code. */
+  mockDb.campaignRefreshRun.create.mockImplementation(async ({ data }: { data?: { total?: number; status?: string } }) => ({
+    id: 'run-1',
+    startedAt: new Date(),
+    total: data?.total ?? 0,
+    status: data?.status ?? 'running',
+  }));
   mockDb.campaignRefreshRun.update.mockResolvedValue({ id: 'run-1' });
 });
 

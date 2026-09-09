@@ -1,7 +1,7 @@
 "use client";
 import { Modal, Badge } from "@pratham7711/ui";
 import { Music, RefreshCw } from "lucide-react";
-import { formatCompact, formatDateAbs, timeAgo } from "@/lib/format";
+import { formatDateAbs, timeAgo, formatFull } from "@/lib/format";
 import type { ChartGranularity } from "@/lib/trackers/granularity";
 import { AudioUsesChart, VelocityChart, type SeriesPoint } from "./SoundCharts";
 import { changeOver } from "./horizonChange";
@@ -137,7 +137,7 @@ export function SoundDetailModal({
             Audio Uses
           </h3>
           <div style={{ fontSize: 24, fontWeight: 700, color: "var(--cc-text)", marginBottom: 10 }}>
-            {sound.latestSnapshot ? formatCompact(sound.latestSnapshot.usesCount) : "—"}
+            {sound.latestSnapshot ? formatFull(sound.latestSnapshot.usesCount) : "—"}
           </div>
           <AudioUsesChart series={sound.series} granularity={sound.chartGranularity} />
         </section>
@@ -167,7 +167,7 @@ export function SoundDetailModal({
                   ) : c ? (
                     <div style={{ fontSize: 14, fontWeight: 700, color: c.added < 0 ? "var(--cc-danger)" : "var(--cc-text)" }}>
                       {c.added >= 0 ? "+" : ""}
-                      {formatCompact(c.added)}
+                      {formatFull(c.added)}
                       {c.percent !== null ? (
                         <span style={{ fontSize: 11, fontWeight: 500, color: "var(--cc-text-muted)", marginLeft: 4 }}>
                           {c.percent >= 0 ? "+" : ""}

@@ -112,7 +112,9 @@ describe("MyPerformance — stats the platform did not report", () => {
     mockInsights([block({ bestPost: post("t1", 1200, 40), posts: [post("t1", 1200, 40)] })]);
     render(<MyPerformance />);
     await waitFor(() =>
-      expect(screen.getAllByText("1.2K views · 40 likes · 2 comments · 0 shares").length).toBeGreaterThan(0),
+      /* Full figures, not "1.2K": counters are shown exactly now, because two
+         posts that both round to 1.2K can be a hundred views apart. */
+      expect(screen.getAllByText("1,200 views · 40 likes · 2 comments · 0 shares").length).toBeGreaterThan(0),
     );
   });
 });

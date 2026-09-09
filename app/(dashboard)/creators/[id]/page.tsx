@@ -9,11 +9,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Card, Badge, Avatar, EmptyState, Skeleton, Modal, Input, Tooltip } from "@pratham7711/ui";
 import { PAGE_TITLE_STYLE, Dropdown, MetricTile } from "@/components/ds";
-import { formatCompact, formatDateAbs, platformLabel } from "@/lib/format";
+import { formatDateAbs, platformLabel, formatFull } from "@/lib/format";
 import { toast } from "sonner";
 
 function formatNumber(num: number): string {
-  return formatCompact(num);
+  return formatFull(num);
 }
 
 function formatCurrency(n: number, currency = "USD") {

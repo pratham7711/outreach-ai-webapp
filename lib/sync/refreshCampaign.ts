@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { syncPost } from "@/lib/sync/syncPost";
 import type { FetchReason } from "@/lib/platforms/fetchPostMetrics";
-import { laneCountFor, openSandboxPostPool } from "@/lib/platforms/tiktokPostSandbox";
+import { openTikTokPostFetcher } from "@/lib/platforms/tiktokEgress";
 import { snapshotSounds } from "@/lib/sounds/snapshot";
 import { createLogger } from "@/lib/observability/logger";
 import {
@@ -149,6 +149,50 @@ const REASON_IS_RETRYABLE: Record<RefreshFailReason, boolean> = {
  */
 const MAX_ROUNDS = 3;
 
+/**
+ * How long one refresh may keep continuing across fresh invocations.
+ *
+ * THE POINT OF THIS WHOLE MECHANISM. Three rounds inside one 260s function is
+ * not "refresh every post", it is "try hard for four minutes" -- and measured
+ * on prod, a 58-post refresh came back 27 measured / 15 backing-off / 13
+ * refused. The 31 that missed were not bad posts; they were posts whose turn
+ * arrived while a lane was walled. The run then ended and nothing ever went
+ * back for them, so the campaign showed stale numbers with no indication that
+ * anything was outstanding.
+ *
+ * A single invocation cannot fix that, because the wall is probabilistic and
+ * the function has a hard ceiling. What fixes it is making the run RESUMABLE:
+ * when the window closes with retryable posts left, the run stays open and a
+ * fresh invocation picks up exactly those posts, with a fresh time budget and
+ * -- crucially -- fresh egress identities, which is the thing that actually
+ * changes the odds.
+ *
+ * Twenty minutes is roughly five windows. At the measured ~47% per-window pass
+ * rate, a post surviving five independent windows unmeasured has probability
+ * 0.53^5 = 4%; with proxies raising the per-window rate the tail collapses
+ * further. It is a bound, not a promise: the alternative to a bound is a
+ * refresh that can spin forever against a WAF that has simply decided no.
+ */
+const MAX_REFRESH_WALL_MS = 20 * 60 * 1000;
+
+/**
+ * The second bound, and the one that actually stops a runaway.
+ *
+ * MAX_REFRESH_WALL_MS bounds how LONG the chain may run; it does not bound how
+ * MANY windows fit inside that. Nothing puts a floor under a window: measured
+ * with every post failing retryably, a 100-post window returns in 2ms with
+ * continuing=true. Real failures involve a paced network attempt, so that is
+ * not the normal shape -- but a dead pool, a DNS failure, an immediately
+ * refused connection or simply a bug all produce fast failures, and against
+ * those the wall alone permits hundreds of self-POSTs in twenty minutes
+ * instead of four.
+ *
+ * So the count is bounded too. Four full-length windows fill the wall
+ * (20min / 300s), which makes six generous for the honest case and binding
+ * only for the degenerate one -- exactly where a bound is wanted.
+ */
+const MAX_REFRESH_WINDOWS = 6;
+
 export type RefreshTally = {
   runId: string;
   total: number;
@@ -160,6 +204,13 @@ export type RefreshTally = {
   reasons: Record<string, number>;
   sound: unknown;
   nextRefreshAt: string;
+  /** Posts still worth another window. Zero means the run is genuinely done. */
+  continuable: number;
+  /** Whether a fresh invocation should be started for those posts. */
+  continuing: boolean;
+  /** Which window this was, 1-based. The route passes it to the next one so
+   *  the chain can count itself without a column to store the count in. */
+  window: number;
 };
 
 export type RefreshOutcome =
@@ -189,8 +240,30 @@ export async function refreshCampaign(input: {
   orgId: string;
   campaignId: string;
   userId?: string;
+  /**
+   * Continue an existing run in a fresh invocation, rather than starting one.
+   *
+   * The caller is the refresh route handing the baton to itself. A continuation
+   * is the SAME run: same id, same startedAt, same cooldown window -- so it must
+   * not re-check the cooldown (its own parent run would fail it) and must not
+   * create a second row.
+   */
+  resumeRunId?: string;
+  /**
+   * Which window of the chain this is, 1-based. Supplied only by the route
+   * handing the baton to itself, on the branch that already proved it holds
+   * CRON_SECRET -- so it cannot be forged by an outside caller to buy extra
+   * windows, and an outside caller cannot reach the continuation path at all.
+   */
+  window?: number;
 }): Promise<RefreshOutcome> {
-  const { orgId, campaignId, userId } = input;
+  const { orgId, campaignId, userId, resumeRunId } = input;
+  /* Clamped, not trusted: a malformed or hostile value must shorten the chain
+     or leave it unchanged, never extend it. */
+  const window =
+    Number.isFinite(input.window) && (input.window as number) >= 1
+      ? Math.min(Math.floor(input.window as number), MAX_REFRESH_WINDOWS)
+      : 1;
   const log = createLogger({ context: { op: "refreshCampaign", campaignId } });
 
   const campaign = await db.campaign.findFirst({
@@ -199,22 +272,54 @@ export async function refreshCampaign(input: {
   });
   if (!campaign) return { ok: false, reason: "not-found" };
 
-  const latest = await db.campaignRefreshRun.findFirst({
-    where: { campaignId },
-    orderBy: { startedAt: "desc" },
-  });
-  const state = cooldownStateFrom(latest);
-  if (!state.canRefresh) {
-    return {
-      ok: false,
-      reason: "cooldown",
-      message: tooSoonMessage(state.retryAfterSeconds),
-      state,
-    };
+  /* Scoped by orgId and campaignId, not just by id: the run id arrives from an
+     HTTP call, and a run belonging to another org must not be resumable by
+     naming it. */
+  const resuming = resumeRunId
+    ? await db.campaignRefreshRun.findFirst({
+        where: { id: resumeRunId, orgId, campaignId },
+        select: { id: true, startedAt: true, total: true, status: true },
+      })
+    : null;
+  if (resumeRunId && !resuming) return { ok: false, reason: "not-found" };
+
+  if (!resuming) {
+    const latest = await db.campaignRefreshRun.findFirst({
+      where: { campaignId },
+      orderBy: { startedAt: "desc" },
+    });
+    const state = cooldownStateFrom(latest);
+    if (!state.canRefresh) {
+      return {
+        ok: false,
+        reason: "cooldown",
+        message: tooSoonMessage(state.retryAfterSeconds),
+        state,
+      };
+    }
   }
 
   const posts = await db.post.findMany({
-    where: { campaignId },
+    where: {
+      campaignId,
+      /* The leftover set, derived rather than stored.
+       *
+       * syncPost stamps lastSyncedAt ONLY when counts actually came back, so
+       * "not measured by this run" is exactly "lastSyncedAt is null, or older
+       * than the moment this run started". That makes the resume set a query
+       * instead of a column, which matters three ways: no schema change to ship
+       * (the TTL DDL is still unapplied on prod), the set self-heals if the cron
+       * measures a post between windows, and a continuation can never re-read a
+       * post that already succeeded. */
+      ...(resuming
+        ? {
+            OR: [
+              { lastSyncedAt: null },
+              { lastSyncedAt: { lt: resuming.startedAt } },
+            ],
+          }
+        : {}),
+    },
     // platformMetrics comes along because applyPostMetrics merges the measured-field
     // record into it rather than replacing the importer's raw record.
     select: {
@@ -226,10 +331,28 @@ export async function refreshCampaign(input: {
     orderBy: { lastSyncedAt: { sort: "asc", nulls: "first" } },
   });
 
-  const run = await db.campaignRefreshRun.create({
-    data: { orgId, campaignId, userId, total: posts.length, status: "running" },
-    select: { id: true },
-  });
+  const run =
+    resuming ??
+    (await db.campaignRefreshRun.create({
+      data: { orgId, campaignId, userId, total: posts.length, status: "running" },
+      select: { id: true, startedAt: true, total: true, status: true },
+    }));
+
+  /* Progress must keep counting up across windows, not restart at zero.
+     On a continuation the leftovers ARE the unmeasured posts, so everything
+     else in the run's original total is already measured -- which makes the
+     carried-forward counts derivable, with nothing extra to store or to drift. */
+  const alreadyMeasured = resuming ? Math.max(0, resuming.total - posts.length) : 0;
+  const runTotal = run.total;
+
+  if (resuming) {
+    log.info("continuing an unfinished refresh", {
+      runId: run.id,
+      leftover: posts.length,
+      alreadyMeasured,
+      windowMs: Date.now() - run.startedAt.getTime(),
+    });
+  }
 
   /* TikTok refuses this project's function egress far more often than it
      answers it, and answers a sandbox every time -- so the run reads through
@@ -246,10 +369,13 @@ export async function refreshCampaign(input: {
      the only code path that opens a pool -- the knob existed and tuned
      nothing. Sizing now lives in one place, where it can be tuned without a
      deploy. */
-  const lanes = laneCountFor(tiktokPosts);
-  const tiktokSandbox = lanes > 0 ? openSandboxPostPool(lanes) : undefined;
+  /* Which KIND of egress this is depends on whether proxies are configured;
+     the sizing above is the sandbox's, which openTikTokPostFetcher applies to
+     whichever pool it ends up opening. A person is waiting on this run, so
+     unlike the cron it takes the full lane count. */
+  const tiktokSandbox = openTikTokPostFetcher(tiktokPosts);
   if (tiktokSandbox) {
-    log.info("sandbox pool opened", { lanes, tiktokPosts });
+    log.info("tiktok egress opened", { lanes: tiktokSandbox.size, tiktokPosts });
   }
 
   const deadline = Date.now() + DEADLINE_MS;
@@ -344,7 +470,14 @@ export async function refreshCampaign(input: {
             await db.campaignRefreshRun
               .update({
                 where: { id: run.id },
-                data: { completed: results.size, measured, noMetrics, unfetchable, failed },
+                data: {
+                  /* Carried forward, so "N of M" keeps rising across windows
+                     instead of snapping back to zero when a continuation
+                     starts -- which would read as the refresh losing work. */
+                  completed: alreadyMeasured + results.size,
+                  measured: alreadyMeasured + measured,
+                  noMetrics, unfetchable, failed,
+                },
               })
               .catch(() => {
                 /* Progress is a nicety. Losing a tick must not lose the run. */
@@ -426,12 +559,48 @@ export async function refreshCampaign(input: {
       total: posts.length, measured, noMetrics, unfetchable, failed, remaining, reasons,
     });
 
+    /* What is still worth another window, decided exactly as the in-run retry
+       decides it. A settled reason -- deleted, unrecognised URL, no counts
+       published -- is never continuable: re-asking across twenty minutes gets
+       the same settled answer it got in the first four, and the whole point of
+       REASON_IS_RETRYABLE is that the distinction is already made honestly. */
+    const continuable = posts.filter((post) => {
+      const r = results.get(post.id);
+      if (!r) return true; // the deadline arrived before its turn did
+      if (r.status === "measured") return false;
+      return REASON_IS_RETRYABLE[r.reason];
+    }).length;
+
+    const wallElapsedMs = Date.now() - run.startedAt.getTime();
+    /* Both bounds must hold. They fail in different ways on purpose: the wall
+       catches a chain that is slow, the count catches one that is fast. */
+    const continuing =
+      continuable > 0 &&
+      wallElapsedMs < MAX_REFRESH_WALL_MS &&
+      window < MAX_REFRESH_WINDOWS;
+
+    if (continuable > 0 && !continuing) {
+      /* The bound was reached with posts still unmeasured. Said plainly, because
+         the alternative -- reporting "done" -- is how a refresh that quietly
+         measured 70 of 100 looks identical to one that measured all 100. */
+      log.warn("refresh bound reached with posts still unmeasured", {
+        runId: run.id, continuable, wallElapsedMs, total: runTotal, window,
+        bound: window >= MAX_REFRESH_WINDOWS ? "window-count" : "wall-clock",
+      });
+    }
+
     await db.campaignRefreshRun.update({
       where: { id: run.id },
       data: {
-        status: "done",
-        completed, measured, noMetrics, unfetchable, failed, remaining, reasons,
-        finishedAt: new Date(),
+        status: continuing ? "continuing" : "done",
+        completed: alreadyMeasured + completed,
+        measured: alreadyMeasured + measured,
+        noMetrics, unfetchable, failed,
+        remaining: Math.max(0, runTotal - (alreadyMeasured + completed)),
+        reasons,
+        /* Left null while continuing: finishedAt is what the button reads to
+           stop spinning, and a run with another window coming has not finished. */
+        finishedAt: continuing ? null : new Date(),
       },
     });
 
@@ -439,9 +608,15 @@ export async function refreshCampaign(input: {
       ok: true,
       result: {
         runId: run.id,
-        total: posts.length,
-        measured, noMetrics, unfetchable, failed, remaining, reasons, sound,
-        nextRefreshAt: new Date(Date.now() + REFRESH_COOLDOWN_MS).toISOString(),
+        total: runTotal,
+        measured: alreadyMeasured + measured,
+        noMetrics, unfetchable, failed,
+        remaining: Math.max(0, runTotal - (alreadyMeasured + completed)),
+        reasons, sound,
+        nextRefreshAt: new Date(run.startedAt.getTime() + REFRESH_COOLDOWN_MS).toISOString(),
+        continuable,
+        continuing,
+        window,
       },
     };
   } catch (error) {

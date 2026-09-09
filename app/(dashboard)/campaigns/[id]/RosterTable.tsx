@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Avatar, Badge, Card, EmptyState, Input } from "@pratham7711/ui";
 import { Columns3, Search, UserPlus, Users } from "lucide-react";
 import { useTableSort, type SortAccessors, type SortState } from "@/components/ds";
-import { formatCompact, formatDateAbs, stripAt } from "@/lib/format";
+import { formatDateAbs, stripAt, formatFull } from "@/lib/format";
 
 /**
  * The campaign roster, with the toolbar the reference puts above it.
@@ -109,7 +109,7 @@ const HEAD: React.CSSProperties = {
   gap: 4,
 };
 
-const CELL: React.CSSProperties = { fontSize: 13, fontWeight: 600, color: "var(--cc-text)" };
+const CELL: React.CSSProperties = { fontSize: 13, fontWeight: 600, color: "var(--cc-text)", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" };
 
 /**
  * Which columns are on. Local rather than a shared control: Dropdown and
@@ -246,14 +246,14 @@ export default function RosterTable({
         return <Badge variant="neutral">{r.creator.platform}</Badge>;
       case "followers": {
         const f = unwritten(r.creator.followersCount);
-        return <span style={CELL}>{f === null ? "—" : formatCompact(f)}</span>;
+        return <span style={CELL}>{f === null ? "—" : formatFull(f)}</span>;
       }
       case "posts":
         return <span style={CELL}>{r.posts}</span>;
       case "views":
-        return <span style={CELL}>{formatCompact(r.views)}</span>;
+        return <span style={CELL}>{formatFull(r.views)}</span>;
       case "avgViews":
-        return <span style={CELL}>{r.posts > 0 ? formatCompact(Math.round(r.views / r.posts)) : "—"}</span>;
+        return <span style={CELL}>{r.posts > 0 ? formatFull(Math.round(r.views / r.posts)) : "—"}</span>;
       case "rate":
         // Null means no rate agreed, which is not a rate of nothing.
         return (

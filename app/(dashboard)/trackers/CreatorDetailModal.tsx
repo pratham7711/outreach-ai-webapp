@@ -1,7 +1,7 @@
 "use client";
 import { Modal, Badge } from "@pratham7711/ui";
 import { RefreshCw, User } from "lucide-react";
-import { formatCompact, timeAgo } from "@/lib/format";
+import { timeAgo, formatFull } from "@/lib/format";
 import { AudioUsesChart, type SeriesPoint } from "./SoundCharts";
 import type { ChartGranularity } from "@/lib/trackers/granularity";
 
@@ -137,7 +137,7 @@ export function CreatorDetailModal({
       ) : null}
 
       <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 20 }}>
-        <Figure label="Followers" value={creator.followersCount === null ? "—" : formatCompact(creator.followersCount)} />
+        <Figure label="Followers" value={creator.followersCount === null ? "—" : formatFull(creator.followersCount)} />
         <Figure
           label="Change"
           value={
@@ -149,7 +149,7 @@ export function CreatorDetailModal({
         />
         <Figure
           label="Avg. Views"
-          value={creator.metrics.avgViews === null ? "—" : formatCompact(Math.round(creator.metrics.avgViews))}
+          value={creator.metrics.avgViews === null ? "—" : formatFull(Math.round(creator.metrics.avgViews))}
         />
         <Figure label="Readings" value={String(creator.snapshotCount)} />
       </div>
@@ -205,12 +205,12 @@ export function CreatorDetailModal({
                 )}
                 <div style={{ padding: "8px 10px" }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: "var(--cc-primary)" }}>
-                    {post.views !== null ? `${formatCompact(post.views)} views` : "views unavailable"}
+                    {post.views !== null ? `${formatFull(post.views)} views` : "views unavailable"}
                   </div>
                   <div style={{ fontSize: 11, color: "var(--cc-text-muted)" }}>
                     {[
-                      post.likes !== null ? `${formatCompact(post.likes)} likes` : null,
-                      post.comments !== null ? `${formatCompact(post.comments)} comments` : null,
+                      post.likes !== null ? `${formatFull(post.likes)} likes` : null,
+                      post.comments !== null ? `${formatFull(post.comments)} comments` : null,
                     ]
                       .filter(Boolean)
                       .join(" · ") || (post.postedAt ? timeAgo(post.postedAt) : "")}

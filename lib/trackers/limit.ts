@@ -13,6 +13,16 @@ import { getOrgEntitlements } from "@/lib/entitlements";
  * against a cap that says 25.
  *
  * So the count is the union, and both routes gate on it.
+ *
+ * POST trackers are deliberately NOT in this union, and are not capped at all.
+ * The reason is the one difference that matters: a sound or creator tracker is a
+ * standing instruction with no end, so the only way to bound it is to bound how
+ * many exist. A post tracker always carries a TTL of 1-30 days
+ * (lib/trackers/granularity.ts, POST_TTL_MIN_DAYS/POST_TTL_MAX_DAYS) and seals
+ * itself when the window closes, so its cost is bounded per tracker instead of
+ * per pool. Counting them here would reintroduce a cap the expiry already makes
+ * unnecessary -- and would let one campaign's posts exhaust an org's ability to
+ * track a sound.
  */
 export type TrackerUsage = { used: number; max: number };
 

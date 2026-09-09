@@ -8,7 +8,7 @@ import { BarChart3 } from "lucide-react";
 import { ChartFrame } from "@/components/ds";
 import type { SharedReportData } from "@/lib/reports/campaignPerformance";
 import { DEFAULT_SHARE_VISIBILITY, type ShareVisibility } from "@/lib/reports/shareVisibility";
-import { formatCompact, formatCompactCurrency } from "@/lib/format";
+import { formatFull, formatFullCurrency, formatCompact } from "@/lib/format";
 import { ACTIVATION_STATUS_LABEL, activationStatusBadgeStyle } from "@/lib/activationQueues";
 import { platformColor } from "@/app/(dashboard)/analytics/shared";
 import { BRAND, POWERED_BY } from "@/lib/brand";
@@ -32,7 +32,7 @@ function seriesFor(platforms: string[]): { key: string; color: string }[] {
 }
 
 function formatNumber(num: number): string {
-  return formatCompact(num);
+  return formatFull(num);
 }
 
 /* The stat tiles print figures in full with separators, the way CreatorCore's do
@@ -47,15 +47,17 @@ function formatCurrency(n: number, currency = "USD"): string {
 }
 
 /**
- * Table-width currency. $1,135,602,774.32 is seventeen characters and ran off
- * the right edge of the card, so per-row money is compacted to $1.1B and the
- * exact figure moves to the cell's title. The KPI tiles keep the full number —
- * they have the room, and a headline figure should not be rounded.
+ * Table-width currency. This used to compact per-row money to "$1.1B" because
+ * $1,135,602,774.32 ran off the right edge of the card. The figures are now
+ * shown in full everywhere, so the fix moved from rounding the number to giving
+ * the column room: the EMV track is 132px and the row grid scrolls sideways
+ * rather than crushing its neighbours. Cents are dropped (maximumFractionDigits
+ * 0), which is what buys most of the width back — the title still carries the
+ * exact amount.
  *
- * formatCompactCurrency, not a hand-rolled prefix: the version here symbol-cased
- * USD alone and appended the code for anything else, so a GBP campaign read
- * "1.1B GBP" in the leaderboard while the tile directly above it read
- * "£1,100,000,000.00". Intl knows every currency's symbol, so both now agree.
+ * Intl, not a hand-rolled prefix: the version here symbol-cased USD alone and
+ * appended the code for anything else, so a GBP campaign read "1.1B GBP" in the
+ * leaderboard while the tile above it read "£1,100,000,000.00".
  */
 
 function formatDate(iso: string): string {
@@ -76,13 +78,16 @@ const REPORT_CSS = `
 /* minmax(0, …) rather than a bare fr: a grid track's default min-content floor
    keeps a chart card wider than its column on a narrow viewport. */
 .spr-lower { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 24px; }
-.spr-board { min-width: 520px; }
-.spr-stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 16px; }
+/* 120+56+104+64+132 tracks + 4x12 gaps + 48 padding = 572. */
+.spr-board { min-width: 572px; }
+/* 140px fitted "1.4M"; a full figure at this tile's size needs ~170px. */
+.spr-stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(172px, 1fr)); gap: 16px; }
 @media (max-width: 767px) {
   .spr-page { padding: 24px 16px 64px; }
   .spr-title { font-size: 22px; }
   .spr-lower { grid-template-columns: minmax(0, 1fr); }
-  .spr-board { min-width: 420px; }
+  /* Same tracks, 32px of padding on this breakpoint; the wrapper scrolls. */
+  .spr-board { min-width: 556px; }
 }
 `;
 
@@ -96,7 +101,24 @@ function StatTile({ value, label }: { value: string; label: string }) {
         padding: "16px 20px",
       }}
     >
-      <div style={{ fontSize: 22, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>{value}</div>
+      {/* Stepped by length for the same reason MetricTile is: a bold tabular
+          digit is ~0.6em and a comma ~0.3em, so "$1,135,602,774" is ~7.4em and
+          would run past this tile's ~132px of inner width at 22px. */}
+      <div
+        title={value}
+        style={{
+          fontSize: value.length >= 15 ? 15 : value.length >= 12 ? 17 : value.length >= 10 ? 19 : 22,
+          fontWeight: 700,
+          color: "var(--cc-text)",
+          marginBottom: 4,
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          fontVariantNumeric: "tabular-nums",
+        }}
+      >
+        {value}
+      </div>
       <div style={{ fontSize: 12, color: "var(--cc-text-muted)", fontWeight: 500 }}>{label}</div>
     </div>
   );
@@ -146,12 +168,17 @@ export default function SharedPerformanceReport({
      took its width out of the name column — which collapsed the names to
      nothing and pushed the header past the card's right edge. */
   const anyStatus = leaderboard.some((r) => r.status !== null);
+  /* Widened for full numbers. The old 80px/82px were sized for "1.4M" and
+     "$1.1B"; "300,500,000" needs ~96px at 13px and "$1,135,602,774" ~124px.
+     The name column keeps its 120px floor and gives up the difference, and the
+     whole grid sits in a horizontally scrollable wrapper so a narrow screen
+     scrolls instead of crushing the columns. */
   const rowCols = [
     "minmax(120px, 1fr)",
     "56px",
-    "80px",
+    "104px",
     anyEngagementMeasured ? "64px" : null,
-    showEmvColumn ? "82px" : null,
+    showEmvColumn ? "132px" : null,
   ]
     .filter(Boolean)
     .join(" ");
@@ -322,7 +349,7 @@ export default function SharedPerformanceReport({
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--cc-border)" />
                     <XAxis dataKey="date" tickFormatter={formatDate} tick={{ fontSize: 12, fill: "var(--cc-text-muted)" }} />
-                    <YAxis tickFormatter={(v) => formatNumber(Number(v))} tick={{ fontSize: 12, fill: "var(--cc-text-muted)" }} />
+                    <YAxis tickFormatter={(v) => formatCompact(Number(v))} tick={{ fontSize: 12, fill: "var(--cc-text-muted)" }} width={72} />
                     <Tooltip
                       labelFormatter={(l) => formatDate(String(l))}
                       formatter={(v: unknown) => formatNumber(Number(v ?? 0))}
@@ -485,7 +512,7 @@ export default function SharedPerformanceReport({
                               title={formatCurrency(row.emv, EMV_CURRENCY)}
                               style={{ fontSize: 13, fontWeight: 700, color: "var(--cc-primary)", whiteSpace: "nowrap" }}
                             >
-                              {formatCompactCurrency(row.emv, EMV_CURRENCY)}
+                              {formatFullCurrency(row.emv, EMV_CURRENCY)}
                             </span>
                           )}
 

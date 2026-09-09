@@ -5,7 +5,7 @@ import { ArrowLeft, ChevronRight, Plus, Trash2, Users, ClipboardList } from "luc
 import Link from "next/link";
 import { Card, Badge, Avatar, EmptyState, Skeleton, Input } from "@pratham7711/ui";
 import { toast } from "sonner";
-import { formatCompact, stripAt, formatDateAbs } from "@/lib/format";
+import { stripAt, formatDateAbs, formatFull } from "@/lib/format";
 import { useConfirm, Button, PageHeader } from "@/components/ds";
 
 type CreatorItem = {
@@ -26,7 +26,7 @@ type ListDetail = {
 };
 
 function formatNumber(n: number) {
-  return formatCompact(n);
+  return formatFull(n);
 }
 
 export default function ListDetailPage({ params }: { params: Promise<{ id: string }> }) {

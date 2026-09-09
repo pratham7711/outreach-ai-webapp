@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { Card, EmptyState, Input, Modal, Skeleton } from "@pratham7711/ui";
 import { Button } from "@/components/ds";
 import { Play, Trash2, User, Users } from "lucide-react";
-import { formatCompact } from "@/lib/format";
+import { formatFull } from "@/lib/format";
 import { imgSrc } from "@/lib/postMedia";
 import { apiDelete, apiFetch, apiPost } from "@/lib/api/client";
 import { CreatorDetailModal, type TopPost } from "./CreatorDetailModal";
@@ -436,7 +436,7 @@ export function CreatorTrackers({
                   <FigureGroup
                     icon={<User size={22} />}
                     label="Followers"
-                    value={c.followersCount === null ? "—" : formatCompact(c.followersCount)}
+                    value={c.followersCount === null ? "—" : formatFull(c.followersCount)}
                     changeNode={
                       c.followersChangePercent !== null ? (
                         <ChangeValue percent={c.followersChangePercent} />
@@ -454,7 +454,7 @@ export function CreatorTrackers({
                   <FigureGroup
                     icon={<Play size={22} />}
                     label={`Avg. Views (${periodLabel(period)})`}
-                    value={m.avgViews === null ? "—" : formatCompact(Math.round(m.avgViews))}
+                    value={m.avgViews === null ? "—" : formatFull(Math.round(m.avgViews))}
                     changeNode={
                       m.changePercent !== null ? (
                         <ChangeValue percent={m.changePercent} />

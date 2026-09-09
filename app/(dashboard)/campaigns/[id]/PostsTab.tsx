@@ -8,7 +8,7 @@ import { Grid3X3, List, Plus, Check, X, Eye, Heart, MessageCircle, TrendingUp, B
 import { CreatorSelect } from "@/components/CreatorSelect";
 import Link from "next/link";
 import { computePostEmv, computeEngagementRate } from "@/lib/metrics";
-import { formatCompact, formatCompactCurrency, stripAt, formatDateAbs, timeAgo } from "@/lib/format";
+import { stripAt, formatDateAbs, timeAgo, formatFull, formatFullCurrency } from "@/lib/format";
 import type { ComplianceFlag } from "@/lib/compliance/postCompliance";
 import PostMedia from "@/components/PostMedia";
 import { imgSrc } from "@/lib/postMedia";
@@ -132,11 +132,11 @@ type SortKey =
 type SortDir = "asc" | "desc";
 
 function formatNumber(num: number): string {
-  return formatCompact(num);
+  return formatFull(num);
 }
 
 function formatMoney(num: number): string {
-  return formatCompactCurrency(num);
+  return formatFullCurrency(num);
 }
 
 // Never-synced is a fact worth stating; timeAgo's "Recently" fallback would

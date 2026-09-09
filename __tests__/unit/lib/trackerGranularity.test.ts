@@ -1,5 +1,6 @@
 import {
   DEFAULT_GRANULARITY,
+  READ_CADENCE_HOURS,
   downsample,
   effectiveChartGranularity,
   isDueForRead,
@@ -14,7 +15,7 @@ const snap = (value: number, h: number) => ({ value, recordedAt: hoursAgo(h) });
 describe("parseGranularity", () => {
   it("defaults to CreatorCore's shape: daily points, a year of history", () => {
     expect(parseGranularity(null)).toEqual({
-      readCadence: "4hourly",
+      readCadence: "12hourly",
       chartGranularity: "daily",
       retentionDays: 365,
     });
@@ -74,10 +75,13 @@ describe("effectiveChartGranularity — never chart finer than you sample", () =
 
 describe("snapshotFetchLimit", () => {
   it("sizes the fetch from cadence, not a flat 60", () => {
-    // The old flat take:60 meant ten days at 4-hourly — a year-long chart could
-    // not be drawn however much history the database held.
-    const yearAt4h = snapshotFetchLimit(DEFAULT_GRANULARITY, 365);
-    expect(yearAt4h).toBeGreaterThan(2000);
+    // The old flat take:60 meant a month at the default cadence — a year-long
+    // chart could not be drawn however much history the database held. Stated
+    // against the cadence rather than a literal, so retuning the default
+    // cannot quietly turn this back into a fixed window.
+    const readsInAYear = (365 * 24) / READ_CADENCE_HOURS[DEFAULT_GRANULARITY.readCadence];
+    const yearAtDefault = snapshotFetchLimit(DEFAULT_GRANULARITY, 365);
+    expect(yearAtDefault).toBeGreaterThanOrEqual(readsInAYear);
   });
 
   it("keeps a floor so short windows still have something to draw", () => {
@@ -131,13 +135,13 @@ describe("isDueForRead", () => {
   });
 
   it("releases it once the cadence has elapsed", () => {
-    expect(isDueForRead(hoursAgo(4), DEFAULT_GRANULARITY, NOW)).toBe(true);
+    expect(isDueForRead(hoursAgo(12), DEFAULT_GRANULARITY, NOW)).toBe(true);
   });
 
   it("tolerates a timer that fires slightly early", () => {
     // Without slack, a timer firing 2 minutes early defers every sound a whole
-    // cycle — a 4-hourly reader silently becomes 8-hourly.
-    expect(isDueForRead(hoursAgo(3.98), DEFAULT_GRANULARITY, NOW)).toBe(true);
+    // cycle — a 12-hourly reader silently becomes daily.
+    expect(isDueForRead(hoursAgo(11.98), DEFAULT_GRANULARITY, NOW)).toBe(true);
   });
 
   it("respects an hourly cadence", () => {

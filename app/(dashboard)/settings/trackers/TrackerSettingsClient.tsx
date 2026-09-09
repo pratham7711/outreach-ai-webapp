@@ -32,15 +32,15 @@ const READ_OPTIONS: { value: ReadCadence; label: string; hint: string }[] = [
   { value: "hourly", label: "24 a day", hint: "Every hour. Fastest to catch a spike; the most reading time." },
   { value: "2hourly", label: "12 a day", hint: "Every 2 hours. Good for an active launch week." },
   { value: "3hourly", label: "8 a day", hint: "Every 3 hours." },
-  { value: "4hourly", label: "6 a day", hint: "Every 4 hours. The default — enough to see a trend forming." },
+  { value: "4hourly", label: "6 a day", hint: "Every 4 hours. Denser than the reference product; useful during a launch." },
   { value: "6hourly", label: "4 a day", hint: "Every 6 hours." },
-  { value: "12hourly", label: "2 a day", hint: "Every 12 hours. Steady catalogue tracking." },
+  { value: "12hourly", label: "2 a day", hint: "Every 12 hours. The default — the cadence CreatorCore itself reads at." },
   { value: "daily", label: "1 a day", hint: "Cheapest. Too slow to watch a launch." },
 ];
 
 const CHART_OPTIONS: { value: Settings["chartGranularity"]; label: string; hint: string }[] = [
   { value: "hourly", label: "Hourly", hint: "Only meaningful if you also read hourly." },
-  { value: "4hourly", label: "4-hourly", hint: "Every reading plotted, at the default cadence." },
+  { value: "4hourly", label: "4-hourly", hint: "Only meaningful if you read at least that often." },
   { value: "daily", label: "Daily", hint: "The default, and what the reference product shows." },
   { value: "weekly", label: "Weekly", hint: "Smoothest. Good for a year-long view of a back catalogue." },
 ];

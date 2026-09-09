@@ -10,7 +10,7 @@ import { InstagramSourceBanner } from "@/components/integrations/InstagramSource
 import { CreatorTrackers } from "./CreatorTrackers";
 import { SoundDetailModal } from "./SoundDetailModal";
 import { TrackersIntro } from "./TrackersIntro";
-import { formatCompact, formatDateAbs, timeAgo } from "@/lib/format";
+import { formatDateAbs, timeAgo, formatFull } from "@/lib/format";
 import { apiDelete, apiFetch, apiPost } from "@/lib/api/client";
 import { errorMessage } from "@/lib/api/errorMessage";
 import { describeTrackerSweep } from "@/lib/refreshSummary";
@@ -71,7 +71,7 @@ const SORTS: { key: string; label: string }[] = [
 ];
 
 function formatCount(n: number): string {
-  return formatCompact(n);
+  return formatFull(n);
 }
 
 const STATUS_VARIANTS: Record<
@@ -452,7 +452,7 @@ export default function TrackersPage() {
           <MetricTile
             metric="trackersNewUses"
             label={`New uses / ${periodLabel(period)}`}
-            value={formatCompact(newToday)}
+            value={formatFull(newToday)}
           />
         </div>
       )}

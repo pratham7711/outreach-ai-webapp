@@ -74,3 +74,6 @@ scripts/creatorcore/.profile/
 # handles and reference-org campaign names. Regenerate with
 # node scripts/creatorcore/cc-render-inventory.mjs > docs/CREATORCORE_UI_INVENTORY.md
 docs/CREATORCORE_UI_INVENTORY.md
+
+# local prod-maintenance probes and one-off scripts (never shipped)
+scratchpad/

@@ -3,7 +3,7 @@ import React, { useState } from "react";
 import { Card } from "@pratham7711/ui";
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip } from "recharts";
 import { Music2 } from "lucide-react";
-import { formatCompact } from "@/lib/format";
+import { formatCompact, formatFull, fitFigureSize } from "@/lib/format";
 import { imgSrc, shareImgSrc } from "@/lib/postMedia";
 import type { CampaignAudio } from "@/lib/reports/campaignPerformance";
 
@@ -54,8 +54,8 @@ export function AudioCard({ audio, shareToken }: { audio: CampaignAudio; shareTo
       : imgSrc(audio.coverUrl, 88);
   // A tracked sound has counts only after a sync. Zero would claim the audio has
   // never been used, so an unsynced tracker shows an em dash instead.
-  const uses = audio.uses === null ? "—" : formatCompact(audio.uses);
-  const added = audio.videosAdded24h === null ? "—" : `+${formatCompact(audio.videosAdded24h)}`;
+  const uses = audio.uses === null ? "—" : formatFull(audio.uses);
+  const added = audio.videosAdded24h === null ? "—" : `+${formatFull(audio.videosAdded24h)}`;
 
   /* Usage is how many videos use the sound; Velocity is how fast that is moving.
      CreatorCore puts both behind this toggle over one chart, and they are two
@@ -180,7 +180,7 @@ export function AudioCard({ audio, shareToken }: { audio: CampaignAudio; shareTo
                   tickFormatter={(v) => (view === "velocity" ? `${Number(v).toFixed(0)}%` : formatCompact(Number(v)))}
                 />
                 <Tooltip
-                  formatter={(v) => (view === "velocity" ? `${Number(v).toFixed(2)}%` : formatCompact(Number(v)))}
+                  formatter={(v) => (view === "velocity" ? `${Number(v).toFixed(2)}%` : formatFull(Number(v)))}
                   labelFormatter={(v) =>
                     new Date(String(v)).toLocaleString("en-GB", {
                       day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
@@ -219,7 +219,7 @@ function Stat({ label, value }: { label: string; value: string }) {
       }}
     >
       <div style={{ fontSize: 12, color: "var(--cc-text-muted)", marginBottom: 4 }}>{label}</div>
-      <div style={{ fontSize: 20, fontWeight: 700, color: "var(--cc-text)" }}>{value}</div>
+      <div title={String(value)} style={{ fontSize: fitFigureSize(String(value), 20), fontWeight: 700, color: "var(--cc-text)", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums", overflow: "hidden", textOverflow: "ellipsis" }}>{value}</div>
     </div>
   );
 }

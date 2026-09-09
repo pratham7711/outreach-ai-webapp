@@ -9,6 +9,7 @@ jest.mock("@/lib/db", () => ({
   db: {
     campaign: { findFirst: jest.fn(), findMany: jest.fn(), updateMany: jest.fn() },
     post: { findFirst: jest.fn(), findMany: jest.fn(), update: jest.fn() },
+    organization: { findUnique: jest.fn(), findMany: jest.fn() },
     postMetricSnapshot: { create: jest.fn() },
     $transaction: jest.fn(),
   },
@@ -143,9 +144,17 @@ describe("cron sync — never overwrites real counts with unknowns", () => {
         syncFailCount: 0,
         syncDisabledAt: null,
         snapshots: [],
+        /* The cron selects post trackers now. Without a live one this fixture is
+           skipped as "not-tracked" before the present-only write rule under test
+           ever runs. */
+        trackingEnabled: true,
+        trackingStartedAt: new Date(),
+        trackingTtlDays: 30,
+        trackingExpiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
         creator: { orgId: "org-1", handle: null, socialAccounts: [] },
       },
     ]);
+    mockDb.organization.findMany.mockResolvedValue([{ id: "org-1", uiConfig: null }]);
     mockFetch.mockResolvedValue({
       platform: "INSTAGRAM",
       platformPostId: "1",

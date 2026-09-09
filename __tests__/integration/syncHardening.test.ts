@@ -7,6 +7,7 @@ import { GET as cronSync } from "@/app/api/cron/sync-posts/route";
 jest.mock("@/lib/db", () => ({
   db: {
     post: { findMany: jest.fn(), update: jest.fn() },
+    organization: { findUnique: jest.fn(), findMany: jest.fn() },
     campaign: { findMany: jest.fn(), updateMany: jest.fn() },
     postMetricSnapshot: { create: jest.fn() },
     $transaction: jest.fn(),
@@ -83,6 +84,15 @@ function makePost(overrides: Record<string, unknown> = {}) {
     syncFailCount: 0,
     syncDisabledAt: null,
     snapshots: [],
+    /* The cron selects post TRACKERS now, not posts belonging to a due campaign.
+       A fixture without these is skipped as "not-tracked" before any of the
+       machinery under test runs, so they are part of the baseline rather than
+       something an individual test opts into. A 30-day window starting an hour
+       ago is the ordinary case: live, and nowhere near expiry. */
+    trackingEnabled: true,
+    trackingStartedAt: hoursAgo(1),
+    trackingTtlDays: 30,
+    trackingExpiresAt: new Date(Date.now() + 29 * 24 * HOUR_MS),
     creator: { orgId: "org-1", handle: null, socialAccounts: [] },
     ...overrides,
   };
@@ -99,14 +109,16 @@ beforeEach(() => {
   jest.clearAllMocks();
   jest.spyOn(console, "error").mockImplementation(() => {});
   process.env.CRON_SECRET = "secret";
-  /* One live, due campaign by default. The route now asks which campaigns are
-     due before it reads a single post, so even a suite about failure accounting
-     has to answer that question -- an unmocked campaign.findMany resolves to
-     undefined and the route 500s on .filter. */
+  /* Campaigns no longer gate the sweep -- post trackers do -- but the route
+     still stamps Campaign.lastRefreshAt for the campaign header, so the mock
+     stays. */
   mockDb.campaign.findMany.mockResolvedValue([
     { id: "campaign-1", refreshActive: null, refreshInterval: null, lastRefreshAt: null },
   ]);
   mockDb.campaign.updateMany.mockResolvedValue({ count: 1 });
+  /* Read cadence and default TTL are per organisation. An org that has stored
+     nothing gets DEFAULT_POST_TRACKING, which is what a null uiConfig means. */
+  mockDb.organization.findMany.mockResolvedValue([{ id: "org-1", uiConfig: null }]);
 });
 
 afterEach(() => {
@@ -119,12 +131,15 @@ afterEach(() => {
 
 describe("cron sync hardening — dry run", () => {
   it("performs no fetches or writes and returns per-post decisions with a summary", async () => {
+    /* One fixture per branch of decidePostTracking. Note what "old" now means:
+       a post whose TRACKER expired, not a post that is old. Post age stopped
+       being an input -- a year-old post with a live tracker is still read. */
     mockDb.post.findMany.mockResolvedValue([
       makePost({ id: "fresh" }),
-      makePost({ id: "old", postedAt: hoursAgo(200 * 24) }),
+      makePost({ id: "old", trackingExpiresAt: hoursAgo(1) }),
       makePost({ id: "disabled", syncDisabledAt: hoursAgo(2) }),
       makePost({ id: "done", snapshots: [{ id: "snap-final" }] }),
-      makePost({ id: "cadence", postedAt: hoursAgo(3 * 24), lastSyncedAt: hoursAgo(1) }),
+      makePost({ id: "cadence", lastSyncedAt: hoursAgo(1) }),
     ]);
 
     const res = await cronSync(cronReq("http://localhost/api/cron/sync-posts?dryRun=1"));
@@ -140,19 +155,24 @@ describe("cron sync hardening — dry run", () => {
     expect(body.dryRun).toBe(true);
     expect(body.total).toBe(5);
     expect(body.decisions).toEqual([
-      { postId: "fresh", platform: "INSTAGRAM", action: "sync", reason: "due" },
-      { postId: "old", platform: "INSTAGRAM", action: "seal", reason: "age-over-180d" },
+      { postId: "fresh", platform: "INSTAGRAM", action: "sync", reason: "never-read" },
+      { postId: "old", platform: "INSTAGRAM", action: "seal", reason: "ttl-expired" },
       { postId: "disabled", platform: "INSTAGRAM", action: "skip", reason: "dead-letter" },
       { postId: "done", platform: "INSTAGRAM", action: "skip", reason: "sealed" },
-      { postId: "cadence", platform: "INSTAGRAM", action: "skip", reason: "cadence-1-7d" },
+      {
+        postId: "cadence",
+        platform: "INSTAGRAM",
+        action: "skip",
+        reason: "cadence-throttle-12hourly",
+      },
     ]);
     expect(body.summary.byAction).toEqual({ sync: 1, seal: 1, skip: 3 });
     expect(body.summary.byReason).toEqual({
-      due: 1,
-      "age-over-180d": 1,
+      "never-read": 1,
+      "ttl-expired": 1,
       "dead-letter": 1,
       sealed: 1,
-      "cadence-1-7d": 1,
+      "cadence-throttle-12hourly": 1,
     });
   });
 });
@@ -310,11 +330,11 @@ describe("cron sync hardening — dead-letter", () => {
 });
 
 describe("cron sync hardening — sealing", () => {
-  it("seals a >180d post from stored counts without a platform fetch", async () => {
+  it("seals an expired tracker from stored counts without a platform fetch", async () => {
     mockDb.post.findMany.mockResolvedValue([
       makePost({
         id: "p-old",
-        postedAt: hoursAgo(200 * 24),
+        trackingExpiresAt: hoursAgo(1),
         viewsCount: 4321,
         likesCount: 21,
         commentsCount: 3,
@@ -340,21 +360,32 @@ describe("cron sync hardening — sealing", () => {
       sharesCount: 2,
       engagementRate: 0.55,
       isFinalSnapshot: true,
-      syncSource: "cron-seal",
+      syncSource: "cron-seal-ttl",
     });
 
     /* The fixture has lastSyncedAt: null -- never measured -- so the seal must
        not stamp it. lastSyncedAt is the sole "was this ever measured" flag
        (lib/metricDisplay), and stamping it here turned the post's default-zero
-       counters into measured zeros on the Posts tab, the report and the PDF. */
-    expect(mockDb.post.update).not.toHaveBeenCalled();
+       counters into measured zeros on the Posts tab, the report and the PDF.
+
+       The update itself is no longer optional: a seal always switches
+       trackingEnabled off, because the tracker is over and the UI reads that
+       flag to decide between Untrack and Track. So the assertion is on the
+       absence of the FIELD, not the absence of the call. */
+    const updateArg = mockDb.post.update.mock.calls[0][0];
+    expect(updateArg.data.trackingEnabled).toBe(false);
+    expect(updateArg.data).not.toHaveProperty("lastSyncedAt");
     const txArg = mockDb.$transaction.mock.calls[0][0];
-    expect(txArg).toHaveLength(1);
+    expect(txArg).toHaveLength(2);
   });
 
   it("stamps lastSyncedAt on the seal only when the post was measured before", async () => {
     mockDb.post.findMany.mockResolvedValue([
-      makePost({ id: "p-measured", postedAt: hoursAgo(200 * 24), lastSyncedAt: hoursAgo(40 * 24) }),
+      makePost({
+        id: "p-measured",
+        trackingExpiresAt: hoursAgo(1),
+        lastSyncedAt: hoursAgo(40 * 24),
+      }),
     ]);
     mockDb.$transaction.mockResolvedValue([{}, {}]);
     mockDb.post.update.mockResolvedValue({});
@@ -370,7 +401,7 @@ describe("cron sync hardening — sealing", () => {
 
   it("is idempotent — skips when a final snapshot already exists", async () => {
     mockDb.post.findMany.mockResolvedValue([
-      makePost({ id: "p-done", postedAt: hoursAgo(200 * 24), snapshots: [{ id: "snap-1" }] }),
+      makePost({ id: "p-done", trackingExpiresAt: hoursAgo(1), snapshots: [{ id: "snap-1" }] }),
     ]);
 
     const res = await cronSync(cronReq());
@@ -435,7 +466,7 @@ describe("cron sync hardening — per-platform budgets", () => {
     expect(mockFetch).not.toHaveBeenCalled();
     expect(mockDb.post.update).not.toHaveBeenCalled();
     expect(body.decisions).toEqual([
-      { postId: "ig-1", platform: "INSTAGRAM", action: "sync", reason: "due" },
+      { postId: "ig-1", platform: "INSTAGRAM", action: "sync", reason: "never-read" },
       { postId: "ig-2", platform: "INSTAGRAM", action: "skip", reason: "budget" },
     ]);
     expect(body.summary.byReason.budget).toBe(1);
@@ -507,7 +538,7 @@ describe("cron sync — TikTok", () => {
     expect(mockOpen).not.toHaveBeenCalled();
     expect(mockFetch).not.toHaveBeenCalled();
     expect(body.decisions).toEqual([
-      { postId: "tt-1", platform: "TIKTOK", action: "sync", reason: "due" },
+      { postId: "tt-1", platform: "TIKTOK", action: "sync", reason: "never-read" },
     ]);
   });
 
@@ -567,66 +598,105 @@ describe("cron sync — TikTok", () => {
  * hour, and a campaign that is not due costs zero function seconds and zero
  * Neon reads instead of a full sweep.
  */
-describe("cron sync — campaign cadence", () => {
-  it("does not read posts when no campaign is due", async () => {
-    mockDb.campaign.findMany.mockResolvedValue([
-      { id: "campaign-1", refreshActive: true, refreshInterval: 24, lastRefreshAt: hoursAgo(1) },
-    ]);
+describe("cron sync — post tracker selection", () => {
+  /**
+   * The gate this block used to guard is gone.
+   *
+   * It asserted that only campaigns due on `Campaign.refreshInterval` had their
+   * posts read, and that CreatorCore's 9999 sentinel meant "off". Both were
+   * faithfully implemented and both were the wrong question: that sentinel
+   * arrived with the import on 497 of ~500 campaigns (measured prod 2026-09-08),
+   * so the gate reduced an hourly sweep of 18,787 live posts to 17. What decides
+   * now is the post tracker -- on, unexpired, due on the org's read cadence.
+   */
+  it("asks only for tracked, unsealed posts of live campaigns", async () => {
     mockDb.post.findMany.mockResolvedValue([]);
 
-    const res = await cronSync(cronReq());
+    await cronSync(cronReq());
+
+    const where = mockDb.post.findMany.mock.calls[0][0].where;
+    expect(where.trackingEnabled).toBe(true);
+    expect(where.syncDisabledAt).toBeNull();
+    expect(where.snapshots).toEqual({ none: { isFinalSnapshot: true } });
+    // A deleted campaign's posts stop being read. This used to fall out of the
+    // campaign query; with campaigns no longer gating, it has to be said.
+    expect(where.campaign).toEqual({ deletedAt: null });
+  });
+
+  it("does not filter on campaign status, refreshActive or refreshInterval", async () => {
+    mockDb.post.findMany.mockResolvedValue([]);
+
+    await cronSync(cronReq());
+
+    const where = mockDb.post.findMany.mock.calls[0][0].where;
+    expect(where).not.toHaveProperty("campaignId");
+    expect(where.campaign).not.toHaveProperty("status");
+    expect(where.campaign).not.toHaveProperty("refreshActive");
+    expect(where.campaign).not.toHaveProperty("refreshInterval");
+  });
+
+  it("returns expired trackers from the query so they can seal, rather than filtering them out", async () => {
+    mockDb.post.findMany.mockResolvedValue([]);
+
+    await cronSync(cronReq());
+
+    /* An expired tracker still has one job -- to seal -- and it can only do it
+       if the query returns it. It is returned at most once, because sealing
+       writes the isFinalSnapshot row that the filter above excludes. */
+    const where = mockDb.post.findMany.mock.calls[0][0].where;
+    expect(where).not.toHaveProperty("trackingExpiresAt");
+  });
+
+  it("reads each org's cadence once, not once per post", async () => {
+    mockDb.post.findMany.mockResolvedValue([
+      makePost({ id: "a" }),
+      makePost({ id: "b" }),
+      makePost({ id: "c", creator: { orgId: "org-2", handle: null, socialAccounts: [] } }),
+    ]);
+    mockDb.organization.findMany.mockResolvedValue([
+      { id: "org-1", uiConfig: null },
+      { id: "org-2", uiConfig: null },
+    ]);
+    mockFetch.mockResolvedValue(null);
+
+    await cronSync(cronReq());
+
+    expect(mockDb.organization.findMany).toHaveBeenCalledTimes(1);
+    const where = mockDb.organization.findMany.mock.calls[0][0].where;
+    expect(where.id.in.sort()).toEqual(["org-1", "org-2"]);
+  });
+
+  it("honours a slower read cadence stored on the org", async () => {
+    // Read 3h ago; a daily org is not due, a 2-hourly org is.
+    mockDb.post.findMany.mockResolvedValue([
+      makePost({ id: "p-1", lastSyncedAt: hoursAgo(3) }),
+    ]);
+    mockDb.organization.findMany.mockResolvedValue([
+      { id: "org-1", uiConfig: { postTracking: { readCadence: "daily" } } },
+    ]);
+
+    const res = await cronSync(cronReq("http://localhost/api/cron/sync-posts?dryRun=1"));
     const body = await res.json();
 
-    expect(res.status).toBe(200);
-    expect(body.total).toBe(0);
-    expect(mockFetch).not.toHaveBeenCalled();
-    // The saving is in the query, not in a later filter: an empty due-list must
-    // not become an unbounded post read.
-    const where = mockDb.post.findMany.mock.calls[0][0].where;
-    expect(where.campaignId).toEqual({ in: [] });
-  });
-
-  it("asks only for the due campaigns' posts", async () => {
-    mockDb.campaign.findMany.mockResolvedValue([
-      { id: "due-now", refreshActive: true, refreshInterval: 8, lastRefreshAt: hoursAgo(9) },
-      { id: "too-soon", refreshActive: true, refreshInterval: 8, lastRefreshAt: hoursAgo(2) },
-      { id: "never-swept", refreshActive: true, refreshInterval: 8, lastRefreshAt: null },
-      /* refreshActive=false must NOT exclude a campaign. The flag came from the
-         CreatorCore import, not from a user choice, and honouring it left 129 of
-         169 live posts unswept since 08-18. Renamed from "paused" because that
-         is what it was wrongly assumed to mean. */
-      { id: "flag-false-still-due", refreshActive: false, refreshInterval: 8, lastRefreshAt: null },
-      // 9999 is CreatorCore's "off" sentinel, not a 416-day interval.
-      { id: "off", refreshActive: true, refreshInterval: 9999, lastRefreshAt: null },
+    expect(body.decisions).toEqual([
+      { postId: "p-1", platform: "INSTAGRAM", action: "skip", reason: "cadence-throttle-daily" },
     ]);
-    mockDb.post.findMany.mockResolvedValue([]);
-
-    await cronSync(cronReq());
-
-    const where = mockDb.post.findMany.mock.calls[0][0].where;
-    expect(where.campaignId.in.sort()).toEqual(["due-now", "flag-false-still-due", "never-swept"]);
-    // The real off switch still works; only the imported flag stopped counting.
-    expect(where.campaignId.in).not.toContain("off");
   });
 
-  it("treats a campaign a few minutes short of its interval as due, so hourly stays hourly", async () => {
-    // Vercel fires near :00, not at it; the previous run stamped its own start.
-    // 03:00:40 -> 04:00:10 is 59m30s, and an exact compare would skip the hour.
-    const minutesAgo = (m: number) => new Date(Date.now() - m * 60 * 1000);
-    mockDb.campaign.findMany.mockResolvedValue([
-      { id: "jitter", refreshActive: true, refreshInterval: 1, lastRefreshAt: minutesAgo(58) },
-      { id: "recent", refreshActive: true, refreshInterval: 1, lastRefreshAt: minutesAgo(50) },
-      { id: "daily-jitter", refreshActive: true, refreshInterval: 24, lastRefreshAt: minutesAgo(24 * 60 - 2) },
-      { id: "daily-recent", refreshActive: true, refreshInterval: 24, lastRefreshAt: minutesAgo(23 * 60) },
+  it("reads a year-old post whose tracker is still live", async () => {
+    mockDb.post.findMany.mockResolvedValue([
+      makePost({ id: "ancient", postedAt: hoursAgo(400 * 24), lastSyncedAt: hoursAgo(13) }),
     ]);
-    mockDb.post.findMany.mockResolvedValue([]);
 
-    await cronSync(cronReq());
+    const res = await cronSync(cronReq("http://localhost/api/cron/sync-posts?dryRun=1"));
+    const body = await res.json();
 
-    const where = mockDb.post.findMany.mock.calls[0][0].where;
-    expect(where.campaignId.in.sort()).toEqual(["daily-jitter", "jitter"]);
+    // Post age stopped being an input. Only the tracker decides.
+    expect(body.decisions[0].action).toBe("sync");
   });
+});
 
+describe("cron sync — campaign lastRefreshAt", () => {
   it("stamps lastRefreshAt only on the campaigns it actually swept", async () => {
     mockDb.campaign.findMany.mockResolvedValue([
       { id: "campaign-1", refreshActive: true, refreshInterval: 1, lastRefreshAt: hoursAgo(4) },

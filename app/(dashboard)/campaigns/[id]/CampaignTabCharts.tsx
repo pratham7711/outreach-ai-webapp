@@ -1,5 +1,6 @@
 "use client";
 import React from "react";
+import { formatCompact } from "@/lib/format";
 import {
   PieChart, Pie, Cell, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid,
 } from "recharts";
@@ -61,7 +62,7 @@ export function CreatorPerformanceBar({
           axisLine={false}
           tickLine={false}
           width={52}
-          tickFormatter={(v) => formatNumber(v)}
+          tickFormatter={(v) => formatCompact(Number(v))}
         />
         <YAxis
           yAxisId="likes"
@@ -70,7 +71,7 @@ export function CreatorPerformanceBar({
           axisLine={false}
           tickLine={false}
           width={44}
-          tickFormatter={(v) => formatNumber(v)}
+          tickFormatter={(v) => formatCompact(Number(v))}
         />
         <Tooltip
           contentStyle={chartTooltipStyle}

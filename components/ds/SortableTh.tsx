@@ -117,4 +117,9 @@ export const numericCell: React.CSSProperties = {
   color: "var(--cc-text)",
   textAlign: "right",
   fontVariantNumeric: "tabular-nums",
+  /* Full figures are long enough that a narrow column will wrap them, and CSS
+     happily breaks after a comma at a table-cell width -- "300,500," over
+     "000" is worse than a wider column or a scrollbar. Tables here sit in
+     .rsp-table-wrap, which scrolls. */
+  whiteSpace: "nowrap",
 };

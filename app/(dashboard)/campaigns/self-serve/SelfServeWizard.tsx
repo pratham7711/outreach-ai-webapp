@@ -6,7 +6,7 @@ import { Input, Badge, Card, EmptyState } from "@pratham7711/ui";
 import { toast } from "sonner";
 import { ChevronLeft, ChevronRight, Check, Search, Users, Info } from "lucide-react";
 import { computeSelfServeBudget } from "@/lib/campaigns/selfServeBudget";
-import { stripAt, formatCompact } from "@/lib/format";
+import { stripAt, formatFull } from "@/lib/format";
 import { PageHeader, Dropdown, Button } from "@/components/ds";
 
 type Currency = "USD" | "EUR" | "GBP" | "INR";
@@ -64,7 +64,7 @@ function money(currency: Currency, amount: number): string {
 }
 
 function formatFollowers(n: number): string {
-  return formatCompact(n);
+  return formatFull(n);
 }
 
 export default function SelfServeWizard({

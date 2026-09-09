@@ -14,6 +14,57 @@ export function formatCompact(n: number): string {
   }).format(n);
 }
 
+/**
+ * The full number, grouped: 300500000 -> "300,500,000".
+ *
+ * This is the default for any figure a person is meant to READ as a quantity --
+ * post views, campaign totals, follower counts. Compact notation rounds, and a
+ * rounded number is the wrong thing to show someone reconciling a payout or
+ * comparing two posts: "1.4M" is any of 1,350,000 to 1,449,999, and two posts
+ * that both read "1.4M" can be eighty thousand views apart.
+ *
+ * formatCompact still exists and is still correct for chart AXIS TICKS, where
+ * the label has a fixed few characters of room and the precision is carried by
+ * the tooltip instead.
+ */
+export function formatFull(n: number): string {
+  if (!Number.isFinite(n)) return "0";
+  return new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(n);
+}
+
+/** formatFull's currency twin, for the same reason. */
+export function formatFullCurrency(n: number, currency = "USD"): string {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency,
+    maximumFractionDigits: 0,
+  }).format(Number.isFinite(n) ? n : 0);
+}
+
+/**
+ * Font size for a figure that must fit a fixed-width tile.
+ *
+ * A bold tabular digit costs about 0.6em and a group separator about 0.3em, so
+ * "300,500,000" is roughly 6.0em wide and "$1,135,602,774" roughly 7.4em. Tiles
+ * across this app were sized when these read "1.4M", so at the base size the
+ * full figure runs past the card -- and it cannot wrap, because CSS finds no
+ * break opportunity inside a comma-grouped number.
+ *
+ * Stepping the size down by length keeps the whole figure visible, which is the
+ * entire point of showing it in full.
+ */
+export function fitFigureSize(text: string, base: number): number {
+  const n = text.length;
+  /* Calibrated against a rendered 6-across tile grid at 1440px, where each
+     tile has ~128px of inner width: "8,601,712" is nine characters and 4.8em,
+     which is 134px at 28px and was being ellipsised. Nine is where stepping
+     has to start, not ten. */
+  if (n >= 15) return Math.round(base * 0.55);
+  if (n >= 12) return Math.round(base * 0.66);
+  if (n >= 9) return Math.round(base * 0.78);
+  return base;
+}
+
 export type ParsedCount =
   | { ok: true; value: number | undefined }
   | { ok: false; error: string };

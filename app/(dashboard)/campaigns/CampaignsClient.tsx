@@ -9,7 +9,7 @@ import { PageHeader, StatusTabs, Pagination, FilterDrawer, FilterButton, Dropdow
 import type { FilterDef, FilterValues } from "@/components/ds";
 import CampaignWizard from "@/components/modals/CampaignWizard";
 import { GettingStarted } from "@/components/onboarding/GettingStarted";
-import { formatCompactCurrency, timeAgo } from "@/lib/format";
+import { timeAgo, formatFullCurrency } from "@/lib/format";
 import { useListQuery } from "@/lib/useListQuery";
 import { CAMPAIGNS_PAGE_SIZE } from "@/lib/listPageSize";
 import { imgSrc } from "@/lib/postMedia";
@@ -801,7 +801,7 @@ export default function CampaignsClient({
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
                 {campaign.budget !== null && (
                   <StatChip icon={<Wallet size={15} />} label="Budget">
-                    {formatCompactCurrency(campaign.budget, campaign.currency)}
+                    {formatFullCurrency(campaign.budget, campaign.currency)}
                   </StatChip>
                 )}
                 <StatChip icon={<Users size={15} />} label="Creators">

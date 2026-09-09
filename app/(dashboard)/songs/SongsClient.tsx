@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Music, Plus } from "lucide-react";
 import { Card, EmptyState, Input } from "@pratham7711/ui";
 import { PageHeader, Button } from "@/components/ds";
-import { formatCompact, platformLabel } from "@/lib/format";
+import { platformLabel, formatFull } from "@/lib/format";
 
 export type SongRow = {
   id: string;
@@ -147,7 +147,7 @@ export default function SongsClient({ songs: initial }: { songs: SongRow[] }) {
                   </div>
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
-                  <Stat label="Views" value={formatCompact(s.totalViews)} />
+                  <Stat label="Views" value={formatFull(s.totalViews)} />
                   <Stat label="Posts" value={String(s.postCount)} />
                   <Stat label="Campaigns" value={String(s.campaignCount)} />
                 </div>

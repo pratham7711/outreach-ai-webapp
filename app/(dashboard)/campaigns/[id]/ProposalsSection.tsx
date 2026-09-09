@@ -5,7 +5,7 @@ import { Card, Badge, EmptyState, Skeleton, Avatar } from "@pratham7711/ui";
 import { StatusTabs, Button } from "@/components/ds";
 import { Check, X, Users, Star, TrendingUp, Inbox } from "lucide-react";
 import { toast } from "sonner";
-import { formatCompact, stripAt, formatDateAbs } from "@/lib/format";
+import { stripAt, formatDateAbs, formatFull } from "@/lib/format";
 
 type Proposal = {
   id: string;
@@ -44,7 +44,7 @@ const STATUS_BADGE: Record<string, "warning" | "success" | "danger" | "neutral">
 };
 
 function formatNumber(num: number): string {
-  return formatCompact(num);
+  return formatFull(num);
 }
 
 function formatCurrency(n: number, currency = "USD") {

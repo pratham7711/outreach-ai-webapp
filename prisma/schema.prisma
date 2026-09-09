@@ -854,6 +854,17 @@ model Post {
   syncDisabledAt    DateTime?
   trackingEnabled   Boolean         @default(false)
   trackingStartedAt DateTime?
+  /// The TTL the user chose for this post tracker, in days (1..30). Kept
+  /// alongside the computed expiry so a renewal can reuse the same window and
+  /// the UI can show what was asked for, not just when it runs out.
+  trackingTtlDays   Int?
+  /// When cron reading stops and the post seals itself. Every post tracker has
+  /// one -- there is no unbounded option -- which is what makes the number of
+  /// post trackers unlimited (lib/trackers/limit.ts). Null only on rows written
+  /// before this column existed; lib/sync/postTracking.ts#effectiveExpiry reads
+  /// those as "started, TTL never recorded" rather than as expired, because the
+  /// seal is one-way.
+  trackingExpiresAt DateTime?
   // ─── CreatorCore parity ─────────────────────────────────────────────────────
   ccPostId          String?         @unique // source _id — re-sync key, idempotency
   fetchState        PostFetchState? // Success/Unavailable/Error — distinct from approval
@@ -880,6 +891,9 @@ model Post {
   @@index([creatorId])
   // 18,725 rows, and the activation is how a post is tied to its brief.
   @@index([activationId])
+  // The cron's whole candidate query is now "tracking on, not yet expired".
+  // Without this it is a full scan of the largest table every hour.
+  @@index([trackingEnabled, trackingExpiresAt])
 }
 
 model PostMetricSnapshot {

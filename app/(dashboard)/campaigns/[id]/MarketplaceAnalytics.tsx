@@ -6,7 +6,7 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
 } from "recharts";
 import { ChartFrame } from "@/components/ds";
-import { formatCompact } from "@/lib/format";
+import { formatFull } from "@/lib/format";
 
 type Analytics = {
   visibility: "PRIVATE" | "GLOBAL" | "INVITE_ONLY";
@@ -29,7 +29,7 @@ const STATUS_META: Record<string, { label: string; color: string; bg: string }> 
 };
 
 function formatNumber(num: number): string {
-  return formatCompact(num);
+  return formatFull(num);
 }
 
 function formatCurrency(n: number, currency: string): string {

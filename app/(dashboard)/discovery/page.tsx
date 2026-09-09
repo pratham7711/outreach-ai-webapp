@@ -6,7 +6,7 @@ import { Card, EmptyState, Input, Avatar, Badge, Skeleton, StatCard } from "@pra
 import { PageHeader, Dropdown, Pagination, Button, LoadError } from "@/components/ds";
 import Link from "next/link";
 import { toast } from "sonner";
-import { formatCompact, stripAt, platformLabel } from "@/lib/format";
+import { stripAt, platformLabel, formatFull } from "@/lib/format";
 
 const PLATFORMS = ["All", "TIKTOK", "INSTAGRAM", "YOUTUBE", "TWITTER"];
 const SORT_OPTIONS = [
@@ -20,7 +20,7 @@ const NICHE_OPTIONS = [
 ];
 
 function formatNumber(n: number) {
-  return formatCompact(n);
+  return formatFull(n);
 }
 
 type Creator = {

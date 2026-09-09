@@ -259,8 +259,8 @@ function soundReadWithinTheDay() {
       orgId: "org-1",
       tiktokSoundId: "7546394810303694849",
       snapshots: [
-        // Newest first. 5h old, so the 4-hourly cadence says it is due.
-        { usesCount: 900, recordedAt: new Date(Date.now() - 5 * HOUR) },
+        // Newest first. 13h old, so the 12-hourly cadence says it is due.
+        { usesCount: 900, recordedAt: new Date(Date.now() - 13 * HOUR) },
         { usesCount: 500, recordedAt: new Date(Date.now() - 20 * HOUR) },
       ],
     },

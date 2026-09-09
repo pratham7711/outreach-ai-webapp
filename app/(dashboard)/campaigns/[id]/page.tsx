@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { formatCompact, formatCompactCurrency, formatDateAbs } from "@/lib/format";
+import { formatDateAbs, formatFull, formatFullCurrency, fitFigureSize } from "@/lib/format";
 import { rollupEngagement } from "@/lib/metricDisplay";
 import { CreatorSelect } from "@/components/CreatorSelect";
 import { platformColor } from "@/app/(dashboard)/analytics/shared";
@@ -75,7 +75,7 @@ function tabFromParam(raw: string | null): Tab {
 }
 
 function formatNumber(num: number): string {
-  return formatCompact(num);
+  return formatFull(num);
 }
 
 function formatCurrency(n: number, currency = "USD") {
@@ -778,7 +778,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                    totalBudget's help says "across all campaigns in this date
                    range", which is a different number and a range this page
                    does not have. */
-                <MetricTile metric="budget" value={formatCompactCurrency(campaign.budget, campaign.currency)} />
+                <MetricTile metric="budget" value={formatFullCurrency(campaign.budget, campaign.currency)} />
               )}
             </div>
 
@@ -920,11 +920,11 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                 <div className="rsp-grid-tiles">
                   <div style={{ padding: 16, borderRadius: 10, background: "var(--cc-bg)" }}>
                     <div style={{ fontSize: 11, color: "var(--cc-text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>Total Views</div>
-                    <div style={{ fontSize: 22, fontWeight: 700, color: "var(--cc-text)" }}>{formatNumber(totalViews)}</div>
+                    <div title={formatNumber(totalViews)} style={{ fontSize: fitFigureSize(formatNumber(totalViews), 22), fontWeight: 700, color: "var(--cc-text)", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums", overflow: "hidden", textOverflow: "ellipsis" }}>{formatNumber(totalViews)}</div>
                   </div>
                   <div style={{ padding: 16, borderRadius: 10, background: "var(--cc-bg)" }}>
                     <div style={{ fontSize: 11, color: "var(--cc-text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>Total Likes</div>
-                    <div style={{ fontSize: 22, fontWeight: 700, color: "var(--cc-text)" }}>{formatNumber(totalLikes)}</div>
+                    <div title={formatNumber(totalLikes)} style={{ fontSize: fitFigureSize(formatNumber(totalLikes), 22), fontWeight: 700, color: "var(--cc-text)", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums", overflow: "hidden", textOverflow: "ellipsis" }}>{formatNumber(totalLikes)}</div>
                   </div>
                   <div style={{ padding: 16, borderRadius: 10, background: "var(--cc-bg)" }}>
                     <div style={{ fontSize: 11, color: "var(--cc-text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>Engagement Rate</div>

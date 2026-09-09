@@ -44,7 +44,18 @@ export async function snapshotSounds(options: SnapshotOptions = {}): Promise<Sna
   const sounds = await db.tikTokSound.findMany({
     // orgId stays in the filter alongside soundId: the caller passes an id it
     // read off its own campaign, and a scope check costs nothing here.
-    where: soundId ? { id: soundId, ...(orgId ? { orgId } : {}) } : orgId ? { orgId } : undefined,
+    //
+    // platform is not optional here. Every reader below builds a TikTok sound
+    // URL from `tiktokSoundId`, while the column admits INSTAGRAM too -- and
+    // because the same numeric id can exist on both platforms, an unfiltered
+    // sweep would quietly store TikTok's usage curve against an Instagram
+    // tracker. Instagram audio has no reader yet; skipping says so, guessing
+    // does not.
+    where: {
+      platform: "TIKTOK",
+      ...(soundId ? { id: soundId } : {}),
+      ...(orgId ? { orgId } : {}),
+    },
     select: {
       id: true,
       tiktokSoundId: true,

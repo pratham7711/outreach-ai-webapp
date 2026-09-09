@@ -11,12 +11,13 @@ import {
 import { applyPostMetrics } from "@/lib/sync/syncPost";
 import {
   laneCountFor,
-  openSandboxPostPool,
   type SandboxPostFetcher,
 } from "@/lib/platforms/tiktokPostSandbox";
+import { openTikTokPostFetcher } from "@/lib/platforms/tiktokEgress";
 import { ensureFreshInstagramToken } from "@/lib/platforms/instagramToken";
 import { ensureFreshTikTokToken } from "@/lib/platforms/tiktokToken";
-import { decideSyncAction, SyncAction } from "@/lib/sync/cadence";
+import { decidePostTracking, type PostTrackingAction } from "@/lib/sync/postTracking";
+import { parsePostTracking, type PostTrackingGranularity } from "@/lib/trackers/granularity";
 import { LAST_FETCH_KEY } from "@/lib/metricDisplay";
 import { alertOps, shouldAlertOnBatch } from "@/lib/alerts";
 import { alertIfInstagramSourceDown } from "@/lib/integrations/health";
@@ -25,45 +26,19 @@ import { createLogger } from "@/lib/observability/logger";
 const MAX_SYNC_FAILURES = 5;
 const DEFAULT_PLATFORM_BUDGET = 100;
 
-/* Campaigns with no interval of their own keep exactly today's behaviour --
-   swept every run -- so this filter can never make an existing campaign staler
-   than it already is. Only campaigns carrying an explicit interval slow down. */
-const DEFAULT_REFRESH_INTERVAL_HOURS = 1;
-/* The reference product's off switch, and it arrived in our data with the
-   import: Campaign.refreshInterval is populated on every migrated campaign and
-   9999 is the value it uses for "do not auto-refresh this". Honouring it is the
-   difference between sweeping 506 campaigns an hour and sweeping the handful
-   that asked to be swept. */
-const REFRESH_OFF_SENTINEL = 9999;
-/* Vercel fires an hourly cron near :00, not at it, and the previous run stamped
-   lastRefreshAt with its own start time. Compared exactly, a campaign on a 1h
-   interval swept at 03:00:40 is 59m30s old at 04:00:10 and not due, so every
-   other hour is skipped and "hourly" quietly means "every two hours" about half
-   the time. Five minutes of grace absorbs the jitter and cannot double-sweep:
-   the next run is ~55 minutes away, not five. */
-const REFRESH_GRACE_MS = 5 * 60 * 1000;
+/* The campaign cadence gate that used to live here is gone.
 
-type RefreshCadence = {
-  refreshActive: boolean | null;
-  refreshInterval: number | null;
-  lastRefreshAt: Date | null;
-};
+   It asked whether a campaign was IN_PROGRESS/PENDING and due on
+   `Campaign.refreshInterval`, honouring CreatorCore's 9999 = "never" sentinel.
+   Measured on prod 2026-09-09 that selected 103 posts out of 18,787 live ones,
+   and the status filter is what did most of it: 497 of ~500 campaigns are
+   COMPLETE. The sentinel changes nothing for live campaigns -- the same 102
+   untracked posts come back whether it is honoured or ignored. Neither half
+   represented a preference anyone expressed.
 
-export function isCampaignDue(campaign: RefreshCadence, now: Date): boolean {
-  /* `refreshActive === false` is deliberately NOT a block here, and that is a
-     reversal -- it used to return false on this line.
-
-     The flag arrived with the CreatorCore import rather than from anyone
-     choosing it in this product. Measured in prod on 2026-09-06 it sat false
-     on 4 of the 10 live campaigns, holding 129 of the 169 live posts and 40 of
-     the 46 YouTube ones, and those campaigns had not been swept since 08-18.
-     The explicit off switch is REFRESH_OFF_SENTINEL below, which is still
-     honoured, so a campaign anyone actually turned off stays off. */
-  const interval = campaign.refreshInterval ?? DEFAULT_REFRESH_INTERVAL_HOURS;
-  if (interval >= REFRESH_OFF_SENTINEL) return false;
-  if (!campaign.lastRefreshAt) return true;
-  return now.getTime() - campaign.lastRefreshAt.getTime() >= interval * 60 * 60 * 1000 - REFRESH_GRACE_MS;
-}
+   What decides now is the post tracker itself -- on, unexpired, and due on its
+   org's read cadence. Campaign status, refreshActive and refreshInterval no
+   longer gate this route at all. See lib/sync/postTracking.ts. */
 
 /* Reasons a further attempt cannot change. Both are things a platform states
    positively about the post, so re-asking hourly for five hours before
@@ -75,7 +50,7 @@ const SETTLED_REASONS: ReadonlySet<FetchReason> = new Set<FetchReason>([
   "unrecognised-url",
 ]);
 
-type Decision = { postId: string; platform: string; action: SyncAction; reason: string };
+type Decision = { postId: string; platform: string; action: PostTrackingAction; reason: string };
 
 /**
  * When this post was last ASKED about, from the __lastFetch stamp that
@@ -91,6 +66,64 @@ function lastAttemptFrom(platformMetrics: unknown): Date | null {
   if (typeof at !== "string") return null;
   const parsed = new Date(at);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+/** The counters a seal preserves. Both callers -- the bulk expiry pass and the
+ *  in-loop decision -- select exactly these. */
+type SealablePost = {
+  id: string;
+  lastSyncedAt: Date | null;
+  viewsCount: number;
+  likesCount: number;
+  commentsCount: number;
+  sharesCount: number;
+  reachCount: number;
+  engagementRate: number;
+};
+
+/**
+ * Retire a post: write the final snapshot, stop the tracker, and leave the
+ * measurement question alone.
+ *
+ * The seal is what makes a post stop costing anything -- the candidate query
+ * excludes anything holding an isFinalSnapshot row, and nothing in this codebase
+ * ever removes one. So it must land even for a post we never once measured,
+ * or that post is re-decided every hour forever.
+ *
+ * What must NOT happen is the seal claiming a measurement. Every counter is a
+ * non-nullable Float defaulting to 0, so lastSyncedAt is the sole discriminator
+ * between "no likes" and "nobody looked" (lib/metricDisplay, metricValue).
+ * Stamping it here would convert a whole cohort of never-measured posts into
+ * measured zeros across the Posts tab, the report and the PDF. So the snapshot
+ * always lands and lastSyncedAt moves only for a post that had a real reading.
+ *
+ * trackingEnabled goes false because the tracker is over, and the UI reads that
+ * flag to decide whether to offer Stop or Renew.
+ */
+async function sealPost(post: SealablePost, syncSource: string, at: Date = new Date()) {
+  const neverMeasured = post.lastSyncedAt === null;
+  await db.$transaction([
+    db.postMetricSnapshot.create({
+      data: {
+        postId: post.id,
+        viewsCount: post.viewsCount,
+        likesCount: post.likesCount,
+        commentsCount: post.commentsCount,
+        sharesCount: post.sharesCount,
+        /* Absent here, the seal asserted reach was never measured on the one row
+           nothing ever revisits. savesCount and downloadsCount are still missing
+           for the same reason -- flagged, not fixed here. */
+        reachCount: post.reachCount,
+        engagementRate: post.engagementRate,
+        isFinalSnapshot: true,
+        syncSource,
+      },
+    }),
+    db.post.update({
+      where: { id: post.id },
+      data: { trackingEnabled: false, ...(neverMeasured ? {} : { lastSyncedAt: at }) },
+    }),
+  ]);
 }
 
 function parseBudget(raw: string | undefined): number {
@@ -147,33 +180,40 @@ export async function GET(request: NextRequest) {
   let deadLettered = 0;
   let skippedForBudget = 0;
   const decisions: Decision[] = [];
-  /* Campaigns this run actually spent a request on. Only these get their
-     lastRefreshAt moved -- a campaign whose posts were all throttled by cadence,
-     or cut off by the deadline, has not been refreshed and must stay due. */
+  /* Campaigns this run actually spent a request on. lastRefreshAt no longer
+     gates anything -- the post tracker does -- but it is still what the campaign
+     screens and lib/refreshCooldown.ts show as "last refreshed", so it is kept
+     accurate. Only campaigns actually read are stamped; one whose posts were all
+     throttled or cut off by the deadline was not refreshed and must not claim it. */
   const sweptCampaigns = new Set<string>();
 
   /* Declared outside the try so the finally can close it: a pool left open
      after a crash keeps billing until SANDBOX_LIFETIME_MS. */
   let tiktokSandbox: SandboxPostFetcher | undefined;
   try {
-    /* Ask which campaigns are due before pulling a single post.
-       This route used to take the oldest 300 posts across every live campaign,
-       every hour, regardless of whether anyone wanted those numbers refreshed.
-       Most campaigns are not due in a given hour, so filtering here is the one
-       change in this file that reduces both bills at once: fewer rows read from
-       Neon, fewer rows written back, and fewer function-seconds spent on posts
-       whose owners had already said how often they wanted them looked at. */
-    const campaigns = await db.campaign.findMany({
-      where: { status: { in: ["IN_PROGRESS", "PENDING"] }, deletedAt: null },
-      select: { id: true, refreshActive: true, refreshInterval: true, lastRefreshAt: true },
-    });
-    const dueCampaignIds = campaigns.filter((c) => isCampaignDue(c, now)).map((c) => c.id);
+    /* Ask the trackers, not the campaigns.
 
+       The candidate set is "someone turned tracking on for this post, and it has
+       not sealed yet". Expiry is decided in code rather than filtered in SQL,
+       because an expired tracker still has one job left -- to seal -- and it can
+       only do that if the query returns it. It is returned at most once: sealing
+       writes an isFinalSnapshot row, and the filter below excludes it from every
+       run afterwards. So the expired backlog is only ever "lapsed since the last
+       run", never the whole history.
+
+       That also keeps the null case honest. A null trackingExpiresAt is a row
+       written before the column existed; effectiveExpiry() gives it a window
+       measured from trackingStartedAt rather than sealing it on sight, and no
+       WHERE clause could express that. */
     const posts = await db.post.findMany({
       where: {
-        campaignId: { in: dueCampaignIds },
+        trackingEnabled: true,
         syncDisabledAt: null,
         snapshots: { none: { isFinalSnapshot: true } },
+        /* A deleted campaign's posts stop being read. This used to fall out of
+           the campaign query; with campaigns no longer gating the sweep it has
+           to be said. */
+        campaign: { deletedAt: null },
       },
       select: {
         id: true,
@@ -201,6 +241,8 @@ export async function GET(request: NextRequest) {
         syncDisabledAt: true,
         trackingEnabled: true,
         trackingStartedAt: true,
+        trackingTtlDays: true,
+        trackingExpiresAt: true,
         snapshots: { where: { isFinalSnapshot: true }, take: 1, select: { id: true } },
         creator: {
           select: {
@@ -223,19 +265,45 @@ export async function GET(request: NextRequest) {
       orderBy: { lastSyncedAt: { sort: "asc", nulls: "first" } },
       take: 300,
     });
-    /* A due campaign with nothing syncable -- no posts yet, or every post sealed
-       -- never spends a request, so it is never stamped and is due again every
-       hour. Harmless, but "dueCampaigns:5 total:0" read as a cron that found
-       work and did none of it (2026-09-08). Counted only when the read was not
-       capped: under the cap, an absent campaign truly had nothing; at the cap it
-       may simply have been crowded out. */
-    const campaignsWithPosts = new Set(posts.map((p) => p.campaignId));
-    const emptyDueCampaigns =
-      posts.length < 300 ? dueCampaignIds.filter((id) => !campaignsWithPosts.has(id)).length : null;
-    log.info("campaign refresh cadence", {
-      liveCampaigns: campaigns.length,
-      dueCampaigns: dueCampaignIds.length,
-      emptyDueCampaigns,
+
+    /* Read cadence and default TTL are per organisation, so one lookup for the
+       orgs actually represented in this batch -- not one per post, and not the
+       whole table. An org with no stored preference gets DEFAULT_POST_TRACKING. */
+    const orgIds = [...new Set(posts.map((p) => p.creator.orgId))];
+    const orgs = orgIds.length
+      ? await db.organization.findMany({
+          where: { id: { in: orgIds } },
+          select: { id: true, uiConfig: true },
+        })
+      : [];
+    const granularityByOrg = new Map<string, PostTrackingGranularity>(
+      orgs.map((o) => [o.id, parsePostTracking(o.uiConfig)]),
+    );
+    const granularityFor = (orgId: string): PostTrackingGranularity =>
+      granularityByOrg.get(orgId) ?? parsePostTracking(null);
+
+    /* One place that builds the decision input, because it is asked twice: once
+       to size the TikTok sandbox pool before the loop, once per post inside it.
+       Two hand-rolled copies of this object is how the pre-pass and the loop
+       drift apart and the pool gets sized for a different set than it serves. */
+    const decisionFor = (post: (typeof posts)[number]) =>
+      decidePostTracking({
+        trackingEnabled: post.trackingEnabled ?? false,
+        trackingStartedAt: post.trackingStartedAt ? new Date(post.trackingStartedAt) : null,
+        trackingExpiresAt: post.trackingExpiresAt ? new Date(post.trackingExpiresAt) : null,
+        trackingTtlDays: post.trackingTtlDays ?? null,
+        lastSyncedAt: post.lastSyncedAt ? new Date(post.lastSyncedAt) : null,
+        lastAttemptAt: lastAttemptFrom(post.platformMetrics),
+        syncDisabledAt: post.syncDisabledAt ? new Date(post.syncDisabledAt) : null,
+        hasFinalSnapshot: post.snapshots.length > 0,
+        granularity: granularityFor(post.creator.orgId),
+        now,
+      });
+
+    log.info("post tracker sweep", {
+      trackedCandidates: posts.length,
+      orgs: orgIds.length,
+      capped: posts.length === 300,
     });
 
     const youtubeIds: string[] = [];
@@ -265,30 +333,23 @@ export async function GET(request: NextRequest) {
        SYNC_BUDGET_TIKTOK on reads.
 
        Sized before the loop because the decision is per post but the pool is
-       per run; decideSyncAction is pure, so asking it twice costs nothing. The
+       per run; decidePostTracking is pure, so asking it twice costs nothing. The
        pool boots lazily, so a run with no due TikTok post never creates a
        sandbox at all. */
     const tiktokDue = dryRun
       ? 0
-      : posts.filter(
-          (p) =>
-            p.platform === "TIKTOK" &&
-            decideSyncAction({
-              postedAt: new Date(p.postedAt),
-              lastSyncedAt: p.lastSyncedAt ? new Date(p.lastSyncedAt) : null,
-              lastAttemptAt: lastAttemptFrom(p.platformMetrics),
-              syncFailCount: p.syncFailCount,
-              syncDisabledAt: p.syncDisabledAt ? new Date(p.syncDisabledAt) : null,
-              hasFinalSnapshot: p.snapshots.length > 0,
-              trackingEnabled: p.trackingEnabled ?? false,
-              trackingStartedAt: p.trackingStartedAt ? new Date(p.trackingStartedAt) : null,
-              now,
-            }).action === "sync",
-        ).length;
+      : posts.filter((p) => p.platform === "TIKTOK" && decisionFor(p).action === "sync").length;
+    /* The lane cap is passed through rather than recomputed, because it is a
+       cost decision this route made on purpose: two sandboxes, not
+       laneCountFor's eight, since nobody is waiting on a cron run. It bounds
+       only the SANDBOX fallback -- a proxy identity is a session string with no
+       standing cost, so when proxies are configured the run reads through those
+       first and boots a sandbox only for posts they could not deliver. Setting
+       SYNC_CRON_TIKTOK_MAX_LANES=0 then means "proxies only, never boot one". */
     const lanes = cronTikTokLanes(tiktokDue);
-    if (lanes > 0) {
-      tiktokSandbox = openSandboxPostPool(lanes);
-      log.info("sandbox pool opened", { lanes, tiktokDue });
+    tiktokSandbox = openTikTokPostFetcher(tiktokDue, { sandboxLanes: lanes });
+    if (tiktokSandbox) {
+      log.info("tiktok egress opened", { lanes: tiktokSandbox.size, sandboxLanes: lanes, tiktokDue });
     }
 
     for (let i = 0; i < posts.length; i++) {
@@ -298,17 +359,7 @@ export async function GET(request: NextRequest) {
         break;
       }
 
-      let { action, reason } = decideSyncAction({
-        postedAt: new Date(post.postedAt),
-        lastSyncedAt: post.lastSyncedAt ? new Date(post.lastSyncedAt) : null,
-        lastAttemptAt: lastAttemptFrom(post.platformMetrics),
-        syncFailCount: post.syncFailCount,
-        syncDisabledAt: post.syncDisabledAt ? new Date(post.syncDisabledAt) : null,
-        hasFinalSnapshot: post.snapshots.length > 0,
-        trackingEnabled: post.trackingEnabled ?? false,
-        trackingStartedAt: post.trackingStartedAt ? new Date(post.trackingStartedAt) : null,
-        now,
-      });
+      let { action, reason } = decisionFor(post);
 
       if (action === "sync") {
         const platform = post.platform as string;
@@ -333,47 +384,11 @@ export async function GET(request: NextRequest) {
       }
 
       if (action === "seal") {
-        /* A post older than 30 days is sealed even if we never once measured it.
-           Not sealing it is not an option: decideSyncAction returns "seal" for
-           it on every run forever, so an unsealed one is re-decided hourly and
-           never leaves the read. Sealing is what retires it, and thirty days is
-           long past the point where a number we never got is going to arrive.
-
-           What must NOT happen is the seal claiming a measurement. Every
-           counter is a non-nullable Float defaulting to 0, so lastSyncedAt is
-           the sole discriminator between "no likes" and "nobody looked" (see
-           lib/metricDisplay, metricValue). Stamping it here converted a whole
-           30-day cohort of never-measured posts into measured zeros across the
-           Posts tab, the report and the PDF, and dragged avgPostRate down with
-           them -- the same class of bug applyPostMetrics exists to prevent on
-           the fetch path. So the final snapshot always lands (it is what stops
-           the re-reading), and lastSyncedAt moves only for a post that had a
-           real reading to preserve. */
-        const neverMeasured = post.lastSyncedAt === null;
+        /* Reached by a tracker whose expiry was null in SQL but lapsed once
+           effectiveExpiry() applied the org default. The bulk pass above cannot
+           express that in a WHERE clause, so it lands here instead. */
         try {
-          await db.$transaction([
-            db.postMetricSnapshot.create({
-              data: {
-                postId: post.id,
-                viewsCount: post.viewsCount,
-                likesCount: post.likesCount,
-                commentsCount: post.commentsCount,
-                sharesCount: post.sharesCount,
-                /* Absent here, the seal asserted reach was never measured on
-                   the one row nothing ever revisits. savesCount and
-                   downloadsCount are still missing on this branch for the same
-                   reason -- flagged, not fixed here, to keep this change to
-                   what it claims to be. */
-                reachCount: post.reachCount,
-                engagementRate: post.engagementRate,
-                isFinalSnapshot: true,
-                syncSource: "cron-seal",
-              },
-            }),
-            ...(neverMeasured
-              ? []
-              : [db.post.update({ where: { id: post.id }, data: { lastSyncedAt: now } })]),
-          ]);
+          await sealPost(post, "cron-seal-ttl", now);
           sealed++;
         } catch (err) {
           log.error("failed to seal post", { postId: post.id, error: String(err) });
@@ -538,10 +553,9 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    /* One write for the whole run, not one per campaign. Without this the
-       cadence filter never advances and every campaign stays permanently due,
-       which would quietly restore the old sweep-everything behaviour while
-       looking like it had been fixed. */
+    /* Informational only, since the sweep is driven by post trackers now.
+       Kept because the campaign header and the MCP tools read it, and a frozen
+       "last refreshed" reads as a broken sync even when the trackers are fine. */
     if (sweptCampaigns.size > 0) {
       await db.campaign.updateMany({
         where: { id: { in: [...sweptCampaigns] } },
