@@ -14,6 +14,8 @@
 /coverage
 e2e/fixtures/.auth.json
 e2e/fixtures/.portal-auth.json
+# Written by e2e/contrast.spec.ts on every run; a measurement, not a source file.
+e2e/fixtures/.contrast-report.json
 
 # next.js
 /.next/

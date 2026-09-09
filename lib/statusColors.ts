@@ -1,3 +1,5 @@
+import { contrastRatio } from "@/lib/ai/whitelabel/theme";
+
 /**
  * CreatorCore's status palette, read off the running app rather than guessed.
  *
@@ -12,6 +14,13 @@
  */
 
 export type StatusStyle = { bg: string; color: string };
+
+/**
+ * The lightest surface the app ever draws a status on (--cc-card is #FFFFFF in
+ * the default and creatorcore themes). Judging readability against it is the
+ * strict case: a colour that survives white survives the darker grounds too.
+ */
+const SURFACE = "#FFFFFF";
 
 /**
  * The one place a campaign status becomes words.
@@ -91,11 +100,34 @@ export function campaignStatusCss(status: string): { background: string; color: 
 }
 
 /**
+ * The colour a status is DRAWN IN when it sits on the page itself -- a legend
+ * dot, a filter-tab label, that tab's underline and icon -- as opposed to
+ * StatusStyle.color, which is the text colour to use on top of the status's own
+ * chip background.
+ *
+ * For every tinted status the two are the same colour. Active is the exception
+ * documented at the top of this file: a solid blue pill with WHITE text, so its
+ *  is #FFFFFF. That is right on the pill and invisible anywhere else --
+ * white label, white underline and white icon on a near-white page, which is
+ * exactly the bug this function exists to prevent.
+ *
+ * The rule is not "special-case Active" but "use whichever of the status's two
+ * colours can actually be seen on the app surface". A tint  is an rgba()
+ * string rather than a hex, and contrastRatio scores a non-hex as the worst
+ * possible ratio -- which is also the truthful answer for a 12.5%-alpha wash of
+ * the surface colour, so tinted statuses keep their foreground and only a solid
+ * fill like Active swaps.
+ */
+export function statusInk(style: StatusStyle): string {
+  return contrastRatio(style.bg, SURFACE) > contrastRatio(style.color, SURFACE)
+    ? style.bg
+    : style.color;
+}
+
+/**
  * One colour standing in for a status, for legend dots and other places with no
- * room for a pill. It is the foreground everywhere except Active, whose
- * foreground is white -- a white dot on a white page is not a legend entry.
+ * room for a pill.
  */
 export function campaignStatusDot(status: string): string {
-  const s = campaignStatusStyle(status);
-  return s.color.toUpperCase() === "#FFFFFF" ? s.bg : s.color;
+  return statusInk(campaignStatusStyle(status));
 }

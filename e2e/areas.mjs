@@ -129,6 +129,15 @@ export const AREAS = {
     specs: ["responsive-a.spec.ts", "responsive-b.spec.ts", "responsive-c.spec.ts", "responsive-d.spec.ts"],
     sources: [],
   },
+  /* Like `responsive`, this area has no `sources` of its own: the things that
+     break text contrast -- the theme blocks in globals.css and the shared
+     components in components/ds/ -- are already CROSS_CUTTING below, so a diff
+     touching them runs the whole suite including this. The entry exists so the
+     spec is reachable by name and shows up in --list. */
+  contrast: {
+    specs: ["contrast.spec.ts"],
+    sources: [],
+  },
 };
 
 /**

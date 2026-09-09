@@ -79,8 +79,14 @@
   --chart-5: #e87ba4;
 
   /* Status is RESERVED — never reused as a series colour, always with icon + label */
-  --status-good: #0CA30C;
-  --status-warning: #FAB219;
+  /* Darkened from #0CA30C / #FAB219 (2026-09-10). These are status colours,
+     and a status is nearly always rendered as TEXT on a tint of itself, so the
+     vivid values scored 2.52:1 and 1.48:1 against their own badge grounds --
+     unreadable. Charts keep their vivid palette in --chart-*, which is why
+     these can be darkened without dulling any graph. .dark pins the originals
+     below, where a light ground is not what they sit on. */
+  --status-good: #086A08;
+  --status-warning: #875C03;
   --status-serious: #EC835A;
   --status-critical: #D03B3B;
 
@@ -98,7 +104,9 @@
   --cc-primary-medium: rgba(42, 120, 214, 0.15);
   --cc-text: var(--foreground);
   --cc-text-muted: var(--muted-foreground);
-  --cc-text-subtle: #898781;
+  /* Was #898781: 3.59:1 on white, under AA, and this token paints sidebar
+     group labels and table column headers rather than decoration. */
+  --cc-text-subtle: #6B6964;
   --cc-success: var(--status-good);
   --cc-warning: var(--status-warning);
   --cc-danger: var(--status-critical);
@@ -188,7 +196,9 @@
   --cc-primary-hover: #5598E7;
   --cc-primary-light: rgba(57, 135, 229, 0.14);
   --cc-primary-medium: rgba(57, 135, 229, 0.22);
-  --cc-text-subtle: #898781;
+  /* The light value mirrored: on this theme's near-black surfaces the token
+     has to move lighter, not darker, to gain the same contrast. */
+  --cc-text-subtle: #9C9A94;
   --cc-hover-bg: #222220;
   --cc-row-hover: rgba(57, 135, 229, 0.06);
 
@@ -211,6 +221,11 @@
   --ui-shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.6);
   --ui-glow: 0 2px 12px rgba(0, 0, 0, 0.5);
 
+  /* The vivid originals, pinned rather than inherited: :root now carries the
+     darkened values that a light ground needs, and those same values on this
+     theme's near-black surfaces would be the same bug mirrored. */
+  --status-good: #0CA30C;
+  --status-warning: #FAB219;
   --ui-success-dim: rgba(12, 163, 12, 0.22);
   --ui-warning-dim: rgba(250, 178, 25, 0.22);
   --ui-danger-dim: rgba(208, 59, 59, 0.22);
@@ -273,8 +288,11 @@
   --chart-4: #ff9500;
   --chart-5: #ff375f;
 
-  --status-good: #34C759;
-  --status-warning: #FF9500;
+  /* Darkened from #34C759 / #FF9500 for the same reason as :root: as badge
+     text on their own tints they scored 1.95:1 and 1.93:1. --chart-3/--chart-4
+     above keep the vivid Apple-system hues for graphs. */
+  --status-good: #1F7735;
+  --status-warning: #995900;
   --status-serious: #FF6B35;
   --status-critical: #FF3B30;
 
@@ -285,7 +303,11 @@
   --cc-primary-hover: #193EE6;
   --cc-primary-light: rgba(31, 60, 239, 0.08);
   --cc-primary-medium: rgba(31, 60, 239, 0.15);
-  --cc-text-subtle: rgba(31, 60, 239, 0.36);
+  /* Was 0.36 alpha, which composited to #AEB9F9 -- 1.89:1 on white. This token
+     is not decoration: it paints sidebar group labels, table column headers and
+     empty-state copy, so 61 of the 74 unreadable strings in the theme audit
+     were this one value. 0.85 keeps the brand hue and clears AA. */
+  --cc-text-subtle: rgba(31, 60, 239, 0.85);
   --cc-hover-bg: #EBEEFE;
   --cc-row-hover: rgba(31, 60, 239, 0.04);
 
@@ -296,7 +318,10 @@
   --ui-bg-3: #DDE3FD;
 
   --ui-text-1: rgba(0, 0, 0, 0.75);
-  --ui-text-2: rgba(31, 60, 239, 0.36);
+  /* Same 0.36 wash as --cc-text-subtle was, and the same 1.86:1 result on a
+     card. This one reaches the UI package's secondary text -- empty-state
+     descriptions, input hints, breadcrumb links. */
+  --ui-text-2: rgba(31, 60, 239, 0.85);
 
   --ui-border-strong: rgba(31, 60, 239, 0.40);
 
@@ -472,7 +497,10 @@
   letter-spacing: normal;
   text-transform: none;
   line-height: 18.75px;
-  color: rgba(31, 60, 239, 0.36);
+  /* Was this same rgba literal spelled out, so it silently ignored
+     --cc-text-subtle and stayed at 1.89:1 when that token was retuned. Point it
+     at the token so there is one place to change. */
+  color: var(--cc-text-subtle);
   padding: 0;
   margin-bottom: 8px;
 }

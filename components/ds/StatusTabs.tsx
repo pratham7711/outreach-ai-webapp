@@ -2,6 +2,7 @@
 
 import React from "react";
 import { Badge } from "@pratham7711/ui";
+import { statusInk } from "@/lib/statusColors";
 
 type BadgeVariant = "accent" | "success" | "warning" | "danger" | "neutral";
 
@@ -39,6 +40,37 @@ function resolveStatusColor(color?: string): string {
   return STATUS_COLOR_TOKENS[color.trim().toLowerCase()] ?? color;
 }
 
+/**
+ * The colour to draw a tab's label, underline, dot and icon in.
+ *
+ * A caller may hand us a whole status style, and a status style's `color` is
+ * the text colour for that status's own chip -- for a solid-fill status like
+ * Active that is #FFFFFF, which painted onto this strip is white on a
+ * near-white page: label, underline and icon all gone. statusInk picks
+ * whichever of the pair can be seen on the surface, so the fill colour carries
+ * a solid status and a tinted one keeps its foreground.
+ */
+function tabInk(tab: StatusTab): string {
+  const base =
+    tab.bg && tab.color
+      ? resolveStatusColor(statusInk({ bg: tab.bg, color: tab.color }))
+      : resolveStatusColor(tab.color);
+
+  /* A CSS variable is already theme-correct; only a literal from the status
+     palette needs help.
+
+     Those literals are copied from the reference app for chip parity, where
+     each sits on a 12.5% tint of itself. On this strip there is no tint -- the
+     label sits on the page -- and Complete's #56BA57 measured 2.29:1 there.
+     Darkening the palette would fix the light themes and break the dark one, so
+     the mix is toward --cc-text instead: that token is near-black in light and
+     creatorcore and near-white in dark, so the same expression pushes the hue
+     away from whichever ground it is actually on. The status stays recognisably
+     its own colour; it just stops being the lightest thing on the page. */
+  if (base.startsWith("var(") || base.startsWith("color-mix(")) return base;
+  return `color-mix(in srgb, ${base} 62%, var(--cc-text))`;
+}
+
 export function StatusTabs({ tabs, active, onChange, variant = "underline", ariaLabel = "Filter by status", style }: StatusTabsProps) {
   const isPill = variant === "pill";
   return (
@@ -55,7 +87,7 @@ export function StatusTabs({ tabs, active, onChange, variant = "underline", aria
     >
       {tabs.map((tab) => {
         const isSelected = active === tab.key;
-        const color = resolveStatusColor(tab.color);
+        const color = tabInk(tab);
         const showCount = typeof tab.count === "number" && tab.count > 0;
         if (isPill) {
           return (
