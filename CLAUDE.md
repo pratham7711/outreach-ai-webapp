@@ -206,6 +206,35 @@ Built on top of the real app clone. Not in the real CreatorCore app.
 - Keep all pages on light theme (CSS vars above)
 - Start dev server: `PORT=3009 npm run dev`
 
+## Concurrent sessions — one worktree per session
+
+Several Claude sessions run on this machine at once. **Do not work in a checkout another
+session is using.** Take your own:
+
+```bash
+git worktree list                                        # who is already here
+git worktree add -b <branch> "$SCRATCHPAD/wt-<slug>" HEAD
+PORT=3010 npm run dev                                    # 3009 is taken; Playwright wants it too
+git worktree remove "$SCRATCHPAD/wt-<slug>"              # when done
+```
+
+Branch off **HEAD, never `origin/master`** — master is hundreds of commits behind (434 on
+2026-09-09), because production is deployed with `vercel --prod` from the working tree
+rather than by pushing. That same fact is why sharing a checkout is dangerous here
+specifically:
+
+- **A deploy ships the working tree.** Another session's uncommitted edit goes to
+  production alongside yours, and neither session sees it happen.
+- **A deploy receipt covers untracked files too.** `state_key` hashes HEAD, every
+  uncommitted change, and the contents of untracked files. On 2026-09-09 another session
+  added one untracked file to `docs/` during an 18-minute E2E run, which put the Playwright
+  receipt on a different code state than unit and build and blocked the deploy until both
+  were re-run. You cannot tell such a file from your own edit.
+
+If you must share a checkout, say so out loud before deploying and check
+`git status --porcelain` immediately before `vercel --prod`.
+
+
 ## Testing — run the affected area, not all 37 specs
 
 The E2E suite is 37 spec files / 172 tests and runs sequentially (`workers: 1`),
