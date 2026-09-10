@@ -23,12 +23,23 @@ jest.mock("@/lib/platforms/tiktokSound", () => ({ fetchTikTokSoundStats: jest.fn
 jest.mock("@/lib/platforms/tiktokSoundBrowser", () => ({
   openSoundBrowserSession: () => ({ read: jest.fn().mockResolvedValue(null), close: jest.fn() }),
 }));
-/* The embed is now the first rung and would otherwise reach the network. These
-   tests are about the arithmetic the cron writes, so the reader is stubbed and
-   fed a count per test. */
+/* The embed is the first rung and would otherwise reach the network. These
+   tests are about the arithmetic the cron writes, so the batched reader is
+   stubbed and fed one count per test, answered for every id it was asked for.
+   The ladder that reader implements is tested in
+   __tests__/unit/lib/tiktokAudioUsage.test.ts. */
 const mockEmbed = jest.fn();
-jest.mock("@/lib/platforms/tiktokSoundEmbed", () => ({
-  readTikTokSoundViaEmbed: (...a: any[]) => mockEmbed(...a),
+jest.mock("@/lib/platforms/tiktokAudioUsage", () => ({
+  ...jest.requireActual("@/lib/platforms/tiktokAudioUsage"),
+  readTikTokAudioUsage: async (ids: string[]) => {
+    const stats = await mockEmbed(ids);
+    return new Map(
+      ids.map((id) => [
+        id,
+        stats ? { ok: true, rung: "embed-direct", stats } : { ok: false, reason: "no-reading" },
+      ])
+    );
+  },
 }));
 jest.mock("@/lib/alerts", () => ({
   ...jest.requireActual("@/lib/alerts"),

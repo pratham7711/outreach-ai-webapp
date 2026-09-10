@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { db } from "@/lib/db";
 import { findForeignRef } from "@/lib/tenantRefs";
 import { authenticateRequest, getAuditActor } from "@/lib/authenticate";
@@ -8,6 +8,7 @@ import { getRequestIp } from "@/lib/request";
 import { z } from "zod";
 import { pageParam, pageSizeParam, parseQuery } from "@/lib/http/queryParams";
 import { ensureSongForAudio, identifyAudioLink, type ResolvedAudio } from "@/lib/campaigns/audioLink";
+import { primeSongAudio } from "@/lib/sounds/snapshot";
 import { CAMPAIGN_STATUSES, CAMPAIGN_TYPES, campaignFilterSchema, campaignWhere } from "@/lib/listFilters";
 import { CAMPAIGN_START_STATUS, STATUS_DEF_SELECT, defaultStatusDefFor } from "@/lib/campaigns/statusDefaults";
 import type { PaymentMode, PaymentRelease, PostApprovalMode } from "@/lib/generated/prisma/client";
@@ -199,6 +200,31 @@ export async function POST(request: NextRequest) {
       },
       });
     });
+
+    /* Take the audio's first reading now rather than at the next cron. Without
+       it a campaign created with a sound shows an em dash for uses -- on its own
+       Performance tab and on any client link shared before 04:00 UTC -- which
+       reads as a broken tracker rather than an unread one.
+
+       In after(), because the campaign is written and the operator is owed a
+       response: TikTok being slow or blocked must not hold the create open. */
+    if (campaign.songId) {
+      /* after() itself throws when there is no request scope to attach to, and
+         scheduling a first audio reading must never cost the caller the write
+         that just succeeded -- the sound is tracked either way, and the cron
+         picks it up. Same reasoning as the refresh route's hand-off. */
+      try {
+        after(async () => {
+          try {
+            await primeSongAudio(orgId, campaign.songId);
+          } catch (error) {
+            console.error("Failed to prime campaign audio:", error);
+          }
+        });
+      } catch (error) {
+        console.error("Could not schedule the campaign's first audio reading:", error);
+      }
+    }
 
     await logAudit({
       orgId,

@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { campaignScopeWhereFor } from "@/lib/campaignScope";
 import { db } from "@/lib/db";
 import { findForeignRef } from "@/lib/tenantRefs";
@@ -12,6 +12,7 @@ import { httpUrlMax } from "@/lib/validation/url";
 import { z } from "zod";
 import { Prisma } from "@/lib/generated/prisma/client";
 import { STATUS_DEF_SELECT, defaultStatusDefFor } from "@/lib/campaigns/statusDefaults";
+import { primeSongAudio } from "@/lib/sounds/snapshot";
 
 const CAMPAIGN_TYPES = ["BUDGET_BASED", "VIEW_BASED", "OPEN_COMMUNITY", "PRIVATE_INVITE"] as const;
 
@@ -295,6 +296,29 @@ export async function PATCH(
         },
       },
     });
+
+    /* Attaching a song to an existing campaign is the other way audio arrives --
+       the song dashboard's Attach Campaigns control lands here -- so it gets the
+       same first reading as creating a campaign with an audio link. No-ops when
+       the sound already has history, which is the common case for a second
+       campaign joining a tracker. */
+    if (rest.songId) {
+      /* after() itself throws when there is no request scope to attach to, and
+         scheduling a first audio reading must never cost the caller the write
+         that just succeeded -- the sound is tracked either way, and the cron
+         picks it up. Same reasoning as the refresh route's hand-off. */
+      try {
+        after(async () => {
+          try {
+            await primeSongAudio(orgId, rest.songId);
+          } catch (error) {
+            console.error("Failed to prime campaign audio:", error);
+          }
+        });
+      } catch (error) {
+        console.error("Could not schedule the campaign's first audio reading:", error);
+      }
+    }
 
     await logAudit({
       orgId,

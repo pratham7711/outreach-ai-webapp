@@ -1,7 +1,5 @@
 import { db } from "@/lib/db";
-import { fetchTikTokSoundStats } from "@/lib/platforms/tiktokSound";
-import { readTikTokSoundViaEmbed } from "@/lib/platforms/tiktokSoundEmbed";
-import { openSandboxProfileFetcher } from "@/lib/platforms/tiktokProfileSandbox";
+import { readTikTokAudioUsage, isMeasuredRung } from "@/lib/platforms/tiktokAudioUsage";
 import { createLogger } from "@/lib/observability/logger";
 import { velocityBetween } from "@/lib/trackers/metrics";
 
@@ -40,6 +38,7 @@ export async function snapshotSounds(options: SnapshotOptions = {}): Promise<Sna
   let snapshots = 0;
   let failed = 0;
   let skipped = 0;
+  let unread = 0;
 
   const sounds = await db.tikTokSound.findMany({
     // orgId stays in the filter alongside soundId: the caller passes an id it
@@ -70,75 +69,77 @@ export async function snapshotSounds(options: SnapshotOptions = {}): Promise<Sna
     },
   });
 
-  /* One sandbox for the whole run, created lazily inside the fetcher, so a run
-     whose sounds all answer over plain egress never pays for a boot. */
-  const remote = openSandboxProfileFetcher();
+  /* One batched read for the whole run, rather than a sound at a time.
 
-  try {
-    for (const [index, sound] of sounds.entries()) {
-      if (Date.now() > deadline) {
-        log.warn("time budget reached; stopping early", { remaining: sounds.length - index });
-        break;
-      }
-
-      /* Somebody else already read this one -- in practice the hourly cron.
-         A recent snapshot is the evidence, and it needs no flag to set or
-         remember. Skipped rather than counted as failed, which is what takes it
-         out of the nightly alert ratio.
-         Not applied to a single-sound refresh: a person clicking Refresh asked
-         for this sound now, and silently doing nothing is not an answer. */
-      const lastAt = sound.snapshots[0]?.recordedAt;
-      if (!soundId && lastAt && Date.now() - lastAt.getTime() < HANDOVER_WINDOW_MS) {
-        skipped++;
-        continue;
-      }
-
-      /* The embed page first, and it is the rung that actually answers: the music
-         page carries no count, /api/music/detail/ answers empty without headers
-         only TikTok's own client script produces, and the plain fetch below has
-         never produced a reading from here. See lib/platforms/tiktokSoundEmbed.ts.
-
-         This matters most for the Refresh button, which lands here rather than in
-         the hourly cron. Wiring the embed into the cron alone would have left a
-         person clicking Refresh with the same silent nothing it always gave. */
-      const embedStats = await readTikTokSoundViaEmbed(sound.tiktokSoundId, (id) =>
-        remote.readMusicEmbedHtml(id),
-      ).catch((error) => {
-        log.warn("embed read failed", {
-          soundId: sound.id,
-          error: error instanceof Error ? error.message : String(error),
-        });
-        return null;
-      });
-
-      const stats = embedStats ?? (await fetchTikTokSoundStats(sound.tiktokSoundId));
-      if (!stats) {
-        failed++;
-        continue;
-      }
-
-      /* A zero from the embed is a measurement: statusCode 0 with videoCount 0 is
-         TikTok saying the sound exists and nothing uses it, which is exactly what
-         a brand's freshly uploaded audio looks like on day one, and recording it
-         is what makes tomorrow's delta true. A zero from the fetch fallback is not
-         a measurement -- that path returns zero when it could not read -- so it
-         stays a skip. The distinction is which rung answered, not the number. */
-      if (stats.usesCount < 0 || (!embedStats && stats.usesCount <= 0)) {
-        skipped++;
-        continue;
-      }
-
-      if (dryRun) {
-        snapshots++;
-        continue;
-      }
-
-      await recordSoundSnapshot(sound, stats);
-      snapshots++;
+     The ladder itself -- embed over plain egress, then the same embed from a
+     sandbox, then the music page -- lives in tiktokAudioUsage.ts, where the
+     hourly sweep reads it too. What changes here is the shape: the reads run
+     concurrently, the sandbox is opened only if plain egress left something
+     unread, and two rows sharing a tiktokSoundId ask TikTok once. */
+  const due = sounds.filter((sound) => {
+    /* Somebody else already read this one -- in practice the hourly cron.
+       A recent snapshot is the evidence, and it needs no flag to set or
+       remember. Skipped rather than counted as failed, which is what takes it
+       out of the nightly alert ratio.
+       Not applied to a single-sound refresh: a person clicking Refresh asked
+       for this sound now, and silently doing nothing is not an answer. */
+    const lastAt = sound.snapshots[0]?.recordedAt;
+    if (!soundId && lastAt && Date.now() - lastAt.getTime() < HANDOVER_WINDOW_MS) {
+      skipped++;
+      return false;
     }
-  } finally {
-    await remote.close().catch(() => {});
+    return true;
+  });
+
+  /* allowMusicPage stays on here even though that rung has never answered from
+     a server. It is the documented last resort, the fetcher now runs it
+     concurrently rather than paying its timeout one sound after another, and
+     dropping a fallback is a separate decision from making the reader fast. */
+  const readings = due.length
+    ? await readTikTokAudioUsage(
+        due.map((sound) => sound.tiktokSoundId),
+        { deadlineAt: deadline, allowMusicPage: true },
+      )
+    : new Map();
+
+  for (const sound of due) {
+    const outcome = readings.get(sound.tiktokSoundId);
+
+    /* Never asked, because the run ran out of time. Not a failure: counting it
+       as one would page ops whenever a sweep is simply large. */
+    if (!outcome || (!outcome.ok && outcome.reason === "deadline")) {
+      unread++;
+      continue;
+    }
+
+    if (!outcome.ok) {
+      failed++;
+      continue;
+    }
+
+    const { stats, rung } = outcome;
+
+    /* A zero from the embed is a measurement: statusCode 0 with videoCount 0 is
+       TikTok saying the sound exists and nothing uses it, which is exactly what
+       a brand's freshly uploaded audio looks like on day one, and recording it
+       is what makes tomorrow's delta true. A zero from the music-page fallback is
+       not a measurement -- that path returns zero when it could not read -- so it
+       stays a skip. The distinction is which rung answered, not the number. */
+    if (stats.usesCount < 0 || (!isMeasuredRung(rung) && stats.usesCount <= 0)) {
+      skipped++;
+      continue;
+    }
+
+    if (dryRun) {
+      snapshots++;
+      continue;
+    }
+
+    await recordSoundSnapshot(sound, stats);
+    snapshots++;
   }
+
+  if (unread > 0) log.warn("time budget reached; stopping early", { remaining: unread });
 
   return { snapshots, failed, skipped };
 }
@@ -192,4 +193,43 @@ export async function recordSoundSnapshot(
   if (Object.keys(patch).length > 0) {
     await db.tikTokSound.update({ where: { id: sound.id }, data: patch });
   }
+}
+
+/**
+ * The first reading for a campaign's audio, taken when the audio is attached
+ * rather than at 04:00 the next morning.
+ *
+ * Attaching a TikTok sound used to create the tracker row and stop there, so
+ * the campaign's audio card -- and the client report built from it -- showed an
+ * em dash for uses until a cron happened to run. For a link an operator sends a
+ * brand the same afternoon, that is the whole first impression of the feature.
+ *
+ * Deliberately narrow: it does nothing when the sound already has a reading, so
+ * a second campaign joining an existing tracker costs no fetch, and a person
+ * pasting the same link twice does not queue two. The caller runs it in
+ * `after()`, so a slow or blocked TikTok delays nobody -- the campaign is
+ * already written and the response already sent.
+ */
+export async function primeSongAudio(
+  orgId: string,
+  songId: string | null | undefined,
+): Promise<SnapshotResult | null> {
+  if (!songId) return null;
+
+  const song = await db.song.findFirst({
+    where: { id: songId, orgId, deletedAt: null },
+    select: { soundId: true },
+  });
+  if (!song?.soundId) return null;
+
+  const already = await db.soundTrackerSnapshot.findFirst({
+    where: { soundId: song.soundId },
+    select: { id: true },
+  });
+  if (already) return null;
+
+  /* Well inside a function's ceiling even when the direct read misses and the
+     sandbox rung has to boot, and short enough that an `after()` callback is
+     not what keeps the invocation alive. */
+  return snapshotSounds({ orgId, soundId: song.soundId, deadlineMs: 25 * 1000 });
 }

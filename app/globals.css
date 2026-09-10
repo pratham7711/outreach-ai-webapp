@@ -1432,48 +1432,186 @@ h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-lexend), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
-/* The audio card is shared with the campaign's own Performance tab, so it is
-   re-pointed at this report's palette here rather than forked. The
-   --audio-tile-* set is the seam the card reads for its sound row and its two
-   figure tiles, which the reference draws as black tiles on the white card;
-   every one of them falls back to the dashboard token, so the campaign tab is
-   untouched. */
-.spr-audio-slot {
-  --cc-card: var(--spr-card);
-  --cc-bg: var(--spr-card);
-  --cc-text: var(--spr-ink);
-  --cc-text-muted: var(--spr-label);
-  --cc-text-subtle: var(--spr-label);
-  --cc-border: var(--spr-hairline);
-  --ui-bg-0: var(--spr-card);
-  --ui-bg-1: var(--spr-card);
-  --ui-bg-2: var(--spr-card);
-  --ui-bg-3: var(--spr-pill);
-  --ui-glass: var(--spr-card);
-  --ui-glass-border: transparent;
-  --ui-text-0: var(--spr-ink);
-  --ui-text-1: var(--spr-label);
-  --ui-text-2: var(--spr-label);
-  --ui-border: var(--spr-hairline);
-  --ui-border-strong: var(--spr-hairline);
-  --ui-r-lg: var(--spr-r-card);
-  --ui-r-xl: var(--spr-r-card);
-  --ui-shadow-sm: none;
-  --ui-shadow-md: none;
-  --ui-shadow-lg: none;
+/* The client report's audio card.
+   
+   Every value here is measured off CreatorCore's own client report at 1440,
+   where the card is 635 wide with 20px padding. It is a second skin on the
+   shared AudioCard (variant="report"), not a fork and not a re-pointing of the
+   dashboard's tokens: the reference differs from our Performance tab in the
+   ORDER of its parts as well as their colour, so the markup branches and this
+   block styles that branch alone. The campaign tab reads none of it. */
+.spr-audio {
+  /* Sampled from the reference, not chosen: the sound tile is a flat #848484
+     and the chart's area is #7F7F7F -- close, but not the same grey, and the
+     area carries no gradient or opacity over the white card. */
+  --spr-audio-sound-bg: #848484;
+  --spr-audio-area: #7F7F7F;
+  --spr-audio-line: #000000;
+  --spr-audio-axis: #AEB9C2;
 
-  --audio-tile-bg: var(--spr-tile);
-  --audio-tile-fill: var(--spr-hairline-dark);
-  --audio-tile-border: transparent;
-  --audio-tile-ink: var(--spr-tile-ink);
-  --audio-tile-ink-muted: var(--spr-tile-ink);
-  --audio-tile-radius: var(--spr-r-card);
-  --audio-title-size: 18px;
-  --audio-title-ink: var(--spr-label);
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+  padding: 20px;
 }
-/* The card lifts and shadows on hover in the dashboard; on a static report it
-   is a surface, not a control. */
-.spr-audio-slot .ui-card:hover { transform: none; box-shadow: none; }
+
+/* 268 + 10 + 154 + 10 + 154 = 596 against the reference's 595 of content. The
+   stat tiles hold their width and the sound tile takes the remainder, which is
+   what keeps two 20px figures on one line as the column narrows. */
+.spr-audio-tiles {
+  display: grid;
+  grid-template-columns: minmax(min(200px, 100%), 1fr) repeat(2, minmax(0, 154px));
+  gap: 10px;
+}
+
+.spr-audio-sound,
+.spr-audio-stat {
+  min-height: 88px;
+  border-radius: var(--spr-r-card);
+  min-width: 0;
+}
+
+.spr-audio-sound {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 13px;
+  background: var(--spr-audio-sound-bg);
+  color: var(--spr-tile-ink);
+  text-decoration: none;
+}
+
+/* 49, not the 62 a first read of the screenshot suggested: the reference's
+   title sits at x=95 inside a tile at x=20 with 13px of padding and a 13px
+   gap, which leaves the art exactly 49 wide. */
+.spr-audio-cover {
+  width: 49px;
+  height: 49px;
+  flex: none;
+  border-radius: 8px;
+  object-fit: cover;
+  background: var(--spr-hairline-dark);
+}
+
+.spr-audio-cover-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--spr-tile-ink);
+}
+
+.spr-audio-names {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* The reference wraps the artist onto a second line rather than truncating it
+   -- "Jamie MacDonald & The Chosen" is two lines there -- so the tile grows
+   instead of hiding half the credit. */
+.spr-audio-track {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.spr-audio-artist {
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 1.25;
+}
+
+/* No gap, and 1.25 line-heights throughout: that is what puts the label at
+   y=79 and the figure at y=97 inside an 88-tall tile, which is where the
+   reference has them. */
+.spr-audio-stat {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  /* 15, where the sound tile beside it uses 13 -- the reference's figure
+     labels start at x=313 in a tile at 298. */
+  padding: 15px;
+  background: var(--spr-tile);
+  color: var(--spr-tile-ink);
+}
+
+.spr-audio-stat-label { font-size: 14px; line-height: 1.25; }
+
+.spr-audio-stat-value {
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Plain text, not pills: the reference marks the active view by weight and an
+   underline and spends no colour on it. */
+.spr-audio-toggle {
+  display: flex;
+  gap: 10px;
+}
+
+.spr-audio-tab {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 1.25;
+  color: var(--spr-ink);
+  cursor: pointer;
+}
+
+.spr-audio-tab.is-on {
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.spr-audio-chart-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--spr-ink);
+  text-align: center;
+}
+
+/* The reference's rhythm is not uniform: 13px between the card's big blocks,
+   but only 5 between the toggle, the chart title and the plot, which read as
+   one unit. */
+.spr-audio-plot {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.spr-audio-chart { height: 250px; }
+
+/* The reference re-stacks this twice, and by viewport rather than by how wide
+   the card happens to be -- measured on a fresh load at each width, its card is
+   691 at 768 and still drops the sound tile onto its own row there, which a
+   card-width rule could not produce. Tiles also shorten to 75 below 1024. */
+@media (max-width: 1023px) {
+  .spr-audio-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .spr-audio-sound { grid-column: 1 / -1; }
+  .spr-audio-sound,
+  .spr-audio-stat { min-height: 75px; }
+}
+
+@media (max-width: 767px) {
+  /* Two figures across a 311px row leave each 151 wide; the reference gives
+     them a row each instead. */
+  .spr-audio-tiles { grid-template-columns: minmax(0, 1fr); }
+  /* Back to 88 here: at 351 the reference's sound tile is the one that grows,
+     because the artist credit takes a second line beside the art. */
+  .spr-audio-sound { min-height: 88px; }
+  .spr-audio-chart { height: 210px; }
+}
 
 /* The column is 90% of the viewport, capped at 1296. Not a guess and not a
    ladder of breakpoints: measured on a FRESH LOAD at six widths, the reference

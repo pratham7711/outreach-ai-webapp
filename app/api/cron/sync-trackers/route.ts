@@ -8,7 +8,7 @@ import { db } from "@/lib/db";
 import { createLogger } from "@/lib/observability/logger";
 import { fetchTikTokSoundStats } from "@/lib/platforms/tiktokSound";
 import { openSoundBrowserSession } from "@/lib/platforms/tiktokSoundBrowser";
-import { readTikTokSoundViaEmbed } from "@/lib/platforms/tiktokSoundEmbed";
+import { readTikTokAudioUsage } from "@/lib/platforms/tiktokAudioUsage";
 import { openSandboxProfileFetcher } from "@/lib/platforms/tiktokProfileSandbox";
 import {
   previousOf,
@@ -129,13 +129,22 @@ export async function GET(request: NextRequest) {
       })
     ).sort((a, b) => (orderIndex.get(a.id) ?? 0) - (orderIndex.get(b.id) ?? 0));
 
-    for (const sound of sounds) {
-      if (Date.now() > deadline) {
-        decisions.push({ soundId: sound.id, action: "skip", reason: "deadline-passed" });
-        skipped++;
-        continue;
-      }
+    /* Two passes, not one.
 
+       This used to read a sound, wait, then read the next -- and a browser read
+       costs about ten seconds, measured, which is why the run carries a
+       five-minute ceiling and still stopped short of ninety-three sounds. The
+       cadence check needs no network, so it happens for every sound first; then
+       everything actually due is read in one batched, concurrent call.
+
+       The ladder itself is unchanged and still in this order: the music embed,
+       then the browser, then the music page. Only the embed rungs are batched --
+       the browser is one session and reads serially by construction, and the
+       music page stays behind it. */
+    type DueSound = (typeof sounds)[number] & { history: TrackerSnapshot[] };
+    const due: DueSound[] = [];
+
+    for (const sound of sounds) {
       const history: TrackerSnapshot[] = sound.snapshots.map((s) => ({
         value: s.usesCount,
         recordedAt: s.recordedAt,
@@ -161,22 +170,39 @@ export async function GET(request: NextRequest) {
         continue;
       }
 
-      /* The music EMBED page is tried first because it is the only rung that has
-         ever worked from here, and it costs one request.
+      due.push({ ...sound, history });
+    }
 
-         The music page proper carries no count and /api/music/detail/ answers an
-         empty body without headers TikTok's client script signs — that is why
-         this cron ran for weeks and wrote nothing, and why a browser on a VPS
-         outside India was the documented plan. But
-         https://www.tiktok.com/embed/music/<id> server-renders an embedInfo with
-         the count in it (measured from a Vercel Sandbox, iad1). Same rescue the
-         creator profile embed gave Top Posts. */
-      let stats = await readTikTokSoundViaEmbed(sound.tiktokSoundId, (id) =>
-        remoteEmbed.readMusicEmbedHtml(id)
-      ).catch((e) => {
-        log.warn("embed read failed", { soundId: sound.id, error: String(e).slice(0, 120) });
-        return null;
-      });
+    /* Rung one, batched: the music EMBED page, over plain egress and then from
+       the sandbox. It is the only rung that has ever worked from here and it
+       costs one request.
+
+       The music page proper carries no count and /api/music/detail/ answers an
+       empty body without headers TikTok's client script signs — that is why
+       this cron ran for weeks and wrote nothing, and why a browser on a VPS
+       outside India was the documented plan. But
+       https://www.tiktok.com/embed/music/<id> server-renders an embedInfo with
+       the count in it (measured from a Vercel Sandbox, iad1). Same rescue the
+       creator profile embed gave Top Posts.
+
+       allowMusicPage stays off: that rung belongs BEHIND the browser, below. */
+    const embedReadings = due.length
+      ? await readTikTokAudioUsage(
+          due.map((sound) => sound.tiktokSoundId),
+          { deadlineAt: deadline, sandbox: remoteEmbed, allowMusicPage: false },
+        )
+      : new Map();
+
+    for (const sound of due) {
+      if (Date.now() > deadline) {
+        decisions.push({ soundId: sound.id, action: "skip", reason: "deadline-passed" });
+        skipped++;
+        continue;
+      }
+
+      const { history } = sound;
+      const embed = embedReadings.get(sound.tiktokSoundId);
+      let stats = embed?.ok ? embed.stats : null;
 
       /* Both kept behind the embed rather than deleted: the browser is the only
          path that can read a sound the embed refuses, and the plain fetch costs

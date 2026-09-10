@@ -245,10 +245,10 @@ export default function SharedPerformanceReport({
               {/* The audio is not gated on a visibility flag: the reference report
                   always shows it, and the card carries no creator, money or status
                   field that a link is allowed to withhold. */}
+              {/* No wrapper: the report variant renders its own .spr-card, so
+                  it sits in the row grid directly the way every other card does. */}
               {data.audio ? (
-                <div className="spr-audio-slot">
-                  <AudioCard audio={data.audio} shareToken={token} />
-                </div>
+                <AudioCard audio={data.audio} shareToken={token} variant="report" />
               ) : null}
             </div>
 

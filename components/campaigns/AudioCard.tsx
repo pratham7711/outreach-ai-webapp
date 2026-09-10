@@ -36,7 +36,50 @@ function makeAxisLabel(series: CampaignAudio["usageSeries"]) {
     new Date(v).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
 }
 
-export function AudioCard({ audio, shareToken }: { audio: CampaignAudio; shareToken?: string }) {
+/**
+ * `report` is the public client link's skin, measured off CreatorCore's own
+ * client report rather than off our dashboard: a grey sound tile beside two
+ * black stat tiles, a plain-text Usage/Velocity toggle above a centred chart
+ * title, and a flat grey area under a black line.
+ *
+ * A second render branch rather than another dozen CSS custom properties,
+ * because the two differ in ORDER as well as colour -- the reference puts the
+ * toggle above the title and centres it, which no token can express -- and
+ * because branching keeps the dashboard's markup literally untouched.
+ */
+export type AudioCardVariant = "dashboard" | "report";
+
+/**
+ * The report skin dates its axis the way the reference does -- `9/03/26`, month
+ * unpadded and day padded -- rather than the dashboard's "3 Sept". Same UTC
+ * reasoning as makeAxisLabel above: `at` is a UTC instant, and reading it in
+ * the viewer's zone would put a label on a point the bucketing disagrees with
+ * and would differ between the server render and the browser's.
+ */
+function makeReportAxisLabel(series: CampaignAudio["usageSeries"]) {
+  const days = new Set(series.map((p) => p.at.slice(0, 10)));
+  if (days.size <= 1) {
+    return (v: string) =>
+      new Date(v).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" });
+  }
+  return (v: string) => {
+    const d = new Date(v);
+    const month = d.getUTCMonth() + 1;
+    const day = String(d.getUTCDate()).padStart(2, "0");
+    const year = String(d.getUTCFullYear()).slice(-2);
+    return `${month}/${day}/${year}`;
+  };
+}
+
+export function AudioCard({
+  audio,
+  shareToken,
+  variant = "dashboard",
+}: {
+  audio: CampaignAudio;
+  shareToken?: string;
+  variant?: AudioCardVariant;
+}) {
   const axisLabel = makeAxisLabel(audio.usageSeries);
   /*
     Which proxy depends on who is looking. /api/img is session-gated -- it has to
@@ -47,11 +90,13 @@ export function AudioCard({ audio, shareToken }: { audio: CampaignAudio; shareTo
     some ISPs, and a HEIC cover gets transcoded on the way.
   */
   const [coverBroken, setCoverBroken] = useState(false);
+  // 2x the rendered box on each skin, so the art is not soft on a retina screen.
+  const coverPx = variant === "report" ? 124 : 88;
   const cover = coverBroken
     ? null
     : shareToken
-      ? shareImgSrc(shareToken, audio.coverUrl, 88)
-      : imgSrc(audio.coverUrl, 88);
+      ? shareImgSrc(shareToken, audio.coverUrl, coverPx)
+      : imgSrc(audio.coverUrl, coverPx);
   // A tracked sound has counts only after a sync. Zero would claim the audio has
   // never been used, so an unsynced tracker shows an em dash instead.
   const uses = audio.uses === null ? "—" : formatFull(audio.uses);
@@ -61,6 +106,21 @@ export function AudioCard({ audio, shareToken }: { audio: CampaignAudio; shareTo
      CreatorCore puts both behind this toggle over one chart, and they are two
      questions about the same series rather than two datasets. */
   const [view, setView] = useState<"usage" | "velocity">("usage");
+
+  if (variant === "report") {
+    return (
+      <ReportAudio
+        audio={audio}
+        cover={cover}
+        onCoverError={() => setCoverBroken(true)}
+        uses={uses}
+        added={added}
+        view={view}
+        setView={setView}
+        axisLabel={makeReportAxisLabel(audio.usageSeries)}
+      />
+    );
+  }
 
   return (
     <Card>
@@ -224,5 +284,161 @@ function Stat({ label, value }: { label: string; value: string }) {
       <div style={{ fontSize: 12, color: "var(--audio-tile-ink-muted, var(--cc-text-muted))", marginBottom: 4 }}>{label}</div>
       <div title={String(value)} style={{ fontSize: fitFigureSize(String(value), 20), fontWeight: 700, color: "var(--audio-tile-ink, var(--cc-text))", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums", overflow: "hidden", textOverflow: "ellipsis" }}>{value}</div>
     </div>
+  );
+}
+
+/**
+ * The client report's audio card.
+ *
+ * Every number below is measured off
+ * https://lkay.creatorcore.co/client/jamie-macdonald-roots-7258461 at 1440,
+ * where the card is 635 wide with 20px padding: tiles 88 tall on a 10px gap at
+ * radius 20, the sound tile #848484 against two black stat tiles, and a 250px
+ * chart whose area is a flat #7F7F7F under a black line. Colours live in
+ * globals.css as --spr-audio-*; the layout lives here.
+ */
+function ReportAudio({
+  audio,
+  cover,
+  onCoverError,
+  uses,
+  added,
+  view,
+  setView,
+  axisLabel,
+}: {
+  audio: CampaignAudio;
+  cover: string | null;
+  onCoverError: () => void;
+  uses: string;
+  added: string;
+  view: "usage" | "velocity";
+  setView: (v: "usage" | "velocity") => void;
+  axisLabel: (v: string) => string;
+}) {
+  const hasCurve = audio.usageSeries.length > 1;
+
+  return (
+    <section className="spr-card spr-audio">
+      <h2 className="spr-section">TikTok Audio</h2>
+
+      <div className="spr-audio-tiles">
+        <a
+          className="spr-audio-sound"
+          href={audio.soundUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          {cover ? (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img className="spr-audio-cover" src={cover} alt="" onError={onCoverError} />
+          ) : (
+            <span className="spr-audio-cover spr-audio-cover-fallback" aria-hidden="true">
+              <Music2 size={22} />
+            </span>
+          )}
+          <span className="spr-audio-names">
+            <span className="spr-audio-track">{audio.title}</span>
+            <span className="spr-audio-artist">{audio.artist}</span>
+          </span>
+        </a>
+
+        <div className="spr-audio-stat">
+          <span className="spr-audio-stat-label">Audio Uses</span>
+          <span className="spr-audio-stat-value" title={uses}>
+            {uses}
+          </span>
+        </div>
+        {/* The reference labels this "Videos Added". Ours is the change since the
+            previous reading rather than a fixed day, which is the same thing the
+            reference shows and the same thing recordSoundSnapshot writes. */}
+        <div className="spr-audio-stat">
+          <span className="spr-audio-stat-label">Videos Added</span>
+          <span className="spr-audio-stat-value" title={added}>
+            {added}
+          </span>
+        </div>
+      </div>
+
+      {hasCurve ? (
+        <>
+          {/* Toggle above the title, plain text, the active one underlined --
+              the reference's order, which is why this is a branch and not a
+              set of custom properties. */}
+          <div className="spr-audio-plot">
+          <div className="spr-audio-toggle" role="tablist" aria-label="Audio chart view">
+            {(["usage", "velocity"] as const).map((key) => (
+              <button
+                key={key}
+                type="button"
+                role="tab"
+                aria-selected={view === key}
+                className={`spr-audio-tab${view === key ? " is-on" : ""}`}
+                onClick={() => setView(key)}
+              >
+                {key === "usage" ? "Usage" : "Velocity"}
+              </button>
+            ))}
+          </div>
+
+          <h3 className="spr-audio-chart-title">
+            {view === "usage" ? "Audio Usage" : "Audio Velocity"}
+          </h3>
+
+          <div className="spr-audio-chart">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={audio.usageSeries} margin={{ top: 4, right: 30, left: -8, bottom: 0 }}>
+                <XAxis
+                  dataKey="at"
+                  tick={{ fontSize: 14, fill: "var(--spr-audio-axis)" }}
+                  tickLine={false}
+                  axisLine={false}
+                  tickFormatter={axisLabel}
+                  minTickGap={28}
+                />
+                <YAxis
+                  tick={{ fontSize: 14, fill: "var(--spr-audio-axis)" }}
+                  tickLine={false}
+                  axisLine={false}
+                  width={46}
+                  /* Velocity is a signed percentage and has to be allowed below
+                     zero; a count keeps its zero baseline. Same reasoning as the
+                     dashboard card above. */
+                  domain={view === "velocity" ? ["auto", "auto"] : [0, "auto"]}
+                  allowDecimals={view === "velocity"}
+                  tickFormatter={(v) => (view === "velocity" ? `${Number(v).toFixed(0)}%` : formatCompact(Number(v)))}
+                />
+                <Tooltip
+                  formatter={(v) => (view === "velocity" ? `${Number(v).toFixed(2)}%` : formatFull(Number(v)))}
+                  labelFormatter={(v) =>
+                    new Date(String(v)).toLocaleString("en-GB", {
+                      day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
+                    })
+                  }
+                  labelStyle={{ fontSize: 12 }}
+                  contentStyle={{ fontSize: 12, borderRadius: 8 }}
+                />
+                {/* Flat fill, no gradient and no opacity: the reference's area is
+                    a solid #7F7F7F meeting a black line, and a translucent fill
+                    over a white card reads several shades lighter than that. */}
+                <Area
+                  type="monotone"
+                  dataKey={view === "velocity" ? "velocity" : "uses"}
+                  stroke="var(--spr-audio-line)"
+                  fill="var(--spr-audio-area)"
+                  fillOpacity={1}
+                  strokeWidth={3}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+          </div>
+        </>
+      ) : (
+        <p className="spr-note">
+          Usage over time appears once this sound has been synced more than once.
+        </p>
+      )}
+    </section>
   );
 }
