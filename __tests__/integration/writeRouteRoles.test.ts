@@ -18,10 +18,14 @@ import { NextRequest } from "next/server";
 jest.mock("@/lib/db", () => ({
   db: {
     client: { create: jest.fn(), findMany: jest.fn() },
-    creator: { create: jest.fn(), findMany: jest.fn(), count: jest.fn() },
+    creator: { create: jest.fn(), findMany: jest.fn(), findFirst: jest.fn(), count: jest.fn() },
     creatorList: { create: jest.fn(), findMany: jest.fn() },
     folder: { create: jest.fn(), findFirst: jest.fn(), findMany: jest.fn() },
     campaign: { create: jest.fn(), groupBy: jest.fn() },
+    // A self-serve campaign is written with its named status attached.
+    campaignStatusDef: { findMany: jest.fn() },
+    // Self-serve invites every selected creator in the same transaction.
+    campaignInvite: { createMany: jest.fn() },
     $transaction: jest.fn(),
   },
 }));
@@ -94,6 +98,11 @@ beforeEach(() => {
   mockDb.folder.findFirst.mockResolvedValue(null);
   mockDb.creator.findMany.mockResolvedValue([{ id: "cr-1", rate: 100 }]);
   mockDb.$transaction.mockImplementation((fn: any) => fn(mockDb));
+  mockDb.creator.findFirst.mockResolvedValue(null);
+  mockDb.campaignInvite.createMany.mockResolvedValue({ count: 1 });
+  mockDb.campaignStatusDef.findMany.mockResolvedValue([
+    { id: "def-active", name: "In-Progress", bucket: "IN_PROGRESS", sortOrder: 1 },
+  ]);
   /* The allowed cases run past the gate into the real handler, which audits
      what it created — so every create has to answer with a row. */
   for (const create of [
@@ -126,6 +135,20 @@ describe("a MEMBER, who holds both create keys", () => {
       as("MEMBER");
       const res = await write.call();
       expect(res.status).not.toBe(403);
+    }
+  );
+
+  /* `not.toBe(403)` also passes on a 500, so a handler that throws past the
+     gate reads here as a permission success. Assert the write actually
+     happened -- this caught a missing mock rather than a real regression, but
+     the same shape would hide a real one. */
+  it.each(WRITES.map((w) => [w.name, w] as const))(
+    "gets past the gate into a real write for %s",
+    async (_name, write) => {
+      as("MEMBER");
+      const res = await write.call();
+      expect(res.status).toBeLessThan(400);
+      expect(write.model()).toHaveBeenCalled();
     }
   );
 });
