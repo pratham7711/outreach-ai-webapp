@@ -3,7 +3,6 @@
  */
 import { NextRequest } from 'next/server';
 import { GET, POST } from '@/app/api/campaigns/route';
-import { GET as GETById, PATCH, DELETE } from '@/app/api/campaigns/[id]/route';
 
 // Mock db before any imports use it
 jest.mock('@/lib/db', () => {
@@ -302,147 +301,10 @@ describe('POST /api/campaigns', () => {
   });
 });
 
-// ─── GET /api/campaigns/[id] ──────────────────────────────────────────────────
-
-describe('GET /api/campaigns/[id]', () => {
-  it('returns 401 when no session', async () => {
-    mockAuth.mockResolvedValue(null);
-    const req = makeRequest('http://localhost/api/campaigns/camp-1');
-    const res = await GETById(req, makeParams('camp-1'));
-    expect(res.status).toBe(401);
-  });
-
-  it('returns campaign by id', async () => {
-    const campaign = { id: 'camp-1', orgId: 'org-1', title: 'Test', deletedAt: null, _count: { activations: 0, posts: 0 } };
-    mockDb.campaign.findFirst.mockResolvedValue(campaign);
-
-    const req = makeRequest('http://localhost/api/campaigns/camp-1');
-    const res = await GETById(req, makeParams('camp-1'));
-    const body = await res.json();
-
-    expect(res.status).toBe(200);
-    expect(body.id).toBe('camp-1');
-    expect(mockDb.campaign.findFirst).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({ id: 'camp-1', orgId: 'org-1', deletedAt: null }),
-      })
-    );
-  });
-
-  it('returns 404 when campaign not found', async () => {
-    mockDb.campaign.findFirst.mockResolvedValue(null);
-
-    const req = makeRequest('http://localhost/api/campaigns/nonexistent');
-    const res = await GETById(req, makeParams('nonexistent'));
-    expect(res.status).toBe(404);
-  });
-
-  it('returns 500 on database error', async () => {
-    mockDb.campaign.findFirst.mockRejectedValue(new Error('DB error'));
-
-    const req = makeRequest('http://localhost/api/campaigns/camp-1');
-    const res = await GETById(req, makeParams('camp-1'));
-    expect(res.status).toBe(500);
-  });
-});
-
-// ─── PATCH /api/campaigns/[id] ────────────────────────────────────────────────
-
-describe('PATCH /api/campaigns/[id]', () => {
-  it('returns 401 when no session', async () => {
-    mockAuth.mockResolvedValue(null);
-    const req = makeRequest('http://localhost/api/campaigns/camp-1', {
-      method: 'PATCH',
-      body: JSON.stringify({ title: 'Updated' }),
-      headers: { 'Content-Type': 'application/json' },
-    });
-    const res = await PATCH(req, makeParams('camp-1'));
-    expect(res.status).toBe(401);
-  });
-
-  it('updates campaign successfully', async () => {
-    mockDb.campaign.findFirst.mockResolvedValue({ id: 'camp-1', orgId: 'org-1' });
-    const updated = { id: 'camp-1', title: 'Updated Title', status: 'IN_PROGRESS', tags: [], teamMembers: [], _count: { activations: 0, posts: 0 } };
-    mockDb.campaign.update.mockResolvedValue(updated);
-
-    const req = makeRequest('http://localhost/api/campaigns/camp-1', {
-      method: 'PATCH',
-      body: JSON.stringify({ title: 'Updated Title' }),
-      headers: { 'Content-Type': 'application/json' },
-    });
-    const res = await PATCH(req, makeParams('camp-1'));
-    const body = await res.json();
-
-    expect(res.status).toBe(200);
-    expect(body.title).toBe('Updated Title');
-  });
-
-  it('returns 404 for campaign not in org', async () => {
-    mockDb.campaign.findFirst.mockResolvedValue(null);
-
-    const req = makeRequest('http://localhost/api/campaigns/camp-1', {
-      method: 'PATCH',
-      body: JSON.stringify({ title: 'Updated Title' }),
-      headers: { 'Content-Type': 'application/json' },
-    });
-    const res = await PATCH(req, makeParams('camp-1'));
-    expect(res.status).toBe(404);
-  });
-
-  it('returns 400 for invalid status value', async () => {
-    mockDb.campaign.findFirst.mockResolvedValue({ id: 'camp-1', orgId: 'org-1' });
-    const req = makeRequest('http://localhost/api/campaigns/camp-1', {
-      method: 'PATCH',
-      body: JSON.stringify({ status: 'INVALID_STATUS' }),
-      headers: { 'Content-Type': 'application/json' },
-    });
-    const res = await PATCH(req, makeParams('camp-1'));
-    expect(res.status).toBe(400);
-  });
-});
-
-// ─── DELETE /api/campaigns/[id] ───────────────────────────────────────────────
-
-describe('DELETE /api/campaigns/[id]', () => {
-  it('returns 401 when no session', async () => {
-    mockAuth.mockResolvedValue(null);
-    const req = makeRequest('http://localhost/api/campaigns/camp-1', { method: 'DELETE' });
-    const res = await DELETE(req, makeParams('camp-1'));
-    expect(res.status).toBe(401);
-  });
-
-  it('soft deletes campaign and returns success', async () => {
-    mockDb.campaign.findFirst.mockResolvedValue({ id: 'camp-1', orgId: 'org-1' });
-    mockDb.campaign.update.mockResolvedValue({ id: 'camp-1', deletedAt: new Date() });
-
-    const req = makeRequest('http://localhost/api/campaigns/camp-1', { method: 'DELETE' });
-    const res = await DELETE(req, makeParams('camp-1'));
-    const body = await res.json();
-
-    expect(res.status).toBe(200);
-    expect(body.success).toBe(true);
-    expect(mockDb.campaign.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { id: 'camp-1' },
-        data: expect.objectContaining({ deletedAt: expect.any(Date) }),
-      })
-    );
-  });
-
-  it('returns 404 for campaign not in org', async () => {
-    mockDb.campaign.findFirst.mockResolvedValue(null);
-
-    const req = makeRequest('http://localhost/api/campaigns/camp-1', { method: 'DELETE' });
-    const res = await DELETE(req, makeParams('camp-1'));
-    expect(res.status).toBe(404);
-  });
-
-  it('returns 500 on database error', async () => {
-    mockDb.campaign.findFirst.mockResolvedValue({ id: 'camp-1', orgId: 'org-1' });
-    mockDb.campaign.update.mockRejectedValue(new Error('DB error'));
-
-    const req = makeRequest('http://localhost/api/campaigns/camp-1', { method: 'DELETE' });
-    const res = await DELETE(req, makeParams('camp-1'));
-    expect(res.status).toBe(500);
-  });
-});
+/*
+ * /api/campaigns/[id] is NOT tested here. Its GET, PATCH and DELETE live in
+ * campaignDetail.test.ts, which covers the same cases plus RBAC (edit_own),
+ * soft-delete filtering and the orgId where-clause. This file had a duplicate
+ * of that block; the two drifted apart in strictness rather than in behaviour,
+ * so the weaker copy is gone.
+ */

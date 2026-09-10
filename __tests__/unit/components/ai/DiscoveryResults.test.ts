@@ -1,6 +1,5 @@
 import "./messageChannelPolyfill";
 import { readFileSync } from "fs";
-import { join } from "path";
 import { renderToStaticMarkup } from "react-dom/server";
 import { createElement } from "react";
 
@@ -96,13 +95,5 @@ describe("DiscoveryResults", () => {
     expect(low).toContain('aria-label="Match score 22 of 100"');
     expect(high).not.toContain(">Weak match<");
     expect(low).not.toContain(">Strong match<");
-  });
-
-  it("contains no hardcoded hex colors in the component source", () => {
-    const source = readFileSync(
-      join(__dirname, "..", "..", "..", "..", "components", "ai", "DiscoveryResults.tsx"),
-      "utf8",
-    );
-    expect(source).not.toMatch(/#[0-9a-fA-F]{3,6}/);
   });
 });

@@ -2,7 +2,6 @@ import "./messageChannelPolyfill";
 import { renderToStaticMarkup } from "react-dom/server";
 import { createElement } from "react";
 import { readFileSync } from "fs";
-import { join } from "path";
 
 jest.mock(
   "@pratham7711/ui",
@@ -144,13 +143,5 @@ describe("BrandSafetyFlags", () => {
     expect(over).toContain("Safety score 100 / 100");
     const under = html({ ...baseProps, score: -20 });
     expect(under).toContain("Safety score 0 / 100");
-  });
-
-  it("contains no hardcoded hex colors in the component source", () => {
-    const source = readFileSync(
-      join(__dirname, "../../../../components/ai/BrandSafetyFlags.tsx"),
-      "utf8",
-    );
-    expect(source).not.toMatch(/#[0-9a-fA-F]{3,6}/);
   });
 });

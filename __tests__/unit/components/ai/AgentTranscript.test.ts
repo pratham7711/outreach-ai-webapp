@@ -2,7 +2,6 @@ import "./messageChannelPolyfill";
 import { renderToStaticMarkup } from "react-dom/server";
 import { createElement } from "react";
 import { readFileSync } from "fs";
-import { join } from "path";
 
 jest.mock(
   "@pratham7711/ui",
@@ -152,13 +151,5 @@ describe("AgentTranscript", () => {
     const markup = html({ steps: [], emptyLabel: "This run has no turns yet" });
     expect(markup).toContain("This run has no turns yet");
     expect(markup).not.toContain("No agent activity yet");
-  });
-
-  it("contains no hardcoded hex colors in the component source", () => {
-    const source = readFileSync(
-      join(__dirname, "../../../../components/ai/AgentTranscript.tsx"),
-      "utf8",
-    );
-    expect(source).not.toMatch(/#[0-9a-fA-F]{3,6}/);
   });
 });

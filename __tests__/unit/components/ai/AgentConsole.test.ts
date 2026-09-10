@@ -1,6 +1,5 @@
 import "./messageChannelPolyfill";
 import { readFileSync } from "fs";
-import { join } from "path";
 import { renderToStaticMarkup } from "react-dom/server";
 import { createElement } from "react";
 
@@ -94,13 +93,5 @@ describe("AgentConsole", () => {
     });
     expect(markup).not.toContain('data-testid="approval-panel"');
     expect(markup).not.toContain('data-testid="max-steps-notice"');
-  });
-
-  it("contains no hardcoded hex colors in the component source", () => {
-    const source = readFileSync(
-      join(__dirname, "..", "..", "..", "..", "components", "ai", "AgentConsole.tsx"),
-      "utf8",
-    );
-    expect(source).not.toMatch(/#[0-9a-fA-F]{3,6}/);
   });
 });

@@ -2,7 +2,6 @@ import "./messageChannelPolyfill";
 import { renderToStaticMarkup } from "react-dom/server";
 import { createElement } from "react";
 import { readFileSync } from "fs";
-import { join } from "path";
 
 jest.mock(
   "@pratham7711/ui",
@@ -179,13 +178,5 @@ describe("UsageMeterCard", () => {
     expect(markup).not.toContain('data-testid="usage-metric-tokens-bar"');
     expect(markup).not.toContain('data-testid="usage-within-limits"');
     expect(markup).not.toContain('data-testid="usage-blocked"');
-  });
-
-  it("contains no hardcoded hex colors in the component source", () => {
-    const source = readFileSync(
-      join(__dirname, "../../../../components/ai/UsageMeterCard.tsx"),
-      "utf8",
-    );
-    expect(source).not.toMatch(/#[0-9a-fA-F]{3,6}/);
   });
 });

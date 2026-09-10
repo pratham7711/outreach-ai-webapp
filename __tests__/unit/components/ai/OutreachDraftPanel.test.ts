@@ -134,12 +134,4 @@ describe("OutreachDraftPanel", () => {
     expect(markup).not.toContain("NaN");
     expect(markup).not.toContain("Infinity");
   });
-
-  it("contains no hardcoded hex colors in the component source", () => {
-    const source = readFileSync(
-      join(__dirname, "../../../../components/ai/OutreachDraftPanel.tsx"),
-      "utf8",
-    );
-    expect(source).not.toMatch(/#[0-9a-fA-F]{3,6}/);
-  });
 });

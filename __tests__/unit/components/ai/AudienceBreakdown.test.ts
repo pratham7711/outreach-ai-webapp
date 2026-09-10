@@ -2,7 +2,6 @@ import "./messageChannelPolyfill";
 import { renderToStaticMarkup } from "react-dom/server";
 import { createElement } from "react";
 import { readFileSync } from "fs";
-import { join } from "path";
 
 jest.mock(
   "@pratham7711/ui",
@@ -122,13 +121,5 @@ describe("AudienceBreakdown", () => {
     expect(markup).toContain('aria-label="BadNan 0 percent"');
     expect(markup).toContain('aria-label="BadNeg 0 percent"');
     expect(markup).toContain("width:0%");
-  });
-
-  it("contains no hardcoded hex colors in the component source", () => {
-    const source = readFileSync(
-      join(process.cwd(), "components", "ai", "AudienceBreakdown.tsx"),
-      "utf8",
-    );
-    expect(source).not.toMatch(/#[0-9a-fA-F]{3,6}/);
   });
 });

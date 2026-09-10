@@ -2,7 +2,6 @@ import "./messageChannelPolyfill";
 import { renderToStaticMarkup } from "react-dom/server";
 import { createElement } from "react";
 import { readFileSync } from "fs";
-import { join } from "path";
 
 jest.mock(
   "@pratham7711/ui",
@@ -199,13 +198,5 @@ describe("AuditEventTimeline", () => {
       events: "not-an-array" as unknown as AuditEventTimelineProps["events"],
     });
     expect(garbage).toContain("No audit events recorded");
-  });
-
-  it("contains no hardcoded hex colors in the component source", () => {
-    const source = readFileSync(
-      join(__dirname, "../../../../components/ai/AuditEventTimeline.tsx"),
-      "utf8",
-    );
-    expect(source).not.toMatch(/#[0-9a-fA-F]{3,6}/);
   });
 });

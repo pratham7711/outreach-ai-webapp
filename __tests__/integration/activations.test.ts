@@ -3,7 +3,6 @@
  */
 import { NextRequest } from 'next/server';
 import { GET, POST } from '@/app/api/activations/route';
-import { PATCH, DELETE } from '@/app/api/activations/[id]/route';
 
 jest.mock('@/lib/db', () => ({
   db: {
@@ -188,107 +187,11 @@ describe('POST /api/activations', () => {
   });
 });
 
-// ─── PATCH /api/activations/[id] ─────────────────────────────────────────────
-
-describe('PATCH /api/activations/[id]', () => {
-  it('returns 401 when no session', async () => {
-    mockAuth.mockResolvedValue(null);
-    const req = new NextRequest('http://localhost/api/activations/act-1', {
-      method: 'PATCH',
-      body: JSON.stringify({ status: 'DRAFT_SUBMITTED' }),
-      headers: { 'Content-Type': 'application/json' },
-    });
-    const res = await PATCH(req, { params: Promise.resolve({ id: 'act-1' }) } as any);
-    expect(res.status).toBe(401);
-  });
-
-  it('returns 404 when activation not found', async () => {
-    mockDb.activation.findFirst.mockResolvedValue(null);
-    const req = new NextRequest('http://localhost/api/activations/act-1', {
-      method: 'PATCH',
-      body: JSON.stringify({ status: 'DRAFT_SUBMITTED' }),
-      headers: { 'Content-Type': 'application/json' },
-    });
-    const res = await PATCH(req, { params: Promise.resolve({ id: 'act-1' }) } as any);
-    expect(res.status).toBe(404);
-  });
-
-  it('returns 404 when activation belongs to different org', async () => {
-    mockDb.activation.findFirst.mockResolvedValue(null);
-    const req = new NextRequest('http://localhost/api/activations/act-1', {
-      method: 'PATCH',
-      body: JSON.stringify({ status: 'DRAFT_SUBMITTED' }),
-      headers: { 'Content-Type': 'application/json' },
-    });
-    const res = await PATCH(req, { params: Promise.resolve({ id: 'act-1' }) } as any);
-    expect(res.status).toBe(404);
-  });
-
-  it('returns 400 on invalid status value (Zod rejection)', async () => {
-    mockDb.activation.findFirst.mockResolvedValue({ id: 'act-1', status: 'AWAITING_DRAFT', campaign: { createdById: 'user-1' } });
-    const req = new NextRequest('http://localhost/api/activations/act-1', {
-      method: 'PATCH',
-      body: JSON.stringify({ status: 'INVALID_STATUS' }),
-      headers: { 'Content-Type': 'application/json' },
-    });
-    const res = await PATCH(req, { params: Promise.resolve({ id: 'act-1' }) } as any);
-    expect(res.status).toBe(400);
-  });
-
-  it('returns 400 on invalid transition', async () => {
-    mockDb.activation.findFirst.mockResolvedValue({ id: 'act-1', status: 'COMPLETE', campaign: { createdById: 'user-1' } });
-    const req = new NextRequest('http://localhost/api/activations/act-1', {
-      method: 'PATCH',
-      body: JSON.stringify({ status: 'POSTING' }),
-      headers: { 'Content-Type': 'application/json' },
-    });
-    const res = await PATCH(req, { params: Promise.resolve({ id: 'act-1' }) } as any);
-    expect(res.status).toBe(400);
-  });
-
-  it('returns 200 on valid status transition', async () => {
-    mockDb.activation.findFirst.mockResolvedValue({ id: 'act-1', status: 'AWAITING_DRAFT', campaign: { createdById: 'user-1' } });
-    mockDb.activation.update.mockResolvedValue({ id: 'act-1', status: 'DRAFT_SUBMITTED' });
-    const req = new NextRequest('http://localhost/api/activations/act-1', {
-      method: 'PATCH',
-      body: JSON.stringify({ status: 'DRAFT_SUBMITTED' }),
-      headers: { 'Content-Type': 'application/json' },
-    });
-    const res = await PATCH(req, { params: Promise.resolve({ id: 'act-1' }) } as any);
-    expect(res.status).toBe(200);
-  });
-});
-
-// ─── DELETE /api/activations/[id] ────────────────────────────────────────────
-
-describe('DELETE /api/activations/[id]', () => {
-  it('returns 401 when no session', async () => {
-    mockAuth.mockResolvedValue(null);
-    const req = new NextRequest('http://localhost/api/activations/act-1', {
-      method: 'DELETE',
-    });
-    const res = await DELETE(req, { params: Promise.resolve({ id: 'act-1' }) } as any);
-    expect(res.status).toBe(401);
-  });
-
-  it('returns 404 when activation not found', async () => {
-    mockDb.activation.findFirst.mockResolvedValue(null);
-    const req = new NextRequest('http://localhost/api/activations/act-1', {
-      method: 'DELETE',
-    });
-    const res = await DELETE(req, { params: Promise.resolve({ id: 'act-1' }) } as any);
-    expect(res.status).toBe(404);
-  });
-
-  it('soft deletes and returns success', async () => {
-    mockDb.activation.findFirst.mockResolvedValue({ id: 'act-1', status: 'APPROVED', campaign: { createdById: 'user-1' } });
-    mockDb.activation.update.mockResolvedValue({ id: 'act-1', deletedAt: new Date() });
-    const req = new NextRequest('http://localhost/api/activations/act-1', {
-      method: 'DELETE',
-    });
-    const res = await DELETE(req, { params: Promise.resolve({ id: 'act-1' }) } as any);
-    const body = await res.json();
-    expect(res.status).toBe(200);
-    expect(body.success).toBe(true);
-  });
-});
+/*
+ * /api/activations/[id] is NOT tested here -- see activationsDetail.test.ts.
+ * This file carried a weaker copy of that block, including a test named
+ * "returns 404 when activation belongs to different org" whose body was a
+ * byte-for-byte copy of the not-found test: it stubbed findFirst to null, so it
+ * proved nothing about org scoping while reading as if it did. The real
+ * assertion now lives in activationsDetail.test.ts.
+ */

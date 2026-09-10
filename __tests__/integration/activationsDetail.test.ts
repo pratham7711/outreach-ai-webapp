@@ -97,6 +97,44 @@ describe('PATCH /api/activations/[id]', () => {
     expect(body.error).toContain('Cannot transition');
   });
 
+  // A status the enum does not contain at all -- distinct from a well-formed
+  // status the state machine refuses (that case is 'rejects invalid status
+  // transition' above). Zod must reject it before any transition logic runs.
+  it('returns 400 on a status value outside the enum (Zod rejection)', async () => {
+    mockDb.activation.findFirst.mockResolvedValue({
+      id: 'act-1', status: 'AWAITING_DRAFT', campaignId: 'camp-1', campaign: { createdById: 'user-1' },
+    });
+
+    const req = makeRequest('http://localhost/api/activations/act-1', {
+      method: 'PATCH',
+      body: JSON.stringify({ status: 'INVALID_STATUS' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const res = await PATCH(req, makeParams('act-1'));
+    expect(res.status).toBe(400);
+  });
+
+  // The org filter must come from the session, never from the URL. Stubbing
+  // findFirst to null and asserting a 404 does NOT show this -- it 404s either
+  // way -- so assert the where-clause the route actually built.
+  it('scopes the lookup to the session org, not the requested id alone', async () => {
+    mockDb.activation.findFirst.mockResolvedValue(null);
+
+    const req = makeRequest('http://localhost/api/activations/act-1', {
+      method: 'PATCH',
+      body: JSON.stringify({ status: 'DRAFT_SUBMITTED' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const res = await PATCH(req, makeParams('act-1'));
+
+    expect(res.status).toBe(404);
+    expect(mockDb.activation.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ id: 'act-1', campaign: { orgId: 'org-1' } }),
+      })
+    );
+  });
+
   it('updates feedbackNotes without changing status', async () => {
     const existing = { id: 'act-1', status: 'AWAITING_DRAFT', campaignId: 'camp-1', campaign: { createdById: 'user-1' } };
     const updated = { ...existing, feedbackNotes: 'Looks good' };
