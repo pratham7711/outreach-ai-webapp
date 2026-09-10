@@ -1581,6 +1581,15 @@ h1, h2, h3, h4, h5, h6 {
   text-align: center;
 }
 
+/* Only rendered when the tracker has actually stopped, so a healthy card is
+   pixel-identical to the reference. */
+.spr-audio-stale {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.35;
+  color: var(--spr-ink-muted);
+}
+
 /* The reference's rhythm is not uniform: 13px between the card's big blocks,
    but only 5 between the toggle, the chart title and the plot, which read as
    one unit. */

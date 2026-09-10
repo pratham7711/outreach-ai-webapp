@@ -288,6 +288,32 @@ function Stat({ label, value }: { label: string; value: string }) {
 }
 
 /**
+ * How many whole UTC days ago the newest reading was taken, or null when there
+ * is none.
+ *
+ * UTC days on both sides rather than a millisecond age, and for the same reason
+ * makeAxisLabel works in UTC: this renders on a server in UTC and hydrates in
+ * the reader's zone, and a boolean derived from `Date.now() - at` can land on
+ * opposite sides of a threshold in the two, which is a hydration mismatch. Day
+ * granularity makes the two agree unless they straddle midnight UTC -- the same
+ * exposure the axis label already carries, rather than a new one.
+ */
+function daysSinceLastReading(series: CampaignAudio["usageSeries"]): number | null {
+  const last = series.at(-1)?.at;
+  if (!last) return null;
+  const then = Date.parse(`${last.slice(0, 10)}T00:00:00Z`);
+  if (Number.isNaN(then)) return null;
+  const today = new Date();
+  const now = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
+  return Math.max(0, Math.round((now - then) / 86_400_000));
+}
+
+/** Beyond this the tracker has stopped rather than merely lagged: the nightly
+ *  cron runs at 04:00 UTC and the sweep more often than that, so two clear days
+ *  without a reading is not a cadence, it is a failure. */
+const STALE_AFTER_DAYS = 2;
+
+/**
  * The client report's audio card.
  *
  * Every number below is measured off
@@ -317,6 +343,12 @@ function ReportAudio({
   axisLabel: (v: string) => string;
 }) {
   const hasCurve = audio.usageSeries.length > 1;
+  /* A month-old figure rendered as a bare number claims to be current, and this
+     document goes to a brand. The reference shows nothing here because its
+     tracker is running; ours says so when it is not. Only when stale -- a
+     healthy report is unchanged, and identical to the reference. */
+  const staleDays = daysSinceLastReading(audio.usageSeries);
+  const isStale = staleDays !== null && staleDays > STALE_AFTER_DAYS;
 
   return (
     <section className="spr-card spr-audio">
@@ -360,13 +392,19 @@ function ReportAudio({
         </div>
       </div>
 
+      {isStale ? (
+        <p className="spr-audio-stale">
+          Last read {staleDays} days ago — these figures have not moved since.
+        </p>
+      ) : null}
+
       {hasCurve ? (
         <>
           {/* Toggle above the title, plain text, the active one underlined --
               the reference's order, which is why this is a branch and not a
               set of custom properties. */}
           <div className="spr-audio-plot">
-          <div className="spr-audio-toggle" role="tablist" aria-label="Audio chart view">
+            <div className="spr-audio-toggle" role="tablist" aria-label="Audio chart view">
             {(["usage", "velocity"] as const).map((key) => (
               <button
                 key={key}
