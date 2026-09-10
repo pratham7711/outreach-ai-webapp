@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { isCoverUrlStale } from "@/lib/sounds/coverUrl";
 import { readTikTokAudioUsage, isMeasuredRung } from "@/lib/platforms/tiktokAudioUsage";
 import { createLogger } from "@/lib/observability/logger";
 import { velocityBetween } from "@/lib/trackers/metrics";
@@ -185,14 +186,44 @@ export async function recordSoundSnapshot(
     },
   });
 
-  // Backfill metadata the operator may have left blank when adding the sound.
-  const patch: Record<string, string> = {};
-  if (!sound.title && stats.title) patch.title = stats.title;
-  if (!sound.artist && stats.artist) patch.artist = stats.artist;
-  if (!sound.coverImageUrl && stats.coverImageUrl) patch.coverImageUrl = stats.coverImageUrl;
+  const patch = soundMetadataPatch(sound, stats);
   if (Object.keys(patch).length > 0) {
     await db.tikTokSound.update({ where: { id: sound.id }, data: patch });
   }
+}
+
+/**
+ * What a reading is allowed to write back onto the sound row.
+ *
+ * Title and artist are BACKFILL-ONLY: they fill a blank the operator left when
+ * adding the sound, and never overwrite one they typed. TikTok's own label is
+ * not more correct than theirs.
+ *
+ * The cover is different, because it is not a name but a signed URL that stops
+ * resolving on a timer (see lib/sounds/coverUrl). Backfilling it once and never
+ * looking again is how a campaign report loses its artwork months later with
+ * nothing anywhere reporting a failure. Every reading hands back a freshly
+ * signed URL, so renewing an expiring one costs a single UPDATE.
+ *
+ * Exported so the hourly sweep in app/api/cron/sync-trackers -- which keeps its
+ * own write path and so never wrote metadata at all -- applies the same rule.
+ */
+export function soundMetadataPatch(
+  sound: { title?: string | null; artist?: string | null; coverImageUrl?: string | null },
+  stats: { title?: string | null; artist?: string | null; coverImageUrl?: string | null },
+  now: number = Date.now(),
+): Record<string, string> {
+  const patch: Record<string, string> = {};
+  if (!sound.title && stats.title) patch.title = stats.title;
+  if (!sound.artist && stats.artist) patch.artist = stats.artist;
+  if (
+    stats.coverImageUrl &&
+    stats.coverImageUrl !== sound.coverImageUrl &&
+    isCoverUrlStale(sound.coverImageUrl, now)
+  ) {
+    patch.coverImageUrl = stats.coverImageUrl;
+  }
+  return patch;
 }
 
 /**

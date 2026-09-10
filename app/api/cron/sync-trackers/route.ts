@@ -10,6 +10,7 @@ import { fetchTikTokSoundStats } from "@/lib/platforms/tiktokSound";
 import { openSoundBrowserSession } from "@/lib/platforms/tiktokSoundBrowser";
 import { readTikTokAudioUsage } from "@/lib/platforms/tiktokAudioUsage";
 import { openSandboxProfileFetcher } from "@/lib/platforms/tiktokProfileSandbox";
+import { soundMetadataPatch } from "@/lib/sounds/snapshot";
 import {
   previousOf,
   velocityBetween,
@@ -120,6 +121,9 @@ export async function GET(request: NextRequest) {
           id: true,
           orgId: true,
           tiktokSoundId: true,
+          title: true,
+          artist: true,
+          coverImageUrl: true,
           snapshots: {
             orderBy: { recordedAt: "desc" },
             take: 30,
@@ -279,6 +283,22 @@ export async function GET(request: NextRequest) {
         decisions.push({ soundId: sound.id, action: "fail", reason: "write-failed" });
         failed++;
         continue;
+      }
+
+      /* Renew the artwork while a fresh reading is in hand. This sweep runs
+         hourly and had no metadata write at all, so a cover signed by TikTok's
+         CDN could expire between one nightly job and the next with nothing to
+         replace it. soundMetadataPatch decides: a name the operator typed is
+         never touched, and an unsigned cover is left alone. */
+      const patch = soundMetadataPatch(sound, stats);
+      if (Object.keys(patch).length > 0) {
+        // A cover is not worth failing a snapshot that already landed.
+        await db.tikTokSound.update({ where: { id: sound.id }, data: patch }).catch((e) => {
+          log.warn("sound metadata write failed", {
+            soundId: sound.id,
+            error: e instanceof Error ? e.message : String(e),
+          });
+        });
       }
 
       decisions.push({

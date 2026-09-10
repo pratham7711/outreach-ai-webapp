@@ -288,3 +288,70 @@ it("writes the change since the previous reading, not the whole day's gain", asy
   expect(written().videosAdded24h).toBe(100);
   expect(written().deltaUses24h).toBe(100);
 });
+
+/**
+ * This sweep is the reader that runs most often, and it used to write no
+ * metadata at all -- so a TikTok cover URL, which is signed and expires on a
+ * timer, could die between one nightly job and the next with nothing to renew
+ * it. Nothing goes red when that happens: the sound keeps taking readings and
+ * the campaign report just loses its artwork.
+ */
+const signedCover = (hoursFromNow: number) =>
+  `https://p16-sign-sg.tiktokcdn.com/c.jpeg?x-expires=${
+    Math.floor(Date.now() / 1000) + hoursFromNow * 3600
+  }&x-signature=z`;
+
+function soundWithCover(cover: string) {
+  const [only] = soundWithHistory(45);
+  return [{ ...only, title: "Roots", artist: "Jamie", coverImageUrl: cover }];
+}
+
+it("renews a cover whose signature is running out", async () => {
+  mockDb.tikTokSound.findMany.mockResolvedValue(soundWithCover(signedCover(1)));
+  const fresh = signedCover(72);
+  mockEmbed.mockResolvedValue({
+    usesCount: 46,
+    title: "Roots",
+    artist: "Jamie",
+    coverImageUrl: fresh,
+  });
+
+  await runCron();
+
+  expect(mockDb.tikTokSound.update).toHaveBeenCalledWith({
+    where: { id: "sound-1" },
+    data: { coverImageUrl: fresh },
+  });
+});
+
+it("leaves a cover alone while its signature is still good", async () => {
+  mockDb.tikTokSound.findMany.mockResolvedValue(soundWithCover(signedCover(48)));
+  mockEmbed.mockResolvedValue({
+    usesCount: 46,
+    title: "Roots",
+    artist: "Jamie",
+    coverImageUrl: signedCover(72),
+  });
+
+  await runCron();
+
+  // Hourly readings would otherwise rewrite the row 24 times a day for nothing.
+  expect(mockDb.tikTokSound.update).not.toHaveBeenCalled();
+});
+
+it("still records the snapshot when the cover write fails", async () => {
+  mockDb.tikTokSound.findMany.mockResolvedValue(soundWithCover(signedCover(1)));
+  mockDb.tikTokSound.update.mockRejectedValue(new Error("deadlock detected"));
+  mockEmbed.mockResolvedValue({
+    usesCount: 46,
+    title: "Roots",
+    artist: "Jamie",
+    coverImageUrl: signedCover(72),
+  });
+
+  const res = await runCron();
+
+  // A piece of artwork is not worth discarding a reading that already landed.
+  expect(written().usesCount).toBe(46);
+  expect((await res.json()).snapshotted).toBe(1);
+});
