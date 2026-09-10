@@ -1407,6 +1407,11 @@ h1, h2, h3, h4, h5, h6 {
   --spr-card: #FFFFFF;
   --spr-ink: #000000;
   --spr-label: #7C7C7C;
+  /* The reference spends #7C7C7C only on its 18px/700 section labels, where
+     4.27:1 on white clears AA as large text. Our own 13-14px copy -- the chart
+     fallbacks, the leaderboard's numeric columns -- would not, so it gets its
+     own ink at 7.9:1 rather than borrowing the label colour. */
+  --spr-ink-muted: #52514E;
   --spr-pill: #E2E2E2;
   --spr-tile: #000000;
   --spr-tile-ink: #FFFFFF;
@@ -1419,7 +1424,6 @@ h1, h2, h3, h4, h5, h6 {
   --spr-r-card: 20px;
   --spr-r-pill: 10px;
   --spr-r-thumb: 5px;
-  --spr-gutter: 72px;
   --spr-gap: 25px;
 
   min-height: 100vh;
@@ -1471,11 +1475,16 @@ h1, h2, h3, h4, h5, h6 {
    is a surface, not a control. */
 .spr-audio-slot .ui-card:hover { transform: none; box-shadow: none; }
 
+/* The column is 90% of the viewport, capped at 1296. Not a guess and not a
+   ladder of breakpoints: measured on a FRESH LOAD at six widths, the reference
+   gutter is 72/1440, 68/1366, 64/1280, 51/1024, 38/768, 20/390 -- 5.0% each
+   side to within a pixel -- and its content lands on 1296/1229/1152/922/691/351,
+   which min(1296px, 90%) reproduces exactly. (Resizing a live reference page
+   instead of reloading gives different numbers; its responsive groups keep
+   resize history.) */
 .spr-wrap {
-  width: 100%;
-  max-width: calc(1296px + 2 * var(--spr-gutter));
-  margin: 0 auto;
-  padding-inline: var(--spr-gutter);
+  width: min(1296px, 90%);
+  margin-inline: auto;
 }
 
 .spr-topbar {
@@ -1569,15 +1578,16 @@ h1, h2, h3, h4, h5, h6 {
 }
 .spr-facts {
   display: grid;
-  /* auto-fill, not auto-fit: a report with only one of the two facts should
-     leave the second track empty rather than stretch one pill across the card.
-     min(...) on the floor, because a bare 230px track is wider than a phone's
+  /* min(...) on the floor, because a bare 230px track is wider than a phone's
      content box and a grid track never shrinks below its own minimum -- that is
      what makes a page scroll sideways. Same on every grid below. */
-  grid-template-columns: repeat(auto-fill, minmax(min(230px, 100%), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(230px, 100%), 1fr));
   gap: 20px;
 }
-.spr-fact { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+/* auto-fit above puts two facts in two equal halves, which is the reference's
+   540px-a-side arrangement; the cap is what stops a report carrying only one of
+   them from stretching a single pill the width of the card. */
+.spr-fact { display: flex; flex-direction: column; gap: 6px; min-width: 0; max-width: 540px; }
 .spr-fact-pill {
   display: flex;
   align-items: center;
@@ -1608,7 +1618,12 @@ h1, h2, h3, h4, h5, h6 {
 
 .spr-row {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr));
+  /* 620, not a round number: the reference pairs these cards only from 1440 up
+     -- measured stacked at 1366, 1280, 1024, 768 and 390. 635 is the arithmetic
+     limit against the 1296px column but loses to a 6px classic scrollbar and
+     drops 1440 to one column; 620 clears that and still stacks at 1366, where
+     the column is 1216. */
+  grid-template-columns: repeat(auto-fit, minmax(min(620px, 100%), 1fr));
   gap: var(--spr-gap);
   align-items: start;
 }
@@ -1740,7 +1755,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 .spr-board-row + .spr-board-row { border-top: 1px solid var(--spr-hairline); }
 .spr-board-name { font-size: 14px; font-weight: 600; color: var(--spr-ink); }
-.spr-board-cell { font-size: 13px; color: var(--spr-label); font-variant-numeric: tabular-nums; }
+.spr-board-cell { font-size: 13px; color: var(--spr-ink-muted); font-variant-numeric: tabular-nums; }
 .spr-board-cell-strong { font-size: 13px; font-weight: 600; color: var(--spr-ink); font-variant-numeric: tabular-nums; }
 .spr-avatar {
   width: 28px;
@@ -1756,7 +1771,7 @@ h1, h2, h3, h4, h5, h6 {
   font-size: 12px;
   font-weight: 700;
 }
-.spr-note { font-size: 14px; color: var(--spr-label); margin: 0; }
+.spr-note { font-size: 14px; color: var(--spr-ink-muted); margin: 0; }
 
 .spr-empty { text-align: center; padding: 48px 20px; }
 
@@ -1767,16 +1782,31 @@ h1, h2, h3, h4, h5, h6 {
   color: var(--spr-on-page-dim);
 }
 
-@media (max-width: 1199px) {
-  .spr-root { --spr-gutter: 58px; --spr-gap: 20px; }
+@media (max-width: 1023px) {
+  .spr-root { --spr-gap: 20px; }
+  /* Measured 30px at 1024 and 24px at 768 on the reference. */
+  .spr-title { font-size: 24px; }
 }
 @media (max-width: 767px) {
-  .spr-root { --spr-gutter: 40px; --spr-gap: 15px; }
+  .spr-root { --spr-gap: 15px; }
   .spr-topbar { min-height: 76px; }
-  .spr-title { font-size: 24px; }
   .spr-cover { width: 96px; height: 96px; }
-  /* 96 + 15 + 120 fits the 264px content box, so the title stays beside the
-     cover the way the reference sets it rather than wrapping under it. */
-  .spr-head-body { flex-basis: 120px; }
+  /* The reference keeps the title beside the cover on a phone but runs the
+     fact pills the full width of the card underneath. display:contents
+     dissolves the body wrapper so its two children become items of this grid
+     and can be placed independently -- the alternative, leaving them boxed in
+     the title column, left a 200px pill in a 311px card. */
+  .spr-head {
+    display: grid;
+    grid-template-columns: 96px minmax(0, 1fr);
+    grid-template-areas: "cover title" "facts facts";
+    column-gap: 15px;
+    row-gap: 14px;
+  }
+  .spr-cover { grid-area: cover; }
+  .spr-head-body { display: contents; }
+  .spr-title { grid-area: title; align-self: center; }
+  .spr-facts { grid-area: facts; }
+  .spr-fact { max-width: none; }
   .spr-tiles { grid-template-columns: repeat(auto-fit, minmax(min(130px, 100%), 1fr)); }
 }
