@@ -16,6 +16,11 @@ loadEnvConfig(process.cwd());
    what lets two worktrees run the suite concurrently. */
 const E2E_PORT = process.env.E2E_PORT || '3009';
 const E2E_URL = process.env.E2E_BASE_URL || `http://localhost:${E2E_PORT}`;
+/* Written back so the four specs that read E2E_BASE_URL directly -- messaging,
+   negotiation, portal-auth.setup and verify-auth -- follow E2E_PORT without
+   having to be handed both. Without this they keep their own 3009 fallback
+   while everything around them moves. */
+process.env.E2E_BASE_URL = E2E_URL;
 
 export default defineConfig({
   testDir: './e2e',
