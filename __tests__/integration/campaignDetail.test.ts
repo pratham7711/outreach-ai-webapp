@@ -11,6 +11,7 @@ jest.mock('@/lib/db', () => ({
       findFirst: jest.fn(),
       update: jest.fn(),
     },
+    campaignStatusDef: { findMany: jest.fn(), findFirst: jest.fn() },
   },
 }));
 
@@ -56,9 +57,24 @@ const mockCampaign = {
   _count: { activations: 1, posts: 1 },
 };
 
+// The org's own statuses, shaped as both prod orgs actually have them.
+const STATUS_DEFS = [
+  { id: 'def-pending', name: 'Pending', bucket: 'PENDING', sortOrder: 0 },
+  { id: 'def-active', name: 'In-Progress', bucket: 'IN_PROGRESS', sortOrder: 1 },
+  { id: 'def-invoice', name: 'Need To Invoice', bucket: 'IN_PROGRESS', sortOrder: 2 },
+  { id: 'def-complete', name: 'Complete', bucket: 'COMPLETE', sortOrder: 5 },
+  { id: 'def-paused', name: 'Paused', bucket: 'CANCELLED', sortOrder: 6 },
+  { id: 'def-canceled', name: 'Canceled', bucket: 'CANCELLED', sortOrder: 7 },
+];
+
 beforeEach(() => {
   jest.clearAllMocks();
   mockAuth.mockResolvedValue(authedSession);
+  mockDb.campaignStatusDef.findMany.mockResolvedValue(STATUS_DEFS);
+  // findForeignRef proves a statusDefId in the body belongs to this org.
+  mockDb.campaignStatusDef.findFirst.mockImplementation(({ where }: any) =>
+    Promise.resolve(STATUS_DEFS.find((d) => d.id === where.id) ?? null)
+  );
 });
 
 // ─── GET /api/campaigns/[id] — detail data ──────────────────────────────────
@@ -196,7 +212,10 @@ describe('PATCH /api/campaigns/[id] full coverage', () => {
   });
 
   it('updates campaign title successfully', async () => {
-    const existing = { id: 'camp-1', orgId: 'org-1', title: 'Old Title', deletedAt: null };
+    // Already carries its bucket's named status, so this patch touches only
+    // the title -- see 'PATCH /api/campaigns/[id] named status' below.
+    const existing = { id: 'camp-1', orgId: 'org-1', title: 'Old Title', deletedAt: null,
+      status: 'IN_PROGRESS', statusDefId: 'def-active' };
     const updated = { ...existing, title: 'New Title', tags: [], teamMembers: [], _count: { activations: 0, posts: 0 } };
     mockDb.campaign.findFirst.mockResolvedValue(existing);
     mockDb.campaign.update.mockResolvedValue(updated);
@@ -256,6 +275,88 @@ describe('PATCH /api/campaigns/[id] full coverage', () => {
 });
 
 // ─── PATCH /api/campaigns/[id] — RBAC edit_own ownership ──────────────────────
+
+/* A campaign never sits without a named status. "No status" was an option in
+   the dropdown and the state every campaign was created in; both are gone, so
+   PATCH has to keep the invariant true for rows arriving from anywhere. */
+describe('PATCH /api/campaigns/[id] named status', () => {
+  const patch = async (body: Record<string, unknown>) => {
+    const req = makeRequest('http://localhost/api/campaigns/camp-1', {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    return PATCH(req, makeParams('camp-1'));
+  };
+
+  it("fills in the bucket's own status when the row arrived carrying none", async () => {
+    mockDb.campaign.findFirst.mockResolvedValue({ ...mockCampaign, statusDefId: null });
+    mockDb.campaign.update.mockResolvedValue(mockCampaign);
+
+    expect((await patch({ title: 'Renamed' })).status).toBe(200);
+
+    expect(mockDb.campaign.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ statusDefId: 'def-active' }) })
+    );
+  });
+
+  it('moves the named status with the bucket', async () => {
+    mockDb.campaign.findFirst.mockResolvedValue({ ...mockCampaign, statusDefId: 'def-active' });
+    mockDb.campaign.update.mockResolvedValue(mockCampaign);
+
+    await patch({ status: 'COMPLETE' });
+
+    expect(mockDb.campaign.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: 'COMPLETE', statusDefId: 'def-complete' }),
+      })
+    );
+  });
+
+  // Paused sorts first under CANCELLED, and a cancelled campaign is not paused.
+  it('resolves CANCELLED to Canceled rather than the first def in the bucket', async () => {
+    mockDb.campaign.findFirst.mockResolvedValue({ ...mockCampaign, statusDefId: 'def-active' });
+    mockDb.campaign.update.mockResolvedValue(mockCampaign);
+
+    await patch({ status: 'CANCELLED' });
+
+    expect(mockDb.campaign.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ statusDefId: 'def-canceled' }) })
+    );
+  });
+
+  it('leaves a status the caller named alone', async () => {
+    mockDb.campaign.findFirst.mockResolvedValue({ ...mockCampaign, statusDefId: 'def-active' });
+    mockDb.campaign.update.mockResolvedValue(mockCampaign);
+
+    await patch({ status: 'IN_PROGRESS', statusDefId: 'def-invoice' });
+
+    expect(mockDb.campaign.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ statusDefId: 'def-invoice' }) })
+    );
+  });
+
+  // The old dropdown sent exactly this to mean "No status".
+  it("turns an explicit null back into the bucket's own status", async () => {
+    mockDb.campaign.findFirst.mockResolvedValue({ ...mockCampaign, statusDefId: 'def-invoice' });
+    mockDb.campaign.update.mockResolvedValue(mockCampaign);
+
+    await patch({ statusDefId: null });
+
+    expect(mockDb.campaign.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ statusDefId: 'def-active' }) })
+    );
+  });
+
+  it('does not re-read the org statuses when the named status is unchanged', async () => {
+    mockDb.campaign.findFirst.mockResolvedValue({ ...mockCampaign, statusDefId: 'def-active' });
+    mockDb.campaign.update.mockResolvedValue(mockCampaign);
+
+    await patch({ title: 'Renamed' });
+
+    expect(mockDb.campaignStatusDef.findMany).not.toHaveBeenCalled();
+  });
+});
 
 describe('PATCH /api/campaigns/[id] RBAC edit_own', () => {
   it('MEMBER can edit a campaign they created', async () => {

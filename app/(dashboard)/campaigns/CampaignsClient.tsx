@@ -54,13 +54,13 @@ const STATUS_TABS = [
   { key: "CANCELLED",   label: "Canceled",  ...CAMPAIGN_STATUS_STYLE.CANCELLED,   Icon: XCircle },
 ];
 
-/* The dropdown offers every status, including DRAFT, which has no tab of its
-   own — a campaign can be in it, so it has to be reachable and displayable. */
+/* DRAFT is deliberately absent: it has no tab of its own and no org status def
+   points at it, so a campaign left there was unreachable and unnamed. Campaigns
+   now open Active instead — see lib/campaigns/statusDefaults.ts. */
 /** One of the org's named statuses from Settings → General. */
 type StatusDef = { id: string; name: string; bucket: string };
 
 const STATUS_OPTIONS = [
-  { value: "DRAFT", label: "Draft" },
   { value: "PENDING", label: "Pending" },
   { value: "IN_PROGRESS", label: "In-Progress" },
   { value: "COMPLETE", label: "Complete" },
@@ -230,10 +230,12 @@ function StatusSelect({
     try {
       if (useDefs) {
         const def = statusDefs.find((d) => d.id === next);
-        // Both go in one request: the bucket is what the tabs and reports count,
-        // so a named status arriving without its bucket would file the campaign
-        // under the group it used to be in.
-        await patchCampaign(id, def ? { statusDefId: def.id, status: def.bucket } : { statusDefId: null });
+        // "No status" is no longer offered, so `next` is always one of the org's
+        // own statuses. Both go in one request: the bucket is what the tabs and
+        // reports count, so a named status arriving without its bucket would
+        // file the campaign under the group it used to be in.
+        if (!def) return;
+        await patchCampaign(id, { statusDefId: def.id, status: def.bucket });
       } else {
         await patchCampaign(id, { status: next });
       }
@@ -247,10 +249,7 @@ function StatusSelect({
   }
 
   const options = useDefs
-    ? [
-        { value: "", label: "No status" },
-        ...statusDefs.map((d) => ({ value: d.id, label: d.name })),
-      ]
+    ? statusDefs.map((d) => ({ value: d.id, label: d.name }))
     : STATUS_OPTIONS.map((o) => ({ value: o.value, label: o.label }));
 
   return (
@@ -262,7 +261,7 @@ function StatusSelect({
         onChange={change}
         variant="primary"
         minWidth={150}
-        placeholder="No status"
+        placeholder="Set status"
         options={options}
       />
       {error && (

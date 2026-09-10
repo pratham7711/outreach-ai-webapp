@@ -21,6 +21,7 @@ jest.mock('@/lib/db', () => {
     },
     tikTokSound: { findFirst: jest.fn(), create: jest.fn() },
     song: { findFirst: jest.fn(), create: jest.fn() },
+    campaignStatusDef: { findMany: jest.fn() },
   };
   db.$transaction = jest.fn((fn: any) => fn(db));
   return { db };
@@ -46,9 +47,22 @@ function makeParams(id: string) {
   return { params: Promise.resolve({ id }) };
 }
 
+// The org's own statuses, as both prod orgs actually have them: CANCELLED
+// holds Paused before Canceled, which is why the default is picked by name
+// and not by sortOrder alone.
+const STATUS_DEFS = [
+  { id: 'def-pending', name: 'Pending', bucket: 'PENDING', sortOrder: 0 },
+  { id: 'def-active', name: 'In-Progress', bucket: 'IN_PROGRESS', sortOrder: 1 },
+  { id: 'def-invoice', name: 'Need To Invoice', bucket: 'IN_PROGRESS', sortOrder: 2 },
+  { id: 'def-complete', name: 'Complete', bucket: 'COMPLETE', sortOrder: 5 },
+  { id: 'def-paused', name: 'Paused', bucket: 'CANCELLED', sortOrder: 6 },
+  { id: 'def-canceled', name: 'Canceled', bucket: 'CANCELLED', sortOrder: 7 },
+];
+
 beforeEach(() => {
   jest.clearAllMocks();
   mockAuth.mockResolvedValue(authedSession);
+  mockDb.campaignStatusDef.findMany.mockResolvedValue(STATUS_DEFS);
 });
 
 // ─── GET /api/campaigns ───────────────────────────────────────────────────────
@@ -164,6 +178,82 @@ describe('POST /api/campaigns', () => {
 
     expect(res.status).toBe(201);
     expect(body.title).toBe('New Campaign');
+  });
+
+  /* A campaign is created and started in one action -- there is no launch
+     step -- so it opens Active with the org's own name for that bucket. It
+     used to be written as DRAFT with no named status, which is a state with no
+     tab on the campaigns page and the literal label "No status" on the row. */
+  describe('the status a new campaign opens in', () => {
+    it('opens IN_PROGRESS, not DRAFT', async () => {
+      mockDb.campaign.create.mockResolvedValue(newCampaign);
+
+      const req = makeRequest('http://localhost/api/campaigns', {
+        method: 'POST',
+        body: JSON.stringify({ title: 'New Campaign' }),
+        headers: { 'Content-Type': 'application/json' },
+      });
+      expect((await POST(req)).status).toBe(201);
+
+      expect(mockDb.campaign.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ status: 'IN_PROGRESS' }) })
+      );
+    });
+
+    it("carries the org's named status for that bucket, so the row is never \"No status\"", async () => {
+      mockDb.campaign.create.mockResolvedValue(newCampaign);
+
+      const req = makeRequest('http://localhost/api/campaigns', {
+        method: 'POST',
+        body: JSON.stringify({ title: 'New Campaign' }),
+        headers: { 'Content-Type': 'application/json' },
+      });
+      await POST(req);
+
+      expect(mockDb.campaignStatusDef.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { orgId: 'org-1' } })
+      );
+      expect(mockDb.campaign.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ statusDefId: 'def-active' }) })
+      );
+    });
+
+    it('honours an explicit status and names it too', async () => {
+      mockDb.campaign.create.mockResolvedValue({ ...newCampaign, status: 'COMPLETE' });
+
+      const req = makeRequest('http://localhost/api/campaigns', {
+        method: 'POST',
+        body: JSON.stringify({ title: 'New Campaign', status: 'COMPLETE' }),
+        headers: { 'Content-Type': 'application/json' },
+      });
+      await POST(req);
+
+      expect(mockDb.campaign.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ status: 'COMPLETE', statusDefId: 'def-complete' }),
+        })
+      );
+    });
+
+    // An org that has defined none is the one case a campaign legitimately
+    // carries no named status; it must still be created rather than 500.
+    it('writes a null statusDefId when the org has defined no statuses', async () => {
+      mockDb.campaignStatusDef.findMany.mockResolvedValue([]);
+      mockDb.campaign.create.mockResolvedValue(newCampaign);
+
+      const req = makeRequest('http://localhost/api/campaigns', {
+        method: 'POST',
+        body: JSON.stringify({ title: 'New Campaign' }),
+        headers: { 'Content-Type': 'application/json' },
+      });
+      expect((await POST(req)).status).toBe(201);
+
+      expect(mockDb.campaign.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ status: 'IN_PROGRESS', statusDefId: null }),
+        })
+      );
+    });
   });
 
   /* The Song and TikTokSound rows an audio link creates exist only to be

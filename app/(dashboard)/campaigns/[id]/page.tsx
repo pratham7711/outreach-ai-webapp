@@ -982,7 +982,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                       align="left"
                       value={editForm.status}
                       onChange={v => setEditForm(f => ({ ...f, status: v }))}
-                      options={["DRAFT", "PENDING", "IN_PROGRESS", "COMPLETE", "CANCELLED"].map(s => ({
+                      options={["PENDING", "IN_PROGRESS", "COMPLETE", "CANCELLED"].map(s => ({
                         value: s,
                         label: s.replace(/_/g, " "),
                       }))}

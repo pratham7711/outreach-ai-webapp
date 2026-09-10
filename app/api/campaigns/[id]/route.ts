@@ -11,6 +11,7 @@ import { generatePublicSlug, generateInviteCode } from "@/lib/marketplace";
 import { httpUrlMax } from "@/lib/validation/url";
 import { z } from "zod";
 import { Prisma } from "@/lib/generated/prisma/client";
+import { STATUS_DEF_SELECT, defaultStatusDefFor } from "@/lib/campaigns/statusDefaults";
 
 const CAMPAIGN_TYPES = ["BUDGET_BASED", "VIEW_BASED", "OPEN_COMMUNITY", "PRIVATE_INVITE"] as const;
 
@@ -231,6 +232,25 @@ export async function PATCH(
         ? { ratePerThousand: ratePerThousand === null ? Prisma.JsonNull : ratePerThousand }
         : {}),
     };
+
+    /* A campaign never sits without a named status. The caller keeps the one it
+       names; otherwise the bucket's own default follows the bucket, and a row
+       that arrived here carrying none is filled in. Without this, moving a
+       campaign between buckets left the previous bucket's status on it, and
+       clearing a status left the row rendering as "No status". */
+    const nextBucket = rest.status ?? existing.status;
+    const keepsNamedStatus =
+      rest.statusDefId != null ||
+      (rest.statusDefId === undefined &&
+        existing.statusDefId != null &&
+        nextBucket === existing.status);
+    if (!keepsNamedStatus) {
+      const statusDefs = await db.campaignStatusDef.findMany({
+        where: { orgId },
+        select: STATUS_DEF_SELECT,
+      });
+      data.statusDefId = defaultStatusDefFor(nextBucket, statusDefs)?.id ?? null;
+    }
 
     const nextVisibility = rest.marketplaceVisibility ?? existing.marketplaceVisibility;
 

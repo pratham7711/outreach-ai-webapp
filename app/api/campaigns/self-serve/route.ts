@@ -7,6 +7,7 @@ import { getRequestIp } from "@/lib/request";
 import { z } from "zod";
 import type { Currency } from "@/lib/generated/prisma/client";
 import { computeSelfServeBudget } from "@/lib/campaigns/selfServeBudget";
+import { CAMPAIGN_START_STATUS, STATUS_DEF_SELECT, defaultStatusDefFor } from "@/lib/campaigns/statusDefaults";
 
 const DEFAULT_FLAT_FEE_MINOR = 50000;
 
@@ -63,11 +64,21 @@ export async function POST(request: NextRequest) {
     });
 
     const campaign = await db.$transaction(async (tx) => {
+      /* The invites below go out in this same request, so the campaign is
+         already running by the time this returns. It used to be written as a
+         DRAFT nobody launched, which kept it off the Active tab, out of
+         /api/portal/discover (IN_PROGRESS only) and showing as "No status". */
+      const statusDefs = await tx.campaignStatusDef.findMany({
+        where: { orgId },
+        select: STATUS_DEF_SELECT,
+      });
+
       const created = await tx.campaign.create({
         data: {
           orgId,
           title,
-          status: "DRAFT",
+          status: CAMPAIGN_START_STATUS,
+          statusDefId: defaultStatusDefFor(CAMPAIGN_START_STATUS, statusDefs)?.id ?? null,
           selfServe: true,
           platformFeeMinor,
           budget: budget ?? null,

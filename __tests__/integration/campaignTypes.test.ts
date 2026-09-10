@@ -21,6 +21,7 @@ jest.mock('@/lib/db', () => {
     },
     tikTokSound: { findFirst: jest.fn(), create: jest.fn() },
     song: { findFirst: jest.fn(), create: jest.fn() },
+    campaignStatusDef: { findMany: jest.fn(), findFirst: jest.fn() },
   };
   db.$transaction = jest.fn((fn: any) => fn(db));
   return { db };
@@ -46,9 +47,20 @@ function makeParams(id: string) {
   return { params: Promise.resolve({ id }) };
 }
 
+// Both create and PATCH now attach the org's own name for the campaign's
+// bucket, so no campaign is left rendering as "No status".
+const STATUS_DEFS = [
+  { id: 'def-active', name: 'In-Progress', bucket: 'IN_PROGRESS', sortOrder: 1 },
+  { id: 'def-complete', name: 'Complete', bucket: 'COMPLETE', sortOrder: 5 },
+];
+
 beforeEach(() => {
   jest.clearAllMocks();
   mockAuth.mockResolvedValue(authedSession);
+  mockDb.campaignStatusDef.findMany.mockResolvedValue(STATUS_DEFS);
+  mockDb.campaignStatusDef.findFirst.mockImplementation(({ where }: any) =>
+    Promise.resolve(STATUS_DEFS.find((d) => d.id === where.id) ?? null)
+  );
 });
 
 // ─── POST /api/campaigns — campaignType handling ─────────────────────────────

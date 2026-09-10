@@ -9,6 +9,7 @@ import { z } from "zod";
 import { pageParam, pageSizeParam, parseQuery } from "@/lib/http/queryParams";
 import { ensureSongForAudio, identifyAudioLink, type ResolvedAudio } from "@/lib/campaigns/audioLink";
 import { CAMPAIGN_STATUSES, CAMPAIGN_TYPES, campaignFilterSchema, campaignWhere } from "@/lib/listFilters";
+import { CAMPAIGN_START_STATUS, STATUS_DEF_SELECT, defaultStatusDefFor } from "@/lib/campaigns/statusDefaults";
 import type { PaymentMode, PaymentRelease, PostApprovalMode } from "@/lib/generated/prisma/client";
 
 // The list query is the page's filter set plus pagination, so a filter added to
@@ -150,11 +151,24 @@ export async function POST(request: NextRequest) {
        a page on a schedule, so the orphan keeps costing something. */
     const campaign = await db.$transaction(async (tx) => {
       const songId = audio ? await ensureSongForAudio(tx, orgId, audio, title) : null;
+
+      /* A campaign is created and started in one action, so it opens Active
+         rather than in DRAFT -- which has no tab and no named status, and is
+         how a new campaign used to show up as "No status". The org's own name
+         for that bucket travels with it, because the named status is what the
+         list renders while the bucket is only what the tabs count. */
+      const bucket = status ?? CAMPAIGN_START_STATUS;
+      const statusDefs = await tx.campaignStatusDef.findMany({
+        where: { orgId },
+        select: STATUS_DEF_SELECT,
+      });
+
       return tx.campaign.create({
       data: {
         title,
         songId,
-        status: status ?? "DRAFT",
+        status: bucket,
+        statusDefId: defaultStatusDefFor(bucket, statusDefs)?.id ?? null,
         campaignType: campaignType ?? "BUDGET_BASED",
         typeConfig: typeConfig ?? null,
         budget: budget ?? null,
