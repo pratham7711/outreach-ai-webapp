@@ -66,8 +66,8 @@ export function AudioCard({ audio, shareToken }: { audio: CampaignAudio; shareTo
     <Card>
       <div style={{ padding: 20 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
-          <Music2 size={16} style={{ color: "var(--cc-text-muted)" }} aria-hidden="true" />
-          <span style={{ fontSize: 15, fontWeight: 700, color: "var(--cc-text)" }}>TikTok Audio</span>
+          <Music2 size={16} style={{ color: "var(--audio-title-ink, var(--cc-text-muted))" }} aria-hidden="true" />
+          <span style={{ fontSize: "var(--audio-title-size, 15px)", fontWeight: 700, color: "var(--audio-title-ink, var(--cc-text))" }}>TikTok Audio</span>
         </div>
 
         <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginBottom: audio.usageSeries.length > 1 ? 20 : 0 }}>
@@ -77,8 +77,9 @@ export function AudioCard({ audio, shareToken }: { audio: CampaignAudio; shareTo
             rel="noopener noreferrer"
             style={{
               display: "flex", alignItems: "center", gap: 12, flex: "1 1 240px", minWidth: 0,
-              padding: 12, borderRadius: 12, border: "1px solid var(--cc-border)",
-              background: "var(--cc-bg)", textDecoration: "none",
+              padding: 12, borderRadius: "var(--audio-tile-radius, 12px)",
+              border: "1px solid var(--audio-tile-border, var(--cc-border))",
+              background: "var(--audio-tile-bg, var(--cc-bg))", textDecoration: "none",
             }}
           >
             {cover ? (
@@ -95,16 +96,17 @@ export function AudioCard({ audio, shareToken }: { audio: CampaignAudio; shareTo
                 style={{
                   width: 44, height: 44, borderRadius: 10, flexShrink: 0,
                   display: "flex", alignItems: "center", justifyContent: "center",
-                  background: "var(--cc-card)", border: "1px solid var(--cc-border)",
+                  background: "var(--audio-tile-fill, var(--cc-card))",
+                  border: "1px solid var(--audio-tile-border, var(--cc-border))",
                 }}
               >
-                <Music2 size={18} style={{ color: "var(--cc-text-subtle)" }} />
+                <Music2 size={18} style={{ color: "var(--audio-tile-ink-muted, var(--cc-text-subtle))" }} />
               </div>
             )}
             <div style={{ minWidth: 0 }}>
               <div
                 style={{
-                  fontSize: 14, fontWeight: 600, color: "var(--cc-text)",
+                  fontSize: 14, fontWeight: 600, color: "var(--audio-tile-ink, var(--cc-text))",
                   whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
                 }}
               >
@@ -112,7 +114,7 @@ export function AudioCard({ audio, shareToken }: { audio: CampaignAudio; shareTo
               </div>
               <div
                 style={{
-                  fontSize: 13, color: "var(--cc-text-muted)",
+                  fontSize: 13, color: "var(--audio-tile-ink-muted, var(--cc-text-muted))",
                   whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
                 }}
               >
@@ -214,12 +216,13 @@ function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div
       style={{
-        flex: "0 1 150px", padding: 12, borderRadius: 12,
-        border: "1px solid var(--cc-border)", background: "var(--cc-bg)",
+        flex: "0 1 150px", padding: 12, borderRadius: "var(--audio-tile-radius, 12px)",
+        border: "1px solid var(--audio-tile-border, var(--cc-border))",
+        background: "var(--audio-tile-bg, var(--cc-bg))",
       }}
     >
-      <div style={{ fontSize: 12, color: "var(--cc-text-muted)", marginBottom: 4 }}>{label}</div>
-      <div title={String(value)} style={{ fontSize: fitFigureSize(String(value), 20), fontWeight: 700, color: "var(--cc-text)", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums", overflow: "hidden", textOverflow: "ellipsis" }}>{value}</div>
+      <div style={{ fontSize: 12, color: "var(--audio-tile-ink-muted, var(--cc-text-muted))", marginBottom: 4 }}>{label}</div>
+      <div title={String(value)} style={{ fontSize: fitFigureSize(String(value), 20), fontWeight: 700, color: "var(--audio-tile-ink, var(--cc-text))", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums", overflow: "hidden", textOverflow: "ellipsis" }}>{value}</div>
     </div>
   );
 }

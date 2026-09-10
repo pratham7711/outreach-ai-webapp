@@ -36,30 +36,20 @@ const loadShareLink = cache((token: string) =>
 function RevokedState() {
   return (
     <div
+      className="spr-root"
       style={{
-        minHeight: "100vh",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         padding: 24,
-        background: "var(--cc-bg)",
       }}
     >
-      <div
-        style={{
-          background: "var(--cc-card)",
-          border: "1px solid var(--cc-border)",
-          borderRadius: 16,
-          padding: "48px 32px",
-          maxWidth: 420,
-          textAlign: "center",
-        }}
-      >
-        <div style={{ marginBottom: 16 }}><Link2 size={40} color="var(--cc-text-subtle)" /></div>
-        <h1 style={{ fontSize: 20, fontWeight: 700, color: "var(--cc-text)", margin: "0 0 8px" }}>
+      <div className="spr-card" style={{ padding: "48px 32px", maxWidth: 420, textAlign: "center" }}>
+        <div style={{ marginBottom: 16 }}><Link2 size={40} color="var(--spr-label)" /></div>
+        <h1 style={{ fontSize: 20, fontWeight: 700, color: "var(--spr-ink)", margin: "0 0 8px" }}>
           Link unavailable
         </h1>
-        <p style={{ fontSize: 14, color: "var(--cc-text-muted)", margin: 0, lineHeight: 1.6 }}>
+        <p style={{ fontSize: 14, color: "var(--spr-label)", margin: 0, lineHeight: 1.6 }}>
           This report link is no longer active. It may have been revoked or the address is
           incorrect.
         </p>
@@ -126,6 +116,7 @@ export default async function SharedReportPage({
     <SharedPerformanceReport
       token={token}
       campaignTitle={link.campaign.title}
+      orgName={link.campaign.org?.name ?? null}
       // Redacted here rather than in the component: props cross into the RSC
       // payload, so a conditionally-rendered leaderboard still publishes every
       // creator name to anyone who reads the HTML.

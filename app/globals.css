@@ -1391,3 +1391,392 @@ h1, h2, h3, h4, h5, h6 {
   }
   .rsp-invites-actions > .rsp-invites-spacer { display: block; }
 }
+
+/*
+  ── Public client report (/share/<token>) ───────────────────────────────────
+  The one screen a brand sees, and the only one they compare against the
+  agency's previous tool. Its palette is the report's own rather than the
+  viewer's theme: the link is opened by someone who has never seen this
+  product, on whatever OS theme they happen to run, and it has to look the
+  same for all of them. Every value below was measured off the reference
+  client report with getComputedStyle at 1440, 768 and 390 -- black page,
+  white 20px cards, black 20px stat tiles, one grey fact pill, Lexend Deca.
+*/
+.spr-root {
+  --spr-page: #000000;
+  --spr-card: #FFFFFF;
+  --spr-ink: #000000;
+  --spr-label: #7C7C7C;
+  --spr-pill: #E2E2E2;
+  --spr-tile: #000000;
+  --spr-tile-ink: #FFFFFF;
+  --spr-tile-ink-dim: rgba(255, 255, 255, 0.6);
+  --spr-on-page: #FFFFFF;
+  --spr-on-page-dim: rgba(255, 255, 255, 0.6);
+  --spr-hairline: rgba(0, 0, 0, 0.08);
+  --spr-hairline-dark: rgba(255, 255, 255, 0.14);
+  --spr-grid: rgba(0, 0, 0, 0.10);
+  --spr-r-card: 20px;
+  --spr-r-pill: 10px;
+  --spr-r-thumb: 5px;
+  --spr-gutter: 72px;
+  --spr-gap: 25px;
+
+  min-height: 100vh;
+  background: var(--spr-page);
+  color: var(--spr-ink);
+  font-family: var(--font-lexend), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+/* The audio card is shared with the campaign's own Performance tab, so it is
+   re-pointed at this report's palette here rather than forked. The
+   --audio-tile-* set is the seam the card reads for its sound row and its two
+   figure tiles, which the reference draws as black tiles on the white card;
+   every one of them falls back to the dashboard token, so the campaign tab is
+   untouched. */
+.spr-audio-slot {
+  --cc-card: var(--spr-card);
+  --cc-bg: var(--spr-card);
+  --cc-text: var(--spr-ink);
+  --cc-text-muted: var(--spr-label);
+  --cc-text-subtle: var(--spr-label);
+  --cc-border: var(--spr-hairline);
+  --ui-bg-0: var(--spr-card);
+  --ui-bg-1: var(--spr-card);
+  --ui-bg-2: var(--spr-card);
+  --ui-bg-3: var(--spr-pill);
+  --ui-glass: var(--spr-card);
+  --ui-glass-border: transparent;
+  --ui-text-0: var(--spr-ink);
+  --ui-text-1: var(--spr-label);
+  --ui-text-2: var(--spr-label);
+  --ui-border: var(--spr-hairline);
+  --ui-border-strong: var(--spr-hairline);
+  --ui-r-lg: var(--spr-r-card);
+  --ui-r-xl: var(--spr-r-card);
+  --ui-shadow-sm: none;
+  --ui-shadow-md: none;
+  --ui-shadow-lg: none;
+
+  --audio-tile-bg: var(--spr-tile);
+  --audio-tile-fill: var(--spr-hairline-dark);
+  --audio-tile-border: transparent;
+  --audio-tile-ink: var(--spr-tile-ink);
+  --audio-tile-ink-muted: var(--spr-tile-ink);
+  --audio-tile-radius: var(--spr-r-card);
+  --audio-title-size: 18px;
+  --audio-title-ink: var(--spr-label);
+}
+/* The card lifts and shadows on hover in the dashboard; on a static report it
+   is a surface, not a control. */
+.spr-audio-slot .ui-card:hover { transform: none; box-shadow: none; }
+
+.spr-wrap {
+  width: 100%;
+  max-width: calc(1296px + 2 * var(--spr-gutter));
+  margin: 0 auto;
+  padding-inline: var(--spr-gutter);
+}
+
+.spr-topbar {
+  display: flex;
+  align-items: center;
+  min-height: 100px;
+}
+.spr-topbar-in {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.spr-brand {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--spr-on-page);
+  letter-spacing: -0.01em;
+}
+.spr-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.spr-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding-inline: 16px;
+  border-radius: var(--spr-r-pill);
+  border: 1px solid var(--spr-hairline-dark);
+  background: var(--spr-tile);
+  color: var(--spr-tile-ink);
+  font-size: 15px;
+  font-weight: 400;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.spr-btn:hover { border-color: var(--spr-on-page-dim); }
+
+.spr-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spr-gap);
+  padding-bottom: 60px;
+}
+
+.spr-card {
+  background: var(--spr-card);
+  border-radius: var(--spr-r-card);
+  padding: 20px;
+  min-width: 0;
+}
+
+/* Head card: cover, title, and the two fact pills the reference leads with.
+   10px/20px rather than the 20px every other card carries -- the cover sets
+   this card's height and the reference lets it, at 171px total. */
+.spr-head {
+  display: flex;
+  gap: 15px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  padding: 10px 20px;
+}
+.spr-cover {
+  width: 151px;
+  height: 151px;
+  flex: none;
+  border-radius: var(--spr-r-thumb);
+  object-fit: cover;
+  background: var(--spr-pill);
+}
+.spr-cover-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--spr-label);
+}
+.spr-head-body {
+  flex: 1 1 340px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.spr-title {
+  font-size: 30px;
+  line-height: 1.25;
+  font-weight: 700;
+  color: var(--spr-ink);
+  margin: 0;
+  text-wrap: balance;
+}
+.spr-facts {
+  display: grid;
+  /* auto-fill, not auto-fit: a report with only one of the two facts should
+     leave the second track empty rather than stretch one pill across the card.
+     min(...) on the floor, because a bare 230px track is wider than a phone's
+     content box and a grid track never shrinks below its own minimum -- that is
+     what makes a page scroll sideways. Same on every grid below. */
+  grid-template-columns: repeat(auto-fill, minmax(min(230px, 100%), 1fr));
+  gap: 20px;
+}
+.spr-fact { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.spr-fact-pill {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 50px;
+  padding-inline: 14px;
+  border-radius: var(--spr-r-pill);
+  background: var(--spr-pill);
+  color: var(--spr-ink);
+  font-size: 15px;
+}
+
+.spr-section {
+  font-size: 18px;
+  line-height: 1.25;
+  font-weight: 700;
+  color: var(--spr-label);
+  margin: 0;
+}
+.spr-subhead {
+  font-size: 18px;
+  line-height: 1.25;
+  font-weight: 700;
+  color: var(--spr-ink);
+  margin: 0;
+}
+.spr-stack { display: flex; flex-direction: column; gap: 15px; }
+
+.spr-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr));
+  gap: var(--spr-gap);
+  align-items: start;
+}
+
+/* Stat tiles. The reference runs two sizes: 80px tall inside a half-width
+   card, 60px in the full-width row above the post grid. */
+.spr-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr));
+  gap: 10px;
+}
+.spr-tile {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  min-height: 80px;
+  padding: 15px;
+  border-radius: var(--spr-r-card);
+  background: var(--spr-tile);
+  min-width: 0;
+}
+.spr-tile-label {
+  font-size: 14px;
+  line-height: 1.25;
+  color: var(--spr-tile-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.spr-tile-value {
+  font-size: 20px;
+  line-height: 1.25;
+  font-weight: 700;
+  color: var(--spr-tile-ink);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.spr-tiles-compact { gap: 5px; }
+.spr-tiles-compact .spr-tile { min-height: 60px; padding: 5px 15px; gap: 0; }
+.spr-tiles-compact .spr-tile-value { font-size: 18px; }
+
+/* Post grid. 5 columns at the reference's 1256px of inner width, 2 at 768,
+   1 at 390 -- the same counts auto-fill lands on with this track. */
+.spr-posts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(230px, 100%), 1fr));
+  gap: 15px;
+}
+.spr-post {
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--spr-r-card);
+  background: var(--spr-tile);
+  overflow: hidden;
+  min-width: 0;
+}
+.spr-post-thumb {
+  position: relative;
+  aspect-ratio: 239 / 245;
+  background: var(--spr-hairline-dark);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--spr-tile-ink-dim);
+}
+.spr-post-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.spr-post-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 10px 8px;
+  min-width: 0;
+  flex: 1;
+}
+.spr-post-handle {
+  font-size: 15px;
+  line-height: 1.25;
+  font-weight: 700;
+  color: var(--spr-tile-ink);
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 4px;
+}
+.spr-post-metric {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 15px;
+  line-height: 1.25;
+  color: var(--spr-tile-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.spr-post-metric svg { flex: none; opacity: 0.85; }
+.spr-post-meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 10px;
+  margin-top: auto;
+  padding-top: 10px;
+  font-size: 11px;
+  line-height: 1.25;
+  color: var(--spr-tile-ink-dim);
+}
+
+/* Leaderboard and empty states keep the report's own ink rather than the
+   dashboard tokens they used to inherit. */
+.spr-board-head,
+.spr-board-row {
+  display: grid;
+  gap: 12px;
+  padding: 12px 0;
+  align-items: center;
+}
+.spr-board-head {
+  border-bottom: 1px solid var(--spr-hairline);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--spr-label);
+}
+.spr-board-row + .spr-board-row { border-top: 1px solid var(--spr-hairline); }
+.spr-board-name { font-size: 14px; font-weight: 600; color: var(--spr-ink); }
+.spr-board-cell { font-size: 13px; color: var(--spr-label); font-variant-numeric: tabular-nums; }
+.spr-board-cell-strong { font-size: 13px; font-weight: 600; color: var(--spr-ink); font-variant-numeric: tabular-nums; }
+.spr-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  flex: none;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--spr-tile);
+  color: var(--spr-tile-ink);
+  font-size: 12px;
+  font-weight: 700;
+}
+.spr-note { font-size: 14px; color: var(--spr-label); margin: 0; }
+
+.spr-empty { text-align: center; padding: 48px 20px; }
+
+.spr-footer {
+  text-align: center;
+  padding: 10px 0 40px;
+  font-size: 15px;
+  color: var(--spr-on-page-dim);
+}
+
+@media (max-width: 1199px) {
+  .spr-root { --spr-gutter: 58px; --spr-gap: 20px; }
+}
+@media (max-width: 767px) {
+  .spr-root { --spr-gutter: 40px; --spr-gap: 15px; }
+  .spr-topbar { min-height: 76px; }
+  .spr-title { font-size: 24px; }
+  .spr-cover { width: 96px; height: 96px; }
+  /* 96 + 15 + 120 fits the 264px content box, so the title stays beside the
+     cover the way the reference sets it rather than wrapping under it. */
+  .spr-head-body { flex-basis: 120px; }
+  .spr-tiles { grid-template-columns: repeat(auto-fit, minmax(min(130px, 100%), 1fr)); }
+}
