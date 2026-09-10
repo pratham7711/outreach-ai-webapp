@@ -29,7 +29,7 @@ describe("formatCompactCurrency", () => {
     expect(formatCompactCurrency(2_400_000)).toBe("$2.4M");
   });
 
-  /* A non-finite EMV is a bug upstream, but the report still has to render. */
+  /* A non-finite amount is a bug upstream, but the report still has to render. */
   it("falls back rather than printing NaN", () => {
     expect(formatCompactCurrency(Number.NaN, "GBP")).toBe("£0");
   });

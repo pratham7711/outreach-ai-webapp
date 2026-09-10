@@ -1,6 +1,5 @@
 "use client";
 import React, { useState, useEffect, useCallback } from "react";
-import { useTenant } from "@/components/providers/TenantProvider";
 import { Card, Badge, EmptyState, Skeleton, Avatar, Modal } from "@pratham7711/ui";
 import { ChartFrame, MetricTile, Button } from "@/components/ds";
 import {
@@ -19,7 +18,7 @@ import type { CampaignAudio, CampaignPerformance } from "@/lib/reports/campaignP
 type Kpis = CampaignPerformance["kpis"];
 
 const LEADERBOARD_COLS = (withEngagement: boolean) =>
-  withEngagement ? "1fr 70px 90px 80px 90px" : "1fr 70px 90px 90px";
+  withEngagement ? "1fr 70px 90px 80px" : "1fr 70px 90px";
 
 /** One key per platform the campaign posted on — see lib/reports/campaignPerformance. */
 type TimeSeriesPoint = { date: string } & { [platform: string]: number | string };
@@ -32,7 +31,6 @@ type LeaderboardRow = {
   views: number;
   engagements: number | null;
   engagementRate: number | null;
-  emv: number;
 };
 
 type PerformanceData = {
@@ -62,18 +60,6 @@ function seriesFor(platforms: string[]): { key: string; color: string }[] {
 
 function formatNumber(num: number): string {
   return formatFull(num);
-}
-
-function formatCurrency(n: number, currency = "USD"): string {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency, maximumFractionDigits: 2 }).format(n);
-}
-
-/* Kept under its old name so call sites read unchanged; it no longer
-   abbreviates. It already printed the full amount below $10k -- the compact
-   branch above that was the only place two different EMVs could render as the
-   same "$12K". */
-function formatCurrencyCompact(n: number, currency = "USD"): string {
-  return formatCurrency(n, currency);
 }
 
 function formatDate(iso: string): string {
@@ -180,11 +166,6 @@ function ExportModal({ campaignId, onClose }: { campaignId: string; onClose: () 
 }
 
 export default function PerformanceTab({ campaignId }: { campaignId: string }) {
-  /* Settings -> Organization -> "Show EMV". Seeded server-side by the
-     dashboard layout, so a workspace with EMV off never paints it. */
-  const { showEmv: showEmvPref } = useTenant();
-  const showEmv = showEmvPref !== false;
-
   const [data, setData] = useState<PerformanceData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -212,7 +193,7 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
   if (loading) return <LoadingState />;
   if (error || !data) return <ErrorState onRetry={load} />;
 
-  const { kpis, timeSeries, seriesPlatforms, platformSplit, leaderboard, currency } = data;
+  const { kpis, timeSeries, seriesPlatforms, platformSplit, leaderboard } = data;
   /* Only platforms with views get an area: a stacked chart draws every series,
      so a platform sitting at zero paints its stroke along the top of the stack
      and the legend names a platform the campaign never used. */
@@ -304,7 +285,6 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
             value={`${(kpis.engagementRate * 100).toFixed(2)}%`}
           />
         )}
-        {showEmv && <MetricTile metric="emv" value={formatCurrencyCompact(kpis.emv, currency)} />}
       </div>
 
       {/* Absent unless the campaign's song has a tracked sound, so campaigns
@@ -400,7 +380,7 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
                 display: "grid", gridTemplateColumns: LEADERBOARD_COLS(anyEngagementMeasured),
                 gap: 12, padding: "10px 24px", borderBottom: "1px solid var(--cc-border)", background: "var(--cc-bg)",
               }}>
-                {["Creator", "Posts", "Views", ...(anyEngagementMeasured ? ["Eng."] : []), ...(showEmv ? ["EMV"] : [])].map((h) => (
+                {["Creator", "Posts", "Views", ...(anyEngagementMeasured ? ["Eng."] : [])].map((h) => (
                   <span key={h} style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--cc-text-subtle)" }}>{h}</span>
                 ))}
               </div>
@@ -426,7 +406,6 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
                       )}
                     </span>
                   )}
-                  {showEmv && <span style={{ fontSize: 13, fontWeight: 700, color: "var(--cc-primary)" }}>{formatCurrency(row.emv, currency)}</span>}
                 </div>
               ))}
             </div>

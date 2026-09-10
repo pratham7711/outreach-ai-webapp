@@ -281,24 +281,6 @@ describe("GET /api/analytics", () => {
     expect(body.leaderboard[0].engagements).toBe(0);
   });
 
-  it("prices EMV off each platform's summed counts", async () => {
-    // TIKTOK view rate is $0.04, like $0.50 — 1000 views + 10 likes = $45.
-    stubGroupBy([
-      {
-        creatorId: "creator-1",
-        platform: "TIKTOK",
-        _sum: { viewsCount: 1_000, likesCount: 10, commentsCount: 0, sharesCount: 0, savesCount: 0 },
-        _count: { _all: 1 },
-      },
-    ]);
-    mockDb.creator.findMany.mockResolvedValue([
-      { id: "creator-1", name: "Alice", handle: "alice", platform: "TIKTOK", avatarUrl: null, followersCount: 0 },
-    ]);
-
-    const body = await (await getAnalytics(makeRequest())).json();
-    expect(body.leaderboard[0].emv).toBeCloseTo(45, 2);
-  });
-
   it("fills the six-month trend from the bucketed campaign counts", async () => {
     // A UTC month start, which is what date_trunc('month', …) returns from a UTC
     // database. Building it from LOCAL parts instead made this test depend on the

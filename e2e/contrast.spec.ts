@@ -34,7 +34,6 @@ const PAGES = [
   '/lists',
   '/discovery',
   '/settings',
-  '/settings/metrics',
   '/settings/general',
 ];
 

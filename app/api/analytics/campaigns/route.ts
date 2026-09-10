@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { READ_CACHE_HEADERS } from "@/lib/http/readCache";
 import { authenticateRequest } from "@/lib/authenticate";
 import { carryForwardViewsByDay } from "@/lib/analytics/viewsSeries";
-import { computeCampaignEmv, campaignVsOrgAverage } from "@/lib/metrics";
+import { campaignVsOrgAverage } from "@/lib/metrics";
 import { rollupEngagement } from "@/lib/metricDisplay";
 import type { EngagementRatePost } from "@/lib/metricDisplay";
 
@@ -100,21 +100,12 @@ export async function GET(req: NextRequest) {
   type CampAgg = {
     views: number;
     ratePosts: EngagementRatePost[];
-    emvPosts: { platform: string; views: number; likes: number; comments: number; shares: number; saves: number }[];
   };
-  const emptyAgg = (): CampAgg => ({ views: 0, ratePosts: [], emvPosts: [] });
+  const emptyAgg = (): CampAgg => ({ views: 0, ratePosts: [] });
 
   function pushPost(agg: CampAgg, p: { platform: string; viewsCount: number; likesCount: number; commentsCount: number; sharesCount: number; savesCount: number; lastSyncedAt: Date | null }) {
     agg.views += p.viewsCount;
     agg.ratePosts.push(p);
-    agg.emvPosts.push({
-      platform: p.platform,
-      views: p.viewsCount,
-      likes: p.likesCount,
-      comments: p.commentsCount,
-      shares: p.sharesCount,
-      saves: p.savesCount,
-    });
   }
 
   const orgByCampaign: Record<string, CampAgg> = {};
@@ -122,7 +113,6 @@ export async function GET(req: NextRequest) {
     const a = orgByCampaign[p.campaignId] ?? (orgByCampaign[p.campaignId] = emptyAgg());
     pushPost(a, p);
   }
-  const orgEmvValues = Object.values(orgByCampaign).map((a) => computeCampaignEmv(a.emvPosts));
   const orgViewValues = Object.values(orgByCampaign).map((a) => a.views);
   /* The org distribution a campaign is compared against has to be measured the
      same way the campaign is, or "above average" means nothing. */
@@ -145,17 +135,14 @@ export async function GET(req: NextRequest) {
     // One call, so the reported engagements are the rate's own numerator rather
     // than a wider sum that happens to sit next to it.
     const { engagements, rate: engRate } = rollupEngagement(a.ratePosts);
-    const emv = computeCampaignEmv(a.emvPosts);
     return {
       id,
       title: titleById[id] ?? "Untitled",
       views: a.views,
       engagements: engagements ?? 0,
       engagementRate: engRate ?? 0,
-      emv,
       viewsVsOrg: campaignVsOrgAverage({ campaignValue: a.views, orgValues: orgViewValues }),
       engRateVsOrg: campaignVsOrgAverage({ campaignValue: engRate, orgValues: orgEngRateValues }),
-      emvVsOrg: campaignVsOrgAverage({ campaignValue: emv, orgValues: orgEmvValues }),
     };
   });
 

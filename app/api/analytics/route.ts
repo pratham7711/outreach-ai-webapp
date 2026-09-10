@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { READ_CACHE_HEADERS } from "@/lib/http/readCache";
 import { authenticateRequest } from "@/lib/authenticate";
-import { computeCampaignEmv } from "@/lib/metrics";
 import { MEASURED_POSTS_FILTER, rollupEngagementFromTotals } from "@/lib/metricDisplay";
 import type { Prisma } from "@/lib/generated/prisma/client";
 import { PLATFORM_VALUES } from "@/lib/platforms/constants";
@@ -64,9 +63,7 @@ function parsePlatform(req: NextRequest): string | null {
 /**
  * Every number here is counted in the database. Reading the org's whole post
  * table into Node to reduce it by hand cost ~2.1s and grew with the roster;
- * grouping by (creator, platform) keeps the rows proportional to who actually
- * posted, and EMV is linear per metric so a platform's summed counts price the
- * same as its posts priced one by one.
+ * grouping by creator keeps the rows proportional to who actually posted.
  */
 export async function GET(req: NextRequest) {
   const result = await authenticateRequest(req);
@@ -105,7 +102,7 @@ export async function GET(req: NextRequest) {
     measuredRow,
     monthRows,
     slotRows,
-    creatorPlatformRows,
+    creatorRows,
     creatorMeasuredRows,
     creatorCampaignPairs,
     platformRows,
@@ -181,7 +178,7 @@ export async function GET(req: NextRequest) {
         ...slotParams
       ),
       db.post.groupBy({
-        by: ["creatorId", "platform"],
+        by: ["creatorId"],
         where: postWhere,
         _sum: {
           viewsCount: true,
@@ -194,8 +191,8 @@ export async function GET(req: NextRequest) {
       }),
       /* A second pass over the measured posts only, because the leaderboard's
          engagement rate is the same definition as the KPI above it. The rollup
-         beside it (views, posts, EMV) legitimately counts every post -- views
-         were always measured -- so the two cannot come from one groupBy. */
+         beside it (views, posts) legitimately counts every post -- views were
+         always measured -- so the two cannot come from one groupBy. */
       db.post.groupBy({
         by: ["creatorId"],
         where: { ...postWhere, ...MEASURED_POSTS_FILTER },
@@ -252,14 +249,12 @@ export async function GET(req: NextRequest) {
     shares: number;
     saves: number;
     posts: number;
-    /** One entry per platform, priced together because EMV is linear. */
-    emvInputs: { platform: string; views: number; likes: number; comments: number; shares: number; saves: number }[];
   };
   const totals = new Map<string, CreatorTotals>();
-  for (const row of creatorPlatformRows) {
+  for (const row of creatorRows) {
     const t =
       totals.get(row.creatorId) ??
-      { views: 0, likes: 0, comments: 0, shares: 0, saves: 0, posts: 0, emvInputs: [] };
+      { views: 0, likes: 0, comments: 0, shares: 0, saves: 0, posts: 0 };
     const views = row._sum.viewsCount ?? 0;
     const likes = row._sum.likesCount ?? 0;
     const comments = row._sum.commentsCount ?? 0;
@@ -271,7 +266,6 @@ export async function GET(req: NextRequest) {
     t.shares += shares;
     t.saves += saves;
     t.posts += row._count._all;
-    t.emvInputs.push({ platform: row.platform, views, likes, comments, shares, saves });
     totals.set(row.creatorId, t);
   }
 
@@ -319,7 +313,6 @@ export async function GET(req: NextRequest) {
       posts: t.posts,
       engagements: measuredByCreator.get(creatorId)?.engagements ?? 0,
       engagementRate: measuredByCreator.get(creatorId)?.rate ?? 0,
-      emv: computeCampaignEmv(t.emvInputs),
     };
   });
 

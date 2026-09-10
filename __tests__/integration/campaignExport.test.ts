@@ -9,8 +9,6 @@
  *    the union of activation and post creators;
  *  - raw counters were emitted for posts nobody ever fetched;
  *  - the Creators sheet rated every post, measured or not.
- *
- * And EMV is a USD figure whatever the campaign's currency is.
  */
 import { NextRequest } from 'next/server';
 import { GET } from '@/app/api/campaigns/[id]/export/route';
@@ -20,7 +18,6 @@ jest.mock('@/lib/db', () => ({
     campaign: { findFirst: jest.fn() },
     post: { findMany: jest.fn() },
     activation: { findMany: jest.fn() },
-    organization: { findUnique: jest.fn() },
   },
 }));
 // @react-pdf/renderer ships ESM this config cannot parse, and the CSV path
@@ -71,7 +68,7 @@ const measuredPost = (over: Record<string, unknown> = {}) => ({
 
 const performance = (over: Record<string, unknown> = {}) => ({
   currency: 'USD',
-  kpis: { views: 1000, engagements: 43, engagementRate: 0.043, emv: 61.5 },
+  kpis: { views: 1000, engagements: 43, engagementRate: 0.043 },
   platformSplit: [{ platform: 'TIKTOK', posts: 1, views: 1000 }],
   ...over,
 });
@@ -92,9 +89,6 @@ beforeEach(() => {
   mockPerformance.mockResolvedValue(performance());
   mockDb.post.findMany.mockResolvedValue([measuredPost()]);
   mockDb.activation.findMany.mockResolvedValue([]);
-  // No metrics key at all -- the shape every workspace has until it opens
-  // Settings -> Metrics, and the one that must keep showing EMV.
-  mockDb.organization.findUnique.mockResolvedValue({ uiConfig: null });
 });
 
 it('returns 401 without a session', async () => {
@@ -153,46 +147,21 @@ it('rates a creator over measured posts only', async () => {
 
   const row = section(await (await call()).text(), 'Creators').trim().split('\n')[1];
   // 43 engagements over the 1,000 measured views = 4.30%, not 43/10,000 = 0.43%.
-  expect(row).toContain(',4.3,');
-  expect(row).not.toContain(',0.43,');
+  // Engagement Rate % is the last column now that EMV is gone, so it ends the row.
+  expect(row).toMatch(/,4\.3$/);
+  expect(row).not.toMatch(/,0\.43$/);
 });
 
-it('labels EMV as USD when the campaign is not', async () => {
+/* EMV was removed from the product. The export is the one artifact that leaves
+   the building, so it is the one worth pinning: no label, no column, no
+   modelled figure, whatever the campaign's currency. */
+it('carries no EMV anywhere in the export', async () => {
   mockPerformance.mockResolvedValue(performance({ currency: 'INR' }));
 
   const csv = await (await call()).text();
 
-  expect(csv).toContain('EMV (USD)');
-  expect(section(csv, 'Summary')).toContain('EMV (USD),61.5');
-});
-
-it('keeps the plain EMV label for a USD campaign', async () => {
-  const csv = await (await call()).text();
-  expect(csv).not.toContain('EMV (USD)');
-  expect(section(csv, 'Summary')).toContain('EMV,61.5');
-});
-
-/* Settings -> Metrics turns EMV off for the whole workspace. The export button
-   is part of that workspace: leaving the column here would hand a client the
-   exact modelled figure the org chose not to publish, in the one artifact that
-   leaves the building. */
-it('drops the EMV column when the workspace turned EMV off', async () => {
-  mockDb.organization.findUnique.mockResolvedValue({
-    uiConfig: { metrics: { showEmv: false } },
-  });
-
-  const csv = await (await call()).text();
-
   expect(csv).not.toContain('EMV');
-  // The rest of the export is untouched -- this hides one column, not the sheet.
+  // The rest of the export is untouched -- this removed one column, not a sheet.
   expect(section(csv, 'Summary')).toContain('Views,');
   expect(section(csv, 'Creators')).toContain('Engagement Rate %');
-});
-
-it('still exports EMV for a workspace that never opened the setting', async () => {
-  mockDb.organization.findUnique.mockResolvedValue({ uiConfig: { nav: ['campaigns'] } });
-
-  const csv = await (await call()).text();
-
-  expect(section(csv, 'Summary')).toContain('EMV,61.5');
 });

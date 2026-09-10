@@ -249,11 +249,6 @@ export const METRIC_DEFINITIONS = {
     what: "What you paid per thousand views, and per single engagement. Lower is better on both.",
     how: "Spend divided by views times 1,000, and spend divided by engagements.",
   },
-  emv: {
-    label: "EMV",
-    what: "Earned media value — a rough estimate of what this reach would have cost you as paid advertising. Useful for a headline number, not for accounting.",
-    how: "Applies a standard rate card to the views and engagements recorded.",
-  },
   clientsTotal: {
     label: "Total clients",
     what: "How many brands or companies you are running campaigns for.",

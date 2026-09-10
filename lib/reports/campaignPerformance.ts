@@ -1,7 +1,6 @@
 import { unstable_cache } from "next/cache";
 import { db } from "@/lib/db";
 import {
-  computeCampaignEmv,
   computeEngagementRate,
   sumEngagements,
 } from "@/lib/metrics";
@@ -47,7 +46,6 @@ export type CampaignPerformance = {
     /** null when no post in the campaign has had its engagement fetched. */
     engagements: number | null;
     engagementRate: number | null;
-    emv: number;
     /**
      * The per-counter totals CreatorCore's client report breaks out, rather than
      * only the combined engagement figure. Each is null when no post on the
@@ -96,7 +94,6 @@ export type CampaignPerformance = {
     views: number;
     engagements: number | null;
     engagementRate: number | null;
-    emv: number;
     /**
      * The creator's activation status on this campaign, or null when they have
      * no activation row — which is the case for every imported campaign, since
@@ -192,17 +189,15 @@ export type CampaignAudio = {
 /**
  * What a public share link is allowed to carry.
  *
- * Distinct from CampaignPerformance because hiding a field in the component is
- * not hiding it at all: a client component's props are serialized into the RSC
- * payload, so a leaderboard that renders conditionally still ships every
- * creator's name to anyone who reads the HTML. The money fields become nullable
- * so a withheld value is absent rather than zero — a zero here would be
- * indistinguishable from a campaign that genuinely earned nothing.
+ * Structurally the same shape as CampaignPerformance — every field a link can
+ * withhold is already nullable, and a hidden leaderboard is an empty array. The
+ * name is kept because hiding a field in the component is not hiding it at all:
+ * a client component's props are serialized into the RSC payload, so a
+ * leaderboard that renders conditionally still ships every creator's name to
+ * anyone who reads the HTML. Only what redactForShare returns may reach a
+ * public page.
  */
-export type SharedReportData = Omit<CampaignPerformance, "kpis" | "leaderboard"> & {
-  kpis: Omit<CampaignPerformance["kpis"], "emv"> & { emv: number | null };
-  leaderboard: (Omit<CampaignPerformance["leaderboard"][number], "emv"> & { emv: number | null })[];
-};
+export type SharedReportData = CampaignPerformance;
 
 /**
  * Strips everything the link may not show, on the server, before the data can
@@ -214,7 +209,6 @@ export function redactForShare(
   data: CampaignPerformance,
   visibility: {
     showCreators: boolean;
-    showEmv: boolean;
     showStatuses?: boolean;
     markRemovedPosts?: boolean;
   }
@@ -223,7 +217,6 @@ export function redactForShare(
     ...data,
     kpis: {
       ...data.kpis,
-      emv: visibility.showEmv ? data.kpis.emv : null,
       // "35 posts, 30 live" tells the brand five posts are gone as plainly as a
       // badge would. The tile only exists when the link chooses to flag removals.
       livePosts: visibility.markRemovedPosts === true ? data.kpis.livePosts : null,
@@ -231,7 +224,6 @@ export function redactForShare(
     leaderboard: visibility.showCreators
       ? data.leaderboard.map((row) => ({
           ...row,
-          emv: visibility.showEmv ? row.emv : null,
           status: visibility.showStatuses ? row.status : null,
         }))
       : [],
@@ -484,16 +476,6 @@ async function computeCampaignPerformanceUncached(
      tab now read the same function, so the three screens can no longer print
      three different engagement rates for one campaign. */
   const { engagements, rate: engagementRate } = rollupEngagement(posts);
-  const emv = computeCampaignEmv(
-    posts.map((p) => ({
-      platform: p.platform,
-      views: p.viewsCount,
-      likes: p.likesCount,
-      comments: p.commentsCount,
-      shares: p.sharesCount,
-      saves: p.savesCount,
-    }))
-  );
 
   /* Each counter carries its own provenance. Summing a column across posts that
      never had it fetched would report a measured zero, and these are exactly the
@@ -531,7 +513,6 @@ async function computeCampaignPerformanceUncached(
     views,
     engagements,
     engagementRate,
-    emv,
     posts: posts.length,
     livePosts,
     likes: totalOf("likes", (p) => p.likesCount),
@@ -612,16 +593,6 @@ async function computeCampaignPerformanceUncached(
         views: creatorPosts.reduce((s, p) => s + (p.viewsCount ?? 0), 0),
         engagements: creatorEngagements,
         engagementRate: rate,
-        emv: computeCampaignEmv(
-          creatorPosts.map((p) => ({
-            platform: p.platform,
-            views: p.viewsCount,
-            likes: p.likesCount,
-            comments: p.commentsCount,
-            shares: p.sharesCount,
-            saves: p.savesCount,
-          }))
-        ),
         status: statusByCreator.get(creator.id) ?? null,
       };
     })

@@ -1,14 +1,13 @@
 "use client";
 
 import React from "react";
-import { useTenant } from "@/components/providers/TenantProvider";
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Card, Badge, Skeleton, Tag, EmptyState } from "@pratham7711/ui";
 import { PAGE_TITLE_STYLE, Button } from "@/components/ds";
-import { ArrowLeft, ExternalLink, RefreshCw, Eye, Heart, MessageCircle, Share2, Download, Bookmark, DollarSign, TrendingUp, Flag, Lock, Activity, ShieldAlert, Shield, Play } from "lucide-react";
+import { ArrowLeft, ExternalLink, RefreshCw, Eye, Heart, MessageCircle, Share2, Download, Bookmark, TrendingUp, Flag, Lock, Activity, ShieldAlert, Shield, Play } from "lucide-react";
 import dynamic from "next/dynamic";
-import { computePostEmv, computeEngagementRate } from "@/lib/metrics";
+import { computeEngagementRate } from "@/lib/metrics";
 import { metricValue } from "@/lib/metricDisplay";
 import { isPostRemoved, removedNote } from "@/lib/postRemoval";
 import RemovedPostOverlay from "@/components/posts/RemovedPostOverlay";
@@ -153,10 +152,6 @@ function formatNumber(num: number): string {
   return formatFull(num);
 }
 
-function formatMoney(num: number): string {
-  return "$" + num.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
 const BASE_METRIC_CARDS = [
   { key: "viewsCount", label: "Views", icon: Eye, color: "#5B5BD6" },
   { key: "likesCount", label: "Likes", icon: Heart, color: "#EC4899" },
@@ -165,9 +160,6 @@ const BASE_METRIC_CARDS = [
 ] as const;
 
 export default function PostDetailPage() {
-  /* Settings -> Organization -> "Show EMV", seeded server-side by the layout. */
-  const { showEmv: showEmvPref } = useTenant();
-  const showEmv = showEmvPref !== false;
   const params = useParams<{ id: string; postId: string }>();
   const router = useRouter();
   const [post, setPost] = useState<PostDetail | null>(null);
@@ -348,15 +340,6 @@ export default function PostDetailPage() {
           shares: post.sharesCount,
           saves: post.savesCount,
         });
-  const emv = computePostEmv({
-    platform: post.platform,
-    views: post.viewsCount,
-    likes: post.likesCount,
-    comments: post.commentsCount,
-    shares: post.sharesCount,
-    saves: post.savesCount,
-  });
-
   const allMetricCards = [...BASE_METRIC_CARDS] as { key: string; label: string; icon: typeof Eye; color: string }[];
   if (post.platform === "INSTAGRAM") {
     allMetricCards.push({ key: "savesCount", label: "Saves", icon: Bookmark, color: "#8B5CF6" });
@@ -498,15 +481,6 @@ export default function PostDetailPage() {
             <span style={{ fontSize: 24, fontWeight: 700, color: "var(--cc-primary)" }}>
               {`${(engRate * 100).toFixed(2)}%`}
             </span>
-          </Card>
-        )}
-        {showEmv && (
-          <Card variant="outlined" style={{ padding: "16px 20px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-              <DollarSign size={16} color="#059669" />
-              <span style={{ fontSize: 12, color: "var(--cc-text-muted)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em" }}>EMV</span>
-            </div>
-            <FigureValue text={formatMoney(emv)} />
           </Card>
         )}
       </div>

@@ -1,10 +1,9 @@
 "use client";
 import React from "react";
-import { useTenant } from "@/components/providers/TenantProvider";
 import Link from "next/link";
 import { Card, Avatar, EmptyState } from "@pratham7711/ui";
 import { User } from "lucide-react";
-import { formatNumber, formatCurrency, formatPercent } from "./shared";
+import { formatNumber, formatPercent } from "./shared";
 import { stripAt } from "@/lib/format";
 
 export type LeaderboardCreator = {
@@ -21,15 +20,9 @@ export type LeaderboardCreator = {
   earnings: number;
   engagements: number;
   engagementRate: number;
-  emv: number;
 };
 
 export default function CreatorLeaderboard({ creators }: { creators: LeaderboardCreator[] }) {
-  /* Settings -> Organization -> "Show EMV". Seeded server-side by the
-     dashboard layout, so a workspace with EMV off never paints it. */
-  const { showEmv: showEmvPref } = useTenant();
-  const showEmv = showEmvPref !== false;
-
   return (
     <Card variant="solid" noPadding>
       <div style={{ padding: "16px 24px", borderBottom: "1px solid var(--cc-border)" }}>
@@ -45,13 +38,13 @@ export default function CreatorLeaderboard({ creators }: { creators: Leaderboard
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "28px 1fr 64px 84px 72px 96px",
+              gridTemplateColumns: "28px 1fr 64px 84px 72px",
               gap: 12,
               padding: "10px 24px",
               borderBottom: "1px solid var(--cc-border)",
             }}
           >
-            {["", "Creator", "Camps", "Views", "Eng.", ...(showEmv ? ["EMV"] : [])].map((h, i) => (
+            {["", "Creator", "Camps", "Views", "Eng."].map((h, i) => (
               <span
                 key={i}
                 style={{
@@ -73,7 +66,7 @@ export default function CreatorLeaderboard({ creators }: { creators: Leaderboard
               href={`/creators/${creator.id}`}
               style={{
                 display: "grid",
-                gridTemplateColumns: "28px 1fr 64px 84px 72px 96px",
+                gridTemplateColumns: "28px 1fr 64px 84px 72px",
                 gap: 12,
                 padding: "12px 24px",
                 alignItems: "center",
@@ -95,7 +88,6 @@ export default function CreatorLeaderboard({ creators }: { creators: Leaderboard
               <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)", textAlign: "right" }}>{creator.campaigns}</span>
               <span style={{ fontSize: 13, fontWeight: 700, color: "var(--cc-text)", textAlign: "right" }}>{formatNumber(creator.views)}</span>
               <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)", textAlign: "right" }}>{formatPercent(creator.engagementRate)}</span>
-              {showEmv && <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)", textAlign: "right" }}>{formatCurrency(creator.emv)}</span>}
             </Link>
           ))}
           </div>

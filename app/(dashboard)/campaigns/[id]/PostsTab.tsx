@@ -2,14 +2,13 @@
 
 import React from "react";
 import Link from "next/link";
-import { useTenant } from "@/components/providers/TenantProvider";
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { Card, Badge, Input, Modal, EmptyState, Skeleton, Avatar } from "@pratham7711/ui";
 import { Dropdown, StatusTabs, Pagination, Button } from "@/components/ds";
 import { Grid3X3, List, Plus, Check, X, Eye, Heart, MessageCircle, TrendingUp, BarChart3, ArrowUp, ArrowDown, ArrowUpDown, Flag, Video, AlertTriangle, RefreshCw, Image as ImageIcon, Share2, Bookmark } from "lucide-react";
 import { CreatorSelect } from "@/components/CreatorSelect";
-import { computePostEmv, computeEngagementRate } from "@/lib/metrics";
-import { stripAt, formatDateAbs, timeAgo, formatFull, formatFullCurrency } from "@/lib/format";
+import { computeEngagementRate } from "@/lib/metrics";
+import { stripAt, formatDateAbs, timeAgo, formatFull } from "@/lib/format";
 import type { ComplianceFlag } from "@/lib/compliance/postCompliance";
 import PostMedia from "@/components/PostMedia";
 import { imgSrc } from "@/lib/postMedia";
@@ -128,16 +127,11 @@ type SortKey =
   | "saves"
   | "downloads"
   | "engRate"
-  | "emv"
   | "delta";
 type SortDir = "asc" | "desc";
 
 function formatNumber(num: number): string {
   return formatFull(num);
-}
-
-function formatMoney(num: number): string {
-  return formatFullCurrency(num);
 }
 
 // Never-synced is a fact worth stating; timeAgo's "Recently" fallback would
@@ -155,21 +149,6 @@ function engRatePct(post: PostData): number | null {
     saves: post.savesCount,
   });
   return r === null ? null : r * 100;
-}
-
-function postEmv(post: PostData): number | null {
-  // EMV is a function of the counters, so it inherits their provenance. With
-  // nothing measured it is not $0, it is unknown -- and $0 next to a real
-  // creator reads as "this post earned nothing", which is a claim.
-  if (metricValue(post.viewsCount, post.lastSyncedAt) === null) return null;
-  return computePostEmv({
-    platform: post.platform,
-    views: post.viewsCount,
-    likes: post.likesCount,
-    comments: post.commentsCount,
-    shares: post.sharesCount,
-    saves: post.savesCount,
-  });
 }
 
 function deltaViews(post: PostData): number | null {
@@ -194,7 +173,6 @@ const COL_WIDTHS = {
   saves: "78px",
   downloads: "96px",
   engRate: "84px",
-  emv: "88px",
   delta: "148px",
   status: "136px", // "PENDING REVIEW" is ~130px at this type size; 104 ran into Last synced
   lastSynced: "140px",
@@ -258,12 +236,6 @@ export default function PostsTab({
   /** Refreshing the posts moves the campaign's own totals, so the page reloads them too. */
   onRefreshed?: () => void;
 }) {
-  /* Settings -> Organization -> "Show EMV". Seeded server-side by the dashboard
-     layout, so a workspace with EMV off never paints the column. It drops out
-     of the grid template, the sort keys and the CSV alike -- a hidden column
-     that still exports is not hidden. */
-  const { showEmv: showEmvPref } = useTenant();
-  const showEmv = showEmvPref !== false;
   const [posts, setPosts] = useState<PostData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -622,7 +594,6 @@ export default function PostsTab({
         case "saves": return p.savesCount;
         case "downloads": return p.downloadsCount;
         case "engRate": return engRatePct(p) ?? -1;
-        case "emv": return postEmv(p) ?? 0;   // unknown sorts to the bottom
         case "delta": return deltaViews(p) ?? Number.NEGATIVE_INFINITY;
         default: return 0;
       }
@@ -680,13 +651,12 @@ export default function PostsTab({
         ...(anySaves ? (["saves"] as const) : []),
         ...(anyDownloads ? (["downloads"] as const) : []),
         ...(anyEngRate ? (["engRate"] as const) : []),
-        ...(showEmv ? (["emv"] as const) : []),
         ...(anyDelta ? (["delta"] as const) : []),
         "status",
         "lastSynced",
         "actions",
       ] as const,
-    [anyLikes, anyComments, anyShares, anySaves, anyDownloads, anyEngRate, anyDelta, showEmv]
+    [anyLikes, anyComments, anyShares, anySaves, anyDownloads, anyEngRate, anyDelta]
   );
   const listGrid = useMemo(() => gridTemplate(listCols), [listCols]);
 
@@ -766,10 +736,9 @@ export default function PostsTab({
     if (anySaves) fields.push({ key: "saves", label: "Saves" });
     if (anyDownloads) fields.push({ key: "downloads", label: "Downloads" });
     if (anyEngRate) fields.push({ key: "engRate", label: "Eng %" });
-    if (showEmv) fields.push({ key: "emv", label: "EMV" });
     if (anyDelta) fields.push({ key: "delta", label: "\u0394 Views" });
     return fields;
-  }, [anyLikes, anyComments, anyShares, anySaves, anyDownloads, anyEngRate, anyDelta, showEmv]);
+  }, [anyLikes, anyComments, anyShares, anySaves, anyDownloads, anyEngRate, anyDelta]);
 
   /* A refresh can fill in a counter nobody had, and in principle take one away.
      Sorting by a column that is no longer offered would leave the control
@@ -1121,7 +1090,6 @@ export default function PostsTab({
               {anySaves && <SortHeader label="Saves" sk="saves" align="right" />}
               {anyDownloads && <SortHeader label="Downloads" sk="downloads" align="right" />}
               {anyEngRate && <SortHeader label="Eng %" sk="engRate" align="right" />}
-              {showEmv && <SortHeader label="EMV" sk="emv" align="right" />}
               {anyDelta && <SortHeader label="Δ Views" sk="delta" align="right" />}
               <PlainHeader label="Status" />
               <PlainHeader label="Last Synced" />
@@ -1129,7 +1097,6 @@ export default function PostsTab({
             </div>
             {pageRows.map((post, i) => {
               const er = engRatePct(post);
-              const emv = postEmv(post);
               const dv = deltaViews(post);
               // A 0 we never fetched is unknown, not zero -- see lib/metricDisplay.
               const views = metricValue(post.viewsCount, post.lastSyncedAt);
@@ -1167,7 +1134,7 @@ export default function PostsTab({
                         post means "let me see the post"; the thumbnail beside this
                         already behaved that way (PostMedia opens postUrl), so the two
                         halves of one row used to go to two different places. The
-                        detail page — tracking, EMV, bot signals — is still reached
+                        detail page — tracking and bot signals — is still reached
                         from the Performance tab's post table. */}
                     <a href={post.postUrl} target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", minWidth: 0 }}>
                       <Avatar
@@ -1216,11 +1183,6 @@ export default function PostsTab({
                       {erShown === null ? "" : `${erShown.toFixed(1)}%`}
                     </span>
                   )}
-                  {showEmv && (
-                    <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)", textAlign: "right" }}>
-                      {emv === null ? "" : formatMoney(emv)}
-                    </span>
-                  )}
                   {anyDelta && (
                     <span style={{ fontSize: 13, fontWeight: 600, textAlign: "right", color: dv === null ? "var(--cc-text-subtle)" : dv >= 0 ? "var(--cc-success)" : "var(--cc-danger)" }}>
                       {dv === null ? "" : `${dv >= 0 ? "+" : ""}${formatNumber(dv)}`}
@@ -1251,7 +1213,7 @@ export default function PostsTab({
                   <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{formatSince(post.lastSyncedAt)}</span>
                   <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
                     {/* The only way into our own post page now that the row itself
-                        goes out to the platform. Tracking, EMV and bot signals live
+                        goes out to the platform. Tracking and bot signals live
                         there and nothing else in a campaign links to it. */}
                     <Link href={`/campaigns/${campaignId}/posts/${post.id}`} aria-label="View post analytics" title="View post analytics" style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid var(--cc-border)", background: "var(--cc-card)", color: "var(--cc-text-muted)", fontSize: 12, display: "flex", alignItems: "center", gap: 2, textDecoration: "none" }}>
                       <BarChart3 size={12} />
@@ -1293,7 +1255,6 @@ export default function PostsTab({
         <>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 18 }}>
             {pageRows.map((post) => {
-              const emv = postEmv(post);
               const cardViews = metricValue(post.viewsCount, post.lastSyncedAt);
               const cardLikes = fieldMetricValue(post.likesCount, post.lastSyncedAt, post.platformMetrics, "likes");
               const cardComments = fieldMetricValue(post.commentsCount, post.lastSyncedAt, post.platformMetrics, "comments");
@@ -1408,15 +1369,10 @@ export default function PostsTab({
                           long form plus a "3 months ago" overflows a 240px card. */}
                       <span>Updated {formatSince(post.lastSyncedAt)}</span>
                     </div>
-                    {showEmv && (
-                      <div style={{ marginTop: 4, fontSize: 10.5, color: "rgba(255,255,255,0.78)" }}>
-                        EMV {emv === null ? "\u2014" : formatMoney(emv)}
-                      </div>
-                    )}
                   </div>
                 </a>
-                {/* Sits over the tile's solid footer, to the right of the EMV
-                    line, rather than inside the anchor -- an <a> cannot nest. */}
+                {/* Sits over the tile's solid footer rather than inside the
+                    anchor -- an <a> cannot nest. */}
                 <Link href={`/campaigns/${campaignId}/posts/${post.id}`} aria-label="View post analytics" title="View post analytics" style={{ position: "absolute", right: 12, bottom: 10, display: "flex", alignItems: "center", color: "rgba(255,255,255,0.78)", textDecoration: "none" }}>
                   <BarChart3 size={14} />
                 </Link>

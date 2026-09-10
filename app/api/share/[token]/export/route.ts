@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { applyOrgMetricPolicy, parseShareVisibility } from "@/lib/reports/shareVisibility";
-import { emvEnabledFromRaw } from "@/lib/orgMetrics";
+import { parseShareVisibility } from "@/lib/reports/shareVisibility";
 import { rateLimit } from "@/lib/rateLimit";
 import { getRequestIp } from "@/lib/request";
 import { fieldMetricValue, unwrittenMetricValue } from "@/lib/metricDisplay";
@@ -22,7 +21,7 @@ import { csvCell } from "@/lib/csv";
  *
  *  - the same token lookup, the same kind check, the same revoked handling;
  *  - the same visibility flags, so a link that hides creators exports no creator
- *    names and a link that hides EMV exports no EMV column;
+ *    names;
  *  - the same provenance rule, so a counter no post has measured comes out as an
  *    empty cell rather than a zero a brand would read as a measurement.
  */
@@ -68,14 +67,7 @@ export async function GET(
     return NextResponse.json({ error: "This link is no longer available" }, { status: 404 });
   }
 
-  const orgForPolicy = await db.organization.findUnique({
-    where: { id: link.campaign.orgId },
-    select: { uiConfig: true },
-  });
-  const visibility = applyOrgMetricPolicy(
-    parseShareVisibility(link.config),
-    emvEnabledFromRaw(orgForPolicy?.uiConfig),
-  );
+  const visibility = parseShareVisibility(link.config);
 
   const posts = await db.post.findMany({
     where: {

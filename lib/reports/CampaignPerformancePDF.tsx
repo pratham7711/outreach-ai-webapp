@@ -4,7 +4,6 @@ import { DEFAULT_SHARE_VISIBILITY, type ShareVisibility } from "@/lib/reports/sh
 import { formatFull } from "@/lib/format";
 import { ACTIVATION_STATUS_LABEL } from "@/lib/activationQueues";
 import { POWERED_BY } from "@/lib/brand";
-import { EMV_CURRENCY, emvLabel } from "@/lib/metrics/emv";
 
 const styles = StyleSheet.create({
   page: {
@@ -170,7 +169,6 @@ export function CampaignPerformancePDF({
   const showPostCreators = visibility.showCreators && posts.some((p) => p.creator !== null);
   const postRows = posts.slice(0, MAX_POST_ROWS);
   const hiddenPosts = posts.length - postRows.length;
-  const showEmvColumn = leaderboard.some((r) => r.emv !== null);
   // Matches the web report: dropped entirely when nobody on it has a status.
   const showStatusColumn = leaderboard.some((r) => r.status !== null);
 
@@ -186,9 +184,6 @@ export function CampaignPerformancePDF({
       : null,
     // The web report leads with this tile; the PDF simply did not have it.
     { label: "Total Posts", value: fmtNumber(kpis.posts) },
-    kpis.emv !== null
-      ? { label: emvLabel(currency), value: fmtCurrency(kpis.emv, EMV_CURRENCY) }
-      : null,
     budget !== null ? { label: "Total Budget", value: fmtCurrency(budget, currency) } : null,
   ].filter((cell): cell is { label: string; value: string } => cell !== null);
 
@@ -241,9 +236,6 @@ export function CampaignPerformancePDF({
                 <Text style={[styles.tableHeaderCell, { flex: 1 }]}>Posts</Text>
                 <Text style={[styles.tableHeaderCell, { flex: 1 }]}>Views</Text>
                 <Text style={[styles.tableHeaderCell, { flex: 1 }]}>Eng.</Text>
-                {showEmvColumn && (
-                  <Text style={[styles.tableHeaderCell, { flex: 1 }]}>{emvLabel(currency)}</Text>
-                )}
                 {showStatusColumn && <Text style={[styles.tableHeaderCell, { flex: 1.4 }]}>Status</Text>}
               </View>
               {leaderboard.map((row) => (
@@ -254,9 +246,6 @@ export function CampaignPerformancePDF({
                   <Text style={[styles.tableCell, { flex: 1 }]}>
                     {row.engagementRate !== null ? (row.engagementRate * 100).toFixed(1) + "%" : "—"}
                   </Text>
-                  {row.emv !== null && (
-                    <Text style={[styles.tableCell, { flex: 1 }]}>{fmtCurrency(row.emv, EMV_CURRENCY)}</Text>
-                  )}
                   {showStatusColumn && (
                     <Text style={[styles.tableCell, { flex: 1.4 }]}>
                       {row.status ? ACTIVATION_STATUS_LABEL[row.status] ?? row.status : ""}

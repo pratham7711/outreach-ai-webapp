@@ -37,8 +37,6 @@ export type ShareVisibility = {
   platforms: SharePlatform[];
   /** The per-creator leaderboard. CreatorCore calls this "Hide All Creators". */
   showCreators: boolean;
-  /** Earned media value, both the KPI tile and the leaderboard column. */
-  showEmv: boolean;
   /** The campaign's total budget as a tile. */
   showBudget: boolean;
   /**
@@ -73,7 +71,6 @@ export type ShareVisibility = {
 export const DEFAULT_SHARE_VISIBILITY: ShareVisibility = {
   platforms: [],
   showCreators: true,
-  showEmv: true,
   showBudget: false,
   showStatuses: false,
   markRemovedPosts: false,
@@ -100,7 +97,6 @@ export function parseShareVisibility(raw: unknown): ShareVisibility {
   return {
     platforms: Array.isArray(o.platforms) ? o.platforms.filter(isSharePlatform) : [],
     showCreators: o.showCreators === true,
-    showEmv: o.showEmv === true,
     showBudget: o.showBudget === true,
     showStatuses: o.showStatuses === true,
     markRemovedPosts: o.markRemovedPosts === true,
@@ -117,25 +113,8 @@ export function sanitizeShareVisibility(raw: unknown): ShareVisibility {
   return {
     platforms: Array.isArray(o.platforms) ? [...new Set(o.platforms.filter(isSharePlatform))] : [],
     showCreators: o.showCreators !== false,
-    showEmv: o.showEmv !== false,
     showBudget: o.showBudget === true,
     showStatuses: o.showStatuses === true,
     markRemovedPosts: o.markRemovedPosts === true,
   };
-}
-
-/**
- * The org-wide "Show EMV" setting overrides whatever a share link stored.
- *
- * A link created while EMV was on keeps `showEmv: true` in Report.config
- * forever. Switching the workspace setting off has to close those too, or
- * "remove EMV from the UI" leaves it visible on exactly the surface the org
- * does not control — a public URL already in a client's inbox. The override
- * only ever removes, never adds.
- */
-export function applyOrgMetricPolicy(
-  visibility: ShareVisibility,
-  orgShowsEmv: boolean,
-): ShareVisibility {
-  return orgShowsEmv ? visibility : { ...visibility, showEmv: false };
 }

@@ -31,31 +31,29 @@ describe("parseShareVisibility", () => {
     // The whole point: "yes" and 1 are truthy in JS, and a === check is the
     // only thing standing between a typo and a published budget.
     const v = parseShareVisibility({
-      visibility: { showBudget: "yes", showEmv: 1, showCreators: "true" },
+      visibility: { showBudget: "yes", showCreators: "true" },
     });
     expect(v.showBudget).toBe(false);
-    expect(v.showEmv).toBe(false);
     expect(v.showCreators).toBe(false);
   });
 
   it("closes a field that is present-but-missing rather than opening it", () => {
-    // sanitize always writes all four fields, so an absent one means the stored
+    // sanitize always writes every field, so an absent one means the stored
     // object is malformed. Closed is the only safe reading.
     const v = parseShareVisibility({ visibility: { platforms: ["TIKTOK"] } });
     expect(v.showCreators).toBe(false);
-    expect(v.showEmv).toBe(false);
     expect(v.showBudget).toBe(false);
   });
 
   it("keeps only recognised platforms and drops the rest", () => {
     const v = parseShareVisibility({
-      visibility: { platforms: ["TIKTOK", "MYSPACE", 7, null, "YOUTUBE"], showCreators: true, showEmv: true, showBudget: false },
+      visibility: { platforms: ["TIKTOK", "MYSPACE", 7, null, "YOUTUBE"], showCreators: true, showBudget: false },
     });
     expect(v.platforms).toEqual(["TIKTOK", "YOUTUBE"]);
   });
 
   it("reads a non-array platforms value as no restriction, not as a crash", () => {
-    const v = parseShareVisibility({ visibility: { platforms: "TIKTOK", showCreators: true, showEmv: true, showBudget: true } });
+    const v = parseShareVisibility({ visibility: { platforms: "TIKTOK", showCreators: true, showBudget: true } });
     expect(v.platforms).toEqual([]);
   });
 
@@ -63,7 +61,6 @@ describe("parseShareVisibility", () => {
     const stored = sanitizeShareVisibility({
       platforms: ["INSTAGRAM"],
       showCreators: false,
-      showEmv: false,
       showBudget: true,
     });
     expect(parseShareVisibility({ kind: "campaign-performance", visibility: stored })).toEqual(stored);
@@ -71,13 +68,12 @@ describe("parseShareVisibility", () => {
 });
 
 describe("sanitizeShareVisibility", () => {
-  it("defaults the two disclosure switches the safe way round", () => {
-    // Omitted showCreators/showEmv keep the report useful (opt-out), while
+  it("defaults the disclosure switches the safe way round", () => {
+    // An omitted showCreators keeps the report useful (opt-out), while an
     // omitted showBudget stays off (opt-in) — budget is the one nobody should
     // publish by forgetting a field.
     const v = sanitizeShareVisibility({});
     expect(v.showCreators).toBe(true);
-    expect(v.showEmv).toBe(true);
     expect(v.showBudget).toBe(false);
     expect(v.platforms).toEqual([]);
   });
@@ -89,7 +85,6 @@ describe("sanitizeShareVisibility", () => {
       "platforms",
       "showBudget",
       "showCreators",
-      "showEmv",
       "showStatuses",
     ]);
   });
@@ -127,7 +122,7 @@ describe("showStatuses", () => {
   });
 
   it("stays off when the client omits it, unlike the fields that default open", () => {
-    // sanitize opens showCreators/showEmv on absence for legacy continuity;
+    // sanitize opens showCreators on absence for legacy continuity;
     // this one has no legacy to preserve, so absence means off.
     const sanitized = sanitizeShareVisibility({});
     expect(sanitized.showStatuses).toBe(false);

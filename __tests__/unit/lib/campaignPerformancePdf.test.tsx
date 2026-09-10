@@ -2,7 +2,7 @@
  * The share PDF's contents.
  *
  * It was a fraction of the web report at the same URL: Views / Engagements /
- * Eng. Rate / EMV / Budget, a platform split, and a ten-row creator
+ * Eng. Rate / Budget, a platform split, and a ten-row creator
  * leaderboard. The web page also leads with Total Posts and lists every post
  * with its own counters, so a brand handed the PDF got a different — smaller —
  * report than a brand handed the link.
@@ -58,7 +58,6 @@ const data = (over: Record<string, unknown> = {}) =>
       views: 22600,
       engagements: 1200,
       engagementRate: 0.05,
-      emv: 250,
       posts: 1,
       livePosts: null,
       likes: 1200,

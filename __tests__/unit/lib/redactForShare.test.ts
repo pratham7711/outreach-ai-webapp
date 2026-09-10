@@ -18,7 +18,6 @@ const row = (over: Partial<Record<string, unknown>> = {}) => ({
   views: 1000,
   engagements: 50,
   engagementRate: 0.05,
-  emv: 250,
   status: "DECLINED" as const,
   ...over,
 });
@@ -45,14 +44,14 @@ const postRow = {
 
 const data = {
   currency: "USD",
-  kpis: { views: 1000, engagements: 50, engagementRate: 0.05, emv: 250 },
+  kpis: { views: 1000, engagements: 50, engagementRate: 0.05 },
   timeSeries: [],
   platformSplit: [],
   leaderboard: [row()],
   posts: [postRow],
 } as never;
 
-const OPEN = { showCreators: true, showEmv: true, showStatuses: true };
+const OPEN = { showCreators: true, showStatuses: true };
 
 describe("redactForShare", () => {
   it("strips the status when the link does not show statuses", () => {
@@ -60,7 +59,6 @@ describe("redactForShare", () => {
     expect(out.leaderboard[0].status).toBeNull();
     // Everything else the link does allow is untouched.
     expect(out.leaderboard[0].name).toBe("Maria Santos");
-    expect(out.leaderboard[0].emv).toBe(250);
   });
 
   it("keeps the status when the link shows statuses", () => {
@@ -70,7 +68,7 @@ describe("redactForShare", () => {
   it("treats an omitted showStatuses as closed", () => {
     // The flag is optional on the parameter type, so an older caller that does
     // not pass it must not leak statuses by default.
-    const out = redactForShare(data, { showCreators: true, showEmv: true });
+    const out = redactForShare(data, { showCreators: true });
     expect(out.leaderboard[0].status).toBeNull();
   });
 
@@ -103,12 +101,6 @@ describe("redactForShare", () => {
     expect(out.posts[0].creator?.handle).toBe("mariasantos");
     expect(out.posts[0].thumbnailUrl).toContain("tiktokcdn");
   });
-
-  it("nulls money rather than zeroing it, so withheld is not mistaken for none", () => {
-    const out = redactForShare(data, { ...OPEN, showEmv: false });
-    expect(out.kpis.emv).toBeNull();
-    expect(out.leaderboard[0].emv).toBeNull();
-  });
 });
 
 describe("redactForShare — removed posts", () => {
@@ -136,7 +128,7 @@ describe("redactForShare — removed posts", () => {
   });
 
   it("treats an omitted markRemovedPosts as closed", () => {
-    const out = redactForShare(data, { showCreators: true, showEmv: true });
+    const out = redactForShare(data, { showCreators: true });
     expect(out.posts[0].removed).toBe(false);
   });
 

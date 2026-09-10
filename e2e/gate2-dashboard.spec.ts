@@ -1,7 +1,7 @@
 import { test, expect, request as playwrightRequest } from '@playwright/test';
 
 test.describe('Gate 2 Dashboard — Performance Tab', () => {
-  test('Performance is default tab with 6 KPI tiles and Views > 0', async ({ page }) => {
+  test('Performance is default tab with KPI tiles and Views > 0', async ({ page }) => {
     await page.goto('/campaigns/camp-1');
     await page.waitForLoadState('networkidle');
 
@@ -21,7 +21,8 @@ test.describe('Gate 2 Dashboard — Performance Tab', () => {
     const engText = page.getByText('Engagements').first();
     await expect(engText).toBeVisible({ timeout: 15000 });
     await expect(page.getByText('Eng. Rate').first()).toBeVisible({ timeout: 15000 });
-    await expect(page.getByText('EMV').first()).toBeVisible({ timeout: 15000 });
+    // EMV was removed from the product; no surface may print it again.
+    await expect(page.getByText('EMV')).toHaveCount(0);
 
     const viewsCard = page.locator('div').filter({ hasText: /^Views$/ }).first();
     const parentCard = viewsCard.locator('..').first();
@@ -108,7 +109,7 @@ test.describe('Gate 2 Dashboard — Performance Tab', () => {
     expect(await rows.count()).toBeGreaterThan(0);
   });
 
-  test('Posts tab: click row navigates to post detail with eng rate and EMV', async ({ page }) => {
+  test('Posts tab: click row navigates to post detail with eng rate and no EMV', async ({ page }) => {
     await page.goto('/campaigns/camp-1');
     await page.waitForLoadState('networkidle');
     await page.getByText('Performance').first().waitFor({ state: 'visible', timeout: 20000 });
@@ -134,7 +135,7 @@ test.describe('Gate 2 Dashboard — Performance Tab', () => {
     await page.waitForLoadState('networkidle');
 
     await expect(page.getByText('Engagement').first()).toBeVisible({ timeout: 15000 });
-    await expect(page.getByText('EMV').first()).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText('EMV')).toHaveCount(0);
   });
 });
 

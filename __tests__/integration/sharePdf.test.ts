@@ -9,7 +9,7 @@
 import { NextRequest } from "next/server";
 
 jest.mock("@/lib/db", () => ({
-  db: { report: { findUnique: jest.fn() }, organization: { findUnique: jest.fn() } },
+  db: { report: { findUnique: jest.fn() } },
 }));
 jest.mock("@/lib/rateLimit", () => ({ rateLimit: jest.fn() }));
 // ESM the runner does not transform, and not what is under test here.
@@ -42,7 +42,6 @@ beforeEach(() => {
     config: { kind: "campaign-performance" },
     campaign: { id: "camp-1", orgId: "org-1", title: "Wherever I go", budget: 100, currency: "USD" },
   });
-  mockDb.organization.findUnique.mockResolvedValue({ uiConfig: null });
 });
 
 it("serves the PDF when the caller is inside the budget", async () => {

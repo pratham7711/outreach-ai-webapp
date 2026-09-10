@@ -8,14 +8,13 @@ import { BarChart3 } from "lucide-react";
 import { ChartFrame } from "@/components/ds";
 import type { SharedReportData } from "@/lib/reports/campaignPerformance";
 import { DEFAULT_SHARE_VISIBILITY, type ShareVisibility } from "@/lib/reports/shareVisibility";
-import { formatFull, formatFullCurrency, formatCompact } from "@/lib/format";
+import { formatFull, formatCompact } from "@/lib/format";
 import { ACTIVATION_STATUS_LABEL, activationStatusBadgeStyle } from "@/lib/activationQueues";
 import { platformColor } from "@/app/(dashboard)/analytics/shared";
 import { BRAND, POWERED_BY } from "@/lib/brand";
 import { AudioCard } from "@/components/campaigns/AudioCard";
 import { shareImgSrc } from "@/lib/postMedia";
 import { campaignStatusLabel } from "@/lib/statusColors";
-import { EMV_CURRENCY, emvLabel } from "@/lib/metrics/emv";
 import SharedPostList from "./SharedPostList";
 
 /**
@@ -45,20 +44,6 @@ function formatExact(num: number): string {
 function formatCurrency(n: number, currency = "USD"): string {
   return new Intl.NumberFormat("en-US", { style: "currency", currency, maximumFractionDigits: 2 }).format(n);
 }
-
-/**
- * Table-width currency. This used to compact per-row money to "$1.1B" because
- * $1,135,602,774.32 ran off the right edge of the card. The figures are now
- * shown in full everywhere, so the fix moved from rounding the number to giving
- * the column room: the EMV track is 132px and the row grid scrolls sideways
- * rather than crushing its neighbours. Cents are dropped (maximumFractionDigits
- * 0), which is what buys most of the width back — the title still carries the
- * exact amount.
- *
- * Intl, not a hand-rolled prefix: the version here symbol-cased USD alone and
- * appended the code for anything else, so a GBP campaign read "1.1B GBP" in the
- * leaderboard while the tile above it read "£1,100,000,000.00".
- */
 
 function formatDate(iso: string): string {
   const d = new Date(iso + "T00:00:00Z");
@@ -155,7 +140,6 @@ export default function SharedPerformanceReport({
   const activeSeries = seriesFor(seriesPlatforms).filter((s) =>
     timeSeries.some((row) => Number(row[s.key] ?? 0) > 0)
   );
-  const showEmvColumn = leaderboard.some((r) => r.emv !== null);
   /* Engagement exists only for posts we fetched ourselves, so the column is
      dropped when no creator in this campaign has one. */
   const anyEngagementMeasured = leaderboard.some((r) => r.engagementRate !== null);
@@ -168,17 +152,16 @@ export default function SharedPerformanceReport({
      took its width out of the name column — which collapsed the names to
      nothing and pushed the header past the card's right edge. */
   const anyStatus = leaderboard.some((r) => r.status !== null);
-  /* Widened for full numbers. The old 80px/82px were sized for "1.4M" and
-     "$1.1B"; "300,500,000" needs ~96px at 13px and "$1,135,602,774" ~124px.
-     The name column keeps its 120px floor and gives up the difference, and the
-     whole grid sits in a horizontally scrollable wrapper so a narrow screen
-     scrolls instead of crushing the columns. */
+  /* Widened for full numbers. The old 80px was sized for "1.4M";
+     "300,500,000" needs ~96px at 13px. The name column keeps its 120px floor
+     and gives up the difference, and the whole grid sits in a horizontally
+     scrollable wrapper so a narrow screen scrolls instead of crushing the
+     columns. */
   const rowCols = [
     "minmax(120px, 1fr)",
     "56px",
     "104px",
     anyEngagementMeasured ? "64px" : null,
-    showEmvColumn ? "132px" : null,
   ]
     .filter(Boolean)
     .join(" ");
@@ -312,9 +295,6 @@ export default function SharedPerformanceReport({
               {kpis.engagementRate !== null && (
                 <StatTile value={`${(kpis.engagementRate * 100).toFixed(2)}%`} label="Eng. Rate" />
               )}
-              {kpis.emv !== null && (
-                <StatTile value={formatCurrency(kpis.emv, EMV_CURRENCY)} label={emvLabel(currency)} />
-              )}
               {budget !== null && (
                 <StatTile value={formatCurrency(budget, currency)} label="Total Budget" />
               )}
@@ -447,7 +427,7 @@ export default function SharedPerformanceReport({
                         display: "grid", gridTemplateColumns: rowCols,
                         gap: 12, padding: "10px 24px", borderBottom: "1px solid var(--cc-border)", background: "var(--cc-bg)",
                       }}>
-                        {["Creator", "Posts", "Views", ...(anyEngagementMeasured ? ["Eng."] : []), ...(showEmvColumn ? [emvLabel(currency)] : [])].map((h) => (
+                        {["Creator", "Posts", "Views", ...(anyEngagementMeasured ? ["Eng."] : [])].map((h) => (
                           <span key={h} style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--cc-text-subtle)" }}>{h}</span>
                         ))}
                       </div>
@@ -507,15 +487,6 @@ export default function SharedPerformanceReport({
                               {row.engagementRate !== null ? `${(row.engagementRate * 100).toFixed(1)}%` : ""}
                             </span>
                           )}
-                          {row.emv !== null && (
-                            <span
-                              title={formatCurrency(row.emv, EMV_CURRENCY)}
-                              style={{ fontSize: 13, fontWeight: 700, color: "var(--cc-primary)", whiteSpace: "nowrap" }}
-                            >
-                              {formatFullCurrency(row.emv, EMV_CURRENCY)}
-                            </span>
-                          )}
-
                         </div>
                       ))}
                     </div>

@@ -1,10 +1,9 @@
 "use client";
 import React, { useState, useEffect, useCallback } from "react";
-import { useTenant } from "@/components/providers/TenantProvider";
 import dynamic from "next/dynamic";
 import { Card, EmptyState, Skeleton } from "@pratham7711/ui";
 import { ArrowUpRight, ArrowDownRight, Folder, TrendingUp, AlertTriangle, TrendingDown } from "lucide-react";
-import { formatNumber, formatCurrency, formatPercent, rangeToFrom, SERIES_COLORS } from "./shared";
+import { formatNumber, formatPercent, rangeToFrom, SERIES_COLORS } from "./shared";
 import { loadCharts } from "@/components/charts/lazyCharts";
 
 const CampaignComparisonLine = dynamic(() => loadCharts().then((m) => m.CampaignComparisonLine), {
@@ -22,10 +21,8 @@ type ComparisonRow = {
   views: number;
   engagements: number;
   engagementRate: number;
-  emv: number;
   viewsVsOrg: OrgDelta;
   engRateVsOrg: OrgDelta;
-  emvVsOrg: OrgDelta;
 };
 
 type ComparisonResponse = {
@@ -62,10 +59,6 @@ export default function CampaignComparison({
   range: string;
   platform: string;
 }) {
-  /* Settings -> Organization -> "Show EMV". Seeded server-side by the
-     dashboard layout, so a workspace with EMV off never paints it. */
-  const { showEmv: showEmvPref } = useTenant();
-  const showEmv = showEmvPref !== false;
   const [selected, setSelected] = useState<string[]>([]);
   const [resp, setResp] = useState<ComparisonResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -180,7 +173,7 @@ export default function CampaignComparison({
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                   <thead>
                     <tr style={{ borderBottom: "1px solid var(--cc-border)" }}>
-                      {["Campaign", "Views", "Engagements", "Eng. Rate", ...(showEmv ? ["EMV"] : [])].map((h, i) => (
+                      {["Campaign", "Views", "Engagements", "Eng. Rate"].map((h, i) => (
                         <th
                           key={h}
                           style={{
@@ -216,12 +209,6 @@ export default function CampaignComparison({
                           <div style={{ fontWeight: 600, color: "var(--cc-text)" }}>{formatPercent(row.engagementRate)}</div>
                           <DeltaBadge pct={row.engRateVsOrg.pct} />
                         </td>
-                        {showEmv && (
-                          <td style={{ padding: "10px 12px", textAlign: "right" }}>
-                            <div style={{ fontWeight: 600, color: "var(--cc-text)" }}>{formatCurrency(row.emv)}</div>
-                            <DeltaBadge pct={row.emvVsOrg.pct} />
-                          </td>
-                        )}
                       </tr>
                     ))}
                   </tbody>
