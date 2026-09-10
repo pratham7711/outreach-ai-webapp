@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { backfillCampaignStatusDefs } from "@/lib/campaigns/backfillStatusDefs";
 
 /**
  * The org-configurable taxonomy behind Settings → General.
@@ -16,7 +17,8 @@ import { db } from "@/lib/db";
  * column stays authoritative for filtering and reporting and the named status
  * hangs off it. Deleting a definition is therefore safe: the foreign keys are
  * ON DELETE SET NULL, so a campaign falls back to its bucket instead of
- * pointing at nothing.
+ * pointing at nothing -- and for campaigns the routes then re-name it from
+ * that bucket, because a campaign is never left without a named status.
  */
 
 /** Minimal shape shared by the six Prisma delegates this route drives. */
@@ -182,6 +184,15 @@ export async function seedReferenceDefaults(kind: TaxonomyKind, orgId: string): 
       data: defaults.map((row) => ({ orgId, ...row })),
       skipDuplicates: true,
     });
+
+    /* Campaigns written before this org had any statuses carry none. The
+       control they render in falls back to the buckets while the list is
+       empty, so they looked right until this moment -- seeding is exactly
+       when they would start showing blank. */
+    if (kind === "campaign-statuses" && (result?.count ?? 0) > 0) {
+      await backfillCampaignStatusDefs(orgId);
+    }
+
     return result?.count ?? 0;
   } catch {
     /* Seeding is a convenience on a read path. If it fails — a race that beat

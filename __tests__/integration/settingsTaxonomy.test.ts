@@ -23,6 +23,8 @@ jest.mock("@/lib/db", () => {
       deliverableTypeDef: delegate(),
       campaignStatusDef: delegate(),
       activationStatusDef: delegate(),
+      // The campaign-status paths re-name campaigns left without one.
+      campaign: { updateMany: jest.fn() },
     },
   };
 });
@@ -89,6 +91,102 @@ beforeEach(() => {
     d.update.mockResolvedValue({ id: "row-1", name: "Renamed" });
     d.delete.mockResolvedValue({});
   }
+  mockDb.campaign.updateMany.mockResolvedValue({ count: 0 });
+});
+
+/* The two ways a campaign loses its named status, neither of which the
+   campaign routes can see: the org acquires its first statuses (every
+   campaign written before that carries none), and a status is deleted, which
+   the ON DELETE SET NULL foreign key applies to every campaign pointing at
+   it. Verified against prod's catalog: Campaign_statusDefId_fkey is SET NULL. */
+describe("campaigns are re-named when the org's status list changes", () => {
+  const DEFS = [
+    { id: "def-pending", name: "Pending", bucket: "PENDING", sortOrder: 0 },
+    { id: "def-active", name: "In-Progress", bucket: "IN_PROGRESS", sortOrder: 1 },
+    { id: "def-paused", name: "Paused", bucket: "CANCELLED", sortOrder: 6 },
+    { id: "def-canceled", name: "Canceled", bucket: "CANCELLED", sortOrder: 7 },
+  ];
+
+  const backfilled = () =>
+    mockDb.campaign.updateMany.mock.calls.map(([args]: any[]) => [
+      args.where.status,
+      args.data.statusDefId,
+    ]);
+
+  it("names the existing campaigns when the starter set is seeded", async () => {
+    mockDb.campaignStatusDef.count.mockResolvedValue(0);
+    mockDb.campaignStatusDef.createMany.mockResolvedValue({ count: 8 });
+    mockDb.campaignStatusDef.findMany.mockResolvedValue(DEFS);
+
+    await GET(req(), kindParams());
+
+    expect(backfilled()).toEqual(
+      expect.arrayContaining([
+        ["PENDING", "def-pending"],
+        ["IN_PROGRESS", "def-active"],
+        ["CANCELLED", "def-canceled"],
+      ])
+    );
+  });
+
+  // Only rows that are already unnamed, and only this org's.
+  it("touches only this org's campaigns that carry no status", async () => {
+    mockDb.campaignStatusDef.count.mockResolvedValue(0);
+    mockDb.campaignStatusDef.createMany.mockResolvedValue({ count: 8 });
+    mockDb.campaignStatusDef.findMany.mockResolvedValue(DEFS);
+
+    await GET(req(), kindParams());
+
+    for (const [args] of mockDb.campaign.updateMany.mock.calls) {
+      expect(args.where).toEqual(
+        expect.objectContaining({ orgId: "org-1", statusDefId: null })
+      );
+    }
+  });
+
+  it("does not backfill when the list was already seeded", async () => {
+    mockDb.campaignStatusDef.count.mockResolvedValue(8);
+
+    await GET(req(), kindParams());
+
+    expect(mockDb.campaign.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("names them when the first status is added by hand", async () => {
+    mockDb.campaignStatusDef.create.mockResolvedValue({ id: "def-active", name: "In-Progress" });
+    mockDb.campaignStatusDef.findMany.mockResolvedValue(DEFS);
+
+    const res = await POST(req("POST", { name: "In-Progress", bucket: "IN_PROGRESS" }), kindParams());
+
+    expect(res.status).toBe(201);
+    expect(backfilled()).toContainEqual(["IN_PROGRESS", "def-active"]);
+  });
+
+  // The delete has already nulled them by the time the route resumes.
+  it("re-names the campaigns a deleted status left pointing at nothing", async () => {
+    mockDb.campaignStatusDef.findFirst.mockResolvedValue({ id: "row-1", name: "Paid" });
+    mockDb.campaignStatusDef.findMany.mockResolvedValue(DEFS);
+
+    const res = await DELETE(req("DELETE"), idParams());
+
+    expect(res.status).toBe(200);
+    expect(mockDb.campaignStatusDef.delete).toHaveBeenCalledWith({ where: { id: "row-1" } });
+    expect(backfilled()).toContainEqual(["IN_PROGRESS", "def-active"]);
+  });
+
+  // Activations have the same nullable pointer, but naming them is not this
+  // change; the campaign-only guard is what keeps that true.
+  it("leaves the activation-status list alone", async () => {
+    mockDb.activationStatusDef.findFirst.mockResolvedValue({ id: "row-1", name: "Invited" });
+
+    await DELETE(req("DELETE"), idParams("activation-statuses"));
+    await POST(
+      req("POST", { name: "Invited", bucket: "AWAITING_DRAFT" }),
+      kindParams("activation-statuses")
+    );
+
+    expect(mockDb.campaign.updateMany).not.toHaveBeenCalled();
+  });
 });
 
 describe("taxonomy writes are admin-only", () => {

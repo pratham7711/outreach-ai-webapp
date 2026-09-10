@@ -4,6 +4,7 @@ import { requirePermission } from "@/lib/authz";
 import { logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
 import { TAXONOMY_KINDS, isTaxonomyKind } from "@/lib/taxonomy";
+import { backfillCampaignStatusDefs } from "@/lib/campaigns/backfillStatusDefs";
 
 /**
  * Rename/reorder and remove, for any of the six lists in Settings → General.
@@ -98,6 +99,11 @@ export async function DELETE(
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   await spec.delegate().delete({ where: { id } });
+
+  /* The delete just set statusDefId to NULL on every campaign that pointed at
+     this status. Re-name them from their bucket rather than leaving the list
+     showing blanks where a status used to be. */
+  if (kind === "campaign-statuses") await backfillCampaignStatusDefs(orgId);
 
   await logAudit({
     orgId,

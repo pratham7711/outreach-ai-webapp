@@ -4,6 +4,7 @@ import { requirePermission } from "@/lib/authz";
 import { logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
 import { TAXONOMY_KINDS, isTaxonomyKind, seedReferenceDefaults } from "@/lib/taxonomy";
+import { backfillCampaignStatusDefs } from "@/lib/campaigns/backfillStatusDefs";
 
 /**
  * Settings → General, the reference's six org-configurable lists.
@@ -74,6 +75,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     data: { orgId, ...parsed.data },
     select: spec.select,
   })) as { id: string; name: string };
+
+  /* The first status an org adds by hand switches the campaign status control
+     from buckets to named statuses, which would leave every existing campaign
+     blank. Naming them from their bucket keeps the list readable. */
+  if (kind === "campaign-statuses") await backfillCampaignStatusDefs(orgId);
 
   await logAudit({
     orgId,
