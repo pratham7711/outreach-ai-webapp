@@ -140,7 +140,7 @@ export default function PortalPayoutRequestsPage() {
     return (
       <div className="rsp-page" style={{ maxWidth: 960 }}>
         <Skeleton width="200px" height="32px" />
-        <div className="rsp-grid-tiles" style={{ marginTop: 24 }}>
+        <div className="rsp-grid-tiles-4" style={{ marginTop: 24 }}>
           {[1, 2, 3, 4].map((i) => (
             <Skeleton key={i} height="80px" borderRadius="10px" />
           ))}
@@ -170,7 +170,7 @@ export default function PortalPayoutRequestsPage() {
       </div>
 
       {/* Stats */}
-      <div className="rsp-grid-tiles" style={{ marginBottom: 32 }}>
+      <div className="rsp-grid-tiles-4" style={{ marginBottom: 32 }}>
         <MetricTile metric="portalTotalRequested" value={totalRequestedLabel} />
         <MetricTile metric="requestsPending" label="Pending" value={String(pendingCount)} />
         <MetricTile metric="portalApproved" value={String(approvedCount)} />

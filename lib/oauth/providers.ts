@@ -2,6 +2,17 @@ import { BRAND } from "@/lib/brand";
 
 export const OAUTH_PLATFORMS = [
   "instagram",
+  /* The SECOND Instagram path, not a replacement for the first.
+     "instagram" is Facebook Login for Business: it reaches the IG account
+     through the Facebook Page it is linked to, which is the only way to get
+     business_discovery (public numbers for creators who have NOT authorised
+     us). "instagram-login" is Instagram Login: the creator authorises
+     Instagram directly, no Facebook Page required.
+     Both are needed. The Page requirement excludes every creator with a
+     professional account and no Page — and instagram_business_basic was in the
+     Meta submission with no flow behind it, which is why its testing counter
+     never moved. */
+  "instagram-login",
   "tiktok",
   "youtube",
   "facebook",
@@ -88,6 +99,32 @@ const PROVIDERS: Record<OAuthPlatform, ProviderConfig> = {
       "pages_show_list",
       "pages_read_engagement",
     ],
+    scopeSeparator: ",",
+  },
+  "instagram-login": {
+    platformEnum: "INSTAGRAM",
+    /* A DIFFERENT app id from INSTAGRAM_CLIENT_ID. Instagram Login authorises
+       against the Instagram app inside the Meta app — its own id and secret,
+       shown in the dashboard as "Instagram app ID" — and passing the Facebook
+       app id here returns an invalid_client_id from instagram.com. No fallback
+       to the Instagram/Facebook pair for exactly that reason: a wrong id that
+       silently half-works is worse than a connect button that stays absent
+       until the right credential is set. */
+    clientIdEnv: "INSTAGRAM_LOGIN_CLIENT_ID",
+    clientSecretEnv: "INSTAGRAM_LOGIN_CLIENT_SECRET",
+    clientIdParam: "client_id",
+    /* instagram.com, not facebook.com: this dialog does not involve a Page,
+       and the token it mints is read at graph.instagram.com. */
+    authorizeUrl: "https://www.instagram.com/oauth/authorize",
+    tokenUrl: "https://api.instagram.com/oauth/access_token",
+    /* instagram_business_basic yields the profile and the media list;
+       instagram_business_manage_insights yields per-media views/reach/shares —
+       the same counters instagram_manage_insights gives on the Page path, under
+       the names the Instagram-Login API uses.
+       Deliberately NOT requested: instagram_business_manage_comments and
+       instagram_business_content_publish. Neither has a screen, and a scope
+       with no screen is what sank the last submission. */
+    scopes: ["instagram_business_basic", "instagram_business_manage_insights"],
     scopeSeparator: ",",
   },
   tiktok: {

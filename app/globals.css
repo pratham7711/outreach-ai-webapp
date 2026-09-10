@@ -1033,6 +1033,20 @@ h1, h2, h3, h4, h5, h6 {
 @media (min-width: 640px) { .rsp-grid-tiles { gap: 16px; grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (min-width: 1280px) { .rsp-grid-tiles { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
 
+/* A row of exactly FOUR tiles.
+
+   rsp-grid-tiles is a six-column grid above 1280px, so a four-tile row leaves
+   two dead columns and squeezes each tile to 136px on a 1440px window
+   (measured on /portal/payout-requests: tiles at x=272/424/576/728, content
+   region 896px wide, 304px of it empty). At that width a two-word label wraps,
+   which pushes its figure 15px below the figures beside it -- "Total
+   requested" sat at y=229 while Pending/Approved/Rejected sat at y=214.
+
+   Four columns fill the row and give the label enough room to stay on one
+   line, so the figures share a baseline again. */
+.rsp-grid-tiles-4 { display: grid; gap: 12px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (min-width: 1024px) { .rsp-grid-tiles-4 { gap: 16px; grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+
 @media (min-width: 900px) { .rsp-hero { grid-template-columns: minmax(0, 1fr) minmax(0, 0.85fr) !important; gap: 48px !important; } }
 
 .rsp-grid-2 { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); }

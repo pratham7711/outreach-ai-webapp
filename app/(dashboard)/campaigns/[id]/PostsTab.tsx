@@ -570,6 +570,17 @@ export default function PostsTab({
     const fromMs = postedFrom ? new Date(`${postedFrom}T00:00:00`).getTime() : null;
     const toMs = postedTo ? new Date(`${postedTo}T23:59:59.999`).getTime() : null;
     const rows = posts.filter((p) => {
+      /* The status, platform and media-type chips are applied by the server, so
+         while a refetch is in flight `posts` still holds the PREVIOUS filter's
+         rows -- and nothing sets loading on a refetch, so the list keeps
+         rendering posts the chips say are excluded. Re-applying the same three
+         predicates here is what makes the rendered set agree with the chips at
+         every instant; the server filter stays because it is what keeps the
+         payload small. Measured: a slow /posts response left all four camp-1
+         posts on screen under a YOUTUBE chip for the whole request. */
+      if (statusFilter !== "ALL" && p.status !== statusFilter) return false;
+      if (platformFilter !== "ALL" && p.platform !== platformFilter) return false;
+      if (mediaTypeFilter !== "ALL" && p.mediaType !== mediaTypeFilter) return false;
       if (Number.isFinite(minV) && p.viewsCount < minV) return false;
       if (search) {
         const hay = `${p.creator.name} ${p.creator.handle}`.toLowerCase();
@@ -604,7 +615,7 @@ export default function PostsTab({
       return sortDir === "asc" ? diff : -diff;
     });
     return sorted;
-  }, [posts, minViews, creatorSearch, postedFrom, postedTo, sortKey, sortDir]);
+  }, [posts, statusFilter, platformFilter, mediaTypeFilter, minViews, creatorSearch, postedFrom, postedTo, sortKey, sortDir]);
 
   const anyDelta = useMemo(() => posts.some((p) => (p.snapshots?.length ?? 0) >= 2), [posts]);
   /* Imported posts carried view counts only, so likes, comments and engagement

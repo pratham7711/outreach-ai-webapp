@@ -23,6 +23,8 @@ const ENV_KEYS = [
   "FACEBOOK_CLIENT_SECRET",
   "THREADS_CLIENT_ID",
   "THREADS_CLIENT_SECRET",
+  "INSTAGRAM_LOGIN_CLIENT_ID",
+  "INSTAGRAM_LOGIN_CLIENT_SECRET",
   /* Reset between tests like any other credential. It was absent, so a test
      that set it narrowed the TikTok scopes for every test that ran after. */
   "TIKTOK_SCOPES",
@@ -51,9 +53,14 @@ afterAll(() => {
 });
 
 describe("lib/oauth/providers — platform helpers", () => {
-  it("recognises exactly the five OAuth platforms", () => {
+  it("recognises exactly the six OAuth platforms", () => {
+    /* Six, not five: Instagram has two login paths. "instagram" is Facebook
+       Login for Business (needs a linked Page, and is the only path
+       business_discovery works on); "instagram-login" is Instagram Login (no
+       Page). Both map to Platform.INSTAGRAM. */
     expect(OAUTH_PLATFORMS).toEqual([
       "instagram",
+      "instagram-login",
       "tiktok",
       "youtube",
       "facebook",
@@ -67,6 +74,10 @@ describe("lib/oauth/providers — platform helpers", () => {
 
   it("maps each platform to its Prisma Platform enum value", () => {
     expect(toPlatformEnum("instagram")).toBe("INSTAGRAM");
+    /* Deliberately the same enum value as the Page path: it is the same
+       Instagram account whichever dialog authorised it, and a second enum value
+       would fork every metric query in the app. */
+    expect(toPlatformEnum("instagram-login")).toBe("INSTAGRAM");
     expect(toPlatformEnum("tiktok")).toBe("TIKTOK");
     expect(toPlatformEnum("youtube")).toBe("YOUTUBE");
     expect(toPlatformEnum("facebook")).toBe("FACEBOOK");
@@ -105,6 +116,11 @@ describe("isProviderConfigured", () => {
     process.env.FACEBOOK_CLIENT_SECRET = "fb-secret";
     process.env.THREADS_CLIENT_ID = "th-id";
     process.env.THREADS_CLIENT_SECRET = "th-secret";
+    /* Its own app id — the Instagram app inside the Meta app, not the Facebook
+       one — and deliberately with no fallback to the Instagram/Facebook pair,
+       because instagram.com rejects a Facebook app id. */
+    process.env.INSTAGRAM_LOGIN_CLIENT_ID = "ig-login-id";
+    process.env.INSTAGRAM_LOGIN_CLIENT_SECRET = "ig-login-secret";
     for (const p of OAUTH_PLATFORMS) expect(isProviderConfigured(p)).toBe(true);
   });
 

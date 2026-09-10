@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { Card, Badge, Avatar } from "@pratham7711/ui";
 import { Star } from "lucide-react";
 import { stripAt, formatFull } from "@/lib/format";
+import { unwrittenMetricValue } from "@/lib/metricDisplay";
 import { POWERED_BY } from "@/lib/brand";
 
 /* ── Helpers ─────────────────────────────────────────────────────────────── */
@@ -236,20 +237,44 @@ export default async function CreatorProfilePage({
 
       {/* ── Stats Grid ───────────────────────────────────────────────── */}
       <div
-        className="rsp-grid-tiles"
+        className="rsp-grid-tiles-4"
         style={{
           marginBottom: 32,
         }}
       >
+        {/* An em dash, not a zero, for anything nobody has measured.
+            All four of these columns default to 0 and NOTHING in this repo
+            writes any of them: the three CreatorUser writers are register
+            (which sets the defaults), PATCH /api/portal/me (whose zod schema
+            carries name, handle, bio, platform, niches and the bank fields —
+            none of these four), and the reviews route (rating only). So every
+            creator's public page asserted "0 Followers · 0 Avg Views ·
+            $0.00 CPM · $0 Lifetime Earnings" to any brand that opened it,
+            about a person who may have millions of followers.
+
+            unwrittenMetricValue is the existing rule for exactly this class of
+            column — it is what stops the campaign screens printing "Total
+            Saves 0" — and the portal dashboard's own Rating tile already
+            renders "—" this way. This page was the one that didn't.
+
+            A true zero is hidden by this, and that is the cheaper mistake:
+            omitting a real 0 costs a tile, while asserting a false one tells a
+            brand this creator has no audience. */}
         {[
-          { label: "Followers", value: formatNumber(user.followersCount) },
-          { label: "Avg Views", value: formatNumber(user.averageViews) },
-          { label: "CPM", value: `$${user.cpm.toFixed(2)}` },
+          { label: "Followers", value: unwrittenMetricValue(user.followersCount), fmt: (v: number) => formatNumber(v) },
+          { label: "Avg Views", value: unwrittenMetricValue(user.averageViews), fmt: (v: number) => formatNumber(v) },
+          { label: "CPM", value: unwrittenMetricValue(user.cpm), fmt: (v: number) => `$${v.toFixed(2)}` },
           {
             label: "Lifetime Earnings",
-            value: `$${formatNumber(user.lifetimeEarnings)}`,
+            value: unwrittenMetricValue(user.lifetimeEarnings),
+            fmt: (v: number) => `$${formatNumber(v)}`,
           },
-        ].map((stat) => (
+        ]
+          .map((stat) => ({
+            label: stat.label,
+            value: stat.value === null ? "—" : stat.fmt(stat.value),
+          }))
+          .map((stat) => (
           <div
             key={stat.label}
             style={{

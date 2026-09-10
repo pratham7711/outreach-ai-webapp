@@ -9,6 +9,14 @@ import { loadEnvConfig } from '@next/env';
    itself does, before defineConfig reads anything. */
 loadEnvConfig(process.cwd());
 
+/* Several Claude sessions run on this machine at once, each in its own worktree,
+   and the webServer command below hardcoded 3009 while only `url` honoured
+   E2E_BASE_URL -- so a second session pointing the check at another port waited
+   on a port nothing served. One knob now feeds all three call sites, which is
+   what lets two worktrees run the suite concurrently. */
+const E2E_PORT = process.env.E2E_PORT || '3009';
+const E2E_URL = process.env.E2E_BASE_URL || `http://localhost:${E2E_PORT}`;
+
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: false, // sequential to avoid auth race conditions
@@ -18,7 +26,7 @@ export default defineConfig({
   timeout: 120000,
   reporter: process.env.CI ? 'github' : 'list',
   use: {
-    baseURL: process.env.E2E_BASE_URL || 'http://localhost:3009',
+    baseURL: E2E_URL,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     /* No video, deliberately. Recording is the one feature that needs
@@ -79,16 +87,30 @@ export default defineConfig({
     /* next dev binds 3000, which Leegality owns on this machine, while the url
        below waits on 3009 -- so webServer could never start on its own and a
        hand-started server was the only path that ever worked. */
-    command: 'PORT=3009 npm run dev',
-    url: process.env.E2E_BASE_URL || 'http://localhost:3009',
+    command: `PORT=${E2E_PORT} npm run dev`,
+    url: E2E_URL,
     /* The suite asserts on seed fixtures -- 'LEAK IT', creator@demo.com and the
        rest -- so it needs the seeded branch, not whatever .env.local happens to
        point at. That default was a snapshot branch of the prod project holding
        512 real campaigns and no seed rows, which is why every seed-dependent
        spec failed while 54 others passed: not flakiness, the wrong database. */
-    env: process.env.TEST_DATABASE_URL
-      ? { DATABASE_URL: process.env.TEST_DATABASE_URL }
-      : undefined,
+    /* .env.local pins APP_URL, NEXT_PUBLIC_APP_URL and NEXTAUTH_URL to
+       localhost:3009, and next dev's dotenv load never overwrites an env var
+       that is already set -- so overriding only the port left every absolute
+       redirect pointing at 3009. On a second port that is nothing listening,
+       and Chrome reports it as net::ERR_CONNECTION_REFUSED against the URL the
+       test asked for, which reads like the server died rather than like a
+       redirect to the wrong port. Measured: /login, /signup and /campaigns --
+       the three routes that redirect -- failed on 3014 and passed on 3009,
+       every other route passing on both. These three complete the port knob. */
+    env: {
+      APP_URL: E2E_URL,
+      NEXT_PUBLIC_APP_URL: E2E_URL,
+      NEXTAUTH_URL: E2E_URL,
+      ...(process.env.TEST_DATABASE_URL
+        ? { DATABASE_URL: process.env.TEST_DATABASE_URL }
+        : {}),
+    },
     /* Reuse is a trap once the database matters: a server already up on 3009 is
        almost certainly pointed at the dev database, and reusing it would silently
        run the suite against the wrong data again. */

@@ -8,7 +8,7 @@
  */
 import { fetchInstagramMetricsGraph } from "@/lib/platforms/instagram";
 import { countsFrom } from "@/lib/sync/syncPost";
-import type { PostMetrics } from "@/lib/platforms/fetchPostMetrics";
+import { assemblePostMetrics, type PostMetrics } from "@/lib/platforms/fetchPostMetrics";
 
 jest.mock("@/lib/db", () => ({ db: {} }));
 
@@ -137,5 +137,50 @@ describe("countsFrom", () => {
     const { counts, present } = countsFrom({ ...base, reachCount: 0 });
     expect(counts.reachCount).toBe(0);
     expect(present).toContain("reach");
+  });
+});
+
+describe("assemblePostMetrics", () => {
+  /* The gap between the two suites above. fetchInstagramMetricsGraph parsed
+     reach and countsFrom wrote it, but assemblePostMetrics sits between them
+     and its whitelist had no reach entry -- so the field arrived and vanished,
+     with both of those suites green, for 0 of 18,676 rows populated. */
+  it("carries reach through the whitelist", () => {
+    const out = assemblePostMetrics("INSTAGRAM", "ig-1", {
+      viewsCount: 100,
+      reachCount: 80,
+    });
+    expect(out.reachCount).toBe(80);
+  });
+
+  it("leaves reach absent when the platform did not say, never 0", () => {
+    const out = assemblePostMetrics("INSTAGRAM", "ig-1", { viewsCount: 100 });
+    expect("reachCount" in out).toBe(false);
+  });
+
+  it("keeps a genuine zero reach", () => {
+    const out = assemblePostMetrics("INSTAGRAM", "ig-1", { reachCount: 0 });
+    expect(out.reachCount).toBe(0);
+  });
+
+  it("preserves every counter the writer knows how to store", () => {
+    // countsFrom is the writer; anything it maps must survive this step, or
+    // the column is structurally unpopulated however well the parser works.
+    const out = assemblePostMetrics("INSTAGRAM", "ig-1", {
+      viewsCount: 1,
+      likesCount: 2,
+      commentsCount: 3,
+      sharesCount: 4,
+      savesCount: 5,
+      reachCount: 6,
+    });
+    expect(Object.keys(countsFrom(out).counts).sort()).toEqual([
+      "commentsCount",
+      "likesCount",
+      "reachCount",
+      "savesCount",
+      "sharesCount",
+      "viewsCount",
+    ]);
   });
 });

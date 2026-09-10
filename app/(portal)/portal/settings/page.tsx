@@ -6,6 +6,7 @@ import { Card, Input, Skeleton, Textarea, Badge, Tag } from "@pratham7711/ui";
 import { toast } from "sonner";
 import { Save } from "lucide-react";
 import type { PlatformCapability } from "@/lib/capabilities";
+import { isInstagramLoginRow } from "@/lib/platforms/accountOrigin";
 import {
   OAUTH_PLATFORMS,
   toPlatformEnum,
@@ -37,12 +38,15 @@ type Connection = {
   isVerified: boolean;
   followersCount: number;
   mediaCount: number | null;
+  /** Which flow minted the row — see lib/platforms/accountOrigin. */
+  origin: string | null;
 };
 
 type ProviderFlags = Partial<Record<OAuthPlatform, boolean>>;
 
 const PLATFORM_LABELS: Record<OAuthPlatform, string> = {
   instagram: "Instagram",
+  "instagram-login": "Instagram (no Facebook Page)",
   tiktok: "TikTok",
   youtube: "YouTube",
   facebook: "Facebook",
@@ -117,31 +121,69 @@ export default function PortalSettingsPage() {
     }
   }, [router]);
 
-  useEffect(() => {
-    loadConnections();
-  }, [loadConnections]);
+  /* The connect result, read straight out of the URL during the first render.
 
-  useEffect(() => {
+     This used to be a toast fired from a mount effect, and it never appeared
+     once: measured 2026-09-09 on
+     /portal/settings?error=instagram-login&reason=creator, the effect ran
+     (console at 110ms, and it stripped the query) while
+     section[aria-label^="Notifications"] stayed at zero children for six
+     seconds. Delaying the emit a frame, then a full second, then moving it
+     into the layout beside <Toaster /> all failed the same way, while the
+     identical toast.error fired from a click rendered immediately -- so every
+     connect failure the OAuth callback redirects back with was silent, and the
+     creator just landed on Settings with the account still not connected and
+     no reason given.
+
+     A banner is the better vehicle regardless: this is the one message on the
+     screen a creator may need to read twice, and a four-second toast is the
+     worst place to put it. Rendering from state means there is no ordering to
+     get wrong. */
+  const [connectResult] = useState(() => {
+    if (typeof window === "undefined") return null;
     const params = new URLSearchParams(window.location.search);
     const connected = params.get("connected");
     const failed = params.get("error");
+    if (!connected && !failed) return null;
     /* The callback names which step failed (state, token_exchange, identity…);
        showing it turns "Failed to connect facebook" into something a reader
        can act on without opening the server log. */
     const reason = params.get("reason");
-    if (connected) toast.success(`${connected.charAt(0).toUpperCase()}${connected.slice(1)} connected`);
-    if (failed && reason === "creator")
-      toast.error(
-        `Couldn't connect ${failed}: no brand has added you to a campaign yet. Join a campaign from Discover, then connect.`,
-      );
-    else if (failed)
-      toast.error(
-        reason
-          ? `Failed to connect ${failed} (${reason.replace(/_/g, " ")})`
-          : `Failed to connect ${failed}`,
-      );
-    if (connected || failed) window.history.replaceState(null, "", "/portal/settings");
-  }, []);
+    const platform = connected ?? failed ?? "";
+    /* PLATFORM_LABELS is how the rest of the screen names these, so
+       "instagram-login" reads "Instagram (no Facebook Page)" and not
+       "Instagram-login". An unknown slug falls back to itself. */
+    const name =
+      PLATFORM_LABELS[platform as OAuthPlatform] ??
+      `${platform.charAt(0).toUpperCase()}${platform.slice(1)}`;
+    if (connected) return { tone: "success" as const, message: `${name} connected.` };
+    if (reason === "creator")
+      return {
+        tone: "error" as const,
+        message: `Couldn't connect ${name}: no brand has added you to a campaign yet. Join a campaign from Discover, then connect.`,
+      };
+    if (reason === "provider")
+      return {
+        tone: "error" as const,
+        message: `${name} sign-in is not configured yet. Submit your post URL on the campaign instead and we will still track it.`,
+      };
+    return {
+      tone: "error" as const,
+      message: reason
+        ? `Couldn't connect ${name} (${reason.replace(/_/g, " ")}). Try again, and tell us if it keeps failing.`
+        : `Couldn't connect ${name}. Try again, and tell us if it keeps failing.`,
+    };
+  });
+  const [connectResultShown, setConnectResultShown] = useState(true);
+
+  useEffect(() => {
+    /* Drop the params so a refresh or a shared URL does not replay the banner. */
+    if (connectResult) window.history.replaceState(null, "", window.location.pathname);
+  }, [connectResult]);
+
+  useEffect(() => {
+    loadConnections();
+  }, [loadConnections]);
 
   const handleDisconnect = async (id: string) => {
     setDisconnectingId(id);
@@ -249,6 +291,42 @@ export default function PortalSettingsPage() {
         </p>
       </div>
 
+      {connectResult && connectResultShown && (
+        <div
+          role="alert"
+          style={{
+            display: "flex",
+            alignItems: "flex-start",
+            gap: 12,
+            padding: "12px 14px",
+            marginBottom: 24,
+            borderRadius: 10,
+            border: `1px solid ${connectResult.tone === "success" ? "var(--cc-success)" : "var(--cc-danger)"}`,
+            background: "var(--cc-card)",
+          }}
+        >
+          <span style={{ fontSize: 13, color: "var(--cc-text)", flex: 1 }}>
+            {connectResult.message}
+          </span>
+          <button
+            type="button"
+            onClick={() => setConnectResultShown(false)}
+            aria-label="Dismiss"
+            style={{
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              color: "var(--cc-text-muted)",
+              fontSize: 13,
+              lineHeight: 1,
+              padding: 2,
+            }}
+          >
+            ×
+          </button>
+        </div>
+      )}
+
       <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
         <Card variant="outlined" style={{ padding: 24 }}>
           <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--cc-text)", marginBottom: 20 }}>
@@ -346,7 +424,17 @@ export default function PortalSettingsPage() {
                    can link several — a personal and a brand handle — and this
                    used to `.find()` one, so the second one they authorised was
                    invisible even once it was stored. */
-                const accounts = connections.filter((c) => c.platform === enumValue);
+                /* Both Instagram cards carry enumValue "INSTAGRAM", so the
+                   platform alone cannot say which card an account belongs
+                   under — without the origin split, one connection would be
+                   listed twice and each card's Disconnect would appear to
+                   govern the other's account. */
+                const accounts = connections.filter(
+                  (c) =>
+                    c.platform === enumValue &&
+                    (enumValue !== "INSTAGRAM" ||
+                      isInstagramLoginRow(c.origin) === (key === "instagram-login")),
+                );
                 const configured = providers?.[key] ?? false;
                 const capability = capabilities.find((c) => c.platform === key);
                 const connectStatus = capability?.connect ?? "gated";
@@ -392,7 +480,21 @@ export default function PortalSettingsPage() {
                             </span>
                           </>
                         ) : (
-                          <Badge variant="neutral" size="sm">Not connected</Badge>
+                          <>
+                            <Badge variant="neutral" size="sm">Not connected</Badge>
+                            {/* A gated platform still shows a Connect button —
+                                in dev it runs the synthetic connect path, which
+                                is the only way to exercise the flow locally.
+                                Without this note, an environment where the
+                                credentials are absent offered a button whose
+                                only outcome was a raw 503, with nothing on
+                                screen saying why. */}
+                            {connectStatus === "gated" && capability?.connectNote && (
+                              <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>
+                                {capability.connectNote}
+                              </span>
+                            )}
+                          </>
                         )}
                       </div>
                       {!comingSoon && (

@@ -3,6 +3,7 @@ import { createLogger } from "@/lib/observability/logger";
 import type { OAuthPlatform, PlatformEnumValue } from "@/lib/oauth/providers";
 import { fetchTikTokUserInfo } from "./tiktokDisplay";
 import { fetchInstagramAccount } from "./instagramAccount";
+import { fetchInstagramLoginProfile } from "./instagramLogin";
 import { fetchYouTubeChannel } from "./youtube";
 import { fetchFacebookPage } from "./facebookPage";
 import { fetchThreadsProfile } from "./threads";
@@ -86,6 +87,27 @@ export async function fetchAccountIdentity(
       /* Instagram publishes no lifetime like total for an account, so this
          stays null rather than being summed from a 12-post sample and
          presented as a career figure. */
+      totalLikes: null,
+    };
+  }
+
+  if (platform === "instagram-login") {
+    const info = await fetchInstagramLoginProfile(token);
+    if (!info) return null;
+    return {
+      handle: info.username,
+      /* The Instagram account id, the same value the Page path stores — so the
+         same account connected either way updates one row instead of creating
+         a second one that double-counts the creator's followers. */
+      platformUserId: info.igUserId,
+      avatarUrl: info.avatarUrl,
+      bio: info.bio,
+      profileUrl: info.profileLink,
+      isVerified: info.isVerified,
+      followersCount: info.followerCount,
+      followingCount: info.followingCount,
+      mediaCount: info.mediaCount,
+      /* No lifetime like total on either Instagram path. */
       totalLikes: null,
     };
   }

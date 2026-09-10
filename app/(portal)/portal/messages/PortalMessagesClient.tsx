@@ -232,8 +232,20 @@ export default function PortalMessagesClient() {
 
         <div className="pm-thread" style={{ display: "flex", flexDirection: "column", minHeight: 0 }}>
           {!activeId ? (
+            /* "Select a conversation" is only true advice when there is one to
+               select. With an empty list the screen used to show two empty
+               states side by side, the right one telling the creator to pick a
+               brand from a list that holds nothing. */
             <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
-              <EmptyState icon={<Mail size={32} color="var(--cc-text-subtle)" />} title="Select a conversation" description="Choose a brand from the list to view messages" />
+              {conversations !== null && conversations.length === 0 ? (
+                <EmptyState
+                  icon={<Mail size={32} color="var(--cc-text-subtle)" />}
+                  title="Nothing to read yet"
+                  description="A brand starts the conversation once you are on one of their campaigns."
+                />
+              ) : (
+                <EmptyState icon={<Mail size={32} color="var(--cc-text-subtle)" />} title="Select a conversation" description="Choose a brand from the list to view messages" />
+              )}
             </div>
           ) : threadLoading ? (
             <div style={{ padding: 24, display: "flex", flexDirection: "column", gap: 12 }}>

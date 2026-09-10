@@ -65,8 +65,61 @@ it("says metrics are live overall even on an environment with nothing set", () =
   expect(resolveCapabilities().anyMetricsLive).toBe(true);
 });
 
-it("leaves the connect status alone", () => {
-  // Reading a post URL and signing an account in are different capabilities;
-  // TikTok sign-in is still awaiting platform approval.
-  expect(resolvePlatformCapability("tiktok").connect).toBe("coming_soon");
+it("gates TikTok sign-in on its credentials, and never hides the card", () => {
+  /* Reading a post URL and signing an account in are still different
+     capabilities -- metrics stay live above with nothing provisioned, while
+     connect follows the credentials.
+
+     What changed is that connect is no longer the hardcoded "coming_soon".
+     That was the one status the settings screen reads as `comingSoon` and
+     removes the card for outright, so there was no reachable Connect button
+     and none of the four Login Kit scopes could be shown to a reviewer. Both
+     ends are asserted here because "auto" is only honest if it actually
+     answers gated when the keys are absent. */
+  const TIKTOK_KEYS = [
+    "TIKTOK_CLIENT_KEY",
+    "TIKTOK_CLIENT_SECRET",
+    "TIKTOK_USE_SANDBOX",
+    "TIKTOK_SANDBOX_CLIENT_KEY",
+    "TIKTOK_SANDBOX_CLIENT_SECRET",
+  ] as const;
+  const before = Object.fromEntries(TIKTOK_KEYS.map((k) => [k, process.env[k]]));
+
+  try {
+    for (const k of TIKTOK_KEYS) delete process.env[k];
+    expect(resolvePlatformCapability("tiktok").connect).toBe("gated");
+
+    process.env.TIKTOK_CLIENT_KEY = "test-client-key";
+    process.env.TIKTOK_CLIENT_SECRET = "test-client-secret";
+    expect(resolvePlatformCapability("tiktok").connect).toBe("live");
+  } finally {
+    for (const k of TIKTOK_KEYS) {
+      const v = before[k];
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  }
+});
+
+it("gates Instagram sign-in on its credentials the same way", () => {
+  /* instagram was a hardcoded "gated", which renders the Connect button anyway
+     and only changes the note beside it -- so the card said sign-in was
+     unavailable next to a button that worked. */
+  const IG_KEYS = ["INSTAGRAM_CLIENT_ID", "INSTAGRAM_CLIENT_SECRET"] as const;
+  const before = Object.fromEntries(IG_KEYS.map((k) => [k, process.env[k]]));
+
+  try {
+    for (const k of IG_KEYS) delete process.env[k];
+    expect(resolvePlatformCapability("instagram").connect).toBe("gated");
+
+    process.env.INSTAGRAM_CLIENT_ID = "test-client-id";
+    process.env.INSTAGRAM_CLIENT_SECRET = "test-client-secret";
+    expect(resolvePlatformCapability("instagram").connect).toBe("live");
+  } finally {
+    for (const k of IG_KEYS) {
+      const v = before[k];
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  }
 });

@@ -56,9 +56,18 @@ export async function GET(
     const state = randomBytes(16).toString("hex");
     const authorizeUrl = buildAuthorizeUrl(platform, state);
     if (!authorizeUrl)
-      return NextResponse.json(
-        { error: "Provider not configured" },
-        { status: 503 },
+      /* This endpoint is reached by a full-page navigation from a Connect
+         button, so a JSON body renders as raw text in the address bar with no
+         way back. Every other failure in this flow already redirects with a
+         reason; this one did not. */
+      return NextResponse.redirect(
+        new URL(
+          returnToWithQuery(
+            req.nextUrl.searchParams.get("returnTo"),
+            `error=${platform}&reason=provider`,
+          ),
+          req.url,
+        ),
       );
     const res = NextResponse.redirect(authorizeUrl);
     const cookieOptions = {
@@ -75,9 +84,17 @@ export async function GET(
   }
 
   if (process.env.NODE_ENV === "production")
-    return NextResponse.json(
-      { error: "Provider not configured" },
-      { status: 503 },
+    /* Same reasoning as above: a creator who clicks Connect on a platform
+       whose credentials are not set in this environment gets sent back to the
+       screen they came from with a reason, not a JSON blob. */
+    return NextResponse.redirect(
+      new URL(
+        returnToWithQuery(
+          req.nextUrl.searchParams.get("returnTo"),
+          `error=${platform}&reason=provider`,
+        ),
+        req.url,
+      ),
     );
 
   const devReturnTo = req.nextUrl.searchParams.get("returnTo");

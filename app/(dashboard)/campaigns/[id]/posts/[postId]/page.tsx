@@ -5,10 +5,10 @@ import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Card, Badge, Skeleton, Tag, EmptyState } from "@pratham7711/ui";
 import { PAGE_TITLE_STYLE, Button } from "@/components/ds";
-import { ArrowLeft, ExternalLink, RefreshCw, Eye, Heart, MessageCircle, Share2, Download, Bookmark, TrendingUp, Flag, Lock, Activity, ShieldAlert, Shield, Play } from "lucide-react";
+import { ArrowLeft, ExternalLink, RefreshCw, Eye, Heart, MessageCircle, Share2, Download, Bookmark, TrendingUp, Flag, Lock, Activity, ShieldAlert, Shield, Play, Users } from "lucide-react";
 import dynamic from "next/dynamic";
 import { computeEngagementRate } from "@/lib/metrics";
-import { metricValue } from "@/lib/metricDisplay";
+import { metricValue, fieldMetricValue, type MetricField } from "@/lib/metricDisplay";
 import { isPostRemoved, removedNote } from "@/lib/postRemoval";
 import RemovedPostOverlay from "@/components/posts/RemovedPostOverlay";
 import { imgSrc, embedSrcFor } from "@/lib/postMedia";
@@ -65,6 +65,22 @@ type Snapshot = {
   syncSource: string | null;
   isFinalSnapshot: boolean;
   recordedAt: string;
+};
+
+type LiveComments = {
+  /** Every top-level comment, from Facebook's own summary. */
+  total: number | null;
+  preview: {
+    id: string;
+    message: string;
+    authorName: string | null;
+    createdAt: string | null;
+    likeCount: number | null;
+  }[];
+  pageName: string | null;
+  readAt: string;
+  /** Always false. Sent by the route so the screen can state it. */
+  stored: boolean;
 };
 
 type BotSignal = {
@@ -153,10 +169,10 @@ function formatNumber(num: number): string {
 }
 
 const BASE_METRIC_CARDS = [
-  { key: "viewsCount", label: "Views", icon: Eye, color: "#5B5BD6" },
-  { key: "likesCount", label: "Likes", icon: Heart, color: "#EC4899" },
-  { key: "commentsCount", label: "Comments", icon: MessageCircle, color: "#F59E0B" },
-  { key: "sharesCount", label: "Shares", icon: Share2, color: "var(--cc-success)" },
+  { key: "viewsCount", field: "views", label: "Views", icon: Eye, color: "#5B5BD6" },
+  { key: "likesCount", field: "likes", label: "Likes", icon: Heart, color: "#EC4899" },
+  { key: "commentsCount", field: "comments", label: "Comments", icon: MessageCircle, color: "#F59E0B" },
+  { key: "sharesCount", field: "shares", label: "Shares", icon: Share2, color: "var(--cc-success)" },
 ] as const;
 
 export default function PostDetailPage() {
@@ -166,6 +182,11 @@ export default function PostDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
+  /* Comments are fetched on request, never with the page. Opening a post must
+     not read the words of people who commented on it; someone has to ask. */
+  const [comments, setComments] = useState<LiveComments | null>(null);
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [commentsError, setCommentsError] = useState<string | null>(null);
   /** Set when a sync came back without counts, so the click is not a silent no-op. */
   const [syncNote, setSyncNote] = useState<string | null>(null);
   const [flagging, setFlagging] = useState(false);
@@ -325,6 +346,29 @@ export default function PostDetailPage() {
     );
   }
 
+  /* Held in component state for as long as the screen is open and never sent
+     anywhere else. There is no column for a comment body and no cache in front
+     of the route — see app/api/campaigns/[id]/posts/[postId]/comments. */
+  const loadComments = async () => {
+    setCommentsLoading(true);
+    setCommentsError(null);
+    try {
+      const res = await fetch(`/api/campaigns/${params.id}/posts/${params.postId}/comments`);
+      const body = await res.json();
+      if (!res.ok) {
+        setCommentsError(body?.reason || "Could not read comments for this post.");
+        setComments(null);
+        return;
+      }
+      setComments(body as LiveComments);
+    } catch {
+      setCommentsError("Could not reach Facebook. Try again in a moment.");
+      setComments(null);
+    } finally {
+      setCommentsLoading(false);
+    }
+  };
+
   const embedSrc = embedSrcFor(post.platform, post.platformPostId, post.postUrl);
   // Not the raw CDN URL: TikTok's thumbnail hosts are blocked on some networks.
   const thumb = imgSrc(post.thumbnailUrl, 240, 160);
@@ -340,20 +384,39 @@ export default function PostDetailPage() {
           shares: post.sharesCount,
           saves: post.savesCount,
         });
-  const allMetricCards = [...BASE_METRIC_CARDS] as { key: string; label: string; icon: typeof Eye; color: string }[];
+  const allMetricCards = [...BASE_METRIC_CARDS] as { key: string; field: MetricField; label: string; icon: typeof Eye; color: string }[];
   if (post.platform === "INSTAGRAM") {
-    allMetricCards.push({ key: "savesCount", label: "Saves", icon: Bookmark, color: "#8B5CF6" });
+    allMetricCards.push({ key: "savesCount", field: "saves", label: "Saves", icon: Bookmark, color: "#8B5CF6" });
+    /* Reach is the counter instagram_manage_insights uniquely unlocks — no
+       other permission, and no unauthorised read, yields it. It had no card
+       because it had no value: assemblePostMetrics parsed reach off the
+       insights edge and then dropped it before the write, so the column was 0
+       on all 18,676 rows. The parser and the writer both had tests; the
+       whitelist between them did not.
+
+       Gated on the measured-field list rather than on the number, because the
+       legacy zeroes carry a lastSyncedAt from a TikTok-era sync and would
+       otherwise read as a measured "reached nobody". */
+    allMetricCards.push({ key: "reachCount", field: "reach", label: "Reach", icon: Users, color: "#0EA5E9" });
   }
   if (post.platform === "YOUTUBE") {
-    allMetricCards.push({ key: "downloadsCount", label: "Downloads", icon: Download, color: "#6366F1" });
+    allMetricCards.push({ key: "downloadsCount", field: "downloads", label: "Downloads", icon: Download, color: "#6366F1" });
   }
   /* Views came across in the import; every other counter defaults to 0 for a
      post we never fetched, so its card would state a figure nobody measured.
-     See lib/metricDisplay. */
+
+     fieldMetricValue, not metricValue: one lastSyncedAt cannot describe a row
+     whose likes were fetched and whose reach was not, and every Instagram post
+     synced before the reach fix is exactly that row. See lib/metricDisplay. */
   const metricCards = allMetricCards.filter(
-    ({ key }) =>
+    ({ key, field }) =>
       key === "viewsCount" ||
-      metricValue((post as unknown as Record<string, number>)[key], post.lastSyncedAt) !== null
+      fieldMetricValue(
+        (post as unknown as Record<string, number>)[key],
+        post.lastSyncedAt,
+        post.platformMetrics,
+        field,
+      ) !== null
   );
 
   const chartData = post.snapshots.map((s) => ({
@@ -484,6 +547,91 @@ export default function PostDetailPage() {
           </Card>
         )}
       </div>
+
+      {/* Facebook only. Instagram comment bodies need
+          instagram_business_manage_comments, which this app has not requested,
+          and TikTok publishes no comments API — so the panel is absent rather
+          than present-and-broken on those platforms. */}
+      {post.platform === "FACEBOOK" && (
+        <Card variant="outlined" style={{ padding: 24, marginBottom: 24 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16 }}>
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                <MessageCircle size={18} color="var(--cc-primary)" />
+                <h3 style={{ fontSize: 16, fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>Comments on this post</h3>
+              </div>
+              <p style={{ fontSize: 13, color: "var(--cc-text-muted)", margin: 0, maxWidth: "60ch" }}>
+                Read live from the creator&rsquo;s Facebook Page when you ask for them.
+                Comments are shown here and never saved — reload and they are read again.
+              </p>
+            </div>
+            <Button variant="secondary" onClick={loadComments} loading={commentsLoading}>
+              {commentsLoading ? "Reading…" : comments ? "Read again" : "Show comments"}
+            </Button>
+          </div>
+
+          {commentsError && (
+            <p style={{ fontSize: 13, color: "var(--cc-danger)", margin: "16px 0 0" }}>{commentsError}</p>
+          )}
+
+          {comments && (
+            <div style={{ marginTop: 20 }}>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 12 }}>
+                <span style={{ fontSize: 24, fontWeight: 700, color: "var(--cc-text)" }}>
+                  {comments.total === null ? "—" : formatNumber(comments.total)}
+                </span>
+                <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>
+                  {comments.total === 1 ? "top-level comment" : "top-level comments"}
+                  {comments.pageName ? ` on ${comments.pageName}` : ""}
+                </span>
+              </div>
+
+              {comments.preview.length === 0 ? (
+                <p style={{ fontSize: 13, color: "var(--cc-text-muted)", margin: 0 }}>
+                  {comments.total === 0
+                    ? "Nobody has commented on this post yet."
+                    : "Facebook returned the count but no comment bodies — the Page may restrict who can read them."}
+                </p>
+              ) : (
+                <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 12 }}>
+                  {comments.preview.map((c) => (
+                    <li key={c.id} style={{ borderLeft: "2px solid var(--cc-border)", paddingLeft: 12 }}>
+                      <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>
+                          {/* Facebook omits the commenter for anyone who has not
+                              authorised this app, which is most people. */}
+                          {c.authorName ?? "Facebook user"}
+                        </span>
+                        {c.createdAt && (
+                          <span style={{ fontSize: 12, color: "var(--cc-text-subtle)" }}>
+                            {new Date(c.createdAt).toLocaleString()}
+                          </span>
+                        )}
+                        {c.likeCount !== null && c.likeCount > 0 && (
+                          <span style={{ fontSize: 12, color: "var(--cc-text-subtle)" }}>
+                            {formatNumber(c.likeCount)} {c.likeCount === 1 ? "like" : "likes"}
+                          </span>
+                        )}
+                      </div>
+                      <p style={{ fontSize: 14, color: "var(--cc-text)", margin: "2px 0 0", whiteSpace: "pre-wrap" }}>
+                        {c.message || <span style={{ color: "var(--cc-text-subtle)" }}>(no text — a photo or sticker)</span>}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              <p style={{ fontSize: 12, color: "var(--cc-text-subtle)", margin: "16px 0 0" }}>
+                {comments.preview.length > 0 && comments.total !== null && comments.total > comments.preview.length
+                  ? `Showing the ${comments.preview.length} most recent of ${formatNumber(comments.total)}. `
+                  : ""}
+                Read at {new Date(comments.readAt).toLocaleTimeString()}
+                {comments.stored ? "" : " · not stored"}
+              </p>
+            </div>
+          )}
+        </Card>
+      )}
 
       {chartData.length > 1 && (
         <Card variant="outlined" style={{ padding: 24, marginBottom: 24 }}>

@@ -171,9 +171,18 @@ export default function PortalDiscoverPage() {
       {/* Budget range row */}
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
         <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>Budget:</span>
-        <Input type="number" placeholder="Min $" value={minBudget} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setMinBudget(e.target.value)} style={{ width: 110 }} />
+        {/* The width goes on a wrapper, not on Input's style prop. Input
+            forwards style to the inner <input> while its own .ui-input-root
+            stays width:100% — so two 110px inputs computed 896px wide each and
+            the row wrapped, putting Min, the dash and Max on three lines
+            (measured at a 1440 viewport). */}
+        <span style={{ flex: "0 0 110px", maxWidth: 110 }}>
+          <Input type="number" placeholder="Min $" value={minBudget} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setMinBudget(e.target.value)} />
+        </span>
         <span style={{ color: "var(--cc-text-muted)", fontSize: 13 }}>—</span>
-        <Input type="number" placeholder="Max $" value={maxBudget} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setMaxBudget(e.target.value)} style={{ width: 110 }} />
+        <span style={{ flex: "0 0 110px", maxWidth: 110 }}>
+          <Input type="number" placeholder="Max $" value={maxBudget} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setMaxBudget(e.target.value)} />
+        </span>
         {(minBudget || maxBudget) && (
           <button onClick={() => { setMinBudget(""); setMaxBudget(""); }} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, color: "var(--cc-text-muted)", textDecoration: "underline" }}>Clear</button>
         )}

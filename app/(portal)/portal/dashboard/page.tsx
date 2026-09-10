@@ -10,6 +10,7 @@ import { stripAt, formatDateAbs } from "@/lib/format";
 import { MyPerformance } from "@/components/portal/MyPerformance";
 import { OnboardingChecklist, useDismissable } from "@/components/onboarding/OnboardingChecklist";
 import { isOnboardingProgress, type OnboardingProgress } from "@/lib/onboarding/steps";
+import { unwrittenMetricValue } from "@/lib/metricDisplay";
 
 type DashboardData = {
   user: { name: string; handle: string; avatarUrl: string | null; lifetimeEarnings: number; averageRating: number; reviewCount: number; cpm: number };
@@ -50,7 +51,7 @@ export default function PortalDashboardPage() {
   if (loading) return (
     <div className="rsp-page" style={{ maxWidth: 960 }}>
       <Skeleton width="200px" height="32px" />
-      <div className="rsp-grid-tiles" style={{ marginTop: 24 }}>
+      <div className="rsp-grid-tiles-4" style={{ marginTop: 24 }}>
         {[1, 2, 3, 4].map(i => <Skeleton key={i} height="80px" borderRadius="10px" />)}
       </div>
     </div>
@@ -97,8 +98,28 @@ export default function PortalDashboardPage() {
       )}
 
       {/* Stats */}
-      <div className="rsp-grid-tiles" style={{ marginBottom: 32 }}>
-        <MetricTile metric="portalLifetimeEarnings" value={formatCurrency(data.stats.lifetimeEarnings)} />
+      <div className="rsp-grid-tiles-4" style={{ marginBottom: 32 }}>
+        {/* An em dash, not $0.00, when nothing has written the column.
+
+            CreatorUser.lifetimeEarnings has no writer anywhere in this repo --
+            /api/portal/dashboard reads it straight off the row
+            (route.ts: `user?.lifetimeEarnings ?? 0`) and the only three
+            CreatorUser writers are register, PATCH /api/portal/me and the
+            reviews route, none of which touch it. So this tile told every
+            creator they had earned $0.00 lifetime, including creators with
+            settled activations. /portal/earnings is the honest surface: it
+            computes accrual from Activation rows.
+
+            Same rule, and the same reasoning, as the four tiles on
+            /c/[handle]. */}
+        <MetricTile
+          metric="portalLifetimeEarnings"
+          value={
+            unwrittenMetricValue(data.stats.lifetimeEarnings) === null
+              ? "—"
+              : formatCurrency(data.stats.lifetimeEarnings)
+          }
+        />
         <MetricTile metric="portalProposals" value={String(data.stats.totalProposals)} />
         <MetricTile metric="portalAccepted" value={String(data.stats.acceptedProposals)} />
         <MetricTile

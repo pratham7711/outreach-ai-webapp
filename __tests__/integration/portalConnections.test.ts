@@ -225,6 +225,14 @@ describe("DELETE /api/portal/connections", () => {
         creatorId: "c1",
         platform: { in: ["INSTAGRAM", "FACEBOOK"] },
         id: { not: "sa-fb" },
+        /* An Instagram-Login row carries platform INSTAGRAM but was minted by
+           a different app id and has no me/permissions endpoint, so it is not
+           part of this Facebook grant. Counting it as a sibling would suppress
+           the real revoke and leave the grant standing at Meta after the
+           creator disconnected their last Page -- the opposite of what
+           disconnect means. Rows predating the origin column are null and
+           still count. */
+        OR: [{ origin: null }, { origin: { not: "oauth_instagram_login" } }],
       },
     });
     expect(mockDb.creatorSocialAccount.delete).toHaveBeenCalledWith({ where: { id: "sa-fb" } });
@@ -293,24 +301,39 @@ describe("GET /api/portal/connections/[platform]/start", () => {
     expect(mockDb.creatorSocialAccount.upsert).not.toHaveBeenCalled();
   });
 
-  it("refuses TikTok as coming soon, before touching any creator row", async () => {
-    // TikTok connect is gated at the capability layer while API access is
-    // pending, so this must not fall through to the dev connect path and mint a
-    // token for a platform we cannot actually call.
-    const res = await startConnect(
-      makeRequest("http://localhost:3009/api/portal/connections/tiktok/start"),
-      makeParams("tiktok"),
-    );
-    expect(res.status).toBe(503);
-    const body = await res.json();
-    expect(body.status).toBe("coming_soon");
-    expect(mockDb.creator.findFirst).not.toHaveBeenCalled();
-    expect(mockDb.creatorSocialAccount.upsert).not.toHaveBeenCalled();
+  it("refuses a coming-soon platform before touching any creator row", async () => {
+    /* The guard is what matters, not which platform trips it: a platform we
+       cannot actually call must not fall through to the dev connect path and
+       mint a token for it.
+
+       TikTok used to be coming_soon by code default and was the natural
+       subject here. It is now "auto" -- live wherever its client key and
+       secret are set -- because coming_soon is the one status that removes the
+       Connect card entirely, which left the four Login Kit scopes with no
+       screen to demonstrate them on. So the status is forced through the
+       PLATFORM_CONNECT_STATUS override instead, which is the same path an
+       environment would use to pull a platform back. */
+    const savedOverride = process.env.PLATFORM_CONNECT_STATUS;
+    process.env.PLATFORM_CONNECT_STATUS = "tiktok:coming_soon";
+    try {
+      const res = await startConnect(
+        makeRequest("http://localhost:3009/api/portal/connections/tiktok/start"),
+        makeParams("tiktok"),
+      );
+      expect(res.status).toBe(503);
+      const body = await res.json();
+      expect(body.status).toBe("coming_soon");
+      expect(mockDb.creator.findFirst).not.toHaveBeenCalled();
+      expect(mockDb.creatorSocialAccount.upsert).not.toHaveBeenCalled();
+    } finally {
+      if (savedOverride === undefined) delete process.env.PLATFORM_CONNECT_STATUS;
+      else process.env.PLATFORM_CONNECT_STATUS = savedOverride;
+    }
   });
 
   it("redirects with error when no org-side creator matches", async () => {
-    // youtube rather than tiktok: tiktok is refused as coming_soon above and
-    // never reaches the creator lookup this asserts on.
+    // youtube rather than tiktok: the test above forces tiktok to coming_soon
+    // and refuses it before the creator lookup this asserts on.
     mockDb.creator.findFirst.mockResolvedValue(null);
     const res = await startConnect(
       makeRequest("http://localhost:3009/api/portal/connections/youtube/start"),

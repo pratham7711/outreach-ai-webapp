@@ -119,16 +119,16 @@ export default function PortalReviewsPage() {
         </p>
       </div>
 
-      {/* Section 1 — Reviews from Orgs */}
+      {/* Section 1 — Reviews from brands */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-        <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--cc-text)" }}>Reviews from Orgs</h2>
+        <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--cc-text)" }}>Reviews from Brands</h2>
       </div>
 
       {reviews.length === 0 ? (
         <EmptyState
           icon={<Star size={32} color="var(--cc-text-subtle)" />}
           title="No reviews yet"
-          description="Orgs will review you after campaigns are completed."
+          description="Brands will review you after campaigns are completed."
         />
       ) : (
         <Card variant="solid" noPadding>
@@ -145,7 +145,7 @@ export default function PortalReviewsPage() {
               background: "var(--cc-bg)",
             }}
           >
-            {["Campaign", "Org", "Rating", "Tags", "Date"].map((h) => (
+            {["Campaign", "Brand", "Rating", "Tags", "Date"].map((h) => (
               <span
                 key={h}
                 style={{
@@ -224,7 +224,7 @@ export default function PortalReviewsPage() {
           <EmptyState
             icon={<MessageSquare size={32} color="var(--cc-text-subtle)" />}
             title="No testimonials yet"
-            description="Share your experience working with orgs."
+            description="Share your experience working with brands."
           />
         ) : (
           testimonials.map((testimonial) => (
@@ -307,7 +307,7 @@ export default function PortalReviewsPage() {
           rows={4}
           value={form.content}
           onChange={(e) => setForm((f) => ({ ...f, content: e.target.value }))}
-          placeholder="Share what it was like working with this org..."
+          placeholder="Share what it was like working with this brand..."
           style={{
             width: "100%",
             borderRadius: 8,

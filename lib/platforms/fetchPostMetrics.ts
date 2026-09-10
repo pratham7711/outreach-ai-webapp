@@ -1419,7 +1419,13 @@ export async function fetchPostMetrics(
   return assemblePostMetrics(detected.platform, detected.id, metrics);
 }
 
-function assemblePostMetrics(
+/**
+ * Exported for tests: this whitelist has now silently dropped a parsed counter
+ * twice -- saves, then reach -- and both times every surrounding test stayed
+ * green because they asserted the parser and the writer, never the step
+ * between them.
+ */
+export function assemblePostMetrics(
   platform: PostMetrics["platform"],
   platformPostId: string,
   m: Partial<PostMetrics>,
@@ -1440,6 +1446,7 @@ function assemblePostMetrics(
   const comments = finite(m.commentsCount);
   const shares = finite(m.sharesCount);
   const saves = finite(m.savesCount);
+  const reach = finite(m.reachCount);
   const engagement = finite(m.engagementRate);
   if (views !== undefined) result.viewsCount = views;
   if (likes !== undefined) result.likesCount = likes;
@@ -1447,8 +1454,12 @@ function assemblePostMetrics(
   if (shares !== undefined) result.sharesCount = shares;
   /* This list is a whitelist, so a counter the parser produces but this omits is
      silently dropped -- which is exactly what happened to saves on its first
-     run: parsed from collectCount, and gone by the time anything wrote it. */
+     run: parsed from collectCount, and gone by the time anything wrote it, and
+     then again to reach: fetched under instagram_manage_insights, mapped to
+     reachCount by syncPost#countsFrom, and absent from here -- so it held a
+     value in 0 of 18,676 rows. */
   if (saves !== undefined) result.savesCount = saves;
+  if (reach !== undefined) result.reachCount = reach;
   const followers = finite(m.authorFollowers);
   if (followers !== undefined) result.authorFollowers = followers;
   if (engagement !== undefined) result.engagementRate = engagement;

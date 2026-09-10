@@ -645,6 +645,14 @@ model Creator {
   averageViews         Float          @default(0)
   bio                  String?
   contactEmail         String?
+  /// The portal identity this roster row represents, once proven. Null until
+  /// then.
+  ///
+  /// Makes roster -> identity a column instead of a handle-match plus ownership
+  /// proof recomputed on every portal request, and it is what gives
+  /// Post -> Creator any route at all to the identity's tokens — the sync cron
+  /// has none today.
+  creatorUserId        String?
   paymentInfo          String?
   rate                 Float?
   boostRate            Float?
@@ -687,7 +695,9 @@ model Creator {
   tagLinks         CreatorTagLink[]
   flagLinks        CreatorFlagLink[]
   trackerSnapshots CreatorTrackerSnapshot[]
+  creatorUser      CreatorUser?             @relation("RosterIdentity", fields: [creatorUserId], references: [id], onDelete: SetNull)
 
+  @@index([creatorUserId])
   @@index([orgId, trackedSince])
 }
 
@@ -705,9 +715,35 @@ model CreatorSocialAccount {
   creatorId      String
   platform       Platform
   handle         String
-  accessToken    String // AES-256-GCM ciphertext at rest — lib/crypto/encrypt.ts (AAD = orgId)
-  refreshToken   String? // AES-256-GCM ciphertext at rest — lib/crypto/encrypt.ts (AAD = orgId)
+  accessToken    String // AES-256-GCM ciphertext at rest — lib/crypto/encrypt.ts; which AAD sealed it is on `tokenAad`
+  refreshToken   String? // AES-256-GCM ciphertext at rest — lib/crypto/encrypt.ts; which AAD sealed it is on `tokenAad`
   tokenExpiry    DateTime?
+  /// The global portal identity that owns this connection.
+  ///
+  /// Null for rows an agency entered by hand and for rows no identity could be
+  /// resolved for; every row a portal OAuth callback writes has one. This — not
+  /// creatorId — is what can own "this person's combined followers".
+  creatorUserId  String?
+  /// Which AAD sealed accessToken/refreshToken: "row" (AAD = this row's id) or
+  /// "org" (legacy, AAD = the owning Creator's orgId). Null means "org", which
+  /// is what rows carried before this column existed.
+  ///
+  /// Never inferred by trial decryption: AES-GCM reports one failure, "tag
+  /// mismatch", so a corrupt ciphertext is indistinguishable from a correct one
+  /// opened with the wrong AAD. See lib/crypto/tokenContext.ts.
+  tokenAad       String?
+  /// The orgId the legacy ciphertext was sealed under, captured so a row stays
+  /// decryptable once creatorId is no longer the owner. Write-once and
+  /// transitional; dropping it is what makes the migration irreversible.
+  legacyAadOrgId String?
+  /// How this row came to exist: "oauth" (portal consent), "manual" (an agency
+  /// typed it, and accessToken is the literal string "manual-entry"), "dev"
+  /// (the dev connect shortcut).
+  ///
+  /// Without it these are only distinguishable by decrypting the token and
+  /// string-matching it, which is why /api/portal/connections reports
+  /// connected: true for a row holding no credential at all.
+  origin         String?
   platformUserId String?
   avatarUrl      String?
   bio            String?
@@ -724,6 +760,12 @@ model CreatorSocialAccount {
 
   creator Creator @relation(fields: [creatorId], references: [id], onDelete: Cascade)
 
+  /// SetNull, not Cascade. Destroying the only copy of a credential leaves the
+  /// OAuth grant live at TikTok, Meta or Google with nothing left that can
+  /// revoke it — and the disconnect route already swallows a failed decrypt and
+  /// deletes the row anyway, so that failure is silent.
+  creatorUser CreatorUser? @relation(fields: [creatorUserId], references: [id], onDelete: SetNull)
+
   /// Keyed on the platform account, not just the platform, so one creator can
   /// link SEVERAL accounts on the same platform — two TikTok handles, a
   /// personal and a brand Instagram. The old key was [creatorId, platform],
@@ -735,6 +777,21 @@ model CreatorSocialAccount {
   /// same platform are indistinguishable and a reconnect cannot tell "same
   /// account again" from "a second account".
   @@unique([creatorId, platform, platformUserId])
+  /// Identity-owned rows: one row per (identity, platform account), so one
+  /// person can hold two TikToks and a brand Instagram while a reconnect of the
+  /// same account is an update.
+  ///
+  /// Both keys are NULLS DISTINCT, so a legacy org-owned row carries
+  /// creatorUserId NULL and is invisible to this key — which is why the key
+  /// above is kept rather than replaced. There is deliberately no
+  /// [platform, platformUserId] unique: two orgs legitimately roster the same
+  /// person, which is why lib/oauth/metaDeletion.ts deletes by that pair with
+  /// deleteMany.
+  @@unique([creatorUserId, platform, platformUserId])
+  @@index([creatorUserId])
+  /// Serves forgetMetaUser's deleteMany, a Meta data-deletion compliance path
+  /// that had no index behind it.
+  @@index([platform, platformUserId])
 }
 
 model CreatorList {
@@ -1331,6 +1388,12 @@ model CreatorUser {
   testimonials   CreatorTestimonial[]
   payoutRequests PayoutRequest[]
   conversations  Conversation[]
+  /// Every platform account this person has authorised, across every org.
+  /// The set this replaces `platform` with: the singular field above can only
+  /// ever describe one platform.
+  socialAccounts CreatorSocialAccount[]
+  /// The per-org roster rows that resolve to this identity.
+  rosterRows     Creator[]                 @relation("RosterIdentity")
 }
 
 model CreatorSession {

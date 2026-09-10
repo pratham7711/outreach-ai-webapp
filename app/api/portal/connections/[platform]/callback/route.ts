@@ -6,6 +6,8 @@ import { findLinkedCreatorsForHandle } from "@/lib/portal/creatorLink";
 import { encrypt } from "@/lib/crypto/encrypt";
 import { exchangeForLongLivedToken } from "@/lib/platforms/instagram";
 import { exchangeThreadsToken } from "@/lib/platforms/threads";
+import { exchangeInstagramLoginToken } from "@/lib/platforms/instagramLogin";
+import { originForPlatform } from "@/lib/platforms/accountOrigin";
 import {
   buildTokenRequest,
   isOAuthPlatform,
@@ -179,6 +181,29 @@ export async function GET(
       }
     }
 
+    /* Instagram Login's exchange is its own host and its own grant type, and
+       skipping it is not survivable the way it is on the Facebook path: the
+       code-exchange token lasts an hour and nothing can lengthen it later. So
+       unlike the branches above, a failed exchange fails the CONNECTION rather
+       than storing a token that is dead before the creator reaches their
+       dashboard. */
+    if (platform === "instagram-login") {
+      let longLived = null;
+      try {
+        longLived = await exchangeInstagramLoginToken(accessToken);
+      } catch {
+        longLived = null;
+      }
+      if (!longLived) {
+        log.warn("Instagram Login long-lived exchange failed; not storing", {
+          platform,
+        });
+        return failureRedirect(req, platform, "token_exchange");
+      }
+      storedToken = longLived.accessToken;
+      storedExpiry = longLived.expiresAt ?? storedExpiry;
+    }
+
     const encryptedAccess = encrypt(storedToken, creator.orgId);
     const encryptedRefresh =
       typeof tokens.refresh_token === "string" && tokens.refresh_token
@@ -252,12 +277,22 @@ export async function GET(
         accessToken: encryptedAccess,
         refreshToken: encryptedRefresh,
         tokenExpiry,
+        /* Which OAuth path minted this token, not merely that one did. Both
+           Instagram paths write platform = INSTAGRAM, and they differ in the
+           two places it matters most: the host their reads go to, and whether a
+           revoke endpoint exists at all. Without this the disconnect route
+           would aim Facebook's revoke at an Instagram-Login token. */
+        origin: originForPlatform(platform),
         ...identityData,
       },
       update: {
         accessToken: encryptedAccess,
         refreshToken: encryptedRefresh,
         tokenExpiry,
+        /* Rewritten on reconnect: a creator who first connected through the
+           Facebook Page path and later reconnects without a Page has genuinely
+           changed which grant we hold. */
+        origin: originForPlatform(platform),
         ...identityData,
       },
       select: { id: true },

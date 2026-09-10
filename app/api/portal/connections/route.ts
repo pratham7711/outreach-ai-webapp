@@ -9,6 +9,7 @@ import { revokeInstagramToken } from "@/lib/platforms/instagramAccount";
 import { revokeYouTubeToken } from "@/lib/platforms/youtube";
 import { revokeFacebookToken } from "@/lib/platforms/facebookPage";
 import { findLinkedCreatorsForHandle } from "@/lib/portal/creatorLink";
+import { isInstagramLoginRow } from "@/lib/platforms/accountOrigin";
 
 export async function GET() {
   try {
@@ -40,6 +41,7 @@ export async function GET() {
               followersCount: true,
               mediaCount: true,
               statsSyncedAt: true,
+              origin: true,
             },
             orderBy: { createdAt: "asc" },
           });
@@ -62,6 +64,11 @@ export async function GET() {
         followersCount: a.followersCount,
         mediaCount: a.mediaCount,
         statsSyncedAt: a.statsSyncedAt,
+        /* Which flow minted the row. The settings screen needs it because both
+           Instagram paths store platform = INSTAGRAM, so without it an account
+           connected without a Facebook Page would be listed under both
+           Instagram cards. */
+        origin: a.origin,
       })),
       /* Built from OAUTH_PLATFORMS rather than listed by hand: the three names
          used to be hardcoded here, so adding a provider to the code left it
@@ -92,7 +99,13 @@ export async function DELETE(req: NextRequest) {
 
     const account = await db.creatorSocialAccount.findFirst({
       where: { id },
-      select: { id: true, creatorId: true, platform: true, accessToken: true },
+      select: {
+        id: true,
+        creatorId: true,
+        platform: true,
+        accessToken: true,
+        origin: true,
+      },
     });
     if (!account)
       return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -125,13 +138,22 @@ export async function DELETE(req: NextRequest) {
        token are simply deleted here, and the grant is withdrawn at Meta when
        the last one goes. */
     const META_PLATFORMS = ["INSTAGRAM", "FACEBOOK"] as const;
-    const isMeta = (META_PLATFORMS as readonly string[]).includes(account.platform);
+    /* An Instagram-Login row is NOT part of the Facebook grant. It was minted
+       by a different app id on a different host and has no me/permissions
+       endpoint, so it must neither be revoked through Facebook nor counted as a
+       sibling that keeps the Facebook grant alive — counting it would suppress
+       the real revoke and leave the Facebook grant standing after the creator
+       disconnected their last Page. */
+    const isIgLogin = isInstagramLoginRow(account.origin);
+    const isMeta =
+      !isIgLogin && (META_PLATFORMS as readonly string[]).includes(account.platform);
     const siblingMetaRows = isMeta
       ? await db.creatorSocialAccount.count({
           where: {
             creatorId: account.creatorId,
             platform: { in: [...META_PLATFORMS] },
             id: { not: account.id },
+            OR: [{ origin: null }, { origin: { not: "oauth_instagram_login" } }],
           },
         })
       : 0;
@@ -139,7 +161,16 @@ export async function DELETE(req: NextRequest) {
     try {
       const token = decrypt(account.accessToken, creator.orgId);
       if (account.platform === "TIKTOK") await revokeTikTokToken(token);
-      else if (account.platform === "INSTAGRAM" && siblingMetaRows === 0)
+      /* Instagram Login publishes no revoke endpoint, so there is nothing to
+         call — see revokeInstagramLoginToken. Deliberately not routed to
+         revokeInstagramToken: that DELETEs me/permissions on graph.facebook.com
+         and would 400 against a token that host does not govern, which this
+         catch swallows. The row is still deleted below and the creator
+         withdraws the app from Instagram's own settings, exactly as with
+         Threads. */
+      else if (isIgLogin) {
+        // no-op by design
+      } else if (account.platform === "INSTAGRAM" && siblingMetaRows === 0)
         await revokeInstagramToken(token);
       else if (account.platform === "YOUTUBE") await revokeYouTubeToken(token);
       else if (account.platform === "FACEBOOK" && siblingMetaRows === 0)

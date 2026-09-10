@@ -18,7 +18,17 @@ import { createLogger } from "@/lib/observability/logger";
  *                             to learn a Page id or get its token)
  *   pages_read_engagement  -> the Page's own fields: about, fan_count,
  *                             followers_count, picture, verification_status
- *   pages_read_user_content-> the /posts edge and its message text
+ *   pages_read_user_content-> /{post-id}/comments — content written by OTHER
+ *                             people on the Page. This entry used to name the
+ *                             /posts edge, and that was the mistake that kept
+ *                             the permission unapprovable: /posts and the
+ *                             comments *summary* are both credited to
+ *                             pages_read_engagement, so Meta's testing counter
+ *                             for pages_read_user_content read "0 of 1 API
+ *                             call" while the app looked, to us, like it was
+ *                             using it. A summary total is engagement data; the
+ *                             comment bodies are user content, and only the
+ *                             comments edge itself reads them.
  *   read_insights          -> post_media_view, the only view count Facebook
  *                             does not hang off the post object itself
  */
@@ -280,6 +290,116 @@ export async function fetchFacebookPagePosts(
       };
     }),
   );
+}
+
+/** How many comment bodies a live read pulls back. Deliberately small: this is
+ *  a preview beside a count, not a comment browser, and every extra row is
+ *  another person's words held in memory for longer than the response. */
+const COMMENT_PREVIEW_LIMIT = 5;
+
+export type FacebookCommentPreview = {
+  id: string;
+  /** The comment body. Never persisted — see fetchFacebookPostComments. */
+  message: string;
+  /** The commenter's display name, or null when Facebook withholds it. */
+  authorName: string | null;
+  createdAt: string | null;
+  likeCount: number | null;
+};
+
+export type FacebookPostComments = {
+  /**
+   * Every top-level comment, from the edge's own summary — not the length of
+   * `preview`, which is capped. `null` means Facebook did not return a total.
+   */
+  total: number | null;
+  preview: FacebookCommentPreview[];
+};
+
+/**
+ * Reads the comments on one Page post, live.
+ *
+ * This is the only call in the codebase that exercises
+ * `pages_read_user_content`, and the reason it exists as its own function
+ * rather than another field on POST_FIELDS: `comments.summary(true).limit(0)`
+ * asks for a count and Meta credits that to pages_read_engagement, so the
+ * permission we submitted had no call behind it. Reading the comment *bodies*
+ * off the edge is what the permission actually governs.
+ *
+ * **Nothing here is persisted, and that is a commitment made to Meta in the
+ * submission's justification, not an implementation detail.** These are third
+ * parties who commented on a creator's Page and never agreed to be in our
+ * database. The caller renders the result and drops it; there is no column, no
+ * cache and no log line carrying a comment body. If a future change wants to
+ * store one, that is a new review with a new justification.
+ *
+ * Returns null when the edge itself failed, so "could not read" stays
+ * distinguishable from "nobody has commented".
+ */
+export async function fetchFacebookPostComments(
+  postId: string,
+  pageAccessToken: string,
+  signal?: AbortSignal,
+): Promise<FacebookPostComments | null> {
+  const log = createLogger({
+    context: { platform: "FACEBOOK", call: "post.comments" },
+  });
+
+  const data = await graphGet(
+    `${postId}/comments`,
+    {
+      fields: "id,message,created_time,like_count,from{name}",
+      /* Top-level only: replies hang off each comment's own edge, and counting
+         them in a figure labelled "comments" would not match what the reader
+         sees on Facebook. */
+      filter: "toplevel",
+      /* The count must not be the length of the preview — a post with 400
+         comments would otherwise report 5. */
+      summary: "true",
+      order: "reverse_chronological",
+      limit: String(COMMENT_PREVIEW_LIMIT),
+      access_token: pageAccessToken,
+    },
+    signal,
+  );
+  if (!data) return null;
+
+  const rows: Record<string, unknown>[] = Array.isArray(data.data)
+    ? data.data.filter(
+        (c: unknown): c is Record<string, unknown> =>
+          typeof c === "object" && c !== null,
+      )
+    : [];
+
+  const total = optNum(
+    (data.summary as { total_count?: unknown } | undefined)?.total_count,
+  );
+
+  /* Counted, not quoted. A comment body must not reach a log even at debug:
+     the whole argument for this function is that these words stay in the
+     response. */
+  log.info("Read Page post comments live", {
+    postId,
+    returned: rows.length,
+    total: total ?? null,
+  });
+
+  return {
+    total: total ?? null,
+    preview: rows.map((c) => {
+      const from = c.from as { name?: unknown } | undefined;
+      return {
+        id: String(c.id ?? ""),
+        message: typeof c.message === "string" ? c.message : "",
+        /* Facebook omits `from` for a commenter who has not authorised the app
+           — the common case since the 2018 platform changes — so an anonymous
+           comment is normal, not an error. */
+        authorName: typeof from?.name === "string" && from.name ? from.name : null,
+        createdAt: typeof c.created_time === "string" ? c.created_time : null,
+        likeCount: optNum(c.like_count) ?? null,
+      };
+    }),
+  };
 }
 
 /**

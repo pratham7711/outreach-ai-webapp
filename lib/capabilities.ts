@@ -21,6 +21,10 @@ export type CapabilityReport = {
 
 const LABELS: Record<OAuthPlatform, string> = {
   instagram: "Instagram",
+  /* Named by what the creator has to have, not by which Meta product the token
+     comes from: the only question a creator can answer about themselves is
+     whether their Instagram is linked to a Facebook Page. */
+  "instagram-login": "Instagram (no Facebook Page)",
   tiktok: "TikTok",
   youtube: "YouTube",
   facebook: "Facebook",
@@ -28,8 +32,26 @@ const LABELS: Record<OAuthPlatform, string> = {
 };
 
 const DEFAULT_CONNECT: Record<OAuthPlatform, StatusRule> = {
-  instagram: "gated",
-  tiktok: "coming_soon",
+  /* Was a hardcoded "gated", which renders the Connect button anyway and only
+     changes the note beside it -- so the card read "Instagram sign-in is
+     unavailable right now" next to a button that works, which is the worst of
+     both for a reviewer. INSTAGRAM_CLIENT_ID/SECRET are set on production, so
+     auto resolves live there and gated on any environment without them. */
+  instagram: "auto",
+  /* "auto": live wherever INSTAGRAM_LOGIN_CLIENT_ID/SECRET are set, gated
+     everywhere else. Gated does NOT hide the Connect button — measured in the
+     browser 2026-09-09, it renders for every status except coming_soon — so the
+     settings screen shows the capability's note beside it, and the start route
+     redirects back with reason=provider rather than answering raw JSON. Without
+     both, this card was a button whose only outcome was an unexplained error. */
+  "instagram-login": "auto",
+  /* "auto" rather than coming_soon, which is the only status that hides the
+     card entirely -- so TikTok had no reachable Connect button and none of the
+     four Login Kit scopes could be demonstrated to a reviewer. auto resolves
+     live only where TIKTOK_CLIENT_KEY and TIKTOK_CLIENT_SECRET are both set
+     (both are, on production), and gated everywhere else, so this asserts the
+     credentials exist rather than that the app is approved. */
+  tiktok: "auto",
   youtube: "auto",
   /* Both are "auto": live wherever their client id and secret are configured,
      and absent everywhere else. Neither is gated behind approval the way
@@ -61,6 +83,11 @@ const DEFAULT_CONNECT: Record<OAuthPlatform, StatusRule> = {
  */
 const METRICS_ENV: Record<OAuthPlatform, string | null> = {
   instagram: "INSTAGRAM_BUSINESS_TOKEN",
+  /* No agency-side collector, and there cannot be one: business_discovery is a
+     Facebook-Login-path edge, so a creator who connected without a Page is
+     readable only through their own token. Metrics are live the moment they
+     connect and need no credential of ours. */
+  "instagram-login": null,
   tiktok: null,
   youtube: "YOUTUBE_API_KEY",
   /* Neither has an agency-side collector: there is no app token that reads a

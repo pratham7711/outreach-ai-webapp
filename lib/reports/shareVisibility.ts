@@ -12,12 +12,21 @@
 //                        columns exist on Activation (draftUrl, draftCaption,
 //                        draftSubmittedAt) and 0 rows carry one, so the switch
 //                        would control nothing.
-//   "Show Reach"       — reachCount is written by no code path in this repo and
-//                        is 0 on all 18,708 posts, while lastSyncedAt is set on
-//                        18,673 of them. metricValue would therefore read those
-//                        zeroes as measured, and the tile would tell a brand a
-//                        campaign with 12.9B views reached nobody. Needs
-//                        per-metric provenance, not a toggle.
+//   "Show Reach"       — reachCount now HAS a writer: assemblePostMetrics used
+//                        to parse reach off the Instagram insights edge and
+//                        drop it before the write, and that whitelist gap is
+//                        fixed. What is still missing is coverage. Every one of
+//                        the 18,676 existing rows holds the column default,
+//                        most of them carrying a lastSyncedAt from a sync that
+//                        never asked for reach — so a tile added today would
+//                        tell a brand a campaign with 12.9B views reached
+//                        nobody. The per-metric provenance that distinguishes
+//                        them exists (fieldMetricValue + __measured) and the
+//                        post-detail card is gated on it; a share toggle waits
+//                        until re-synced Instagram posts make the number
+//                        non-empty for a whole campaign, because a switch whose
+//                        report section is blank for every campaign is still a
+//                        switch that controls nothing.
 //   "Show Rates"       — we model a creator's rate card (Creator.rate, set on 12
 //                        of 1,834) but not what a campaign agreed to pay them.
 //                        Printing the card rate on a client-facing report under
