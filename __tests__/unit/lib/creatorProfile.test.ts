@@ -57,6 +57,76 @@ describe("readCreatorProfile dispatch", () => {
   });
 });
 
+/*
+ * A withheld subscriber count must never become a measured zero.
+ *
+ * Measured on prod 2026-09-10: a tracked YouTube creator had 100 consecutive
+ * snapshots of followersCount 0 going back to 2026-09-01, trackerLastError
+ * NULL throughout, while postsCount and avgViews were non-zero. Nothing had
+ * failed, so nothing was retried and nothing was flagged -- the chart simply
+ * drew a flat line that looked like a creator who had stopped growing.
+ *
+ * The cause is that the Data API reports a hidden count as the STRING "0"
+ * alongside hiddenSubscriberCount: true, rather than omitting the field, so a
+ * finite-number check passes it straight through.
+ */
+describe("readYouTube subscriber counts", () => {
+  const env = process.env;
+  const realFetch = global.fetch;
+
+  /** channels -> playlistItems -> videos, in the order readYouTube calls them. */
+  function mockYouTube(statistics: Record<string, unknown>) {
+    global.fetch = jest.fn(async (input: unknown) => {
+      const url = String(input);
+      const body = url.includes("/channels")
+        ? { items: [{ statistics, contentDetails: { relatedPlaylists: {} } }] }
+        : { items: [] };
+      return { ok: true, status: 200, json: async () => body } as unknown as Response;
+    }) as unknown as typeof fetch;
+  }
+
+  beforeEach(() => {
+    process.env = { ...env, YOUTUBE_API_KEY: "test-key" };
+  });
+  afterEach(() => {
+    global.fetch = realFetch;
+    process.env = env;
+  });
+
+  it("treats a hidden subscriber count as unreadable rather than as zero followers", async () => {
+    mockYouTube({ hiddenSubscriberCount: true, subscriberCount: "0", videoCount: "1" });
+
+    const result = await readCreatorProfile("YOUTUBE", "phonknow");
+
+    expect(result).toEqual({
+      ok: false,
+      reason: "unreadable",
+      detail: "subscriberCount hidden",
+    });
+  });
+
+  it("still reads a channel that genuinely has zero subscribers", async () => {
+    // The guard above must key on the flag, not on the number -- a new channel
+    // with a real, public count of 0 is a successful read, and rejecting it
+    // would trade one silent wrong answer for another.
+    mockYouTube({ hiddenSubscriberCount: false, subscriberCount: "0", videoCount: "1" });
+
+    const result = await readCreatorProfile("YOUTUBE", "brandnew");
+
+    expect(result.ok).toBe(true);
+    expect(result.ok && result.profile.followersCount).toBe(0);
+  });
+
+  it("reads a normal public count unchanged", async () => {
+    mockYouTube({ subscriberCount: "2654363", videoCount: "42" });
+
+    const result = await readCreatorProfile("YOUTUBE", "sonheii");
+
+    expect(result.ok).toBe(true);
+    expect(result.ok && result.profile.followersCount).toBe(2654363);
+  });
+});
+
 describe("READ_FAILURE_COPY", () => {
   it("has reader-facing copy for every failure the reader can produce", () => {
     // A missing entry renders as undefined in the UI, which is worse than the

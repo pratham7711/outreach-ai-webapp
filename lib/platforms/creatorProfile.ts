@@ -270,9 +270,29 @@ async function readYouTube(handle: string): Promise<CreatorReadResult> {
       }
     }
 
-    if (!Number.isFinite(followersCount)) {
-      // A channel that hides its subscriber count is readable in every other way.
+    /* A hidden subscriber count is NOT an absent field.
+     *
+     * When a channel hides its count, the Data API still returns
+     * `statistics.subscriberCount`, as the string "0", and marks it with
+     * `hiddenSubscriberCount: true`. So the finite check below can never catch
+     * it: Number("0") is 0, which is finite, and the read returned ok with a
+     * follower count of zero. Measured on prod 2026-09-10: one tracked YouTube
+     * creator had written 100 consecutive snapshots of followersCount 0 since
+     * 2026-09-01, with postsCount 1 and avgViews 3 alongside -- readable in
+     * every other way, exactly as the old comment here said -- and
+     * trackerLastError NULL the whole time, because nothing had failed. A
+     * withheld number had become a measured zero, which is the same class of
+     * bug the post sync had (see lib/sync/syncPost) one table over.
+     *
+     * lib/platforms/youtube.ts:189 already reads the flag correctly. This is
+     * the same rule, in the reader the creator trackers actually call. */
+    if (item.statistics?.hiddenSubscriberCount === true) {
       return { ok: false, reason: "unreadable", detail: "subscriberCount hidden" };
+    }
+    if (!Number.isFinite(followersCount)) {
+      // Absent rather than withheld -- a shape the API is not documented to
+      // return, so it is treated the same way rather than guessed at.
+      return { ok: false, reason: "unreadable", detail: "subscriberCount missing" };
     }
     return {
       ok: true,
