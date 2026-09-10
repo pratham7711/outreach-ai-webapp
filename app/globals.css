@@ -1421,6 +1421,9 @@ h1, h2, h3, h4, h5, h6 {
   --spr-hairline: rgba(0, 0, 0, 0.08);
   --spr-hairline-dark: rgba(255, 255, 255, 0.14);
   --spr-grid: rgba(0, 0, 0, 0.10);
+  /* Chart axis labels. Sampled straight off the reference's chart canvas, and
+     the same grey its audio card spends on the same job. */
+  --spr-chart-axis: #AEB9C2;
   --spr-r-card: 20px;
   --spr-r-pill: 10px;
   --spr-r-thumb: 5px;
@@ -1953,7 +1956,18 @@ h1, h2, h3, h4, h5, h6 {
   .spr-cover { grid-area: cover; }
   .spr-head-body { display: contents; }
   .spr-title { grid-area: title; align-self: center; }
-  .spr-facts { grid-area: facts; }
+  /* Side by side on a phone, not stacked. Measured on a fresh 390px load of the
+     reference: Live Posts sits at x=40 w=144 and Status at x=194 w=157, both on
+     y=231 -- one row, a 10px gutter, filling the 311px content box. The 230px
+     floor inherited from the desktop rule is wider than that box, so auto-fit
+     could only ever fit one column and the two pills stacked. auto-fit rather
+     than a flat two columns, so a report carrying just one fact still gets a
+     full-width pill instead of a half-empty row. */
+  .spr-facts {
+    grid-area: facts;
+    grid-template-columns: repeat(auto-fit, minmax(min(140px, 100%), 1fr));
+    gap: 10px;
+  }
   .spr-fact { max-width: none; }
   .spr-tiles { grid-template-columns: repeat(auto-fit, minmax(min(130px, 100%), 1fr)); }
 }

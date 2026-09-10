@@ -1,7 +1,7 @@
 "use client";
 import React, { useState } from "react";
 import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
+  AreaChart, Area, XAxis, YAxis, Tooltip,
   PieChart, Pie, Cell, Legend,
 } from "recharts";
 import { BarChart3, Music2, Radio, CircleDot } from "lucide-react";
@@ -11,6 +11,7 @@ import { DEFAULT_SHARE_VISIBILITY, type ShareVisibility } from "@/lib/reports/sh
 import { formatFull, formatCompact } from "@/lib/format";
 import { ACTIVATION_STATUS_LABEL, activationStatusBadgeStyle } from "@/lib/activationQueues";
 import { platformColor } from "@/app/(dashboard)/analytics/shared";
+import { chartGreysFor, chartStrokeFor } from "@/lib/reports/shareChartPalette";
 import { POWERED_BY } from "@/lib/brand";
 import { AudioCard } from "@/components/campaigns/AudioCard";
 import { shareImgSrc } from "@/lib/postMedia";
@@ -23,11 +24,16 @@ import SharedPostList from "./SharedPostList";
  * The pie beside this chart splits every post by platform while the chart only
  * ever drew TikTok, Instagram and YouTube, so a campaign carrying a Twitter or
  * Facebook post stacked to a total below the Total Views tile above it.
- * platformColor falls back to a generic series token for a platform with no
- * colour of its own, so nothing has to be added here when one appears.
+ *
+ * The colours are greyscale because the reference's chart is -- the palette and
+ * the measurement behind it live in lib/reports/shareChartPalette. The pie
+ * beside this chart keeps its platform colours: the reference report has no
+ * platform breakdown at all, so there is nothing there to diverge from, and hue
+ * is the only thing encoding which slice is which.
  */
 function seriesFor(platforms: string[]): { key: string; color: string }[] {
-  return platforms.map((key, i) => ({ key, color: platformColor(key, i) }));
+  const greys = chartGreysFor(platforms.length);
+  return platforms.map((key, i) => ({ key, color: greys[i] }));
 }
 
 function formatNumber(num: number): string {
@@ -205,33 +211,34 @@ export default function SharedPerformanceReport({
                 </div>
                 <h3 className="spr-subhead">Views Over Time</h3>
                 {timeSeries.length >= 3 ? (
-                  <ChartFrame height={280}>
+                  /* 250, the reference canvas's own height. No <defs>: the
+                     reference's bands are flat fills, and no CartesianGrid --
+                     a pixel scan down three columns of its chart crosses no
+                     grid line at any y. */
+                  <ChartFrame height={250}>
                     <AreaChart data={timeSeries} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
-                      <defs>
-                        {activeSeries.map((s) => (
-                          <linearGradient key={s.key} id={`shareGrad-${s.key}`} x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor={s.color} stopOpacity={0.3} />
-                            <stop offset="95%" stopColor={s.color} stopOpacity={0} />
-                          </linearGradient>
-                        ))}
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="var(--spr-grid)" />
-                      <XAxis dataKey="date" tickFormatter={formatDate} tick={{ fontSize: 12, fill: "var(--spr-label)" }} />
-                      <YAxis tickFormatter={(v) => formatCompact(Number(v))} tick={{ fontSize: 12, fill: "var(--spr-label)" }} width={64} />
+                      <XAxis dataKey="date" tickFormatter={formatDate} tick={{ fontSize: 12, fill: "var(--spr-chart-axis)" }} />
+                      <YAxis tickFormatter={(v) => formatCompact(Number(v))} tick={{ fontSize: 12, fill: "var(--spr-chart-axis)" }} width={64} />
                       <Tooltip
                         labelFormatter={(l) => formatDate(String(l))}
                         formatter={(v: unknown) => formatNumber(Number(v ?? 0))}
                         contentStyle={{ background: "var(--spr-card)", border: "1px solid var(--spr-hairline)", borderRadius: 12, fontSize: 13, color: "var(--spr-ink)" }}
                       />
                       <Legend wrapperStyle={{ fontSize: 12, color: "var(--spr-label)" }} />
-                      {activeSeries.map((s) => (
+                      {activeSeries.map((s, i) => (
                         <Area
                           key={s.key}
                           type="monotone"
                           dataKey={s.key}
                           stackId="views"
-                          stroke={s.color}
-                          fill={`url(#shareGrad-${s.key})`}
+                          /* Every band but the topmost carries the lighter
+                             separator the reference draws at its top edge; the
+                             topmost strokes with its own fill, because the
+                             reference's stack meets the card ground with no
+                             lighter line above it. */
+                          stroke={chartStrokeFor(i, activeSeries.length)}
+                          fill={s.color}
+                          fillOpacity={1}
                           strokeWidth={2}
                         />
                       ))}
