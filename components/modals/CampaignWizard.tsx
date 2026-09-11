@@ -245,18 +245,42 @@ export default function CampaignWizard({
    * button is on screen the payout step is two steps behind and nothing else
    * between here and the API looks at the rate.
    */
-  const payoutError = useMemo(() => {
+  /**
+   * The same rules, but answered per field rather than one at a time.
+   *
+   * These used to collapse into a single message printed after all three payout
+   * blocks, which put "Enter the rate you pay per approved post." below the
+   * Rate per Post box, past Max Posts, and immediately above Budget -- close
+   * enough to Budget to read as a complaint about Budget. Per-view was worse:
+   * two fields could be empty and only the first was ever named, so filling
+   * the one it asked for produced a second identical-looking refusal.
+   *
+   * Input takes an `error` prop that renders the message under its own box and
+   * wires aria-invalid and aria-describedby to it, so the field states its own
+   * problem and a screen reader reaches it from the input.
+   */
+  const payoutFieldErrors = useMemo(() => {
     const positive = (v: string) => Number(v) > 0;
-    if (form.payoutModel === "fixed" && !positive(form.ratePerPost)) {
-      return "Enter the rate you pay per approved post.";
-    }
-    if (form.payoutModel === "per_view") {
-      if (!positive(form.ratePerThousandViews)) return "Enter the rate you pay per 1,000 views.";
-      if (!positive(form.capAmount)) return "Enter the maximum you will pay a creator.";
-    }
+    const missing = "Required to pay creators \u2014 enter an amount above 0.";
+    return {
+      ratePerPost:
+        form.payoutModel === "fixed" && !positive(form.ratePerPost) ? missing : undefined,
+      ratePerThousandViews:
+        form.payoutModel === "per_view" && !positive(form.ratePerThousandViews)
+          ? missing
+          : undefined,
+      capAmount:
+        form.payoutModel === "per_view" && !positive(form.capAmount) ? missing : undefined,
+    };
     // Negotiated agrees a rate per creator later, so there is nothing to hold here.
-    return null;
   }, [form.payoutModel, form.ratePerPost, form.ratePerThousandViews, form.capAmount]);
+
+  /* What holds Next and Create Campaign. Unchanged in effect -- the gate was
+     already right, it was only the explaining that was in the wrong place. */
+  const payoutError = useMemo(
+    () => Object.values(payoutFieldErrors).some(Boolean),
+    [payoutFieldErrors]
+  );
 
   const canNext = () => {
     if (step === 0) return form.title.trim().length > 0 && !audioError;
@@ -290,7 +314,7 @@ export default function CampaignWizard({
                 </span>
               </Button>
             ) : (
-              <Button variant="primary" loading={loading} disabled={Boolean(payoutError)} onClick={handleSubmit}>
+              <Button variant="primary" loading={loading} disabled={payoutError} onClick={handleSubmit}>
                 <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
                   <Check size={14} /> Create Campaign
                 </span>
@@ -419,7 +443,7 @@ export default function CampaignWizard({
           {form.payoutModel === "fixed" && (
             <div style={{ display: "flex", gap: 12 }}>
               <div style={{ flex: 1 }}>
-                <Input label="Rate per Post" type="number" value={form.ratePerPost} onChange={(e) => set({ ratePerPost: e.target.value })} placeholder="e.g. 500" />
+                <Input label="Rate per Post" type="number" required error={payoutFieldErrors.ratePerPost} value={form.ratePerPost} onChange={(e) => set({ ratePerPost: e.target.value })} placeholder="e.g. 500" />
               </div>
               <div style={{ flex: 1 }}>
                 <Input label="Max Posts (optional)" type="number" value={form.maxPosts} onChange={(e) => set({ maxPosts: e.target.value })} placeholder="e.g. 3" />
@@ -430,10 +454,10 @@ export default function CampaignWizard({
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               <div style={{ display: "flex", gap: 12 }}>
                 <div style={{ flex: 1 }}>
-                  <Input label="Rate per 1K Views" type="number" value={form.ratePerThousandViews} onChange={(e) => set({ ratePerThousandViews: e.target.value })} placeholder="e.g. 5" />
+                  <Input label="Rate per 1K Views" type="number" required error={payoutFieldErrors.ratePerThousandViews} value={form.ratePerThousandViews} onChange={(e) => set({ ratePerThousandViews: e.target.value })} placeholder="e.g. 5" />
                 </div>
                 <div style={{ flex: 1 }}>
-                  <Input label="Cap Amount" type="number" value={form.capAmount} onChange={(e) => set({ capAmount: e.target.value })} placeholder="e.g. 2000" />
+                  <Input label="Cap Amount" type="number" required error={payoutFieldErrors.capAmount} value={form.capAmount} onChange={(e) => set({ capAmount: e.target.value })} placeholder="e.g. 2000" />
                 </div>
               </div>
               <Input label="Tracking Window (days)" type="number" value={form.trackingWindowDays} onChange={(e) => set({ trackingWindowDays: e.target.value })} placeholder="7" />
@@ -447,12 +471,6 @@ export default function CampaignWizard({
                 <span style={{ fontSize: 14, color: "var(--cc-text)" }}>Allow creators to counter-offer</span>
               </label>
             </div>
-          )}
-
-          {payoutError && (
-            <p role="alert" style={{ fontSize: 12, color: "var(--cc-danger)", margin: 0 }}>
-              {payoutError}
-            </p>
           )}
 
           <div style={{ display: "flex", gap: 12 }}>
