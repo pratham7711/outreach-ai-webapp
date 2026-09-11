@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { Modal, Input, Badge } from "@pratham7711/ui";
 import { ChevronLeft, ChevronRight, Check } from "lucide-react";
@@ -64,6 +64,11 @@ const PAYOUT_MODELS: { value: PayoutModel; label: string; desc: string }[] = [
   { value: "negotiated", label: "Negotiated", desc: "Agree a rate with each creator individually." },
 ];
 
+const PAYMENT_MODES: { value: "MANAGED" | "SELF_MANAGED"; label: string; desc: string }[] = [
+  { value: "MANAGED", label: "Managed", desc: "We hold the deposit and release payments through the platform." },
+  { value: "SELF_MANAGED", label: "Self-managed", desc: "Your organization pays creators directly, outside the platform." },
+];
+
 /** The stored campaignType follows from the payout choice. The two remaining
  *  enum values (OPEN_COMMUNITY, PRIVATE_INVITE) describe *access*, which the
  *  Open enrollment switch on the last step already decides -- the second place
@@ -99,6 +104,78 @@ const cardOptionStyle = (selected: boolean) => ({
   cursor: "pointer",
   transition: "all 0.15s",
 });
+
+/** The option cards are a radio group, not a stack of divs. Measured on prod:
+ *  role null, tabIndex -1, no aria-checked -- so eighteen Tab presses on the
+ *  payout step never reach one, and the model can only be changed with a
+ *  mouse. Roving tabindex per the APG radiogroup pattern: the group is a single
+ *  tab stop and the arrow keys move within it. The tab stop falls back to the
+ *  first card when nothing matches, so the group can never become unreachable. */
+function CardRadioGroup<T extends string>({
+  label,
+  value,
+  options,
+  onChange,
+  renderBody,
+}: {
+  label: string;
+  value: T;
+  options: readonly { value: T; label: string; desc: string }[];
+  onChange: (next: T) => void;
+  renderBody?: (opt: { value: T; label: string; desc: string }, selected: boolean) => ReactNode;
+}) {
+  const cards = useRef<(HTMLDivElement | null)[]>([]);
+  const selectedIndex = options.findIndex((o) => o.value === value);
+  const tabStop = selectedIndex === -1 ? 0 : selectedIndex;
+
+  const step = (from: number, delta: number) => {
+    const to = (from + delta + options.length) % options.length;
+    onChange(options[to].value);
+    cards.current[to]?.focus();
+  };
+
+  return (
+    <div role="radiogroup" aria-label={label} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      {options.map((opt, i) => {
+        const selected = opt.value === value;
+        return (
+          <div
+            key={opt.value}
+            ref={(el) => {
+              cards.current[i] = el;
+            }}
+            role="radio"
+            aria-checked={selected}
+            tabIndex={i === tabStop ? 0 : -1}
+            onClick={() => onChange(opt.value)}
+            onKeyDown={(e) => {
+              if (e.key === " " || e.key === "Enter") {
+                e.preventDefault();
+                onChange(opt.value);
+              } else if (e.key === "ArrowDown" || e.key === "ArrowRight") {
+                e.preventDefault();
+                step(i, 1);
+              } else if (e.key === "ArrowUp" || e.key === "ArrowLeft") {
+                e.preventDefault();
+                step(i, -1);
+              }
+            }}
+            style={cardOptionStyle(selected)}
+          >
+            {renderBody ? (
+              renderBody(opt, selected)
+            ) : (
+              <>
+                <p style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>{opt.label}</p>
+                <p style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{opt.desc}</p>
+              </>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 const CURRENCIES = ["USD", "EUR", "GBP", "INR"] as const;
 type WizardCurrency = (typeof CURRENCIES)[number];
@@ -434,14 +511,12 @@ export default function CampaignWizard({
       {/* ── Step 2 — Payout ─────────────────────────────────────────────── */}
       {step === 1 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {PAYOUT_MODELS.map((opt) => (
-              <div key={opt.value} onClick={() => set({ payoutModel: opt.value })} style={cardOptionStyle(form.payoutModel === opt.value)}>
-                <p style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>{opt.label}</p>
-                <p style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{opt.desc}</p>
-              </div>
-            ))}
-          </div>
+          <CardRadioGroup
+            label="Payout model"
+            value={form.payoutModel}
+            options={PAYOUT_MODELS}
+            onChange={(payoutModel) => set({ payoutModel })}
+          />
 
           {form.payoutModel === "fixed" && (
             <div style={{ display: "flex", gap: 12 }}>
@@ -501,20 +576,21 @@ export default function CampaignWizard({
 
           <div>
             <label style={labelStyle}>Who handles payment?</label>
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              {[
-                { value: "MANAGED" as const, label: "Managed", desc: "We hold the deposit and release payments through the platform." },
-                { value: "SELF_MANAGED" as const, label: "Self-managed", desc: "Your organization pays creators directly, outside the platform." },
-              ].map((opt) => (
-                <div key={opt.value} onClick={() => set({ paymentMode: opt.value })} style={cardOptionStyle(form.paymentMode === opt.value)}>
+            <CardRadioGroup
+              label="Who handles payment?"
+              value={form.paymentMode}
+              options={PAYMENT_MODES}
+              onChange={(paymentMode) => set({ paymentMode })}
+              renderBody={(opt, selected) => (
+                <>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
                     <p style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>{opt.label}</p>
-                    {form.paymentMode === opt.value && <Badge variant="accent">Selected</Badge>}
+                    {selected && <Badge variant="accent">Selected</Badge>}
                   </div>
                   <p style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{opt.desc}</p>
-                </div>
-              ))}
-            </div>
+                </>
+              )}
+            />
           </div>
         </div>
       )}

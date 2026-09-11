@@ -1,7 +1,7 @@
 /**
  * @jest-environment jsdom
  */
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 
 jest.mock(
   "@pratham7711/ui",
@@ -139,5 +139,57 @@ describe("CampaignWizard — payout step validation", () => {
     // Next is blocked, so the submit button is only reachable by going forward
     // again — which is exactly what the guard on it covers.
     expect(screen.getByText("Next").closest("button")).toBeDisabled();
+  });
+});
+
+/**
+ * The payout cards were bare <div onClick>. Measured on prod 2026-09-11: role
+ * null, tabIndex -1, no aria-checked -- and eighteen Tab presses on the payout
+ * step never landed on one, so the model could only be changed with a mouse.
+ * The default (fixed) was still reachable, which is why the flow looked fine.
+ */
+describe("CampaignWizard — payout model is a radio group", () => {
+  const group = () => screen.getByRole("radiogroup", { name: "Payout model" });
+  const radios = () => within(group()).getAllByRole("radio");
+
+  it("offers the three models as radios, exactly one of them checked", () => {
+    openPayoutStep();
+    expect(radios()).toHaveLength(3);
+    expect(radios().filter((r) => r.getAttribute("aria-checked") === "true")).toHaveLength(1);
+  });
+
+  it("keeps one tab stop, on the selected card", () => {
+    openPayoutStep();
+    const [first, second, third] = radios();
+    expect(first).toHaveAttribute("aria-checked", "true");
+    expect(first).toHaveAttribute("tabindex", "0");
+    expect(second).toHaveAttribute("tabindex", "-1");
+    expect(third).toHaveAttribute("tabindex", "-1");
+  });
+
+  it("selects with the keyboard, which a div onClick could not do", () => {
+    openPayoutStep();
+    expect(screen.getByText("Next").closest("button")).toBeDisabled();
+    fireEvent.keyDown(radios()[2], { key: " " });
+    expect(radios()[2]).toHaveAttribute("aria-checked", "true");
+    /* Negotiated agrees its rate per creator, so nothing is left to fill in and
+       the step stops blocking -- reached here without a mouse. */
+    expect(screen.getByText("Next").closest("button")).not.toBeDisabled();
+  });
+
+  it("moves between the options with the arrow keys", () => {
+    openPayoutStep();
+    fireEvent.keyDown(radios()[0], { key: "ArrowDown" });
+    expect(radios()[1]).toHaveAttribute("aria-checked", "true");
+    fireEvent.keyDown(radios()[1], { key: "ArrowUp" });
+    expect(radios()[0]).toHaveAttribute("aria-checked", "true");
+  });
+
+  it("gives the payment-mode cards the same treatment", () => {
+    openPayoutStep();
+    const pay = screen.getByRole("radiogroup", { name: "Who handles payment?" });
+    const opts = within(pay).getAllByRole("radio");
+    expect(opts).toHaveLength(2);
+    expect(opts.filter((o) => o.getAttribute("aria-checked") === "true")).toHaveLength(1);
   });
 });
