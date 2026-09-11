@@ -13,9 +13,32 @@ jest.mock(
         {footer}
       </div>
     ),
-    Input: ({ label, value, onChange, type }: any) => (
-      <input aria-label={label} value={value} onChange={onChange} type={type} />
-    ),
+    /* Mirrors the real Input's error contract. The stub used to drop `error`
+       on the floor, so a field that states its own problem rendered nothing
+       here and the payout assertions below could not see a message the app
+       does show. */
+    Input: ({ label, value, onChange, type, error, required }: any) => {
+      const id = `mock-input-${label}`;
+      return (
+        <>
+          <input
+            aria-label={label}
+            id={id}
+            value={value}
+            onChange={onChange}
+            type={type}
+            required={required}
+            aria-invalid={Boolean(error)}
+            aria-describedby={error ? `${id}-error` : undefined}
+          />
+          {error && (
+            <span id={`${id}-error`} role="alert">
+              {error}
+            </span>
+          )}
+        </>
+      );
+    },
     Badge: ({ children }: any) => <span>{children}</span>,
   }),
   { virtual: true }
@@ -84,7 +107,14 @@ describe("CampaignWizard — payout step validation", () => {
   it("holds a per-view campaign until both the rate and the cap are set", () => {
     openPayoutStep();
     fireEvent.click(screen.getByText("Per 1K views, with a cap"));
-    expect(screen.getByRole("alert")).toHaveTextContent(/per 1,000 views/i);
+    /* Both empty fields name themselves at once. They used to share a single
+       message that only ever named the first, so satisfying the field it asked
+       about produced a second refusal that looked identical to the one just
+       cleared. */
+    expect(screen.getAllByRole("alert").map((el) => el.textContent)).toEqual([
+      "Enter the rate you pay per 1,000 views.",
+      "Enter the maximum you will pay a creator.",
+    ]);
 
     fireEvent.change(screen.getByLabelText("Rate per 1K Views"), { target: { value: "5" } });
     expect(screen.getByRole("alert")).toHaveTextContent(/maximum you will pay/i);

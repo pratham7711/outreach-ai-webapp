@@ -261,16 +261,19 @@ export default function CampaignWizard({
    */
   const payoutFieldErrors = useMemo(() => {
     const positive = (v: string) => Number(v) > 0;
-    const missing = "Required to pay creators \u2014 enter an amount above 0.";
     return {
       ratePerPost:
-        form.payoutModel === "fixed" && !positive(form.ratePerPost) ? missing : undefined,
+        form.payoutModel === "fixed" && !positive(form.ratePerPost)
+          ? "Enter the rate you pay per approved post."
+          : undefined,
       ratePerThousandViews:
         form.payoutModel === "per_view" && !positive(form.ratePerThousandViews)
-          ? missing
+          ? "Enter the rate you pay per 1,000 views."
           : undefined,
       capAmount:
-        form.payoutModel === "per_view" && !positive(form.capAmount) ? missing : undefined,
+        form.payoutModel === "per_view" && !positive(form.capAmount)
+          ? "Enter the maximum you will pay a creator."
+          : undefined,
     };
     // Negotiated agrees a rate per creator later, so there is nothing to hold here.
   }, [form.payoutModel, form.ratePerPost, form.ratePerThousandViews, form.capAmount]);
