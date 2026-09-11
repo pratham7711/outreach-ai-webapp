@@ -18,6 +18,8 @@ import { logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
 import type { PostStatus, Platform } from "@/lib/generated/prisma/client";
 import { PLATFORM_VALUES } from "@/lib/platforms/constants";
+import { ensureCreatorForHandle, findCreatorByHandle, findExistingPosts } from "@/lib/posts/addPostChecks";
+import { hasPermission } from "@/lib/rbac";
 
 const PLATFORMS = PLATFORM_VALUES;
 // One list, shared with the detector -- two copies would be free to disagree
@@ -34,6 +36,11 @@ const createPostSchema = z.object({
   creatorId: z.string().min(1).optional(),
   mediaType: z.enum(MEDIA_TYPES).optional(),
   activationId: z.string().nullable().optional(),
+  /* The operator's answer to "this post is already in another campaign".
+     Defaulting to false is the point: a client that has not been told about the
+     duplicate cannot accidentally consent to it, so every override is a
+     deliberate one and is recorded as such in the audit trail. */
+  allowDuplicate: z.boolean().optional(),
 });
 
 // GET /api/campaigns/[id]/posts
@@ -126,21 +133,44 @@ export async function POST(
       return NextResponse.json({ error: "Invalid input", details: parsed.error.flatten() }, { status: 400 });
     }
 
-    const { postUrl, mediaType, activationId } = parsed.data;
+    const { postUrl, mediaType, activationId, allowDuplicate } = parsed.data;
 
     /* The same link twice is a second Post row, and every metric it carries is
        then counted twice in the campaign's totals. Adding posts one at a time
        made that a rare slip; pasting batches makes overlapping two pastes the
        normal way to do it, so the second copy is refused by name rather than
-       created quietly. Scoped to the campaign -- the same post legitimately
-       appears in two campaigns. */
-    const already = await db.post.findFirst({
-      where: { campaignId, postUrl },
-      select: { id: true },
-    });
-    if (already) {
+       created quietly.
+       Matched on the platform's post id rather than the URL string, because
+       TikTok's share sheet appends is_from_webapp, sender_device and a
+       per-browser web_id -- the same video copied from two browsers produced
+       two strings, and the equality check let the second one straight through
+       into the campaign's totals. */
+    const existing = await findExistingPosts(orgId, postUrl);
+    const sameCampaign = existing.find((e) => e.campaignId === campaignId);
+    if (sameCampaign) {
+      /* Not overridable, unlike the cross-campaign case below. Two rows for one
+         post inside one campaign double-count that campaign's own views, which
+         is never what anyone means by "add it anyway". */
       return NextResponse.json(
         { error: "duplicate_post", message: "Already in this campaign." },
+        { status: 409 }
+      );
+    }
+    /* A post legitimately appears in two campaigns -- the same creator video
+       can be delivered against two briefs -- so this is a question, not a rule.
+       It is refused once with the campaigns named, and goes through on the
+       operator's explicit say-so. */
+    if (existing.length > 0 && !allowDuplicate) {
+      const names = existing.map((e) => e.campaignName);
+      return NextResponse.json(
+        {
+          error: "duplicate_post_other_campaign",
+          message:
+            names.length === 1
+              ? `Already tracked in ${names[0]}. Add anyway to count it here too.`
+              : `Already tracked in ${names.length} other campaigns. Add anyway to count it here too.`,
+          campaigns: existing.map((e) => ({ id: e.campaignId, name: e.campaignName })),
+        },
         { status: 409 }
       );
     }
@@ -151,29 +181,30 @@ export async function POST(
        consulted when none was chosen. Matching is case-insensitive and tolerates
        a leading @, because handles are stored both ways, and it stays scoped to
        the org -- a pasted URL is untrusted input and must never reach across a
-       tenant. Nothing is created here: inventing a roster entry from a pasted
-       link is not a thing an import should do behind the operator's back. */
+       tenant.
+
+       A handle nobody has typed into the roster yet is added rather than
+       refused. The roster is a record of who we track, not a permit list to be
+       filled in before the work can start, and the link already names the
+       account -- so an agency pasting a client's week of deliverables does not
+       have to stop, add four creators by hand and paste the batch again. The
+       seat still has to be one that could have added that creator directly. */
     let creatorId = parsed.data.creatorId;
+    let addedCreator: { id: string; handle: string } | null = null;
     if (!creatorId && detected?.handle) {
       const bare = detected.handle.replace(/^@/, "");
-      const match = await db.creator.findFirst({
-        where: {
-          orgId,
-          deletedAt: null,
-          OR: [
-            { handle: { equals: bare, mode: "insensitive" } },
-            { handle: { equals: `@${bare}`, mode: "insensitive" } },
-          ],
-        },
-        select: { id: true },
-      });
-      if (!match) {
+      const mayCreate = hasPermission((session.user as any).role ?? "", "creators:create");
+      const found = mayCreate
+        ? await ensureCreatorForHandle(orgId, bare, detected.platform)
+        : { creator: await findCreatorByHandle(orgId, bare, detected.platform), created: false };
+      if (!found.creator) {
         return NextResponse.json(
           { error: `No creator matches @${bare}. Pick one, or add @${bare} first.`, detectedHandle: bare },
           { status: 404 }
         );
       }
-      creatorId = match.id;
+      creatorId = found.creator.id;
+      if (found.created) addedCreator = { id: found.creator.id, handle: found.creator.handle };
     }
     if (!creatorId) {
       return NextResponse.json(
@@ -253,10 +284,40 @@ export async function POST(
       ipAddress: getRequestIp(request),
       // campaignId is what the campaign activity feed filters on; entityId is
       // the post, so without this the event is only reachable org-wide.
-      metadata: { campaignId, creatorId, platform: post.platform, postUrl },
+      /* The duplicate is recorded rather than stored on the row: the same post
+         in two campaigns is derivable at any time from platformPostId, so what
+         is worth keeping is that somebody was warned and said yes, and which
+         campaigns they were warned about. */
+      metadata: {
+        campaignId,
+        creatorId,
+        platform: post.platform,
+        postUrl,
+        ...(existing.length > 0
+          ? { duplicateOf: existing.map((e) => ({ postId: e.id, campaignId: e.campaignId, campaignName: e.campaignName })) }
+          : {}),
+        ...(addedCreator ? { creatorAutoAdded: addedCreator.handle } : {}),
+      },
     });
 
-    return NextResponse.json(post, { status: 201 });
+    /* Its own audit line, not a footnote on the post's: a roster entry appearing
+       without anyone visiting the Creators page is exactly the kind of thing
+       somebody later asks where it came from. */
+    if (addedCreator) {
+      await logAudit({
+        orgId,
+        userId: session.user.id ?? undefined,
+        actorEmail: session.user.email ?? undefined,
+        action: "creator.create",
+        entityType: "creator",
+        entityId: addedCreator.id,
+        entityLabel: addedCreator.handle,
+        ipAddress: getRequestIp(request),
+        metadata: { source: "post_add", campaignId, postUrl },
+      });
+    }
+
+    return NextResponse.json({ ...post, creatorAutoAdded: addedCreator?.handle ?? null }, { status: 201 });
   } catch (error) {
     console.error("Failed to create post:", error);
     return NextResponse.json({ error: "Failed to create post" }, { status: 500 });

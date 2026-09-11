@@ -18,7 +18,7 @@ import RemovedPostOverlay from "@/components/posts/RemovedPostOverlay";
 import { summariseRefresh } from "@/lib/refreshSummary";
 import { toast } from "sonner";
 import { detectPlatform } from "@/lib/platforms/fetchPostMetrics";
-import { MAX_BULK_POSTS, parsePastedPostUrls } from "@/lib/posts/pastedUrls";
+import { MAX_BULK_POSTS, parsePastedPostEntries } from "@/lib/posts/pastedUrls";
 
 type SnapshotLite = { id: string; viewsCount: number; recordedAt: string };
 
@@ -71,15 +71,82 @@ const STATUS_TABS = [
 const PLATFORM_FILTERS = ["ALL", "TIKTOK", "INSTAGRAM", "YOUTUBE"] as const;
 const MEDIA_TYPE_FILTERS = ["ALL", "REEL", "STORY", "POST", "SHORT"] as const;
 
+/** What the server knows about one pasted link, from the precheck route. */
+type PostCheck = {
+  url: string;
+  platform: string | null;
+  handle: string | null;
+  creator: { id: string; name: string; handle: string } | null;
+  creatorWillBeAdded: boolean;
+  inThisCampaign: { id: string; campaignId: string; campaignName: string } | null;
+  inOtherCampaigns: { id: string; campaignId: string; campaignName: string }[];
+};
+
 type AddRow = {
   url: string;
+  /** platform:id -- what makes two links the same post despite different query strings. */
+  key: string;
+  /** An earlier row in this same paste is the same post. */
+  repeatOfPaste: boolean;
   /** Blank means "let the server read the creator off the link". */
   creatorId: string;
   /** Blank means auto-detect. */
   mediaType: string;
   state: "idle" | "saving" | "done" | "failed";
   error?: string;
+  /** Undefined until the precheck for this link comes back. */
+  check?: PostCheck;
+  /** The operator's explicit yes to a post another campaign already tracks. */
+  allowDuplicate?: boolean;
 };
+
+/**
+ * The one thing standing between a row and being submitted, or null.
+ *
+ * "blocking" rows hold the whole batch: the submit button stays disabled while
+ * any exist, because every one of them is a rejection we can already see, and
+ * finding out mid-batch is what made adding ten links a ten-step negotiation.
+ */
+function addRowProblem(
+  row: AddRow,
+  detectedHandle: string | undefined,
+): { blocking: boolean; message: string } | null {
+  if (row.state === "done") return null;
+  /* Marked, not blocking. The submit loop skips it, so a messy paste with one
+     line doubled still goes through -- holding the whole batch hostage to a
+     row we already know to ignore is friction with nothing behind it. */
+  if (row.repeatOfPaste) {
+    return { blocking: false, message: "Same post pasted twice — this copy is skipped." };
+  }
+  if (row.check?.inThisCampaign) {
+    return { blocking: true, message: "Already in this campaign." };
+  }
+  if (row.check && row.check.inOtherCampaigns.length > 0 && !row.allowDuplicate) {
+    const names = row.check.inOtherCampaigns.map((c) => c.campaignName);
+    return {
+      blocking: true,
+      message:
+        names.length === 1
+          ? `Already tracked in ${names[0]}.`
+          : `Already tracked in ${names.length} other campaigns: ${names.slice(0, 2).join(", ")}…`,
+    };
+  }
+  if (row.creatorId) return null;
+  if (!detectedHandle) {
+    return { blocking: true, message: "This link doesn\u2019t name a creator — pick one." };
+  }
+  /* A handle the roster has never seen is not an error any more -- the post add
+     creates the creator from the link. It only blocks on a seat that is not
+     allowed to add creators, which is the one case where nothing downstream can
+     resolve it. */
+  if (row.check && !row.check.creator && !row.check.creatorWillBeAdded) {
+    return {
+      blocking: true,
+      message: `No creator on the roster is @${detectedHandle}, and this account cannot add one — pick a creator.`,
+    };
+  }
+  return null;
+}
 
 
 const PAGE_SIZE = 25;
@@ -260,6 +327,8 @@ export default function PostsTab({
      was ten round trips through the same three fields. */
   const [addText, setAddText] = useState("");
   const [addRows, setAddRows] = useState<AddRow[]>([]);
+  /** True while the paste is being checked against the roster and the org's posts. */
+  const [checkingUrls, setCheckingUrls] = useState(false);
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [refreshingAll, setRefreshingAll] = useState(false);
   /** How far a run in flight has got, so the button can say "12 of 88" the way
@@ -307,12 +376,54 @@ export default function PostsTab({
     [addRows]
   );
 
-  /* Every row needs a creator: either chosen, or one the link gave up. The
+  /* Ask the server, once per paste, everything it would have told us one
+     rejection at a time: whether each handle resolves to a creator, and which
+     campaigns already hold each post. Reads only -- nothing is created here.
+
+     Keyed on the joined URLs rather than on addRows, so choosing a creator or
+     ticking "add anyway" does not re-run it. */
+  const addUrlsKey = addRows.map((r) => r.url).join("\n");
+  useEffect(() => {
+    if (!showAddPost) return;
+    const urls = addUrlsKey ? addUrlsKey.split("\n") : [];
+    if (urls.length === 0) return;
+    let cancelled = false;
+    /* Debounced: this fires while someone is still typing into the textarea. */
+    const t = setTimeout(async () => {
+      setCheckingUrls(true);
+      try {
+        const res = await fetch(`/api/campaigns/${campaignId}/posts/precheck`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ urls }),
+        });
+        if (!res.ok || cancelled) return;
+        const body = (await res.json()) as { results: PostCheck[] };
+        if (cancelled) return;
+        const byUrl = new Map(body.results.map((r) => [r.url, r]));
+        setAddRows((prev) => prev.map((r) => ({ ...r, check: byUrl.get(r.url) ?? r.check })));
+      } catch {
+        /* A failed check is not a failed add: leave the rows unmarked and let
+           the server have the final word at submit time, as it always did. */
+      } finally {
+        if (!cancelled) setCheckingUrls(false);
+      }
+    }, 400);
+    return () => { cancelled = true; clearTimeout(t); setCheckingUrls(false); };
+  }, [campaignId, showAddPost, addUrlsKey]);
+
+  const addProblems = useMemo(
+    () => addRows.map((r, i) => addRowProblem(r, addDetections[i]?.handle)),
+    [addRows, addDetections]
+  );
+
+  /* Every row needs a creator and has to be a post we do not already have. The
      button stays disabled until that is true of all of them, so a batch cannot
      half-fail on a rule we could see in advance. */
   const addReady =
     addRows.length > 0 &&
-    addRows.every((r, i) => r.state === "done" || r.creatorId || addDetections[i]?.handle);
+    addRows.some((r) => r.state !== "done") &&
+    addProblems.every((p) => !p?.blocking);
 
   const handleAddPosts = async () => {
     const pending = addRows.filter((r) => r.state !== "done");
@@ -325,6 +436,9 @@ export default function PostsTab({
       const results: AddRow[] = [...addRows];
       for (let i = 0; i < results.length; i++) {
         if (results[i].state === "done") continue;
+        // A link pasted twice is one post; submitting it twice would only earn
+        // the duplicate refusal it was already marked with.
+        if (results[i].repeatOfPaste) continue;
         results[i] = { ...results[i], state: "saving", error: undefined };
         setAddRows([...results]);
 
@@ -341,6 +455,10 @@ export default function PostsTab({
               postUrl: results[i].url,
               ...(results[i].creatorId ? { creatorId: results[i].creatorId } : {}),
               ...(results[i].mediaType ? { mediaType: results[i].mediaType } : {}),
+              /* Only ever sent for a row whose warning the operator actually
+                 saw and ticked. The server defaults it to false, so a row that
+                 was never warned cannot consent on its own. */
+              ...(results[i].allowDuplicate ? { allowDuplicate: true } : {}),
             }),
           });
           if (res.ok) {
@@ -1371,14 +1489,26 @@ export default function PostsTab({
                         </div>
                       ));
                     })()}
-                    <div style={{ marginTop: 8, paddingTop: 7, borderTop: "1px solid rgba(255,255,255,0.22)", display: "flex", justifyContent: "space-between", gap: 8, fontSize: 10.5, color: "rgba(255,255,255,0.78)" }}>
+                    {/* paddingRight clears the analytics link, which is pinned
+                        12px off the card's right edge and 14px wide -- inside
+                        this row's own 14px padding, so "Updated 1mo ago" was
+                        printing straight through the chart icon. The reserve is
+                        that 26px back to this box's edge, plus a 6px gap. */}
+                    <div style={{ marginTop: 8, paddingTop: 7, paddingRight: 18, borderTop: "1px solid rgba(255,255,255,0.22)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, fontSize: 10.5, color: "rgba(255,255,255,0.78)" }}>
                       {/* Only once a platform has answered for this post: until
                           then postedAt is the day someone added it here, not the
                           day it went up, and Post.postedAt cannot be null. */}
-                      <span>Posted {post.lastSyncedAt ? formatDateAbs(post.postedAt) : "\u2014"}</span>
+                      <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        Posted {post.lastSyncedAt ? formatDateAbs(post.postedAt) : "\u2014"}
+                      </span>
                       {/* "Updated", where the reference says "Last Updated": the
-                          long form plus a "3 months ago" overflows a 240px card. */}
-                      <span>Updated {formatSince(post.lastSyncedAt)}</span>
+                          long form plus a "3 months ago" overflows a 240px card.
+                          It never shrinks -- a clipped "Updated 1mo a\u2026" is worse
+                          than a clipped date, which the reader can still date by
+                          its month. */}
+                      <span style={{ flexShrink: 0, whiteSpace: "nowrap" }}>
+                        Updated {formatSince(post.lastSyncedAt)}
+                      </span>
                     </div>
                   </div>
                 </a>
@@ -1413,7 +1543,9 @@ export default function PostsTab({
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
               <Button variant="secondary" onClick={() => setShowAddPost(false)}>Cancel</Button>
               <Button variant="primary" loading={submitting} onClick={handleAddPosts} disabled={!addReady}>
-                {addRows.length > 1 ? `Submit ${addRows.filter((r) => r.state !== "done").length} Posts` : "Submit Post"}
+                {addRows.length > 1
+                  ? `Submit ${addRows.filter((r) => r.state !== "done" && !r.repeatOfPaste).length} Posts`
+                  : "Submit Post"}
               </Button>
             </div>
           }
@@ -1430,20 +1562,22 @@ export default function PostsTab({
                 onChange={(e) => {
                   const text = e.target.value;
                   setAddText(text);
-                  const urls = parsePastedPostUrls(text).slice(0, MAX_BULK_POSTS);
+                  const entries = parsePastedPostEntries(text).slice(0, MAX_BULK_POSTS);
                   /* Keep whatever the operator already chose for a link that is
                      still in the list -- retyping ten creators because one line
-                     changed would defeat the point of the batch. */
+                     changed would defeat the point of the batch. Spread rather
+                     than reuse: two rows for the same link must not share one
+                     object, or picking a creator on one changes both. */
                   setAddRows((prev) =>
-                    urls.map(
-                      (url) =>
-                        prev.find((r) => r.url === url) ?? {
-                          url,
-                          creatorId: "",
-                          mediaType: "",
-                          state: "idle" as const,
-                        }
-                    )
+                    entries.map((e) => {
+                      const kept = prev.find((r) => r.url === e.url);
+                      return {
+                        ...(kept ?? { creatorId: "", mediaType: "", state: "idle" as const }),
+                        url: e.url,
+                        key: e.key,
+                        repeatOfPaste: e.duplicate,
+                      };
+                    })
                   );
                 }}
                 placeholder={"Paste one link per line — or a whole batch at once:\nhttps://www.tiktok.com/@someone/video/123...\nhttps://www.instagram.com/reel/ABC...\nhttps://youtube.com/watch?v=..."}
@@ -1466,44 +1600,71 @@ export default function PostsTab({
                 {addRows.length === 0
                   ? `Separated by new lines, spaces or commas. Up to ${MAX_BULK_POSTS} at a time.`
                   : `${addRows.length} link${addRows.length === 1 ? "" : "s"} found${
-                      parsePastedPostUrls(addText).length > MAX_BULK_POSTS
+                      parsePastedPostEntries(addText).length > MAX_BULK_POSTS
                         ? ` — only the first ${MAX_BULK_POSTS} are used`
                         : ""
-                    }.`}
+                    }${checkingUrls ? " — checking…" : ""}.`}
               </p>
             </div>
 
             {addRows.map((row, i) => {
               const det = addDetections[i];
-              const needsCreator = !row.creatorId && !det?.handle;
+              const problem = addProblems[i];
+              const otherCampaigns = row.check?.inOtherCampaigns ?? [];
+              /* The override is offered only where consenting is a real answer:
+                 the same post against a second brief. A link pasted twice, or a
+                 post this campaign already holds, is a mistake to fix, not a
+                 decision to take. */
+              const offerOverride =
+                row.state !== "done" &&
+                !row.repeatOfPaste &&
+                !row.check?.inThisCampaign &&
+                otherCampaigns.length > 0;
+              const flagged = row.state === "failed" || Boolean(problem);
               return (
                 <div
-                  key={row.url}
+                  /* The index is in the key because pasting one link twice is
+                     precisely the case being flagged, and both rows carry the
+                     same URL. */
+                  key={`${i}:${row.url}`}
                   style={{
                     display: "flex",
                     flexDirection: "column",
                     gap: 10,
                     padding: 12,
                     borderRadius: 10,
-                    border: `1px solid ${row.state === "failed" ? "var(--cc-danger)" : "var(--cc-border)"}`,
-                    background: row.state === "done" ? "var(--cc-primary-light)" : "var(--cc-card)",
+                    border: `1px solid ${flagged ? "var(--cc-danger)" : "var(--cc-border)"}`,
+                    background:
+                      row.state === "done"
+                        ? "var(--cc-primary-light)"
+                        : flagged
+                          ? "var(--cc-danger-light)"
+                          : "var(--cc-card)",
                     opacity: row.state === "done" ? 0.7 : 1,
                   }}
                 >
                   <div style={{ display: "flex", alignItems: "center", gap: 8, justifyContent: "space-between" }}>
                     <span style={{ fontSize: 12, color: "var(--cc-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
-                      {det ? `${det.platform} · ` : ""}{row.url}
+                      {det ? `${det.platform} \u00b7 ` : ""}{row.url}
                     </span>
                     {row.state === "done" && <Badge variant="success">Added</Badge>}
                     {row.state === "saving" && <Badge variant="neutral">Adding…</Badge>}
                     {row.state === "failed" && <Badge variant="danger">{row.error ?? "Failed"}</Badge>}
+                    {row.state === "idle" && problem && <Badge variant="danger">{problem.message}</Badge>}
                     {row.state === "idle" && (
                       <button
                         type="button"
                         aria-label={`Remove ${row.url}`}
                         onClick={() => {
-                          setAddRows((prev) => prev.filter((r) => r.url !== row.url));
-                          setAddText((t) => t.split(/\r?\n/).filter((l) => !l.includes(row.url)).join("\n"));
+                          setAddRows((prev) => prev.filter((_, j) => j !== i));
+                          /* Only the first line carrying this link, so removing
+                             one half of a duplicated paste leaves the other. */
+                          setAddText((t) => {
+                            const lines = t.split(/\r?\n/);
+                            const at = lines.findIndex((l) => l.includes(row.url));
+                            if (at === -1) return t;
+                            return lines.filter((_, j) => j !== at).join("\n");
+                          });
                         }}
                         style={{ border: "none", background: "none", cursor: "pointer", color: "var(--cc-text-muted)", fontSize: 16, lineHeight: 1 }}
                       >
@@ -1512,23 +1673,56 @@ export default function PostsTab({
                     )}
                   </div>
 
-                  {row.state !== "done" && (
+                  {offerOverride && (
+                    <label style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 12, color: "var(--cc-text)" }}>
+                      <input
+                        type="checkbox"
+                        checked={Boolean(row.allowDuplicate)}
+                        onChange={(e) => {
+                          const on = e.target.checked;
+                          setAddRows((prev) => prev.map((r, j) => (j === i ? { ...r, allowDuplicate: on } : r)));
+                        }}
+                        style={{ marginTop: 2 }}
+                      />
+                      <span>
+                        Add anyway — its views will count in this campaign as well as in{" "}
+                        <strong style={{ color: "var(--cc-text)" }}>
+                          {otherCampaigns.map((c) => c.campaignName).join(", ")}
+                        </strong>
+                        .
+                      </span>
+                    </label>
+                  )}
+
+                  {row.state !== "done" && !row.repeatOfPaste && (
                     <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                       <div style={{ flex: "1 1 220px", minWidth: 200 }}>
                         <CreatorSelect
                           value={row.creatorId}
                           onChange={(id) =>
-                            setAddRows((prev) => prev.map((r) => (r.url === row.url ? { ...r, creatorId: id } : r)))
+                            setAddRows((prev) => prev.map((r, j) => (j === i ? { ...r, creatorId: id } : r)))
                           }
                         />
-                        {det?.handle && !row.creatorId && (
+                        {row.check?.creator && !row.creatorId && (
+                          <p style={{ fontSize: 12, color: "var(--cc-text-muted)", margin: "6px 0 0" }}>
+                            Matched <strong style={{ color: "var(--cc-text)" }}>{row.check.creator.name}</strong> from the
+                            link — leave blank to use them.
+                          </p>
+                        )}
+                        {row.check?.creatorWillBeAdded && !row.creatorId && (
+                          <p style={{ fontSize: 12, color: "var(--cc-text-muted)", margin: "6px 0 0" }}>
+                            <strong style={{ color: "var(--cc-text)" }}>@{row.check.handle}</strong> is not on the roster
+                            yet — they will be added with this post. Pick someone else to attribute it differently.
+                          </p>
+                        )}
+                        {det?.handle && !row.check && !row.creatorId && (
                           <p style={{ fontSize: 12, color: "var(--cc-text-muted)", margin: "6px 0 0" }}>
                             Detected <strong style={{ color: "var(--cc-text)" }}>@{det.handle}</strong> — leave blank to use them.
                           </p>
                         )}
-                        {needsCreator && (
+                        {problem && !row.check?.inThisCampaign && otherCampaigns.length === 0 && (
                           <p style={{ fontSize: 12, color: "var(--cc-danger)", margin: "6px 0 0" }}>
-                            This link doesn&apos;t name a creator — pick one.
+                            {problem.message}
                           </p>
                         )}
                       </div>
@@ -1539,7 +1733,7 @@ export default function PostsTab({
                           fullWidth
                           value={row.mediaType}
                           onChange={(v) =>
-                            setAddRows((prev) => prev.map((r) => (r.url === row.url ? { ...r, mediaType: v } : r)))
+                            setAddRows((prev) => prev.map((r, j) => (j === i ? { ...r, mediaType: v } : r)))
                           }
                           options={[
                             { value: "", label: det?.mediaType ? `Auto (${det.mediaType.toLowerCase()})` : "Auto-detect" },

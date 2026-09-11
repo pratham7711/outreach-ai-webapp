@@ -110,6 +110,10 @@
   --cc-success: var(--status-good);
   --cc-warning: var(--status-warning);
   --cc-danger: var(--status-critical);
+  /* Mixed off --cc-danger rather than written out, so it follows the token
+     through every theme that redefines it -- the wash behind a rejected row
+     has to sit on that theme's ground, not on light's. */
+  --cc-danger-light: color-mix(in srgb, var(--cc-danger) 9%, transparent);
   --cc-hover-bg: #F2F2EF;
   --cc-row-hover: rgba(42, 120, 214, 0.03);
   --font-family: var(--app-font);
