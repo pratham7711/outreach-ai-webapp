@@ -732,10 +732,23 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
       </div>
 
       {/* Tabs */}
-      <div style={{ display: "flex", gap: 4, marginBottom: 24, borderBottom: "1px solid var(--cc-border)", overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+      {/* A plain div of plain buttons gave a screen reader ten unlabelled
+          controls with no notion of a strip or of which one is current. The
+          roles cost nothing and the ids are what let the panel below name the
+          tab that opened it. */}
+      <div
+        role="tablist"
+        aria-label="Campaign sections"
+        style={{ display: "flex", gap: 4, marginBottom: 24, borderBottom: "1px solid var(--cc-border)", overflowX: "auto", WebkitOverflowScrolling: "touch" }}
+      >
         {tabsList.map((tab) => (
           <button
             key={tab.value}
+            type="button"
+            role="tab"
+            id={`campaign-tab-${tab.value}`}
+            aria-selected={activeTab === tab.value}
+            aria-controls="campaign-tabpanel"
             onClick={() => setActiveTab(tab.value)}
             style={{
               padding: "10px 20px", fontSize: 14, fontWeight: 500,
@@ -753,7 +766,14 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
         ))}
       </div>
 
-      <motion.div key={activeTab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+      <motion.div
+        key={activeTab}
+        id="campaign-tabpanel"
+        role="tabpanel"
+        aria-labelledby={`campaign-tab-${activeTab}`}
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+      >
         {/* Performance */}
         {activeTab === "performance" && (
           <PerformanceTab campaignId={id} />
