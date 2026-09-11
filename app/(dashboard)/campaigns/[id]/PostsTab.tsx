@@ -1440,7 +1440,7 @@ export default function PostsTab({
                       since come down, not a claim that it is still up. */}
                   {isPostRemoved(post) && <RemovedPostOverlay note={removedNote(post)} />}
 
-                  {/* Metrics read out over the frame itself \u2014 display only, never editable. */}
+                  {/* Metrics read out over the frame itself — display only, never editable. */}
                   <div
                     style={{
                       position: "absolute",
@@ -1448,11 +1448,16 @@ export default function PostsTab({
                       bottom: 0,
                       padding: "48px 14px 10px",
                       // Fades in over the frame, then goes fully solid behind the
-                      // counts \u2014 the same treatment CreatorCore uses, so numbers
+                      // counts — the same treatment CreatorCore uses, so numbers
                       // never fight the artwork.
+                      //
+                      // Every stop is the overlay ink, which is theme-independent
+                      // on purpose: the thumbnail behind it does not restyle with
+                      // the theme, and the solid end used to be --cc-text, which
+                      // is #FFFFFF under .dark -- white counts on a white panel.
                       background:
-                        "linear-gradient(to bottom, rgba(28,32,72,0) 0%, rgba(28,32,72,0.72) 30%, var(--cc-text) 48%, var(--cc-text) 100%)",
-                      color: "white",
+                        "linear-gradient(to bottom, color-mix(in srgb, var(--cc-overlay-ink) 0%, transparent) 0%, color-mix(in srgb, var(--cc-overlay-ink) 72%, transparent) 30%, var(--cc-overlay-ink) 48%, var(--cc-overlay-ink) 100%)",
+                      color: "var(--cc-overlay-ink-text)",
                     }}
                   >
                     <div title={post.creator.name} style={{ fontSize: 14, fontWeight: 700, marginBottom: 6, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -1503,7 +1508,7 @@ export default function PostsTab({
                       </span>
                       {/* "Updated", where the reference says "Last Updated": the
                           long form plus a "3 months ago" overflows a 240px card.
-                          It never shrinks -- a clipped "Updated 1mo a\u2026" is worse
+                          It never shrinks -- a clipped "Updated 1mo a…" is worse
                           than a clipped date, which the reader can still date by
                           its month. */}
                       <span style={{ flexShrink: 0, whiteSpace: "nowrap" }}>

@@ -114,6 +114,19 @@
      through every theme that redefines it -- the wash behind a rejected row
      has to sit on that theme's ground, not on light's. */
   --cc-danger-light: color-mix(in srgb, var(--cc-danger) 9%, transparent);
+
+  /* An overlay's own ground, deliberately the same in every theme -- the one
+     token below that no theme block is allowed to redefine.
+     A surface that floats over arbitrary artwork (the counts on a post
+     thumbnail) or over the page as a transient chip cannot take its ground
+     from the theme: what sits behind it does not change with the theme, and
+     its contents are built for a dark surface -- white labels, rgba(255,…)
+     dividers, translucent chip fills. These three used --cc-text, which is
+     var(--foreground) and therefore #FFFFFF under .dark, so the whole set
+     painted white on white and the counts vanished. 15.6:1 against its text. */
+  --cc-overlay-ink: #1C2048;
+  --cc-overlay-ink-text: #FFFFFF;
+
   --cc-hover-bg: #F2F2EF;
   --cc-row-hover: rgba(42, 120, 214, 0.03);
   --font-family: var(--app-font);
@@ -122,6 +135,14 @@
   --ui-accent: var(--primary);
   --ui-accent-dim: rgba(42, 120, 214, 0.25);
   --ui-accent-glow: rgba(42, 120, 214, 0.12);
+
+  /* Text on an accent-dim chip. --ui-accent is the accent at full strength and
+     is the right colour for a line or an icon, but as 12px label text on the
+     25%-alpha wash of itself it measures 2.86:1 -- the "COUNTERED" badge on the
+     campaign creators tab. Measured against the real rendered fill:
+     light rgb(191,210,231) 5.78:1, dark rgb(40,62,87) 6.60:1, creatorcore
+     rgb(199,206,251) 4.63:1. */
+  --cc-on-accent-soft: #14498A;
 
   --ui-bg-0: var(--background);
   --ui-bg-1: var(--card);
@@ -208,6 +229,7 @@
 
   --ui-accent-dim: rgba(57, 135, 229, 0.28);
   --ui-accent-glow: rgba(57, 135, 229, 0.16);
+  --cc-on-accent-soft: #A8CBFF;
 
   --ui-bg-2: #222220;
   --ui-bg-3: #2C2C2A;
@@ -317,6 +339,8 @@
 
   --ui-accent-dim: rgba(31, 60, 239, 0.25);
   --ui-accent-glow: rgba(31, 60, 239, 0.12);
+  /* Already clears AA at full strength here, so the accent stays as it is. */
+  --cc-on-accent-soft: var(--primary);
 
   --ui-bg-2: #EBEEFE;
   --ui-bg-3: #DDE3FD;
@@ -787,6 +811,8 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 /* ── @pratham7711/ui StatCard de-slop (gradient rail + neon hover glow removed; mirrored in lib source) ── */
+.ui-badge-accent { color: var(--cc-on-accent-soft); }
+
 .ui-statcard::before { display: none; }
 .ui-statcard:hover { box-shadow: var(--ui-shadow-md); }
 

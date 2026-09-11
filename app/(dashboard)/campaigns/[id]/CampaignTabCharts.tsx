@@ -77,7 +77,17 @@ export function CreatorPerformanceBar({
           contentStyle={chartTooltipStyle}
           formatter={(v: any, name: any) => [formatNumber(Number(v ?? 0)), String(name)]}
         />
-        <Legend verticalAlign="top" height={24} wrapperStyle={{ fontSize: 12 }} />
+        {/* Formatted like the pie chart's legend above. Left to itself recharts
+            paints each label in its series colour, so "Likes" rendered in the
+            green of its own bar -- 2.62:1 on the light ground and 2.22:1 on
+            creatorcore. A series colour is chosen to read as a bar, not as
+            12px text; the swatch beside the label already carries it. */}
+        <Legend
+          verticalAlign="top"
+          height={24}
+          wrapperStyle={{ fontSize: 12 }}
+          formatter={(value: any) => <span style={{ color: "var(--cc-text-muted)" }}>{value}</span>}
+        />
         <Bar yAxisId="views" dataKey="views" name="Views" fill="var(--chart-1)" radius={[4, 4, 0, 0]} />
         <Bar yAxisId="likes" dataKey="likes" name="Likes" fill="var(--chart-3)" radius={[4, 4, 0, 0]} />
       </BarChart>

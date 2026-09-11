@@ -207,7 +207,7 @@ export default function ConnectionsPage() {
       {toast && (
         <div style={{
           position: "fixed", top: 24, right: 24, zIndex: 9999,
-          background: "var(--cc-text)", color: "white",
+          background: "var(--cc-overlay-ink)", color: "var(--cc-overlay-ink-text)",
           padding: "12px 20px", borderRadius: 8, fontSize: 14, fontWeight: 500,
           boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
         }}>

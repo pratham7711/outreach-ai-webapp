@@ -480,8 +480,12 @@ export default function FeatureAccessClient({ clients: initialClients, plans }: 
           gap: 12,
           padding: "12px 24px",
           borderRadius: 12,
-          background: "var(--foreground)",
-          color: "white",
+          /* The bar's own ground, not the theme's. Its divider, dropdown fill
+             and ghost button are all rgba(255,…) over a dark surface, so a
+             ground that flips to #FFFFFF under .dark takes the whole set with
+             it -- the label, the separator and both controls at once. */
+          background: "var(--cc-overlay-ink)",
+          color: "var(--cc-overlay-ink-text)",
           boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
           zIndex: 100,
           fontSize: 13,
