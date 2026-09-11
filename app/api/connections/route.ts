@@ -15,21 +15,28 @@ import { authenticateRequest } from "@/lib/authenticate";
  * false claim in the product, so the copy now says what the button does.
  *
  * When a real integration lands, its description changes with it.
+ *
+ * The wording that replaced those promises went too far the other way: "Note
+ * that your team uses TikTok" asserts a fact nothing here establishes. Every
+ * card said it, for all eleven platforms, on a page whose own header read "0
+ * connected" -- so the catalogue told a brand-new org it used eleven services
+ * it had never touched, and contradicted the count beside it. The description
+ * now states the mechanism, which is true whether or not the row is marked.
  */
 const PLATFORMS = [
-  { platform: "TIKTOK", name: "TikTok", description: "Note that your team uses TikTok. No data is imported yet.", icon: "🎵", category: "social" },
-  { platform: "INSTAGRAM", name: "Instagram", description: "Note that your team uses Instagram. No data is synced yet.", icon: "📸", category: "social" },
-  { platform: "YOUTUBE", name: "YouTube", description: "Note that your team uses YouTube. No channels are connected yet.", icon: "▶️", category: "social" },
-  { platform: "TWITTER", name: "Twitter/X", description: "Note that your team uses Twitter/X. No data is monitored yet.", icon: "🐦", category: "social" },
-  { platform: "SPOTIFY", name: "Spotify", description: "Note that your team uses Spotify. No streams are tracked yet.", icon: "🎧", category: "social" },
+  { platform: "TIKTOK", name: "TikTok", description: "Recorded for your reference only. No TikTok data is imported from here.", icon: "🎵", category: "social" },
+  { platform: "INSTAGRAM", name: "Instagram", description: "Recorded for your reference only. No Instagram data is synced from here.", icon: "📸", category: "social" },
+  { platform: "YOUTUBE", name: "YouTube", description: "Recorded for your reference only. No YouTube channel is connected from here.", icon: "▶️", category: "social" },
+  { platform: "TWITTER", name: "Twitter/X", description: "Recorded for your reference only. No Twitter/X data is monitored from here.", icon: "🐦", category: "social" },
+  { platform: "SPOTIFY", name: "Spotify", description: "Recorded for your reference only. No Spotify streams are tracked from here.", icon: "🎧", category: "social" },
   // Messaging channels
-  { platform: "WHATSAPP", name: "WhatsApp", description: "Note that your team uses WhatsApp. No messages are sent from here yet.", icon: "💬", category: "messaging" },
-  { platform: "TELEGRAM", name: "Telegram", description: "Note that your team uses Telegram. No bot is connected yet.", icon: "✈️", category: "messaging" },
-  { platform: "DISCORD", name: "Discord", description: "Note that your team uses Discord. No bot is connected yet.", icon: "🎮", category: "messaging" },
+  { platform: "WHATSAPP", name: "WhatsApp", description: "Recorded for your reference only. No WhatsApp messages are sent from here.", icon: "💬", category: "messaging" },
+  { platform: "TELEGRAM", name: "Telegram", description: "Recorded for your reference only. No Telegram bot is connected from here.", icon: "✈️", category: "messaging" },
+  { platform: "DISCORD", name: "Discord", description: "Recorded for your reference only. No Discord bot is connected from here.", icon: "🎮", category: "messaging" },
   // Payment gateways
-  { platform: "PAYPAL", name: "PayPal", description: "Note that your team uses PayPal. Payouts are not processed from here.", icon: "💳", category: "payment" },
-  { platform: "STRIPE", name: "Stripe", description: "Note that your team uses Stripe. Payments are not processed from here.", icon: "💸", category: "payment" },
-  { platform: "RAZORPAY", name: "Razorpay", description: "Note that your team uses Razorpay. Payouts are not processed from here.", icon: "🏦", category: "payment" },
+  { platform: "PAYPAL", name: "PayPal", description: "Recorded for your reference only. No PayPal payouts are processed from here.", icon: "💳", category: "payment" },
+  { platform: "STRIPE", name: "Stripe", description: "Recorded for your reference only. No Stripe payments are processed from here.", icon: "💸", category: "payment" },
+  { platform: "RAZORPAY", name: "Razorpay", description: "Recorded for your reference only. No Razorpay payouts are processed from here.", icon: "🏦", category: "payment" },
 ];
 
 export { PLATFORMS };
