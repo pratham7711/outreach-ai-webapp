@@ -92,7 +92,7 @@ export default defineConfig({
     /* next dev binds 3000, which Leegality owns on this machine, while the url
        below waits on 3009 -- so webServer could never start on its own and a
        hand-started server was the only path that ever worked. */
-    command: `PORT=${E2E_PORT} npm run dev`,
+    command: `PORT=${E2E_PORT} SIGNUP_RATE_LIMIT_PER_HOUR=100 npm run dev`,
     url: E2E_URL,
     /* The suite asserts on seed fixtures -- 'LEAK IT', creator@demo.com and the
        rest -- so it needs the seeded branch, not whatever .env.local happens to

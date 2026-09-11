@@ -55,6 +55,17 @@ export function rateLimit(options: RateLimitOptions): RateLimitResult {
   return { allowed: true, remaining: Math.max(0, limit - recent.length), retryAfterSeconds: 0 };
 }
 
+/**
+ * A cap an environment may raise, with the shipped value as the floor of trust.
+ * Anything absent, non-numeric, fractional, zero or negative falls back rather
+ * than being coerced -- an empty or malformed env var must not read as "0", a
+ * limit which would reject every request, nor silently widen the cap.
+ */
+export function configuredLimit(raw: string | undefined, fallback: number): number {
+  const n = Number(raw);
+  return Number.isInteger(n) && n > 0 ? n : fallback;
+}
+
 export function rateLimitKey(routeName: string, request: NextRequest): string {
   const ip = getRequestIp(request) ?? "unknown";
   return `${routeName}:${ip}`;

@@ -80,6 +80,10 @@ jobs:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/outreach_e2e?schema=public
       E2E_BASE_URL: http://localhost:3010
       ANTHROPIC_API_KEY: sk-ci-placeholder
+      # The suite spends exactly the production cap of 5 signups, so Playwright's
+      # two CI retries push it over and the duplicate-email test then asserts
+      # 201/409 against a 429. Headroom here only; production leaves this unset.
+      SIGNUP_RATE_LIMIT_PER_HOUR: '100'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

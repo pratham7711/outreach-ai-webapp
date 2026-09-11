@@ -4,8 +4,19 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import type { OrgType } from "@/lib/generated/prisma/client";
 import { requestLogger } from "@/lib/observability/requestLogger";
-import { rateLimit, rateLimitKey } from "@/lib/rateLimit";
+import { rateLimit, rateLimitKey, configuredLimit } from "@/lib/rateLimit";
+
 import { issueEmailVerification, appOrigin } from "@/lib/emailVerification";
+
+/* The cap is per-instance memory keyed on IP, so a whole CI suite shares one
+   bucket. The e2e signup spec spends exactly five -- one each for the three
+   agency tests and two for the duplicate-email test -- against a limit of five,
+   which leaves nothing for Playwright's two CI retries. A single unrelated
+   flake upstream therefore pushed the duplicate test past the cap and it failed
+   asserting 201/409 while actually receiving 429, which reads as a signup bug
+   rather than a spent budget. Configurable so the test environment can have
+   headroom; absent, which is the case in production, it stays at five. */
+const SIGNUP_LIMIT_PER_HOUR = configuredLimit(process.env.SIGNUP_RATE_LIMIT_PER_HOUR, 5);
 
 const signupSchema = z.object({
   orgName: z.string().trim().min(1, "Organization name is required").max(120),
@@ -44,7 +55,7 @@ export async function POST(req: NextRequest) {
     // memory, so the edge firewall is the real defence.
     const rl = rateLimit({
       key: rateLimitKey("signup", req),
-      limit: 5,
+      limit: SIGNUP_LIMIT_PER_HOUR,
       windowMs: 60 * 60 * 1000,
     });
     if (!rl.allowed) {
