@@ -176,6 +176,18 @@ function addRowProblem(
 }
 
 
+/**
+ * How long one add is given before the row is called failed.
+ *
+ * A post id that no platform will answer for used to sit in "Adding…" for the
+ * 30-60s the upstream read took to give up, and then report "Network error" --
+ * which blamed the operator's connection for a link that was simply wrong, and
+ * left the rest of the batch waiting behind it. 25s is past the 8s each
+ * platform read is given plus the creator profile read on a new handle, so a
+ * slow-but-working add still lands; beyond that the row is wrong, not slow.
+ */
+const ADD_POST_TIMEOUT_MS = 25_000;
+
 const PAGE_SIZE = 25;
 
 const STATUS_BADGE: Record<string, "warning" | "success" | "danger" | "neutral"> = {
@@ -491,6 +503,7 @@ export default function PostsTab({
         try {
           const res = await fetch(`/api/campaigns/${campaignId}/posts`, {
             method: "POST",
+            signal: AbortSignal.timeout(ADD_POST_TIMEOUT_MS),
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               postUrl: results[i].url,
@@ -514,8 +527,19 @@ export default function PostsTab({
               error: body?.message ?? body?.error ?? `Rejected (${res.status})`,
             };
           }
-        } catch {
-          results[i] = { ...results[i], state: "failed", error: "Network error" };
+        } catch (err) {
+          /* Two different failures used to share "Network error": a request
+             that never got an answer, and one the operator's connection had
+             nothing to do with. A failed row is not skipped on the next
+             Submit, so both are worth saying are retryable. */
+          const timedOut = err instanceof DOMException && err.name === "TimeoutError";
+          results[i] = {
+            ...results[i],
+            state: "failed",
+            error: timedOut
+              ? "No answer in 25s — not added. Submit again to retry."
+              : "Could not reach the server — not added. Submit again to retry.",
+          };
         }
         setAddRows([...results]);
       }
