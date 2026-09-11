@@ -1,6 +1,6 @@
 "use client";
 import type { CSSProperties } from "react";
-import { useState, useEffect, useCallback, use } from "react";
+import { useState, useEffect, useCallback, use, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import { motion } from "framer-motion";
@@ -491,6 +491,34 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
     }
   }, [campaign]);
 
+  /* Bring the current section's tab into view.
+     activeTab comes from ?tab=, and ten tabs measure ~1030px against a 390px
+     phone, so a link straight to Financials or Documents rendered the strip at
+     scrollLeft 0 with the tab that is actually open several hundred pixels off
+     the right edge -- the section was current and invisible, and the strip
+     looked like it stopped after Drafts.
+
+     scrollLeft is set rather than scrollIntoView called, because
+     scrollIntoView also walks the vertical scrollport and would move the page
+     under the reader to satisfy a horizontal strip. Rects rather than
+     offsetLeft: the strip is not a positioned ancestor, so offsetLeft is
+     measured against something further up. */
+  const tabStripRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const strip = tabStripRef.current;
+    const current = strip?.querySelector<HTMLElement>(`#campaign-tab-${activeTab}`);
+    if (!strip || !current) return;
+    const stripBox = strip.getBoundingClientRect();
+    const tabBox = current.getBoundingClientRect();
+    // A tab flush against the edge reads as the last one, so leave a margin.
+    const margin = 16;
+    if (tabBox.left < stripBox.left) {
+      strip.scrollLeft -= stripBox.left - tabBox.left + margin;
+    } else if (tabBox.right > stripBox.right) {
+      strip.scrollLeft += tabBox.right - stripBox.right + margin;
+    }
+  }, [activeTab]);
+
   useEffect(() => {
     if (activeTab === "edit" && !clientsLoaded) {
       fetchClients();
@@ -737,6 +765,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
           roles cost nothing and the ids are what let the panel below name the
           tab that opened it. */}
       <div
+        ref={tabStripRef}
         role="tablist"
         aria-label="Campaign sections"
         style={{ display: "flex", gap: 4, marginBottom: 24, borderBottom: "1px solid var(--cc-border)", overflowX: "auto", WebkitOverflowScrolling: "touch" }}
