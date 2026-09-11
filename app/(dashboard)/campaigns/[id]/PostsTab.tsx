@@ -91,6 +91,9 @@ type AddRow = {
   repeatOfPaste: boolean;
   /** Blank means "let the server read the creator off the link". */
   creatorId: string;
+  /** The chosen creator's own platform, kept so a mismatch with the link's
+   *  platform can be pointed out. Undefined until somebody picks one. */
+  creatorPlatform?: string;
   /** Blank means auto-detect. */
   mediaType: string;
   state: "idle" | "saving" | "done" | "failed";
@@ -1780,8 +1783,12 @@ export default function PostsTab({
                       <div style={{ flex: "1 1 220px", minWidth: 200 }}>
                         <CreatorSelect
                           value={row.creatorId}
-                          onChange={(id) =>
-                            setAddRows((prev) => prev.map((r, j) => (j === i ? { ...r, creatorId: id } : r)))
+                          onChange={(id, creator) =>
+                            setAddRows((prev) =>
+                              prev.map((r, j) =>
+                                j === i ? { ...r, creatorId: id, creatorPlatform: creator?.platform } : r
+                              )
+                            )
                           }
                         />
                         {row.check?.creator && !row.creatorId && (
@@ -1799,6 +1806,19 @@ export default function PostsTab({
                         {det?.handle && !row.check && !row.creatorId && (
                           <p style={{ fontSize: 12, color: "var(--cc-text-muted)", margin: "6px 0 0" }}>
                             Detected <strong style={{ color: "var(--cc-text)" }}>@{det.handle}</strong> — leave blank to use them.
+                          </p>
+                        )}
+                        {/* The picker lists the whole roster whatever the link is, and every
+                            creator is labelled with its own platform -- so the operator can
+                            attribute a YouTube post to a TikTok creator with nothing said.
+                            Flagged rather than filtered on purpose: in an org whose roster is
+                            all one platform, filtering would empty the picker and strand the
+                            post with no way forward. */}
+                        {row.creatorId && row.creatorPlatform && det?.platform && row.creatorPlatform !== det.platform && (
+                          <p style={{ fontSize: 12, color: "var(--cc-warning)", margin: "6px 0 0" }}>
+                            That is a {platformLabel(row.creatorPlatform)} creator on a{" "}
+                            {platformLabel(det.platform)} link — it will still be added, but check it is
+                            the right person.
                           </p>
                         )}
                         {problem && !row.check?.inThisCampaign && otherCampaigns.length === 0 && (
