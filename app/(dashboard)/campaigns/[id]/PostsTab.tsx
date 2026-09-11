@@ -444,13 +444,23 @@ export default function PostsTab({
     [addRows, addDetections]
   );
 
-  /* Every row needs a creator and has to be a post we do not already have. The
-     button stays disabled until that is true of all of them, so a batch cannot
-     half-fail on a rule we could see in advance. */
-  const addReady =
-    addRows.length > 0 &&
-    addRows.some((r) => r.state !== "done") &&
-    addProblems.every((p) => !p?.blocking);
+  /* The rows that will actually be sent: not already added, not a repeat of an
+     earlier line, and not holding a problem we can already see.
+
+     One blocking row used to disable the button for the whole paste, so a batch
+     of ten with a single duplicate in it could not be submitted until the
+     operator found and deleted that row by hand. The reason the batch was held
+     — never half-fail on a rule we could see in advance — is still
+     honoured, because a skipped row is skipped visibly: it keeps its red
+     reason, it is left out of the button\u2019s count, and the line under the
+     button says how many are being left behind. */
+  const addSubmittable = addRows.filter(
+    (r, i) => r.state !== "done" && !r.repeatOfPaste && !addProblems[i]?.blocking
+  );
+  const addSkipped = addRows.filter(
+    (r, i) => r.state !== "done" && (r.repeatOfPaste || Boolean(addProblems[i]?.blocking))
+  );
+  const addReady = addSubmittable.length > 0;
 
   const handleAddPosts = async () => {
     const pending = addRows.filter((r) => r.state !== "done");
@@ -466,6 +476,10 @@ export default function PostsTab({
         // A link pasted twice is one post; submitting it twice would only earn
         // the duplicate refusal it was already marked with.
         if (results[i].repeatOfPaste) continue;
+        /* A row whose rejection is already on screen. Sending it would only
+           fetch the refusal it is already showing, and it must not stop the
+           rows queued behind it. */
+        if (addProblems[i]?.blocking) continue;
         results[i] = { ...results[i], state: "saving", error: undefined };
         setAddRows([...results]);
 
@@ -1572,11 +1586,22 @@ export default function PostsTab({
           title={addRows.length > 1 ? `Add ${addRows.length} Posts` : "Add Post"}
           size="lg"
           footer={
-            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", alignItems: "center" }}>
+              {/* What the button is leaving behind. Without this the count on the
+                  button silently disagrees with the number of rows on screen,
+                  which is the same surprise that holding the whole batch was
+                  meant to avoid. */}
+              {addSkipped.length > 0 && (
+                <span style={{ fontSize: 12, color: "var(--cc-text-muted)", marginRight: "auto" }}>
+                  {addSkipped.length === 1
+                    ? "1 link is being skipped — its reason is on the row."
+                    : `${addSkipped.length} links are being skipped — their reasons are on the rows.`}
+                </span>
+              )}
               <Button variant="secondary" onClick={() => setShowAddPost(false)}>Cancel</Button>
               <Button variant="primary" loading={submitting} onClick={handleAddPosts} disabled={!addReady}>
                 {addRows.length > 1
-                  ? `Submit ${addRows.filter((r) => r.state !== "done" && !r.repeatOfPaste).length} Posts`
+                  ? `Submit ${addSubmittable.length} Posts`
                   : "Submit Post"}
               </Button>
             </div>
