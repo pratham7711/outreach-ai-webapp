@@ -155,7 +155,7 @@ test.describe('Responsive A — dashboard + campaigns surfaces', () => {
         return;
       }
 
-      const postsTab = page.getByRole('button', { name: /^Posts/ }).first();
+      const postsTab = page.getByRole('tab', { name: /^Posts/ }).first();
       if (await postsTab.count()) {
         await postsTab.click().catch(() => {});
       }

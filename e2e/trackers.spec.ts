@@ -5,7 +5,7 @@ async function navigateToFirstPostDetail(page: import('@playwright/test').Page):
   await page.waitForLoadState('networkidle');
   await page.getByText('Performance').first().waitFor({ state: 'visible', timeout: 20000 });
 
-  const postsTab = page.getByRole('button', { name: /^Posts/i }).first();
+  const postsTab = page.getByRole('tab', { name: /^Posts/i }).first();
   await postsTab.click();
 
   /* camp-1 is seeded with four posts -- counted against the E2E database, not

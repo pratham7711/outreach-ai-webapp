@@ -5,7 +5,7 @@ test.describe('Gate 2 Dashboard — Performance Tab', () => {
     await page.goto('/campaigns/camp-1');
     await page.waitForLoadState('networkidle');
 
-    const performanceTab = page.getByRole('button', { name: /performance/i }).first();
+    const performanceTab = page.getByRole('tab', { name: /performance/i }).first();
     await expect(performanceTab).toBeVisible({ timeout: 20000 });
 
     const viewsTile = page.getByText('Views').first();
@@ -58,7 +58,7 @@ test.describe('Gate 2 Dashboard — Performance Tab', () => {
 
     await page.getByText('Performance').first().waitFor({ state: 'visible', timeout: 20000 });
 
-    const postsTab = page.getByRole('button', { name: /^Posts/i }).first();
+    const postsTab = page.getByRole('tab', { name: /^Posts/i }).first();
     await expect(postsTab).toBeVisible({ timeout: 15000 });
     await postsTab.click();
 
@@ -114,7 +114,7 @@ test.describe('Gate 2 Dashboard — Performance Tab', () => {
     await page.waitForLoadState('networkidle');
     await page.getByText('Performance').first().waitFor({ state: 'visible', timeout: 20000 });
 
-    const postsTab = page.getByRole('button', { name: /^Posts/i }).first();
+    const postsTab = page.getByRole('tab', { name: /^Posts/i }).first();
     await postsTab.click();
     await page.waitForTimeout(3000);
 
