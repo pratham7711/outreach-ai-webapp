@@ -19,6 +19,7 @@ import { summariseRefresh } from "@/lib/refreshSummary";
 import { toast } from "sonner";
 import { detectPlatform } from "@/lib/platforms/fetchPostMetrics";
 import { MAX_BULK_POSTS, parsePastedPostEntries } from "@/lib/posts/pastedUrls";
+import { platformFromHost, detectPlatformFromUrl, platformLabel } from "@/lib/platforms/registry";
 
 type SnapshotLite = { id: string; viewsCount: number; recordedAt: string };
 
@@ -117,6 +118,32 @@ function addRowProblem(
      row we already know to ignore is friction with nothing behind it. */
   if (row.repeatOfPaste) {
     return { blocking: false, message: "Same post pasted twice — this copy is skipped." };
+  }
+  /* Three different failures used to share one message, and none of them was
+     the message: the row fell through to the creator complaint below, which
+     asked an operator to pick a creator for an example.com URL and then let it
+     save as a post nothing could ever read.
+
+     The registry is consulted here rather than the detector, on purpose. The
+     registry knows about platforms the Add Post path cannot track yet, so
+     detectPlatformFromUrl matches a real tweet that detectPlatform returns
+     null for — and telling somebody their valid X link has no post id in it
+     would be a lie. */
+  if (row.check && !row.check.platform) {
+    const namesAPost = detectPlatformFromUrl(row.url);
+    if (namesAPost) {
+      return {
+        blocking: true,
+        message: `${platformLabel(namesAPost.platform)} posts can\u2019t be tracked yet — this link can\u2019t be added.`,
+      };
+    }
+    const known = platformFromHost(row.url);
+    return {
+      blocking: true,
+      message: known
+        ? `That\u2019s a ${known.label} link, but there is no post id in it — check the URL.`
+        : "Not a post link we recognise — this platform isn\u2019t supported yet.",
+    };
   }
   if (row.check?.inThisCampaign) {
     return { blocking: true, message: "Already in this campaign." };

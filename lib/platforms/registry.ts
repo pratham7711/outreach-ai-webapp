@@ -34,6 +34,16 @@ export interface PlatformDef {
   tracking: PlatformTracking;
   // Each pattern's first capture group is the platform post id. First match wins.
   urlPatterns: RegExp[];
+  /**
+   * Every domain this platform serves posts from, without a leading dot.
+   *
+   * Separate from urlPatterns because the two answer different questions.
+   * urlPatterns answers "which post is this"; hosts answers "whose site is
+   * this at all" -- and only the second can tell a mistyped YouTube link apart
+   * from a platform we do not support. Matched on the host's suffix, so
+   * www. and m. and regional subdomains are covered without listing them.
+   */
+  hosts: string[];
 }
 
 export const PLATFORMS: readonly PlatformDef[] = [
@@ -44,6 +54,7 @@ export const PLATFORMS: readonly PlatformDef[] = [
     chartVar: "var(--chart-1)",
     tone: "neutral",
     tracking: "auto",
+    hosts: ["tiktok.com", "vm.tiktok.com", "vt.tiktok.com"],
     urlPatterns: [/tiktok\.com\/@[\w.]+\/video\/(\d+)/i],
   },
   {
@@ -53,6 +64,7 @@ export const PLATFORMS: readonly PlatformDef[] = [
     chartVar: "var(--chart-2)",
     tone: "danger",
     tracking: "auto",
+    hosts: ["instagram.com", "instagr.am"],
     urlPatterns: [/instagram\.com\/(?:reels?|p|tv)\/([\w-]+)/i],
   },
   {
@@ -62,6 +74,7 @@ export const PLATFORMS: readonly PlatformDef[] = [
     chartVar: "var(--chart-3)",
     tone: "warning",
     tracking: "auto",
+    hosts: ["youtube.com", "youtu.be", "youtube-nocookie.com"],
     urlPatterns: [
       /(?:youtube\.com\/(?:shorts|live|embed)\/|youtu\.be\/)([\w-]{11})/i,
       /youtube\.com\/watch\?[^ ]*[?&]?v=([\w-]{11})/i,
@@ -80,6 +93,7 @@ export const PLATFORMS: readonly PlatformDef[] = [
     // the fetcher, not the price. (Legacy $200 Basic survives only for existing
     // subscribers.)
     tracking: "manual",
+    hosts: ["twitter.com", "x.com", "t.co"],
     urlPatterns: [/(?:twitter\.com|x\.com)\/[\w]+\/status\/(\d+)/i],
   },
   {
@@ -93,6 +107,7 @@ export const PLATFORMS: readonly PlatformDef[] = [
     // the app, so a real creator's connect is declined -- see the note in
     // lib/oauth/providers.ts. Unblocked by the same App Review as Instagram.
     tracking: "manual",
+    hosts: ["facebook.com", "fb.watch", "fb.com"],
     urlPatterns: [
       /facebook\.com\/[\w.]+\/(?:posts|videos)\/(\d+)/i,
       /facebook\.com\/reel\/(\d+)/i,
@@ -111,6 +126,7 @@ export const PLATFORMS: readonly PlatformDef[] = [
     // TWITCH_CLIENT_ID / TWITCH_CLIENT_SECRET are set, and a post fetched
     // without them settles as "not-configured" rather than retrying forever.
     tracking: "auto",
+    hosts: ["twitch.tv", "clips.twitch.tv"],
     urlPatterns: [
       /twitch\.tv\/videos\/(\d+)/i,
       /clips\.twitch\.tv\/([\w-]+)/i,
@@ -127,6 +143,7 @@ export const PLATFORMS: readonly PlatformDef[] = [
     // but threads_manage_insights -- the scope that reads post metrics -- is
     // review-gated at 2-4 weeks per permission. Same submission as Instagram.
     tracking: "manual",
+    hosts: ["threads.net", "threads.com"],
     urlPatterns: [/threads\.net\/(?:@[\w.]+\/post|t)\/([\w-]+)/i],
   },
   {
@@ -140,6 +157,7 @@ export const PLATFORMS: readonly PlatformDef[] = [
     // bars caching most API data -- which is what CreatorTrackerSnapshot does.
     // Resolve the caching question before writing a fetcher, not after.
     tracking: "manual",
+    hosts: ["pinterest.com", "pin.it"],
     urlPatterns: [/pinterest\.[\w.]+\/pin\/(\d+)/i],
   },
   {
@@ -154,6 +172,7 @@ export const PLATFORMS: readonly PlatformDef[] = [
     // reachable publicly via a /public prefix. The gate is that the OAuth app
     // must be allowlisted by a Snap contact. A relationship, not a missing API.
     tracking: "manual",
+    hosts: ["snapchat.com"],
     urlPatterns: [/snapchat\.com\/(?:spotlight|@[\w.]+|t|p)\/([\w.-]+)/i],
   },
   {
@@ -168,6 +187,7 @@ export const PLATFORMS: readonly PlatformDef[] = [
     // approved it covers only company Pages you administer, not creator
     // profiles. It is not a creator-metrics source at all.
     tracking: "manual",
+    hosts: ["linkedin.com", "lnkd.in"],
     urlPatterns: [/linkedin\.com\/(?:posts|feed\/update)\/[\w:%-]*?(\d{10,})/i],
   },
 ];
@@ -213,4 +233,27 @@ export function detectPlatformFromUrl(
     }
   }
   return null;
+}
+
+/**
+ * The platform whose site a URL lives on, whether or not it named a post.
+ *
+ * The Add Post dialog needs this because a link that no pattern claims has two
+ * very different causes. `youtube.com/watch?v=short` is a YouTube link with a
+ * broken id, and `example.com/thing` is not a platform at all -- and both used
+ * to surface as the same message, which sent an operator off to pick a creator
+ * for a URL nothing could ever track.
+ *
+ * Host-suffix matching, so www., m. and regional subdomains need no entries.
+ */
+export function platformFromHost(url: string): PlatformDef | undefined {
+  let host: string;
+  try {
+    host = new URL(url).host.toLowerCase().replace(/:\d+$/, "");
+  } catch {
+    return undefined;
+  }
+  return PLATFORMS.find((p) =>
+    p.hosts.some((h) => host === h || host.endsWith(`.${h}`))
+  );
 }
