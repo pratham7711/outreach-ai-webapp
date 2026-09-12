@@ -308,14 +308,16 @@ export async function computeCampaignPerformance(
 /**
  * A short string that changes exactly when the report would render differently.
  *
- * Everything the report shows derives from three things: which posts exist,
- * when their counters were last written, and the activation statuses beside
- * them. lastSyncedAt is the honest witness for the middle one -- this codebase
- * stamps it only when counters actually came back (see lib/sync/syncPost), so
- * it moves on precisely the syncs that change a number and stays put on the
- * ones that fetched nothing.
+ * Most of the report derives from three things: which posts exist, when their
+ * counters were last written, and the activation statuses beside them.
+ * lastSyncedAt is the honest witness for the middle one -- this codebase stamps
+ * it only when counters actually came back (see lib/sync/syncPost), so it moves
+ * on precisely the syncs that change a number and stays put on the ones that
+ * fetched nothing. The audio card is the exception and is watched separately
+ * below; anything else added to this report that does not hang off a Post needs
+ * the same treatment, or it will render once and then be stuck for an hour.
  *
- * One round trip, three cheap aggregates, and it replaces having to remember a
+ * One wave, four cheap aggregates, and it replaces having to remember a
  * revalidate call in every route that writes a post.
  */
 async function campaignReportStamp(campaignId: string): Promise<string> {
@@ -323,21 +325,42 @@ async function campaignReportStamp(campaignId: string): Promise<string> {
      sub-selects, which read 10,330 buffers because each one scanned the table
      separately -- three times what the single posts query it was meant to save
      ever cost. One aggregate reads 3,443 and answers the same question. */
-  const [row] = await db.$queryRaw<
-    { posts: bigint; synced: Date | null; views: string | null }[]
-  >`
-    SELECT COUNT(*) AS posts,
-           MAX("lastSyncedAt") AS synced,
-           /* Text, because SUM over a Float comes back as a JS number that
-              loses precision long before the view counts here would. */
-           SUM("viewsCount")::text AS views
-      FROM "Post" WHERE "campaignId" = ${campaignId}
-  `;
+  /* One wave. These three are independent, and the database is in Singapore --
+     running them in series cost two round trips on every view to answer a
+     question none of them needed the others for. */
+  const [[row], [act], [audio]] = await Promise.all([
+    db.$queryRaw<{ posts: bigint; synced: Date | null; views: string | null }[]>`
+      SELECT COUNT(*) AS posts,
+             MAX("lastSyncedAt") AS synced,
+             /* Text, because SUM over a Float comes back as a JS number that
+                loses precision long before the view counts here would. */
+             SUM("viewsCount")::text AS views
+        FROM "Post" WHERE "campaignId" = ${campaignId}
+    `,
+    db.$queryRaw<{ activations: Date | null }[]>`
+      SELECT MAX("updatedAt") AS activations FROM "Activation"
+       WHERE "campaignId" = ${campaignId} AND "deletedAt" IS NULL
+    `,
+    /* The audio card is the one part of this report that does not derive from
+       posts, so nothing above can witness it. Attaching a sound to a campaign
+       moved no Post row, the key therefore did not move, and the page kept
+       serving the audio-less entry it had -- for up to the full hour. Measured
+       on prod 2026-09-12: PATCH 200, Campaign.songId written, and
+       /performance still answering audio: null.
 
-  const [act] = await db.$queryRaw<{ activations: Date | null }[]>`
-    SELECT MAX("updatedAt") AS activations FROM "Activation"
-     WHERE "campaignId" = ${campaignId} AND "deletedAt" IS NULL
-  `;
+       songId catches the attach; the newest snapshot catches the readings
+       after it, including the run that backfills the sound's title, artist and
+       cover -- snapshotSounds writes a snapshot on the same pass, so one
+       timestamp witnesses both. */
+    db.$queryRaw<{ song: string | null; sound_at: Date | null }[]>`
+      SELECT c."songId" AS song,
+             (SELECT MAX(ss."recordedAt") FROM "SoundTrackerSnapshot" ss
+               WHERE ss."soundId" = s."soundId") AS sound_at
+        FROM "Campaign" c
+        LEFT JOIN "Song" s ON s.id = c."songId"
+       WHERE c.id = ${campaignId}
+    `,
+  ]);
 
   if (!row) return "empty";
   return [
@@ -348,6 +371,8 @@ async function campaignReportStamp(campaignId: string): Promise<string> {
        lastSyncedAt, and a report that ignored that would show the pre-import
        totals until the next real sync happened to move the stamp. */
     row.views ?? "0",
+    audio?.song ?? "nosong",
+    audio?.sound_at?.getTime() ?? 0,
   ].join("-");
 }
 
