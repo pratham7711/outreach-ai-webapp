@@ -81,10 +81,17 @@ export default function SharedPostList({
             <div className="spr-post-body">
               {/* No link on a hidden-creator report: the post URL carries the
                   handle in its path, so it is redacted server-side and there
-                  is nothing to point at. */}
+                  is nothing to point at.
+
+                  spr-post-hit stretches this one anchor over the whole card, so
+                  the thumbnail and every counter open the post too. Wrapping the
+                  card in a link would do the same for the mouse and cost the
+                  keyboard: the link's accessible name becomes every metric on
+                  the card read out in one breath. This way the card has one tab
+                  stop still named "@handle". */}
               {post.postUrl ? (
                 <a
-                  className="spr-post-handle"
+                  className="spr-post-handle spr-post-hit"
                   href={post.postUrl}
                   target="_blank"
                   rel="noopener noreferrer"

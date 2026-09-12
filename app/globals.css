@@ -1856,12 +1856,36 @@ h1, h2, h3, h4, h5, h6 {
   gap: 15px;
 }
 .spr-post {
+  position: relative;
   display: flex;
   flex-direction: column;
   border-radius: var(--spr-r-card);
   background: var(--spr-tile);
   overflow: hidden;
   min-width: 0;
+}
+/* The whole card opens the post, not just the handle -- a brand reading the
+   report clicks the thumbnail, which did nothing. The handle's own anchor is
+   stretched across the card instead of the card being wrapped in a link: a
+   wrapping link would take its accessible name from everything inside it, so
+   the card would announce as "@handle 55,364 views 1,204 likes ... Posted 3
+   March Last updated 2h ago" in one breath. Stretched, the card keeps one tab
+   stop named "@handle" and the mouse gets the whole surface. */
+.spr-post-hit::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: var(--spr-r-card);
+  cursor: pointer;
+}
+.spr-post-hit:hover { text-decoration: underline; }
+/* The ring belongs on the card, which is what the link now covers; left on the
+   anchor it draws a rectangle around the handle text alone and reads as though
+   only that word is focusable. */
+.spr-post-hit:focus-visible { outline: none; }
+.spr-post-hit:focus-visible::after {
+  outline: 2px solid var(--spr-on-page);
+  outline-offset: -3px;
 }
 .spr-post-thumb {
   position: relative;

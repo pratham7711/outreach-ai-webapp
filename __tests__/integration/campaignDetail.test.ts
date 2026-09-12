@@ -5,15 +5,22 @@ import { NextRequest } from 'next/server';
 import { GET, PATCH, DELETE } from '@/app/api/campaigns/[id]/route';
 
 // Mock db before any imports use it
-jest.mock('@/lib/db', () => ({
-  db: {
+jest.mock('@/lib/db', () => {
+  /* PATCH find-or-creates the Song and TikTokSound behind an audioUrl inside
+     db.$transaction. The mock runs the callback against itself, which is what
+     a real interactive transaction hands the callback. */
+  const db: any = {
     campaign: {
       findFirst: jest.fn(),
       update: jest.fn(),
     },
     campaignStatusDef: { findMany: jest.fn(), findFirst: jest.fn() },
-  },
-}));
+    tikTokSound: { findFirst: jest.fn(), create: jest.fn() },
+    song: { findFirst: jest.fn(), create: jest.fn() },
+  };
+  db.$transaction = jest.fn((fn: any) => fn(db));
+  return { db };
+});
 
 jest.mock('@/lib/auth', () => ({
   auth: jest.fn(),
@@ -436,5 +443,93 @@ describe('DELETE /api/campaigns/[id] full coverage', () => {
     const req = makeRequest('http://localhost/api/campaigns/camp-1', { method: 'DELETE' });
     const res = await DELETE(req, makeParams('camp-1'));
     expect(res.status).toBe(500);
+  });
+});
+
+/*
+ * Audio on a campaign that already exists.
+ *
+ * The wizard asks for a sound link once, at creation, and there was no second
+ * chance: a campaign whose sound was decided later carried none, so its
+ * Performance tab and every client report shared off it showed no audio at all.
+ * The link resolves through the same ensureSongForAudio the create route uses,
+ * so a second campaign on the same sound joins that tracker instead of forking
+ * a private copy of it.
+ */
+describe('PATCH /api/campaigns/[id] audio link', () => {
+  const existing = {
+    id: 'camp-1', orgId: 'org-1', title: 'Jamie MacDonald - Roots', deletedAt: null,
+    status: 'COMPLETE', statusDefId: 'def-complete', songId: null,
+  };
+
+  function patchAudio(audioUrl: string) {
+    mockDb.campaign.findFirst.mockResolvedValue(existing);
+    mockDb.campaign.update.mockResolvedValue({
+      ...existing, songId: 'song-1', tagLinks: [], teamMembers: [], _count: { activations: 0, posts: 0 },
+    });
+    return PATCH(
+      makeRequest('http://localhost/api/campaigns/camp-1', {
+        method: 'PATCH',
+        body: JSON.stringify({ audioUrl }),
+        headers: { 'Content-Type': 'application/json' },
+      }),
+      makeParams('camp-1')
+    );
+  }
+
+  it('attaches a newly created song to the campaign', async () => {
+    mockDb.tikTokSound.findFirst.mockResolvedValue(null);
+    mockDb.tikTokSound.create.mockResolvedValue({ id: 'sound-1' });
+    mockDb.song.findFirst.mockResolvedValue(null);
+    mockDb.song.create.mockResolvedValue({ id: 'song-1' });
+
+    const res = await patchAudio('https://www.tiktok.com/music/Roots-7678797827745155089?lang=en');
+
+    expect(res.status).toBe(200);
+    // The id comes off the URL, not off the slug in front of it.
+    expect(mockDb.tikTokSound.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ tiktokSoundId: '7678797827745155089', platform: 'TIKTOK' }),
+      })
+    );
+    expect(mockDb.campaign.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ songId: 'song-1' }) })
+    );
+  });
+
+  it('joins the sound this org already tracks rather than forking a second tracker', async () => {
+    mockDb.tikTokSound.findFirst.mockResolvedValue({ id: 'sound-1' });
+    mockDb.song.findFirst.mockResolvedValue({ id: 'song-1' });
+
+    const res = await patchAudio('https://www.tiktok.com/music/Roots-7678797827745155089');
+
+    expect(res.status).toBe(200);
+    expect(mockDb.tikTokSound.create).not.toHaveBeenCalled();
+    expect(mockDb.song.create).not.toHaveBeenCalled();
+    expect(mockDb.campaign.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ songId: 'song-1' }) })
+    );
+  });
+
+  it('rejects a post link with a 400 and writes nothing at all', async () => {
+    const res = await patchAudio('https://www.tiktok.com/@someone/video/7123456789012345678');
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual(expect.objectContaining({ error: 'video_url' }));
+    expect(mockDb.$transaction).not.toHaveBeenCalled();
+    expect(mockDb.campaign.update).not.toHaveBeenCalled();
+  });
+
+  /* audioUrl is not a Campaign column. Left in the rest-spread it reaches
+     Prisma as an unknown field, which fails the update -- so the campaign the
+     operator was attaching audio to would not be written at all. */
+  it('never writes audioUrl onto the campaign row', async () => {
+    mockDb.tikTokSound.findFirst.mockResolvedValue({ id: 'sound-1' });
+    mockDb.song.findFirst.mockResolvedValue({ id: 'song-1' });
+
+    await patchAudio('https://www.tiktok.com/music/Roots-7678797827745155089');
+
+    const { data } = mockDb.campaign.update.mock.calls[0][0];
+    expect(data).not.toHaveProperty('audioUrl');
   });
 });

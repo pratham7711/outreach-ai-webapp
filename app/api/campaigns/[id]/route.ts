@@ -13,6 +13,7 @@ import { z } from "zod";
 import { Prisma } from "@/lib/generated/prisma/client";
 import { STATUS_DEF_SELECT, defaultStatusDefFor } from "@/lib/campaigns/statusDefaults";
 import { primeSongAudio } from "@/lib/sounds/snapshot";
+import { ensureSongForAudio, identifyAudioLink } from "@/lib/campaigns/audioLink";
 
 const CAMPAIGN_TYPES = ["BUDGET_BASED", "VIEW_BASED", "OPEN_COMMUNITY", "PRIVATE_INVITE"] as const;
 
@@ -40,6 +41,12 @@ const updateCampaignSchema = z.object({
   // null detaches the campaign from its song and is a supported state, not an
   // error — campaigns are allowed to stand alone.
   songId: z.string().nullable().optional(),
+  /* A pasted TikTok/Instagram audio link, find-or-creating the tracker and the
+     release behind it. The wizard takes one of these at create time and there
+     was no way to give a campaign audio afterwards — an operator who added the
+     sound a week later had to rebuild the campaign, so live campaigns simply
+     went without, and their client reports showed no audio at all. */
+  audioUrl: z.string().trim().min(1).max(2048).optional(),
   folderId: z.string().nullable().optional(),
   // The org's own named status. It travels with `status`, which stays the bucket
   // every list and report filters on.
@@ -196,7 +203,7 @@ export async function PATCH(
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const { regenerateInviteCode, contentAssetsUrl, submissionDeadline, ratePerThousand, ...rest } =
+    const { regenerateInviteCode, contentAssetsUrl, submissionDeadline, ratePerThousand, audioUrl, ...rest } =
       parsed.data;
 
     // songId, clientId and folderId all arrive in the body, so each has to be
@@ -219,6 +226,28 @@ export async function PATCH(
       return NextResponse.json({ error: `${label} not found` }, { status: 404 });
     }
 
+    /* Parsed before anything is written, so a bad link is a 400 that names the
+       problem rather than a silent no-op on a campaign the operator thinks now
+       carries audio. Only the parse happens here: a short link is resolved by
+       following it over the network, which must not sit inside the transaction
+       the find-or-create opens below. */
+    let audioSongId: string | null = null;
+    if (audioUrl !== undefined) {
+      const parsedAudio = await identifyAudioLink(audioUrl);
+      if (!parsedAudio.ok) {
+        return NextResponse.json(
+          { error: parsedAudio.reason, message: parsedAudio.message },
+          { status: 400 }
+        );
+      }
+      /* One transaction for the pair, for the reason the create route gives: a
+         TikTokSound is a standing instruction to fetch a page on a schedule, so
+         an orphaned one keeps costing something. */
+      audioSongId = await db.$transaction((tx) =>
+        ensureSongForAudio(tx, orgId, parsedAudio.audio, rest.title ?? existing.title)
+      );
+    }
+
     // Build the update payload; marketplace side-effects (slug, invite code) are
     // derived server-side only — never trusted from the request body.
     const data: Prisma.CampaignUncheckedUpdateInput = {
@@ -232,6 +261,9 @@ export async function PATCH(
       ...(ratePerThousand !== undefined
         ? { ratePerThousand: ratePerThousand === null ? Prisma.JsonNull : ratePerThousand }
         : {}),
+      // After the spread: a link that resolved is the caller's newest intent and
+      // wins over a songId sent in the same body.
+      ...(audioSongId ? { songId: audioSongId } : {}),
     };
 
     /* A campaign never sits without a named status. The caller keeps the one it
@@ -302,7 +334,8 @@ export async function PATCH(
        same first reading as creating a campaign with an audio link. No-ops when
        the sound already has history, which is the common case for a second
        campaign joining a tracker. */
-    if (rest.songId) {
+    const primeTarget = audioSongId ?? rest.songId;
+    if (primeTarget) {
       /* after() itself throws when there is no request scope to attach to, and
          scheduling a first audio reading must never cost the caller the write
          that just succeeded -- the sound is tracked either way, and the cron
@@ -310,7 +343,7 @@ export async function PATCH(
       try {
         after(async () => {
           try {
-            await primeSongAudio(orgId, rest.songId);
+            await primeSongAudio(orgId, primeTarget);
           } catch (error) {
             console.error("Failed to prime campaign audio:", error);
           }

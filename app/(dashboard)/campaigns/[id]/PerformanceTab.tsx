@@ -1,17 +1,18 @@
 "use client";
 import React, { useState, useEffect, useCallback } from "react";
-import { Card, Badge, EmptyState, Skeleton, Avatar, Modal } from "@pratham7711/ui";
+import { Card, Badge, EmptyState, Skeleton, Avatar, Modal, Input } from "@pratham7711/ui";
 import { ChartFrame, MetricTile, Button } from "@/components/ds";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   PieChart, Pie, Cell, Legend,
 } from "recharts";
-import { Eye, Heart, Percent, DollarSign, Target, TrendingUp, Share2, AlertTriangle, BarChart3, PieChart as PieChartIcon, Trophy, Download } from "lucide-react";
+import { Eye, Heart, Percent, DollarSign, Target, TrendingUp, Share2, AlertTriangle, BarChart3, PieChart as PieChartIcon, Trophy, Download, Music2 } from "lucide-react";
 import { formatFull, formatCompact } from "@/lib/format";
 import { platformColor } from "@/app/(dashboard)/analytics/shared";
 import { ShareModal } from "@/app/(dashboard)/campaigns/ShareModal";
 import { AudioCard } from "@/components/campaigns/AudioCard";
 import type { CampaignAudio, CampaignPerformance } from "@/lib/reports/campaignPerformance";
+import { SOUND_URL_ERRORS, parseSoundUrl } from "@/lib/trackers/soundUrl";
 
 /* Taken from the report seam rather than restated here. It was restated, and the
    two drifted the moment the seam grew the per-counter totals. */
@@ -165,6 +166,111 @@ function ExportModal({ campaignId, onClose }: { campaignId: string; onClose: () 
   );
 }
 
+/**
+ * Giving a live campaign its audio.
+ *
+ * The wizard asks for a sound link once, while the campaign is being created,
+ * and until now that was the only moment it could be answered: a campaign whose
+ * sound was chosen a week later had no way to carry it, so its Performance tab
+ * and every client report shared off it showed no audio at all. Measured on
+ * production 2026-09-12, two of 570 campaigns have a song attached.
+ *
+ * Deliberately quiet rather than an empty state. Most campaigns promote no
+ * release -- brand work has no sound behind it -- so this is one line of prompt
+ * that opens a field, not a card that asks every campaign to fill something in.
+ */
+function AttachAudioCard({ campaignId, onAttached }: { campaignId: string; onAttached: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [url, setUrl] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  /* The same parser the route runs, so a malformed link is named here instead
+     of costing a round trip. It is not the authority -- a short link still has
+     to be followed server-side -- so a clean parse is permission to submit,
+     never a promise the link resolves. */
+  const localError = (() => {
+    const raw = url.trim();
+    if (!raw) return null;
+    const parsed = parseSoundUrl(raw);
+    if (parsed.kind === "sound" || parsed.kind === "short-link") return null;
+    const reason =
+      parsed.kind === "video" ? "video_url" : parsed.kind === "invalid" ? parsed.reason : "unrecognised";
+    return SOUND_URL_ERRORS[reason] ?? SOUND_URL_ERRORS.unrecognised;
+  })();
+
+  async function submit() {
+    const raw = url.trim();
+    if (!raw || localError) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/campaigns/${campaignId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ audioUrl: raw }),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) {
+        setError(json?.message ?? json?.error ?? "That link could not be attached.");
+        return;
+      }
+      setOpen(false);
+      setUrl("");
+      /* The first reading is taken in after(), so the card usually arrives with
+         a title and artwork but no uses yet. Reloading is still right: the card
+         itself is what the operator is waiting to see. */
+      onAttached();
+    } catch {
+      setError("That link could not be attached.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!open) {
+    return (
+      <Button variant="secondary" iconLeft={<Music2 size={15} />} onClick={() => setOpen(true)}>
+        Track this campaign&apos;s audio
+      </Button>
+    );
+  }
+
+  return (
+    <Card variant="outlined" style={{ padding: 24, display: "flex", flexDirection: "column", gap: 12 }}>
+      <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)" }}>
+        Track this campaign&apos;s audio
+      </span>
+      <Input
+        label="Sound link"
+        value={url}
+        onChange={(e) => setUrl(e.target.value)}
+        placeholder="tiktok.com/music/... or instagram.com/reels/audio/..."
+        aria-invalid={localError !== null || error !== null}
+      />
+      {localError || error ? (
+        <p role="alert" style={{ fontSize: 12, color: "var(--cc-danger)", margin: 0 }}>
+          {localError ?? error}
+        </p>
+      ) : (
+        <p style={{ fontSize: 12, color: "var(--cc-text-muted)", margin: 0 }}>
+          We start tracking the sound&apos;s usage from here, and the audio card appears on this
+          tab and on every client report shared from it. Title and artwork fill in after the
+          first reading.
+        </p>
+      )}
+      <div style={{ display: "flex", gap: 8 }}>
+        <Button onClick={submit} disabled={saving || !url.trim() || localError !== null}>
+          {saving ? "Attaching..." : "Attach audio"}
+        </Button>
+        <Button variant="secondary" onClick={() => { setOpen(false); setError(null); }} disabled={saving}>
+          Cancel
+        </Button>
+      </div>
+    </Card>
+  );
+}
+
 export default function PerformanceTab({ campaignId }: { campaignId: string }) {
   const [data, setData] = useState<PerformanceData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -287,9 +393,13 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
         )}
       </div>
 
-      {/* Absent unless the campaign's song has a tracked sound, so campaigns
-          that promote no release look exactly as they did. */}
-      {data.audio ? <AudioCard audio={data.audio} /> : null}
+      {/* A campaign that promotes no release still shows no card -- only the
+          one-line prompt to give it one, which is what was missing. */}
+      {data.audio ? (
+        <AudioCard audio={data.audio} />
+      ) : (
+        <AttachAudioCard campaignId={campaignId} onAttached={load} />
+      )}
 
       <Card variant="outlined" style={{ padding: 24 }}>
         <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)", display: "block", marginBottom: 16 }}>
