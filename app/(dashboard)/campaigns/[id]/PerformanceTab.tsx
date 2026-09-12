@@ -176,11 +176,25 @@ function ExportModal({ campaignId, onClose }: { campaignId: string; onClose: () 
  * production 2026-09-12, two of 570 campaigns have a song attached.
  *
  * Deliberately quiet rather than an empty state. Most campaigns promote no
- * release -- brand work has no sound behind it -- so this is one line of prompt
- * that opens a field, not a card that asks every campaign to fill something in.
+ * release -- brand work has no sound behind it -- so the closed state is a small
+ * action up in the header beside Export and Share, not a card in the report
+ * asking every campaign to fill something in. It used to render as a
+ * full-bleed secondary button between the KPI tiles and the first chart, which
+ * stretched to the width of the column and read as a disabled banner rather
+ * than a control.
+ *
+ * The form itself opens down in the flow, in the slot the audio card will
+ * occupy, so the thing being filled in appears where its result will be.
  */
-function AttachAudioCard({ campaignId, onAttached }: { campaignId: string; onAttached: () => void }) {
-  const [open, setOpen] = useState(false);
+function AttachAudioForm({
+  campaignId,
+  onAttached,
+  onCancel,
+}: {
+  campaignId: string;
+  onAttached: () => void;
+  onCancel: () => void;
+}) {
   const [url, setUrl] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -215,7 +229,6 @@ function AttachAudioCard({ campaignId, onAttached }: { campaignId: string; onAtt
         setError(json?.message ?? json?.error ?? "That link could not be attached.");
         return;
       }
-      setOpen(false);
       setUrl("");
       /* The first reading is taken in after(), so the card usually arrives with
          a title and artwork but no uses yet. Reloading is still right: the card
@@ -226,14 +239,6 @@ function AttachAudioCard({ campaignId, onAttached }: { campaignId: string; onAtt
     } finally {
       setSaving(false);
     }
-  }
-
-  if (!open) {
-    return (
-      <Button variant="secondary" iconLeft={<Music2 size={15} />} onClick={() => setOpen(true)}>
-        Track this campaign&apos;s audio
-      </Button>
-    );
   }
 
   return (
@@ -263,7 +268,7 @@ function AttachAudioCard({ campaignId, onAttached }: { campaignId: string; onAtt
         <Button onClick={submit} disabled={saving || !url.trim() || localError !== null}>
           {saving ? "Attaching..." : "Attach audio"}
         </Button>
-        <Button variant="secondary" onClick={() => { setOpen(false); setError(null); }} disabled={saving}>
+        <Button variant="secondary" onClick={() => { setError(null); onCancel(); }} disabled={saving}>
           Cancel
         </Button>
       </div>
@@ -277,6 +282,7 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
   const [error, setError] = useState(false);
   const [showShare, setShowShare] = useState(false);
   const [showExport, setShowExport] = useState(false);
+  const [attachOpen, setAttachOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -309,6 +315,14 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
 
   const headerActions = (
     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      {/* Only while there is no audio and the form is closed. It sits first and
+          smallest of the three: Export and Share act on the report the operator
+          is already looking at, this one adds something to it. */}
+      {!data.audio && !attachOpen && (
+        <button type="button" className="perf-attach-audio" onClick={() => setAttachOpen(true)}>
+          <Music2 size={14} aria-hidden="true" /> Track audio
+        </button>
+      )}
       <Button variant="secondary" iconLeft={<Download size={15} />} onClick={() => setShowExport(true)}>
         Export
       </Button>
@@ -329,6 +343,18 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
     return (
       <>
         <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}>{headerActions}</div>
+        {/* A campaign with no posts yet can still be given its sound -- that is
+            the point of tracking one, and the header action is live here too, so
+            it needs somewhere to open. */}
+        {attachOpen && !data.audio && (
+          <div style={{ marginBottom: 16 }}>
+            <AttachAudioForm
+              campaignId={campaignId}
+              onAttached={() => { setAttachOpen(false); load(); }}
+              onCancel={() => setAttachOpen(false)}
+            />
+          </div>
+        )}
         <Card variant="outlined" style={{ padding: 32 }}>
           <EmptyState
             icon={<BarChart3 size={32} color="var(--cc-text-subtle)" />}
@@ -393,13 +419,18 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
         )}
       </div>
 
-      {/* A campaign that promotes no release still shows no card -- only the
-          one-line prompt to give it one, which is what was missing. */}
+      {/* A campaign that promotes no release shows nothing here at all -- the way
+          in is the header action. Opening it puts the form in this slot, which
+          is where the card it produces will sit. */}
       {data.audio ? (
         <AudioCard audio={data.audio} />
-      ) : (
-        <AttachAudioCard campaignId={campaignId} onAttached={load} />
-      )}
+      ) : attachOpen ? (
+        <AttachAudioForm
+          campaignId={campaignId}
+          onAttached={() => { setAttachOpen(false); load(); }}
+          onCancel={() => setAttachOpen(false)}
+        />
+      ) : null}
 
       <Card variant="outlined" style={{ padding: 24 }}>
         <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)", display: "block", marginBottom: 16 }}>

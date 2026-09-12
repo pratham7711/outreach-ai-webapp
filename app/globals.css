@@ -2025,3 +2025,33 @@ h1, h2, h3, h4, h5, h6 {
   .spr-fact { max-width: none; }
   .spr-tiles { grid-template-columns: repeat(auto-fit, minmax(min(130px, 100%), 1fr)); }
 }
+
+/* The way in to tracking a campaign's audio, in the Performance action row.
+   It used to be a secondary Button sitting in the report's flex column, which
+   stretched it across the whole content width between the KPI tiles and the
+   first chart -- a full-bleed grey slab that read as a disabled banner, not a
+   control. Here it is a text action: smaller than the two buttons beside it and
+   carrying no border of its own, because Export and Share act on the report
+   that is already there while this one offers to add something to it. */
+.perf-attach-audio {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--cc-text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+}
+.perf-attach-audio:hover {
+  background: var(--cc-hover-bg);
+  color: var(--cc-text);
+}
+.perf-attach-audio:focus-visible {
+  outline: 2px solid var(--cc-primary);
+  outline-offset: 2px;
+}
