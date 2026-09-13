@@ -14,9 +14,9 @@ import {
 import { OverviewSection } from "./sections/OverviewSection";
 import { PerformanceSection } from "./sections/PerformanceSection";
 import { ActivitySection } from "./sections/ActivitySection";
-import { GettingStarted } from "@/components/onboarding/GettingStarted";
 import type { ActivityEvent, Campaign, PerformanceData } from "./types";
 import { PageHeader } from "@/components/ds";
+import { action } from "@/lib/ui/actions";
 
 const DATE_PRESETS = [
   { label: "7D", days: 7 },
@@ -163,17 +163,13 @@ export default function DashboardClient(props: Props) {
             </SelectContent>
           </Select>
 
-          <Button variant="outline" size="sm" onClick={() => handleExport("campaigns")}>
+          <Button variant="outline" size="sm" onClick={() => handleExport("campaigns")} {...action("export-csv")}>
             <Download aria-hidden="true" className="size-3.5" />
             Export CSV
           </Button>
           </>
         }
       />
-
-      <div className="mb-7 empty:mb-0">
-        <GettingStarted />
-      </div>
 
       {loadError && (
         <div

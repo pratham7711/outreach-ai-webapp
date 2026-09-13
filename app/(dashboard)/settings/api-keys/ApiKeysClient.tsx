@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Key, Plus, Trash2, Copy, Check, AlertTriangle } from "lucide-react";
 import { PageHeader } from "@/components/ds";
 import { toast } from "sonner";
+import { action } from "@/lib/ui/actions";
 
 interface ApiKeyItem {
   id: string;
@@ -138,7 +139,7 @@ export default function ApiKeysClient() {
             alignItems: "center",
             gap: 6,
           }}
-        >
+         {...action("create-api-key")}>
           <Plus size={16} />
           Create API Key
           </button>

@@ -74,12 +74,14 @@ const DEFAULT_CONNECT: Record<OAuthPlatform, StatusRule> = {
  * post), and no SOCIALKIT_API_KEY set anywhere.
  *
  * The cost of the old answer was not internal. TikTok is 15,324 of the 18,690
- * posts on production, and the onboarding step read "Instagram and YouTube
- * counts refresh on their own" -- telling a new user that the platform holding
- * 82% of their posts was the one that would not update, while it was in fact
- * updating hourly. A capability report that understates is not the safe
- * direction to be wrong in; it just makes the product look less finished than
- * it is, and invites someone to go buy a key they do not need.
+ * posts on production, and this report drove copy saying "Instagram and YouTube
+ * counts refresh on their own" -- naming the platform holding 82% of those
+ * posts as the one that would not update, while it was in fact updating hourly.
+ * (That copy lived in the onboarding checklist, since removed; the portal's
+ * Connections screen reads the same report and makes the same promise.) A
+ * capability report that understates is not the safe direction to be wrong in;
+ * it just makes the product look less finished than it is, and invites someone
+ * to go buy a key they do not need.
  */
 const METRICS_ENV: Record<OAuthPlatform, string | null> = {
   instagram: "INSTAGRAM_BUSINESS_TOKEN",

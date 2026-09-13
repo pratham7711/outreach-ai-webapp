@@ -17,13 +17,29 @@ import { Button as UIButton } from "@pratham7711/ui";
 
 type ButtonProps = React.ComponentProps<typeof UIButton>;
 
+/**
+ * `variant="primary"` already says this button is the screen's main action, so
+ * it is also where the theming hook belongs -- emitted once here rather than
+ * hand-added at 11 call sites, where it would be forgotten on the twelfth.
+ *
+ * The hook is `data-cc-slot`, NOT `data-slot`: `data-slot` is shadcn's, has 87
+ * uses in this repo, and globals.css already targets `[data-slot="card"]`.
+ *
+ * A call site that needs to say otherwise -- a primary-looking button that is
+ * not the page's action -- passes its own `data-cc-slot` and that wins, because
+ * `rest` is spread after this.
+ */
+const slotFor = (props: ButtonProps) =>
+  props.variant === "primary" ? { "data-cc-slot": "primary" } : null;
+
 export function Button({ loading, children, style, disabled, ...rest }: ButtonProps) {
   if (!loading) {
-    return <UIButton style={style} disabled={disabled} {...rest}>{children}</UIButton>;
+    return <UIButton style={style} disabled={disabled} {...slotFor(rest)} {...rest}>{children}</UIButton>;
   }
 
   return (
     <UIButton
+      {...slotFor(rest)}
       {...rest}
       // Deliberately not passing `loading` -- that is the prop that drops the
       // children. The button still needs to be un-pressable and announced.

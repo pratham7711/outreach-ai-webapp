@@ -8,6 +8,7 @@ import { Inbox, Search, Download } from "lucide-react";
 import { downloadCsv, exportStamp } from "@/lib/csv";
 import { formatMoney, formatRowsByCurrency } from "@/lib/money";
 import { toast } from "sonner";
+import { action } from "@/lib/ui/actions";
 
 /**
  * Mirrors what `GET /api/payout-requests` actually returns.
@@ -158,7 +159,7 @@ export default function RequestsPage() {
             iconLeft={<Download size={15} />}
             disabled={filtered.length === 0}
             onClick={exportData}
-          >
+           {...action("export-data")}>
             Export Data
           </Button>
         }

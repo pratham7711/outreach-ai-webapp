@@ -199,7 +199,7 @@ export default function DocumentsTab({ campaignId }: { campaignId: string }) {
           title="Add Document"
           size="md"
           footer={
-            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", width: "100%" }}>
+            <div className="cc-modal-footer" data-width="full">
               <Button variant="secondary" onClick={() => setShowAdd(false)}>Cancel</Button>
               <Button variant="primary" loading={busy} onClick={add}>Add Document</Button>
             </div>

@@ -1,0 +1,158 @@
+{
+  "ref": "scripts/creatorcore/out/parity/2026-09-13T19-01-43",
+  "ours": "scripts/creatorcore/out/parity-ours/2026-09-13T20-36-12",
+  "viewport": "desktop-1600",
+  "rows": [
+    {
+      "refId": "campaigns",
+      "ourId": "nav-campaigns",
+      "status": "NO_TREES",
+      "n": 0
+    },
+    {
+      "refId": "activations",
+      "ourId": "nav-activations",
+      "status": "NO_TREES",
+      "n": 0
+    },
+    {
+      "refId": "calendar",
+      "ourId": "nav-calendar",
+      "status": "NO_TREES",
+      "n": 0
+    },
+    {
+      "refId": "clients",
+      "ourId": "nav-clients",
+      "status": "NO_TREES",
+      "n": 0
+    },
+    {
+      "refId": "fan-pages",
+      "ourId": "nav-fan-pages",
+      "status": "NO_TREES",
+      "n": 0
+    },
+    {
+      "refId": "discovery",
+      "ourId": "nav-discovery",
+      "status": "NO_TREES",
+      "n": 0
+    },
+    {
+      "refId": "creators",
+      "ourId": "nav-creators",
+      "status": "NO_TREES",
+      "n": 0
+    },
+    {
+      "refId": "lists",
+      "ourId": "nav-lists",
+      "status": "NO_TREES",
+      "n": 0
+    },
+    {
+      "refId": "payouts",
+      "ourId": "nav-payouts",
+      "status": "NO_TREES",
+      "n": 0
+    },
+    {
+      "refId": "requests",
+      "ourId": "nav-requests",
+      "status": "NO_TREES",
+      "n": 0
+    },
+    {
+      "refId": "recipients",
+      "ourId": "nav-recipients",
+      "status": "NO_TREES",
+      "n": 0
+    },
+    {
+      "refId": "connections",
+      "ourId": "nav-connections",
+      "status": "NO_TREES",
+      "n": 0
+    },
+    {
+      "refId": "settings-general",
+      "ourId": "settings-general",
+      "status": "NO_TREES",
+      "n": 0
+    },
+    {
+      "refId": "settings-team",
+      "ourId": "settings-team",
+      "status": "NO_TREES",
+      "n": 0
+    },
+    {
+      "refId": "settings-notifications",
+      "ourId": "settings-notifications",
+      "status": "NO_TREES",
+      "n": 0
+    },
+    {
+      "refId": "settings-integrations",
+      "ourId": "settings-integrations",
+      "status": "NO_TREES",
+      "n": 0
+    },
+    {
+      "refId": "settings-account",
+      "ourId": "settings-profile",
+      "status": "NO_TREES",
+      "n": 0
+    },
+    {
+      "refId": "campaign-reference-overview",
+      "ourId": "campaign-overview",
+      "status": "NO_TREES",
+      "n": 0
+    },
+    {
+      "refId": "campaign-reference-creators",
+      "ourId": "campaign-creators",
+      "status": "NO_TREES",
+      "n": 0
+    },
+    {
+      "refId": "campaign-reference-drafts",
+      "ourId": "campaign-drafts",
+      "status": "NO_TREES",
+      "n": 0
+    },
+    {
+      "refId": "campaign-reference-posts",
+      "ourId": "campaign-posts",
+      "status": "NO_TREES",
+      "n": 0
+    },
+    {
+      "refId": "campaign-reference-analytics",
+      "ourId": "campaign-analytics",
+      "status": "NO_TREES",
+      "n": 0
+    },
+    {
+      "refId": "campaign-reference-financials",
+      "ourId": "campaign-financials",
+      "status": "NO_TREES",
+      "n": 0
+    },
+    {
+      "refId": "campaign-reference-documents",
+      "ourId": "campaign-documents",
+      "status": "NO_TREES",
+      "n": 0
+    },
+    {
+      "refId": "campaign-reference-settings",
+      "ourId": "campaign-edit",
+      "status": "NO_TREES",
+      "n": 0
+    }
+  ],
+  "findings": []
+}

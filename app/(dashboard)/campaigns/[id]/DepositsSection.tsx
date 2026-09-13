@@ -154,7 +154,7 @@ export default function DepositsSection({ campaignId }: { campaignId: string }) 
       {/* Create Deposit Modal */}
       {showCreate && (
         <Modal open={true} onClose={() => setShowCreate(false)} title="Create Deposit" size="md" footer={
-          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <div className="cc-modal-footer">
             <Button variant="secondary" onClick={() => setShowCreate(false)}>Cancel</Button>
             <Button variant="primary" loading={submitting} onClick={handleCreate} disabled={!createForm.amountRequested}>Create</Button>
           </div>
@@ -217,7 +217,7 @@ export default function DepositsSection({ campaignId }: { campaignId: string }) 
       {/* Release Funds Modal */}
       {showRelease && deposit && (
         <Modal open={true} onClose={() => setShowRelease(false)} title="Release Funds" size="sm" footer={
-          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <div className="cc-modal-footer">
             <Button variant="secondary" onClick={() => setShowRelease(false)}>Cancel</Button>
             <Button variant="primary" loading={submitting} onClick={handleRelease} disabled={!releaseAmount}>Release</Button>
           </div>

@@ -1,11 +1,12 @@
 import { test, expect, request as playwrightRequest } from '@playwright/test';
 
 test.describe('Gate 2 Dashboard — Performance Tab', () => {
-  test('Performance is default tab with KPI tiles and Views > 0', async ({ page }) => {
-    await page.goto('/campaigns/camp-1');
+  test('Performance section shows KPI tiles and Views > 0', async ({ page }) => {
+    // A campaign opens on Posts now, so Performance is asked for by name.
+    await page.goto('/campaigns/camp-1?section=performance');
     await page.waitForLoadState('networkidle');
 
-    const performanceTab = page.getByRole('tab', { name: /performance/i }).first();
+    const performanceTab = page.getByRole('link', { name: /performance/i }).first();
     await expect(performanceTab).toBeVisible({ timeout: 20000 });
 
     const viewsTile = page.getByText('Views').first();
@@ -31,7 +32,7 @@ test.describe('Gate 2 Dashboard — Performance Tab', () => {
   });
 
   test('chart SVG is present on Performance tab', async ({ page }) => {
-    await page.goto('/campaigns/camp-1');
+    await page.goto('/campaigns/camp-1?section=performance');
     await page.waitForLoadState('networkidle');
 
     await page.getByText('Views').first().waitFor({ state: 'visible', timeout: 30000 });
@@ -43,7 +44,7 @@ test.describe('Gate 2 Dashboard — Performance Tab', () => {
   });
 
   test('leaderboard rows are present', async ({ page }) => {
-    await page.goto('/campaigns/camp-1');
+    await page.goto('/campaigns/camp-1?section=performance');
     await page.waitForLoadState('networkidle');
     await page.getByText('Views').first().waitFor({ state: 'visible', timeout: 30000 });
 
@@ -58,7 +59,7 @@ test.describe('Gate 2 Dashboard — Performance Tab', () => {
 
     await page.getByText('Performance').first().waitFor({ state: 'visible', timeout: 20000 });
 
-    const postsTab = page.getByRole('tab', { name: /^Posts/i }).first();
+    const postsTab = page.getByRole('link', { name: /^Posts/i }).first();
     await expect(postsTab).toBeVisible({ timeout: 15000 });
     await postsTab.click();
 
@@ -114,7 +115,7 @@ test.describe('Gate 2 Dashboard — Performance Tab', () => {
     await page.waitForLoadState('networkidle');
     await page.getByText('Performance').first().waitFor({ state: 'visible', timeout: 20000 });
 
-    const postsTab = page.getByRole('tab', { name: /^Posts/i }).first();
+    const postsTab = page.getByRole('link', { name: /^Posts/i }).first();
     await postsTab.click();
     await page.waitForTimeout(3000);
 

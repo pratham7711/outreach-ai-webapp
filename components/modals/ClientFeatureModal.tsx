@@ -112,7 +112,7 @@ export default function ClientFeatureModal({ open, onClose, client, plans, onSav
       title={`Feature Access — ${client.name}`}
       size="lg"
       footer={
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
+        <div className="cc-modal-footer" data-layout="split" data-align="center" data-gap="0">
           <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>
             {overrideCount > 0 ? `${overrideCount} override${overrideCount > 1 ? "s" : ""}` : "No overrides"}
           </span>

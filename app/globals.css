@@ -107,6 +107,10 @@
   /* Was #898781: 3.59:1 on white, under AA, and this token paints sidebar
      group labels and table column headers rather than decoration. */
   --cc-text-subtle: #6B6964;
+  /* Near-black heading ink. Identical to --cc-text in light and dark -- it
+     exists so a theme that paints most headings in a brand colour still has a
+     name for the neutral one. creatorcore is exactly that theme. */
+  --cc-text-ink: var(--cc-text);
   --cc-success: var(--status-good);
   --cc-warning: var(--status-warning);
   --cc-danger: var(--status-critical);
@@ -175,11 +179,529 @@
   --ui-neutral: var(--muted-foreground);
   --ui-neutral-dim: rgba(11, 11, 11, 0.06);
 
-  --ui-space-xs: 6px;
+  --ui-space-xs: 0.375rem;
   --ui-space-sm: 10px;
-  --ui-space-md: 16px;
-  --ui-space-lg: 24px;
-  --ui-space-xl: 32px;
+  --ui-space-md: 1rem;
+  --ui-space-lg: 1.5rem;
+  --ui-space-xl: 2rem;
+
+  /* ═══════════════════════════════════════════════════════════════════════
+     LAYOUT TOKENS
+     ───────────────────────────────────────────────────────────────────────
+     Until now a theme could only change COLOUR: of the 85 tokens above this
+     block, essentially all are paint, and layout lives inline in components
+     (measured: 2,713 convertible style={{ }} sites across 230 files). An
+     inline style beats every stylesheet rule, and !important is banned here,
+     so "colours only" was a hard architectural ceiling.
+
+     Three laws govern this layer. tokenContract.test.ts enforces all three:
+
+       1. EVERY token is declared here, in the base :root. A theme may only
+          re-point a name that already exists; it may never introduce one.
+          (--cc-r-card at line ~285 currently breaks this: it exists only
+          inside .creatorcore. It is declared here now.)
+
+       2. Theme blocks are written :root.dark / :root.creatorcore, never a
+          bare .dark / .creatorcore. Base :root is (0,1,0); a bare class is
+          also (0,1,0) and then SOURCE ORDER decides. That is not academic --
+          it already happened: a bare .creatorcore --cc-sidebar-w lost to the
+          plain :root further down this file and the rail silently stayed
+          264px.
+
+       3. A theme block contains custom-property declarations ONLY, so that
+          "theming" can never quietly become "a second set of rules".
+
+     .dark is the control group: it varies colour alone, and therefore needs
+     zero declarations from this block. If .dark ever grows a geometry line,
+     the contract has a hole.
+
+     Values are MEASURED, not invented. The ramp below is the actual value
+     distribution from docs/layout-inventory.json:
+       gap      8(312) 12(164) 16(133) 4(100) 10(70) 6(66) 2(36) 24(21) 20(20)
+       padding  24(94) 20(41) 16(40) "10px 12px"(41) "10px 14px"(32)
+       fontSize 13(498) 12(299) 14(263) 11(140) 15(87) 16(50) 18(29)
+       radius   8(150) 10(93) 12(77) 6(51) 20(24)
+     --ui-space-* above belongs to @pratham7711/ui and is left alone; this is
+     the app's own ramp.
+     ═══════════════════════════════════════════════════════════════════════ */
+
+  /* One multiplier a theme can turn to retune the whole app's density. */
+  --cc-density: 1;
+
+  --cc-sp-0: 0px;
+  --cc-sp-1: calc(0.125rem * var(--cc-density));
+  --cc-sp-2: calc(0.25rem * var(--cc-density));
+  --cc-sp-3: calc(0.375rem * var(--cc-density));
+  --cc-sp-4: calc(0.5rem * var(--cc-density));
+  --cc-sp-5: calc(0.625rem * var(--cc-density));
+  --cc-sp-6: calc(0.75rem * var(--cc-density));
+  --cc-sp-7: calc(1rem * var(--cc-density));
+  --cc-sp-8: calc(1.25rem * var(--cc-density));
+  --cc-sp-9: calc(1.5rem * var(--cc-density));
+  --cc-sp-10: calc(2rem * var(--cc-density));
+  --cc-sp-11: calc(2.5rem * var(--cc-density));
+  --cc-sp-12: calc(3rem * var(--cc-density));
+
+  --cc-r-xs: 0.25rem;
+  --cc-r-sm: 0.375rem;
+  --cc-r-control: 0.5rem;
+  --cc-r-input: 0.625rem;
+  --cc-r-card: 0.75rem;
+  --cc-r-modal: 1rem;
+  --cc-r-pill: 999px;
+  --cc-r-round: 50%;
+
+  /* App shell. Today: rail down the left, header strip above main. A theme
+     re-points these three to move the rail to the right or the top. */
+  --cc-shell-areas: "rail topbar" "rail main";
+  --cc-shell-cols: var(--cc-sidebar-w) minmax(0, 1fr);
+  --cc-shell-rows: var(--cc-topbar-h) minmax(0, 1fr);
+
+  /* Rail. --cc-sidebar-w{,-collapsed} are EXISTING names, kept verbatim
+     because rules already read them; they move here so the base declares
+     them once instead of the duplicate :root further down. */
+  --cc-sidebar-w: 16.5rem;
+  --cc-sidebar-w-collapsed: 4.5rem;
+  --cc-rail-inset-inline: 0px;
+  --cc-rail-inset-block: 0px;
+  --cc-rail-r: 0px;
+  --cc-rail-border-w: 1px;
+  /* The rail card's own width, and the air around it. Base values make the card
+     fill the reserved column with no inset -- i.e. exactly today's flush rail --
+     so declaring them changes nothing until a theme re-points them. */
+  /* The primary action button's box. MEASURED on CreatorCore: the width is set
+     by the box, not by the label -- "New Client", "New Creator", "New List" and
+     "New Campaign" all render identically -- which is why their action column
+     reads as one consistent element and our label-width buttons did not.
+
+     The size itself is a RATIO, not a number. Measured across two widths:
+
+        shell       1600px      1440px     ratio of viewport
+        dashboard   180x40      162x36     11.250% w, 2.5000% h
+        campaign    200x45      180x40.5   12.500% w, 2.8125% h
+
+     162/180 and 36/40 are both exactly 0.9, as is 1440/1600 -- their desktop
+     layout scales with the viewport rather than stepping at breakpoints, so a
+     fixed px width can only be right at one screen size. Below the desktop
+     breakpoint it stops scaling and sits at a fixed 180x40 (measured at 768 and
+     390 alike); a floor cannot produce that, since 180 would also clamp the 162
+     at 1440, so it is a breakpoint and the vw values live behind one.
+
+     The box tokens hold the CSS initial values, so declaring them moves nothing
+     in light or dark; only the creatorcore re-points below have an effect. The
+     type and colour tokens hold the MEASURED CreatorCore values rather than an
+     inert default, because no value is both inert and reproducible here -- see
+     the rule that reads them, which is scoped to creatorcore for that reason.
+     Declared in base regardless, so a theme only ever re-points a name that
+     already exists. */
+  --cc-action-min-w: auto;
+  --cc-action-h: auto;
+  --cc-action-fs: 1.125rem;
+  --cc-action-fw: 400;
+  --cc-action-fg: var(--cc-on-primary);
+  /* The library paints a 1px border in the accent colour, invisible on a solid
+     fill but 2px of box. CreatorCore draws none. */
+  --cc-action-border: 1px solid transparent;
+  --cc-rail-card-w: var(--cc-sidebar-w);
+  --cc-rail-inset-x: 0px;
+  --cc-rail-pad-inline: var(--cc-sp-0);
+  --cc-rail-head-h: 3.5rem;
+  --cc-rail-avatar-size: 2rem;
+  --cc-rail-avatar-fs: 0.75rem;
+
+  /* The label colour that reads on a --cc-primary fill. Declared once so the
+     literal "white" that was inline on the feature-access tabs, and the one on
+     the primary action, are the same token rather than two hardcoded colours. */
+  --cc-on-primary: #ffffff;
+
+  --cc-topbar-search-h: 2.125rem;
+  /* 7px and 8px, off the spacing and radius ramps both. They are the values the
+     inline styles were already rendering, and snapping them to the nearest ramp
+     step (6px, 4px) would be a design change riding along inside a mechanical
+     conversion -- so they keep their measured values and get named instead. */
+  --cc-topbar-search-pad: 0.4375rem 0.75rem 0.4375rem 2.125rem;
+  --cc-topbar-search-r: 0.5rem;
+  --cc-topbar-avatar-size: 2.125rem;
+
+  /* Stacking. Only the values already in the code, named: 60 was the inline
+     z-index on the topbar's search results. A theme that needs a different
+     stacking order re-points these rather than hunting for the literal. */
+  --cc-z-popover: 60;
+
+  /* Status filter tabs. The base values are the UNDERLINE strip -- padding
+     10px/16px, square, 13px, weight 500 rising to 600 when selected -- which is
+     what StatusTabs rendered inline before this existed. `--cc-tab-ink` is the
+     per-status colour, the one value a stylesheet genuinely cannot know; it
+     arrives as a custom property from the component so the cascade can still
+     reach everything around it. */
+  --cc-tab-ink: var(--cc-primary);
+  --cc-tab-gap: var(--cc-sp-3);
+  --cc-tab-pad: 0.625rem 1rem;
+  --cc-tab-r: 0px;
+  --cc-tab-fs: 0.8125rem;
+  --cc-tab-fw: 500;
+  --cc-tab-fw-selected: 600;
+  --cc-tab-icon-gap: var(--cc-sp-4);
+  --cc-tab-rule-w: 2px;
+  --cc-tab-bg: transparent;
+  --cc-tab-fg: var(--cc-text-muted);
+  --cc-tab-border: 1px solid transparent;
+
+  /* The ramp's own heading leading; creatorcore re-points it to 1.25. */
+  --cc-lh-page-title: var(--cc-lh-tight);
+  /* Indirected so a shell can re-point it; `var(--cc-text)` is the value every
+     theme had inline in the rule before. */
+  --cc-fg-page-title: var(--cc-text);
+  /* The shared button recipe's three slots. `.cc-drawer-btn` / `.cc-filter-btn`
+     paint from these and each variant re-points them, so the neutral button is
+     the base value rather than a fourth class. Declared here because a `var()`
+     with no declaration anywhere is a rule that silently paints nothing -- and
+     because a theme may want the neutral button to differ. */
+  --cc-btn-bg: var(--cc-card);
+  --cc-btn-fg: var(--cc-text);
+  --cc-btn-border: 1px solid var(--cc-border);
+
+  --cc-page-titlebar-display: flex;
+  --cc-page-titlebar-align: center;
+  --cc-page-titlebar-gap: var(--cc-sp-6);
+  --cc-page-titlebar-mb: var(--cc-sp-4);
+  --cc-page-meta-gap: var(--cc-sp-7);
+  --cc-page-meta-mb: var(--cc-sp-10);
+  --cc-page-meta-fs: 0.875rem;
+  --cc-page-meta-item-gap: var(--cc-sp-2);
+
+  --cc-nav-item-h: 2.125rem;
+  --cc-nav-item-pad: 0.5625rem 0.875rem;
+  --cc-nav-item-gap: var(--cc-sp-6);
+  --cc-nav-pitch: 0.125rem;
+  --cc-nav-icon: 1rem;
+  --cc-nav-icon-opacity: 0.7;
+  --cc-nav-r: var(--cc-r-input);
+  --cc-nav-group-pad: 0.75rem 0.75rem 0.25rem;
+  --cc-nav-group-mb: 0px;
+  --cc-nav-item-pad-collapsed: 0.625rem;
+
+  /* The rail's own furniture. Every one of these was an inline literal in
+     NewSidebar.tsx, which is why no theme could reach the logo mark, the
+     wordmark, the badge or the account chip. Values are the measured originals,
+     converted unit-for-unit: the ones that sit on the spacing ramp are written
+     in rem, the ones that do not (30/92px logo box, 0.4px tracking, the 9px
+     badge) keep their own token rather than being snapped to the nearest step,
+     because snapping is a design change and this is a mechanical conversion. */
+  --cc-rail-head-pad: 0 var(--cc-sp-7);
+  --cc-rail-head-pad-collapsed: 0 var(--cc-sp-4);
+  --cc-rail-logo-size: 2rem;
+  --cc-rail-logo-r: var(--cc-r-control);
+  --cc-rail-logo-bg: var(--cc-primary);
+  --cc-rail-brand-fs: 0.9375rem;
+  --cc-rail-brand-fw: 800;
+  --cc-rail-brand-tk: -0.4px;
+  --cc-rail-logo-img-h: 30px;
+  --cc-rail-logo-img-w: 92px;
+  --cc-rail-initials-fs: 0.625rem;
+  --cc-rail-initials-fw: 700;
+  --cc-rail-initials-pad: 3px 10px;
+  --cc-rail-initials-r: var(--cc-r-sm);
+  --cc-rail-initials-tk: 0.5px;
+  --cc-rail-divider-h: 1px;
+  --cc-rail-divider-m: 6px 8px;
+  --cc-nav-badge-fs: 9px;
+  --cc-nav-badge-fw: 700;
+  --cc-nav-badge-pad: 2px 7px;
+  --cc-nav-badge-r: var(--cc-r-pill);
+  --cc-nav-badge-tk: 0.3px;
+  --cc-rail-usermenu-inset: var(--cc-sp-4);
+  --cc-rail-usermenu-mb: var(--cc-sp-2);
+  /* A flat 12px, not --cc-r-card: creatorcore re-points that token to 20px, and
+     the popover this replaces was 12px in every theme. A theme is free to
+     re-point this one; what it must not do is inherit a change nobody chose. */
+  --cc-rail-usermenu-r: 0.75rem;
+  --cc-rail-usermenu-z: 50;
+  --cc-rail-usermenu-fs: var(--cc-fs-body-sm);
+  --cc-rail-usermenu-item-m: var(--cc-sp-2);
+  --cc-rail-usermenu-item-r: var(--cc-r-control);
+  --cc-rail-usermenu-divider-m: 0 var(--cc-sp-6);
+  --cc-rail-user-pad: var(--cc-sp-4) var(--cc-sp-5);
+  --cc-rail-user-pad-collapsed: var(--cc-sp-4);
+  --cc-rail-user-r: var(--cc-r-input);
+  --cc-rail-user-bg: transparent;
+  --cc-scrim-bg: rgba(0, 0, 0, 0.4);
+
+  --cc-topbar-h: 3.5rem;
+  /* Whether the app paints a top bar at all. CreatorCore does not: measured,
+     their page header starts at y=26 on a 1600px screen while ours started at
+     128.5, and the whole of that 102px is our bar plus the air under it. */
+  --cc-topbar-display: flex;
+  /* The rail's second home for the controls the top bar owns. Shown only where
+     the bar is hidden, so neither theme ever draws both and neither ever
+     strands the theme toggle somewhere unreachable. */
+  --cc-rail-utility-display: none;
+
+  /* The rail header's three slots, as tokens rather than as JSX branches.
+     CreatorCore's header row carries the tenant's logo ALONE -- no product
+     wordmark, no app mark -- so the tenant gets the whole 56px row. Ours drew
+     all three, and at 240px the wordmark truncated to "Made Borin…", which
+     reads as a bug rather than as branding: a clipped proper noun is the one
+     string a reader cannot repair from context. */
+  --cc-rail-logomark-display: flex;
+  --cc-rail-brand-display: inline;
+  --cc-rail-head-end-grow: 0;
+  --cc-rail-head-end-justify: flex-end;
+
+  /* The footer is ONE row -- account chip left, utility icons right -- because
+     that is where every rail-navigation product of the last decade puts them,
+     CreatorCore included. It was two rows: a centre-aligned icon pair floating
+     above a left-aligned account chip, which broke the rail's single alignment
+     edge and gave two unlabelled glyphs a region of their own with nothing in
+     it to group them to. `order` is what fixes it without a component edit --
+     the icons precede the account button in the DOM. */
+  --cc-rail-foot-display: flex;
+  --cc-rail-foot-dir: row;
+  --cc-rail-foot-align: center;
+  --cc-rail-foot-gap: var(--cc-sp-2);
+  --cc-rail-utility-order: 1;
+  --cc-rail-utility-justify: flex-end;
+  --cc-rail-utility-gap: var(--cc-sp-4);
+  --cc-rail-utility-pb: 0;
+  --cc-rail-user-order: 0;
+  --cc-rail-user-grow: 1;
+
+  /* The square icon button. ThemeToggle and NotificationBell each carried the
+     same nine inline declarations, which is exactly the shape no theme could
+     reach -- an inline style is the one thing an unlayered rule cannot beat. */
+  --cc-icon-btn-size: 2.125rem;
+  --cc-icon-btn-r: var(--cc-r-control);
+  --cc-icon-btn-fg: var(--cc-text-muted);
+  --cc-icon-btn-fg-hover: var(--cc-text);
+  --cc-icon-btn-bg: transparent;
+  --cc-icon-btn-bg-hover: var(--cc-hover-bg);
+  --cc-icon-btn-badge-bg: var(--cc-danger);
+  --cc-icon-btn-badge-fg: var(--cc-on-primary);
+  --cc-icon-btn-badge-fs: 9px;
+  --cc-icon-btn-badge-size: 15px;
+  --cc-topbar-pad-start: var(--cc-sp-10);
+  --cc-topbar-pad-end: var(--cc-sp-9);
+  --cc-topbar-gap: var(--cc-sp-6);
+  --cc-topbar-justify: space-between;
+  --cc-topbar-align: center;
+  --cc-topbar-search-w: 180px;
+  --cc-topbar-search-w-focus: 260px;
+
+  /* Page shell -- the implementation of .rsp-page, which stays the name: it
+     is in 53 files and documented, where .cc-page-content is in 5. */
+  --cc-page-pad-inline: calc(clamp(1rem, 0.6286rem + 1.524vw, 2rem) * var(--cc-density));
+  --cc-page-pad-top: calc(clamp(1rem, 0.6286rem + 1.524vw, 2rem) * var(--cc-density));
+  --cc-page-pad-bottom: calc(clamp(1rem, 0.6286rem + 1.524vw, 2rem) * var(--cc-density));
+  --cc-page-max: 1440px;
+  --cc-page-align: auto;
+  --cc-page-gap: calc(clamp(1rem, 0.8143rem + 0.7619vw, 1.5rem) * var(--cc-density));
+
+  --cc-header-display: flex;
+  --cc-header-direction: row;
+  --cc-header-wrap: wrap;
+  --cc-header-align: flex-start;
+  --cc-header-justify: space-between;
+  --cc-header-gap: var(--cc-sp-6);
+  --cc-header-mb: calc(clamp(1.5rem, 1.314rem + 0.7619vw, 2rem) * var(--cc-density));
+  --cc-header-areas: none;
+  --cc-header-cols: none;
+  /* The heading block is a real column by default -- title over subtitle, the
+     pair sitting left of the actions. `contents` dissolves it, which is how a
+     theme lifts the title and the subtitle into the header's own grid and puts
+     them on different rows; that is the one thing nesting makes impossible and
+     the reason this is a token rather than a fixed rule. */
+  --cc-heading-display: flex;
+
+  /* Placement: the tokens that MOVE things. */
+  --cc-actions-justify: flex-end;
+  --cc-actions-align: center;
+  --cc-actions-direction: row;
+  --cc-actions-gap: var(--cc-sp-5);
+  --cc-actions-wrap: wrap;
+  --cc-toolbar-justify: flex-start;
+  --cc-toolbar-align: center;
+  --cc-toolbar-direction: row;
+  --cc-toolbar-gap: var(--cc-sp-4);
+  --cc-toolbar-mb: var(--cc-sp-7);
+  --cc-form-actions-justify: flex-end;
+  --cc-form-actions-direction: row;
+  --cc-form-actions-gap: var(--cc-sp-4);
+  --cc-modal-footer-display: flex;
+  --cc-modal-footer-justify: flex-end;
+  --cc-modal-footer-direction: row;
+  --cc-modal-footer-align: normal;
+  --cc-modal-footer-w: auto;
+  /* 8px, not the library's 12px. `.ui-modal-footer` sets `gap: var(--ui-sp-3)`,
+     but every modal in this app wraps its buttons in a second flex box with
+     gap 8, so 12 has never been what renders. Dissolving that wrapper --
+     `--cc-modal-footer-display: contents`, which is a theme's to set -- hands
+     layout back to the library AND changes the gap. Keeping the measured value
+     here means the conversion changes nothing and the theme change is a choice. */
+  --cc-modal-footer-gap: var(--cc-sp-4);
+
+  /* Order slots. `order:` is used ZERO times in app/ and components/
+     (measured), so every one of these is a guaranteed no-op at 0 and cannot
+     collide with anything. They are what lets a theme rearrange a cluster
+     with no JSX edit. Use them on whole clusters, or where visual order
+     genuinely should equal tab order -- `order` does NOT move focus order,
+     so reordering interactive controls with it is an accessibility bug. */
+  --cc-order-title: 0;
+  --cc-order-meta: 0;
+  --cc-order-actions: 0;
+  --cc-order-primary: 0;
+  --cc-order-secondary: 0;
+  --cc-order-tertiary: 0;
+  --cc-order-cancel: 0;
+  --cc-order-back: 0;
+
+  --cc-card-pad: calc(clamp(1rem, 0.8143rem + 0.7619vw, 1.5rem) * var(--cc-density));
+  --cc-card-pad-compact: var(--cc-sp-8);
+  --cc-card-head-pad: 1rem 1.5rem;
+  --cc-card-gap: var(--cc-sp-7);
+  --cc-section-gap: calc(clamp(1rem, 0.8143rem + 0.7619vw, 1.5rem) * var(--cc-density));
+  --cc-section-head-mb: var(--cc-sp-7);
+
+  /* --cc-cols is EXISTING: .cc-list-row already reads it, set per list by the
+     component. Declared here so the contract test can see it. */
+  --cc-cols: none;
+  --cc-list-row-pad: 14px 20px;
+  --cc-list-row-gap: var(--cc-sp-7);
+  --cc-list-row-min-h: auto;
+  --cc-list-row-align: center;
+  --cc-list-head-pad-block: var(--cc-sp-5);
+  --cc-cell-pad: 0.625rem 0.75rem;
+  --cc-table-min-w: 720px;
+
+  --cc-tiles-cols: repeat(2, minmax(0, 1fr));
+  --cc-tiles-cols-sm: repeat(3, minmax(0, 1fr));
+  --cc-tiles-cols-xl: repeat(6, minmax(0, 1fr));
+  --cc-tiles-gap: calc(clamp(0.75rem, 0.6571rem + 0.381vw, 1rem) * var(--cc-density));
+  --cc-tiles-gap-sm: var(--cc-sp-7);
+  --cc-grid-gap: calc(clamp(0.75rem, 0.6571rem + 0.381vw, 1rem) * var(--cc-density));
+
+  --cc-control-h: 2.375rem;
+  --cc-control-h-sm: 2rem;
+  --cc-control-pad-inline: var(--cc-sp-7);
+  --cc-control-gap: var(--cc-sp-4);
+  --cc-field-h: 2.25rem;
+  --cc-field-gap: var(--cc-sp-4);
+  --cc-field-label-mb: var(--cc-sp-4);
+
+  /* Drawer placement. FilterDrawer.tsx hardcodes right:0 today, so "filters
+     are on the right" is not a theme decision. These make it one. */
+  --cc-drawer-w: min(23.75rem, 100vw);
+  --cc-drawer-inset-start: auto;
+  --cc-drawer-inset-end: 0px;
+  --cc-drawer-inset-block: 0px;
+  --cc-drawer-hidden-x: 100%;
+  --cc-drawer-r: 0px;
+  --cc-drawer-pad: var(--cc-sp-8);
+  --cc-drawer-head-pad: 1rem 1.25rem;
+  --cc-drawer-foot-pad: var(--cc-sp-7);
+  --cc-drawer-bg: var(--cc-card);
+  --cc-drawer-edge: 1px solid var(--cc-border);
+  --cc-drawer-shadow: -8px 0 32px rgba(28, 32, 72, 0.12);
+  --cc-drawer-body-gap: var(--cc-sp-9);
+  --cc-drawer-title-fs: 0.9375rem;
+  --cc-drawer-title-fw: 700;
+  --cc-drawer-foot-gap: var(--cc-sp-4);
+  --cc-drawer-move: transform 200ms cubic-bezier(0.32, 0.72, 0, 1);
+
+  /* The scrim behind a drawer, a modal or the mobile rail. One class, three
+     sets of values, because the rail's is a plain black wash at the rail's own
+     layer while the drawer's is the indigo-tinted one at the scrim layer. */
+  --cc-scrim-bg: rgba(0, 0, 0, 0.4);
+  --cc-scrim-z: var(--cc-z-rail);
+  --cc-scrim-fade: 0.2s;
+
+  --cc-field-fs: var(--cc-fs-body-sm);
+  --cc-field-pad: 0 var(--cc-sp-5);
+  --cc-field-r: var(--cc-r-control);
+  --cc-field-bg: var(--cc-card);
+  --cc-field-border: 1px solid var(--cc-border);
+  --cc-field-label-fs: var(--cc-fs-label);
+  --cc-field-label-fw: 600;
+  --cc-field-label-tk: 0.6px;
+  --cc-field-sep-fs: var(--cc-fs-label);
+
+  --cc-filter-option-pad: 7px var(--cc-sp-4);
+  --cc-filter-option-r: var(--cc-r-control);
+  --cc-filter-option-gap: var(--cc-sp-5);
+  --cc-filter-option-fs: var(--cc-fs-body-sm);
+  --cc-filter-option-bg: transparent;
+  --cc-filter-list-gap: var(--cc-sp-1);
+  --cc-checkbox-size: 1rem;
+  --cc-checkbox-r: var(--cc-r-xs);
+  --cc-checkbox-bw: 1.5px;
+  --cc-checkbox-edge: var(--cc-border);
+  --cc-checkbox-bg: transparent;
+  --cc-switch-w: 34px;
+  --cc-switch-h: 1.25rem;
+  --cc-switch-knob: 1rem;
+  --cc-switch-inset: 2px;
+  --cc-switch-bg: var(--cc-border);
+  --cc-filter-count-min-w: 18px;
+  --cc-filter-count-h: 18px;
+  --cc-filter-count-pad: 0 5px;
+  --cc-filter-count-fs: var(--cc-fs-micro);
+  /* 14px, which is not a step on the spacing ramp. Named rather than snapped to
+     the 16px step: snapping is a design decision and this is a conversion. */
+  --cc-filter-btn-pad-inline: 0.875rem;
+  --cc-link-btn-display: inline-flex;
+  --cc-link-btn-gap: var(--cc-sp-3);
+  --cc-link-btn-pad: 0 var(--cc-sp-6);
+  --cc-link-btn-h: 2rem;
+
+  --cc-modal-w-sm: min(25rem, calc(100vw - 2rem));
+  --cc-modal-w-md: min(35rem, calc(100vw - 2rem));
+  --cc-modal-w-lg: min(47.5rem, calc(100vw - 2rem));
+  --cc-modal-pad: var(--cc-sp-9);
+
+  /* z-index, currently 40/60/61/100 scattered inline. */
+  --cc-z-rail: 40;
+  --cc-z-topbar: 30;
+  --cc-z-scrim: 60;
+  --cc-z-drawer: 61;
+  --cc-z-modal: 100;
+  --cc-z-toast: 200;
+
+
+  /* FLUID, not stepped. Each clamp() below interpolates linearly between its
+     390px (mobile fixture) and 1440px (.rsp-page max-width) figure, so there is
+     no jump at a breakpoint and no viewport is left un-tuned. The MAX end is
+     today's measured desktop value in every case, so nothing the parity pass
+     measured at 1600 moves; only the narrow end adapts downward.
+
+     rem throughout: a px scale ignores the reader's own browser font-size
+     setting outright, and this ramp is what every .cc-* / .rsp-* class reads,
+     so converting here converts the whole system at once.
+
+     Display sizes are fluid; body, small, micro and label are FIXED, because
+     body copy already sits at its readability floor and shrinking it further on
+     a phone is the classic fluid-type mistake. */
+  --cc-page-title-mb: var(--cc-sp-2);
+  --cc-fs-page-title: clamp(1.188rem, 1.025rem + 0.6667vw, 1.625rem);
+  --cc-fw-page-title: 800;
+  --cc-tk-page-title: -0.02em;
+  --cc-fs-section-title: clamp(0.875rem, 0.8518rem + 0.09524vw, 0.9375rem);
+  --cc-fw-section-title: 700;
+  --cc-tk-section-title: -0.01em;
+  --cc-fs-subtitle: clamp(0.8125rem, 0.7893rem + 0.09524vw, 0.875rem);
+  --cc-fw-subtitle: 400;
+  --cc-fs-body: 0.875rem;
+  --cc-fs-body-sm: 0.8125rem;
+  --cc-fs-micro: 0.6875rem;
+  --cc-fs-label: 0.75rem;
+  --cc-fw-label: 600;
+  --cc-label-transform: uppercase;
+  --cc-label-tracking: 0.06em;
+  --cc-fs-nav: 0.84375rem;
+  --cc-fw-nav: 500;
+  --cc-fw-nav-active: 600;
+  --cc-fs-metric: clamp(1.188rem, 1.071rem + 0.4762vw, 1.5rem);
+  --cc-fw-metric: 700;
+  --cc-lh-tight: 1.2;
+  --cc-lh-body: 1.5;
 }
 
 /*
@@ -187,7 +709,7 @@
   surface from the same ramps — not an automatic inversion. Status colours are
   deliberately NOT redefined here: they are fixed and inherit from :root.
 */
-.dark {
+:root.dark {
   --background: #0D0D0D;
   --foreground: #FFFFFF;
   --card: #1A1A19;
@@ -269,7 +791,7 @@
   and even the shadow tint are all #1F3CEF, and "muted" is that same indigo at
   36% rather than a grey.
 */
-.creatorcore {
+:root.creatorcore {
   --radius: 10px;
 
   /* The ui library derives every corner from this scale, so re-pointing it
@@ -283,6 +805,38 @@
   /* Read by the handful of card surfaces that set their radius inline, where a
      stylesheet cannot reach. Their fallback keeps light and dark untouched. */
   --cc-r-card: 20px;
+  /* CreatorCore sets its page titles at 24/700 with no negative tracking.
+     These were three `!important` declarations until the type moved out of
+     PAGE_TITLE_STYLE and into .cc-page-title -- they are deleted, not moved,
+     because a class can now win on its own. */
+  --cc-tk-page-title: 0;
+  /* Their list and campaign titles are the brand indigo, rgb(31, 60, 239),
+     measured on every dashboard and campaign surface. Their settings titles
+     are not -- see the settings shell block below. */
+  --cc-fg-page-title: var(--cc-primary);
+  --cc-text-ink: #101828;
+
+  /* Their rail header is the tenant's logo and nothing else, left-aligned on
+     the same edge every nav label sits on. Ours put the product wordmark first
+     and left the tenant whatever the truncation did not eat. Dropping our own
+     mark is the point of a white-label theme, not a loss. */
+  --cc-rail-logomark-display: none;
+  --cc-rail-brand-display: none;
+  --cc-rail-head-end-grow: 1;
+  --cc-rail-head-end-justify: flex-start;
+  --cc-rail-logo-img-h: 34px;
+  --cc-rail-logo-img-w: 100%;
+  /* The initials chip is the fallback for an org with no uploaded logo -- every
+     org today. With the whole row to itself it can be read at arm's length
+     instead of squeezed to 10px beside a wordmark. */
+  --cc-rail-initials-fs: 0.75rem;
+  --cc-rail-initials-pad: 5px 12px;
+  /* The rail avatar. A bare `.cc-sidebar-avatar { width: 40px }` sat in the
+     CreatorCore section of this file and never applied ONCE, in any theme: a
+     second bare rule of identical specificity appears later in the file and
+     wins on source order. It is a token re-point now, which is reachable. */
+  --cc-rail-avatar-size: 40px;
+  --cc-rail-avatar-fs: 15px;
 
   --app-font: var(--font-lexend), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 
@@ -375,12 +929,19 @@
   rebind the variable on the heading itself and the inline style resolves to
   indigo on its own. Size and weight are inline literals, so those do need the
   override to land at CreatorCore's 24px/700.
+
+  `.cc-page-title` is excluded because a page title is the one heading whose
+  colour varies by shell -- their settings screens paint it near-black while
+  their list screens paint it indigo -- and this rule is an element selector at
+  (0,1,1), so it out-specifies `.cc-page-title` at (0,1,0) and no token could
+  reach the title's colour while it matched. The exclusion changes nothing
+  today: every other `<h1>` in the tree is in the portal or public shell, which
+  never carries `.creatorcore`. It exists so the token governs.
 */
-.creatorcore h1,
+.creatorcore h1:not(.cc-page-title),
 .creatorcore h2 {
   --cc-text: var(--cc-primary);
   color: var(--cc-primary);
-  letter-spacing: 0 !important;
 }
 
 /*
@@ -456,16 +1017,127 @@
   the same specificity as a class. At equal specificity the later rule wins, so
   a bare .creatorcore declaration silently lost and the rail stayed 264px.
 */
+/*
+  MEASURED, and the reason these are percentages rather than pixels:
+
+    CreatorCore @1600   rail 15.00%   content x 18.19%   width 78.94%   right 2.88%
+    CreatorCore @1440   rail 15.00%   content x 18.19%   width 78.92%   right 2.88%
+
+  Identical ratios at both widths -- their shell is proportional, not fixed. Ours
+  was 240px at both, which is 15.00% at 1600 and 16.67% at 1440, so it matched at
+  the one viewport every number was originally taken at and drifted everywhere
+  else. A fixed pixel width cannot track a percentage layout at more than one
+  width, so matching them REQUIRES percentages here.
+
+  Derivation, so these are checkable rather than magic:
+    rail card   15%        -> 240.0 @1600, 216.0 @1440   (theirs: 240, 216)
+    rail inset  0.625%     ->  10.0 @1600,   9.0 @1440   (theirs:  10,   9)
+    reserved    15.31%     -> content x = 15.31% + 2.88% = 18.19%          (theirs: 18.19%)
+    page pad    2.88%      -> right gap 46.1 @1600, 41.5 @1440  (theirs: 46, 41.5)
+
+  Scoped to >=1024 because below that their rail is not in the DOM at all and
+  ours is a drawer; the fluid rem padding is the right answer down there and
+  keeps its own behaviour.
+*/
 :root.creatorcore {
   --cc-sidebar-w: 260px;
   --cc-sidebar-w-collapsed: 92px;
 }
 
 @media (min-width: 1024px) {
+  :root.creatorcore {
+    --cc-sidebar-w: 15.31%;
+    --cc-sidebar-w-collapsed: 6.06%;
+    --cc-rail-card-w: 15%;
+    --cc-rail-inset-x: 0.625%;
+    /* 3.40%, not 2.88%. The right gap is 2.88% OF THE VIEWPORT, but this padding
+       sits on .rsp-page, whose containing block is the content column left after
+       the rail's margin -- 1354px at a 1600px viewport, not 1600. A percentage
+       padding resolves against that, so 2.88% here rendered 39px where 46px was
+       wanted. 46.08 / 1354 = 3.40%, and because both the column and the target
+       scale with the viewport the same 3.40% also lands 41.5px at 1440. */
+    --cc-page-pad-inline: 3.4%;
+  }
+}
+
+/* Below the desktop breakpoint their button stops scaling and sits at a fixed
+   180x40 on every width measured (768 and 390). 11.25rem = 180px, 2.5rem = 40px,
+   in rem so they track the reader's font size like the rest of the ramp.
+
+   The type does NOT scale with the box: 18px at 1600 and at 1440 alike, at
+   weight 400. Ours was 12-14px at 500, which is the difference between a label
+   that anchors the header and one that reads as a chip. */
+:root.creatorcore {
+  --cc-action-min-w: 11.25rem;
+  --cc-action-h: 2.5rem;
+  --cc-action-border: 0 none;
+}
+
+@media (min-width: 1024px) {
+  :root.creatorcore {
+    --cc-action-min-w: 11.25vw;
+    --cc-action-h: 2.5vw;
+
+    /* No top bar above the desktop breakpoint, and the page starts where their
+       page starts. MEASURED on the reference, dashboard shell:
+
+          viewport   header-strip y    as a ratio
+          1600            26.0           1.625%
+          1440            23.5           1.632%
+
+       so 1.625vw reproduces both. Below 1024 this stays off: at 768 their own
+       header sits at y=36, not at a ratio, and the top bar is where our mobile
+       nav drawer's only trigger lives -- hiding it there would leave a phone
+       with no way to reach the nav at all. */
+    --cc-topbar-display: none;
+    --cc-page-pad-top: 1.625vw;
+    --cc-rail-utility-display: flex;
+  }
+}
+
+/* Was an inline `background: var(--cc-bg)` on the dashboard root. Inline styles
+   are the one thing a theme cannot outrank, so every such site is a hole in the
+   theming contract even when the value it sets is the right one. */
+.cc-shell-root {
+  background: var(--cc-bg);
+}
+
+/* The PRIMARY action only. This was `> *` and that was wrong: the action row
+   also carries badges, range pickers and secondary chips, and the measurement
+   caught it forcing a 180x40 box onto a "56 events" count on /audit-log, a
+   7D/30D/90D range picker on /dashboard and a "0 connected" chip on
+   /connections. A token that describes the primary action must be addressed to
+   the primary action.
+
+   Applies in every theme and is inert until one re-points the tokens, since
+   min-width:auto and height:auto are the initial values. Unlayered, so it beats
+   the ui library's own button rules in layer(components) without !important. */
+.cc-page-actions > [data-cc-slot="primary"] {
+  min-width: var(--cc-action-min-w);
+  height: var(--cc-action-h);
+}
+
+/* The box above is theme-agnostic because `auto` is both the token's base value
+   and the property's initial value, so declaring it changes nothing until a
+   theme re-points it. Type and colour have no such value: the library computes
+   14px/500 from `.ui-btn-md` and `color: var(--ui-bg-0)` from
+   `.ui-btn-primary`, and neither `inherit` nor `initial` reproduces that --
+   measured, `font-size: inherit` moved the light-theme button from its own size
+   to the header's 16px. A base-level declaration therefore cannot be inert, so
+   this one is scoped to the theme that asked for it. The values stay in tokens,
+   so an org theme can still re-point them without touching this rule. */
+:root.creatorcore .cc-page-actions > [data-cc-slot="primary"] {
+  font-size: var(--cc-action-fs);
+  font-weight: var(--cc-action-fw);
+  color: var(--cc-action-fg);
+  border: var(--cc-action-border);
+}
+
+@media (min-width: 1024px) {
   .creatorcore .cc-sidebar-rail {
     top: 15px;
     bottom: 15px;
-    left: 10px;
+    left: var(--cc-rail-inset-x);
     height: auto;
     border-right: none;
     border-radius: 20px;
@@ -473,11 +1145,11 @@
        the 10px of air either side of it. Everywhere else the rail's width and
        the content's margin are the same number; here they differ by the inset,
        so the card cannot simply take the token or it would fill the gap. */
-    width: calc(var(--cc-sidebar-w) - 20px);
+    width: var(--cc-rail-card-w);
   }
 
   .creatorcore .cc-sidebar-rail[data-collapsed="true"] {
-    width: calc(var(--cc-sidebar-w-collapsed) - 20px);
+    width: calc(var(--cc-sidebar-w-collapsed) - var(--cc-rail-inset-x) * 2);
   }
 }
 
@@ -559,12 +1231,6 @@
   border-top: 1px solid var(--cc-border);
 }
 
-.cc-sidebar-avatar {
-  width: 40px;
-  height: 40px;
-  font-size: 15px;
-}
-
 .creatorcore .cc-sidebar-username {
   font-size: 15px;
   font-weight: 400;
@@ -603,16 +1269,75 @@
 }
 
 /*
-  CreatorCore's own heading metric — 24px/700 — comes from a desktop-only Bubble
-  layout, and the page headers here hardcode 26px/800 inline. Below 1024px the
-  app's own scale is the one that fits, so the exact figure lands only where
-  there is room for it.
+  CORRECTED. This was a clamp interpolating 18px@768 to 24px@1440, on the reading
+  that the reference scaled its page title. It does not. Re-measured across all
+  four viewports with a resolver that no longer confuses a section sub-heading
+  for the page title, the reference is FLAT:
+
+     shell      390    768    1440   1600     line-height
+     dashboard  24px   24px   24px   24px     30px
+     campaign   20px   20px   20px   20px     25px
+
+  (10 of 12 dashboard surfaces and 18-24 of the campaign surfaces agree at every
+  width; the stray 18px readings that produced the old clamp came from the two
+  surfaces where the old resolver landed on a sub-heading.)
+
+  So the title is one of the few things here that is genuinely a fixed px rather
+  than a ratio -- the primary action beside it scales with the viewport and this
+  does not. The fluid ramp in base :root is still the right default for our own
+  light and dark themes, which is where "type adapts to the screen" applies; it
+  is only creatorcore that is being asked to reproduce a product that chose not
+  to. Line-height is 1.25, against our ramp's 1.2.
 */
-@media (min-width: 1024px) {
-  .creatorcore h1 {
-    font-size: 24px !important;
-    font-weight: 700 !important;
-  }
+:root.creatorcore {
+  --cc-fs-page-title: 1.5rem;
+  --cc-lh-page-title: 1.25;
+  --cc-fw-page-title: 700;
+}
+
+/* MEASURED: their header strip is exactly as tall as the button inside it --
+   40px at 1600 and 36px at 1440, the same 2.5% of the viewport the primary
+   action takes -- with the subtitle on its own row BELOW that strip rather than
+   stacked under the title inside the left column. Ours put title and subtitle in
+   one column, which made the row 55px and pushed everything after it down.
+
+   No JSX changes to say that. The heading block dissolves, the title and the
+   subtitle become items of the header's own grid, and the areas put them on
+   different rows -- the mechanism the header tokens were built for. */
+:root.creatorcore .rsp-header {
+  --cc-heading-display: contents;
+  --cc-header-display: grid;
+  --cc-header-areas: "title actions" "subtitle subtitle";
+  --cc-header-cols: minmax(0, 1fr) auto;
+  --cc-header-align: center;
+  /* The title's bottom margin existed to separate it from the subtitle stacked
+     under it. On its own grid row the subtitle no longer needs it, and leaving
+     it in shifts the title 2px up, because centring a grid item centres its
+     MARGIN box: measured y=29 against the reference's 31. */
+  --cc-page-title-mb: 0px;
+}
+
+/* The campaign shell drops to 20px/25px. `campaignId` is what switches the rail
+   into campaign mode, and the rail is the only node that knows it, so the shell
+   reads the rail's own attribute rather than routing the same fact twice. */
+:root.creatorcore .cc-shell-root:has(.cc-sidebar-rail[data-shell="campaign"]) {
+  --cc-fs-page-title: 1.25rem;
+}
+
+/* And the settings shell is a THIRD style, not a variation on the other two:
+   18px at weight 400 in near-black slate, against the dashboard's 24px/700 and
+   the campaign's 20px/700. Measured on five reference settings surfaces
+   (account, branding, general, integrations, notifications), all identical --
+   x=307, y=40.8, 18px/400/rgb(16,24,40), box height 22.5 (the same 1.25
+   leading the other two shells use).
+
+   This was mis-read once as a resolver landing on a section sub-heading. It is
+   not: the resolver returns "General Settings" with candidateCount 1. Their
+   settings screen is genuinely quieter than their list screens. */
+:root.creatorcore .cc-shell-root:has(.cc-sidebar-rail[data-shell="settings"]) {
+  --cc-fs-page-title: 1.125rem;
+  --cc-fw-page-title: 400;
+  --cc-fg-page-title: var(--cc-text-ink);
 }
 
 body {
@@ -868,6 +1593,51 @@ h1, h2, h3, h4, h5, h6 {
   background: var(--cc-primary-light);
 }
 
+/* The square icon button: a bare glyph with a hit target around it. Two
+   components hand-rolled the identical nine declarations inline, which put both
+   of them beyond the reach of any theme -- an inline style is the only thing an
+   unlayered rule cannot beat, and these two are precisely the controls a
+   white-label theme needs to move. Everything here is a token so a theme can
+   resize, recolour or re-round them without touching either component. */
+.cc-icon-btn {
+  position: relative;
+  width: var(--cc-icon-btn-size);
+  height: var(--cc-icon-btn-size);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: none;
+  border-radius: var(--cc-icon-btn-r);
+  background: var(--cc-icon-btn-bg);
+  color: var(--cc-icon-btn-fg);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.cc-icon-btn:hover {
+  --cc-icon-btn-bg: var(--cc-icon-btn-bg-hover);
+  --cc-icon-btn-fg: var(--cc-icon-btn-fg-hover);
+}
+
+/* The unread count. Anchored to the button's own box, so it follows a theme
+   that resizes the button instead of drifting off its corner. */
+.cc-icon-btn-badge {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  min-width: var(--cc-icon-btn-badge-size);
+  height: var(--cc-icon-btn-badge-size);
+  padding: 0 3px;
+  border-radius: var(--cc-r-pill);
+  background: var(--cc-icon-btn-badge-bg);
+  color: var(--cc-icon-btn-badge-fg);
+  font-size: var(--cc-icon-btn-badge-fs);
+  font-weight: 700;
+  line-height: var(--cc-icon-btn-badge-size);
+  text-align: center;
+}
+
 .cc-btn-dark {
   background: var(--foreground);
   color: var(--background);
@@ -917,22 +1687,111 @@ h1, h2, h3, h4, h5, h6 {
   box-shadow: 0 0 0 3px var(--cc-primary-light);
 }
 
-/* ── Status filter tabs ── */
-.cc-filter-tab {
-  padding: 7px 16px;
-  border-radius: 999px;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  border: none;
-  transition: all 0.15s ease;
-  background: transparent;
-  color: var(--cc-text-muted);
+/* ── Status filter tabs ──────────────────────────────────────────────────────
+   This replaces `.cc-filter-tab`, every declaration of which was dead. Both of
+   its two call sites set padding, radius, background and colour inline, and an
+   inline style beats an unlayered rule -- so the class described a 999px pill
+   while one caller drew a square underline tab and the other a 20px solid one.
+   Nothing here changes what renders; it moves the values that were already
+   winning out of the components and into tokens a theme can reach.
+
+   Three variants, because there were three shapes in the code, not because
+   three seemed like a good number:
+     underline  the default -- a rule under the selected tab   (StatusTabs)
+     pill       a tinted lozenge, no rule                      (StatusTabs)
+     solid      a bordered chip that fills when selected       (FeatureAccess)
+*/
+.cc-tabs {
+  display: flex;
+  gap: var(--cc-tab-gap);
+  overflow-x: auto;
 }
 
-.cc-filter-tab:hover:not(.active) {
-  background: var(--cc-hover-bg);
-  color: var(--cc-text);
+.cc-tabs[data-variant="underline"] {
+  border-bottom: 1px solid var(--cc-border);
+}
+
+.cc-tabs[data-variant="pill"] {
+  --cc-tab-gap: var(--cc-sp-4);
+  --cc-tab-pad: var(--cc-sp-3) 0.875rem;
+  --cc-tab-r: 0.5rem;
+  --cc-tab-fw: 600;
+  --cc-tab-icon-gap: var(--cc-sp-3);
+}
+
+.cc-tabs[data-variant="solid"] {
+  --cc-tab-gap: var(--cc-sp-4);
+  --cc-tab-pad: var(--cc-sp-4) 1rem;
+  --cc-tab-r: 1.25rem;
+  --cc-tab-fw: 600;
+  --cc-tab-fw-selected: 600;
+  --cc-tab-bg: var(--cc-card);
+  --cc-tab-fg: var(--cc-text);
+  --cc-tab-border: 1px solid var(--cc-border);
+  flex-wrap: wrap;
+  overflow-x: visible;
+}
+
+.cc-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cc-tab-icon-gap);
+  padding: var(--cc-tab-pad);
+  border: var(--cc-tab-border);
+  border-radius: var(--cc-tab-r);
+  background: var(--cc-tab-bg);
+  color: var(--cc-tab-fg);
+  font-size: var(--cc-tab-fs);
+  font-weight: var(--cc-tab-fw);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+/* Selection re-points tokens rather than setting properties, so a theme that
+   wants a different selected treatment overrides a value, not a rule. */
+.cc-tab[aria-selected="true"] {
+  --cc-tab-fg: var(--cc-tab-ink);
+  --cc-tab-fw: var(--cc-tab-fw-selected);
+}
+
+.cc-tabs[data-variant="underline"] .cc-tab {
+  border-bottom: var(--cc-tab-rule-w) solid transparent;
+  /* Sits the tab's own rule on top of the strip's 1px border rather than under
+     it, which is what the -1px inline margin was doing. */
+  margin-bottom: -1px;
+}
+
+.cc-tabs[data-variant="underline"] .cc-tab[aria-selected="true"] {
+  border-bottom-color: var(--cc-tab-ink);
+}
+
+.cc-tabs[data-variant="pill"] .cc-tab[aria-selected="true"] {
+  --cc-tab-bg: color-mix(in srgb, var(--cc-tab-ink) 16%, transparent);
+}
+
+.cc-tabs[data-variant="solid"] .cc-tab[aria-selected="true"] {
+  --cc-tab-bg: var(--cc-tab-ink);
+  --cc-tab-fg: var(--cc-on-primary);
+  --cc-tab-border: 1px solid var(--cc-tab-ink);
+}
+
+.cc-tab:hover:not([aria-selected="true"]) {
+  --cc-tab-bg: var(--cc-hover-bg);
+  --cc-tab-fg: var(--cc-text);
+}
+
+.cc-tab-dot {
+  width: 0.4375rem;
+  height: 0.4375rem;
+  border-radius: 50%;
+  background: var(--cc-tab-ink);
+}
+
+.cc-tab-count {
+  margin-left: var(--cc-sp-3);
+  font-size: 0.6875rem;
+  opacity: 0.8;
 }
 
 /* ── Badge styles ── */
@@ -1050,18 +1909,47 @@ h1, h2, h3, h4, h5, h6 {
 
 /* ── Responsive system — see docs/RESPONSIVE_GUIDE.md ── */
 
+/* .rsp-page keeps its name deliberately: it is applied in 53 files and is
+   documented in docs/RESPONSIVE_GUIDE.md, where .cc-page-content is in 5.
+   Minting a .cc- twin of a class that already exists is exactly the third
+   system this work removes. Only its implementation changes -- same computed
+   values, now reachable by a theme. */
 .rsp-page {
-  padding: 16px;
-  max-width: 1440px;
-  margin: 0 auto;
+  padding: var(--cc-page-pad-top) var(--cc-page-pad-inline) var(--cc-page-pad-bottom);
+  max-width: var(--cc-page-max);
+  margin-inline: var(--cc-page-align);
   width: 100%;
 }
-@media (min-width: 768px) { .rsp-page { padding: 24px; } }
-@media (min-width: 1024px) { .rsp-page { padding: 32px; } }
 
-.rsp-grid-tiles { display: grid; gap: 12px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-@media (min-width: 640px) { .rsp-grid-tiles { gap: 16px; grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-@media (min-width: 1280px) { .rsp-grid-tiles { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
+/* Responsive behaviour lives in the TOKENS, not in the class, so a theme that
+   re-points the ramp inherits the responsive behaviour for free instead of
+   having to restate every media query.
+
+   These four tokens USED to be re-pointed by a 768px and a 1024px media query
+   here (16 -> 24 -> 32px). They are now single fluid clamp()s declared once in
+   :root, hitting the same three numbers at those three widths and every number
+   in between -- so a 900px window is no longer served the 768px padding, and
+   there is no visible jump as the window is dragged. */
+
+/* INTRINSIC columns, not a column count per breakpoint.
+
+   The track basis is `max(<floor>, (100% - gaps) / <cap>)`, which reads as: give
+   each tile at least <floor>, and never make more than <cap> columns. auto-fit
+   then fits as many as the CONTAINER holds -- so this responds to the space the
+   grid actually has (inside a drawer, a card, a narrow column) rather than to
+   the window width, which is what a media query measures and often guesses
+   wrong about. Empty tracks collapse, so N tiles always fill the row.
+
+   It reproduces the counts the breakpoints gave (2 on a phone, 6 at 1280+) and
+   fills in every width between them, which the three-step version did not. */
+.rsp-grid-tiles {
+  display: grid;
+  gap: var(--cc-tiles-gap);
+  grid-template-columns: repeat(
+    auto-fit,
+    minmax(max(10rem, (100% - 5 * var(--cc-tiles-gap)) / 6), 1fr)
+  );
+}
 
 /* A row of exactly FOUR tiles.
 
@@ -1074,33 +1962,867 @@ h1, h2, h3, h4, h5, h6 {
 
    Four columns fill the row and give the label enough room to stay on one
    line, so the figures share a baseline again. */
-.rsp-grid-tiles-4 { display: grid; gap: 12px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-@media (min-width: 1024px) { .rsp-grid-tiles-4 { gap: 16px; grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.rsp-grid-tiles-4 {
+  display: grid;
+  gap: var(--cc-tiles-gap);
+  grid-template-columns: repeat(
+    auto-fit,
+    minmax(max(10rem, (100% - 3 * var(--cc-tiles-gap)) / 4), 1fr)
+  );
+}
 
-@media (min-width: 900px) { .rsp-hero { grid-template-columns: minmax(0, 1fr) minmax(0, 0.85fr) !important; gap: 48px !important; } }
+/* The two !important declarations here were not a style preference: app/page.tsx
+   set `gridTemplateColumns` and `gap` INLINE on this same element, and an inline
+   style beats every stylesheet rule, so the 900px layout could not otherwise
+   apply. With the inline grid removed the class owns the layout outright, at
+   both widths, with no override. */
+.rsp-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--cc-sp-11);
+  align-items: center;
+}
+@media (min-width: 900px) {
+  .rsp-hero {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 0.85fr);
+    gap: var(--cc-sp-12);
+  }
+}
 
-.rsp-grid-2 { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); }
-@media (min-width: 768px) { .rsp-grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.rsp-grid-2 {
+  display: grid;
+  gap: var(--cc-grid-gap);
+  grid-template-columns: repeat(
+    auto-fit,
+    minmax(max(18rem, (100% - 1 * var(--cc-grid-gap)) / 2), 1fr)
+  );
+}
 
-.rsp-grid-3 { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); }
-@media (min-width: 768px) { .rsp-grid-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (min-width: 1024px) { .rsp-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.rsp-grid-3 {
+  display: grid;
+  gap: var(--cc-grid-gap);
+  grid-template-columns: repeat(
+    auto-fit,
+    minmax(max(16rem, (100% - 2 * var(--cc-grid-gap)) / 3), 1fr)
+  );
+}
 
-.rsp-split { display: flex; flex-direction: column; gap: 16px; }
-@media (min-width: 1024px) { .rsp-split { flex-direction: row; } .rsp-split > * { min-width: 0; } }
-
-.rsp-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; }
-.rsp-table-wrap > table { min-width: 720px; }
-
-.rsp-header {
+/* Wraps on its own when the two panes can no longer both hold 28rem, instead of
+   flipping direction at a fixed 1024px. Same effect at the window widths the
+   breakpoint covered, and correct inside a narrower container too. */
+.rsp-split {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
-  align-items: flex-start;
-  justify-content: space-between;
-  margin-bottom: 24px;
+  gap: var(--cc-grid-gap);
 }
-@media (min-width: 768px) { .rsp-header { margin-bottom: 32px; } }
+.rsp-split > * {
+  flex: 1 1 min(28rem, 100%);
+  min-width: 0;
+}
+
+.rsp-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; }
+/* Stays a floor, not a cap: this min-width is what makes a wide table SCROLL
+   inside the wrapper instead of squashing. min(..., 100%) would remove the
+   overflow it exists to create. rem so it tracks the reader's font size. */
+.rsp-table-wrap > table { min-width: 45rem; }
+
+.rsp-header {
+  display: var(--cc-header-display);
+  grid-template-areas: var(--cc-header-areas);
+  grid-template-columns: var(--cc-header-cols);
+  flex-direction: var(--cc-header-direction);
+  flex-wrap: var(--cc-header-wrap);
+  gap: var(--cc-header-gap);
+  align-items: var(--cc-header-align);
+  justify-content: var(--cc-header-justify);
+  margin-bottom: var(--cc-header-mb);
+}
+
+/* The header's parts. Each declares grid-area unconditionally -- a grid-area
+   on a flex child is inert and costs nothing -- so a theme can switch
+   --cc-header-display to grid and re-place all three with no JSX edit:
+
+     :root.creatorcore {
+       --cc-header-display: grid;
+       --cc-header-areas: "title actions" "meta actions";
+       --cc-header-cols: minmax(0, 1fr) auto;
+     }
+
+   `order` is used ZERO times in app/ and components/, so --cc-order-* is a
+   guaranteed no-op at its 0 default. */
+.cc-page-heading {
+  display: var(--cc-heading-display);
+  flex-direction: column;
+  grid-area: title;
+  order: var(--cc-order-title);
+  min-width: 0;
+}
+.cc-page-meta {
+  grid-area: meta;
+  order: var(--cc-order-meta);
+}
+.cc-page-actions {
+  grid-area: actions;
+  order: var(--cc-order-actions);
+  display: flex;
+  flex-direction: var(--cc-actions-direction);
+  align-items: var(--cc-actions-align);
+  justify-content: var(--cc-actions-justify);
+  flex-wrap: var(--cc-actions-wrap);
+  gap: var(--cc-actions-gap);
+}
+
+/* Replaces PAGE_TITLE_STYLE. That constant was spread inline into 5 detail
+   pages, and an inline style out-specifies every theme rule -- which is the
+   ONLY reason .creatorcore needed `font-size: 24px !important`,
+   `font-weight: 700 !important` and `letter-spacing: 0 !important`. With the
+   type in a class those three !important declarations are deleted, not moved. */
+.cc-page-title {
+  grid-area: title;
+  font-size: var(--cc-fs-page-title);
+  font-weight: var(--cc-fw-page-title);
+  line-height: var(--cc-lh-page-title);
+  letter-spacing: var(--cc-tk-page-title);
+  color: var(--cc-fg-page-title);
+  margin-bottom: var(--cc-page-title-mb);
+  /* Long campaign and list names are user data: clamp rather than push the
+     action buttons off the row. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The title line on a detail page: the h1 plus whatever sits beside it on the
+   same baseline -- status chips, a type badge. `.rsp-header` is the list-page
+   shell and stacks its title above a subtitle, which is a different shape, so
+   this is a second row type rather than a variant of that one. Every value is
+   a token, so a theme can re-place the chips without touching the page. */
+.cc-page-titlebar {
+  display: var(--cc-page-titlebar-display);
+  align-items: var(--cc-page-titlebar-align);
+  flex-wrap: wrap;
+  gap: var(--cc-page-titlebar-gap);
+  margin-bottom: var(--cc-page-titlebar-mb);
+}
+
+/* The line under it: created-date, counts, separators. */
+.cc-page-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--cc-page-meta-gap);
+  margin-bottom: var(--cc-page-meta-mb);
+  font-size: var(--cc-page-meta-fs);
+  color: var(--cc-text-muted);
+}
+
+.cc-page-meta-item {
+  display: flex;
+  align-items: center;
+  gap: var(--cc-page-meta-item-gap);
+}
+
+/* The five detail pages each hand-rolled their own h1 margin (0, 2 or 4px)
+   alongside the shared type. The variance is kept as a token re-point rather
+   than a residual inline style, so the value is still a theme's to change. */
+.cc-page-title[data-mb="0"] { --cc-page-title-mb: 0px; }
+.cc-page-title[data-mb="tight"] { --cc-page-title-mb: 2px; }
+
+/* A title that must wrap rather than clip -- a post URL has no spaces. */
+.cc-page-title[data-wrap="anywhere"] {
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+/* ── Top bar ─────────────────────────────────────────────────────────────
+   Replaces both the inline style object on <header> and the <style> element
+   TopBar.tsx printed at runtime. That injected stylesheet was a second,
+   invisible theming blocker: a theme cannot reach a stylesheet a component
+   emits on render. 19 such <style> elements exist across 16 files.          */
+.cc-topbar {
+  grid-area: topbar;
+  height: var(--cc-topbar-h);
+  display: var(--cc-topbar-display);
+  align-items: var(--cc-topbar-align);
+  justify-content: var(--cc-topbar-justify);
+  gap: var(--cc-topbar-gap);
+  padding-inline: var(--cc-topbar-pad-start) var(--cc-topbar-pad-end);
+  border-bottom: 1px solid var(--cc-border);
+  background: var(--cc-card);
+  flex-shrink: 0;
+}
+
+/* Under the rail breakpoint the hamburger needs the room the rail gave up.
+   A token re-point, so a theme inherits the behaviour instead of restating it. */
+@media (max-width: 1023px) {
+  :root {
+    --cc-topbar-pad-start: 60px;
+    --cc-topbar-pad-end: var(--cc-sp-7);
+  }
+}
+
+.cc-topbar-start {
+  display: flex;
+  align-items: center;
+  gap: var(--cc-sp-3);
+  min-width: 0;
+  overflow: hidden;
+}
+.cc-topbar-end {
+  display: flex;
+  align-items: center;
+  gap: var(--cc-sp-4);
+  flex-shrink: 0;
+}
+
+/* The search box widens on focus. This was React state (`searchFocused`)
+   driving an inline width and an inline icon colour; :focus-within does both,
+   so the state, its two setters and the re-render are all deleted. */
+.cc-topbar-search {
+  position: relative;
+  width: var(--cc-topbar-search-w);
+  transition: width 0.25s ease;
+}
+.cc-topbar-search:focus-within { width: var(--cc-topbar-search-w-focus); }
+
+.cc-topbar-search-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--cc-text-subtle);
+  pointer-events: none;
+  transition: color 0.2s;
+}
+.cc-topbar-search:focus-within .cc-topbar-search-icon { color: var(--cc-primary); }
+
+@media (max-width: 520px) {
+  .cc-topbar-search { display: none; }
+}
+
+/* The topbar's own search box is tighter than the page-level `.cc-search` it
+   shares a class with -- 34px tall against 44 -- which was five inline
+   declarations on the input. */
+.cc-topbar-search .cc-search {
+  height: var(--cc-topbar-search-h);
+  padding: var(--cc-topbar-search-pad);
+  font-size: var(--cc-fs-body-sm);
+  border-radius: var(--cc-topbar-search-r);
+}
+
+.cc-search-results {
+  position: absolute;
+  top: calc(100% + var(--cc-sp-2));
+  left: 0;
+  right: 0;
+  z-index: var(--cc-z-popover);
+  margin: 0;
+  padding: var(--cc-sp-2);
+  list-style: none;
+  background: var(--cc-card);
+  border: 1px solid var(--cc-border);
+  border-radius: var(--cc-topbar-search-r);
+  box-shadow: var(--ui-shadow-lg);
+}
+
+.cc-search-result {
+  display: flex;
+  width: 100%;
+  padding: 0.4375rem var(--cc-sp-5);
+  border: none;
+  border-radius: var(--cc-sp-3);
+  background: transparent;
+  color: var(--cc-text);
+  font-size: var(--cc-fs-body-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+/* Keyboard selection, not hover: the list is driven by ArrowUp/ArrowDown and
+   the highlight has to follow the active index, so it is an attribute rather
+   than a :hover rule. */
+.cc-search-result[data-active="true"] {
+  background: var(--cc-primary-light);
+}
+
+/* The account chip. `color: white` was inline; it is the same
+   label-on-primary problem the page action has, so it is the same token. */
+.cc-topbar-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--cc-topbar-avatar-size);
+  height: var(--cc-topbar-avatar-size);
+  border-radius: 50%;
+  background: var(--cc-primary);
+  color: var(--cc-on-primary);
+  font-size: var(--cc-fs-label);
+  font-weight: 700;
+}
+
+.cc-crumb-sep {
+  color: var(--cc-text-subtle);
+  flex-shrink: 0;
+}
+
+/* The rail's utility row. Present in the DOM in every theme, painted only where
+   the top bar is not -- the dual-slot escape hatch, used here because CSS can
+   reorder and hide but cannot move a node to another parent. CreatorCore puts
+   its own notification bell in exactly this spot, beside the account chip at the
+   foot of the rail. */
+.cc-rail-utility {
+  display: var(--cc-rail-utility-display);
+  order: var(--cc-rail-utility-order);
+  align-items: center;
+  justify-content: var(--cc-rail-utility-justify);
+  gap: var(--cc-rail-utility-gap);
+  padding-bottom: var(--cc-rail-utility-pb);
+  flex-shrink: 0;
+}
+
+.cc-sidebar-rail[data-collapsed="true"] .cc-rail-utility {
+  flex-direction: column;
+}
+
+/* ── The rail's furniture ──────────────────────────────────────────────────
+   NewSidebar carried 21 inline style objects, every one of them unreachable by
+   any theme. `data-collapsed` on the <aside> is the same boolean the component
+   called `isRail`, so the collapsed variants are read off the DOM instead of
+   being branched in JS. */
+
+/* The rail's default z is the rail's own layer; the scrim precedes it in the
+   DOM, so the rail still paints on top. A drawer re-points it. */
+.cc-scrim {
+  position: fixed;
+  inset: 0;
+  background: var(--cc-scrim-bg);
+  z-index: var(--cc-scrim-z);
+  transition: opacity var(--cc-scrim-fade) ease;
+}
+/* Rendered unconditionally by the drawer, so it fades rather than unmounting.
+   `hidden` cannot be used for that -- it would skip the transition. */
+.cc-scrim[data-open="false"] {
+  opacity: 0;
+  pointer-events: none;
+}
+/* The drawer's own wash: indigo-tinted, faster, and on the scrim layer so it
+   covers the top bar the rail's version deliberately sits under. */
+.cc-drawer-scrim {
+  --cc-scrim-bg: rgba(28, 32, 72, 0.32);
+  --cc-scrim-z: var(--cc-z-scrim);
+  --cc-scrim-fade: 160ms;
+}
+
+.cc-sidebar-head {
+  padding: var(--cc-rail-head-pad);
+}
+.cc-sidebar-rail[data-collapsed="true"] .cc-sidebar-head {
+  padding: var(--cc-rail-head-pad-collapsed);
+}
+
+.cc-rail-logo {
+  width: var(--cc-rail-logo-size);
+  height: var(--cc-rail-logo-size);
+  border-radius: var(--cc-rail-logo-r);
+  background: var(--cc-rail-logo-bg);
+  display: var(--cc-rail-logomark-display);
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.cc-rail-brand {
+  display: var(--cc-rail-brand-display);
+  font-size: var(--cc-rail-brand-fs);
+  font-weight: var(--cc-rail-brand-fw);
+  color: var(--cc-text);
+  letter-spacing: var(--cc-rail-brand-tk);
+}
+
+/* Grows into the row the wordmark vacates, so the tenant's logo is the header
+   rather than a chip at the end of it. `min-width: 0` because the flex default
+   of `auto` would refuse to let a wide logo shrink and push the collapse button
+   off the rail. */
+.cc-rail-head-end {
+  flex: var(--cc-rail-head-end-grow) 1 auto;
+  min-width: 0;
+  justify-content: var(--cc-rail-head-end-justify);
+}
+
+/* The collapsed rail has no wordmark to hide and the mark IS the expand
+   button, so the header tokens revert on the <aside>. A custom property
+   resolves from the nearest declaring ancestor, so this beats :root.creatorcore
+   for everything inside the rail without out-specifying it. */
+.cc-sidebar-rail[data-collapsed="true"] {
+  --cc-rail-logomark-display: flex;
+  --cc-rail-foot-dir: column;
+  --cc-rail-foot-gap: var(--cc-sp-4);
+  --cc-rail-utility-order: 0;
+  --cc-rail-utility-justify: center;
+  --cc-rail-user-order: 1;
+}
+
+.cc-rail-logo-img {
+  max-height: var(--cc-rail-logo-img-h);
+  max-width: var(--cc-rail-logo-img-w);
+  object-fit: contain;
+  display: block;
+}
+
+.cc-rail-initials {
+  background: var(--cc-primary);
+  color: var(--cc-on-primary);
+  font-size: var(--cc-rail-initials-fs);
+  font-weight: var(--cc-rail-initials-fw);
+  padding: var(--cc-rail-initials-pad);
+  border-radius: var(--cc-rail-initials-r);
+  letter-spacing: var(--cc-rail-initials-tk);
+}
+
+.cc-rail-divider {
+  height: var(--cc-rail-divider-h);
+  background: var(--cc-border);
+  margin: var(--cc-rail-divider-m);
+}
+
+/* Declared after `.creatorcore .cc-nav-item` so the collapsed row wins the
+   source-order tie at equal specificity. Both resolve to the same 10px today;
+   the ordering is what keeps that true if either is retuned. */
+.cc-sidebar-rail[data-collapsed="true"] .cc-nav-item {
+  justify-content: center;
+  padding: var(--cc-nav-item-pad-collapsed);
+}
+
+.cc-nav-icon {
+  flex-shrink: 0;
+}
+
+.cc-nav-label {
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.cc-nav-badge {
+  margin-left: auto;
+  background: var(--cc-primary);
+  color: var(--cc-on-primary);
+  font-size: var(--cc-nav-badge-fs);
+  font-weight: var(--cc-nav-badge-fw);
+  padding: var(--cc-nav-badge-pad);
+  border-radius: var(--cc-nav-badge-r);
+  letter-spacing: var(--cc-nav-badge-tk);
+}
+
+.cc-sidebar-footer {
+  position: relative;
+  display: var(--cc-rail-foot-display);
+  flex-direction: var(--cc-rail-foot-dir);
+  align-items: var(--cc-rail-foot-align);
+  gap: var(--cc-rail-foot-gap);
+}
+
+.cc-rail-usermenu {
+  position: absolute;
+  bottom: 100%;
+  left: var(--cc-rail-usermenu-inset);
+  right: var(--cc-rail-usermenu-inset);
+  margin-bottom: var(--cc-rail-usermenu-mb);
+  background: var(--cc-card);
+  border: 1px solid var(--cc-border);
+  border-radius: var(--cc-rail-usermenu-r);
+  box-shadow: var(--ui-shadow-lg);
+  overflow: hidden;
+  z-index: var(--cc-rail-usermenu-z);
+}
+
+.cc-rail-usermenu .cc-nav-item {
+  margin: var(--cc-rail-usermenu-item-m);
+  border-radius: var(--cc-rail-usermenu-item-r);
+  font-size: var(--cc-rail-usermenu-fs);
+}
+
+.cc-rail-usermenu-divider {
+  height: var(--cc-rail-divider-h);
+  background: var(--cc-border);
+  margin: var(--cc-rail-usermenu-divider-m);
+}
+
+/* Scoped through the popover, not written bare: `.creatorcore .cc-nav-item`
+   paints every rail row in the brand indigo at (0,2,0), so a bare
+   `.cc-rail-usermenu-signout` loses the colour and Sign out comes out blue.
+   The inline style it replaces won that fight by being inline. */
+.cc-rail-usermenu .cc-rail-usermenu-signout {
+  width: calc(100% - var(--cc-rail-usermenu-item-m) * 2);
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--cc-danger);
+}
+
+/* The account chip at the foot of the rail. It used to wear `.cc-table-row`,
+   which is the content-table row class -- so the parity harness kept resolving
+   this 216px sidebar button as a list row and comparing it against their
+   1177px content rows. The class it borrowed contributed nothing anyway: its
+   only real declaration is a :hover background, and the inline
+   `background: transparent` out-specified that, so the hover has never
+   painted. Nothing here restores it; that would be a design change riding
+   inside a mechanical conversion. */
+.cc-rail-user {
+  width: 100%;
+  order: var(--cc-rail-user-order);
+  flex-grow: var(--cc-rail-user-grow);
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--cc-rail-user-pad);
+  border-radius: var(--cc-rail-user-r);
+  border: none;
+  background: var(--cc-rail-user-bg);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.cc-rail-user[data-open="true"] {
+  --cc-rail-user-bg: var(--cc-primary-light);
+}
+.cc-sidebar-rail[data-collapsed="true"] .cc-rail-user {
+  justify-content: center;
+  padding: var(--cc-rail-user-pad-collapsed);
+}
+
+.cc-rail-user-chevron {
+  color: var(--cc-text-muted);
+  transform: rotate(0deg);
+  transition: transform 0.2s ease;
+}
+.cc-rail-user[data-open="true"] .cc-rail-user-chevron {
+  transform: rotate(180deg);
+}
+
+/* ── Drawer, fields and filter controls ───────────────────────────────────
+   FilterDrawer carried 26 inline style objects and, with them, the claim that
+   filters live on the right. The placement is four tokens now, so a theme can
+   put the panel on the left without touching the component: re-point
+   --cc-drawer-inset-start to 0, --cc-drawer-inset-end to auto and
+   --cc-drawer-hidden-x to -100%. */
+
+.cc-drawer {
+  position: fixed;
+  inset-block: var(--cc-drawer-inset-block);
+  inset-inline-start: var(--cc-drawer-inset-start);
+  inset-inline-end: var(--cc-drawer-inset-end);
+  height: 100dvh;
+  width: var(--cc-drawer-w);
+  background: var(--cc-drawer-bg);
+  border-inline-start: var(--cc-drawer-edge);
+  border-radius: var(--cc-drawer-r);
+  box-shadow: var(--cc-drawer-shadow);
+  transform: translateX(var(--cc-drawer-hidden-x));
+  transition: var(--cc-drawer-move);
+  z-index: var(--cc-z-drawer);
+  display: flex;
+  flex-direction: column;
+}
+.cc-drawer[data-open="true"] {
+  transform: translateX(0);
+}
+
+.cc-drawer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--cc-drawer-head-pad);
+  border-bottom: var(--cc-drawer-edge);
+  flex-shrink: 0;
+}
+
+.cc-drawer-title {
+  display: flex;
+  align-items: center;
+  gap: var(--cc-sp-4);
+  font-size: var(--cc-drawer-title-fs);
+  font-weight: var(--cc-drawer-title-fw);
+  color: var(--cc-text);
+}
+
+.cc-drawer-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--cc-text-muted);
+  padding: var(--cc-sp-2);
+  display: flex;
+}
+
+.cc-drawer-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--cc-drawer-pad);
+  display: flex;
+  flex-direction: column;
+  gap: var(--cc-drawer-body-gap);
+}
+
+.cc-drawer-foot {
+  display: flex;
+  gap: var(--cc-drawer-foot-gap);
+  padding: var(--cc-drawer-foot-pad);
+  border-top: var(--cc-drawer-edge);
+  flex-shrink: 0;
+}
+
+.cc-field-label {
+  display: block;
+  font-size: var(--cc-field-label-fs);
+  font-weight: var(--cc-field-label-fw);
+  text-transform: uppercase;
+  letter-spacing: var(--cc-field-label-tk);
+  color: var(--cc-text-muted);
+  margin-bottom: var(--cc-field-label-mb);
+}
+
+.cc-field {
+  width: 100%;
+  height: var(--cc-field-h);
+  padding: var(--cc-field-pad);
+  font-size: var(--cc-field-fs);
+  color: var(--cc-text);
+  background: var(--cc-field-bg);
+  border: var(--cc-field-border);
+  border-radius: var(--cc-field-r);
+}
+
+.cc-field-row {
+  display: flex;
+  align-items: center;
+  gap: var(--cc-field-gap);
+}
+
+.cc-field-sep {
+  font-size: var(--cc-field-sep-fs);
+  color: var(--cc-text-muted);
+}
+
+.cc-filter-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cc-filter-list-gap);
+}
+
+.cc-filter-option {
+  display: flex;
+  align-items: center;
+  gap: var(--cc-filter-option-gap);
+  padding: var(--cc-filter-option-pad);
+  border-radius: var(--cc-filter-option-r);
+  cursor: pointer;
+  font-size: var(--cc-filter-option-fs);
+  color: var(--cc-text);
+  background: var(--cc-filter-option-bg);
+}
+.cc-filter-option[data-on="true"] {
+  --cc-filter-option-bg: var(--cc-hover-bg);
+}
+/* The toggle rows push their switch to the far edge; the checkbox rows do not. */
+.cc-filter-option[data-layout="split"] {
+  justify-content: space-between;
+}
+
+.cc-filter-option-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cc-filter-option-count {
+  font-size: var(--cc-fs-label);
+  color: var(--cc-text-muted);
+  flex-shrink: 0;
+}
+
+.cc-checkbox {
+  width: var(--cc-checkbox-size);
+  height: var(--cc-checkbox-size);
+  border-radius: var(--cc-checkbox-r);
+  border: var(--cc-checkbox-bw) solid var(--cc-checkbox-edge);
+  background: var(--cc-checkbox-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.cc-checkbox[data-on="true"] {
+  --cc-checkbox-edge: var(--cc-primary);
+  --cc-checkbox-bg: var(--cc-primary);
+}
+
+/* The real input stays in the DOM and keeps the label association; only its box
+   is gone, which is what the inline display:none did. */
+.cc-visually-gone {
+  display: none;
+}
+
+.cc-switch {
+  width: var(--cc-switch-w);
+  height: var(--cc-switch-h);
+  border-radius: var(--cc-r-pill);
+  background: var(--cc-switch-bg);
+  position: relative;
+  transition: background 140ms ease;
+  flex-shrink: 0;
+}
+.cc-switch[data-on="true"] {
+  --cc-switch-bg: var(--cc-primary);
+}
+
+.cc-switch-knob {
+  position: absolute;
+  top: var(--cc-switch-inset);
+  left: var(--cc-switch-inset);
+  width: var(--cc-switch-knob);
+  height: var(--cc-switch-knob);
+  border-radius: var(--cc-r-round);
+  background: var(--cc-on-primary);
+  transition: left 140ms ease;
+}
+.cc-switch[data-on="true"] .cc-switch-knob {
+  left: calc(var(--cc-switch-w) - var(--cc-switch-knob) - var(--cc-switch-inset));
+}
+
+/* Drawer footer buttons and the toolbar trigger share one recipe; the variant
+   only re-points three tokens. */
+.cc-drawer-btn,
+.cc-filter-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--cc-control-h);
+  border-radius: var(--cc-r-control);
+  font-size: var(--cc-fs-body);
+  font-weight: 600;
+  cursor: pointer;
+  background: var(--cc-btn-bg);
+  color: var(--cc-btn-fg);
+  border: var(--cc-btn-border);
+}
+.cc-drawer-btn {
+  flex: 1;
+  --cc-btn-bg: var(--cc-card);
+  --cc-btn-fg: var(--cc-text);
+  --cc-btn-border: 1px solid var(--cc-border);
+}
+.cc-drawer-btn[data-variant="primary"] {
+  --cc-btn-bg: var(--cc-primary);
+  --cc-btn-fg: var(--cc-on-primary);
+  --cc-btn-border: none;
+}
+
+.cc-filter-btn {
+  gap: var(--cc-sp-4);
+  padding: 0 var(--cc-filter-btn-pad-inline);
+  --cc-btn-bg: var(--cc-card);
+  --cc-btn-fg: var(--cc-text);
+  --cc-btn-border: 1px solid var(--cc-border);
+}
+.cc-filter-btn[data-active="true"] {
+  --cc-btn-fg: var(--cc-primary);
+  --cc-btn-border: 1px solid var(--cc-primary);
+}
+
+/* The modal button cluster. Was an unnamed <div> with the same four inline
+   declarations at 27 call sites, which is why button placement in a modal was
+   not a theme decision. `--cc-order-cancel` and friends are already declared at
+   0, so a theme can also swap Cancel and Confirm without touching any JSX. */
+.cc-modal-footer {
+  display: var(--cc-modal-footer-display);
+  flex-direction: var(--cc-modal-footer-direction);
+  justify-content: var(--cc-modal-footer-justify);
+  align-items: var(--cc-modal-footer-align);
+  gap: var(--cc-modal-footer-gap);
+  width: var(--cc-modal-footer-w);
+}
+/* A Back button on the left, everything else on the right. */
+.cc-modal-footer[data-layout="split"] {
+  --cc-modal-footer-justify: space-between;
+  --cc-modal-footer-w: 100%;
+}
+.cc-modal-footer[data-width="full"] {
+  --cc-modal-footer-w: 100%;
+}
+.cc-modal-footer[data-align="center"] {
+  --cc-modal-footer-align: center;
+}
+.cc-modal-footer[data-gap="0"] {
+  --cc-modal-footer-gap: 0px;
+}
+
+/* A secondary control that is a link rather than a button -- 32px tall, in the
+   toolbar's own colours. Named because the one call site is the plan's worked
+   example: a theme can only write
+   `:root.creatorcore [data-action="self-serve-campaign"] { display: none }`
+   once the element stops declaring `display: inline-flex` inline. */
+.cc-link-btn {
+  display: var(--cc-link-btn-display);
+  align-items: center;
+  gap: var(--cc-link-btn-gap);
+  padding: var(--cc-link-btn-pad);
+  height: var(--cc-link-btn-h);
+  border-radius: var(--cc-r-control);
+  border: 1px solid var(--cc-border);
+  background: var(--cc-card);
+  color: var(--cc-text);
+  font-size: var(--cc-fs-body-sm);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.cc-filter-btn-count {
+  min-width: var(--cc-filter-count-min-w);
+  height: var(--cc-filter-count-h);
+  padding: var(--cc-filter-count-pad);
+  border-radius: var(--cc-r-pill);
+  background: var(--cc-primary);
+  color: var(--cc-on-primary);
+  font-size: var(--cc-filter-count-fs);
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Breadcrumb. The hover colour was two JS event handlers per link
+   (onMouseEnter/onMouseLeave writing style.color); :hover is the same effect
+   without the handlers. */
+.cc-crumb {
+  font-size: var(--cc-fs-body-sm);
+  color: var(--cc-text-muted);
+  text-decoration: none;
+  transition: color 0.15s;
+}
+.cc-crumb:hover { color: var(--cc-primary); }
+.cc-crumb-current {
+  font-size: var(--cc-fs-body-sm);
+  color: var(--cc-text);
+  font-weight: 600;
+}
+.cc-crumb-current[data-truncate="true"] {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cc-page-subtitle {
+  /* Inert while the heading block is a flex column; it only takes effect once a
+     theme sets the heading to `display: contents` and these become grid items of
+     the header itself. A grid-area on a flex child costs nothing. */
+  grid-area: subtitle;
+  font-size: var(--cc-fs-subtitle);
+  font-weight: var(--cc-fw-subtitle);
+  color: var(--cc-text-muted);
+  margin: 0;
+}
 
 .rsp-hide-mobile { display: none; }
 @media (min-width: 768px) { .rsp-hide-mobile { display: initial; } }
@@ -1170,11 +2892,15 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 /* Sidebar geometry — single source of truth for the rail and the content offset.
-   Both read the same var so they can never desync mid-transition. */
-:root {
-  --cc-sidebar-w: 264px;
-  --cc-sidebar-w-collapsed: 72px;
-}
+   Both read the same var so they can never desync mid-transition.
+
+   The declarations that sat here have moved into the base :root at the top of
+   this file (same values, 264px/72px, so nothing computes differently). They
+   were a SECOND bare :root, and a bare :root carries the same specificity as a
+   bare .creatorcore — which is exactly how a theme's --cc-sidebar-w once lost
+   to this block by source order alone and the rail silently stayed 264px. One
+   base block is what makes that class of bug impossible rather than merely
+   fixed. */
 
 .cc-sidebar-rail {
   width: var(--cc-sidebar-w);
@@ -1205,15 +2931,15 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .cc-sidebar-avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
+  width: var(--cc-rail-avatar-size);
+  height: var(--cc-rail-avatar-size);
+  border-radius: var(--cc-r-round);
   background: var(--cc-primary);
   color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
+  font-size: var(--cc-rail-avatar-fs);
   font-weight: 700;
   flex-shrink: 0;
 }
@@ -2026,32 +3752,3 @@ h1, h2, h3, h4, h5, h6 {
   .spr-tiles { grid-template-columns: repeat(auto-fit, minmax(min(130px, 100%), 1fr)); }
 }
 
-/* The way in to tracking a campaign's audio, in the Performance action row.
-   It used to be a secondary Button sitting in the report's flex column, which
-   stretched it across the whole content width between the KPI tiles and the
-   first chart -- a full-bleed grey slab that read as a disabled banner, not a
-   control. Here it is a text action: smaller than the two buttons beside it and
-   carrying no border of its own, because Export and Share act on the report
-   that is already there while this one offers to add something to it. */
-.perf-attach-audio {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  border: none;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--cc-text-muted);
-  font-size: 13px;
-  font-weight: 600;
-  line-height: 1;
-  cursor: pointer;
-}
-.perf-attach-audio:hover {
-  background: var(--cc-hover-bg);
-  color: var(--cc-text);
-}
-.perf-attach-audio:focus-visible {
-  outline: 2px solid var(--cc-primary);
-  outline-offset: 2px;
-}

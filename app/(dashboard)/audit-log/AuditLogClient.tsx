@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Search, RefreshCw, Filter, Download, Receipt } from "lucide-react";
 import { PageHeader, Dropdown, Pagination, LoadError } from "@/components/ds";
 import { Card, EmptyState, LoadingSpinner } from "@pratham7711/ui";
+import { action as uiAction } from "@/lib/ui/actions";
 
 type AuditLogItem = {
   id: string;
@@ -165,7 +166,7 @@ export default function AuditLogClient({
               textDecoration: "none",
               cursor: "pointer",
             }}
-          >
+           {...uiAction("export-csv")}>
             <Download size={14} />
             Export CSV
           </a>

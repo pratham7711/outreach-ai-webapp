@@ -57,7 +57,7 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
           title={options.title}
           size="sm"
           footer={
-            <div className="flex justify-end gap-2">
+            <div className="cc-modal-footer">
               <Button variant="secondary" size="sm" onClick={() => settle(false)}>
                 {options.cancelLabel ?? "Cancel"}
               </Button>

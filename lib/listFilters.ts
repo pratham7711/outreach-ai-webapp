@@ -44,6 +44,29 @@ function countRange(min?: number, max?: number) {
 // ─── Campaigns ──────────────────────────────────────────────────────────────
 
 export const CAMPAIGN_STATUSES = ["DRAFT", "PENDING", "IN_PROGRESS", "COMPLETE", "CANCELLED"] as const;
+
+/**
+ * The status the campaigns page opens on when the URL names none.
+ *
+ * The page is opened to answer "what am I running right now", and All led with
+ * 522 campaigns for this org, nearly all of them finished, so the handful in
+ * flight were below the fold on the screen the sidebar lands you on.
+ */
+export const CAMPAIGNS_DEFAULT_STATUS = "IN_PROGRESS" as const;
+
+/**
+ * The All tab's value in the URL: an explicit "do not narrow by status".
+ *
+ * Once a bare /campaigns means Active, an absent parameter can no longer mean
+ * "every status" -- All needs a value of its own or it is unreachable from the
+ * sidebar. It is not a Campaign.status and never reaches a query: it is
+ * stripped below, leaving exactly the empty filter an absent parameter already
+ * produced. So /api/campaigns is unchanged for every existing caller, and
+ * ?status=ALL now parses there instead of failing the enum -- which took the
+ * whole safeParse down and silently dropped the client, tag and team filters
+ * alongside it.
+ */
+export const CAMPAIGN_STATUS_ALL = "ALL";
 export const CAMPAIGN_TYPES = ["BUDGET_BASED", "VIEW_BASED", "OPEN_COMMUNITY", "PRIVATE_INVITE"] as const;
 
 export type CampaignFilters = {
@@ -93,9 +116,10 @@ export const campaignFilterSchema = z.object({
 
 /** Reads the filters off a page's resolved searchParams, tolerating anything odd. */
 export function readCampaignFilters(sp: Record<string, string | string[] | undefined>): CampaignFilters {
+  const statusParam = firstParam(sp.status);
   const parsed = campaignFilterSchema.safeParse({
     search: firstParam(sp.q ?? sp.search),
-    status: firstParam(sp.status),
+    status: statusParam === CAMPAIGN_STATUS_ALL ? undefined : statusParam,
     folderId: firstParam(sp.folderId),
     clientIds: firstParam(sp.clientIds),
     campaignType: firstParam(sp.campaignType),

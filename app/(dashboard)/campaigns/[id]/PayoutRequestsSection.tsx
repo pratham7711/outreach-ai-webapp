@@ -195,7 +195,7 @@ export default function PayoutRequestsSection({ campaignId }: { campaignId: stri
       {/* Create Request Modal */}
       {showCreate && (
         <Modal open={true} onClose={() => setShowCreate(false)} title="Request Payout" size="md" footer={
-          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <div className="cc-modal-footer">
             <Button variant="secondary" onClick={() => setShowCreate(false)}>Cancel</Button>
             <Button variant="primary" loading={submitting} onClick={handleCreate} disabled={!form.creatorId || !form.requestedAmount}>Submit</Button>
           </div>
@@ -231,7 +231,7 @@ export default function PayoutRequestsSection({ campaignId }: { campaignId: stri
       {/* Reject Modal */}
       {showReject && (
         <Modal open={true} onClose={() => { setShowReject(null); setRejectionReason(""); }} title="Reject Payout Request" size="sm" footer={
-          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <div className="cc-modal-footer">
             <Button variant="secondary" onClick={() => { setShowReject(null); setRejectionReason(""); }}>Cancel</Button>
             <Button variant="primary" onClick={handleReject} style={{ background: "#DC2626" }}>Reject</Button>
           </div>

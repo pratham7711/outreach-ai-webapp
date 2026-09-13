@@ -13,52 +13,29 @@ export type PageHeaderProps = {
 };
 
 /**
- * The page-title type ramp, on its own so it can be reached without the layout.
- *
- * Detail pages (campaign, creator, client, post, song) own their header row —
- * a breadcrumb above it, an avatar or cover beside it, status badges on the
- * same line — so they cannot render PageHeader itself. They took the h1 with
- * them, which is how 20/22/26/28 at 700/800 happened in the first place. They
- * spread this instead.
- */
-export const PAGE_TITLE_STYLE: React.CSSProperties = {
-  fontSize: 26,
-  fontWeight: 800,
-  letterSpacing: "-0.02em",
-  color: "var(--cc-text)",
-};
-
-/**
  * The one page header. Before this existed the h1 was re-declared inline on every page
  * and had drifted to three sizes (26/28) and two weights (700/800), which reads as three
  * different products when a client clicks through the nav.
  *
- * Layout lives in `.rsp-header` (globals.css): wraps on narrow viewports and drops the
- * bottom margin from 32 to 24 under 768px.
+ * Layout and type both live in globals.css now — `.rsp-header` for the row,
+ * `.cc-page-title` for the h1 — and both read `--cc-*` tokens, so a theme can
+ * restyle and re-place this header without touching a line of it.
+ *
+ * This replaces the exported PAGE_TITLE_STYLE constant. That constant was spread
+ * inline into five detail pages, and an inline style out-specifies every theme
+ * rule — which is why `.creatorcore` needed three `!important` declarations to
+ * reach its own 24px/700. Those are deleted along with the constant.
  */
 export function PageHeader({ title, subtitle, actions, meta, className, style }: PageHeaderProps) {
   return (
-    <div className={`rsp-header ${className ?? ""}`} style={style}>
-      <div style={{ minWidth: 0 }}>
-        <h1
-          style={{
-            ...PAGE_TITLE_STYLE,
-            marginBottom: 4,
-            // Long campaign and list names are user data: clamp rather than push the
-            // action buttons off the row.
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-          }}
-        >
-          {title}
-        </h1>
-        {subtitle ? (
-          <p style={{ fontSize: 14, color: "var(--cc-text-muted)", margin: 0 }}>{subtitle}</p>
-        ) : null}
+    <div className={`rsp-header ${className ?? ""}`} style={style} data-region="page-header" data-parity="page.header-strip">
+      <div className="cc-page-heading">
+        <h1 className="cc-page-title" data-parity="page.title">{title}</h1>
+        {subtitle ? <p className="cc-page-subtitle">{subtitle}</p> : null}
         {meta}
       </div>
       {actions ? (
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+        <div className="cc-page-actions" data-region="page-actions">
           {actions}
         </div>
       ) : null}

@@ -58,3 +58,20 @@ export async function selectFromDropdown(
   await page.getByRole('combobox', { name: ariaLabel }).click();
   await page.getByRole('option', { name: optionLabel }).first().click();
 }
+
+/**
+ * Open one section of a campaign from the left rail.
+ *
+ * The campaign's sections used to be a tab strip inside the page, so the specs
+ * reached them with getByRole('tab'). They are rail links now: same
+ * destination, different role, and the accessible name carries the count badge
+ * ("Posts 7"), which is why this matches on a prefix.
+ */
+export async function openCampaignSection(page: Page, name: RegExp): Promise<void> {
+  const link = page.getByRole('navigation', { name: /campaign navigation/i })
+    .getByRole('link', { name })
+    .first();
+  await link.waitFor({ state: 'visible', timeout: 20000 });
+  await link.click();
+  await page.waitForLoadState('networkidle');
+}

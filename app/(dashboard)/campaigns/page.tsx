@@ -3,8 +3,9 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import CampaignsClient from "./CampaignsClient";
 import { CAMPAIGNS_PAGE_SIZE } from "@/lib/listPageSize";
-import { campaignWhere, countCampaignFilters, readCampaignFilters, campaignOrderBy } from "@/lib/listFilters";
+import { campaignWhere, countCampaignFilters, readCampaignFilters, campaignOrderBy, CAMPAIGNS_DEFAULT_STATUS } from "@/lib/listFilters";
 import { campaignScopeWhere, scopeSubjectFromSession } from "@/lib/campaignScope";
+import { campaignArtwork, CAMPAIGN_ARTWORK_INCLUDE } from "@/lib/campaignArtwork";
 import { firstParam, readCampaignSort } from "@/lib/listParams";
 import { hasPermission } from "@/lib/rbac";
 
@@ -24,7 +25,16 @@ export default async function CampaignsPage({
   // with their per-row activation/post counts took ~2.5s server-side and ~7.7s
   // to paint. The same parse runs in /api/campaigns, so the table and the API
   // cannot disagree about what a filter means.
-  const filters = readCampaignFilters(sp);
+  /* Active, not All, when the URL names no status -- the sidebar link and any
+     bare /campaigns link included. The default lives here rather than in
+     readCampaignFilters because that parse is shared with /api/campaigns, and
+     narrowing it there would quietly change what an unfiltered API call
+     returns. ?status=ALL is how All is reached; see CAMPAIGN_STATUS_ALL. */
+  const parsedFilters = readCampaignFilters(sp);
+  const filters =
+    firstParam(sp.status) === undefined
+      ? { ...parsedFilters, status: [CAMPAIGNS_DEFAULT_STATUS] }
+      : parsedFilters;
   const sort = readCampaignSort(sp);
   /* Row-level visibility, ANDed with the org filter rather than replacing it:
      a scoped user is still confined to their own organisation first. Applied to
@@ -51,6 +61,8 @@ export default async function CampaignsPage({
         teamMembers: { select: { user: { select: { id: true, name: true, avatarUrl: true } } } },
         tagLinks: { select: { tag: { select: { name: true } } } },
         statusDef: { select: { id: true, name: true, bucket: true } },
+        // The campaign's artwork falls back to its sound's cover; see campaignArtwork.
+        song: CAMPAIGN_ARTWORK_INCLUDE,
       },
       // campaignOrderBy always appends a unique tiebreaker; ordering by
       // updatedAt alone left 519 campaigns paging over 516 distinct values.
@@ -146,7 +158,7 @@ export default async function CampaignsPage({
         status: c.status,
         currency: c.currency,
         client: c.client,
-        thumbnailUrl: c.thumbnailUrl,
+        thumbnailUrl: campaignArtwork(c),
         _count: c._count,
         creatorCount: creatorsByCampaign.get(c.id)?.size ?? 0,
         updatedAt: c.updatedAt.toISOString(),

@@ -3,7 +3,9 @@ import Link from "next/link";
 import { BRAND } from "@/lib/brand";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, Suspense } from "react";
+import CampaignRailNav from "@/components/CampaignRailNav";
+import { campaignIdFromPathname } from "@/lib/campaignSections";
 import {
   LayoutDashboard, Megaphone, Play, Calendar, CalendarClock, Users, Users2, LineChart,
   Search, List, Link2, CreditCard, Shield, FileText,
@@ -13,6 +15,8 @@ import {
 import { mediaUrl } from "@/lib/postMedia";
 import { useSidebar } from "@/components/providers/SidebarProvider";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import ThemeToggle from "@/components/ThemeToggle";
+import { NotificationBell } from "@/components/layout/NotificationBell";
 
 /*
   The money side of the product is parked, not deleted: we are not offering
@@ -185,19 +189,13 @@ export default function NewSidebar({ allowedNavHrefs, isPlatformOperator, brandN
 
   const isRail = collapsed && !mobileOpen;
 
+  /* Inside a campaign the rail belongs to that campaign, not to the workspace.
+     Its sections replace the global nav entirely, as they do in the reference
+     app, and "All campaigns" at the top is the way back out. */
+  const campaignId = campaignIdFromPathname(pathname);
+
   const logoMark = (
-    <div
-      style={{
-        width: 32,
-        height: 32,
-        borderRadius: 8,
-        background: "var(--cc-primary)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        flexShrink: 0,
-      }}
-    >
+    <div className="cc-rail-logo">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
         <circle cx="12" cy="12" r="8" stroke="white" strokeWidth="2.5" />
         <circle cx="12" cy="12" r="4" stroke="white" strokeWidth="1.5" />
@@ -223,16 +221,9 @@ export default function NewSidebar({ allowedNavHrefs, isPlatformOperator, brandN
       {/* Mobile overlay backdrop */}
       {mobileOpen && (
         <div
-          className="lg:hidden"
+          className="cc-scrim lg:hidden"
           onClick={() => setMobileOpen(false)}
           aria-hidden="true"
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0, 0, 0, 0.4)",
-            zIndex: 40,
-            transition: "opacity 0.2s",
-          }}
         />
       )}
 
@@ -241,6 +232,13 @@ export default function NewSidebar({ allowedNavHrefs, isPlatformOperator, brandN
         className={`cc-sidebar-rail fixed top-0 bottom-0 left-0 z-40 flex flex-col overflow-hidden ${
           mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         }`}
+        data-parity="shell.rail"
+        /* The shell's own identity, published for CSS. The rail is the only
+           node that knows a campaign is open, and the page header two levels
+           away needs it -- their campaign screens set a 20px title against the
+           dashboard's 24px. Routing the same pathname test through a second
+           component would give two places to keep in step. */
+        data-shell={campaignId ? "campaign" : pathname.startsWith("/settings") ? "settings" : "dashboard"}
         data-collapsed={mobileOpen ? false : collapsed}
         data-ready={ready}
         role="navigation"
@@ -249,7 +247,6 @@ export default function NewSidebar({ allowedNavHrefs, isPlatformOperator, brandN
         {/* Header: Logo + Org + Collapse Toggle */}
         <div
           className={`cc-sidebar-head h-14 flex items-center shrink-0 ${isRail ? "justify-center" : "justify-between"}`}
-          style={{ padding: isRail ? "0 8px" : "0 16px" }}
         >
           {isRail ? (
             <Tooltip>
@@ -269,20 +266,14 @@ export default function NewSidebar({ allowedNavHrefs, isPlatformOperator, brandN
               <div className="flex min-w-0 items-center gap-2.5">
                 {logoMark}
                 <span
-                  className="truncate"
+                  className="cc-rail-brand truncate"
                   title={brandName ?? BRAND.name}
-                  style={{
-                    fontWeight: 800,
-                    fontSize: 15,
-                    color: "var(--cc-text)",
-                    letterSpacing: "-0.4px",
-                  }}
                 >
                   {brandName ?? BRAND.name}
                 </span>
               </div>
 
-              <div className="flex items-center gap-1.5" style={{ flexShrink: 0 }}>
+              <div className="cc-rail-head-end flex items-center gap-1.5">
                 {/*
                   CreatorCore's rail carries the tenant's uploaded logo here --
                   a 90x30 image beside its own wordmark. Ours drew two letters
@@ -297,26 +288,10 @@ export default function NewSidebar({ allowedNavHrefs, isPlatformOperator, brandN
                     src={mediaUrl(brandLogoUrl) ?? undefined}
                     alt={brandName ? `${brandName} logo` : "Organisation logo"}
                     onError={() => setLogoBroken(true)}
-                    style={{
-                      maxHeight: 30,
-                      maxWidth: 92,
-                      objectFit: "contain",
-                      display: "block",
-                    }}
+                    className="cc-rail-logo-img"
                   />
                 ) : brandName ? (
-                  <div
-                    aria-hidden="true"
-                    style={{
-                      background: "var(--cc-primary)",
-                      color: "var(--primary-foreground)",
-                      fontSize: 10,
-                      fontWeight: 700,
-                      padding: "3px 10px",
-                      borderRadius: 6,
-                      letterSpacing: "0.5px",
-                    }}
-                  >
+                  <div aria-hidden="true" className="cc-rail-initials">
                     {sidebarInitials(brandName)}
                   </div>
                 ) : null}
@@ -344,8 +319,20 @@ export default function NewSidebar({ allowedNavHrefs, isPlatformOperator, brandN
         </div>
 
         {/* Nav Sections */}
-        <nav className="cc-sidebar-nav flex-1 overflow-y-auto px-2 py-2" aria-label="Main navigation">
-          {[...NAV_SECTIONS, ...(isPlatformOperator ? [PLATFORM_SECTION] : [])].map((section) => {
+        <nav
+          className="cc-sidebar-nav flex-1 overflow-y-auto px-2 py-2"
+          data-parity="shell.rail.items"
+          aria-label={campaignId ? "Campaign navigation" : "Main navigation"}
+        >
+          {campaignId ? (
+            /* The boundary is for useSearchParams inside: without one, any
+               dashboard route that Next decides to prerender fails the build
+               rather than this rail falling back for a frame. */
+            <Suspense fallback={null}>
+              <CampaignRailNav campaignId={campaignId} isRail={isRail} />
+            </Suspense>
+          ) : (
+          [...NAV_SECTIONS, ...(isPlatformOperator ? [PLATFORM_SECTION] : [])].map((section, gi) => {
             /* The platform section skips the entitlement filter on purpose --
                it answers to the email allowlist, not to what an org bought. */
             const exemptFromNavRules = section.label === PLATFORM_SECTION.label;
@@ -354,14 +341,18 @@ export default function NewSidebar({ allowedNavHrefs, isPlatformOperator, brandN
               : section.items.filter((item) => allowedHrefSet.has(item.href));
             if (filteredItems.length === 0) return null;
             return (
-            <div key={section.label} className="mb-1">
+            <div
+              key={section.label}
+              className="mb-1"
+              data-parity={gi === 0 ? "shell.rail.group-first" : undefined}
+            >
               {/* Section label — hidden when collapsed */}
               {!isRail && (
                 <div className="cc-nav-group-label">{section.label}</div>
               )}
               {/* Thin separator when collapsed */}
               {isRail && (
-                <div style={{ height: 1, background: "var(--cc-border)", margin: "6px 8px" }} />
+                <div className="cc-rail-divider" />
               )}
 
               {filteredItems.map(
@@ -387,32 +378,17 @@ export default function NewSidebar({ allowedNavHrefs, isPlatformOperator, brandN
                       href={href}
                       className={`cc-nav-item sidebar-link ${active ? "active btn-press" : ""}`}
                       aria-current={active ? "page" : undefined}
-                      style={{
-                        justifyContent: isRail ? "center" : undefined,
-                        padding: isRail ? "10px" : undefined,
-                      }}
                     >
                       <Icon
                         size={isRail ? 19 : 17}
-                        style={{ flexShrink: 0 }}
+                        className="cc-nav-icon"
                         aria-hidden="true"
                       />
                       {!isRail && (
-                        <span style={{ whiteSpace: "nowrap", overflow: "hidden" }}>{label}</span>
+                        <span className="cc-nav-label">{label}</span>
                       )}
                       {!isRail && badge && !active && (
-                        <span
-                          style={{
-                            marginLeft: "auto",
-                            background: "var(--cc-primary)",
-                            color: "var(--primary-foreground)",
-                            fontSize: 9,
-                            fontWeight: 700,
-                            padding: "2px 7px",
-                            borderRadius: 999,
-                            letterSpacing: "0.3px",
-                          }}
-                        >
+                        <span className="cc-nav-badge">
                           {badge}
                         </span>
                       )}
@@ -436,58 +412,41 @@ export default function NewSidebar({ allowedNavHrefs, isPlatformOperator, brandN
               )}
             </div>
             );
-          })}
+          })
+          )}
         </nav>
 
         {/* Footer - User Profile */}
-        <div
-          className="cc-sidebar-footer px-2 py-2"
-          style={{ position: "relative" }}
-        >
+        <div className="cc-sidebar-footer px-2 py-2">
+          {/* The theme toggle and the bell live in two places and are painted in
+              one: creatorcore hides the top bar above 1024px to put the page
+              header where the reference puts it, and a theme that silently took
+              away the only control for changing themes would be a trap. CSS
+              cannot move a node to a different parent, so the node exists twice
+              and `--cc-rail-utility-display` decides which copy is seen. */}
+          <div className="cc-rail-utility" aria-hidden={false}>
+            <ThemeToggle />
+            <NotificationBell />
+          </div>
           {/* User menu dropdown */}
           {showUserMenu && !isRail && (
-            <div
-              className="cc-scale-in"
-              style={{
-                position: "absolute",
-                bottom: "100%",
-                left: 8,
-                right: 8,
-                marginBottom: 4,
-                background: "var(--cc-card)",
-                border: "1px solid var(--cc-border)",
-                borderRadius: 12,
-                boxShadow: "var(--ui-shadow-lg)",
-                overflow: "hidden",
-                zIndex: 50,
-              }}
-            >
+            <div className="cc-rail-usermenu cc-scale-in">
               <Link
                 href="/settings"
                 className="cc-nav-item"
-                style={{ margin: 4, borderRadius: 8 }}
                 onClick={() => setShowUserMenu(false)}
               >
                 <Settings size={15} aria-hidden="true" />
-                <span style={{ fontSize: 13 }}>Settings</span>
+                <span>Settings</span>
               </Link>
-              <div style={{ height: 1, background: "var(--cc-border)", margin: "0 12px" }} />
+              <div className="cc-rail-usermenu-divider" />
               <button
-                className="cc-nav-item"
-                style={{
-                  margin: 4,
-                  borderRadius: 8,
-                  width: "calc(100% - 8px)",
-                  border: "none",
-                  background: "none",
-                  cursor: "pointer",
-                  color: "var(--cc-danger)",
-                }}
+                className="cc-nav-item cc-rail-usermenu-signout"
                 aria-label="Sign out of your account"
                 onClick={() => { setShowUserMenu(false); signOut({ callbackUrl: "/login" }); }}
               >
                 <LogOut size={15} aria-hidden="true" />
-                <span style={{ fontSize: 13 }}>Sign out</span>
+                <span>Sign out</span>
               </button>
             </div>
           )}
@@ -501,21 +460,10 @@ export default function NewSidebar({ allowedNavHrefs, isPlatformOperator, brandN
               }
               setShowUserMenu(!showUserMenu);
             }}
-            className="cc-table-row"
+            className="cc-rail-user"
+            data-open={showUserMenu}
             aria-expanded={showUserMenu}
             aria-label={isRail ? `${userName} — expand sidebar` : "User menu"}
-            style={{
-              width: "100%",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: isRail ? "center" : "space-between",
-              padding: isRail ? "8px" : "8px 10px",
-              borderRadius: 10,
-              border: "none",
-              background: showUserMenu ? "var(--cc-primary-light)" : "transparent",
-              cursor: "pointer",
-              transition: "background 0.15s ease",
-            }}
           >
             <div className="flex items-center gap-2.5">
               <div className="cc-sidebar-avatar" aria-hidden="true">
@@ -532,11 +480,7 @@ export default function NewSidebar({ allowedNavHrefs, isPlatformOperator, brandN
                 <ChevronDown
                   size={14}
                   aria-hidden="true"
-                  style={{
-                    color: "var(--cc-text-muted)",
-                    transform: showUserMenu ? "rotate(180deg)" : "rotate(0deg)",
-                    transition: "transform 0.2s ease",
-                  }}
+                  className="cc-rail-user-chevron"
                 />
               </div>
             )}

@@ -175,23 +175,14 @@ export default function FeatureAccessClient({ clients: initialClients, plans }: 
       />
 
       {/* Tabs */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 24, flexWrap: "wrap" }}>
+      <div role="tablist" className="cc-tabs" data-variant="solid" style={{ marginBottom: 24 }}>
         {tabs.map((t) => (
           <button
             key={t.key}
+            role="tab"
+            aria-selected={tab === t.key}
             onClick={() => { setTab(t.key); setSelected(new Set()); }}
-            className="cc-filter-tab"
-            style={{
-              padding: "8px 16px",
-              borderRadius: 20,
-              fontSize: 13,
-              fontWeight: 600,
-              border: `1px solid ${tab === t.key ? "var(--cc-primary)" : "var(--cc-border)"}`,
-              background: tab === t.key ? "var(--cc-primary)" : "var(--cc-card)",
-              color: tab === t.key ? "white" : "var(--cc-text)",
-              cursor: "pointer",
-              transition: "all 0.15s",
-            }}
+            className="cc-tab"
           >
             {t.label}
           </button>

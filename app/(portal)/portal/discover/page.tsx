@@ -252,7 +252,7 @@ export default function PortalDiscoverPage() {
       {/* Propose Modal */}
       {showPropose && (
         <Modal open={true} onClose={() => { setShowPropose(null); setProposedRate(""); }} title={`Propose for "${showPropose.title}"`} size="sm" footer={
-          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <div className="cc-modal-footer">
             <Button variant="secondary" onClick={() => { setShowPropose(null); setProposedRate(""); }}>Cancel</Button>
             <Button variant="primary" loading={submitting} onClick={handlePropose} disabled={!proposedRate}>Submit Proposal</Button>
           </div>

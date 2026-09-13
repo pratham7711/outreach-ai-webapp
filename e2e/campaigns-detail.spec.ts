@@ -21,8 +21,9 @@ test.describe('Campaign Detail', () => {
   });
 
   test('shows budget info', async ({ page }) => {
-    // The page opens on Performance, matching the reference app; the budget
-    // tile lives on Overview, so ask for that tab rather than the default.
+    // The page opens on Posts; the budget tile lives on Overview, so ask for
+    // that section rather than the default. (?tab= is the legacy spelling and
+    // is still honoured -- this asserts that too.)
     await navigateAndWait(page, '/campaigns/camp-1?tab=overview');
     // camp-1 has a $25,000 budget, rendered compactly as $25K.
     await expect(page.getByText(/25,000|25K/i).first()).toBeVisible({ timeout: 15000 });

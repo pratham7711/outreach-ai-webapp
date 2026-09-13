@@ -88,7 +88,7 @@ export default function AddCreatorModal({ onClose }: { onClose: () => void }) {
       title="Add Creator"
       size="md"
       footer={
-        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+        <div className="cc-modal-footer">
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
           <Button variant="primary" loading={loading} onClick={() => { document.getElementById("add-creator-form")?.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true })); }}>
             Add Creator

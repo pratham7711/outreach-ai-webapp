@@ -71,3 +71,34 @@ describe("campaign tag and team-member filters", () => {
     expect(countCampaignFilters(readCampaignFilters({ tags: "a", teamMemberIds: "u1" }))).toBe(none + 2);
   });
 });
+
+/**
+ * The campaigns page opens on Active, so "no status in the URL" and "every
+ * status" stopped being the same thing and All needed a value of its own.
+ */
+describe("the ALL status parameter", () => {
+  it("narrows by nothing, exactly as an absent parameter does", () => {
+    expect(readCampaignFilters({ status: "ALL" }).status).toEqual([]);
+    expect(readCampaignFilters({}).status).toEqual([]);
+    // It is not a Campaign.status, so it must never reach the query.
+    expect(campaignWhere("org-1", readCampaignFilters({ status: "ALL" }))).not.toHaveProperty("status");
+  });
+
+  it("leaves the other filters standing", () => {
+    /* ALL used to fail the status enum, and safeParse fails whole: every other
+       filter in the URL was dropped with it and the drawer silently reset. */
+    const filters = readCampaignFilters({ status: "ALL", clientIds: "client-1", hasPosts: "1" });
+    expect(filters.clientIds).toEqual(["client-1"]);
+    expect(filters.hasPosts).toBe(true);
+  });
+
+  it("still reads a real status", () => {
+    expect(readCampaignFilters({ status: "IN_PROGRESS" }).status).toEqual(["IN_PROGRESS"]);
+  });
+
+  it("does not count as a filter the reader has applied", () => {
+    // countCampaignFilters drives the drawer's badge; All is the absence of a
+    // status filter, not one more of them.
+    expect(countCampaignFilters(readCampaignFilters({ status: "ALL" }))).toBe(0);
+  });
+});

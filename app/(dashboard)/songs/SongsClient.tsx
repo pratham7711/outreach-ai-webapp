@@ -6,6 +6,7 @@ import { Music, Plus } from "lucide-react";
 import { Card, EmptyState, Input } from "@pratham7711/ui";
 import { PageHeader, Button } from "@/components/ds";
 import { platformLabel, formatFull } from "@/lib/format";
+import { action } from "@/lib/ui/actions";
 
 export type SongRow = {
   id: string;
@@ -79,7 +80,7 @@ export default function SongsClient({ songs: initial }: { songs: SongRow[] }) {
         title="Songs"
         subtitle="One release, every campaign promoting it, rolled up."
         actions={
-          <Button variant="primary" iconLeft={<Plus size={15} />} size="sm" onClick={() => setCreating((v) => !v)}>
+          <Button variant="primary" iconLeft={<Plus size={15} />} size="sm" onClick={() => setCreating((v) => !v)} {...action("add-song")}>
             Add Song
           </Button>
         }

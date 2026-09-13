@@ -6,6 +6,7 @@ import { Plus, Lock, AlertTriangle, BarChart3 } from "lucide-react";
 import { Modal, Input, Badge, EmptyState, Card, LoadingSpinner } from "@pratham7711/ui";
 import { formatDateAbs } from "@/lib/format";
 import { PageHeader, useConfirm, Button } from "@/components/ds";
+import { action } from "@/lib/ui/actions";
 
 interface Report {
   id: string;
@@ -134,7 +135,7 @@ export default function ReportsPage() {
         title="Reports"
         subtitle="Create and share campaign reports"
         actions={
-          <Button variant="primary" iconLeft={<Plus size={15} />} onClick={() => setOpen(true)}>
+          <Button variant="primary" iconLeft={<Plus size={15} />} onClick={() => setOpen(true)} {...action("new-report")}>
             New Report
           </Button>
         }
@@ -250,7 +251,7 @@ export default function ReportsPage() {
         title="Create Report"
         size="md"
         footer={
-          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <div className="cc-modal-footer">
             <Button variant="secondary" onClick={() => setOpen(false)}>Cancel</Button>
             <Button
               variant="primary"

@@ -2,12 +2,14 @@ import NewSidebar from "@/components/NewSidebar";
 import { TopBar } from "@/components/layout/TopBar";
 import { TenantProvider } from "@/components/providers/TenantProvider";
 import { SidebarProvider } from "@/components/providers/SidebarProvider";
+import { CampaignNavProvider } from "@/components/providers/CampaignNavProvider";
 import { DashboardContent } from "@/components/layout/DashboardContent";
 import { ConfirmProvider } from "@/components/ds";
 import { Toaster } from "sonner";
 import { auth } from "@/lib/auth";
 import { isPlatformAdmin } from "@/lib/billing/subscription";
 import { getOrgEntitlements } from "@/lib/entitlements";
+import { ThemeStyle } from "@/components/sdui/ThemeStyle";
 import { resolveDashboardPolicy } from "@/lib/dashboardPolicy";
 import { customBrandingValue, usableIconHref } from "@/lib/brandingDefaults";
 import type { OrgUiConfig } from "@/lib/orgConfig";
@@ -93,6 +95,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const uiConfig = (entitlements?.uiConfig as OrgUiConfig | null) ?? null;
   const policy = resolveDashboardPolicy({ entitlements, uiConfig });
 
+  /* The org's brand colour now travels with every other server-driven token
+     through <ThemeStyle>, rather than as an inline custom property on the root
+     div. The old form out-specified .dark and .creatorcore, so a tenant's accent
+     bled into every mode -- tolerable at one token, guaranteed breakage at
+     twenty. It is passed as an override layer so nothing about white-label
+     behaviour changes, only where in the cascade it lands. */
   const primaryColorOverride = orgId
     ? customBrandingValue("primaryColor", policy.primaryColor)
     : null;
@@ -100,14 +108,16 @@ export default async function DashboardLayout({ children }: { children: React.Re
   return (
     <TenantProvider>
       <SidebarProvider>
+       {/* Wraps the rail and the page both: the campaign page below publishes
+           its title and counts, and the rail above reads them. */}
+       <CampaignNavProvider>
        <ConfirmProvider>
-        <div
-          className="flex h-screen overflow-hidden"
-          style={{
-            background: "var(--cc-bg)",
-            ...(primaryColorOverride ? { "--cc-primary": primaryColorOverride } as React.CSSProperties : {}),
-          }}
-        >
+        <ThemeStyle
+          orgId={orgId}
+          primaryColor={primaryColorOverride}
+          uiConfig={uiConfig as Record<string, unknown> | null}
+        />
+        <div className="cc-shell-root flex h-screen overflow-hidden">
           {/* Skip to content link for accessibility */}
           <a
             href="#main-content"
@@ -143,6 +153,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           </DashboardContent>
         </div>
        </ConfirmProvider>
+       </CampaignNavProvider>
       </SidebarProvider>
     </TenantProvider>
   );

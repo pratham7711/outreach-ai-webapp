@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { Card, Badge, Input, Modal, EmptyState, Skeleton, Avatar } from "@pratham7711/ui";
 import { Dropdown, StatusTabs, Pagination, Button } from "@/components/ds";
-import { Grid3X3, List, Plus, Check, X, Eye, Heart, MessageCircle, TrendingUp, BarChart3, ArrowUp, ArrowDown, ArrowUpDown, Flag, Video, AlertTriangle, RefreshCw, Image as ImageIcon, Share2, Bookmark } from "lucide-react";
+import { Grid3X3, List, Plus, Check, X, Eye, Heart, MessageCircle, TrendingUp, BarChart3, ArrowUp, ArrowDown, ArrowUpDown, Flag, Video, AlertTriangle, RefreshCw, Image as ImageIcon, Share2, Bookmark, Info } from "lucide-react";
 import { CreatorSelect } from "@/components/CreatorSelect";
 import { computeEngagementRate } from "@/lib/metrics";
 import { stripAt, formatDateAbs, timeAgo, formatFull } from "@/lib/format";
@@ -100,8 +100,6 @@ type AddRow = {
   error?: string;
   /** Undefined until the precheck for this link comes back. */
   check?: PostCheck;
-  /** The operator's explicit yes to a post another campaign already tracks. */
-  allowDuplicate?: boolean;
 };
 
 /**
@@ -151,16 +149,9 @@ function addRowProblem(
   if (row.check?.inThisCampaign) {
     return { blocking: true, message: "Already in this campaign." };
   }
-  if (row.check && row.check.inOtherCampaigns.length > 0 && !row.allowDuplicate) {
-    const names = row.check.inOtherCampaigns.map((c) => c.campaignName);
-    return {
-      blocking: true,
-      message:
-        names.length === 1
-          ? `Already tracked in ${names[0]}.`
-          : `Already tracked in ${names.length} other campaigns: ${names.slice(0, 2).join(", ")}…`,
-    };
-  }
+  /* A post another campaign already tracks is not a problem at all -- it is
+     added, and the row says so in a note rather than a refusal. Only the same
+     post twice in THIS campaign double-counts anything. */
   if (row.creatorId) return null;
   if (!detectedHandle) {
     return { blocking: true, message: "This link doesn\u2019t name a creator — pick one." };
@@ -512,10 +503,6 @@ export default function PostsTab({
               postUrl: results[i].url,
               ...(results[i].creatorId ? { creatorId: results[i].creatorId } : {}),
               ...(results[i].mediaType ? { mediaType: results[i].mediaType } : {}),
-              /* Only ever sent for a row whose warning the operator actually
-                 saw and ticked. The server defaults it to false, so a row that
-                 was never warned cannot consent on its own. */
-              ...(results[i].allowDuplicate ? { allowDuplicate: true } : {}),
             }),
           });
           if (res.ok) {
@@ -1613,7 +1600,7 @@ export default function PostsTab({
           title={addRows.length > 1 ? `Add ${addRows.length} Posts` : "Add Post"}
           size="lg"
           footer={
-            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", alignItems: "center" }}>
+            <div className="cc-modal-footer" data-align="center">
               {/* What the button is leaving behind. Without this the count on the
                   button silently disagrees with the number of rows on screen,
                   which is the same surprise that holding the whole batch was
@@ -1627,8 +1614,10 @@ export default function PostsTab({
               )}
               <Button variant="secondary" onClick={() => setShowAddPost(false)}>Cancel</Button>
               <Button variant="primary" loading={submitting} onClick={handleAddPosts} disabled={!addReady}>
+                {/* Counts the rows that will actually be sent, so a paste of
+                    three with two skipped reads "Submit 1 Post". */}
                 {addRows.length > 1
-                  ? `Submit ${addSubmittable.length} Posts`
+                  ? `Submit ${addSubmittable.length} Post${addSubmittable.length === 1 ? "" : "s"}`
                   : "Submit Post"}
               </Button>
             </div>
@@ -1695,11 +1684,11 @@ export default function PostsTab({
               const det = addDetections[i];
               const problem = addProblems[i];
               const otherCampaigns = row.check?.inOtherCampaigns ?? [];
-              /* The override is offered only where consenting is a real answer:
-                 the same post against a second brief. A link pasted twice, or a
-                 post this campaign already holds, is a mistake to fix, not a
-                 decision to take. */
-              const offerOverride =
+              /* Said, not asked. The post is going in either way; what is worth
+                 knowing is that its views are also counted somewhere else. Not
+                 shown for a link pasted twice or one this campaign already
+                 holds -- those rows carry their own refusal. */
+              const showAlsoTracked =
                 row.state !== "done" &&
                 !row.repeatOfPaste &&
                 !row.check?.inThisCampaign &&
@@ -1757,25 +1746,17 @@ export default function PostsTab({
                     )}
                   </div>
 
-                  {offerOverride && (
-                    <label style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 12, color: "var(--cc-text)" }}>
-                      <input
-                        type="checkbox"
-                        checked={Boolean(row.allowDuplicate)}
-                        onChange={(e) => {
-                          const on = e.target.checked;
-                          setAddRows((prev) => prev.map((r, j) => (j === i ? { ...r, allowDuplicate: on } : r)));
-                        }}
-                        style={{ marginTop: 2 }}
-                      />
+                  {showAlsoTracked && (
+                    <p style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 12, color: "var(--cc-text-muted)", margin: 0 }}>
+                      <Info size={14} style={{ marginTop: 1, flexShrink: 0 }} />
                       <span>
-                        Add anyway — its views will count in this campaign as well as in{" "}
+                        Also tracked in{" "}
                         <strong style={{ color: "var(--cc-text)" }}>
                           {otherCampaigns.map((c) => c.campaignName).join(", ")}
                         </strong>
-                        .
+                        . Its views count in both.
                       </span>
-                    </label>
+                    </p>
                   )}
 
                   {row.state !== "done" && !row.repeatOfPaste && (
@@ -1857,7 +1838,7 @@ export default function PostsTab({
 
       {showRejectModal && (
         <Modal open={true} onClose={() => { setShowRejectModal(null); setRejectionReason(""); }} title="Reject Post" size="sm" footer={
-          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <div className="cc-modal-footer">
             <Button variant="secondary" onClick={() => { setShowRejectModal(null); setRejectionReason(""); }}>Cancel</Button>
             <Button variant="primary" onClick={handleReject} style={{ background: "#DC2626" }}>Reject Post</Button>
           </div>

@@ -18,7 +18,12 @@
     "test:e2e:affected": "node scripts/e2e-area.mjs --affected",
     "test:e2e:list": "node scripts/e2e-area.mjs --list",
     "test:e2e:ui": "playwright test --config=playwright.config.ts --ui",
-    "test:coverage": "jest --config jest.config.js --coverage"
+    "test:coverage": "jest --config jest.config.js --coverage",
+    "parity:capture": "node scripts/creatorcore/parity/capture.mjs",
+    "parity:capture:ours": "node scripts/creatorcore/parity/capture-ours.mjs",
+    "parity:promote": "node scripts/creatorcore/parity/promote.mjs --side ref && node scripts/creatorcore/parity/promote.mjs --side ours",
+    "parity:report": "node scripts/creatorcore/parity/report.mjs",
+    "parity": "npm run parity:capture && npm run parity:capture:ours && npm run parity:promote && npm run parity:report"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.82.0",

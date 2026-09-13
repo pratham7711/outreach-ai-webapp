@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "label": "CreatorCore (measured)",
+  "modes": {
+    "creatorcore": {
+      "--cc-action-min-w": "11.25rem",
+      "--cc-action-h": "2.5rem",
+      "--cc-action-fs": "1.125rem",
+      "--cc-action-fw": 400,
+      "--cc-action-fg": "#ffffff",
+      "--ui-r-sm": "4px",
+      "--ui-r-md": "10px",
+      "--ui-r-lg": "20px",
+      "--cc-r-card": "20px",
+      "--cc-fw-page-title": 700
+    }
+  },
+  "responsive": [
+    {
+      "minWidth": 1024,
+      "modes": {
+        "creatorcore": {
+          "--cc-rail-card-w": "15%",
+          "--cc-rail-inset-x": "0.625%",
+          "--cc-sidebar-w": "15.31%",
+          "--cc-page-pad-inline": "3.4%",
+          "--cc-action-min-w": "11.25vw",
+          "--cc-action-h": "2.5vw"
+        }
+      }
+    }
+  ]
+}

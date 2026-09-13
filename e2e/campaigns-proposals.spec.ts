@@ -25,7 +25,7 @@ test.describe('Campaign Proposals and Reviews', () => {
     // Depends on Stream A being merged
     await navigateAndWait(page, '/campaigns/camp-1');
     await expect(
-      page.getByRole('tab', { name: /reviews/i }).or(
+      page.getByRole('link', { name: /reviews/i }).or(
         page.getByText(/^reviews$/i)
       ).first()
     ).toBeVisible({ timeout: 30000 });
@@ -34,7 +34,7 @@ test.describe('Campaign Proposals and Reviews', () => {
   test('Reviews tab shows Creator Reviews or empty state', async ({ page }) => {
     // Depends on Stream A being merged
     await navigateAndWait(page, '/campaigns/camp-1');
-    const reviewsTab = page.getByRole('tab', { name: /reviews/i }).or(
+    const reviewsTab = page.getByRole('link', { name: /reviews/i }).or(
       page.getByText(/^reviews$/i)
     ).first();
     await reviewsTab.waitFor({ state: 'visible', timeout: 30000 });

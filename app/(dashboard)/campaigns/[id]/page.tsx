@@ -1,11 +1,11 @@
 "use client";
 import type { CSSProperties } from "react";
-import { useState, useEffect, useCallback, use, useRef } from "react";
+import { useState, useEffect, useCallback, use } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import { motion } from "framer-motion";
 import { Card, Badge, EmptyState, Avatar, Skeleton, Modal } from "@pratham7711/ui";
-import { PAGE_TITLE_STYLE, Dropdown, MetricTile, EntityPicker, Button } from "@/components/ds";
+import { Dropdown, MetricTile, EntityPicker, Button } from "@/components/ds";
 import PostsTab from "./PostsTab";
 import ActivityFeed from "./ActivityFeed";
 import DraftsTab from "./DraftsTab";
@@ -13,16 +13,18 @@ import DocumentsTab from "./DocumentsTab";
 import FinancialsTab from "./FinancialsTab";
 import CreativeBriefCard from "./CreativeBriefCard";
 import RosterTable, { ROSTER_COLUMNS, ROSTER_DEFAULT_COLUMNS } from "./RosterTable";
+import { readCampaignSection } from "@/lib/campaignSections";
+import { useCampaignNav } from "@/components/providers/CampaignNavProvider";
+import { CampaignAudioSetup } from "@/components/campaigns/CampaignAudioSetup";
 import InvitesSection from "./InvitesSection";
 import NegotiationsSection from "./NegotiationsSection";
 import ProposalsSection from "./ProposalsSection";
 import ReviewsSection from "./ReviewsSection";
 import {
-  ArrowLeft, Eye, Heart, MessageCircle, Share2, TrendingUp, Users,
-  Calendar, Play, ChevronRight, ExternalLink, DollarSign,
+  Eye, Heart, MessageCircle, Share2, TrendingUp, Users,
+  Calendar, Play, ExternalLink, DollarSign,
   ClipboardList, BarChart3, Wallet, Trash2, AlertTriangle,
 } from "lucide-react";
-import Link from "next/link";
 import { toast } from "sonner";
 import { formatDateAbs, formatFull, formatFullCurrency, fitFigureSize } from "@/lib/format";
 import { rollupEngagement } from "@/lib/metricDisplay";
@@ -61,18 +63,9 @@ const CreatorPerformanceBar = dynamic(() => loadCharts().then((m) => m.CreatorPe
   loading: () => <ChartSkeleton height={240} />,
 });
 
-/* One list, and the union read off it: a tab added to a hand-written union but
-   not to the list would type-check and then silently fall back to Performance
-   whenever someone linked to it. */
-const TAB_VALUES = [
-  "performance", "overview", "drafts", "posts", "creators", "reviews", "analytics", "financials", "documents", "edit",
-] as const;
-
-type Tab = (typeof TAB_VALUES)[number];
-
-function tabFromParam(raw: string | null): Tab {
-  return TAB_VALUES.includes(raw as Tab) ? (raw as Tab) : "performance";
-}
+/* The sections themselves live in lib/campaignSections, because the left rail
+   renders the same list. They used to be a tab strip here; that strip is gone,
+   and activeTab below takes its type from that module's reader. */
 
 function formatNumber(num: number): string {
   return formatFull(num);
@@ -376,18 +369,14 @@ function LoadingSkeleton() {
 
 export default function CampaignDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  /* The tab belongs in the URL, as it does on the reference app: a link to a
-     campaign's Posts opened on Performance, the back button walked out of the
-     campaign instead of back a tab, and a reload lost the tab entirely.
-     replace, not push, so one visit does not fill the history with tabs. */
+  /* The section belongs in the URL, as it does on the reference app: a link to
+     a campaign's Posts opened on Performance, the back button walked out of the
+     campaign instead of back a section, and a reload lost it entirely. Nothing
+     here writes it any more -- the rail navigates with real links, so the
+     browser does it, and the old in-page setter had no callers left. */
   const router = useRouter();
   const searchParams = useSearchParams();
-  const activeTab = tabFromParam(searchParams.get("tab"));
-  const setActiveTab = (tab: Tab) => {
-    const next = new URLSearchParams(searchParams.toString());
-    next.set("tab", tab);
-    router.replace(`?${next.toString()}`, { scroll: false });
-  };
+  const activeTab = readCampaignSection(searchParams);
   /* Which roster columns are showing. In the URL rather than component state for
      the reason the list pages give: a configured table survives a refresh and
      can be pasted to a colleague, which is most of what the reference's saved
@@ -491,33 +480,6 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
     }
   }, [campaign]);
 
-  /* Bring the current section's tab into view.
-     activeTab comes from ?tab=, and ten tabs measure ~1030px against a 390px
-     phone, so a link straight to Financials or Documents rendered the strip at
-     scrollLeft 0 with the tab that is actually open several hundred pixels off
-     the right edge -- the section was current and invisible, and the strip
-     looked like it stopped after Drafts.
-
-     scrollLeft is set rather than scrollIntoView called, because
-     scrollIntoView also walks the vertical scrollport and would move the page
-     under the reader to satisfy a horizontal strip. Rects rather than
-     offsetLeft: the strip is not a positioned ancestor, so offsetLeft is
-     measured against something further up. */
-  const tabStripRef = useRef<HTMLDivElement | null>(null);
-  useEffect(() => {
-    const strip = tabStripRef.current;
-    const current = strip?.querySelector<HTMLElement>(`#campaign-tab-${activeTab}`);
-    if (!strip || !current) return;
-    const stripBox = strip.getBoundingClientRect();
-    const tabBox = current.getBoundingClientRect();
-    // A tab flush against the edge reads as the last one, so leave a margin.
-    const margin = 16;
-    if (tabBox.left < stripBox.left) {
-      strip.scrollLeft -= stripBox.left - tabBox.left + margin;
-    } else if (tabBox.right > stripBox.right) {
-      strip.scrollLeft += tabBox.right - stripBox.right + margin;
-    }
-  }, [activeTab]);
 
   useEffect(() => {
     if (activeTab === "edit" && !clientsLoaded) {
@@ -662,18 +624,20 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
 
   const roster = buildRoster(campaign?.activations ?? [], campaign?.posts ?? []);
 
-  const tabsList: { label: string; value: Tab; count?: number }[] = [
-    { label: "Performance", value: "performance" },
-    { label: "Overview", value: "overview" },
-    { label: "Drafts", value: "drafts" as Tab, count: pendingDrafts || undefined },
-    { label: "Posts", value: "posts", count: campaign?._count.posts },
-    { label: "Creators", value: "creators", count: roster.length },
-    { label: "Reviews", value: "reviews" as Tab },
-    { label: "Analytics", value: "analytics" },
-    { label: "Financials", value: "financials" as Tab },
-    { label: "Documents", value: "documents" as Tab },
-    { label: "Edit", value: "edit" as Tab },
-  ];
+  /* What the rail shows beside each section. The rail lives in the dashboard
+     layout, above this page, so the counts travel up through the provider
+     rather than the sidebar fetching this campaign a second time. */
+  const { publish: publishCampaignNav } = useCampaignNav();
+  useEffect(() => {
+    publishCampaignNav({
+      title: campaign?.title ?? null,
+      counts: {
+        drafts: pendingDrafts || undefined,
+        posts: campaign?._count.posts || undefined,
+        creators: roster.length || undefined,
+      },
+    });
+  }, [campaign?.title, campaign?._count.posts, pendingDrafts, roster.length, publishCampaignNav]);
 
   if (loading) return <LoadingSkeleton />;
   if (loadError) return (
@@ -734,18 +698,16 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
 
   return (
     <div className="cc-page-content rsp-page">
-      {/* Breadcrumb */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, marginBottom: 24, color: "var(--cc-text-muted)" }}>
-        <Link href="/campaigns" style={{ display: "flex", alignItems: "center", gap: 4, color: "var(--cc-text-muted)", textDecoration: "none" }}>
-          <ArrowLeft size={16} /> Campaigns
-        </Link>
-        <ChevronRight size={12} />
-        <span style={{ color: "var(--cc-text)" }}>{campaign.title}</span>
-      </div>
-
-      {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8, flexWrap: "wrap" }}>
-        <h1 style={{ ...PAGE_TITLE_STYLE }}>{campaign.title}</h1>
+      {/* No breadcrumb here. The rail's "All campaigns" is the way back out now
+          and the top bar carries the trail, so this row said the same thing a
+          third time, in the same viewport. */}
+      {/* Header. Not <PageHeader>: that stacks its title and puts everything
+          else in a column, and this screen's status chips sit ON the title
+          line. The shared markers are here so the parity harness measures the
+          same landmarks it measures on every other screen -- without them the
+          whole campaign shell reported UNRESOLVED and read as unmeasurable. */}
+      <div className="cc-page-titlebar" data-region="page-header" data-parity="page.header-strip">
+        <h1 className="cc-page-title" data-parity="page.title">{campaign.title}</h1>
         <Badge variant={STATUS_BADGE[campaign.status] ?? "neutral"}>{campaign.status.replace(/_/g, " ")}</Badge>
         {campaign.campaignType && (
           <Badge variant={CAMPAIGN_TYPE_BADGE[campaign.campaignType] ?? "neutral"}>
@@ -753,53 +715,19 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
           </Badge>
         )}
       </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 32, fontSize: 14, color: "var(--cc-text-muted)", flexWrap: "wrap" }}>
-        <span style={{ display: "flex", alignItems: "center", gap: 4 }}><Calendar size={14} />{formatDateAbs(campaign.createdAt)}</span>
+      <div className="cc-page-meta" data-region="page-meta">
+        <span className="cc-page-meta-item"><Calendar size={14} />{formatDateAbs(campaign.createdAt)}</span>
         <span>·</span>
         <span>{roster.length} creators · {campaign._count.posts} posts</span>
       </div>
 
-      {/* Tabs */}
-      {/* A plain div of plain buttons gave a screen reader ten unlabelled
-          controls with no notion of a strip or of which one is current. The
-          roles cost nothing and the ids are what let the panel below name the
-          tab that opened it. */}
-      <div
-        ref={tabStripRef}
-        role="tablist"
-        aria-label="Campaign sections"
-        style={{ display: "flex", gap: 4, marginBottom: 24, borderBottom: "1px solid var(--cc-border)", overflowX: "auto", WebkitOverflowScrolling: "touch" }}
-      >
-        {tabsList.map((tab) => (
-          <button
-            key={tab.value}
-            type="button"
-            role="tab"
-            id={`campaign-tab-${tab.value}`}
-            aria-selected={activeTab === tab.value}
-            aria-controls="campaign-tabpanel"
-            onClick={() => setActiveTab(tab.value)}
-            style={{
-              padding: "10px 20px", fontSize: 14, fontWeight: 500,
-              background: "none", border: "none", cursor: "pointer",
-              borderBottom: activeTab === tab.value ? "2px solid var(--cc-primary)" : "2px solid transparent",
-              color: activeTab === tab.value ? "var(--cc-primary)" : "var(--cc-text-muted)",
-              display: "flex", alignItems: "center", gap: 6, whiteSpace: "nowrap", flexShrink: 0,
-            }}
-          >
-            {tab.label}
-            {tab.count !== undefined && (
-              <span style={{ fontSize: 11, background: "var(--cc-bg)", borderRadius: 10, padding: "1px 7px", color: "var(--cc-text-muted)" }}>{tab.count}</span>
-            )}
-          </button>
-        ))}
-      </div>
-
+      {/* No longer a tabpanel: the control that opens this is a link in the
+          rail, so role="tabpanel" would name a tab that does not exist and
+          aria-labelledby would point at a removed id. It is a region, labelled
+          by the heading the section renders. */}
       <motion.div
         key={activeTab}
-        id="campaign-tabpanel"
-        role="tabpanel"
-        aria-labelledby={`campaign-tab-${activeTab}`}
+        id="campaign-section-panel"
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
       >
@@ -1114,6 +1042,13 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                   </button>
                 </div>
               </div>
+            </div>
+
+            {/* The campaign's sound, added and changed here rather than from a
+                button on the report: it is a property of the campaign, asked
+                for when one is created and edited alongside the rest of it. */}
+            <div style={{ marginTop: 24 }}>
+              <CampaignAudioSetup campaignId={id} />
             </div>
 
             {/* ─── Marketplace section (Phase 2M) ─── */}

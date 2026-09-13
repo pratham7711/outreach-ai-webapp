@@ -156,15 +156,7 @@ export default function Home() {
       </header>
 
       <section
-        style={{
-          ...shell,
-          paddingTop: 80,
-          paddingBottom: 64,
-          display: "grid",
-          gridTemplateColumns: "minmax(0, 1fr)",
-          gap: 40,
-          alignItems: "center",
-        }}
+        style={{ ...shell, paddingTop: 80, paddingBottom: 64 }}
         className="rsp-hero"
       >
         <div>

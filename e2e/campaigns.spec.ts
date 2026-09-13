@@ -10,11 +10,21 @@ test.describe('Campaigns', () => {
     await expectHeading(page, 'Campaigns');
   });
 
-  test('lists seed campaigns', async ({ page }) => {
-    // 5 seed campaigns
+  test('opens on Active, listing the in-progress seeds only', async ({ page }) => {
+    // A bare /campaigns -- which is what the sidebar links to -- now opens on
+    // Active. LEAK IT and FUJI KAZE are IN_PROGRESS in the seed; CRUEL WORLD is
+    // COMPLETE, so it is the one that proves the tab is actually applied.
     await expect(page.getByText('LEAK IT').first()).toBeVisible({ timeout: 15000 });
     await expect(page.getByText('FUJI KAZE').first()).toBeVisible({ timeout: 10000 });
-    await expect(page.getByText('CRUEL WORLD').first()).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText('CRUEL WORLD')).toBeHidden({ timeout: 10000 });
+  });
+
+  test('the All tab still reaches every status', async ({ page }) => {
+    // ALL has to travel in the URL: with a bare /campaigns meaning Active, an
+    // absent parameter can no longer mean "every status".
+    await navigateAndWait(page, '/campaigns?status=ALL');
+    await expect(page.getByText('CRUEL WORLD').first()).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText('LEAK IT').first()).toBeVisible({ timeout: 10000 });
   });
 
   test('shows status filter tabs', async ({ page }) => {

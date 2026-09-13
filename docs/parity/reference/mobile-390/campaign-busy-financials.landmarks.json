@@ -1,0 +1,98 @@
+{
+  "surface": "campaign-busy-financials",
+  "viewport": "mobile-390",
+  "group": "campaign",
+  "path": "/dashboard?tab=Campaign&campaign=1788168466297x840090007354998800&sub=Financials",
+  "readyBy": "content",
+  "settleMs": 1999,
+  "health": {
+    "shell": "campaign",
+    "total": 10,
+    "applicable": 4,
+    "notApplicable": 6,
+    "missingOurs": 0,
+    "resolved": 0,
+    "resolutionRate": 0,
+    "viewport": {
+      "w": 425,
+      "h": 920
+    },
+    "docHeight": 920
+  },
+  "landmarks": {
+    "shell.rail": {
+      "id": "shell.rail",
+      "status": "NOT_APPLICABLE",
+      "shell": "campaign",
+      "note": "absent below 1024px; viewport is 425px"
+    },
+    "shell.rail.group-first": {
+      "id": "shell.rail.group-first",
+      "status": "NOT_APPLICABLE",
+      "shell": "campaign",
+      "note": "absent below 1024px; viewport is 425px"
+    },
+    "shell.rail.items": {
+      "id": "shell.rail.items",
+      "status": "NOT_APPLICABLE",
+      "shell": "campaign",
+      "note": "absent below 1024px; viewport is 425px"
+    },
+    "page.title": {
+      "id": "page.title",
+      "status": "UNRESOLVED",
+      "error": null,
+      "resolvedBy": "geometry",
+      "candidateCount": 0
+    },
+    "page.header-strip": {
+      "id": "page.header-strip",
+      "status": "UNRESOLVED",
+      "error": null,
+      "resolvedBy": "ancestorOf",
+      "candidateCount": 0
+    },
+    "page.primary-action": {
+      "id": "page.primary-action",
+      "status": "UNRESOLVED",
+      "error": null,
+      "resolvedBy": "paintedAncestor",
+      "candidateCount": 0
+    },
+    "list.rows": {
+      "id": "list.rows",
+      "status": "UNRESOLVED",
+      "error": null,
+      "resolvedBy": "series",
+      "candidateCount": 0
+    },
+    "campaign.rail": {
+      "id": "campaign.rail",
+      "status": "NOT_APPLICABLE",
+      "shell": "campaign",
+      "note": "absent below 1024px; viewport is 425px"
+    },
+    "campaign.rail.items": {
+      "id": "campaign.rail.items",
+      "status": "NOT_APPLICABLE",
+      "shell": "campaign",
+      "note": "absent below 1024px; viewport is 425px"
+    },
+    "settings.nav": {
+      "id": "settings.nav",
+      "status": "NOT_APPLICABLE",
+      "shell": "campaign",
+      "note": "landmark belongs to shell(s) settings; this surface is \"campaign\""
+    }
+  },
+  "redaction": {
+    "textNodes": 1,
+    "images": 0
+  },
+  "redactionShifted": [],
+  "redactionAccepted": true,
+  "screenshots": [
+    "campaign-busy-financials.full.png",
+    "campaign-busy-financials.viewport.png"
+  ]
+}

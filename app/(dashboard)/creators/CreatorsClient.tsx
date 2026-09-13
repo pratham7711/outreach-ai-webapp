@@ -13,6 +13,7 @@ import { stripAt, platformLabel, formatFull } from "@/lib/format";
 import { useListQuery } from "@/lib/useListQuery";
 import { CREATORS_PAGE_SIZE } from "@/lib/listPageSize";
 import type { CreatorSort } from "@/lib/listParams";
+import { action } from "@/lib/ui/actions";
 
 type Creator = {
   id: string;
@@ -159,7 +160,7 @@ export default function CreatorsClient({
         title="Creators"
         subtitle="Discover and manage your creator roster"
         actions={
-          <Button variant="primary" iconLeft={<Plus size={15} />} size="sm" onClick={() => setShowModal(true)}>
+          <Button variant="primary" iconLeft={<Plus size={15} />} size="sm" onClick={() => setShowModal(true)} {...action("new-creator")}>
             New Creator
           </Button>
         }

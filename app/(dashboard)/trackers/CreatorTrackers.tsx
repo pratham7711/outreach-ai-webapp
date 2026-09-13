@@ -508,7 +508,7 @@ export function CreatorTrackers({
         title="Track a Creator"
         size="sm"
         footer={
-          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+          <div className="cc-modal-footer" data-gap="0">
             <Button variant="ghost" onClick={() => setPickerOpen(false)}>
               Close
             </Button>

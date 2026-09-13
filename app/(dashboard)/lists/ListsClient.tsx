@@ -8,6 +8,7 @@ import { PageHeader, Button } from "@/components/ds";
 import { formatDateAbs } from "@/lib/format";
 import { toast } from "sonner";
 import Link from "next/link";
+import { action } from "@/lib/ui/actions";
 
 type List = {
   id: string;
@@ -61,7 +62,7 @@ export default function ListsClient({ lists }: { lists: List[] }) {
       <PageHeader
         title="Lists"
         subtitle="Organize creators into curated lists"
-        actions={<Button variant="primary" iconLeft={<Plus size={15} />} onClick={() => setShowCreate(true)}>New List</Button>}
+        actions={<Button variant="primary" iconLeft={<Plus size={15} />} onClick={() => setShowCreate(true)} {...action("new-list")}>New List</Button>}
       />
 
       <div style={{ marginBottom: 24 }}>
@@ -102,7 +103,7 @@ export default function ListsClient({ lists }: { lists: List[] }) {
       {showCreate && (
         <Modal open onClose={() => setShowCreate(false)} title="Create New List" size="md"
           footer={
-            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+            <div className="cc-modal-footer">
               <Button variant="secondary" onClick={() => setShowCreate(false)}>Cancel</Button>
               <Button variant="primary" loading={creating} onClick={handleCreate}>Create List</Button>
             </div>

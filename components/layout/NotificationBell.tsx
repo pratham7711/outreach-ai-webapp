@@ -100,39 +100,10 @@ export function NotificationBell() {
         if (e.key === "Enter" || e.key === " ") markSeen();
       }}
       trigger={
-        <span
-          className="cc-btn-ghost"
-          style={{
-            position: "relative",
-            width: 34,
-            height: 34,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            borderRadius: 8,
-            color: "var(--cc-text-muted)",
-          }}
-        >
+        <span className="cc-icon-btn" data-action="notifications">
           <Bell size={17} aria-hidden="true" />
           {badge && (
-            <span
-              aria-hidden="true"
-              style={{
-                position: "absolute",
-                top: 1,
-                right: 1,
-                minWidth: 15,
-                height: 15,
-                padding: "0 3px",
-                borderRadius: 8,
-                background: "var(--cc-danger)",
-                color: "#FFFFFF",
-                fontSize: 9,
-                fontWeight: 700,
-                lineHeight: "15px",
-                textAlign: "center",
-              }}
-            >
+            <span aria-hidden="true" className="cc-icon-btn-badge">
               {badge}
             </span>
           )}

@@ -8,7 +8,6 @@ import { Card, Badge, Input, EmptyState, Avatar } from "@pratham7711/ui";
 import { PageHeader, StatusTabs, Pagination, FilterDrawer, FilterButton, Dropdown, useConfirm, Button } from "@/components/ds";
 import type { FilterDef, FilterValues } from "@/components/ds";
 import CampaignWizard from "@/components/modals/CampaignWizard";
-import { GettingStarted } from "@/components/onboarding/GettingStarted";
 import { timeAgo, formatFullCurrency } from "@/lib/format";
 import { useListQuery } from "@/lib/useListQuery";
 import { CAMPAIGNS_PAGE_SIZE } from "@/lib/listPageSize";
@@ -17,6 +16,8 @@ import FoldersPanel, { type FolderOption } from "./FoldersPanel";
 import { ShareModal } from "./ShareModal";
 import { UNFILED, isDefaultCampaignSort, type CampaignSort, type CampaignSortKey } from "@/lib/listParams";
 import { CAMPAIGN_STATUS_STYLE } from "@/lib/statusColors";
+import { CAMPAIGN_STATUS_ALL } from "@/lib/listFilters";
+import { action } from "@/lib/ui/actions";
 
 type Campaign = {
   id: string;
@@ -513,12 +514,16 @@ export default function CampaignsClient({
   const [showFilters, setShowFilters] = useState(false);
   const [showFolders, setShowFolders] = useState(false);
   // Defaults are passed as undefined so they stay out of the URL entirely —
-  // /campaigns rather than /campaigns?status=ALL&page=1. The drawer's values
-  // ride along so changing a tab or page keeps the filters applied.
+  // /campaigns rather than /campaigns?page=1. The drawer's values ride along so
+  // changing a tab or page keeps the filters applied.
+  //
+  // status is the exception and is always written: a bare /campaigns now means
+  // Active, so All has to say so in the URL or it would be one click away from
+  // the sidebar and unreachable on the way back.
   const defaultSort = isDefaultCampaignSort(sort);
   const { push, pending } = useListQuery({
     q,
-    status: status === "ALL" ? undefined : status,
+    status,
     page: page === 1 ? undefined : page,
     folderId,
     sort: defaultSort ? undefined : sort.key,
@@ -569,7 +574,17 @@ export default function CampaignsClient({
     },
   ];
 
-  const anyFilter = Boolean(q) || status !== "ALL" || filterCount > 0 || Boolean(folderId);
+  /* Chooses the empty state's wording, so it has to mean "is this page empty
+     because something is narrowing it". Any tab other than All narrows --
+     Active, which the page now opens on, included.
+
+     Gated on the org having campaigns at all, because that default made the two
+     cases collide: a brand-new org lands on Active with nothing anywhere, and
+     "No campaigns match those filters" would be answering a question nobody
+     asked. Nothing is filtered away when there is nothing. */
+  const anyFilter =
+    statusCounts.ALL > 0 &&
+    (Boolean(q) || status !== CAMPAIGN_STATUS_ALL || filterCount > 0 || Boolean(folderId));
   const clearEverything = () => {
     setSearch("");
     const cleared: Record<string, null> = { q: null, status: null, page: null, folderId: null, sort: null, dir: null };
@@ -620,39 +635,18 @@ export default function CampaignsClient({
               URL. */}
           <Link
             href="/campaigns/self-serve"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-              padding: "0 12px",
-              height: 32,
-              borderRadius: 8,
-              border: "1px solid var(--cc-border)",
-              background: "var(--cc-card)",
-              color: "var(--cc-text)",
-              fontSize: 13,
-              fontWeight: 600,
-              textDecoration: "none",
-            }}
+            className="cc-link-btn"
+            {...action("self-serve-campaign")}
           >
             <Wallet size={15} />
             Self-serve campaign
           </Link>
-          <Button variant="primary" iconLeft={<Plus size={15} />} size="sm" onClick={() => setShowModal(true)}>
+          <Button variant="primary" iconLeft={<Plus size={15} />} size="sm" onClick={() => setShowModal(true)} {...action("new-campaign")}>
             New Campaign
           </Button>
           </>
         }
       />
-
-      {/* Sign-in lands here, not on /dashboard (lib/auth.config.ts), and the
-          getting-started checklist was mounted only there -- so the thing that
-          exists to walk a new org through its first campaign sat on a page a
-          new org had no reason to open. It hides itself once complete or
-          dismissed, so an established org sees nothing. */}
-      <div className="mb-5 empty:mb-0">
-        <GettingStarted />
-      </div>
 
       {/* Search + filters */}
       <div style={{ marginBottom: 20, display: "flex", gap: 10, alignItems: "flex-start" }}>
@@ -708,7 +702,7 @@ export default function CampaignsClient({
           icon: <Icon size={14} aria-hidden="true" />,
         }))}
         active={status}
-        onChange={(key) => push({ status: key === "ALL" ? null : key, page: null })}
+        onChange={(key) => push({ status: key, page: null })}
       />
       )}
 

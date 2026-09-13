@@ -142,27 +142,7 @@ describe('POST /api/campaigns/[id]/posts', () => {
     expect(mockDb.post.create).not.toHaveBeenCalled();
   });
 
-  it('asks before counting a post that another campaign already tracks', async () => {
-    mockDb.post.findMany.mockResolvedValue([
-      { id: 'post-9', campaignId: 'camp-other', campaign: { title: 'Spring Drop' }, creator: { handle: '@jane' } },
-    ]);
-
-    const req = makeRequest('http://localhost/api/campaigns/camp-1/posts', {
-      method: 'POST',
-      body: JSON.stringify({ postUrl: 'https://youtube.com/watch?v=abc123', creatorId: 'c1' }),
-      headers: { 'Content-Type': 'application/json' },
-    });
-    const res = await POST(req, makeParams('camp-1'));
-    const body = await res.json();
-
-    expect(res.status).toBe(409);
-    expect(body.error).toBe('duplicate_post_other_campaign');
-    // Named, so the dialog can say which campaign rather than just "somewhere".
-    expect(body.campaigns).toEqual([{ id: 'camp-other', name: 'Spring Drop' }]);
-    expect(mockDb.post.create).not.toHaveBeenCalled();
-  });
-
-  it('adds it once the operator says yes', async () => {
+  it('adds a post another campaign already tracks, without asking', async () => {
     mockDb.post.findMany.mockResolvedValue([
       { id: 'post-9', campaignId: 'camp-other', campaign: { title: 'Spring Drop' }, creator: { handle: '@jane' } },
     ]);
@@ -170,11 +150,7 @@ describe('POST /api/campaigns/[id]/posts', () => {
 
     const req = makeRequest('http://localhost/api/campaigns/camp-1/posts', {
       method: 'POST',
-      body: JSON.stringify({
-        postUrl: 'https://youtube.com/watch?v=abc123',
-        creatorId: 'c1',
-        allowDuplicate: true,
-      }),
+      body: JSON.stringify({ postUrl: 'https://youtube.com/watch?v=abc123', creatorId: 'c1' }),
       headers: { 'Content-Type': 'application/json' },
     });
     const res = await POST(req, makeParams('camp-1'));

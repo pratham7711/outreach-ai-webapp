@@ -196,7 +196,7 @@ export default function InvitesSection({ campaignId }: { campaignId: string }) {
       {/* Invite Creator Modal */}
       {showCreate && (
         <Modal open={true} onClose={() => setShowCreate(false)} title="Invite Creator" size={draft ? "lg" : "md"} footer={
-          <div style={{ display: "flex", gap: 8, justifyContent: "space-between", width: "100%" }}>
+          <div className="cc-modal-footer" data-layout="split">
             <Button variant="ghost" loading={drafting} onClick={handleDraft} disabled={!form.creatorId}>
               <span style={{ display: "flex", alignItems: "center", gap: 4 }}><Sparkles size={14} /> Draft with AI</span>
             </Button>

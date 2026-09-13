@@ -1,16 +1,16 @@
 /**
  * What the app claims it can collect.
  *
- * This report drives user-facing copy: the onboarding step that names which
- * platforms refresh their own counts reads `metrics === "live"` off it. So a
- * wrong answer here is not an internal detail, it is a sentence a new user
- * reads on their first day.
+ * This report drives user-facing copy: the portal's Connections screen, which
+ * tells a creator which platforms refresh their own counts, reads
+ * `metrics === "live"` off it. So a wrong answer here is not an internal
+ * detail, it is a promise made to somebody.
  *
  * TikTok was the wrong answer for a long time, because the rule was "is
  * SOCIALKIT_API_KEY set" -- and SocialKit is the third rung of
  * fetchTikTokMetrics, behind a keyless read of the video page that works from
  * Vercel egress. Production had 422 cron-written TikTok snapshots with moving
- * counts while the onboarding told people TikTok would not update.
+ * counts while the app told people TikTok would not update.
  */
 import { resolvePlatformCapability, resolveCapabilities } from "@/lib/capabilities";
 
@@ -59,9 +59,8 @@ it("still gates Instagram and YouTube on their keys", () => {
 });
 
 it("says metrics are live overall even on an environment with nothing set", () => {
-  /* The onboarding has a separate, bleaker branch for "no automatic collection
-     at all". TikTok alone keeps that branch from firing, which is correct --
-     it is the platform most posts are on. */
+  /* anyMetricsLive is the "no automatic collection at all" flag. TikTok alone
+     keeps it true, which is correct -- it is the platform most posts are on. */
   expect(resolveCapabilities().anyMetricsLive).toBe(true);
 });
 

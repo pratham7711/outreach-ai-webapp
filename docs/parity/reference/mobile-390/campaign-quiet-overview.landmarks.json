@@ -1,0 +1,98 @@
+{
+  "surface": "campaign-quiet-overview",
+  "viewport": "mobile-390",
+  "group": "campaign",
+  "path": "/dashboard?tab=Campaign&campaign=1789302833134x992262078210768900&sub=Overview",
+  "readyBy": "content",
+  "settleMs": 1724,
+  "health": {
+    "shell": "campaign",
+    "total": 10,
+    "applicable": 4,
+    "notApplicable": 6,
+    "missingOurs": 0,
+    "resolved": 0,
+    "resolutionRate": 0,
+    "viewport": {
+      "w": 390,
+      "h": 844
+    },
+    "docHeight": 1445
+  },
+  "landmarks": {
+    "shell.rail": {
+      "id": "shell.rail",
+      "status": "NOT_APPLICABLE",
+      "shell": "campaign",
+      "note": "absent below 1024px; viewport is 390px"
+    },
+    "shell.rail.group-first": {
+      "id": "shell.rail.group-first",
+      "status": "NOT_APPLICABLE",
+      "shell": "campaign",
+      "note": "absent below 1024px; viewport is 390px"
+    },
+    "shell.rail.items": {
+      "id": "shell.rail.items",
+      "status": "NOT_APPLICABLE",
+      "shell": "campaign",
+      "note": "absent below 1024px; viewport is 390px"
+    },
+    "page.title": {
+      "id": "page.title",
+      "status": "UNRESOLVED",
+      "error": null,
+      "resolvedBy": "geometry",
+      "candidateCount": 0
+    },
+    "page.header-strip": {
+      "id": "page.header-strip",
+      "status": "UNRESOLVED",
+      "error": null,
+      "resolvedBy": "ancestorOf",
+      "candidateCount": 0
+    },
+    "page.primary-action": {
+      "id": "page.primary-action",
+      "status": "UNRESOLVED",
+      "error": null,
+      "resolvedBy": "paintedAncestor",
+      "candidateCount": 0
+    },
+    "list.rows": {
+      "id": "list.rows",
+      "status": "UNRESOLVED",
+      "error": null,
+      "resolvedBy": "series",
+      "candidateCount": 0
+    },
+    "campaign.rail": {
+      "id": "campaign.rail",
+      "status": "NOT_APPLICABLE",
+      "shell": "campaign",
+      "note": "absent below 1024px; viewport is 390px"
+    },
+    "campaign.rail.items": {
+      "id": "campaign.rail.items",
+      "status": "NOT_APPLICABLE",
+      "shell": "campaign",
+      "note": "absent below 1024px; viewport is 390px"
+    },
+    "settings.nav": {
+      "id": "settings.nav",
+      "status": "NOT_APPLICABLE",
+      "shell": "campaign",
+      "note": "landmark belongs to shell(s) settings; this surface is \"campaign\""
+    }
+  },
+  "redaction": {
+    "textNodes": 1,
+    "images": 2
+  },
+  "redactionShifted": [],
+  "redactionAccepted": true,
+  "screenshots": [
+    "campaign-quiet-overview.full.png",
+    "campaign-quiet-overview.viewport.png"
+  ]
+}

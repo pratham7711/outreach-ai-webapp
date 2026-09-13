@@ -40,27 +40,6 @@ function keysOf(def: FilterDef): string[] {
   }
 }
 
-const LABEL: React.CSSProperties = {
-  fontSize: 12,
-  fontWeight: 600,
-  textTransform: "uppercase",
-  letterSpacing: 0.6,
-  color: "var(--cc-text-muted)",
-  marginBottom: 8,
-  display: "block",
-};
-
-const FIELD: React.CSSProperties = {
-  width: "100%",
-  height: 36,
-  padding: "0 10px",
-  fontSize: 13,
-  color: "var(--cc-text)",
-  background: "var(--cc-card)",
-  border: "1px solid var(--cc-border)",
-  borderRadius: 8,
-};
-
 export function FilterDrawer({
   open,
   onClose,
@@ -124,110 +103,53 @@ export function FilterDrawer({
       <div
         onClick={onClose}
         aria-hidden
-        style={{
-          position: "fixed",
-          inset: 0,
-          background: "rgba(28, 32, 72, 0.32)",
-          opacity: open ? 1 : 0,
-          pointerEvents: open ? "auto" : "none",
-          transition: "opacity 160ms ease",
-          zIndex: 60,
-        }}
+        className="cc-scrim cc-drawer-scrim"
+        data-open={open}
       />
       <aside
         role="dialog"
         aria-label="Filters"
         aria-hidden={!open}
-        style={{
-          position: "fixed",
-          top: 0,
-          right: 0,
-          height: "100dvh",
-          width: "min(380px, 100vw)",
-          background: "var(--cc-card)",
-          borderLeft: "1px solid var(--cc-border)",
-          boxShadow: "-8px 0 32px rgba(28, 32, 72, 0.12)",
-          transform: open ? "translateX(0)" : "translateX(100%)",
-          transition: "transform 200ms cubic-bezier(0.32, 0.72, 0, 1)",
-          zIndex: 61,
-          display: "flex",
-          flexDirection: "column",
-        }}
+        className="cc-drawer"
+        data-open={open}
       >
-        <header
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            padding: "16px 20px",
-            borderBottom: "1px solid var(--cc-border)",
-            flexShrink: 0,
-          }}
-        >
-          <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 15, fontWeight: 700, color: "var(--cc-text)" }}>
+        <header className="cc-drawer-head">
+          <span className="cc-drawer-title">
             <SlidersHorizontal size={16} /> Filters
           </span>
           <button
             onClick={onClose}
             aria-label="Close filters"
-            style={{ background: "none", border: "none", cursor: "pointer", color: "var(--cc-text-muted)", padding: 4, display: "flex" }}
+            className="cc-drawer-close"
           >
             <X size={18} />
           </button>
         </header>
 
-        <div style={{ flex: 1, overflowY: "auto", padding: 20, display: "flex", flexDirection: "column", gap: 24 }}>
+        <div className="cc-drawer-body">
           {filters.map((def) => {
             if (def.type === "multiSelect") {
               const selected = (draft[def.key] ?? "").split(",").filter(Boolean);
               return (
                 <div key={def.key}>
-                  <span style={LABEL}>{def.label}</span>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                  <span className="cc-field-label">{def.label}</span>
+                  <div className="cc-filter-list">
                     {def.options.map((opt) => {
                       const on = selected.includes(opt.value);
                       return (
-                        <label
-                          key={opt.value}
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 10,
-                            padding: "7px 8px",
-                            borderRadius: 8,
-                            cursor: "pointer",
-                            fontSize: 13,
-                            color: "var(--cc-text)",
-                            background: on ? "var(--cc-hover-bg)" : "transparent",
-                          }}
-                        >
+                        <label key={opt.value} className="cc-filter-option" data-on={on}>
                           <input
                             type="checkbox"
                             checked={on}
                             onChange={() => toggleInCsv(def.key, opt.value)}
-                            style={{ display: "none" }}
+                            className="cc-visually-gone"
                           />
-                          <span
-                            aria-hidden
-                            style={{
-                              width: 16,
-                              height: 16,
-                              borderRadius: 4,
-                              border: `1.5px solid ${on ? "var(--cc-primary)" : "var(--cc-border)"}`,
-                              background: on ? "var(--cc-primary)" : "transparent",
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              flexShrink: 0,
-                            }}
-                          >
+                          <span aria-hidden className="cc-checkbox" data-on={on}>
                             {on && <Check size={11} color="white" strokeWidth={3} />}
                           </span>
-                          <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                            {opt.label}
-                          </span>
+                          <span className="cc-filter-option-label">{opt.label}</span>
                           {opt.count !== undefined && (
-                            <span style={{ fontSize: 12, color: "var(--cc-text-muted)", flexShrink: 0 }}>{opt.count}</span>
+                            <span className="cc-filter-option-count">{opt.count}</span>
                           )}
                         </label>
                       );
@@ -240,21 +162,21 @@ export function FilterDrawer({
             if (def.type === "dateRange") {
               return (
                 <div key={def.fromKey}>
-                  <span style={LABEL}>{def.label}</span>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span className="cc-field-label">{def.label}</span>
+                  <div className="cc-field-row">
                     <input
                       type="date"
                       value={draft[def.fromKey] ?? ""}
                       onChange={(e) => set(def.fromKey, e.target.value)}
-                      style={FIELD}
+                      className="cc-field"
                       aria-label={`${def.label} from`}
                     />
-                    <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>to</span>
+                    <span className="cc-field-sep">to</span>
                     <input
                       type="date"
                       value={draft[def.toKey] ?? ""}
                       onChange={(e) => set(def.toKey, e.target.value)}
-                      style={FIELD}
+                      className="cc-field"
                       aria-label={`${def.label} to`}
                     />
                   </div>
@@ -265,11 +187,11 @@ export function FilterDrawer({
             if (def.type === "numberRange") {
               return (
                 <div key={def.minKey}>
-                  <span style={LABEL}>
+                  <span className="cc-field-label">
                     {def.label}
                     {def.unit ? ` (${def.unit})` : ""}
                   </span>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div className="cc-field-row">
                     <input
                       type="number"
                       min={0}
@@ -277,10 +199,10 @@ export function FilterDrawer({
                       placeholder="Min"
                       value={draft[def.minKey] ?? ""}
                       onChange={(e) => set(def.minKey, e.target.value)}
-                      style={FIELD}
+                      className="cc-field"
                       aria-label={`Minimum ${def.label}`}
                     />
-                    <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>to</span>
+                    <span className="cc-field-sep">to</span>
                     <input
                       type="number"
                       min={0}
@@ -288,7 +210,7 @@ export function FilterDrawer({
                       placeholder="Max"
                       value={draft[def.maxKey] ?? ""}
                       onChange={(e) => set(def.maxKey, e.target.value)}
-                      style={FIELD}
+                      className="cc-field"
                       aria-label={`Maximum ${def.label}`}
                     />
                   </div>
@@ -298,56 +220,21 @@ export function FilterDrawer({
 
             return (
               <div key={def.label}>
-                <span style={LABEL}>{def.label}</span>
-                <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                <span className="cc-field-label">{def.label}</span>
+                <div className="cc-filter-list">
                   {def.options.map((opt) => {
                     const on = draft[opt.key] === "1";
                     return (
-                      <label
-                        key={opt.key}
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          gap: 10,
-                          padding: "7px 8px",
-                          borderRadius: 8,
-                          cursor: "pointer",
-                          fontSize: 13,
-                          color: "var(--cc-text)",
-                        }}
-                      >
+                      <label key={opt.key} className="cc-filter-option" data-layout="split">
                         {opt.label}
                         <input
                           type="checkbox"
                           checked={on}
                           onChange={() => set(opt.key, on ? undefined : "1")}
-                          style={{ display: "none" }}
+                          className="cc-visually-gone"
                         />
-                        <span
-                          aria-hidden
-                          style={{
-                            width: 34,
-                            height: 20,
-                            borderRadius: 999,
-                            background: on ? "var(--cc-primary)" : "var(--cc-border)",
-                            position: "relative",
-                            transition: "background 140ms ease",
-                            flexShrink: 0,
-                          }}
-                        >
-                          <span
-                            style={{
-                              position: "absolute",
-                              top: 2,
-                              left: on ? 16 : 2,
-                              width: 16,
-                              height: 16,
-                              borderRadius: "50%",
-                              background: "white",
-                              transition: "left 140ms ease",
-                            }}
-                          />
+                        <span aria-hidden className="cc-switch" data-on={on}>
+                          <span className="cc-switch-knob" />
                         </span>
                       </label>
                     );
@@ -358,45 +245,11 @@ export function FilterDrawer({
           })}
         </div>
 
-        <footer
-          style={{
-            display: "flex",
-            gap: 8,
-            padding: 16,
-            borderTop: "1px solid var(--cc-border)",
-            flexShrink: 0,
-          }}
-        >
-          <button
-            onClick={clearAll}
-            style={{
-              flex: 1,
-              height: 38,
-              background: "var(--cc-card)",
-              color: "var(--cc-text)",
-              border: "1px solid var(--cc-border)",
-              borderRadius: 8,
-              fontSize: 14,
-              fontWeight: 600,
-              cursor: "pointer",
-            }}
-          >
+        <footer className="cc-drawer-foot">
+          <button onClick={clearAll} className="cc-drawer-btn">
             Clear all
           </button>
-          <button
-            onClick={apply}
-            style={{
-              flex: 1,
-              height: 38,
-              background: "var(--cc-primary)",
-              color: "white",
-              border: "none",
-              borderRadius: 8,
-              fontSize: 14,
-              fontWeight: 600,
-              cursor: "pointer",
-            }}
-          >
+          <button onClick={apply} className="cc-drawer-btn" data-variant="primary">
             Apply
           </button>
         </footer>
@@ -410,39 +263,13 @@ export function FilterButton({ count, onClick }: { count: number; onClick: () =>
   return (
     <button
       onClick={onClick}
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 8,
-        height: 38,
-        padding: "0 14px",
-        background: "var(--cc-card)",
-        color: count ? "var(--cc-primary)" : "var(--cc-text)",
-        border: `1px solid ${count ? "var(--cc-primary)" : "var(--cc-border)"}`,
-        borderRadius: 8,
-        fontSize: 14,
-        fontWeight: 600,
-        cursor: "pointer",
-      }}
+      className="cc-filter-btn"
+      data-active={count > 0}
     >
       <SlidersHorizontal size={15} />
       Filters
       {count > 0 && (
-        <span
-          style={{
-            minWidth: 18,
-            height: 18,
-            padding: "0 5px",
-            borderRadius: 999,
-            background: "var(--cc-primary)",
-            color: "white",
-            fontSize: 11,
-            fontWeight: 700,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
+        <span className="cc-filter-btn-count">
           {count}
         </span>
       )}

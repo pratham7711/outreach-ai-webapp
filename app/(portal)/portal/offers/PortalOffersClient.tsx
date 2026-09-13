@@ -254,7 +254,7 @@ export default function PortalOffersClient() {
           title="Counter Offer"
           size="sm"
           footer={
-            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+            <div className="cc-modal-footer">
               <Button
                 variant="secondary"
                 onClick={() => {

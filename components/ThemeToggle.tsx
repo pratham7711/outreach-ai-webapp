@@ -13,7 +13,9 @@ export default function ThemeToggle() {
   const { resolvedTheme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
-  if (!mounted) return <span style={{ width: 34, height: 34, display: "inline-block" }} />;
+  // Reserves the button's box before hydration so the footer row does not
+  // reflow under the account chip on first paint.
+  if (!mounted) return <span className="cc-icon-btn" aria-hidden="true" />;
 
   const current = Math.max(0, CYCLE.findIndex((t) => t.key === resolvedTheme));
   const next = CYCLE[(current + 1) % CYCLE.length];
@@ -23,19 +25,11 @@ export default function ThemeToggle() {
     <button
       type="button"
       onClick={() => setTheme(next.key)}
-      className="cc-btn-ghost btn-press"
-      style={{
-        width: 34,
-        height: 34,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        borderRadius: 8,
-        color: "var(--cc-text-muted)",
-        background: "transparent",
-        border: "none",
-        cursor: "pointer",
-      }}
+      className="cc-icon-btn btn-press"
+      data-action="switch-theme"
+      /* The glyph shows the theme you are IN; the label says the one you are
+         going TO. That split is deliberate -- a three-way cycle has no single
+         "off" state to draw -- but it is the reason the label is not optional. */
       aria-label={`Switch to ${next.label}`}
       title={`Switch to ${next.label}`}
     >

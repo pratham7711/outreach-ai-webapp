@@ -341,7 +341,7 @@ export default function DraftsTab({
           title="Add Draft"
           size="sm"
           footer={
-            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+            <div className="cc-modal-footer">
               <Button variant="secondary" onClick={() => setAdding(false)}>Cancel</Button>
               <Button variant="primary" loading={savingDraft} onClick={handleAddDraft}>Add Draft</Button>
             </div>
@@ -410,7 +410,7 @@ export default function DraftsTab({
           title="Request changes"
           size="sm"
           footer={
-            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+            <div className="cc-modal-footer">
               <Button variant="secondary" onClick={() => { setDeclineId(null); setDeclineReason(""); }}>Cancel</Button>
               <Button variant="danger" onClick={handleDecline}>
                 Send back for revision

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Card, Input, Avatar, EmptyState } from "@pratham7711/ui";
 import { PageHeader, MetricTile, Button } from "@/components/ds";
 import AddClientModal from "@/components/modals/AddClientModal";
+import { action } from "@/lib/ui/actions";
 
 type Client = {
   id: string;
@@ -31,7 +32,7 @@ export default function ClientsClient({ clients, stats }: {
         title="Clients"
         subtitle="Manage your client relationships and billing"
         actions={
-          <Button variant="primary" iconLeft={<Plus size={15} />} size="sm" onClick={() => setShowModal(true)}>
+          <Button variant="primary" iconLeft={<Plus size={15} />} size="sm" onClick={() => setShowModal(true)} {...action("new-client")}>
             New Client
           </Button>
         }

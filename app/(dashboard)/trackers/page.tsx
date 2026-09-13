@@ -17,6 +17,7 @@ import { describeTrackerSweep } from "@/lib/refreshSummary";
 import { SOUND_URL_ERRORS, parseSoundUrl } from "@/lib/trackers/soundUrl";
 import { changeSpanLabel, isTrackerWindow } from "@/lib/trackers/metrics";
 import type { ChartGranularity } from "@/lib/trackers/granularity";
+import { action } from "@/lib/ui/actions";
 
 interface SoundSnapshot {
   usesCount: number;
@@ -382,13 +383,13 @@ export default function TrackersPage() {
                     ? "You have used every tracker on your plan"
                     : undefined
               }
-            >
+             {...action("track-sound")}>
               <Plus size={16} style={{ marginRight: 6 }} />
               Track Sound
             </Button>
           </>
           ) : (
-            <Button variant="primary" onClick={() => setCreatorPickerOpen(true)}>
+            <Button variant="primary" onClick={() => setCreatorPickerOpen(true)} {...action("track-creator")}>
               <Plus size={16} style={{ marginRight: 6 }} />
               Track Creator
             </Button>
@@ -726,7 +727,7 @@ export default function TrackersPage() {
 
       {/* Track Sound Modal */}
       <Modal open={modalOpen} onClose={closeAddModal} title="Track a Sound" size="sm" footer={
-        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+        <div className="cc-modal-footer">
           <Button variant="ghost" onClick={closeAddModal}>Cancel</Button>
           <Button variant="primary" onClick={handleCreate} disabled={submitting || !urlInput.trim() || clientError !== null}>
             {submitting ? "Adding\u2026" : "Track Sound"}

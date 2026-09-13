@@ -1,0 +1,180 @@
+{
+  "surface": "campaign-reference-posts",
+  "viewport": "mobile-390",
+  "group": "campaign",
+  "path": "/dashboard?tab=Campaign&campaign=1786624888237x963063209995796500&sub=Posts",
+  "readyBy": "content",
+  "settleMs": 1388,
+  "health": {
+    "shell": "campaign",
+    "total": 10,
+    "applicable": 4,
+    "notApplicable": 6,
+    "missingOurs": 0,
+    "resolved": 1,
+    "resolutionRate": 0.25,
+    "viewport": {
+      "w": 390,
+      "h": 844
+    },
+    "docHeight": 844
+  },
+  "landmarks": {
+    "shell.rail": {
+      "id": "shell.rail",
+      "status": "NOT_APPLICABLE",
+      "shell": "campaign",
+      "note": "absent below 1024px; viewport is 390px"
+    },
+    "shell.rail.group-first": {
+      "id": "shell.rail.group-first",
+      "status": "NOT_APPLICABLE",
+      "shell": "campaign",
+      "note": "absent below 1024px; viewport is 390px"
+    },
+    "shell.rail.items": {
+      "id": "shell.rail.items",
+      "status": "NOT_APPLICABLE",
+      "shell": "campaign",
+      "note": "absent below 1024px; viewport is 390px"
+    },
+    "page.title": {
+      "id": "page.title",
+      "status": "UNRESOLVED",
+      "error": null,
+      "resolvedBy": "geometry",
+      "candidateCount": 0
+    },
+    "page.header-strip": {
+      "id": "page.header-strip",
+      "status": "UNRESOLVED",
+      "error": null,
+      "resolvedBy": "ancestorOf",
+      "candidateCount": 0
+    },
+    "page.primary-action": {
+      "id": "page.primary-action",
+      "status": "OK",
+      "error": null,
+      "resolvedBy": "paintedAncestor",
+      "candidateCount": 1,
+      "rect": {
+        "x": 202.5,
+        "y": 75,
+        "w": 167.5,
+        "h": 40
+      },
+      "style": {
+        "width": "167.5px",
+        "height": "40px",
+        "minWidth": "120px",
+        "maxWidth": "none",
+        "minHeight": "40px",
+        "maxHeight": "none",
+        "padding": "0px",
+        "paddingTop": "0px",
+        "paddingRight": "0px",
+        "paddingBottom": "0px",
+        "paddingLeft": "0px",
+        "margin": "0px",
+        "marginTop": "0px",
+        "marginRight": "0px",
+        "marginBottom": "0px",
+        "marginLeft": "0px",
+        "boxSizing": "border-box",
+        "overflow": "visible",
+        "overflowX": "visible",
+        "overflowY": "visible",
+        "display": "flex",
+        "flexDirection": "row",
+        "flexWrap": "nowrap",
+        "alignItems": "center",
+        "justifyContent": "center",
+        "gap": "8px",
+        "rowGap": "8px",
+        "columnGap": "8px",
+        "gridTemplateColumns": "none",
+        "gridTemplateRows": "none",
+        "gridAutoFlow": "row",
+        "gridTemplateAreas": "none",
+        "flexGrow": "1",
+        "flexShrink": "1",
+        "flexBasis": "auto",
+        "alignSelf": "center",
+        "justifySelf": "auto",
+        "order": "12",
+        "gridArea": "auto",
+        "position": "relative",
+        "top": "0px",
+        "right": "0px",
+        "bottom": "0px",
+        "left": "0px",
+        "fontSize": "15px",
+        "fontWeight": "500",
+        "lineHeight": "15px",
+        "letterSpacing": "normal",
+        "textTransform": "none",
+        "textAlign": "center",
+        "whiteSpace": "normal",
+        "textOverflow": "clip",
+        "fontStyle": "normal",
+        "color": "rgb(255, 255, 255)",
+        "backgroundColor": "rgb(31, 60, 239)",
+        "backgroundImage": "none",
+        "borderRadius": "10px",
+        "borderTopWidth": "0px",
+        "borderRightWidth": "0px",
+        "borderBottomWidth": "0px",
+        "borderLeftWidth": "0px",
+        "borderTopColor": "rgb(255, 255, 255)",
+        "borderBottomColor": "rgb(255, 255, 255)",
+        "boxShadow": "none",
+        "opacity": "1",
+        "zIndex": "8",
+        "visibility": "visible",
+        "transform": "none"
+      },
+      "hit": "ok",
+      "text": "Add Posts",
+      "truncated": false,
+      "dividerCount": 0,
+      "rel": null,
+      "origin": "page.title"
+    },
+    "list.rows": {
+      "id": "list.rows",
+      "status": "UNRESOLVED",
+      "error": null,
+      "resolvedBy": "series",
+      "candidateCount": 0
+    },
+    "campaign.rail": {
+      "id": "campaign.rail",
+      "status": "NOT_APPLICABLE",
+      "shell": "campaign",
+      "note": "absent below 1024px; viewport is 390px"
+    },
+    "campaign.rail.items": {
+      "id": "campaign.rail.items",
+      "status": "NOT_APPLICABLE",
+      "shell": "campaign",
+      "note": "absent below 1024px; viewport is 390px"
+    },
+    "settings.nav": {
+      "id": "settings.nav",
+      "status": "NOT_APPLICABLE",
+      "shell": "campaign",
+      "note": "landmark belongs to shell(s) settings; this surface is \"campaign\""
+    }
+  },
+  "redaction": {
+    "textNodes": 1,
+    "images": 0
+  },
+  "redactionShifted": [],
+  "redactionAccepted": true,
+  "screenshots": [
+    "campaign-reference-posts.full.png",
+    "campaign-reference-posts.viewport.png"
+  ]
+}

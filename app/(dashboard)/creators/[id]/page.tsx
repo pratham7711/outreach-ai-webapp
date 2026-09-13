@@ -8,7 +8,7 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Card, Badge, Avatar, EmptyState, Skeleton, Modal, Input, Tooltip } from "@pratham7711/ui";
-import { PAGE_TITLE_STYLE, Dropdown, MetricTile } from "@/components/ds";
+import { Dropdown, MetricTile } from "@/components/ds";
 import { formatDateAbs, platformLabel, formatFull } from "@/lib/format";
 import { toast } from "sonner";
 
@@ -686,7 +686,7 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
             <Avatar name={creator.name} size="lg" style={{ width: 72, height: 72, fontSize: 22, border: "4px solid var(--cc-card)", flexShrink: 0 }} />
             <div className="cd-profile-info">
               <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                <h1 style={{ ...PAGE_TITLE_STYLE, margin: 0 }}>{creator.name}</h1>
+                <h1 className="cc-page-title" data-mb="0">{creator.name}</h1>
                 <Badge variant="neutral">{platformLabel(creator.platform)}</Badge>
               </div>
               <div style={{ fontSize: 14, color: "var(--cc-text-muted)", marginTop: 2 }}>

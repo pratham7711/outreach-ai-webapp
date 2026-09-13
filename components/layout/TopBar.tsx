@@ -51,7 +51,6 @@ type TopBarUser = { name: string | null; email: string | null } | null;
 export function TopBar({ user }: { user?: TopBarUser }) {
   const pathname = usePathname();
   const router = useRouter();
-  const [searchFocused, setSearchFocused] = useState(false);
   const [query, setQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [activeIdx, setActiveIdx] = useState(-1);
@@ -127,95 +126,33 @@ export function TopBar({ user }: { user?: TopBarUser }) {
   ];
 
   return (
-    <header
-      className="cc-topbar"
-      style={{
-        height: 56,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        gap: 12,
-        borderBottom: "1px solid var(--cc-border)",
-        background: "var(--cc-card)",
-        flexShrink: 0,
-      }}
-    >
-      <style>{`
-        .cc-topbar { padding-left: 32px; padding-right: 24px; }
-        @media (max-width: 1023px) {
-          .cc-topbar { padding-left: 60px; padding-right: 16px; }
-        }
-        @media (max-width: 520px) {
-          .cc-topbar .cc-topbar-search { display: none; }
-        }
-      `}</style>
+    <header className="cc-topbar" data-region="topbar">
       {/* Breadcrumb */}
-      <nav aria-label="Breadcrumb" style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, overflow: "hidden" }}>
-        <Link
-          href="/dashboard"
-          style={{
-            fontSize: 13,
-            color: "var(--cc-text-muted)",
-            textDecoration: "none",
-            transition: "color 0.15s",
-          }}
-          onMouseEnter={(e) => { e.currentTarget.style.color = "var(--cc-primary)"; }}
-          onMouseLeave={(e) => { e.currentTarget.style.color = "var(--cc-text-muted)"; }}
-        >
+      <nav aria-label="Breadcrumb" className="cc-topbar-start">
+        <Link href="/dashboard" className="cc-crumb">
           Home
         </Link>
-        <ChevronRight size={13} style={{ color: "var(--cc-text-subtle)" }} />
+        <ChevronRight size={13} className="cc-crumb-sep" />
         {isDetailPage ? (
           <>
-            <Link
-              href={currentPage}
-              style={{
-                fontSize: 13,
-                color: "var(--cc-text-muted)",
-                textDecoration: "none",
-                transition: "color 0.15s",
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.color = "var(--cc-primary)"; }}
-              onMouseLeave={(e) => { e.currentTarget.style.color = "var(--cc-text-muted)"; }}
-            >
+            <Link href={currentPage} className="cc-crumb">
               {title}
             </Link>
-            <ChevronRight size={13} style={{ color: "var(--cc-text-subtle)" }} />
-            <span title={leafLabel} style={{ fontSize: 13, color: "var(--cc-text)", fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            <ChevronRight size={13} className="cc-crumb-sep" />
+            <span title={leafLabel} className="cc-crumb-current" data-truncate="true">
               {leafLabel}
             </span>
           </>
         ) : (
-          <span style={{ fontSize: 13, color: "var(--cc-text)", fontWeight: 600 }}>
-            {title}
-          </span>
+          <span className="cc-crumb-current">{title}</span>
         )}
       </nav>
 
       {/* Right side: Search + Actions */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+      <div className="cc-topbar-end">
         {/* Page search (jumps to a page) */}
-        <div
-          className="cc-topbar-search"
-          style={{
-            position: "relative",
-            width: searchFocused ? 260 : 180,
-            transition: "width 0.25s ease",
-          }}
-        >
-          <Search
-            size={15}
-            aria-hidden="true"
-            style={{
-              position: "absolute",
-              left: 10,
-              top: 17,
-              transform: "translateY(-50%)",
-              color: searchFocused ? "var(--cc-primary)" : "var(--cc-text-subtle)",
-              pointerEvents: "none",
-              transition: "color 0.2s",
-            }}
-          />
+        <div className="cc-topbar-search">
+          <Search size={15} aria-hidden="true" className="cc-topbar-search-icon" />
           <input
             placeholder="Search pages..."
             aria-label="Search pages"
@@ -225,16 +162,9 @@ export function TopBar({ user }: { user?: TopBarUser }) {
             aria-autocomplete="list"
             className="cc-search"
             value={query}
-            style={{
-              padding: "7px 12px 7px 34px",
-              fontSize: 13,
-              borderRadius: 8,
-              height: 34,
-              width: "100%",
-            }}
             onChange={(e) => { setQuery(e.target.value); setSearchOpen(true); setActiveIdx(-1); }}
-            onFocus={() => { if (blurTimer.current) clearTimeout(blurTimer.current); setSearchFocused(true); setSearchOpen(true); }}
-            onBlur={() => { setSearchFocused(false); blurTimer.current = setTimeout(() => setSearchOpen(false), 120); }}
+            onFocus={() => { if (blurTimer.current) clearTimeout(blurTimer.current); setSearchOpen(true); }}
+            onBlur={() => { blurTimer.current = setTimeout(() => setSearchOpen(false), 120); }}
             onKeyDown={onSearchKeyDown}
           />
           {showResults && (
@@ -242,20 +172,7 @@ export function TopBar({ user }: { user?: TopBarUser }) {
               id="cc-search-results"
               role="listbox"
               aria-label="Page results"
-              style={{
-                position: "absolute",
-                top: "calc(100% + 4px)",
-                left: 0,
-                right: 0,
-                background: "var(--cc-card)",
-                border: "1px solid var(--cc-border)",
-                borderRadius: 8,
-                boxShadow: "var(--ui-shadow-lg)",
-                padding: 4,
-                margin: 0,
-                listStyle: "none",
-                zIndex: 60,
-              }}
+              className="cc-search-results"
             >
               {matches.map(([href, t], i) => (
                 <li key={href} role="option" aria-selected={i === activeIdx}>
@@ -263,18 +180,8 @@ export function TopBar({ user }: { user?: TopBarUser }) {
                     type="button"
                     onMouseDown={(e) => { e.preventDefault(); go(href); }}
                     onMouseEnter={() => setActiveIdx(i)}
-                    style={{
-                      display: "flex",
-                      width: "100%",
-                      textAlign: "left",
-                      padding: "7px 10px",
-                      fontSize: 13,
-                      borderRadius: 6,
-                      border: "none",
-                      cursor: "pointer",
-                      background: i === activeIdx ? "var(--cc-primary-light)" : "transparent",
-                      color: "var(--cc-text)",
-                    }}
+                    className="cc-search-result"
+                    data-active={i === activeIdx}
                   >
                     {t}
                   </button>
@@ -300,18 +207,7 @@ export function TopBar({ user }: { user?: TopBarUser }) {
           trigger={
             <span
               title={displayName}
-              style={{
-                width: 34,
-                height: 34,
-                borderRadius: "50%",
-                background: "var(--cc-primary)",
-                color: "white",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: 12,
-                fontWeight: 700,
-              }}
+              className="cc-topbar-avatar"
             >
               {initial}
             </span>

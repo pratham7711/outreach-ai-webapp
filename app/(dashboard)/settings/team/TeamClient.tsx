@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { Plus, Mail, Trash2, Users, Clock, User, Link as LinkIcon, Check, UserMinus } from "lucide-react";
 import { Card, Badge, Avatar, EmptyState, Modal, Input } from "@pratham7711/ui";
 import { PageHeader, Dropdown, Button, useConfirm } from "@/components/ds";
+import { action } from "@/lib/ui/actions";
 
 type User = {
   id: string;
@@ -271,7 +272,7 @@ export default function TeamClient({
               disabled={seatsFull}
               title={seatsFull ? "All seats are in use or invited" : undefined}
               onClick={() => setShowModal(true)}
-            >
+             {...action("invite-member")}>
               Invite Member
             </Button>
           ) : null}

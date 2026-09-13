@@ -19,7 +19,7 @@
 export const AREAS = {
   auth: {
     specs: ["auth.spec.ts", "signup-org-types.spec.ts", "portal-auth.spec.ts"],
-    sources: ["app/(auth)/", "app/api/auth/", "app/onboarding/", "lib/auth"],
+    sources: ["app/(auth)/", "app/api/auth/", "lib/auth"],
   },
   campaigns: {
     specs: [
@@ -137,6 +137,15 @@ export const AREAS = {
   contrast: {
     specs: ["contrast.spec.ts"],
     sources: [],
+  },
+  /* The action registry. Unlike `contrast` this one DOES have a source of its
+     own -- the registry file itself -- because deleting an id from ACTIONS
+     type-checks everywhere the id is no longer used and silently breaks every
+     theme rule that still names it. globals.css and components/ds/ reach it
+     through CROSS_CUTTING, as above. */
+  actions: {
+    specs: ["action-registry.spec.ts"],
+    sources: ["lib/ui/actions.ts"],
   },
 };
 

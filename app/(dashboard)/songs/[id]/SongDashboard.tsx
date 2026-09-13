@@ -8,7 +8,6 @@ import { PostingTimeHeatmap } from "@/app/(dashboard)/analytics/PostingTimeHeatm
 import { platformLabel, formatFull, fitFigureSize } from "@/lib/format";
 import { platformColor } from "@/app/(dashboard)/analytics/shared";
 import AttachCampaigns, { type AttachableCampaign } from "./AttachCampaigns";
-import { PAGE_TITLE_STYLE } from "@/components/ds";
 
 type Summary = {
   campaignCount: number;
@@ -140,7 +139,7 @@ export default function SongDashboard({
           {!song.coverUrl && <Music size={26} color="var(--cc-text-subtle)" />}
         </div>
         <div>
-          <h1 style={{ ...PAGE_TITLE_STYLE, marginBottom: 2 }}>
+          <h1 className="cc-page-title" data-mb="tight">
             {song.title}
           </h1>
           <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>{song.artist}</p>

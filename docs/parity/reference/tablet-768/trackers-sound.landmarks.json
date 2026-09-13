@@ -1,0 +1,760 @@
+{
+  "surface": "trackers-sound",
+  "viewport": "tablet-768",
+  "group": "nav",
+  "path": "/dashboard?tab=Trackers&sub=sound&period=7",
+  "readyBy": "content",
+  "settleMs": 1984,
+  "health": {
+    "shell": "dashboard",
+    "total": 10,
+    "applicable": 4,
+    "notApplicable": 6,
+    "missingOurs": 0,
+    "resolved": 4,
+    "resolutionRate": 1,
+    "viewport": {
+      "w": 768,
+      "h": 1024
+    },
+    "docHeight": 1024
+  },
+  "landmarks": {
+    "shell.rail": {
+      "id": "shell.rail",
+      "status": "NOT_APPLICABLE",
+      "shell": "dashboard",
+      "note": "absent below 1024px; viewport is 768px"
+    },
+    "shell.rail.group-first": {
+      "id": "shell.rail.group-first",
+      "status": "NOT_APPLICABLE",
+      "shell": "dashboard",
+      "note": "absent below 1024px; viewport is 768px"
+    },
+    "shell.rail.items": {
+      "id": "shell.rail.items",
+      "status": "NOT_APPLICABLE",
+      "shell": "dashboard",
+      "note": "absent below 1024px; viewport is 768px"
+    },
+    "page.title": {
+      "id": "page.title",
+      "status": "OK",
+      "error": null,
+      "resolvedBy": "geometry",
+      "candidateCount": 1,
+      "rect": {
+        "x": 31,
+        "y": 43.5,
+        "w": 139.1,
+        "h": 30
+      },
+      "style": {
+        "width": "139.078px",
+        "height": "30px",
+        "minWidth": "auto",
+        "maxWidth": "none",
+        "minHeight": "auto",
+        "maxHeight": "none",
+        "padding": "0px",
+        "paddingTop": "0px",
+        "paddingRight": "0px",
+        "paddingBottom": "0px",
+        "paddingLeft": "0px",
+        "margin": "0px",
+        "marginTop": "0px",
+        "marginRight": "0px",
+        "marginBottom": "0px",
+        "marginLeft": "0px",
+        "boxSizing": "border-box",
+        "overflow": "visible",
+        "overflowX": "visible",
+        "overflowY": "visible",
+        "display": "block",
+        "flexDirection": "row",
+        "flexWrap": "nowrap",
+        "alignItems": "normal",
+        "justifyContent": "normal",
+        "gap": "normal",
+        "rowGap": "normal",
+        "columnGap": "normal",
+        "gridTemplateColumns": "none",
+        "gridTemplateRows": "none",
+        "gridAutoFlow": "row",
+        "gridTemplateAreas": "none",
+        "flexGrow": "0",
+        "flexShrink": "1",
+        "flexBasis": "auto",
+        "alignSelf": "auto",
+        "justifySelf": "auto",
+        "order": "0",
+        "gridArea": "auto",
+        "position": "static",
+        "top": "auto",
+        "right": "auto",
+        "bottom": "auto",
+        "left": "auto",
+        "fontSize": "24px",
+        "fontWeight": "700",
+        "lineHeight": "30px",
+        "letterSpacing": "normal",
+        "textTransform": "none",
+        "textAlign": "start",
+        "whiteSpace": "pre-wrap",
+        "textOverflow": "clip",
+        "fontStyle": "normal",
+        "color": "rgb(31, 60, 239)",
+        "backgroundColor": "rgba(0, 0, 0, 0)",
+        "backgroundImage": "none",
+        "borderRadius": "0px",
+        "borderTopWidth": "0px",
+        "borderRightWidth": "0px",
+        "borderBottomWidth": "0px",
+        "borderLeftWidth": "0px",
+        "borderTopColor": "rgb(31, 60, 239)",
+        "borderBottomColor": "rgb(31, 60, 239)",
+        "boxShadow": "none",
+        "opacity": "1",
+        "zIndex": "auto",
+        "visibility": "visible",
+        "transform": "none"
+      },
+      "hit": "occluded",
+      "text": "Trackers BETA",
+      "truncated": false,
+      "dividerCount": 0,
+      "rel": null,
+      "origin": null
+    },
+    "page.header-strip": {
+      "id": "page.header-strip",
+      "status": "OK",
+      "error": null,
+      "resolvedBy": "ancestorOf",
+      "candidateCount": 1,
+      "rect": {
+        "x": 31,
+        "y": 36,
+        "w": 706,
+        "h": 45
+      },
+      "style": {
+        "width": "706px",
+        "height": "45px",
+        "minWidth": "0px",
+        "maxWidth": "none",
+        "minHeight": "0px",
+        "maxHeight": "none",
+        "padding": "0px",
+        "paddingTop": "0px",
+        "paddingRight": "0px",
+        "paddingBottom": "0px",
+        "paddingLeft": "0px",
+        "margin": "0px",
+        "marginTop": "0px",
+        "marginRight": "0px",
+        "marginBottom": "0px",
+        "marginLeft": "0px",
+        "boxSizing": "border-box",
+        "overflow": "visible",
+        "overflowX": "visible",
+        "overflowY": "visible",
+        "display": "flex",
+        "flexDirection": "row",
+        "flexWrap": "wrap",
+        "alignItems": "normal",
+        "justifyContent": "space-between",
+        "gap": "normal",
+        "rowGap": "normal",
+        "columnGap": "normal",
+        "gridTemplateColumns": "none",
+        "gridTemplateRows": "none",
+        "gridAutoFlow": "row",
+        "gridTemplateAreas": "none",
+        "flexGrow": "0",
+        "flexShrink": "0",
+        "flexBasis": "auto",
+        "alignSelf": "flex-start",
+        "justifySelf": "auto",
+        "order": "2",
+        "gridArea": "auto",
+        "position": "relative",
+        "top": "0px",
+        "right": "0px",
+        "bottom": "0px",
+        "left": "0px",
+        "fontSize": "16px",
+        "fontWeight": "400",
+        "lineHeight": "16px",
+        "letterSpacing": "normal",
+        "textTransform": "none",
+        "textAlign": "start",
+        "whiteSpace": "normal",
+        "textOverflow": "clip",
+        "fontStyle": "normal",
+        "color": "rgb(0, 0, 0)",
+        "backgroundColor": "rgba(0, 0, 0, 0)",
+        "backgroundImage": "none",
+        "borderRadius": "0px",
+        "borderTopWidth": "0px",
+        "borderRightWidth": "0px",
+        "borderBottomWidth": "0px",
+        "borderLeftWidth": "0px",
+        "borderTopColor": "rgb(0, 0, 0)",
+        "borderBottomColor": "rgb(0, 0, 0)",
+        "boxShadow": "none",
+        "opacity": "1",
+        "zIndex": "4",
+        "visibility": "visible",
+        "transform": "none"
+      },
+      "hit": "occluded",
+      "text": "Trackers BETA\nNew Tracker",
+      "truncated": false,
+      "dividerCount": 0,
+      "rel": null,
+      "origin": null
+    },
+    "page.primary-action": {
+      "id": "page.primary-action",
+      "status": "OK",
+      "error": null,
+      "resolvedBy": "paintedAncestor",
+      "candidateCount": 1,
+      "rect": {
+        "x": 557,
+        "y": 38.5,
+        "w": 180,
+        "h": 40
+      },
+      "style": {
+        "width": "180px",
+        "height": "40px",
+        "minWidth": "180px",
+        "maxWidth": "180px",
+        "minHeight": "40px",
+        "maxHeight": "40px",
+        "padding": "0px",
+        "paddingTop": "0px",
+        "paddingRight": "0px",
+        "paddingBottom": "0px",
+        "paddingLeft": "0px",
+        "margin": "0px",
+        "marginTop": "0px",
+        "marginRight": "0px",
+        "marginBottom": "0px",
+        "marginLeft": "0px",
+        "boxSizing": "border-box",
+        "overflow": "visible",
+        "overflowX": "visible",
+        "overflowY": "visible",
+        "display": "flex",
+        "flexDirection": "row",
+        "flexWrap": "nowrap",
+        "alignItems": "center",
+        "justifyContent": "center",
+        "gap": "8px",
+        "rowGap": "8px",
+        "columnGap": "8px",
+        "gridTemplateColumns": "none",
+        "gridTemplateRows": "none",
+        "gridAutoFlow": "row",
+        "gridTemplateAreas": "none",
+        "flexGrow": "1",
+        "flexShrink": "1",
+        "flexBasis": "auto",
+        "alignSelf": "center",
+        "justifySelf": "auto",
+        "order": "3",
+        "gridArea": "auto",
+        "position": "relative",
+        "top": "0px",
+        "right": "0px",
+        "bottom": "0px",
+        "left": "0px",
+        "fontSize": "18px",
+        "fontWeight": "400",
+        "lineHeight": "18px",
+        "letterSpacing": "normal",
+        "textTransform": "none",
+        "textAlign": "center",
+        "whiteSpace": "normal",
+        "textOverflow": "clip",
+        "fontStyle": "normal",
+        "color": "rgb(255, 255, 255)",
+        "backgroundColor": "rgb(31, 60, 239)",
+        "backgroundImage": "none",
+        "borderRadius": "10px",
+        "borderTopWidth": "0px",
+        "borderRightWidth": "0px",
+        "borderBottomWidth": "0px",
+        "borderLeftWidth": "0px",
+        "borderTopColor": "rgb(255, 255, 255)",
+        "borderBottomColor": "rgb(255, 255, 255)",
+        "boxShadow": "none",
+        "opacity": "1",
+        "zIndex": "3",
+        "visibility": "visible",
+        "transform": "none"
+      },
+      "hit": "occluded",
+      "text": "New Tracker",
+      "truncated": false,
+      "dividerCount": 0,
+      "rel": {
+        "dx": 526,
+        "dy": -5
+      },
+      "origin": "page.title"
+    },
+    "list.rows": {
+      "id": "list.rows",
+      "status": "OK",
+      "error": null,
+      "resolvedBy": "series",
+      "candidateCount": 17,
+      "rect": {
+        "x": 10,
+        "y": 205.8,
+        "w": 748,
+        "h": 105
+      },
+      "style": {
+        "width": "748px",
+        "height": "105px",
+        "minWidth": "auto",
+        "maxWidth": "none",
+        "minHeight": "100px",
+        "maxHeight": "none",
+        "padding": "0px",
+        "paddingTop": "0px",
+        "paddingRight": "0px",
+        "paddingBottom": "0px",
+        "paddingLeft": "0px",
+        "margin": "0px",
+        "marginTop": "0px",
+        "marginRight": "0px",
+        "marginBottom": "0px",
+        "marginLeft": "0px",
+        "boxSizing": "content-box",
+        "overflow": "visible",
+        "overflowX": "visible",
+        "overflowY": "visible",
+        "display": "flex",
+        "flexDirection": "row",
+        "flexWrap": "wrap",
+        "alignItems": "normal",
+        "justifyContent": "center",
+        "gap": "normal",
+        "rowGap": "normal",
+        "columnGap": "normal",
+        "gridTemplateColumns": "none",
+        "gridTemplateRows": "none",
+        "gridAutoFlow": "row",
+        "gridTemplateAreas": "none",
+        "flexGrow": "0",
+        "flexShrink": "1",
+        "flexBasis": "auto",
+        "alignSelf": "auto",
+        "justifySelf": "auto",
+        "order": "0",
+        "gridArea": "auto",
+        "position": "relative",
+        "top": "0px",
+        "right": "0px",
+        "bottom": "0px",
+        "left": "0px",
+        "fontSize": "16px",
+        "fontWeight": "400",
+        "lineHeight": "16px",
+        "letterSpacing": "normal",
+        "textTransform": "none",
+        "textAlign": "start",
+        "whiteSpace": "normal",
+        "textOverflow": "clip",
+        "fontStyle": "normal",
+        "color": "rgb(0, 0, 0)",
+        "backgroundColor": "rgba(0, 0, 0, 0)",
+        "backgroundImage": "none",
+        "borderRadius": "0px",
+        "borderTopWidth": "0px",
+        "borderRightWidth": "0px",
+        "borderBottomWidth": "0px",
+        "borderLeftWidth": "0px",
+        "borderTopColor": "rgb(0, 0, 0)",
+        "borderBottomColor": "rgb(0, 0, 0)",
+        "boxShadow": "none",
+        "opacity": "1",
+        "zIndex": "auto",
+        "visibility": "visible",
+        "transform": "none"
+      },
+      "hit": "occluded",
+      "text": "Bajo La Luna\nVaporVice &... \nAudio Uses\n19\nChange\nNo data yet.\n\n24H Added\n0\nChange\nNo data yet.\n",
+      "truncated": false,
+      "dividerCount": 0,
+      "derived": {
+        "count": 17,
+        "pitch": 105,
+        "pitchAll": [
+          105,
+          105,
+          105,
+          105,
+          105,
+          105,
+          105,
+          105,
+          105,
+          105,
+          105,
+          105,
+          105,
+          105,
+          105,
+          105
+        ],
+        "gapEffective": 0,
+        "rowHeight": 105
+      },
+      "items": [
+        {
+          "rect": {
+            "x": 10,
+            "y": 205.8,
+            "w": 748,
+            "h": 105
+          },
+          "text": "Bajo La Luna\nVaporVice &... \nAudio Uses\n19\nChange\nNo data ye",
+          "paint": {
+            "color": "rgb(31, 60, 239)",
+            "backgroundColor": "rgb(255, 255, 255)",
+            "fontWeight": "400",
+            "borderRadius": "0px",
+            "boxShadow": "none",
+            "opacity": "1"
+          }
+        },
+        {
+          "rect": {
+            "x": 10,
+            "y": 310.8,
+            "w": 748,
+            "h": 105
+          },
+          "text": "RAWR!\nviralune\nAudio Uses\n79\nChange\nNo data yet.\n\n24H Added",
+          "paint": {
+            "color": "rgb(31, 60, 239)",
+            "backgroundColor": "rgb(255, 255, 255)",
+            "fontWeight": "400",
+            "borderRadius": "0px",
+            "boxShadow": "none",
+            "opacity": "1"
+          }
+        },
+        {
+          "rect": {
+            "x": 10,
+            "y": 415.8,
+            "w": 748,
+            "h": 105
+          },
+          "text": "BEAUTIFUL\ncqz\nAudio Uses\n75\nChange\nNo data yet.\n\n24H Added\n",
+          "paint": {
+            "color": "rgb(31, 60, 239)",
+            "backgroundColor": "rgb(255, 255, 255)",
+            "fontWeight": "400",
+            "borderRadius": "0px",
+            "boxShadow": "none",
+            "opacity": "1"
+          }
+        },
+        {
+          "rect": {
+            "x": 10,
+            "y": 520.8,
+            "w": 748,
+            "h": 105
+          },
+          "text": "BAILE SOLTO\nLVGHTER & satirin... \nAudio Uses\n348\nChange\n0.29",
+          "paint": {
+            "color": "rgb(31, 60, 239)",
+            "backgroundColor": "rgb(255, 255, 255)",
+            "fontWeight": "400",
+            "borderRadius": "0px",
+            "boxShadow": "none",
+            "opacity": "1"
+          }
+        },
+        {
+          "rect": {
+            "x": 10,
+            "y": 625.8,
+            "w": 748,
+            "h": 105
+          },
+          "text": "FIESTA DE... \nTWXNY & VOUSI &... \nAudio Uses\n113\nChange\nNo d",
+          "paint": {
+            "color": "rgb(31, 60, 239)",
+            "backgroundColor": "rgb(255, 255, 255)",
+            "fontWeight": "400",
+            "borderRadius": "0px",
+            "boxShadow": "none",
+            "opacity": "1"
+          }
+        },
+        {
+          "rect": {
+            "x": 10,
+            "y": 730.8,
+            "w": 748,
+            "h": 105
+          },
+          "text": "RAIO ROXO\nzxnc. & KREZUS &... \nAudio Uses\n160\nChange\n-0.62%\n",
+          "paint": {
+            "color": "rgb(31, 60, 239)",
+            "backgroundColor": "rgb(255, 255, 255)",
+            "fontWeight": "400",
+            "borderRadius": "0px",
+            "boxShadow": "none",
+            "opacity": "1"
+          }
+        },
+        {
+          "rect": {
+            "x": 10,
+            "y": 835.8,
+            "w": 748,
+            "h": 105
+          },
+          "text": "BMW FUNK... \nremembxredphonk\nAudio Uses\n14,022\nChange\n-0.16%",
+          "paint": {
+            "color": "rgb(31, 60, 239)",
+            "backgroundColor": "rgb(255, 255, 255)",
+            "fontWeight": "400",
+            "borderRadius": "0px",
+            "boxShadow": "none",
+            "opacity": "1"
+          }
+        },
+        {
+          "rect": {
+            "x": 10,
+            "y": 940.8,
+            "w": 748,
+            "h": 105
+          },
+          "text": "BMW FUNK\nPxlish Beatz &... \nAudio Uses\n18,860\nChange\n+2.07%\n",
+          "paint": {
+            "color": "rgb(31, 60, 239)",
+            "backgroundColor": "rgb(255, 255, 255)",
+            "fontWeight": "400",
+            "borderRadius": "0px",
+            "boxShadow": "none",
+            "opacity": "1"
+          }
+        },
+        {
+          "rect": {
+            "x": 10,
+            "y": 1045.8,
+            "w": 748,
+            "h": 105
+          },
+          "text": "Do Nada Ao... \nVaporVice &... \nAudio Uses\n156\nChange\n+1.30%\n",
+          "paint": {
+            "color": "rgb(31, 60, 239)",
+            "backgroundColor": "rgb(255, 255, 255)",
+            "fontWeight": "400",
+            "borderRadius": "0px",
+            "boxShadow": "none",
+            "opacity": "1"
+          }
+        },
+        {
+          "rect": {
+            "x": 10,
+            "y": 1150.8,
+            "w": 748,
+            "h": 105
+          },
+          "text": "BadaBada /... \nHoodTrapJerk &... \nAudio Uses\n55\nChange\nNo da",
+          "paint": {
+            "color": "rgb(31, 60, 239)",
+            "backgroundColor": "rgb(255, 255, 255)",
+            "fontWeight": "400",
+            "borderRadius": "0px",
+            "boxShadow": "none",
+            "opacity": "1"
+          }
+        },
+        {
+          "rect": {
+            "x": 10,
+            "y": 1255.8,
+            "w": 748,
+            "h": 105
+          },
+          "text": "BadaBada /... \ncentralvisionz\nAudio Uses\n1\nChange\nNo data ye",
+          "paint": {
+            "color": "rgb(31, 60, 239)",
+            "backgroundColor": "rgb(255, 255, 255)",
+            "fontWeight": "400",
+            "borderRadius": "0px",
+            "boxShadow": "none",
+            "opacity": "1"
+          }
+        },
+        {
+          "rect": {
+            "x": 10,
+            "y": 1360.8,
+            "w": 748,
+            "h": 105
+          },
+          "text": "Stay... \nDJ Muggs &... \nAudio Uses\n56\nChange\nNo data yet.\n\n",
+          "paint": {
+            "color": "rgb(31, 60, 239)",
+            "backgroundColor": "rgb(255, 255, 255)",
+            "fontWeight": "400",
+            "borderRadius": "0px",
+            "boxShadow": "none",
+            "opacity": "1"
+          }
+        },
+        {
+          "rect": {
+            "x": 10,
+            "y": 1465.8,
+            "w": 748,
+            "h": 105
+          },
+          "text": "Stay... \nAudio Uses\n34\nChange\nNo data yet.\n\n24H Added\n0\nCha",
+          "paint": {
+            "color": "rgb(31, 60, 239)",
+            "backgroundColor": "rgb(255, 255, 255)",
+            "fontWeight": "400",
+            "borderRadius": "0px",
+            "boxShadow": "none",
+            "opacity": "1"
+          }
+        },
+        {
+          "rect": {
+            "x": 10,
+            "y": 1570.8,
+            "w": 748,
+            "h": 105
+          },
+          "text": "MONTAGEM... \nLXNGVX & DJ FKU\nAudio Uses\n70,518\nChange\n0.49%\n",
+          "paint": {
+            "color": "rgb(31, 60, 239)",
+            "backgroundColor": "rgb(255, 255, 255)",
+            "fontWeight": "400",
+            "borderRadius": "0px",
+            "boxShadow": "none",
+            "opacity": "1"
+          }
+        },
+        {
+          "rect": {
+            "x": 10,
+            "y": 1675.8,
+            "w": 748,
+            "h": 105
+          },
+          "text": "MONTAGEM... \nLXNGVX, DJ FKU\nAudio Uses\n2,425\nChange\n0.50%\n\n",
+          "paint": {
+            "color": "rgb(31, 60, 239)",
+            "backgroundColor": "rgb(255, 255, 255)",
+            "fontWeight": "400",
+            "borderRadius": "0px",
+            "boxShadow": "none",
+            "opacity": "1"
+          }
+        },
+        {
+          "rect": {
+            "x": 10,
+            "y": 1780.8,
+            "w": 748,
+            "h": 105
+          },
+          "text": "LIKE YOU DO\nNJOMZA\nAudio Uses\n93\nChange\nNo data yet.\n\n24H A",
+          "paint": {
+            "color": "rgb(31, 60, 239)",
+            "backgroundColor": "rgb(255, 255, 255)",
+            "fontWeight": "400",
+            "borderRadius": "0px",
+            "boxShadow": "none",
+            "opacity": "1"
+          }
+        },
+        {
+          "rect": {
+            "x": 10,
+            "y": 1885.8,
+            "w": 748,
+            "h": 105
+          },
+          "text": "LIKE YOU DO\nNJOMZA\nAudio Uses\n29\nChange\nNo data yet.\n\n24H A",
+          "paint": {
+            "color": "rgb(31, 60, 239)",
+            "backgroundColor": "rgb(255, 255, 255)",
+            "fontWeight": "400",
+            "borderRadius": "0px",
+            "boxShadow": "none",
+            "opacity": "1"
+          }
+        }
+      ],
+      "states": {
+        "groupCount": 1,
+        "rest": {
+          "color": "rgb(31, 60, 239)",
+          "backgroundColor": "rgb(255, 255, 255)",
+          "fontWeight": "400",
+          "borderRadius": "0px",
+          "boxShadow": "none",
+          "opacity": "1"
+        },
+        "restCount": 17,
+        "active": null,
+        "activeText": null,
+        "activeCount": 0
+      },
+      "labelInset": 102.5,
+      "rel": null,
+      "origin": null
+    },
+    "campaign.rail": {
+      "id": "campaign.rail",
+      "status": "NOT_APPLICABLE",
+      "shell": "dashboard",
+      "note": "absent below 1024px; viewport is 768px"
+    },
+    "campaign.rail.items": {
+      "id": "campaign.rail.items",
+      "status": "NOT_APPLICABLE",
+      "shell": "dashboard",
+      "note": "absent below 1024px; viewport is 768px"
+    },
+    "settings.nav": {
+      "id": "settings.nav",
+      "status": "NOT_APPLICABLE",
+      "shell": "dashboard",
+      "note": "landmark belongs to shell(s) settings; this surface is \"dashboard\""
+    }
+  },
+  "redaction": {
+    "textNodes": 5,
+    "images": 18
+  },
+  "redactionShifted": [],
+  "redactionAccepted": true,
+  "screenshots": [
+    "trackers-sound.full.png",
+    "trackers-sound.viewport.png"
+  ]
+}

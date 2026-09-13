@@ -1,12 +1,12 @@
 import { test, expect } from '@playwright/test';
+import { openCampaignSection } from './helpers';
 
 async function navigateToFirstPostDetail(page: import('@playwright/test').Page): Promise<string> {
   await page.goto('/campaigns/camp-1');
   await page.waitForLoadState('networkidle');
   await page.getByText('Performance').first().waitFor({ state: 'visible', timeout: 20000 });
 
-  const postsTab = page.getByRole('tab', { name: /^Posts/i }).first();
-  await postsTab.click();
+  await openCampaignSection(page, /^Posts/i);
 
   /* camp-1 is seeded with four posts -- counted against the E2E database, not
      assumed -- so an empty list here is a race with the tab's fetch, never a

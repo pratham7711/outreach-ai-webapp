@@ -86,27 +86,24 @@ describe("CampaignWizard — currency", () => {
 });
 
 /**
- * canNext() only validated step 0, so a fixed-rate campaign with the rate left
- * blank walked to the end and buildTypeConfig()'s `Number("") || 0` shipped
- * ratePerPost: 0 — a campaign that promises every creator nothing per post.
+ * canNext() only validated step 0, so a campaign with its rate left blank
+ * walked to the end and buildTypeConfig()'s `Number("") || 0` shipped a zero —
+ * a campaign that promises every creator nothing.
+ *
+ * Per-view opens the step now: "Fixed rate per post" was removed along with
+ * the rest of the payment surface we do not run.
  */
 describe("CampaignWizard — payout step validation", () => {
-  it("will not advance a fixed-rate campaign with no rate, and says why", () => {
+  it("offers no fixed rate per post, and no base rate on a negotiated campaign", () => {
     openPayoutStep();
-    expect(screen.getByRole("alert")).toHaveTextContent(/rate you pay per approved post/i);
-    expect(screen.getByText("Next").closest("button")).toBeDisabled();
-  });
-
-  it("advances once a rate is entered", () => {
-    openPayoutStep();
-    fireEvent.change(screen.getByLabelText("Rate per Post"), { target: { value: "500" } });
-    expect(screen.queryByRole("alert")).toBeNull();
-    expect(screen.getByText("Next").closest("button")).not.toBeDisabled();
+    expect(screen.queryByText("Fixed rate per post")).toBeNull();
+    expect(screen.queryByLabelText("Rate per Post")).toBeNull();
+    fireEvent.click(screen.getByText("Negotiated"));
+    expect(screen.queryByLabelText("Base Rate (optional)")).toBeNull();
   });
 
   it("holds a per-view campaign until both the rate and the cap are set", () => {
     openPayoutStep();
-    fireEvent.click(screen.getByText("Per 1K views, with a cap"));
     /* Both empty fields name themselves at once. They used to share a single
        message that only ever named the first, so satisfying the field it asked
        about produced a second refusal that looked identical to the one just
@@ -127,18 +124,18 @@ describe("CampaignWizard — payout step validation", () => {
     openPayoutStep();
     fireEvent.click(screen.getByText("Negotiated"));
     expect(screen.queryByRole("alert")).toBeNull();
-    expect(screen.getByText("Next").closest("button")).not.toBeDisabled();
+    expect(screen.getByText("Create Campaign").closest("button")).not.toBeDisabled();
   });
 
-  it("also refuses to submit from the last step while the payout is unset", () => {
+  it("blocks Create Campaign, the last step's button, on the same rule", () => {
     openPayoutStep();
-    fireEvent.change(screen.getByLabelText("Rate per Post"), { target: { value: "500" } });
-    next();
-    fireEvent.click(screen.getByText("Back").closest("button")!);
-    fireEvent.change(screen.getByLabelText("Rate per Post"), { target: { value: "0" } });
-    // Next is blocked, so the submit button is only reachable by going forward
-    // again — which is exactly what the guard on it covers.
-    expect(screen.getByText("Next").closest("button")).toBeDisabled();
+    // Payout is the last step now, so the submit button is on screen while the
+    // per-view rate and cap are still empty. It must be held too.
+    expect(screen.queryByText("Next")).toBeNull();
+    expect(screen.getByText("Create Campaign").closest("button")).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Rate per 1K Views"), { target: { value: "5" } });
+    fireEvent.change(screen.getByLabelText("Cap Amount"), { target: { value: "2000" } });
+    expect(screen.getByText("Create Campaign").closest("button")).not.toBeDisabled();
   });
 });
 
@@ -146,35 +143,34 @@ describe("CampaignWizard — payout step validation", () => {
  * The payout cards were bare <div onClick>. Measured on prod 2026-09-11: role
  * null, tabIndex -1, no aria-checked -- and eighteen Tab presses on the payout
  * step never landed on one, so the model could only be changed with a mouse.
- * The default (fixed) was still reachable, which is why the flow looked fine.
+ * The default was still reachable, which is why the flow looked fine.
  */
 describe("CampaignWizard — payout model is a radio group", () => {
   const group = () => screen.getByRole("radiogroup", { name: "Payout model" });
   const radios = () => within(group()).getAllByRole("radio");
 
-  it("offers the three models as radios, exactly one of them checked", () => {
+  it("offers the two remaining models as radios, exactly one of them checked", () => {
     openPayoutStep();
-    expect(radios()).toHaveLength(3);
+    expect(radios()).toHaveLength(2);
     expect(radios().filter((r) => r.getAttribute("aria-checked") === "true")).toHaveLength(1);
   });
 
   it("keeps one tab stop, on the selected card", () => {
     openPayoutStep();
-    const [first, second, third] = radios();
+    const [first, second] = radios();
     expect(first).toHaveAttribute("aria-checked", "true");
     expect(first).toHaveAttribute("tabindex", "0");
     expect(second).toHaveAttribute("tabindex", "-1");
-    expect(third).toHaveAttribute("tabindex", "-1");
   });
 
   it("selects with the keyboard, which a div onClick could not do", () => {
     openPayoutStep();
-    expect(screen.getByText("Next").closest("button")).toBeDisabled();
-    fireEvent.keyDown(radios()[2], { key: " " });
-    expect(radios()[2]).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByText("Create Campaign").closest("button")).toBeDisabled();
+    fireEvent.keyDown(radios()[1], { key: " " });
+    expect(radios()[1]).toHaveAttribute("aria-checked", "true");
     /* Negotiated agrees its rate per creator, so nothing is left to fill in and
        the step stops blocking -- reached here without a mouse. */
-    expect(screen.getByText("Next").closest("button")).not.toBeDisabled();
+    expect(screen.getByText("Create Campaign").closest("button")).not.toBeDisabled();
   });
 
   it("moves between the options with the arrow keys", () => {
@@ -185,11 +181,12 @@ describe("CampaignWizard — payout model is a radio group", () => {
     expect(radios()[0]).toHaveAttribute("aria-checked", "true");
   });
 
-  it("gives the payment-mode cards the same treatment", () => {
+  /* "Who handles payment?" is gone: payment is always self-managed, so the
+     question offered a service we do not run. */
+  it("does not ask who handles payment", () => {
     openPayoutStep();
-    const pay = screen.getByRole("radiogroup", { name: "Who handles payment?" });
-    const opts = within(pay).getAllByRole("radio");
-    expect(opts).toHaveLength(2);
-    expect(opts.filter((o) => o.getAttribute("aria-checked") === "true")).toHaveLength(1);
+    expect(screen.queryByRole("radiogroup", { name: "Who handles payment?" })).toBeNull();
+    expect(screen.queryByText("Payment Release Trigger")).toBeNull();
+    expect(screen.queryByText(/open enrollment/i)).toBeNull();
   });
 });

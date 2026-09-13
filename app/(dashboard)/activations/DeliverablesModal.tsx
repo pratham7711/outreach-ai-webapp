@@ -139,7 +139,7 @@ export default function DeliverablesModal({
       title="Manage Deliverables"
       size="md"
       footer={
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
+        <div className="cc-modal-footer" data-layout="split" data-align="center" data-gap="0">
           <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>
             {items === null ? "" : `${done} of ${items.length} complete`}
           </span>

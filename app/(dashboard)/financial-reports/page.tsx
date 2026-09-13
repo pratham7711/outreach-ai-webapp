@@ -8,6 +8,7 @@ import { loadCharts } from "@/components/charts/lazyCharts";
 import { downloadCsv } from "@/lib/csv";
 import { campaignStatusCss, STATUS_PILL_RADIUS } from "@/lib/statusColors";
 import { toast } from "sonner";
+import { action } from "@/lib/ui/actions";
 
 const PayoutTrendChart = dynamic(() => loadCharts().then((m) => m.PayoutTrendChart), {
   ssr: false,
@@ -230,7 +231,7 @@ export default function FinancialReportsPage() {
                 <Table size={14} style={{ marginRight: 6 }} />
                 {exportingXlsx ? "Generating..." : "Export Excel"}
               </Button>
-              <Button variant="secondary" size="sm" onClick={() => exportCSV(data)}>
+              <Button variant="secondary" size="sm" onClick={() => exportCSV(data)} {...action("export-csv")}>
                 <Download size={14} style={{ marginRight: 6 }} />
                 Export CSV
               </Button>

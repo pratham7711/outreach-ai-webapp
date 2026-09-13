@@ -103,7 +103,9 @@ async function startBatchViaApi(adminToken: string, campaignId: string, creatorI
 }
 
 async function clickCreatorsTab(page: import('@playwright/test').Page) {
-  const creatorsTab = page.locator('button').filter({ hasText: /Creators/ }).first();
+  // Creators is a link in the campaign rail now, not a tab button in the page.
+  const creatorsTab = page.getByRole('navigation', { name: /campaign navigation/i })
+    .getByRole('link', { name: /^Creators/ }).first();
   await expect(creatorsTab).toBeVisible({ timeout: 15000 });
   await creatorsTab.click();
 }

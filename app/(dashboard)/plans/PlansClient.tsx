@@ -6,6 +6,7 @@ import { Card, Modal, Input, Textarea, EmptyState, Badge } from "@pratham7711/ui
 import { FEATURES, type FeatureKey } from "@/lib/features";
 import { PageHeader, useConfirm, Button } from "@/components/ds";
 import { toast } from "sonner";
+import { action } from "@/lib/ui/actions";
 
 type Plan = {
   id: string;
@@ -96,7 +97,7 @@ function PlanModal({
       title={title}
       size="lg"
       footer={
-        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+        <div className="cc-modal-footer">
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
           <Button
             variant="primary"
@@ -244,7 +245,7 @@ export default function PlansClient({ plans: initialPlans }: { plans: Plan[] }) 
         title="Plans & Feature Access"
         subtitle="Manage subscription plans and feature access for clients"
         actions={
-          <Button variant="primary" iconLeft={<Plus size={15} />} onClick={() => setShowCreate(true)}>
+          <Button variant="primary" iconLeft={<Plus size={15} />} onClick={() => setShowCreate(true)} {...action("new-plan")}>
             New Plan
           </Button>
         }

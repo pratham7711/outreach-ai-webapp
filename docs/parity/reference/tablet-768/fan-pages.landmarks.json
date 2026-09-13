@@ -1,0 +1,98 @@
+{
+  "surface": "fan-pages",
+  "viewport": "tablet-768",
+  "group": "nav",
+  "path": "/dashboard?tab=FanPages",
+  "readyBy": "content",
+  "settleMs": 1992,
+  "health": {
+    "shell": "dashboard",
+    "total": 10,
+    "applicable": 4,
+    "notApplicable": 6,
+    "missingOurs": 0,
+    "resolved": 0,
+    "resolutionRate": 0,
+    "viewport": {
+      "w": 768,
+      "h": 1024
+    },
+    "docHeight": 1024
+  },
+  "landmarks": {
+    "shell.rail": {
+      "id": "shell.rail",
+      "status": "NOT_APPLICABLE",
+      "shell": "dashboard",
+      "note": "absent below 1024px; viewport is 768px"
+    },
+    "shell.rail.group-first": {
+      "id": "shell.rail.group-first",
+      "status": "NOT_APPLICABLE",
+      "shell": "dashboard",
+      "note": "absent below 1024px; viewport is 768px"
+    },
+    "shell.rail.items": {
+      "id": "shell.rail.items",
+      "status": "NOT_APPLICABLE",
+      "shell": "dashboard",
+      "note": "absent below 1024px; viewport is 768px"
+    },
+    "page.title": {
+      "id": "page.title",
+      "status": "UNRESOLVED",
+      "error": null,
+      "resolvedBy": "geometry",
+      "candidateCount": 0
+    },
+    "page.header-strip": {
+      "id": "page.header-strip",
+      "status": "UNRESOLVED",
+      "error": null,
+      "resolvedBy": "ancestorOf",
+      "candidateCount": 0
+    },
+    "page.primary-action": {
+      "id": "page.primary-action",
+      "status": "UNRESOLVED",
+      "error": null,
+      "resolvedBy": "paintedAncestor",
+      "candidateCount": 0
+    },
+    "list.rows": {
+      "id": "list.rows",
+      "status": "UNRESOLVED",
+      "error": null,
+      "resolvedBy": "series",
+      "candidateCount": 0
+    },
+    "campaign.rail": {
+      "id": "campaign.rail",
+      "status": "NOT_APPLICABLE",
+      "shell": "dashboard",
+      "note": "absent below 1024px; viewport is 768px"
+    },
+    "campaign.rail.items": {
+      "id": "campaign.rail.items",
+      "status": "NOT_APPLICABLE",
+      "shell": "dashboard",
+      "note": "absent below 1024px; viewport is 768px"
+    },
+    "settings.nav": {
+      "id": "settings.nav",
+      "status": "NOT_APPLICABLE",
+      "shell": "dashboard",
+      "note": "landmark belongs to shell(s) settings; this surface is \"dashboard\""
+    }
+  },
+  "redaction": {
+    "textNodes": 5,
+    "images": 1
+  },
+  "redactionShifted": [],
+  "redactionAccepted": true,
+  "screenshots": [
+    "fan-pages.full.png",
+    "fan-pages.viewport.png"
+  ]
+}

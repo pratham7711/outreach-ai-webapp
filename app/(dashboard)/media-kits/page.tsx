@@ -6,6 +6,7 @@ import { Plus, Lock, AlertTriangle, Folder } from "lucide-react";
 import { Modal, Input, EmptyState, Card, Badge, LoadingSpinner } from "@pratham7711/ui";
 import { formatDateAbs } from "@/lib/format";
 import { PageHeader, useConfirm, Button } from "@/components/ds";
+import { action } from "@/lib/ui/actions";
 
 interface MediaKit {
   id: string;
@@ -149,7 +150,7 @@ export default function MediaKitsPage() {
         title="Media Kits"
         subtitle="Build and share creator media kits"
         actions={
-          <Button variant="primary" iconLeft={<Plus size={15} />} onClick={() => setOpen(true)}>
+          <Button variant="primary" iconLeft={<Plus size={15} />} onClick={() => setOpen(true)} {...action("new-media-kit")}>
             New Media Kit
           </Button>
         }
@@ -280,7 +281,7 @@ export default function MediaKitsPage() {
         title="Create Media Kit"
         size="md"
         footer={
-          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <div className="cc-modal-footer">
             <Button variant="secondary" onClick={() => setOpen(false)}>Cancel</Button>
             <Button
               variant="primary"

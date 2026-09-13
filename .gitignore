@@ -79,3 +79,20 @@ docs/CREATORCORE_UI_INVENTORY.md
 
 # local prod-maintenance probes and one-off scripts (never shipped)
 scratchpad/
+
+# Parity harness output.
+#
+# docs/parity/reference/**.json is the ONE thing here that cannot be
+# regenerated without logging into someone else's product, so it is committed:
+# 2.8MB of measured spec, and the reason no further CreatorCore login is needed.
+# The viewport screenshots go with it as the visual record.
+#
+# Everything else is derived from a local run and would only bloat the repo:
+#   *.full.png       29MB of full-page shots; the viewport crop is the useful one
+#   docs/parity/ours 33MB, re-made by capture-ours.mjs in 40 seconds
+#   review/          8MB of composites, re-made by review.mjs
+#   structure/ critique/  per-run findings; the .md is the artefact, not the run
+docs/parity/**/*.full.png
+docs/parity/ours/
+docs/parity/review/
+docs/parity/history.jsonl

@@ -4,7 +4,7 @@ import React from "react";
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Card, Badge, Skeleton, Tag, EmptyState } from "@pratham7711/ui";
-import { PAGE_TITLE_STYLE, Button } from "@/components/ds";
+import { Button } from "@/components/ds";
 import { ArrowLeft, ExternalLink, RefreshCw, Eye, Heart, MessageCircle, Share2, Download, Bookmark, TrendingUp, Flag, Lock, Activity, ShieldAlert, Shield, Play, Users } from "lucide-react";
 import dynamic from "next/dynamic";
 import { computeEngagementRate } from "@/lib/metrics";
@@ -468,7 +468,7 @@ export default function PostDetailPage() {
           )}
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4, flexWrap: "wrap" }}>
-              <h1 style={{ ...PAGE_TITLE_STYLE, margin: 0, minWidth: 0, overflowWrap: "anywhere" }}>
+              <h1 className="cc-page-title" data-mb="0" data-wrap="anywhere">
                 {post.caption?.slice(0, 80) ?? "Untitled Post"}
               </h1>
               <Badge variant={STATUS_BADGE[post.status] ?? "neutral"}>{post.status.replace(/_/g, " ")}</Badge>

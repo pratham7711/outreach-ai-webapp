@@ -1,0 +1,760 @@
+{
+  "surface": "recipients",
+  "viewport": "tablet-768",
+  "group": "nav",
+  "path": "/dashboard?tab=Recipients",
+  "readyBy": "content",
+  "settleMs": 2988,
+  "health": {
+    "shell": "dashboard",
+    "total": 10,
+    "applicable": 4,
+    "notApplicable": 6,
+    "missingOurs": 0,
+    "resolved": 4,
+    "resolutionRate": 1,
+    "viewport": {
+      "w": 768,
+      "h": 1024
+    },
+    "docHeight": 1024
+  },
+  "landmarks": {
+    "shell.rail": {
+      "id": "shell.rail",
+      "status": "NOT_APPLICABLE",
+      "shell": "dashboard",
+      "note": "absent below 1024px; viewport is 768px"
+    },
+    "shell.rail.group-first": {
+      "id": "shell.rail.group-first",
+      "status": "NOT_APPLICABLE",
+      "shell": "dashboard",
+      "note": "absent below 1024px; viewport is 768px"
+    },
+    "shell.rail.items": {
+      "id": "shell.rail.items",
+      "status": "NOT_APPLICABLE",
+      "shell": "dashboard",
+      "note": "absent below 1024px; viewport is 768px"
+    },
+    "page.title": {
+      "id": "page.title",
+      "status": "OK",
+      "error": null,
+      "resolvedBy": "geometry",
+      "candidateCount": 1,
+      "rect": {
+        "x": 31,
+        "y": 43.5,
+        "w": 125.9,
+        "h": 30
+      },
+      "style": {
+        "width": "125.891px",
+        "height": "30px",
+        "minWidth": "auto",
+        "maxWidth": "none",
+        "minHeight": "auto",
+        "maxHeight": "none",
+        "padding": "0px",
+        "paddingTop": "0px",
+        "paddingRight": "0px",
+        "paddingBottom": "0px",
+        "paddingLeft": "0px",
+        "margin": "0px",
+        "marginTop": "0px",
+        "marginRight": "0px",
+        "marginBottom": "0px",
+        "marginLeft": "0px",
+        "boxSizing": "border-box",
+        "overflow": "visible",
+        "overflowX": "visible",
+        "overflowY": "visible",
+        "display": "block",
+        "flexDirection": "row",
+        "flexWrap": "nowrap",
+        "alignItems": "normal",
+        "justifyContent": "normal",
+        "gap": "normal",
+        "rowGap": "normal",
+        "columnGap": "normal",
+        "gridTemplateColumns": "none",
+        "gridTemplateRows": "none",
+        "gridAutoFlow": "row",
+        "gridTemplateAreas": "none",
+        "flexGrow": "0",
+        "flexShrink": "1",
+        "flexBasis": "auto",
+        "alignSelf": "auto",
+        "justifySelf": "auto",
+        "order": "0",
+        "gridArea": "auto",
+        "position": "static",
+        "top": "auto",
+        "right": "auto",
+        "bottom": "auto",
+        "left": "auto",
+        "fontSize": "24px",
+        "fontWeight": "700",
+        "lineHeight": "30px",
+        "letterSpacing": "normal",
+        "textTransform": "none",
+        "textAlign": "start",
+        "whiteSpace": "pre-wrap",
+        "textOverflow": "clip",
+        "fontStyle": "normal",
+        "color": "rgb(31, 60, 239)",
+        "backgroundColor": "rgba(0, 0, 0, 0)",
+        "backgroundImage": "none",
+        "borderRadius": "0px",
+        "borderTopWidth": "0px",
+        "borderRightWidth": "0px",
+        "borderBottomWidth": "0px",
+        "borderLeftWidth": "0px",
+        "borderTopColor": "rgb(31, 60, 239)",
+        "borderBottomColor": "rgb(31, 60, 239)",
+        "boxShadow": "none",
+        "opacity": "1",
+        "zIndex": "auto",
+        "visibility": "visible",
+        "transform": "none"
+      },
+      "hit": "occluded",
+      "text": "Recipients",
+      "truncated": false,
+      "dividerCount": 0,
+      "rel": null,
+      "origin": null
+    },
+    "page.header-strip": {
+      "id": "page.header-strip",
+      "status": "OK",
+      "error": null,
+      "resolvedBy": "ancestorOf",
+      "candidateCount": 1,
+      "rect": {
+        "x": 31,
+        "y": 36,
+        "w": 706,
+        "h": 45
+      },
+      "style": {
+        "width": "706px",
+        "height": "45px",
+        "minWidth": "0px",
+        "maxWidth": "none",
+        "minHeight": "0px",
+        "maxHeight": "none",
+        "padding": "0px",
+        "paddingTop": "0px",
+        "paddingRight": "0px",
+        "paddingBottom": "0px",
+        "paddingLeft": "0px",
+        "margin": "0px",
+        "marginTop": "0px",
+        "marginRight": "0px",
+        "marginBottom": "0px",
+        "marginLeft": "0px",
+        "boxSizing": "border-box",
+        "overflow": "visible",
+        "overflowX": "visible",
+        "overflowY": "visible",
+        "display": "flex",
+        "flexDirection": "row",
+        "flexWrap": "wrap",
+        "alignItems": "normal",
+        "justifyContent": "space-between",
+        "gap": "normal",
+        "rowGap": "normal",
+        "columnGap": "normal",
+        "gridTemplateColumns": "none",
+        "gridTemplateRows": "none",
+        "gridAutoFlow": "row",
+        "gridTemplateAreas": "none",
+        "flexGrow": "0",
+        "flexShrink": "0",
+        "flexBasis": "auto",
+        "alignSelf": "flex-start",
+        "justifySelf": "auto",
+        "order": "2",
+        "gridArea": "auto",
+        "position": "relative",
+        "top": "0px",
+        "right": "0px",
+        "bottom": "0px",
+        "left": "0px",
+        "fontSize": "16px",
+        "fontWeight": "400",
+        "lineHeight": "16px",
+        "letterSpacing": "normal",
+        "textTransform": "none",
+        "textAlign": "start",
+        "whiteSpace": "normal",
+        "textOverflow": "clip",
+        "fontStyle": "normal",
+        "color": "rgb(0, 0, 0)",
+        "backgroundColor": "rgba(0, 0, 0, 0)",
+        "backgroundImage": "none",
+        "borderRadius": "0px",
+        "borderTopWidth": "0px",
+        "borderRightWidth": "0px",
+        "borderBottomWidth": "0px",
+        "borderLeftWidth": "0px",
+        "borderTopColor": "rgb(0, 0, 0)",
+        "borderBottomColor": "rgb(0, 0, 0)",
+        "boxShadow": "none",
+        "opacity": "1",
+        "zIndex": "4",
+        "visibility": "visible",
+        "transform": "none"
+      },
+      "hit": "occluded",
+      "text": "Recipients\nNew Recipient",
+      "truncated": false,
+      "dividerCount": 0,
+      "rel": null,
+      "origin": null
+    },
+    "page.primary-action": {
+      "id": "page.primary-action",
+      "status": "OK",
+      "error": null,
+      "resolvedBy": "paintedAncestor",
+      "candidateCount": 1,
+      "rect": {
+        "x": 557,
+        "y": 38.5,
+        "w": 180,
+        "h": 40
+      },
+      "style": {
+        "width": "180px",
+        "height": "40px",
+        "minWidth": "180px",
+        "maxWidth": "180px",
+        "minHeight": "40px",
+        "maxHeight": "40px",
+        "padding": "0px",
+        "paddingTop": "0px",
+        "paddingRight": "0px",
+        "paddingBottom": "0px",
+        "paddingLeft": "0px",
+        "margin": "0px",
+        "marginTop": "0px",
+        "marginRight": "0px",
+        "marginBottom": "0px",
+        "marginLeft": "0px",
+        "boxSizing": "border-box",
+        "overflow": "visible",
+        "overflowX": "visible",
+        "overflowY": "visible",
+        "display": "flex",
+        "flexDirection": "row",
+        "flexWrap": "nowrap",
+        "alignItems": "center",
+        "justifyContent": "center",
+        "gap": "8px",
+        "rowGap": "8px",
+        "columnGap": "8px",
+        "gridTemplateColumns": "none",
+        "gridTemplateRows": "none",
+        "gridAutoFlow": "row",
+        "gridTemplateAreas": "none",
+        "flexGrow": "1",
+        "flexShrink": "1",
+        "flexBasis": "auto",
+        "alignSelf": "center",
+        "justifySelf": "auto",
+        "order": "3",
+        "gridArea": "auto",
+        "position": "relative",
+        "top": "0px",
+        "right": "0px",
+        "bottom": "0px",
+        "left": "0px",
+        "fontSize": "18px",
+        "fontWeight": "400",
+        "lineHeight": "18px",
+        "letterSpacing": "normal",
+        "textTransform": "none",
+        "textAlign": "center",
+        "whiteSpace": "normal",
+        "textOverflow": "clip",
+        "fontStyle": "normal",
+        "color": "rgb(255, 255, 255)",
+        "backgroundColor": "rgb(31, 60, 239)",
+        "backgroundImage": "none",
+        "borderRadius": "10px",
+        "borderTopWidth": "0px",
+        "borderRightWidth": "0px",
+        "borderBottomWidth": "0px",
+        "borderLeftWidth": "0px",
+        "borderTopColor": "rgb(255, 255, 255)",
+        "borderBottomColor": "rgb(255, 255, 255)",
+        "boxShadow": "none",
+        "opacity": "1",
+        "zIndex": "3",
+        "visibility": "visible",
+        "transform": "none"
+      },
+      "hit": "occluded",
+      "text": "New Recipient",
+      "truncated": false,
+      "dividerCount": 0,
+      "rel": {
+        "dx": 526,
+        "dy": -5
+      },
+      "origin": "page.title"
+    },
+    "list.rows": {
+      "id": "list.rows",
+      "status": "OK",
+      "error": null,
+      "resolvedBy": "series",
+      "candidateCount": 17,
+      "rect": {
+        "x": 10,
+        "y": 274.8,
+        "w": 748,
+        "h": 90
+      },
+      "style": {
+        "width": "748px",
+        "height": "90px",
+        "minWidth": "auto",
+        "maxWidth": "none",
+        "minHeight": "75px",
+        "maxHeight": "none",
+        "padding": "0px",
+        "paddingTop": "0px",
+        "paddingRight": "0px",
+        "paddingBottom": "0px",
+        "paddingLeft": "0px",
+        "margin": "0px",
+        "marginTop": "0px",
+        "marginRight": "0px",
+        "marginBottom": "0px",
+        "marginLeft": "0px",
+        "boxSizing": "content-box",
+        "overflow": "visible",
+        "overflowX": "visible",
+        "overflowY": "visible",
+        "display": "flex",
+        "flexDirection": "row",
+        "flexWrap": "wrap",
+        "alignItems": "normal",
+        "justifyContent": "center",
+        "gap": "normal",
+        "rowGap": "normal",
+        "columnGap": "normal",
+        "gridTemplateColumns": "none",
+        "gridTemplateRows": "none",
+        "gridAutoFlow": "row",
+        "gridTemplateAreas": "none",
+        "flexGrow": "0",
+        "flexShrink": "1",
+        "flexBasis": "auto",
+        "alignSelf": "auto",
+        "justifySelf": "auto",
+        "order": "0",
+        "gridArea": "auto",
+        "position": "relative",
+        "top": "0px",
+        "right": "0px",
+        "bottom": "0px",
+        "left": "0px",
+        "fontSize": "16px",
+        "fontWeight": "400",
+        "lineHeight": "16px",
+        "letterSpacing": "normal",
+        "textTransform": "none",
+        "textAlign": "start",
+        "whiteSpace": "normal",
+        "textOverflow": "clip",
+        "fontStyle": "normal",
+        "color": "rgb(0, 0, 0)",
+        "backgroundColor": "rgba(0, 0, 0, 0)",
+        "backgroundImage": "none",
+        "borderRadius": "0px",
+        "borderTopWidth": "0px",
+        "borderRightWidth": "0px",
+        "borderBottomWidth": "0px",
+        "borderLeftWidth": "0px",
+        "borderTopColor": "rgb(0, 0, 0)",
+        "borderBottomColor": "rgb(0, 0, 0)",
+        "boxShadow": "none",
+        "opacity": "1",
+        "zIndex": "auto",
+        "visibility": "visible",
+        "transform": "none"
+      },
+      "hit": "occluded",
+      "text": "ART\n@art7cr\nActive\nPay",
+      "truncated": false,
+      "dividerCount": 0,
+      "derived": {
+        "count": 17,
+        "pitch": 90,
+        "pitchAll": [
+          90,
+          90,
+          90,
+          90,
+          90,
+          90,
+          90,
+          90,
+          90,
+          90,
+          90,
+          90,
+          90,
+          90,
+          90,
+          90
+        ],
+        "gapEffective": 0,
+        "rowHeight": 90
+      },
+      "items": [
+        {
+          "rect": {
+            "x": 10,
+            "y": 274.8,
+            "w": 748,
+            "h": 90
+          },
+          "text": "ART\n@art7cr\nActive\nPay",
+          "paint": {
+            "color": "rgb(255, 255, 255)",
+            "backgroundColor": "rgb(255, 255, 255)",
+            "fontWeight": "600",
+            "borderRadius": "0px",
+            "boxShadow": "none",
+            "opacity": "1"
+          }
+        },
+        {
+          "rect": {
+            "x": 10,
+            "y": 364.8,
+            "w": 748,
+            "h": 90
+          },
+          "text": "melike\n@greys.void\nActive\nPay",
+          "paint": {
+            "color": "rgb(255, 255, 255)",
+            "backgroundColor": "rgb(255, 255, 255)",
+            "fontWeight": "600",
+            "borderRadius": "0px",
+            "boxShadow": "none",
+            "opacity": "1"
+          }
+        },
+        {
+          "rect": {
+            "x": 10,
+            "y": 454.8,
+            "w": 748,
+            "h": 90
+          },
+          "text": "絶望\n@kidzuna._\nActive\nPay",
+          "paint": {
+            "color": "rgb(255, 255, 255)",
+            "backgroundColor": "rgb(255, 255, 255)",
+            "fontWeight": "600",
+            "borderRadius": "0px",
+            "boxShadow": "none",
+            "opacity": "1"
+          }
+        },
+        {
+          "rect": {
+            "x": 10,
+            "y": 544.8,
+            "w": 748,
+            "h": 90
+          },
+          "text": "'Kazuma'\n@kazumadisini\nActive\nPay",
+          "paint": {
+            "color": "rgb(255, 255, 255)",
+            "backgroundColor": "rgb(255, 255, 255)",
+            "fontWeight": "600",
+            "borderRadius": "0px",
+            "boxShadow": "none",
+            "opacity": "1"
+          }
+        },
+        {
+          "rect": {
+            "x": 10,
+            "y": 634.8,
+            "w": 748,
+            "h": 90
+          },
+          "text": "𝑣𝑞𝑥\n@vqxeditss\nActive\nPay",
+          "paint": {
+            "color": "rgb(255, 255, 255)",
+            "backgroundColor": "rgb(255, 255, 255)",
+            "fontWeight": "600",
+            "borderRadius": "0px",
+            "boxShadow": "none",
+            "opacity": "1"
+          }
+        },
+        {
+          "rect": {
+            "x": 10,
+            "y": 724.8,
+            "w": 748,
+            "h": 90
+          },
+          "text": "koleeditss\n@koleedits\nActive\nPay",
+          "paint": {
+            "color": "rgb(255, 255, 255)",
+            "backgroundColor": "rgb(255, 255, 255)",
+            "fontWeight": "600",
+            "borderRadius": "0px",
+            "boxShadow": "none",
+            "opacity": "1"
+          }
+        },
+        {
+          "rect": {
+            "x": 10,
+            "y": 814.8,
+            "w": 748,
+            "h": 90
+          },
+          "text": "WILLGOOD.\n@00.23.0h\nActive\nPay",
+          "paint": {
+            "color": "rgb(255, 255, 255)",
+            "backgroundColor": "rgb(255, 255, 255)",
+            "fontWeight": "600",
+            "borderRadius": "0px",
+            "boxShadow": "none",
+            "opacity": "1"
+          }
+        },
+        {
+          "rect": {
+            "x": 10,
+            "y": 904.8,
+            "w": 748,
+            "h": 90
+          },
+          "text": "𝘙𝘢𝘪𝘢𝘯𝘦 🦇\n@onxlyrainexs\nActive\nPay",
+          "paint": {
+            "color": "rgb(255, 255, 255)",
+            "backgroundColor": "rgb(255, 255, 255)",
+            "fontWeight": "600",
+            "borderRadius": "0px",
+            "boxShadow": "none",
+            "opacity": "1"
+          }
+        },
+        {
+          "rect": {
+            "x": 10,
+            "y": 994.8,
+            "w": 748,
+            "h": 90
+          },
+          "text": "Sanemi\n@sanemi_origs\nActive\nPay",
+          "paint": {
+            "color": "rgb(255, 255, 255)",
+            "backgroundColor": "rgb(255, 255, 255)",
+            "fontWeight": "600",
+            "borderRadius": "0px",
+            "boxShadow": "none",
+            "opacity": "1"
+          }
+        },
+        {
+          "rect": {
+            "x": 10,
+            "y": 1084.8,
+            "w": 748,
+            "h": 90
+          },
+          "text": "i'м viηi\n@wolfedtzs\nActive\nPay",
+          "paint": {
+            "color": "rgb(255, 255, 255)",
+            "backgroundColor": "rgb(255, 255, 255)",
+            "fontWeight": "600",
+            "borderRadius": "0px",
+            "boxShadow": "none",
+            "opacity": "1"
+          }
+        },
+        {
+          "rect": {
+            "x": 10,
+            "y": 1174.8,
+            "w": 748,
+            "h": 90
+          },
+          "text": "𝙎𝙚𝙣𝙨𝙚\n@sense.vfx\nActive\nPay",
+          "paint": {
+            "color": "rgb(255, 255, 255)",
+            "backgroundColor": "rgb(255, 255, 255)",
+            "fontWeight": "600",
+            "borderRadius": "0px",
+            "boxShadow": "none",
+            "opacity": "1"
+          }
+        },
+        {
+          "rect": {
+            "x": 10,
+            "y": 1264.8,
+            "w": 748,
+            "h": 90
+          },
+          "text": "Choi\n@onxlychoi\nActive\nPay",
+          "paint": {
+            "color": "rgb(255, 255, 255)",
+            "backgroundColor": "rgb(255, 255, 255)",
+            "fontWeight": "600",
+            "borderRadius": "0px",
+            "boxShadow": "none",
+            "opacity": "1"
+          }
+        },
+        {
+          "rect": {
+            "x": 10,
+            "y": 1354.8,
+            "w": 748,
+            "h": 90
+          },
+          "text": "@henriq.editss\nActive\nPay",
+          "paint": {
+            "color": "rgb(255, 255, 255)",
+            "backgroundColor": "rgb(255, 255, 255)",
+            "fontWeight": "600",
+            "borderRadius": "0px",
+            "boxShadow": "none",
+            "opacity": "1"
+          }
+        },
+        {
+          "rect": {
+            "x": 10,
+            "y": 1444.8,
+            "w": 748,
+            "h": 90
+          },
+          "text": "Z ᴀ ɴ... \n@zans.08\nActive\nPay",
+          "paint": {
+            "color": "rgb(255, 255, 255)",
+            "backgroundColor": "rgb(255, 255, 255)",
+            "fontWeight": "600",
+            "borderRadius": "0px",
+            "boxShadow": "none",
+            "opacity": "1"
+          }
+        },
+        {
+          "rect": {
+            "x": 10,
+            "y": 1534.8,
+            "w": 748,
+            "h": 90
+          },
+          "text": "Khalyl2t6\n@khalyl2t6\nActive\nPay",
+          "paint": {
+            "color": "rgb(255, 255, 255)",
+            "backgroundColor": "rgb(255, 255, 255)",
+            "fontWeight": "600",
+            "borderRadius": "0px",
+            "boxShadow": "none",
+            "opacity": "1"
+          }
+        },
+        {
+          "rect": {
+            "x": 10,
+            "y": 1624.8,
+            "w": 748,
+            "h": 90
+          },
+          "text": "Vlakake\n@vlakake_ae\nActive\nPay",
+          "paint": {
+            "color": "rgb(255, 255, 255)",
+            "backgroundColor": "rgb(255, 255, 255)",
+            "fontWeight": "600",
+            "borderRadius": "0px",
+            "boxShadow": "none",
+            "opacity": "1"
+          }
+        },
+        {
+          "rect": {
+            "x": 10,
+            "y": 1714.8,
+            "w": 748,
+            "h": 90
+          },
+          "text": "@ousmane.ftbl\nActive\nPay",
+          "paint": {
+            "color": "rgb(255, 255, 255)",
+            "backgroundColor": "rgb(255, 255, 255)",
+            "fontWeight": "600",
+            "borderRadius": "0px",
+            "boxShadow": "none",
+            "opacity": "1"
+          }
+        }
+      ],
+      "states": {
+        "groupCount": 1,
+        "rest": {
+          "color": "rgb(255, 255, 255)",
+          "backgroundColor": "rgb(255, 255, 255)",
+          "fontWeight": "600",
+          "borderRadius": "0px",
+          "boxShadow": "none",
+          "opacity": "1"
+        },
+        "restCount": 17,
+        "active": null,
+        "activeText": null,
+        "activeCount": 0
+      },
+      "labelInset": 95.5,
+      "rel": null,
+      "origin": null
+    },
+    "campaign.rail": {
+      "id": "campaign.rail",
+      "status": "NOT_APPLICABLE",
+      "shell": "dashboard",
+      "note": "absent below 1024px; viewport is 768px"
+    },
+    "campaign.rail.items": {
+      "id": "campaign.rail.items",
+      "status": "NOT_APPLICABLE",
+      "shell": "dashboard",
+      "note": "absent below 1024px; viewport is 768px"
+    },
+    "settings.nav": {
+      "id": "settings.nav",
+      "status": "NOT_APPLICABLE",
+      "shell": "dashboard",
+      "note": "landmark belongs to shell(s) settings; this surface is \"dashboard\""
+    }
+  },
+  "redaction": {
+    "textNodes": 22,
+    "images": 35
+  },
+  "redactionShifted": [],
+  "redactionAccepted": true,
+  "screenshots": [
+    "recipients.full.png",
+    "recipients.viewport.png"
+  ]
+}

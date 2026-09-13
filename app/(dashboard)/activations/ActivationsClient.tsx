@@ -20,6 +20,7 @@ import {
 } from "@/lib/activationQueues";
 import { Dropdown } from "@/components/ds";
 import DeliverablesModal from "./DeliverablesModal";
+import { action } from "@/lib/ui/actions";
 
 type StatusDef = { id: string; name: string; bucket: string };
 
@@ -301,7 +302,7 @@ export default function ActivationsClient({ activations, stats, statusDefs }: {
       <PageHeader
         title="Activations"
         subtitle="Track creator deliverables and posts"
-        actions={<Button variant="primary" iconLeft={<Plus size={15} />} onClick={() => setShowCreate(true)}>Add Activation</Button>}
+        actions={<Button variant="primary" iconLeft={<Plus size={15} />} onClick={() => setShowCreate(true)} {...action("add-activation")}>Add Activation</Button>}
       />
 
       {/* Seven counters, every one of them 0, stacked above "No activations
@@ -398,7 +399,7 @@ export default function ActivationsClient({ activations, stats, statusDefs }: {
       {showCreate && (
         <Modal open onClose={() => setShowCreate(false)} title="Add Activation" size="md"
           footer={
-            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+            <div className="cc-modal-footer">
               <Button variant="secondary" onClick={() => setShowCreate(false)}>Cancel</Button>
               <Button variant="primary" loading={creating} onClick={handleCreate}>Create</Button>
             </div>

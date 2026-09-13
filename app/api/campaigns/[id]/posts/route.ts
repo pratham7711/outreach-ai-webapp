@@ -36,11 +36,6 @@ const createPostSchema = z.object({
   creatorId: z.string().min(1).optional(),
   mediaType: z.enum(MEDIA_TYPES).optional(),
   activationId: z.string().nullable().optional(),
-  /* The operator's answer to "this post is already in another campaign".
-     Defaulting to false is the point: a client that has not been told about the
-     duplicate cannot accidentally consent to it, so every override is a
-     deliberate one and is recorded as such in the audit trail. */
-  allowDuplicate: z.boolean().optional(),
 });
 
 // GET /api/campaigns/[id]/posts
@@ -133,7 +128,7 @@ export async function POST(
       return NextResponse.json({ error: "Invalid input", details: parsed.error.flatten() }, { status: 400 });
     }
 
-    const { postUrl, mediaType, activationId, allowDuplicate } = parsed.data;
+    const { postUrl, mediaType, activationId } = parsed.data;
 
     /* The same link twice is a second Post row, and every metric it carries is
        then counted twice in the campaign's totals. Adding posts one at a time
@@ -148,32 +143,23 @@ export async function POST(
     const existing = await findExistingPosts(orgId, postUrl);
     const sameCampaign = existing.find((e) => e.campaignId === campaignId);
     if (sameCampaign) {
-      /* Not overridable, unlike the cross-campaign case below. Two rows for one
-         post inside one campaign double-count that campaign's own views, which
-         is never what anyone means by "add it anyway". */
+      /* The one duplicate that is still refused. Two rows for one post inside
+         one campaign double-count that campaign's own views; the same post in
+         a second campaign does not, and is allowed straight through below. */
       return NextResponse.json(
         { error: "duplicate_post", message: "Already in this campaign." },
         { status: 409 }
       );
     }
-    /* A post legitimately appears in two campaigns -- the same creator video
-       can be delivered against two briefs -- so this is a question, not a rule.
-       It is refused once with the campaigns named, and goes through on the
-       operator's explicit say-so. */
-    if (existing.length > 0 && !allowDuplicate) {
-      const names = existing.map((e) => e.campaignName);
-      return NextResponse.json(
-        {
-          error: "duplicate_post_other_campaign",
-          message:
-            names.length === 1
-              ? `Already tracked in ${names[0]}. Add anyway to count it here too.`
-              : `Already tracked in ${names.length} other campaigns. Add anyway to count it here too.`,
-          campaigns: existing.map((e) => ({ id: e.campaignId, name: e.campaignName })),
-        },
-        { status: 409 }
-      );
-    }
+    /* A post in a second campaign is allowed outright. The same creator video
+       is routinely delivered against two briefs, and each campaign counts its
+       own views -- nothing is double-counted within a campaign, which is the
+       only total the refusal above protects. It used to 409 here and ask for a
+       tick-box override; that was friction in front of the normal case. The
+       campaigns it already belongs to are still recorded on the audit line
+       below, so "where else does this post count" stays answerable.
+
+       Only the same campaign twice is refused. */
 
     const detected = detectPlatform(postUrl);
 
@@ -286,8 +272,8 @@ export async function POST(
       // the post, so without this the event is only reachable org-wide.
       /* The duplicate is recorded rather than stored on the row: the same post
          in two campaigns is derivable at any time from platformPostId, so what
-         is worth keeping is that somebody was warned and said yes, and which
-         campaigns they were warned about. */
+         is worth keeping is which campaigns already held it at the moment this
+         one was added. */
       metadata: {
         campaignId,
         creatorId,

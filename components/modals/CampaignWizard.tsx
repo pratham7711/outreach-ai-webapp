@@ -2,25 +2,35 @@
 
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { Modal, Input, Badge } from "@pratham7711/ui";
-import { ChevronLeft, ChevronRight, Check } from "lucide-react";
+import { Modal, Input } from "@pratham7711/ui";
+import { ChevronLeft, ChevronRight, Check, Download, Music2 } from "lucide-react";
 import { Dropdown, Button } from "@/components/ds";
 import { SOUND_URL_ERRORS, parseSoundUrl } from "@/lib/trackers/soundUrl";
 
 type Client = { id: string; name: string };
 
 type TypeConfig =
-  | { model: "fixed"; ratePerPost: number; currency: string; maxPosts?: number }
   | { model: "per_view"; ratePerThousandViews: number; capAmount: number; currency: string; trackingWindowDays: number }
-  | { model: "negotiated"; baseRate?: number; currency: string; allowCounterOffer: boolean };
+  | { model: "negotiated"; currency: string; allowCounterOffer: boolean };
 
-type PayoutModel = "fixed" | "per_view" | "negotiated";
+type PayoutModel = "per_view" | "negotiated";
+
+/** What Import brought back off the sound's own page. Null until it is run,
+ *  and cleared whenever the link is edited -- artwork belonging to the previous
+ *  link is worse than none. */
+type ImportedAudio = {
+  soundId: string;
+  platform: string;
+  title: string | null;
+  artist: string | null;
+  coverImageUrl: string | null;
+  usesCount: number | null;
+};
 
 type WizardForm = {
   // Step 1 — Basics
   title: string;
   clientId: string;
-  thumbnailUrl: string;
   notes: string;
   hasAudio: boolean;
   audioUrl: string;
@@ -28,24 +38,20 @@ type WizardForm = {
   payoutModel: PayoutModel;
   budget: string;
   currency: WizardCurrency;
-  paymentMode: "MANAGED" | "SELF_MANAGED";
-  ratePerPost: string;
-  maxPosts: string;
   ratePerThousandViews: string;
   capAmount: string;
   trackingWindowDays: string;
-  baseRate: string;
   allowCounterOffer: boolean;
-  // Step 3 — Settings
   postApprovalMode: "MANUAL" | "AUTO_APPROVED";
-  paymentRelease: "MANUAL" | "ON_POST_APPROVAL" | "ON_CREATOR_REQUEST";
-  enrollmentOpen: boolean;
 };
 
+/* Two steps, not three. Settings held Payment release trigger and Open
+   enrollment, neither of which we offer -- we do not manage payments and there
+   are no clipping campaigns -- and removing them left Post approval alone on a
+   step of its own, so it moved up beside the payout it qualifies. */
 const STEPS = [
   { label: "Basics" },
-  { label: "Payout" },
-  { label: "Settings" },
+  { label: "Payout & approval" },
 ];
 
 /**
@@ -59,20 +65,19 @@ const STEPS = [
  * contradiction rather than documenting it.
  */
 const PAYOUT_MODELS: { value: PayoutModel; label: string; desc: string }[] = [
-  { value: "fixed", label: "Fixed rate per post", desc: "A set amount for each approved post." },
   { value: "per_view", label: "Per 1K views, with a cap", desc: "Pay on performance, capped at a maximum." },
   { value: "negotiated", label: "Negotiated", desc: "Agree a rate with each creator individually." },
 ];
 
-const PAYMENT_MODES: { value: "MANAGED" | "SELF_MANAGED"; label: string; desc: string }[] = [
-  { value: "MANAGED", label: "Managed", desc: "We hold the deposit and release payments through the platform." },
-  { value: "SELF_MANAGED", label: "Self-managed", desc: "Your organization pays creators directly, outside the platform." },
-];
+/* Payment is always self-managed: the org pays its creators directly, outside
+   the platform. We do not hold deposits or release payments, so asking the
+   question offered a service that does not exist. The column keeps its schema
+   default (SELF_MANAGED) and this form no longer sends it. */
 
 /** The stored campaignType follows from the payout choice. The two remaining
- *  enum values (OPEN_COMMUNITY, PRIVATE_INVITE) describe *access*, which the
- *  Open enrollment switch on the last step already decides -- the second place
- *  the old form asked one question twice. */
+ *  enum values (OPEN_COMMUNITY, PRIVATE_INVITE) describe *access*, which
+ *  nothing in this form sets any more -- open enrollment is gone with the rest
+ *  of the self-join surface. */
 export function campaignTypeFor(model: PayoutModel): "VIEW_BASED" | "BUDGET_BASED" {
   return model === "per_view" ? "VIEW_BASED" : "BUDGET_BASED";
 }
@@ -205,27 +210,23 @@ export default function CampaignWizard({
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [imported, setImported] = useState<ImportedAudio | null>(null);
   const [form, setForm] = useState<WizardForm>({
     title: "",
     clientId: "",
-    thumbnailUrl: "",
     notes: "",
     hasAudio: false,
     audioUrl: "",
-    payoutModel: "fixed",
+    payoutModel: "per_view",
     budget: "",
     currency: resolveCurrency(defaultCurrency),
-    paymentMode: "SELF_MANAGED",
-    ratePerPost: "",
-    maxPosts: "",
     ratePerThousandViews: "",
     capAmount: "",
     trackingWindowDays: "7",
-    baseRate: "",
     allowCounterOffer: true,
     postApprovalMode: "MANUAL",
-    paymentRelease: "MANUAL",
-    enrollmentOpen: false,
   });
 
   const set = (patch: Partial<WizardForm>) => setForm((f) => ({ ...f, ...patch }));
@@ -242,15 +243,58 @@ export default function CampaignWizard({
     return SOUND_URL_ERRORS[reason] ?? SOUND_URL_ERRORS.unrecognised;
   }, [form.hasAudio, form.audioUrl]);
 
-  const buildTypeConfig = (): TypeConfig => {
-    if (form.payoutModel === "fixed") {
-      return {
-        model: "fixed",
-        ratePerPost: Number(form.ratePerPost) || 0,
-        currency: form.currency,
-        ...(form.maxPosts ? { maxPosts: Number(form.maxPosts) } : {}),
-      };
+  /* The link is edited -> whatever was imported describes a different sound.
+     Kept in one place so every path that changes the URL forgets the artwork,
+     rather than each caller remembering to. */
+  const setAudioUrl = (audioUrl: string) => {
+    setForm((f) => ({ ...f, audioUrl }));
+    setImported(null);
+    setImportError(null);
+  };
+
+  /* Import: read the sound's own page and keep its cover.
+     Explicit rather than automatic on blur -- it is a third-party round trip,
+     and an operator pasting a link and tabbing away should not silently start
+     one. The cover it returns becomes Campaign.thumbnailUrl on submit, which is
+     what the campaigns list draws instead of the title's initials. */
+  const runImport = async () => {
+    const url = form.audioUrl.trim();
+    if (!url || audioError) return;
+    setImporting(true);
+    setImportError(null);
+    try {
+      const res = await fetch("/api/campaigns/audio/resolve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+      const body = await res.json().catch(() => null);
+      if (!res.ok) {
+        setImportError(body?.message ?? "Could not read that sound.");
+        return;
+      }
+      setImported({
+        soundId: body.soundId,
+        platform: body.platform,
+        title: body.provisionalTitle ?? null,
+        artist: body.artist ?? null,
+        coverImageUrl: body.coverImageUrl ?? null,
+        usesCount: typeof body.usesCount === "number" ? body.usesCount : null,
+      });
+      /* The link resolved but the page would not answer. Said out loud, because
+         a resolved sound with no cover otherwise looks identical to one that
+         was never imported. */
+      if (!body.coverImageUrl) {
+        setImportError("Found the sound, but its cover art could not be read — the campaign will use its initials.");
+      }
+    } catch {
+      setImportError("Could not reach the server.");
+    } finally {
+      setImporting(false);
     }
+  };
+
+  const buildTypeConfig = (): TypeConfig => {
     if (form.payoutModel === "per_view") {
       return {
         model: "per_view",
@@ -260,9 +304,11 @@ export default function CampaignWizard({
         trackingWindowDays: Number(form.trackingWindowDays) || 7,
       };
     }
+    /* No base rate. A negotiated campaign's whole point is that the number is
+       agreed with each creator, and a "suggested starting rate" was a second
+       number nothing downstream read. */
     return {
       model: "negotiated",
-      ...(form.baseRate ? { baseRate: Number(form.baseRate) } : {}),
       currency: form.currency,
       allowCounterOffer: form.allowCounterOffer,
     };
@@ -278,17 +324,19 @@ export default function CampaignWizard({
         body: JSON.stringify({
           title: form.title,
           clientId: form.clientId || null,
-          thumbnailUrl: form.thumbnailUrl || null,
           notes: form.notes || null,
           campaignType: campaignTypeFor(form.payoutModel),
           budget: form.budget ? Number(form.budget) : null,
           currency: form.currency,
-          paymentMode: form.paymentMode,
-          paymentRelease: form.paymentRelease,
           postApprovalMode: form.postApprovalMode,
-          enrollmentOpen: form.enrollmentOpen,
+          /* paymentMode, paymentRelease and enrollmentOpen are not sent -- the
+             columns keep their schema defaults (SELF_MANAGED, MANUAL, false).
+             thumbnailUrl is sent only when Import actually found a cover: the
+             field is no longer a URL anybody types, it is the artwork of the
+             sound this campaign promotes. */
           typeConfig: buildTypeConfig(),
           ...(form.hasAudio && form.audioUrl.trim() ? { audioUrl: form.audioUrl.trim() } : {}),
+          ...(form.hasAudio && imported?.coverImageUrl ? { thumbnailUrl: imported.coverImageUrl } : {}),
         }),
       });
       if (res.ok) {
@@ -339,10 +387,6 @@ export default function CampaignWizard({
   const payoutFieldErrors = useMemo(() => {
     const positive = (v: string) => Number(v) > 0;
     return {
-      ratePerPost:
-        form.payoutModel === "fixed" && !positive(form.ratePerPost)
-          ? "Enter the rate you pay per approved post."
-          : undefined,
       ratePerThousandViews:
         form.payoutModel === "per_view" && !positive(form.ratePerThousandViews)
           ? "Enter the rate you pay per 1,000 views."
@@ -353,7 +397,7 @@ export default function CampaignWizard({
           : undefined,
     };
     // Negotiated agrees a rate per creator later, so there is nothing to hold here.
-  }, [form.payoutModel, form.ratePerPost, form.ratePerThousandViews, form.capAmount]);
+  }, [form.payoutModel, form.ratePerThousandViews, form.capAmount]);
 
   /* What holds Next and Create Campaign. Unchanged in effect -- the gate was
      already right, it was only the explaining that was in the wrong place. */
@@ -375,7 +419,7 @@ export default function CampaignWizard({
       title="New Campaign"
       size="lg"
       footer={
-        <div style={{ display: "flex", gap: 8, justifyContent: "space-between", width: "100%" }}>
+        <div className="cc-modal-footer" data-layout="split">
           <div>
             {step > 0 && (
               <Button variant="secondary" onClick={() => setStep((s) => s - 1)}>
@@ -461,39 +505,111 @@ export default function CampaignWizard({
               <input
                 type="checkbox"
                 checked={form.hasAudio}
-                onChange={(e) => set({ hasAudio: e.target.checked, ...(e.target.checked ? {} : { audioUrl: "" }) })}
+                onChange={(e) => {
+                  set({ hasAudio: e.target.checked, ...(e.target.checked ? {} : { audioUrl: "" }) });
+                  if (!e.target.checked) {
+                    setImported(null);
+                    setImportError(null);
+                  }
+                }}
               />
               <span style={{ fontSize: 14, color: "var(--cc-text)" }}>This campaign promotes a sound</span>
             </label>
             {form.hasAudio && (
               <div style={{ marginTop: 12 }}>
-                <Input
-                  label="Sound link"
-                  value={form.audioUrl}
-                  onChange={(e) => set({ audioUrl: e.target.value })}
-                  placeholder="tiktok.com/music/... or instagram.com/reels/audio/..."
-                  aria-invalid={audioError !== null}
-                />
+                {/* The button sits on the field, not under it: importing is what
+                    you do with the link you just pasted, and putting it inline
+                    keeps the two as one control. */}
+                <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <Input
+                      label="Sound link"
+                      value={form.audioUrl}
+                      onChange={(e) => setAudioUrl(e.target.value)}
+                      placeholder="tiktok.com/music/... or instagram.com/reels/audio/..."
+                      aria-invalid={audioError !== null}
+                    />
+                  </div>
+                  <Button
+                    variant="secondary"
+                    onClick={runImport}
+                    loading={importing}
+                    disabled={!form.audioUrl.trim() || audioError !== null || importing}
+                  >
+                    <Download size={14} /> Import
+                  </Button>
+                </div>
+
+                {imported && (
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 12,
+                      marginTop: 10,
+                      padding: 10,
+                      borderRadius: 10,
+                      border: "1px solid var(--cc-border)",
+                      background: "var(--cc-card)",
+                    }}
+                  >
+                    {imported.coverImageUrl ? (
+                      /* eslint-disable-next-line @next/next/no-img-element --
+                         a signed TikTok CDN URL on a host next/image is not
+                         configured for. */
+                      <img
+                        src={imported.coverImageUrl}
+                        alt=""
+                        width={48}
+                        height={48}
+                        style={{ width: 48, height: 48, borderRadius: 8, objectFit: "cover", flexShrink: 0 }}
+                      />
+                    ) : (
+                      <div
+                        style={{
+                          width: 48, height: 48, borderRadius: 8, flexShrink: 0,
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          background: "var(--cc-bg)", color: "var(--cc-text-muted)",
+                        }}
+                      >
+                        <Music2 size={18} />
+                      </div>
+                    )}
+                    <div style={{ minWidth: 0 }}>
+                      <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: "var(--cc-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {imported.title ?? `Sound ${imported.soundId}`}
+                      </p>
+                      <p style={{ margin: "2px 0 0", fontSize: 12, color: "var(--cc-text-muted)" }}>
+                        {[
+                          imported.artist || null,
+                          imported.usesCount !== null ? `${imported.usesCount.toLocaleString()} videos` : null,
+                          imported.coverImageUrl ? "Cover art will be the campaign thumbnail" : null,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 {audioError ? (
                   <p role="alert" style={{ fontSize: 12, color: "var(--cc-danger)", margin: "6px 0 0" }}>
                     {audioError}
                   </p>
+                ) : importError ? (
+                  <p role="alert" style={{ fontSize: 12, color: "var(--cc-danger)", margin: "6px 0 0" }}>
+                    {importError}
+                  </p>
                 ) : (
                   <p style={{ fontSize: 12, color: "var(--cc-text-muted)", margin: "6px 0 0" }}>
-                    We start tracking the sound&apos;s usage from here. Title and artwork fill in
-                    after the first reading.
+                    We start tracking the sound&apos;s usage from here. Import to pull its cover
+                    art in as the campaign thumbnail.
                   </p>
                 )}
               </div>
             )}
           </div>
 
-          <Input
-            label="Thumbnail URL"
-            value={form.thumbnailUrl}
-            onChange={(e) => set({ thumbnailUrl: e.target.value })}
-            placeholder="https://..."
-          />
           <div>
             <label htmlFor="wz-notes" style={labelStyle}>Notes</label>
             <textarea
@@ -518,16 +634,6 @@ export default function CampaignWizard({
             onChange={(payoutModel) => set({ payoutModel })}
           />
 
-          {form.payoutModel === "fixed" && (
-            <div style={{ display: "flex", gap: 12 }}>
-              <div style={{ flex: 1 }}>
-                <Input label="Rate per Post" type="number" required error={payoutFieldErrors.ratePerPost} value={form.ratePerPost} onChange={(e) => set({ ratePerPost: e.target.value })} placeholder="e.g. 500" />
-              </div>
-              <div style={{ flex: 1 }}>
-                <Input label="Max Posts (optional)" type="number" value={form.maxPosts} onChange={(e) => set({ maxPosts: e.target.value })} placeholder="e.g. 3" />
-              </div>
-            </div>
-          )}
           {form.payoutModel === "per_view" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               <div style={{ display: "flex", gap: 12 }}>
@@ -543,7 +649,6 @@ export default function CampaignWizard({
           )}
           {form.payoutModel === "negotiated" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              <Input label="Base Rate (optional)" type="number" value={form.baseRate} onChange={(e) => set({ baseRate: e.target.value })} placeholder="Suggested starting rate" />
               <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
                 <input type="checkbox" checked={form.allowCounterOffer} onChange={(e) => set({ allowCounterOffer: e.target.checked })} />
                 <span style={{ fontSize: 14, color: "var(--cc-text)" }}>Allow creators to counter-offer</span>
@@ -575,30 +680,6 @@ export default function CampaignWizard({
           </div>
 
           <div>
-            <label style={labelStyle}>Who handles payment?</label>
-            <CardRadioGroup
-              label="Who handles payment?"
-              value={form.paymentMode}
-              options={PAYMENT_MODES}
-              onChange={(paymentMode) => set({ paymentMode })}
-              renderBody={(opt, selected) => (
-                <>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                    <p style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>{opt.label}</p>
-                    {selected && <Badge variant="accent">Selected</Badge>}
-                  </div>
-                  <p style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{opt.desc}</p>
-                </>
-              )}
-            />
-          </div>
-        </div>
-      )}
-
-      {/* ── Step 3 — Settings ───────────────────────────────────────────── */}
-      {step === 2 && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-          <div>
             <label style={labelStyle}>Post Approval Mode</label>
             <div style={{ display: "flex", gap: 12 }}>
               {[
@@ -612,32 +693,9 @@ export default function CampaignWizard({
               ))}
             </div>
           </div>
-
-          <div>
-            <label style={labelStyle}>Payment Release Trigger</label>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {[
-                { value: "MANUAL" as const, label: "Manual", desc: "You release payments manually" },
-                { value: "ON_POST_APPROVAL" as const, label: "On Post Approval", desc: "Auto-release when a post is approved" },
-                { value: "ON_CREATOR_REQUEST" as const, label: "On Creator Request", desc: "Release when creator requests payout" },
-              ].map((opt) => (
-                <div key={opt.value} onClick={() => set({ paymentRelease: opt.value })} style={cardOptionStyle(form.paymentRelease === opt.value)}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <p style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>{opt.label}</p>
-                    {form.paymentRelease === opt.value && <Badge variant="accent">Active</Badge>}
-                  </div>
-                  <p style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{opt.desc}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-            <input type="checkbox" checked={form.enrollmentOpen} onChange={(e) => set({ enrollmentOpen: e.target.checked })} />
-            <span style={{ fontSize: 14, color: "var(--cc-text)" }}>Open enrollment — creators can self-join this campaign</span>
-          </label>
         </div>
       )}
+
     </Modal>
   );
 }
