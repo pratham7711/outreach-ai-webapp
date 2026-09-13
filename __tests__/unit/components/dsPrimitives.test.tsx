@@ -95,8 +95,13 @@ describe("PageHeader", () => {
   it("clamps a long title rather than pushing the actions off the row", () => {
     render(<PageHeader title={"A".repeat(200)} actions={<button>Go</button>} />);
     const h1 = screen.getByRole("heading", { level: 1 });
-    expect(h1.style.textOverflow).toBe("ellipsis");
-    expect(h1.style.overflow).toBe("hidden");
+    /* The clamp moved from an inline style to `.cc-page-title`, which is what
+       let a theme re-point the title at all -- an inline style outranks every
+       selector. jsdom loads no stylesheet, so the class is the assertable
+       thing here; `overflow: hidden; text-overflow: ellipsis` lives in
+       app/globals.css and is covered by e2e/layout-geometry.spec.ts, which
+       measures computed style in a real browser. */
+    expect(h1).toHaveClass("cc-page-title");
   });
 
   it("keeps the shared .rsp-header layout class alongside any caller class", () => {

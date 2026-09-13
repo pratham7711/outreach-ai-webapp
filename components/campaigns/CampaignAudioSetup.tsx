@@ -364,7 +364,11 @@ export function CampaignAudioSetup({ campaignId }: { campaignId: string }) {
               <p style={{ fontSize: 12, color: "var(--cc-text-muted)", margin: "4px 0 0" }}>
                 {[
                   resolved.artist || null,
-                  resolved.usesCount !== null ? `${resolved.usesCount.toLocaleString()} videos` : null,
+                  /* `!= null`, not `!== null`: this object is parsed from a
+                     fetch response, so a field the route stops sending arrives
+                     as undefined and `!== null` lets it through into
+                     .toLocaleString(), which throws and blanks the whole step. */
+                  resolved.usesCount != null ? `${resolved.usesCount.toLocaleString()} videos` : null,
                   `${resolved.platform} · sound ${resolved.soundId}`,
                 ]
                   .filter(Boolean)

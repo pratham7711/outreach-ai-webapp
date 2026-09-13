@@ -96,3 +96,8 @@ docs/parity/**/*.full.png
 docs/parity/ours/
 docs/parity/review/
 docs/parity/history.jsonl
+
+# Written by e2e/action-registry.spec.ts on every run. It must not be tracked:
+# the deploy gate's state key hashes untracked file contents too, so an artefact
+# the suite writes would void the receipt that same suite just earned.
+e2e/fixtures/.action-inventory.json

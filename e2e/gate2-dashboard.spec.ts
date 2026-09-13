@@ -174,7 +174,9 @@ test.describe('Gate 2 Dashboard — Analytics page', () => {
 
 test.describe('Gate 2 Dashboard — Share Report', () => {
   test('Share button on Performance tab opens modal and creates link', async ({ page }) => {
-    await page.goto('/campaigns/camp-1');
+    // Share Report lives in the Performance header, and a campaign now opens
+    // on Posts -- so Performance is asked for by name, as at lines 6/35/47.
+    await page.goto('/campaigns/camp-1?section=performance');
     await page.waitForLoadState('networkidle');
     await page.getByText('Views').first().waitFor({ state: 'visible', timeout: 30000 });
 

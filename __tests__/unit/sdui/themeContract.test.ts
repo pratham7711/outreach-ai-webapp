@@ -80,7 +80,11 @@ describe("theme token contract", () => {
     // 240/216px rail and 291/262px content origin at 1600 and 1440 alike.
     // If someone edits them, that is a parity regression and this says so.
     const shell = file.responsive.find((r: { minWidth: number }) => r.minWidth === 1024);
-    expect(shell.modes.creatorcore).toMatchObject({
+    /* Asserted rather than optional-chained: if the 1024 layer is gone, that is
+       the regression this test exists to catch, and `shell?.modes` would report
+       it as an unhelpful "undefined is not an object". */
+    expect(shell).toBeDefined();
+    expect(shell!.modes.creatorcore).toMatchObject({
       "--cc-rail-card-w": "15%",
       "--cc-rail-inset-x": "0.625%",
       "--cc-sidebar-w": "15.31%",

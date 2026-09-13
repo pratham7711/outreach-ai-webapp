@@ -10,9 +10,14 @@ test.describe('Campaign Proposals and Reviews', () => {
 
   test('Creators tab shows proposals section', async ({ page }) => {
     await navigateAndWait(page, '/campaigns/camp-1');
-    // Click the Creators tab button in the campaign detail tabs bar (not the sidebar link)
-    const tabBar = page.locator('div').filter({ has: page.locator('button:has-text("Overview")') }).first();
-    const creatorsTab = tabBar.locator('button', { hasText: /^Creators/ });
+    // The campaign sections moved from a row of tab BUTTONS into the rail, where
+    // each one is a real <Link> to ?section=<value> so middle-click, copy-link
+    // and the back button all work. The sibling test below already located them
+    // by role=link; this one still went looking for the buttons.
+    const creatorsTab = page
+      .locator('[data-parity="shell.rail.items"]')
+      .getByRole('link', { name: /^Creators/ })
+      .first();
     await creatorsTab.waitFor({ state: 'visible', timeout: 30000 });
     await creatorsTab.click();
     // ProposalsSection should render under Creators tab

@@ -5,6 +5,17 @@ jest.mock('next-themes', () => ({
   useTheme: () => ({ theme: 'dark', setTheme: jest.fn() }),
 }));
 
+/* The rail footer now carries the notification bell, so this suite pulls the
+   bell's whole dependency tree: @pratham7711/ui (whose "exports" map has no
+   `require` condition for jest's CJS resolver) and a react-query client. This
+   suite is about which nav items render, not about the notification feed, so
+   the bell is stubbed at its own module boundary rather than given a provider
+   -- a QueryClientProvider here would quietly make every sidebar assertion
+   depend on the feed as well. */
+jest.mock("@/components/layout/NotificationBell", () => ({
+  NotificationBell: () => <button aria-label="Notifications" />,
+}));
+
 import NewSidebar from '@/components/NewSidebar';
 import { BRAND } from '@/lib/brand';
 

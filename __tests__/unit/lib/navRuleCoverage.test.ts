@@ -1,5 +1,11 @@
 import fs from "fs";
 import path from "path";
+/* This file only reads NAV_SECTIONS, but importing it pulls the whole sidebar
+   module -- and with it the notification bell's @pratham7711/ui import, whose
+   "exports" map has no `require` condition for jest's CJS resolver. Nothing
+   here renders, so an empty virtual module is enough. */
+jest.mock("@pratham7711/ui", () => ({}), { virtual: true });
+
 import { NAV_SECTIONS } from "@/components/NewSidebar";
 import { DASHBOARD_NAV_RULES } from "@/lib/dashboardPolicy";
 

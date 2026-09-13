@@ -201,7 +201,14 @@ test.describe('Self-serve wizard', () => {
     await expect(page.getByText('1 selected', { exact: true })).toBeVisible({ timeout: 10000 });
     await expect(page.getByText('Platform fee').first()).toBeVisible({ timeout: 5000 });
 
-    const totalBadge = page.locator('[class*="badge"], [class*="Badge"]').first();
+    // Scoped to the running-total row, not to the page. A bare
+    // `[class*="badge"]` matches anything on the screen whose class happens to
+    // contain the word -- it resolved to the notification bell's unread count
+    // in the rail, which is aria-hidden and painted only where the top bar is
+    // not, so the assertion failed on an element that has nothing to do with
+    // this wizard. The badge under test is the one beside "N selected".
+    const totalRow = page.getByText('1 selected', { exact: true }).locator('..');
+    const totalBadge = totalRow.locator('[class*="badge" i]').first();
     await expect(totalBadge).toBeVisible({ timeout: 5000 });
   });
 
