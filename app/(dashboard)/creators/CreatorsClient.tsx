@@ -159,7 +159,11 @@ export default function CreatorsClient({
       <PageHeader
         title="Creators"
         subtitle="Discover and manage your creator roster"
-        caption={`${filtered.length} Creator${filtered.length !== 1 ? "s" : ""}`}
+        /* `total` is the database count for the CURRENT filters, not the rows
+           on screen. It used to be `filtered.length`, which is one page -- so a
+           1,832-creator roster captioned itself "24 Creators", 24 being the page
+           size, and said "24 Creators" again on every page after it. */
+        caption={`${total} Creator${total !== 1 ? "s" : ""}`}
         actions={
           <Button variant="primary" iconLeft={<Plus size={15} />} size="sm" onClick={() => setShowModal(true)} {...action("new-creator")}>
             New Creator
@@ -245,7 +249,12 @@ export default function CreatorsClient({
                       return (
                         <div key={stat.key}>
                           <p className="cc-microlabel" style={{ marginBottom: 3 }}>{stat.label}</p>
-                          <p style={{ fontWeight: 700, fontSize: "var(--cc-t-16)", color: "var(--cc-text)" }}>{value ? formatNumber(value) : ""}</p>
+                          {/* An em dash, not "". The column is only drawn when
+                              somebody on the page has this stat, so a card
+                              without one still has to say so -- an empty string
+                              left "Avg. Views" captioning blank space, which
+                              reads as a value that failed to load. */}
+                          <p style={{ fontWeight: 700, fontSize: "var(--cc-t-16)", color: value ? "var(--cc-text)" : "var(--cc-text-muted)" }}>{value ? formatNumber(value) : "—"}</p>
                         </div>
                       );
                     })}
@@ -293,8 +302,8 @@ export default function CreatorsClient({
                   {optionalStats.map((stat) => {
                     const value = stat.read(c);
                     return (
-                      <td key={stat.key} style={{ padding: "14px 24px", fontSize: "var(--cc-t-14)", fontWeight: 500, color: "var(--cc-text)" }}>
-                        {value ? formatNumber(value) : ""}
+                      <td key={stat.key} style={{ padding: "14px 24px", fontSize: "var(--cc-t-14)", fontWeight: 500, color: value ? "var(--cc-text)" : "var(--cc-text-muted)" }}>
+                        {value ? formatNumber(value) : "—"}
                       </td>
                     );
                   })}

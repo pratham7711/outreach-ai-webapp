@@ -2,19 +2,20 @@
 
 import React from "react";
 import Link from "next/link";
-import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useState, useEffect, useMemo, useCallback, useDeferredValue, useRef } from "react";
 import { Card, Badge, Input, Modal, EmptyState, Skeleton, Avatar } from "@pratham7711/ui";
 import { Dropdown, StatusTabs, Pagination, Button } from "@/components/ds";
-import { Grid3X3, List, Plus, Check, X, Eye, Heart, MessageCircle, TrendingUp, BarChart3, ArrowUp, ArrowDown, ArrowUpDown, Flag, Video, AlertTriangle, RefreshCw, Image as ImageIcon, Share2, Bookmark, Info } from "lucide-react";
+import { Grid3X3, List, Plus, Check, X, TrendingUp, BarChart3, ArrowUp, ArrowDown, ArrowUpDown, Flag, Video, AlertTriangle, RefreshCw, Info } from "lucide-react";
 import { CreatorSelect } from "@/components/CreatorSelect";
-import { computeEngagementRate } from "@/lib/metrics";
-import { stripAt, formatDateAbs, timeAgo, formatFull } from "@/lib/format";
+import { stripAt, formatDateAbs, formatFull } from "@/lib/format";
 import type { ComplianceFlag } from "@/lib/compliance/postCompliance";
 import PostMedia from "@/components/PostMedia";
 import { imgSrc } from "@/lib/postMedia";
 import { metricValue, unwrittenMetricValue, fieldMetricValue, engagementRateValue, summarizePostMetrics } from "@/lib/metricDisplay";
 import { isPostRemoved, removedNote } from "@/lib/postRemoval";
 import RemovedPostOverlay from "@/components/posts/RemovedPostOverlay";
+import PostGridCard from "@/components/posts/PostGridCard";
+import { STATUS_BADGE, formatSince, engRatePct } from "@/lib/posts/postDisplay";
 import { summariseRefresh } from "@/lib/refreshSummary";
 import { toast } from "sonner";
 import { CampaignHeaderActions } from "@/components/campaigns/CampaignHeaderActions";
@@ -190,12 +191,6 @@ const ADD_POST_TIMEOUT_MS = 25_000;
 
 const PAGE_SIZE = 25;
 
-const STATUS_BADGE: Record<string, "warning" | "success" | "danger" | "neutral"> = {
-  PENDING_REVIEW: "warning",
-  APPROVED: "success",
-  REJECTED: "danger",
-};
-
 // Whether the post is still live on the platform, independent of approval.
 // CreatorCore surfaces this prominently (Unavailable = removed at source), and
 // a large share of imported posts are dead, so hiding it would misrepresent them.
@@ -238,23 +233,6 @@ type SortDir = "asc" | "desc";
 
 function formatNumber(num: number): string {
   return formatFull(num);
-}
-
-// Never-synced is a fact worth stating; timeAgo's "Recently" fallback would
-// claim the opposite.
-function formatSince(iso: string | null): string {
-  return iso ? timeAgo(iso) : "Never";
-}
-
-function engRatePct(post: PostData): number | null {
-  const r = computeEngagementRate({
-    views: post.viewsCount,
-    likes: post.likesCount,
-    comments: post.commentsCount,
-    shares: post.sharesCount,
-    saves: post.savesCount,
-  });
-  return r === null ? null : r * 100;
 }
 
 function deltaViews(post: PostData): number | null {
@@ -742,9 +720,18 @@ export default function PostsTab({
     setShowAddPost(true);
   };
 
+  /* The two typed filters feed the list through useDeferredValue, so a
+     keystroke paints the character first and re-filters afterwards. The inputs
+     stay bound to the immediate state -- deferring what a field displays is how
+     a text box starts dropping characters -- and only the derived list lags,
+     by one frame on a small campaign and by as long as it takes on a large one.
+     Everything else here is a click, which cannot outrun a render anyway. */
+  const deferredCreatorSearch = useDeferredValue(creatorSearch);
+  const deferredMinViews = useDeferredValue(minViews);
+
   const filteredSorted = useMemo(() => {
-    const minV = parseInt(minViews, 10);
-    const search = creatorSearch.trim().toLowerCase();
+    const minV = parseInt(deferredMinViews, 10);
+    const search = deferredCreatorSearch.trim().toLowerCase();
     // Inclusive on both ends: "to" is the end of that day, not midnight at its start.
     const fromMs = postedFrom ? new Date(`${postedFrom}T00:00:00`).getTime() : null;
     const toMs = postedTo ? new Date(`${postedTo}T23:59:59.999`).getTime() : null;
@@ -794,7 +781,7 @@ export default function PostsTab({
       return sortDir === "asc" ? diff : -diff;
     });
     return sorted;
-  }, [posts, statusFilter, platformFilter, mediaTypeFilter, minViews, creatorSearch, postedFrom, postedTo, sortKey, sortDir]);
+  }, [posts, statusFilter, platformFilter, mediaTypeFilter, deferredMinViews, deferredCreatorSearch, postedFrom, postedTo, sortKey, sortDir]);
 
   const anyDelta = useMemo(() => posts.some((p) => (p.snapshots?.length ?? 0) >= 2), [posts]);
   /* Imported posts carried view counts only, so likes, comments and engagement
@@ -1454,148 +1441,12 @@ export default function PostsTab({
       ) : !error ? (
         <>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 18 }}>
-            {pageRows.map((post) => {
-              const cardViews = metricValue(post.viewsCount, post.lastSyncedAt);
-              const cardLikes = fieldMetricValue(post.likesCount, post.lastSyncedAt, post.platformMetrics, "likes");
-              const cardComments = fieldMetricValue(post.commentsCount, post.lastSyncedAt, post.platformMetrics, "comments");
-              const cardShares = fieldMetricValue(post.sharesCount, post.lastSyncedAt, post.platformMetrics, "shares");
-              const cardSaves = fieldMetricValue(post.savesCount, post.lastSyncedAt, post.platformMetrics, "saves");
-              const cardEngRate =
-                cardLikes === null && cardComments === null
-                  ? null
-                  : engagementRateValue(
-                      post.likesCount,
-                      post.commentsCount,
-                      post.viewsCount,
-                      post.lastSyncedAt
-                    ) ?? engRatePct(post);
-              // Through the proxy, not straight at the CDN: TikTok's thumbnail
-              // hosts are unreachable on networks that filter them, and a
-              // background-image has no onError to fall back with.
-              const thumb = imgSrc(post.thumbnailUrl, 320, 568);
-              return (
-                <div key={post.id} style={{ position: "relative" }}>
-                <a
-                  href={post.postUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{
-                    position: "relative",
-                    display: "block",
-                    aspectRatio: "9 / 16",
-                    borderRadius: 20,
-                    overflow: "hidden",
-                    textDecoration: "none",
-                    border: "1px solid var(--cc-border)",
-                    background: thumb
-                      ? `url(${thumb}) center/cover no-repeat`
-                      : "var(--cc-bg)",
-                  }}
-                >
-                  {!thumb && (
-                    <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--cc-text-subtle)" }}>
-                      <ImageIcon size={40} aria-hidden="true" />
-                    </div>
-                  )}
-                  <span style={{ position: "absolute", top: 10, left: 10, padding: "3px 9px", borderRadius: 999, background: "rgba(0,0,0,0.55)", color: "white", fontSize: "var(--cc-t-10)", fontWeight: 700, letterSpacing: 0.4, backdropFilter: "blur(4px)" }}>
-                    {post.platform}
-                  </span>
-                  <span style={{ position: "absolute", top: 10, right: 10 }}>
-                    <Badge variant={STATUS_BADGE[post.status] ?? "neutral"} style={{ fontSize: "var(--cc-t-9)"}}>
-                      {post.status.replace(/_/g, " ")}
-                    </Badge>
-                  </span>
-                  {/* Across the frame, under the platform and status chips —
-                      the thumbnail and every count below it are left alone,
-                      because they are the last true reading of a post that has
-                      since come down, not a claim that it is still up. */}
-                  {isPostRemoved(post) && <RemovedPostOverlay note={removedNote(post)} />}
-
-                  {/* Metrics read out over the frame itself — display only, never editable. */}
-                  <div
-                    style={{
-                      position: "absolute",
-                      insetInline: 0,
-                      bottom: 0,
-                      padding: "48px 14px 10px",
-                      // Fades in over the frame, then goes fully solid behind the
-                      // counts — the same treatment CreatorCore uses, so numbers
-                      // never fight the artwork.
-                      //
-                      // Every stop is the overlay ink, which is theme-independent
-                      // on purpose: the thumbnail behind it does not restyle with
-                      // the theme, and the solid end used to be --cc-text, which
-                      // is #FFFFFF under .dark -- white counts on a white panel.
-                      background:
-                        "linear-gradient(to bottom, color-mix(in srgb, var(--cc-overlay-ink) 0%, transparent) 0%, color-mix(in srgb, var(--cc-overlay-ink) 72%, transparent) 30%, var(--cc-overlay-ink) 48%, var(--cc-overlay-ink) 100%)",
-                      color: "var(--cc-overlay-ink-text)",
-                    }}
-                  >
-                    <div title={post.creator.name} style={{ fontSize: "var(--cc-t-14)", fontWeight: 700, marginBottom: 6, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {post.creator.handle || post.creator.name}
-                    </div>
-                    {/* One row per counter the platform actually reported, which is
-                        how the reference card behaves too: it prints a downloads
-                        line on most posts and simply leaves it off the ones it has
-                        no download figure for. Shares and saves used to be held
-                        back from here because an unfetched counter sat at 0 in the
-                        column and would have read as a measured zero -- per-field
-                        provenance answers that now, so they can be shown. */}
-{(() => {
-                      const rows = [
-                        cardViews !== null && { key: "views", icon: <Eye size={13} aria-hidden="true" />, text: `${formatNumber(cardViews)} views` },
-                        cardLikes !== null && { key: "likes", icon: <Heart size={13} aria-hidden="true" />, text: `${formatNumber(cardLikes)} likes` },
-                        cardComments !== null && { key: "comments", icon: <MessageCircle size={13} aria-hidden="true" />, text: `${formatNumber(cardComments)} comments` },
-                        cardShares !== null && { key: "shares", icon: <Share2 size={13} aria-hidden="true" />, text: `${formatNumber(cardShares)} shares` },
-                        cardSaves !== null && { key: "saves", icon: <Bookmark size={13} aria-hidden="true" />, text: `${formatNumber(cardSaves)} saves` },
-                        cardEngRate !== null && { key: "eng", icon: <TrendingUp size={13} aria-hidden="true" />, text: `${cardEngRate.toFixed(1)}% eng. rate` },
-                      ].filter(Boolean) as { key: string; icon: React.ReactNode; text: string }[];
-                      // Nothing measured at all: say so once. Four zeroes claim
-                      // this post was watched by nobody, which we never checked.
-                      if (rows.length === 0) {
-                        return (
-                          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "var(--cc-t-13)", color: "rgba(255,255,255,0.72)" }}>
-                            <Eye size={13} aria-hidden="true" />Not synced yet
-                          </div>
-                        );
-                      }
-                      return rows.map((row) => (
-                        <div key={row.key} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "var(--cc-t-13)", marginBottom: 2 }}>
-                          {row.icon}{row.text}
-                        </div>
-                      ));
-                    })()}
-                    {/* paddingRight clears the analytics link, which is pinned
-                        12px off the card's right edge and 14px wide -- inside
-                        this row's own 14px padding, so "Updated 1mo ago" was
-                        printing straight through the chart icon. The reserve is
-                        that 26px back to this box's edge, plus a 6px gap. */}
-                    <div style={{ marginTop: 8, paddingTop: 7, paddingRight: 18, borderTop: "1px solid rgba(255,255,255,0.22)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, fontSize: 10.5, color: "rgba(255,255,255,0.78)" }}>
-                      {/* Only once a platform has answered for this post: until
-                          then postedAt is the day someone added it here, not the
-                          day it went up, and Post.postedAt cannot be null. */}
-                      <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        Posted {post.lastSyncedAt ? formatDateAbs(post.postedAt) : "\u2014"}
-                      </span>
-                      {/* "Updated", where the reference says "Last Updated": the
-                          long form plus a "3 months ago" overflows a 240px card.
-                          It never shrinks -- a clipped "Updated 1mo a…" is worse
-                          than a clipped date, which the reader can still date by
-                          its month. */}
-                      <span style={{ flexShrink: 0, whiteSpace: "nowrap" }}>
-                        Updated {formatSince(post.lastSyncedAt)}
-                      </span>
-                    </div>
-                  </div>
-                </a>
-                {/* Sits over the tile's solid footer rather than inside the
-                    anchor -- an <a> cannot nest. */}
-                <Link href={`/campaigns/${campaignId}/posts/${post.id}`} aria-label="View post analytics" title="View post analytics" style={{ position: "absolute", right: 12, bottom: 10, display: "flex", alignItems: "center", color: "rgba(255,255,255,0.78)", textDecoration: "none" }}>
-                  <BarChart3 size={14} />
-                </Link>
-                </div>
-              );
-            })}
+            {/* One memoised component per tile, not 140 lines of inline JSX.
+                See PostGridCard: the tab holds twenty-odd pieces of state and
+                every one of them used to re-render all 25 tiles. */}
+            {pageRows.map((post) => (
+              <PostGridCard key={post.id} post={post} campaignId={campaignId} />
+            ))}
           </div>
           {filteredSorted.length > PAGE_SIZE && (
             <Pagination

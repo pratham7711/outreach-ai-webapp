@@ -294,6 +294,22 @@ export default function TrackersPage() {
     createMutation.mutate(raw);
   }, [createMutation, urlInput, clientError]);
 
+  /* Two trackers can carry the same title and artist -- TikTok mints a separate
+     sound for each upload of the same song, and a workspace ends up watching
+     both. MEASURED 2026-09-15: two rows reading "Roots / Unknown artist",
+     identical down to the cover, so the only way to tell which one the delete
+     button belonged to was to open each in turn. Where the pair is ambiguous the
+     row shows the sound id underneath; where it is not, nothing changes, because
+     an id on every row is noise. */
+  const ambiguousLabels = useMemo(() => {
+    const seen = new Map<string, number>();
+    for (const s of allSounds) {
+      const key = `${s.title}\u0000${s.artist}`;
+      seen.set(key, (seen.get(key) ?? 0) + 1);
+    }
+    return new Set([...seen].filter(([, n]) => n > 1).map(([key]) => key));
+  }, [allSounds]);
+
   /* Removing one tracker takes its whole reading history with it, and history is
      the one thing a re-add cannot recover — the same reason "Remove all" is guarded.
      A single row was destroying it on one unconfirmed click. */
@@ -301,14 +317,17 @@ export default function TrackersPage() {
     async (sound: TrackedSound) => {
       const ok = await confirm({
         title: "Remove this tracker?",
-        description: `“${sound.title}” and its entire reading history will be deleted. Readings are point-in-time — TikTok will not tell us what this sound was doing last week.`,
+        /* The id is named only where the title alone does not identify the
+           tracker, because two rows can read "Roots" and this dialog is the
+           last thing standing between the wrong one and a deleted history. */
+        description: `“${sound.title}”${ambiguousLabels.has(`${sound.title}\u0000${sound.artist}`) ? ` (sound ${sound.tiktokSoundId})` : ""} and its entire reading history will be deleted. Readings are point-in-time — TikTok will not tell us what this sound was doing last week.`,
         confirmLabel: "Remove tracker",
         tone: "danger",
       });
       if (!ok) return;
       deleteMutation.mutate(sound.id);
     },
-    [confirm, deleteMutation]
+    [confirm, deleteMutation, ambiguousLabels]
   );
 
   const stats = useMemo(
@@ -607,7 +626,17 @@ export default function TrackersPage() {
                   >
                     {s.title}
                   </button>
-                  <div style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>{s.artist || "Unknown artist"}</div>
+                  <div style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
+                    {s.artist || "Unknown artist"}
+                    {ambiguousLabels.has(`${s.title}\u0000${s.artist}`) ? (
+                      <span
+                        style={{ marginLeft: 6, color: "var(--cc-text-subtle)", fontVariantNumeric: "tabular-nums" }}
+                        title="Another tracker in this workspace has the same title and artist. This is the TikTok sound id, which tells them apart."
+                      >
+                        · {s.tiktokSoundId}
+                      </span>
+                    ) : null}
+                  </div>
                 </div>
                 {/* Trend and read-health never share a slot. A sound that is
                     genuinely losing uses and a sound nobody has read in a week

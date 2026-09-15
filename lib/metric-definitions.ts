@@ -315,7 +315,14 @@ export const METRIC_DEFINITIONS = {
     how: "Counts posts moved to the dead-letter queue after repeated failures.",
   },
   trackersActive: {
-    label: "Active trackers",
+    /* "Active" was a claim the number never made. It counts every tracker that
+       has not been deleted, which is what the plan limit counts and what `how`
+       below has always said -- but on a workspace whose reader has stopped,
+       every row underneath the tile says "not updating" while the tile calls
+       all six of them active. MEASURED 2026-09-15: six rows, six "not
+       updating" badges, tile reading "Active trackers 6". Nothing here
+       measures activity, so nothing here should assert it. */
+    label: "Trackers",
     /* Only sounds are trackable today; hashtags were never built. */
     what: "Sounds you are watching for campaign ideas. This is the number your plan limits.",
     how: "Counts every sound tracker in this workspace that has not been deleted.",

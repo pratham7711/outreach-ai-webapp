@@ -5,6 +5,8 @@ import { createAuditActor, logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
 import { z } from "zod";
 import type { ProposalStatus } from "@/lib/generated/prisma/client";
+import { findCreatorInOrgForHandle } from "@/lib/portal/creatorLookup";
+import { stripAt } from "@/lib/format";
 
 const updateProposalSchema = z.object({
   action: z.enum(["ACCEPTED", "REJECTED"]),
@@ -48,22 +50,30 @@ export async function PATCH(
     // If accepted, auto-create an Activation
     let activation = null;
     if (parsed.data.action === "ACCEPTED") {
-      // Find or create the org-side Creator record for this CreatorUser
-      let creator = await db.creator.findFirst({
-        where: { orgId, handle: proposal.creatorUser.handle },
-      });
+      /* Find or create the org-side Creator record for this CreatorUser, via
+         the shared matcher rather than an exact equality on the handle. The
+         two sides disagree about the leading "@" -- 10 of the 1,832 roster
+         rows are stored as "@handle" while every portal account is bare
+         (MEASURED 2026-09-15) -- so `handle: proposal.creatorUser.handle`
+         missed the existing row and accepting a proposal minted a SECOND
+         creator in the same org, splitting that creator's activations across
+         two rows. The same mistake, and the same fix, as marketplace/join. */
+      let creator = await findCreatorInOrgForHandle(orgId, proposal.creatorUser.handle);
 
       if (!creator) {
         creator = await db.creator.create({
           data: {
             orgId,
             name: proposal.creatorUser.name,
-            handle: proposal.creatorUser.handle,
+            /* Stored bare. The roster's "@" spellings are an import artefact,
+               not a format this app should keep producing. */
+            handle: stripAt(proposal.creatorUser.handle),
             platform: proposal.creatorUser.platform,
             followersCount: proposal.creatorUser.followersCount,
             averageViews: proposal.creatorUser.averageViews,
             rate: proposal.proposedRate,
           },
+          select: { id: true },
         });
       }
 

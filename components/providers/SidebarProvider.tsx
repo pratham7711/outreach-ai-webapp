@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
+import { createContext, useContext, useMemo, useState, useEffect, type ReactNode } from "react";
 
 /**
  * The rail has one state.
@@ -37,8 +37,15 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
     return () => cancelAnimationFrame(frame);
   }, []);
 
+  /* A fresh object literal here hands every consumer a new context value on
+     each render of this provider, which is the one thing a context provider
+     must not do: the provider sits above the whole dashboard, so that is a
+     re-render of every component that calls useSidebar, for a value that has
+     not changed. setMobileOpen is already stable (useState's setter). */
+  const value = useMemo(() => ({ mobileOpen, ready, setMobileOpen }), [mobileOpen, ready]);
+
   return (
-    <SidebarContext.Provider value={{ mobileOpen, ready, setMobileOpen }}>
+    <SidebarContext.Provider value={value}>
       {children}
     </SidebarContext.Provider>
   );

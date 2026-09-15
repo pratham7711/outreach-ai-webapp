@@ -84,6 +84,14 @@ export const PROXYABLE_HOSTS: RegExp[] = [
   /\.tiktokcdn-us\.com$/,
   /\.tiktokcdn-eu\.com$/,
   /\.cdninstagram\.com$/,
+  // Meta serves the same images from two families and picks between them per
+  // request: the profile pictures arrive on scontent-*.cdninstagram.com, while
+  // post covers come back on instagram.<edge>.fna.fbcdn.net. Only the first was
+  // listed, so a cover skipped the proxy, went straight to the browser and
+  // answered 403 -- MEASURED 2026-09-15 on the PARA PARA posts tab, one direct
+  // request to instagram.fdel11-3.fna.fbcdn.net. Same shape as the tiktokcdn
+  // note above, same consequence on any network that filters Meta.
+  /\.fbcdn\.net$/,
   /^i\.ytimg\.com$/,
 ];
 
