@@ -1,20 +1,26 @@
 "use client";
 
-import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
 
+/**
+ * The rail has one state.
+ *
+ * It used to have two, and the collapsed one was a liability rather than a
+ * feature: it hid every label, left the campaign rail drawing empty pills once
+ * that rail stopped carrying icons, and persisted itself to localStorage, so a
+ * single stray click left the app broken on the next visit with no obvious way
+ * back. Mobile still opens and closes the drawer -- that is `mobileOpen`, a
+ * different thing from a desktop width toggle.
+ */
 type SidebarContextType = {
-  collapsed: boolean;
   mobileOpen: boolean;
   ready: boolean;
-  toggle: () => void;
   setMobileOpen: (open: boolean) => void;
 };
 
 const SidebarContext = createContext<SidebarContextType>({
-  collapsed: false,
   mobileOpen: false,
   ready: false,
-  toggle: () => {},
   setMobileOpen: () => {},
 });
 
@@ -22,30 +28,17 @@ export function useSidebar() {
   return useContext(SidebarContext);
 }
 
-const STORAGE_KEY = "cc-sidebar-collapsed";
-
 export function SidebarProvider({ children }: { children: ReactNode }) {
-  const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [ready, setReady] = useState(false);
 
-  // Persist collapse preference
   useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored === "true") setCollapsed(true);
     const frame = requestAnimationFrame(() => setReady(true));
     return () => cancelAnimationFrame(frame);
   }, []);
 
-  const toggle = useCallback(() => {
-    setCollapsed((prev) => {
-      localStorage.setItem(STORAGE_KEY, String(!prev));
-      return !prev;
-    });
-  }, []);
-
   return (
-    <SidebarContext.Provider value={{ collapsed, mobileOpen, ready, toggle, setMobileOpen }}>
+    <SidebarContext.Provider value={{ mobileOpen, ready, setMobileOpen }}>
       {children}
     </SidebarContext.Provider>
   );

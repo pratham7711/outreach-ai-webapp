@@ -9,12 +9,11 @@ import { campaignIdFromPathname } from "@/lib/campaignSections";
 import {
   LayoutDashboard, Megaphone, Play, Calendar, CalendarClock, Users, Users2, LineChart,
   Search, List, Link2, CreditCard, Shield, FileText,
-  ChevronDown, Settings, LogOut, Menu, X, ChevronsLeft, Key, BarChart2, Activity, Music, Tags,
+  ChevronDown, Settings, LogOut, Menu, X, Key, BarChart2, Activity, Music, Tags,
   Globe
 } from "lucide-react";
 import { mediaUrl } from "@/lib/postMedia";
 import { useSidebar } from "@/components/providers/SidebarProvider";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import ThemeToggle from "@/components/ThemeToggle";
 import { NotificationBell } from "@/components/layout/NotificationBell";
 
@@ -123,32 +122,13 @@ function sidebarInitials(name?: string | null, email?: string | null): string {
   return src.slice(0, 2).toUpperCase();
 }
 
-function UserMenuTooltip({
-  label,
-  enabled,
-  children,
-}: {
-  label: string;
-  enabled: boolean;
-  children: React.ReactElement;
-}) {
-  if (!enabled) return children;
-  return (
-    <Tooltip>
-      <TooltipTrigger render={children} />
-      <TooltipContent side="right" sideOffset={8}>
-        {label}
-      </TooltipContent>
-    </Tooltip>
-  );
-}
 
 export default function NewSidebar({ allowedNavHrefs, isPlatformOperator, brandName, brandLogoUrl, user }: SidebarProps = {}) {
   const [logoBroken, setLogoBroken] = useState(false);
   const userName = user?.name || user?.email || "Account";
   const userInitial = sidebarInitials(user?.name, user?.email);
   const pathname = usePathname();
-  const { collapsed, mobileOpen, ready, toggle, setMobileOpen } = useSidebar();
+  const { mobileOpen, ready, setMobileOpen } = useSidebar();
   const [showUserMenu, setShowUserMenu] = useState(false);
   const allowedHrefSet = useMemo(
     () => new Set(allowedNavHrefs ?? []),
@@ -181,13 +161,6 @@ export default function NewSidebar({ allowedNavHrefs, isPlatformOperator, brandN
     }
     return () => { document.body.style.overflow = ""; };
   }, [mobileOpen]);
-
-  // Close user menu when collapsing
-  useEffect(() => {
-    if (collapsed) setShowUserMenu(false);
-  }, [collapsed]);
-
-  const isRail = collapsed && !mobileOpen;
 
   /* Inside a campaign the rail belongs to that campaign, not to the workspace.
      Its sections replace the global nav entirely, as they do in the reference
@@ -239,30 +212,12 @@ export default function NewSidebar({ allowedNavHrefs, isPlatformOperator, brandN
            dashboard's 24px. Routing the same pathname test through a second
            component would give two places to keep in step. */
         data-shell={campaignId ? "campaign" : pathname.startsWith("/settings") ? "settings" : "dashboard"}
-        data-collapsed={mobileOpen ? false : collapsed}
         data-ready={ready}
         role="navigation"
         aria-label="Main sidebar"
       >
-        {/* Header: Logo + Org + Collapse Toggle */}
-        <div
-          className={`cc-sidebar-head h-14 flex items-center shrink-0 ${isRail ? "justify-center" : "justify-between"}`}
-        >
-          {isRail ? (
-            <Tooltip>
-              <TooltipTrigger
-                onClick={toggle}
-                aria-label="Expand sidebar"
-                className="btn-press flex cursor-pointer items-center justify-center rounded-lg border-0 bg-transparent p-0"
-              >
-                {logoMark}
-              </TooltipTrigger>
-              <TooltipContent side="right" sideOffset={8}>
-                Expand sidebar
-              </TooltipContent>
-            </Tooltip>
-          ) : (
-            <>
+        {/* Header: Logo + Org */}
+        <div className="cc-sidebar-head h-14 flex items-center shrink-0 justify-between">
               <div className="flex min-w-0 items-center gap-2.5">
                 {logoMark}
                 <span
@@ -304,18 +259,7 @@ export default function NewSidebar({ allowedNavHrefs, isPlatformOperator, brandN
                 >
                   <X size={18} aria-hidden="true" />
                 </button>
-
-                {/* Desktop collapse toggle */}
-                <button
-                  className="btn-press hidden cursor-pointer items-center justify-center rounded-md border-0 bg-transparent p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-primary lg:flex"
-                  onClick={toggle}
-                  aria-label="Collapse sidebar"
-                >
-                  <ChevronsLeft size={16} aria-hidden="true" />
-                </button>
               </div>
-            </>
-          )}
         </div>
 
         {/* Nav Sections */}
@@ -329,7 +273,7 @@ export default function NewSidebar({ allowedNavHrefs, isPlatformOperator, brandN
                dashboard route that Next decides to prerender fails the build
                rather than this rail falling back for a frame. */
             <Suspense fallback={null}>
-              <CampaignRailNav campaignId={campaignId} isRail={isRail} />
+              <CampaignRailNav campaignId={campaignId} />
             </Suspense>
           ) : (
           [...NAV_SECTIONS, ...(isPlatformOperator ? [PLATFORM_SECTION] : [])].map((section, gi) => {
@@ -346,14 +290,7 @@ export default function NewSidebar({ allowedNavHrefs, isPlatformOperator, brandN
               className="mb-1"
               data-parity={gi === 0 ? "shell.rail.group-first" : undefined}
             >
-              {/* Section label — hidden when collapsed */}
-              {!isRail && (
-                <div className="cc-nav-group-label">{section.label}</div>
-              )}
-              {/* Thin separator when collapsed */}
-              {isRail && (
-                <div className="cc-rail-divider" />
-              )}
+              <div className="cc-nav-group-label">{section.label}</div>
 
               {filteredItems.map(
                 ({
@@ -379,15 +316,9 @@ export default function NewSidebar({ allowedNavHrefs, isPlatformOperator, brandN
                       className={`cc-nav-item sidebar-link ${active ? "active btn-press" : ""}`}
                       aria-current={active ? "page" : undefined}
                     >
-                      <Icon
-                        size={isRail ? 19 : 17}
-                        className="cc-nav-icon"
-                        aria-hidden="true"
-                      />
-                      {!isRail && (
-                        <span className="cc-nav-label">{label}</span>
-                      )}
-                      {!isRail && badge && !active && (
+                      <Icon size={17} className="cc-nav-icon" aria-hidden="true" />
+                      <span className="cc-nav-label">{label}</span>
+                      {badge && !active && (
                         <span className="cc-nav-badge">
                           {badge}
                         </span>
@@ -395,19 +326,7 @@ export default function NewSidebar({ allowedNavHrefs, isPlatformOperator, brandN
                     </Link>
                   );
 
-                  // The rail clips its own overflow, so a CSS tooltip can never
-                  // escape it — the portalled Tooltip is what makes icon-only
-                  // navigation readable.
-                  if (!isRail) return <div key={href}>{navLink}</div>;
-
-                  return (
-                    <Tooltip key={href}>
-                      <TooltipTrigger render={navLink} />
-                      <TooltipContent side="right" sideOffset={8}>
-                        {label}
-                      </TooltipContent>
-                    </Tooltip>
-                  );
+                  return <div key={href}>{navLink}</div>;
                 }
               )}
             </div>
@@ -429,7 +348,7 @@ export default function NewSidebar({ allowedNavHrefs, isPlatformOperator, brandN
             <NotificationBell />
           </div>
           {/* User menu dropdown */}
-          {showUserMenu && !isRail && (
+          {showUserMenu && (
             <div className="cc-rail-usermenu cc-scale-in">
               <Link
                 href="/settings"
@@ -451,41 +370,29 @@ export default function NewSidebar({ allowedNavHrefs, isPlatformOperator, brandN
             </div>
           )}
 
-          <UserMenuTooltip label={userName} enabled={isRail}>
           <button
-            onClick={() => {
-              if (isRail) {
-                toggle();
-                return;
-              }
-              setShowUserMenu(!showUserMenu);
-            }}
+            onClick={() => setShowUserMenu(!showUserMenu)}
             className="cc-rail-user"
             data-open={showUserMenu}
             aria-expanded={showUserMenu}
-            aria-label={isRail ? `${userName} — expand sidebar` : "User menu"}
+            aria-label="User menu"
           >
             <div className="flex items-center gap-2.5">
               <div className="cc-sidebar-avatar" aria-hidden="true">
                 {userInitial}
               </div>
-              {!isRail && (
-                <span className="cc-sidebar-username" title={userName}>
-                  {userName}
-                </span>
-              )}
+              <span className="cc-sidebar-username" title={userName}>
+                {userName}
+              </span>
             </div>
-            {!isRail && (
-              <div className="flex items-center gap-2">
-                <ChevronDown
-                  size={14}
-                  aria-hidden="true"
-                  className="cc-rail-user-chevron"
-                />
-              </div>
-            )}
+            <div className="flex items-center gap-2">
+              <ChevronDown
+                size={14}
+                aria-hidden="true"
+                className="cc-rail-user-chevron"
+              />
+            </div>
           </button>
-          </UserMenuTooltip>
         </div>
       </aside>
     </>

@@ -98,38 +98,44 @@ const OUR_THEMES = ['light', 'dark'];
 const CREATORCORE_INKS: { ink: string; token: string; measured: string }[] = [
   {
     ink: 'rgb(152, 162, 179)',
-    token: '--cc-text-muted (globals.css:1564)',
+    token: '--cc-text-muted (globals.css:1579)',
     measured: "their muted grey is blue-cast: 'Role' on Team, the Notifications caption and the Slack line all measure rgb(152,162,179)",
   },
   {
     ink: 'rgba(31, 60, 239, 0.36)',
-    token: '--cc-text-faint (globals.css:1559)',
+    token: '--cc-text-faint (globals.css:1574)',
     measured: "the caption under a list page's title -- '200 Creators', '19 Lists' -- is their primary at 0.36 alpha",
   },
   {
     ink: 'rgb(172, 185, 246)',
-    token: '--cc-camp-status-fg (globals.css:2785)',
+    token: '--cc-camp-status-fg (globals.css:2824)',
     measured: 'their campaign header status sits at x=238 y=73.3, 14px/400 rgb(172,185,246), under the title',
   },
   {
     ink: 'rgb(142, 142, 142)',
-    token: '--cc-status-neutral-ink (globals.css:2594)',
-    measured: 'their campaigns strip draws the All tab a plain grey: rgb(142,142,142) (globals.css:4752)',
+    token: '--cc-status-neutral-ink (globals.css:2633)',
+    measured: 'their campaigns strip draws the All tab a plain grey: rgb(142,142,142) (globals.css:4775)',
   },
   {
     ink: 'rgb(231, 173, 0)',
     token: 'CAMPAIGN_STATUS_STYLE.PENDING via --cc-status-ink-strength',
-    measured: 'their Pending tab is rgb(231,173,0) -- the palette raw, because they do not push it toward the ground (globals.css:4752)',
+    measured: 'their Pending tab is rgb(231,173,0) -- the palette raw, because they do not push it toward the ground (globals.css:4775)',
   },
   {
     ink: 'rgb(86, 186, 87)',
     token: 'CAMPAIGN_STATUS_STYLE.COMPLETE via --cc-status-ink-strength',
-    measured: 'their Complete tab is rgb(86,186,87) (globals.css:4752)',
+    measured: 'their Complete tab is rgb(86,186,87) (globals.css:4775)',
   },
   {
     ink: 'rgb(255, 59, 48)',
     token: '--cc-danger',
-    measured: 'the same rule one hue over -- their Canceled tab is rgb(255,0,0) (globals.css:4752)',
+    measured: 'the same rule one hue over -- their Canceled tab is rgb(255,0,0) (globals.css:4775)',
+  },
+  {
+    ink: 'rgba(255, 255, 255, 0.5)',
+    token: '--cc-camp-rail-fg (globals.css:1552)',
+    measured:
+      'every inactive row of their campaign rail is white at 0.5 over rgb(31,60,239) -- 2.82:1 composited. Ours sat at 0.6 purely to clear the 3:1 floor this spec used to apply to every theme; it is their value again now that the floor is scoped to ours',
   },
 ];
 

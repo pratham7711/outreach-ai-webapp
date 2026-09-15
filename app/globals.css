@@ -289,11 +289,11 @@
   --cc-shell-cols: var(--cc-sidebar-w) minmax(0, 1fr);
   --cc-shell-rows: var(--cc-topbar-h) minmax(0, 1fr);
 
-  /* Rail. --cc-sidebar-w{,-collapsed} are EXISTING names, kept verbatim
-     because rules already read them; they move here so the base declares
-     them once instead of the duplicate :root further down. */
+  /* Rail. --cc-sidebar-w is an EXISTING name, kept verbatim because rules
+     already read it; it moves here so the base declares it once instead of the
+     duplicate :root further down. The rail has a single width: the collapsed
+     state and its -collapsed twin are gone. */
   --cc-sidebar-w: 16.5rem;
-  --cc-sidebar-w-collapsed: 4.5rem;
   --cc-rail-inset-inline: 0px;
   --cc-rail-inset-block: 0px;
   --cc-rail-r: 0px;
@@ -551,7 +551,6 @@
   --cc-nav-r: var(--cc-r-input);
   --cc-nav-group-pad: 0.75rem 0.75rem 0.25rem;
   --cc-nav-group-mb: 0px;
-  --cc-nav-item-pad-collapsed: 0.625rem;
 
   /* The rail's own furniture. Every one of these was an inline literal in
      NewSidebar.tsx, which is why no theme could reach the logo mark, the
@@ -561,7 +560,6 @@
      badge) keep their own token rather than being snapped to the nearest step,
      because snapping is a design change and this is a mechanical conversion. */
   --cc-rail-head-pad: 0 var(--cc-sp-7);
-  --cc-rail-head-pad-collapsed: 0 var(--cc-sp-4);
   --cc-rail-logo-size: 2rem;
   --cc-rail-logo-r: var(--cc-r-control);
   --cc-rail-logo-bg: var(--cc-primary);
@@ -576,7 +574,6 @@
   --cc-rail-initials-r: var(--cc-r-sm);
   --cc-rail-initials-tk: 0.5px;
   --cc-rail-divider-h: 1px;
-  --cc-rail-divider-m: 6px 8px;
   --cc-nav-badge-fs: 0.5625rem;
   --cc-nav-badge-fw: 700;
   --cc-nav-badge-pad: 2px 7px;
@@ -594,7 +591,6 @@
   --cc-rail-usermenu-item-r: var(--cc-r-control);
   --cc-rail-usermenu-divider-m: 0 var(--cc-sp-6);
   --cc-rail-user-pad: var(--cc-sp-4) var(--cc-sp-5);
-  --cc-rail-user-pad-collapsed: var(--cc-sp-4);
   --cc-rail-user-r: var(--cc-r-input);
   --cc-rail-user-bg: transparent;
   --cc-scrim-bg: rgba(0, 0, 0, 0.4);
@@ -1422,7 +1418,18 @@
   --cc-rail-logomark-display: none;
   --cc-rail-brand-display: none;
   --cc-rail-head-end-grow: 1;
-  --cc-rail-head-end-justify: flex-start;
+  /* MEASURED 2026-09-15 at desktop-1600: with `flex-end` the org chip sat hard
+     against the rail's right edge with 134px of dead space to its left.
+     CreatorCore's own header is the same row used end to end, starting with the
+     tenant's mark on the LEFT edge at x=20 -- the same x every nav row below it
+     starts at. `space-between` on a row that now holds one visible item puts it
+     there, on the rail's single alignment edge. */
+  --cc-rail-head-end-justify: space-between;
+  /* Their rail is one 220px column: every nav row runs 20..240, and so does the
+     footer and the header. Ours inset the header by 16px and the footer by
+     nothing, so three rows of the same rail started at three different x
+     (26, 20 and 10). 10px is the rail's own column padding. */
+  --cc-rail-head-pad: 0 10px;
   --cc-rail-logo-img-h: 34px;
   --cc-rail-logo-img-w: 100%;
   /* The initials chip is the fallback for an org with no uploaded logo -- every
@@ -1527,14 +1534,16 @@
      at x=21, 166.4 wide, and the active row inverts: white pill, blue label,
      weight 700.
 
-     The rest colour is 0.6 alpha, not their 0.5. MEASURED: 0.5 composites to
-     rgb(143,158,247) over that blue, which is 2.82:1 -- below the 3.0 floor
-     e2e/contrast.spec.ts asserts on, and four campaign routes are in its PAGES
-     list, so their value would fail the deploy gate outright. 0.6 composites
-     to rgb(165,177,249) and measures 3.46:1. The hue is theirs exactly; only
-     the alpha moves, and it moves the minimum that clears the floor. */
+     The rest colour is their 0.5. It was 0.6 for one reason, recorded here at
+     the time: 0.5 composites to rgb(143,158,247) over that blue, 2.82:1, below
+     the 3.0 floor e2e/contrast.spec.ts asserted on every theme, so their own
+     value would have failed the deploy gate. That floor is now scoped to the
+     themes whose colours are ours to choose, and this theme is asserted against
+     fidelity to CreatorCore instead -- so the alpha no longer has to move off
+     theirs, and rgba(255,255,255,0.5) is an enumerated entry in that spec's
+     allowlist. */
   --cc-camp-rail-bg: var(--cc-primary);
-  --cc-camp-rail-fg: rgba(255, 255, 255, 0.6);
+  --cc-camp-rail-fg: rgba(255, 255, 255, 0.5);
   --cc-camp-rail-hover-bg: rgba(255, 255, 255, 0.12);
   --cc-camp-rail-hover-fg: #FFFFFF;
   --cc-camp-rail-active-bg: var(--card);
@@ -1797,13 +1806,11 @@
 */
 :root.creatorcore {
   --cc-sidebar-w: 260px;
-  --cc-sidebar-w-collapsed: 92px;
 }
 
 @media (min-width: 1024px) {
   :root.creatorcore {
     --cc-sidebar-w: 15.31%;
-    --cc-sidebar-w-collapsed: 6.06%;
     --cc-rail-card-w: 15%;
     --cc-rail-inset-x: 0.625%;
     /* 3.40%, not 2.88%. The right gap is 2.88% OF THE VIEWPORT, but this padding
@@ -2130,10 +2137,6 @@
        would mean shrinking the client logo, which is the opposite of the ask. */
     --cc-rail-pad-block: var(--cc-sp-8);
   }
-
-  .creatorcore .cc-sidebar-rail[data-collapsed="true"] {
-    width: calc(var(--cc-sidebar-w-collapsed) - var(--cc-rail-inset-x) * 2);
-  }
 }
 
 /*
@@ -2176,6 +2179,39 @@
      there was nothing to re-point for one shell; it is now
      --cc-nav-item-fs and this is the only place that moves it. */
   --cc-nav-item-fs: 1.125rem;
+  /* Their campaign rail has no account chip at all, so its 208px is theirs to
+     spend on section names. Ours keeps the chip -- it is the only way to the
+     account menu from inside a campaign -- and at 208px a single row could not
+     hold avatar + name + chevron + two icons: MEASURED 2026-09-15, the name box
+     came out 27px against 47px of text, so "Admin" rendered as "A…". Stacking
+     gives the name the full column instead of the 100px left over beside the
+     icons. */
+  --cc-rail-foot-dir: column;
+  --cc-rail-foot-align: stretch;
+  --cc-rail-foot-gap: var(--cc-sp-4);
+}
+
+/* "All campaigns" is our way back out of a campaign; CreatorCore's rail has no
+   such row, so nothing here is copied from them. It is the one row in this rail
+   whose label does not fit: MEASURED 2026-09-15, the text ran to x=177 inside a
+   box whose content ends at 177 and lost its last letter. Trimming the row's
+   side padding to 8px was measured too and still overflowed by a pixel, so the
+   row takes the MAIN rail's 16px instead: it fits with 11px to spare and its
+   arrow stays on the same x as every section icon below it. */
+.creatorcore .cc-sidebar-rail[data-shell="campaign"] .cc-nav-item[href="/campaigns"] {
+  font-size: 1rem;
+}
+
+/* Their campaign rail is a text list: MEASURED at desktop-1600 on all seven
+   paired campaign surfaces, a row is 166.4px with 10px of padding and its label
+   starts at x=30.8 -- there is no icon in front of it, unlike their MAIN rail,
+   whose rows measure a 38px label inset and which ours matches icon for icon.
+   Ours carried section icons here too, which pushed every label to x=59, 28px
+   right of theirs. Hiding them lands our labels at x=31. The back link keeps
+   its arrow: that row is ours, not one of theirs, and the arrow is what marks
+   it as the way out rather than another section. */
+.creatorcore .cc-sidebar-rail[data-shell="campaign"] .cc-sidebar-nav .cc-nav-item:not([href="/campaigns"]) svg {
+  display: none;
 }
 
 /* The campaign rail's SKIN, measured against the reference at desktop-1600 and
@@ -2292,10 +2328,13 @@
   letter-spacing: normal;
   text-transform: none;
   line-height: 18.75px;
-  /* Was this same rgba literal spelled out, so it silently ignored
-     --cc-text-subtle and stayed at 1.89:1 when that token was retuned. Point it
-     at the token so there is one place to change. */
-  color: var(--cc-text-subtle);
+  /* MEASURED 2026-09-15, every one of their 14 dashboard surfaces: the group
+     heading is rgba(31, 60, 239, 0.36) -- --cc-text-faint, not --cc-text-subtle
+     (0.85), which is where this pointed while contrast.spec's 3:1 floor still
+     applied to this theme. That floor is now scoped to the themes whose colours
+     are ours to choose, and this value is already an enumerated entry in the
+     fidelity allowlist, so the heading can be the weight they draw it at. */
+  color: var(--cc-text-faint);
   padding: 0;
   margin-bottom: 8px;
 }
@@ -2313,13 +2352,13 @@
   border: none;
 }
 
+/* Same 220px column as the nav rows and the header: the account chip starts at
+   20 and the utility icons end at 240. This used to be `0`, which let the chip
+   sit flush at x=10 and the bell at exactly 250 -- both hard against the card's
+   edge while every row above them was inset, which is what made the foot read
+   as a different component from the rail it belongs to. */
 .creatorcore .cc-sidebar-footer {
-  padding-left: 0;
-  padding-right: 0;
-}
-
-.creatorcore .cc-sidebar-head {
-  border-bottom: 1px solid var(--cc-border);
+  padding-inline: 10px;
 }
 
 .cc-sidebar-footer {
@@ -4924,7 +4963,7 @@ h1, h2, h3, h4, h5, h6 {
   transform: translateY(-50%) translateX(0);
 }
 
-/* Only show tooltip when data-tooltip is set (collapsed sidebar) */
+/* Only show tooltip when data-tooltip is set */
 .cc-tooltip:not([data-tooltip])::after {
   display: none;
 }
@@ -5453,15 +5492,9 @@ h1, h2, h3, h4, h5, h6 {
   flex-shrink: 0;
 }
 
-.cc-sidebar-rail[data-collapsed="true"] .cc-rail-utility {
-  flex-direction: column;
-}
-
 /* ── The rail's furniture ──────────────────────────────────────────────────
    NewSidebar carried 21 inline style objects, every one of them unreachable by
-   any theme. `data-collapsed` on the <aside> is the same boolean the component
-   called `isRail`, so the collapsed variants are read off the DOM instead of
-   being branched in JS. */
+   any theme. They are tokens here instead, so a theme can reach them. */
 
 /* The rail's default z is the rail's own layer; the scrim precedes it in the
    DOM, so the rail still paints on top. A drawer re-points it. */
@@ -5489,10 +5522,6 @@ h1, h2, h3, h4, h5, h6 {
 .cc-sidebar-head {
   padding: var(--cc-rail-head-pad);
 }
-.cc-sidebar-rail[data-collapsed="true"] .cc-sidebar-head {
-  padding: var(--cc-rail-head-pad-collapsed);
-}
-
 .cc-rail-logo {
   width: var(--cc-rail-logo-size);
   height: var(--cc-rail-logo-size);
@@ -5514,25 +5543,12 @@ h1, h2, h3, h4, h5, h6 {
 
 /* Grows into the row the wordmark vacates, so the tenant's logo is the header
    rather than a chip at the end of it. `min-width: 0` because the flex default
-   of `auto` would refuse to let a wide logo shrink and push the collapse button
-   off the rail. */
+   of `auto` would refuse to let a wide logo shrink, so a wide one would push the
+   rest of the header off the rail. */
 .cc-rail-head-end {
   flex: var(--cc-rail-head-end-grow) 1 auto;
   min-width: 0;
   justify-content: var(--cc-rail-head-end-justify);
-}
-
-/* The collapsed rail has no wordmark to hide and the mark IS the expand
-   button, so the header tokens revert on the <aside>. A custom property
-   resolves from the nearest declaring ancestor, so this beats :root.creatorcore
-   for everything inside the rail without out-specifying it. */
-.cc-sidebar-rail[data-collapsed="true"] {
-  --cc-rail-logomark-display: flex;
-  --cc-rail-foot-dir: column;
-  --cc-rail-foot-gap: var(--cc-sp-4);
-  --cc-rail-utility-order: 0;
-  --cc-rail-utility-justify: center;
-  --cc-rail-user-order: 1;
 }
 
 .cc-rail-logo-img {
@@ -5550,20 +5566,6 @@ h1, h2, h3, h4, h5, h6 {
   padding: var(--cc-rail-initials-pad);
   border-radius: var(--cc-rail-initials-r);
   letter-spacing: var(--cc-rail-initials-tk);
-}
-
-.cc-rail-divider {
-  height: var(--cc-rail-divider-h);
-  background: var(--cc-border);
-  margin: var(--cc-rail-divider-m);
-}
-
-/* Declared after `.creatorcore .cc-nav-item` so the collapsed row wins the
-   source-order tie at equal specificity. Both resolve to the same 10px today;
-   the ordering is what keeps that true if either is retuned. */
-.cc-sidebar-rail[data-collapsed="true"] .cc-nav-item {
-  justify-content: center;
-  padding: var(--cc-nav-item-pad-collapsed);
 }
 
 .cc-nav-icon {
@@ -5658,11 +5660,6 @@ h1, h2, h3, h4, h5, h6 {
 .cc-rail-user[data-open="true"] {
   --cc-rail-user-bg: var(--cc-primary-light);
 }
-.cc-sidebar-rail[data-collapsed="true"] .cc-rail-user {
-  justify-content: center;
-  padding: var(--cc-rail-user-pad-collapsed);
-}
-
 .cc-rail-user-chevron {
   color: var(--cc-text-muted);
   transform: rotate(0deg);
@@ -6096,22 +6093,15 @@ h1, h2, h3, h4, h5, h6 {
   border-right: 1px solid var(--cc-border);
   padding-block: var(--cc-rail-pad-block);
 }
-.cc-sidebar-rail[data-collapsed="true"] {
-  width: var(--cc-sidebar-w-collapsed);
-}
 .cc-dashboard-content {
   margin-left: 0;
 }
 @media (min-width: 1024px) {
   .cc-dashboard-content {
     margin-left: var(--cc-sidebar-w);
-  }
-  .cc-dashboard-content[data-collapsed="true"] {
-    margin-left: var(--cc-sidebar-w-collapsed);
-  }
-}
-/* Animate only after hydration has settled the persisted state, so the
-   restored width does not slide in on every page load. */
+  }}
+/* Animate only after hydration, so the mobile drawer does not slide in on
+   every page load. */
 .cc-sidebar-rail[data-ready="true"] {
   transition: width 0.2s ease, transform 0.2s ease;
 }
@@ -6165,17 +6155,9 @@ h1, h2, h3, h4, h5, h6 {
   flex: 1 1 auto;
 }
 
-/* Collapsed rail: reclaim the scrollbar gutter that eats a 72px column. */
 .cc-sidebar-nav {
   scrollbar-width: thin;
   scrollbar-color: var(--cc-border) transparent;
-}
-.cc-sidebar-rail[data-collapsed="true"] .cc-sidebar-nav {
-  scrollbar-width: none;
-}
-.cc-sidebar-rail[data-collapsed="true"] .cc-sidebar-nav::-webkit-scrollbar {
-  width: 0;
-  height: 0;
 }
 
 
