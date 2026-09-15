@@ -10,6 +10,7 @@
  */
 import { db } from "@/lib/db";
 import { creatorHandleVariants } from "@/lib/creator-auth";
+import { resolveAuthorFromPlatform } from "@/lib/platforms/postAuthor";
 import { detectPlatform } from "@/lib/platforms/fetchPostMetrics";
 import { readCreatorProfile } from "@/lib/platforms/creatorProfile";
 import type { Platform, Prisma } from "@/lib/generated/prisma/client";
@@ -79,6 +80,8 @@ export type ExistingPost = {
   id: string;
   campaignId: string;
   campaignName: string;
+  creatorId: string;
+  creatorName: string;
   creatorHandle: string;
 };
 
@@ -124,7 +127,7 @@ export async function findExistingPosts(orgId: string, postUrl: string): Promise
       id: true,
       campaignId: true,
       campaign: { select: { title: true } },
-      creator: { select: { handle: true } },
+      creator: { select: { id: true, name: true, handle: true } },
     },
     // A link can legitimately sit in a handful of campaigns; nobody needs to
     // read a list of forty, and the count is what the warning actually says.
@@ -135,6 +138,8 @@ export async function findExistingPosts(orgId: string, postUrl: string): Promise
     id: r.id,
     campaignId: r.campaignId,
     campaignName: r.campaign.title,
+    creatorId: r.creator.id,
+    creatorName: r.creator.name,
     creatorHandle: r.creator.handle,
   }));
 }
@@ -143,8 +148,17 @@ export type PostPrecheck = {
   url: string;
   platform: Platform | null;
   mediaType: string | null;
-  /** The handle the URL names, without its "@". Absent when it names none. */
+  /** The handle, without its "@". Absent only when nobody could name one. */
   handle: string | null;
+  /**
+   * Where that handle came from. "url" is the handle written in the link;
+   * "platform" is the one the platform answered with for a link that carries
+   * none, and "record" is the creator the org already files this exact post
+   * under in another campaign. Null when there is no handle at all.
+   */
+  handleSource: "url" | "platform" | "record" | null;
+  /** The platform's display name for that author, when it gave one. */
+  authorName: string | null;
   creator: { id: string; name: string; handle: string } | null;
   /** No creator matched, but the link names one and this seat may add them. */
   creatorWillBeAdded: boolean;
@@ -168,18 +182,45 @@ export async function precheckPostUrl(
   mayCreateCreator: boolean,
 ): Promise<PostPrecheck> {
   const detected = detectPlatform(url);
-  const handle = detected?.handle?.replace(/^@/, "") ?? null;
+  const urlHandle = detected?.handle?.replace(/^@/, "") ?? null;
 
-  const [creator, existing] = await Promise.all([
-    handle ? findCreatorByHandle(orgId, handle, detected?.platform) : Promise.resolve(null),
+  /* Only when the link itself names nobody. A YouTube watch URL carries no
+     channel and an operator was being asked to supply one the platform will
+     hand over for free -- see resolveAuthorFromPlatform for what each platform
+     actually answers. Runs alongside the row reads rather than before them,
+     because it is a network call and the rest of this is indexed lookups. */
+  const [fromPlatform, existing] = await Promise.all([
+    urlHandle ? Promise.resolve(null) : resolveAuthorFromPlatform(url, detected?.platform),
     findExistingPosts(orgId, url),
   ]);
+  const handle = urlHandle ?? fromPlatform?.handle ?? null;
+  const byHandle = handle ? await findCreatorByHandle(orgId, handle, detected?.platform) : null;
+
+  /* Last, and only when nothing named anybody: the org's own copy of this exact
+     post. A link the platform will not talk about -- a deleted Instagram reel,
+     a private video -- is still a post somebody already filed against a
+     creator here, and asking again for an answer we hold is friction over
+     nothing. It is the same post by platform post id, inside the same org, so
+     the creator is not a guess.
+
+     Only when NOTHING named anybody, not merely when the roster has no match:
+     a link that names @jane belongs to @jane even if an older copy of the post
+     was filed against somebody else, and quietly preferring the older filing
+     would spread one wrong attribution to every later paste of that link. */
+  const fromRecord = !handle && existing.length > 0 ? existing[0] : null;
+  const creator =
+    byHandle ??
+    (fromRecord
+      ? { id: fromRecord.creatorId, name: fromRecord.creatorName, handle: fromRecord.creatorHandle }
+      : null);
 
   return {
     url,
     platform: detected?.platform ?? null,
     mediaType: detected?.mediaType ?? null,
-    handle,
+    handle: handle ?? fromRecord?.creatorHandle.replace(/^@/, "") ?? null,
+    handleSource: handle ? (urlHandle ? "url" : "platform") : fromRecord ? "record" : null,
+    authorName: fromPlatform?.name ?? null,
     creator,
     creatorWillBeAdded: Boolean(handle) && !creator && mayCreateCreator,
     inThisCampaign: existing.find((e) => e.campaignId === campaignId) ?? null,

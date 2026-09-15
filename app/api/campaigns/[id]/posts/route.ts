@@ -19,6 +19,7 @@ import { getRequestIp } from "@/lib/request";
 import type { PostStatus, Platform } from "@/lib/generated/prisma/client";
 import { PLATFORM_VALUES } from "@/lib/platforms/constants";
 import { ensureCreatorForHandle, findCreatorByHandle, findExistingPosts } from "@/lib/posts/addPostChecks";
+import { resolveAuthorFromPlatform } from "@/lib/platforms/postAuthor";
 import { hasPermission } from "@/lib/rbac";
 import {
   toPostDto,
@@ -234,8 +235,16 @@ export async function POST(
        seat still has to be one that could have added that creator directly. */
     let creatorId = parsed.data.creatorId;
     let addedCreator: { id: string; handle: string } | null = null;
-    if (!creatorId && detected?.handle) {
-      const bare = detected.handle.replace(/^@/, "");
+    /* The link's own handle first, then the platform's answer for a link that
+       carries none -- a YouTube watch URL names no channel, and oEmbed hands
+       the channel over for free. Only when neither says is anybody asked.
+       Both YouTube and Instagram answer; see resolveAuthorFromPlatform for
+       what each was measured to give. */
+    const urlHandle = detected?.handle?.replace(/^@/, "") ?? null;
+    const resolvedHandle =
+      urlHandle ?? (creatorId ? null : (await resolveAuthorFromPlatform(postUrl, detected?.platform))?.handle ?? null);
+    if (!creatorId && resolvedHandle && detected?.platform) {
+      const bare = resolvedHandle;
       const mayCreate = hasPermission((session.user as any).role ?? "", "creators:create");
       const found = mayCreate
         ? await ensureCreatorForHandle(orgId, bare, detected.platform)
@@ -249,9 +258,13 @@ export async function POST(
       creatorId = found.creator.id;
       if (found.created) addedCreator = { id: found.creator.id, handle: found.creator.handle };
     }
+    /* The org's own copy of this exact post, when nothing else named anybody.
+       Same rule as the precheck, and it has to be here too or the dialog would
+       promise a creator this handler then refuses. */
+    if (!creatorId && existing.length > 0) creatorId = existing[0].creatorId;
     if (!creatorId) {
       return NextResponse.json(
-        { error: "This link does not name its creator, so please choose one." },
+        { error: "Neither this link nor the platform names its creator, so please choose one." },
         { status: 400 }
       );
     }

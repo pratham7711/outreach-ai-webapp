@@ -12,6 +12,9 @@ import { hasPermission } from "@/lib/rbac";
    anyway -- is there a creator for this handle, is this post already on record
    -- but for a whole paste at once and before anything is written, so the
    dialog can mark the bad rows instead of discovering them mid-batch. */
+/** Lanes the paste is checked in. See the comment at the call site. */
+const PRECHECK_LANES = 6;
+
 const precheckSchema = z.object({
   urls: z.array(httpUrl()).min(1).max(MAX_BULK_POSTS),
 });
@@ -40,11 +43,23 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     /* Sequential would be fifty round trips for a fifty-link paste while the
-       operator watches an empty dialog; these are short indexed reads with no
-       writes between them, so they go together. */
+       operator watches an empty dialog, so these run together -- but bounded.
+       A check is no longer only indexed reads: a link that names no creator
+       asks the platform who posted it, and fifty of those at once is a ~11MB
+       burst at Instagram from one request, which is how a scrape earns a rate
+       limit. Six lanes keeps a fifty-link paste under nine waves. */
     const mayCreateCreator = hasPermission((session.user as any).role ?? "", "creators:create");
-    const results = await Promise.all(
-      parsed.data.urls.map((url) => precheckPostUrl(orgId, campaignId, url, mayCreateCreator)),
+    const urls = parsed.data.urls;
+    const results = new Array<Awaited<ReturnType<typeof precheckPostUrl>>>(urls.length);
+    let next = 0;
+    await Promise.all(
+      Array.from({ length: Math.min(PRECHECK_LANES, urls.length) }, async () => {
+        for (;;) {
+          const i = next++;
+          if (i >= urls.length) return;
+          results[i] = await precheckPostUrl(orgId, campaignId, urls[i], mayCreateCreator);
+        }
+      }),
     );
 
     return NextResponse.json({ results });

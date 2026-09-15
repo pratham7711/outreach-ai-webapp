@@ -84,6 +84,10 @@ type PostCheck = {
   url: string;
   platform: string | null;
   handle: string | null;
+  /** "url" when the link named them, "platform" when the platform was asked,
+   *  "record" when the org already files this same post under a creator. */
+  handleSource: "url" | "platform" | "record" | null;
+  authorName: string | null;
   creator: { id: string; name: string; handle: string } | null;
   creatorWillBeAdded: boolean;
   inThisCampaign: { id: string; campaignId: string; campaignName: string } | null;
@@ -112,9 +116,10 @@ type AddRow = {
 /**
  * The one thing standing between a row and being submitted, or null.
  *
- * "blocking" rows hold the whole batch: the submit button stays disabled while
- * any exist, because every one of them is a rejection we can already see, and
- * finding out mid-batch is what made adding ten links a ten-step negotiation.
+ * A "blocking" row is a rejection we can already see, so it is left out of the
+ * submit rather than discovered mid-batch -- the rest of the paste still goes
+ * (see addSubmittable). Non-blocking problems are notes: the row is added and
+ * says why it is worth a second look.
  */
 function addRowProblem(
   row: AddRow,
@@ -161,7 +166,12 @@ function addRowProblem(
      post twice in THIS campaign double-counts anything. */
   if (row.creatorId) return null;
   if (!detectedHandle) {
-    return { blocking: true, message: "This link doesn\u2019t name a creator — pick one." };
+    /* The precheck asks the platform whenever the link itself names nobody, so
+       until it has answered there is nothing to complain about. Blocking on the
+       URL alone is what used to make every YouTube link demand a creator the
+       platform would have handed over for free. */
+    if (!row.check) return null;
+    return { blocking: true, message: "Neither this link nor the platform names a creator — pick one." };
   }
   /* A handle the roster has never seen is not an error any more -- the post add
      creates the creator from the link. It only blocks on a seat that is not
@@ -430,7 +440,9 @@ export default function PostsTab({
   }, [campaignId, showAddPost, addUrlsKey]);
 
   const addProblems = useMemo(
-    () => addRows.map((r, i) => addRowProblem(r, addDetections[i]?.handle)),
+    /* The server's handle wins over the URL's: for a link that names
+       nobody it is the one the platform answered with. */
+    () => addRows.map((r, i) => addRowProblem(r, r.check?.handle ?? addDetections[i]?.handle)),
     [addRows, addDetections]
   );
 
@@ -1641,14 +1653,29 @@ export default function PostsTab({
                         />
                         {row.check?.creator && !row.creatorId && (
                           <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: "6px 0 0" }}>
-                            Matched <strong style={{ color: "var(--cc-text)" }}>{row.check.creator.name}</strong> from the
-                            link — leave blank to use them.
+                            Matched <strong style={{ color: "var(--cc-text)" }}>{row.check.creator.name}</strong>
+                            {row.check.handleSource === "platform"
+                              ? " from the post itself"
+                              : row.check.handleSource === "record"
+                                ? " from the copy already on record"
+                                : " from the link"} — leave blank to use them.
+                          </p>
+                        )}
+                        {row.check?.handleSource === "platform" && !row.check.creator && !row.check.creatorWillBeAdded && !row.creatorId && (
+                          <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: "6px 0 0" }}>
+                            This link names no creator; the platform says{" "}
+                            <strong style={{ color: "var(--cc-text)" }}>
+                              {row.check.authorName ?? `@${row.check.handle}`}
+                            </strong>
+                            .
                           </p>
                         )}
                         {row.check?.creatorWillBeAdded && !row.creatorId && (
                           <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: "6px 0 0" }}>
-                            <strong style={{ color: "var(--cc-text)" }}>@{row.check.handle}</strong> is not on the roster
-                            yet — they will be added with this post. Pick someone else to attribute it differently.
+                            <strong style={{ color: "var(--cc-text)" }}>@{row.check.handle}</strong>
+                            {row.check.handleSource === "platform" ? " — read off the post itself — " : " "}
+                            is not on the roster yet, and will be added with this post. Pick someone else to
+                            attribute it differently.
                           </p>
                         )}
                         {det?.handle && !row.check && !row.creatorId && (
