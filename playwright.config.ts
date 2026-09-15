@@ -24,10 +24,23 @@ process.env.E2E_BASE_URL = E2E_URL;
 
 export default defineConfig({
   testDir: './e2e',
-  fullyParallel: false, // sequential to avoid auth race conditions
+  /* Files run in parallel, tests inside a file do not.
+     The suite used to be wholly sequential, and the reason given -- auth races
+     -- is real but narrower than the setting: each project's session is a
+     storageState file written once by its setup project, and specs inside one
+     file share page state. Neither is threatened by running two different
+     FILES at the same time, which is what workers>1 with fullyParallel:false
+     does. MEASURED before the change: 794s of test time across 39 files on one
+     worker, inside a 21.7-minute wall clock; the longest single file is 86.5s,
+     which is the floor this can reach.
+     Four, not ten: each worker holds its own Chrome, and a previous run on
+     this machine left 42 of them alive and exhausted swap. E2E_WORKERS
+     overrides it for a machine with more room, or 1 to bisect an
+     order-dependent failure. */
+  fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: 1,
+  workers: Number(process.env.E2E_WORKERS ?? 4),
   timeout: 120000,
   reporter: process.env.CI ? 'github' : 'list',
   use: {
@@ -92,8 +105,20 @@ export default defineConfig({
     /* next dev binds 3000, which Leegality owns on this machine, while the url
        below waits on 3009 -- so webServer could never start on its own and a
        hand-started server was the only path that ever worked. */
-    command: `PORT=${E2E_PORT} SIGNUP_RATE_LIMIT_PER_HOUR=100 npm run dev`,
+    /* A built server, not `next dev`. Turbopack compiles each route the first
+       time a test touches it, and the suite touches most of the app: MEASURED,
+       the tests themselves accounted for 794s of a 1302s run, and that 508s
+       gap is startup plus those first-hit compiles. `npm run build` pays about
+       40s once and `next start` then serves every route immediately.
+       E2E_DEV_SERVER=1 puts the dev server back, for debugging a failure that
+       only reproduces under Turbopack. */
+    command: process.env.E2E_DEV_SERVER
+      ? `PORT=${E2E_PORT} SIGNUP_RATE_LIMIT_PER_HOUR=100 npm run dev`
+      : `npm run build && PORT=${E2E_PORT} SIGNUP_RATE_LIMIT_PER_HOUR=100 npm start`,
     url: E2E_URL,
+    /* The build is inside this command, so the default 60s would time out on a
+       cold one before the server ever bound the port. */
+    timeout: 300000,
     /* The suite asserts on seed fixtures -- 'LEAK IT', creator@demo.com and the
        rest -- so it needs the seeded branch, not whatever .env.local happens to
        point at. That default was a snapshot branch of the prod project holding
