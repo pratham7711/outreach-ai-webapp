@@ -30,7 +30,7 @@ function creatorName(creator: { name: string; handle: string } | null): string {
 
 const STATUS_TABS = [
   { key: "ALL", label: "All", bg: "#F3F4F6", color: "#374151" },
-  { key: "PENDING", label: "Pending", bg: "#FEF3C7", color: "#D97706" },
+  { key: "PENDING", label: "Pending", bg: "#FEF3C7", color: "var(--cc-warning-ink)" },
   { key: "APPROVED", label: "Approved", bg: "#D1FAE5", color: "#059669" },
   { key: "REJECTED", label: "Rejected", bg: "#FEE2E2", color: "#DC2626" },
 ];
@@ -121,7 +121,7 @@ export default function PayoutRequestsSection({ campaignId }: { campaignId: stri
     padding: "10px 14px",
     borderRadius: 10,
     border: "1px solid var(--cc-border)",
-    fontSize: 14,
+    fontSize: "var(--cc-t-14)",
     color: "var(--cc-text)",
     background: "var(--cc-card)",
     boxSizing: "border-box" as const,
@@ -132,7 +132,7 @@ export default function PayoutRequestsSection({ campaignId }: { campaignId: stri
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-        <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)", display: "flex", alignItems: "center", gap: 8 }}>
+        <span className="cc-panel-title" style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <Banknote size={16} /> Payout Requests
         </span>
         <Button variant="primary" onClick={openCreate}>
@@ -161,7 +161,7 @@ export default function PayoutRequestsSection({ campaignId }: { campaignId: stri
             gap: 12, padding: "12px 24px", borderBottom: "1px solid var(--cc-border)", background: "var(--cc-bg)",
           }}>
             {["Creator", "Amount", "Currency", "Status", "Requested", "Actions"].map(h => (
-              <span key={h} style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--cc-text-subtle)" }}>{h}</span>
+              <span key={h} className="cc-microlabel">{h}</span>
             ))}
           </div>
           {requests.map((req, i) => (
@@ -170,18 +170,18 @@ export default function PayoutRequestsSection({ campaignId }: { campaignId: stri
               gap: 12, padding: "14px 24px", alignItems: "center",
               borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined,
             }}>
-              <span style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>{creatorName(req.creator)}</span>
-              <span style={{ fontSize: 14, fontWeight: 700, color: "var(--cc-text)" }}>{formatCurrency(req.requestedAmount, req.currency)}</span>
-              <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{req.currency}</span>
+              <span style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{creatorName(req.creator)}</span>
+              <span style={{ fontSize: "var(--cc-t-14)", fontWeight: 700, color: "var(--cc-text)" }}>{formatCurrency(req.requestedAmount, req.currency)}</span>
+              <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{req.currency}</span>
               <Badge variant={STATUS_BADGE[req.status] ?? "neutral"}>{req.status}</Badge>
-              <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{formatDateAbs(req.createdAt)}</span>
+              <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>{formatDateAbs(req.createdAt)}</span>
               <div style={{ display: "flex", gap: 4 }}>
                 {req.status === "PENDING" && (
                   <>
-                    <button onClick={() => handleApprove(req.id)} style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid var(--cc-success)", background: "color-mix(in srgb, var(--cc-success) 14%, transparent)", color: "var(--cc-success)", cursor: "pointer", fontSize: 11, display: "flex", alignItems: "center", gap: 2 }}>
+                    <button onClick={() => handleApprove(req.id)} style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid var(--cc-success)", background: "color-mix(in srgb, var(--cc-success) 14%, transparent)", color: "var(--cc-success)", cursor: "pointer", fontSize: "var(--cc-t-11)", display: "flex", alignItems: "center", gap: 2 }}>
                       <Check size={12} /> Approve
                     </button>
-                    <button onClick={() => setShowReject(req.id)} style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid var(--cc-danger)", background: "color-mix(in srgb, var(--cc-danger) 14%, transparent)", color: "var(--cc-danger)", cursor: "pointer", fontSize: 11, display: "flex", alignItems: "center", gap: 2 }}>
+                    <button onClick={() => setShowReject(req.id)} style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid var(--cc-danger)", background: "color-mix(in srgb, var(--cc-danger) 14%, transparent)", color: "var(--cc-danger-ink)", cursor: "pointer", fontSize: "var(--cc-t-11)", display: "flex", alignItems: "center", gap: 2 }}>
                       <X size={12} /> Reject
                     </button>
                   </>
@@ -202,7 +202,7 @@ export default function PayoutRequestsSection({ campaignId }: { campaignId: stri
         }>
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <div>
-              <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Creator</label>
+              <label style={{ display: "block", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6 }}>Creator</label>
               <CreatorSelect
                 value={form.creatorId}
                 onChange={(id) => setForm(f => ({ ...f, creatorId: id }))}
@@ -213,7 +213,7 @@ export default function PayoutRequestsSection({ campaignId }: { campaignId: stri
                 <Input label="Amount" type="number" value={form.requestedAmount} onChange={(e) => setForm(f => ({ ...f, requestedAmount: e.target.value }))} placeholder="e.g. 500" required />
               </div>
               <div style={{ width: 110 }}>
-                <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Currency</label>
+                <label style={{ display: "block", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6 }}>Currency</label>
                 <Dropdown
                     ariaLabel="Currency"
                     align="left"
@@ -237,7 +237,7 @@ export default function PayoutRequestsSection({ campaignId }: { campaignId: stri
           </div>
         }>
           <div>
-            <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Reason (optional)</label>
+            <label style={{ display: "block", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6 }}>Reason (optional)</label>
             <textarea value={rejectionReason} onChange={(e) => setRejectionReason(e.target.value)} placeholder="Why is this request being rejected?" rows={3} style={{ ...selectStyle, resize: "vertical" as const }} />
           </div>
         </Modal>

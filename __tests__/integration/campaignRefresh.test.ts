@@ -16,7 +16,7 @@ jest.mock('@/lib/db', () => ({
   db: {
     campaign: { findFirst: jest.fn() },
     post: { findFirst: jest.fn(), findMany: jest.fn(), update: jest.fn() },
-    creator: { update: jest.fn() },
+    creator: { update: jest.fn(), updateMany: jest.fn() },
     postMetricSnapshot: { create: jest.fn() },
     campaignRefreshRun: { findFirst: jest.fn(), create: jest.fn(), update: jest.fn() },
     $transaction: jest.fn(),
@@ -161,9 +161,12 @@ describe('single post sync', () => {
     expect(written.platformMetrics.__measured).toEqual(['views', 'comments']);
   });
 
-  it('keeps the importer raw record when it merges the measured list in', async () => {
-    // platformMetrics is a shared bag: cc-import parks the whole CreatorCore
-    // record under __cc there, and overwriting it would throw that away.
+  it('keeps whatever else is in the bag when it merges the measured list in', async () => {
+    /* platformMetrics is a shared bag, so a sync must merge into it rather than
+       replace it. __cc is no longer one of the occupants -- it duplicated
+       CcPost.raw and was dropped -- but a row imported before that still
+       carries one, and the merge has to leave it alone rather than decide on
+       its own that a key it does not recognise is safe to discard. */
     mockDb.post.findFirst.mockResolvedValue({
       ...post,
       platformMetrics: { __cc: { id: 'cc-1' }, __stat: { views: 12 } },
@@ -182,13 +185,39 @@ describe('single post sync', () => {
     // TikTok reports authorStats in the post payload, so this costs no extra
     // request. Nothing had ever written Creator.followersCount, which is why the
     // campaign roster showed 0 followers for all 25 of them.
+    //
+    // 22,700 is on TikTok's display ladder, and the video page's author block is
+    // ALWAYS rounded above 10,000 -- measured 2026-09-15, it served "27200000"
+    // for an account whose profile page reported 27,218,979. So the write is
+    // scoped to rows whose stored figure is outside the window that figure
+    // stands for, and it is an updateMany because matching nothing is the
+    // intended outcome rather than a P2025.
     mockFetch.mockResolvedValue({ ...withCounts, authorFollowers: 22700 });
 
     await syncReq();
 
-    expect(mockDb.creator.update).toHaveBeenCalledWith({
-      where: { id: 'creator-1' },
+    expect(mockDb.creator.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: 'creator-1',
+        OR: [
+          { followersCount: { lt: 22650 } },
+          { followersCount: { gte: 22800 } },
+        ],
+      },
       data: { followersCount: 22700 },
+    });
+  });
+
+  it('writes an exact follower count with no window at all', async () => {
+    // 22,749 is not on the ladder, so it is the platform's real digits and
+    // there is nothing to protect against.
+    mockFetch.mockResolvedValue({ ...withCounts, authorFollowers: 22749 });
+
+    await syncReq();
+
+    expect(mockDb.creator.updateMany).toHaveBeenCalledWith({
+      where: { id: 'creator-1' },
+      data: { followersCount: 22749 },
     });
   });
 
@@ -197,13 +226,13 @@ describe('single post sync', () => {
     // overwrite a figure an earlier sync or the import already established.
     mockFetch.mockResolvedValue(withCounts);
     await syncReq();
-    expect(mockDb.creator.update).not.toHaveBeenCalled();
+    expect(mockDb.creator.updateMany).not.toHaveBeenCalled();
   });
 
   it('does not write a follower count of zero', async () => {
     mockFetch.mockResolvedValue({ ...withCounts, authorFollowers: 0 });
     await syncReq();
-    expect(mockDb.creator.update).not.toHaveBeenCalled();
+    expect(mockDb.creator.updateMany).not.toHaveBeenCalled();
   });
 
   it('marks a post live when the platform answered, and never the reverse', async () => {

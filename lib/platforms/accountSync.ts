@@ -7,6 +7,7 @@ import { fetchInstagramLoginProfile } from "./instagramLogin";
 import { fetchYouTubeChannel } from "./youtube";
 import { fetchFacebookPage } from "./facebookPage";
 import { fetchThreadsProfile } from "./threads";
+import { followerLadder, keepPrecise } from "./precision";
 
 /**
  * One shape for "who this connected account is", and one place that writes it.
@@ -180,8 +181,25 @@ export async function fetchAccountIdentity(
  * the column predates this module, is non-nullable, and is read by the
  * agency-side roster and stats queries, so a null leaves whatever was there
  * rather than forcing a 0 over it.
+ *
+ * `storedFollowers` is the figure already on the row. It exists because one of
+ * these platforms will not give us an exact number at all: YouTube's Data API
+ * rounds `subscriberCount` to three significant figures for every channel above
+ * 1,000, to the channel's own OAuth token included, so a refresh would otherwise
+ * grind a real 1,234,567 down to 1,230,000 and then keep it there. See
+ * keepPrecise -- on every other platform here the ladder is exact and the
+ * argument changes nothing.
  */
-export function identityWriteData(identity: AccountIdentity) {
+export function identityWriteData(
+  identity: AccountIdentity,
+  platform: PlatformEnumValue,
+  storedFollowers?: number,
+) {
+  const followersCount = keepPrecise(
+    identity.followersCount ?? undefined,
+    storedFollowers,
+    followerLadder(platform),
+  );
   return {
     ...(identity.handle ? { handle: identity.handle } : {}),
     platformUserId: identity.platformUserId,
@@ -189,9 +207,7 @@ export function identityWriteData(identity: AccountIdentity) {
     bio: identity.bio,
     profileUrl: identity.profileUrl,
     isVerified: identity.isVerified,
-    ...(identity.followersCount !== null
-      ? { followersCount: identity.followersCount }
-      : {}),
+    ...(followersCount !== undefined ? { followersCount } : {}),
     followingCount: identity.followingCount,
     mediaCount: identity.mediaCount,
     totalLikes: identity.totalLikes,
@@ -203,10 +219,15 @@ export function identityWriteData(identity: AccountIdentity) {
 export async function persistAccountIdentity(
   accountId: string,
   identity: AccountIdentity,
+  platform: PlatformEnumValue,
 ): Promise<void> {
+  const existing = await db.creatorSocialAccount.findUnique({
+    where: { id: accountId },
+    select: { followersCount: true },
+  });
   await db.creatorSocialAccount.update({
     where: { id: accountId },
-    data: identityWriteData(identity),
+    data: identityWriteData(identity, platform, existing?.followersCount),
   });
 }
 
@@ -230,7 +251,7 @@ export async function refreshAccountIdentity(
       log.warn("No identity could be read for a connected account", { accountId });
       return null;
     }
-    await persistAccountIdentity(accountId, identity);
+    await persistAccountIdentity(accountId, identity, platformEnum);
     return identity;
   } catch (err) {
     log.warn("Identity refresh failed", {

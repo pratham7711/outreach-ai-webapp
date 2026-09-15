@@ -113,13 +113,13 @@ export function BrandSafetyFlags({
         <Badge variant={verdictVariant}>{verdictWord}</Badge>
         <span
           data-testid="brand-safety-risk"
-          style={{ fontSize: 14, fontWeight: 700, color: risk.token }}
+          style={{ fontSize: "var(--cc-t-14)", fontWeight: 700, color: risk.token }}
         >
           {risk.word}
         </span>
         <span
           data-testid="brand-safety-score"
-          style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}
+          style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}
         >
           {scoreText}
         </span>
@@ -132,10 +132,10 @@ export function BrandSafetyFlags({
           aria-label={resolvedEmptyLabel}
           style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--cc-success)" }}
         >
-          <span aria-hidden="true" style={{ fontSize: 16, lineHeight: "20px" }}>
+          <span aria-hidden="true" style={{ fontSize: "var(--cc-t-16)", lineHeight: "20px" }}>
             <CheckCircle2 size={16} color="var(--cc-success)" />
           </span>
-          <span style={{ fontSize: 13, fontWeight: 600 }}>{resolvedEmptyLabel}</span>
+          <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)"}}>{resolvedEmptyLabel}</span>
         </div>
       ) : (
         <ul
@@ -166,10 +166,10 @@ export function BrandSafetyFlags({
                   {meta.word}
                 </Badge>
                 <span style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>
+                  <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>
                     {labelForCode(flag.code)}
                   </span>
-                  <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{flag.detail}</span>
+                  <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>{flag.detail}</span>
                 </span>
               </li>
             );

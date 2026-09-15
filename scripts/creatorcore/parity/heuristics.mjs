@@ -43,9 +43,25 @@ const num = (v) => parseFloat(v) || 0;
    declares, and reading the declared value is how contrast bugs survive an
    audit. */
 function rgb(c) {
-  const m = /rgba?\(([^)]+)\)/.exec(c || "");
+  const s = (c || "").trim();
+  /* Chrome serialises a color-mix() result as `color(srgb 0.8 0.185 0.151)` --
+     space separated, 0-1 floats, optional `/ alpha` -- not as rgb(). Returning
+     null for that form is not harmless: an unparseable background makes
+     bgBehind() walk past the element and score the ink against whatever paints
+     higher up, which is white. That is exactly how the notification badge, at a
+     measured 5.24:1 in the browser, came back as 32 `ground-unresolved`
+     findings at 1:1 the moment its token became a color-mix(). Parse both. */
+  const fn = /^color\(\s*srgb\s+([^)]+)\)/i.exec(s);
+  if (fn) {
+    const parts = fn[1].split("/");
+    const p = parts[0].trim().split(/\s+/).map(parseFloat);
+    const a = parts[1] !== undefined ? parseFloat(parts[1]) : 1;
+    if (p.length < 3 || p.some(Number.isNaN)) return null;
+    return { r: p[0] * 255, g: p[1] * 255, b: p[2] * 255, a };
+  }
+  const m = /rgba?\(([^)]+)\)/.exec(s);
   if (!m) return null;
-  const p = m[1].split(",").map((x) => parseFloat(x));
+  const p = m[1].split(/[,\s/]+/).filter(Boolean).map((x) => parseFloat(x));
   return { r: p[0], g: p[1], b: p[2], a: p.length > 3 ? p[3] : 1 };
 }
 function lum({ r, g, b }) {
@@ -129,12 +145,18 @@ export function fitts(tree, lm) {
        is a conformance failure, not a preference. Icon-only controls are the
        ones that fail, and they are exactly the controls with no label to aim
        at either. */
-    if (n.w < 24 || n.h < 24) {
-      out.push(F("fitts/target-below-wcag-minimum", "Fitts / WCAG 2.5.8", n.w < 20 || n.h < 20 ? "high" : "med",
+    /* n.hw/n.hh, where probe.mjs found one, is the wrapping label's box --
+       the thing a pointer actually hits. Scoring the control's own box called
+       the payouts checkbox a 16x16 failure when its label gives it the whole
+       32px cell, which is the fix already in that file rather than a defect. */
+    const tw = n.hw ?? n.w, th = n.hh ?? n.h;
+    if (tw < 24 || th < 24) {
+      const via = n.hw ? ` (via its ${tw}×${th}px label; the control's own box is ${n.w}×${n.h})` : "";
+      out.push(F("fitts/target-below-wcag-minimum", "Fitts / WCAG 2.5.8", tw < 20 || th < 20 ? "high" : "med",
         `${lm} › ${n.role} "${n.nm || n.raw || "(unlabelled)"}"`,
-        `Hit target is ${n.w}×${n.h}px; WCAG 2.2 AA requires 24×24 and a comfortable pointer target is 40×40.`,
+        `Hit target is ${tw}×${th}px${via}; WCAG 2.2 AA requires 24×24 and a comfortable pointer target is 40×40.`,
         "Give the control a padded box -- `.cc-icon-btn` sizes from --cc-icon-btn-size.",
-        { w: n.w, h: n.h }));
+        { w: tw, h: th }));
     }
   }
   /* Adjacent targets with no clear space between them: the miss lands on the
@@ -143,7 +165,19 @@ export function fitts(tree, lm) {
     const a = hits[i - 1], b = hits[i];
     const sameRow = Math.abs(a.y - b.y) < 4;
     const gap = b.x - (a.x + a.w);
-    if (sameRow && gap >= 0 && gap < 6 && a.w < 200 && b.w < 200) {
+    /* SC 2.5.8 requires the spacing only as an exception FOR undersized
+       targets -- a target that is itself 24x24 conforms however tightly it is
+       packed. Without this test the rule fired four times on the dashboard's
+       7D/30D/90D/1Y range picker, whose chips measure well over 24px and sit
+       3.9-4.1px apart because they are one segmented control. Butting the
+       segments together is what a segmented control IS, on iOS, macOS and
+       shadcn alike, so by Jakob's Law opening an 8px gap would make it read as
+       four separate buttons -- the rule would have argued against the
+       convention it exists to protect. Flag a tight pair only when a miss
+       could actually land wrong, i.e. when one of them is undersized. */
+    const undersized = (n) => (n.hw ?? n.w) < 24 || (n.hh ?? n.h) < 24;
+    if (sameRow && gap >= 0 && gap < 6 && a.w < 200 && b.w < 200
+        && (undersized(a) || undersized(b))) {
       out.push(F("fitts/adjacent-targets-no-gap", "Fitts", "med",
         `${lm} › "${a.nm || a.raw}" ↔ "${b.nm || b.raw}"`,
         `${gap.toFixed(1)}px of clear space between two adjacent targets; a near-miss activates the wrong one.`,
@@ -247,7 +281,13 @@ export function nielsen(tree, lm) {
     /* WCAG 1.4.3. A floor, not taste. */
     const i = tree.indexOf(n);
     if ((n.raw || n.text) && n.fg) {
-      const ground = bgBehind(tree, i);
+      /* n.pg is the ground the browser actually painted, recorded by probe.mjs
+         from the real DOM. bgBehind() stays as the fallback for captures taken
+         before that field existed, but it can only search the captured tree --
+         which is capped per landmark -- so in a long rail it missed the painted
+         ancestor entirely and defaulted to white, producing the
+         `ground-unresolved` finding where ink and ground came back equal. */
+      const ground = n.pg || bgBehind(tree, i);
       const c = contrast(n.fg, ground);
       const big = num(n.fs) >= 24 || (num(n.fs) >= 18.66 && num(n.fw) >= 700);
       const floor = big ? 3 : 4.5;
@@ -304,7 +344,20 @@ export function jakob(ourTree, refTree, lm) {
   const out = [];
   if (!refTree || !refTree.length) return out;
 
-  const acts = (t) => t.filter((n) => n.role === "button" && (n.nm || n.raw)).slice(0, 12);
+  /* Sorted into PAINTED order -- row-major by y, then x -- not tree order.
+     Jakob's Law is about what a user scans, and scanning follows paint: this
+     rule's own wording is "a user who has learned 'the blue one is first here'
+     scans left". CSS `order` moves paint without moving the DOM, which is
+     exactly how this theme puts the primary first, so a tree-order index calls
+     that fix a failure and keeps reporting it after it lands. Measured: with
+     --cc-order-primary:-1 the /campaigns primary paints at x=1075 ahead of
+     Folders at x=1269, while its DOM index stays last of three. y is bucketed
+     to 8px so a one-row cluster does not split on sub-pixel baselines. */
+  const acts = (t) =>
+    t.filter((n) => n.role === "button" && (n.nm || n.raw))
+      .slice()
+      .sort((a, b) => (Math.round(a.y / 8) - Math.round(b.y / 8)) || (a.x - b.x))
+      .slice(0, 12);
   const ours = acts(ourTree), theirs = acts(refTree);
   if (!ours.length || !theirs.length) return out;
 

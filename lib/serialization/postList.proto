@@ -1,0 +1,95 @@
+/*
+ * The wire schema for the campaign post list.
+ *
+ * This is an API message, deliberately NOT the storage row -- protobuf's own
+ * guidance is to keep those separate, because a column added for the database's
+ * benefit should not be free to change what every browser must parse. What the
+ * campaign Posts tab renders is the whole contract here; nothing else is
+ * carried, which is the point.
+ *
+ * Why it exists at all, measured on campaign "Playlists" (492 posts) rather
+ * than argued: the JSON this replaces was 1,233.9 KB, of which 39.5% was the
+ * importer's `__cc` bag -- a verbatim duplicate of CcPost.raw that no runtime
+ * code reads. Dropping that alone took the response to 742.4 KB (54.7 KB
+ * brotli). Encoding the remainder here takes it to 182.8 KB (37.4 KB brotli):
+ * a further 32% off the compressed wire and 4x off what JSON.parse has to walk
+ * on a phone. Compression already collapses repeated key names, so the raw
+ * ratio overstates the win -- 37.4 vs 54.7 KB is the honest figure.
+ *
+ * Rules followed, from protobuf.dev/best-practices/dos-donts:
+ *   - every field `optional` or `repeated`, never required;
+ *   - tags 1-15 (one-byte) spent on the fields that are always set;
+ *   - a tag is never reused or renumbered -- retire one with `reserved`.
+ * Platform and status stay strings rather than enums on purpose: they are
+ * low-cardinality, gzip erases the difference, and a string cannot skew when
+ * the database learns a value this schema has not been taught yet.
+ */
+syntax = "proto3";
+
+package outreach.postlist.v1;
+
+message Creator {
+  optional string id = 1;
+  optional string name = 2;
+  optional string handle = 3;
+  optional string avatar_url = 4;
+}
+
+message Snapshot {
+  optional string id = 1;
+  optional int64 views_count = 2;
+  optional int64 recorded_at_ms = 3;
+}
+
+message ComplianceFlag {
+  optional string code = 1;
+  optional string severity = 2;
+  optional string message = 3;
+}
+
+/*
+ * The provenance half of the platformMetrics bag: which fields a fetch actually
+ * delivered (__measured) and why the last one came back empty (__lastFetch).
+ * The bag's other occupants are not wire data -- `__cc` duplicates CcPost.raw
+ * and `__stat` is importer bookkeeping -- so neither crosses this boundary.
+ */
+message MetricProvenance {
+  repeated string measured = 1;
+  optional string last_fetch_reason = 2;
+  optional string last_fetch_at = 3;
+  optional string last_fetch_via = 4;
+}
+
+message Post {
+  optional string id = 1;
+  optional string platform = 2;
+  optional string platform_post_id = 3;
+  optional string post_url = 4;
+  optional string thumbnail_url = 5;
+  optional string caption = 6;
+  optional string media_type = 7;
+  optional int64 posted_at_ms = 8;
+  optional int64 views_count = 9;
+  optional int64 likes_count = 10;
+  optional int64 comments_count = 11;
+  optional int64 shares_count = 12;
+  optional int64 saves_count = 13;
+  optional int64 downloads_count = 14;
+  optional double engagement_rate = 15;
+
+  optional string status = 16;
+  optional string fetch_state = 17;
+  optional string rejection_reason = 18;
+  optional int64 last_synced_at_ms = 19;
+  optional string author_profile_pic = 20;
+  optional int64 created_at_ms = 21;
+  optional bool has_open_fraud_flag = 22;
+  optional Creator creator = 23;
+  repeated Snapshot snapshots = 24;
+  repeated ComplianceFlag compliance_flags = 25;
+  optional MetricProvenance provenance = 26;
+}
+
+message PostList {
+  repeated Post posts = 1;
+}

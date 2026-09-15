@@ -16,7 +16,7 @@ const chartTooltipStyle: React.CSSProperties = {
   border: "1px solid var(--border)",
   borderRadius: 12,
   color: "var(--popover-foreground)",
-  fontSize: 13,
+  fontSize: "var(--cc-t-13)",
 };
 
 export function PlatformViewsPie({
@@ -38,7 +38,13 @@ export function PlatformViewsPie({
           contentStyle={chartTooltipStyle}
           formatter={(v: any, name: any) => [`${formatNumber(Number(v ?? 0))} views`, String(name)]}
         />
-        <Legend verticalAlign="bottom" height={24} wrapperStyle={{ fontSize: 12 }} formatter={(value: any) => <span style={{ color: "var(--cc-text-muted)" }}>{value}</span>} />
+        {/* 40, not 24: recharts pins the legend wrapper to this height and lays
+            its items out as inline-blocks that never wrap. Three platform names
+            need 271px and the wrapper is 259px at a 768px window, so the row
+            either ran outside the wrapper or -- once the stylesheet let it wrap
+            -- ran 14px below it. 40px is the room the second line needs; the
+            legend is still one line wherever it fits. MEASURED 2026-09-15. */}
+        <Legend verticalAlign="bottom" height={40} wrapperStyle={{ fontSize: "var(--cc-t-12)"}} formatter={(value: any) => <span style={{ color: "var(--cc-text-muted)" }}>{value}</span>} />
       </PieChart>
     </ChartFrame>
   );
@@ -85,7 +91,7 @@ export function CreatorPerformanceBar({
         <Legend
           verticalAlign="top"
           height={24}
-          wrapperStyle={{ fontSize: 12 }}
+          wrapperStyle={{ fontSize: "var(--cc-t-12)"}}
           formatter={(value: any) => <span style={{ color: "var(--cc-text-muted)" }}>{value}</span>}
         />
         <Bar yAxisId="views" dataKey="views" name="Views" fill="var(--chart-1)" radius={[4, 4, 0, 0]} />

@@ -81,13 +81,13 @@ export default function FoldersPanel({
     textAlign: "left",
     cursor: "pointer",
     color: "var(--cc-text)",
-    fontSize: 14,
+    fontSize: "var(--cc-t-14)",
   });
 
   const countStyle: React.CSSProperties = {
     marginLeft: "auto",
-    fontSize: 12,
-    fontWeight: 600,
+    fontSize: "var(--cc-t-12)",
+    fontWeight: "var(--cc-fw-strong)",
     color: "var(--cc-text-muted)",
     fontVariantNumeric: "tabular-nums",
   };
@@ -180,7 +180,7 @@ export default function FoldersPanel({
           <div
             style={{
               border: "1px solid var(--cc-border)", borderRadius: 8, padding: 12,
-              background: "var(--cc-bg)", fontSize: 13, color: "var(--cc-text)",
+              background: "var(--cc-bg)", fontSize: "var(--cc-t-13)", color: "var(--cc-text)",
               display: "flex", flexDirection: "column", gap: 10, marginTop: 4,
             }}
           >
@@ -240,7 +240,7 @@ export default function FoldersPanel({
         </div>
 
         {error && (
-          <span style={{ fontSize: 12, color: "#DC2626" }} role="alert">
+          <span style={{ fontSize: "var(--cc-t-12)", color: "#DC2626" }} role="alert">
             {error}
           </span>
         )}

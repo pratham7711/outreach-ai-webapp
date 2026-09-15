@@ -213,7 +213,7 @@ export function Dropdown({
                   padding: "7px 10px",
                   borderRadius: 6,
                   border: "none",
-                  fontSize: 13,
+                  fontSize: "var(--cc-t-13)",
                   fontWeight: isSelected ? 600 : 400,
                   color: "var(--cc-text)",
                   background: i === active ? "var(--cc-bg)" : "transparent",

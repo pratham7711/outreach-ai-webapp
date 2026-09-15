@@ -4,8 +4,9 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Avatar, Badge, Card, EmptyState, Input } from "@pratham7711/ui";
 import { Columns3, Search, UserPlus, Users } from "lucide-react";
-import { useTableSort, type SortAccessors, type SortState } from "@/components/ds";
+import { Button, useTableSort, type SortAccessors, type SortState } from "@/components/ds";
 import { formatDateAbs, stripAt, formatFull } from "@/lib/format";
+import { CampaignHeaderActions } from "@/components/campaigns/CampaignHeaderActions";
 
 /**
  * The campaign roster, with the toolbar the reference puts above it.
@@ -94,7 +95,7 @@ const ACCESSORS: SortAccessors<RosterRow> = {
 };
 
 const HEAD: React.CSSProperties = {
-  fontSize: 11,
+  fontSize: "var(--cc-t-11)",
   fontWeight: 700,
   textTransform: "uppercase",
   letterSpacing: "0.06em",
@@ -109,7 +110,7 @@ const HEAD: React.CSSProperties = {
   gap: 4,
 };
 
-const CELL: React.CSSProperties = { fontSize: 13, fontWeight: 600, color: "var(--cc-text)", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" };
+const CELL: React.CSSProperties = { fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" };
 
 /**
  * Which columns are on. Local rather than a shared control: Dropdown and
@@ -155,7 +156,7 @@ function ColumnPicker({
           display: "flex", alignItems: "center", gap: 8, height: 38, padding: "0 14px",
           background: "var(--cc-card)", color: "var(--cc-text)",
           border: "1px solid var(--cc-border)", borderRadius: 8,
-          fontSize: 14, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap",
+          fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", cursor: "pointer", whiteSpace: "nowrap",
         }}
       >
         <Columns3 size={15} /> Add Columns
@@ -175,7 +176,7 @@ function ColumnPicker({
               key={c.key}
               style={{
                 display: "flex", alignItems: "center", gap: 10, padding: "7px 8px",
-                borderRadius: 8, cursor: "pointer", fontSize: 13, color: "var(--cc-text)",
+                borderRadius: 8, cursor: "pointer", fontSize: "var(--cc-t-13)", color: "var(--cc-text)",
               }}
             >
               <input
@@ -237,8 +238,8 @@ export default function RosterTable({
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <Avatar name={r.creator.name} size="sm" src={r.creator.avatarUrl ?? undefined} />
             <div>
-              <p style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>{r.creator.name}</p>
-              <p style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>@{stripAt(r.creator.handle)}</p>
+              <p style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{r.creator.name}</p>
+              <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>@{stripAt(r.creator.handle)}</p>
             </div>
           </div>
         );
@@ -291,17 +292,18 @@ export default function RosterTable({
 
         <ColumnPicker selected={columnKeys} onChange={onColumnKeysChange} />
 
-        <button
-          onClick={onAddCreator}
-          style={{
-            display: "flex", alignItems: "center", gap: 6,
-            background: "var(--cc-primary)", color: "white", border: "none",
-            borderRadius: 8, padding: "9px 16px", fontSize: 14, fontWeight: 600, cursor: "pointer",
-          }}
-        >
-          <UserPlus size={14} /> Add Creator
-        </button>
       </div>
+
+      {/* In the campaign header, where theirs is (MEASURED at desktop-1600).
+          A ds/Button rather than the hand-rolled one it replaces: the inline
+          background/padding/radius out-specified every theme rule, and the
+          parity harness finds the primary action through the
+          `data-cc-slot="primary"` that only ds/Button emits. */}
+      <CampaignHeaderActions>
+        <Button variant="primary" iconLeft={<UserPlus size={14} />} onClick={onAddCreator}>
+          Add Creator
+        </Button>
+      </CampaignHeaderActions>
 
       {rows.length === 0 ? (
         <EmptyState

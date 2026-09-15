@@ -140,14 +140,14 @@ export default function DeliverablesModal({
       size="md"
       footer={
         <div className="cc-modal-footer" data-layout="split" data-align="center" data-gap="0">
-          <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>
+          <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
             {items === null ? "" : `${done} of ${items.length} complete`}
           </span>
           <Button variant="secondary" onClick={onClose}>Done</Button>
         </div>
       }
     >
-      <p style={{ fontSize: 13, color: "var(--cc-text-muted)", marginBottom: 16 }}>
+      <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", marginBottom: 16 }}>
         What {creatorName} owes on this activation.
       </p>
 
@@ -156,7 +156,7 @@ export default function DeliverablesModal({
           {[1, 2].map((i) => <Skeleton key={i} height={44} borderRadius="10px" />)}
         </div>
       ) : items.length === 0 ? (
-        <p style={{ fontSize: 14, color: "var(--cc-text-muted)", marginBottom: 16 }}>
+        <p style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text-muted)", marginBottom: 16 }}>
           Nothing listed yet.
         </p>
       ) : (
@@ -180,14 +180,14 @@ export default function DeliverablesModal({
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div
                   style={{
-                    fontSize: 14, color: "var(--cc-text)",
+                    fontSize: "var(--cc-t-14)", color: "var(--cc-text)",
                     textDecoration: d.completedAt ? "line-through" : "none",
                     opacity: d.completedAt ? 0.6 : 1,
                   }}
                 >
                   {d.name}
                 </div>
-                <div style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>
+                <div style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
                   {d.completedAt
                     ? `Completed ${formatDateAbs(d.completedAt)}`
                     : d.dueDate
@@ -248,6 +248,6 @@ export default function DeliverablesModal({
 
 const fieldStyle: React.CSSProperties = {
   width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-border)",
-  fontSize: 14, color: "var(--cc-text)", background: "var(--cc-card)",
+  fontSize: "var(--cc-t-14)", color: "var(--cc-text)", background: "var(--cc-card)",
   boxSizing: "border-box",
 };

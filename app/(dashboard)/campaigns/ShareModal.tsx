@@ -56,9 +56,9 @@ function VisibilityToggle({
         style={{ marginTop: 2, accentColor: "var(--cc-primary)", cursor: "inherit" }}
       />
       <span>
-        <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>{label}</span>
+        <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{label}</span>
         {hint && (
-          <span style={{ display: "block", fontSize: 12, color: "var(--cc-text-muted)", lineHeight: 1.5 }}>
+          <span style={{ display: "block", fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", lineHeight: 1.5 }}>
             {hint}
           </span>
         )}
@@ -180,7 +180,7 @@ export function ShareModal({
   return (
     <Modal open onClose={onClose} title={campaignTitle ? `Share \u2014 ${campaignTitle}` : "Share report"} size="sm">
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-        <p style={{ fontSize: 14, color: "var(--cc-text-muted)", margin: 0, lineHeight: 1.6 }}>
+        <p style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text-muted)", margin: 0, lineHeight: 1.6 }}>
           Generate a read-only link to this campaign&apos;s performance report. Anyone with the link
           can view it — no login required. Revoke it anytime.
         </p>
@@ -195,7 +195,7 @@ export function ShareModal({
                 value={shareUrl}
                 onFocus={(e) => e.currentTarget.select()}
                 style={{
-                  flex: 1, minWidth: 0, fontSize: 13, color: "var(--cc-text)",
+                  flex: 1, minWidth: 0, fontSize: "var(--cc-t-13)", color: "var(--cc-text)",
                   background: "var(--cc-bg)", border: "1px solid var(--cc-border)",
                   borderRadius: 8, padding: "8px 12px",
                 }}
@@ -204,7 +204,7 @@ export function ShareModal({
                 onClick={copy}
                 style={{
                   background: "var(--cc-primary)", color: "var(--cc-card)", border: "none",
-                  borderRadius: 8, padding: "8px 16px", fontSize: 14, fontWeight: 600, cursor: "pointer",
+                  borderRadius: 8, padding: "8px 16px", fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", cursor: "pointer",
                   whiteSpace: "nowrap",
                 }}
               >
@@ -218,7 +218,7 @@ export function ShareModal({
               }}
             >
               <div>
-                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--cc-text-subtle)", marginBottom: 8 }}>
+                <div className="cc-microlabel" style={{ marginBottom: 8 }}>
                   Platforms included
                 </div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 16 }}>
@@ -244,7 +244,7 @@ export function ShareModal({
               </div>
 
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--cc-text-subtle)" }}>
+                <div className="cc-microlabel">
                   What the recipient sees
                 </div>
                 <VisibilityToggle
@@ -279,7 +279,7 @@ export function ShareModal({
               disabled={busy}
               style={{
                 background: "var(--cc-card)", color: "var(--status-critical)", border: "1.5px solid var(--status-critical)",
-                borderRadius: 8, padding: "8px 16px", fontSize: 14, fontWeight: 600,
+                borderRadius: 8, padding: "8px 16px", fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)",
                 cursor: busy ? "default" : "pointer", opacity: busy ? 0.6 : 1, alignSelf: "flex-start",
               }}
             >
@@ -292,7 +292,7 @@ export function ShareModal({
             disabled={busy}
             style={{
               background: "var(--cc-primary)", color: "var(--cc-card)", border: "none",
-              borderRadius: 8, padding: "8px 16px", fontSize: 14, fontWeight: 600,
+              borderRadius: 8, padding: "8px 16px", fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)",
               cursor: busy ? "default" : "pointer", opacity: busy ? 0.6 : 1, alignSelf: "flex-start",
             }}
           >
@@ -301,7 +301,7 @@ export function ShareModal({
         )}
 
         {error && (
-          <p style={{ fontSize: 13, color: "var(--status-critical)", margin: 0 }}>
+          <p style={{ fontSize: "var(--cc-t-13)", color: "var(--status-critical)", margin: 0 }}>
             Something went wrong. Please try again.
           </p>
         )}

@@ -10,6 +10,7 @@ import {
 } from "./instagramBusinessDiscovery";
 import { fetchInstagramEmbedPost } from "./instagramEmbed";
 import { fetchTikTokVideosByIds } from "./tiktokDisplay";
+import { isRounded, TIKTOK_DISPLAY } from "./precision";
 import { fetchTwitchMetrics } from "./twitch";
 import { createLogger } from "../observability/logger";
 
@@ -779,6 +780,57 @@ export function pickOptionalCount(...values: unknown[]): number | undefined {
   return best;
 }
 
+function finiteCount(value: unknown): number | undefined {
+  if (value === null || value === undefined || value === "") return undefined;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+/**
+ * TikTok's exact figure where it publishes one, its rounded one otherwise.
+ *
+ * stats vs statsV2 is the same trap tiktokProfile.exactCount and
+ * tiktokTopPostsBrowser already document: `stats` carries the number TikTok
+ * RENDERS -- the 15.5M / 167.2K / 11.1K on the page, three or four significant
+ * figures -- and `statsV2` carries the real one, as strings. Reading the pair
+ * with pickOptionalCount, which answers the LARGER, is how a post with 11,094
+ * views came to be stored as 11,100: the rounded figure is the bigger of the
+ * two whenever TikTok rounds up, and it was then written as if measured.
+ *
+ * Measured on 2026-09-15 against the 87 TikTok posts this path has written
+ * (Post.platformMetrics carrying __lastFetch): every one of the 29 with
+ * >= 10,000 views was stored at TikTok's display precision, as were all 5 like
+ * counts and all 4 share counts over that threshold, while every counter below
+ * 10,000 -- where TikTok prints the digits -- was exact. 235,138 saves came
+ * through exact in the same payload as 15,500,000 views, which is what says the
+ * exact figures were there to be read.
+ *
+ * `> 0` rather than merely present, and stats consulted before an exact zero is
+ * accepted: TikTok zeroes one block or the other, and a zero from either is
+ * only believable when nothing else in the payload contradicts it. An absent
+ * counter still stays absent -- see pickOptionalCount for why that matters.
+ */
+export function pickExactCount(exact: unknown, rounded: unknown): number | undefined {
+  const precise = finiteCount(exact);
+  if (precise !== undefined && precise > 0) return precise;
+  const displayed = finiteCount(rounded);
+  return displayed !== undefined ? displayed : precise;
+}
+
+/**
+ * The size of the bucket TikTok's rendered figure stands for, or null below the
+ * threshold where it prints the digits. TikTok's ladder specifically -- every
+ * platform's lives in ./precision, which is where a non-TikTok caller should go.
+ */
+export function displayRoundingStep(value: number): number | null {
+  return TIKTOK_DISPLAY(value);
+}
+
+/** Whether a counter is at TikTok's display precision rather than exact. */
+export function isDisplayRounded(value: number | undefined): boolean {
+  return isRounded(value, TIKTOK_DISPLAY);
+}
+
 // TikTok answers a deleted post with a normal 200 and a rehydration payload
 // carrying a non-zero statusCode (10204 "item doesn't exist"). That is a
 // perfectly healthy response, so callers must not mistake it for being blocked.
@@ -812,7 +864,17 @@ export function parseTikTokRehydration(html: string): TikTokDirectMetrics | null
   if (!detail) return null;
   if (typeof detail.statusCode === "number" && detail.statusCode !== 0) return null;
 
-  const item = detail.itemInfo?.itemStruct;
+  return metricsFromItemStruct(detail.itemInfo?.itemStruct);
+}
+
+/**
+ * One item, however we came by it.
+ *
+ * The server-rendered page and TikTok's own JSON endpoint carry the same
+ * itemStruct, so the reader is shared: the transports differ in what they are
+ * served, not in what the payload means.
+ */
+export function metricsFromItemStruct(item: any): TikTokDirectMetrics | null {
   const stats = item?.stats;
   const statsV2 = item?.statsV2;
   if (!item || (!stats && !statsV2)) return null;
@@ -820,14 +882,14 @@ export function parseTikTokRehydration(html: string): TikTokDirectMetrics | null
   const createTime = Number(item.createTime);
 
   return {
-    viewsCount: pickOptionalCount(stats?.playCount, statsV2?.playCount),
-    likesCount: pickOptionalCount(stats?.diggCount, statsV2?.diggCount),
-    commentsCount: pickOptionalCount(stats?.commentCount, statsV2?.commentCount),
-    sharesCount: pickOptionalCount(stats?.shareCount, statsV2?.shareCount),
-    savesCount: pickOptionalCount(stats?.collectCount, statsV2?.collectCount),
-    authorFollowers: pickOptionalCount(
-      item?.authorStats?.followerCount,
-      item?.authorStatsV2?.followerCount
+    viewsCount: pickExactCount(statsV2?.playCount, stats?.playCount),
+    likesCount: pickExactCount(statsV2?.diggCount, stats?.diggCount),
+    commentsCount: pickExactCount(statsV2?.commentCount, stats?.commentCount),
+    sharesCount: pickExactCount(statsV2?.shareCount, stats?.shareCount),
+    savesCount: pickExactCount(statsV2?.collectCount, stats?.collectCount),
+    authorFollowers: pickExactCount(
+      item?.authorStatsV2?.followerCount,
+      item?.authorStats?.followerCount
     ),
     caption: typeof item.desc === "string" && item.desc.length > 0 ? item.desc : null,
     thumbnailUrl: item.video?.cover ?? item.video?.originCover ?? null,

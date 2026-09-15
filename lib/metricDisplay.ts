@@ -336,6 +336,11 @@ export function summarizePostMetrics(posts: readonly MeasurablePost[]) {
     comments,
     shares,
     saves,
+    /* Summed above for `engagement` and, until now, dropped on the way out --
+       so the Posts header could not offer the Total Downloads chip the
+       reference shows, and its nine chips sat at ten different x positions
+       from their ten. */
+    downloads,
   };
 }
 

@@ -17,6 +17,7 @@ import { isPostRemoved, removedNote } from "@/lib/postRemoval";
 import RemovedPostOverlay from "@/components/posts/RemovedPostOverlay";
 import { summariseRefresh } from "@/lib/refreshSummary";
 import { toast } from "sonner";
+import { CampaignHeaderActions } from "@/components/campaigns/CampaignHeaderActions";
 import { detectPlatform } from "@/lib/platforms/fetchPostMetrics";
 import { MAX_BULK_POSTS, parsePastedPostEntries } from "@/lib/posts/pastedUrls";
 import { platformFromHost, detectPlatformFromUrl, platformLabel } from "@/lib/platforms/registry";
@@ -64,7 +65,12 @@ type MarketplaceCtx = {
 
 const STATUS_TABS = [
   { key: "ALL", label: "All", bg: "#F3F4F6", color: "#374151" },
-  { key: "PENDING_REVIEW", label: "Pending Review", bg: "#FEF3C7", color: "#D97706" },
+  /* A hex, like its three siblings, NOT var(--cc-warning-ink). statusInk
+     scores a non-hex as the worst possible contrast, so the var made it pick
+     the PALE #FEF3C7 as this tab's ink -- and a selected pill fills with its
+     ink, which is how Pending Review came out white-on-cream. The literal is
+     the one STATUS_COLOR_TOKENS already maps to var(--cc-warning). */
+  { key: "PENDING_REVIEW", label: "Pending Review", bg: "#FEF3C7", color: "#d97706" },
   { key: "APPROVED", label: "Approved", bg: "#D1FAE5", color: "#059669" },
   { key: "REJECTED", label: "Rejected", bg: "#FEE2E2", color: "#DC2626" },
 ];
@@ -856,13 +862,17 @@ export default function PostsTab({
     const add = (label: string, value: string | null) => {
       if (value !== null) chips.push({ label, value });
     };
-    add("Avg. Post Eng Rate", pct(kpis.avgPostRate));
+    /* Their wording, verbatim, on both rate chips -- the first spells
+       "Average" and the second abbreviates it, and matching that is what makes
+       the two strips read as the same row. */
+    add("Average Post Eng Rate", pct(kpis.avgPostRate));
     add("Avg. Campaign Eng Rate", pct(kpis.campaignRate));
     add("Total Engagement", kpis.engagement === null ? null : formatNumber(kpis.engagement));
     add("Total Likes", kpis.likes === null ? null : formatNumber(kpis.likes));
     add("Total Comments", kpis.comments === null ? null : formatNumber(kpis.comments));
     add("Total Shares", kpis.shares === null ? null : formatNumber(kpis.shares));
     add("Total Saves", kpis.saves === null ? null : formatNumber(kpis.saves));
+    add("Total Downloads", kpis.downloads === null ? null : formatNumber(kpis.downloads));
     return chips;
   }, [kpis]);
 
@@ -992,7 +1002,7 @@ export default function PostsTab({
     padding: "8px 12px",
     borderRadius: 8,
     border: "1px solid var(--cc-border)",
-    fontSize: 13,
+    fontSize: "var(--cc-t-13)",
     color: "var(--cc-text)",
     background: "var(--cc-card)",
     outline: "none",
@@ -1004,21 +1014,9 @@ export default function PostsTab({
       <button
         type="button"
         onClick={() => toggleSort(sk)}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 4,
-          justifyContent: align === "right" ? "flex-end" : "flex-start",
-          background: "none",
-          border: "none",
-          padding: 0,
-          cursor: "pointer",
-          fontSize: 11,
-          fontWeight: 700,
-          textTransform: "uppercase",
-          letterSpacing: "0.06em",
-          color: active ? "var(--cc-primary)" : "var(--cc-text-subtle)",
-        }}
+        className="cc-microlabel"
+        data-active={active || undefined}
+        style={{ display: "flex", alignItems: "center", gap: 4, justifyContent: align === "right" ? "flex-end" : "flex-start", background: "none", border: "none", padding: 0, cursor: "pointer" }}
       >
         {label}
         {active ? (sortDir === "asc" ? <ArrowUp size={11} /> : <ArrowDown size={11} />) : <ArrowUpDown size={11} />}
@@ -1027,7 +1025,7 @@ export default function PostsTab({
   };
 
   const PlainHeader = ({ label }: { label: string }) => (
-    <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--cc-text-subtle)" }}>{label}</span>
+    <span className="cc-microlabel">{label}</span>
   );
 
   return (
@@ -1037,14 +1035,14 @@ export default function PostsTab({
         <Card variant="outlined" style={{ padding: 16 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: capMinor ? 12 : 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: "var(--cc-text)" }}>Marketplace budget</span>
-              {capReached && <Badge variant="danger" style={{ fontSize: 11 }}>Cap reached</Badge>}
+              <span style={{ fontSize: "var(--cc-t-13)", fontWeight: 700, color: "var(--cc-text)" }}>Marketplace budget</span>
+              {capReached && <Badge variant="danger" style={{ fontSize: "var(--cc-t-11)"}}>Cap reached</Badge>}
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-              <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>
+              <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
                 {pendingCount} pending &middot; auto-approve in {marketplace.autoApproveHours}h
               </span>
-              <span style={{ fontSize: 14, fontWeight: 700, color: "var(--cc-text)" }}>
+              <span style={{ fontSize: "var(--cc-t-14)", fontWeight: 700, color: "var(--cc-text)" }}>
                 {formatMinor(accruedMinor, marketplace.currency)}
                 {capMinor != null && capMinor > 0 && (
                   <span style={{ color: "var(--cc-text-muted)", fontWeight: 500 }}> / {formatMinor(capMinor, marketplace.currency)}</span>
@@ -1067,40 +1065,40 @@ export default function PostsTab({
           )}
         </Card>
       )}
+      {/* The status pills alone above the strip -- MEASURED, their filter row is
+          two pills 32px tall at 293,134 and the strip follows at 180. The
+          search-and-date cluster stays under the strip: carried up here it
+          wrapped to a second line and pushed the strip 49px past theirs. */}
+      <div className="cc-poststab-filter" style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+        <StatusTabs
+          variant="pill"
+          ariaLabel="Filter posts by status"
+          tabs={STATUS_TABS}
+          active={statusFilter}
+          onChange={setStatusFilter}
+        />
+      </div>
       {!error && posts.length > 0 && (
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        /* Classes, not inline styles: every number that was here is now a
+           --cc-kpi-* token, because an inline style is the one thing a theme
+           cannot outrank and the census measured all seven of them off their
+           strip. Base values reproduce exactly what this JSX painted.
+
+           BELOW the filter row, not above it. MEASURED 2026-09-14 at
+           desktop-1600: their Posts tab opens with a two-pill filter at
+           293,134 99x32 and only then the strip at 180 -- ours led with the
+           strip and put the pills under it, so the whole page ran a row out of
+           step with theirs. */
+        <div className="cc-kpi-strip">
           {kpiChips.map((chip) => (
-            <div
-              key={chip.label}
-              style={{
-                background: "var(--cc-primary)",
-                color: "white",
-                borderRadius: 8,
-                padding: "8px 12px",
-                display: "flex",
-                flexDirection: "column",
-                gap: 2,
-                minWidth: 104,
-              }}
-            >
-              <span style={{ fontSize: 11, opacity: 0.85 }}>{chip.label}</span>
-              <span style={{ fontSize: 16, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{chip.value}</span>
+            <div key={chip.label} className="cc-kpi-chip">
+              <span className="cc-kpi-chip-label">{chip.label}</span>
+              <span className="cc-kpi-chip-value">{chip.value}</span>
             </div>
           ))}
         </div>
       )}
-
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
-        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          <StatusTabs
-            variant="pill"
-            ariaLabel="Filter posts by status"
-            tabs={STATUS_TABS}
-            active={statusFilter}
-            onChange={setStatusFilter}
-          />
-        </div>
-
+      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <input
             type="search"
@@ -1196,32 +1194,50 @@ export default function PostsTab({
             </button>
           </div>
 
-          <Button variant="secondary" onClick={handleRefreshAll} loading={refreshingAll} disabled={posts.length === 0}>
-            {/* The label must NOT change while loading. components/ds/Button
-                keeps the children as the button's sizing element and lays the
-                spinner over them, so swapping in "Refreshing 12 of 58" made the
-                button grow -- and grow again on every progress tick as the
-                digits widened, which reads as a loader swelling on the screen.
-                Progress belongs in the note card below, where its width costs
-                nothing. */}
-            <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <RefreshCw size={14} />
-              Refresh Data
-            </span>
-          </Button>
-
-          <Button variant="primary" onClick={openAddPost}>
-            <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <Plus size={14} /> Add Posts
-            </span>
-          </Button>
         </div>
       </div>
+
+
+
+      {/* Refresh Data and Add Posts paint in the campaign header, not here.
+          MEASURED at desktop-1600: theirs sit on the header card's right edge
+          (Add Posts x=1332 y=42.5 w=200 h=45, Refresh Data immediately left of
+          it), while ours sat in the section body under the filter row. Their
+          order is Share Campaign / Refresh Data / Add <thing>, so the refresh
+          goes first here too. */}
+      <CampaignHeaderActions>
+        {/* The label must NOT change while loading. components/ds/Button keeps
+            the children as the button's sizing element and lays the spinner
+            over them, so swapping in "Refreshing 12 of 58" made the button
+            grow -- and grow again on every progress tick as the digits
+            widened, which reads as a loader swelling on the screen. Progress
+            belongs in the note card below, where its width costs nothing.
+
+            The glyph goes through `iconLeft` rather than into the children,
+            even though the reference paints it on the RIGHT: the library
+            renders that prop as its own .ui-btn-icon element, which is what
+            the theme's `order` rule moves. Hand-building the row here would
+            have put the icon on the right in all three themes instead of the
+            one that asked for it. */}
+        <Button
+          variant="secondary"
+          iconLeft={<RefreshCw size={16} />}
+          onClick={handleRefreshAll}
+          loading={refreshingAll}
+          disabled={posts.length === 0}
+        >
+          Refresh Data
+        </Button>
+
+        <Button variant="primary" iconLeft={<Plus size={16} />} onClick={openAddPost}>
+          Add Posts
+        </Button>
+      </CampaignHeaderActions>
 
       {error && (
         <Card variant="outlined" style={{ padding: 16 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-            <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{error}</span>
+            <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{error}</span>
             <Button variant="secondary" onClick={fetchPosts}>Retry</Button>
           </div>
         </Card>
@@ -1230,7 +1246,7 @@ export default function PostsTab({
       {(refreshNote || (refreshingAll && refreshProgress)) && (
         <Card variant="outlined" style={{ padding: 12 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-            <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>
+            <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
               {refreshingAll && refreshProgress
                 ? `Refreshing ${refreshProgress.completed} of ${refreshProgress.total}\u2026`
                 : refreshNote}
@@ -1327,48 +1343,48 @@ export default function PostsTab({
                         src={imgSrc(post.authorProfilePic, 64) ?? imgSrc(post.creator.avatarUrl, 64) ?? undefined}
                       />
                       <div style={{ minWidth: 0 }}>
-                        <div title={post.creator.name} style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{post.creator.name}</div>
-                        <div title={`@${stripAt(post.creator.handle)}`} style={{ fontSize: 12, color: "var(--cc-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>@{stripAt(post.creator.handle)}</div>
+                        <div title={post.creator.name} style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{post.creator.name}</div>
+                        <div title={`@${stripAt(post.creator.handle)}`} style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>@{stripAt(post.creator.handle)}</div>
                       </div>
                     </a>
                   </div>
-                  <Badge variant={PLATFORM_BADGE[post.platform] ?? "neutral"} style={{ fontSize: 11 }}>{post.platform}</Badge>
-                  <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{formatDateAbs(post.postedAt)}</span>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)", textAlign: "right" }}>
+                  <Badge variant={PLATFORM_BADGE[post.platform] ?? "neutral"} style={{ fontSize: "var(--cc-t-11)"}}>{post.platform}</Badge>
+                  <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{formatDateAbs(post.postedAt)}</span>
+                  <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", textAlign: "right" }}>
                     {views === null ? "" : formatNumber(views)}
                   </span>
                   {anyLikes && (
-                    <span style={{ fontSize: 13, color: "var(--cc-text-muted)", textAlign: "right" }}>
+                    <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", textAlign: "right" }}>
                       {likes === null ? "" : formatNumber(likes)}
                     </span>
                   )}
                   {anyComments && (
-                    <span style={{ fontSize: 13, color: "var(--cc-text-muted)", textAlign: "right" }}>
+                    <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", textAlign: "right" }}>
                       {comments === null ? "" : formatNumber(comments)}
                     </span>
                   )}
                   {anyShares && (
-                    <span style={{ fontSize: 13, color: "var(--cc-text-muted)", textAlign: "right" }}>
+                    <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", textAlign: "right" }}>
                       {shares === null ? "" : formatNumber(shares)}
                     </span>
                   )}
                   {anySaves && (
-                    <span style={{ fontSize: 13, color: "var(--cc-text-muted)", textAlign: "right" }}>
+                    <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", textAlign: "right" }}>
                       {saves === null ? "" : formatNumber(saves)}
                     </span>
                   )}
                   {anyDownloads && (
-                    <span style={{ fontSize: 13, color: "var(--cc-text-muted)", textAlign: "right" }}>
+                    <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", textAlign: "right" }}>
                       {downloads === null ? "" : formatNumber(downloads)}
                     </span>
                   )}
                   {anyEngRate && (
-                    <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-primary)", textAlign: "right" }}>
+                    <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-primary)", textAlign: "right" }}>
                       {erShown === null ? "" : `${erShown.toFixed(1)}%`}
                     </span>
                   )}
                   {anyDelta && (
-                    <span style={{ fontSize: 13, fontWeight: 600, textAlign: "right", color: dv === null ? "var(--cc-text-subtle)" : dv >= 0 ? "var(--cc-success)" : "var(--cc-danger)" }}>
+                    <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", textAlign: "right", color: dv === null ? "var(--cc-text-subtle)" : dv >= 0 ? "var(--cc-success)" : "var(--cc-danger)" }}>
                       {dv === null ? "" : `${dv >= 0 ? "+" : ""}${formatNumber(dv)}`}
                     </span>
                   )}
@@ -1378,45 +1394,45 @@ export default function PostsTab({
                         is gone, the reach it earned while it was up is not. */}
                     {isPostRemoved(post) && <RemovedPostOverlay variant="inline" compact note={removedNote(post)} />}
                     {post.fetchState && FETCH_STATE_LABEL[post.fetchState] && (
-                      <Badge variant={FETCH_STATE_BADGE[post.fetchState]} style={{ fontSize: 10 }}>
+                      <Badge variant={FETCH_STATE_BADGE[post.fetchState]} style={{ fontSize: "var(--cc-t-10)"}}>
                         {FETCH_STATE_LABEL[post.fetchState]}
                       </Badge>
                     )}
-                    {post.hasOpenFraudFlag && <Badge variant="danger" style={{ fontSize: 10, display: "inline-flex", alignItems: "center", gap: 4 }}><AlertTriangle size={14} color="var(--cc-danger)" /> Flagged</Badge>}
+                    {post.hasOpenFraudFlag && <Badge variant="danger" style={{ fontSize: "var(--cc-t-10)", display: "inline-flex", alignItems: "center", gap: 4 }}><AlertTriangle size={14} color="var(--cc-danger)" /> Flagged</Badge>}
                     {(post.complianceFlags ?? []).map((f) => (
-                      <Badge key={f.code} variant={f.severity === "error" ? "danger" : "warning"} title={f.message} style={{ fontSize: 10, display: "inline-flex", alignItems: "center", gap: 4 }}>
+                      <Badge key={f.code} variant={f.severity === "error" ? "danger" : "warning"} title={f.message} style={{ fontSize: "var(--cc-t-10)", display: "inline-flex", alignItems: "center", gap: 4 }}>
                         <AlertTriangle size={12} color={f.severity === "error" ? "var(--cc-danger)" : "var(--cc-warning)"} /> {COMPLIANCE_LABEL[f.code]}
                       </Badge>
                     ))}
                     {marketplace && post.status === "PENDING_REVIEW" && !post.hasOpenFraudFlag && (
-                      <span style={{ fontSize: 11, color: "var(--cc-text-muted)" }}>
+                      <span style={{ fontSize: "var(--cc-t-11)", color: "var(--cc-text-muted)" }}>
                         auto in {timeRemaining(post.createdAt, marketplace.autoApproveHours)}
                       </span>
                     )}
                   </div>
-                  <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{formatSince(post.lastSyncedAt)}</span>
+                  <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>{formatSince(post.lastSyncedAt)}</span>
                   <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
                     {/* The only way into our own post page now that the row itself
                         goes out to the platform. Tracking and bot signals live
                         there and nothing else in a campaign links to it. */}
-                    <Link href={`/campaigns/${campaignId}/posts/${post.id}`} aria-label="View post analytics" title="View post analytics" style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid var(--cc-border)", background: "var(--cc-card)", color: "var(--cc-text-muted)", fontSize: 12, display: "flex", alignItems: "center", gap: 2, textDecoration: "none" }}>
+                    <Link href={`/campaigns/${campaignId}/posts/${post.id}`} aria-label="View post analytics" title="View post analytics" style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid var(--cc-border)", background: "var(--cc-card)", color: "var(--cc-text-muted)", fontSize: "var(--cc-t-12)", display: "flex", alignItems: "center", gap: 2, textDecoration: "none" }}>
                       <BarChart3 size={12} />
                     </Link>
-                    <button onClick={() => handleSyncNow(post.id)} disabled={syncingId === post.id} aria-label="Sync post metrics now" style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid var(--cc-border)", background: "var(--cc-card)", color: "var(--cc-text-muted)", cursor: syncingId === post.id ? "wait" : "pointer", fontSize: 12, display: "flex", alignItems: "center", gap: 2, opacity: syncingId === post.id ? 0.6 : 1 }}>
+                    <button onClick={() => handleSyncNow(post.id)} disabled={syncingId === post.id} aria-label="Sync post metrics now" style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid var(--cc-border)", background: "var(--cc-card)", color: "var(--cc-text-muted)", cursor: syncingId === post.id ? "wait" : "pointer", fontSize: "var(--cc-t-12)", display: "flex", alignItems: "center", gap: 2, opacity: syncingId === post.id ? 0.6 : 1 }}>
                       <TrendingUp size={12} />
                     </button>
                     {(postApprovalMode === "MANUAL" || marketplace) && post.status === "PENDING_REVIEW" && (
                       <>
-                        <button onClick={() => handleApprove(post.id)} aria-label="Approve post" style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid var(--cc-success)", background: "color-mix(in srgb, var(--cc-success) 14%, transparent)", color: "var(--cc-success)", cursor: "pointer", fontSize: 12, display: "flex", alignItems: "center", gap: 2 }}>
+                        <button onClick={() => handleApprove(post.id)} aria-label="Approve post" style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid var(--cc-success)", background: "color-mix(in srgb, var(--cc-success) 14%, transparent)", color: "var(--cc-success)", cursor: "pointer", fontSize: "var(--cc-t-12)", display: "flex", alignItems: "center", gap: 2 }}>
                           <Check size={12} />
                         </button>
-                        <button onClick={() => setShowRejectModal(post.id)} aria-label="Reject post" style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid var(--cc-danger)", background: "color-mix(in srgb, var(--cc-danger) 14%, transparent)", color: "var(--cc-danger)", cursor: "pointer", fontSize: 12, display: "flex", alignItems: "center", gap: 2 }}>
+                        <button onClick={() => setShowRejectModal(post.id)} aria-label="Reject post" style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid var(--cc-danger)", background: "color-mix(in srgb, var(--cc-danger) 14%, transparent)", color: "var(--cc-danger-ink)", cursor: "pointer", fontSize: "var(--cc-t-12)", display: "flex", alignItems: "center", gap: 2 }}>
                           <X size={12} />
                         </button>
                       </>
                     )}
                     {marketplace && !post.hasOpenFraudFlag && post.status !== "REJECTED" && (
-                      <button onClick={() => handleFlagSuspicious(post.id)} disabled={flaggingId === post.id} aria-label="Flag post as suspicious" style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid var(--cc-warning)", background: "color-mix(in srgb, var(--cc-warning) 14%, transparent)", color: "var(--cc-warning)", cursor: flaggingId === post.id ? "wait" : "pointer", fontSize: 12, display: "flex", alignItems: "center", gap: 2, opacity: flaggingId === post.id ? 0.6 : 1 }}>
+                      <button onClick={() => handleFlagSuspicious(post.id)} disabled={flaggingId === post.id} aria-label="Flag post as suspicious" style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid var(--cc-warning)", background: "color-mix(in srgb, var(--cc-warning) 14%, transparent)", color: "var(--cc-warning)", cursor: flaggingId === post.id ? "wait" : "pointer", fontSize: "var(--cc-t-12)", display: "flex", alignItems: "center", gap: 2, opacity: flaggingId === post.id ? 0.6 : 1 }}>
                         <Flag size={12} />
                       </button>
                     )}
@@ -1481,11 +1497,11 @@ export default function PostsTab({
                       <ImageIcon size={40} aria-hidden="true" />
                     </div>
                   )}
-                  <span style={{ position: "absolute", top: 10, left: 10, padding: "3px 9px", borderRadius: 999, background: "rgba(0,0,0,0.55)", color: "white", fontSize: 10, fontWeight: 700, letterSpacing: 0.4, backdropFilter: "blur(4px)" }}>
+                  <span style={{ position: "absolute", top: 10, left: 10, padding: "3px 9px", borderRadius: 999, background: "rgba(0,0,0,0.55)", color: "white", fontSize: "var(--cc-t-10)", fontWeight: 700, letterSpacing: 0.4, backdropFilter: "blur(4px)" }}>
                     {post.platform}
                   </span>
                   <span style={{ position: "absolute", top: 10, right: 10 }}>
-                    <Badge variant={STATUS_BADGE[post.status] ?? "neutral"} style={{ fontSize: 9 }}>
+                    <Badge variant={STATUS_BADGE[post.status] ?? "neutral"} style={{ fontSize: "var(--cc-t-9)"}}>
                       {post.status.replace(/_/g, " ")}
                     </Badge>
                   </span>
@@ -1515,7 +1531,7 @@ export default function PostsTab({
                       color: "var(--cc-overlay-ink-text)",
                     }}
                   >
-                    <div title={post.creator.name} style={{ fontSize: 14, fontWeight: 700, marginBottom: 6, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <div title={post.creator.name} style={{ fontSize: "var(--cc-t-14)", fontWeight: 700, marginBottom: 6, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {post.creator.handle || post.creator.name}
                     </div>
                     {/* One row per counter the platform actually reported, which is
@@ -1538,13 +1554,13 @@ export default function PostsTab({
                       // this post was watched by nobody, which we never checked.
                       if (rows.length === 0) {
                         return (
-                          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: "rgba(255,255,255,0.72)" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "var(--cc-t-13)", color: "rgba(255,255,255,0.72)" }}>
                             <Eye size={13} aria-hidden="true" />Not synced yet
                           </div>
                         );
                       }
                       return rows.map((row) => (
-                        <div key={row.key} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, marginBottom: 2 }}>
+                        <div key={row.key} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "var(--cc-t-13)", marginBottom: 2 }}>
                           {row.icon}{row.text}
                         </div>
                       ));
@@ -1606,7 +1622,7 @@ export default function PostsTab({
                   which is the same surprise that holding the whole batch was
                   meant to avoid. */}
               {addSkipped.length > 0 && (
-                <span style={{ fontSize: 12, color: "var(--cc-text-muted)", marginRight: "auto" }}>
+                <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", marginRight: "auto" }}>
                   {addSkipped.length === 1
                     ? "1 link is being skipped — its reason is on the row."
                     : `${addSkipped.length} links are being skipped — their reasons are on the rows.`}
@@ -1625,7 +1641,7 @@ export default function PostsTab({
         >
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <div>
-              <label htmlFor="add-post-urls" style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>
+              <label htmlFor="add-post-urls" style={{ display: "block", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6 }}>
                 Post links
               </label>
               <textarea
@@ -1660,7 +1676,7 @@ export default function PostsTab({
                   padding: "10px 14px",
                   borderRadius: 10,
                   border: "1px solid var(--cc-border)",
-                  fontSize: 13,
+                  fontSize: "var(--cc-t-13)",
                   fontFamily: "inherit",
                   color: "var(--cc-text)",
                   background: "var(--cc-card)",
@@ -1669,7 +1685,7 @@ export default function PostsTab({
                   resize: "vertical",
                 }}
               />
-              <p style={{ fontSize: 12, color: "var(--cc-text-muted)", margin: "6px 0 0" }}>
+              <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: "6px 0 0" }}>
                 {addRows.length === 0
                   ? `Separated by new lines, spaces or commas. Up to ${MAX_BULK_POSTS} at a time.`
                   : `${addRows.length} link${addRows.length === 1 ? "" : "s"} found${
@@ -1717,7 +1733,7 @@ export default function PostsTab({
                   }}
                 >
                   <div style={{ display: "flex", alignItems: "center", gap: 8, justifyContent: "space-between" }}>
-                    <span style={{ fontSize: 12, color: "var(--cc-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
+                    <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
                       {det ? `${det.platform} \u00b7 ` : ""}{row.url}
                     </span>
                     {row.state === "done" && <Badge variant="success">Added</Badge>}
@@ -1739,7 +1755,7 @@ export default function PostsTab({
                             return lines.filter((_, j) => j !== at).join("\n");
                           });
                         }}
-                        style={{ border: "none", background: "none", cursor: "pointer", color: "var(--cc-text-muted)", fontSize: 16, lineHeight: 1 }}
+                        style={{ border: "none", background: "none", cursor: "pointer", color: "var(--cc-text-muted)", fontSize: "var(--cc-t-16)", lineHeight: 1 }}
                       >
                         ×
                       </button>
@@ -1747,7 +1763,7 @@ export default function PostsTab({
                   </div>
 
                   {showAlsoTracked && (
-                    <p style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 12, color: "var(--cc-text-muted)", margin: 0 }}>
+                    <p style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: 0 }}>
                       <Info size={14} style={{ marginTop: 1, flexShrink: 0 }} />
                       <span>
                         Also tracked in{" "}
@@ -1773,19 +1789,19 @@ export default function PostsTab({
                           }
                         />
                         {row.check?.creator && !row.creatorId && (
-                          <p style={{ fontSize: 12, color: "var(--cc-text-muted)", margin: "6px 0 0" }}>
+                          <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: "6px 0 0" }}>
                             Matched <strong style={{ color: "var(--cc-text)" }}>{row.check.creator.name}</strong> from the
                             link — leave blank to use them.
                           </p>
                         )}
                         {row.check?.creatorWillBeAdded && !row.creatorId && (
-                          <p style={{ fontSize: 12, color: "var(--cc-text-muted)", margin: "6px 0 0" }}>
+                          <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: "6px 0 0" }}>
                             <strong style={{ color: "var(--cc-text)" }}>@{row.check.handle}</strong> is not on the roster
                             yet — they will be added with this post. Pick someone else to attribute it differently.
                           </p>
                         )}
                         {det?.handle && !row.check && !row.creatorId && (
-                          <p style={{ fontSize: 12, color: "var(--cc-text-muted)", margin: "6px 0 0" }}>
+                          <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: "6px 0 0" }}>
                             Detected <strong style={{ color: "var(--cc-text)" }}>@{det.handle}</strong> — leave blank to use them.
                           </p>
                         )}
@@ -1796,14 +1812,14 @@ export default function PostsTab({
                             all one platform, filtering would empty the picker and strand the
                             post with no way forward. */}
                         {row.creatorId && row.creatorPlatform && det?.platform && row.creatorPlatform !== det.platform && (
-                          <p style={{ fontSize: 12, color: "var(--cc-warning)", margin: "6px 0 0" }}>
+                          <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-warning)", margin: "6px 0 0" }}>
                             That is a {platformLabel(row.creatorPlatform)} creator on a{" "}
                             {platformLabel(det.platform)} link — it will still be added, but check it is
                             the right person.
                           </p>
                         )}
                         {problem && !row.check?.inThisCampaign && otherCampaigns.length === 0 && (
-                          <p style={{ fontSize: 12, color: "var(--cc-danger)", margin: "6px 0 0" }}>
+                          <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-danger)", margin: "6px 0 0" }}>
                             {problem.message}
                           </p>
                         )}
@@ -1844,14 +1860,14 @@ export default function PostsTab({
           </div>
         }>
           <div>
-            <label htmlFor="reject-reason" style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Reason (optional)</label>
+            <label htmlFor="reject-reason" style={{ display: "block", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6 }}>Reason (optional)</label>
             <textarea
               id="reject-reason"
               value={rejectionReason}
               onChange={(e) => setRejectionReason(e.target.value)}
               placeholder="Why is this post being rejected?"
               rows={3}
-              style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-border)", fontSize: 14, color: "var(--cc-text)", outline: "none", resize: "vertical" }}
+              style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-border)", fontSize: "var(--cc-t-14)", color: "var(--cc-text)", outline: "none", resize: "vertical" }}
             />
           </div>
         </Modal>

@@ -33,7 +33,7 @@ export const ACTIVATION_QUEUES = [
   },
   {
     key: "revision",
-    label: "Declined & Awaiting Revision",
+    label: "Draft Declined & Awaiting Revision",
     hint: "Sent back to the creator",
     statuses: ["DECLINED"],
   },
@@ -60,7 +60,7 @@ export type ActivationQueueKey = (typeof ACTIVATION_QUEUES)[number]["key"];
 export const ACTIVATION_STAGE_COUNTERS = [
   { label: "Awaiting Draft", statuses: ["AWAITING_DRAFT"] },
   { label: "Awaiting Approval", statuses: ["DRAFT_SUBMITTED", "AWAITING_APPROVAL"] },
-  { label: "Declined & Awaiting Revision", statuses: ["DECLINED"] },
+  { label: "Draft Declined & Awaiting Revision", statuses: ["DECLINED"] },
   { label: "Awaiting Posting", statuses: ["APPROVED"] },
 ] as const;
 

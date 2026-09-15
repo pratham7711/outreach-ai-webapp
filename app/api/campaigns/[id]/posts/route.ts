@@ -20,6 +20,12 @@ import type { PostStatus, Platform } from "@/lib/generated/prisma/client";
 import { PLATFORM_VALUES } from "@/lib/platforms/constants";
 import { ensureCreatorForHandle, findCreatorByHandle, findExistingPosts } from "@/lib/posts/addPostChecks";
 import { hasPermission } from "@/lib/rbac";
+import {
+  toPostDto,
+  encodePostList,
+  wantsProtobuf,
+  POST_LIST_CONTENT_TYPE,
+} from "@/lib/serialization/postList";
 
 const PLATFORMS = PLATFORM_VALUES;
 // One list, shared with the detector -- two copies would be free to disagree
@@ -71,9 +77,43 @@ export async function GET(
     if (platform) where.platform = platform;
     if (mediaType) where.mediaType = mediaType;
 
+    /* Name the columns instead of taking the row.
+       `include` with no `select` hands back every Post column, which meant this
+       route read and shipped platformMetrics whole -- and 93% of that bag is
+       `__cc`, the importer's verbatim copy of a CreatorCore record that already
+       lives in CcPost.raw (18,638 of 18,638 posts join to one, byte-identical)
+       and that nothing on the page reads. On the largest campaign that was
+       1,233.9 KB of JSON where 493.2 KB was the answer. platformMetrics is
+       still read because two of its keys ARE rendered, but toPostDto keeps only
+       those; syncFailCount and syncDisabledAt are here for the compliance
+       check, which is the only other consumer of this row. */
     const posts = await db.post.findMany({
       where,
-      include: {
+      select: {
+        id: true,
+        platform: true,
+        platformPostId: true,
+        postUrl: true,
+        thumbnailUrl: true,
+        caption: true,
+        mediaType: true,
+        postedAt: true,
+        viewsCount: true,
+        likesCount: true,
+        commentsCount: true,
+        sharesCount: true,
+        savesCount: true,
+        downloadsCount: true,
+        engagementRate: true,
+        status: true,
+        fetchState: true,
+        rejectionReason: true,
+        lastSyncedAt: true,
+        authorProfilePic: true,
+        createdAt: true,
+        platformMetrics: true,
+        syncFailCount: true,
+        syncDisabledAt: true,
         creator: { select: { id: true, name: true, handle: true, avatarUrl: true } },
         snapshots: {
           orderBy: { recordedAt: "desc" },
@@ -90,13 +130,30 @@ export async function GET(
       select: { postId: true },
     });
     const flaggedPostIds = new Set(openFlags.map((f) => f.postId));
-    const postsWithFlags = posts.map((p) => ({
-      ...p,
-      hasOpenFraudFlag: flaggedPostIds.has(p.id),
-      complianceFlags: checkPostCompliance(p, campaign),
-    }));
+    const dtos = posts.map((p) =>
+      toPostDto(p, flaggedPostIds.has(p.id), checkPostCompliance(p, campaign)),
+    );
 
-    return NextResponse.json({ posts: postsWithFlags });
+    /* Protobuf only when asked for by name, so every existing caller -- and any
+       tab still running the previous bundle -- keeps getting JSON. Both come
+       from the same DTO, so the two encodings cannot describe different posts.
+       Measured on the 492-post campaign, brotli: 44.1 KB JSON against 43.2 KB
+       protobuf, which is why JSON stays the default -- the 2% is not worth
+       12.3 KB of decoder in the bundle, and protobufjs decodes 2.1x slower than
+       V8's native JSON.parse. The win in this route was never the encoding; it
+       was not sending `__cc`. See docs/SERIALIZATION.md for the full numbers. */
+    if (wantsProtobuf(request.headers.get("accept"))) {
+      const body = encodePostList(dtos);
+      return new NextResponse(body as unknown as BodyInit, {
+        status: 200,
+        headers: {
+          "Content-Type": POST_LIST_CONTENT_TYPE,
+          "Content-Length": String(body.byteLength),
+        },
+      });
+    }
+
+    return NextResponse.json({ posts: dtos });
   } catch (error) {
     console.error("Failed to fetch posts:", error);
     return NextResponse.json({ error: "Failed to fetch posts" }, { status: 500 });

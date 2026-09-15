@@ -96,7 +96,7 @@ export default function MarketplaceAnalytics({
               onClick={load}
               style={{
                 background: "var(--cc-primary)", color: "white", border: "none",
-                borderRadius: 8, padding: "8px 16px", fontSize: 14, fontWeight: 600, cursor: "pointer",
+                borderRadius: 8, padding: "8px 16px", fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", cursor: "pointer",
               }}
             >
               Retry
@@ -144,7 +144,7 @@ export default function MarketplaceAnalytics({
       <div className="mkt-an-split">
         {/* Joins over time chart */}
         <Card variant="outlined" style={{ padding: 24 }}>
-          <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)", display: "block", marginBottom: 16 }}>
+          <span className="cc-panel-title" style={{ display: "block", marginBottom: 16 }}>
             Creators joined over time
           </span>
           {data.joinsOverTime.length > 0 ? (
@@ -162,7 +162,7 @@ export default function MarketplaceAnalytics({
                 <Tooltip
                   labelFormatter={(l) => formatDate(String(l))}
                   formatter={(v: any, name: any) => [formatNumber(Number(v ?? 0)), String(name)]}
-                  contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 12, color: "var(--popover-foreground)", fontSize: 13 }}
+                  contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 12, color: "var(--popover-foreground)", fontSize: "var(--cc-t-13)"}}
                 />
                 <Area type="monotone" dataKey="cumulative" name="Total joined" stroke="var(--cc-primary)" strokeWidth={2} fill="url(#mktJoins)" />
               </AreaChart>
@@ -174,7 +174,7 @@ export default function MarketplaceAnalytics({
 
         {/* Right column: submissions by status + budget bar */}
         <Card variant="outlined" style={{ padding: 24 }}>
-          <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)", display: "block", marginBottom: 16 }}>
+          <span className="cc-panel-title" style={{ display: "block", marginBottom: 16 }}>
             Submissions by status
           </span>
           <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 20 }}>
@@ -182,16 +182,16 @@ export default function MarketplaceAnalytics({
               const meta = STATUS_META[s.status] ?? { label: s.status, color: "var(--cc-text)", bg: "var(--cc-bg)" };
               return (
                 <div key={s.status} style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: meta.color, background: meta.bg, padding: "3px 10px", borderRadius: 6 }}>
+                  <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: meta.color, background: meta.bg, padding: "3px 10px", borderRadius: 6 }}>
                     {meta.label}
                   </span>
-                  <span style={{ fontSize: 15, fontWeight: 700, color: "var(--cc-text)" }}>{formatNumber(s.count)}</span>
+                  <span style={{ fontSize: "var(--cc-t-15)", fontWeight: 700, color: "var(--cc-text)" }}>{formatNumber(s.count)}</span>
                 </div>
               );
             })}
           </div>
 
-          <span style={{ fontWeight: 700, fontSize: 13, color: "var(--cc-text)", display: "block", marginBottom: 8 }}>
+          <span style={{ fontWeight: 700, fontSize: "var(--cc-t-13)", color: "var(--cc-text)", display: "block", marginBottom: 8 }}>
             Budget accrued vs cap
           </span>
           {pct != null ? (
@@ -199,15 +199,15 @@ export default function MarketplaceAnalytics({
               <div style={{ height: 10, borderRadius: 6, background: "var(--cc-border)", overflow: "hidden" }}>
                 <div style={{ width: `${pct}%`, height: "100%", background: budget.capReached ? "var(--status-critical)" : "var(--cc-primary)", borderRadius: 6 }} />
               </div>
-              <div style={{ fontSize: 12, color: "var(--cc-text-muted)", marginTop: 6 }}>
+              <div style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", marginTop: 6 }}>
                 {pct}% of pool {budget.capReached ? "— cap reached" : "claimed"}
               </div>
             </>
           ) : (
-            <div style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>No budget cap set.</div>
+            <div style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>No budget cap set.</div>
           )}
 
-          <div style={{ fontSize: 12, color: "var(--cc-text-muted)", marginTop: 16 }}>
+          <div style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", marginTop: 16 }}>
             Projected exhaustion:{" "}
             <span style={{ fontWeight: 700, color: "var(--cc-text)" }}>{eta ?? "—"}</span>
           </div>
@@ -218,7 +218,7 @@ export default function MarketplaceAnalytics({
 }
 
 const statLabelStyle: React.CSSProperties = {
-  fontSize: 11,
+  fontSize: "var(--cc-t-11)",
   color: "var(--cc-text-muted)",
   textTransform: "uppercase",
   letterSpacing: "0.06em",
@@ -226,7 +226,7 @@ const statLabelStyle: React.CSSProperties = {
 };
 
 const statValueStyle: React.CSSProperties = {
-  fontSize: 22,
+  fontSize: "var(--cc-t-22)",
   fontWeight: 700,
   color: "var(--cc-text)",
 };

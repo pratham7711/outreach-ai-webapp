@@ -79,10 +79,10 @@ export function AgentTranscript({ steps, title, emptyLabel }: AgentTranscriptPro
   return (
     <Card variant="outlined" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <span style={{ fontSize: 12, fontWeight: 600, color: "var(--cc-text-muted)" }}>
+        <span style={{ fontSize: "var(--cc-t-12)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text-muted)" }}>
           Transcript
         </span>
-        <h2 style={{ fontSize: 18, fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>
+        <h2 style={{ fontSize: "var(--cc-t-18)", fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>
           {heading}
         </h2>
       </div>
@@ -125,18 +125,13 @@ export function AgentTranscript({ steps, title, emptyLabel }: AgentTranscriptPro
                 }}
               >
                 <span
-                  style={{
-                    fontSize: 11,
-                    fontWeight: 600,
-                    textTransform: "uppercase",
-                    color: "var(--cc-text-muted)",
-                  }}
+                  className="cc-microlabel"
                 >
                   {label}
                 </span>
 
                 {isToolUse ? (
-                  <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>
+                  <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>
                     {`Tool: ${safeToolName(step.toolName)}`}
                   </span>
                 ) : null}
@@ -167,7 +162,7 @@ export function AgentTranscript({ steps, title, emptyLabel }: AgentTranscriptPro
                       border: "2px solid var(--cc-warning)",
                       background: "var(--cc-bg)",
                       color: "var(--cc-text)",
-                      fontSize: 13,
+                      fontSize: "var(--cc-t-13)",
                       fontWeight: 700,
                     }}
                   >
@@ -178,7 +173,7 @@ export function AgentTranscript({ steps, title, emptyLabel }: AgentTranscriptPro
                 {text.length > 0 ? (
                   <div
                     data-testid="transcript-text"
-                    style={{ fontSize: 13, color: "var(--cc-text)" }}
+                    style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text)" }}
                   >
                     {renderLines(text)}
                   </div>
@@ -200,7 +195,7 @@ export function AgentTranscript({ steps, title, emptyLabel }: AgentTranscriptPro
             border: "1px dashed var(--cc-border)",
             background: "var(--cc-card)",
             color: "var(--cc-text-muted)",
-            fontSize: 13,
+            fontSize: "var(--cc-t-13)",
           }}
         >
           {empty}

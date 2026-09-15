@@ -27,10 +27,11 @@ export default function ClientsClient({ clients, stats }: {
   );
 
   return (
-    <div className="rsp-page">
+    <div className="rsp-page cc-listpage">
       <PageHeader
         title="Clients"
         subtitle="Manage your client relationships and billing"
+        caption={`${filtered.length} Client${filtered.length !== 1 ? "s" : ""}`}
         actions={
           <Button variant="primary" iconLeft={<Plus size={15} />} size="sm" onClick={() => setShowModal(true)} {...action("new-client")}>
             New Client
@@ -39,7 +40,7 @@ export default function ClientsClient({ clients, stats }: {
       />
 
       {/* Stats */}
-      <div className="cc-stagger grid grid-cols-1 sm:grid-cols-2" style={{ gap: 20, marginBottom: 32, maxWidth: 480 }}>
+      <div className="cc-stagger cc-listpage-tiles grid grid-cols-1 sm:grid-cols-2" style={{ gap: 20, marginBottom: 32, maxWidth: 480 }}>
         <MetricTile metric="clientsTotal" value={String(stats.total)} />
         {/* Org-wide, not "campaigns belonging to these clients": the count includes
             campaigns with no client assigned, so it does not add up from the rows. */}
@@ -52,7 +53,7 @@ export default function ClientsClient({ clients, stats }: {
       </div>
 
       {/* Search */}
-      <div style={{ marginBottom: 24 }}>
+      <div className="cc-clientspage-search" style={{ marginBottom: 24 }}>
         <Input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -64,7 +65,7 @@ export default function ClientsClient({ clients, stats }: {
       {/* Clients table */}
       <Card variant="solid" noPadding>
         <div style={{ padding: "14px 24px", borderBottom: "1px solid var(--cc-border)", background: "var(--cc-hover-bg)" }}>
-          <span style={{ fontWeight: 700, fontSize: 14, color: "var(--cc-text)" }}>All Clients</span>
+          <span style={{ fontWeight: 700, fontSize: "var(--cc-t-14)", color: "var(--cc-text)" }}>All Clients</span>
         </div>
 
         {filtered.length === 0 ? (
@@ -112,8 +113,8 @@ export default function ClientsClient({ clients, stats }: {
                 >
                   <Avatar name={c.name} size="md" src={c.logoUrl ?? undefined} />
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 600, fontSize: 15, color: "var(--cc-text)" }}>{c.name}</div>
-                    <div style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>
+                    <div style={{ fontWeight: "var(--cc-fw-strong)", fontSize: "var(--cc-t-15)", color: "var(--cc-text)" }}>{c.name}</div>
+                    <div style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
                       {c._count.campaigns} campaign{c._count.campaigns !== 1 ? "s" : ""}
                     </div>
                   </div>

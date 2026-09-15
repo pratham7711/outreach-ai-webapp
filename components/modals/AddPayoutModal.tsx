@@ -69,7 +69,7 @@ export default function AddPayoutModal({ onClose }: { onClose: () => void }) {
 
   const labelStyle = {
     display: "block" as const,
-    fontSize: 13,
+    fontSize: "var(--cc-t-13)",
     fontWeight: 600 as const,
     color: "var(--cc-text)",
     marginBottom: 6,
@@ -111,7 +111,7 @@ export default function AddPayoutModal({ onClose }: { onClose: () => void }) {
               borderRadius: 8,
               border: "1px solid var(--cc-border)",
               background: "var(--cc-bg)",
-              fontSize: 13,
+              fontSize: "var(--cc-t-13)",
               color: "var(--cc-text-muted)",
             }}
           >

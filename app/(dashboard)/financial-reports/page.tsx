@@ -83,12 +83,12 @@ function toDelta(change: number | null | undefined) {
 }
 
 function ChangeChip({ value }: { value: number | null }) {
-  if (value === null) return <span style={{ fontSize: 11, color: "var(--cc-text-subtle)" }}>—</span>;
+  if (value === null) return <span style={{ fontSize: "var(--cc-t-11)", color: "var(--cc-text-subtle)" }}>—</span>;
   const positive = value >= 0;
   const Icon = value === 0 ? Minus : positive ? TrendingUp : TrendingDown;
   return (
     <span style={{
-      display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11, fontWeight: 600,
+      display: "inline-flex", alignItems: "center", gap: 3, fontSize: "var(--cc-t-11)", fontWeight: "var(--cc-fw-strong)",
       padding: "2px 7px", borderRadius: 20,
       background: value === 0 ? "#F3F4F6" : positive ? "#D1FAE5" : "#FEE2E2",
       color: value === 0 ? "#6B7280" : positive ? "#059669" : "#DC2626",
@@ -122,9 +122,9 @@ function StatCard({
         </div>
         {change !== undefined && <ChangeChip value={change ?? null} />}
       </div>
-      <p style={{ fontSize: 24, fontWeight: 700, color: "var(--cc-text)", margin: "0 0 4px" }}>{value}</p>
-      <p style={{ fontSize: 13, color: "var(--cc-text-muted)", margin: 0 }}>{label}</p>
-      {sub && <p style={{ fontSize: 11, color: "var(--cc-text-subtle)", margin: "4px 0 0" }}>{sub}</p>}
+      <p style={{ fontSize: "var(--cc-t-24)", fontWeight: 700, color: "var(--cc-text)", margin: "0 0 4px" }}>{value}</p>
+      <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", margin: 0 }}>{label}</p>
+      {sub && <p style={{ fontSize: "var(--cc-t-11)", color: "var(--cc-text-subtle)", margin: "4px 0 0" }}>{sub}</p>}
     </Card>
   );
 }
@@ -248,7 +248,7 @@ export default function FinancialReportsPage() {
             onClick={() => setPeriod(p.key)}
             aria-pressed={period === p.key}
             style={{
-              padding: "0 10px", height: 40, borderRadius: 20, fontSize: 13, fontWeight: 500, cursor: "pointer",
+              padding: "0 10px", height: 40, borderRadius: 20, fontSize: "var(--cc-t-13)", fontWeight: 500, cursor: "pointer",
               border: period === p.key ? "1.5px solid var(--cc-primary)" : "1.5px solid var(--cc-border)",
               background: period === p.key ? "var(--cc-primary)" : "var(--cc-card)",
               color: period === p.key ? "white" : "var(--cc-text-muted)",
@@ -263,7 +263,7 @@ export default function FinancialReportsPage() {
 
       {error ? (
         <Card variant="outlined" style={{ padding: 40, textAlign: "center" }}>
-          <p style={{ color: "#DC2626", fontSize: 14 }}>{error}</p>
+          <p style={{ color: "#DC2626", fontSize: "var(--cc-t-14)"}}>{error}</p>
           <Button variant="secondary" size="sm" onClick={() => load(period)} style={{ marginTop: 12 }}>Retry</Button>
         </Card>
       ) : loading ? (
@@ -282,7 +282,7 @@ export default function FinancialReportsPage() {
               style={{
                 display: "flex", alignItems: "center", gap: 8, marginBottom: 16, padding: "10px 14px",
                 borderRadius: 10, background: "#FEF3C7", border: "1px solid #FDE68A",
-                fontSize: 13, color: "#92400E",
+                fontSize: "var(--cc-t-13)", color: "#92400E",
               }}
             >
               <TriangleAlert size={15} />
@@ -337,8 +337,8 @@ export default function FinancialReportsPage() {
             <div style={{ display: "flex", gap: 12, marginBottom: 24, flexWrap: "wrap" }}>
               {data.balances.map(b => (
                 <div key={b.label} style={{ padding: "10px 16px", borderRadius: 10, border: "1px solid var(--cc-border)", background: "var(--cc-card)" }}>
-                  <p style={{ fontSize: 11, color: "var(--cc-text-muted)", margin: "0 0 4px", textTransform: "uppercase", letterSpacing: "0.05em" }}>{b.label}</p>
-                  <p style={{ fontSize: 18, fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>{fmt(b.currentBalance, b.currency)}</p>
+                  <p style={{ fontSize: "var(--cc-t-11)", color: "var(--cc-text-muted)", margin: "0 0 4px", textTransform: "uppercase", letterSpacing: "0.05em" }}>{b.label}</p>
+                  <p style={{ fontSize: "var(--cc-t-18)", fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>{fmt(b.currentBalance, b.currency)}</p>
                 </div>
               ))}
             </div>
@@ -346,8 +346,8 @@ export default function FinancialReportsPage() {
 
           {/* Monthly Trend Chart */}
           <Card variant="outlined" style={{ padding: 24, marginBottom: 24 }}>
-            <h2 style={{ fontSize: 15, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Payout Trend</h2>
-            <p style={{ fontSize: 13, color: "var(--cc-text-muted)", marginBottom: 20 }}>Last 6 months of payout activity</p>
+            <h2 style={{ fontSize: "var(--cc-t-15)", fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Payout Trend</h2>
+            <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", marginBottom: 20 }}>Last 6 months of payout activity</p>
             {data.monthlyTrend.length === 0 ? (
               <EmptyState
                 icon={<BarChart2 size={32} color="var(--cc-text-subtle)" />}
@@ -364,8 +364,8 @@ export default function FinancialReportsPage() {
           {/* Top Campaigns */}
           <Card variant="outlined" noPadding>
             <div style={{ padding: "20px 24px 16px", borderBottom: "1px solid var(--cc-border)" }}>
-              <h2 style={{ fontSize: 15, fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>Top Campaigns</h2>
-              <p style={{ fontSize: 13, color: "var(--cc-text-muted)", margin: "4px 0 0" }}>By budget, most recent</p>
+              <h2 style={{ fontSize: "var(--cc-t-15)", fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>Top Campaigns</h2>
+              <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", margin: "4px 0 0" }}>By budget, most recent</p>
             </div>
             {data.topCampaigns.length === 0 ? (
               <div style={{ padding: 32 }}>
@@ -377,7 +377,7 @@ export default function FinancialReportsPage() {
                 <thead>
                   <tr style={{ borderBottom: "1px solid var(--cc-border)" }}>
                     {["Campaign", "Status", "Budget", "Spend", "Utilization"].map(col => (
-                      <th key={col} style={{ padding: "11px 20px", textAlign: "left", fontSize: 11, fontWeight: 600, color: "var(--cc-text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>{col}</th>
+                      <th key={col} className="cc-microlabel" style={{ padding: "11px 20px", textAlign: "left" }}>{col}</th>
                     ))}
                   </tr>
                 </thead>
@@ -385,19 +385,19 @@ export default function FinancialReportsPage() {
                   {data.topCampaigns.map((c, idx) => (
                     <tr key={c.id} style={{ borderBottom: idx < data.topCampaigns.length - 1 ? "1px solid var(--cc-border)" : "none" }}>
                       <td style={{ padding: "14px 20px" }}>
-                        <a href={`/campaigns/${c.id}`} style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-primary)", textDecoration: "none" }}>{c.title}</a>
+                        <a href={`/campaigns/${c.id}`} style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-primary)", textDecoration: "none" }}>{c.title}</a>
                       </td>
                       <td style={{ padding: "14px 20px" }}>
                         <span style={{
-                          fontSize: 11, fontWeight: 600, padding: "3px 8px",
+                          fontSize: "var(--cc-t-11)", fontWeight: "var(--cc-fw-strong)", padding: "3px 8px",
                           borderRadius: STATUS_PILL_RADIUS,
                           ...campaignStatusCss(c.status),
                         }}>
                           {c.status.replace(/_/g, " ")}
                         </span>
                       </td>
-                      <td style={{ padding: "14px 20px", fontSize: 13, color: "var(--cc-text)" }}>{fmt(c.budget, c.currency)}</td>
-                      <td style={{ padding: "14px 20px", fontSize: 13, color: "var(--cc-text)" }}>{fmt(c.spend, c.currency)}</td>
+                      <td style={{ padding: "14px 20px", fontSize: "var(--cc-t-13)", color: "var(--cc-text)" }}>{fmt(c.budget, c.currency)}</td>
+                      <td style={{ padding: "14px 20px", fontSize: "var(--cc-t-13)", color: "var(--cc-text)" }}>{fmt(c.spend, c.currency)}</td>
                       <td style={{ padding: "14px 20px" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                           <div style={{ flex: 1, height: 6, borderRadius: 3, background: "var(--cc-bg)", overflow: "hidden", minWidth: 60 }}>
@@ -407,7 +407,7 @@ export default function FinancialReportsPage() {
                               width: `${Math.min(c.utilization, 100)}%`,
                             }} />
                           </div>
-                          <span style={{ fontSize: 12, color: "var(--cc-text-muted)", minWidth: 32, textAlign: "right" }}>{c.utilization}%</span>
+                          <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", minWidth: 32, textAlign: "right" }}>{c.utilization}%</span>
                         </div>
                       </td>
                     </tr>

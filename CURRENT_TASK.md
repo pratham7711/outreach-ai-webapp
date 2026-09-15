@@ -57,8 +57,18 @@ clean.
 
 3. **TikTok post metrics DO auto-sync — the capability report used to deny it.**
    Corrected 2026-09-01. `fetchTikTokMetrics` tries a keyless read of the video
-   page's rehydration blob first, and it prefers `statsV2`, so the counts are
-   exact. Production evidence: 422 cron-written TikTok post snapshots with
+   page's rehydration blob first. "It prefers `statsV2`, so the counts are
+   exact" was this entry's claim and it was wrong twice over — corrected
+   2026-09-15: the parser took the larger of the two blocks, and that page
+   carries no exact companion for the abbreviated counters in the first place,
+   so everything it reported above 10,000 was TikTok's rendered figure. The
+   parser now prefers the exact field where one exists (`pickExactCount`), and
+   `keepPrecise` in `lib/platforms/precision.ts` stops a rounded read
+   overwriting an exact stored figure. Measured from a US egress on 2026-09-15:
+   the signed endpoints that would carry exact counts return 200 with an empty
+   body to every unsigned client, so there is nothing further to try — see
+   NEEDS-HELP.md.
+   Production evidence: 422 cron-written TikTok post snapshots with
    values genuinely moving (336 → 952 views on one post), hourly at `:01`, with
    no `SOCIALKIT_API_KEY` set anywhere. SocialKit is only the third rung of that
    ladder; buying a key buys nothing that is missing.

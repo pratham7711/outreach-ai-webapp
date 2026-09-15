@@ -166,7 +166,7 @@ export function AudioCard({
             <div style={{ minWidth: 0 }}>
               <div
                 style={{
-                  fontSize: 14, fontWeight: 600, color: "var(--audio-tile-ink, var(--cc-text))",
+                  fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--audio-tile-ink, var(--cc-text))",
                   whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
                 }}
               >
@@ -174,7 +174,7 @@ export function AudioCard({
               </div>
               <div
                 style={{
-                  fontSize: 13, color: "var(--audio-tile-ink-muted, var(--cc-text-muted))",
+                  fontSize: "var(--cc-t-13)", color: "var(--audio-tile-ink-muted, var(--cc-text-muted))",
                   whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
                 }}
               >
@@ -196,7 +196,7 @@ export function AudioCard({
         {audio.usageSeries.length > 1 ? (
           <div style={{ height: 210 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 8 }}>
-              <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>Audio Usage</span>
+              <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>Audio Usage</span>
               <div role="tablist" aria-label="Audio chart view" style={{ display: "flex", gap: 4 }}>
                 {(["usage", "velocity"] as const).map((key) => (
                   <button
@@ -206,7 +206,7 @@ export function AudioCard({
                     aria-selected={view === key}
                     onClick={() => setView(key)}
                     style={{
-                      fontSize: 12, fontWeight: 600, padding: "4px 10px", borderRadius: 999,
+                      fontSize: "var(--cc-t-12)", fontWeight: "var(--cc-fw-strong)", padding: "4px 10px", borderRadius: 999,
                       cursor: "pointer", textTransform: "capitalize",
                       border: `1px solid ${view === key ? "var(--cc-primary)" : "var(--cc-border)"}`,
                       background: view === key ? "var(--cc-primary)" : "var(--cc-card)",
@@ -248,8 +248,8 @@ export function AudioCard({
                       day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
                     })
                   }
-                  labelStyle={{ fontSize: 12 }}
-                  contentStyle={{ fontSize: 12, borderRadius: 8 }}
+                  labelStyle={{ fontSize: "var(--cc-t-12)"}}
+                  contentStyle={{ fontSize: "var(--cc-t-12)", borderRadius: 8 }}
                 />
                 <Area
                   type="monotone"
@@ -263,7 +263,7 @@ export function AudioCard({
             </ResponsiveContainer>
           </div>
         ) : (
-          <p style={{ fontSize: 13, color: "var(--cc-text-muted)", margin: 0 }}>
+          <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", margin: 0 }}>
             Usage over time appears once this sound has been synced more than once.
           </p>
         )}
@@ -281,7 +281,7 @@ function Stat({ label, value }: { label: string; value: string }) {
         background: "var(--audio-tile-bg, var(--cc-bg))",
       }}
     >
-      <div style={{ fontSize: 12, color: "var(--audio-tile-ink-muted, var(--cc-text-muted))", marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: "var(--cc-t-12)", color: "var(--audio-tile-ink-muted, var(--cc-text-muted))", marginBottom: 4 }}>{label}</div>
       <div title={String(value)} style={{ fontSize: fitFigureSize(String(value), 20), fontWeight: 700, color: "var(--audio-tile-ink, var(--cc-text))", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums", overflow: "hidden", textOverflow: "ellipsis" }}>{value}</div>
     </div>
   );
@@ -453,8 +453,8 @@ function ReportAudio({
                       day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
                     })
                   }
-                  labelStyle={{ fontSize: 12 }}
-                  contentStyle={{ fontSize: 12, borderRadius: 8 }}
+                  labelStyle={{ fontSize: "var(--cc-t-12)"}}
+                  contentStyle={{ fontSize: "var(--cc-t-12)", borderRadius: 8 }}
                 />
                 {/* Flat fill, no gradient and no opacity: the reference's area is
                     a solid #7F7F7F meeting a black line, and a translucent fill

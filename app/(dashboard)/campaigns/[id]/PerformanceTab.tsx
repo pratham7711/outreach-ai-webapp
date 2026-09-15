@@ -98,7 +98,7 @@ function ErrorState({ onRetry }: { onRetry: () => void }) {
             onClick={onRetry}
             style={{
               background: "var(--cc-primary)", color: "var(--cc-card)", border: "none",
-              borderRadius: 8, padding: "8px 16px", fontSize: 14, fontWeight: 600, cursor: "pointer",
+              borderRadius: 8, padding: "8px 16px", fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", cursor: "pointer",
             }}
           >
             Retry
@@ -139,7 +139,7 @@ function ExportModal({ campaignId, onClose }: { campaignId: string; onClose: () 
       }
     >
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        <p style={{ fontSize: 14, color: "var(--cc-text-muted)", margin: 0, lineHeight: 1.6 }}>
+        <p style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text-muted)", margin: 0, lineHeight: 1.6 }}>
           Download the latest data for this campaign in your preferred format.
         </p>
         {EXPORT_FORMATS.map((f) => {
@@ -155,8 +155,8 @@ function ExportModal({ campaignId, onClose }: { campaignId: string; onClose: () 
                 border: selected ? "1.5px solid var(--cc-primary)" : "1px solid var(--cc-border)",
               }}
             >
-              <span style={{ display: "block", fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>{f.label}</span>
-              <span style={{ display: "block", fontSize: 12, color: "var(--cc-text-muted)", marginTop: 4 }}>{f.hint}</span>
+              <span style={{ display: "block", fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{f.label}</span>
+              <span style={{ display: "block", fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", marginTop: 4 }}>{f.hint}</span>
             </button>
           );
         })}
@@ -215,7 +215,7 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
         style={{
           display: "inline-flex", alignItems: "center", gap: 8,
           background: "var(--cc-card)", color: "var(--cc-primary)", border: "1.5px solid var(--cc-primary)",
-          borderRadius: 8, padding: "8px 16px", fontSize: 14, fontWeight: 600, cursor: "pointer",
+          borderRadius: 8, padding: "8px 16px", fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", cursor: "pointer",
         }}
       >
         <Share2 size={15} /> Share report
@@ -296,7 +296,7 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
       {data.audio ? <AudioCard audio={data.audio} /> : null}
 
       <Card variant="outlined" style={{ padding: 24 }}>
-        <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)", display: "block", marginBottom: 16 }}>
+        <span className="cc-panel-title cc-chart-title" style={{ display: "block", marginBottom: 16 }}>
           Views Over Time by Platform
         </span>
         {timeSeries.length >= 3 ? (
@@ -316,9 +316,9 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
               <Tooltip
                 labelFormatter={(l) => formatDate(String(l))}
                 formatter={(v: any) => formatNumber(Number(v ?? 0))}
-                contentStyle={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, fontSize: 13 }}
+                contentStyle={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, fontSize: "var(--cc-t-13)"}}
               />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
+              <Legend wrapperStyle={{ fontSize: "var(--cc-t-12)"}} />
               {activeSeries.map((s) => (
                 <Area
                   key={s.key}
@@ -339,7 +339,7 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
 
       <div className="perf-split">
         <Card variant="outlined" style={{ padding: 24 }}>
-          <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)", display: "block", marginBottom: 16 }}>
+          <span className="cc-panel-title cc-chart-title" style={{ display: "block", marginBottom: 16 }}>
             Views by Platform
           </span>
           {pieData.length > 0 ? (
@@ -362,10 +362,10 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
                     <Cell key={entry.platform} fill={platformColor(entry.platform)} />
                   ))}
                 </Pie>
-                <Legend verticalAlign="bottom" height={24} wrapperStyle={{ fontSize: 12 }} formatter={(value: any) => <span style={{ color: "var(--cc-text-muted)" }}>{value}</span>} />
+                <Legend verticalAlign="bottom" height={24} wrapperStyle={{ fontSize: "var(--cc-t-12)"}} formatter={(value: any) => <span style={{ color: "var(--cc-text-muted)" }}>{value}</span>} />
                 <Tooltip
                   formatter={(v: any, _n: any, item: any) => [`${formatNumber(Number(v ?? 0))} views · ${(item?.payload as PlatformSplit)?.posts ?? 0} posts`, (item?.payload as PlatformSplit)?.platform ?? ""]}
-                  contentStyle={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, fontSize: 13 }}
+                  contentStyle={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, fontSize: "var(--cc-t-13)"}}
                 />
               </PieChart>
             </ChartFrame>
@@ -376,7 +376,7 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
 
         <Card variant="solid" noPadding style={{ overflowX: "auto" }}>
           <div style={{ padding: "16px 24px", borderBottom: "1px solid var(--cc-border)" }}>
-            <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)" }}>Top Creators</span>
+            <span className="cc-panel-title">Top Creators</span>
           </div>
           {leaderboard.length > 0 ? (
             <div style={{ minWidth: 480 }}>
@@ -385,7 +385,7 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
                 gap: 12, padding: "10px 24px", borderBottom: "1px solid var(--cc-border)", background: "var(--cc-bg)",
               }}>
                 {["Creator", "Posts", "Views", ...(anyEngagementMeasured ? ["Eng."] : [])].map((h) => (
-                  <span key={h} style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--cc-text-subtle)" }}>{h}</span>
+                  <span key={h} className="cc-microlabel">{h}</span>
                 ))}
               </div>
               {leaderboard.map((row, i) => (
@@ -399,10 +399,10 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
                 >
                   <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
                     <Avatar name={row.name} src={row.avatarUrl ?? undefined} size="sm" />
-                    <span title={row.name} style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.name}</span>
+                    <span title={row.name} style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.name}</span>
                   </div>
-                  <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{row.posts}</span>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>{formatNumber(row.views)}</span>
+                  <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{row.posts}</span>
+                  <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{formatNumber(row.views)}</span>
                   {anyEngagementMeasured && (
                     <span>
                       {row.engagementRate !== null && (

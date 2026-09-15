@@ -54,22 +54,22 @@ export function OutreachDraftPanel({
           background: "var(--cc-card)",
         }}
       >
-        <span aria-hidden="true" style={{ color: "var(--cc-warning)", fontSize: 14, fontWeight: 700 }}>
+        <span aria-hidden="true" style={{ color: "var(--cc-warning)", fontSize: "var(--cc-t-14)", fontWeight: 700 }}>
           <AlertTriangle size={14} color="var(--cc-warning)" />
         </span>
         <Badge variant="warning">Draft only</Badge>
-        <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>
+        <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>
           Draft — not sent. Sending requires approval.
         </span>
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
         {channel ? (
-          <span style={{ fontSize: 11, fontWeight: 600, color: "var(--cc-text-muted)", textTransform: "uppercase", letterSpacing: 1 }}>
+          <span className="cc-microlabel">
             {`Channel: ${channel}`}
           </span>
         ) : null}
-        <h3 style={{ fontSize: 18, fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>
+        <h3 style={{ fontSize: "var(--cc-t-18)", fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>
           {subject}
         </h3>
       </div>
@@ -82,7 +82,7 @@ export function OutreachDraftPanel({
           {lines.map((line, index) => (
             <p
               key={`line-${index}`}
-              style={{ fontSize: 14, lineHeight: "22px", color: "var(--cc-text)", margin: 0, minHeight: 8 }}
+              style={{ fontSize: "var(--cc-t-14)", lineHeight: "22px", color: "var(--cc-text)", margin: 0, minHeight: 8 }}
             >
               {line}
             </p>
@@ -92,7 +92,7 @@ export function OutreachDraftPanel({
         <p
           role="status"
           data-testid="draft-body-empty"
-          style={{ fontSize: 13, color: "var(--cc-text-muted)", margin: 0 }}
+          style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", margin: 0 }}
         >
           No draft body yet.
         </p>
@@ -112,12 +112,12 @@ export function OutreachDraftPanel({
               background: "var(--cc-card)",
             }}
           >
-            <span aria-hidden="true" style={{ color: "var(--cc-success)", fontSize: 12 }}>
+            <span aria-hidden="true" style={{ color: "var(--cc-success)", fontSize: "var(--cc-t-12)"}}>
               <CheckCircle2 size={14} color="var(--cc-success)" />
             </span>
             <span
               aria-label={`Grounded in ${factCount} facts`}
-              style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}
+              style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}
             >
               {`Grounded in ${factCount} facts`}
             </span>
@@ -135,10 +135,10 @@ export function OutreachDraftPanel({
               background: "var(--cc-card)",
             }}
           >
-            <h4 style={{ fontSize: 13, fontWeight: 700, color: "var(--cc-danger)", margin: 0 }}>
+            <h4 style={{ fontSize: "var(--cc-t-13)", fontWeight: 700, color: "var(--cc-danger)", margin: 0 }}>
               {`${unsupported.length} unsupported claim(s)`}
             </h4>
-            <p style={{ fontSize: 12, color: "var(--cc-text-muted)", margin: 0 }}>
+            <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: 0 }}>
               These numbers are not backed by the supplied evidence and must be removed before approval.
             </p>
             {unsupported.length > 0 ? (
@@ -151,12 +151,12 @@ export function OutreachDraftPanel({
                     key={`unsupported-${index}`}
                     style={{ display: "flex", alignItems: "center", gap: 8 }}
                   >
-                    <span aria-hidden="true" style={{ color: "var(--cc-danger)", fontSize: 12 }}>
+                    <span aria-hidden="true" style={{ color: "var(--cc-danger)", fontSize: "var(--cc-t-12)"}}>
                       <XCircle size={14} color="var(--cc-danger)" />
                     </span>
                     <span
                       aria-label={`Unsupported number ${token}`}
-                      style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}
+                      style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}
                     >
                       {token}
                     </span>
@@ -169,7 +169,7 @@ export function OutreachDraftPanel({
       ) : null}
 
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        <h4 style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)", margin: 0 }}>
+        <h4 style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", margin: 0 }}>
           Grounded in
         </h4>
         {hasFacts ? (
@@ -188,10 +188,10 @@ export function OutreachDraftPanel({
                   borderBottom: "1px solid var(--cc-border)",
                 }}
               >
-                <span aria-hidden="true" style={{ color: "var(--cc-success)", fontSize: 12, lineHeight: "18px" }}>
+                <span aria-hidden="true" style={{ color: "var(--cc-success)", fontSize: "var(--cc-t-12)", lineHeight: "18px" }}>
                   •
                 </span>
-                <span style={{ fontSize: 13, color: "var(--cc-text)" }}>{fact}</span>
+                <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text)" }}>{fact}</span>
               </li>
             ))}
           </ul>
@@ -199,7 +199,7 @@ export function OutreachDraftPanel({
           <p
             role="status"
             data-testid="grounded-facts-empty"
-            style={{ fontSize: 13, color: "var(--cc-text-muted)", margin: 0 }}
+            style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", margin: 0 }}
           >
             No grounding facts attached to this draft.
           </p>
@@ -232,17 +232,17 @@ export function OutreachDraftPanel({
             border: "1px solid var(--cc-border)",
             background: "var(--cc-bg)",
             color: "var(--cc-text-muted)",
-            fontSize: 14,
-            fontWeight: 600,
+            fontSize: "var(--cc-t-14)",
+            fontWeight: "var(--cc-fw-strong)",
             cursor: "not-allowed",
           }}
         >
-          <span aria-hidden="true" style={{ color: "var(--cc-text-muted)", fontSize: 12 }}>
+          <span aria-hidden="true" style={{ color: "var(--cc-text-muted)", fontSize: "var(--cc-t-12)"}}>
             <Lock size={14} color="var(--cc-text-muted)" />
           </span>
           Requires approval
         </button>
-        <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>
+        <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
           A human must approve this draft before it can be sent.
         </span>
       </div>

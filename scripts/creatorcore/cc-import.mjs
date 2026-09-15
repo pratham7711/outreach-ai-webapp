@@ -310,7 +310,11 @@ async function main() {
       budget: typeof rec.budget === "number" ? rec.budget : null,
       currency: mapCurrency(rec.currency),
       createdById: user.id,
-      typeConfig: { __cc: rec }, // full raw campaign preserved
+      /* The raw campaign is mirrored into CcCampaign.raw a few lines up; a
+         second copy here cost 2.05 MB and was never read. Measured before
+         removal: all 506 campaigns carrying it joined to a CcCampaign row
+         whose raw was byte-identical, and none carried any other key. Left
+         unset rather than {} so an update never clobbers a real typeConfig. */
       createdAt: toDate(rec["Created Date"]) || undefined,
       // ─── CreatorCore parity ───────────────────────────────────────────────
       ccCampaignId: rec._id,
@@ -386,7 +390,13 @@ async function main() {
       reachCount: statFrom(statRec, "reach"),
       engagementRate: statFrom(statRec, "engagementrate", "engagement_rate") || num(typeof le === "object" ? le?.engagement : 0),
       status: mapPostStatus(rec.status),
-      platformMetrics: { __cc: rec, __stat: statRec || null }, // full raw preserved
+      /* __cc is gone: it duplicated CcPost.raw, which this same importer
+         writes, and at 25.65 MB it was 93% of platformMetrics and 39.5% of
+         every posts-list response. Measured before removal: 18,638 of 18,638
+         posts joined to a CcPost row whose raw was byte-identical, and no
+         runtime code read the key. __stat stays -- it is 0.21 MB and the
+         metric-provenance helpers still consult the bag. */
+      platformMetrics: { __stat: statRec || null },
       // ─── CreatorCore parity ───────────────────────────────────────────────
       ccPostId: rec._id,
       fetchState: mapFetchState(rec.status),
@@ -416,7 +426,7 @@ async function main() {
   process.stdout.write("\n");
   console.log(`Posts: ${pCreated} created, ${pUpdated} updated, ${pSkipped} skipped (no mapped campaign / no url)`);
   console.log(`Creators touched: ${creatorCache.size}`);
-  console.log(`\nDone. Raw CreatorCore records preserved in platformMetrics.__cc / typeConfig.__cc.`);
+  console.log(`\nDone. Raw CreatorCore records preserved in the CcPost / CcCampaign mirror tables.`);
   await db.$disconnect();
 }
 

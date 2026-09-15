@@ -72,7 +72,7 @@ export default function PlanForm({ initial }: PlanFormProps) {
       />
 
       {error && (
-        <div style={{ marginBottom: 24, padding: "12px 16px", borderRadius: 10, fontSize: 14, background: "color-mix(in srgb, var(--cc-danger) 12%, transparent)", color: "var(--cc-danger)", border: "1px solid color-mix(in srgb, var(--cc-danger) 28%, transparent)" }}>
+        <div style={{ marginBottom: 24, padding: "12px 16px", borderRadius: 10, fontSize: "var(--cc-t-14)", background: "color-mix(in srgb, var(--cc-danger) 12%, transparent)", color: "var(--cc-danger)", border: "1px solid color-mix(in srgb, var(--cc-danger) 28%, transparent)" }}>
           {error}
         </div>
       )}
@@ -97,7 +97,7 @@ export default function PlanForm({ initial }: PlanFormProps) {
         {/* Features */}
         <Card variant="outlined" noPadding>
           <div style={{ padding: "14px 20px", borderBottom: "1px solid var(--cc-border)" }}>
-            <span style={{ fontWeight: 700, fontSize: 14, color: "var(--cc-text)" }}>Feature Toggles</span>
+            <span style={{ fontWeight: 700, fontSize: "var(--cc-t-14)", color: "var(--cc-text)" }}>Feature Toggles</span>
           </div>
           {featureKeys.map((key, i) => {
             const feat = FEATURES[key];
@@ -115,8 +115,8 @@ export default function PlanForm({ initial }: PlanFormProps) {
                 }}
               >
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 600, fontSize: 14, color: "var(--cc-text)" }}>{feat.label}</div>
-                  <div style={{ fontSize: 12, color: "var(--cc-text-muted)", marginTop: 1 }}>{feat.description}</div>
+                  <div style={{ fontWeight: "var(--cc-fw-strong)", fontSize: "var(--cc-t-14)", color: "var(--cc-text)" }}>{feat.label}</div>
+                  <div style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", marginTop: 1 }}>{feat.description}</div>
                 </div>
                 <button
                   type="button"

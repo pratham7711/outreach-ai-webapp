@@ -30,9 +30,36 @@ things. **If you answer an item here, delete it.**
   with no row, which signup never produces. Honouring the columns would
   reinstate a cap nobody chose.
 - **TikTok post metrics.** They sync, and always did — a keyless read of the
-  video page, preferring `statsV2`, so the figures are exact. The old worry that
-  TikTok counts were frozen came from `lib/capabilities.ts` gating them on the
-  optional SocialKit key; that is fixed. No key to buy.
+  video page. The old worry that TikTok counts were frozen came from
+  `lib/capabilities.ts` gating them on the optional SocialKit key; that is
+  fixed. No key to buy. What this entry used to claim — "preferring `statsV2`,
+  so the figures are exact" — was wrong on both halves and is corrected as of
+  2026-09-15: the parser took the LARGER of `stats` and `statsV2` rather than
+  preferring either, and the page an anonymous read is served carries no exact
+  companion for `playCount`/`diggCount`/`shareCount` anyway. Every counter it
+  gives is at TikTok's display precision above 10,000 — 11.1K, 563.3K, 15.5M —
+  measured across all 87 posts that transport has written and each of their
+  snapshots back to 2026-08-21.
+
+  **There is no anonymous route to the exact figures, and that is settled.**
+  Measured 2026-09-15 from a US egress (Proton VPN, 89.187.185.165) across two
+  live posts: the video page's `stats` and `statsV2` carry the SAME rounded
+  numbers (`playCount: 11700` / `"11700"`; `15500000` / `"15500000"`), and
+  `/api/item/detail/` and `/api/post/item_list/` both answer **HTTP 200 with a
+  zero-byte body** — with and without cookies, from curl, headless Playwright
+  Chrome and headed Chrome alike. They want `X-Bogus`/`msToken`/`_signature`.
+  `commentCount` and `collectCount` ARE exact in the same payload, which is what
+  proves the read is working and the rounding is TikTok's choice.
+
+  Re-confirmed live the same day on @nba's own video pages:
+  `stats` `{diggCount: 692300, shareCount: 21100, commentCount: 2911,
+  playCount: 5700000, collectCount: "30136"}` with `statsV2` carrying the
+  identical strings, and `authorStats.followerCount: 27200000` against the
+  profile page's **27,218,979**.
+  Exact post counts therefore come from the TikTok Display API (first rung
+  already, needs the creator's OAuth token) or the CreatorCore import, and a
+  rounded read is no longer allowed to overwrite an exact stored one
+  (`keepPrecise` in `lib/platforms/precision.ts`).
 - **Google OAuth.** Not configured, and not missed — credentials login is the
   only provider and signup works. Reopen it only if someone asks for SSO.
 

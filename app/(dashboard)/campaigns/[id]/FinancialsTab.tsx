@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import { Badge, Card, Skeleton } from "@pratham7711/ui";
 import { MetricTile } from "@/components/ds";
 import { formatDateAbs } from "@/lib/format";
+import { Wallet, TrendingUp } from "lucide-react";
 
 /**
  * The reference's Financials sub-tab, read only.
@@ -79,7 +80,7 @@ function Section({
 }) {
   return (
     <div style={{ marginTop: 32 }}>
-      <h3 style={{ fontSize: 18, fontWeight: 700, color: "var(--cc-text)", marginBottom: 12 }}>{title}</h3>
+      <h3 style={{ fontSize: "var(--cc-t-18)", fontWeight: 700, color: "var(--cc-text)", marginBottom: 12 }}>{title}</h3>
       {children}
     </div>
   );
@@ -88,7 +89,7 @@ function Section({
 function Empty({ children }: { children: React.ReactNode }) {
   return (
     <Card>
-      <p style={{ fontSize: 15, color: "var(--cc-text-muted)", padding: "4px 0" }}>{children}</p>
+      <p style={{ fontSize: "var(--cc-t-15)", color: "var(--cc-text-muted)", padding: "4px 0" }}>{children}</p>
     </Card>
   );
 }
@@ -99,7 +100,7 @@ const ROW: React.CSSProperties = {
   gap: 12,
   padding: "12px 20px",
   alignItems: "center",
-  fontSize: 13,
+  fontSize: "var(--cc-t-13)",
 };
 
 export default function FinancialsTab({
@@ -146,27 +147,37 @@ export default function FinancialsTab({
 
   return (
     <div>
-      <h3 style={{ fontSize: 18, fontWeight: 700, color: "var(--cc-text)", marginBottom: 16 }}>Budget &amp; Overview</h3>
+      <h3 className="cc-tabpanel-head" style={{ fontSize: "var(--cc-t-18)", fontWeight: 700, color: "var(--cc-text)", marginBottom: 16 }}>Budget &amp; Overview</h3>
 
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.2fr) minmax(0, 1fr)", gap: 16, alignItems: "start" }}>
+      <div className="cc-fin-grid">
         <Card>
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <div>
-              <div style={{ fontSize: 15, color: "var(--cc-text-muted)", marginBottom: 4 }}>Total Budget</div>
-              <div style={{ fontSize: 24, fontWeight: 700, color: "var(--cc-text)" }}>{money(totalBudget, currency)}</div>
+              <div style={{ fontSize: "var(--cc-t-15)", color: "var(--cc-text-muted)", marginBottom: 4 }}>Total Budget</div>
+              <div style={{ fontSize: "var(--cc-t-24)", fontWeight: 700, color: "var(--cc-text)" }}>{money(totalBudget, currency)}</div>
             </div>
             <div>
-              <div style={{ fontSize: 15, color: "var(--cc-text-muted)", marginBottom: 4 }}>Notes</div>
-              <div style={{ fontSize: 14, color: shownNotes ? "var(--cc-text)" : "var(--cc-text-muted)", whiteSpace: "pre-wrap" }}>
+              <div style={{ fontSize: "var(--cc-t-15)", color: "var(--cc-text-muted)", marginBottom: 4 }}>Notes</div>
+              <div style={{ fontSize: "var(--cc-t-14)", color: shownNotes ? "var(--cc-text)" : "var(--cc-text-muted)", whiteSpace: "pre-wrap" }}>
                 {shownNotes || "No notes on this campaign."}
               </div>
             </div>
           </div>
         </Card>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <MetricTile label="Creator Rate Totals" value={money(creatorRateTotals ?? 0, currency)} />
-          <MetricTile label="Total Profit" value={money(profitTotal ?? 0, currency)} />
+        {/* Their two rollups lead with a 30px indigo glyph inset 20 from a 671
+            wide card, which is what puts their label on x=974. The glyph is
+            creatorcore-only -- it is hidden at base, so light and dark render
+            the same two tiles they always did. */}
+        <div className="cc-fin-tiles">
+          <div className="cc-fin-tile">
+            <Wallet className="cc-fin-tile-icon" size={30} aria-hidden />
+            <MetricTile label="Creator Rate Totals" value={money(creatorRateTotals ?? 0, currency)} />
+          </div>
+          <div className="cc-fin-tile">
+            <TrendingUp className="cc-fin-tile-icon" size={30} aria-hidden />
+            <MetricTile label="Total Profit" value={money(profitTotal ?? 0, currency)} />
+          </div>
         </div>
       </div>
 
@@ -177,7 +188,7 @@ export default function FinancialsTab({
           <Empty>No payments created for this campaign!</Empty>
         ) : (
           <Card className="overflow-hidden py-0">
-            <div style={{ ...ROW, fontWeight: 600, color: "var(--cc-text-muted)", borderBottom: "1px solid var(--cc-border)" }}>
+            <div style={{ ...ROW, fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text-muted)", borderBottom: "1px solid var(--cc-border)" }}>
               <span>Gateway</span>
               <span>Amount</span>
               <span>Released</span>
@@ -207,7 +218,7 @@ export default function FinancialsTab({
           <Empty>No payouts created for this campaign!</Empty>
         ) : (
           <Card className="overflow-hidden py-0">
-            <div style={{ ...ROW, fontWeight: 600, color: "var(--cc-text-muted)", borderBottom: "1px solid var(--cc-border)" }}>
+            <div style={{ ...ROW, fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text-muted)", borderBottom: "1px solid var(--cc-border)" }}>
               <span>Creator</span>
               <span>Amount</span>
               <span>Method</span>

@@ -43,7 +43,7 @@ export function VerifyEmailBanner({ email }: { email: string }) {
         padding: "10px 20px",
         background: "#FEF3C7",
         borderBottom: "1px solid var(--cc-border)",
-        fontSize: 13,
+        fontSize: "var(--cc-t-13)",
         color: "#92400E",
       }}
     >
@@ -52,9 +52,9 @@ export function VerifyEmailBanner({ email }: { email: string }) {
         Confirm <strong>{email}</strong> so we know this address reaches you.
       </span>
       {state === "sent" ? (
-        <span style={{ fontWeight: 600 }}>Sent — check your inbox.</span>
+        <span style={{ fontWeight: "var(--cc-fw-strong)"}}>Sent — check your inbox.</span>
       ) : state === "unavailable" ? (
-        <span style={{ fontWeight: 600 }}>Could not send right now. Try again shortly.</span>
+        <span style={{ fontWeight: "var(--cc-fw-strong)"}}>Could not send right now. Try again shortly.</span>
       ) : (
         <button
           type="button"
@@ -65,7 +65,7 @@ export function VerifyEmailBanner({ email }: { email: string }) {
             border: "none",
             padding: 0,
             font: "inherit",
-            fontWeight: 600,
+            fontWeight: "var(--cc-fw-strong)",
             color: "#92400E",
             textDecoration: "underline",
             cursor: state === "sending" ? "default" : "pointer",

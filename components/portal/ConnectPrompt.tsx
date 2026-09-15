@@ -80,15 +80,15 @@ export function ConnectPrompt({
 
   return (
     <Card variant="outlined" style={{ padding: 20 }}>
-      <div style={{ fontSize: 15, fontWeight: 700, color: "var(--cc-text)", marginBottom: 6 }}>
+      <div style={{ fontSize: "var(--cc-t-15)", fontWeight: 700, color: "var(--cc-text)", marginBottom: 6 }}>
         {copy.title}
       </div>
-      <p style={{ fontSize: 13, lineHeight: 1.6, color: "var(--cc-text-muted)", marginBottom: 14 }}>
+      <p style={{ fontSize: "var(--cc-t-13)", lineHeight: 1.6, color: "var(--cc-text-muted)", marginBottom: 14 }}>
         {copy.body}
       </p>
 
       {failed && (
-        <p style={{ fontSize: 13, color: "var(--cc-text-muted)", marginBottom: 12 }}>
+        <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", marginBottom: 12 }}>
           Could not check your connected accounts.{" "}
           <button
             onClick={load}
@@ -98,7 +98,7 @@ export function ConnectPrompt({
               padding: 0,
               color: "var(--cc-primary)",
               cursor: "pointer",
-              fontSize: 13,
+              fontSize: "var(--cc-t-13)",
             }}
           >
             Retry
@@ -107,7 +107,7 @@ export function ConnectPrompt({
       )}
 
       {missing.length === 0 ? (
-        <p style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>
+        <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
           All your accounts are connected.
         </p>
       ) : (
@@ -120,7 +120,7 @@ export function ConnectPrompt({
         </div>
       )}
 
-      <p style={{ fontSize: 12, lineHeight: 1.6, color: "var(--cc-text-subtle)", marginTop: 14 }}>
+      <p style={{ fontSize: "var(--cc-t-12)", lineHeight: 1.6, color: "var(--cc-text-subtle)", marginTop: 14 }}>
         We read your public profile and public post stats only. We never post, never read your
         direct messages, and never see private videos. You can disconnect at any time from
         Settings.

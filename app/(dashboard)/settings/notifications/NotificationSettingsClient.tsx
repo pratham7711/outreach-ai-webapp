@@ -1,7 +1,9 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { Bell } from "lucide-react";
 import { Card, Skeleton, Toggle } from "@pratham7711/ui";
+import { SectionCard } from "@/components/ds";
 import { apiFetch } from "@/lib/api/client";
 import { errorMessage } from "@/lib/api/errorMessage";
 
@@ -20,6 +22,13 @@ type Payload = { prefs: Record<string, boolean>; catalog: EventDef[] };
  * One toggle per event, saved the moment it is flipped — the reference saves
  * per-switch too, and a Save button under thirty switches invites losing work.
  * The flip is optimistic; a failed PATCH flips it back and says so.
+ *
+ * Each group is a SectionCard, which is what puts the group name and its line
+ * of description in the 280px left column and the switches in the right one.
+ * MEASURED 2026-09-14 at desktop-1600: theirs is `Campaigns` 323,135 18/400
+ * over `Customize settings for campaigns` 323,166.5 12/400, with the rows from
+ * 603 out to 1552 — ours was an 18/700 h2 at 316,128 above full-width rows in a
+ * 760px card.
  */
 export function NotificationSettingsClient() {
   const [data, setData] = useState<Payload | null>(null);
@@ -71,30 +80,20 @@ export function NotificationSettingsClient() {
   if (!data) return null;
 
   return (
-    <div style={{ display: "grid", gap: 16, maxWidth: 760 }}>
+    <div className="cc-settings-groups">
       {groups.map(([group, defs]) => (
-        <Card key={group} variant="outlined">
-          <h2 style={{ fontSize: 15, fontWeight: 700, color: "var(--cc-text)", marginBottom: 14 }}>
-            {group}
-          </h2>
-          <div style={{ display: "grid", gap: 4 }}>
+        <SectionCard
+          key={group}
+          icon={Bell}
+          title={group}
+          description={`Customize settings for ${group}`}
+        >
+          <div className="cc-pref-rows">
             {defs.map((def) => (
-              <div
-                key={def.key}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: 16,
-                  padding: "8px 0",
-                  borderBottom: "1px solid var(--cc-border, rgba(128,128,128,.12))",
-                }}
-              >
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>
-                    {def.glyph} {def.label}
-                  </div>
-                  <div style={{ fontSize: 12.5, color: "var(--cc-text-muted)" }}>{def.description}</div>
+              <div key={def.key} className="cc-pref-row">
+                <div className="cc-pref-row-text">
+                  <div className="cc-pref-row-title">{def.label}</div>
+                  <div className="cc-pref-row-desc">{def.description}</div>
                 </div>
                 <Toggle
                   checked={data.prefs[def.key] ?? def.defaultOn}
@@ -104,14 +103,14 @@ export function NotificationSettingsClient() {
               </div>
             ))}
           </div>
-        </Card>
+        </SectionCard>
       ))}
       {/* Says what these switches do and, just as importantly, what they do
           not. They used to be described as email preferences while no sender
           read them: activity email was removed on purpose (one campaign
           created mailed the whole org), and nothing has replaced it. What they
           genuinely control now is the bell in the top bar. */}
-      <p style={{ fontSize: 12.5, color: "var(--cc-text-muted)" }}>
+      <p className="cc-settings-note">
         These switches control the notification bell in the top bar. Activity email is
         not sent for these events — only sign-up, password reset and invites go out by
         email. Slack delivery is separate and org-wide: an admin sets it up once for the

@@ -100,6 +100,111 @@ Not defects, and not worth re-litigating each sweep:
   `diggCount`, `commentCount`, `shareCount`, `collectCount` and
   `statsV2.repostCount`, plus `author.downloadSetting` (a permission flag) and
   `video.downloadAddr` (the file URL). No count. So the tile stays absent.
+- **Counter precision is per-platform, and two platforms will not give exact
+  figures at all.** Audited 2026-09-15 across every fetcher in `lib/platforms`;
+  the ladders live in `lib/platforms/precision.ts` and the guard is
+  `keepPrecise`.
+
+  | Source | Follower/subscriber | Post counters | Exact? |
+  |---|---|---|---|
+  | `tiktokDisplay.ts` (Display API, OAuth) | `user.follower_count` | `view/like/comment/share_count` | **unverified, and the one data point says no** -- the single `CreatorSocialAccount` row this path has written holds **126,400** (`@blessingjolie`, `origin: oauth`, `statsSyncedAt` 2026-09-12), which is on TikTok's display ladder. One row cannot separate that from the 1-in-100 coincidence, and there is no live token here to re-read, so it is treated as rounded: `postLadder`/`followerLadder` key on the platform, not the fetcher, so this path is already guarded |
+  | `tiktokProfile.ts` + `tiktokProfileSandbox.ts` (profile page) | `userInfo.statsV2.followerCount` | — | **yes** — measured `"1608098"` where `stats` said `1600000` |
+  | `fetchPostMetrics.ts` (video page) | `authorStatsV2.followerCount` | `statsV2.playCount` etc. | **NO** — `stats` and `statsV2` carry the same rendered number; only `commentCount` and `collectCount` are exact |
+  | `tiktokTopPostsEmbed.ts` (oEmbed) | — | `playCount` | **NO** — measured `11700`; feeds `Creator.averageViews`, which is therefore approximate above 10K |
+  | `tiktokTopPostsOfficial.ts` | — | Display API counters | **same unknown as `tiktokDisplay.ts`** — still tried before the embed, because the embed is measurably rounded and this one is only unproven |
+  | `youtube.ts` | `statistics.subscriberCount` | `viewCount/likeCount/commentCount` | **posts yes; subscribers depends on the token** — YouTube rounds the public figure to 3 significant figures above 1,000 (measured 2026-09-06), but the one row this app has written through a channel's OWN OAuth token holds **48,210** (`@blessingjolie`, `origin: oauth`, 2026-09-12), which is 4 significant figures and therefore not from that grid. Guarded either way: the ladder only fires on a value that IS on the 3-s.f. grid |
+  | `instagramAccount.ts` / `instagram.ts` / `instagramBusinessDiscovery.ts` / `instagramEmbed.ts` | `followers_count`, `edge_followed_by.count` | `like_count`, `comments_count`, insights | yes |
+  | `threads.ts`, `facebookPage.ts`, `twitch.ts` | insights `followers_count`, `followers_count`/`fan_count` | Graph counters | yes |
+  | `tiktokSound*.ts` / `tiktokAudioUsage.ts` | — | `stats.videoCount` (uses) | yes — measured: 20 of the 21 stored `usesCount` rows above 10,000 are off the ladder (176,096 / 143,512 / 83,315) |
+
+  Rounded sources are not removed — they are the only reading available — but
+  they may never overwrite a more precise stored figure. That rule now guards
+  `Post.{views,likes,comments,shares,saves}Count` (`withStoredPrecision`),
+  `Creator.followersCount` (the post sync's conditional `updateMany`, and the
+  tracker sweep), `CreatorSocialAccount.followersCount` (`identityWriteData`)
+  and `CreatorTrackerSnapshot.followersCount` — the last one before the delta is
+  computed, or a rounded reading reports a decline for an account that grew.
+
+  Measured blast radius on the prod-shaped copy (`ep-green-shadow-aub0yhjc`),
+  2026-09-15. Rerun it any time with
+  `npx tsx scripts/creatorcore/audit-rounding.ts`, which reads the ladders from
+  `lib/platforms/precision.ts` so it cannot drift from what the sync believes,
+  and scores each column with a binomial tail against its own coincidence floor
+  rather than a flat 1%.
+
+  **Followers.** Before the guard, **75 of 76** `Creator.followersCount` rows at
+  or above 10,000 sat on TikTok's display ladder. `fix-rounded-followers.ts
+  --apply` re-read each profile's `userInfo.statsV2` and wrote 62 rows; TikTok
+  went **67/67 -> 6/67**. Five of the six survivors are dead accounts
+  (`statusCode 10221`), the sixth was re-fetched and came back 145,000. Every
+  remaining non-TikTok row on the ladder -- Instagram 4 of 5, YouTube 3 of 3,
+  Twitter 1 of 1 -- is a **seed fixture**: no `platformUserId`, no
+  `trackerLastAttemptAt`, `updatedAt` 2026-09-01/02, round numbers a seed author
+  typed (2,400,000 / 1,200,000 / 340,000). No fetcher has ever touched them.
+
+  **Posts.** 98 of 5,537 TikTok rows with views >= 10,000 are on the ladder, and
+  the fingerprint separates damage from coincidence exactly:
+
+  | TikTok posts, views >= 10k | rows | on the ladder |
+  |---|---|---|
+  | carry `platformMetrics.__lastFetch` (this app fetched them) | 29 | **29 (100%)** |
+  | `platformMetrics` present, no `__lastFetch` | 5,494 | 55 (**1.0%** -- the floor) |
+  | no `platformMetrics` at all | 9 | 9 |
+  | never synced (seed) | 5 | 5 |
+
+  So the rounded read contaminated every row it touched and nothing else. The
+  same holds sideways: all 8 of the TikTok `sharesCount` rows on the ladder are
+  rows whose views and likes are on it too -- one bug, not three.
+
+  **The other platforms do not have this bug.** Post counters above 10,000,
+  on-ladder rate against the coincidence floor: Instagram views 1.1% of 616
+  (p=0.38), Instagram likes 3.1% of 98 (p=0.07), Instagram shares 3.1% of 32
+  (p=0.28), YouTube views 1.3% of 750 (p=0.20), TikTok saves 0% of 81, TikTok
+  comments 0% of 5. Every one of those is indistinguishable from chance. The one
+  non-TikTok column that scores above chance is YouTube `likesCount`, 3 of 14
+  (p=3e-4) -- and all three rows are seed fixtures (`mkt-post-mkt-3`,
+  `dQw4w9WgXcQ`, `9bZkp7q19f0`, `lastSyncedAt` 2026-08-14 02:26:46, the seed
+  timestamp). Likewise the 4 of 6 Instagram `PostMetricSnapshot` rows are the
+  `cron-seal` seed rows `ig-leak-1/2` and `ig-bj-1/2`. **Seed data is the audit's
+  one blind spot**: a round number typed by a fixture author is on the ladder for
+  a reason that is not a fetcher, and only the row's provenance tells them apart.
+
+  **What is still rounded, and why it stays that way.** `PostMetricSnapshot` for
+  TikTok is 137/137 on views, 53/53 on likes, 27/27 on shares. Those are
+  historical readings of a counter TikTok never published exactly; there is no
+  source of truth for what the figure was at that timestamp, so they are left
+  alone. Future snapshots inherit the guard, because `applyPostMetrics` writes
+  the snapshot from `measured` -- the post-`withStoredPrecision` value -- not from
+  the raw payload.
+
+  **The CreatorCore import is NOT a repair source for post views -- tested and
+  rejected, 2026-09-15.** A post imported from CreatorCore keeps the source
+  record at `platformMetrics.__cc`, whose `latestViews/Engagement` field looks
+  like an exact view count: 17,710,937 against a stored 15,500,000. It is not
+  the same counter. 64 rows were repaired from it and 20 were then sampled
+  against live TikTok video pages; **13 of the 17 readable ones held a figure
+  ABOVE what TikTok currently reports** -- @zhakanoov 17,710,937 written against
+  15,500,000 live, @awxyken 118,302 against 95,200, @agy_asy 665,074 against
+  598,400, consistently 1-24% high. Several of the pre-repair values were
+  *exactly* the live rounded figure, so the rounded readings had been right and
+  the "repair" inflated them. All 64 were reverted the same session.
+
+  The reasoning that produced the bad write is worth keeping, because it was
+  wrong in a way that looked airtight: views are monotonic, so a figure above
+  the stored value's rounding window *must* mean the stored value is stale --
+  **provided both numbers count the same thing**. That proviso was assumed, never
+  measured. A cross-source figure needs a same-source check before it is treated
+  as ground truth for a column; one live read of one post would have caught it.
+
+  So TikTok post view counts above 10,000 have **no repair route and no exact
+  source**, anonymous or otherwise. The 98 rounded rows stay rounded; the guard
+  stops the count from getting worse.
+
+- **The signed TikTok endpoints are a dead end; do not retry them.** Measured
+  2026-09-15 from a US egress: `/api/item/detail/` and `/api/post/item_list/`
+  answer **HTTP 200 with a zero-byte body** to curl, headless Playwright Chrome
+  and headed Chrome, with and without cookies. They require
+  `X-Bogus`/`msToken`/`_signature`. `embed/v2/<id>` answers, but rounded.
 - **`Post.postedAt` is `NOT NULL`,** so the create path stamps `new Date()` when
   the platform did not say. The first successful sync corrects it; a post that
   has never synced shows the day it was added. Fixing it properly needs a

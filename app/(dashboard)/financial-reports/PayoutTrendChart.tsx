@@ -26,10 +26,10 @@ export default function PayoutTrendChart({ data }: { data: MonthlyTrend[] }) {
             color: "var(--popover-foreground)",
             borderRadius: 10,
             border: "1px solid var(--border)",
-            fontSize: 13,
+            fontSize: "var(--cc-t-13)",
           }}
         />
-        <Legend wrapperStyle={{ fontSize: 12 }} />
+        <Legend wrapperStyle={{ fontSize: "var(--cc-t-12)"}} />
         <Bar dataKey="paid" name="Paid" fill="var(--status-good)" radius={[4, 4, 0, 0]} />
         <Bar dataKey="pending" name="Pending" fill="var(--status-warning)" radius={[4, 4, 0, 0]} />
       </BarChart>

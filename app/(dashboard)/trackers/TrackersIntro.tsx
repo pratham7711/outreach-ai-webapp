@@ -24,10 +24,10 @@ export function TrackersIntro({ onAdd }: { onAdd: () => void }) {
         maxWidth: 720,
       }}
     >
-      <h2 style={{ fontSize: 18, fontWeight: 700, color: "var(--cc-text)", marginBottom: 6 }}>
+      <h2 style={{ fontSize: "var(--cc-t-18)", fontWeight: 700, color: "var(--cc-text)", marginBottom: 6 }}>
         Watch a sound climb — or catch it stalling
       </h2>
-      <p style={{ fontSize: 14, color: "var(--cc-text-muted)", marginBottom: 20, maxWidth: 560 }}>
+      <p style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text-muted)", marginBottom: 20, maxWidth: 560 }}>
         Track any TikTok audio and we read its use count on a schedule, so a trend is visible
         days before it peaks — and a sound losing uses is just as visible.
       </p>
@@ -69,8 +69,8 @@ function Step({ icon, title, body }: { icon: React.ReactNode; title: string; bod
         {icon}
       </span>
       <span>
-        <span style={{ display: "block", fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>{title}</span>
-        <span style={{ display: "block", fontSize: 13, color: "var(--cc-text-muted)" }}>{body}</span>
+        <span style={{ display: "block", fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{title}</span>
+        <span style={{ display: "block", fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{body}</span>
       </span>
     </li>
   );
@@ -90,7 +90,7 @@ export function StatusLegend() {
     ["Not updating", "readings have stopped; the count shown is the last known one"],
   ];
   return (
-    <div style={{ fontSize: 12, color: "var(--cc-text-muted)", lineHeight: 1.7 }}>
+    <div style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", lineHeight: 1.7 }}>
       {rows.map(([k, v]) => (
         <div key={k}>
           <strong style={{ color: "var(--cc-text)" }}>{k}</strong> — {v}

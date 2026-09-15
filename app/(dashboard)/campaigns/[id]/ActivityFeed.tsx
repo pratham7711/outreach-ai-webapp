@@ -91,16 +91,18 @@ export default function ActivityFeed({ campaignId }: { campaignId: string }) {
   );
 
   return (
-    <Card variant="outlined" style={{ padding: 24 }}>
+    <Card variant="outlined" className="cc-activity-card">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
-        <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)" }}>Activity</span>
-        <StatusTabs
-          variant="pill"
-          ariaLabel="Filter activity"
-          tabs={FILTER_TABS}
-          active={filter}
-          onChange={setFilter}
-        />
+        <span className="cc-panel-title">Activity</span>
+        <div className="cc-activity-filter">
+          <StatusTabs
+            variant="pill"
+            ariaLabel="Filter activity"
+            tabs={FILTER_TABS}
+            active={filter}
+            onChange={setFilter}
+          />
+        </div>
       </div>
 
       {/* The composer. Without it CampaignComment was a table nothing could
@@ -123,11 +125,11 @@ export default function ActivityFeed({ campaignId }: { campaignId: string }) {
             width: "100%", resize: "vertical", padding: "10px 12px",
             borderRadius: 10, border: "1px solid var(--cc-border)",
             background: "var(--cc-card)", color: "var(--cc-text)",
-            fontSize: 13, fontFamily: "inherit", lineHeight: 1.5,
+            fontSize: "var(--cc-t-13)", fontFamily: "inherit", lineHeight: 1.5,
           }}
         />
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 6 }}>
-          <span style={{ fontSize: 11, color: "var(--cc-text-muted)" }}>
+          <span style={{ fontSize: "var(--cc-t-11)", color: "var(--cc-text-muted)" }}>
             Enter to post · Shift+Enter for a new line
           </span>
           <Button
@@ -148,7 +150,7 @@ export default function ActivityFeed({ campaignId }: { campaignId: string }) {
           ))}
         </div>
       ) : error ? (
-        <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{error}</span>
+        <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{error}</span>
       ) : shown.length === 0 ? (
         <EmptyState
           icon={<History size={28} color="var(--cc-text-subtle)" />}
@@ -163,10 +165,10 @@ export default function ActivityFeed({ campaignId }: { campaignId: string }) {
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           {shown.map((e) => (
             <div key={e.id} style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
-              <span aria-hidden style={{ fontSize: 15, lineHeight: "20px", flexShrink: 0 }}>{e.glyph}</span>
+              <span aria-hidden style={{ fontSize: "var(--cc-t-15)", lineHeight: "20px", flexShrink: 0 }}>{e.glyph}</span>
               <div style={{ minWidth: 0, flex: 1 }}>
-                <div style={{ fontSize: 13, color: "var(--cc-text)", lineHeight: 1.5, overflowWrap: "anywhere" }}>{e.text}</div>
-                <div style={{ fontSize: 11, color: "var(--cc-text-muted)", marginTop: 2 }}>{relative(e.createdAt)}</div>
+                <div style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text)", lineHeight: 1.5, overflowWrap: "anywhere" }}>{e.text}</div>
+                <div style={{ fontSize: "var(--cc-t-11)", color: "var(--cc-text-muted)", marginTop: 2 }}>{relative(e.createdAt)}</div>
               </div>
             </div>
           ))}

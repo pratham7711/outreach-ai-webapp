@@ -212,7 +212,7 @@ export default async function CreatorProfilePage({
                 fontSize: 12,
                 fontWeight: 600,
                 background: "#FFFBEB",
-                color: "#D97706",
+                color: "var(--cc-warning-ink)",
               }}
             >
               <Star size={14} fill="var(--cc-warning)" color="var(--cc-warning)" /> {avgRating.toFixed(1)}

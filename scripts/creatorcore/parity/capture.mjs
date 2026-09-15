@@ -19,8 +19,76 @@ import { loadSecrets, refUrl, maskEmail } from "./secrets.mjs";
 import { buildSurfaces, VIEWPORTS } from "./surfaces.mjs";
 import { LANDMARKS } from "./landmarks.mjs";
 import { PROBE } from "./probe.mjs";
+import { CENSUS } from "./census.mjs";
 import { REDACT_SCRIPT } from "./redact.mjs";
 import { settle } from "./settle.mjs";
+
+/* The reference keeps navigating AFTER waitForAppReady and settle both report
+   quiet -- MEASURED 2026-09-14 at tablet-768, where 5 of 45 surfaces died with
+   "Execution context was destroyed" or a createTreeWalker TypeError on a null
+   document.body (the same event, seen a moment earlier). Both mean the page
+   moved under the probe, which is a reason to MEASURE AGAIN, not to record a
+   failed surface: a surface dropped here is silently missing from the diff,
+   which reads as parity rather than as a gap. Re-settle and retry; only a
+   third consecutive move is a real failure. */
+/* CreatorCore shows a full-screen notice on PHONE widths and nothing behind it
+   is the page. MEASURED 2026-09-14 on the reference at 390: a Bubble `.greyout`
+   node, position fixed, z-index 2002, background rgb(31,60,239), is the element
+   returned by elementFromPoint at the viewport centre, with a "Continue" button
+   floating above it. Ten of the 45 mobile surfaces captured through it --
+   activations, calendar, clients, connections, discovery, payouts, recipients,
+   requests, trackers-creator, trackers-sound -- and their landmarks recorded
+   hit:"occluded" with the geometry of the blocked layout. That geometry then
+   drove real findings: `recipients` list.rows read 177px tall against our 130,
+   and `calendar` page.title read 202.3px wide, both measured off a page nobody
+   can see. Tuning our CSS to match those numbers would have been tuning to a
+   modal.
+
+   So dismiss it and capture the page underneath. Clicking "Continue" on an
+   informational notice is what any visitor does; it submits no form and writes
+   no data, which keeps the read-only rule on this account intact. The greyout
+   NODE survives the click (Bubble leaves it in the DOM, inert), so the exit
+   test is whether it still answers elementFromPoint at the centre -- not
+   whether it was removed. Silent no-op when there is no interstitial, which is
+   every desktop and tablet surface. */
+async function dismissInterstitial(page) {
+  const blocked = () =>
+    page.evaluate(() => {
+      const el = document.elementFromPoint(innerWidth / 2, innerHeight / 2);
+      return !!el?.closest(".greyout");
+    }).catch(() => false);
+  if (!(await blocked())) return false;
+  const btn = page.getByRole("button", { name: /^\s*Continue\s*$/ }).first();
+  try {
+    await btn.click({ timeout: 5_000 });
+  } catch {
+    return false;
+  }
+  await page
+    .waitForFunction(() => {
+      const el = document.elementFromPoint(innerWidth / 2, innerHeight / 2);
+      return !el?.closest(".greyout");
+    }, null, { timeout: 10_000 })
+    .catch(() => {});
+  await settle(page);
+  return true;
+}
+
+const NAVIGATED = /Execution context was destroyed|document\.body|Cannot find context|frame was detached/i;
+async function evalStable(page, fn, arg, tries = 3) {
+  let last;
+  for (let i = 0; i < tries; i++) {
+    try {
+      return await page.evaluate(fn, arg);
+    } catch (e) {
+      if (!NAVIGATED.test(e.message)) throw e;
+      last = e;
+      await page.waitForLoadState("domcontentloaded", { timeout: 15_000 }).catch(() => {});
+      await settle(page);
+    }
+  }
+  throw last;
+}
 
 const HERE = import.meta.dirname;
 const args = process.argv.slice(2);
@@ -87,14 +155,15 @@ try {
         await page.goto(refUrl(baseUrl, s.path), { waitUntil: "domcontentloaded", timeout: 60_000 });
         rec.readyBy = await waitForAppReady(page, 45_000);
         rec.settleMs = await settle(page);
+        rec.interstitialDismissed = await dismissInterstitial(page);
 
-        const before = await page.evaluate(PROBE, { landmarks: LANDMARKS, shellHint: s.shell });
+        const before = await evalStable(page, PROBE, { landmarks: LANDMARKS, shellHint: s.shell });
         rec.health = before.health;
         rec.landmarks = before.landmarks;
 
         if (REDACT) {
-          rec.redaction = await page.evaluate(REDACT_SCRIPT);
-          const after = await page.evaluate(PROBE, { landmarks: LANDMARKS, shellHint: s.shell });
+          rec.redaction = await evalStable(page, REDACT_SCRIPT, undefined);
+          const after = await evalStable(page, PROBE, { landmarks: LANDMARKS, shellHint: s.shell });
           const moved = redactionShifted(before, after);
           rec.redactionShifted = moved;
           rec.redactionAccepted = moved.length === 0;
@@ -103,7 +172,16 @@ try {
           rec.redaction = null;
         }
 
+        /* AFTER the redaction, never before: the census records visible text
+           verbatim, and their creators' handles and the org's money are exactly
+           what docs/CREATORCORE_UI_INVENTORY.md is gitignored for. Post-redaction
+           the chrome -- labels, headings, column names, tab names -- is intact
+           and that is the whole of what the diff matches on. */
+        const census = await evalStable(page, CENSUS, undefined);
+        rec.censusCounts = census.counts;
+
         const base = path.join(outDir, s.id);
+        writeFileSync(`${base}.census.json`, JSON.stringify(census));
         if (!REDACT || rec.redactionAccepted) {
           await page.screenshot({ path: `${base}.full.png`, fullPage: true });
           await page.screenshot({ path: `${base}.viewport.png` });
@@ -117,8 +195,9 @@ try {
         captured++;
         const h = rec.health;
         const na = h.notApplicable ? ` (+${h.notApplicable} n/a)` : "";
+        const ov = rec.interstitialDismissed ? "  [interstitial dismissed]" : "";
         console.log(
-          `  ok ${s.id.padEnd(32)} ${h.shell.padEnd(9)} ${h.resolved}/${h.applicable}${na}  ${rec.settleMs}ms`
+          `  ok ${s.id.padEnd(32)} ${h.shell.padEnd(9)} ${h.resolved}/${h.applicable}${na}  ${rec.settleMs}ms${ov}`
         );
       } catch (err) {
         failed++;

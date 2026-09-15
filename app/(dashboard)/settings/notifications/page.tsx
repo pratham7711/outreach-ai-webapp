@@ -12,7 +12,7 @@ export default async function NotificationSettingsPage() {
   return (
     <div className="rsp-page page-enter">
       <PageHeader
-        title="Notifications"
+        title="Notifications Settings"
         subtitle="Which events reach you in the notification bell. These are yours alone — teammates choose their own."
       />
       <NotificationSettingsClient />

@@ -26,7 +26,7 @@ type Proposal = {
 
 const STATUS_TABS = [
   { key: "ALL", label: "All", bg: "#F3F4F6", color: "#374151" },
-  { key: "PENDING", label: "Pending", bg: "#FEF3C7", color: "#D97706" },
+  { key: "PENDING", label: "Pending", bg: "#FEF3C7", color: "var(--cc-warning-ink)" },
   { key: "ACCEPTED", label: "Accepted", bg: "#D1FAE5", color: "#059669" },
   { key: "REJECTED", label: "Rejected", bg: "#FEE2E2", color: "#DC2626" },
 ];

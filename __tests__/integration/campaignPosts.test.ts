@@ -97,8 +97,82 @@ describe('GET /api/campaigns/[id]/posts', () => {
     const body = await res.json();
 
     expect(res.status).toBe(200);
+    expect(body.posts).toHaveLength(1);
     // GET enriches each post with an unresolved-fraud-flag presence flag (M4).
-    expect(body.posts).toEqual(mockPosts.map((p) => ({ ...p, hasOpenFraudFlag: false, complianceFlags: [] })));
+    expect(body.posts[0]).toMatchObject({
+      id: 'post-1',
+      platform: 'YOUTUBE',
+      hasOpenFraudFlag: false,
+      complianceFlags: [],
+      creator: { id: 'c1', name: 'Test' },
+    });
+  });
+
+  /* The response is a named shape now, not the Post row. Leaking the row is
+     what put `__cc` -- the importer's duplicate of CcPost.raw -- into 39.5% of
+     this payload, so the contract is asserted rather than assumed. */
+  it('ships only the fields the posts tab renders, never the importer bag', async () => {
+    mockDb.post.findMany.mockResolvedValue([
+      {
+        id: 'post-1',
+        platform: 'TIKTOK',
+        viewsCount: 10294,
+        syncFailCount: 3,
+        platformMetrics: {
+          __cc: { _id: 'cc-1', latestViewsEngagement: 999 },
+          __stat: { views: 12 },
+          __measured: ['views'],
+          __lastFetch: { reason: 'not-configured', at: '2026-09-03T09:04:15.401Z', via: 'api' },
+        },
+      },
+    ]);
+
+    const req = makeRequest('http://localhost/api/campaigns/camp-1/posts');
+    const res = await GET(req, makeParams('camp-1'));
+    const body = await res.json();
+
+    expect(JSON.stringify(body)).not.toContain('__cc');
+    expect(JSON.stringify(body)).not.toContain('__stat');
+    expect(body.posts[0].platformMetrics).toEqual({
+      __measured: ['views'],
+      __lastFetch: { reason: 'not-configured', at: '2026-09-03T09:04:15.401Z', via: 'api' },
+    });
+    // syncFailCount is read for the compliance check, not shipped to the browser.
+    expect(body.posts[0]).not.toHaveProperty('syncFailCount');
+  });
+
+  /* Protobuf is opt-in and carries the same DTO, so the two encodings cannot
+     drift into describing different posts. JSON stays the default: measured on
+     a 492-post campaign the protobuf body is only 2% smaller after brotli. */
+  it('answers protobuf when Accept asks for it, and JSON when it does not', async () => {
+    const row = {
+      id: 'post-1',
+      platform: 'TIKTOK',
+      viewsCount: 10294,
+      likesCount: 7,
+      platformMetrics: { __cc: { _id: 'cc-1' }, __measured: ['views'] },
+      creator: { id: 'c1', name: 'Test', handle: 'test', avatarUrl: null },
+    };
+    mockDb.post.findMany.mockResolvedValue([row]);
+
+    const jsonRes = await GET(makeRequest('http://localhost/api/campaigns/camp-1/posts'), makeParams('camp-1'));
+    expect(jsonRes.headers.get('content-type')).toContain('application/json');
+    const fromJson = (await jsonRes.json()).posts;
+
+    mockDb.post.findMany.mockResolvedValue([row]);
+    const pbRes = await GET(
+      makeRequest('http://localhost/api/campaigns/camp-1/posts', {
+        headers: { accept: 'application/x-protobuf' },
+      }),
+      makeParams('camp-1'),
+    );
+    expect(pbRes.status).toBe(200);
+    expect(pbRes.headers.get('content-type')).toBe('application/x-protobuf');
+
+    const { decodePostList } = await import('@/lib/serialization/postList');
+    const fromProtobuf = decodePostList(new Uint8Array(await pbRes.arrayBuffer()));
+    expect(fromProtobuf).toEqual(fromJson);
+    expect(fromProtobuf[0].viewsCount).toBe(10294);
   });
 });
 

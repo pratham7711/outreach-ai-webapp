@@ -20,7 +20,7 @@ const navButtonStyle = (disabled: boolean): React.CSSProperties => ({
   border: "1px solid var(--cc-border)",
   background: "transparent",
   color: "var(--cc-text)",
-  fontSize: 13,
+  fontSize: "var(--cc-t-13)",
   cursor: disabled ? "not-allowed" : "pointer",
   opacity: disabled ? 0.5 : 1,
   display: "flex",
@@ -48,7 +48,7 @@ export function Pagination({ page, totalPages, onPageChange, total, pageSize, lo
       }}
     >
       {showRange && (
-        <div style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>
+        <div style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
           Showing {rangeStart}-{rangeEnd} of {total}
         </div>
       )}
@@ -63,7 +63,7 @@ export function Pagination({ page, totalPages, onPageChange, total, pageSize, lo
           <ChevronLeft size={14} />
           Prev
         </button>
-        <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>
+        <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
           Page {page} of {Math.max(totalPages, 1)}
         </span>
         <button

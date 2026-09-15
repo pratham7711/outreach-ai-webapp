@@ -93,8 +93,8 @@ export function CreatorDetailModal({
           </div>
         )}
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 20, fontWeight: 700, color: "var(--cc-text)" }}>{creator.name}</div>
-          <div style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>
+          <div style={{ fontSize: "var(--cc-t-20)", fontWeight: 700, color: "var(--cc-text)" }}>{creator.name}</div>
+          <div style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
             @{creator.handle} · {creator.platform}
           </div>
         </div>
@@ -106,7 +106,7 @@ export function CreatorDetailModal({
               title="Read this creator's figures now"
               style={{
                 display: "flex", alignItems: "center", gap: 6,
-                padding: "6px 12px", borderRadius: 8, fontSize: 13, fontWeight: 600,
+                padding: "6px 12px", borderRadius: 8, fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)",
                 border: "1px solid var(--cc-border)", background: "var(--cc-card)",
                 color: "var(--cc-text)", cursor: refreshing ? "default" : "pointer",
                 opacity: refreshing ? 0.6 : 1,
@@ -129,7 +129,7 @@ export function CreatorDetailModal({
           role="status"
           style={{
             borderLeft: "3px solid var(--cc-warning)", background: "var(--cc-card)",
-            padding: "10px 14px", marginBottom: 18, fontSize: 13, color: "var(--cc-text)",
+            padding: "10px 14px", marginBottom: 18, fontSize: "var(--cc-t-13)", color: "var(--cc-text)",
           }}
         >
           {creator.readError}
@@ -157,11 +157,11 @@ export function CreatorDetailModal({
       {creator.topPosts?.length ? (
         <div style={{ marginBottom: 20 }}>
           <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 10 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "var(--cc-text)" }}>
+            <div style={{ fontSize: "var(--cc-t-13)", fontWeight: 700, color: "var(--cc-text)" }}>
               {creator.topPostsSource === "campaigns" ? "Top Posts in Your Campaigns" : "Top Posts"}
             </div>
             {creator.topPostsAt ? (
-              <div style={{ fontSize: 11, color: "var(--cc-text-muted)" }}>
+              <div style={{ fontSize: "var(--cc-t-11)", color: "var(--cc-text-muted)" }}>
                 as of {timeAgo(creator.topPostsAt)}
               </div>
             ) : null}
@@ -197,17 +197,17 @@ export function CreatorDetailModal({
                       width: "100%", aspectRatio: "9 / 12",
                       display: "flex", alignItems: "center", justifyContent: "center",
                       background: "var(--cc-primary-light)",
-                      fontSize: 12, color: "var(--cc-text-muted)", padding: 8, textAlign: "center",
+                      fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", padding: 8, textAlign: "center",
                     }}
                   >
                     {post.caption ? post.caption.slice(0, 60) : "No preview"}
                   </div>
                 )}
                 <div style={{ padding: "8px 10px" }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "var(--cc-primary)" }}>
+                  <div style={{ fontSize: "var(--cc-t-12)", fontWeight: 700, color: "var(--cc-primary)" }}>
                     {post.views !== null ? `${formatFull(post.views)} views` : "views unavailable"}
                   </div>
-                  <div style={{ fontSize: 11, color: "var(--cc-text-muted)" }}>
+                  <div style={{ fontSize: "var(--cc-t-11)", color: "var(--cc-text-muted)" }}>
                     {[
                       post.likes !== null ? `${formatFull(post.likes)} likes` : null,
                       post.comments !== null ? `${formatFull(post.comments)} comments` : null,
@@ -225,7 +225,7 @@ export function CreatorDetailModal({
       {series.length >= 2 ? (
         <AudioUsesChart series={series} granularity={creator.chartGranularity} unit="followers" />
       ) : (
-        <p style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>
+        <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
           {/* Two points is the minimum for a line to mean anything; drawing one
               would imply a flat trend we have not measured. */}
           A chart appears once there are at least two readings.
@@ -244,7 +244,7 @@ function Figure({ label, value, muted = false }: { label: string; value: string;
         padding: "10px 16px", flex: "1 1 150px", minWidth: 140,
       }}
     >
-      <div style={{ fontSize: 11, color: "var(--cc-text-muted)" }}>{label}</div>
+      <div style={{ fontSize: "var(--cc-t-11)", color: "var(--cc-text-muted)" }}>{label}</div>
       <div
         style={{
           fontSize: muted ? 12 : 18,

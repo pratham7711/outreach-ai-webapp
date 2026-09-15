@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Plus, Zap } from "lucide-react";
+import { PieChart, Pie, Cell } from "recharts";
 import { EmptyState, Card, Avatar, Modal } from "@pratham7711/ui";
 import { PageHeader, MetricTile, EntityPicker, Button } from "@/components/ds";
 import type { PickerOption } from "@/components/ds";
@@ -60,8 +61,11 @@ function relative(iso: string): string {
   return months < 12 ? `${months}mo ago` : `${Math.floor(months / 12)}y ago`;
 }
 
-// Creator · Last Update · Campaign · Status & Actions, as the reference has it.
-const QUEUE_GRID = "minmax(200px, 1.4fr) 120px minmax(160px, 1fr) minmax(220px, auto)";
+// Creator · Last Status Change · Campaign · Status & Actions, as the reference
+// has it. The second column is 140 rather than 120 because that is what the
+// column's own NAME needs -- at 120 "Last Status Change" wraps to two lines in
+// every theme, which is a worse header than the 20px is worth.
+const QUEUE_GRID = "minmax(200px, 1.4fr) 140px minmax(160px, 1fr) minmax(220px, auto)";
 
 function QueueSection({
   label,
@@ -83,38 +87,35 @@ function QueueSection({
   return (
     <div>
       <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
-        <span style={{ fontSize: 15, fontWeight: 700, color: "var(--cc-text)" }}>
+        <span style={{ fontSize: "var(--cc-t-15)", fontWeight: 700, color: "var(--cc-text)" }}>
           {label} ({items.length})
         </span>
-        <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{hint}</span>
+        <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>{hint}</span>
       </div>
 
       {items.length === 0 ? (
         <Card variant="outlined" style={{ padding: 16 }}>
-          <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>Nothing in this queue.</span>
+          <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>Nothing in this queue.</span>
         </Card>
       ) : (
         <Card variant="outlined" style={{ padding: 0, overflow: "hidden" }}>
           <div style={{ overflowX: "auto" }}>
-            <div style={{ minWidth: 760 }}>
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: QUEUE_GRID,
-                  gap: 12,
-                  padding: "10px 16px",
-                  borderBottom: "1px solid var(--cc-border)",
-                  background: "var(--cc-bg)",
-                  fontSize: 11,
-                  fontWeight: 600,
-                  letterSpacing: "0.04em",
-                  color: "var(--cc-text-muted)",
-                }}
-              >
-                <span>CREATOR</span>
-                <span>LAST UPDATE</span>
-                <span>CAMPAIGN</span>
-                <span>STATUS &amp; ACTIONS</span>
+            {/* 200 + 140 + 160 + 220 of tracks, 36 of gaps and 32 of padding
+                is a 788px floor -- 760 was the figure before column 2 widened
+                to 140, and at 768 the "Status & Actions" cell painted 12px past
+                the card rather than scrolling. MEASURED 2026-09-15. */}
+            <div style={{ minWidth: 800 }}>
+              {/* A class, not inline styles: MEASURED 2026-09-14, their header
+                  row is 14px/400 in rgb(31,60,239) and ours was an 11px/700
+                  uppercase rgb(152,162,179) -- and an inline style is the one
+                  thing a theme cannot outrank. The labels are written in
+                  sentence case and uppercased by the base rule, so off-theme
+                  renders exactly the caps it always did. */}
+              <div className="cc-queue-head" style={{ gridTemplateColumns: QUEUE_GRID }}>
+                <span>Creator</span>
+                <span>Last Status Change</span>
+                <span>Campaign</span>
+                <span>Status &amp; Actions</span>
               </div>
 
               {items.map((a) => {
@@ -122,6 +123,13 @@ function QueueSection({
                 return (
                   <div
                     key={a.id}
+                    /* The parity harness addresses the content list through this
+                       marker. MEASURED 2026-09-14: their /dashboard?tab=Activations
+                       resolved `list.rows` and ours did not, because these rows
+                       carry no class at all -- the comparison was silently skipped
+                       rather than reported, the same blind spot that hid the
+                       campaign header actions. */
+                    data-region="list-row"
                     style={{
                       display: "grid",
                       gridTemplateColumns: QUEUE_GRID,
@@ -134,26 +142,26 @@ function QueueSection({
                     <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
                       <Avatar name={a.creator.name} size="sm" src={a.creator.avatarUrl ?? undefined} />
                       <div style={{ minWidth: 0 }}>
-                        <div title={a.creator.name} style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        <div title={a.creator.name} style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                           {a.creator.name}
                         </div>
-                        <div style={{ fontSize: 11, color: "var(--cc-text-muted)" }}>@{stripAt(a.creator.handle)}</div>
+                        <div style={{ fontSize: "var(--cc-t-11)", color: "var(--cc-text-muted)" }}>@{stripAt(a.creator.handle)}</div>
                       </div>
                     </div>
 
-                    <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{relative(a.updatedAt)}</span>
+                    <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>{relative(a.updatedAt)}</span>
 
                     <Link
                       prefetch={false}
                       href={`/campaigns/${a.campaign.id}`}
                       title={a.campaign.title}
-                      style={{ fontSize: 13, color: "var(--cc-text)", textDecoration: "none", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                      style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text)", textDecoration: "none", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
                     >
                       {a.campaign.title}
                     </Link>
 
                     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--cc-text-muted)" }}>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
                         <span style={{ width: 8, height: 8, borderRadius: "50%", background: ACTIVATION_STATUS_COLOR[a.status] ?? "var(--cc-text-subtle)" }} />
                         {/* The org's own name for this state wins over the enum
                             label, which is what makes "Invited" visible at all. */}
@@ -182,8 +190,8 @@ function QueueSection({
                         style={{
                           padding: "5px 10px",
                           borderRadius: 6,
-                          fontSize: 12,
-                          fontWeight: 600,
+                          fontSize: "var(--cc-t-12)",
+                          fontWeight: "var(--cc-fw-strong)",
                           border: "1px solid var(--cc-border)",
                           background: "var(--cc-card)",
                           color: "var(--cc-text)",
@@ -199,8 +207,8 @@ function QueueSection({
                           style={{
                             padding: "5px 10px",
                             borderRadius: 6,
-                            fontSize: 12,
-                            fontWeight: 600,
+                            fontSize: "var(--cc-t-12)",
+                            fontWeight: "var(--cc-fw-strong)",
                             border: "1px solid var(--cc-border)",
                             background: "var(--cc-card)",
                             color: act.status === "DECLINED" ? "var(--cc-danger)" : "var(--cc-primary)",
@@ -235,6 +243,30 @@ export default function ActivationsClient({ activations, stats, statusDefs }: {
   const [creating, setCreating] = useState(false);
 
   const { groups, ungrouped } = groupByQueue(activations);
+
+  /* The Overview donut. One slice per stage counter plus everything terminal,
+     so the ring adds up to the number printed in the middle of it. The fills
+     are theme tokens rather than literals -- the chart is only rendered in the
+     theme that has a card to put it in, but the tokens still carry the palette. */
+  const donut = [
+    ...ACTIVATION_STAGE_COUNTERS.map((c, i) => ({
+      name: c.label,
+      value: countByStatuses(activations, c.statuses),
+      fill: `var(--cc-act-slice-${i + 1})`,
+    })),
+    {
+      name: "Settled",
+      value: Math.max(
+        0,
+        stats.total -
+          ACTIVATION_STAGE_COUNTERS.reduce(
+            (n, c) => n + countByStatuses(activations, c.statuses),
+            0,
+          ),
+      ),
+      fill: "var(--cc-act-slice-5)",
+    },
+  ].filter((d) => d.value > 0);
 
   const handleStatusChange = async (id: string, status: string) => {
     try {
@@ -300,7 +332,10 @@ export default function ActivationsClient({ activations, stats, statusDefs }: {
   return (
     <div className="rsp-page">
       <PageHeader
-        title="Activations"
+        /* Their h1 MEASURED 236.6px wide at 291,31 against our 136.2 -- it reads
+           "Creator Activations", not "Activations". The rail label stays the
+           short form on both sides. */
+        title="Creator Activations"
         subtitle="Track creator deliverables and posts"
         actions={<Button variant="primary" iconLeft={<Plus size={15} />} onClick={() => setShowCreate(true)} {...action("add-activation")}>Add Activation</Button>}
       />
@@ -311,9 +346,9 @@ export default function ActivationsClient({ activations, stats, statusDefs }: {
           count, so the tiles wait for the first row. /songs does the same with
           its search box. */}
       {activations.length > 0 && (
-        <>
+        <div className="cc-act-dash">
           {/* Stats */}
-          <div className="rsp-grid-tiles" style={{ marginBottom: 20 }}>
+          <div className="rsp-grid-tiles cc-act-tiles">
             <MetricTile metric="activationsTotal" value={String(stats.total)} />
             <MetricTile metric="activationsActive" value={String(stats.active)} />
             <MetricTile metric="activationsComplete" value={String(countByStatuses(activations, ["COMPLETE"]))} />
@@ -321,30 +356,57 @@ export default function ActivationsClient({ activations, stats, statusDefs }: {
 
           {/* The reference's four stage counters: what is waiting, and on whom. These
               are counts of work outstanding, so Complete and Posted are in none of
-              them — a total that included terminal rows would not be actionable. */}
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 28 }}>
-            {ACTIVATION_STAGE_COUNTERS.map((c) => (
-              <div
-                key={c.label}
-                style={{
-                  background: "var(--cc-card)",
-                  border: "1px solid var(--cc-border)",
-                  borderRadius: 10,
-                  padding: "10px 14px",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 2,
-                  minWidth: 150,
-                }}
-              >
-                <span style={{ fontSize: 11, color: "var(--cc-text-muted)" }}>{c.label}</span>
-                <span style={{ fontSize: 20, fontWeight: 700, color: "var(--cc-text)", fontVariantNumeric: "tabular-nums" }}>
-                  {countByStatuses(activations, c.statuses)}
-                </span>
-              </div>
-            ))}
+              them — a total that included terminal rows would not be actionable.
+
+              MEASURED 2026-09-14, activations census, desktop-1600: theirs is a
+              2x2 grid of 220x120 tiles inside an `In-progress deliverables` card
+              at 580..1070, with the figure above the label. Ours is a single row
+              with the label above the figure, which is what base still renders --
+              the grid, the card and the swap are all creatorcore-only. */}
+          <div className="cc-act-deliverables">
+            <span className="cc-act-card-title">In-progress deliverables</span>
+            <div className="cc-stage-grid">
+              {ACTIVATION_STAGE_COUNTERS.map((c) => (
+                <div key={c.label} className="cc-stage-tile">
+                  <span className="cc-stage-label">{c.label}</span>
+                  <span className="cc-stage-count">
+                    {countByStatuses(activations, c.statuses)}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
-        </>
+
+          {/* Their Overview card: a 250x250 donut at 290,159.5 with the total in
+              the middle. Hidden at base, where this page has never had a chart. */}
+          <div className="cc-act-overview">
+            <span className="cc-act-card-title">Overview</span>
+            <div className="cc-act-donut">
+              <PieChart width={250} height={250}>
+                <Pie
+                  data={donut}
+                  dataKey="value"
+                  cx={125}
+                  cy={125}
+                  innerRadius={78}
+                  outerRadius={125}
+                  startAngle={90}
+                  endAngle={-270}
+                  stroke="none"
+                  isAnimationActive={false}
+                >
+                  {donut.map((d) => (
+                    <Cell key={d.name} fill={d.fill} />
+                  ))}
+                </Pie>
+              </PieChart>
+              <div className="cc-act-donut-centre">
+                <span className="cc-act-donut-value">{stats.total}</span>
+                <span className="cc-act-donut-label">Activations</span>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {activations.length === 0 ? (
@@ -407,7 +469,7 @@ export default function ActivationsClient({ activations, stats, statusDefs }: {
         >
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <div>
-              <label htmlFor="act-campaign" style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Campaign *</label>
+              <label htmlFor="act-campaign" style={{ display: "block", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6 }}>Campaign *</label>
               <EntityPicker
                 id="act-campaign"
                 endpoint="/api/campaigns"
@@ -418,7 +480,7 @@ export default function ActivationsClient({ activations, stats, statusDefs }: {
               />
             </div>
             <div>
-              <label htmlFor="act-creator" style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Creator *</label>
+              <label htmlFor="act-creator" style={{ display: "block", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6 }}>Creator *</label>
               <EntityPicker
                 id="act-creator"
                 endpoint="/api/creators"

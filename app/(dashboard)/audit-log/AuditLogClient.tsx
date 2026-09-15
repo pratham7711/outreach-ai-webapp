@@ -136,7 +136,7 @@ export default function AuditLogClient({
         subtitle="Track changes across your organization"
         actions={
           <>
-          <span style={{ fontSize: 13, color: "var(--cc-text-muted)", display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", display: "flex", alignItems: "center", gap: 6 }}>
             <Filter size={14} />
             {pagination.total} events
           </span>
@@ -161,7 +161,7 @@ export default function AuditLogClient({
               border: "1px solid var(--cc-border)",
               background: "var(--cc-card)",
               color: "var(--cc-text)",
-              fontSize: 13,
+              fontSize: "var(--cc-t-13)",
               fontWeight: 500,
               textDecoration: "none",
               cursor: "pointer",
@@ -177,7 +177,7 @@ export default function AuditLogClient({
       <Card variant="outlined" noPadding>
         <div className="audit-filters" style={{ padding: 16, borderBottom: "1px solid var(--cc-border)" }}>
           <div>
-            <label style={{ display: "block", fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--cc-text-subtle)", marginBottom: 6 }}>Action</label>
+            <label className="cc-microlabel" style={{ display: "block", marginBottom: 6 }}>Action</label>
             <Dropdown
               ariaLabel="Action"
               align="left"
@@ -194,7 +194,7 @@ export default function AuditLogClient({
             />
           </div>
           <div>
-            <label style={{ display: "block", fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--cc-text-subtle)", marginBottom: 6 }}>Entity</label>
+            <label className="cc-microlabel" style={{ display: "block", marginBottom: 6 }}>Entity</label>
             <Dropdown
               ariaLabel="Entity"
               align="left"
@@ -211,7 +211,7 @@ export default function AuditLogClient({
             />
           </div>
           <div>
-            <label style={{ display: "block", fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--cc-text-subtle)", marginBottom: 6 }}>Search</label>
+            <label className="cc-microlabel" style={{ display: "block", marginBottom: 6 }}>Search</label>
             <div style={{ position: "relative" }}>
               <Search size={15} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--cc-text-subtle)" }} />
               <input
@@ -264,13 +264,13 @@ export default function AuditLogClient({
         ) : (
           <>
             <div className="rsp-table-wrap">
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14, minWidth: 720 }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "var(--cc-t-14)", minWidth: 720 }}>
                 <thead>
                   <tr style={{ background: "var(--cc-hover-bg)" }}>
                     {["Time", "Action", "Entity", "Actor", "IP"].map((heading) => (
                       <th
                         key={heading}
-                        style={{ padding: "12px 16px", textAlign: "left", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--cc-text-subtle)" }}
+                        className="cc-microlabel" style={{ padding: "12px 16px", textAlign: "left" }}
                       >
                         {heading}
                       </th>
@@ -283,7 +283,7 @@ export default function AuditLogClient({
                       <td style={{ padding: "12px 16px", whiteSpace: "nowrap", color: "var(--cc-text-muted)" }}>
                         {formatDate(log.createdAt)}
                       </td>
-                      <td style={{ padding: "12px 16px", fontWeight: 600, color: "var(--cc-text)" }}>
+                      <td style={{ padding: "12px 16px", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>
                         {log.action}
                       </td>
                       <td style={{ padding: "12px 16px", color: "var(--cc-text-muted)" }}>

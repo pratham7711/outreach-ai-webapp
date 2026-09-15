@@ -98,10 +98,10 @@ export function RateCardBenchmark({
         }}
       >
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text-muted)" }}>
+          <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text-muted)" }}>
             Creator rate
           </span>
-          <span style={{ fontSize: 28, fontWeight: 700, color: "var(--cc-text)" }}>
+          <span style={{ fontSize: "var(--cc-t-28)", fontWeight: 700, color: "var(--cc-text)" }}>
             {formatMoney(currency, safeRate)}
           </span>
         </div>
@@ -118,7 +118,7 @@ export function RateCardBenchmark({
             background: "var(--cc-card)",
           }}
         >
-          <span aria-hidden="true" style={{ color: meta.token, fontSize: 12, lineHeight: "16px" }}>
+          <span aria-hidden="true" style={{ color: meta.token, fontSize: "var(--cc-t-12)", lineHeight: "16px" }}>
             {meta.symbol}
           </span>
           <Badge variant={meta.variant}>{meta.word}</Badge>
@@ -128,7 +128,7 @@ export function RateCardBenchmark({
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         <span
           data-testid="rate-percentile"
-          style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}
+          style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}
         >
           {`${pct}${ordinalSuffix(pct)} percentile vs peers`}
         </span>
@@ -167,23 +167,23 @@ export function RateCardBenchmark({
         }}
       >
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <span style={{ fontSize: 12, fontWeight: 600, color: "var(--cc-text-muted)" }}>
+          <span style={{ fontSize: "var(--cc-t-12)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text-muted)" }}>
             Peer median
           </span>
           <span
             data-testid="rate-median"
-            style={{ fontSize: 18, fontWeight: 700, color: "var(--cc-text)" }}
+            style={{ fontSize: "var(--cc-t-18)", fontWeight: 700, color: "var(--cc-text)" }}
           >
             {formatMoney(currency, safeMedian)}
           </span>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <span style={{ fontSize: 12, fontWeight: 600, color: "var(--cc-text-muted)" }}>
+          <span style={{ fontSize: "var(--cc-t-12)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text-muted)" }}>
             Suggested range
           </span>
           <span
             data-testid="rate-suggested-range"
-            style={{ fontSize: 18, fontWeight: 700, color: "var(--cc-text)" }}
+            style={{ fontSize: "var(--cc-t-18)", fontWeight: 700, color: "var(--cc-text)" }}
           >
             {`${formatMoney(currency, low)}–${formatMoney(currency, high)}`}
           </span>
@@ -191,7 +191,7 @@ export function RateCardBenchmark({
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        <h4 style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)", margin: 0 }}>
+        <h4 style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", margin: 0 }}>
           What drives this benchmark
         </h4>
         {hasFactors ? (
@@ -225,17 +225,17 @@ export function RateCardBenchmark({
                 >
                   <span
                     aria-hidden="true"
-                    style={{ color: directionToken, fontSize: 12, lineHeight: "18px" }}
+                    style={{ color: directionToken, fontSize: "var(--cc-t-12)", lineHeight: "18px" }}
                   >
                     {directionSymbol}
                   </span>
                   <span style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>
+                    <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>
                       {factor.label}
                       <span
                         style={{
                           marginLeft: 8,
-                          fontSize: 11,
+                          fontSize: "var(--cc-t-11)",
                           fontWeight: 500,
                           color: "var(--cc-text-muted)",
                         }}
@@ -245,7 +245,7 @@ export function RateCardBenchmark({
                       </span>
                     </span>
                     {factor.detail ? (
-                      <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>
+                      <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
                         {factor.detail}
                       </span>
                     ) : null}
@@ -258,7 +258,7 @@ export function RateCardBenchmark({
           <p
             role="status"
             data-testid="rate-factors-empty"
-            style={{ fontSize: 13, color: "var(--cc-text-muted)", margin: 0 }}
+            style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", margin: 0 }}
           >
             No benchmark factors available.
           </p>

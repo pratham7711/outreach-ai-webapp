@@ -95,7 +95,7 @@ export default function ClientFeatureModal({ open, onClose, client, plans, onSav
 
   const segmentStyle = (active: boolean, color: string) => ({
     padding: "4px 10px",
-    fontSize: 11,
+    fontSize: "var(--cc-t-11)",
     fontWeight: 600 as const,
     borderRadius: 6,
     border: "none",
@@ -113,7 +113,7 @@ export default function ClientFeatureModal({ open, onClose, client, plans, onSav
       size="lg"
       footer={
         <div className="cc-modal-footer" data-layout="split" data-align="center" data-gap="0">
-          <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>
+          <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
             {overrideCount > 0 ? `${overrideCount} override${overrideCount > 1 ? "s" : ""}` : "No overrides"}
           </span>
           <div style={{ display: "flex", gap: 8 }}>
@@ -127,14 +127,14 @@ export default function ClientFeatureModal({ open, onClose, client, plans, onSav
     >
       <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
         {error && (
-          <div style={{ padding: "10px 16px", borderRadius: 10, fontSize: 14, background: "color-mix(in srgb, var(--cc-danger) 8%, transparent)", color: "var(--cc-danger)", border: "1px solid color-mix(in srgb, var(--cc-danger) 20%, transparent)" }}>
+          <div style={{ padding: "10px 16px", borderRadius: 10, fontSize: "var(--cc-t-14)", background: "color-mix(in srgb, var(--cc-danger) 8%, transparent)", color: "var(--cc-danger)", border: "1px solid color-mix(in srgb, var(--cc-danger) 20%, transparent)" }}>
             {error}
           </div>
         )}
 
         {/* Section 1: Plan Assignment */}
         <div>
-          <label style={{ display: "block", fontSize: 14, fontWeight: 600, color: "var(--cc-text)", marginBottom: 8 }}>
+          <label style={{ display: "block", fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 8 }}>
             Plan Assignment
           </label>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -150,7 +150,7 @@ export default function ClientFeatureModal({ open, onClose, client, plans, onSav
               ]}
             />
             {selectedPlan && (
-              <span style={{ fontSize: 12, color: "var(--cc-text-muted)", whiteSpace: "nowrap" }}>
+              <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", whiteSpace: "nowrap" }}>
                 {featureKeys.filter((k) => selectedPlan.features[k]).length}/{featureKeys.length} features
               </span>
             )}
@@ -159,10 +159,10 @@ export default function ClientFeatureModal({ open, onClose, client, plans, onSav
 
         {/* Section 2: Feature Overrides */}
         <div>
-          <div style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)", marginBottom: 4 }}>
+          <div style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 4 }}>
             Feature Overrides
           </div>
-          <p style={{ fontSize: 12, color: "var(--cc-text-muted)", margin: "0 0 12px" }}>
+          <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: "0 0 12px" }}>
             Override individual features regardless of plan
           </p>
 
@@ -185,8 +185,8 @@ export default function ClientFeatureModal({ open, onClose, client, plans, onSav
                   }}
                 >
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 500, color: "var(--cc-text)" }}>{FEATURES[key].label}</div>
-                    <div style={{ fontSize: 11, color: "var(--cc-text-muted)" }}>
+                    <div style={{ fontSize: "var(--cc-t-13)", fontWeight: 500, color: "var(--cc-text)" }}>{FEATURES[key].label}</div>
+                    <div style={{ fontSize: "var(--cc-t-11)", color: "var(--cc-text-muted)" }}>
                       Plan: {planVal ? "ON" : "OFF"}
                     </div>
                   </div>
@@ -233,7 +233,7 @@ export default function ClientFeatureModal({ open, onClose, client, plans, onSav
 
         {/* Section 3: Summary */}
         <div>
-          <div style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 8 }}>
+          <div style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 8 }}>
             Effective access: {enabledCount}/{featureKeys.length} features
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>

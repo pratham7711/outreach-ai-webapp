@@ -2,7 +2,7 @@
 
 import React from "react";
 import { Badge } from "@pratham7711/ui";
-import { statusInk } from "@/lib/statusColors";
+import { statusInk, whiteReadsOnInk } from "@/lib/statusColors";
 
 type BadgeVariant = "accent" | "success" | "warning" | "danger" | "neutral";
 
@@ -27,7 +27,11 @@ export type StatusTabsProps = {
 };
 
 const STATUS_COLOR_TOKENS: Record<string, string> = {
-  "#374151": "var(--cc-text)",
+  /* The no-status tab -- All. Their strip draws it a plain grey, not the
+     page ink: MEASURED rgb(142,142,142) on their Campaigns tabs where every
+     other unselected tab carries its own status colour. Base keeps --cc-text,
+     so light and dark render exactly what they rendered before. */
+  "#374151": "var(--cc-status-neutral-ink)",
   "#d97706": "var(--cc-warning)",
   "#059669": "var(--cc-success)",
   "#dc2626": "var(--cc-danger)",
@@ -66,9 +70,25 @@ function tabInk(tab: StatusTab): string {
      the mix is toward --cc-text instead: that token is near-black in light and
      creatorcore and near-white in dark, so the same expression pushes the hue
      away from whichever ground it is actually on. The status stays recognisably
-     its own colour; it just stops being the lightest thing on the page. */
+     its own colour; it just stops being the lightest thing on the page.
+
+     How far it is pushed is --cc-status-ink-strength, because CreatorCore does
+     not push it at all: their Pending measures rgb(231,173,0) and their
+     Canceled rgb(255,0,0), which is the palette raw. */
   if (base.startsWith("var(") || base.startsWith("color-mix(")) return base;
-  return `color-mix(in srgb, ${base} 62%, var(--cc-text))`;
+  return `color-mix(in srgb, ${base} var(--cc-status-ink-strength), var(--cc-text))`;
+}
+
+/**
+ * The label to draw ON a pill that is filled with this tab's own ink.
+ *
+ * Only a literal can be judged -- a tab whose colour is already a CSS variable
+ * keeps today's white, which is what every such tab was getting anyway.
+ */
+function tabOnInk(tab: StatusTab): string {
+  const lit = tab.bg && tab.color ? statusInk({ bg: tab.bg, color: tab.color }) : tab.color;
+  if (!lit || !/^#[0-9a-fA-F]{3,8}$/.test(lit.trim())) return "var(--cc-on-primary)";
+  return whiteReadsOnInk(lit.trim()) ? "var(--cc-on-primary)" : "var(--cc-on-ink-dark)";
 }
 
 export function StatusTabs({ tabs, active, onChange, variant = "underline", ariaLabel = "Filter by status", style }: StatusTabsProps) {
@@ -91,7 +111,7 @@ export function StatusTabs({ tabs, active, onChange, variant = "underline", aria
                cascade can still reach, not a declaration that outranks it.
                Padding, radius, weight and background used to ride along here
                and silently beat every theme rule aimed at this strip. */
-            style={{ "--cc-tab-ink": tabInk(tab) } as React.CSSProperties}
+            style={{ "--cc-tab-ink": tabInk(tab), "--cc-tab-on-ink": tabOnInk(tab) } as React.CSSProperties}
           >
             {tab.icon ?? (isSelected && variant === "underline" && <span aria-hidden="true" className="cc-tab-dot" />)}
             {tab.label}
@@ -99,7 +119,7 @@ export function StatusTabs({ tabs, active, onChange, variant = "underline", aria
               (variant === "pill" ? (
                 <span className="cc-tab-count">{tab.count}</span>
               ) : (
-                <Badge variant={isSelected ? (tab.badgeVariant ?? "accent") : "neutral"} size="sm">
+                <Badge className="cc-tab-count" variant={isSelected ? (tab.badgeVariant ?? "accent") : "neutral"} size="sm">
                   {tab.count}
                 </Badge>
               ))}

@@ -186,12 +186,12 @@ function LabelCard({
 
   return (
     <Card variant="outlined" style={{ padding: 24 }}>
-      <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)", display: "block", marginBottom: 12 }}>
+      <span className="cc-panel-title" style={{ display: "block", marginBottom: 12 }}>
         {title}
       </span>
 
       {selected.length === 0 ? (
-        <p style={{ fontSize: 14, color: "var(--cc-text-muted)", lineHeight: 1.6 }}>{emptyLabel}</p>
+        <p style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text-muted)", lineHeight: 1.6 }}>{emptyLabel}</p>
       ) : (
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
           {selected.map((s) => (
@@ -200,7 +200,7 @@ function LabelCard({
               style={{
                 display: "inline-flex", alignItems: "center", gap: 6,
                 background: "var(--cc-bg)", border: "1px solid var(--cc-border)",
-                borderRadius: 8, padding: "6px 8px 6px 12px", fontSize: 13, color: "var(--cc-text)",
+                borderRadius: 8, padding: "6px 8px 6px 12px", fontSize: "var(--cc-t-13)", color: "var(--cc-text)",
               }}
             >
               {s.emoji ? `${s.emoji} ` : ""}{s.name}
@@ -235,7 +235,7 @@ function LabelCard({
           />
         </div>
       ) : (
-        <p style={{ marginTop: 12, fontSize: 12, color: "var(--cc-text-muted)" }}>
+        <p style={{ marginTop: 12, fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
           {(defs ?? []).length === 0
             ? `No ${kind} defined yet — add them in Settings → General.`
             : `All ${kind} applied.`}
@@ -243,7 +243,7 @@ function LabelCard({
       )}
 
       {error && (
-        <p role="alert" style={{ marginTop: 8, fontSize: 12, color: "var(--cc-danger)" }}>{error}</p>
+        <p role="alert" style={{ marginTop: 8, fontSize: "var(--cc-t-12)", color: "var(--cc-danger)" }}>{error}</p>
       )}
     </Card>
   );
@@ -485,7 +485,7 @@ function EditCreatorModal({ open, onClose, creator, onSaved }: { open: boolean; 
     border: "1px solid var(--cc-border)",
     borderRadius: 8,
     padding: 10,
-    fontSize: 14,
+    fontSize: "var(--cc-t-14)",
     color: "var(--cc-text)",
     resize: "vertical",
     minHeight: 80,
@@ -499,7 +499,7 @@ function EditCreatorModal({ open, onClose, creator, onSaved }: { open: boolean; 
         <Input label="Name" value={form.name} onChange={(e: React.ChangeEvent<HTMLInputElement>) => set("name", e.target.value)} required />
         <Input label="Handle" value={form.handle} onChange={(e: React.ChangeEvent<HTMLInputElement>) => set("handle", e.target.value)} required />
         <div>
-          <label htmlFor="edit-creator-platform" style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Platform</label>
+          <label htmlFor="edit-creator-platform" style={{ display: "block", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6 }}>Platform</label>
           <Dropdown
             ariaLabel="Platform"
             align="left"
@@ -510,13 +510,13 @@ function EditCreatorModal({ open, onClose, creator, onSaved }: { open: boolean; 
           />
         </div>
         <div>
-          <label htmlFor="edit-creator-bio" style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Bio</label>
+          <label htmlFor="edit-creator-bio" style={{ display: "block", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6 }}>Bio</label>
           <textarea id="edit-creator-bio" value={form.bio} onChange={e => set("bio", e.target.value)} style={textareaStyle} />
         </div>
         <Input label="Contact Email" type="email" value={form.contactEmail} onChange={(e: React.ChangeEvent<HTMLInputElement>) => set("contactEmail", e.target.value)} />
         <Input label="Rate per Post (USD)" type="number" value={form.rate} onChange={(e: React.ChangeEvent<HTMLInputElement>) => set("rate", e.target.value)} />
         <div>
-          <label htmlFor="edit-creator-notes" style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Notes</label>
+          <label htmlFor="edit-creator-notes" style={{ display: "block", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6 }}>Notes</label>
           <textarea id="edit-creator-notes" value={form.notes} onChange={e => set("notes", e.target.value)} style={textareaStyle} />
         </div>
         <button
@@ -528,8 +528,8 @@ function EditCreatorModal({ open, onClose, creator, onSaved }: { open: boolean; 
             border: "none",
             borderRadius: 8,
             padding: "9px 16px",
-            fontSize: 14,
-            fontWeight: 600,
+            fontSize: "var(--cc-t-14)",
+            fontWeight: "var(--cc-fw-strong)",
             cursor: saving ? "not-allowed" : "pointer",
             opacity: saving ? 0.6 : 1,
           }}
@@ -670,7 +670,7 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
       <style>{responsiveStyles}</style>
 
       {/* Breadcrumb */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, marginBottom: 24, color: "var(--cc-text-muted)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "var(--cc-t-14)", marginBottom: 24, color: "var(--cc-text-muted)" }}>
         <Link href="/creators" style={{ display: "flex", alignItems: "center", gap: 4, color: "var(--cc-text-muted)", textDecoration: "none" }}>
           <ArrowLeft size={16} /> Creators
         </Link>
@@ -683,13 +683,13 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
         <div style={{ height: 80, background: `linear-gradient(to right, ${PLATFORM_COLORS[creator.platform] ?? "var(--cc-primary)"}22, ${PLATFORM_COLORS[creator.platform] ?? "var(--cc-primary)"}11)` }} />
         <div className="cd-banner-inner">
           <div className="cd-profile-header">
-            <Avatar name={creator.name} size="lg" style={{ width: 72, height: 72, fontSize: 22, border: "4px solid var(--cc-card)", flexShrink: 0 }} />
+            <Avatar name={creator.name} size="lg" style={{ width: 72, height: 72, fontSize: "var(--cc-t-22)", border: "4px solid var(--cc-card)", flexShrink: 0 }} />
             <div className="cd-profile-info">
               <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                 <h1 className="cc-page-title" data-mb="0">{creator.name}</h1>
                 <Badge variant="neutral">{platformLabel(creator.platform)}</Badge>
               </div>
-              <div style={{ fontSize: 14, color: "var(--cc-text-muted)", marginTop: 2 }}>
+              <div style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text-muted)", marginTop: 2 }}>
                 {creator.handle.startsWith("@") ? creator.handle : `@${creator.handle}`}
                 {creator.contactEmail && <> · {creator.contactEmail}</>}
               </div>
@@ -699,7 +699,7 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
                 onClick={() => setEditOpen(true)}
                 style={{
                   display: "flex", alignItems: "center", gap: 6,
-                  padding: "6px 14px", fontSize: 13, fontWeight: 600,
+                  padding: "6px 14px", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)",
                   color: "var(--cc-primary)", background: "var(--cc-card)",
                   border: "1.5px solid var(--cc-primary)", borderRadius: 8, cursor: "pointer",
                   whiteSpace: "nowrap",
@@ -737,7 +737,7 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
               aria-selected={activeTab === tab.value}
               onClick={() => setActiveTab(tab.value)}
               style={{
-                padding: "10px 16px", fontSize: 14, fontWeight: 500,
+                padding: "10px 16px", fontSize: "var(--cc-t-14)", fontWeight: 500,
                 background: "none", border: "none", cursor: "pointer",
                 borderBottom: activeTab === tab.value ? "2px solid var(--cc-primary)" : "2px solid transparent",
                 color: activeTab === tab.value ? "var(--cc-primary)" : "var(--cc-text-muted)",
@@ -746,7 +746,7 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
             >
               {tab.label}
               {tab.count !== undefined && (
-                <span style={{ fontSize: 11, background: "var(--cc-bg)", borderRadius: 10, padding: "1px 7px", color: "var(--cc-text-muted)" }}>{tab.count}</span>
+                <span style={{ fontSize: "var(--cc-t-11)", background: "var(--cc-bg)", borderRadius: 10, padding: "1px 7px", color: "var(--cc-text-muted)" }}>{tab.count}</span>
               )}
             </button>
           ))}
@@ -758,19 +758,19 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
         {activeTab === "profile" && (
           <div className="cd-profile-cards">
             <Card variant="outlined" style={{ padding: 24 }}>
-              <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)", display: "block", marginBottom: 12 }}>About</span>
-              <p style={{ fontSize: 14, color: "var(--cc-text-muted)", lineHeight: 1.6 }}>
+              <span className="cc-panel-title" style={{ display: "block", marginBottom: 12 }}>About</span>
+              <p style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text-muted)", lineHeight: 1.6 }}>
                 {creator.bio ?? `${platformLabel(creator.platform)} content creator. Open to brand partnerships and collaborations.`}
               </p>
               {creator.contactEmail && (
-                <div style={{ marginTop: 16, fontSize: 13, color: "var(--cc-text-muted)" }}>
+                <div style={{ marginTop: 16, fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
                   <strong>Email:</strong> {creator.contactEmail}
                 </div>
               )}
             </Card>
             <Card variant="outlined" style={{ padding: 24 }}>
-              <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)", display: "block", marginBottom: 12 }}>Notes</span>
-              <p style={{ fontSize: 14, color: "var(--cc-text-muted)", lineHeight: 1.6 }}>
+              <span className="cc-panel-title" style={{ display: "block", marginBottom: 12 }}>Notes</span>
+              <p style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text-muted)", lineHeight: 1.6 }}>
                 {creator.notes ?? "No notes added yet."}
               </p>
             </Card>
@@ -804,7 +804,7 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
               {/* Desktop table header */}
               <div className="cd-posts-table-header">
                 {["Post", "Campaign", "Views", "Likes", "Comments", "Shares", "Eng %"].map(h => (
-                  <span key={h} style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--cc-text-subtle)" }}>{h}</span>
+                  <span key={h} className="cc-microlabel">{h}</span>
                 ))}
               </div>
               <div className="cc-stagger">
@@ -819,30 +819,30 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
                       style={{ borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined }}
                     >
                       <div>
-                        <p title={post.caption ?? undefined} style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        <p title={post.caption ?? undefined} style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                           {post.caption?.slice(0, 60) ?? "Untitled Post"} <ExternalLink size={11} style={{ opacity: 0.4 }} />
                         </p>
-                        <p style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{formatDateAbs(post.postedAt)}</p>
+                        <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>{formatDateAbs(post.postedAt)}</p>
                       </div>
-                      <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{post.campaign?.title ?? "—"}</span>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>{formatNumber(post.viewsCount)}</span>
-                      <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{formatNumber(post.likesCount)}</span>
-                      <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{formatNumber(post.commentsCount)}</span>
-                      <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{formatNumber(post.sharesCount)}</span>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-primary)" }}>{post.engagementRate.toFixed(1)}%</span>
+                      <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{post.campaign?.title ?? "—"}</span>
+                      <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{formatNumber(post.viewsCount)}</span>
+                      <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{formatNumber(post.likesCount)}</span>
+                      <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{formatNumber(post.commentsCount)}</span>
+                      <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{formatNumber(post.sharesCount)}</span>
+                      <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-primary)" }}>{post.engagementRate.toFixed(1)}%</span>
                     </a>
                     {/* Mobile card */}
                     <a href={post.postUrl} target="_blank" rel="noopener noreferrer" className="cd-post-card">
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <p title={post.caption ?? undefined} style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", margin: 0 }}>
+                          <p title={post.caption ?? undefined} style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", margin: 0 }}>
                             {post.caption?.slice(0, 50) ?? "Untitled Post"} <ExternalLink size={11} style={{ opacity: 0.4 }} />
                           </p>
-                          <p style={{ fontSize: 12, color: "var(--cc-text-muted)", margin: "2px 0 0" }}>
+                          <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: "2px 0 0" }}>
                             {post.campaign?.title ?? "—"} · {formatDateAbs(post.postedAt)}
                           </p>
                         </div>
-                        <span style={{ fontSize: 14, fontWeight: 700, color: "var(--cc-primary)", flexShrink: 0 }}>{post.engagementRate.toFixed(1)}%</span>
+                        <span style={{ fontSize: "var(--cc-t-14)", fontWeight: 700, color: "var(--cc-primary)", flexShrink: 0 }}>{post.engagementRate.toFixed(1)}%</span>
                       </div>
                       <div className="cd-post-stats">
                         <span className="cd-post-stat"><Eye size={13} /> {formatNumber(post.viewsCount)}</span>
@@ -872,8 +872,8 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
                   <Card variant="outlined" style={{ padding: "16px 20px" }} clickable>
                     <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
                       <div style={{ flex: 1, minWidth: 140 }}>
-                        <div style={{ fontWeight: 700, fontSize: 14, color: "var(--cc-text)" }}>{c.title}</div>
-                        <div style={{ fontSize: 12, color: "var(--cc-text-muted)", marginTop: 2 }}>
+                        <div style={{ fontWeight: 700, fontSize: "var(--cc-t-14)", color: "var(--cc-text)" }}>{c.title}</div>
+                        <div style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", marginTop: 2 }}>
                           {c.postCount > 0 ? `${c.postCount} post${c.postCount === 1 ? "" : "s"}` : "No posts"}
                           {c.activation?.deliverableDueDate ? ` · Due ${formatDateAbs(c.activation.deliverableDueDate)}` : ""}
                         </div>
@@ -884,7 +884,7 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
                         {(c.activation?.status ?? c.status).replace(/_/g, " ")}
                       </Badge>
                       {c.budget && (
-                        <span className="cd-campaign-row-budget" style={{ fontWeight: 700, fontSize: 14, color: "var(--cc-text)" }}>
+                        <span className="cd-campaign-row-budget" style={{ fontWeight: 700, fontSize: "var(--cc-t-14)", color: "var(--cc-text)" }}>
                           {formatCurrency(Number(c.budget), c.currency)}
                         </span>
                       )}
@@ -903,13 +903,13 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
         {activeTab === "social" && (
           <div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-              <span style={{ fontWeight: 700, fontSize: 16, color: "var(--cc-text)" }}>Connected Accounts</span>
+              <span style={{ fontWeight: 700, fontSize: "var(--cc-t-16)", color: "var(--cc-text)" }}>Connected Accounts</span>
               <button
                 onClick={() => setShowAddSocial(true)}
                 style={{
                   display: "flex", alignItems: "center", gap: 6,
                   background: "var(--cc-primary)", color: "white", border: "none",
-                  borderRadius: 8, padding: "7px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer",
+                  borderRadius: 8, padding: "7px 14px", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", cursor: "pointer",
                 }}
               >
                 <Plus size={14} /> Add Account
@@ -922,7 +922,7 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
                 <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                     <div>
-                      <label htmlFor="add-social-platform" style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--cc-text)", marginBottom: 4 }}>Platform</label>
+                      <label htmlFor="add-social-platform" style={{ display: "block", fontSize: "var(--cc-t-12)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 4 }}>Platform</label>
                       <Dropdown
                         ariaLabel="Platform"
                         align="left"
@@ -959,7 +959,7 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
                     <button
                       onClick={() => setShowAddSocial(false)}
                       style={{
-                        padding: "7px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer",
+                        padding: "7px 14px", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", cursor: "pointer",
                         background: "var(--cc-card)", color: "var(--cc-text-muted)",
                         border: "1px solid var(--cc-border)", borderRadius: 8,
                       }}
@@ -970,7 +970,7 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
                       onClick={handleAddSocial}
                       disabled={addingSocial || !addSocialForm.handle.trim()}
                       style={{
-                        padding: "7px 14px", fontSize: 13, fontWeight: 600, cursor: addingSocial ? "not-allowed" : "pointer",
+                        padding: "7px 14px", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", cursor: addingSocial ? "not-allowed" : "pointer",
                         background: "var(--cc-primary)", color: "white", border: "none", borderRadius: 8,
                         opacity: addingSocial || !addSocialForm.handle.trim() ? 0.5 : 1,
                       }}
@@ -1015,14 +1015,14 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
                         <Trash2 size={14} />
                       </button>
                     </div>
-                    <div style={{ fontWeight: 600, fontSize: 14, color: "var(--cc-text)", marginBottom: 4 }}>
+                    <div style={{ fontWeight: "var(--cc-fw-strong)", fontSize: "var(--cc-t-14)", color: "var(--cc-text)", marginBottom: 4 }}>
                       {acct.handle.startsWith("@") ? acct.handle : `@${acct.handle}`}
                     </div>
-                    <div style={{ display: "flex", gap: 16, fontSize: 13, color: "var(--cc-text-muted)", marginBottom: 8 }}>
+                    <div style={{ display: "flex", gap: 16, fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", marginBottom: 8 }}>
                       <span><Users size={12} style={{ marginRight: 4, verticalAlign: "middle" }} />{formatNumber(acct.followersCount)} followers</span>
                       <span><Eye size={12} style={{ marginRight: 4, verticalAlign: "middle" }} />{formatNumber(acct.avgViews)} avg views</span>
                     </div>
-                    <div style={{ fontSize: 11, color: "var(--cc-text-subtle)" }}>
+                    <div style={{ fontSize: "var(--cc-t-11)", color: "var(--cc-text-subtle)" }}>
                       Connected {formatDateAbs(acct.createdAt)}
                     </div>
                   </Card>
@@ -1033,14 +1033,14 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
             {socialAccounts.some(a => a.platform === "TIKTOK") && (
               <div style={{ marginTop: 32 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                  <span style={{ fontWeight: 700, fontSize: 16, color: "var(--cc-text)" }}>TikTok posts</span>
+                  <span style={{ fontWeight: 700, fontSize: "var(--cc-t-16)", color: "var(--cc-text)" }}>TikTok posts</span>
                   <button
                     onClick={fetchTikTokVideos}
                     disabled={tiktokLoading}
                     style={{
                       background: "var(--cc-card)", color: "var(--cc-primary)",
                       border: "1.5px solid var(--cc-primary)", borderRadius: 8,
-                      padding: "6px 12px", fontSize: 13, fontWeight: 600,
+                      padding: "6px 12px", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)",
                       cursor: tiktokLoading ? "not-allowed" : "pointer",
                       opacity: tiktokLoading ? 0.5 : 1,
                     }}
@@ -1048,7 +1048,7 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
                     {tiktokLoading ? "Refreshing..." : "Refresh"}
                   </button>
                 </div>
-                <p style={{ fontSize: 13, color: "var(--cc-text-muted)", marginBottom: 16 }}>
+                <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", marginBottom: 16 }}>
                   Public posts and their performance, read from TikTok with the creator&rsquo;s permission.
                 </p>
                 {tiktokLoading ? (
@@ -1072,7 +1072,7 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
                           />
                         )}
                         <div style={{ padding: 16 }}>
-                          <div style={{ fontWeight: 600, fontSize: 14, color: "var(--cc-text)", marginBottom: 8 }}>
+                          <div style={{ fontWeight: "var(--cc-fw-strong)", fontSize: "var(--cc-t-14)", color: "var(--cc-text)", marginBottom: 8 }}>
                             {video.description || video.title || "Untitled post"}
                           </div>
                           <div className="cd-post-stats" style={{ marginBottom: 8 }}>
@@ -1081,7 +1081,7 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
                             <span className="cd-post-stat"><MessageCircle size={12} />{formatNumber(video.commentsCount)}</span>
                             <span className="cd-post-stat"><Share2 size={12} />{formatNumber(video.sharesCount)}</span>
                           </div>
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11, color: "var(--cc-text-subtle)" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "var(--cc-t-11)", color: "var(--cc-text-subtle)" }}>
                             <span>{formatDateAbs(video.postedAt)}</span>
                             {video.shareUrl && (
                               <a href={video.shareUrl} target="_blank" rel="noreferrer" style={{ color: "var(--cc-primary)", display: "inline-flex", alignItems: "center", gap: 4 }}>

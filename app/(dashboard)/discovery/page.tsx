@@ -187,7 +187,7 @@ export default function DiscoveryPage() {
               key={p}
               onClick={() => setPlatform(p)}
               style={{
-                padding: "6px 14px", borderRadius: 20, fontSize: 13,
+                padding: "6px 14px", borderRadius: 20, fontSize: "var(--cc-t-13)",
                 fontWeight: platform === p ? 600 : 400, cursor: "pointer",
                 border: `1px solid ${platform === p ? "var(--cc-primary)" : "var(--cc-border)"}`,
                 background: platform === p ? "var(--cc-primary)" : "var(--cc-card)",
@@ -205,7 +205,7 @@ export default function DiscoveryPage() {
           onClick={() => setShowAdvanced((v) => !v)}
           style={{
             display: "flex", alignItems: "center", gap: 6,
-            padding: "6px 14px", borderRadius: 20, fontSize: 13, fontWeight: 500,
+            padding: "6px 14px", borderRadius: 20, fontSize: "var(--cc-t-13)", fontWeight: 500,
             cursor: "pointer",
             border: `1px solid ${showAdvanced || activeCount > 0 ? "var(--cc-primary)" : "var(--cc-border)"}`,
             background: showAdvanced || activeCount > 0 ? "var(--cc-primary)" : "var(--cc-card)",
@@ -218,7 +218,7 @@ export default function DiscoveryPage() {
           {activeCount > 0 && (
             <span style={{
               background: "white", color: "var(--cc-primary)",
-              borderRadius: 10, fontSize: 11, fontWeight: 700,
+              borderRadius: 10, fontSize: "var(--cc-t-11)", fontWeight: 700,
               padding: "1px 6px", lineHeight: "16px",
             }}>
               {activeCount}
@@ -244,7 +244,7 @@ export default function DiscoveryPage() {
         }}>
           {/* Niches */}
           <div style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 8 }}>Niches</div>
+            <div style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 8 }}>Niches</div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               {NICHE_OPTIONS.map((niche) => {
                 const active = selectedNiches.includes(niche);
@@ -253,7 +253,7 @@ export default function DiscoveryPage() {
                     key={niche}
                     onClick={() => toggleNiche(niche)}
                     style={{
-                      padding: "5px 12px", borderRadius: 20, fontSize: 12,
+                      padding: "5px 12px", borderRadius: 20, fontSize: "var(--cc-t-12)",
                       fontWeight: active ? 600 : 400, cursor: "pointer",
                       background: active ? "var(--cc-primary)" : "var(--cc-card)",
                       color: active ? "white" : "var(--cc-text-muted)",
@@ -272,7 +272,7 @@ export default function DiscoveryPage() {
           <div className="rsp-grid-2" style={{ marginBottom: 16 }}>
             {/* Followers range */}
             <div>
-              <div style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 8 }}>Followers</div>
+              <div style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 8 }}>Followers</div>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <Input
                   type="number"
@@ -281,7 +281,7 @@ export default function DiscoveryPage() {
                   onChange={(e) => setMinFollowers(e.target.value)}
                   style={{ flex: 1, minWidth: 0 }}
                 />
-                <span style={{ color: "var(--cc-text-muted)", fontSize: 14 }}>–</span>
+                <span style={{ color: "var(--cc-text-muted)", fontSize: "var(--cc-t-14)"}}>–</span>
                 <Input
                   type="number"
                   placeholder="Max"
@@ -309,7 +309,7 @@ export default function DiscoveryPage() {
               style={{
                 display: "inline-flex", alignItems: "center", gap: 4,
                 background: "var(--cc-primary)", color: "white",
-                borderRadius: 20, fontSize: 12, fontWeight: 500,
+                borderRadius: 20, fontSize: "var(--cc-t-12)", fontWeight: 500,
                 padding: "4px 10px",
               }}
             >
@@ -323,7 +323,7 @@ export default function DiscoveryPage() {
             </span>
           ))}
           {minFollowers && (
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "var(--cc-primary)", color: "white", borderRadius: 20, fontSize: 12, fontWeight: 500, padding: "4px 10px" }}>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "var(--cc-primary)", color: "white", borderRadius: 20, fontSize: "var(--cc-t-12)", fontWeight: 500, padding: "4px 10px" }}>
               Min followers: {minFollowers}
               <button onClick={() => setMinFollowers("")} style={{ background: "none", border: "none", cursor: "pointer", color: "white", padding: 0, display: "flex", alignItems: "center" }}>
                 <X size={12} />
@@ -331,7 +331,7 @@ export default function DiscoveryPage() {
             </span>
           )}
           {maxFollowers && (
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "var(--cc-primary)", color: "white", borderRadius: 20, fontSize: 12, fontWeight: 500, padding: "4px 10px" }}>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "var(--cc-primary)", color: "white", borderRadius: 20, fontSize: "var(--cc-t-12)", fontWeight: 500, padding: "4px 10px" }}>
               Max followers: {maxFollowers}
               <button onClick={() => setMaxFollowers("")} style={{ background: "none", border: "none", cursor: "pointer", color: "white", padding: 0, display: "flex", alignItems: "center" }}>
                 <X size={12} />
@@ -363,7 +363,7 @@ export default function DiscoveryPage() {
             action={
               <Link prefetch={false}
                 href="/settings/billing"
-                style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "10px 16px", borderRadius: 10, background: "var(--cc-primary)", color: "white", fontSize: 14, fontWeight: 600, textDecoration: "none" }}
+                style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "10px 16px", borderRadius: 10, background: "var(--cc-primary)", color: "white", fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", textDecoration: "none" }}
               >
                 Open Billing
               </Link>
@@ -390,10 +390,10 @@ export default function DiscoveryPage() {
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
                 <Avatar name={c.name} size="md" />
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 700, fontSize: 14, color: "var(--cc-text)" }}>{c.name}</div>
-                  <div title={`@${stripAt(c.handle)}`} style={{ fontSize: 13, color: "var(--cc-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>@{stripAt(c.handle)}</div>
+                  <div style={{ fontWeight: 700, fontSize: "var(--cc-t-14)", color: "var(--cc-text)" }}>{c.name}</div>
+                  <div title={`@${stripAt(c.handle)}`} style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>@{stripAt(c.handle)}</div>
                 </div>
-                <Badge variant="neutral" style={{ fontSize: 10 }}>{platformLabel(c.platform)}</Badge>
+                <Badge variant="neutral" style={{ fontSize: "var(--cc-t-10)"}}>{platformLabel(c.platform)}</Badge>
               </div>
               {/* Only the figures this creator has. Follower counts did not come
                   across in the import for all but eleven of them, and a slot
@@ -407,8 +407,8 @@ export default function DiscoveryPage() {
                   .filter((stat): stat is { label: string; value: number } => stat !== null)
                   .map((stat) => (
                     <div key={stat.label}>
-                      <div style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)" }}>{formatNumber(stat.value)}</div>
-                      <div style={{ fontSize: 11, color: "var(--cc-text-muted)" }}>{stat.label}</div>
+                      <div className="cc-panel-title">{formatNumber(stat.value)}</div>
+                      <div style={{ fontSize: "var(--cc-t-11)", color: "var(--cc-text-muted)" }}>{stat.label}</div>
                     </div>
                   ))}
               </div>
@@ -477,18 +477,18 @@ export default function DiscoveryPage() {
               padding: 24,
             }}
           >
-            <h2 style={{ fontSize: 18, fontWeight: 700, color: "var(--cc-text)", marginBottom: 8 }}>
+            <h2 style={{ fontSize: "var(--cc-t-18)", fontWeight: 700, color: "var(--cc-text)", marginBottom: 8 }}>
               Add to List
             </h2>
-            <p style={{ fontSize: 14, color: "var(--cc-text-muted)", marginBottom: 18 }}>
+            <p style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text-muted)", marginBottom: 18 }}>
               Choose which list should include <strong style={{ color: "var(--cc-text)" }}>{selectedCreator.name}</strong>.
             </p>
 
             <label
               style={{
                 display: "block",
-                fontSize: 13,
-                fontWeight: 600,
+                fontSize: "var(--cc-t-13)",
+                fontWeight: "var(--cc-fw-strong)",
                 color: "var(--cc-text)",
                 marginBottom: 8,
               }}

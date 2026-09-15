@@ -81,13 +81,13 @@ export function DataQualityPanel({ result, source, recordLabel }: DataQualityPan
         <Badge variant={verdictVariant}>{verdictWord}</Badge>
         <span
           data-testid="data-quality-confidence"
-          style={{ fontSize: 14, fontWeight: 700, color: confidence.token }}
+          style={{ fontSize: "var(--cc-t-14)", fontWeight: 700, color: confidence.token }}
         >
           {`${confidence.word} confidence`}
         </span>
         <span
           data-testid="data-quality-score"
-          style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}
+          style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}
         >
           {`Score ${scoreText} / 100`}
         </span>
@@ -99,12 +99,12 @@ export function DataQualityPanel({ result, source, recordLabel }: DataQualityPan
           style={{ display: "flex", flexDirection: "column", gap: 2 }}
         >
           {recordLabel ? (
-            <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text-muted)" }}>
+            <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text-muted)" }}>
               {recordLabel}
             </span>
           ) : null}
           {source ? (
-            <span style={{ fontSize: 12, color: "var(--cc-text-subtle)" }}>{source}</span>
+            <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-subtle)" }}>{source}</span>
           ) : null}
         </div>
       ) : null}
@@ -116,10 +116,10 @@ export function DataQualityPanel({ result, source, recordLabel }: DataQualityPan
           aria-label="No data-quality issues"
           style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--cc-success)" }}
         >
-          <span aria-hidden="true" style={{ fontSize: 16, lineHeight: "20px" }}>
+          <span aria-hidden="true" style={{ fontSize: "var(--cc-t-16)", lineHeight: "20px" }}>
             <CheckCircle2 size={16} color="var(--cc-success)" />
           </span>
-          <span style={{ fontSize: 13, fontWeight: 600 }}>No data-quality issues</span>
+          <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)"}}>No data-quality issues</span>
         </div>
       ) : (
         <ul

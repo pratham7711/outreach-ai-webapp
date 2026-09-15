@@ -30,7 +30,7 @@ type Invite = {
 const ROLE_OPTIONS = ["ADMIN", "MANAGER", "MEMBER", "VIEWER"] as const;
 
 const ROLE_COLORS: Record<string, { bg: string; color: string }> = {
-  OWNER:   { bg: "#FEF3C7", color: "#D97706" },
+  OWNER:   { bg: "#FEF3C7", color: "var(--cc-warning-ink)" },
   ADMIN:   { bg: "#EEF2FF", color: "#4F46E5" },
   MANAGER: { bg: "#D1FAE5", color: "#059669" },
   MEMBER:  { bg: "#F3F4F6", color: "#374151" },
@@ -38,7 +38,7 @@ const ROLE_COLORS: Record<string, { bg: string; color: string }> = {
 };
 
 const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
-  pending:  { bg: "#FEF3C7", color: "#D97706" },
+  pending:  { bg: "#FEF3C7", color: "var(--cc-warning-ink)" },
   accepted: { bg: "#D1FAE5", color: "#059669" },
   expired:  { bg: "#FEE2E2", color: "#DC2626" },
 };
@@ -249,13 +249,13 @@ export default function TeamClient({
   return (
     <div className="rsp-page page-enter">
       <PageHeader
-        title="Team Members"
+        title="Team Settings"
         subtitle="Manage your team and invite new members"
         actions={
           <>
           {seats ? (
             <span
-              style={{ fontSize: 13, color: seatsFull ? "var(--cc-warning)" : "var(--cc-text-muted)" }}
+              style={{ fontSize: "var(--cc-t-13)", color: seatsFull ? "var(--cc-warning)" : "var(--cc-text-muted)" }}
               title={`${seats.used} member${seats.used === 1 ? "" : "s"}${seats.pending ? ` and ${seats.pending} pending invite${seats.pending === 1 ? "" : "s"}` : ""}${seatLimit != null ? ` of ${seatLimit} seats` : ""}`}
             >
               {/* No denominator when there is no cap. Dropping the counter
@@ -288,8 +288,8 @@ export default function TeamClient({
               <Users size={18} style={{ color: "#fff" }} />
             </div>
             <div>
-              <div style={{ fontSize: 22, fontWeight: 800, color: "var(--cc-text)" }}>{users.length}</div>
-              <div style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>Team Members</div>
+              <div style={{ fontSize: "var(--cc-t-22)", fontWeight: "var(--cc-fw-black)", color: "var(--cc-text)" }}>{users.length}</div>
+              <div style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>Team Members</div>
             </div>
           </div>
         </Card>
@@ -299,8 +299,8 @@ export default function TeamClient({
               <Clock size={18} style={{ color: "#fff" }} />
             </div>
             <div>
-              <div style={{ fontSize: 22, fontWeight: 800, color: "var(--cc-text)" }}>{pendingInvites.filter((i) => i.status === "pending").length}</div>
-              <div style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>Pending Invites</div>
+              <div style={{ fontSize: "var(--cc-t-22)", fontWeight: "var(--cc-fw-black)", color: "var(--cc-text)" }}>{pendingInvites.filter((i) => i.status === "pending").length}</div>
+              <div style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>Pending Invites</div>
             </div>
           </div>
         </Card>
@@ -309,7 +309,7 @@ export default function TeamClient({
       {/* Members Table */}
       <Card variant="solid" noPadding style={{ marginBottom: 32 }}>
         <div style={{ padding: "14px 24px", borderBottom: "1px solid var(--cc-border)", background: "var(--cc-hover-bg)" }}>
-          <span style={{ fontWeight: 700, fontSize: 14, color: "var(--cc-text)" }}>Members</span>
+          <span style={{ fontWeight: 700, fontSize: "var(--cc-t-14)", color: "var(--cc-text)" }}>Members</span>
         </div>
         {users.length === 0 ? (
           <div style={{ padding: "48px 24px" }}>
@@ -334,7 +334,7 @@ export default function TeamClient({
                 ? ["Name", "Email", "Role", "Last Login", ""]
                 : ["Name", "Email", "Role", "Last Login"]
               ).map((h, i) => (
-                <span key={i} style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", color: "var(--cc-text-muted)" }}>
+                <span key={i} className="cc-microlabel">
                   {h}
                 </span>
               ))}
@@ -359,14 +359,14 @@ export default function TeamClient({
                 >
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                     <Avatar name={user.name} src={user.avatarUrl ?? undefined} size="sm" />
-                    <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>{user.name}</span>
+                    <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{user.name}</span>
                     {!user.isActive && (
-                      <Badge style={{ background: "var(--cc-hover-bg)", color: "var(--cc-text-muted)", fontSize: 10, fontWeight: 600 }}>
+                      <Badge style={{ background: "var(--cc-hover-bg)", color: "var(--cc-text-muted)", fontSize: "var(--cc-t-10)", fontWeight: "var(--cc-fw-strong)"}}>
                         Removed
                       </Badge>
                     )}
                   </div>
-                  <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{user.email}</span>
+                  <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{user.email}</span>
                   {/* A manager gets the role as a control; everyone else gets
                       it as a label, because /api/team refuses them anyway. */}
                   {canManage && !locked && user.isActive ? (
@@ -385,12 +385,12 @@ export default function TeamClient({
                   ) : (
                     <Badge
                       title={canManage && locked !== "read-only" ? locked ?? undefined : undefined}
-                      style={{ background: roleStyle.bg, color: roleStyle.color, fontSize: 11, fontWeight: 600 }}
+                      style={{ background: roleStyle.bg, color: roleStyle.color, fontSize: "var(--cc-t-11)", fontWeight: "var(--cc-fw-strong)"}}
                     >
                       {user.role}
                     </Badge>
                   )}
-                  <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>
+                  <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
                     {formatDate(user.lastLoginAt)}
                   </span>
                   {canManage && (
@@ -406,7 +406,7 @@ export default function TeamClient({
                             cursor: busy ? "wait" : "pointer",
                             color: "var(--cc-text-muted)", padding: 4, borderRadius: 6,
                             display: "flex", alignItems: "center", gap: 4,
-                            fontSize: 12, fontWeight: 600, opacity: busy ? 0.6 : 1,
+                            fontSize: "var(--cc-t-12)", fontWeight: "var(--cc-fw-strong)", opacity: busy ? 0.6 : 1,
                           }}
                           onMouseEnter={(e) => { e.currentTarget.style.color = "var(--cc-danger)"; }}
                           onMouseLeave={(e) => { e.currentTarget.style.color = "var(--cc-text-muted)"; }}
@@ -417,7 +417,7 @@ export default function TeamClient({
                       ) : (
                         <span
                           title={locked ?? undefined}
-                          style={{ fontSize: 11, color: "var(--cc-text-subtle)" }}
+                          style={{ fontSize: "var(--cc-t-11)", color: "var(--cc-text-subtle)" }}
                         >
                           {user.isActive ? "—" : "No access"}
                         </span>
@@ -443,14 +443,14 @@ export default function TeamClient({
             display: "flex", alignItems: "center", justifyContent: "space-between",
             gap: 12, margin: "0 0 16px", padding: "10px 14px",
             background: "var(--cc-card)", border: "1px solid var(--cc-border)",
-            borderRadius: 8, fontSize: 13, color: "var(--cc-text)",
+            borderRadius: 8, fontSize: "var(--cc-t-13)", color: "var(--cc-text)",
           }}
         >
           <span>{notice}</span>
           <button
             onClick={() => setNotice(null)}
             aria-label="Dismiss"
-            style={{ background: "none", border: "none", cursor: "pointer", color: "var(--cc-text-muted)", fontSize: 13, fontWeight: 600 }}
+            style={{ background: "none", border: "none", cursor: "pointer", color: "var(--cc-text-muted)", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)"}}
           >
             Dismiss
           </button>
@@ -464,7 +464,7 @@ export default function TeamClient({
       {canManage && pendingInvites.length > 0 && (
         <Card variant="solid" noPadding>
           <div style={{ padding: "14px 24px", borderBottom: "1px solid var(--cc-border)", background: "var(--cc-hover-bg)" }}>
-            <span style={{ fontWeight: 700, fontSize: 14, color: "var(--cc-text)" }}>Pending Invites</span>
+            <span style={{ fontWeight: 700, fontSize: "var(--cc-t-14)", color: "var(--cc-text)" }}>Pending Invites</span>
           </div>
           <div className="rsp-invites-scroll">
             <div className="rsp-invites-inner">
@@ -478,7 +478,7 @@ export default function TeamClient({
                   Link, Resend and Cancel action cells. Indexed keys because
                   several labels are empty and would collide as keys. */}
               {["Email", "Role", "Sent", "Expires", "Status", "", "", ""].map((h, i) => (
-                <span key={i} style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", color: "var(--cc-text-muted)" }}>
+                <span key={i} className="cc-microlabel">
                   {h}
                 </span>
               ))}
@@ -494,21 +494,21 @@ export default function TeamClient({
                 >
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <Mail size={14} style={{ color: "var(--cc-text-muted)", flexShrink: 0 }} />
-                    <span style={{ fontSize: 13, color: "var(--cc-text)" }}>{invite.email}</span>
+                    <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text)" }}>{invite.email}</span>
                   </div>
-                  <Badge style={{ background: roleStyle.bg, color: roleStyle.color, fontSize: 11, fontWeight: 600 }}>
+                  <Badge style={{ background: roleStyle.bg, color: roleStyle.color, fontSize: "var(--cc-t-11)", fontWeight: "var(--cc-fw-strong)"}}>
                     {invite.role}
                   </Badge>
                   {/* Stacked on a phone these are two bare dates in a column
                       with nothing to tell them apart; the column headings that
                       did that job are hidden at this width. */}
-                  <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>
+                  <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
                     <span className="rsp-only-mobile">Sent </span>{formatDate(invite.createdAt)}
                   </span>
-                  <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>
+                  <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
                     <span className="rsp-only-mobile">Expires </span>{formatDate(invite.expiresAt)}
                   </span>
-                  <Badge style={{ background: statusStyle.bg, color: statusStyle.color, fontSize: 10, fontWeight: 600, textTransform: "capitalize" }}>
+                  <Badge style={{ background: statusStyle.bg, color: statusStyle.color, fontSize: "var(--cc-t-10)", fontWeight: "var(--cc-fw-strong)", textTransform: "capitalize" }}>
                     {invite.status}
                   </Badge>
                   {/* Wrapped so the three actions can become their own row on a
@@ -524,7 +524,7 @@ export default function TeamClient({
                         background: "none", border: "none", cursor: "pointer",
                         color: copiedToken === invite.token ? "var(--cc-success)" : "var(--cc-primary)",
                         padding: 4, borderRadius: 6, display: "flex", alignItems: "center",
-                        fontSize: 12, fontWeight: 600, gap: 4,
+                        fontSize: "var(--cc-t-12)", fontWeight: "var(--cc-fw-strong)", gap: 4,
                       }}
                     >
                       {copiedToken === invite.token ? <Check size={14} /> : <LinkIcon size={14} />}
@@ -542,7 +542,7 @@ export default function TeamClient({
                         cursor: resendingId === invite.id ? "wait" : "pointer",
                         color: resentId === invite.id ? "var(--cc-success)" : "var(--cc-primary)",
                         padding: 4, borderRadius: 6, display: "flex", alignItems: "center",
-                        fontSize: 12, fontWeight: 600, gap: 4,
+                        fontSize: "var(--cc-t-12)", fontWeight: "var(--cc-fw-strong)", gap: 4,
                         opacity: resendingId === invite.id ? 0.6 : 1,
                       }}
                     >
@@ -583,7 +583,7 @@ export default function TeamClient({
       <Modal open={canManage && showModal} onClose={() => { setShowModal(false); setError(null); }} title="Invite Team Member">
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div>
-            <label style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6, display: "block" }}>
+            <label style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6, display: "block" }}>
               Email Address
             </label>
             <Input
@@ -595,7 +595,7 @@ export default function TeamClient({
             />
           </div>
           <div>
-            <label style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6, display: "block" }}>
+            <label style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6, display: "block" }}>
               Role
             </label>
             <Dropdown
@@ -611,7 +611,7 @@ export default function TeamClient({
             />
           </div>
           {error && (
-            <div style={{ fontSize: 13, color: "var(--cc-danger)", background: "color-mix(in srgb, var(--cc-danger) 14%, transparent)", padding: "8px 12px", borderRadius: 8 }}>
+            <div style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-danger-ink)", background: "color-mix(in srgb, var(--cc-danger) 14%, transparent)", padding: "8px 12px", borderRadius: 8 }}>
               {error}
             </div>
           )}

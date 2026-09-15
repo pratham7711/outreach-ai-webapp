@@ -54,11 +54,11 @@ export function CreatorVerdictCard({ creatorName, handle, verdict }: CreatorVerd
   return (
     <Card variant="outlined" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <h3 style={{ fontSize: 18, fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>
+        <h3 style={{ fontSize: "var(--cc-t-18)", fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>
           {creatorName}
         </h3>
         {handle ? (
-          <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{`@${handle}`}</span>
+          <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{`@${handle}`}</span>
         ) : null}
       </div>
 
@@ -88,7 +88,7 @@ export function CreatorVerdictCard({ creatorName, handle, verdict }: CreatorVerd
             border: `2px solid ${meta.token}`,
             color: meta.token,
             background: "var(--cc-card)",
-            fontSize: 20,
+            fontSize: "var(--cc-t-20)",
             fontWeight: 700,
           }}
         >
@@ -98,7 +98,7 @@ export function CreatorVerdictCard({ creatorName, handle, verdict }: CreatorVerd
 
       {hasRationale ? (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          <h4 style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)", margin: 0 }}>
+          <h4 style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", margin: 0 }}>
             Why this verdict
           </h4>
           <ul
@@ -131,17 +131,17 @@ export function CreatorVerdictCard({ creatorName, handle, verdict }: CreatorVerd
                 >
                   <span
                     aria-hidden="true"
-                    style={{ color: directionToken, fontSize: 12, lineHeight: "18px" }}
+                    style={{ color: directionToken, fontSize: "var(--cc-t-12)", lineHeight: "18px" }}
                   >
                     {directionSymbol}
                   </span>
                   <span style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>
+                    <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>
                       {item.label}
                       <span
                         style={{
                           marginLeft: 8,
-                          fontSize: 11,
+                          fontSize: "var(--cc-t-11)",
                           fontWeight: 500,
                           color: "var(--cc-text-muted)",
                         }}
@@ -151,7 +151,7 @@ export function CreatorVerdictCard({ creatorName, handle, verdict }: CreatorVerd
                       </span>
                     </span>
                     {item.detail ? (
-                      <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>
+                      <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
                         {item.detail}
                       </span>
                     ) : null}
@@ -176,7 +176,7 @@ export function CreatorVerdictCard({ creatorName, handle, verdict }: CreatorVerd
             background: "var(--cc-card)",
           }}
         >
-          <h4 style={{ fontSize: 13, fontWeight: 700, color: "var(--cc-danger)", margin: 0 }}>
+          <h4 style={{ fontSize: "var(--cc-t-13)", fontWeight: 700, color: "var(--cc-danger)", margin: 0 }}>
             Blockers
           </h4>
           <ul
@@ -196,11 +196,11 @@ export function CreatorVerdictCard({ creatorName, handle, verdict }: CreatorVerd
               >
                 <span
                   aria-hidden="true"
-                  style={{ color: "var(--cc-danger)", fontSize: 12, lineHeight: "18px" }}
+                  style={{ color: "var(--cc-danger)", fontSize: "var(--cc-t-12)", lineHeight: "18px" }}
                 >
                   <XCircle size={14} color="var(--cc-danger)" />
                 </span>
-                <span style={{ fontSize: 13, color: "var(--cc-text)" }}>{blocker}</span>
+                <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text)" }}>{blocker}</span>
               </li>
             ))}
           </ul>

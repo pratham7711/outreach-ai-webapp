@@ -163,8 +163,8 @@ export default function ReportsPage() {
                     borderRadius: 10,
                     background: "var(--cc-primary)",
                     color: "white",
-                    fontSize: 14,
-                    fontWeight: 600,
+                    fontSize: "var(--cc-t-14)",
+                    fontWeight: "var(--cc-fw-strong)",
                     textDecoration: "none",
                   }}
                 >
@@ -210,11 +210,11 @@ export default function ReportsPage() {
       ) : (
         <Card variant="outlined" noPadding>
           <div className="rsp-table-wrap">
-          <table style={{ width: "100%", fontSize: 14, borderCollapse: "collapse" }}>
+          <table style={{ width: "100%", fontSize: "var(--cc-t-14)", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ background: "var(--cc-hover-bg)" }}>
                 {["Title", "Campaign", "Created", "Visibility", ""].map((h, i) => (
-                  <th key={i} style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", color: "var(--cc-text-muted)", padding: "12px 20px", textAlign: "left", letterSpacing: "0.05em" }}>{h}</th>
+                  <th key={i} className="cc-microlabel" style={{ padding: "12px 20px", textAlign: "left" }}>{h}</th>
                 ))}
               </tr>
             </thead>

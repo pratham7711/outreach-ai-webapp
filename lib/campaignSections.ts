@@ -15,12 +15,25 @@ import {
  * rendered, or neither. A hand-written union in the page was how /reviews and
  * /financials came to type-check while silently falling back to Performance.
  */
+/* Ordered to CreatorCore's campaign rail. MEASURED 2026-09-14 off their own
+   capture -- `campaign.rail` reads exactly
+   "Overview / Creators / Drafts / Posts / Analytics / Financials / Documents /
+   Settings" (8 rows, 50px pitch, zero gap).
+
+   Their eight sit here in exactly that relative sequence. Performance and
+   Reviews are ours alone -- they have no counterpart, and parity is not a reason
+   to delete a feature -- so they slot beside Analytics, where a report belongs,
+   rather than being wedged into their run and breaking it.
+
+   Leading with Overview also makes the rail agree with the landing tab: before
+   this, Performance led while CAMPAIGN_DEFAULT_SECTION resolved to a different
+   row, so the first row was never the one you arrived on. */
 export const CAMPAIGN_SECTIONS = [
-  { value: "performance", label: "Performance", icon: Activity },
   { value: "overview", label: "Overview", icon: ClipboardList },
+  { value: "creators", label: "Creators", icon: Users, count: "creators" },
   { value: "drafts", label: "Drafts", icon: FileEdit, count: "drafts" },
   { value: "posts", label: "Posts", icon: FileText, count: "posts" },
-  { value: "creators", label: "Creators", icon: Users, count: "creators" },
+  { value: "performance", label: "Performance", icon: Activity },
   { value: "reviews", label: "Reviews", icon: Star },
   { value: "analytics", label: "Analytics", icon: BarChart2 },
   { value: "financials", label: "Financials", icon: Wallet },
@@ -33,9 +46,24 @@ export type CampaignSection = (typeof CAMPAIGN_SECTIONS)[number]["value"];
 /** The counts the rail badges. Absent or zero renders no badge. */
 export type CampaignSectionCounts = Partial<Record<"drafts" | "posts" | "creators", number>>;
 
-/* Posts, not Performance. Opening a campaign, the question is almost always
-   "what has gone out" -- the report is what you go to afterwards. */
-export const CAMPAIGN_DEFAULT_SECTION: CampaignSection = "posts";
+/* Overview, to match CreatorCore.
+
+   The brief said "if by default they are on posts page and not on performance
+   we will also be on post page" -- the rule being "pair our default to theirs".
+   MEASURED 2026-09-14, and the premise was wrong: theirs is neither Posts nor
+   Performance. Opening a campaign the way a user does (campaigns list -> click
+   the campaign name) lands on `&sub=Overview`, with Overview carrying the rail's
+   active background. Verified on two campaigns (PLAYLIST (AUG), MONTAGEM KALI)
+   and it is FIXED, not sticky -- PLAYLIST re-opens on Overview immediately after
+   being navigated to Analytics. The control passes: clicking Analytics does move
+   the highlight, so the resolver is reading real state.
+
+   So the rule is applied to the real fact rather than the assumed one. This is
+   deliberately NOT theme-scoped: which tab you land on is product behaviour, and
+   a landing tab that changed when you toggled the theme would be a bug, not
+   parity. One line to revert to "posts" if the preference was for Posts itself
+   rather than for matching them. */
+export const CAMPAIGN_DEFAULT_SECTION: CampaignSection = "overview";
 
 export function campaignSectionFromParam(raw: string | null): CampaignSection {
   return CAMPAIGN_SECTIONS.some((s) => s.value === raw)

@@ -359,7 +359,7 @@ export default function TrackersPage() {
             {limits?.max != null ? (
               <span
                 style={{
-                  fontSize: 13,
+                  fontSize: "var(--cc-t-13)",
                   alignSelf: "center",
                   color: atLimit ? "var(--cc-warning)" : "var(--cc-text-muted)",
                 }}
@@ -411,8 +411,8 @@ export default function TrackersPage() {
             style={{
               padding: "10px 32px",
               borderRadius: 10,
-              fontSize: 14,
-              fontWeight: 600,
+              fontSize: "var(--cc-t-14)",
+              fontWeight: "var(--cc-fw-strong)",
               cursor: "pointer",
               border: "1px solid var(--cc-primary)",
               background: sub === t.key ? "var(--cc-primary)" : "var(--cc-card)",
@@ -506,7 +506,7 @@ export default function TrackersPage() {
               flexWrap: "wrap",
             }}
           >
-            <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)" }}>Sound Trackers</span>
+            <span className="cc-panel-title">Sound Trackers</span>
             <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
               <div style={{ minWidth: 200 }}>
                 <Input
@@ -525,8 +525,8 @@ export default function TrackersPage() {
                     style={{
                       padding: "5px 12px",
                       borderRadius: 8,
-                      fontSize: 13,
-                      fontWeight: 600,
+                      fontSize: "var(--cc-t-13)",
+                      fontWeight: "var(--cc-fw-strong)",
                       cursor: "pointer",
                       border: "1px solid",
                       borderColor: period === p.key ? "var(--cc-primary)" : "var(--cc-border)",
@@ -539,7 +539,7 @@ export default function TrackersPage() {
                 ))}
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>Sort</span>
+                <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>Sort</span>
                 {SORTS.map((s) => (
                   <button
                     key={s.key}
@@ -547,8 +547,8 @@ export default function TrackersPage() {
                     style={{
                       padding: "5px 10px",
                       borderRadius: 8,
-                      fontSize: 13,
-                      fontWeight: 600,
+                      fontSize: "var(--cc-t-13)",
+                      fontWeight: "var(--cc-fw-strong)",
                       cursor: "pointer",
                       border: "1px solid",
                       borderColor: sort === s.key ? "var(--cc-primary)" : "var(--cc-border)",
@@ -601,13 +601,13 @@ export default function TrackersPage() {
                     style={{
                       display: "block", width: "100%", textAlign: "left",
                       background: "none", border: "none", padding: 0, cursor: "pointer",
-                      fontWeight: 600, fontSize: 14, color: "var(--cc-text)",
+                      fontWeight: "var(--cc-fw-strong)", fontSize: "var(--cc-t-14)", color: "var(--cc-text)",
                       overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
                     }}
                   >
                     {s.title}
                   </button>
-                  <div style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{s.artist || "Unknown artist"}</div>
+                  <div style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>{s.artist || "Unknown artist"}</div>
                 </div>
                 {/* Trend and read-health never share a slot. A sound that is
                     genuinely losing uses and a sound nobody has read in a week
@@ -625,7 +625,7 @@ export default function TrackersPage() {
                   <div
                     style={{
                       fontWeight: 700,
-                      fontSize: 14,
+                      fontSize: "var(--cc-t-14)",
                       color: "var(--cc-text)",
                       // A dated number is still useful; a dated number dressed
                       // as a current one is not. Dim it and say when it is from.
@@ -646,7 +646,7 @@ export default function TrackersPage() {
                        time, and printing "/ 24h" over a ten-day gain overstated
                        the rate by a factor of ten. */
                     <div
-                      style={{ fontSize: 12, color: added >= 0 ? "var(--cc-primary)" : "var(--cc-danger)" }}
+                      style={{ fontSize: "var(--cc-t-12)", color: added >= 0 ? "var(--cc-primary)" : "var(--cc-danger)" }}
                       title={
                         spanLabel !== periodLabel(period)
                           ? `Only ${spanLabel} of readings are available inside the ${periodLabel(period)} window.`
@@ -664,14 +664,14 @@ export default function TrackersPage() {
                     // 24hr" computed from two readings a minute apart nine days
                     // ago, say plainly that nobody has looked since.
                     <div
-                      style={{ fontSize: 12, color: "var(--cc-warning)" }}
+                      style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-warning)" }}
                       title={`Readings stopped on ${formatDateAbs(s.lastReadAt)}. The count above is the last known value, not a current one.`}
                     >
                       last read {timeAgo(s.lastReadAt)}
                     </div>
                   ) : (
                     <div
-                      style={{ fontSize: 12, color: "var(--cc-text-muted)" }}
+                      style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}
                       title={
                         s.health === "pending"
                           ? "First reading usually lands within four hours"
@@ -691,7 +691,7 @@ export default function TrackersPage() {
                   {s.health === "live" ? (
                     <LastUpdated at={snap?.recordedAt ?? null} neverLabel="Never read" prefix="Read" />
                   ) : null}
-                  <span style={{ fontSize: 11, color: "var(--cc-text-subtle)" }}>
+                  <span style={{ fontSize: "var(--cc-t-11)", color: "var(--cc-text-subtle)" }}>
                     Tracked since {formatDateAbs(s.trackedSince)}
                   </span>
                 </div>
@@ -735,7 +735,7 @@ export default function TrackersPage() {
         </div>
       }>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <label htmlFor="sound-url" style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>
+          <label htmlFor="sound-url" style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>
             TikTok sound link
           </label>
           <Input
@@ -749,11 +749,11 @@ export default function TrackersPage() {
             aria-describedby={clientError ? "sound-url-error" : "sound-url-help"}
           />
           {clientError ? (
-            <div id="sound-url-error" role="alert" style={{ fontSize: 12, color: "var(--cc-danger)" }}>
+            <div id="sound-url-error" role="alert" style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-danger)" }}>
               {clientError}
             </div>
           ) : (
-            <div id="sound-url-help" style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>
+            <div id="sound-url-help" style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
               Open the sound&apos;s own page — tap the spinning record on any video, or the sound
               name at the bottom — then copy that link. The title and artwork fill in
               automatically after the first reading. Instagram audio is not supported yet.

@@ -91,8 +91,8 @@ function counters(p: Post): string {
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <div style={{ fontSize: 12, color: "var(--cc-text-muted)", marginBottom: 4 }}>{label}</div>
-      <div style={{ fontSize: 20, fontWeight: 700, color: "var(--cc-text)" }}>{value}</div>
+      <div style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: "var(--cc-t-20)", fontWeight: 700, color: "var(--cc-text)" }}>{value}</div>
     </div>
   );
 }
@@ -112,7 +112,7 @@ function PlatformHeader({ block }: { block: PlatformInsights }) {
     >
       <div
         style={{
-          fontSize: 15,
+          fontSize: "var(--cc-t-15)",
           fontWeight: 700,
           color: "var(--cc-text)",
           display: "inline-flex",
@@ -125,7 +125,7 @@ function PlatformHeader({ block }: { block: PlatformInsights }) {
           <BadgeCheck size={14} color="var(--cc-primary)" aria-label="Verified" />
         )}
       </div>
-      <div style={{ fontSize: 12, color: "var(--cc-text-subtle)" }}>
+      <div style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-subtle)" }}>
         {block.profileUrl ? (
           <a
             href={block.profileUrl}
@@ -150,7 +150,7 @@ function Bio({ text }: { text: string | null }) {
   return (
     <p
       style={{
-        fontSize: 13,
+        fontSize: "var(--cc-t-13)",
         color: "var(--cc-text-muted)",
         marginTop: -8,
         marginBottom: 16,
@@ -168,10 +168,10 @@ function PlatformBlock({ block }: { block: PlatformInsights }) {
   if (block.needsReconnect) {
     return (
       <Card variant="outlined" style={{ padding: 20 }}>
-        <div style={{ fontSize: 15, fontWeight: 700, color: "var(--cc-text)", marginBottom: 6 }}>
+        <div style={{ fontSize: "var(--cc-t-15)", fontWeight: 700, color: "var(--cc-text)", marginBottom: 6 }}>
           Reconnect {meta.label}
         </div>
-        <p style={{ fontSize: 13, color: "var(--cc-text-muted)", marginBottom: 14 }}>
+        <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", marginBottom: 14 }}>
           Your {meta.label} authorisation has lapsed, so we can&rsquo;t refresh the numbers for{" "}
           {block.handle}.
         </p>
@@ -193,7 +193,7 @@ function PlatformBlock({ block }: { block: PlatformInsights }) {
       <Card variant="outlined" style={{ padding: 20 }}>
         <PlatformHeader block={block} />
         <Bio text={block.bio} />
-        <p style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>
+        <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
           {meta.label} is connected. Publish a public post and your performance will show up here
           automatically.
         </p>
@@ -228,10 +228,10 @@ function PlatformBlock({ block }: { block: PlatformInsights }) {
             marginBottom: 16,
           }}
         >
-          <div style={{ fontSize: 12, color: "var(--cc-text-muted)", marginBottom: 4 }}>
+          <div style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", marginBottom: 4 }}>
             Best performing post &middot; {counters(block.bestPost)}
           </div>
-          <div style={{ fontSize: 13, color: "var(--cc-text)", display: "flex", gap: 8 }}>
+          <div style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text)", display: "flex", gap: 8 }}>
             <span
               style={{
                 overflow: "hidden",
@@ -269,7 +269,7 @@ function PlatformBlock({ block }: { block: PlatformInsights }) {
               display: "flex",
               justifyContent: "space-between",
               gap: 12,
-              fontSize: 13,
+              fontSize: "var(--cc-t-13)",
               color: "var(--cc-text-muted)",
             }}
           >

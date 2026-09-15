@@ -70,7 +70,7 @@ function ScoreChip({ label, section }: ScoreChipProps) {
           borderRadius: 8,
           border: `2px solid ${token}`,
           color: token,
-          fontSize: 13,
+          fontSize: "var(--cc-t-13)",
           fontWeight: 700,
         }}
       >
@@ -81,7 +81,7 @@ function ScoreChip({ label, section }: ScoreChipProps) {
           {label}
         </Badge>
         {section.confidence ? (
-          <span style={{ fontSize: 11, color: "var(--cc-text-muted)" }}>
+          <span style={{ fontSize: "var(--cc-t-11)", color: "var(--cc-text-muted)" }}>
             {CONFIDENCE_LABEL[section.confidence]}
           </span>
         ) : null}
@@ -103,11 +103,11 @@ export function CreatorScoreCard({
   return (
     <Card variant="outlined" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <h3 style={{ fontSize: 18, fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>
+        <h3 style={{ fontSize: "var(--cc-t-18)", fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>
           {creatorName}
         </h3>
         {handle ? (
-          <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{`@${handle}`}</span>
+          <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{`@${handle}`}</span>
         ) : null}
       </div>
 

@@ -8,6 +8,16 @@ export type PageHeaderProps = {
   actions?: React.ReactNode;
   /** Rendered between the title block and the actions, e.g. a freshness chip. */
   meta?: React.ReactNode;
+  /**
+   * The record count for a list page — "200 Creators", "19 Lists".
+   *
+   * Rendered as a SIBLING below the header row, not inside it, because that is
+   * where CreatorCore puts it: MEASURED 2026-09-14, their stack on a list page
+   * is header strip -> caption -> filter bar, and ours had nothing in the middle
+   * slot. Putting it in `subtitle` instead would place it inside the strip and
+   * leave the gap it is meant to fill.
+   */
+  caption?: React.ReactNode;
   className?: string;
   style?: React.CSSProperties;
 };
@@ -26,8 +36,9 @@ export type PageHeaderProps = {
  * rule — which is why `.creatorcore` needed three `!important` declarations to
  * reach its own 24px/700. Those are deleted along with the constant.
  */
-export function PageHeader({ title, subtitle, actions, meta, className, style }: PageHeaderProps) {
+export function PageHeader({ title, subtitle, actions, meta, caption, className, style }: PageHeaderProps) {
   return (
+    <>
     <div className={`rsp-header ${className ?? ""}`} style={style} data-region="page-header" data-parity="page.header-strip">
       <div className="cc-page-heading">
         <h1 className="cc-page-title" data-parity="page.title">{title}</h1>
@@ -40,5 +51,9 @@ export function PageHeader({ title, subtitle, actions, meta, className, style }:
         </div>
       ) : null}
     </div>
+    {caption ? (
+      <p className="cc-page-caption" data-region="page-caption">{caption}</p>
+    ) : null}
+    </>
   );
 }

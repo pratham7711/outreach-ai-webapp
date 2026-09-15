@@ -26,27 +26,29 @@ export function SectionCard({
   children,
 }: SectionCardProps) {
   return (
-    <Card className={`gap-0 overflow-hidden py-0 ${className ?? ""}`}>
-      <div className="flex items-start justify-between gap-4 border-b border-border px-6 py-4">
-        <div className="flex items-start gap-3">
-          <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-accent">
+    <Card className={`cc-section-card gap-0 overflow-hidden py-0 ${className ?? ""}`}>
+      <div className="cc-section-card-head flex items-start justify-between gap-4 border-b border-border px-6 py-4">
+        <div className="cc-section-card-heading flex items-start gap-3">
+          <span className="cc-section-card-icon mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-accent">
             <Icon aria-hidden="true" className="size-4 text-accent-foreground" strokeWidth={2} />
           </span>
-          <div className="flex flex-col gap-0.5">
+          <div className="cc-section-card-headtext flex flex-col gap-0.5">
             <div className="flex items-center gap-1.5">
-              <h2 className="text-[15px] font-semibold tracking-[-0.01em] text-foreground">
-                {title}
-              </h2>
+              {/* The class carries the type; the Tailwind arbitrary value that
+                  was here (text-[15px] font-semibold) could not be re-pointed
+                  by a theme. MEASURED 2026-09-14: their section heading is
+                  18px/400 and ours was 15px/600, on every settings section. */}
+              <h2 className="cc-section-card-title text-foreground">{title}</h2>
               {metric ? <MetricHint metric={metric} /> : null}
             </div>
             {description ? (
-              <p className="text-xs leading-snug text-muted-foreground">{description}</p>
+              <p className="cc-section-card-desc text-xs leading-snug text-muted-foreground">{description}</p>
             ) : null}
           </div>
         </div>
-        {action}
+        {action ? <div className="cc-section-card-action">{action}</div> : null}
       </div>
-      <div className={padded ? "px-6 py-5" : ""}>{children}</div>
+      <div className={`cc-section-card-body ${padded ? "px-6 py-5" : ""}`}>{children}</div>
     </Card>
   );
 }

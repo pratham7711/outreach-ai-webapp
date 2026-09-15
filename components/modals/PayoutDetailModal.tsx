@@ -62,8 +62,8 @@ export default function PayoutDetailModal({
 
   const detailRow = (label: string, value: React.ReactNode) => (
     <div style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid var(--cc-border)" }}>
-      <span style={{ fontSize: 13, color: "var(--cc-text-muted)", fontWeight: 500 }}>{label}</span>
-      <span style={{ fontSize: 13, color: "var(--cc-text)", fontWeight: 600, textAlign: "right" }}>{value}</span>
+      <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", fontWeight: 500 }}>{label}</span>
+      <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text)", fontWeight: "var(--cc-fw-strong)", textAlign: "right" }}>{value}</span>
     </div>
   );
 
@@ -73,11 +73,11 @@ export default function PayoutDetailModal({
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20, padding: "12px 16px", background: "var(--cc-bg)", borderRadius: 10 }}>
         <Avatar name={payout.creator.name} size="md" />
         <div style={{ flex: 1 }}>
-          <p style={{ fontSize: 15, fontWeight: 700, color: "var(--cc-text)" }}>{payout.creator.name}</p>
-          <p style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>@{payout.creator.handle} · {payout.creator.platform}</p>
+          <p style={{ fontSize: "var(--cc-t-15)", fontWeight: 700, color: "var(--cc-text)" }}>{payout.creator.name}</p>
+          <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>@{payout.creator.handle} · {payout.creator.platform}</p>
         </div>
         <div style={{ textAlign: "right" }}>
-          <p style={{ fontSize: 20, fontWeight: 800, color: "var(--cc-text)" }}>{formatCurrency(payout.amount, payout.currency)}</p>
+          <p style={{ fontSize: "var(--cc-t-20)", fontWeight: "var(--cc-fw-black)", color: "var(--cc-text)" }}>{formatCurrency(payout.amount, payout.currency)}</p>
           <Badge variant={STATUS_VARIANT[payout.status] ?? "neutral"} dot>{payout.status}</Badge>
         </div>
       </div>
@@ -104,13 +104,13 @@ export default function PayoutDetailModal({
               <div style={{
                 width: 28, height: 28, borderRadius: "50%",
                 display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: 11, fontWeight: 700,
+                fontSize: "var(--cc-t-11)", fontWeight: 700,
                 background: isActive ? "var(--cc-primary)" : isPast ? "var(--cc-success)" : isFailed ? "#DC2626" : "var(--cc-border)",
                 color: isActive || isPast || isFailed ? "white" : "var(--cc-text-muted)",
               }}>
                 {isPast ? <CheckCircle2 size={16} color="currentColor" /> : i + 1}
               </div>
-              <span style={{ fontSize: 11, color: isActive ? "var(--cc-text)" : "var(--cc-text-muted)", fontWeight: isActive ? 600 : 400 }}>{s}</span>
+              <span style={{ fontSize: "var(--cc-t-11)", color: isActive ? "var(--cc-text)" : "var(--cc-text-muted)", fontWeight: isActive ? 600 : 400 }}>{s}</span>
               {i < 2 && <ArrowRight size={14} style={{ color: "var(--cc-text-subtle)" }} />}
             </div>
           );

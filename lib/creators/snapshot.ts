@@ -9,6 +9,7 @@ import {
   type CreatorReadResult,
   type TopPost,
 } from "@/lib/platforms/creatorProfile";
+import { followerLadder, keepPrecise } from "@/lib/platforms/precision";
 import { readTikTokTopPostsOfficial } from "@/lib/platforms/tiktokTopPostsOfficial";
 import {
   readTikTokTopPostsEmbed,
@@ -183,6 +184,8 @@ export async function snapshotCreators(
       orgId: true,
       handle: true,
       platform: true,
+      /* Read only to refuse a lossy overwrite below -- see keepPrecise. */
+      followersCount: true,
       topPostsAt: true,
       topPostsSource: true,
       trackerSnapshots: {
@@ -526,13 +529,30 @@ export async function snapshotCreators(
     if (!topPostsSource && profile.topPosts?.length) topPostsSource = "platform";
 
     const recordedAt = new Date();
+
+    /* A platform that only publishes a rendered figure must not be allowed to
+       grind down an exact one we already hold. YouTube's Data API rounds
+       subscriberCount to three significant figures above 1,000 and offers
+       nothing better; TikTok's profile statsV2 and Instagram's followers_count
+       are exact, and take the exact ladder, so this changes nothing for them.
+
+       It has to happen before the delta, not just at the write: a series that
+       alternates an exact 1,234,567 with a rounded 1,230,000 reports a 4,567
+       drop and a negative velocity for a channel that only grew. */
+    const followersCount =
+      keepPrecise(
+        profile.followersCount,
+        creator.followersCount,
+        followerLadder(creator.platform),
+      ) ?? profile.followersCount;
+
     const deltaFollowers = previous
-      ? Math.round(profile.followersCount - previous.followersCount)
+      ? Math.round(followersCount - previous.followersCount)
       : 0;
     // Percentage growth against the previous reading, matching how the sound
     // tracker stores velocityScore on each snapshot.
     const velocityScore = previous
-      ? velocityBetween(previous.followersCount, profile.followersCount)
+      ? velocityBetween(previous.followersCount, followersCount)
       : 0;
 
     /* The one unguarded await in the sweep, and the only write that ends it.
@@ -547,7 +567,7 @@ export async function snapshotCreators(
         db.creatorTrackerSnapshot.create({
           data: {
             creatorId: creator.id,
-            followersCount: profile.followersCount,
+            followersCount,
             postsCount: profile.postsCount,
             avgViews: profile.avgViews,
             deltaFollowers,
@@ -564,7 +584,7 @@ export async function snapshotCreators(
         db.creator.update({
           where: { id: creator.id },
           data: {
-            followersCount: profile.followersCount,
+            followersCount,
             ...(profile.sampledPosts > 0 ? { averageViews: profile.avgViews } : {}),
             /* topPosts only moves forward -- an absent list on this read means
                "not measured here", never "the posts are gone". */

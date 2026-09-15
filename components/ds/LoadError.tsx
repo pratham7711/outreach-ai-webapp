@@ -43,8 +43,8 @@ export function LoadError({
     >
       <AlertTriangle size={20} color="var(--cc-danger)" aria-hidden="true" style={{ flexShrink: 0, marginTop: 2 }} />
       <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{ fontSize: 15, fontWeight: 600, color: "var(--cc-text)", margin: "0 0 4px" }}>{title}</p>
-        <p style={{ fontSize: 13, color: "var(--cc-text-muted)", margin: "0 0 14px" }}>{description}</p>
+        <p style={{ fontSize: "var(--cc-t-15)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", margin: "0 0 4px" }}>{title}</p>
+        <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", margin: "0 0 14px" }}>{description}</p>
         <Button variant="secondary" size="sm" loading={retrying} onClick={onRetry} iconLeft={<RotateCw size={14} />}>
           Try again
         </Button>

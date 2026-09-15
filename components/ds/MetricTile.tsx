@@ -75,8 +75,12 @@ export function MetricTile({
 
   const body = (
     <>
-      <div className="flex items-center gap-1.5">
-        <span className="text-[11px] font-medium tracking-[0.06em] text-muted-foreground uppercase">
+      {/* min-w-0 on the row and on the label: the hint beside it is a 44px
+          touch target that must not shrink, so when the tile is narrow the
+          label is what gives way. Without this the button painted 7.5px
+          outside the tile at a 390px window. MEASURED 2026-09-15. */}
+      <div className="flex min-w-0 items-center gap-1.5">
+        <span className="cc-metric-label min-w-0 truncate">
           {displayLabel}
         </span>
         <MetricHint metric={metric} label={displayLabel} what={what} how={how} />

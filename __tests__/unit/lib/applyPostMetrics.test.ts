@@ -19,17 +19,22 @@ const mockUpdate = jest.fn();
 const mockTransaction = jest.fn();
 const mockSnapshotCreate = jest.fn();
 const mockCreatorUpdate = jest.fn();
+const mockCreatorUpdateMany = jest.fn();
 
 jest.mock("@/lib/db", () => ({
   db: {
     post: { update: (...a: any[]) => mockUpdate(...a) },
     postMetricSnapshot: { create: (...a: any[]) => mockSnapshotCreate(...a) },
-    creator: { update: (...a: any[]) => mockCreatorUpdate(...a) },
+    creator: {
+      update: (...a: any[]) => mockCreatorUpdate(...a),
+      updateMany: (...a: any[]) => mockCreatorUpdateMany(...a),
+    },
     $transaction: (...a: any[]) => mockTransaction(...a),
   },
 }));
 
-import { applyPostMetrics } from "@/lib/sync/syncPost";
+import { applyPostMetrics, keepPrecise } from "@/lib/sync/syncPost";
+import { EXACT, TIKTOK_DISPLAY, YOUTUBE_SUBSCRIBERS } from "@/lib/platforms/precision";
 import type { PostMetrics } from "@/lib/platforms/fetchPostMetrics";
 
 const post = {
@@ -60,6 +65,7 @@ beforeEach(() => {
   mockUpdate.mockReset().mockResolvedValue({ id: "post_1" });
   mockSnapshotCreate.mockReset().mockResolvedValue({});
   mockCreatorUpdate.mockReset().mockResolvedValue({});
+  mockCreatorUpdateMany.mockReset().mockResolvedValue({ count: 1 });
   // The real $transaction resolves the array it is handed; the calls inside it
   // have already been made by the time it runs, which is what we assert on.
   mockTransaction.mockReset().mockImplementation(async (ops: unknown[]) => {
@@ -252,5 +258,125 @@ describe("applyPostMetrics — recording the cause never costs the bag", () => {
 
     expect(mockUpdate.mock.calls[0][0].data.platformMetrics.__lastFetch.reason)
       .toBe("platform-refused");
+  });
+});
+
+describe("a rounded read never destroys an exact figure", () => {
+  /* TikTok's page serves counters at display precision above 10,000 -- 11.1K,
+     563.3K, 15.5M -- while the CreatorCore import holds the platform's exact
+     ones. 29 posts had the exact figure replaced by the rounded one, once an
+     hour, for good. */
+
+  it("keeps the stored exact count when the read only rounds to it", async () => {
+    /* The shape actually measured on 2026-09-15: the page abbreviated views and
+       likes and printed the comment count in full, in one payload. */
+    await applyPostMetrics(
+      { ...post, platform: "TIKTOK", viewsCount: 15_512_345, likesCount: 1_911_223 } as any,
+      metrics({ viewsCount: 15_500_000, likesCount: 1_900_000, commentsCount: 5595 }),
+    );
+
+    const data = postWriteData();
+    expect(data.viewsCount).toBe(15_512_345);
+    expect(data.likesCount).toBe(1_911_223);
+    // Exact on the wire, so it passes straight through.
+    expect(data.commentsCount).toBe(5595);
+  });
+
+  it("takes the new figure once the count has grown past the rounding", async () => {
+    await applyPostMetrics(
+      { ...post, platform: "TIKTOK", viewsCount: 11094 } as any,
+      metrics({ viewsCount: 24500 }),
+    );
+
+    expect(postWriteData().viewsCount).toBe(24500);
+  });
+
+  it("does not apply when the caller did not select the counters", async () => {
+    await applyPostMetrics({ ...post, platform: "TIKTOK" } as any, metrics({ viewsCount: 11100 }));
+    expect(postWriteData().viewsCount).toBe(11100);
+  });
+
+  describe("keepPrecise", () => {
+    it("leaves a counter below TikTok's abbreviation threshold alone", () => {
+      expect(keepPrecise(9319, 9000, TIKTOK_DISPLAY)).toBe(9319);
+    });
+
+    it("leaves a figure that is not on the display grid alone", () => {
+      expect(keepPrecise(235138, 235000, TIKTOK_DISPLAY)).toBe(235138);
+    });
+
+    it("prefers neither when the stored figure is itself rounded", () => {
+      expect(keepPrecise(11100, 11000, TIKTOK_DISPLAY)).toBe(11100);
+    });
+
+    it("keeps the exact figure inside the rounding window, either direction", () => {
+      // Truncation would put the true count in [11100, 11200); round-to-nearest
+      // in [11050, 11150). Both are honoured, because a platform that rounds the
+      // other way must not lose the guard.
+      expect(keepPrecise(11100, 11094, TIKTOK_DISPLAY)).toBe(11094);
+      expect(keepPrecise(11100, 11163, TIKTOK_DISPLAY)).toBe(11163);
+    });
+
+    it("steps by 100k in the millions", () => {
+      expect(keepPrecise(15_500_000, 15_512_345, TIKTOK_DISPLAY)).toBe(15_512_345);
+      expect(keepPrecise(15_500_000, 12_000_001, TIKTOK_DISPLAY)).toBe(15_500_000);
+    });
+
+    it("ignores an absent or zero stored figure", () => {
+      expect(keepPrecise(11100, undefined, TIKTOK_DISPLAY)).toBe(11100);
+      expect(keepPrecise(11100, 0, TIKTOK_DISPLAY)).toBe(11100);
+    });
+
+    it("passes an absent incoming counter through untouched", () => {
+      expect(keepPrecise(undefined, 11094, TIKTOK_DISPLAY)).toBeUndefined();
+    });
+
+    /* The ladder is the whole reason this takes a third argument: the same pair
+       of numbers is a lossy overwrite on one platform and an ordinary update on
+       another. */
+    it("never fires for a platform that publishes the digits", () => {
+      expect(keepPrecise(11100, 11094, EXACT)).toBe(11100);
+      expect(keepPrecise(2_400_000, 2_412_345, EXACT)).toBe(2_400_000);
+    });
+
+    it("protects a YouTube subscriber count at three significant figures", () => {
+      // YouTube renders 1,234,567 subscribers as 1.23M and the Data API answers
+      // 1230000 -- a step of 10,000, which TikTok's ladder would not see at all.
+      expect(keepPrecise(1_230_000, 1_234_567, YOUTUBE_SUBSCRIBERS)).toBe(1_234_567);
+      expect(keepPrecise(1_230_000, 1_234_567, TIKTOK_DISPLAY)).toBe(1_230_000);
+    });
+
+    it("lets a YouTube channel that genuinely grew past the window through", () => {
+      expect(keepPrecise(1_240_000, 1_234_567, YOUTUBE_SUBSCRIBERS)).toBe(1_240_000);
+    });
+
+    it("leaves a YouTube figure below the rounding threshold alone", () => {
+      expect(keepPrecise(900, 894, YOUTUBE_SUBSCRIBERS)).toBe(900);
+    });
+  });
+
+  describe("the follower write refuses a lossy overwrite", () => {
+    it("scopes a rounded TikTok figure to rows outside its window", async () => {
+      await applyPostMetrics(
+        { ...post, platform: "TIKTOK" } as any,
+        metrics({ viewsCount: 100, authorFollowers: 1_600_000 }),
+      );
+      const call = mockCreatorUpdateMany.mock.calls[0][0];
+      expect(call.where.id).toBe(post.creatorId);
+      expect(call.where.OR).toEqual([
+        { followersCount: { lt: 1_550_000 } },
+        { followersCount: { gte: 1_700_000 } },
+      ]);
+      expect(call.data).toEqual({ followersCount: 1_600_000 });
+    });
+
+    it("writes an exact figure unconditionally", async () => {
+      await applyPostMetrics(
+        { ...post, platform: "INSTAGRAM" } as any,
+        metrics({ viewsCount: 100, authorFollowers: 215_293 }),
+      );
+      const call = mockCreatorUpdateMany.mock.calls[0][0];
+      expect(call.where).toEqual({ id: post.creatorId });
+    });
   });
 });

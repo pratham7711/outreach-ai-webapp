@@ -21,7 +21,7 @@ export function LegalSection({
     <section style={{ marginBottom: 40 }}>
       <h2
         style={{
-          fontSize: 18,
+          fontSize: "var(--cc-t-18)",
           fontWeight: 700,
           color: "var(--cc-text)",
           marginBottom: 12,
@@ -31,7 +31,7 @@ export function LegalSection({
       </h2>
       <div
         style={{
-          fontSize: 14,
+          fontSize: "var(--cc-t-14)",
           lineHeight: 1.7,
           color: "var(--cc-text)",
           display: "flex",
@@ -66,8 +66,8 @@ export function LegalShell({
         <Link
           href="/"
           style={{
-            fontSize: 13,
-            fontWeight: 600,
+            fontSize: "var(--cc-t-13)",
+            fontWeight: "var(--cc-fw-strong)",
             color: "var(--cc-primary)",
             textDecoration: "none",
           }}
@@ -77,7 +77,7 @@ export function LegalShell({
 
         <h1
           style={{
-            fontSize: 32,
+            fontSize: "var(--cc-t-32)",
             fontWeight: 700,
             color: "var(--cc-text)",
             margin: "20px 0 8px",
@@ -85,12 +85,12 @@ export function LegalShell({
         >
           {title}
         </h1>
-        <p style={{ fontSize: 13, color: "var(--cc-text-muted)", marginBottom: 24 }}>
+        <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", marginBottom: 24 }}>
           Last updated {LEGAL.updated}
         </p>
         <p
           style={{
-            fontSize: 15,
+            fontSize: "var(--cc-t-15)",
             lineHeight: 1.7,
             color: "var(--cc-text)",
             marginBottom: 40,
@@ -110,7 +110,7 @@ export function LegalShell({
             borderTop: "1px solid var(--cc-border)",
             display: "flex",
             gap: 20,
-            fontSize: 13,
+            fontSize: "var(--cc-t-13)",
           }}
         >
           <Link href="/privacy" style={{ color: "var(--cc-primary)", textDecoration: "none" }}>

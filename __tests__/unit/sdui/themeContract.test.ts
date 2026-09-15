@@ -90,7 +90,19 @@ describe("theme token contract", () => {
       "--cc-sidebar-w": "15.31%",
       "--cc-page-pad-inline": "3.4%",
     });
-    expect(file.modes.creatorcore["--cc-action-min-w"]).toBe("11.25rem");
-    expect(file.modes.creatorcore["--cc-action-h"]).toBe("2.5rem");
+    /* The action button is a ladder, not one value, and the ladder is the
+       parity result: 40px square below 768, their 11.25rem/2.5rem from 768,
+       the zoom-frozen 180px/40px from 1024, and the ratio again from 1600.
+       Each rung mirrors a media query in globals.css (~1837, 1880, 1897,
+       1926); asserting only the base used to let three of the four drift. */
+    expect(file.modes.creatorcore["--cc-action-min-w"]).toBe("40px");
+    expect(file.modes.creatorcore["--cc-action-h"]).toBe("40px");
+
+    const rung = (minWidth: number) =>
+      file.responsive.find((r: { minWidth: number }) => r.minWidth === minWidth)?.modes.creatorcore;
+
+    expect(rung(768)).toMatchObject({ "--cc-action-min-w": "11.25rem", "--cc-action-h": "2.5rem" });
+    expect(rung(1024)).toMatchObject({ "--cc-action-min-w": "180px", "--cc-action-h": "40px" });
+    expect(rung(1600)).toMatchObject({ "--cc-action-min-w": "11.25vw", "--cc-action-h": "2.5vw" });
   });
 });

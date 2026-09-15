@@ -39,12 +39,12 @@ function StatCard({
         padding: "16px 18px",
       }}
     >
-      <div style={{ fontSize: 12, color: "var(--cc-text-muted)", marginBottom: 6 }}>{label}</div>
-      <div style={{ fontSize: 26, fontWeight: 700, color: "var(--cc-text)", lineHeight: 1.1 }}>
+      <div style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", marginBottom: 6 }}>{label}</div>
+      <div style={{ fontSize: "var(--cc-t-26)", fontWeight: 700, color: "var(--cc-text)", lineHeight: 1.1 }}>
         {value}
       </div>
       {hint && (
-        <div style={{ fontSize: 11, color: "var(--cc-text-muted)", marginTop: 6 }}>{hint}</div>
+        <div style={{ fontSize: "var(--cc-t-11)", color: "var(--cc-text-muted)", marginTop: 6 }}>{hint}</div>
       )}
     </div>
   );
@@ -61,11 +61,11 @@ function Section({
 }) {
   return (
     <section style={{ marginBottom: 32 }}>
-      <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--cc-text)", marginBottom: 2 }}>
+      <h2 style={{ fontSize: "var(--cc-t-16)", fontWeight: 700, color: "var(--cc-text)", marginBottom: 2 }}>
         {title}
       </h2>
       {subtitle && (
-        <p style={{ fontSize: 12, color: "var(--cc-text-muted)", margin: "0 0 12px" }}>{subtitle}</p>
+        <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: "0 0 12px" }}>{subtitle}</p>
       )}
       {children}
     </section>
@@ -88,14 +88,14 @@ function PlatformBreakdown({ stats }: { stats: PlatformStats }) {
   }, [stats]);
 
   if (!platforms.length) {
-    return <p style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>No creators yet.</p>;
+    return <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>No creators yet.</p>;
   }
 
   return (
     <div style={{ overflowX: "auto" }}>
-      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, minWidth: 520 }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "var(--cc-t-13)", minWidth: 520 }}>
         <thead>
-          <tr style={{ textAlign: "left", color: "var(--cc-text-muted)", fontSize: 12 }}>
+          <tr style={{ textAlign: "left", color: "var(--cc-text-muted)", fontSize: "var(--cc-t-12)"}}>
             <th style={{ padding: "8px 12px" }}>Platform</th>
             <th style={{ padding: "8px 12px", textAlign: "right" }}>Portal signups</th>
             <th style={{ padding: "8px 12px", textAlign: "right" }}>Agency rosters</th>
@@ -105,7 +105,7 @@ function PlatformBreakdown({ stats }: { stats: PlatformStats }) {
         <tbody>
           {platforms.map((p) => (
             <tr key={p} style={{ borderTop: "1px solid var(--cc-border)" }}>
-              <td style={{ padding: "10px 12px", fontWeight: 600, color: "var(--cc-text)" }}>{p}</td>
+              <td style={{ padding: "10px 12px", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{p}</td>
               <td style={{ padding: "10px 12px", textAlign: "right", color: "var(--cc-text)" }}>
                 {fmt(stats.creators.portalSignups.byPlatform[p] ?? 0)}
               </td>
@@ -157,9 +157,9 @@ function TenantTable({ tenants }: { tenants: TenantRow[] }) {
           overflowX: "auto",
         }}
       >
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, minWidth: 900 }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "var(--cc-t-13)", minWidth: 900 }}>
           <thead>
-            <tr style={{ textAlign: "left", color: "var(--cc-text-muted)", fontSize: 12 }}>
+            <tr style={{ textAlign: "left", color: "var(--cc-text-muted)", fontSize: "var(--cc-t-12)"}}>
               <th style={{ padding: "10px 12px" }}>Organization</th>
               <th style={{ padding: "10px 12px" }}>Tier</th>
               <th style={{ padding: "10px 12px" }}>Status</th>
@@ -175,18 +175,18 @@ function TenantTable({ tenants }: { tenants: TenantRow[] }) {
             {rows.map((t) => (
               <tr key={t.id} style={{ borderTop: "1px solid var(--cc-border)" }}>
                 <td style={{ padding: "10px 12px" }}>
-                  <div style={{ fontWeight: 600, color: "var(--cc-text)" }}>{t.name}</div>
-                  <div style={{ fontSize: 11, color: "var(--cc-text-muted)" }}>
+                  <div style={{ fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{t.name}</div>
+                  <div style={{ fontSize: "var(--cc-t-11)", color: "var(--cc-text-muted)" }}>
                     {t.subdomain} · {t.orgType}
                   </div>
                 </td>
                 <td style={{ padding: "10px 12px" }}>
-                  <Badge variant="neutral" style={{ fontSize: 11 }}>
+                  <Badge variant="neutral" style={{ fontSize: "var(--cc-t-11)"}}>
                     {t.plan}
                   </Badge>
                 </td>
                 <td style={{ padding: "10px 12px" }}>
-                  <Badge variant={statusTone(t.subscriptionStatus)} style={{ fontSize: 11 }}>
+                  <Badge variant={statusTone(t.subscriptionStatus)} style={{ fontSize: "var(--cc-t-11)"}}>
                     {t.subscriptionStatus}
                   </Badge>
                 </td>
@@ -333,7 +333,7 @@ export default function PlatformDashboardClient({ stats }: { stats: PlatformStat
         <TenantTable tenants={stats.tenants} />
       </Section>
 
-      <p style={{ fontSize: 11, color: "var(--cc-text-muted)" }}>
+      <p style={{ fontSize: "var(--cc-t-11)", color: "var(--cc-text-muted)" }}>
         Generated {new Date(stats.generatedAt).toUTCString()}
       </p>
     </div>

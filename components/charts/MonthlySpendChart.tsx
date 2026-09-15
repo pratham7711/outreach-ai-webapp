@@ -16,7 +16,7 @@ export default function MonthlySpendChart({ data }: { data: { month: string; spe
         <YAxis tick={{ fill: "var(--muted-foreground)", fontSize: 12 }} axisLine={false} tickLine={false} tickFormatter={(v) => `$${(v / 1000).toFixed(0)}K`} />
         <Tooltip
           formatter={(v) => [`$${Number(v ?? 0).toLocaleString()}`, "Spend"]}
-          contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 12, color: "var(--popover-foreground)", fontSize: 13 }}
+          contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 12, color: "var(--popover-foreground)", fontSize: "var(--cc-t-13)"}}
         />
         <Bar dataKey="spend" name="Spend" fill="var(--chart-1)" radius={[6, 6, 0, 0]} />
       </BarChart>

@@ -18,7 +18,7 @@ const chartTooltipStyle: React.CSSProperties = {
   border: "1px solid var(--border)",
   borderRadius: 12,
   color: "var(--popover-foreground)",
-  fontSize: 13,
+  fontSize: "var(--cc-t-13)",
 };
 
 export function MonthlyTrendArea({ data }: { data: MonthlyTrend[] }) {
@@ -38,7 +38,7 @@ export function MonthlyTrendArea({ data }: { data: MonthlyTrend[] }) {
           contentStyle={chartTooltipStyle}
           formatter={(v: any, name: any) => [v, name === "campaigns" ? "Total" : "Active"]}
         />
-        <Legend wrapperStyle={{ fontSize: 12 }} />
+        <Legend wrapperStyle={{ fontSize: "var(--cc-t-12)"}} />
         <Area
           type="monotone"
           dataKey="campaigns"
@@ -119,7 +119,7 @@ export function CampaignComparisonLine({
           contentStyle={chartTooltipStyle}
           formatter={(v: any, name: any) => [formatNumber(Number(v)), titleById[name] ?? name]}
         />
-        <Legend formatter={(value: any) => titleById[value] ?? value} wrapperStyle={{ fontSize: 12 }} />
+        <Legend formatter={(value: any) => titleById[value] ?? value} wrapperStyle={{ fontSize: "var(--cc-t-12)"}} />
         {selected.map((id) => (
           <Line
             key={id}

@@ -14,10 +14,7 @@ export default async function IntegrationsPage() {
 
   return (
     <div className="rsp-page page-enter">
-      <PageHeader
-        title="Integrations"
-        subtitle="Connect with Slack to receive updates and notifications directly in your selected channel."
-      />
+      <PageHeader title="Integrations Settings" />
       <IntegrationsClient />
     </div>
   );

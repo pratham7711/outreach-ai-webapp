@@ -62,13 +62,13 @@ export default function CreativeBriefCard({
   return (
     <Card variant="outlined" style={{ padding: 24 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-        <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)" }}>Creative Brief</span>
+        <span className="cc-panel-title">Creative Brief</span>
         {canEdit && !editing && (
           <button
             type="button"
             onClick={() => setEditing(true)}
             style={{
-              padding: "6px 14px", borderRadius: 8, fontSize: 13, fontWeight: 600,
+              padding: "6px 14px", borderRadius: 8, fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)",
               background: "white", border: "1.5px solid var(--cc-primary)",
               color: "var(--cc-primary)", cursor: "pointer",
             }}
@@ -83,7 +83,7 @@ export default function CreativeBriefCard({
               onClick={cancel}
               disabled={saving}
               style={{
-                padding: "6px 14px", borderRadius: 8, fontSize: 13, fontWeight: 600,
+                padding: "6px 14px", borderRadius: 8, fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)",
                 background: "transparent", border: "1px solid var(--cc-border)",
                 color: "var(--cc-text-muted)", cursor: saving ? "not-allowed" : "pointer",
               }}
@@ -95,7 +95,7 @@ export default function CreativeBriefCard({
               onClick={save}
               disabled={saving}
               style={{
-                padding: "6px 14px", borderRadius: 8, fontSize: 13, fontWeight: 600,
+                padding: "6px 14px", borderRadius: 8, fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)",
                 border: "none", color: "white", cursor: saving ? "not-allowed" : "pointer",
                 background: saving ? "var(--cc-border)" : "var(--cc-primary)",
               }}
@@ -116,7 +116,7 @@ export default function CreativeBriefCard({
       ) : saved ? (
         <RichTextEditor value={saved} editable={false} minHeight={0} />
       ) : (
-        <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>
+        <p style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text-muted)" }}>
           No brief yet.
         </p>
       )}

@@ -85,6 +85,38 @@ describe("parseTikTokRehydration", () => {
     expect(result!.viewsCount).toBe(0);
   });
 
+  it("prefers the exact statsV2 figure over the rounded stats one", () => {
+    // stats is what TikTok RENDERS -- 11.1K, 1.9M -- and it is the LARGER of
+    // the pair whenever the display rounds up, so reading the two with a
+    // max() stored 11,094 views as 11,100 and 1,911,223 likes as 1,900,000.
+    const result = parseTikTokRehydration(
+      page(
+        videoDetail({
+          stats: {
+            playCount: 11100,
+            diggCount: 1900000,
+            commentCount: 5595,
+            shareCount: 70100,
+            collectCount: 235200,
+          },
+          statsV2: {
+            playCount: "11094",
+            diggCount: "1911223",
+            commentCount: "5595",
+            shareCount: "70143",
+            collectCount: "235138",
+          },
+        }),
+      ),
+    );
+
+    expect(result!.viewsCount).toBe(11094);
+    expect(result!.likesCount).toBe(1911223);
+    expect(result!.commentsCount).toBe(5595);
+    expect(result!.sharesCount).toBe(70143);
+    expect(result!.savesCount).toBe(235138);
+  });
+
   it("reads collectCount as the saves figure", () => {
     // Verified against a live payload: stats carries collectCount alongside the
     // four we already parsed, as a string. It is what CreatorCore calls Total

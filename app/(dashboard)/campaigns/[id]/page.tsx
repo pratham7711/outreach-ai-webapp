@@ -1,6 +1,7 @@
 "use client";
 import type { CSSProperties } from "react";
 import { useState, useEffect, useCallback, use } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import { motion } from "framer-motion";
@@ -16,6 +17,7 @@ import RosterTable, { ROSTER_COLUMNS, ROSTER_DEFAULT_COLUMNS } from "./RosterTab
 import { readCampaignSection } from "@/lib/campaignSections";
 import { useCampaignNav } from "@/components/providers/CampaignNavProvider";
 import { CampaignAudioSetup } from "@/components/campaigns/CampaignAudioSetup";
+import { CAMPAIGN_HEADER_ACTIONS_ID } from "@/components/campaigns/CampaignHeaderActions";
 import InvitesSection from "./InvitesSection";
 import NegotiationsSection from "./NegotiationsSection";
 import ProposalsSection from "./ProposalsSection";
@@ -23,7 +25,7 @@ import ReviewsSection from "./ReviewsSection";
 import {
   Eye, Heart, MessageCircle, Share2, TrendingUp, Users,
   Calendar, Play, ExternalLink, DollarSign,
-  ClipboardList, BarChart3, Wallet, Trash2, AlertTriangle,
+  ClipboardList, BarChart3, Wallet, Trash2, AlertTriangle, X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatDateAbs, formatFull, formatFullCurrency, fitFigureSize } from "@/lib/format";
@@ -74,6 +76,19 @@ function formatNumber(num: number): string {
 function formatCurrency(n: number, currency = "USD") {
   return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(n);
 }
+
+/* Title case, not the raw enum. MEASURED 2026-09-14 at desktop-1600: their
+   campaign header's status reads `Complete`, and ours read `IN PROGRESS` --
+   the same place, the same size and the same colour, shouting. The map is
+   explicit rather than a generic de-snake, so a status whose reading is not
+   just its enum spelled out has somewhere to say so. */
+const STATUS_LABEL: Record<string, string> = {
+  DRAFT: "Draft",
+  PENDING: "Pending",
+  IN_PROGRESS: "In Progress",
+  COMPLETE: "Complete",
+  CANCELLED: "Cancelled",
+};
 
 const STATUS_BADGE: Record<string, "success" | "warning" | "accent" | "neutral"> = {
   DRAFT: "neutral",
@@ -180,11 +195,11 @@ const VISIBILITY_OPTIONS: { value: "PRIVATE" | "GLOBAL" | "INVITE_ONLY"; label: 
 ];
 
 const mktLabel: CSSProperties = {
-  display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6,
+  display: "block", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6,
 };
 const mktInput: CSSProperties = {
   width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-border)",
-  fontSize: 14, color: "var(--cc-text)", background: "var(--cc-card)", boxSizing: "border-box",
+  fontSize: "var(--cc-t-14)", color: "var(--cc-text)", background: "var(--cc-card)", boxSizing: "border-box",
 };
 const mktTextarea: CSSProperties = {
   ...mktInput, resize: "vertical", fontFamily: "inherit",
@@ -298,12 +313,12 @@ function CampaignTagsCard({
 
   return (
     <Card variant="outlined" style={{ padding: 24 }}>
-      <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)", display: "block", marginBottom: 12 }}>
+      <span className="cc-panel-title" style={{ display: "block", marginBottom: 12 }}>
         Tags
       </span>
 
       {selected.length === 0 ? (
-        <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>No tags added yet!</p>
+        <p style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text-muted)" }}>No tags added yet!</p>
       ) : (
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
           {selected.map((s) => (
@@ -312,7 +327,7 @@ function CampaignTagsCard({
               style={{
                 display: "inline-flex", alignItems: "center", gap: 6,
                 background: "var(--cc-bg)", border: "1px solid var(--cc-border)",
-                borderRadius: 8, padding: "6px 8px 6px 12px", fontSize: 13, color: "var(--cc-text)",
+                borderRadius: 8, padding: "6px 8px 6px 12px", fontSize: "var(--cc-t-13)", color: "var(--cc-text)",
               }}
             >
               {s.name}
@@ -342,14 +357,14 @@ function CampaignTagsCard({
           options={available.map((d) => ({ value: d.id, label: d.name }))}
         />
       ) : (
-        <p style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>
+        <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
           {(defs ?? []).length === 0
             ? "No campaign tags defined yet — add them in Settings → General."
             : "All tags applied."}
         </p>
       )}
 
-      {error && <p role="alert" style={{ marginTop: 8, fontSize: 12, color: "var(--cc-danger)" }}>{error}</p>}
+      {error && <p role="alert" style={{ marginTop: 8, fontSize: "var(--cc-t-12)", color: "var(--cc-danger)" }}>{error}</p>}
     </Card>
   );
 }
@@ -707,13 +722,59 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
           same landmarks it measures on every other screen -- without them the
           whole campaign shell reported UNRESOLVED and read as unmeasurable. */}
       <div className="cc-page-titlebar" data-region="page-header" data-parity="page.header-strip">
-        <h1 className="cc-page-title" data-parity="page.title">{campaign.title}</h1>
-        <Badge variant={STATUS_BADGE[campaign.status] ?? "neutral"}>{campaign.status.replace(/_/g, " ")}</Badge>
-        {campaign.campaignType && (
-          <Badge variant={CAMPAIGN_TYPE_BADGE[campaign.campaignType] ?? "neutral"}>
-            {CAMPAIGN_TYPE_LABELS[campaign.campaignType] ?? campaign.campaignType}
-          </Badge>
-        )}
+        {/* Title and status as ONE block, so a theme decides whether they sit
+            on a line or stack. MEASURED 2026-09-14 at desktop-1600: their
+            campaign header is two rows at the same x -- the title at y=38.3
+            (20px/700, brand indigo) and the status alone under it at y=73.3
+            (14px/400, rgb(172,185,246)) -- while ours was one row with the
+            status and type as pills to the right of the title. The wrapper is
+            a flex row at base with the titlebar's own gap, so light and dark
+            paint exactly what they painted before. */}
+        <div className="cc-page-titleblock">
+          <h1 className="cc-page-title" data-parity="page.title">{campaign.title}</h1>
+          <div className="cc-page-titlemeta">
+            <Badge variant={STATUS_BADGE[campaign.status] ?? "neutral"}>
+              {STATUS_LABEL[campaign.status] ?? campaign.status.replace(/_/g, " ")}
+            </Badge>
+            {campaign.campaignType && (
+              <Badge variant={CAMPAIGN_TYPE_BADGE[campaign.campaignType] ?? "neutral"}>
+                {CAMPAIGN_TYPE_LABELS[campaign.campaignType] ?? campaign.campaignType}
+              </Badge>
+            )}
+          </div>
+        </div>
+        {/* The section's own actions land here, through CampaignHeaderActions.
+            Empty on sections that have none, which is why it carries no
+            conditional: a 0-width flex item with `margin-left: auto` still
+            pushes nothing and paints nothing. `data-region="page-actions"` is
+            what the parity harness looks for -- page.primary-action resolves
+            through `[data-region="page-actions"] [data-cc-slot="primary"]`, the
+            same selector every other page satisfies through PageHeader. */}
+        <div
+          className="cc-page-actions"
+          data-region="page-actions"
+          id={CAMPAIGN_HEADER_ACTIONS_ID}
+        />
+        {/* Close the campaign. MEASURED 2026-09-14 at desktop-1600 on the
+            reference: a 16x16 grey glyph at 1548..1563.5 x 56.5..72, i.e. a
+            28x28 hit area whose right edge is the header card's inner edge at
+            1570. It is the reason their `Add Posts` starts at 1332 and ours
+            started at 1370 -- the 38px offset the harness reported was this
+            control, not a spacing error.
+
+            A Link, not a button with router.back(): back() would return to
+            whatever opened the campaign, which on a deep link is another site.
+            Their close always lands on the campaign list, and so does this. The
+            rail's "All campaigns" row is the same destination and stays -- they
+            carry both too. */}
+        <Link
+          href="/campaigns"
+          className="cc-icon-btn cc-page-close"
+          aria-label="Close campaign"
+          title="Close campaign"
+        >
+          <X size={16} aria-hidden="true" />
+        </Link>
       </div>
       <div className="cc-page-meta" data-region="page-meta">
         <span className="cc-page-meta-item"><Calendar size={14} />{formatDateAbs(campaign.createdAt)}</span>
@@ -738,7 +799,15 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
 
         {/* Overview */}
         {activeTab === "overview" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+          /* Their Overview is two columns of 667.4 inside the same 1362 content
+             box, split 1fr/1fr with a 27.2px gutter, and the Activity panel is
+             the right one -- MEASURED at x=917.6. The three wrappers exist only
+             so grid can place them; at base they are `display: contents`, so
+             light and dark still render one flat 24px column in this exact DOM
+             order, which is why Activity is the middle wrapper rather than the
+             last. */
+          <div className="cc-overview-grid">
+            <div className="cc-overview-main">
             {/* A figure nobody recorded is not shown at all: budget is optional to
                 enter, and engagement is absent on most imported posts. Neither
                 gets a zero or a dash standing in for the real number. */}
@@ -757,10 +826,14 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                    does not have. */
                 <MetricTile metric="budget" value={formatFullCurrency(campaign.budget, campaign.currency)} />
               )}
+              </div>
             </div>
 
-            <ActivityFeed campaignId={campaign.id} />
+            <div className="cc-overview-side">
+              <ActivityFeed campaignId={campaign.id} />
+            </div>
 
+            <div className="cc-overview-main">
             <CampaignTagsCard
               campaignId={campaign.id}
               selected={(campaign.tagLinks ?? []).map((l) => l.tag)}
@@ -776,25 +849,26 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
             {/* Notes */}
             {campaign.notes && (
               <Card variant="outlined" style={{ padding: 24 }}>
-                <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)", display: "block", marginBottom: 12 }}>Notes</span>
-                <p style={{ fontSize: 14, color: "var(--cc-text-muted)", lineHeight: 1.6 }}>{campaign.notes}</p>
+                <span className="cc-panel-title" style={{ display: "block", marginBottom: 12 }}>Notes</span>
+                <p style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text-muted)", lineHeight: 1.6 }}>{campaign.notes}</p>
               </Card>
             )}
 
             {/* Team */}
             {campaign.teamMembers.length > 0 && (
               <Card variant="outlined" style={{ padding: 24 }}>
-                <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)", display: "block", marginBottom: 12 }}>Team</span>
+                <span className="cc-panel-title" style={{ display: "block", marginBottom: 12 }}>Team</span>
                 <div style={{ display: "flex", gap: 12 }}>
                   {campaign.teamMembers.map(tm => (
                     <div key={tm.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderRadius: 8, background: "var(--cc-bg)" }}>
                       <Avatar name={tm.user.name} size="sm" />
-                      <span style={{ fontSize: 13, fontWeight: 500, color: "var(--cc-text)" }}>{tm.user.name}</span>
+                      <span style={{ fontSize: "var(--cc-t-13)", fontWeight: 500, color: "var(--cc-text)" }}>{tm.user.name}</span>
                     </div>
                   ))}
                 </div>
               </Card>
             )}
+            </div>
           </div>
         )}
 
@@ -855,7 +929,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
           <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
             {campaign.marketplaceVisibility && campaign.marketplaceVisibility !== "PRIVATE" && (
               <div>
-                <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)", display: "block", marginBottom: 16 }}>Marketplace</span>
+                <span className="cc-panel-title" style={{ display: "block", marginBottom: 16 }}>Marketplace</span>
                 <MarketplaceAnalytics campaignId={id} currency={campaign.currency ?? "USD"} />
               </div>
             )}
@@ -863,9 +937,51 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
             <EmptyState icon={<TrendingUp size={32} color="var(--cc-text-subtle)" />} title="No analytics yet" description="Analytics will be available once posts are synced." />
           ) : (
             <div className="rsp-grid-2">
+              {/* Summary stats FIRST. MEASURED at desktop-1600 on their campaign
+                  analytics: the figures lead the screen -- `Post Performance`
+                  at 243,148.3 over three 434x80 panels at y=182 -- and the
+                  charts sit under them at y=307. Ours had the two charts at the
+                  top and the numbers at the bottom of the grid, so nothing on
+                  the page was where theirs is. The tiles carry classes for the
+                  same reason the KPI strip on Posts does: their inline styles
+                  were unreachable from the theme. */}
+              <Card variant="outlined" className="cc-analytics-summary" style={{ gridColumn: "1 / -1" }}>
+                <span className="cc-panel-title cc-analytics-summary-title" style={{ display: "block" }}>Performance Summary</span>
+                <div className="cc-kpi-strip cc-kpi-quiet">
+                  <div className="cc-kpi-chip" style={{ "--cc-kpi-fit": fitFigureSize(formatNumber(totalViews), 22) } as CSSProperties}>
+                    <span className="cc-kpi-chip-label">Total Views</span>
+                    <span className="cc-kpi-chip-value" title={formatNumber(totalViews)}>{formatNumber(totalViews)}</span>
+                  </div>
+                  <div className="cc-kpi-chip cc-kpi-chip-extra" style={{ "--cc-kpi-fit": fitFigureSize(formatNumber(totalLikes), 22) } as CSSProperties}>
+                    <span className="cc-kpi-chip-label">Total Likes</span>
+                    <span className="cc-kpi-chip-value" title={formatNumber(totalLikes)}>{formatNumber(totalLikes)}</span>
+                  </div>
+                  <div className="cc-kpi-chip">
+                    {/* "Avg. Campaign Engagement Rate" is their wording, and it
+                        is the more honest one: this is the campaign-wide rate
+                        from rollupEngagement, not a per-post average. */}
+                    <span className="cc-kpi-chip-label">Avg. Campaign Engagement Rate</span>
+                    {/* An em dash, not 0.0%: a campaign whose engagement nobody
+                        has fetched has no rate, and printing one asserts a
+                        measurement we never took. */}
+                    <span className="cc-kpi-chip-value cc-kpi-chip-value-accent">{avgEngagement === null ? "\u2014" : avgEngagement.toFixed(2) + "%"}</span>
+                  </div>
+                  {/* Their third panel. The figure is the numerator the rate
+                      beside it is computed from, so the two always agree. */}
+                  <div className="cc-kpi-chip">
+                    <span className="cc-kpi-chip-label">Total Engagement</span>
+                    <span className="cc-kpi-chip-value">{engagement.engagements === null ? "\u2014" : formatNumber(engagement.engagements)}</span>
+                  </div>
+                  <div className="cc-kpi-chip cc-kpi-chip-extra">
+                    <span className="cc-kpi-chip-label">Posts</span>
+                    <span className="cc-kpi-chip-value">{campaign.posts.length}</span>
+                  </div>
+                </div>
+              </Card>
+
               {/* Platform breakdown */}
               <Card variant="outlined" style={{ padding: 24 }}>
-                <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)", display: "block", marginBottom: 16 }}>Views by Platform</span>
+                <span className="cc-panel-title cc-chart-title" style={{ display: "block", marginBottom: 16 }}>Views by Platform</span>
                 {/* platformPieData drops every platform with no measured views,
                     so a campaign whose posts have never synced leaves it empty --
                     and an unguarded pie draws 240px of frame and legend around
@@ -881,7 +997,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
 
               {/* Creator performance */}
               <Card variant="outlined" style={{ padding: 24 }}>
-                <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)", display: "block", marginBottom: 16 }}>Creator Performance</span>
+                <span className="cc-panel-title cc-chart-title" style={{ display: "block", marginBottom: 16 }}>Creator Performance</span>
                 {creatorBarData.length > 0 ? (
                   <div style={{ height: 240 }}>
                     <CreatorPerformanceBar data={creatorBarData} formatNumber={formatNumber} />
@@ -891,31 +1007,6 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                 )}
               </Card>
 
-              {/* Summary stats */}
-              <Card variant="outlined" style={{ padding: 24, gridColumn: "1 / -1" }}>
-                <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)", display: "block", marginBottom: 16 }}>Performance Summary</span>
-                <div className="rsp-grid-tiles">
-                  <div style={{ padding: 16, borderRadius: 10, background: "var(--cc-bg)" }}>
-                    <div style={{ fontSize: 11, color: "var(--cc-text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>Total Views</div>
-                    <div title={formatNumber(totalViews)} style={{ fontSize: fitFigureSize(formatNumber(totalViews), 22), fontWeight: 700, color: "var(--cc-text)", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums", overflow: "hidden", textOverflow: "ellipsis" }}>{formatNumber(totalViews)}</div>
-                  </div>
-                  <div style={{ padding: 16, borderRadius: 10, background: "var(--cc-bg)" }}>
-                    <div style={{ fontSize: 11, color: "var(--cc-text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>Total Likes</div>
-                    <div title={formatNumber(totalLikes)} style={{ fontSize: fitFigureSize(formatNumber(totalLikes), 22), fontWeight: 700, color: "var(--cc-text)", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums", overflow: "hidden", textOverflow: "ellipsis" }}>{formatNumber(totalLikes)}</div>
-                  </div>
-                  <div style={{ padding: 16, borderRadius: 10, background: "var(--cc-bg)" }}>
-                    <div style={{ fontSize: 11, color: "var(--cc-text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>Engagement Rate</div>
-                    {/* An em dash, not 0.0%: a campaign whose engagement nobody
-                        has fetched has no rate, and printing one asserts a
-                        measurement we never took. */}
-                    <div style={{ fontSize: 22, fontWeight: 700, color: "var(--cc-primary)" }}>{avgEngagement === null ? "—" : avgEngagement.toFixed(2) + "%"}</div>
-                  </div>
-                  <div style={{ padding: 16, borderRadius: 10, background: "var(--cc-bg)" }}>
-                    <div style={{ fontSize: 11, color: "var(--cc-text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>Posts</div>
-                    <div style={{ fontSize: 22, fontWeight: 700, color: "var(--cc-text)" }}>{campaign.posts.length}</div>
-                  </div>
-                </div>
-              </Card>
             </div>
           ))}
           </div>
@@ -937,21 +1028,21 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
         {activeTab === "edit" && (
           <div style={{ maxWidth: 640 }}>
             <div style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, padding: 24 }}>
-              <h3 style={{ fontSize: 15, fontWeight: 700, color: "var(--cc-text)", marginBottom: 20 }}>Edit Campaign</h3>
+              <h3 style={{ fontSize: "var(--cc-t-15)", fontWeight: 700, color: "var(--cc-text)", marginBottom: 20 }}>Edit Campaign</h3>
               <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                 <div>
-                  <label htmlFor="edit-campaign-title" style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Campaign Title</label>
+                  <label htmlFor="edit-campaign-title" style={{ display: "block", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6 }}>Campaign Title</label>
                   <input
                     id="edit-campaign-title"
                     type="text"
                     value={editForm.title}
                     onChange={e => setEditForm(f => ({ ...f, title: e.target.value }))}
-                    style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-border)", fontSize: 14, color: "var(--cc-text)", background: "var(--cc-card)", boxSizing: "border-box" }}
+                    style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-border)", fontSize: "var(--cc-t-14)", color: "var(--cc-text)", background: "var(--cc-card)", boxSizing: "border-box" }}
                   />
                 </div>
                 <div className="rsp-grid-2">
                   <div>
-                    <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Status</label>
+                    <label style={{ display: "block", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6 }}>Status</label>
                     <Dropdown
                       ariaLabel="Status"
                       size="md"
@@ -966,7 +1057,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                     />
                   </div>
                   <div>
-                    <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Currency</label>
+                    <label style={{ display: "block", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6 }}>Currency</label>
                     <Dropdown
                       ariaLabel="Currency"
                       size="md"
@@ -979,7 +1070,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                   </div>
                 </div>
                 <div>
-                  <label htmlFor="edit-budget" style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>
+                  <label htmlFor="edit-budget" style={{ display: "block", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6 }}>
                     Budget <span style={{ fontWeight: 500, color: "var(--cc-text-muted)" }}>(optional)</span>
                   </label>
                   <input
@@ -991,11 +1082,11 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                     placeholder="Leave blank if not tracking one"
                     value={editForm.budget}
                     onChange={e => setEditForm(f => ({ ...f, budget: e.target.value }))}
-                    style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-border)", fontSize: 14, color: "var(--cc-text)", background: "var(--cc-card)" }}
+                    style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-border)", fontSize: "var(--cc-t-14)", color: "var(--cc-text)", background: "var(--cc-card)" }}
                   />
                 </div>
                 <div>
-                  <label htmlFor="edit-client" style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Client</label>
+                  <label htmlFor="edit-client" style={{ display: "block", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6 }}>Client</label>
                   {/* Searched rather than scrolled, as the reference does it. A
                       dropdown listing every client is fine at five and useless
                       at two hundred. Clearing the picker unsets the client. */}
@@ -1019,12 +1110,12 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                   />
                 </div>
                 <div>
-                  <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Notes</label>
+                  <label style={{ display: "block", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6 }}>Notes</label>
                   <textarea
                     value={editForm.notes}
                     onChange={e => setEditForm(f => ({ ...f, notes: e.target.value }))}
                     rows={3}
-                    style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-border)", fontSize: 14, color: "var(--cc-text)", background: "var(--cc-card)", resize: "vertical", fontFamily: "inherit", boxSizing: "border-box" }}
+                    style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-border)", fontSize: "var(--cc-t-14)", color: "var(--cc-text)", background: "var(--cc-card)", resize: "vertical", fontFamily: "inherit", boxSizing: "border-box" }}
                   />
                 </div>
                 <div style={{ display: "flex", justifyContent: "flex-end" }}>
@@ -1034,7 +1125,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                     style={{
                       padding: "9px 20px", borderRadius: 8, border: "none",
                       background: saving ? "var(--cc-border)" : "var(--cc-primary)",
-                      color: "white", fontSize: 14, fontWeight: 600,
+                      color: "white", fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)",
                       cursor: saving ? "not-allowed" : "pointer",
                     }}
                   >
@@ -1053,8 +1144,8 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
 
             {/* ─── Marketplace section (Phase 2M) ─── */}
             <div style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, padding: 24, marginTop: 24 }}>
-              <h3 style={{ fontSize: 15, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Marketplace</h3>
-              <p style={{ fontSize: 13, color: "var(--cc-text-muted)", marginBottom: 20 }}>
+              <h3 style={{ fontSize: "var(--cc-t-15)", fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Marketplace</h3>
+              <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", marginBottom: 20 }}>
                 Control how creators discover and join this campaign. Rates are shown in {campaign.currency} and stored to the cent.
               </p>
 
@@ -1076,10 +1167,10 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                           }}
                         >
                           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                            <span style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>{opt.label}</span>
+                            <span style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{opt.label}</span>
                             {selected && <Badge variant="accent">Selected</Badge>}
                           </div>
-                          <p style={{ fontSize: 12, color: "var(--cc-text-muted)", marginTop: 4 }}>{opt.desc}</p>
+                          <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", marginTop: 4 }}>{opt.desc}</p>
                         </div>
                       );
                     })}
@@ -1092,7 +1183,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                     <label style={mktLabel}>Invite code</label>
                     <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                       <code style={{
-                        flex: 1, padding: "10px 14px", borderRadius: 10, fontSize: 15, letterSpacing: "0.08em",
+                        flex: 1, padding: "10px 14px", borderRadius: 10, fontSize: "var(--cc-t-15)", letterSpacing: "0.08em",
                         border: "1px solid var(--cc-border)", background: "var(--cc-bg)", color: "var(--cc-text)", fontWeight: 700,
                       }}>
                         {campaign.inviteCode ?? "— saved on first save —"}
@@ -1102,14 +1193,14 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                         disabled={rotatingCode || !campaign.inviteCode}
                         style={{
                           padding: "9px 16px", borderRadius: 8, border: "1px solid var(--cc-border)",
-                          background: "var(--cc-card)", color: "var(--cc-text)", fontSize: 13, fontWeight: 600,
+                          background: "var(--cc-card)", color: "var(--cc-text)", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)",
                           cursor: rotatingCode || !campaign.inviteCode ? "not-allowed" : "pointer", whiteSpace: "nowrap",
                         }}
                       >
                         {rotatingCode ? "Rotating…" : "Regenerate"}
                       </button>
                     </div>
-                    <p style={{ fontSize: 12, color: "var(--cc-text-muted)", marginTop: 6 }}>
+                    <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", marginTop: 6 }}>
                       Share this code with invited creators. A new code is generated when you first save; regenerating invalidates the old one.
                     </p>
                   </div>
@@ -1152,13 +1243,13 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                   <label style={mktLabel}>
                     Rate per 1,000 verified views {mkt.marketplaceVisibility === "GLOBAL" && <span style={{ color: "var(--cc-danger)" }}>*</span>}
                   </label>
-                  <p style={{ fontSize: 12, color: "var(--cc-text-muted)", marginBottom: 10 }}>
+                  <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", marginBottom: 10 }}>
                     Set a payout rate per platform (in {campaign.currency}). Leave blank to exclude a platform.
                   </p>
                   <div className="rsp-grid-2">
                     {MARKETPLACE_PLATFORMS.map((p) => (
                       <div key={p}>
-                        <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--cc-text-muted)", marginBottom: 4 }}>{p}</label>
+                        <label style={{ display: "block", fontSize: "var(--cc-t-12)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text-muted)", marginBottom: 4 }}>{p}</label>
                         <input
                           type="number" min="0" step="0.01"
                           value={mkt.rates[p] ?? ""}
@@ -1197,7 +1288,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                 {/* Public URL preview */}
                 <div>
                   <label style={mktLabel}>Public page</label>
-                  <div style={{ padding: "10px 14px", borderRadius: 10, border: "1px dashed var(--cc-border)", background: "var(--cc-bg)", fontSize: 13, color: "var(--cc-text-muted)" }}>
+                  <div style={{ padding: "10px 14px", borderRadius: 10, border: "1px dashed var(--cc-border)", background: "var(--cc-bg)", fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
                     {campaign.publicSlug ? (
                       <span style={{ color: "var(--cc-text)" }}>/explore/{campaign.publicSlug}</span>
                     ) : mkt.marketplaceVisibility === "GLOBAL" ? (
@@ -1215,7 +1306,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                     style={{
                       padding: "9px 20px", borderRadius: 8, border: "none",
                       background: savingMkt ? "var(--cc-border)" : "var(--cc-primary)",
-                      color: "white", fontSize: 14, fontWeight: 600,
+                      color: "white", fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)",
                       cursor: savingMkt ? "not-allowed" : "pointer",
                     }}
                   >
@@ -1239,7 +1330,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
               <button
                 onClick={() => { setShowAddCreator(false); setSelectedCreatorId(""); }}
-                style={{ padding: "9px 16px", borderRadius: 8, border: "1px solid var(--cc-border)", background: "var(--cc-card)", fontSize: 14, cursor: "pointer", color: "var(--cc-text)" }}
+                style={{ padding: "9px 16px", borderRadius: 8, border: "1px solid var(--cc-border)", background: "var(--cc-card)", fontSize: "var(--cc-t-14)", cursor: "pointer", color: "var(--cc-text)" }}
               >
                 Cancel
               </button>
@@ -1249,7 +1340,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                 style={{
                   padding: "9px 16px", borderRadius: 8, border: "none",
                   background: selectedCreatorId && !addingCreator ? "var(--cc-primary)" : "var(--cc-border)",
-                  color: "white", fontSize: 14, fontWeight: 600, cursor: selectedCreatorId ? "pointer" : "not-allowed",
+                  color: "white", fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", cursor: selectedCreatorId ? "pointer" : "not-allowed",
                 }}
               >
                 {addingCreator ? "Adding..." : "Add Creator"}

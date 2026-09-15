@@ -132,8 +132,8 @@ export default function ApiKeysClient() {
             border: "none",
             borderRadius: 8,
             padding: "9px 16px",
-            fontSize: 14,
-            fontWeight: 600,
+            fontSize: "var(--cc-t-14)",
+            fontWeight: "var(--cc-fw-strong)",
             cursor: "pointer",
             display: "flex",
             alignItems: "center",
@@ -167,7 +167,7 @@ export default function ApiKeysClient() {
           >
             <AlertTriangle size={16} style={{ color: "var(--cc-warning)" }} />
             <span
-              style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-warning)" }}
+              style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-warning)" }}
             >
               Save this key — it won&apos;t be shown again
             </span>
@@ -186,7 +186,7 @@ export default function ApiKeysClient() {
             <code
               style={{
                 flex: 1,
-                fontSize: 13,
+                fontSize: "var(--cc-t-13)",
                 fontFamily: "monospace",
                 color: "var(--cc-text)",
                 wordBreak: "break-all",
@@ -205,7 +205,7 @@ export default function ApiKeysClient() {
                 display: "flex",
                 alignItems: "center",
                 gap: 4,
-                fontSize: 12,
+                fontSize: "var(--cc-t-12)",
                 color: "var(--cc-text-muted)",
               }}
             >
@@ -252,7 +252,7 @@ export default function ApiKeysClient() {
           >
             <h2
               style={{
-                fontSize: 18,
+                fontSize: "var(--cc-t-18)",
                 fontWeight: 700,
                 color: "var(--cc-text)",
                 marginBottom: 16,
@@ -262,8 +262,8 @@ export default function ApiKeysClient() {
             </h2>
             <label
               style={{
-                fontSize: 13,
-                fontWeight: 600,
+                fontSize: "var(--cc-t-13)",
+                fontWeight: "var(--cc-fw-strong)",
                 color: "var(--cc-text)",
                 marginBottom: 6,
                 display: "block",
@@ -281,7 +281,7 @@ export default function ApiKeysClient() {
               style={{
                 width: "100%",
                 padding: "10px 12px",
-                fontSize: 14,
+                fontSize: "var(--cc-t-14)",
                 borderRadius: 8,
                 border: "1px solid var(--cc-border)",
                 color: "var(--cc-text)",
@@ -301,8 +301,8 @@ export default function ApiKeysClient() {
                 onClick={() => setShowCreate(false)}
                 style={{
                   padding: "9px 16px",
-                  fontSize: 14,
-                  fontWeight: 600,
+                  fontSize: "var(--cc-t-14)",
+                  fontWeight: "var(--cc-fw-strong)",
                   borderRadius: 8,
                   border: "1px solid var(--cc-border)",
                   background: "var(--cc-card)",
@@ -317,8 +317,8 @@ export default function ApiKeysClient() {
                 disabled={!newName.trim() || creating}
                 style={{
                   padding: "9px 16px",
-                  fontSize: 14,
-                  fontWeight: 600,
+                  fontSize: "var(--cc-t-14)",
+                  fontWeight: "var(--cc-fw-strong)",
                   borderRadius: 8,
                   border: "none",
                   background: newName.trim()
@@ -363,7 +363,7 @@ export default function ApiKeysClient() {
           >
             <h2
               style={{
-                fontSize: 18,
+                fontSize: "var(--cc-t-18)",
                 fontWeight: 700,
                 color: "var(--cc-text)",
                 marginBottom: 8,
@@ -373,7 +373,7 @@ export default function ApiKeysClient() {
             </h2>
             <p
               style={{
-                fontSize: 14,
+                fontSize: "var(--cc-t-14)",
                 color: "var(--cc-text-muted)",
                 marginBottom: 20,
               }}
@@ -392,8 +392,8 @@ export default function ApiKeysClient() {
                 onClick={() => setConfirmRevoke(null)}
                 style={{
                   padding: "9px 16px",
-                  fontSize: 14,
-                  fontWeight: 600,
+                  fontSize: "var(--cc-t-14)",
+                  fontWeight: "var(--cc-fw-strong)",
                   borderRadius: 8,
                   border: "1px solid var(--cc-border)",
                   background: "var(--cc-card)",
@@ -408,8 +408,8 @@ export default function ApiKeysClient() {
                 disabled={revoking === confirmRevoke}
                 style={{
                   padding: "9px 16px",
-                  fontSize: 14,
-                  fontWeight: 600,
+                  fontSize: "var(--cc-t-14)",
+                  fontWeight: "var(--cc-fw-strong)",
                   borderRadius: 8,
                   border: "none",
                   background: "#DC2626",
@@ -435,29 +435,29 @@ export default function ApiKeysClient() {
           marginBottom: 24,
         }}
       >
-        <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>
+        <h2 style={{ fontSize: "var(--cc-t-16)", fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>
           How to use your API key
         </h2>
-        <p style={{ fontSize: 13, color: "var(--cc-text-muted)", marginBottom: 16 }}>
+        <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", marginBottom: 16 }}>
           Pass the key in the <code style={{ fontFamily: "monospace", background: "var(--cc-bg)", padding: "1px 5px", borderRadius: 4 }}>Authorization</code> header of any API request.
         </p>
         <div style={{ marginBottom: 16 }}>
-          <p style={{ fontSize: 12, fontWeight: 600, color: "var(--cc-text-muted)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 6 }}>
+          <p className="cc-microlabel" style={{ marginBottom: 6 }}>
             REST / cURL
           </p>
           <div style={{ background: "#1C2048", borderRadius: 8, padding: "12px 16px", overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
-            <code style={{ fontFamily: "monospace", fontSize: 12, color: "#A5B4FC", whiteSpace: "pre" }}>
+            <code style={{ fontFamily: "monospace", fontSize: "var(--cc-t-12)", color: "#A5B4FC", whiteSpace: "pre" }}>
               {`curl -H "Authorization: Bearer oai_YOUR_KEY_HERE" \\
   https://your-domain.com/api/campaigns`}
             </code>
           </div>
         </div>
         <div style={{ marginBottom: 16 }}>
-          <p style={{ fontSize: 12, fontWeight: 600, color: "var(--cc-text-muted)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 6 }}>
+          <p className="cc-microlabel" style={{ marginBottom: 6 }}>
             MCP Server config
           </p>
           <div style={{ background: "#1C2048", borderRadius: 8, padding: "12px 16px", overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
-            <code style={{ fontFamily: "monospace", fontSize: 12, color: "#A5B4FC", whiteSpace: "pre" }}>
+            <code style={{ fontFamily: "monospace", fontSize: "var(--cc-t-12)", color: "#A5B4FC", whiteSpace: "pre" }}>
               {`{
   "headers": {
     "Authorization": "Bearer oai_YOUR_KEY_HERE"
@@ -472,7 +472,7 @@ export default function ApiKeysClient() {
             border: "1px solid var(--cc-primary-medium)",
             borderRadius: 8,
             padding: "10px 14px",
-            fontSize: 13,
+            fontSize: "var(--cc-t-13)",
             color: "var(--cc-primary)",
           }}
         >
@@ -491,7 +491,7 @@ export default function ApiKeysClient() {
       >
         {loading ? (
           <div style={{ padding: 40, textAlign: "center" }}>
-            <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>
+            <p style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text-muted)" }}>
               Loading...
             </p>
           </div>
@@ -502,10 +502,10 @@ export default function ApiKeysClient() {
               style={{ color: "var(--cc-danger)", marginBottom: 12 }}
               aria-hidden="true"
             />
-            <h3 style={{ fontSize: 16, fontWeight: 600, color: "var(--cc-text)", marginBottom: 4 }}>
+            <h3 style={{ fontSize: "var(--cc-t-16)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 4 }}>
               Could not load your API keys
             </h3>
-            <p style={{ fontSize: 14, color: "var(--cc-text-muted)", marginBottom: 16 }}>
+            <p style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text-muted)", marginBottom: 16 }}>
               {loadError} This is not the same as having none — nothing has been
               revoked or lost.
             </p>
@@ -517,8 +517,8 @@ export default function ApiKeysClient() {
                 border: "1.5px solid var(--cc-primary)",
                 borderRadius: 8,
                 padding: "9px 16px",
-                fontSize: 14,
-                fontWeight: 600,
+                fontSize: "var(--cc-t-14)",
+                fontWeight: "var(--cc-fw-strong)",
                 cursor: "pointer",
               }}
             >
@@ -541,8 +541,8 @@ export default function ApiKeysClient() {
             />
             <h3
               style={{
-                fontSize: 16,
-                fontWeight: 600,
+                fontSize: "var(--cc-t-16)",
+                fontWeight: "var(--cc-fw-strong)",
                 color: "var(--cc-text)",
                 marginBottom: 4,
               }}
@@ -551,7 +551,7 @@ export default function ApiKeysClient() {
             </h3>
             <p
               style={{
-                fontSize: 14,
+                fontSize: "var(--cc-t-14)",
                 color: "var(--cc-text-muted)",
                 marginBottom: 16,
               }}
@@ -569,8 +569,8 @@ export default function ApiKeysClient() {
                 border: "none",
                 borderRadius: 8,
                 padding: "9px 16px",
-                fontSize: 14,
-                fontWeight: 600,
+                fontSize: "var(--cc-t-14)",
+                fontWeight: "var(--cc-fw-strong)",
                 cursor: "pointer",
               }}
             >
@@ -589,15 +589,7 @@ export default function ApiKeysClient() {
                 {["Name", "Created", "Last Used", "Actions"].map((h) => (
                   <th
                     key={h}
-                    style={{
-                      textAlign: "left",
-                      padding: "12px 16px",
-                      fontSize: 12,
-                      fontWeight: 600,
-                      color: "var(--cc-text-muted)",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.5px",
-                    }}
+                    className="cc-microlabel" style={{ textAlign: "left", padding: "12px 16px" }}
                   >
                     {h}
                   </th>
@@ -615,7 +607,7 @@ export default function ApiKeysClient() {
                   <td
                     style={{
                       padding: "14px 16px",
-                      fontSize: 14,
+                      fontSize: "var(--cc-t-14)",
                       fontWeight: 500,
                       color: "var(--cc-text)",
                     }}
@@ -637,7 +629,7 @@ export default function ApiKeysClient() {
                   <td
                     style={{
                       padding: "14px 16px",
-                      fontSize: 13,
+                      fontSize: "var(--cc-t-13)",
                       color: "var(--cc-text-muted)",
                     }}
                   >
@@ -646,7 +638,7 @@ export default function ApiKeysClient() {
                   <td
                     style={{
                       padding: "14px 16px",
-                      fontSize: 13,
+                      fontSize: "var(--cc-t-13)",
                       color: "var(--cc-text-muted)",
                     }}
                   >
@@ -660,8 +652,8 @@ export default function ApiKeysClient() {
                         border: "1px solid color-mix(in srgb, var(--cc-danger) 30%, transparent)",
                         borderRadius: 6,
                         padding: "5px 10px",
-                        fontSize: 12,
-                        fontWeight: 600,
+                        fontSize: "var(--cc-t-12)",
+                        fontWeight: "var(--cc-fw-strong)",
                         color: "var(--cc-danger)",
                         cursor: "pointer",
                         display: "flex",

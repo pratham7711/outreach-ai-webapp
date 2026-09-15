@@ -87,7 +87,7 @@ const selectStyle = {
   padding: "10px 14px",
   borderRadius: 10,
   border: "1px solid var(--cc-border)",
-  fontSize: 14,
+  fontSize: "var(--cc-t-14)",
   color: "var(--cc-text)",
   background: "var(--cc-card)",
   boxSizing: "border-box" as const,
@@ -95,7 +95,7 @@ const selectStyle = {
 
 const labelStyle = {
   display: "block" as const,
-  fontSize: 13,
+  fontSize: "var(--cc-t-13)",
   fontWeight: 600 as const,
   color: "var(--cc-text)",
   marginBottom: 6,
@@ -171,8 +171,8 @@ function CardRadioGroup<T extends string>({
               renderBody(opt, selected)
             ) : (
               <>
-                <p style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>{opt.label}</p>
-                <p style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{opt.desc}</p>
+                <p style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{opt.label}</p>
+                <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>{opt.desc}</p>
               </>
             )}
           </div>
@@ -462,12 +462,12 @@ export default function CampaignWizard({
           />
         ))}
       </div>
-      <p style={{ fontSize: 12, fontWeight: 600, color: "var(--cc-text-muted)", marginBottom: 16, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+      <p className="cc-microlabel" style={{ marginBottom: 16 }}>
         Step {step + 1} of {STEPS.length} — {STEPS[step].label}
       </p>
 
       {error && (
-        <div role="alert" style={{ fontSize: 13, color: "var(--cc-danger)", marginBottom: 16 }}>
+        <div role="alert" style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-danger)", marginBottom: 16 }}>
           {error}
         </div>
       )}
@@ -513,7 +513,7 @@ export default function CampaignWizard({
                   }
                 }}
               />
-              <span style={{ fontSize: 14, color: "var(--cc-text)" }}>This campaign promotes a sound</span>
+              <span style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text)" }}>This campaign promotes a sound</span>
             </label>
             {form.hasAudio && (
               <div style={{ marginTop: 12 }}>
@@ -576,10 +576,10 @@ export default function CampaignWizard({
                       </div>
                     )}
                     <div style={{ minWidth: 0 }}>
-                      <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: "var(--cc-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      <p style={{ margin: 0, fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {imported.title ?? `Sound ${imported.soundId}`}
                       </p>
-                      <p style={{ margin: "2px 0 0", fontSize: 12, color: "var(--cc-text-muted)" }}>
+                      <p style={{ margin: "2px 0 0", fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
                         {[
                           imported.artist || null,
                           imported.usesCount !== null ? `${imported.usesCount.toLocaleString()} videos` : null,
@@ -593,15 +593,15 @@ export default function CampaignWizard({
                 )}
 
                 {audioError ? (
-                  <p role="alert" style={{ fontSize: 12, color: "var(--cc-danger)", margin: "6px 0 0" }}>
+                  <p role="alert" style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-danger)", margin: "6px 0 0" }}>
                     {audioError}
                   </p>
                 ) : importError ? (
-                  <p role="alert" style={{ fontSize: 12, color: "var(--cc-danger)", margin: "6px 0 0" }}>
+                  <p role="alert" style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-danger)", margin: "6px 0 0" }}>
                     {importError}
                   </p>
                 ) : (
-                  <p style={{ fontSize: 12, color: "var(--cc-text-muted)", margin: "6px 0 0" }}>
+                  <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: "6px 0 0" }}>
                     We start tracking the sound&apos;s usage from here. Import to pull its cover
                     art in as the campaign thumbnail.
                   </p>
@@ -651,7 +651,7 @@ export default function CampaignWizard({
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
                 <input type="checkbox" checked={form.allowCounterOffer} onChange={(e) => set({ allowCounterOffer: e.target.checked })} />
-                <span style={{ fontSize: 14, color: "var(--cc-text)" }}>Allow creators to counter-offer</span>
+                <span style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text)" }}>Allow creators to counter-offer</span>
               </label>
             </div>
           )}
@@ -687,8 +687,8 @@ export default function CampaignWizard({
                 { value: "AUTO_APPROVED" as const, label: "Auto-Approved", desc: "Posts are approved automatically on submission" },
               ].map((opt) => (
                 <div key={opt.value} onClick={() => set({ postApprovalMode: opt.value })} style={{ ...cardOptionStyle(form.postApprovalMode === opt.value), flex: 1 }}>
-                  <p style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>{opt.label}</p>
-                  <p style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{opt.desc}</p>
+                  <p style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{opt.label}</p>
+                  <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>{opt.desc}</p>
                 </div>
               ))}
             </div>

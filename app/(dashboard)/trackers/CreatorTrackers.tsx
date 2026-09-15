@@ -153,10 +153,10 @@ function FigureGroup({
       </div>
       <div style={{ display: "flex", flex: 1, minWidth: 0 }}>
         <div style={{ padding: "10px 16px", minWidth: 0, flex: "1 1 auto" }}>
-          <div style={{ fontSize: 11, color: "var(--cc-text-muted)" }}>{label}</div>
+          <div style={{ fontSize: "var(--cc-t-11)", color: "var(--cc-text-muted)" }}>{label}</div>
           <div
             style={{
-              fontSize: 18,
+              fontSize: "var(--cc-t-18)",
               fontWeight: 700,
               color: "var(--cc-primary)",
               whiteSpace: "nowrap",
@@ -166,7 +166,7 @@ function FigureGroup({
           </div>
         </div>
         <div style={{ padding: "10px 16px", flex: "0 0 auto" }} title={changeTitle}>
-          <div style={{ fontSize: 11, color: "var(--cc-text-muted)" }}>Change</div>
+          <div style={{ fontSize: "var(--cc-t-11)", color: "var(--cc-text-muted)" }}>Change</div>
           {changeNode}
         </div>
       </div>
@@ -177,7 +177,7 @@ function FigureGroup({
 function ChangeValue({ percent }: { percent: number }) {
   const up = percent >= 0;
   return (
-    <div style={{ fontSize: 14, fontWeight: 700, color: up ? "var(--cc-primary)" : "#DC2626" }}>
+    <div style={{ fontSize: "var(--cc-t-14)", fontWeight: 700, color: up ? "var(--cc-primary)" : "#DC2626" }}>
       {up ? "+" : ""}
       {percent.toFixed(2)}%
     </div>
@@ -186,7 +186,7 @@ function ChangeValue({ percent }: { percent: number }) {
 
 function NoData({ title }: { title: string }) {
   return (
-    <div style={{ fontSize: 11, fontWeight: 700, color: "var(--cc-text-subtle)" }} title={title}>
+    <div style={{ fontSize: "var(--cc-t-11)", fontWeight: 700, color: "var(--cc-text-subtle)" }} title={title}>
       {NO_DATA}
     </div>
   );
@@ -282,7 +282,7 @@ export function CreatorTrackers({
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-        <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>Sort</span>
+        <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>Sort</span>
         {SORTS.map((s) => (
           <button
             key={s.key}
@@ -290,8 +290,8 @@ export function CreatorTrackers({
             style={{
               padding: "5px 10px",
               borderRadius: 8,
-              fontSize: 13,
-              fontWeight: 600,
+              fontSize: "var(--cc-t-13)",
+              fontWeight: "var(--cc-fw-strong)",
               cursor: "pointer",
               border: "1px solid",
               borderColor: sort === s.key ? "var(--cc-primary)" : "var(--cc-border)",
@@ -311,8 +311,8 @@ export function CreatorTrackers({
             style={{
               padding: "7px 14px",
               borderRadius: 8,
-              fontSize: 13,
-              fontWeight: 600,
+              fontSize: "var(--cc-t-13)",
+              fontWeight: "var(--cc-fw-strong)",
               cursor: "pointer",
               border: "1px solid var(--cc-primary)",
               background: period === p.key ? "var(--cc-primary)" : "var(--cc-card)",
@@ -417,7 +417,7 @@ export function CreatorTrackers({
                       <div
                         title={c.name}
                         style={{
-                          fontSize: 16,
+                          fontSize: "var(--cc-t-16)",
                           fontWeight: 700,
                           color: "var(--cc-primary)",
                           overflow: "hidden",
@@ -427,7 +427,7 @@ export function CreatorTrackers({
                       >
                         {c.name}
                       </div>
-                      <div style={{ fontSize: 15, color: "var(--cc-text-muted)" }}>
+                      <div style={{ fontSize: "var(--cc-t-15)", color: "var(--cc-text-muted)" }}>
                         @{c.handle}
                       </div>
                     </div>
@@ -526,7 +526,7 @@ export function CreatorTrackers({
               <Skeleton width={220} height={14} />
             </div>
           ) : (candidates?.creators ?? []).length === 0 ? (
-            <p style={{ fontSize: 13, color: "var(--cc-text-muted)", padding: "12px 4px" }}>
+            <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", padding: "12px 4px" }}>
               No creators match that.
             </p>
           ) : (
@@ -544,10 +544,10 @@ export function CreatorTrackers({
                   }}
                 >
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>
+                    <div style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>
                       {cand.name}
                     </div>
-                    <div style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>@{cand.handle}</div>
+                    <div style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>@{cand.handle}</div>
                   </div>
                   <Button
                     variant={already ? "ghost" : "primary"}

@@ -78,10 +78,10 @@ export function AudienceOverlapMatrix({
   return (
     <Card variant="outlined" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <h3 style={{ fontSize: 18, fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>
+        <h3 style={{ fontSize: "var(--cc-t-18)", fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>
           Audience overlap
         </h3>
-        <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>
+        <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
           Pairwise audience overlap across creators
         </span>
       </div>
@@ -92,22 +92,22 @@ export function AudienceOverlapMatrix({
           style={{
             width: "100%",
             borderCollapse: "collapse",
-            fontSize: 13,
+            fontSize: "var(--cc-t-13)",
             color: "var(--cc-text)",
           }}
         >
           <thead>
             <tr>
-              <th style={{ textAlign: "left", padding: 8, color: "var(--cc-text-muted)", fontWeight: 600 }}>
+              <th style={{ textAlign: "left", padding: 8, color: "var(--cc-text-muted)", fontWeight: "var(--cc-fw-strong)"}}>
                 Creator A
               </th>
-              <th style={{ textAlign: "left", padding: 8, color: "var(--cc-text-muted)", fontWeight: 600 }}>
+              <th style={{ textAlign: "left", padding: 8, color: "var(--cc-text-muted)", fontWeight: "var(--cc-fw-strong)"}}>
                 Creator B
               </th>
-              <th style={{ textAlign: "right", padding: 8, color: "var(--cc-text-muted)", fontWeight: 600 }}>
+              <th style={{ textAlign: "right", padding: 8, color: "var(--cc-text-muted)", fontWeight: "var(--cc-fw-strong)"}}>
                 Overlap
               </th>
-              <th style={{ textAlign: "left", padding: 8, color: "var(--cc-text-muted)", fontWeight: 600 }}>
+              <th style={{ textAlign: "left", padding: 8, color: "var(--cc-text-muted)", fontWeight: "var(--cc-fw-strong)"}}>
                 Intensity
               </th>
             </tr>
@@ -125,8 +125,8 @@ export function AudienceOverlapMatrix({
                   data-testid="overlap-row"
                   style={{ borderTop: "1px solid var(--cc-border)" }}
                 >
-                  <td style={{ padding: 8, fontWeight: 600 }}>{aLabel}</td>
-                  <td style={{ padding: 8, fontWeight: 600 }}>{bLabel}</td>
+                  <td style={{ padding: 8, fontWeight: "var(--cc-fw-strong)"}}>{aLabel}</td>
+                  <td style={{ padding: 8, fontWeight: "var(--cc-fw-strong)"}}>{bLabel}</td>
                   <td
                     style={{
                       padding: 8,
@@ -141,7 +141,7 @@ export function AudienceOverlapMatrix({
                     </span>
                   </td>
                   <td style={{ padding: 8 }}>
-                    <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{band.word}</span>
+                    <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>{band.word}</span>
                   </td>
                 </tr>
               );
@@ -158,7 +158,7 @@ export function AudienceOverlapMatrix({
             border: "1px dashed var(--cc-border)",
             background: "var(--cc-card)",
             color: "var(--cc-text-muted)",
-            fontSize: 13,
+            fontSize: "var(--cc-t-13)",
             textAlign: "center",
           }}
         >
@@ -172,7 +172,7 @@ export function AudienceOverlapMatrix({
           style={{ display: "flex", flexDirection: "column", gap: 12 }}
         >
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <h4 style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)", margin: 0 }}>
+            <h4 style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", margin: 0 }}>
               {`Kept (${keepCount})`}
             </h4>
             <ul
@@ -192,7 +192,7 @@ export function AudienceOverlapMatrix({
                   style={{ display: "flex", alignItems: "center", gap: 8 }}
                 >
                   <Badge variant="success">Kept</Badge>
-                  <span style={{ fontSize: 13, color: "var(--cc-text)", fontWeight: 600 }}>
+                  <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text)", fontWeight: "var(--cc-fw-strong)"}}>
                     {labelFor(labelMap, id)}
                   </span>
                 </li>
@@ -201,7 +201,7 @@ export function AudienceOverlapMatrix({
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <h4 style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)", margin: 0 }}>
+            <h4 style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", margin: 0 }}>
               {`Removed as near-duplicate (${dropCount})`}
             </h4>
             <ul
@@ -230,10 +230,10 @@ export function AudienceOverlapMatrix({
                     }}
                   >
                     <Badge variant="warning">Removed</Badge>
-                    <span style={{ fontSize: 13, color: "var(--cc-text)", fontWeight: 600 }}>
+                    <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text)", fontWeight: "var(--cc-fw-strong)"}}>
                       {droppedLabel}
                     </span>
-                    <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>
+                    <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
                       {`overlaps ${keptLabel} at ${percent}`}
                     </span>
                   </li>

@@ -39,7 +39,7 @@ const PLATFORM_LABELS: Record<string, string> = {
 const cellStyle = {
   padding: "10px 12px",
   borderBottom: "1px solid var(--cc-border)",
-  fontSize: 13,
+  fontSize: "var(--cc-t-13)",
   color: "var(--cc-text)",
 } as const;
 
@@ -83,7 +83,7 @@ export default function IngestionClient() {
       <InstagramSourceBanner style={{ marginBottom: 20 }} />
 
       {error && (
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, border: "1px solid var(--cc-border)", borderRadius: 8, padding: "12px 16px", marginBottom: 20, fontSize: 13, color: "var(--cc-text-muted)" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, border: "1px solid var(--cc-border)", borderRadius: 8, padding: "12px 16px", marginBottom: 20, fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
           <span>{error}</span>
           <Button variant="secondary" size="sm" onClick={load}>Retry</Button>
         </div>
@@ -116,7 +116,7 @@ export default function IngestionClient() {
               <div key={p.platform}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
                   <Badge variant="neutral" size="sm">{PLATFORM_LABELS[p.platform] ?? p.platform}</Badge>
-                  <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>
+                  <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
                     {p.lastSyncAt ? `Last sync ${formatDateTimeAbs(p.lastSyncAt)}` : "No syncs yet"}
                     {` · ${p.sealed} sealed`}
                   </span>
@@ -131,7 +131,7 @@ export default function IngestionClient() {
             ))}
 
             <Card variant="outlined" style={{ padding: 24 }}>
-              <h2 style={{ fontSize: 15, fontWeight: 700, color: "var(--cc-text)", margin: "0 0 16px" }}>Dead-lettered posts</h2>
+              <h2 style={{ fontSize: "var(--cc-t-15)", fontWeight: 700, color: "var(--cc-text)", margin: "0 0 16px" }}>Dead-lettered posts</h2>
               {deadLetter.length === 0 ? (
                 <EmptyState
                   icon={<CheckCircle2 size={32} color="var(--cc-text-subtle)" />}
@@ -144,7 +144,7 @@ export default function IngestionClient() {
                     <thead>
                       <tr>
                         {["Post URL", "Platform", "Fail count", "Disabled"].map((h) => (
-                          <th key={h} style={{ textAlign: "left", fontSize: 12, fontWeight: 600, color: "var(--cc-text-muted)", padding: "8px 12px", borderBottom: "1px solid var(--cc-border)" }}>
+                          <th key={h} style={{ textAlign: "left", fontSize: "var(--cc-t-12)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text-muted)", padding: "8px 12px", borderBottom: "1px solid var(--cc-border)" }}>
                             {h}
                           </th>
                         ))}
@@ -164,7 +164,7 @@ export default function IngestionClient() {
                               {p.postUrl}
                             </a>
                             {p.campaignTitle && (
-                              <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{p.campaignTitle}</span>
+                              <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>{p.campaignTitle}</span>
                             )}
                           </td>
                           <td style={cellStyle}>
@@ -183,14 +183,14 @@ export default function IngestionClient() {
             </Card>
 
             <Card variant="outlined" style={{ padding: 24 }}>
-              <h2 style={{ fontSize: 15, fontWeight: 700, color: "var(--cc-text)", margin: "0 0 16px" }}>Snapshot sources (last 24h)</h2>
+              <h2 style={{ fontSize: "var(--cc-t-15)", fontWeight: 700, color: "var(--cc-text)", margin: "0 0 16px" }}>Snapshot sources (last 24h)</h2>
               {recentSnapshots.length === 0 ? (
-                <p style={{ fontSize: 13, color: "var(--cc-text-muted)", margin: 0 }}>No snapshots recorded in the last 24 hours</p>
+                <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", margin: 0 }}>No snapshots recorded in the last 24 hours</p>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   {recentSnapshots.map((s) => (
                     <div key={s.syncSource} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", border: "1px solid var(--cc-border)", borderRadius: 8 }}>
-                      <span style={{ fontSize: 13, fontWeight: 500, color: "var(--cc-text)" }}>{s.syncSource}</span>
+                      <span style={{ fontSize: "var(--cc-t-13)", fontWeight: 500, color: "var(--cc-text)" }}>{s.syncSource}</span>
                       <Badge variant="neutral" size="sm">{s.count}</Badge>
                     </div>
                   ))}

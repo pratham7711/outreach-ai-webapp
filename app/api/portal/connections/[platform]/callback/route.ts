@@ -258,7 +258,24 @@ export async function GET(
       return failureRedirect(req, platform, "creator");
     }
 
-    const identityData = identityWriteData(identity);
+    /* What the row already holds, so a platform that only publishes a rounded
+       figure cannot grind an exact one down on a reconnect. Absent on a first
+       connection, which is exactly when there is nothing to protect. */
+    const existingAccount = await db.creatorSocialAccount.findUnique({
+      where: {
+        creatorId_platform_platformUserId: {
+          creatorId: creator.id,
+          platform: platformEnum,
+          platformUserId: identity.platformUserId,
+        },
+      },
+      select: { followersCount: true },
+    });
+    const identityData = identityWriteData(
+      identity,
+      platformEnum,
+      existingAccount?.followersCount,
+    );
 
     await db.creatorSocialAccount.upsert({
       where: {

@@ -321,10 +321,14 @@ export async function refreshCampaign(input: {
         : {}),
     },
     // platformMetrics comes along because applyPostMetrics merges the measured-field
-    // record into it rather than replacing the importer's raw record.
+    // record into it rather than replacing the importer's raw record; the counters
+    // come along because it compares them against the incoming read and refuses a
+    // display-rounded figure that would overwrite an exact one.
     select: {
       id: true, platform: true, creatorId: true, postUrl: true,
       thumbnailUrl: true, caption: true, platformMetrics: true,
+      viewsCount: true, likesCount: true, commentsCount: true,
+      sharesCount: true, savesCount: true,
     },
     // Oldest sync first, so a campaign too big for one run still makes
     // progress on the stalest posts each time.

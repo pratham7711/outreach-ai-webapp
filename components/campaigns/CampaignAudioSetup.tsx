@@ -52,7 +52,7 @@ const inputStyle = {
   padding: "10px 14px",
   borderRadius: 10,
   border: "1px solid var(--cc-border)",
-  fontSize: 14,
+  fontSize: "var(--cc-t-14)",
   color: "var(--cc-text)",
   background: "var(--cc-card)",
   boxSizing: "border-box" as const,
@@ -60,7 +60,7 @@ const inputStyle = {
 
 const labelStyle = {
   display: "block" as const,
-  fontSize: 13,
+  fontSize: "var(--cc-t-13)",
   fontWeight: 600 as const,
   color: "var(--cc-text)",
   marginBottom: 6,
@@ -83,7 +83,7 @@ function StepRail({ step }: { step: number }) {
           />
         ))}
       </div>
-      <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.4px", color: "var(--cc-text-muted)", margin: 0 }}>
+      <p style={{ fontSize: "var(--cc-t-11)", fontWeight: 700, letterSpacing: "0.4px", color: "var(--cc-text-muted)", margin: 0 }}>
         STEP {step + 1} OF {STEP_LABELS.length} — {STEP_LABELS[step].toUpperCase()}
       </p>
     </div>
@@ -238,7 +238,7 @@ export function CampaignAudioSetup({ campaignId }: { campaignId: string }) {
     const cover = audio.coverUrl ? imgSrc(audio.coverUrl, 96) ?? audio.coverUrl : null;
     return (
       <div style={panelStyle}>
-        <h3 style={{ fontSize: 15, fontWeight: 700, color: "var(--cc-text)", marginBottom: 16 }}>Campaign audio</h3>
+        <h3 style={{ fontSize: "var(--cc-t-15)", fontWeight: 700, color: "var(--cc-text)", marginBottom: 16 }}>Campaign audio</h3>
         <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
           <div
             style={{
@@ -254,10 +254,10 @@ export function CampaignAudioSetup({ campaignId }: { campaignId: string }) {
             )}
           </div>
           <div style={{ minWidth: 0, flex: 1 }}>
-            <p style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)", margin: 0 }}>
+            <p style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", margin: 0 }}>
               {audio.title ?? "Tracking this sound"}
             </p>
-            <p style={{ fontSize: 12, color: "var(--cc-text-muted)", margin: "2px 0 0" }}>
+            <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: "2px 0 0" }}>
               {/* Both fill in from the first reading of the sound page, so a
                   sound attached seconds ago legitimately has neither yet. */}
               {audio.artist ?? "Artist fills in after the first reading"}
@@ -273,12 +273,12 @@ export function CampaignAudioSetup({ campaignId }: { campaignId: string }) {
             </Button>
           </div>
         </div>
-        <p style={{ fontSize: 12, color: "var(--cc-text-muted)", margin: "14px 0 0" }}>
+        <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: "14px 0 0" }}>
           The sound&apos;s usage is read once a day. Its cover art is this campaign&apos;s thumbnail
           wherever one has not been set by hand.
         </p>
         {error && (
-          <p role="alert" style={{ fontSize: 12, color: "var(--cc-danger)", margin: "10px 0 0" }}>{error}</p>
+          <p role="alert" style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-danger)", margin: "10px 0 0" }}>{error}</p>
         )}
       </div>
     );
@@ -288,8 +288,8 @@ export function CampaignAudioSetup({ campaignId }: { campaignId: string }) {
   if (!adding) {
     return (
       <div style={panelStyle}>
-        <h3 style={{ fontSize: 15, fontWeight: 700, color: "var(--cc-text)", marginBottom: 6 }}>Campaign audio</h3>
-        <p style={{ fontSize: 13, color: "var(--cc-text-muted)", margin: "0 0 16px" }}>
+        <h3 style={{ fontSize: "var(--cc-t-15)", fontWeight: 700, color: "var(--cc-text)", marginBottom: 6 }}>Campaign audio</h3>
+        <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", margin: "0 0 16px" }}>
           This campaign promotes no sound. Add one and we track how many videos use it, show the
           usage curve on the report, and take the campaign&apos;s thumbnail from its cover art.
         </p>
@@ -303,7 +303,7 @@ export function CampaignAudioSetup({ campaignId }: { campaignId: string }) {
   // ── The stepper ─────────────────────────────────────────────────────────
   return (
     <div style={panelStyle}>
-      <h3 style={{ fontSize: 15, fontWeight: 700, color: "var(--cc-text)", marginBottom: 16 }}>
+      <h3 style={{ fontSize: "var(--cc-t-15)", fontWeight: 700, color: "var(--cc-text)", marginBottom: 16 }}>
         {audio ? "Change campaign audio" : "Add campaign audio"}
       </h3>
       <StepRail step={step} />
@@ -323,11 +323,11 @@ export function CampaignAudioSetup({ campaignId }: { campaignId: string }) {
             />
           </div>
           {localError || error ? (
-            <p role="alert" style={{ fontSize: 12, color: "var(--cc-danger)", margin: 0 }}>
+            <p role="alert" style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-danger)", margin: 0 }}>
               {localError ?? error}
             </p>
           ) : (
-            <p style={{ fontSize: 12, color: "var(--cc-text-muted)", margin: 0 }}>
+            <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: 0 }}>
               Paste the sound&apos;s own page, not a video that uses it. We follow shortened links.
             </p>
           )}
@@ -342,7 +342,7 @@ export function CampaignAudioSetup({ campaignId }: { campaignId: string }) {
 
       {step === 1 && resolved && (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <p style={{ fontSize: 13, color: "var(--cc-text-muted)", margin: 0 }}>
+          <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", margin: 0 }}>
             This is the sound we will track. Nothing has been attached yet.
           </p>
           <div style={{ background: "var(--cc-bg)", borderRadius: 10, padding: 14, display: "flex", alignItems: "center", gap: 12 }}>
@@ -358,10 +358,10 @@ export function CampaignAudioSetup({ campaignId }: { campaignId: string }) {
               />
             )}
             <div style={{ minWidth: 0 }}>
-              <p style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)", margin: 0 }}>
+              <p style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", margin: 0 }}>
                 {resolved.provisionalTitle ?? "Untitled sound"}
               </p>
-              <p style={{ fontSize: 12, color: "var(--cc-text-muted)", margin: "4px 0 0" }}>
+              <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: "4px 0 0" }}>
                 {[
                   resolved.artist || null,
                   /* `!= null`, not `!== null`: this object is parsed from a
@@ -376,12 +376,12 @@ export function CampaignAudioSetup({ campaignId }: { campaignId: string }) {
               </p>
             </div>
           </div>
-          <p style={{ fontSize: 12, color: "var(--cc-text-muted)", margin: 0 }}>
+          <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: 0 }}>
             {resolved.coverImageUrl
               ? "This cover art becomes the campaign\u2019s thumbnail."
               : "The cover art could not be read, so the campaign keeps the thumbnail it has."}
           </p>
-          {error && <p role="alert" style={{ fontSize: 12, color: "var(--cc-danger)", margin: 0 }}>{error}</p>}
+          {error && <p role="alert" style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-danger)", margin: 0 }}>{error}</p>}
           <div style={{ display: "flex", gap: 8 }}>
             <Button onClick={attach} disabled={busy}>
               {busy ? "Attaching..." : "Start tracking"}
@@ -395,10 +395,10 @@ export function CampaignAudioSetup({ campaignId }: { campaignId: string }) {
 
       {step === 2 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <p style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 600, color: "var(--cc-text)", margin: 0 }}>
+          <p style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", margin: 0 }}>
             <Check size={16} color="var(--cc-primary)" aria-hidden="true" /> Tracking this sound
           </p>
-          <p style={{ fontSize: 12, color: "var(--cc-text-muted)", margin: 0 }}>
+          <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: 0 }}>
             Usage is read once a day, and the audio card is now on this campaign&apos;s Performance
             section and on every client report shared from it. The cover art becomes the
             campaign&apos;s thumbnail once the first reading lands.

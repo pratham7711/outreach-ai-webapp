@@ -159,6 +159,7 @@ export default function CreatorsClient({
       <PageHeader
         title="Creators"
         subtitle="Discover and manage your creator roster"
+        caption={`${filtered.length} Creator${filtered.length !== 1 ? "s" : ""}`}
         actions={
           <Button variant="primary" iconLeft={<Plus size={15} />} size="sm" onClick={() => setShowModal(true)} {...action("new-creator")}>
             New Creator
@@ -228,8 +229,8 @@ export default function CreatorsClient({
                   <Avatar name={creator.name} size="lg" src={imgSrc(creator.avatarUrl, 128) ?? undefined} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     {/* A long handle used to wrap under the badge and collide with it. */}
-                    <p style={{ fontWeight: 700, fontSize: 16, color: "var(--cc-text)", marginBottom: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={creator.name}>{creator.name}</p>
-                    <p style={{ fontSize: 13, color: "var(--cc-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>@{stripAt(creator.handle)}</p>
+                    <p style={{ fontWeight: 700, fontSize: "var(--cc-t-16)", color: "var(--cc-text)", marginBottom: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={creator.name}>{creator.name}</p>
+                    <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>@{stripAt(creator.handle)}</p>
                   </div>
                   <span style={{ flexShrink: 0 }}>
                     <Badge variant={PLATFORM_BADGE_VARIANT[creator.platform] ?? "neutral"}>
@@ -243,8 +244,8 @@ export default function CreatorsClient({
                       const value = stat.read(creator);
                       return (
                         <div key={stat.key}>
-                          <p style={{ fontSize: 11, color: "var(--cc-text-subtle)", marginBottom: 3, fontWeight: 600, letterSpacing: "0.3px", textTransform: "uppercase" }}>{stat.label}</p>
-                          <p style={{ fontWeight: 700, fontSize: 16, color: "var(--cc-text)" }}>{value ? formatNumber(value) : ""}</p>
+                          <p className="cc-microlabel" style={{ marginBottom: 3 }}>{stat.label}</p>
+                          <p style={{ fontWeight: 700, fontSize: "var(--cc-t-16)", color: "var(--cc-text)" }}>{value ? formatNumber(value) : ""}</p>
                         </div>
                       );
                     })}
@@ -281,8 +282,8 @@ export default function CreatorsClient({
                     <Link prefetch={false} href={`/creators/${c.id}`} style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 12 }}>
                       <Avatar name={c.name} size="sm" src={imgSrc(c.avatarUrl, 64) ?? undefined} />
                       <div>
-                        <p style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>{c.name}</p>
-                        <p style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>@{stripAt(c.handle)}</p>
+                        <p style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{c.name}</p>
+                        <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>@{stripAt(c.handle)}</p>
                       </div>
                     </Link>
                   </td>
@@ -292,13 +293,13 @@ export default function CreatorsClient({
                   {optionalStats.map((stat) => {
                     const value = stat.read(c);
                     return (
-                      <td key={stat.key} style={{ padding: "14px 24px", fontSize: 14, fontWeight: 500, color: "var(--cc-text)" }}>
+                      <td key={stat.key} style={{ padding: "14px 24px", fontSize: "var(--cc-t-14)", fontWeight: 500, color: "var(--cc-text)" }}>
                         {value ? formatNumber(value) : ""}
                       </td>
                     );
                   })}
-                  <td style={{ padding: "14px 24px", fontSize: 14, fontWeight: 500, color: "var(--cc-text)" }}>{c.campaignCount}</td>
-                  <td style={{ padding: "14px 24px", fontSize: 14, fontWeight: 500, color: "var(--cc-text)" }}>{c._count.posts}</td>
+                  <td style={{ padding: "14px 24px", fontSize: "var(--cc-t-14)", fontWeight: 500, color: "var(--cc-text)" }}>{c.campaignCount}</td>
+                  <td style={{ padding: "14px 24px", fontSize: "var(--cc-t-14)", fontWeight: 500, color: "var(--cc-text)" }}>{c._count.posts}</td>
                 </tr>
               ))}
             </tbody>

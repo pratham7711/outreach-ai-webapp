@@ -75,7 +75,7 @@ export default function AttachCampaigns({
             background: picked ? "var(--cc-primary)" : "var(--cc-border)",
             color: picked ? "white" : "var(--cc-text-muted)",
             border: "none", borderRadius: 8, padding: "8px 14px",
-            fontSize: 13, fontWeight: 600, cursor: picked ? "pointer" : "not-allowed",
+            fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", cursor: picked ? "pointer" : "not-allowed",
             display: "inline-flex", alignItems: "center", gap: 6,
           }}
         >
@@ -91,7 +91,7 @@ export default function AttachCampaigns({
               style={{
                 display: "inline-flex", alignItems: "center", gap: 6,
                 background: "var(--cc-bg)", border: "1px solid var(--cc-border)",
-                borderRadius: 999, padding: "4px 6px 4px 12px", fontSize: 12,
+                borderRadius: 999, padding: "4px 6px 4px 12px", fontSize: "var(--cc-t-12)",
                 color: "var(--cc-text)",
               }}
             >
@@ -113,7 +113,7 @@ export default function AttachCampaigns({
         </div>
       )}
 
-      {error && <p style={{ fontSize: 12, color: "#DC2626" }}>{error}</p>}
+      {error && <p style={{ fontSize: "var(--cc-t-12)", color: "#DC2626" }}>{error}</p>}
     </div>
   );
 }

@@ -45,7 +45,7 @@ export function LastUpdated({
         display: "inline-flex",
         alignItems: "center",
         gap: 4,
-        fontSize: 11,
+        fontSize: "var(--cc-t-11)",
         color: stale ? "var(--cc-warning)" : "var(--cc-text-muted)",
         whiteSpace: "nowrap",
         ...style,

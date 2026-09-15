@@ -58,10 +58,11 @@ export default function ListsClient({ lists }: { lists: List[] }) {
   };
 
   return (
-    <div className="rsp-page">
+    <div className="rsp-page cc-caption-flush">
       <PageHeader
         title="Lists"
         subtitle="Organize creators into curated lists"
+        caption={`${filtered.length} List${filtered.length !== 1 ? "s" : ""}`}
         actions={<Button variant="primary" iconLeft={<Plus size={15} />} onClick={() => setShowCreate(true)} {...action("new-list")}>New List</Button>}
       />
 
@@ -80,9 +81,9 @@ export default function ListsClient({ lists }: { lists: List[] }) {
               <Card variant="outlined" noPadding clickable>
                 <div style={{ height: 4, background: ACCENT_COLORS[i % ACCENT_COLORS.length] }} />
                 <div style={{ padding: 20 }}>
-                  <h3 style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)", marginBottom: 8 }}>{list.name}</h3>
-                  {list.description && <p style={{ fontSize: 13, color: "var(--cc-text-muted)", marginBottom: 8 }}>{list.description}</p>}
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 12, color: "var(--cc-text-muted)" }}>
+                  <h3 className="cc-panel-title" style={{ marginBottom: 8 }}>{list.name}</h3>
+                  {list.description && <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", marginBottom: 8 }}>{list.description}</p>}
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
                     <span style={{ display: "flex", alignItems: "center", gap: 4 }}><Users size={13} /> {list._count.items} creators</span>
                     <span>{formatDateAbs(list.createdAt)}</span>
                   </div>
@@ -95,7 +96,7 @@ export default function ListsClient({ lists }: { lists: List[] }) {
             <div style={{ width: 48, height: 48, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--cc-bg)", marginBottom: 12 }}>
               <Plus size={20} style={{ color: "var(--cc-text-muted)" }} />
             </div>
-            <p style={{ fontSize: 14, fontWeight: 500, color: "var(--cc-text-muted)", margin: 0 }}>Create a new list</p>
+            <p style={{ fontSize: "var(--cc-t-14)", fontWeight: 500, color: "var(--cc-text-muted)", margin: 0 }}>Create a new list</p>
           </div>
         </div>
       )}
@@ -112,12 +113,12 @@ export default function ListsClient({ lists }: { lists: List[] }) {
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <Input label="List Name *" value={createForm.name} onChange={e => setCreateForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. TikTok Creators Q2" />
             <div>
-              <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Description</label>
+              <label style={{ display: "block", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6 }}>Description</label>
               <textarea
                 value={createForm.description}
                 onChange={e => setCreateForm(f => ({ ...f, description: e.target.value }))}
                 rows={3} placeholder="Optional description..."
-                style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-border)", fontSize: 14, color: "var(--cc-text)", resize: "vertical", fontFamily: "inherit" }}
+                style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-border)", fontSize: "var(--cc-t-14)", color: "var(--cc-text)", resize: "vertical", fontFamily: "inherit" }}
               />
             </div>
           </div>

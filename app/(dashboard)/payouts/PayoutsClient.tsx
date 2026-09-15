@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import { PageHeader } from "@/components/ds/PageHeader";
 import { useRouter } from "next/navigation";
 import { Plus, Search, ArrowRight, Check, Banknote, Download } from "lucide-react";
 import { Card, Badge, EmptyState, Input, Avatar } from "@pratham7711/ui";
@@ -12,6 +13,7 @@ import PayoutDetailModal from "@/components/modals/PayoutDetailModal";
 import { stripAt, formatDateAbs } from "@/lib/format";
 import { downloadCsv, exportStamp } from "@/lib/csv";
 import type { PayoutCurrencyTotals } from "@/lib/payouts/totals";
+import { action } from "@/lib/ui/actions";
 
 type Payout = {
   id: string;
@@ -215,28 +217,56 @@ export default function PayoutsClient({ payouts, stats }: {
   };
 
   return (
-    <div className="rsp-page page-enter">
-      {/* Header */}
-      <div className="rsp-header">
-        <div>
-          <h1 style={{ fontSize: 26, fontWeight: 800, color: "var(--cc-text)", letterSpacing: "-0.02em", marginBottom: 4 }}>
-            Payouts
-          </h1>
-          <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>
-            Track and manage creator payments
-          </p>
-        </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+    <div className="rsp-page cc-end-41 page-enter cc-payoutpage">
+      {/* PageHeader, not a hand-rolled row. MEASURED 2026-09-14 at desktop-1600:
+          this page's h1 read 26px/800 at y=25 while every other page -- and
+          theirs -- reads 24px/700 at y=31, and its two buttons sat outside
+          `.cc-page-actions`, so the theme's action rules (the 180x40 box, the
+          18px/400 label, the outline secondary skin) reached neither. Their
+          `Export Data` is at 1379,26 in a 180x40 box; ours was at 1301.7,41.5
+          with a 12px label. */}
+      <PageHeader
+        title="Payouts"
+        subtitle="Track and manage creator payments"
+        actions={
+          /* Export Data is the FILLED one here, New Payout the outline --
+             the opposite of every other list page. MEASURED from their census:
+             their Export Data label is rgb(255,255,255) on the fill and their
+             New Payout label is rgb(31,60,239) on white. Ours had the two
+             skins the other way round. The slot rule gives both the same
+             180x40 box. Export Data is also the page header's ONLY action
+             on their side -- their New Payout is a 400x50 outline button in
+             the balance banner below, at 1160,104.5 -- so it moves out of the
+             header rather than keeping the second slot, which is what put our
+             filled button on the left where theirs has nothing. */
           <Button
-            variant="secondary"
+            variant="primary"
             iconLeft={<Download size={15} />}
             size="sm"
             disabled={filtered.length === 0}
             onClick={exportData}
+            {...action("export-data")}
           >
             Export Data
           </Button>
-          <Button variant="primary" iconLeft={<Plus size={15} />} size="sm" onClick={() => setShowModal(true)}>
+        }
+      />
+
+      {/* Their New Payout does not sit in the header strip -- it sits in an
+          indigo Balance banner between the strip and the transactions card,
+          as a 400x50 white button at 1160,104.5 (MEASURED, payouts census
+          2026-09-14). The banner wrapper is `display: contents` at base, so
+          off-theme this is still exactly the right-aligned action row it was;
+          the balance block itself is hidden at base for the same reason. */}
+      <div className="cc-payout-banner">
+        <div className="cc-payout-balance">
+          <span className="cc-payout-balance-label">Balance</span>
+          <span className="cc-payout-balance-value">
+            <TileValue rows={stats} pick={(r) => r.sent} />
+          </span>
+        </div>
+        <div className="cc-payout-actions">
+          <Button variant="secondary" iconLeft={<Plus size={15} />} size="sm" onClick={() => setShowModal(true)}>
             New Payout
           </Button>
         </div>
@@ -274,9 +304,17 @@ export default function PayoutsClient({ payouts, stats }: {
         <MetricTile metric="failedPayouts" value={<TileValue rows={stats} pick={(r) => r.failed} />} />
       </div>
 
+      {/* Their transactions card opens with a heading and a count before the
+          toolbar -- h2 at 290,247 and the caption at 290,281, with the search
+          at 290,305.8. Both are hidden at base, where this page has never had
+          them. The count is one text node on purpose: split into {n} + " ..."
+          the census keys it on the fragment and measures 10px of it. */}
+      <h2 className="cc-paypage-title">Transactions</h2>
+      <p className="cc-paypage-caption">{`${filtered.length} Transactions`}</p>
+
       {/* Search + Status Filter */}
-      <div style={{ marginBottom: 24, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-        <div style={{ flex: 1, minWidth: 180 }}>
+      <div className="cc-paypage-bar" style={{ marginBottom: 24, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+        <div className="cc-paypage-search" style={{ flex: 1, minWidth: 180 }}>
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -302,7 +340,7 @@ export default function PayoutsClient({ payouts, stats }: {
           marginBottom: 16, padding: "10px 16px", background: "var(--cc-primary)", borderRadius: 10,
           display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap",
         }}>
-          <span style={{ color: "white", fontSize: 13, fontWeight: 600 }}>
+          <span style={{ color: "white", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)"}}>
             {selected.size} selected
           </span>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -354,7 +392,7 @@ export default function PayoutsClient({ payouts, stats }: {
                 />
               </label>
               {["Creator", "Campaign", "Amount", "Status", "Date", "Action"].map((h) => (
-                <span key={h} style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--cc-text-subtle)" }}>{h}</span>
+                <span key={h} className="cc-microlabel">{h}</span>
               ))}
             </div>
             <div className="cc-stagger">
@@ -401,14 +439,14 @@ export default function PayoutsClient({ payouts, stats }: {
                   >
                     <Avatar name={p.creator.name} size="sm" />
                     <div style={{ minWidth: 0 }}>
-                      <p style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>{p.creator.name}</p>
-                      <p style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>@{stripAt(p.creator.handle)}</p>
+                      <p style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{p.creator.name}</p>
+                      <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>@{stripAt(p.creator.handle)}</p>
                     </div>
                   </button>
                   {/* Campaign */}
-                  <span data-col="campaign" style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{p.campaign?.title ?? "—"}</span>
+                  <span data-col="campaign" style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{p.campaign?.title ?? "—"}</span>
                   {/* Amount */}
-                  <span data-col="amount" style={{ fontSize: 14, fontWeight: 700, color: "var(--cc-text)" }}>{formatCurrency(p.amount, p.currency)}</span>
+                  <span data-col="amount" style={{ fontSize: "var(--cc-t-14)", fontWeight: 700, color: "var(--cc-text)" }}>{formatCurrency(p.amount, p.currency)}</span>
                   {/* Status */}
                   <div data-col="status">
                     <Badge variant={STATUS_BADGE_VARIANT[p.status] ?? "neutral"} dot>
@@ -416,7 +454,7 @@ export default function PayoutsClient({ payouts, stats }: {
                     </Badge>
                   </div>
                   {/* Date */}
-                  <span data-col="date" style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{formatDateAbs(p.createdAt)}</span>
+                  <span data-col="date" style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{formatDateAbs(p.createdAt)}</span>
                   {/* Quick action */}
                   <div data-col="action" onClick={(e) => e.stopPropagation()}>
                     {(QUICK_ACTIONS[p.status] ?? []).length > 0 ? (
@@ -434,7 +472,7 @@ export default function PayoutsClient({ payouts, stats }: {
                         ))}
                       </div>
                     ) : p.status === "SUCCESS" ? (
-                      <span style={{ fontSize: 12, color: "var(--cc-success)", fontWeight: 600 }}>
+                      <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-success)", fontWeight: "var(--cc-fw-strong)"}}>
                         <Check size={14} style={{ display: "inline", verticalAlign: "middle" }} /> Done
                       </span>
                     ) : null}

@@ -47,7 +47,7 @@ export default function DashboardError({
 
           <h2
             style={{
-              fontSize: 22,
+              fontSize: "var(--cc-t-22)",
               fontWeight: 700,
               color: "var(--cc-text)",
               marginBottom: 8,
@@ -59,7 +59,7 @@ export default function DashboardError({
 
           <p
             style={{
-              fontSize: 14,
+              fontSize: "var(--cc-t-14)",
               color: "var(--cc-text-muted)",
               lineHeight: 1.6,
               marginBottom: 8,
@@ -71,7 +71,7 @@ export default function DashboardError({
           {error.digest && (
             <p
               style={{
-                fontSize: 12,
+                fontSize: "var(--cc-t-12)",
                 color: "var(--cc-text-subtle)",
                 fontFamily: "monospace",
                 marginBottom: 24,

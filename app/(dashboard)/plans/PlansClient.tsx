@@ -133,12 +133,12 @@ function PlanModal({
         {/* Custom toggle */}
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <ToggleSwitch on={isCustom} onChange={setIsCustom} />
-          <span style={{ fontSize: 14, color: "var(--cc-text)" }}>Mark as custom plan</span>
+          <span style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text)" }}>Mark as custom plan</span>
         </div>
 
         {/* Feature Toggles */}
         <div>
-          <div style={{ fontSize: 13, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--cc-text-muted)", marginBottom: 12 }}>
+          <div style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--cc-text-muted)", marginBottom: 12 }}>
             Feature Access
           </div>
           <div style={{ borderRadius: 10, overflow: "hidden", border: "1px solid var(--cc-border)" }}>
@@ -155,8 +155,8 @@ function PlanModal({
                 }}
               >
                 <div>
-                  <div style={{ fontSize: 14, fontWeight: 500, color: "var(--cc-text)" }}>{FEATURES[key].label}</div>
-                  <div style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{FEATURES[key].description}</div>
+                  <div style={{ fontSize: "var(--cc-t-14)", fontWeight: 500, color: "var(--cc-text)" }}>{FEATURES[key].label}</div>
+                  <div style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>{FEATURES[key].description}</div>
                 </div>
                 <ToggleSwitch on={features[key] ?? false} onChange={(v) => setFeatures((prev) => ({ ...prev, [key]: v }))} />
               </div>
@@ -271,19 +271,19 @@ export default function PlansClient({ plans: initialPlans }: { plans: Plan[] }) 
                 {/* Card Header */}
                 <div style={{ padding: "20px 20px 16px", borderBottom: "1px solid var(--cc-border)" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
-                    <span style={{ fontSize: 18, fontWeight: 700, color: "var(--cc-text)" }}>{plan.name}</span>
+                    <span style={{ fontSize: "var(--cc-t-18)", fontWeight: 700, color: "var(--cc-text)" }}>{plan.name}</span>
                     <Badge variant={plan.isCustom ? "success" : "accent"} size="sm">
                       {plan.isCustom ? "Custom" : "Default"}
                     </Badge>
                   </div>
                   {plan.description && (
-                    <p style={{ fontSize: 13, color: "var(--cc-text-muted)", margin: 0 }}>{plan.description}</p>
+                    <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", margin: 0 }}>{plan.description}</p>
                   )}
                 </div>
 
                 {/* Feature Flags Section */}
                 <div style={{ padding: 20, flex: 1 }}>
-                  <div style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--cc-text-muted)", marginBottom: 12 }}>
+                  <div className="cc-microlabel" style={{ marginBottom: 12 }}>
                     Feature Access ({enabledCount}/{featureKeys.length})
                   </div>
                   <div className="plan-feat-grid">
@@ -291,7 +291,7 @@ export default function PlansClient({ plans: initialPlans }: { plans: Plan[] }) 
                       const on = plan.features[key] === true;
                       return (
                         <div key={key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                          <span style={{ fontSize: 13, color: on ? "var(--cc-text)" : "var(--cc-text-muted)", opacity: on ? 1 : 0.6 }}>
+                          <span style={{ fontSize: "var(--cc-t-13)", color: on ? "var(--cc-text)" : "var(--cc-text-muted)", opacity: on ? 1 : 0.6 }}>
                             {FEATURES[key].label}
                           </span>
                           <Badge variant={on ? "success" : "neutral"} size="sm">
@@ -305,7 +305,7 @@ export default function PlansClient({ plans: initialPlans }: { plans: Plan[] }) 
 
                 {/* Footer */}
                 <div style={{ padding: "14px 20px", borderTop: "1px solid var(--cc-border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>
+                  <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
                     <Users size={13} style={{ verticalAlign: "middle", marginRight: 4 }} />
                     {plan.clientCount} client{plan.clientCount !== 1 ? "s" : ""}
                   </span>

@@ -53,7 +53,7 @@ export function InstagramSourceBanner({ style }: { style?: React.CSSProperties }
         gap: 10,
         padding: "12px 14px",
         borderRadius: 10,
-        fontSize: 13,
+        fontSize: "var(--cc-t-13)",
         lineHeight: 1.5,
         // The house warning treatment, same mix as RemovedPostOverlay so all
         // three themes re-colour this with the rest of the palette.

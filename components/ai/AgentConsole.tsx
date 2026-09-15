@@ -46,8 +46,8 @@ export function AgentConsole({ goal, result, transcript }: AgentConsoleProps) {
     <Card variant="outlined" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <span style={{ fontSize: 12, fontWeight: 600, color: "var(--cc-text-muted)" }}>Agent goal</span>
-          <h2 style={{ fontSize: 18, fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>{goal}</h2>
+          <span style={{ fontSize: "var(--cc-t-12)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text-muted)" }}>Agent goal</span>
+          <h2 style={{ fontSize: "var(--cc-t-18)", fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>{goal}</h2>
         </div>
         <Badge variant={meta.variant}>{meta.label}</Badge>
       </div>
@@ -71,17 +71,17 @@ export function AgentConsole({ goal, result, transcript }: AgentConsoleProps) {
                 background: "var(--cc-card)",
               }}
             >
-              <span style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", color: "var(--cc-text-muted)" }}>
+              <span className="cc-microlabel">
                 {entry.role}
               </span>
-              <span style={{ fontSize: 13, color: "var(--cc-text)", whiteSpace: "pre-wrap" }}>{entry.text}</span>
+              <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text)", whiteSpace: "pre-wrap" }}>{entry.text}</span>
             </li>
           ))}
         </ol>
       ) : null}
 
       {result.finalText ? (
-        <p data-testid="agent-final-text" style={{ fontSize: 14, color: "var(--cc-text)", margin: 0, whiteSpace: "pre-wrap" }}>
+        <p data-testid="agent-final-text" style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text)", margin: 0, whiteSpace: "pre-wrap" }}>
           {result.finalText}
         </p>
       ) : null}
@@ -103,15 +103,15 @@ export function AgentConsole({ goal, result, transcript }: AgentConsoleProps) {
         >
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <Badge variant="warning">Approval required</Badge>
-            <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>
+            <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>
               {result.pendingApproval ? result.pendingApproval.tool : "Pending action"}
             </span>
           </div>
-          <p style={{ fontSize: 13, color: "var(--cc-text-muted)", margin: 0 }}>
+          <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", margin: 0 }}>
             This write or financial action needs a human to approve before it runs.
           </p>
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <span style={{ fontSize: 12, fontWeight: 600, color: "var(--cc-text-muted)" }}>Requested input</span>
+            <span style={{ fontSize: "var(--cc-t-12)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text-muted)" }}>Requested input</span>
             <pre
               data-testid="approval-input"
               style={{
@@ -121,7 +121,7 @@ export function AgentConsole({ goal, result, transcript }: AgentConsoleProps) {
                 border: "1px solid var(--cc-border)",
                 background: "var(--cc-bg)",
                 color: "var(--cc-text)",
-                fontSize: 12,
+                fontSize: "var(--cc-t-12)",
                 overflowX: "auto",
                 whiteSpace: "pre-wrap",
                 wordBreak: "break-word",
@@ -144,8 +144,8 @@ export function AgentConsole({ goal, result, transcript }: AgentConsoleProps) {
                 border: "1px solid var(--cc-primary)",
                 background: "var(--cc-primary)",
                 color: "white",
-                fontSize: 13,
-                fontWeight: 600,
+                fontSize: "var(--cc-t-13)",
+                fontWeight: "var(--cc-fw-strong)",
               }}
             >
               Approve
@@ -163,8 +163,8 @@ export function AgentConsole({ goal, result, transcript }: AgentConsoleProps) {
                 border: "1px solid var(--cc-danger)",
                 background: "var(--cc-card)",
                 color: "var(--cc-danger)",
-                fontSize: 13,
-                fontWeight: 600,
+                fontSize: "var(--cc-t-13)",
+                fontWeight: "var(--cc-fw-strong)",
               }}
             >
               Reject
@@ -187,8 +187,8 @@ export function AgentConsole({ goal, result, transcript }: AgentConsoleProps) {
             background: "var(--cc-card)",
           }}
         >
-          <span style={{ fontSize: 13, fontWeight: 700, color: "var(--cc-danger)" }}>Reached step limit</span>
-          <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>
+          <span style={{ fontSize: "var(--cc-t-13)", fontWeight: 700, color: "var(--cc-danger)" }}>Reached step limit</span>
+          <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
             The agent stopped after hitting the maximum number of steps without finishing the goal.
           </span>
         </div>

@@ -93,10 +93,10 @@ export function TrackerSettingsClient() {
   if (loadError || !settings) {
     return (
       <Card variant="outlined">
-        <h2 style={{ fontSize: 15, fontWeight: 700, color: "var(--cc-text)", marginBottom: 6 }}>
+        <h2 style={{ fontSize: "var(--cc-t-15)", fontWeight: 700, color: "var(--cc-text)", marginBottom: 6 }}>
           Tracker settings could not be loaded
         </h2>
-        <p style={{ fontSize: 13, color: "var(--cc-text-muted)", marginBottom: 12 }}>
+        <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", marginBottom: 12 }}>
           {loadError ?? "The server returned nothing for this workspace."}
         </p>
         <Button variant="secondary" size="sm" onClick={load}>Try again</Button>
@@ -136,7 +136,7 @@ export function TrackerSettingsClient() {
           <div
             role="status"
             style={{
-              marginTop: 10, fontSize: 12, color: "var(--cc-text)",
+              marginTop: 10, fontSize: "var(--cc-t-12)", color: "var(--cc-text)",
               borderLeft: "3px solid var(--cc-warning)", paddingLeft: 10,
             }}
           >
@@ -172,17 +172,17 @@ export function TrackerSettingsClient() {
             style={{
               width: 100, padding: "8px 10px", borderRadius: 8,
               border: "1px solid var(--cc-border)", background: "var(--cc-bg)",
-              color: "var(--cc-text-muted)", fontSize: 14,
+              color: "var(--cc-text-muted)", fontSize: "var(--cc-t-14)",
             }}
           />
-          <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>
+          <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
             days (7–1095), stored but not yet applied.
           </span>
         </div>
         <p
           id="retention-note"
           style={{
-            marginTop: 10, fontSize: 12, color: "var(--cc-text)",
+            marginTop: 10, fontSize: "var(--cc-t-12)", color: "var(--cc-text)",
             borderLeft: "3px solid var(--cc-warning)", paddingLeft: 10,
           }}
         >
@@ -198,8 +198,8 @@ export function TrackerSettingsClient() {
 function Section({ title, blurb, children }: { title: string; blurb: string; children: React.ReactNode }) {
   return (
     <Card variant="outlined">
-      <h2 style={{ fontSize: 15, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>{title}</h2>
-      <p style={{ fontSize: 13, color: "var(--cc-text-muted)", marginBottom: 14 }}>{blurb}</p>
+      <h2 style={{ fontSize: "var(--cc-t-15)", fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>{title}</h2>
+      <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", marginBottom: 14 }}>{blurb}</p>
       {children}
     </Card>
   );
@@ -235,8 +235,8 @@ function RadioRow({
             style={{ marginTop: 2 }}
           />
           <span>
-            <span style={{ display: "block", fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>{o.label}</span>
-            <span style={{ display: "block", fontSize: 12, color: "var(--cc-text-muted)" }}>{o.hint}</span>
+            <span style={{ display: "block", fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{o.label}</span>
+            <span style={{ display: "block", fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>{o.hint}</span>
           </span>
         </label>
       ))}

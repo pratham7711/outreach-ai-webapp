@@ -46,7 +46,7 @@ const selectStyle: React.CSSProperties = {
   border: "1px solid var(--cc-border)",
   borderRadius: 8,
   padding: "7px 10px",
-  fontSize: 13,
+  fontSize: "var(--cc-t-13)",
   color: "var(--cc-text)",
 };
 
@@ -139,13 +139,13 @@ export function PostAnalysisTable({
             ]}
           />
         )}
-        <span style={{ fontSize: 13, color: "var(--cc-text-muted)", fontVariantNumeric: "tabular-nums" }}>
+        <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", fontVariantNumeric: "tabular-nums" }}>
           {totals.posts} posts · {formatFull(totals.views)} views
         </span>
       </div>
 
       {sorted.length === 0 ? (
-        <p style={{ padding: "40px 0", textAlign: "center", fontSize: 14, color: "var(--cc-text-muted)" }}>
+        <p style={{ padding: "40px 0", textAlign: "center", fontSize: "var(--cc-t-14)", color: "var(--cc-text-muted)" }}>
           {emptyMessage}
         </p>
       ) : (
@@ -169,23 +169,23 @@ export function PostAnalysisTable({
                   <td style={{ padding: "12px 24px" }}>
                     <Link
                       href={`/campaigns/${p.campaignId}/posts/${p.id}`}
-                      style={{ textDecoration: "none", color: "var(--cc-text)", fontWeight: 600, fontSize: 14 }}
+                      style={{ textDecoration: "none", color: "var(--cc-text)", fontWeight: "var(--cc-fw-strong)", fontSize: "var(--cc-t-14)"}}
                     >
                       {p.creatorName ?? "Unknown"}
                     </Link>
                     {p.creatorHandle && (
-                      <div style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>@{stripAt(p.creatorHandle)}</div>
+                      <div style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>@{stripAt(p.creatorHandle)}</div>
                     )}
                   </td>
-                  <td style={{ padding: "12px 24px", fontSize: 13, color: "var(--cc-text-muted)" }}>
+                  <td style={{ padding: "12px 24px", fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
                     {p.campaignTitle ?? "—"}
                   </td>
                   <td style={{ padding: "12px 24px" }}>
                     <Badge variant="neutral" size="sm">{platformLabel(p.platform)}</Badge>
                   </td>
-                  <td style={{ padding: "12px 24px", fontSize: 13, color: "var(--cc-text)" }}>
+                  <td style={{ padding: "12px 24px", fontSize: "var(--cc-t-13)", color: "var(--cc-text)" }}>
                     {formatDateTimeAbs(p.postedAt)}
-                    <div style={{ fontSize: 11, color: "var(--cc-text-muted)" }}>
+                    <div style={{ fontSize: "var(--cc-t-11)", color: "var(--cc-text-muted)" }}>
                       synced {p.lastSyncedAt ? timeAgo(p.lastSyncedAt) : "never"}
                     </div>
                   </td>

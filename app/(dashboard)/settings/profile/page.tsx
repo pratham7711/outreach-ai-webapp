@@ -44,8 +44,8 @@ function SectionHeader({ icon: Icon, title, description }: { icon: React.Element
         <Icon size={18} color="var(--cc-primary)" />
       </div>
       <div>
-        <h2 style={{ fontSize: 15, fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>{title}</h2>
-        <p style={{ fontSize: 13, color: "var(--cc-text-muted)", margin: 0 }}>{description}</p>
+        <h2 style={{ fontSize: "var(--cc-t-15)", fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>{title}</h2>
+        <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", margin: 0 }}>{description}</p>
       </div>
     </div>
   );
@@ -54,7 +54,7 @@ function SectionHeader({ icon: Icon, title, description }: { icon: React.Element
 function FormRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="settings-form-row" style={{ display: "grid", gap: 8, alignItems: "start", paddingBottom: 16, borderBottom: "1px solid var(--cc-border)" }}>
-      <label style={{ fontSize: 13, fontWeight: 500, color: "var(--cc-text)" }}>{label}</label>
+      <label style={{ fontSize: "var(--cc-t-13)", fontWeight: 500, color: "var(--cc-text)" }}>{label}</label>
       <div style={{ minWidth: 0 }}>{children}</div>
     </div>
   );
@@ -170,7 +170,7 @@ export default function OrgProfilePage() {
         <div style={{
           position: "fixed", top: 20, right: 20, zIndex: 9999,
           background: "var(--cc-success)", color: "white", padding: "10px 18px",
-          borderRadius: 8, fontSize: 14, fontWeight: 500,
+          borderRadius: 8, fontSize: "var(--cc-t-14)", fontWeight: 500,
           boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
         }}>
           {toast}
@@ -195,7 +195,7 @@ export default function OrgProfilePage() {
       />
 
       {error && (
-        <div style={{ background: "color-mix(in srgb, var(--cc-danger) 14%, transparent)", border: "1px solid color-mix(in srgb, var(--cc-danger) 30%, transparent)", borderRadius: 8, padding: "12px 16px", marginBottom: 20, fontSize: 13, color: "var(--cc-danger)" }}>
+        <div style={{ background: "color-mix(in srgb, var(--cc-danger) 14%, transparent)", border: "1px solid color-mix(in srgb, var(--cc-danger) 30%, transparent)", borderRadius: 8, padding: "12px 16px", marginBottom: 20, fontSize: "var(--cc-t-13)", color: "var(--cc-danger-ink)" }}>
           {error}
         </div>
       )}
@@ -221,10 +221,10 @@ export default function OrgProfilePage() {
               </FormRow>
               <FormRow label="Subdomain">
                 <div style={{ display: "flex", alignItems: "center", gap: 8, paddingTop: 8 }}>
-                  <span style={{ fontSize: 13, color: "var(--cc-text-muted)", background: "var(--cc-bg)", border: "1px solid var(--cc-border)", borderRadius: 6, padding: "7px 12px" }}>
+                  <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", background: "var(--cc-bg)", border: "1px solid var(--cc-border)", borderRadius: 6, padding: "7px 12px" }}>
                     {org?.subdomain ?? "—"}
                   </span>
-                  <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>Read-only</span>
+                  <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>Read-only</span>
                 </div>
               </FormRow>
               <FormRow label="Timezone">
@@ -251,11 +251,11 @@ export default function OrgProfilePage() {
               </FormRow>
               <FormRow label="Current Plan">
                 <div style={{ display: "flex", alignItems: "center", gap: 8, paddingTop: 6 }}>
-                  <span style={{ fontSize: 12, fontWeight: 600, padding: "3px 10px", borderRadius: 12, background: "var(--cc-primary-light)", color: "var(--cc-primary)", textTransform: "capitalize" }}>
+                  <span style={{ fontSize: "var(--cc-t-12)", fontWeight: "var(--cc-fw-strong)", padding: "3px 10px", borderRadius: 12, background: "var(--cc-primary-light)", color: "var(--cc-primary)", textTransform: "capitalize" }}>
                     {org?.plan ?? "starter"}
                   </span>
                   {org?.planExpiresAt && (
-                    <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>
+                    <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
                       Expires {formatDateAbs(org.planExpiresAt)}
                     </span>
                   )}
@@ -290,7 +290,7 @@ export default function OrgProfilePage() {
                   disabled
                   aria-describedby="custom-domain-note"
                 />
-                <p id="custom-domain-note" style={{ fontSize: 12, color: "var(--cc-text-muted)", marginTop: 6 }}>
+                <p id="custom-domain-note" style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", marginTop: 6 }}>
                   Not available yet — nothing serves the app from a custom domain today.
                   Any value already saved here is kept.
                 </p>
@@ -346,7 +346,7 @@ export default function OrgProfilePage() {
                 >
                   Reset to default
                 </Button>
-                <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>
+                <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
                   {isDefaultBranding
                     ? "Using the default palette."
                     : "Restores the default palette. Save to apply."}
@@ -369,7 +369,7 @@ export default function OrgProfilePage() {
               title="Bank Details"
               description="Your organization's own account, for invoices — coming soon"
             />
-            <p style={{ fontSize: 12, color: "var(--cc-text-muted)", margin: "-8px 0 16px" }}>
+            <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: "-8px 0 16px" }}>
               Stored for when invoicing lands. Nothing displays these today. Creator
               payout details are separate — each creator enters their own in the creator
               portal.

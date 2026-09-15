@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Check, Plus, Tags, Trash2, X } from "lucide-react";
+import { Check, Pencil, Plus, Tags, Trash2, X } from "lucide-react";
 import { Input } from "@pratham7711/ui";
 import { PageHeader, SectionCard, Dropdown, useConfirm, Button } from "@/components/ds";
+import { PlatformGlyph } from "@/components/ui/PlatformGlyph";
 
 /**
  * Settings → General, mirroring the reference's Tags & Statuses page.
@@ -168,16 +169,34 @@ function TaxonomyList({
     await send(`/api/settings/taxonomy/${kind}/${item.id}`, "DELETE");
   }
 
+  /* Their deliverable chip leads with the platform's own mark and carries no
+     text badge: MEASURED at desktop-1600, the label sits 61px into a 42px-tall
+     pill and the chip ends 51px after it. Ours led with 6px and trailed 130.3
+     -- the uppercase `INSTAGRAM` badge was the difference, which is why this
+     moves rather than being restyled. */
+  const glyph = (item: Item) =>
+    item.platform ? <PlatformGlyph className="cc-chip-glyph" platform={item.platform} size="var(--cc-chip-glyph-size)" /> : null;
+
+  const label = (item: Item) => (
+    <span className="cc-chip-label">
+      {item.emoji ? <span className="cc-chip-emoji">{item.emoji}</span> : null}
+      {item.name}
+    </span>
+  );
+
+  /* MEASURED 2026-09-14 at desktop-1600, their Settings -> General flag row:
+       chip   612,417.5 195.6x25   fill rgb(242,244,251)
+       emoji  618,422   15x15      12/500
+       label  638,420.5 118.6x19   15/400
+       edit   768.6,423 15x14   delete  786.6,423 15x14   chip ends 807.6
+     i.e. 6px of padding, a 12px emoji, 5px to the label, 12px to the actions
+     and 3px between them. Ours was 35.4 tall with a 13px emoji jammed against
+     the label and a single 13px bin -- so every chip after the first sat 20px
+     to the left of theirs, which is what made four labels and four emoji read
+     as eight separate findings. The two-icon cluster is theirs, and it is what
+     makes the widths agree. */
   const chip = (item: Item) => (
-    <span
-      key={item.id}
-      style={{
-        display: "inline-flex", alignItems: "center", gap: 8,
-        background: "var(--cc-bg)", border: "1px solid var(--cc-border)",
-        borderRadius: 8, padding: "6px 8px 6px 12px", fontSize: 13,
-        color: "var(--cc-text)",
-      }}
-    >
+    <span key={item.id} className="cc-chip">
       {renaming === item.id ? (
         <>
           <input
@@ -187,7 +206,7 @@ function TaxonomyList({
             autoFocus
             style={{
               border: "1px solid var(--cc-border)", borderRadius: 6,
-              padding: "2px 6px", fontSize: 13, width: 160,
+              padding: "2px 6px", fontSize: "var(--cc-t-13)", width: 160,
               color: "var(--cc-text)", background: "var(--cc-card)",
             }}
           />
@@ -214,35 +233,29 @@ function TaxonomyList({
         </>
       ) : !canManage ? (
         <>
-          <span style={{ fontSize: 13, color: "var(--cc-text)" }}>
-            {item.emoji ? `${item.emoji} ` : ""}{item.name}
-          </span>
-          {item.platform && (
-            <span style={{ fontSize: 11, color: "var(--cc-text-muted)" }}>{item.platform}</span>
-          )}
+          {glyph(item)}
+          {label(item)}
         </>
       ) : (
         <>
-          <button
-            type="button"
-            onClick={() => { setRenaming(item.id); setRenameValue(item.name); }}
-            // Without this the button's name is just the tag text, which does
-            // not say that clicking it renames.
-            aria-label={`Rename ${item.name}`}
-            style={{ background: "none", border: "none", padding: 0, cursor: "pointer", color: "var(--cc-text)", fontSize: 13 }}
-          >
-            {item.emoji ? `${item.emoji} ` : ""}{item.name}
-          </button>
-          {item.platform && (
-            <span style={{ fontSize: 11, color: "var(--cc-text-muted)" }}>{item.platform}</span>
-          )}
-          <button
-            type="button" aria-label={`Remove ${item.name}`} disabled={busy}
-            onClick={() => void remove(item)}
-            style={{ background: "none", border: "none", cursor: "pointer", color: "var(--cc-text-muted)", display: "inline-flex" }}
-          >
-            <Trash2 size={13} aria-hidden="true" />
-          </button>
+          {glyph(item)}
+          {label(item)}
+          <span className="cc-chip-actions">
+            <button
+              type="button" aria-label={`Rename ${item.name}`} disabled={busy}
+              onClick={() => { setRenaming(item.id); setRenameValue(item.name); }}
+              className="cc-chip-action"
+            >
+              <Pencil aria-hidden="true" />
+            </button>
+            <button
+              type="button" aria-label={`Remove ${item.name}`} disabled={busy}
+              onClick={() => void remove(item)}
+              className="cc-chip-action"
+            >
+              <Trash2 aria-hidden="true" />
+            </button>
+          </span>
         </>
       )}
     </span>
@@ -261,17 +274,17 @@ function TaxonomyList({
               </Button>
             )
           : (
-            <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>
+            <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
               Read-only — only admins can change this list
             </span>
           )
       }
     >
-      <div style={{ padding: 24, display: "flex", flexDirection: "column", gap: 16 }}>
+      <div className="cc-taxonomy-list" data-kind={kind}>
         {items === null ? (
-          <p style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>Loading…</p>
+          <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>Loading…</p>
         ) : items.length === 0 && !adding ? (
-          <p style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{emptyLabel}</p>
+          <p className="cc-taxonomy-empty">{emptyLabel}</p>
         ) : buckets ? (
           // Grouped: every group is shown even when empty, because the groups are
           // the fixed part and their emptiness is information.
@@ -280,12 +293,12 @@ function TaxonomyList({
               .filter((b) => kind === "campaign-statuses" || items.some((i) => i.bucket === b.value))
               .map((b) => (
                 <div key={b.value}>
-                  <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: "var(--cc-text-muted)", marginBottom: 8 }}>
+                  <p className="cc-microlabel" style={{ marginBottom: 8 }}>
                     {b.label}
                   </p>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                     {items.filter((i) => i.bucket === b.value).length === 0 ? (
-                      <span style={{ fontSize: 12, color: "var(--cc-text-subtle)" }}>None</span>
+                      <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-subtle)" }}>None</span>
                     ) : (
                       items.filter((i) => i.bucket === b.value).map(chip)
                     )}
@@ -350,7 +363,7 @@ function TaxonomyList({
         )}
 
         {error && (
-          <p role="alert" style={{ fontSize: 12, color: "var(--cc-danger)" }}>{error}</p>
+          <p role="alert" style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-danger)" }}>{error}</p>
         )}
       </div>
     </SectionCard>
@@ -361,16 +374,24 @@ export default function GeneralClient({ canManage }: { canManage: boolean }) {
   return (
     <div className="rsp-page page-enter">
       <PageHeader
-        title="General"
+        title="General Settings"
         subtitle="The tags, flags, deliverable types and statuses this workspace uses."
       />
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      {/* The stack, not the individual cards, is the card on the reference.
+          MEASURED at desktop-1600: theirs paints ONE white panel 291,104
+          1293x2058 holding every section as a flush transparent row, titled
+          `Tags & Statuses`; ours painted five separate 1293x178.6 panels with
+          20px of page background between them. The class is what lets the
+          theme make that swap -- the inline style this replaces could not be
+          re-pointed by any rule. */}
+      <div className="cc-section-stack">
+        <h2 className="cc-section-stack-title">Tags &amp; Statuses</h2>
         <TaxonomyList
           canManage={canManage}
           kind="creator-tags"
           title="Creator Tags"
-          description="Categorise and label creators by their general attributes."
+          description="Categorise and label creators by their general attributes — the niche they work in, the audience they reach, the kind of brief they suit."
           addLabel="Add Creator Tag"
           emptyLabel="No Creator Tags yet."
         />
@@ -378,7 +399,7 @@ export default function GeneralClient({ canManage }: { canManage: boolean }) {
           canManage={canManage}
           kind="creator-flags"
           title="Creator Flags"
-          description="Highlight a creator's current status, such as fast turnaround or on a break."
+          description="Highlight a creator's current status or a standing attribute — fast turnaround, strong view rates, on a break, not responding. Flags show wherever the creator is listed."
           addLabel="Add Creator Flag"
           emptyLabel="No Creator Flags yet."
         />
@@ -386,7 +407,7 @@ export default function GeneralClient({ canManage }: { canManage: boolean }) {
           canManage={canManage}
           kind="campaign-tags"
           title="Campaign Tags"
-          description="Categorise and label campaigns, for example “Fashion” or “Q4 Launch”."
+          description="Categorise and label campaigns, for example “Fashion” or “Q4 Launch”, and filter on them."
           addLabel="Add Campaign Tag"
           emptyLabel="No Campaign Tags Found"
         />

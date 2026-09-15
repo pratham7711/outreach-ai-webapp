@@ -16,7 +16,7 @@ const chartTooltipStyle: React.CSSProperties = {
   border: "1px solid var(--border)",
   borderRadius: 10,
   color: "var(--popover-foreground)",
-  fontSize: 13,
+  fontSize: "var(--cc-t-13)",
   padding: "8px 12px",
 };
 
@@ -103,7 +103,7 @@ export function PerformanceOverTimeArea({ data }: { data: PerformancePoint[] }) 
               contentStyle={chartTooltipStyle}
               formatter={(value, name) => [formatFull(Number(value)), String(name)]}
             />
-            <Legend wrapperStyle={{ fontSize: 12 }} />
+            <Legend wrapperStyle={{ fontSize: "var(--cc-t-12)"}} />
             <Area
               type="monotone"
               dataKey="likes"

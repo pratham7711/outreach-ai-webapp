@@ -73,8 +73,8 @@ export function SoundDetailModal({
           )}
         </div>
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 20, fontWeight: 700, color: "var(--cc-text)" }}>{sound.title}</div>
-          <div style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>
+          <div style={{ fontSize: "var(--cc-t-20)", fontWeight: 700, color: "var(--cc-text)" }}>{sound.title}</div>
+          <div style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
             {sound.artist || "Unknown artist"}
           </div>
         </div>
@@ -86,7 +86,7 @@ export function SoundDetailModal({
               title="Read this sound from TikTok now"
               style={{
                 display: "flex", alignItems: "center", gap: 6,
-                padding: "6px 12px", borderRadius: 8, fontSize: 13, fontWeight: 600,
+                padding: "6px 12px", borderRadius: 8, fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)",
                 border: "1px solid var(--cc-border)", background: "var(--cc-card)",
                 color: "var(--cc-text)", cursor: refreshing ? "default" : "pointer",
                 opacity: refreshing ? 0.6 : 1,
@@ -117,7 +117,7 @@ export function SoundDetailModal({
             background: "var(--cc-card)",
             padding: "10px 14px",
             marginBottom: 18,
-            fontSize: 13,
+            fontSize: "var(--cc-t-13)",
             color: "var(--cc-text)",
           }}
         >
@@ -133,10 +133,10 @@ export function SoundDetailModal({
             borderRadius: 12, padding: 16, minWidth: 0,
           }}
         >
-          <h3 style={{ fontSize: 14, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>
+          <h3 style={{ fontSize: "var(--cc-t-14)", fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>
             Audio Uses
           </h3>
-          <div style={{ fontSize: 24, fontWeight: 700, color: "var(--cc-text)", marginBottom: 10 }}>
+          <div style={{ fontSize: "var(--cc-t-24)", fontWeight: 700, color: "var(--cc-text)", marginBottom: 10 }}>
             {sound.latestSnapshot ? formatFull(sound.latestSnapshot.usesCount) : "—"}
           </div>
           <AudioUsesChart series={sound.series} granularity={sound.chartGranularity} />
@@ -148,7 +148,7 @@ export function SoundDetailModal({
             borderRadius: 12, padding: 16, minWidth: 0,
           }}
         >
-          <h3 style={{ fontSize: 14, fontWeight: 700, color: "var(--cc-text)", marginBottom: 10 }}>
+          <h3 style={{ fontSize: "var(--cc-t-14)", fontWeight: 700, color: "var(--cc-text)", marginBottom: 10 }}>
             Velocity
           </h3>
           <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 10 }}>
@@ -156,20 +156,20 @@ export function SoundDetailModal({
               const c = changeOver(sound.series, h.days);
               return (
                 <div key={h.label} style={{ minWidth: 84 }}>
-                  <div style={{ fontSize: 11, color: "var(--cc-text-muted)" }}>{h.label}</div>
+                  <div style={{ fontSize: "var(--cc-t-11)", color: "var(--cc-text-muted)" }}>{h.label}</div>
                   {c === "short-history" ? (
                     <div
-                      style={{ fontSize: 14, fontWeight: 700, color: "var(--cc-text-muted)" }}
+                      style={{ fontSize: "var(--cc-t-14)", fontWeight: 700, color: "var(--cc-text-muted)" }}
                       title={`Not enough history — this sound has no reading from ${h.days} days ago yet.`}
                     >
                       —
                     </div>
                   ) : c ? (
-                    <div style={{ fontSize: 14, fontWeight: 700, color: c.added < 0 ? "var(--cc-danger)" : "var(--cc-text)" }}>
+                    <div style={{ fontSize: "var(--cc-t-14)", fontWeight: 700, color: c.added < 0 ? "var(--cc-danger)" : "var(--cc-text)" }}>
                       {c.added >= 0 ? "+" : ""}
                       {formatFull(c.added)}
                       {c.percent !== null ? (
-                        <span style={{ fontSize: 11, fontWeight: 500, color: "var(--cc-text-muted)", marginLeft: 4 }}>
+                        <span style={{ fontSize: "var(--cc-t-11)", fontWeight: 500, color: "var(--cc-text-muted)", marginLeft: 4 }}>
                           {c.percent >= 0 ? "+" : ""}
                           {c.percent.toFixed(2)}%
                         </span>
@@ -178,7 +178,7 @@ export function SoundDetailModal({
                   ) : (
                     /* The reference's own wording for this case, and the right
                        one: not a zero, an absence. */
-                    <div style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>No data yet.</div>
+                    <div style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>No data yet.</div>
                   )}
                 </div>
               );
@@ -188,7 +188,7 @@ export function SoundDetailModal({
         </section>
       </div>
 
-      <div style={{ marginTop: 14, fontSize: 12, color: "var(--cc-text-muted)" }}>
+      <div style={{ marginTop: 14, fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
         Tracked since {formatDateAbs(sound.trackedSince)} · {sound.series.length} points ·{" "}
         {sound.chartGranularity} granularity
         {sound.lastReadAt ? <> · last read {timeAgo(sound.lastReadAt)}</> : null}

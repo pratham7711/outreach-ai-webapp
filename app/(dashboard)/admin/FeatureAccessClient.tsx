@@ -225,8 +225,8 @@ export default function FeatureAccessClient({ clients: initialClients, plans }: 
                 gridTemplateColumns: "32px 1fr 140px 130px 110px 120px",
                 gap: 12,
                 alignItems: "center",
-                fontSize: 11,
-                fontWeight: 600,
+                fontSize: "var(--cc-t-11)",
+                fontWeight: "var(--cc-fw-strong)",
                 textTransform: "uppercase" as const,
                 letterSpacing: "0.05em",
                 color: "var(--cc-text-muted)",
@@ -277,7 +277,7 @@ export default function FeatureAccessClient({ clients: initialClients, plans }: 
 
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                       <Avatar name={client.name} size="sm" />
-                      <span style={{ fontSize: 14, fontWeight: 500, color: "var(--cc-text)" }}>{client.name}</span>
+                      <span style={{ fontSize: "var(--cc-t-14)", fontWeight: 500, color: "var(--cc-text)" }}>{client.name}</span>
                     </div>
 
                     <div>
@@ -287,7 +287,7 @@ export default function FeatureAccessClient({ clients: initialClients, plans }: 
                     </div>
 
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{enabledCount}/{featureKeys.length}</span>
+                      <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{enabledCount}/{featureKeys.length}</span>
                       <div style={{ flex: 1, maxWidth: 60, height: 4, borderRadius: 2, background: "var(--cc-hover-bg)", overflow: "hidden" }}>
                         <div style={{ width: `${(enabledCount / featureKeys.length) * 100}%`, height: "100%", borderRadius: 2, background: enabledCount > 7 ? "var(--cc-success)" : enabledCount > 4 ? "var(--cc-warning)" : "var(--cc-danger)", transition: "width 0.3s" }} />
                       </div>
@@ -308,7 +308,7 @@ export default function FeatureAccessClient({ clients: initialClients, plans }: 
                       <Link
                         href={`/clients/${client.id}`}
                         style={{
-                          padding: "5px 10px", borderRadius: 6, fontSize: 12, fontWeight: 500,
+                          padding: "5px 10px", borderRadius: 6, fontSize: "var(--cc-t-12)", fontWeight: 500,
                           background: "transparent", border: "1px solid var(--cc-border)",
                           color: "var(--cc-text-muted)", display: "flex", alignItems: "center",
                           textDecoration: "none",
@@ -352,7 +352,7 @@ export default function FeatureAccessClient({ clients: initialClients, plans }: 
             return (
               <Card variant="outlined" style={{ padding: 20 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-                  <h3 style={{ fontSize: 16, fontWeight: 600, color: "var(--cc-text)", margin: 0 }}>No Plan</h3>
+                  <h3 style={{ fontSize: "var(--cc-t-16)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", margin: 0 }}>No Plan</h3>
                   <Badge variant="neutral" size="sm">
                     {noPlanClients.length} client{noPlanClients.length !== 1 ? "s" : ""}
                   </Badge>
@@ -374,7 +374,7 @@ export default function FeatureAccessClient({ clients: initialClients, plans }: 
             return (
               <Card key={plan.id} variant="outlined" style={{ padding: 20 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-                  <h3 style={{ fontSize: 16, fontWeight: 600, color: "var(--cc-text)", margin: 0 }}>{plan.name}</h3>
+                  <h3 style={{ fontSize: "var(--cc-t-16)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", margin: 0 }}>{plan.name}</h3>
                   <Badge variant="accent" size="sm">
                     {clientsOnPlan.length} client{clientsOnPlan.length !== 1 ? "s" : ""}
                   </Badge>
@@ -386,7 +386,7 @@ export default function FeatureAccessClient({ clients: initialClients, plans }: 
                     </div>
                   ))}
                 </div>
-                <Link href="/plans" style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 12, fontSize: 12, color: "var(--cc-primary)", textDecoration: "none" }}>
+                <Link href="/plans" style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 12, fontSize: "var(--cc-t-12)", color: "var(--cc-primary)", textDecoration: "none" }}>
                   View all <ArrowRight size={14} />
                 </Link>
               </Card>
@@ -410,7 +410,7 @@ export default function FeatureAccessClient({ clients: initialClients, plans }: 
               <div style={{
                 padding: "12px 20px", borderBottom: "1px solid var(--cc-border)",
                 display: "grid", gridTemplateColumns: "1fr 140px 1fr 100px", gap: 12,
-                fontSize: 11, fontWeight: 600, textTransform: "uppercase" as const, letterSpacing: "0.05em", color: "var(--cc-text-muted)",
+                fontSize: "var(--cc-t-11)", fontWeight: "var(--cc-fw-strong)", textTransform: "uppercase" as const, letterSpacing: "0.05em", color: "var(--cc-text-muted)",
               }}>
                 <div>Client</div>
                 <div>Plan</div>
@@ -426,7 +426,7 @@ export default function FeatureAccessClient({ clients: initialClients, plans }: 
                   }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                       <Avatar name={client.name} size="sm" />
-                      <span style={{ fontSize: 14, fontWeight: 500, color: "var(--cc-text)" }}>{client.name}</span>
+                      <span style={{ fontSize: "var(--cc-t-14)", fontWeight: 500, color: "var(--cc-text)" }}>{client.name}</span>
                     </div>
                     <div>
                       <Badge variant={client.planName ? "accent" : "neutral"} size="sm">
@@ -479,10 +479,10 @@ export default function FeatureAccessClient({ clients: initialClients, plans }: 
           color: "var(--cc-overlay-ink-text)",
           boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
           zIndex: 100,
-          fontSize: 13,
+          fontSize: "var(--cc-t-13)",
           maxWidth: "calc(100vw - 24px)",
         }}>
-          <span style={{ fontWeight: 600 }}>
+          <span style={{ fontWeight: "var(--cc-fw-strong)"}}>
             {selected.size} client{selected.size > 1 ? "s" : ""} selected
           </span>
           <div className="rsp-hide-mobile" style={{ width: 1, height: 20, background: "rgba(255,255,255,0.2)" }} />
@@ -497,7 +497,7 @@ export default function FeatureAccessClient({ clients: initialClients, plans }: 
               ...plans.map((p) => ({ value: p.id, label: p.name })),
             ]}
             triggerStyle={{
-              padding: "6px 10px", borderRadius: 6, fontSize: 12,
+              padding: "6px 10px", borderRadius: 6, fontSize: "var(--cc-t-12)",
               background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.2)",
               color: "white",
             }}

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
-import { ArrowRight, Bell, BellRing, Building2, CreditCard, LineChart, Plug, Tags, Users } from "lucide-react";
+import { Activity, ArrowRight, Bell, BellRing, Building2, CreditCard, LineChart, Plug, Tags, Users } from "lucide-react";
 import { PageHeader } from "@/components/ds";
 
 const cards = [
@@ -53,6 +53,18 @@ const cards = [
     href: "/settings/billing",
     icon: BellRing,
   },
+  /* The other seven settings pages were all reachable two ways -- a rail row and
+     a card here -- but Ingestion had only the rail row, so it was the one page
+     that a theme collapsing the rail would orphan outright. That is now what the
+     creatorcore theme does (see --cc-nav-subpage-display in globals.css), which
+     turns a cosmetic inconsistency into a page nobody can reach. Listed here so
+     the hub is the complete index of settings it always appeared to be. */
+  {
+    title: "Ingestion",
+    description: "Health of the post and profile ingestion pipeline, and the dead-letter queue.",
+    href: "/settings/ingestion",
+    icon: Activity,
+  },
 ];
 
 export default async function SettingsPage() {
@@ -101,10 +113,10 @@ export default async function SettingsPage() {
                 >
                   <Icon size={20} />
                 </div>
-                <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--cc-text)", marginBottom: 8 }}>
+                <h2 style={{ fontSize: "var(--cc-t-16)", fontWeight: 700, color: "var(--cc-text)", marginBottom: 8 }}>
                   {card.title}
                 </h2>
-                <p style={{ fontSize: 14, lineHeight: 1.6, color: "var(--cc-text-muted)", marginBottom: 16 }}>
+                <p style={{ fontSize: "var(--cc-t-14)", lineHeight: 1.6, color: "var(--cc-text-muted)", marginBottom: 16 }}>
                   {card.description}
                 </p>
                 <span
@@ -112,8 +124,8 @@ export default async function SettingsPage() {
                     display: "inline-flex",
                     alignItems: "center",
                     gap: 6,
-                    fontSize: 13,
-                    fontWeight: 600,
+                    fontSize: "var(--cc-t-13)",
+                    fontWeight: "var(--cc-fw-strong)",
                     color: "var(--cc-primary)",
                   }}
                 >

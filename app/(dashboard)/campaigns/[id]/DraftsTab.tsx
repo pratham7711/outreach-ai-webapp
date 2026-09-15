@@ -4,8 +4,9 @@ import React from "react";
 import { useState, useEffect, useCallback } from "react";
 import { Card, Badge, Modal, EmptyState, Skeleton, Avatar } from "@pratham7711/ui";
 import { Dropdown, Button } from "@/components/ds";
-import { CheckCircle2, XCircle, ExternalLink, FileText, Plus } from "lucide-react";
+import { CheckCircle2, XCircle, ExternalLink, FileText, Plus, Check, X, Loader } from "lucide-react";
 import { toast } from "sonner";
+import { CampaignHeaderActions } from "@/components/campaigns/CampaignHeaderActions";
 import { stripAt, formatDateAbs } from "@/lib/format";
 
 type Draft = {
@@ -55,20 +56,24 @@ const STATUS_BADGE: Record<string, "success" | "warning" | "danger" | "neutral">
    approved, and filing it anywhere else would make Approved lie. */
 const APPROVED_STATUSES = ["APPROVED", "POSTING", "POSTED", "COMPLETE"];
 
+/* Their order, and their marks. MEASURED at desktop-1600: the row reads All /
+   Not Reviewed / Approved / Declined, All is the one selected on load, and it
+   is the only one without a glyph -- the other three lead with a spinner, a
+   check and an x at 14px. */
 const FILTERS = [
-  { key: "PENDING", label: "Not Reviewed" },
-  { key: "APPROVED", label: "Approved" },
-  { key: "DECLINED", label: "Declined" },
-  { key: "ALL", label: "All" },
+  { key: "ALL", label: "All", Glyph: null },
+  { key: "PENDING", label: "Not Reviewed", Glyph: Loader },
+  { key: "APPROVED", label: "Approved", Glyph: Check },
+  { key: "DECLINED", label: "Declined", Glyph: X },
 ] as const;
 
 const labelStyle: React.CSSProperties = {
-  display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6,
+  display: "block", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6,
 };
 
 const inputStyle: React.CSSProperties = {
   width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-border)",
-  fontSize: 14, color: "var(--cc-text)", background: "var(--cc-card)",
+  fontSize: "var(--cc-t-14)", color: "var(--cc-text)", background: "var(--cc-card)",
   boxSizing: "border-box",
 };
 
@@ -82,7 +87,7 @@ export default function DraftsTab({
   const [drafts, setDrafts] = useState<Draft[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [filter, setFilter] = useState<(typeof FILTERS)[number]["key"]>("PENDING");
+  const [filter, setFilter] = useState<(typeof FILTERS)[number]["key"]>("ALL");
   const [declineId, setDeclineId] = useState<string | null>(null);
   const [declineReason, setDeclineReason] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -210,7 +215,7 @@ export default function DraftsTab({
   if (error) {
     return (
       <Card variant="outlined" style={{ padding: 24, textAlign: "center" }}>
-        <p style={{ fontSize: 14, color: "var(--cc-text-muted)", marginBottom: 12 }}>{error}</p>
+        <p style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text-muted)", marginBottom: 12 }}>{error}</p>
         <Button variant="secondary" onClick={() => { setLoading(true); fetchDrafts(); }}>Retry</Button>
       </Card>
     );
@@ -218,34 +223,35 @@ export default function DraftsTab({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+      <div className="cc-pillbar">
         {FILTERS.map((f) => (
           <button
             key={f.key}
+            className="cc-pill"
+            data-on={filter === f.key}
+            aria-pressed={filter === f.key}
             onClick={() => setFilter(f.key)}
-            style={{
-              padding: "6px 14px", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer",
-              border: `1px solid ${filter === f.key ? "var(--cc-primary)" : "var(--cc-border)"}`,
-              background: filter === f.key ? "var(--cc-primary-light)" : "var(--cc-card)",
-              color: filter === f.key ? "var(--cc-primary)" : "var(--cc-text-muted)",
-            }}
           >
+            {f.Glyph ? <f.Glyph aria-hidden /> : null}
             {f.label}
           </button>
         ))}
-        <div style={{ marginLeft: "auto" }}>
-          <Button
-            variant="primary"
-            size="sm"
-            iconLeft={<Plus size={15} />}
-            disabled={awaiting.length === 0}
-            title={awaiting.length === 0 ? "Every creator on this campaign has already submitted" : undefined}
-            onClick={() => setAdding(true)}
-          >
-            Add Draft
-          </Button>
-        </div>
       </div>
+
+      {/* In the campaign header, where theirs is: MEASURED at desktop-1600,
+          their Add Draft sits on the header card's right edge, not above the
+          list. */}
+      <CampaignHeaderActions>
+        <Button
+          variant="primary"
+          iconLeft={<Plus size={15} />}
+          disabled={awaiting.length === 0}
+          title={awaiting.length === 0 ? "Every creator on this campaign has already submitted" : undefined}
+          onClick={() => setAdding(true)}
+        >
+          Add Draft
+        </Button>
+      </CampaignHeaderActions>
 
       {visible.length === 0 ? (
         <EmptyState
@@ -275,13 +281,13 @@ export default function DraftsTab({
                   <Avatar name={d.creator.name} src={d.creator.avatarUrl ?? undefined} size="sm" />
                   <div style={{ minWidth: 0 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                      <p style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>{d.creator.name}</p>
+                      <p style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{d.creator.name}</p>
                       <Badge variant={STATUS_BADGE[d.status] ?? "neutral"} dot>{d.status.replace(/_/g, " ")}</Badge>
                       {d.draftMediaType && <Badge variant="neutral">{d.draftMediaType}</Badge>}
                     </div>
-                    <p style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>@{stripAt(d.creator.handle)}</p>
+                    <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>@{stripAt(d.creator.handle)}</p>
                     {d.draftCaption && (
-                      <p style={{ fontSize: 13, color: "var(--cc-text-muted)", marginTop: 6, whiteSpace: "pre-wrap" }}>
+                      <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", marginTop: 6, whiteSpace: "pre-wrap" }}>
                         {d.draftCaption}
                       </p>
                     )}
@@ -291,19 +297,19 @@ export default function DraftsTab({
                           href={d.draftUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 13, fontWeight: 600, color: "var(--cc-primary)", textDecoration: "none" }}
+                          style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-primary)", textDecoration: "none" }}
                         >
                           View draft <ExternalLink size={12} />
                         </a>
                       )}
                       {d.draftSubmittedAt && (
-                        <span style={{ fontSize: 12, color: "var(--cc-text-subtle)" }}>
+                        <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-subtle)" }}>
                           Submitted {formatDateAbs(d.draftSubmittedAt)}
                         </span>
                       )}
                     </div>
                     {d.status === "DECLINED" && d.feedbackNotes && (
-                      <p style={{ fontSize: 12, color: "var(--cc-danger)", marginTop: 6 }}>
+                      <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-danger)", marginTop: 6 }}>
                         Revisions requested: {d.feedbackNotes}
                       </p>
                     )}
@@ -425,7 +431,7 @@ export default function DraftsTab({
             placeholder="What needs to change before this can be approved?"
             style={{
               width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-border)",
-              fontSize: 14, color: "var(--cc-text)", background: "var(--cc-card)",
+              fontSize: "var(--cc-t-14)", color: "var(--cc-text)", background: "var(--cc-card)",
               resize: "vertical", fontFamily: "inherit", boxSizing: "border-box",
             }}
           />

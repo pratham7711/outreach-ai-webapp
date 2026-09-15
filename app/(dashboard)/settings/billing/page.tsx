@@ -63,9 +63,9 @@ function limitCard({
         >
           <Icon size={18} />
         </div>
-        <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text-muted)" }}>{label}</span>
+        <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text-muted)" }}>{label}</span>
       </div>
-      <div style={{ fontSize: 24, fontWeight: 800, color: "var(--cc-text)" }}>{value}</div>
+      <div style={{ fontSize: "var(--cc-t-24)", fontWeight: "var(--cc-fw-black)", color: "var(--cc-text)" }}>{value}</div>
     </div>
   );
 }
@@ -137,17 +137,17 @@ export default async function BillingPage() {
       >
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, marginBottom: 16, flexWrap: "wrap" }}>
           <div>
-            <h2 style={{ fontSize: 18, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>
+            <h2 style={{ fontSize: "var(--cc-t-18)", fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>
               Enabled features
             </h2>
-            <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>
+            <p style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text-muted)" }}>
               Features currently active for this organization.
             </p>
           </div>
           <span
             style={{
-              fontSize: 13,
-              fontWeight: 600,
+              fontSize: "var(--cc-t-13)",
+              fontWeight: "var(--cc-fw-strong)",
               color: "var(--cc-primary)",
               background: "var(--cc-primary-light)",
               padding: "8px 12px",
@@ -159,7 +159,7 @@ export default async function BillingPage() {
         </div>
 
         {enabledFeatures.length === 0 ? (
-          <p style={{ fontSize: 14, color: "var(--cc-text-muted)", margin: 0 }}>
+          <p style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text-muted)", margin: 0 }}>
             No features are currently enabled for this organization.
           </p>
         ) : (
@@ -184,7 +184,7 @@ export default async function BillingPage() {
                 }}
               >
                 <CheckCircle2 size={16} style={{ color: "var(--cc-success)", flexShrink: 0 }} />
-                <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>
+                <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>
                   {FEATURES[feature as FeatureKey]?.label ?? formatLabel(feature)}
                 </span>
               </div>
@@ -194,10 +194,10 @@ export default async function BillingPage() {
 
         {notYetBuilt.length > 0 && (
           <div style={{ marginTop: 24, borderTop: "1px solid var(--cc-border)", paddingTop: 16 }}>
-            <h3 style={{ fontSize: 14, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>
+            <h3 style={{ fontSize: "var(--cc-t-14)", fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>
               Listed on your plan, not built yet
             </h3>
-            <p style={{ fontSize: 13, color: "var(--cc-text-muted)", marginBottom: 12 }}>
+            <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", marginBottom: 12 }}>
               These names appear on the plan tier but nothing in the product reads them
               today. They are shown so the list matches what you are paying for, not
               because they do anything yet.
@@ -222,7 +222,7 @@ export default async function BillingPage() {
                   }}
                 >
                   <CircleDashed size={16} style={{ color: "var(--cc-text-subtle)", flexShrink: 0 }} />
-                  <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text-muted)" }}>
+                  <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text-muted)" }}>
                     {formatLabel(feature)}
                   </span>
                 </div>

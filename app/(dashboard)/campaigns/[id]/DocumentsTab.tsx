@@ -6,6 +6,7 @@ import { Card, Modal, EmptyState, Skeleton } from "@pratham7711/ui";
 import { Button } from "@/components/ds";
 import { FileText, ExternalLink, Trash2, Plus } from "lucide-react";
 import { toast } from "sonner";
+import { CampaignHeaderActions } from "@/components/campaigns/CampaignHeaderActions";
 import { formatDateAbs } from "@/lib/format";
 
 /**
@@ -117,28 +118,37 @@ export default function DocumentsTab({ campaignId }: { campaignId: string }) {
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+      <div className="cc-tabpanel-head">
         <div>
-          <h2 style={{ fontSize: 18, fontWeight: 700, color: "var(--cc-text)" }}>Documents</h2>
-          <p style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>
+          <h2 style={{ fontSize: "var(--cc-t-18)", fontWeight: 700, color: "var(--cc-text)" }}>Documents</h2>
+          <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
             Contracts, briefs and anything else that belongs with this campaign.
           </p>
         </div>
-        <Button variant="primary" onClick={() => setShowAdd(true)}>
-          <Plus size={14} /> Add Document
-        </Button>
       </div>
+
+      {/* In the campaign header, where theirs is (MEASURED at desktop-1600). */}
+      <CampaignHeaderActions>
+        <Button variant="primary" iconLeft={<Plus size={16} />} onClick={() => setShowAdd(true)}>
+          Add Document
+        </Button>
+      </CampaignHeaderActions>
 
       {docs === null ? (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {[1, 2, 3].map((i) => <Skeleton key={i} width="100%" height="64px" borderRadius="12px" />)}
         </div>
       ) : docs.length === 0 ? (
-        <EmptyState
-          icon={<FileText size={32} color="var(--cc-text-subtle)" />}
-          title="No documents added to this campaign!"
-          description="Link the contract, the brief or the invoice so it sits with the campaign."
-        />
+        /* Their empty Documents tab is a single 100px card carrying one
+           centred line -- no glyph, no second sentence. MEASURED: the card is
+           223,130 1362x100 and the line sits at 760.4,168.1. */
+        <div className="cc-empty-flush">
+          <EmptyState
+            icon={<FileText size={32} color="var(--cc-text-subtle)" />}
+            title="No documents added to this campaign!"
+            description="Link the contract, the brief or the invoice so it sits with the campaign."
+          />
+        </div>
       ) : (
         <Card noPadding>
           <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
@@ -160,14 +170,14 @@ export default function DocumentsTab({ campaignId }: { campaignId: string }) {
                       target="_blank"
                       rel="noopener noreferrer"
                       style={{
-                        fontSize: 14, fontWeight: 600, color: "var(--cc-text)",
+                        fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)",
                         textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6,
                       }}
                     >
                       {doc.name}
                       <ExternalLink size={12} color="var(--cc-text-muted)" aria-hidden="true" />
                     </a>
-                    <div style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>
+                    <div style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
                       {[label, who && `Added by ${who}`, formatDateAbs(doc.uploadedAt)]
                         .filter(Boolean)
                         .join(" · ")}
@@ -205,7 +215,7 @@ export default function DocumentsTab({ campaignId }: { campaignId: string }) {
             </div>
           }
         >
-          <p style={{ fontSize: 13, color: "var(--cc-text-muted)", marginBottom: 16 }}>
+          <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", marginBottom: 16 }}>
             Paste a link to where the document already lives — Drive, Dropbox, Notion, anywhere.
           </p>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -234,6 +244,6 @@ export default function DocumentsTab({ campaignId }: { campaignId: string }) {
 
 const fieldStyle: React.CSSProperties = {
   width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-border)",
-  fontSize: 14, color: "var(--cc-text)", background: "var(--cc-card)",
+  fontSize: "var(--cc-t-14)", color: "var(--cc-text)", background: "var(--cc-card)",
   boxSizing: "border-box",
 };

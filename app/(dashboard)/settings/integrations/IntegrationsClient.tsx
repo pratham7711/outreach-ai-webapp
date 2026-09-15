@@ -2,7 +2,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Card, Skeleton, Toggle } from "@pratham7711/ui";
-import { Button, useConfirm } from "@/components/ds";
+import { BellRing, Plug } from "lucide-react";
+import { Button, SectionCard, useConfirm } from "@/components/ds";
 import { apiFetch } from "@/lib/api/client";
 import { errorMessage } from "@/lib/api/errorMessage";
 
@@ -37,6 +38,7 @@ export function IntegrationsClient() {
   const [webhookUrl, setWebhookUrl] = useState("");
   const [channel, setChannel] = useState("");
   const [showEvents, setShowEvents] = useState(false);
+  const [open, setOpen] = useState(false);
   const confirm = useConfirm();
 
   useEffect(() => {
@@ -112,6 +114,7 @@ export function IntegrationsClient() {
     }
   }
 
+
   if (loading) {
     return (
       <Card variant="outlined">
@@ -125,7 +128,7 @@ export function IntegrationsClient() {
   const inputStyle: React.CSSProperties = {
     width: "100%",
     padding: "9px 12px",
-    fontSize: 14,
+    fontSize: "var(--cc-t-14)",
     border: "1px solid var(--cc-border)",
     borderRadius: 8,
     background: "var(--cc-card)",
@@ -133,104 +136,117 @@ export function IntegrationsClient() {
   };
 
   return (
-    <div style={{ display: "grid", gap: 16, maxWidth: 760 }}>
-      <Card variant="outlined">
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
-          <div style={{ fontSize: 24 }} aria-hidden>💬</div>
-          <div>
-            <h2 style={{ fontSize: 15, fontWeight: 700, color: "var(--cc-text)" }}>Slack</h2>
-            <p style={{ fontSize: 12.5, color: "var(--cc-text-muted)" }}>
-              {view.connected
-                ? `Connected${view.channel ? ` to ${view.channel}` : ""} · ${view.webhookMask}`
-                : "Team notifications posted to a channel via an incoming webhook."}
-            </p>
+    <div className="cc-settings-groups">
+      <SectionCard
+        icon={Plug}
+        title="Integrations"
+        description="Connect with Slack to receive updates and notifications directly in your selected channel."
+      >
+        {/* One row per connector, the reference's shape for this page. MEASURED
+            2026-09-14 at desktop-1600: their card is 291,104 1293x142 with the
+            logo at 628,161 28x28, `Slack` at 668,162.8 18/400 and a pill CTA at
+            1417.7,153 109.3x44 r=70. Ours was a 760-wide card holding a 💬 at
+            24px, an 18/700 name, two 710x41 inputs and a 91.6x38 button 200px
+            further down — because the webhook is ours to paste and theirs to
+            mint through OAuth. So the form is what the CTA opens, and the row
+            at rest is the row they draw. */}
+        <div className="cc-provider-row">
+          <div className="cc-provider-id">
+            <span className="cc-provider-logo" aria-hidden>💬</span>
+            <div className="cc-pref-row-text">
+              <span className="cc-provider-name">Slack</span>
+              {view.connected ? (
+                <span className="cc-pref-row-desc">
+                  Connected{view.channel ? ` to ${view.channel}` : ""} · {view.webhookMask}
+                </span>
+              ) : null}
+            </div>
           </div>
+          <Button
+            className="cc-provider-cta"
+            aria-expanded={open}
+            onClick={() => setOpen((o) => !o)}
+          >
+            {view.connected ? "Manage" : "Connect"}
+          </Button>
         </div>
 
-        {!view.connected && (
-          <p style={{ fontSize: 12.5, color: "var(--cc-text-muted)", marginBottom: 12 }}>
-            In Slack: your workspace → Tools & settings → Manage apps → Incoming Webhooks → Add to
-            Slack, pick a channel, and paste the URL it gives you here.
-          </p>
-        )}
-
-        <div style={{ display: "grid", gap: 10 }}>
-          <input
-            style={inputStyle}
-            type="url"
-            placeholder={view.connected ? "Paste a new webhook URL to replace the current one" : "https://hooks.slack.com/services/…"}
-            value={webhookUrl}
-            onChange={(e) => setWebhookUrl(e.target.value)}
-            disabled={busy}
-          />
-          <input
-            style={inputStyle}
-            type="text"
-            placeholder="Channel label, e.g. #campaigns (display only)"
-            value={channel}
-            onChange={(e) => setChannel(e.target.value)}
-            disabled={busy}
-          />
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <Button
-              onClick={() =>
-                save(
-                  webhookUrl.trim() ? { webhookUrl: webhookUrl.trim(), channel } : { channel },
-                  view.connected ? "Saved" : "Slack connected"
-                )
-              }
-              disabled={busy || (!view.connected && !webhookUrl.trim())}
-            >
-              {view.connected ? "Save" : "Connect"}
-            </Button>
-            {view.connected && (
-              <>
-                <Button variant="secondary" onClick={test} disabled={busy}>
-                  Send test message
-                </Button>
-                <Button variant="danger" onClick={disconnect} disabled={busy}>
-                  Disconnect
-                </Button>
-              </>
+        {open ? (
+          <div style={{ display: "grid", gap: 10, paddingTop: 4 }}>
+            {!view.connected && (
+              <p className="cc-pref-row-desc">
+                In Slack: your workspace → Tools &amp; settings → Manage apps → Incoming Webhooks → Add to
+                Slack, pick a channel, and paste the URL it gives you here.
+              </p>
             )}
+            <input
+              style={inputStyle}
+              type="url"
+              placeholder={view.connected ? "Paste a new webhook URL to replace the current one" : "https://hooks.slack.com/services/…"}
+              value={webhookUrl}
+              onChange={(e) => setWebhookUrl(e.target.value)}
+              disabled={busy}
+            />
+            <input
+              style={inputStyle}
+              type="text"
+              placeholder="Channel label, e.g. #campaigns (display only)"
+              value={channel}
+              onChange={(e) => setChannel(e.target.value)}
+              disabled={busy}
+            />
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <Button
+                onClick={() =>
+                  save(
+                    webhookUrl.trim() ? { webhookUrl: webhookUrl.trim(), channel } : { channel },
+                    view.connected ? "Saved" : "Slack connected"
+                  )
+                }
+                disabled={busy || (!view.connected && !webhookUrl.trim())}
+              >
+                {view.connected ? "Save" : "Connect Slack"}
+              </Button>
+              {view.connected && (
+                <>
+                  <Button variant="secondary" onClick={test} disabled={busy}>
+                    Send test message
+                  </Button>
+                  <Button variant="danger" onClick={disconnect} disabled={busy}>
+                    Disconnect
+                  </Button>
+                </>
+              )}
+            </div>
           </div>
-        </div>
-      </Card>
+        ) : null}
+      </SectionCard>
 
       {view.connected && (
-        <Card variant="outlined">
+        <SectionCard
+          icon={BellRing}
+          title="Events"
+          description="Org-wide — these post to the channel, not to anyone's email."
+        >
           <button
             onClick={() => setShowEvents((s) => !s)}
-            style={{
-              background: "none",
-              border: "none",
-              padding: 0,
-              cursor: "pointer",
-              fontSize: 15,
-              fontWeight: 700,
-              color: "var(--cc-text)",
-            }}
+            className="cc-provider-name"
+            style={{ background: "none", border: "none", padding: 0, cursor: "pointer" }}
           >
             Events posted to Slack {showEvents ? "▾" : "▸"}
           </button>
-          <p style={{ fontSize: 12.5, color: "var(--cc-text-muted)", marginTop: 4 }}>
-            Org-wide — applies to the channel, not to anyone&apos;s email.
-          </p>
           {showEvents && (
             <div style={{ marginTop: 12, display: "grid", gap: 14 }}>
               {groups.map(([group, defs]) => (
                 <div key={group}>
-                  <div style={{ fontSize: 12.5, fontWeight: 700, color: "var(--cc-text-muted)", textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 6 }}>
+                  <div className="cc-microlabel" style={{ marginBottom: 6 }}>
                     {group}
                   </div>
-                  <div style={{ display: "grid", gap: 2 }}>
+                  <div className="cc-pref-rows">
                     {defs.map((def) => (
-                      <div
-                        key={def.key}
-                        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, padding: "6px 0" }}
-                      >
-                        <div style={{ fontSize: 13.5, color: "var(--cc-text)" }}>
-                          {def.glyph} {def.label}
+                      <div key={def.key} className="cc-pref-row">
+                        <div className="cc-pref-row-text">
+                          <div className="cc-pref-row-title">{def.label}</div>
                         </div>
                         <Toggle
                           checked={view.events[def.key] ?? def.defaultOn}
@@ -248,7 +264,7 @@ export function IntegrationsClient() {
               ))}
             </div>
           )}
-        </Card>
+        </SectionCard>
       )}
     </div>
   );

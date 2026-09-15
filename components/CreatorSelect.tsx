@@ -81,8 +81,8 @@ export function CreatorSelect({
         }}
       >
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>{picked.name}</div>
-          <div style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>
+          <div style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{picked.name}</div>
+          <div style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
             @{picked.handle.replace(/^@/, "")}
             {picked.platform ? ` — ${picked.platform}` : ""}
           </div>
@@ -99,7 +99,7 @@ export function CreatorSelect({
             background: "var(--cc-card)",
             borderRadius: 6,
             padding: "4px 10px",
-            fontSize: 12,
+            fontSize: "var(--cc-t-12)",
             color: "var(--cc-text-muted)",
             cursor: "pointer",
           }}
@@ -122,7 +122,7 @@ export function CreatorSelect({
           padding: "10px 12px",
           borderRadius: 8,
           border: "1px solid var(--cc-border)",
-          fontSize: 14,
+          fontSize: "var(--cc-t-14)",
           color: "var(--cc-text)",
           background: "var(--cc-card)",
         }}
@@ -137,7 +137,7 @@ export function CreatorSelect({
         }}
       >
         {results.length === 0 ? (
-          <p style={{ fontSize: 13, color: "var(--cc-text-muted)", padding: "12px" }}>
+          <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", padding: "12px" }}>
             {isFetching
               ? "Searching…"
               : debounced
@@ -174,20 +174,20 @@ export function CreatorSelect({
                   <span
                     style={{
                       display: "block",
-                      fontSize: 14,
-                      fontWeight: 600,
+                      fontSize: "var(--cc-t-14)",
+                      fontWeight: "var(--cc-fw-strong)",
                       color: "var(--cc-text)",
                     }}
                   >
                     {c.name}
                   </span>
-                  <span style={{ display: "block", fontSize: 12, color: "var(--cc-text-muted)" }}>
+                  <span style={{ display: "block", fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
                     @{c.handle.replace(/^@/, "")}
                     {c.platform ? ` — ${c.platform}` : ""}
                   </span>
                 </span>
                 {already && (
-                  <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>Added</span>
+                  <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>Added</span>
                 )}
               </button>
             );

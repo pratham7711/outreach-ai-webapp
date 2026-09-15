@@ -32,7 +32,7 @@ export default async function AuditLogPage() {
               <Badge variant="warning" size="sm">
                 Disabled
               </Badge>
-              <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>
+              <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
                 Audit logging is currently turned off for this workspace
               </span>
             </div>
@@ -52,8 +52,8 @@ export default async function AuditLogPage() {
                     borderRadius: 10,
                     background: "var(--cc-primary)",
                     color: "white",
-                    fontSize: 14,
-                    fontWeight: 600,
+                    fontSize: "var(--cc-t-14)",
+                    fontWeight: "var(--cc-fw-strong)",
                     textDecoration: "none",
                     boxShadow: "0 8px 18px rgba(79, 70, 229, 0.18)",
                   }}

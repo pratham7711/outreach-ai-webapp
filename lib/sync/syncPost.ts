@@ -7,6 +7,7 @@ import {
   type FetchReason,
   type PostMetrics,
 } from "@/lib/platforms/fetchPostMetrics";
+import { followerLadder, keepPrecise, postLadder, roundedStep } from "@/lib/platforms/precision";
 import { getInstagramAccountForCreator } from "@/lib/platforms/instagramToken";
 import { getTikTokTokenForCreator } from "@/lib/platforms/tiktokToken";
 
@@ -58,7 +59,55 @@ type SyncablePost = {
   caption: string | null;
   /** Read to merge into rather than clobber -- the importer's raw record lives here. */
   platformMetrics?: unknown;
+  /* The counters already on the row, where the caller selected them. Read only
+     to refuse a lossy overwrite -- see withStoredPrecision. Optional in the same
+     spirit as platformMetrics above: absent means the caller did not ask for
+     them, which is not the same as zero, and the guard simply does not apply. */
+  viewsCount?: number;
+  likesCount?: number;
+  commentsCount?: number;
+  sharesCount?: number;
+  savesCount?: number;
 };
+
+/**
+ * A rounded read must not destroy an exact figure we already hold.
+ *
+ * TikTok's page serves counters at display precision above 10,000 -- 11.1K,
+ * 563.3K, 15.5M -- while the CreatorCore import carries the platform's exact
+ * ones. Measured 2026-09-15: 29 posts had exact imported figures replaced by
+ * rounded page reads, and every hourly cron pass did it again, so a number that
+ * was right became permanently wrong and no later sync could tell.
+ *
+ * Re-exported from ./precision rather than defined here: the same rule now
+ * guards three columns on three different write paths, and each platform rounds
+ * on its own ladder. Callers inside this module pass postLadder(post.platform),
+ * so an Instagram or YouTube post -- both of which publish their real digits --
+ * takes the exact ladder and the guard never fires.
+ */
+export { keepPrecise };
+
+/** The same, across every counter, returning the original object when it changed nothing. */
+export function withStoredPrecision(metrics: PostMetrics, post: SyncablePost): PostMetrics {
+  const ladder = postLadder(post.platform);
+  const pairs: [keyof PostMetrics, number | undefined][] = [
+    ["viewsCount", post.viewsCount],
+    ["likesCount", post.likesCount],
+    ["commentsCount", post.commentsCount],
+    ["sharesCount", post.sharesCount],
+    ["savesCount", post.savesCount],
+  ];
+
+  let out: PostMetrics | null = null;
+  for (const [key, stored] of pairs) {
+    const incoming = metrics[key] as number | undefined;
+    const kept = keepPrecise(incoming, stored, ladder);
+    if (kept === incoming) continue;
+    out = out ?? { ...metrics };
+    (out as Record<string, unknown>)[key] = kept;
+  }
+  return out ?? metrics;
+}
 
 /**
  * The counters a fetch actually delivered, and their column values.
@@ -191,27 +240,51 @@ export async function applyPostMetrics(
     };
   }
 
-  const { counts, present } = countsFrom(metrics);
+  /* Before anything reads a counter: a display-rounded figure never replaces a
+     more precise stored one. See withStoredPrecision. */
+  const measured = withStoredPrecision(metrics, post);
+  const { counts, present } = countsFrom(measured);
 
-  const views = metrics.viewsCount ?? 0;
-  const likes = metrics.likesCount ?? 0;
-  const comments = metrics.commentsCount ?? 0;
-  const shares = metrics.sharesCount ?? 0;
-  const saves = metrics.savesCount ?? 0;
+  const views = measured.viewsCount ?? 0;
+  const likes = measured.likesCount ?? 0;
+  const comments = measured.commentsCount ?? 0;
+  const shares = measured.sharesCount ?? 0;
+  const saves = measured.savesCount ?? 0;
   const engagementRate =
-    metrics.engagementRate ?? (views > 0 ? ((likes + comments) / views) * 100 : 0);
+    measured.engagementRate ?? (views > 0 ? ((likes + comments) / views) * 100 : 0);
 
   /* The same payload told us how many followers the author has, and nothing in
      this codebase had ever written that column -- so the campaign roster showed
      0 followers for all 25 creators while the number sat in a response we had
      already fetched. Only ever upward from nothing, and only a real figure: a
-     platform that did not report it must not overwrite one that did. */
-  const followers = metrics.authorFollowers;
+     platform that did not report it must not overwrite one that did.
+
+     The post payload's author block is the WORST source we have for this column.
+     Measured 2026-09-15 on a video page: authorStats and authorStatsV2 both read
+     "1600000" while the same account's profile page reported 1,608,098. So the
+     write is gated the way the post counters are -- see keepPrecise. A rounded
+     figure R only tells us the truth is near R; if the stored value already sits
+     in that window it is the same fact at higher precision, and overwriting it
+     loses the precision for good. Expressed as a WHERE rather than a read so the
+     decision stays inside the one transaction, and updateMany because a where
+     that matches nothing is the intended outcome here, not a P2025. */
+  const followers = measured.authorFollowers;
+  const followerStep = roundedStep(followers, followerLadder(post.platform));
   const creatorUpdate =
     typeof followers === "number" && followers > 0
       ? [
-          db.creator.update({
-            where: { id: post.creatorId },
+          db.creator.updateMany({
+            where: {
+              id: post.creatorId,
+              ...(followerStep !== null
+                ? {
+                    OR: [
+                      { followersCount: { lt: followers - followerStep / 2 } },
+                      { followersCount: { gte: followers + followerStep } },
+                    ],
+                  }
+                : {}),
+            },
             data: { followersCount: followers },
           }),
         ]

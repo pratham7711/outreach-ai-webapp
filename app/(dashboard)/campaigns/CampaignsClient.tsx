@@ -134,7 +134,7 @@ function FolderSelect({
         options={[{ value: "", label: "Unfiled" }, ...folders.map((f) => ({ value: f.id, label: f.name }))]}
       />
       {error && (
-        <span style={{ fontSize: 11, color: "#DC2626", maxWidth: 160, textAlign: "right" }} role="alert">
+        <span style={{ fontSize: "var(--cc-t-11)", color: "#DC2626", maxWidth: 160, textAlign: "right" }} role="alert">
           {error}
         </span>
       )}
@@ -266,7 +266,7 @@ function StatusSelect({
         options={options}
       />
       {error && (
-        <span role="alert" style={{ fontSize: 11, color: "var(--cc-danger)", maxWidth: 180, textAlign: "right" }}>
+        <span role="alert" style={{ fontSize: "var(--cc-t-11)", color: "var(--cc-danger)", maxWidth: 180, textAlign: "right" }}>
           {error}
         </span>
       )}
@@ -302,8 +302,8 @@ function ShareButton({ id, title }: { id: string; title: string }) {
           border: "1.5px solid var(--cc-primary)",
           borderRadius: 8,
           padding: "7px 12px",
-          fontSize: 13,
-          fontWeight: 600,
+          fontSize: "var(--cc-t-13)",
+          fontWeight: "var(--cc-fw-strong)",
           cursor: "pointer",
           whiteSpace: "nowrap",
         }}
@@ -385,7 +385,7 @@ function DeleteButton({ id, title }: { id: string; title: string }) {
         <Trash2 size={14} aria-hidden="true" />
       </button>
       {error && (
-        <span role="alert" style={{ fontSize: 11, color: "var(--cc-danger)", maxWidth: 180, textAlign: "right" }}>
+        <span role="alert" style={{ fontSize: "var(--cc-t-11)", color: "var(--cc-danger)", maxWidth: 180, textAlign: "right" }}>
           {error}
         </span>
       )}
@@ -456,10 +456,10 @@ function StatChip({ icon, label, children }: { icon: React.ReactNode; label: str
     >
       <span aria-hidden="true" style={{ display: "flex", color: "var(--cc-text-muted)" }}>{icon}</span>
       <span style={{ display: "flex", flexDirection: "column", lineHeight: 1.25, minWidth: 0 }}>
-        <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase", color: "var(--cc-text-muted)" }}>
+        <span className="cc-microlabel">
           {label}
         </span>
-        <span style={{ fontSize: 13, fontWeight: 700, color: "var(--cc-text)", fontVariantNumeric: "tabular-nums" }}>
+        <span style={{ fontSize: "var(--cc-t-13)", fontWeight: 700, color: "var(--cc-text)", fontVariantNumeric: "tabular-nums" }}>
           {children}
         </span>
       </span>
@@ -618,7 +618,7 @@ export default function CampaignsClient({
     <div className="cc-page-content rsp-page">
       <PageHeader
         title="Campaigns"
-        subtitle={countLabel}
+        caption={countLabel}
         actions={
           <>
           <Button
@@ -648,8 +648,12 @@ export default function CampaignsClient({
         }
       />
 
-      {/* Search + filters */}
-      <div style={{ marginBottom: 20, display: "flex", gap: 10, alignItems: "flex-start" }}>
+      {/* Search on its own row, sort and filters on the next. MEASURED at
+          desktop-1600: their campaigns header runs search at y=97.8, a sort row
+          at 145.8 and the status strip at 202.8. Ours had sort and filters
+          riding on the search row, which left nothing between 134.8 and the
+          strip and put every status pill 48px above theirs. */}
+      <div className="cc-list-searchrow">
         <div style={{ flex: 1, minWidth: 0 }}>
           <Input
             value={search}
@@ -658,6 +662,8 @@ export default function CampaignsClient({
             iconLeft={<Search size={16} />}
           />
         </div>
+      </div>
+      <div className="cc-list-sortrow">
         <SortControl sort={sort} onChange={changeSort} />
         <FilterButton count={filterCount} onClick={() => setShowFilters(true)} />
       </div>
@@ -669,7 +675,7 @@ export default function CampaignsClient({
               display: "inline-flex", alignItems: "center", gap: 8,
               background: "color-mix(in srgb, var(--cc-primary) 8%, transparent)",
               border: "1px solid var(--cc-primary)", color: "var(--cc-primary)",
-              borderRadius: 999, padding: "5px 12px", fontSize: 13, fontWeight: 600,
+              borderRadius: 999, padding: "5px 12px", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)",
             }}
           >
             <Folder size={13} aria-hidden="true" />
@@ -678,7 +684,7 @@ export default function CampaignsClient({
               type="button"
               aria-label="Clear folder filter"
               onClick={() => push({ folderId: null, page: null })}
-              style={{ background: "none", border: "none", padding: 0, cursor: "pointer", color: "inherit", lineHeight: 1, fontSize: 15 }}
+              style={{ background: "none", border: "none", padding: 0, cursor: "pointer", color: "inherit", lineHeight: 1, fontSize: "var(--cc-t-15)"}}
             >
               ×
             </button>
@@ -692,6 +698,7 @@ export default function CampaignsClient({
           page sign-in lands on. statusCounts is the unfiltered tab base, so
           this asks "any campaigns", not "any matches". */}
       {statusCounts.ALL > 0 && (
+      <div className="cc-bleed">
       <StatusTabs
         ariaLabel="Filter by campaign status"
         style={{ marginBottom: 24 }}
@@ -704,6 +711,7 @@ export default function CampaignsClient({
         active={status}
         onChange={(key) => push({ status: key, page: null })}
       />
+      </div>
       )}
 
       {/* Campaign List */}
@@ -763,7 +771,7 @@ export default function CampaignsClient({
                     title={campaign.title}
                     style={{
                       display: "block",
-                      fontSize: 15,
+                      fontSize: "var(--cc-t-15)",
                       fontWeight: 700,
                       color: "var(--cc-primary)",
                       marginBottom: 3,
@@ -774,7 +782,7 @@ export default function CampaignsClient({
                   >
                     {campaign.title}
                   </span>
-                  <span style={{ display: "block", fontSize: 12, color: "var(--cc-text-subtle)" }}>
+                  <span style={{ display: "block", fontSize: "var(--cc-t-12)", color: "var(--cc-text-subtle)" }}>
                     Last updated {timeAgo(campaign.updatedAt)}
                     {campaign.client ? ` \u00b7 ${campaign.client.name}` : ""}
                   </span>
@@ -812,7 +820,7 @@ export default function CampaignsClient({
                         </span>
                       ))}
                       {campaign.team.length > 3 && (
-                        <span style={{ marginLeft: 5, fontSize: 12, color: "var(--cc-text-muted)" }}>
+                        <span style={{ marginLeft: 5, fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
                           +{campaign.team.length - 3}
                         </span>
                       )}

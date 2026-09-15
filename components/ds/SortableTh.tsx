@@ -52,7 +52,7 @@ export function useTableSort<T>(rows: T[], accessors: SortAccessors<T>, initial:
 }
 
 const thBase: React.CSSProperties = {
-  fontSize: 11,
+  fontSize: "var(--cc-t-11)",
   fontWeight: 700,
   textTransform: "uppercase",
   letterSpacing: "0.06em",
@@ -112,7 +112,7 @@ export function SortableTh({
  *  are comparable at a glance instead of ragged. */
 export const numericCell: React.CSSProperties = {
   padding: "14px 24px",
-  fontSize: 14,
+  fontSize: "var(--cc-t-14)",
   fontWeight: 500,
   color: "var(--cc-text)",
   textAlign: "right",

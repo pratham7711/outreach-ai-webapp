@@ -53,11 +53,15 @@ export default function RecipientsClient({
   }, [recipients, search]);
 
   return (
-    <div className="rsp-page">
+    <div className="rsp-page cc-listpage">
       <style>{`
         .rsp-grid-tiles .ui-statcard { min-width: 0; }
         .rsp-grid-tiles .ui-statcard-value { overflow-wrap: anywhere; font-size: clamp(17px, 5vw, 30px); }
-        .recip-inner { min-width: 730px; }
+        /* The grid's own minimum is 610px of fixed tracks + 60px of gaps +
+           48px of padding + whatever the flexible Recipient column needs, so a
+           730px floor was below it: at a 768px window the head painted 9.7px
+           past the card instead of scrolling. MEASURED 2026-09-15. */
+        .recip-inner { min-width: 800px; }
         .recip-head, .recip-row { display: grid; grid-template-columns: 1fr 160px 120px 120px 120px 90px; gap: 12px; align-items: center; }
         .recip-head { padding: 12px 24px; border-bottom: 1px solid var(--cc-border); background: var(--cc-bg); }
         .recip-row { padding: 14px 24px; }
@@ -77,16 +81,17 @@ export default function RecipientsClient({
       <PageHeader
         title="Recipients"
         subtitle="Everyone you've paid, with totals derived from payout history"
+        caption={`${filtered.length} Recipient${filtered.length !== 1 ? "s" : ""}`}
       />
 
-      <div className="cc-stagger rsp-grid-tiles" style={{ marginBottom: 32 }}>
+      <div className="cc-stagger cc-listpage-tiles rsp-grid-tiles" style={{ marginBottom: 32 }}>
         <MetricTile metric="recipients" value={String(stats.recipientCount)} />
         <MetricTile metric="totalPaid" value={formatCurrency(stats.totalPaid)} />
         <MetricTile metric="pendingPayouts" label="Pending" value={formatCurrency(stats.totalPending)} />
         <MetricTile metric="failedPayouts" value={formatCurrency(stats.totalFailed)} />
       </div>
 
-      <div style={{ marginBottom: 24 }}>
+      <div className="cc-recipientspage-search" style={{ marginBottom: 24 }}>
         <Input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -115,7 +120,7 @@ export default function RecipientsClient({
               {["Recipient", "Methods", "Total Paid", "Pending", "Last Paid", "Payouts"].map((h) => (
                 <span
                   key={h}
-                  style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--cc-text-subtle)" }}
+                  className="cc-microlabel"
                 >
                   {h}
                 </span>
@@ -133,15 +138,15 @@ export default function RecipientsClient({
                   <div data-col="recipient" style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
                     <Avatar name={r.name} size="sm" />
                     <div style={{ minWidth: 0 }}>
-                      <p style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>{r.name}</p>
-                      <p style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>
+                      <p style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-list-row-name-fw)", color: "var(--cc-text)" }}>{r.name}</p>
+                      <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
                         {r.handle ? `@${stripAt(r.handle)}` : r.paypalEmail ?? "—"}
                       </p>
                     </div>
                   </div>
                   <div data-col="methods" style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
                     {r.paymentMethods.length === 0 ? (
-                      <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>—</span>
+                      <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>—</span>
                     ) : (
                       r.paymentMethods.map((m) => (
                         <Tag key={m} variant="neutral" outlined>
@@ -150,8 +155,8 @@ export default function RecipientsClient({
                       ))
                     )}
                   </div>
-                  <span data-col="paid" style={{ fontSize: 14, fontWeight: 700, color: "var(--cc-text)" }}>{formatCurrency(r.totalPaid)}</span>
-                  <span data-col="pending" style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>
+                  <span data-col="paid" style={{ fontSize: "var(--cc-t-14)", fontWeight: 700, color: "var(--cc-text)" }}>{formatCurrency(r.totalPaid)}</span>
+                  <span data-col="pending" style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
                     {r.pending > 0 ? (
                       <Badge variant="warning" dot>
                         {formatCurrency(r.pending)}
@@ -160,8 +165,8 @@ export default function RecipientsClient({
                       "—"
                     )}
                   </span>
-                  <span data-col="last" style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{formatDate(r.lastPayoutAt)}</span>
-                  <span data-col="count" style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>{r.payoutCount}</span>
+                  <span data-col="last" style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{formatDate(r.lastPayoutAt)}</span>
+                  <span data-col="count" style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{r.payoutCount}</span>
                 </div>
               ))}
             </div>

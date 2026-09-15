@@ -28,10 +28,10 @@ export default async function TrackerSettingsPage() {
         <TrackerSettingsClient />
       ) : (
         <Card variant="outlined">
-          <h2 style={{ fontSize: 15, fontWeight: 700, color: "var(--cc-text)", marginBottom: 6 }}>
+          <h2 style={{ fontSize: "var(--cc-t-15)", fontWeight: 700, color: "var(--cc-text)", marginBottom: 6 }}>
             Only admins can manage tracker settings
           </h2>
-          <p style={{ fontSize: 13, color: "var(--cc-text-muted)", margin: 0 }}>
+          <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", margin: 0 }}>
             Read cadence and chart granularity apply to the whole workspace and cost
             reading time, so they are limited to owners and admins. Ask one of them if
             you need a tracked sound read more often.

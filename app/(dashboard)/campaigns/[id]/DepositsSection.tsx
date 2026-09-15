@@ -99,7 +99,7 @@ export default function DepositsSection({ campaignId }: { campaignId: string }) 
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-        <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)", display: "flex", alignItems: "center", gap: 8 }}>
+        <span className="cc-panel-title" style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <CreditCard size={16} /> Campaign Deposit
         </span>
         {!deposit && (
@@ -118,10 +118,10 @@ export default function DepositsSection({ campaignId }: { campaignId: string }) 
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: 16 }}>
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                <span style={{ fontSize: 24, fontWeight: 700, color: "var(--cc-text)" }}>{formatCurrency(deposit.amountUsd, deposit.currency)}</span>
+                <span style={{ fontSize: "var(--cc-t-24)", fontWeight: 700, color: "var(--cc-text)" }}>{formatCurrency(deposit.amountUsd, deposit.currency)}</span>
                 <Badge variant={STATUS_BADGE[deposit.status] ?? "neutral"}>{deposit.status.replace(/_/g, " ")}</Badge>
               </div>
-              <div style={{ display: "flex", gap: 16, fontSize: 13, color: "var(--cc-text-muted)" }}>
+              <div style={{ display: "flex", gap: 16, fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
                 <span>Gateway: <strong>{deposit.gateway}</strong></span>
                 {deposit.method && <span>Method: <strong>{deposit.method}</strong></span>}
                 <span>Created: {formatDateAbs(deposit.createdAt)}</span>
@@ -134,7 +134,7 @@ export default function DepositsSection({ campaignId }: { campaignId: string }) 
 
           {/* Progress bar */}
           <div style={{ marginTop: 12 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--cc-text-muted)", marginBottom: 4 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", marginBottom: 4 }}>
               <span>Released: {formatCurrency(deposit.releasedAmount, deposit.currency)}</span>
               <span>Remaining: {formatCurrency(deposit.amountUsd - deposit.releasedAmount, deposit.currency)}</span>
             </div>
@@ -165,7 +165,7 @@ export default function DepositsSection({ campaignId }: { campaignId: string }) 
                 <Input label="Amount" type="number" value={createForm.amountRequested} onChange={(e) => setCreateForm(f => ({ ...f, amountRequested: e.target.value }))} placeholder="e.g. 5000" required />
               </div>
               <div style={{ width: 110 }}>
-                <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Currency</label>
+                <label style={{ display: "block", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6 }}>Currency</label>
                 <Dropdown
                     ariaLabel="Currency"
                     align="left"
@@ -177,7 +177,7 @@ export default function DepositsSection({ campaignId }: { campaignId: string }) 
               </div>
             </div>
             <div>
-              <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Payment Gateway</label>
+              <label style={{ display: "block", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6 }}>Payment Gateway</label>
               <Dropdown
                 ariaLabel="Payment Gateway"
                 align="left"
@@ -191,7 +191,7 @@ export default function DepositsSection({ campaignId }: { campaignId: string }) 
               />
             </div>
             <div>
-              <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Payment Method</label>
+              <label style={{ display: "block", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6 }}>Payment Method</label>
               <Dropdown
                 ariaLabel="Payment Method"
                 align="left"
@@ -223,7 +223,7 @@ export default function DepositsSection({ campaignId }: { campaignId: string }) 
           </div>
         }>
           <div>
-            <p style={{ fontSize: 13, color: "var(--cc-text-muted)", marginBottom: 12 }}>
+            <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", marginBottom: 12 }}>
               Available: {formatCurrency(deposit.amountUsd - deposit.releasedAmount, deposit.currency)}
             </p>
             <Input label="Amount to Release" type="number" value={releaseAmount} onChange={(e) => setReleaseAmount(e.target.value)} placeholder="e.g. 1000" required />

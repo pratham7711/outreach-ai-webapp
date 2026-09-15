@@ -67,10 +67,10 @@ export function ToolPermissionsTable({ tools, emptyLabel }: ToolPermissionsTable
           aria-label={resolvedEmptyLabel}
           style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--cc-text-muted)" }}
         >
-          <span aria-hidden="true" style={{ fontSize: 16, lineHeight: "20px" }}>
+          <span aria-hidden="true" style={{ fontSize: "var(--cc-t-16)", lineHeight: "20px" }}>
             ∅
           </span>
-          <span style={{ fontSize: 13, fontWeight: 600 }}>{resolvedEmptyLabel}</span>
+          <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)"}}>{resolvedEmptyLabel}</span>
         </div>
       </Card>
     );
@@ -96,12 +96,12 @@ export function ToolPermissionsTable({ tools, emptyLabel }: ToolPermissionsTable
         data-testid="tools-summary"
         style={{ display: "flex", flexDirection: "column", gap: 4 }}
       >
-        <h4 style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)", margin: 0 }}>
+        <h4 style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", margin: 0 }}>
           Tool permissions
         </h4>
         <span
           aria-label={`${total} tools, ${approvalCount} require approval`}
-          style={{ fontSize: 12, fontWeight: 500, color: "var(--cc-text-muted)" }}
+          style={{ fontSize: "var(--cc-t-12)", fontWeight: 500, color: "var(--cc-text-muted)" }}
         >
           {`${total} tools · ${approvalCount} require approval`}
         </span>
@@ -122,16 +122,16 @@ export function ToolPermissionsTable({ tools, emptyLabel }: ToolPermissionsTable
             borderBottom: "1px solid var(--cc-border)",
           }}
         >
-          <span role="columnheader" style={{ fontSize: 11, fontWeight: 700, color: "var(--cc-text-subtle)" }}>
+          <span role="columnheader" style={{ fontSize: "var(--cc-t-11)", fontWeight: 700, color: "var(--cc-text-subtle)" }}>
             Tool
           </span>
-          <span role="columnheader" style={{ fontSize: 11, fontWeight: 700, color: "var(--cc-text-subtle)" }}>
+          <span role="columnheader" style={{ fontSize: "var(--cc-t-11)", fontWeight: 700, color: "var(--cc-text-subtle)" }}>
             Permission
           </span>
-          <span role="columnheader" style={{ fontSize: 11, fontWeight: 700, color: "var(--cc-text-subtle)" }}>
+          <span role="columnheader" style={{ fontSize: "var(--cc-t-11)", fontWeight: 700, color: "var(--cc-text-subtle)" }}>
             Access
           </span>
-          <span role="columnheader" style={{ fontSize: 11, fontWeight: 700, color: "var(--cc-text-subtle)" }}>
+          <span role="columnheader" style={{ fontSize: "var(--cc-t-11)", fontWeight: 700, color: "var(--cc-text-subtle)" }}>
             Audit
           </span>
         </div>
@@ -155,18 +155,18 @@ export function ToolPermissionsTable({ tools, emptyLabel }: ToolPermissionsTable
               }}
             >
               <span role="cell" style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
-                <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>
+                <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>
                   {tool.name}
                 </span>
                 {tool.description ? (
-                  <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>
+                  <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
                     {tool.description}
                   </span>
                 ) : null}
               </span>
               <span
                 role="cell"
-                style={{ fontSize: 12, fontWeight: 500, color: "var(--cc-text-muted)" }}
+                style={{ fontSize: "var(--cc-t-12)", fontWeight: 500, color: "var(--cc-text-muted)" }}
               >
                 {tool.annotations.permission}
               </span>
@@ -174,7 +174,7 @@ export function ToolPermissionsTable({ tools, emptyLabel }: ToolPermissionsTable
                 role="cell"
                 style={{ display: "flex", alignItems: "center", gap: 8 }}
               >
-                <span aria-hidden="true" style={{ color: meta.token, fontSize: 12, lineHeight: "16px" }}>
+                <span aria-hidden="true" style={{ color: meta.token, fontSize: "var(--cc-t-12)", lineHeight: "16px" }}>
                   {meta.symbol}
                 </span>
                 <Badge variant={meta.variant} aria-label={`Access: ${meta.word}`}>
@@ -184,7 +184,7 @@ export function ToolPermissionsTable({ tools, emptyLabel }: ToolPermissionsTable
               <span
                 role="cell"
                 aria-label={`Audit: ${auditWord}`}
-                style={{ fontSize: 12, fontWeight: 600, color: auditToken }}
+                style={{ fontSize: "var(--cc-t-12)", fontWeight: "var(--cc-fw-strong)", color: auditToken }}
               >
                 {auditWord}
               </span>

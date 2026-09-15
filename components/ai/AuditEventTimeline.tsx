@@ -77,7 +77,7 @@ export function AuditEventTimeline({ events }: AuditEventTimelineProps) {
           aria-label="No audit events recorded"
           style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--cc-text-muted)" }}
         >
-          <span style={{ fontSize: 13, fontWeight: 600 }}>No audit events recorded</span>
+          <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)"}}>No audit events recorded</span>
         </div>
       </Card>
     );
@@ -124,28 +124,28 @@ export function AuditEventTimeline({ events }: AuditEventTimelineProps) {
                 <Badge variant={meta.variant} aria-label={`${meta.word} status`}>
                   {meta.word}
                 </Badge>
-                <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>
+                <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>
                   {event.tool}
                 </span>
                 <span
                   data-testid="audit-event-actor"
-                  style={{ fontSize: 12, color: "var(--cc-text-muted)" }}
+                  style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}
                 >
                   {actor}
                 </span>
               </span>
               <span style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
-                <span style={{ fontSize: 12, color: "var(--cc-text-subtle)" }}>Input</span>
+                <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-subtle)" }}>Input</span>
                 <span
                   data-testid="audit-event-input"
-                  style={{ fontSize: 12, color: "var(--cc-text-muted)", wordBreak: "break-word" }}
+                  style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", wordBreak: "break-word" }}
                 >
                   {inputPreview}
                 </span>
-                <span style={{ fontSize: 12, color: "var(--cc-text-subtle)" }}>Output</span>
+                <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-subtle)" }}>Output</span>
                 <span
                   data-testid="audit-event-output"
-                  style={{ fontSize: 12, color: "var(--cc-text-muted)", wordBreak: "break-word" }}
+                  style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", wordBreak: "break-word" }}
                 >
                   {outputPreview}
                 </span>

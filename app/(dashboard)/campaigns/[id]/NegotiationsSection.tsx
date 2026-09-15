@@ -198,7 +198,7 @@ export default function NegotiationsSection({
     padding: "10px 14px",
     borderRadius: 10,
     border: "1px solid var(--cc-border)",
-    fontSize: 14,
+    fontSize: "var(--cc-t-14)",
     color: "var(--cc-text)",
     background: "var(--cc-card)",
     boxSizing: "border-box" as const,
@@ -217,7 +217,7 @@ export default function NegotiationsSection({
         <span
           style={{
             fontWeight: 700,
-            fontSize: 15,
+            fontSize: "var(--cc-t-15)",
             color: "var(--cc-text)",
             display: "flex",
             alignItems: "center",
@@ -254,16 +254,16 @@ export default function NegotiationsSection({
             flexWrap: "wrap",
           }}
         >
-          <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>
+          <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
             Accepted total:{" "}
             <strong style={{ color: "var(--cc-text)" }}>{formatCurrencyTotals(aggregate.acceptedTotals, currency)}</strong>
           </span>
-          <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>
+          <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
             Pending estimate:{" "}
             <strong style={{ color: "var(--cc-text)" }}>{formatCurrencyTotals(aggregate.pendingTotals, currency)}</strong>
           </span>
           {platformFee > 0 && (
-            <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>
+            <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
               + Platform fee: <strong style={{ color: "var(--cc-text)" }}>{formatCurrency(platformFee, currency)}</strong>
             </span>
           )}
@@ -299,13 +299,7 @@ export default function NegotiationsSection({
             {["Creator", "Offered", "Counter", "AI counter", "Standing", "AI round", "Status", "Action"].map((h) => (
               <span
                 key={h}
-                style={{
-                  fontSize: 11,
-                  fontWeight: 700,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.05em",
-                  color: "var(--cc-text-subtle)",
-                }}
+                className="cc-microlabel"
               >
                 {h}
               </span>
@@ -324,28 +318,28 @@ export default function NegotiationsSection({
                 borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined,
               }}
             >
-              <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>
+              <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>
                 {creatorName(offer)}
               </span>
-              <span style={{ fontSize: 13, color: "var(--cc-text)" }}>
+              <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text)" }}>
                 {formatCurrency(offer.offeredRate, offer.currency)}
               </span>
-              <span style={{ fontSize: 13, color: "var(--cc-text)" }}>
+              <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text)" }}>
                 {offer.counterRate != null ? formatCurrency(offer.counterRate, offer.currency) : "—"}
               </span>
               <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
                 {offer.aiCounterRate != null ? (
                   <>
-                    <span style={{ fontSize: 13, color: "var(--cc-primary)" }}>
+                    <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-primary)" }}>
                       {formatCurrency(offer.aiCounterRate, offer.currency)}
                     </span>
                     <Tag variant="accent">AI</Tag>
                   </>
                 ) : (
-                  <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>—</span>
+                  <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>—</span>
                 )}
               </span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: "var(--cc-text)" }}>
+              <span style={{ fontSize: "var(--cc-t-13)", fontWeight: 700, color: "var(--cc-text)" }}>
                 {formatCurrency(standingRate(offer), offer.currency)}
               </span>
               <Tag variant={offer.aiRound >= 1 ? "accent" : "neutral"} outlined={offer.aiRound < 1}>
@@ -366,7 +360,7 @@ export default function NegotiationsSection({
                         background: "color-mix(in srgb, var(--cc-success) 14%, transparent)",
                         color: "var(--cc-success)",
                         cursor: acting === offer.id ? "wait" : "pointer",
-                        fontSize: 11,
+                        fontSize: "var(--cc-t-11)",
                         display: "flex",
                         alignItems: "center",
                         gap: 2,
@@ -382,9 +376,9 @@ export default function NegotiationsSection({
                         borderRadius: 6,
                         border: "1px solid var(--cc-danger)",
                         background: "color-mix(in srgb, var(--cc-danger) 14%, transparent)",
-                        color: "var(--cc-danger)",
+                        color: "var(--cc-danger-ink)",
                         cursor: acting === offer.id ? "wait" : "pointer",
-                        fontSize: 11,
+                        fontSize: "var(--cc-t-11)",
                         display: "flex",
                         alignItems: "center",
                         gap: 2,
@@ -425,7 +419,7 @@ export default function NegotiationsSection({
         >
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <div>
-              <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>
+              <label style={{ display: "block", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6 }}>
                 Creator
               </label>
               <CreatorSelect
@@ -446,7 +440,7 @@ export default function NegotiationsSection({
               </div>
               <div style={{ width: 110 }}>
                 <label
-                  style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}
+                  style={{ display: "block", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6 }}
                 >
                   Currency
                 </label>
@@ -461,7 +455,7 @@ export default function NegotiationsSection({
               </div>
             </div>
             <div>
-              <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>
+              <label style={{ display: "block", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6 }}>
                 Notes (optional)
               </label>
               <textarea
@@ -513,7 +507,7 @@ export default function NegotiationsSection({
               </div>
               <div style={{ width: 110 }}>
                 <label
-                  style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}
+                  style={{ display: "block", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6 }}
                 >
                   Currency
                 </label>
@@ -528,7 +522,7 @@ export default function NegotiationsSection({
               </div>
             </div>
             <div>
-              <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>
+              <label style={{ display: "block", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6 }}>
                 Creators
               </label>
               <div
@@ -542,7 +536,7 @@ export default function NegotiationsSection({
                 }}
               >
                 {batchPicked.length === 0 ? (
-                  <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>
+                  <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
                     Search below and pick creators to offer.
                   </span>
                 ) : (
@@ -552,7 +546,7 @@ export default function NegotiationsSection({
                       variant="accent"
                       clickable
                       onClick={() => toggleBatchCreator(c)}
-                      style={{ cursor: "pointer", fontWeight: 600 }}
+                      style={{ cursor: "pointer", fontWeight: "var(--cc-fw-strong)"}}
                     >
                       {c.name} ×
                     </Tag>

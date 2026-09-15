@@ -24,6 +24,7 @@ export const REDACT_SCRIPT = () => {
   ];
 
   let changed = 0;
+  if (!document.body) throw new Error("no document.body -- page is mid-navigation");
   const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
   const nodes = [];
   let n;

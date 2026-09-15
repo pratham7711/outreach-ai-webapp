@@ -22,6 +22,13 @@ type ButtonProps = React.ComponentProps<typeof UIButton>;
  * it is also where the theming hook belongs -- emitted once here rather than
  * hand-added at 11 call sites, where it would be forgotten on the twelfth.
  *
+ * `secondary` carries the same hook for the same reason. MEASURED 2026-09-14 at
+ * desktop-1600: the reference's action cluster is two IDENTICAL boxes -- New
+ * Campaign 1188..1367.5 and Folders 1374..1553.5, both 180x40; on the campaign
+ * header, Refresh Data 1117..1316.5 and Add Posts 1332..1531.5, both 200x45. Our
+ * secondary measured 134x38 beside a 200x45 primary, and no landmark addressed
+ * it, so the harness reported the header as clean.
+ *
  * The hook is `data-cc-slot`, NOT `data-slot`: `data-slot` is shadcn's, has 87
  * uses in this repo, and globals.css already targets `[data-slot="card"]`.
  *
@@ -30,7 +37,9 @@ type ButtonProps = React.ComponentProps<typeof UIButton>;
  * `rest` is spread after this.
  */
 const slotFor = (props: ButtonProps) =>
-  props.variant === "primary" ? { "data-cc-slot": "primary" } : null;
+  props.variant === "primary" || props.variant === "secondary"
+    ? { "data-cc-slot": props.variant }
+    : null;
 
 export function Button({ loading, children, style, disabled, ...rest }: ButtonProps) {
   if (!loading) {

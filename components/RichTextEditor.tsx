@@ -201,7 +201,7 @@ function Toolbar({ editor }: { editor: Editor }) {
               if (e.key === "Escape") { e.preventDefault(); setLinkOpen(false); }
             }}
             style={{
-              flex: 1, padding: "6px 10px", borderRadius: 8, fontSize: 13,
+              flex: 1, padding: "6px 10px", borderRadius: 8, fontSize: "var(--cc-t-13)",
               border: "1px solid var(--cc-border)", background: "var(--cc-card)",
               color: "var(--cc-text)",
             }}
@@ -210,8 +210,8 @@ function Toolbar({ editor }: { editor: Editor }) {
             type="button"
             onClick={applyLink}
             style={{
-              padding: "6px 12px", borderRadius: 8, border: "none", fontSize: 13,
-              fontWeight: 600, background: "var(--cc-primary)", color: "white", cursor: "pointer",
+              padding: "6px 12px", borderRadius: 8, border: "none", fontSize: "var(--cc-t-13)",
+              fontWeight: "var(--cc-fw-strong)", background: "var(--cc-primary)", color: "white", cursor: "pointer",
             }}
           >
             Apply
@@ -294,7 +294,7 @@ export default function RichTextEditor({
             aria-hidden
             style={{
               position: "absolute", top: editable ? 12 : 0, left: editable ? 15 : 0,
-              fontSize: 14, color: "var(--cc-text-muted)", pointerEvents: "none",
+              fontSize: "var(--cc-t-14)", color: "var(--cc-text-muted)", pointerEvents: "none",
             }}
           >
             {placeholder}

@@ -115,17 +115,17 @@ export default function ClientDetailClient({ client, plans }: Props) {
 
   return (
     <div className="rsp-page">
-      <Link href="/clients" style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 14, color: "var(--cc-text-muted)", textDecoration: "none", marginBottom: 24 }}>
+      <Link href="/clients" style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: "var(--cc-t-14)", color: "var(--cc-text-muted)", textDecoration: "none", marginBottom: 24 }}>
         <ArrowLeft size={14} /> Back to Clients
       </Link>
 
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 24 }}>
-        <Avatar name={client.name} size="lg" style={{ width: 56, height: 56, fontSize: 18, borderRadius: 14 }} />
+        <Avatar name={client.name} size="lg" style={{ width: 56, height: 56, fontSize: "var(--cc-t-18)", borderRadius: 14 }} />
         <div>
           <h1 className="cc-page-title" data-mb="tight">{client.name}</h1>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{client.campaignCount} campaign{client.campaignCount !== 1 ? "s" : ""}</span>
+            <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{client.campaignCount} campaign{client.campaignCount !== 1 ? "s" : ""}</span>
             {contact.industry && <Badge variant="neutral">{contact.industry}</Badge>}
             {client.plan && <Badge variant="accent">{client.plan.name}</Badge>}
           </div>
@@ -151,7 +151,7 @@ export default function ClientDetailClient({ client, plans }: Props) {
           return (
             <button key={t.key} onClick={() => setActiveTab(t.key)} style={{
               display: "flex", alignItems: "center", gap: 6, whiteSpace: "nowrap", flexShrink: 0,
-              padding: "10px 16px", fontSize: 13, fontWeight: active ? 600 : 500,
+              padding: "10px 16px", fontSize: "var(--cc-t-13)", fontWeight: active ? 600 : 500,
               color: active ? "var(--cc-primary)" : "var(--cc-text-muted)",
               background: "none", border: "none", cursor: "pointer",
               borderBottom: active ? "2px solid var(--cc-primary)" : "2px solid transparent", marginBottom: -1,
@@ -166,7 +166,7 @@ export default function ClientDetailClient({ client, plans }: Props) {
       {activeTab === "overview" && (
         <div style={{ maxWidth: 640 }}>
           <Card variant="outlined" style={{ padding: 24 }}>
-            <h3 style={{ fontSize: 15, fontWeight: 700, color: "var(--cc-text)", marginBottom: 16 }}>Client Details</h3>
+            <h3 style={{ fontSize: "var(--cc-t-15)", fontWeight: 700, color: "var(--cc-text)", marginBottom: 16 }}>Client Details</h3>
             <div style={{ display: "grid", gap: 16 }}>
               {[
                 { label: "Name", value: client.name },
@@ -178,8 +178,8 @@ export default function ClientDetailClient({ client, plans }: Props) {
                 { label: "Plan", value: client.plan?.name || "No plan assigned" },
               ].map(row => (
                 <div key={row.label} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid var(--cc-border)" }}>
-                  <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{row.label}</span>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>{row.value}</span>
+                  <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{row.label}</span>
+                  <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{row.value}</span>
                 </div>
               ))}
             </div>
@@ -210,18 +210,18 @@ export default function ClientDetailClient({ client, plans }: Props) {
                   <div style={{ minWidth: showBudget ? 560 : 460 }}>
                     <div style={{ display: "grid", gridTemplateColumns: cols, gap: 12, padding: "12px 24px", borderBottom: "1px solid var(--cc-border)", background: "var(--cc-bg)" }}>
                       {headers.map(h => (
-                        <span key={h} style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--cc-text-subtle)" }}>{h}</span>
+                        <span key={h} className="cc-microlabel">{h}</span>
                       ))}
                     </div>
                     {campaigns.map((c, i) => (
                       <Link prefetch={false} key={c.id} href={`/campaigns/${c.id}`} style={{ textDecoration: "none", display: "grid", gridTemplateColumns: cols, gap: 12, padding: "14px 24px", alignItems: "center", borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined }} className="cc-table-row">
-                        <span style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>{c.title}</span>
+                        <span style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{c.title}</span>
                         <Badge variant={STATUS_BADGE[c.status] ?? "neutral"} dot>{c.status.replace(/_/g, " ")}</Badge>
                         {showBudget && (
-                          <span style={{ fontSize: 13, color: "var(--cc-text)" }}>{c.budget ? formatCurrency(Number(c.budget), c.currency) : ""}</span>
+                          <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text)" }}>{c.budget ? formatCurrency(Number(c.budget), c.currency) : ""}</span>
                         )}
-                        <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{formatDateAbs(c.createdAt)}</span>
-                        <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{c._count.activations}</span>
+                        <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>{formatDateAbs(c.createdAt)}</span>
+                        <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{c._count.activations}</span>
                       </Link>
                     ))}
                   </div>
@@ -236,7 +236,7 @@ export default function ClientDetailClient({ client, plans }: Props) {
       {activeTab === "edit" && (
         <div style={{ maxWidth: 640 }}>
           <Card variant="outlined" style={{ padding: 24 }}>
-            <h3 style={{ fontSize: 15, fontWeight: 700, color: "var(--cc-text)", marginBottom: 20 }}>Edit Client</h3>
+            <h3 style={{ fontSize: "var(--cc-t-15)", fontWeight: 700, color: "var(--cc-text)", marginBottom: 20 }}>Edit Client</h3>
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               <Input label="Company Name" value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} />
               <Input label="Contact Person" value={editForm.contactPerson} onChange={e => setEditForm(f => ({ ...f, contactPerson: e.target.value }))} />
@@ -249,12 +249,12 @@ export default function ClientDetailClient({ client, plans }: Props) {
                 <Input label="Website" value={editForm.website} onChange={e => setEditForm(f => ({ ...f, website: e.target.value }))} />
               </div>
               <div>
-                <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Notes</label>
+                <label style={{ display: "block", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6 }}>Notes</label>
                 <textarea
                   value={editForm.notes}
                   onChange={e => setEditForm(f => ({ ...f, notes: e.target.value }))}
                   rows={3}
-                  style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-border)", fontSize: 14, color: "var(--cc-text)", resize: "vertical", fontFamily: "inherit" }}
+                  style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-border)", fontSize: "var(--cc-t-14)", color: "var(--cc-text)", resize: "vertical", fontFamily: "inherit" }}
                 />
               </div>
               <div style={{ display: "flex", justifyContent: "flex-end" }}>
@@ -271,20 +271,20 @@ export default function ClientDetailClient({ client, plans }: Props) {
           <div style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, padding: 20, marginBottom: 20 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
               <div>
-                <div style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)", marginBottom: 4 }}>Current Plan</div>
-                {client.plan ? <Badge variant="accent">{client.plan.name}</Badge> : <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>No plan assigned</span>}
+                <div style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 4 }}>Current Plan</div>
+                {client.plan ? <Badge variant="accent">{client.plan.name}</Badge> : <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>No plan assigned</span>}
               </div>
               <Button variant="primary" size="sm" iconLeft={<Settings2 size={14} />} onClick={() => setShowFeatureModal(true)}>Manage Access</Button>
             </div>
             {client.featureOverrides && Object.keys(client.featureOverrides).length > 0 && (
-              <div style={{ fontSize: 12, padding: "6px 12px", borderRadius: 6, background: "color-mix(in srgb, var(--cc-warning) 12%, transparent)", color: "var(--cc-warning)", border: "1px solid color-mix(in srgb, var(--cc-warning) 25%, transparent)" }}>
+              <div style={{ fontSize: "var(--cc-t-12)", padding: "6px 12px", borderRadius: 6, background: "color-mix(in srgb, var(--cc-warning) 12%, transparent)", color: "var(--cc-warning)", border: "1px solid color-mix(in srgb, var(--cc-warning) 25%, transparent)" }}>
                 {Object.keys(client.featureOverrides).length} override{Object.keys(client.featureOverrides).length > 1 ? "s" : ""} active
               </div>
             )}
           </div>
 
           <div style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, overflow: "hidden" }}>
-            <div style={{ padding: "12px 20px", borderBottom: "1px solid var(--cc-border)", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--cc-text-muted)" }}>
+            <div className="cc-microlabel" style={{ padding: "12px 20px", borderBottom: "1px solid var(--cc-border)" }}>
               All Features ({featureKeys.filter(k => clientHasFeature(client.plan ? { features: client.plan.features } : null, client.featureOverrides, k)).length}/{featureKeys.length} enabled)
             </div>
             {featureKeys.map((key, i) => {
@@ -296,15 +296,15 @@ export default function ClientDetailClient({ client, plans }: Props) {
                 <div key={key} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 20px", borderBottom: i < featureKeys.length - 1 ? "1px solid var(--cc-border)" : "none", background: isOverridden ? "var(--cc-primary-light)" : "transparent" }}>
                   <div style={{ width: 8, height: 8, borderRadius: "50%", flexShrink: 0, background: effective ? "#22c55e" : "#D1D5DB" }} />
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13, fontWeight: 500, color: effective ? "var(--cc-text)" : "var(--cc-text-muted)" }}>{FEATURES[key].label}</div>
-                    <div style={{ fontSize: 11, color: "var(--cc-text-muted)" }}>{FEATURES[key].description}</div>
+                    <div style={{ fontSize: "var(--cc-t-13)", fontWeight: 500, color: effective ? "var(--cc-text)" : "var(--cc-text-muted)" }}>{FEATURES[key].label}</div>
+                    <div style={{ fontSize: "var(--cc-t-11)", color: "var(--cc-text-muted)" }}>{FEATURES[key].description}</div>
                   </div>
                   {isOverridden ? (
-                    <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 6px", borderRadius: 4, background: overrideVal ? "color-mix(in srgb, var(--cc-success) 14%, transparent)" : "color-mix(in srgb, var(--cc-danger) 14%, transparent)", color: overrideVal ? "var(--cc-success)" : "var(--cc-danger)" }}>
+                    <span style={{ fontSize: "var(--cc-t-10)", fontWeight: "var(--cc-fw-strong)", padding: "2px 6px", borderRadius: 4, background: overrideVal ? "color-mix(in srgb, var(--cc-success) 14%, transparent)" : "color-mix(in srgb, var(--cc-danger) 14%, transparent)", color: overrideVal ? "var(--cc-success)" : "var(--cc-danger)" }}>
                       Override: {overrideVal ? "ON" : "OFF"}
                     </span>
                   ) : (
-                    <span style={{ fontSize: 10, fontWeight: 500, color: "var(--cc-text-muted)" }}>Plan: {planVal ? "ON" : "OFF"}</span>
+                    <span style={{ fontSize: "var(--cc-t-10)", fontWeight: 500, color: "var(--cc-text-muted)" }}>Plan: {planVal ? "ON" : "OFF"}</span>
                   )}
                 </div>
               );

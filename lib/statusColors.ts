@@ -1,4 +1,4 @@
-import { contrastRatio } from "@/lib/ai/whitelabel/theme";
+import { contrastRatio, isValidHex } from "@/lib/ai/whitelabel/theme";
 
 /**
  * CreatorCore's status palette, read off the running app rather than guessed.
@@ -119,9 +119,44 @@ export function campaignStatusCss(status: string): { background: string; color: 
  * fill like Active swaps.
  */
 export function statusInk(style: StatusStyle): string {
+  /* The swap has to be EARNED, and it can only be earned against a value we can
+     actually measure. contrastRatio scores anything non-hex as the worst
+     possible ratio, which is the truthful answer for a 12.5%-alpha wash of the
+     surface -- but it is not a truthful answer for `var(--cc-warning-ink)`,
+     which is simply unmeasurable from here. Scoring the pair symmetrically then
+     let a hex `bg` beat an unmeasurable `color` on 1.11 > 1, and the status's
+     GROUND became its ink: MEASURED 2026-09-15, the Pending tab on a campaign's
+     creators tab drew #FEF3C7 on the creatorcore strip at 1.20:1.
+     `color` is the status's own foreground by definition, so it is what a tie
+     or an unmeasurable comparison falls back to. PostsTab worked around this at
+     one call site by spelling Pending's colour as a hex; five other tab configs
+     still pass the var, and they are the ones that were broken. */
+  if (!isValidHex(style.color)) return style.color;
   return contrastRatio(style.bg, SURFACE) > contrastRatio(style.color, SURFACE)
     ? style.bg
     : style.color;
+}
+
+/**
+ * Whether a WHITE label reads on a pill filled with `ink`.
+ *
+ * A selected pill is filled with the status's own ink, and the label on it was
+ * a fixed white -- which is invisible the moment the ink is a pale one.
+ * MEASURED: Pending Review's ink is #FEF3C7, and white on it is 1.09:1.
+ *
+ * The threshold is 3.5 rather than "whichever of black/white scores higher",
+ * because CreatorCore's own Active pill is rgb(59,117,242) with a WHITE label,
+ * and black scores fractionally better there (4.96 against 4.24). 3.5 keeps
+ * their pill and still rejects every pale fill.
+ *
+ * Judged on the RAW literal, which is right for the only themes that fill a
+ * pill solid: creatorcore leaves the ink at --cc-status-ink-strength 100%, so
+ * the literal IS what gets painted. Elsewhere the ink is mixed toward
+ * --cc-text, which in a light theme only darkens it -- so a literal that
+ * carries white keeps carrying it.
+ */
+export function whiteReadsOnInk(ink: string): boolean {
+  return contrastRatio(ink, SURFACE) >= 3.5;
 }
 
 /**

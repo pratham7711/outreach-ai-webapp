@@ -51,7 +51,7 @@ export function DiscoveryResults({ results, emptyLabel = "No matching creators" 
             alignItems: "center",
             justifyContent: "center",
             padding: 32,
-            fontSize: 14,
+            fontSize: "var(--cc-t-14)",
             color: "var(--cc-text-muted)",
           }}
         >
@@ -96,7 +96,7 @@ export function DiscoveryResults({ results, emptyLabel = "No matching creators" 
                   borderRadius: 8,
                   background: "var(--cc-bg)",
                   color: "var(--cc-text-muted)",
-                  fontSize: 14,
+                  fontSize: "var(--cc-t-14)",
                   fontWeight: 700,
                 }}
               >
@@ -104,7 +104,7 @@ export function DiscoveryResults({ results, emptyLabel = "No matching creators" 
               </span>
               <div style={{ display: "flex", flexDirection: "column", gap: 8, flex: 1 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                  <span style={{ fontSize: 15, fontWeight: 600, color: "var(--cc-text)" }}>{name}</span>
+                  <span style={{ fontSize: "var(--cc-t-15)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{name}</span>
                   <span
                     role="img"
                     aria-label={`Match score ${score} of 100`}
@@ -117,7 +117,7 @@ export function DiscoveryResults({ results, emptyLabel = "No matching creators" 
                       border: `1px solid ${tier.token}`,
                       color: tier.token,
                       background: "var(--cc-card)",
-                      fontSize: 12,
+                      fontSize: "var(--cc-t-12)",
                       fontWeight: 700,
                     }}
                   >
@@ -126,7 +126,7 @@ export function DiscoveryResults({ results, emptyLabel = "No matching creators" 
                   <Badge variant={tier.variant}>{tier.label}</Badge>
                 </div>
                 {result.explanation ? (
-                  <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{result.explanation}</span>
+                  <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{result.explanation}</span>
                 ) : null}
                 {filters.length > 0 ? (
                   <div

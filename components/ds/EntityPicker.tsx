@@ -93,7 +93,7 @@ export function EntityPicker({
           background: "var(--cc-card)",
         }}
       >
-        <span style={{ flex: 1, minWidth: 0, fontSize: 14, color: "var(--cc-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        <span style={{ flex: 1, minWidth: 0, fontSize: "var(--cc-t-14)", color: "var(--cc-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {value.label}
         </span>
         <button
@@ -143,7 +143,7 @@ export function EntityPicker({
             minWidth: 0,
             border: "none",
             background: "transparent",
-            fontSize: 14,
+            fontSize: "var(--cc-t-14)",
             color: "var(--cc-text)",
           }}
         />
@@ -170,13 +170,13 @@ export function EntityPicker({
           }}
         >
           {error ? (
-            <li style={{ padding: "10px 12px", fontSize: 13, color: "var(--cc-danger)" }}>
+            <li style={{ padding: "10px 12px", fontSize: "var(--cc-t-13)", color: "var(--cc-danger)" }}>
               Could not load results. Try again.
             </li>
           ) : loading && options.length === 0 ? (
-            <li style={{ padding: "10px 12px", fontSize: 13, color: "var(--cc-text-muted)" }}>Searching…</li>
+            <li style={{ padding: "10px 12px", fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>Searching…</li>
           ) : options.length === 0 ? (
-            <li style={{ padding: "10px 12px", fontSize: 13, color: "var(--cc-text-muted)" }}>No matches</li>
+            <li style={{ padding: "10px 12px", fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>No matches</li>
           ) : (
             options.map((opt) => (
               <li key={opt.id}>
@@ -197,7 +197,7 @@ export function EntityPicker({
                     borderRadius: 6,
                     background: "transparent",
                     cursor: "pointer",
-                    fontSize: 13,
+                    fontSize: "var(--cc-t-13)",
                     color: "var(--cc-text)",
                   }}
                 >

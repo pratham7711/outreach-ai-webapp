@@ -346,7 +346,7 @@ function CampaignDetailInner() {
           )}
 
           {detail.deadlinePassed ? (
-            <div style={{ padding: "10px 14px", borderRadius: 8, background: "#FEF3C7", color: "#D97706", fontSize: 13 }}>
+            <div style={{ padding: "10px 14px", borderRadius: 8, background: "#FEF3C7", color: "var(--cc-warning-ink)", fontSize: 13 }}>
               The submission deadline has passed.
             </div>
           ) : CAN_SUBMIT_DRAFT.includes(draft.status) ? (
@@ -423,7 +423,7 @@ function CampaignDetailInner() {
             You haven&apos;t joined this campaign yet.
           </div>
         ) : detail.deadlinePassed ? (
-          <div style={{ padding: "10px 14px", borderRadius: 8, background: "#FEF3C7", color: "#D97706", fontSize: 13 }}>
+          <div style={{ padding: "10px 14px", borderRadius: 8, background: "#FEF3C7", color: "var(--cc-warning-ink)", fontSize: 13 }}>
             The submission deadline has passed.
           </div>
         ) : (

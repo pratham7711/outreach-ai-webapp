@@ -120,7 +120,7 @@ export default function ReviewsSection({
           <Star size={16} color="var(--cc-text)" />
           <h3
             style={{
-              fontSize: 16,
+              fontSize: "var(--cc-t-16)",
               fontWeight: 700,
               color: "var(--cc-text)",
               margin: 0,
@@ -179,15 +179,15 @@ export default function ReviewsSection({
                   src={review.creator?.avatarUrl ?? undefined}
                   size="sm"
                 />
-                <span style={{ fontWeight: 600, fontSize: 14, color: "var(--cc-text)" }}>
+                <span style={{ fontWeight: "var(--cc-fw-strong)", fontSize: "var(--cc-t-14)", color: "var(--cc-text)" }}>
                   {review.creator?.name ?? "Unknown"}
                 </span>
-                <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>
+                <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
                   @{stripAt(review.creator?.handle ?? "")}
                 </span>
                 <span
                   style={{
-                    fontSize: 12,
+                    fontSize: "var(--cc-t-12)",
                     color: "var(--cc-text-muted)",
                     marginLeft: "auto",
                   }}
@@ -219,7 +219,7 @@ export default function ReviewsSection({
                         border: "1px solid var(--cc-border)",
                         borderRadius: 10,
                         padding: "2px 8px",
-                        fontSize: 11,
+                        fontSize: "var(--cc-t-11)",
                         color: "var(--cc-text-muted)",
                       }}
                     >
@@ -233,7 +233,7 @@ export default function ReviewsSection({
               {review.comment && (
                 <p
                   style={{
-                    fontSize: 13,
+                    fontSize: "var(--cc-t-13)",
                     color: "var(--cc-text-muted)",
                     fontStyle: "italic",
                     margin: 0,
@@ -277,8 +277,8 @@ export default function ReviewsSection({
             <label
               style={{
                 display: "block",
-                fontSize: 13,
-                fontWeight: 600,
+                fontSize: "var(--cc-t-13)",
+                fontWeight: "var(--cc-fw-strong)",
                 color: "var(--cc-text)",
                 marginBottom: 8,
               }}
@@ -304,8 +304,8 @@ export default function ReviewsSection({
             <label
               style={{
                 display: "block",
-                fontSize: 13,
-                fontWeight: 600,
+                fontSize: "var(--cc-t-13)",
+                fontWeight: "var(--cc-fw-strong)",
                 color: "var(--cc-text)",
                 marginBottom: 8,
               }}
@@ -323,7 +323,7 @@ export default function ReviewsSection({
                       cursor: "pointer",
                       borderRadius: 10,
                       padding: "4px 12px",
-                      fontSize: 12,
+                      fontSize: "var(--cc-t-12)",
                       fontWeight: 500,
                       background: selected ? "var(--cc-primary-light)" : "var(--cc-bg)",
                       color: selected ? "var(--cc-primary)" : "var(--cc-text-muted)",
@@ -345,8 +345,8 @@ export default function ReviewsSection({
             <label
               style={{
                 display: "block",
-                fontSize: 13,
-                fontWeight: 600,
+                fontSize: "var(--cc-t-13)",
+                fontWeight: "var(--cc-fw-strong)",
                 color: "var(--cc-text)",
                 marginBottom: 8,
               }}
@@ -363,7 +363,7 @@ export default function ReviewsSection({
                 borderRadius: 8,
                 border: "1px solid var(--cc-border)",
                 padding: 10,
-                fontSize: 14,
+                fontSize: "var(--cc-t-14)",
                 color: "var(--cc-text)",
                 background: "var(--cc-card)",
                 resize: "vertical",

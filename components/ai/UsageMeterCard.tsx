@@ -145,10 +145,10 @@ export function UsageMeterCard({
   return (
     <Card variant="outlined" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <h3 style={{ fontSize: 18, fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>
+        <h3 style={{ fontSize: "var(--cc-t-18)", fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>
           Usage this period
         </h3>
-        <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>
+        <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
           Tokens, cost, and runs across AI tools
         </span>
       </div>
@@ -175,14 +175,14 @@ export function UsageMeterCard({
                   flexWrap: "wrap",
                 }}
               >
-                <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text-muted)" }}>
+                <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text-muted)" }}>
                   {METRIC_TITLE[metric.kind]}
                   {over ? (
                     <span
                       data-testid={`${metric.testid}-overlimit`}
                       style={{
                         marginLeft: 8,
-                        fontSize: 11,
+                        fontSize: "var(--cc-t-11)",
                         fontWeight: 700,
                         color: "var(--cc-danger)",
                       }}
@@ -191,7 +191,7 @@ export function UsageMeterCard({
                     </span>
                   ) : null}
                 </span>
-                <span style={{ fontSize: 16, fontWeight: 700, color: "var(--cc-text)" }}>
+                <span style={{ fontSize: "var(--cc-t-16)", fontWeight: 700, color: "var(--cc-text)" }}>
                   {valueText}
                 </span>
               </div>
@@ -239,11 +239,11 @@ export function UsageMeterCard({
               background: "var(--cc-card)",
             }}
           >
-            <span aria-hidden="true" style={{ color: "var(--cc-success)", fontSize: 14, lineHeight: "18px" }}>
+            <span aria-hidden="true" style={{ color: "var(--cc-success)", fontSize: "var(--cc-t-14)", lineHeight: "18px" }}>
               <CheckCircle2 size={14} color="var(--cc-success)" />
             </span>
             <Badge variant="success">Within limits</Badge>
-            <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>
+            <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>
               Within limits
             </span>
           </div>
@@ -263,12 +263,12 @@ export function UsageMeterCard({
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span aria-hidden="true" style={{ color: "var(--cc-danger)", fontSize: 14, lineHeight: "18px" }}>
+              <span aria-hidden="true" style={{ color: "var(--cc-danger)", fontSize: "var(--cc-t-14)", lineHeight: "18px" }}>
                 <XCircle size={14} color="var(--cc-danger)" />
               </span>
               <Badge variant="danger">Blocked</Badge>
             </div>
-            <span style={{ fontSize: 13, fontWeight: 700, color: "var(--cc-danger)" }}>
+            <span style={{ fontSize: "var(--cc-t-13)", fontWeight: 700, color: "var(--cc-danger)" }}>
               {exceededNames.length > 0
                 ? `Over limit: ${exceededNames.join(", ")}`
                 : "Over limit"}
@@ -278,7 +278,7 @@ export function UsageMeterCard({
       ) : null}
 
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        <h4 style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)", margin: 0 }}>
+        <h4 style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", margin: 0 }}>
           Breakdown by tool
         </h4>
         {hasTools ? (
@@ -309,10 +309,10 @@ export function UsageMeterCard({
                     borderBottom: "1px solid var(--cc-border)",
                   }}
                 >
-                  <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>
+                  <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>
                     {toolName}
                   </span>
-                  <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>
+                  <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
                     {`${formatTokens(safeNum(entry.tokens))} tokens · ${formatMoney(
                       currency,
                       safeNum(entry.costUsd),
@@ -327,7 +327,7 @@ export function UsageMeterCard({
             role="status"
             data-testid="usage-empty"
             aria-label="No tool usage recorded"
-            style={{ fontSize: 13, color: "var(--cc-text-muted)", margin: 0 }}
+            style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", margin: 0 }}
           >
             No tool usage recorded.
           </p>

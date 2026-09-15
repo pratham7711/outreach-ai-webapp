@@ -85,7 +85,7 @@ function DistributionRow({
         padding: "6px 8px", margin: "0 -8px", borderRadius: 6, textDecoration: "none",
       }}
     >
-      <span style={{ fontSize: 13, color: "var(--cc-text-muted)", width: 96, flexShrink: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+      <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", width: 96, flexShrink: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
         {label}
       </span>
       <span style={{ flex: 1, height: 8, background: "var(--cc-bg)", borderRadius: 4, overflow: "hidden" }}>
@@ -96,7 +96,7 @@ function DistributionRow({
           }}
         />
       </span>
-      <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)", fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>
+      <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>
         {formatFull(count)}{suffix}
       </span>
     </Link>
@@ -142,7 +142,7 @@ export default function SongDashboard({
           <h1 className="cc-page-title" data-mb="tight">
             {song.title}
           </h1>
-          <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>{song.artist}</p>
+          <p style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text-muted)" }}>{song.artist}</p>
         </div>
       </div>
 
@@ -164,14 +164,14 @@ export default function SongDashboard({
           label="Campaigns"
           sub={`${summary.activeCampaignCount} active · ${summary.phaseCount} phases`}
         />
-        <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 4, fontSize: 13, fontWeight: 600, color: "var(--cc-primary)" }}>
+        <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 4, fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-primary)" }}>
           View posts <ArrowRight size={14} aria-hidden="true" />
         </span>
       </Link>
 
       <div className="grid grid-cols-1 lg:grid-cols-2" style={{ gap: 20, marginBottom: 20 }}>
         <div style={card}>
-          <h2 style={{ fontSize: 13, fontWeight: 700, color: "var(--cc-text)", marginBottom: 16 }}>Views by platform</h2>
+          <h2 style={{ fontSize: "var(--cc-t-13)", fontWeight: 700, color: "var(--cc-text)", marginBottom: 16 }}>Views by platform</h2>
           {platformBreakdown.length === 0 ? (
             <Empty>No posts yet.</Empty>
           ) : (
@@ -191,7 +191,7 @@ export default function SongDashboard({
         </div>
 
         <div style={card}>
-          <h2 style={{ fontSize: 13, fontWeight: 700, color: "var(--cc-text)", marginBottom: 16 }}>Views by phase</h2>
+          <h2 style={{ fontSize: "var(--cc-t-13)", fontWeight: 700, color: "var(--cc-text)", marginBottom: 16 }}>Views by phase</h2>
           {phases.length === 0 ? (
             <Empty>This song&rsquo;s campaigns don&rsquo;t use phases yet.</Empty>
           ) : (
@@ -212,7 +212,7 @@ export default function SongDashboard({
       </div>
 
       <div style={{ ...card, marginBottom: 20 }}>
-        <h2 style={{ fontSize: 13, fontWeight: 700, color: "var(--cc-text)", marginBottom: 16 }}>Campaigns</h2>
+        <h2 style={{ fontSize: "var(--cc-t-13)", fontWeight: 700, color: "var(--cc-text)", marginBottom: 16 }}>Campaigns</h2>
         <div style={{ marginBottom: 16 }}>
           <AttachCampaigns songId={song.id} campaigns={attachable} />
         </div>
@@ -231,14 +231,14 @@ export default function SongDashboard({
                 }}
               >
                 <Megaphone size={15} color="var(--cc-text-muted)" aria-hidden="true" />
-                <span style={{ flex: 1, fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>{c.title}</span>
-                <span style={{ fontSize: 12, color: "var(--cc-text-muted)", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                <span style={{ flex: 1, fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{c.title}</span>
+                <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", display: "inline-flex", alignItems: "center", gap: 4 }}>
                   <Layers size={12} aria-hidden="true" /> {c.phaseCount}
                 </span>
-                <span style={{ fontSize: 13, color: "var(--cc-text-muted)", fontVariantNumeric: "tabular-nums" }}>
+                <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", fontVariantNumeric: "tabular-nums" }}>
                   {c.postCount} posts
                 </span>
-                <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)", fontVariantNumeric: "tabular-nums", minWidth: 64, textAlign: "right" }}>
+                <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", fontVariantNumeric: "tabular-nums", minWidth: 64, textAlign: "right" }}>
                   {formatFull(c.views)}
                 </span>
               </Link>
@@ -279,8 +279,8 @@ function HeroStat({ value, label, sub }: { value: string; label: string; sub: st
       <p title={value} style={{ fontSize: fitFigureSize(value, 36), fontWeight: 700, color: "var(--cc-text)", lineHeight: 1, fontVariantNumeric: "tabular-nums", marginBottom: 6, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
         {value}
       </p>
-      <p style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>{label}</p>
-      <p style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{sub}</p>
+      <p style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{label}</p>
+      <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>{sub}</p>
     </div>
   );
 }
@@ -294,7 +294,7 @@ function TabButton({ active, onClick, children }: { active: boolean; onClick: ()
         background: active ? "var(--cc-primary)" : "transparent",
         color: active ? "white" : "var(--cc-text-muted)",
         border: active ? "none" : "1px solid var(--cc-border)",
-        borderRadius: 8, padding: "7px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer",
+        borderRadius: 8, padding: "7px 14px", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", cursor: "pointer",
       }}
     >
       {children}
@@ -303,5 +303,5 @@ function TabButton({ active, onClick, children }: { active: boolean; onClick: ()
 }
 
 function Empty({ children }: { children: React.ReactNode }) {
-  return <p style={{ padding: "24px 0", textAlign: "center", fontSize: 13, color: "var(--cc-text-muted)" }}>{children}</p>;
+  return <p style={{ padding: "24px 0", textAlign: "center", fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{children}</p>;
 }

@@ -90,13 +90,13 @@ export default function SongsClient({ songs: initial }: { songs: SongRow[] }) {
         <Card variant="solid" style={{ padding: 20, marginBottom: 20 }}>
           <form onSubmit={handleCreate} style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
             <div style={{ flex: 1, minWidth: 180 }}>
-              <label htmlFor="song-title" style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--cc-text-muted)", marginBottom: 6 }}>
+              <label htmlFor="song-title" style={{ display: "block", fontSize: "var(--cc-t-12)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text-muted)", marginBottom: 6 }}>
                 Title
               </label>
               <Input id="song-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Song title" required />
             </div>
             <div style={{ flex: 1, minWidth: 180 }}>
-              <label htmlFor="song-artist" style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--cc-text-muted)", marginBottom: 6 }}>
+              <label htmlFor="song-artist" style={{ display: "block", fontSize: "var(--cc-t-12)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text-muted)", marginBottom: 6 }}>
                 Artist
               </label>
               <Input id="song-artist" value={artist} onChange={(e) => setArtist(e.target.value)} placeholder="Artist" required />
@@ -105,7 +105,7 @@ export default function SongsClient({ songs: initial }: { songs: SongRow[] }) {
               {saving ? "Saving…" : "Save"}
             </Button>
           </form>
-          {error && <p style={{ marginTop: 10, fontSize: 13, color: "#DC2626" }}>{error}</p>}
+          {error && <p style={{ marginTop: 10, fontSize: "var(--cc-t-13)", color: "#DC2626" }}>{error}</p>}
         </Card>
       )}
 
@@ -143,8 +143,8 @@ export default function SongsClient({ songs: initial }: { songs: SongRow[] }) {
                     {!s.coverUrl && <Music size={20} color="var(--cc-text-subtle)" />}
                   </div>
                   <div style={{ minWidth: 0 }}>
-                    <p style={{ fontWeight: 700, fontSize: 16, color: "var(--cc-text)", marginBottom: 2 }}>{s.title}</p>
-                    <p style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{s.artist}</p>
+                    <p style={{ fontWeight: 700, fontSize: "var(--cc-t-16)", color: "var(--cc-text)", marginBottom: 2 }}>{s.title}</p>
+                    <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{s.artist}</p>
                   </div>
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
@@ -153,7 +153,7 @@ export default function SongsClient({ songs: initial }: { songs: SongRow[] }) {
                   <Stat label="Campaigns" value={String(s.campaignCount)} />
                 </div>
                 {s.platforms.length > 0 && (
-                  <p style={{ marginTop: 14, fontSize: 12, color: "var(--cc-text-muted)" }}>
+                  <p style={{ marginTop: 14, fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
                     {s.platforms.map(platformLabel).join(" · ")}
                   </p>
                 )}
@@ -169,10 +169,10 @@ export default function SongsClient({ songs: initial }: { songs: SongRow[] }) {
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p style={{ fontSize: 11, color: "var(--cc-text-subtle)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.3px", marginBottom: 2 }}>
+      <p className="cc-microlabel" style={{ marginBottom: 2 }}>
         {label}
       </p>
-      <p style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)", fontVariantNumeric: "tabular-nums" }}>{value}</p>
+      <p className="cc-panel-title" style={{ fontVariantNumeric: "tabular-nums" }}>{value}</p>
     </div>
   );
 }

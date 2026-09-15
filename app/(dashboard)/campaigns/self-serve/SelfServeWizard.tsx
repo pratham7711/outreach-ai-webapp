@@ -41,8 +41,8 @@ const CREATOR_FETCH_LIMIT = 200;
 
 const labelStyle: React.CSSProperties = {
   display: "block",
-  fontSize: 13,
-  fontWeight: 600,
+  fontSize: "var(--cc-t-13)",
+  fontWeight: "var(--cc-fw-strong)",
   color: "var(--cc-text)",
   marginBottom: 6,
 };
@@ -52,7 +52,7 @@ const controlStyle: React.CSSProperties = {
   padding: "10px 14px",
   borderRadius: 10,
   border: "1px solid var(--cc-border)",
-  fontSize: 14,
+  fontSize: "var(--cc-t-14)",
   color: "var(--cc-text)",
   background: "var(--cc-card)",
   boxSizing: "border-box",
@@ -244,7 +244,7 @@ export default function SelfServeWizard({
           />
         ))}
       </div>
-      <p style={{ fontSize: 12, fontWeight: 600, color: "var(--cc-text-muted)", marginBottom: 20, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+      <p className="cc-microlabel" style={{ marginBottom: 20 }}>
         Step {step + 1} of {STEPS.length} — {STEPS[step]}
       </p>
 
@@ -351,9 +351,9 @@ export default function SelfServeWizard({
             </div>
 
             {loadingCreators ? (
-              <p style={{ fontSize: 14, color: "var(--cc-text-muted)", padding: "24px 0", textAlign: "center" }}>Loading creators…</p>
+              <p style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text-muted)", padding: "24px 0", textAlign: "center" }}>Loading creators…</p>
             ) : creatorError ? (
-              <p style={{ fontSize: 14, color: "var(--cc-danger)", padding: "24px 0", textAlign: "center" }}>{creatorError}</p>
+              <p style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-danger)", padding: "24px 0", textAlign: "center" }}>{creatorError}</p>
             ) : filteredCreators.length === 0 ? (
               <div style={{ padding: "24px 0" }}>
                 <EmptyState
@@ -365,7 +365,7 @@ export default function SelfServeWizard({
             ) : (
               <>
               {matchTotal !== null && matchTotal > creators.length && (
-                <p style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>
+                <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
                   Showing {creators.length} of {matchTotal} matching creators — narrow the search to see the rest.
                 </p>
               )}
@@ -408,14 +408,14 @@ export default function SelfServeWizard({
                         {isSelected && <Check size={13} />}
                       </span>
                       <span style={{ flex: 1, minWidth: 0 }}>
-                        <span title={c.name} style={{ display: "block", fontSize: 14, fontWeight: 600, color: "var(--cc-text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        <span title={c.name} style={{ display: "block", fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                           {c.name}
                         </span>
-                        <span style={{ display: "block", fontSize: 12, color: "var(--cc-text-muted)" }}>
+                        <span style={{ display: "block", fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
                           @{stripAt(c.handle)} · {c.platform} · {formatFollowers(c.followersCount)} followers
                         </span>
                       </span>
-                      <span style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)", flexShrink: 0 }}>
+                      <span style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", flexShrink: 0 }}>
                         {rate > 0 ? money(currency, rate) : "No rate"}
                       </span>
                     </button>
@@ -442,8 +442,8 @@ export default function SelfServeWizard({
         {step === 2 && (
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <div>
-              <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--cc-text)", marginBottom: 2 }}>{title || "Untitled campaign"}</h2>
-              <p style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>
+              <h2 style={{ fontSize: "var(--cc-t-16)", fontWeight: 700, color: "var(--cc-text)", marginBottom: 2 }}>{title || "Untitled campaign"}</h2>
+              <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
                 {selectedList.length} creator{selectedList.length === 1 ? "" : "s"} shortlisted
                 {budgetTarget > 0 ? ` · Budget target ${money(currency, budgetTarget)}` : ""}
               </p>
@@ -451,8 +451,8 @@ export default function SelfServeWizard({
 
             {guidelines.trim() && (
               <div style={{ background: "var(--cc-bg)", borderRadius: 10, padding: 14 }}>
-                <p style={{ fontSize: 12, fontWeight: 600, color: "var(--cc-text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Brief</p>
-                <p style={{ fontSize: 13, color: "var(--cc-text)", whiteSpace: "pre-wrap" }}>{guidelines.trim()}</p>
+                <p className="cc-microlabel" style={{ marginBottom: 6 }}>Brief</p>
+                <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text)", whiteSpace: "pre-wrap" }}>{guidelines.trim()}</p>
               </div>
             )}
 
@@ -462,33 +462,33 @@ export default function SelfServeWizard({
                 return (
                   <div key={c.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px", borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined }}>
                     <div style={{ minWidth: 0 }}>
-                      <p style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>{c.name}</p>
-                      <p style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>@{stripAt(c.handle)} · {c.platform}</p>
+                      <p style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{c.name}</p>
+                      <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>@{stripAt(c.handle)} · {c.platform}</p>
                     </div>
-                    <p style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>{rate > 0 ? money(currency, rate) : "No rate"}</p>
+                    <p style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{rate > 0 ? money(currency, rate) : "No rate"}</p>
                   </div>
                 );
               })}
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px", borderTop: "1px solid var(--cc-border)", background: "var(--cc-bg)" }}>
-                <p style={{ fontSize: 14, color: "var(--cc-text)" }}>Platform fee</p>
-                <p style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>{money(currency, budgetSummary.platformFee)}</p>
+                <p style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text)" }}>Platform fee</p>
+                <p style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{money(currency, budgetSummary.platformFee)}</p>
               </div>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px", borderTop: "1px solid var(--cc-border)" }}>
-                <p style={{ fontSize: 15, fontWeight: 700, color: "var(--cc-text)" }}>Total</p>
-                <p style={{ fontSize: 15, fontWeight: 800, color: overBudget ? "var(--cc-danger)" : "var(--cc-text)" }}>{money(currency, budgetSummary.total)}</p>
+                <p style={{ fontSize: "var(--cc-t-15)", fontWeight: 700, color: "var(--cc-text)" }}>Total</p>
+                <p style={{ fontSize: "var(--cc-t-15)", fontWeight: "var(--cc-fw-black)", color: overBudget ? "var(--cc-danger)" : "var(--cc-text)" }}>{money(currency, budgetSummary.total)}</p>
               </div>
             </div>
 
             {overBudget && (
               <div role="alert" style={{ display: "flex", gap: 8, alignItems: "flex-start", padding: "10px 14px", borderRadius: 10, background: "color-mix(in srgb, var(--cc-danger) 12%, transparent)", border: "1px solid color-mix(in srgb, var(--cc-danger) 28%, transparent)" }}>
                 <Info size={16} color="var(--cc-danger)" style={{ flexShrink: 0, marginTop: 1 }} />
-                <span style={{ fontSize: 13, color: "var(--cc-danger)" }}>The total exceeds your budget target. You can still proceed.</span>
+                <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-danger)" }}>The total exceeds your budget target. You can still proceed.</span>
               </div>
             )}
 
             <div style={{ display: "flex", gap: 8, alignItems: "flex-start", padding: "10px 14px", borderRadius: 10, background: "var(--cc-primary-light)" }}>
               <Users size={16} color="var(--cc-primary)" style={{ flexShrink: 0, marginTop: 1 }} />
-              <span style={{ fontSize: 13, color: "var(--cc-text)" }}>
+              <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text)" }}>
                 Selected creators are added as pending invites. <strong>Invite &amp; negotiate from the campaign page.</strong>
               </span>
             </div>
@@ -550,7 +550,7 @@ function RunningTotal({
   return (
     <div style={{ border: "1px solid var(--cc-border)", borderRadius: 10, padding: 14, background: "var(--cc-bg)" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-        <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>
+        <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>
           {count} selected
         </span>
         <Badge variant={overBudget ? "danger" : "accent"}>
@@ -569,7 +569,7 @@ function RunningTotal({
           />
         </div>
       )}
-      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--cc-text-muted)" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
         <span>Creators {money(currency, creatorTotal)}</span>
         <span>Platform fee {money(currency, platformFee)}</span>
       </div>
@@ -577,14 +577,14 @@ function RunningTotal({
           total read as a complete quote while being short by however much they
           eventually cost — on the screen where someone commits a budget. */}
       {unpricedCreators > 0 && (
-        <p style={{ fontSize: 12, color: "var(--cc-text-muted)", marginTop: 8 }}>
+        <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", marginTop: 8 }}>
           {unpricedCreators === 1
             ? "1 selected creator has no rate on file, so this total does not include them."
             : `${unpricedCreators} selected creators have no rate on file, so this total does not include them.`}
         </p>
       )}
       {overBudget && (
-        <p style={{ fontSize: 12, color: "var(--cc-danger)", marginTop: 8 }}>Over budget target</p>
+        <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-danger)", marginTop: 8 }}>Over budget target</p>
       )}
     </div>
   );

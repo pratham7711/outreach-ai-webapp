@@ -58,7 +58,7 @@ export function AuthenticityScore({ score, confidence, factors, compact }: Authe
             border: `2px solid ${tier.token}`,
             color: tier.token,
             background: "var(--cc-card)",
-            fontSize: 20,
+            fontSize: "var(--cc-t-20)",
             fontWeight: 700,
           }}
         >
@@ -67,7 +67,7 @@ export function AuthenticityScore({ score, confidence, factors, compact }: Authe
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           <Badge variant={tier.variant}>{tier.label}</Badge>
           {confidence ? (
-            <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>
+            <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
               {CONFIDENCE_LABEL[confidence]}
             </span>
           ) : null}
@@ -76,7 +76,7 @@ export function AuthenticityScore({ score, confidence, factors, compact }: Authe
 
       {showBreakdown ? (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          <h4 style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)", margin: 0 }}>
+          <h4 style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", margin: 0 }}>
             Why this score
           </h4>
           <ul
@@ -99,18 +99,18 @@ export function AuthenticityScore({ score, confidence, factors, compact }: Authe
                     borderBottom: "1px solid var(--cc-border)",
                   }}
                 >
-                  <span aria-hidden="true" style={{ color: directionToken, fontSize: 12, lineHeight: "18px" }}>
+                  <span aria-hidden="true" style={{ color: directionToken, fontSize: "var(--cc-t-12)", lineHeight: "18px" }}>
                     {directionSymbol}
                   </span>
                   <span style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>
+                    <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>
                       {factor.label}
-                      <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 500, color: "var(--cc-text-muted)" }}>
+                      <span style={{ marginLeft: 8, fontSize: "var(--cc-t-11)", fontWeight: 500, color: "var(--cc-text-muted)" }}>
                         {directionWord} ({positive ? "+" : ""}{factor.impact})
                       </span>
                     </span>
                     {factor.detail ? (
-                      <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{factor.detail}</span>
+                      <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>{factor.detail}</span>
                     ) : null}
                   </span>
                 </li>

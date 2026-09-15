@@ -9,7 +9,18 @@ import {
 } from "date-fns";
 import { campaignStatusCss, campaignStatusDot } from "@/lib/statusColors";
 
-const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+/* CreatorCore's calendar starts its week on SATURDAY. MEASURED at
+   desktop-1600, their weekday row reads, left to right:
+
+     SAT 370.8 · SUN 550.4 · MON 730.1 · TUE 913.8 · WED 1092.8 · THU 1275.4 · FRI 1458
+
+   all at 10px/400 in 181.1px columns. date-fns defaults to Sunday, so every
+   one of our columns sat one place left of theirs and all seven weekday labels
+   read as moved. The constant is here rather than inline because
+   startOfWeek/endOfWeek and this array have to agree -- disagree and the grid
+   silently labels Saturday's column "Sun". */
+const WEEK_STARTS_ON = 6;
+const DAYS = ["Sat", "Sun", "Mon", "Tue", "Wed", "Thu", "Fri"];
 
 /* The chips below used to build their background by appending hex alpha to
    whatever this map held -- `${color}20`. That works for a literal like
@@ -70,8 +81,8 @@ export default function CalendarPage() {
 
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
-  const calStart = startOfWeek(monthStart);
-  const calEnd = endOfWeek(monthEnd);
+  const calStart = startOfWeek(monthStart, { weekStartsOn: WEEK_STARTS_ON });
+  const calEnd = endOfWeek(monthEnd, { weekStartsOn: WEEK_STARTS_ON });
   const days = eachDayOfInterval({ start: calStart, end: calEnd });
   const monthHasContent = days.some((day) =>
     campaigns.some((c) => isSameDay(new Date(c.createdAt), day)) ||
@@ -91,7 +102,7 @@ export default function CalendarPage() {
   } : null;
 
   return (
-    <div className="rsp-page">
+    <div className="rsp-page cc-cal-page">
       <style>{`
         .cal-more { display: none; }
         @media (max-width: 767px) {
@@ -102,24 +113,29 @@ export default function CalendarPage() {
       <PageHeader
         title="Calendar"
         subtitle="Campaign schedule and deadlines"
-        actions={
-          <>
-            <Button variant="ghost" size="sm" aria-label="Previous month" onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}>
-              <ChevronLeft size={16} />
-            </Button>
-            <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)", minWidth: 140, textAlign: "center" }}>
-              {format(currentMonth, "MMMM yyyy")}
-            </span>
-            <Button variant="ghost" size="sm" aria-label="Next month" onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}>
-              <ChevronRight size={16} />
-            </Button>
-            <Button variant="secondary" size="sm" onClick={() => setCurrentMonth(new Date())}>Today</Button>
-          </>
-        }
       />
 
+      {/* The month nav sits on its own row under the title rather than inside
+          the header's action slot. MEASURED at desktop-1600: their calendar
+          puts its whole toolbar -- three filters, the Week/Month toggle and
+          Today -- on a 40px row at y=90, with the grid following at 145. Ours
+          had Today up on the title line at y=26 and the grid at 100, which put
+          every weekday label 28px above theirs. */}
+      <div className="cc-cal-toolbar cc-bleed">
+        <Button variant="ghost" size="sm" aria-label="Previous month" onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}>
+          <ChevronLeft size={16} />
+        </Button>
+        <span className="cc-panel-title" style={{ minWidth: 140, textAlign: "center" }}>
+          {format(currentMonth, "MMMM yyyy")}
+        </span>
+        <Button variant="ghost" size="sm" aria-label="Next month" onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}>
+          <ChevronRight size={16} />
+        </Button>
+        <Button className="cc-cal-today" variant="secondary" size="sm" onClick={() => setCurrentMonth(new Date())}>Today</Button>
+      </div>
+
       {/* Legend */}
-      <div style={{ display: "flex", gap: 16, marginBottom: 16, fontSize: 12, color: "var(--cc-text-muted)", flexWrap: "wrap" }}>
+      <div className="cc-cal-legend" style={{ gap: 16, fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", flexWrap: "wrap" }}>
         {STATUS_ORDER.map((status) => (
           <div key={status} style={{ display: "flex", alignItems: "center", gap: 4 }}>
             <div style={{ width: 8, height: 8, borderRadius: "50%", background: campaignStatusDot(status) }} />
@@ -132,7 +148,7 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      <div className="rsp-split" style={{ gap: 24 }}>
+      <div className="rsp-split cc-cal-body cc-bleed" style={{ gap: 24 }}>
         {/* Calendar grid */}
         <div style={{ flex: 1, minWidth: 0 }}>
           {loading ? (
@@ -147,7 +163,7 @@ export default function CalendarPage() {
             <Card variant="outlined" noPadding>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", borderBottom: "1px solid var(--cc-border)" }}>
                 {DAYS.map(d => (
-                  <div key={d} style={{ padding: "12px 0", textAlign: "center", fontSize: 12, fontWeight: 600, color: "var(--cc-text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>{d}</div>
+                  <div key={d} className="cal-weekday">{d}</div>
                 ))}
               </div>
               {monthEmpty ? (
@@ -183,9 +199,7 @@ export default function CalendarPage() {
                         transition: "background 0.1s",
                       }}
                     >
-                      <span style={{
-                        display: "inline-flex", width: 26, height: 26, alignItems: "center", justifyContent: "center",
-                        borderRadius: "50%", fontSize: 12, fontWeight: today ? 700 : 500,
+                      <span className="cal-daynum" data-today={today ? "true" : undefined} style={{
                         background: today ? "var(--cc-primary)" : "transparent",
                         color: today ? "white" : "var(--cc-text-muted)",
                       }}>
@@ -194,7 +208,7 @@ export default function CalendarPage() {
                       {campaignCreated.map((c, ci) => (
                         <div key={c.id} title={c.title} className={ci >= 2 ? "cal-chip cal-chip-extra" : "cal-chip"} style={{
                           minWidth: 0,
-                          marginTop: 2, padding: "1px 4px", borderRadius: 3, fontSize: 9, fontWeight: 500,
+                          marginTop: 2, padding: "1px 4px", borderRadius: 3, fontSize: "var(--cc-t-9)", fontWeight: 500,
                           ...campaignStatusCss(c.status),
                           overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
                         }}>
@@ -203,7 +217,7 @@ export default function CalendarPage() {
                       ))}
                       {campaignCreated.length > 2 && (
                         <div className="cal-more" style={{
-                          marginTop: 2, fontSize: 9, fontWeight: 600, color: "var(--cc-text-muted)",
+                          marginTop: 2, fontSize: "var(--cc-t-9)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text-muted)",
                         }}>
                           +{campaignCreated.length - 2} more
                         </div>
@@ -230,22 +244,22 @@ export default function CalendarPage() {
           <div style={{ width: "100%", maxWidth: 320, flexShrink: 0 }} className="cal-side-panel">
             <style>{`@media (min-width: 1024px){ .cal-side-panel{ width:280px !important; } }`}</style>
             <Card variant="outlined" style={{ padding: 20 }}>
-              <h3 style={{ fontSize: 15, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>
+              <h3 style={{ fontSize: "var(--cc-t-15)", fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>
                 {format(selectedDay, "EEEE, MMM d")}
               </h3>
-              <p style={{ fontSize: 12, color: "var(--cc-text-muted)", marginBottom: 16 }}>{format(selectedDay, "yyyy")}</p>
+              <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", marginBottom: 16 }}>{format(selectedDay, "yyyy")}</p>
 
               {selectedDetail && selectedDetail.campaigns.length === 0 && selectedDetail.activations.length === 0 ? (
-                <p style={{ fontSize: 13, color: "var(--cc-text-muted)", textAlign: "center", padding: "20px 0" }}>Nothing scheduled</p>
+                <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", textAlign: "center", padding: "20px 0" }}>Nothing scheduled</p>
               ) : (
                 <>
                   {selectedDetail!.campaigns.length > 0 && (
                     <div style={{ marginBottom: 16 }}>
-                      <span style={{ fontSize: 11, fontWeight: 600, color: "var(--cc-text-muted)", textTransform: "uppercase", letterSpacing: "0.06em" }}>Campaigns</span>
+                      <span className="cc-microlabel">Campaigns</span>
                       {selectedDetail!.campaigns.map(c => (
                         <div key={c.id} style={{ marginTop: 8, padding: 10, borderRadius: 8, background: "var(--cc-bg)" }}>
-                          <p style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)", margin: 0 }}>{c.title}</p>
-                          <Badge variant="neutral" style={{ marginTop: 4, fontSize: 10 }}>{c.status}</Badge>
+                          <p style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", margin: 0 }}>{c.title}</p>
+                          <Badge variant="neutral" style={{ marginTop: 4, fontSize: "var(--cc-t-10)"}}>{c.status}</Badge>
                         </div>
                       ))}
                     </div>
@@ -253,12 +267,12 @@ export default function CalendarPage() {
 
                   {selectedDetail!.activations.length > 0 && (
                     <div>
-                      <span style={{ fontSize: 11, fontWeight: 600, color: "var(--cc-text-muted)", textTransform: "uppercase", letterSpacing: "0.06em" }}>Deliverables Due</span>
+                      <span className="cc-microlabel">Deliverables Due</span>
                       {selectedDetail!.activations.map(a => (
                         <div key={a.id} style={{ marginTop: 8, padding: 10, borderRadius: 8, background: "rgba(124,58,237,0.06)" }}>
-                          <p style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)", margin: 0 }}>{a.creator.name}</p>
-                          <p style={{ fontSize: 12, color: "var(--cc-text-muted)", margin: "2px 0 0" }}>{a.campaign.title}</p>
-                          <Badge variant="neutral" style={{ marginTop: 4, fontSize: 10 }}>{a.status.replace(/_/g, " ")}</Badge>
+                          <p style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", margin: 0 }}>{a.creator.name}</p>
+                          <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: "2px 0 0" }}>{a.campaign.title}</p>
+                          <Badge variant="neutral" style={{ marginTop: 4, fontSize: "var(--cc-t-10)"}}>{a.status.replace(/_/g, " ")}</Badge>
                         </div>
                       ))}
                     </div>

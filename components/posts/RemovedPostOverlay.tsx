@@ -57,7 +57,7 @@ export default function RemovedPostOverlay({
         padding: compact ? "2px 7px" : "5px 9px",
         borderRadius: 8,
         fontSize: compact ? 10 : 11,
-        fontWeight: 600,
+        fontWeight: "var(--cc-fw-strong)",
         lineHeight: 1.35,
         textAlign: "left",
         whiteSpace: compact ? "nowrap" : "normal",

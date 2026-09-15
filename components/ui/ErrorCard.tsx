@@ -63,17 +63,17 @@ export function ErrorCard({
           <AlertTriangle size={26} color="#DC2626" />
         </div>
 
-        <h1 style={{ fontSize: 20, fontWeight: 700, color: "var(--cc-text)", margin: "0 0 8px" }}>
+        <h1 style={{ fontSize: "var(--cc-t-20)", fontWeight: 700, color: "var(--cc-text)", margin: "0 0 8px" }}>
           {title}
         </h1>
-        <p style={{ fontSize: 14, color: "var(--cc-text-muted)", margin: 0, lineHeight: 1.6 }}>
+        <p style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text-muted)", margin: 0, lineHeight: 1.6 }}>
           {message}
         </p>
 
         {digest && (
           <p
             style={{
-              fontSize: 12,
+              fontSize: "var(--cc-t-12)",
               color: "var(--cc-text-subtle)",
               fontFamily: "ui-monospace, monospace",
               margin: "16px 0 0",
@@ -105,8 +105,8 @@ export function ErrorCard({
                   border: "none",
                   borderRadius: 8,
                   padding: "9px 16px",
-                  fontSize: 14,
-                  fontWeight: 600,
+                  fontSize: "var(--cc-t-14)",
+                  fontWeight: "var(--cc-fw-strong)",
                   cursor: "pointer",
                 }}
               >

@@ -106,7 +106,7 @@ export default function ConnectionsPage() {
     <div
       role="alert"
       style={{
-        marginBottom: 16, padding: "10px 14px", borderRadius: 8, fontSize: 13,
+        marginBottom: 16, padding: "10px 14px", borderRadius: 8, fontSize: "var(--cc-t-13)",
         background: "color-mix(in srgb, var(--cc-danger) 12%, transparent)",
         border: "1px solid color-mix(in srgb, var(--cc-danger) 30%, transparent)",
         color: "var(--cc-danger)",
@@ -169,7 +169,7 @@ export default function ConnectionsPage() {
         <div style={{
           width: 48, height: 48, borderRadius: 12,
           display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: 24, background: "var(--cc-bg)",
+          fontSize: "var(--cc-t-24)", background: "var(--cc-bg)",
         }}>
           {p.icon}
         </div>
@@ -177,17 +177,17 @@ export default function ConnectionsPage() {
           <Badge variant="success" size="sm" dot>Connected</Badge>
         )}
       </div>
-      <h3 style={{ fontWeight: 700, fontSize: 16, color: "var(--cc-text)", marginBottom: 4 }}>{p.name}</h3>
-      <p style={{ fontSize: 13, color: "var(--cc-text-muted)", lineHeight: 1.5, marginBottom: 12 }}>{p.description}</p>
+      <h3 style={{ fontWeight: 700, fontSize: "var(--cc-t-16)", color: "var(--cc-text)", marginBottom: 4 }}>{p.name}</h3>
+      <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", lineHeight: 1.5, marginBottom: 12 }}>{p.description}</p>
       {p.connected && (
         <div style={{ marginBottom: 12 }}>
           {p.accountName && (
-            <p style={{ fontSize: 13, color: "var(--cc-text)", marginBottom: 2 }}>
+            <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text)", marginBottom: 2 }}>
               <span style={{ color: "var(--cc-text-muted)" }}>Account:</span> {p.accountName}
             </p>
           )}
           {p.connectedAt && (
-            <p style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>
+            <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
               Connected: {formatDate(p.connectedAt)}
             </p>
           )}
@@ -208,7 +208,7 @@ export default function ConnectionsPage() {
         <div style={{
           position: "fixed", top: 24, right: 24, zIndex: 9999,
           background: "var(--cc-overlay-ink)", color: "var(--cc-overlay-ink-text)",
-          padding: "12px 20px", borderRadius: 8, fontSize: 14, fontWeight: 500,
+          padding: "12px 20px", borderRadius: 8, fontSize: "var(--cc-t-14)", fontWeight: 500,
           boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
         }}>
           {toast}
@@ -228,7 +228,7 @@ export default function ConnectionsPage() {
 
       {/* Social Platforms */}
       <div style={{ marginBottom: 32 }}>
-        <h2 style={{ fontSize: 18, fontWeight: 600, color: "var(--cc-text)", marginBottom: 16 }}>Social Platforms</h2>
+        <h2 style={{ fontSize: "var(--cc-t-18)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 16 }}>Social Platforms</h2>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 280px), 1fr))", gap: 16 }}>
           {socialPlatforms.map(renderPlatformCard)}
         </div>
@@ -238,8 +238,8 @@ export default function ConnectionsPage() {
       {messagingPlatforms.length > 0 && (
         <div style={{ marginBottom: 32 }}>
           <div style={{ marginBottom: 16 }}>
-            <h2 style={{ fontSize: 18, fontWeight: 600, color: "var(--cc-text)", marginBottom: 4 }}>Messaging Channels</h2>
-            <p style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>
+            <h2 style={{ fontSize: "var(--cc-t-18)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 4 }}>Messaging Channels</h2>
+            <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
               Connect messaging apps to notify creators and run automated campaign flows.
               Discord can be connected using an{" "}
               <a href="/settings/api-keys" style={{ color: "var(--cc-primary)", textDecoration: "underline" }}>API key</a>.
@@ -253,7 +253,7 @@ export default function ConnectionsPage() {
 
       {/* Payment Providers */}
       <div style={{ marginBottom: 32 }}>
-        <h2 style={{ fontSize: 18, fontWeight: 600, color: "var(--cc-text)", marginBottom: 16 }}>Payment Providers</h2>
+        <h2 style={{ fontSize: "var(--cc-t-18)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 16 }}>Payment Providers</h2>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 280px), 1fr))", gap: 16 }}>
           {paymentPlatforms.map(renderPlatformCard)}
         </div>
@@ -268,7 +268,7 @@ export default function ConnectionsPage() {
         >
           <div style={{ padding: 24 }}>
             {modalErrorBanner}
-            <p style={{ fontSize: 14, color: "var(--cc-text-muted)", marginBottom: 16 }}>
+            <p style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text-muted)", marginBottom: 16 }}>
               Enter your account name or identifier for {connectModal.name}.
             </p>
             <Input
@@ -296,7 +296,7 @@ export default function ConnectionsPage() {
         >
           <div style={{ padding: 24 }}>
             {modalErrorBanner}
-            <p style={{ fontSize: 14, color: "var(--cc-text-muted)", marginBottom: 16 }}>
+            <p style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text-muted)", marginBottom: 16 }}>
               Are you sure you want to disconnect {disconnectModal.name}? You can reconnect it later.
             </p>
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>

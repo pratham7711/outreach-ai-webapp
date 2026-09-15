@@ -31,7 +31,7 @@ type Proposal = {
 
 const STATUS_TABS = [
   { key: "ALL", label: "All", bg: "#F3F4F6", color: "#374151" },
-  { key: "PENDING", label: "Pending", bg: "#FEF3C7", color: "#D97706" },
+  { key: "PENDING", label: "Pending", bg: "#FEF3C7", color: "var(--cc-warning-ink)" },
   { key: "ACCEPTED", label: "Accepted", bg: "#D1FAE5", color: "#059669" },
   { key: "REJECTED", label: "Rejected", bg: "#FEE2E2", color: "#DC2626" },
 ];
@@ -97,10 +97,10 @@ export default function ProposalsSection({ campaignId }: { campaignId: string })
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-        <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)", display: "flex", alignItems: "center", gap: 8 }}>
+        <span className="cc-panel-title" style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <Users size={16} /> Creator Proposals
           {proposals.length > 0 && (
-            <span style={{ fontSize: 12, background: "var(--cc-bg)", borderRadius: 10, padding: "2px 8px", color: "var(--cc-text-muted)" }}>
+            <span style={{ fontSize: "var(--cc-t-12)", background: "var(--cc-bg)", borderRadius: 10, padding: "2px 8px", color: "var(--cc-text-muted)" }}>
               {proposals.filter(p => p.status === "PENDING").length} pending
             </span>
           )}
@@ -130,14 +130,14 @@ export default function ProposalsSection({ campaignId }: { campaignId: string })
                   <Avatar name={p.creatorUser.name} size="md" />
                   <div>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                      <span style={{ fontSize: 15, fontWeight: 700, color: "var(--cc-text)" }}>{p.creatorUser.name}</span>
-                      <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>@{stripAt(p.creatorUser.handle)}</span>
-                      <Badge variant="neutral" style={{ fontSize: 10 }}>{p.creatorUser.platform}</Badge>
+                      <span style={{ fontSize: "var(--cc-t-15)", fontWeight: 700, color: "var(--cc-text)" }}>{p.creatorUser.name}</span>
+                      <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>@{stripAt(p.creatorUser.handle)}</span>
+                      <Badge variant="neutral" style={{ fontSize: "var(--cc-t-10)"}}>{p.creatorUser.platform}</Badge>
                       <Badge variant={STATUS_BADGE[p.status] ?? "neutral"}>{p.status}</Badge>
                     </div>
 
                     {/* Creator stats */}
-                    <div style={{ display: "flex", gap: 16, fontSize: 12, color: "var(--cc-text-muted)", marginBottom: 8 }}>
+                    <div style={{ display: "flex", gap: 16, fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", marginBottom: 8 }}>
                       <span style={{ display: "flex", alignItems: "center", gap: 3 }}>
                         <Users size={12} /> {formatNumber(p.creatorUser.followersCount)} followers
                       </span>
@@ -158,12 +158,12 @@ export default function ProposalsSection({ campaignId }: { campaignId: string })
                     {p.creatorUser.niches.length > 0 && (
                       <div style={{ display: "flex", gap: 4, marginBottom: 8 }}>
                         {p.creatorUser.niches.map(n => (
-                          <span key={n} style={{ fontSize: 11, padding: "2px 8px", borderRadius: 10, background: "var(--cc-bg)", color: "var(--cc-text-muted)" }}>{n}</span>
+                          <span key={n} style={{ fontSize: "var(--cc-t-11)", padding: "2px 8px", borderRadius: 10, background: "var(--cc-bg)", color: "var(--cc-text-muted)" }}>{n}</span>
                         ))}
                       </div>
                     )}
 
-                    <div style={{ display: "flex", alignItems: "center", gap: 12, fontSize: 13 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12, fontSize: "var(--cc-t-13)"}}>
                       <span style={{ color: "var(--cc-text-muted)" }}>
                         Proposed: <strong style={{ color: "var(--cc-text)", fontWeight: 700 }}>{formatCurrency(p.proposedRate, p.currency)}</strong>
                       </span>
@@ -185,7 +185,7 @@ export default function ProposalsSection({ campaignId }: { campaignId: string })
                       variant="primary"
                       onClick={() => handleAction(p.id, "ACCEPTED")}
                       loading={acting === p.id}
-                      style={{ fontSize: 13 }}
+                      style={{ fontSize: "var(--cc-t-13)"}}
                     >
                       <span style={{ display: "flex", alignItems: "center", gap: 4 }}><Check size={14} /> Accept</span>
                     </Button>
@@ -193,7 +193,7 @@ export default function ProposalsSection({ campaignId }: { campaignId: string })
                       variant="secondary"
                       onClick={() => handleAction(p.id, "REJECTED")}
                       loading={acting === p.id}
-                      style={{ fontSize: 13 }}
+                      style={{ fontSize: "var(--cc-t-13)"}}
                     >
                       <span style={{ display: "flex", alignItems: "center", gap: 4 }}><X size={14} /> Reject</span>
                     </Button>

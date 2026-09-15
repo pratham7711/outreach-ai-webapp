@@ -140,7 +140,7 @@ export default function InvitesSection({ campaignId }: { campaignId: string }) {
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-        <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)", display: "flex", alignItems: "center", gap: 8 }}>
+        <span className="cc-panel-title" style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <Send size={16} /> Campaign Invites
         </span>
         <Button variant="primary" onClick={openCreate}>
@@ -159,7 +159,7 @@ export default function InvitesSection({ campaignId }: { campaignId: string }) {
             gap: 12, padding: "12px 24px", borderBottom: "1px solid var(--cc-border)", background: "var(--cc-bg)",
           }}>
             {["Creator", "Channel", "Status", "Sent", "Responded", "Actions"].map(h => (
-              <span key={h} style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--cc-text-subtle)" }}>{h}</span>
+              <span key={h} className="cc-microlabel">{h}</span>
             ))}
           </div>
           {invites.map((inv, i) => (
@@ -168,21 +168,21 @@ export default function InvitesSection({ campaignId }: { campaignId: string }) {
               gap: 12, padding: "14px 24px", alignItems: "center",
               borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined,
             }}>
-              <span style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>{creatorName(inv.creator)}</span>
-              <Badge variant="neutral" style={{ fontSize: 11 }}>{inv.channel}</Badge>
+              <span style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{creatorName(inv.creator)}</span>
+              <Badge variant="neutral" style={{ fontSize: "var(--cc-t-11)"}}>{inv.channel}</Badge>
               <Badge variant={STATUS_BADGE[inv.status] ?? "neutral"}>{inv.status}</Badge>
-              <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{inv.sentAt ? formatDateAbs(inv.sentAt) : "—"}</span>
-              <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{inv.respondedAt ? formatDateAbs(inv.respondedAt) : "—"}</span>
+              <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>{inv.sentAt ? formatDateAbs(inv.sentAt) : "—"}</span>
+              <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>{inv.respondedAt ? formatDateAbs(inv.respondedAt) : "—"}</span>
               <div style={{ display: "flex", gap: 4 }}>
-                <button onClick={() => copyLink(inv.inviteToken)} title="Copy link" style={{ padding: "4px 6px", borderRadius: 6, border: "1px solid var(--cc-border)", background: "var(--cc-card)", cursor: "pointer", fontSize: 11, display: "flex", alignItems: "center", gap: 2, color: "var(--cc-text-muted)" }}>
+                <button onClick={() => copyLink(inv.inviteToken)} title="Copy link" style={{ padding: "4px 6px", borderRadius: 6, border: "1px solid var(--cc-border)", background: "var(--cc-card)", cursor: "pointer", fontSize: "var(--cc-t-11)", display: "flex", alignItems: "center", gap: 2, color: "var(--cc-text-muted)" }}>
                   <Copy size={12} /> {copied === inv.inviteToken ? "Copied!" : "Link"}
                 </button>
                 {inv.status === "PENDING" && (
                   <>
-                    <button onClick={() => handleAction(inv.id, "RESEND")} style={{ padding: "4px 6px", borderRadius: 6, border: "1px solid var(--cc-border)", background: "var(--cc-card)", cursor: "pointer", fontSize: 11, display: "flex", alignItems: "center", gap: 2, color: "var(--cc-text-muted)" }}>
+                    <button onClick={() => handleAction(inv.id, "RESEND")} style={{ padding: "4px 6px", borderRadius: 6, border: "1px solid var(--cc-border)", background: "var(--cc-card)", cursor: "pointer", fontSize: "var(--cc-t-11)", display: "flex", alignItems: "center", gap: 2, color: "var(--cc-text-muted)" }}>
                       <RotateCcw size={12} /> Resend
                     </button>
-                    <button onClick={() => handleAction(inv.id, "CANCEL")} style={{ padding: "4px 6px", borderRadius: 6, border: "1px solid var(--cc-danger)", background: "color-mix(in srgb, var(--cc-danger) 14%, transparent)", cursor: "pointer", fontSize: 11, display: "flex", alignItems: "center", gap: 2, color: "var(--cc-danger)" }}>
+                    <button onClick={() => handleAction(inv.id, "CANCEL")} style={{ padding: "4px 6px", borderRadius: 6, border: "1px solid var(--cc-danger)", background: "color-mix(in srgb, var(--cc-danger) 14%, transparent)", cursor: "pointer", fontSize: "var(--cc-t-11)", display: "flex", alignItems: "center", gap: 2, color: "var(--cc-danger-ink)" }}>
                       <X size={12} />
                     </button>
                   </>
@@ -208,14 +208,14 @@ export default function InvitesSection({ campaignId }: { campaignId: string }) {
         }>
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <div>
-              <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Creator</label>
+              <label style={{ display: "block", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6 }}>Creator</label>
               <CreatorSelect
                 value={form.creatorId}
                 onChange={(id) => { setForm(f => ({ ...f, creatorId: id })); setDraft(null); setDraftError(null); }}
               />
             </div>
             <div>
-              <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--cc-text)", marginBottom: 6 }}>Channel</label>
+              <label style={{ display: "block", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6 }}>Channel</label>
               <Dropdown
                 ariaLabel="Channel"
                 align="left"
@@ -229,7 +229,7 @@ export default function InvitesSection({ campaignId }: { campaignId: string }) {
               />
             </div>
             {draftError && (
-              <div role="alert" style={{ padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-danger)", background: "color-mix(in srgb, var(--cc-danger) 8%, transparent)", fontSize: 13, color: "var(--cc-danger)" }}>
+              <div role="alert" style={{ padding: "10px 14px", borderRadius: 10, border: "1px solid var(--cc-danger)", background: "color-mix(in srgb, var(--cc-danger) 8%, transparent)", fontSize: "var(--cc-t-13)", color: "var(--cc-danger)" }}>
                 {draftError}
               </div>
             )}

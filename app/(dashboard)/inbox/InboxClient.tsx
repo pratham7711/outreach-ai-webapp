@@ -254,8 +254,8 @@ export default function InboxClient() {
                         <span
                           title={c.creatorUser.name}
                           style={{
-                            fontSize: 14,
-                            fontWeight: 600,
+                            fontSize: "var(--cc-t-14)",
+                            fontWeight: "var(--cc-fw-strong)",
                             color: "var(--cc-text)",
                             overflow: "hidden",
                             textOverflow: "ellipsis",
@@ -264,7 +264,7 @@ export default function InboxClient() {
                         >
                           {c.creatorUser.name}
                         </span>
-                        <span style={{ fontSize: 11, color: "var(--cc-text-muted)", flexShrink: 0 }}>
+                        <span style={{ fontSize: "var(--cc-t-11)", color: "var(--cc-text-muted)", flexShrink: 0 }}>
                           {formatTime(c.lastMessageAt)}
                         </span>
                       </div>
@@ -273,7 +273,7 @@ export default function InboxClient() {
                           title={c.lastMessage?.body ?? undefined}
                           style={{
                             flex: 1,
-                            fontSize: 12,
+                            fontSize: "var(--cc-t-12)",
                             color: "var(--cc-text-muted)",
                             overflow: "hidden",
                             textOverflow: "ellipsis",
@@ -345,10 +345,10 @@ export default function InboxClient() {
                 </button>
                 <Avatar name={thread.conversation.creatorUser.name} src={thread.conversation.creatorUser.avatarUrl ?? undefined} size="sm" />
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: "var(--cc-text)" }}>
+                  <div style={{ fontSize: "var(--cc-t-15)", fontWeight: 700, color: "var(--cc-text)" }}>
                     {thread.conversation.creatorUser.name}
                   </div>
-                  <div style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>
+                  <div style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
                     {withAt(thread.conversation.creatorUser.handle)}
                     {thread.conversation.campaign && <> · {thread.conversation.campaign.title}</>}
                   </div>
@@ -374,7 +374,7 @@ export default function InboxClient() {
                           style={{
                             padding: "9px 14px",
                             borderRadius: 14,
-                            fontSize: 14,
+                            fontSize: "var(--cc-t-14)",
                             lineHeight: 1.5,
                             whiteSpace: "pre-wrap",
                             wordBreak: "break-word",
@@ -387,7 +387,7 @@ export default function InboxClient() {
                         </div>
                         <div
                           style={{
-                            fontSize: 10,
+                            fontSize: "var(--cc-t-10)",
                             color: "var(--cc-text-subtle)",
                             marginTop: 3,
                             textAlign: isOrg ? "right" : "left",
@@ -415,7 +415,7 @@ export default function InboxClient() {
                     border: "1px solid var(--cc-border)",
                     borderRadius: 10,
                     padding: "10px 12px",
-                    fontSize: 14,
+                    fontSize: "var(--cc-t-14)",
                     color: "var(--cc-text)",
                     background: "var(--cc-card)",
                     fontFamily: "inherit",

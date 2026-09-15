@@ -74,15 +74,15 @@ export function FeatureState({
         {p.icon}
       </span>
       <div style={{ minWidth: 0 }}>
-        <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--cc-text)", marginBottom: 6 }}>
+        <h2 style={{ fontSize: "var(--cc-t-16)", fontWeight: 700, color: "var(--cc-text)", marginBottom: 6 }}>
           {title}
         </h2>
-        <p style={{ fontSize: 14, color: "var(--cc-text-muted)", marginBottom: action ? 16 : 0 }}>
+        <p style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text-muted)", marginBottom: action ? 16 : 0 }}>
           {body}
         </p>
         {action}
         {footnote ? (
-          <p style={{ fontSize: 12, color: "var(--cc-text-muted)", marginTop: 12 }}>{footnote}</p>
+          <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", marginTop: 12 }}>{footnote}</p>
         ) : null}
       </div>
     </div>

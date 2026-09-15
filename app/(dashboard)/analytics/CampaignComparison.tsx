@@ -33,7 +33,7 @@ type ComparisonResponse = {
 
 export function DeltaBadge({ pct }: { pct: number | null }) {
   if (pct === null || !Number.isFinite(pct)) {
-    return <span style={{ fontSize: 11, color: "var(--cc-text-subtle)" }}>—</span>;
+    return <span style={{ fontSize: "var(--cc-t-11)", color: "var(--cc-text-subtle)" }}>—</span>;
   }
   const positive = pct >= 0;
   /* `color + "16"` appended hex alpha to whatever `color` held. That works for
@@ -45,7 +45,7 @@ export function DeltaBadge({ pct }: { pct: number | null }) {
   const tint = `color-mix(in srgb, ${color} 12%, transparent)`;
   const Icon = positive ? ArrowUpRight : ArrowDownRight;
   return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 2, fontSize: 11, fontWeight: 600, color, background: tint, borderRadius: 6, padding: "2px 6px" }}>
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 2, fontSize: "var(--cc-t-11)", fontWeight: "var(--cc-fw-strong)", color, background: tint, borderRadius: 6, padding: "2px 6px" }}>
       <Icon size={11} />
       {Math.abs(pct).toFixed(0)}%
     </span>
@@ -107,8 +107,8 @@ export default function CampaignComparison({
     <Card variant="outlined" style={{ padding: 24, marginBottom: 24 }}>
       <style>{`.cmp-chart{height:220px;margin-bottom:24px}@media(min-width:768px){.cmp-chart{height:300px}}`}</style>
       <div style={{ marginBottom: 16 }}>
-        <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)", display: "block" }}>Campaign Comparison</span>
-        <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>Select 2–5 campaigns to overlay views over time.</span>
+        <span className="cc-panel-title" style={{ display: "block" }}>Campaign Comparison</span>
+        <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>Select 2–5 campaigns to overlay views over time.</span>
       </div>
 
       {campaigns.length === 0 ? (
@@ -132,8 +132,8 @@ export default function CampaignComparison({
                     color: isSel ? "#fff" : atLimit ? "var(--cc-text-subtle)" : "var(--cc-text)",
                     borderRadius: 8,
                     padding: "6px 12px",
-                    fontSize: 13,
-                    fontWeight: 600,
+                    fontSize: "var(--cc-t-13)",
+                    fontWeight: "var(--cc-fw-strong)",
                     cursor: atLimit ? "not-allowed" : "pointer",
                     maxWidth: 220,
                     overflow: "hidden",
@@ -170,21 +170,13 @@ export default function CampaignComparison({
               </div>
 
               <div className="rsp-table-wrap">
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "var(--cc-t-13)"}}>
                   <thead>
                     <tr style={{ borderBottom: "1px solid var(--cc-border)" }}>
                       {["Campaign", "Views", "Engagements", "Eng. Rate"].map((h, i) => (
                         <th
                           key={h}
-                          style={{
-                            padding: "8px 12px",
-                            textAlign: i === 0 ? "left" : "right",
-                            fontSize: 11,
-                            fontWeight: 600,
-                            color: "var(--cc-text-subtle)",
-                            textTransform: "uppercase",
-                            letterSpacing: 0.4,
-                          }}
+                          className="cc-microlabel" style={{ padding: "8px 12px", textAlign: i === 0 ? "left" : "right" }}
                         >
                           {h}
                         </th>
@@ -197,7 +189,7 @@ export default function CampaignComparison({
                         <td style={{ padding: "10px 12px" }}>
                           <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
                             <span style={{ width: 10, height: 10, borderRadius: 3, background: colorById[row.id] ?? SERIES_COLORS[0], flexShrink: 0 }} />
-                            <span style={{ fontWeight: 600, color: "var(--cc-text)" }}>{row.title}</span>
+                            <span style={{ fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{row.title}</span>
                           </span>
                         </td>
                         <td style={{ padding: "10px 12px", textAlign: "right" }}>
@@ -206,7 +198,7 @@ export default function CampaignComparison({
                         </td>
                         <td style={{ padding: "10px 12px", textAlign: "right", color: "var(--cc-text)" }}>{formatNumber(row.engagements)}</td>
                         <td style={{ padding: "10px 12px", textAlign: "right" }}>
-                          <div style={{ fontWeight: 600, color: "var(--cc-text)" }}>{formatPercent(row.engagementRate)}</div>
+                          <div style={{ fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{formatPercent(row.engagementRate)}</div>
                           <DeltaBadge pct={row.engRateVsOrg.pct} />
                         </td>
                       </tr>
@@ -214,7 +206,7 @@ export default function CampaignComparison({
                   </tbody>
                 </table>
               </div>
-              <p style={{ fontSize: 11, color: "var(--cc-text-subtle)", marginTop: 12 }}>
+              <p style={{ fontSize: "var(--cc-t-11)", color: "var(--cc-text-subtle)", marginTop: 12 }}>
                 Delta badges compare each campaign against the org-wide average for the current filters.
               </p>
             </>

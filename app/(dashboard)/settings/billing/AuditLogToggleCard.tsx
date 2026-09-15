@@ -111,10 +111,10 @@ export default function AuditLogToggleCard({ initialEnabled, planName, canManage
                 <ShieldCheck size={18} />
               </div>
               <div style={{ minWidth: 0 }}>
-                <h2 style={{ fontSize: 18, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>
+                <h2 style={{ fontSize: "var(--cc-t-18)", fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>
                   Audit log recording
                 </h2>
-                <p style={{ fontSize: 14, color: "var(--cc-text-muted)", margin: 0, lineHeight: 1.5 }}>
+                <p style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text-muted)", margin: 0, lineHeight: 1.5 }}>
                   Turn workspace audit logging on or off for this organization.
                 </p>
               </div>
@@ -128,7 +128,7 @@ export default function AuditLogToggleCard({ initialEnabled, planName, canManage
                 Plan: {formatLabel(planName)}
               </Badge>
               {isBusy && (
-                <span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--cc-text-muted)" }}>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
                   <LoadingSpinner size={14} />
                   {loading ? "Syncing current setting" : "Saving change"}
                 </span>
@@ -143,11 +143,11 @@ export default function AuditLogToggleCard({ initialEnabled, planName, canManage
               size="md"
               disabled={isBusy || !canManage}
             />
-            <span style={{ fontSize: 12, color: "var(--cc-text-muted)", textAlign: "right" }}>
+            <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", textAlign: "right" }}>
               {enabled ? "Audit events are being recorded" : "Audit events are currently paused"}
             </span>
             {!canManage && (
-              <span style={{ fontSize: 12, color: "var(--cc-text-muted)", textAlign: "right", maxWidth: 220 }}>
+              <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", textAlign: "right", maxWidth: 220 }}>
                 Only owners and admins can change this.
               </span>
             )}
@@ -166,7 +166,7 @@ export default function AuditLogToggleCard({ initialEnabled, planName, canManage
           }}
         >
           <ShieldOff size={16} style={{ color: "var(--cc-text-muted)", flexShrink: 0 }} />
-          <span style={{ fontSize: 13, color: "var(--cc-text-muted)", lineHeight: 1.5 }}>
+          <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", lineHeight: 1.5 }}>
             When disabled, new audit events are not written and the audit log view will be blocked until re-enabled.
           </span>
         </div>

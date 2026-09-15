@@ -154,7 +154,7 @@ for (const rec of campaigns) {
     thumbnailUrl: rec.thumbnail || null,
     budget: typeof rec.budget === "number" ? rec.budget : null,
     currency: mapCurrency(rec.currency),
-    typeConfig: { __cc: rec },
+    /* Mirrored into CcCampaign.raw instead -- see cc-import.mjs. */
     createdAt: toDate(rec["Created Date"]) ?? undefined,
     ccCampaignId: rec._id,
     ccStatusId: rec.status ?? null,
@@ -221,7 +221,8 @@ for (const rec of posts) {
     engagementRate:
       statFrom(statRec, "engagementrate", "engagement_rate") || num(typeof le === "object" ? le?.engagement : 0),
     status: mapPostStatus(rec.status),
-    platformMetrics: { __cc: rec, __stat: statRec },
+    /* __cc dropped: it duplicated CcPost.raw. See cc-import.mjs. */
+    platformMetrics: { __stat: statRec },
     ccPostId: rec._id,
     fetchState: mapFetchState(rec.status),
     ccStatusRaw: rec.status ?? null,

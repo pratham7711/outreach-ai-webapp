@@ -62,21 +62,21 @@ export function ReportDeckPreview({ deck }: ReportDeckPreviewProps) {
         </span>
         <span
           data-testid="report-deck-title"
-          style={{ fontSize: 20, fontWeight: 700, color: "var(--cc-text)" }}
+          style={{ fontSize: "var(--cc-t-20)", fontWeight: 700, color: "var(--cc-text)" }}
         >
           {coverTitle}
         </span>
         {coverSubtitle ? (
           <span
             data-testid="report-deck-subtitle"
-            style={{ fontSize: 14, color: "var(--cc-text-muted)" }}
+            style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text-muted)" }}
           >
             {coverSubtitle}
           </span>
         ) : null}
         <span
           data-testid="report-deck-section-count"
-          style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text-subtle)" }}
+          style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text-subtle)" }}
         >
           {pluralizeSections(sectionCount)}
         </span>
@@ -95,7 +95,7 @@ export function ReportDeckPreview({ deck }: ReportDeckPreviewProps) {
             color: "var(--cc-text-muted)",
           }}
         >
-          <span style={{ fontSize: 13, fontWeight: 600 }}>This deck has no sections yet</span>
+          <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)"}}>This deck has no sections yet</span>
         </div>
       ) : (
         <ul
@@ -115,10 +115,10 @@ export function ReportDeckPreview({ deck }: ReportDeckPreviewProps) {
                 variant="outlined"
                 style={{ display: "flex", flexDirection: "column", gap: 8 }}
               >
-                <span style={{ fontSize: 15, fontWeight: 700, color: "var(--cc-text)" }}>
+                <span style={{ fontSize: "var(--cc-t-15)", fontWeight: 700, color: "var(--cc-text)" }}>
                   {section.title}
                 </span>
-                <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>
+                <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
                   {section.narrative}
                 </span>
                 {section.metrics && section.metrics.length > 0 ? (
@@ -145,10 +145,10 @@ export function ReportDeckPreview({ deck }: ReportDeckPreviewProps) {
                           borderBottom: "1px solid var(--cc-border)",
                         }}
                       >
-                        <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>
+                        <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
                           {metric.label}
                         </span>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>
+                        <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>
                           {formatMetricValue(metric.value)}
                         </span>
                       </li>

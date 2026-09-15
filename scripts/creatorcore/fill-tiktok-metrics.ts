@@ -84,6 +84,8 @@ async function main() {
     select: {
       id: true, platform: true, creatorId: true, postUrl: true,
       thumbnailUrl: true, caption: true, platformMetrics: true,
+      viewsCount: true, likesCount: true, commentsCount: true,
+      sharesCount: true, savesCount: true,
       creator: { select: { handle: true } },
     },
   });

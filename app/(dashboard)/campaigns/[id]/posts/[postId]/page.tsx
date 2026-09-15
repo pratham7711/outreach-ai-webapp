@@ -133,7 +133,7 @@ const SIGNAL_LABEL: Record<BotSignal["type"], string> = {
 
 const SEVERITY_STYLE: Record<BotSignal["severity"], { bg: string; color: string }> = {
   HIGH: { bg: "#FEE2E2", color: "#DC2626" },
-  MEDIUM: { bg: "#FEF3C7", color: "#D97706" },
+  MEDIUM: { bg: "#FEF3C7", color: "var(--cc-warning-ink)" },
   LOW: { bg: "#EEF2FF", color: "#4F46E5" },
 };
 
@@ -441,7 +441,7 @@ export default function PostDetailPage() {
       <div style={{ marginBottom: 24 }}>
         <button
           onClick={() => router.back()}
-          style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", cursor: "pointer", color: "var(--cc-text-muted)", fontSize: 14, padding: 0, marginBottom: 16 }}
+          style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", cursor: "pointer", color: "var(--cc-text-muted)", fontSize: "var(--cc-t-14)", padding: 0, marginBottom: 16 }}
         >
           <ArrowLeft size={16} /> Back to Posts
         </button>
@@ -477,20 +477,20 @@ export default function PostDetailPage() {
                   put — they are the post's last real numbers. */}
               {isPostRemoved(post) && <RemovedPostOverlay variant="inline" note={removedNote(post)} />}
             </div>
-            <p style={{ fontSize: 13, color: "var(--cc-text-muted)", margin: 0 }}>
+            <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", margin: 0 }}>
               by <strong>{post.creator.name}</strong> (@{stripAt(post.creator.handle)}) · {post.platform} · Posted {formatDateAbs(post.postedAt)}
             </p>
             {post.lastSyncedAt ? (
-              <p style={{ fontSize: 12, color: "var(--cc-text-subtle)", margin: "4px 0 0" }}>
+              <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-subtle)", margin: "4px 0 0" }}>
                 Last synced: {formatDateTimeAbs(post.lastSyncedAt)}
               </p>
             ) : (
-              <p style={{ fontSize: 12, color: "var(--cc-text-subtle)", margin: "4px 0 0" }}>
+              <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-subtle)", margin: "4px 0 0" }}>
                 Never synced \u2014 the counts below are unknown, not zero.
               </p>
             )}
             {syncNote && (
-              <p style={{ fontSize: 12, color: "var(--cc-text-muted)", margin: "4px 0 0" }}>{syncNote}</p>
+              <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: "4px 0 0" }}>{syncNote}</p>
             )}
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
@@ -530,7 +530,7 @@ export default function PostDetailPage() {
           <Card key={key} variant="outlined" style={{ padding: "16px 20px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
               <Icon size={16} color={color} />
-              <span style={{ fontSize: 12, color: "var(--cc-text-muted)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em" }}>{label}</span>
+              <span className="cc-microlabel">{label}</span>
             </div>
             <FigureValue text={formatNumber((post as any)[key] ?? 0)} />
           </Card>
@@ -539,9 +539,9 @@ export default function PostDetailPage() {
           <Card variant="outlined" style={{ padding: "16px 20px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
               <TrendingUp size={16} color="#5B5BD6" />
-              <span style={{ fontSize: 12, color: "var(--cc-text-muted)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em" }}>Engagement</span>
+              <span className="cc-microlabel">Engagement</span>
             </div>
-            <span style={{ fontSize: 24, fontWeight: 700, color: "var(--cc-primary)" }}>
+            <span style={{ fontSize: "var(--cc-t-24)", fontWeight: 700, color: "var(--cc-primary)" }}>
               {`${(engRate * 100).toFixed(2)}%`}
             </span>
           </Card>
@@ -558,9 +558,9 @@ export default function PostDetailPage() {
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
                 <MessageCircle size={18} color="var(--cc-primary)" />
-                <h3 style={{ fontSize: 16, fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>Comments on this post</h3>
+                <h3 style={{ fontSize: "var(--cc-t-16)", fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>Comments on this post</h3>
               </div>
-              <p style={{ fontSize: 13, color: "var(--cc-text-muted)", margin: 0, maxWidth: "60ch" }}>
+              <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", margin: 0, maxWidth: "60ch" }}>
                 Read live from the creator&rsquo;s Facebook Page when you ask for them.
                 Comments are shown here and never saved — reload and they are read again.
               </p>
@@ -571,23 +571,23 @@ export default function PostDetailPage() {
           </div>
 
           {commentsError && (
-            <p style={{ fontSize: 13, color: "var(--cc-danger)", margin: "16px 0 0" }}>{commentsError}</p>
+            <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-danger)", margin: "16px 0 0" }}>{commentsError}</p>
           )}
 
           {comments && (
             <div style={{ marginTop: 20 }}>
               <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 12 }}>
-                <span style={{ fontSize: 24, fontWeight: 700, color: "var(--cc-text)" }}>
+                <span style={{ fontSize: "var(--cc-t-24)", fontWeight: 700, color: "var(--cc-text)" }}>
                   {comments.total === null ? "—" : formatNumber(comments.total)}
                 </span>
-                <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>
+                <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
                   {comments.total === 1 ? "top-level comment" : "top-level comments"}
                   {comments.pageName ? ` on ${comments.pageName}` : ""}
                 </span>
               </div>
 
               {comments.preview.length === 0 ? (
-                <p style={{ fontSize: 13, color: "var(--cc-text-muted)", margin: 0 }}>
+                <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", margin: 0 }}>
                   {comments.total === 0
                     ? "Nobody has commented on this post yet."
                     : "Facebook returned the count but no comment bodies — the Page may restrict who can read them."}
@@ -597,23 +597,23 @@ export default function PostDetailPage() {
                   {comments.preview.map((c) => (
                     <li key={c.id} style={{ borderLeft: "2px solid var(--cc-border)", paddingLeft: 12 }}>
                       <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>
+                        <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>
                           {/* Facebook omits the commenter for anyone who has not
                               authorised this app, which is most people. */}
                           {c.authorName ?? "Facebook user"}
                         </span>
                         {c.createdAt && (
-                          <span style={{ fontSize: 12, color: "var(--cc-text-subtle)" }}>
+                          <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-subtle)" }}>
                             {new Date(c.createdAt).toLocaleString()}
                           </span>
                         )}
                         {c.likeCount !== null && c.likeCount > 0 && (
-                          <span style={{ fontSize: 12, color: "var(--cc-text-subtle)" }}>
+                          <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-subtle)" }}>
                             {formatNumber(c.likeCount)} {c.likeCount === 1 ? "like" : "likes"}
                           </span>
                         )}
                       </div>
-                      <p style={{ fontSize: 14, color: "var(--cc-text)", margin: "2px 0 0", whiteSpace: "pre-wrap" }}>
+                      <p style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text)", margin: "2px 0 0", whiteSpace: "pre-wrap" }}>
                         {c.message || <span style={{ color: "var(--cc-text-subtle)" }}>(no text — a photo or sticker)</span>}
                       </p>
                     </li>
@@ -621,7 +621,7 @@ export default function PostDetailPage() {
                 </ul>
               )}
 
-              <p style={{ fontSize: 12, color: "var(--cc-text-subtle)", margin: "16px 0 0" }}>
+              <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-subtle)", margin: "16px 0 0" }}>
                 {comments.preview.length > 0 && comments.total !== null && comments.total > comments.preview.length
                   ? `Showing the ${comments.preview.length} most recent of ${formatNumber(comments.total)}. `
                   : ""}
@@ -635,7 +635,7 @@ export default function PostDetailPage() {
 
       {chartData.length > 1 && (
         <Card variant="outlined" style={{ padding: 24, marginBottom: 24 }}>
-          <h3 style={{ fontSize: 16, fontWeight: 700, color: "var(--cc-text)", marginBottom: 16, marginTop: 0 }}>Performance Over Time</h3>
+          <h3 style={{ fontSize: "var(--cc-t-16)", fontWeight: 700, color: "var(--cc-text)", marginBottom: 16, marginTop: 0 }}>Performance Over Time</h3>
           <PerformanceOverTimeArea data={chartData} />
         </Card>
       )}
@@ -645,15 +645,15 @@ export default function PostDetailPage() {
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
               <Activity size={18} color="var(--cc-primary)" />
-              <h3 style={{ fontSize: 16, fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>Tracking</h3>
+              <h3 style={{ fontSize: "var(--cc-t-16)", fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>Tracking</h3>
             </div>
-            <p style={{ fontSize: 13, color: "var(--cc-text-muted)", margin: 0 }}>
+            <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", margin: 0 }}>
               {trackingEnabled
                 ? `Tracking on — read ${readCadenceLabel(timeseries?.readCadence ?? DEFAULT_POST_TRACKING.readCadence)}, ${formatRemaining(timeseries?.hoursRemaining ?? null)}.`
                 : "Tracking off. Meta and IG only return lifetime totals, so enable tracking to record a real time series."}
             </p>
             {trackingEnabled && timeseries?.trackingExpiresAt && (
-              <p style={{ fontSize: 12, color: "var(--cc-text-subtle)", margin: "4px 0 0" }}>
+              <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-subtle)", margin: "4px 0 0" }}>
                 Stops on {new Date(timeseries.trackingExpiresAt).toLocaleDateString()} and seals
                 its final numbers. Tracked posts are unlimited because each one expires.
               </p>
@@ -664,7 +664,7 @@ export default function PostDetailPage() {
               /* Every post tracker carries an expiry, so this is a required
                  choice presented as a default rather than an optional extra —
                  there is no "forever" entry to pick. */
-              <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: "var(--cc-text-muted)" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
                 <span>Track for</span>
                 <select
                   value={ttlDays}
@@ -676,7 +676,7 @@ export default function PostDetailPage() {
                     border: "1px solid var(--cc-border)",
                     background: "var(--cc-surface)",
                     color: "var(--cc-text)",
-                    fontSize: 13,
+                    fontSize: "var(--cc-t-13)",
                   }}
                 >
                   {TTL_CHOICES.map((d) => (
@@ -697,7 +697,7 @@ export default function PostDetailPage() {
           <TrackingLine data={trackingSeries} />
         )}
         {trackingSeries.length <= 1 && trackingEnabled && (
-          <p style={{ fontSize: 13, color: "var(--cc-text-subtle)", margin: "12px 0 0" }}>
+          <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-subtle)", margin: "12px 0 0" }}>
             Collecting snapshots. The time series appears once at least two have been recorded.
           </p>
         )}
@@ -705,7 +705,7 @@ export default function PostDetailPage() {
         <div style={{ marginTop: 20, paddingTop: 20, borderTop: "1px solid var(--cc-border)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
             <ShieldAlert size={16} color={botSignals.length > 0 ? "#DC2626" : "var(--cc-text-muted)"} />
-            <h4 style={{ fontSize: 14, fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>Bot Signals</h4>
+            <h4 style={{ fontSize: "var(--cc-t-14)", fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>Bot Signals</h4>
           </div>
           {botSignals.length === 0 ? (
             <EmptyState
@@ -723,15 +723,15 @@ export default function PostDetailPage() {
                       {s.severity}
                     </span>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>{SIGNAL_LABEL[s.type]}</div>
-                      <div style={{ fontSize: 13, color: "var(--cc-text-muted)", marginTop: 2 }}>{s.detail}</div>
-                      <div style={{ fontSize: 11, color: "var(--cc-text-subtle)", marginTop: 4 }}>Detected {formatDateTimeAbs(s.at)}</div>
+                      <div style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{SIGNAL_LABEL[s.type]}</div>
+                      <div style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", marginTop: 2 }}>{s.detail}</div>
+                      <div style={{ fontSize: "var(--cc-t-11)", color: "var(--cc-text-subtle)", marginTop: 4 }}>Detected {formatDateTimeAbs(s.at)}</div>
                     </div>
                   </div>
                 );
               })}
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginTop: 4 }}>
-                <p style={{ fontSize: 12, color: "var(--cc-text-muted)", margin: 0 }}>
+                <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: 0 }}>
                   These signals are advisory. Flagging a post routes it into the existing fraud review queue.
                 </p>
                 <Button variant="secondary" onClick={() => handleFlagFromSignal(botSignals[0])} loading={flagging} disabled={flagged}>
@@ -748,14 +748,14 @@ export default function PostDetailPage() {
       {post.snapshots.length > 0 ? (
         <Card variant="solid" noPadding style={{ overflowX: "auto" }}>
           <div style={{ padding: "16px 24px", borderBottom: "1px solid var(--cc-border)" }}>
-            <h3 style={{ fontSize: 16, fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>Metric Snapshots</h3>
+            <h3 style={{ fontSize: "var(--cc-t-16)", fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>Metric Snapshots</h3>
           </div>
           <div style={{
             display: "grid", gridTemplateColumns: "1.4fr 90px 80px 90px 80px 80px 90px 110px 90px", minWidth: 900,
             gap: 12, padding: "10px 24px", borderBottom: "1px solid var(--cc-border)", background: "var(--cc-bg)",
           }}>
             {["Recorded", "Views", "Likes", "Comments", "Shares", "Saves", "Eng %", "Source", "Sealed"].map(h => (
-              <span key={h} style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--cc-text-subtle)" }}>{h}</span>
+              <span key={h} className="cc-microlabel">{h}</span>
             ))}
           </div>
           {post.snapshots.map((s, i) => (
@@ -767,14 +767,14 @@ export default function PostDetailPage() {
                 borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined,
               }}
             >
-              <span style={{ fontSize: 13, color: "var(--cc-text)" }}>{formatDateTimeAbs(s.recordedAt)}</span>
-              <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>{formatNumber(s.viewsCount)}</span>
-              <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{formatNumber(s.likesCount)}</span>
-              <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{formatNumber(s.commentsCount)}</span>
-              <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{formatNumber(s.sharesCount ?? 0)}</span>
-              <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{formatNumber(s.savesCount ?? 0)}</span>
-              <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-primary)" }}>{(s.engagementRate ?? 0).toFixed(1)}%</span>
-              <Badge variant="neutral" style={{ fontSize: 11 }}>{s.syncSource ?? "system"}</Badge>
+              <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text)" }}>{formatDateTimeAbs(s.recordedAt)}</span>
+              <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{formatNumber(s.viewsCount)}</span>
+              <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{formatNumber(s.likesCount)}</span>
+              <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{formatNumber(s.commentsCount)}</span>
+              <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{formatNumber(s.sharesCount ?? 0)}</span>
+              <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{formatNumber(s.savesCount ?? 0)}</span>
+              <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-primary)" }}>{(s.engagementRate ?? 0).toFixed(1)}%</span>
+              <Badge variant="neutral" style={{ fontSize: "var(--cc-t-11)"}}>{s.syncSource ?? "system"}</Badge>
               <span>
                 {s.isFinalSnapshot ? (
                   <Tag variant="success" outlined>
@@ -789,7 +789,7 @@ export default function PostDetailPage() {
         </Card>
       ) : (
         <Card variant="outlined" style={{ padding: 32, textAlign: "center" }}>
-          <p style={{ fontSize: 14, color: "var(--cc-text-muted)", margin: 0 }}>No metric snapshots yet. Sync this post to start tracking history.</p>
+          <p style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text-muted)", margin: 0 }}>No metric snapshots yet. Sync this post to start tracking history.</p>
         </Card>
       )}
     </div>

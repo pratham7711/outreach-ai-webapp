@@ -27,6 +27,8 @@ export const STRATEGY = {
   SELECTOR: "selector",
   /** The nearest ancestor of an already-resolved landmark that spans the column. */
   ANCESTOR_OF: "ancestorOf",
+  /** The first in-flow content below an already-resolved landmark. */
+  BELOW_LANDMARK: "belowLandmark",
 };
 
 export const LANDMARKS = [
@@ -121,6 +123,29 @@ export const LANDMARKS = [
     ours: { strategy: STRATEGY.SELECTOR, css: '[data-parity="page.header-strip"]' },
   },
   {
+    id: "page.content-top",
+    shells: ["dashboard", "campaign", "settings"],
+    origin: "page.header-strip",
+    desc: "The first in-flow content below the page header",
+    /* The SAME spec on both sides. That is the point: `marginBottom` only means
+       something if you know where the content below actually lands, and every
+       per-side attempt at that question disagreed with itself.
+
+       `compare` is what keeps that honest. This landmark is a GEOMETRIC PROBE,
+       not a structural landmark: "the topmost in-flow box below the strip"
+       lands on a bare caption <div> (200x18.8) on seven of their surfaces and
+       on a full-width container on the rest, while on ours it is always the
+       page wrapper. Its top edge answers the question it was built for; its
+       width, height, display, position and padding compare two elements that
+       are not counterparts, and diffing those produced 152 findings, 137 of
+       them "high", none of them real. MEASURED 2026-09-14: restricting this
+       landmark to `rel.below` (the gap under the strip) drops the report from 481/165 to 329/28 while the
+       eight page.header-strip marginBottom findings stay closed. */
+    compare: ["rel.below"],
+    ref: { strategy: STRATEGY.BELOW_LANDMARK, below: "page.header-strip", minWidth: 200 },
+    ours: { strategy: STRATEGY.BELOW_LANDMARK, below: "page.header-strip", minWidth: 200 },
+  },
+  {
     id: "page.primary-action",
     shells: ["dashboard", "campaign"],
     origin: "page.title",
@@ -143,6 +168,28 @@ export const LANDMARKS = [
     },
   },
   {
+    /* The SECOND button in the header cluster, which page.primary-action cannot
+       see: its `pick: "last"` deliberately resolves the primary, so a screen
+       whose header carries two actions had one of them unmeasured. Their
+       /payouts header is exactly this case -- two 180x40 boxes side by side --
+       and the pair only scores if both are addressed. */
+    id: "page.secondary-action",
+    shells: ["dashboard", "campaign"],
+    origin: "page.title",
+    desc: "The second button in the page header cluster, beside the primary",
+    ref: {
+      strategy: STRATEGY.PAINTED_ANCESTOR,
+      anchorPattern: "^(Export|Import|Filter|Download|Share|Settings|Manage)\\b",
+      maxTop: 90,
+      hops: 4,
+    },
+    ours: {
+      strategy: STRATEGY.SELECTOR,
+      css: '[data-region="page-actions"] [data-cc-slot="secondary"]',
+      pick: "last",
+    },
+  },
+  {
     id: "list.rows",
     shells: ["dashboard", "campaign", "settings"],
     origin: null,
@@ -152,7 +199,15 @@ export const LANDMARKS = [
     // reported 5 of 7 landmarks on the first full run.
     ref: {
       strategy: STRATEGY.SERIES,
-      siblingRun: { minCount: 3, minWidth: 200, rightOfRail: false },
+      /* rightOfRail, because a content list is in the content column by
+         definition -- the same argument the `ours` note below makes about
+         scoping to `main`. With it false, a run inside the rail could win.
+         minWidth stays PERMISSIVE on purpose. Raising it to 400 was an
+         over-correction, measured: it turned the bad /campaigns match into
+         UNRESOLVED rather than into the right one, because their campaign rows
+         are narrower than that. Width-ranking is what picks the content list;
+         the floor only has to exclude runs too small to be one. */
+      siblingRun: { minCount: 3, minWidth: 200, rightOfRail: true },
     },
     /* Scoped to `main`, and that is not a tidy-up: `.cc-table-row` is also the
        class on the rail's own user button, so the unscoped selector resolved a

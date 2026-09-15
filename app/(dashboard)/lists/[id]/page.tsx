@@ -106,7 +106,7 @@ export default function ListDetailPage({ params }: { params: Promise<{ id: strin
   return (
     <div className="rsp-page">
       {/* Breadcrumb */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, marginBottom: 24, color: "var(--cc-text-muted)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "var(--cc-t-14)", marginBottom: 24, color: "var(--cc-text-muted)" }}>
         <Link href="/lists" style={{ display: "flex", alignItems: "center", gap: 4, color: "var(--cc-text-muted)", textDecoration: "none" }}>
           <ArrowLeft size={16} /> Lists
         </Link>
@@ -119,7 +119,7 @@ export default function ListDetailPage({ params }: { params: Promise<{ id: strin
         title={list.name}
         subtitle={list.description || undefined}
         meta={
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, fontSize: 13, color: "var(--cc-text-muted)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
             <Users size={14} /> {list._count.items} creators
           </div>
         }
@@ -139,7 +139,7 @@ export default function ListDetailPage({ params }: { params: Promise<{ id: strin
           <div style={{ minWidth: 640 }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 120px 100px 100px 100px 60px", gap: 12, padding: "12px 24px", borderBottom: "1px solid var(--cc-border)", background: "var(--cc-bg)" }}>
             {["Creator", "Platform", "Followers", "Avg Views", "Added", ""].map(h => (
-              <span key={h} style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--cc-text-subtle)" }}>{h}</span>
+              <span key={h} className="cc-microlabel">{h}</span>
             ))}
           </div>
           <div className="cc-stagger">
@@ -152,14 +152,14 @@ export default function ListDetailPage({ params }: { params: Promise<{ id: strin
                 <Link prefetch={false} href={`/creators/${item.creator.id}`} style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 12 }}>
                   <Avatar name={item.creator.name} size="sm" />
                   <div>
-                    <p style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>{item.creator.name}</p>
-                    <p style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>@{stripAt(item.creator.handle)}</p>
+                    <p style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{item.creator.name}</p>
+                    <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>@{stripAt(item.creator.handle)}</p>
                   </div>
                 </Link>
                 <Badge variant="neutral">{item.creator.platform}</Badge>
-                <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>{formatNumber(item.creator.followersCount)}</span>
-                <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{item.creator.avgViews ? formatNumber(item.creator.avgViews) : ""}</span>
-                <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{formatDateAbs(item.addedAt)}</span>
+                <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{formatNumber(item.creator.followersCount)}</span>
+                <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{item.creator.avgViews ? formatNumber(item.creator.avgViews) : ""}</span>
+                <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>{formatDateAbs(item.addedAt)}</span>
                 <button
                   onClick={() => handleRemoveCreator(item.id, item.creator.id)}
                   style={{ background: "none", border: "none", cursor: "pointer", color: "var(--cc-text-muted)", padding: 4 }}

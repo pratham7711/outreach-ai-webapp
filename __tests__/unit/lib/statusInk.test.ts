@@ -31,6 +31,22 @@ describe("statusInk", () => {
     expect(statusInk(CAMPAIGN_STATUS_STYLE.ALL)).toBe("#374151");
   });
 
+  /* The mirror image of the tint case, and the one that shipped broken: here it
+     is the FOREGROUND that cannot be scored. Six tab configs spell Pending as
+     `var(--cc-warning-ink)`, which scores 1, so a hex ground won on 1.11 > 1 and
+     the pale amber became the ink -- 1.20:1 on the creatorcore filter strip. */
+  it("does not let an unmeasurable foreground hand the ink to the ground", () => {
+    expect(statusInk({ bg: "#FEF3C7", color: "var(--cc-warning-ink)" })).toBe("var(--cc-warning-ink)");
+    expect(contrastRatio("#FEF3C7", WHITE)).toBeGreaterThan(1);
+  });
+
+  it("still swaps when BOTH colours can be scored", () => {
+    // Nothing about the fix above may weaken the Active case it sits next to.
+    expect(statusInk({ bg: "#3B75F2", color: "#FFFFFF" })).toBe("#3B75F2");
+    // ...and the hand-spelled Pending in PostsTab keeps its own foreground.
+    expect(statusInk({ bg: "#FEF3C7", color: "#d97706" })).toBe("#d97706");
+  });
+
   it("never returns pure white for any status in the palette", () => {
     for (const [name, style] of Object.entries(CAMPAIGN_STATUS_STYLE)) {
       expect(`${name}:${statusInk(style).toUpperCase()}`).not.toBe(`${name}:#FFFFFF`);

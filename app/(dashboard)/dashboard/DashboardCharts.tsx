@@ -21,7 +21,7 @@ const chartTooltipStyle: React.CSSProperties = {
   borderRadius: 10,
   color: "var(--popover-foreground)",
   boxShadow: "var(--ui-shadow-md)",
-  fontSize: 13,
+  fontSize: "var(--cc-t-13)",
   padding: "10px 14px",
 };
 
@@ -209,8 +209,8 @@ export function CpmTrendLine({
             value: `best ${formatCurrency(best)}`,
             position: "insideTopRight",
             fill: "var(--muted-foreground)",
-            fontSize: 11,
-            fontWeight: 600,
+            fontSize: "var(--cc-t-11)",
+            fontWeight: "var(--cc-fw-strong)",
           }}
         />
         <Area type="monotone" dataKey="cpm" stroke="var(--chart-3)" strokeWidth={2} fill="url(#cpmFill)" />
@@ -241,7 +241,7 @@ export function ViewsByCampaignBar({
             dataKey="views"
             position="right"
             formatter={(v: React.ReactNode) => formatNumber(Number(v))}
-            style={{ fill: "var(--muted-foreground)", fontSize: 11, fontWeight: 600 }}
+            style={{ fill: "var(--muted-foreground)", fontSize: "var(--cc-t-11)", fontWeight: "var(--cc-fw-strong)"}}
           />
         </Bar>
       </BarChart>

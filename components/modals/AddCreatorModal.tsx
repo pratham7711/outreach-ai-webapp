@@ -75,7 +75,7 @@ export default function AddCreatorModal({ onClose }: { onClose: () => void }) {
 
   const labelStyle = {
     display: "block" as const,
-    fontSize: 13,
+    fontSize: "var(--cc-t-13)",
     fontWeight: 600 as const,
     color: "var(--cc-text)",
     marginBottom: 6,
@@ -106,7 +106,7 @@ export default function AddCreatorModal({ onClose }: { onClose: () => void }) {
               background: "color-mix(in srgb, var(--cc-danger) 10%, transparent)",
               border: "1px solid color-mix(in srgb, var(--cc-danger) 30%, transparent)",
               color: "var(--cc-danger)",
-              fontSize: 13,
+              fontSize: "var(--cc-t-13)",
             }}
           >
             {error}
@@ -157,7 +157,7 @@ export default function AddCreatorModal({ onClose }: { onClose: () => void }) {
               aria-invalid={Boolean(fieldErrors.followersCount)}
             />
             {fieldErrors.followersCount && (
-              <p role="alert" style={{ fontSize: 12, color: "var(--cc-danger)", margin: "6px 0 0" }}>
+              <p role="alert" style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-danger)", margin: "6px 0 0" }}>
                 {fieldErrors.followersCount}
               </p>
             )}
@@ -172,7 +172,7 @@ export default function AddCreatorModal({ onClose }: { onClose: () => void }) {
               aria-invalid={Boolean(fieldErrors.averageViews)}
             />
             {fieldErrors.averageViews && (
-              <p role="alert" style={{ fontSize: 12, color: "var(--cc-danger)", margin: "6px 0 0" }}>
+              <p role="alert" style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-danger)", margin: "6px 0 0" }}>
                 {fieldErrors.averageViews}
               </p>
             )}

@@ -86,7 +86,7 @@ export default function AddClientModal({ onClose }: { onClose: () => void }) {
               background: "color-mix(in srgb, var(--cc-danger) 10%, transparent)",
               border: "1px solid color-mix(in srgb, var(--cc-danger) 30%, transparent)",
               color: "var(--cc-danger)",
-              fontSize: 13,
+              fontSize: "var(--cc-t-13)",
             }}
           >
             {error}

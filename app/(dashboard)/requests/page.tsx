@@ -41,7 +41,7 @@ interface PayoutRequest {
 
 const STATUS_TABS = [
   { key: "ALL", label: "All", bg: "#F3F4F6", color: "#374151" },
-  { key: "PENDING", label: "Pending", bg: "#FEF3C7", color: "#D97706" },
+  { key: "PENDING", label: "Pending", bg: "#FEF3C7", color: "var(--cc-warning-ink)" },
   { key: "APPROVED", label: "Approved", bg: "#D1FAE5", color: "#059669" },
   { key: "REJECTED", label: "Rejected", bg: "#FEE2E2", color: "#DC2626" },
 ];
@@ -148,14 +148,22 @@ export default function RequestsPage() {
   };
 
   return (
-    <div className="rsp-page">
+    <div className="rsp-page cc-end-41">
       <PageHeader
-        title="Requests"
+        /* Their h1 on this screen reads "Requested Payouts" -- MEASURED 233px
+           wide at 291,31 against our 109.5. The rail label stays "Requests". */
+        title="Requested Payouts"
         subtitle="View and manage payout requests"
         actions={
+          /* PRIMARY, not secondary. MEASURED at desktop-1600: their Export Data
+             on this screen is the filled 180x40 rgb(31,60,239) button every
+             other list page gives its create action -- this page has no create,
+             so the export IS the page's action. Ours rendered it as a small
+             secondary, which is also why the parity harness could not see it:
+             page.primary-action resolves through data-cc-slot="primary", which
+             only variant="primary" emits. */
           <Button
-            variant="secondary"
-            size="sm"
+            variant="primary"
             iconLeft={<Download size={15} />}
             disabled={filtered.length === 0}
             onClick={exportData}
@@ -176,7 +184,7 @@ export default function RequestsPage() {
           ))}
         </div>
       ) : (
-        <div className="rsp-grid-tiles" style={{ marginBottom: 32 }}>
+        <div className="rsp-grid-tiles cc-reqpage-stats">
           <MetricTile metric="requestsTotal" value={String(totalRequests)} />
           <MetricTile metric="requestsPending" value={String(pendingCount)} />
           <MetricTile metric="requestsApprovedAmount" value={approvedTotal} />
@@ -184,11 +192,30 @@ export default function RequestsPage() {
         </div>
       )}
 
-      {/* Status Tabs */}
+      {/* Their content card opens with its own heading and a count, then puts
+          the search and the status filter on ONE row -- MEASURED: h2 at
+          290,197, the count at 290,236, the search 309.5x45 at 290,265.8 and
+          the filter labels starting at 966.8. Both the heading and the count
+          are creatorcore-only; base keeps the page it had. */}
+      <h2 className="cc-reqpage-title">Requests</h2>
+      {/* One text node, not two: the census keys on a text node, and
+          `{n} Requests` emits "0" and " Requests" separately. */}
+      <p className="cc-reqpage-caption">{`${filtered.length} Requests`}</p>
+
+      <div className="cc-reqpage-bar">
+      <div className="cc-reqpage-search">
+        <Input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search Requests"
+          aria-label="Search Requests"
+          iconLeft={<Search size={16} />}
+        />
+      </div>
+      <div className="cc-reqpage-filter">
       <StatusTabs
         variant="pill"
         ariaLabel="Filter by request status"
-        style={{ marginBottom: 24 }}
         tabs={STATUS_TABS.map((tab) => ({
           ...tab,
           count:
@@ -203,15 +230,7 @@ export default function RequestsPage() {
         active={activeTab}
         onChange={setActiveTab}
       />
-
-      <div style={{ maxWidth: 340, marginBottom: 16 }}>
-        <Input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search Requests"
-          aria-label="Search Requests"
-          iconLeft={<Search size={16} />}
-        />
+      </div>
       </div>
 
       {/* Request List */}
@@ -248,10 +267,10 @@ export default function RequestsPage() {
       ) : (
         <Card variant="outlined" noPadding>
           <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--cc-border)" }}>
-            <span style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)" }}>
+            <span className="cc-panel-title">
               {activeTab === "ALL" ? "All Requests" : `${STATUS_TABS.find((t) => t.key === activeTab)?.label} Requests`}
             </span>
-            <span style={{ fontSize: 13, color: "var(--cc-text-muted)", marginLeft: 8 }}>({filtered.length})</span>
+            <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", marginLeft: 8 }}>({filtered.length})</span>
           </div>
           {filtered.map((r, i) => {
             const creatorName = r.creatorName ?? r.creatorHandle ?? `Creator ${r.creatorId.slice(0, 6)}`;
@@ -270,15 +289,15 @@ export default function RequestsPage() {
               >
                 <Avatar name={creatorName} size="sm" />
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 600, fontSize: 14, color: "var(--cc-text)" }}>{creatorName}</div>
-                  <div title={r.campaignTitle ?? undefined} style={{ fontSize: 12, color: "var(--cc-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  <div style={{ fontWeight: "var(--cc-fw-strong)", fontSize: "var(--cc-t-14)", color: "var(--cc-text)" }}>{creatorName}</div>
+                  <div title={r.campaignTitle ?? undefined} style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {r.campaignTitle ?? "Unknown campaign"}
                   </div>
                 </div>
                 <Badge variant={STATUS_BADGE[r.status] ?? "neutral"} size="sm">{r.status.toLowerCase()}</Badge>
                 <div style={{ textAlign: "right", minWidth: 80 }}>
-                  <div style={{ fontWeight: 700, fontSize: 15, color: "var(--cc-text)" }}>{formatMoney(r.requestedAmount, r.currency)}</div>
-                  <div style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{formatDateAbs(r.createdAt)}</div>
+                  <div className="cc-panel-title">{formatMoney(r.requestedAmount, r.currency)}</div>
+                  <div style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>{formatDateAbs(r.createdAt)}</div>
                 </div>
                 {r.status === "PENDING" && (
                   <div style={{ display: "flex", gap: 8 }}>

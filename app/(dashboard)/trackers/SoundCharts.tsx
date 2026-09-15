@@ -28,7 +28,7 @@ export type SeriesPoint = { value: number; recordedAt: string };
  * adds 337 is invisible on the area chart and obvious on the bars.
  */
 
-const AXIS = { fontSize: 11, fill: "var(--cc-text-muted)" } as const;
+const AXIS = { fontSize: "var(--cc-t-11)", fill: "var(--cc-text-muted)" } as const;
 
 function tickLabel(iso: string, granularity: ChartGranularity): string {
   const d = new Date(iso);
@@ -60,13 +60,13 @@ function TooltipBox({
         border: "1px solid var(--cc-border)",
         borderRadius: 8,
         padding: "6px 10px",
-        fontSize: 12,
+        fontSize: "var(--cc-t-12)",
         color: "var(--cc-text)",
         boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
       }}
     >
       <div style={{ color: "var(--cc-text-muted)", marginBottom: 2 }}>{label}</div>
-      <div style={{ fontWeight: 600 }}>
+      <div style={{ fontWeight: "var(--cc-fw-strong)"}}>
         {v >= 0 && suffix === "added" ? "+" : ""}
         {v.toLocaleString()} {suffix}
       </div>
@@ -192,7 +192,7 @@ function ChartEmpty({ height }: { height: number }) {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        fontSize: 13,
+        fontSize: "var(--cc-t-13)",
         color: "var(--cc-text-muted)",
       }}
     >

@@ -107,13 +107,45 @@
   /* Was #898781: 3.59:1 on white, under AA, and this token paints sidebar
      group labels and table column headers rather than decoration. */
   --cc-text-subtle: #6B6964;
+  /* Fainter than subtle. Base aliases subtle so nothing outside creatorcore
+     changes; the theme block is where it earns its own value. */
+  --cc-text-faint: var(--cc-text-subtle);
   /* Near-black heading ink. Identical to --cc-text in light and dark -- it
      exists so a theme that paints most headings in a brand colour still has a
      name for the neutral one. creatorcore is exactly that theme. */
   --cc-text-ink: var(--cc-text);
   --cc-success: var(--status-good);
   --cc-warning: var(--status-warning);
+  /* Warning text sitting ON the fixed amber tint. 11 controls pair a literal
+     #FEF3C7 (or #FFFBEB on the public profile) ground with a literal #D97706
+     ink -- the same hue twice, measuring 2.86:1 and 3.07:1. The first is below
+     the 3:1 floor, i.e. unreadable at any size, and both fail WCAG 1.4.3 at the
+     11-13px/600 these badges print at.
+
+     Deliberately NOT derived from --cc-warning, and deliberately NOT re-pointed
+     in any theme block, which is the opposite of --cc-danger-ink above. The
+     difference is the ground: the danger controls tint their own background off
+     --cc-danger, so the ink must travel with the theme. These amber badges keep
+     a hardcoded light ground in every theme, so an ink that followed the theme
+     would land dark's #FAB219 on a near-white tint -- 1.3:1, far worse than the
+     bug being fixed. A theme may only re-point this once it also owns the
+     ground. The value is base --status-warning's own #875C03, not a new colour:
+     5.29:1 on #FEF3C7 and 5.69:1 on #FFFBEB, and still plainly the same amber.
+
+     e2e/contrast.spec.ts never caught it because its route list carries
+     /settings and /settings/general but not /settings/team. */
+  --cc-warning-ink: #875C03;
   --cc-danger: var(--status-critical);
+  --cc-info: #5B7BF0;
+  /* Danger text sitting ON a danger tint, which is a different job from the
+     danger fill itself. 47 controls in this repo paint
+     `color-mix(in srgb, var(--cc-danger) 14%, transparent)` and then set
+     `color: var(--cc-danger)` on top -- ink and ground the same hue, which
+     measures 2.94:1 in creatorcore and 2.96:1 in dark. Both are below the 3:1
+     floor, i.e. unreadable at any size. It went unnoticed because
+     e2e/contrast.spec.ts could not parse a color-mix() background and scored
+     the ink against white instead, which passed at 3.55:1. */
+  --cc-danger-ink: color-mix(in srgb, var(--cc-danger) 70%, black);
   /* Mixed off --cc-danger rather than written out, so it follows the token
      through every theme that redefines it -- the wash behind a rejected row
      has to sit on that theme's ground, not on light's. */
@@ -265,6 +297,17 @@
   --cc-rail-inset-inline: 0px;
   --cc-rail-inset-block: 0px;
   --cc-rail-r: 0px;
+  /* The CAMPAIGN rail is a second skin on the same element, not a variant of
+     the first. Declared here with the values that reproduce today's look, so
+     every theme but creatorcore is unchanged by the block that consumes them. */
+  --cc-camp-rail-bg: var(--cc-sidebar);
+  --cc-camp-rail-fg: var(--cc-text);
+  --cc-camp-rail-hover-bg: var(--cc-primary-light);
+  --cc-camp-rail-hover-fg: var(--cc-primary);
+  --cc-camp-rail-active-bg: var(--cc-primary);
+  --cc-camp-rail-active-fg: var(--card);
+  --cc-camp-rail-active-fw: 600;
+  --cc-camp-rail-nav-pad-inline: 10px;
   --cc-rail-border-w: 1px;
   /* The rail card's own width, and the air around it. Base values make the card
      fill the reserved column with no inset -- i.e. exactly today's flush rail --
@@ -294,8 +337,48 @@
      the rule that reads them, which is scoped to creatorcore for that reason.
      Declared in base regardless, so a theme only ever re-points a name that
      already exists. */
+  /* The campaign KPI strip. Every value here restates what PostsTab.tsx had
+     inline, so the consuming rules below change nothing until a theme
+     re-points a token -- the same inert-at-base contract the rest of this file
+     keeps. Inline styles are the one thing a theme cannot outrank, which is why
+     they moved out of the component at all. */
+  /* Sampled off their KPI strip at desktop-1600. It is a brand colour of
+     theirs that has no counterpart in our ramp -- their Share Campaign button
+     is the same hue -- so it is named for what it is rather than folded into
+     --cc-primary, which is the indigo everything else uses. Declared at base
+     so the token always resolves; only the creatorcore block spends it. */
+  --cc-kpi-purple: #A53ADA;
+
+  --cc-kpi-strip-gap: 8px;
+  --cc-kpi-bg: var(--cc-primary);
+  --cc-kpi-fg: #ffffff;
+  --cc-kpi-r: 8px;
+  --cc-kpi-pad: 8px 12px;
+  --cc-kpi-gap: 2px;
+  --cc-kpi-min-w: 104px;
+  --cc-kpi-h: auto;
+  --cc-kpi-min-h: 0px;
+  --cc-kpi-grow: 0;
+  --cc-kpi-basis: auto;
+  --cc-kpi-label-fs: 0.6875rem;
+  --cc-kpi-label-lh: inherit;
+  --cc-kpi-justify: flex-start;
+  --cc-kpi-strip-mt: 0px;
+  --cc-kpi-label-op: 0.85;
+  --cc-kpi-label-fg: inherit;
+  --cc-kpi-label-transform: none;
+  --cc-kpi-label-tracking: normal;
+  --cc-kpi-label-mb: 0px;
+  --cc-kpi-value-fs: 1rem;
+  --cc-kpi-value-fw: 700;
+  --cc-kpi-accent-fg: var(--cc-primary);
+
   --cc-action-min-w: auto;
   --cc-action-h: auto;
+  /* The page-level search box. Base is each property's own initial value, so
+     the rule that reads them is inert outside creatorcore. */
+  --cc-search-max-w: none;
+  --cc-search-h: auto;
   --cc-action-fs: 1.125rem;
   --cc-action-fw: 400;
   --cc-action-fg: var(--cc-on-primary);
@@ -305,6 +388,23 @@
   --cc-rail-card-w: var(--cc-sidebar-w);
   --cc-rail-inset-x: 0px;
   --cc-rail-pad-inline: var(--cc-sp-0);
+  /* The rail's own vertical inset. Zero in the base theme, which is what the
+     rail computes today, so declaring it changes nothing until a theme
+     re-points it. MEASURED 2026-09-14 on 12 paired surfaces: CreatorCore's
+     rail carries `padding: 20px 10px` and ours carried none, which put every
+     item inside our rail 14px high while the rail BOX itself matched them
+     exactly (both y=15 h=970). Block axis only -- the inline 10px already
+     lives on .cc-sidebar-nav and must not be applied twice. */
+  --cc-rail-pad-block: var(--cc-sp-0);
+  /* Nav row box. Only .creatorcore consumes these, so light and dark keep
+     whatever .cc-nav-item computes for them and are untouched. MEASURED
+     2026-09-14 across 38 reference surfaces: CreatorCore runs TWO rail
+     geometries, not one -- their main rail is 40px rows / 48px pitch / 8px
+     gap (14 surfaces), their CAMPAIGN rail is 50px rows / 50px pitch / ZERO
+     gap (24 surfaces). We were using the main-rail numbers for both, so the
+     campaign rail was 10px short per row and drifted further with every row. */
+  --cc-nav-row-h: 40px;
+  --cc-nav-row-gap: 8px;
   --cc-rail-head-h: 3.5rem;
   --cc-rail-avatar-size: 2rem;
   --cc-rail-avatar-fs: 0.75rem;
@@ -313,6 +413,8 @@
      literal "white" that was inline on the feature-access tabs, and the one on
      the primary action, are the same token rather than two hardcoded colours. */
   --cc-on-primary: #ffffff;
+  /* The label for a solid pill whose fill is too pale to carry white. */
+  --cc-on-ink-dark: #111111;
 
   --cc-topbar-search-h: 2.125rem;
   /* 7px and 8px, off the spacing and radius ramps both. They are the values the
@@ -346,6 +448,37 @@
   --cc-tab-bg: transparent;
   --cc-tab-fg: var(--cc-text-muted);
   --cc-tab-border: 1px solid transparent;
+  /* The strip the tabs sit in. Base paints nothing, which is what `.cc-tabs`
+     did before it could be re-pointed. */
+  --cc-tabs-bg: transparent;
+  --cc-tabs-r: 0px;
+  --cc-tabs-pad: 0px;
+
+  /* The month grid's weekday row and day numbers. Base restates the inline
+     styles these two classes replaced, so light and dark are unchanged. */
+  --cc-cal-weekday-fs: var(--cc-t-12);
+  --cc-cal-weekday-fw: var(--cc-fw-strong);
+  --cc-cal-weekday-tk: 0.05em;
+  --cc-cal-weekday-pad: 12px 0;
+  --cc-cal-weekday-fg: var(--cc-text-muted);
+  /* The month-nav row and the grid under it. Base restates what the header's
+     action slot and the legend already did, so light and dark are unchanged. */
+  --cc-cal-toolbar-mt: 0px;
+  --cc-cal-toolbar-mb: 16px;
+  --cc-cal-toolbar-h: auto;
+  --cc-cal-toolbar-justify: flex-start;
+  --cc-cal-today-w: auto;
+  --cc-cal-today-h: auto;
+  --cc-cal-today-fs: inherit;
+  --cc-cal-today-fw: inherit;
+  --cc-cal-today-ml: auto;
+  --cc-cal-legend-display: flex;
+  --cc-cal-legend-mb: 16px;
+  --cc-cal-grid-mt: 0px;
+  --cc-cal-daynum-fs: var(--cc-t-12);
+  --cc-cal-daynum-fw: 500;
+  --cc-cal-daynum-fw-today: 700;
+  --cc-cal-daynum-size: 26px;
 
   /* The ramp's own heading leading; creatorcore re-points it to 1.25. */
   --cc-lh-page-title: var(--cc-lh-tight);
@@ -357,20 +490,59 @@
      the base value rather than a fourth class. Declared here because a `var()`
      with no declaration anywhere is a rule that silently paints nothing -- and
      because a theme may want the neutral button to differ. */
+  /* The creatorcore zoom bands re-point this on <body>; everything that has to
+     undo the zoom divides by it. 1 everywhere else, so those rules are inert. */
+  --cc-zoom: 1;
+
   --cc-btn-bg: var(--cc-card);
   --cc-btn-fg: var(--cc-text);
   --cc-btn-border: 1px solid var(--cc-border);
 
+  /* The library's secondary button, as tokens. The three base values are the
+     library's own declarations verbatim (`.ui-btn-secondary { background:
+     var(--ui-bg-3); color: var(--ui-text-0); border-color:
+     var(--ui-border-strong) }`), so the rule that consumes them repaints
+     nothing until a theme re-points one -- the same inertness test the action
+     box tokens pass. They exist because --ui-bg-3 and --ui-border-strong are
+     NOT the button's to move: the library also paints inputs, textareas, tags,
+     avatars, toggle tracks, progress tracks and dropdown menus from them, so
+     re-skinning the button through the palette would take nine other
+     components with it. */
+  --cc-btn-sec-bg: var(--ui-bg-3);
+  --cc-btn-sec-fg: var(--ui-text-0);
+  --cc-btn-sec-border: var(--ui-border-strong);
+  --cc-btn-sec-bg-hover: var(--ui-glass);
+  --cc-btn-sec-fg-hover: var(--ui-accent);
+  --cc-btn-sec-border-hover: var(--ui-accent);
+
+  --cc-page-titlebar-bg: transparent;
+  --cc-page-titlebar-r: 0px;
+  --cc-page-titlebar-pad: 0px;
+  --cc-page-titlebar-minh: 0px;
   --cc-page-titlebar-display: flex;
   --cc-page-titlebar-align: center;
   --cc-page-titlebar-gap: var(--cc-sp-6);
+  /* The title block's own axis. Row at base, matching the geometry the title
+     and its badges had before they were wrapped. */
+  --cc-titleblock-dir: row;
+  --cc-titleblock-align: center;
+  --cc-titleblock-gap: var(--cc-page-titlebar-gap);
+  --cc-titlemeta-gap: var(--cc-sp-3);
+  /* The status caption on the campaign header's second row. Base restates the
+     badge's own colour so the creatorcore rule below is the only one that
+     changes anything. */
+  --cc-camp-status-fs: inherit;
+  --cc-camp-status-fw: inherit;
+  --cc-camp-status-fg: inherit;
   --cc-page-titlebar-mb: var(--cc-sp-4);
+  --cc-page-meta-display: flex;
   --cc-page-meta-gap: var(--cc-sp-7);
   --cc-page-meta-mb: var(--cc-sp-10);
   --cc-page-meta-fs: 0.875rem;
   --cc-page-meta-item-gap: var(--cc-sp-2);
 
   --cc-nav-item-h: 2.125rem;
+  --cc-nav-item-fs: 0.84375rem;
   --cc-nav-item-pad: 0.5625rem 0.875rem;
   --cc-nav-item-gap: var(--cc-sp-6);
   --cc-nav-pitch: 0.125rem;
@@ -405,7 +577,7 @@
   --cc-rail-initials-tk: 0.5px;
   --cc-rail-divider-h: 1px;
   --cc-rail-divider-m: 6px 8px;
-  --cc-nav-badge-fs: 9px;
+  --cc-nav-badge-fs: 0.5625rem;
   --cc-nav-badge-fw: 700;
   --cc-nav-badge-pad: 2px 7px;
   --cc-nav-badge-r: var(--cc-r-pill);
@@ -474,11 +646,49 @@
   --cc-icon-btn-fg: var(--cc-text-muted);
   --cc-icon-btn-fg-hover: var(--cc-text);
   --cc-icon-btn-bg: transparent;
-  --cc-icon-btn-bg-hover: var(--cc-hover-bg);
-  --cc-icon-btn-badge-bg: var(--cc-danger);
+  /* MEASURED 2026-09-14 against every theme, hovering both controls and reading
+     the composited plate against the ground it paints on: --cc-hover-bg gave
+     1.12:1 (light), 1.15:1 (creatorcore) and 1.09:1 (dark). At a 34px square
+     that is below the threshold at which a plate reads at all -- the only
+     surviving hover cue was the ink stepping from --cc-text-muted to --cc-text,
+     which at icon stroke weight is nearly nothing. --cc-hover-bg could not
+     simply be deepened: it is the row/tab/filter-option highlight as well
+     (--cc-tab-bg and --cc-filter-option-bg both alias it), and those paint a
+     full-width band where 1.1:1 is the correct weight.
+     Mixed from --cc-primary rather than set per theme, so the plate tracks
+     whatever a white-label theme points the brand at instead of needing three
+     literals kept in sync. 22% measures 1.33:1 on light, 1.45:1 on creatorcore
+     and 1.33:1 on dark -- deeper than GitHub's #f3f4f6 (1.09:1) or Notion's
+     rgba(55,53,47,0.08) (1.15:1), and tinted, which is what separates "this
+     control is under the cursor" from "this row is highlighted".
+     Blast radius is exactly the two controls the class exists for: a tree-wide
+     search for `cc-icon-btn` returns ThemeToggle and NotificationBell and
+     nothing else. */
+  --cc-icon-btn-bg-hover: color-mix(in srgb, var(--cc-primary) 22%, transparent);
+  /* Darkened from --cc-danger rather than set to a literal: white on the raw
+     token measures 3.55:1, and the badge prints 9px/700, which WCAG 1.4.3 scores
+     as small text needing 4.5:1. Mixing toward black keeps it derived from the
+     danger token, so a theme that re-points --cc-danger still gets a legible
+     badge instead of inheriting a fixed red. 80% measures 5.25:1 and is still
+     plainly the same red. (90% was the first attempt and measures 4.28:1 -- it
+     FAILS. The trap: --cc-danger resolves to #FF3B30 from the later block, not
+     the #D03B3B in base :root, and the two differ by a full contrast step.) This is OUR control, not a parity value: a scan of
+     1796 reference nodes found zero badge-like nodes, so nothing in CreatorCore
+     constrains its colour. */
+  --cc-icon-btn-badge-bg: color-mix(in srgb, var(--cc-danger) 80%, black);
   --cc-icon-btn-badge-fg: var(--cc-on-primary);
-  --cc-icon-btn-badge-fs: 9px;
+  --cc-icon-btn-badge-fs: 0.5625rem;
   --cc-icon-btn-badge-size: 15px;
+
+  /* The campaign header's close control. It is a .cc-icon-btn, so everything
+     but its box and its ink comes from that system; these are the only things
+     the reference moves. The base values RESTATE the icon button's own
+     (2.125rem / --cc-text-muted) rather than pointing at --cc-icon-btn-*: the
+     rule that consumes them re-points those very tokens on the element, and
+     aliasing them here would make the pair read as a cycle. */
+  --cc-page-close-size: 2.125rem;
+  --cc-page-close-fg: var(--cc-text-muted);
+  --cc-page-close-ml: 0px;
   --cc-topbar-pad-start: var(--cc-sp-10);
   --cc-topbar-pad-end: var(--cc-sp-9);
   --cc-topbar-gap: var(--cc-sp-6);
@@ -492,7 +702,38 @@
   --cc-page-pad-inline: calc(clamp(1rem, 0.6286rem + 1.524vw, 2rem) * var(--cc-density));
   --cc-page-pad-top: calc(clamp(1rem, 0.6286rem + 1.524vw, 2rem) * var(--cc-density));
   --cc-page-pad-bottom: calc(clamp(1rem, 0.6286rem + 1.524vw, 2rem) * var(--cc-density));
+  /* The inline END padding, split out so a theme can make the page gutter
+     asymmetric. Defaults to --cc-page-pad-inline, so declaring it changes
+     nothing until a theme re-points it. */
+  --cc-page-pad-end: var(--cc-page-pad-inline);
+  /* A full-bleed row -- their status strip, their calendar grid -- spans the
+     page card where ordinary content is inset by the page gutter. The page
+     becomes a three-track grid whose outer tracks ARE that inset, and a bleed
+     element opts into them by name. Both are 0 at base, so the outer tracks
+     collapse and the padding subtraction is a no-op: the grid changes nothing
+     until a theme asks for it. Positive lengths throughout -- a negative margin
+     would pull the element out of the page box rather than widen its track. */
+  --cc-page-bleed-l: 0px;
+  --cc-page-bleed-r: 0px;
   --cc-page-max: 1440px;
+  /* Whether the page heading renders its subtitle. `block` everywhere except
+     the creatorcore theme, which re-points it to `none` -- see the theme block.
+     Declared here because a theme may only re-point an existing token, never
+     introduce one. */
+  --cc-page-subtitle-display: block;
+  /* The record-count caption that sits between the page header and the first
+     content block ("200 Creators", "19 Lists"). Declared in base :root because
+     a theme may only re-point an existing token, never introduce one. The base
+     values are ours; the creatorcore block re-points them to their measured
+     ones. */
+  --cc-page-caption-display: block;
+  --cc-page-caption-fs: var(--cc-fs-body-sm);
+  --cc-page-caption-fw: 400;
+  --cc-page-caption-lh: 1.25;
+  --cc-page-caption-mb: var(--cc-sp-3);
+  --cc-page-caption-mt: 0px;
+  --cc-page-caption-fg: var(--cc-text-muted);
+  --cc-page-caption-w: auto;
   --cc-page-align: auto;
   --cc-page-gap: calc(clamp(1rem, 0.8143rem + 0.7619vw, 1.5rem) * var(--cc-density));
 
@@ -502,7 +743,25 @@
   --cc-header-align: flex-start;
   --cc-header-justify: space-between;
   --cc-header-gap: var(--cc-sp-6);
+  /* Split out so a theme whose header is a single row can drop the row gap
+     without touching the column gap. Defaults to --cc-header-gap, so it is
+     a no-op for the two-row light/dark header. */
+  --cc-header-row-gap: var(--cc-header-gap);
   --cc-header-mb: calc(clamp(1.5rem, 1.314rem + 0.7619vw, 2rem) * var(--cc-density));
+  /* A floor, not a height. 0 is a no-op, so light and dark keep letting the
+     header size to its content; only a theme that measures a fixed strip
+     re-points it. */
+  --cc-header-minh: 0px;
+  /* The header strip's own surface. Base values are exactly what .rsp-header
+     computes today -- transparent, no padding, no radius -- so declaring them
+     changes nothing until a theme re-points them. MEASURED: CreatorCore's five
+     settings surfaces wrap the header in a white card, 10px radius, 16px
+     padding, no border and no shadow, while their dashboard and campaign
+     headers stay transparent. That is a per-shell decision, which is why these
+     are tokens rather than a rule. */
+  --cc-header-bg: transparent;
+  --cc-header-pad: 0px;
+  --cc-header-radius: 0px;
   --cc-header-areas: none;
   --cc-header-cols: none;
   /* The heading block is a real column by default -- title over subtitle, the
@@ -548,7 +807,19 @@
   --cc-order-title: 0;
   --cc-order-meta: 0;
   --cc-order-actions: 0;
+  /* Where a plain link-button sits in a header action cluster. 0 is `order`'s
+     own initial value, so this is inert until a theme spends it. */
+  --cc-order-link: 0;
   --cc-order-primary: 0;
+  /* Whether the rail lists the /settings/* sub-pages inline. The base value is
+     `flex` -- the value `.cc-nav-item` sets -- so the rule below is inert until
+     a theme re-points it. It was `revert` and that was a real bug: `revert`
+     rolls an author declaration back to the USER-AGENT origin, which for an <a>
+     is `display: inline`, discarding `.cc-nav-item { display: flex }`. An
+     inline box does not grow for vertical padding, so each of the six links
+     painted a 76px box inside its 65px row and overflowed it in light and dark.
+     MEASURED at desktop-1600 before the fix: rect 247x76 on a 65px wrapper. */
+  --cc-nav-subpage-display: flex;
   --cc-order-secondary: 0;
   --cc-order-tertiary: 0;
   --cc-order-cancel: 0;
@@ -565,6 +836,24 @@
      component. Declared here so the contract test can see it. */
   --cc-cols: none;
   --cc-list-row-pad: 14px 20px;
+  /* The ground a list row paints, and its floor height. Both inert in the base
+     theme -- `transparent` is what our rows already resolve to (the white behind
+     them is the card, not the row) and `auto` is what they already compute --
+     so declaring them changes nothing until a theme re-points them. */
+  --cc-table-row-bg: transparent;
+  --cc-table-row-min-h: auto;
+  /* The weight of a list row's primary label. 600 is what the rows already set
+     inline, so this changes nothing until a theme re-points it. It exists
+     because an inline `fontWeight: 600` is unreachable by any theme selector --
+     the documented ceiling -- and an inline value that reads a var() is the
+     sanctioned way through it: the cascade stays winnable. */
+  --cc-list-row-name-fw: 600;
+  /* How far a list row bleeds past the page's inline padding, and its own
+     padding. All three are the no-op values in the base theme, and the rule that
+     reads them is scoped to .creatorcore, so they are inert here twice over. */
+  --cc-list-bleed-start: 0px;
+  --cc-list-bleed-end: 0px;
+  --cc-table-row-pad: 14px 24px;
   --cc-list-row-gap: var(--cc-sp-7);
   --cc-list-row-min-h: auto;
   --cc-list-row-align: center;
@@ -680,9 +969,289 @@
      body copy already sits at its readability floor and shrinking it further on
      a phone is the classic fluid-type mistake. */
   --cc-page-title-mb: var(--cc-sp-2);
+  /* ── The type ladder ──────────────────────────────────────────────────
+     One rung per size the pages actually paint, each declared at the px it
+     already was, so this is inert in light and dark: --cc-t-13 IS 13px here.
+     scripts/layout/type-ladder.mjs put 1,196 inline `fontSize:` literals onto
+     these and its header records why -- the short version is that a theme
+     cannot outrank an inline style, so re-pointing --cc-fs-body moved the
+     measured divergence from the reference by 0.001.
+
+     Named for the base size, not for a role. A mechanical pass can read what
+     a call site sets and cannot read what it means, and a rung that claimed to
+     be "body" or "caption" would be asserting something nobody measured. */
+  /* SectionCard's heading. Base restates the Tailwind arbitrary value it
+     replaced, so light and dark are unchanged. */
+  /* Only creatorcore lays SectionCard out as two columns; these are the
+     numbers that layout needs and are unread at base. */
+  --cc-section-label-w: auto;
+  --cc-section-card-pad: 0px;
+  --cc-section-action-mt: 0px;
+  --cc-section-action-h: auto;
+  --cc-section-action-fs: inherit;
+  --cc-section-action-fw: inherit;
+  --cc-section-action-pad-x: 0px;
+  --cc-section-action-gap: inherit;
+  --cc-section-action-border-w: 1px;
+  --cc-section-action-icon-order: 0;
+  --cc-section-card-title-fs: 0.9375rem;
+  --cc-section-card-title-fw: 600;
+  --cc-section-card-title-tk: -0.01em;
+  /* The stack of SectionCards. Base restates the inline style it replaced in
+     GeneralClient -- a 20px column with no skin of its own -- so light and dark
+     render exactly what they did before the class existed. */
+  --cc-section-stack-gap: 20px;
+  --cc-section-stack-bg: transparent;
+  --cc-section-stack-pad: 0px;
+  --cc-section-stack-r: 0px;
+  --cc-section-stack-title-display: none;
+  --cc-section-stack-title-fs: inherit;
+  --cc-section-stack-title-fw: inherit;
+  --cc-section-desc-w: none;
+  --cc-section-desc-lh: 1.375;
+  --cc-section-head-gap: 0.125rem;
+  /* A SectionCard that is the card, rather than a row inside the stack. */
+  --cc-section-card-solo-pad: 0px;
+  /* The taxonomy list's own box. Base restates the inline style it replaced. */
+  --cc-taxonomy-pad: 24px;
+  --cc-taxonomy-gap: 16px;
+  /* A taxonomy chip. Base restates the inline style it replaced in
+     GeneralClient -- 6px 8px 6px 12px, an 8px gap and a 13px label. */
+  --cc-chip-pad: 6px 8px 6px 12px;
+  --cc-chip-gap: 8px;
+  --cc-chip-fs: var(--cc-t-13);
+  --cc-chip-r: 8px;
+  --cc-chip-emoji-fs: inherit;
+  --cc-chip-emoji-fw: inherit;
+  --cc-chip-emoji-gap: 4px;
+  --cc-chip-action-gap: 8px;
+  --cc-chip-icon-size: 13px;
+  --cc-chip-border-w: 1px;
+  --cc-chip-glyph-size: 1.15em;
+  --cc-chip-glyph-gap: var(--cc-chip-gap);
+
+  /* A status-filter pill -- the Drafts review queue. Base restates the inline
+     style it replaced in DraftsTab (6px 14px, radius 8, a 13px strong label,
+     an 8px row gap) so the only change outside creatorcore is the leading
+     glyph, which every one of those filters now carries. */
+  --cc-pill-bar-gap: 8px;
+  --cc-pill-pad: 6px 14px;
+  --cc-pill-r: 8px;
+  --cc-pill-fs: var(--cc-t-13);
+  --cc-pill-fw: var(--cc-fw-strong);
+  --cc-pill-lh: inherit;
+  --cc-pill-glyph: 14px;
+  --cc-pill-glyph-gap: 6px;
+  --cc-pill-align: center;
+  --cc-pill-min-w: 0;
+  --cc-pill-bw: 1px;
+  --cc-pill-edge: var(--cc-border);
+  --cc-pill-bg: var(--cc-card);
+  --cc-pill-ink: var(--cc-text-muted);
+  --cc-pill-on-bw: 1px;
+  --cc-pill-on-edge: var(--cc-primary);
+  --cc-pill-on-bg: var(--cc-primary-light);
+  --cc-pill-on-ink: var(--cc-primary);
+  /* A settings row: one switch on Notifications, one connector on
+     Integrations. Both drew their own inline row before this, and both are the
+     same row on the reference. Base restates those inline styles exactly, so
+     light and dark keep the lists they had. */
+  --cc-pref-rows-gap: 4px;
+  --cc-pref-row-pad-y: 8px;
+  --cc-pref-row-pad-y-first: 8px;
+  --cc-pref-row-pad-x: 0px;
+  --cc-pref-row-rule-w: 1px;
+  --cc-pref-row-text-gap: 0px;
+  --cc-pref-title-fs: var(--cc-t-14);
+  --cc-pref-title-fw: var(--cc-fw-strong);
+  --cc-pref-desc-fs: 0.78125rem;
+  --cc-pref-title-lh: inherit;
+  --cc-pref-desc-lh: inherit;
+  --cc-provider-row-pad-y: 8px;
+  --cc-provider-row-pad-x: 0px;
+  --cc-provider-gap: 12px;
+  --cc-provider-logo-size: 24px;
+  --cc-provider-name-fs: var(--cc-t-15);
+  --cc-provider-name-fw: 700;
+  /* Read only inside the creatorcore settings shell, like the section action's
+     four above: `auto` is the initial value of height/min-height, so the rule
+     that consumes them is inert anywhere else. */
+  --cc-provider-cta-h: auto;
+  --cc-provider-cta-r: 0px;
+  --cc-provider-cta-fs: inherit;
+  --cc-provider-cta-fw: inherit;
+  --cc-provider-cta-pad-x: 0px;
+  /* The panel/card heading, hoisted off 30 identical inline styles by
+     scripts/layout/panel-title.mjs. Base restates exactly what those three
+     declarations did. --cc-t-15 already resolves to their 18px in creatorcore,
+     so only the alignment actually differs, and only over a chart. */
+  --cc-panel-title-fw: 700;
+  --cc-panel-title-fs: var(--cc-t-15);
+  --cc-panel-title-fg: var(--cc-text);
+  --cc-panel-title-align: start;
+  --cc-chart-title-align: start;
+
+  /* The micro-label: a table column header, a caption over a figure, the name
+     of a group of switches. Hoisted off 46 inline styles by
+     scripts/layout/microlabel.mjs, which had drifted into six spellings --
+     11px or 12px, weight 500/600/700, letter-spacing 0.04em / 0.05em / 0.06em /
+     0.3px / 0.5px, muted or subtle ink. Base restates the commonest of them, so
+     light and dark keep the label they had. */
+  --cc-microlabel-fs: var(--cc-t-11);
+  --cc-microlabel-fw: var(--cc-fw-strong);
+  --cc-microlabel-transform: uppercase;
+  --cc-microlabel-tracking: 0.06em;
+  --cc-microlabel-fg: var(--cc-text-subtle);
+
+  /* The type ladder is rem, not px, so the browser's own text-size setting
+     still reaches it -- a px font-size ignores it outright. 1rem = 16px at the
+     default root, so every step below is the exact pixel it was measured as
+     and the reference parity is unchanged; verified by re-running the
+     desktop-1600 census across all 23 paired surfaces after the conversion.
+     Box geometry stays px on purpose: inside this theme `zoom` scales it with
+     the viewport band, and a vw there resolves against the real viewport and
+     applies the scale twice (measured: 2.5vw at 1440 laid out 36px which the
+     0.9 zoom painted at 32.4, against their 36). */
+  /* The list toolbar rows and the status strip that follows them. Base keeps
+     the 20px the search row already carried; the sort row is new and takes the
+     gap the two controls used to sit in. */
+  --cc-list-searchrow-mt: 0px;
+  --cc-payout-actions-mb: 16px;
+  /* The Balance banner on /payouts. `contents` is the base value because the
+     wrapper has to disappear off-theme -- the action row inside it is the row
+     this page has always had, and `contents` makes the extra div lay out as
+     though it were not in the DOM at all. */
+  --cc-payout-banner-display: contents;
+  /* /activations. The dashboard row is `contents` at base, so the tiles and the
+     counter row stay the two stacked blocks they have always been. */
+  --cc-act-dash-display: contents;
+  --cc-queue-head-fs: var(--cc-t-11);
+  --cc-queue-head-fw: var(--cc-fw-strong);
+  --cc-queue-head-tk: 0.04em;
+  --cc-queue-head-transform: uppercase;
+  --cc-queue-head-fg: var(--cc-text-muted);
+  --cc-act-card-title-display: none;
+  --cc-act-overview-display: none;
+  --cc-act-tiles-mb: 20px;
+  --cc-act-deliverables-mb: 28px;
+  --cc-act-slice-1: var(--cc-primary);
+  --cc-act-slice-2: var(--cc-info, #5B7BF0);
+  --cc-act-slice-3: var(--cc-danger, #E5484D);
+  --cc-act-slice-4: var(--cc-warning, #F5A623);
+  --cc-act-slice-5: var(--cc-border);
+  /* A figure this product shows and CreatorCore has no counterpart for. 0 is
+     `order`'s own initial value, so the rules below are inert at base: nothing
+     moves until the creatorcore block spends it. These REORDER, never hide --
+     the same call already made for the payouts tiles, and for the same reason:
+     the page keeps every number it had while the fold matches theirs. */
+  --cc-kpi-extra-order: 0;
+  --cc-listpage-tiles-order: 0;
+  --cc-payout-head-display: none;
+  --cc-paypage-search-h: auto;
+  /* The label over a MetricTile figure. Base restates the utilities that ship
+     on it -- text-[11px] font-medium tracking-[0.06em] uppercase and Tailwind's
+     muted foreground, which --cc-text-muted aliases outside creatorcore. */
+  --cc-metric-label-fs: 11px;
+  --cc-metric-label-fw: 500;
+  --cc-metric-label-tk: 0.06em;
+  --cc-metric-label-transform: uppercase;
+  --cc-metric-label-fg: var(--cc-text-muted);
+  --cc-list-searchrow-mb: 12px;
+  --cc-list-sortrow-mb: 20px;
+  --cc-list-sortrow-justify: flex-end;
+  /* auto, not 0/14px: a base value has to be what the property already
+     computed to, or the "inert at base" rule is broken. `display` has no such
+     value -- span's UA default is `inline` and the count badge's own sheet says
+     otherwise -- so the count and the leading glyph are hidden by a scoped rule
+     instead of a token. Declaring `display: inline-flex` here shortened the
+     campaign Posts filter pills from 33 to 30 and carried the whole KPI row up
+     3px with them. */
+  /* How much of a status's own colour survives the mix toward --cc-text that
+     keeps it readable on the page. Base darkens to 62%; see StatusTabs. */
+  --cc-status-ink-strength: 62%;
+  /* The ink for a tab that carries no status of its own -- All. Base is the
+     page ink, which is exactly what StatusTabs resolved #374151 to before this
+     token existed, so light and dark are untouched. */
+  --cc-status-neutral-ink: var(--cc-text);
+  /* The label over a stage counter on Creator Activations, and the empty line
+     under a taxonomy list in Settings. Both base values restate the inline
+     styles they replaced. */
+  --cc-stage-label-fs: var(--cc-t-11);
+  --cc-stage-label-fg: var(--cc-text-muted);
+  --cc-taxonomy-empty-fg: var(--cc-text-muted);
+  /* The campaign Overview split, and the Activity panel that sits in its right
+     column. Base is one column, which is what the page was before the wrappers
+     existed, and the 24px card padding restates the inline style it replaced. */
+  --cc-overview-gap: 24px;
+  --cc-activity-pad: 24px;
+  --cc-activity-body-pad: 24px;
+  --cc-activity-tab-off: var(--cc-text-muted);
+  /* The analytics Performance Summary card. Base restates the inline padding
+     and the heading's 16px margin that these replaced. */
+  --cc-analytics-pad: 24px;
+  --cc-analytics-body-pad: 24px;
+  --cc-analytics-title-mb: 16px;
+  --cc-fin-cols: minmax(0, 1.2fr) minmax(0, 1fr);
+  --cc-fin-gap: 16px;
+  /* Requested Payouts. Base reproduces the page as it stood: no heading, no
+     count, the search on its own row capped at 340 with a 16px gap under it,
+     and the status strip stacked above it with 24px under that. */
+  --cc-reqpage-stats-mt: 0px;
+  --cc-reqpage-stats-mb: 32px;
+  --cc-reqpage-title-mb: 9px;
+  --cc-reqpage-caption-mb: 10.8px;
+  --cc-reqpage-filter-lift: 0px;
+  --cc-reqpage-head-display: none;
+  --cc-reqpage-bar-display: flex;
+  --cc-reqpage-bar-align: stretch;
+  --cc-reqpage-bar-cols: none;
+  --cc-reqpage-bar-cols-wide: none;
+  --cc-reqpage-search-max-w: 340px;
+  --cc-reqpage-search-mb: 16px;
+  --cc-reqpage-search-order: 2;
+  --cc-reqpage-filter-order: 1;
+  --cc-reqpage-filter-mb: 24px;
+  --cc-tab-min-w: auto;
+  /* inherit, not normal: the tab inherited the page's 1.5 and `normal` is
+     ~1.2, which is the other 3px the Posts filter row lost. */
+  --cc-tab-lh: inherit;
+  --cc-tab-justify: flex-start;
+  --cc-tab-icon-size: auto;
+  --cc-tabs-mt: 0px;
+  --cc-t-9: 0.5625rem;
+  --cc-t-10: 0.625rem;
+  --cc-t-11: 0.6875rem;
+  --cc-t-12: 0.75rem;
+  --cc-t-13: 0.8125rem;
+  --cc-t-14: 0.875rem;
+  --cc-t-15: 0.9375rem;
+  --cc-t-16: 1rem;
+  --cc-t-17: 1.0625rem;
+  --cc-t-18: 1.125rem;
+  --cc-t-20: 1.25rem;
+  --cc-t-22: 1.375rem;
+  --cc-t-24: 1.5rem;
+  --cc-t-26: 1.625rem;
+  --cc-t-28: 1.75rem;
+  --cc-t-30: 1.875rem;
+  --cc-t-32: 2rem;
+  --cc-t-36: 2.25rem;
+  /* The two weights the pages set inline. 600 is the one the reference never
+     uses at all -- 0 of 1,232 measured text runs -- so it is a token rather
+     than a literal precisely so that theme can say otherwise. */
+  --cc-fw-strong: 600;
+  --cc-fw-black: 800;
+
   --cc-fs-page-title: clamp(1.188rem, 1.025rem + 0.6667vw, 1.625rem);
   --cc-fw-page-title: 800;
   --cc-tk-page-title: -0.02em;
+  /* Every h1-h6 carried a hard -0.02em. CreatorCore tracks its headings at
+     `normal`: their 'Requests' title measures 109.5px, which is Lexend Deca
+     24px/700 untracked to the hundredth, and their 'Tags & Statuses' 153.9px
+     is untracked 20px/400. Ours read 147.9 -- exactly 153.91 minus 15 chars
+     of -0.4px. Tokenised on the element rule rather than per component, so a
+     heading added later is right without a third tracking token. */
+  --cc-heading-tk: -0.02em;
   --cc-fs-section-title: clamp(0.875rem, 0.8518rem + 0.09524vw, 0.9375rem);
   --cc-fw-section-title: 700;
   --cc-tk-section-title: -0.01em;
@@ -702,6 +1271,19 @@
   --cc-fw-metric: 700;
   --cc-lh-tight: 1.2;
   --cc-lh-body: 1.5;
+
+  /* Declared here because a token referenced anywhere must exist in the
+     base :root -- a var() naming a token nothing declares is dead CSS.
+     The first two carry their real defaults. The last two are written per
+     element by JS (page.tsx for --cc-kpi-fit, StatusTabs for
+     --cc-tab-on-ink), so they are declared `initial`: that is the
+     guaranteed-invalid value, which leaves each var()'s fallback intact.
+     Giving them a real value would outrank that fallback everywhere JS
+     did not reach. */
+  --cc-paypage-title-mb: 4px;
+  --cc-paypage-caption-mb: 6px;
+  --cc-kpi-fit: initial;
+  --cc-tab-on-ink: initial;
 }
 
 /*
@@ -710,6 +1292,10 @@
   deliberately NOT redefined here: they are fixed and inherit from :root.
 */
 :root.dark {
+  /* Dark composites the same 14% tint over a near-black surface, so the ink has
+     to move toward white rather than black -- mixing toward black here would
+     make it less readable, not more. Measures 6.05:1. */
+  --cc-danger-ink: color-mix(in srgb, var(--cc-danger) 60%, white);
   --background: #0D0D0D;
   --foreground: #FFFFFF;
   --card: #1A1A19;
@@ -792,6 +1378,18 @@
   36% rather than a grey.
 */
 :root.creatorcore {
+  /* Their strip is a flat 40px tall regardless of what the actions row holds;
+     ours sized to its content, so a 30px actions row gave a 30px strip. A
+     floor reproduces that without pinning a height.
+
+     Declared on the THEME ROOT, not on .rsp-header. MEASURED: putting it in
+     the `:root.creatorcore .rsp-header` block set the token on the header
+     ELEMENT, which then out-inherits the settings shell's own 72px set on
+     .cc-shell-root -- the closer ancestor loses to a value declared on the
+     target itself. Settings computed minh=40px with tokRoot=72px sitting one
+     level up, unreachable. Tokens belong on the root; only the consumer
+     (min-height) belongs on .rsp-header. */
+  --cc-header-minh: 40px;
   --radius: 10px;
 
   /* The ui library derives every corner from this scale, so re-pointing it
@@ -810,6 +1408,7 @@
      PAGE_TITLE_STYLE and into .cc-page-title -- they are deleted, not moved,
      because a class can now win on its own. */
   --cc-tk-page-title: 0;
+  --cc-heading-tk: normal;
   /* Their list and campaign titles are the brand indigo, rgb(31, 60, 239),
      measured on every dashboard and campaign surface. Their settings titles
      are not -- see the settings shell block below. */
@@ -836,7 +1435,7 @@
      second bare rule of identical specificity appears later in the file and
      wins on source order. It is a token re-point now, which is reachable. */
   --cc-rail-avatar-size: 40px;
-  --cc-rail-avatar-fs: 15px;
+  --cc-rail-avatar-fs: 0.9375rem;
 
   --app-font: var(--font-lexend), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 
@@ -851,7 +1450,47 @@
   --secondary: #EBEEFE;
   --secondary-foreground: #1F3CEF;
   --muted: #EBEEFE;
-  --muted-foreground: #848484;
+  /* CreatorCore's real muted ink, read off the capture rather than guessed.
+     Every small-text node in the reference uses rgb(72,72,72) (13x) or
+     rgb(42,42,42) (14x); rgb(132,132,132) appears there ZERO times. #848484 was
+     ours all along, and at 3.74:1 on white it failed WCAG 1.4.3 on ~46 strings.
+     #484848 measures 9.15:1, so matching them and clearing AA are one edit.
+     Fixed HERE rather than on --cc-text-muted because 28 files reach this value
+     through the Tailwind `text-muted-foreground` utility, which no --cc-* token
+     can touch -- the dashboard's 7D/30D/90D/1Y chips are exactly that case. */
+  --muted-foreground: #484848;
+  /* CreatorCore leads its action cluster with the primary: measured on
+     /campaigns they order [New Campaign, Folders] where we order [Folders,
+     Self-serve campaign, New Campaign], putting our create action at 3 of 3.
+     Read by .cc-page-actions > [data-cc-slot="primary"], which Button.tsx
+     stamps on every variant="primary" button, so no JSX carries the placement.
+     Light and dark keep the primary last -- the prevailing web convention for
+     a header strip -- because only this theme asked to match theirs.
+
+     The cost, stated rather than hidden: `order` moves paint, not focus, so
+     here a keyboard user still tabs Folders -> Self-serve -> New Campaign
+     while seeing New Campaign first. Tolerable only because these three are
+     independent siblings whose sequence carries no meaning (WCAG 2.4.3 is
+     about meaningful sequences); the moment a cluster's order means something,
+     this token is the wrong tool and the JSX has to move instead. */
+  --cc-order-primary: -1;
+  /* MEASURED 2026-09-14 at desktop-1600: their /campaigns header is exactly two
+     buttons -- New Campaign at 1188 and Folders at 1374, ending at 1554. Ours
+     holds a third, `Self-serve campaign`, which they have no counterpart for,
+     and it occupied the rightmost slot: our cluster also ended at 1554 but that
+     slot was the link, pushing New Campaign to 977.8 and Folders to 1171.4, a
+     210px error on both. Ordering the link FIRST puts our two shared buttons
+     back in their slots and parks the extra where it costs nothing. */
+  --cc-order-link: -2;
+  /* CreatorCore's rail carries one `Settings` row plus `Connections`; ours
+     listed all eight settings destinations inline, which is 6 of the 9 rail
+     rows we carry beyond theirs. Hidden only in this theme -- light and dark
+     keep the fast path to Billing and Team.
+
+     Safe only because every one of the six is reachable from the /settings hub:
+     five already had a card there and Ingestion did not, so a card was added in
+     the same change. Without it this token would orphan that page. */
+  --cc-nav-subpage-display: none;
   --accent: #EBEEFE;
   --accent-foreground: #1F3CEF;
   --destructive: #FF3B30;
@@ -880,6 +1519,30 @@
   --chart-axis: rgba(31, 60, 239, 0.30);
 
   --cc-sidebar: #FFFFFF;
+  /* MEASURED on the reference, desktop-1600, all seven paired campaign
+     surfaces: their campaign rail is a full-bleed panel at (0,0) 208x1000 in
+     rgb(31,60,239) with square corners, where the dashboard rail beside it is
+     a floating WHITE card inset 10/15 with a 20px radius -- both captured in
+     the same run, so this is their design and not a capture artifact. Rows sit
+     at x=21, 166.4 wide, and the active row inverts: white pill, blue label,
+     weight 700.
+
+     The rest colour is 0.6 alpha, not their 0.5. MEASURED: 0.5 composites to
+     rgb(143,158,247) over that blue, which is 2.82:1 -- below the 3.0 floor
+     e2e/contrast.spec.ts asserts on, and four campaign routes are in its PAGES
+     list, so their value would fail the deploy gate outright. 0.6 composites
+     to rgb(165,177,249) and measures 3.46:1. The hue is theirs exactly; only
+     the alpha moves, and it moves the minimum that clears the floor. */
+  --cc-camp-rail-bg: var(--cc-primary);
+  --cc-camp-rail-fg: rgba(255, 255, 255, 0.6);
+  --cc-camp-rail-hover-bg: rgba(255, 255, 255, 0.12);
+  --cc-camp-rail-hover-fg: #FFFFFF;
+  --cc-camp-rail-active-bg: var(--card);
+  --cc-camp-rail-active-fg: var(--cc-primary);
+  --cc-camp-rail-active-fw: 700;
+  /* 208 - 21 - 166.4 = 20.6 on the far side, so 21px of nav padding reproduces
+     both their row inset and their row width from the rail width alone. */
+  --cc-camp-rail-nav-pad-inline: 21px;
   --cc-primary-hover: #193EE6;
   --cc-primary-light: rgba(31, 60, 239, 0.08);
   --cc-primary-medium: rgba(31, 60, 239, 0.15);
@@ -888,6 +1551,17 @@
      empty-state copy, so 61 of the 74 unreadable strings in the theme audit
      were this one value. 0.85 keeps the brand hue and clears AA. */
   --cc-text-subtle: rgba(31, 60, 239, 0.85);
+  /* MEASURED from their census: the caption under a list page's title -- '200
+     Creators', '19 Lists', '76 Recipients', '24 Clients' -- is their primary at
+     0.36, and so is the Financials card label and the Documents empty line.
+     It is deliberately NOT --cc-text-subtle, which sits at 0.85 because it also
+     paints sidebar group labels and empty-state copy and had to clear AA. */
+  --cc-text-faint: rgba(31, 60, 239, 0.36);
+  /* Their muted grey is blue-cast, not neutral: 'Role' on Team, the section
+     caption on Notifications and the Slack line on Integrations all measure
+     rgb(152, 162, 179), and their row descriptions rgb(158, 170, 182) -- within
+     8 of it. Ours was #484848 on all of them. */
+  --cc-text-muted: #98A2B3;
   --cc-hover-bg: #EBEEFE;
   --cc-row-hover: rgba(31, 60, 239, 0.04);
 
@@ -909,6 +1583,81 @@
 
   --ui-glass: rgba(255, 255, 255, 0.9);
   --ui-glass-border: rgba(31, 60, 239, 0.22);
+
+  /* MEASURED 2026-09-14 at desktop-1600 off their own screenshots: every
+     secondary action in this product is an OUTLINE button -- white fill, a
+     solid full-strength brand border, brand text. `Folders` on /campaigns and
+     `Refresh Data` on the campaign header are the same skin at two sizes. Ours
+     painted --ui-bg-3 (#DDE3FD, a lavender fill) with a 0.40-alpha border and
+     BLACK text, which reads as a third, weaker button rank they do not have.
+     The hover is the one value here that is not measured -- a static capture
+     cannot carry one. It inverts to the filled brand, which is the convention
+     for an outline button and is the only direction that stays legible: the
+     library's own hover paints --ui-glass, and --ui-glass is white at 0.9 on a
+     white card, i.e. the button vanishing. */
+  /* MEASURED 2026-09-14 at desktop-1600 on their campaign header: the glyph is
+     a flat rgb(132,132,132) -- a true neutral, not the brand indigo and not
+     --cc-text-muted (#484848 here) -- filling 1548..1563.5 x 56.5..72, i.e.
+     16x16 centred in a 28x28 box whose right edge is the card's inner edge at
+     1570. The 10px is the space left between `Add Posts` (ending 1531.5) and
+     that box; the titlebar's own gap is wider, and using it would have pushed
+     the primary off their 1332. */
+  /* The KPI strip, measured chip by chip against theirs -- see the table on
+     .cc-kpi-strip. `--cc-kpi-grow: 1` is the one that matters: it turns the
+     chips into equal-width flex children that fill the column to its right
+     edge, which is what makes it read as a band. */
+  --cc-kpi-strip-gap: 5px;
+  --cc-kpi-bg: var(--cc-kpi-purple);
+  --cc-kpi-fg: #ffffff;
+  --cc-kpi-r: 20px;
+  /* No VERTICAL padding, and that is not a change of look: the chip was
+     already 75px with 96.5px of padded content in it, so `justify-content:
+     center` had been throwing the 15px away and centring the 66.5 of real
+     content. Writing 0 makes the box honest, which is what lets min-height
+     replace the fixed height without the chip jumping 21.5px taller. */
+  --cc-kpi-pad: 0 10px;
+  --cc-kpi-gap: 4px;
+  --cc-kpi-min-w: 0px;
+  /* A floor, not a fixed height. Their chip is 132.7x75 and holds a two-line
+     label over the figure; at desktop-1600 ours measures 65.5 of content, so
+     75 is what it renders and every measured label keeps its y. Narrow the
+     column far enough for a third line and a FIXED 75 put the figure outside
+     the pill -- `justify-content: center` spills overflow through both edges.
+     min-height keeps the measured box and lets the rare wrap grow instead. */
+  --cc-kpi-h: auto;
+  --cc-kpi-min-h: 75px;
+  --cc-kpi-grow: 1;
+  /* basis 0, so the chips are equal columns rather than content-sized. MEASURED
+     on theirs: nine of the ten are 132.7 wide and the tenth 122.7, and the
+     three longest labels ("Average Post Eng Rate", "Avg. Campaign Eng Rate",
+     "Total Engagement") wrap to two lines inside that fixed width -- h=35.5
+     against h=18 for the rest. Ours ran 116 to 213.4 because each chip took
+     its label's width, so the strip reached the right edge with the columns
+     visibly uneven. */
+  --cc-kpi-basis: 0;
+  --cc-kpi-label-fs: 0.875rem;
+  /* Their chip centres its label+figure rather than padding from the top, so a
+     two-line label rises instead of pushing the figure down: MEASURED, the
+     seven one-line labels sit at y=195.3 and the three that wrap at 186.5,
+     exactly half a 17.75px line higher, while the figures move only 5px
+     (217.8 -> 222.8). Ours were all pinned at 192 with a 19.5px line, so the
+     three wrapping labels read 5.5px high and 3.5px too tall. The 4px on the
+     strip is the last of it -- their strip top is 180 and ours 176. */
+  --cc-kpi-label-lh: 17.75px;
+  --cc-kpi-justify: center;
+  --cc-kpi-label-op: 1;
+  --cc-kpi-value-fs: 1.125rem;
+
+  --cc-page-close-size: 28px;
+  --cc-page-close-fg: #848484;
+  --cc-page-close-ml: 10px;
+
+  --cc-btn-sec-bg: var(--cc-card);
+  --cc-btn-sec-fg: var(--cc-primary);
+  --cc-btn-sec-border: var(--cc-primary);
+  --cc-btn-sec-bg-hover: var(--cc-primary);
+  --cc-btn-sec-fg-hover: var(--cc-on-primary);
+  --cc-btn-sec-border-hover: var(--cc-primary);
 
   --ui-shadow-sm: 0 2px 6px rgba(31, 60, 239, 0.10);
   --ui-shadow-md: 0 4px 10px 4px rgba(31, 60, 239, 0.15);
@@ -937,9 +1686,16 @@
   reach the title's colour while it matched. The exclusion changes nothing
   today: every other `<h1>` in the tree is in the portal or public shell, which
   never carries `.creatorcore`. It exists so the token governs.
+
+  `.cc-section-card-title` is excluded for the same reason, on measurement
+  rather than principle: their section headings INSIDE a card are black --
+  'Campaigns' on Notifications, 'Integrations', and all four taxonomy heads on
+  General all read rgb(0, 0, 0) in their census, against our indigo. Indigo is
+  still right for the headings this rule was written for, so the exclusion is
+  narrower than dropping the rule.
 */
 .creatorcore h1:not(.cc-page-title),
-.creatorcore h2 {
+.creatorcore h2:not(.cc-section-card-title) {
   --cc-text: var(--cc-primary);
   color: var(--cc-primary);
 }
@@ -1067,16 +1823,79 @@
    The type does NOT scale with the box: 18px at 1600 and at 1440 alike, at
    weight 400. Ours was 12-14px at 500, which is the difference between a label
    that anchors the header and one that reads as a chip. */
+/* MOBILE-FIRST, and not by taste: `lib/sdui/theme/emit.ts` assembles the
+   tenant theme into a <style> element that the layout renders AFTER this
+   stylesheet, and `contract.ts` allows `minWidth` layers only -- deliberately,
+   so two overlapping ranges can never make the winner depend on source order.
+   A `@media (max-width: 767px)` block here therefore LOSES to that sheet's
+   unconditional `:root.creatorcore` at equal specificity, which is exactly what
+   happened: the phone button kept its 180px desktop width while the element
+   rules in the same block (radius, padding, font-size) all applied. So the
+   narrow value is the base and every wider one is a min-width layer, in both
+   this file and `defaults/creatorcore.theme.json`, which now mirrors it. */
 :root.creatorcore {
-  --cc-action-min-w: 11.25rem;
-  --cc-action-h: 2.5rem;
+  --cc-action-min-w: 40px;
+  --cc-action-h: 40px;
   --cc-action-border: 0 none;
+  --cc-search-max-w: 500px;
+  --cc-search-h: 45px;
+  /* The status strip is a white bar with 8px of padding -- see the
+     :root.creatorcore .cc-tabs block for the six measurements. */
+  --cc-tabs-bg: var(--cc-card);
+  --cc-tabs-r: 10px;
+  --cc-tabs-pad: 8px;
+  /* See .cal-weekday for the measurements. 22px 0 because their row is 64 tall
+     around a 13px glyph box: 64 = 22 + 20 + 22, near enough at 13. */
+  --cc-cal-weekday-fs: 0.625rem;
+  --cc-cal-weekday-fw: 400;
+  /* MEASURED: their weekday label sits 6px below the grid's top border --
+     SAT..FRI at y=152 against a card top of 145. The 22px that was here
+     centred ours in a 60px strip and put them at 124. Their 64px header cell
+     carries the week's date under the label; a month view has nowhere to put
+     that, so the row ends after the label rather than holding 45px of air. */
+  --cc-cal-weekday-pad: 6px 0;
+  /* Their weekday heads are a shade darker than the rest of their muted grey
+     -- rgb(138, 141, 158) against rgb(152, 162, 179), MEASURED on all seven. */
+  --cc-cal-weekday-fg: #8A8D9E;
+  --cc-cal-daynum-fs: 1.25rem;
+  --cc-cal-daynum-fw: 600;
+  --cc-cal-daynum-fw-today: 600;
+  --cc-cal-daynum-size: 34px;
+  /* Toolbar row at y=90, 40 tall; grid at 145. Both MEASURED off their
+     desktop-1600 calendar, where Today is a 125x40 control at 1435,90 and the
+     grid box runs 290,145 1270x820. Their page carries no legend. */
+  --cc-cal-toolbar-mt: 21px;
+  --cc-cal-toolbar-mb: 15px;
+  --cc-cal-toolbar-h: 40px;
+  --cc-cal-today-w: 125px;
+  --cc-cal-today-h: 40px;
+  --cc-cal-today-fs: 1.125rem;
+  --cc-cal-today-fw: 400;
+  --cc-cal-legend-display: none;
+  --cc-cal-legend-mb: 0px;
+}
+
+@media (min-width: 768px) {
+  :root.creatorcore {
+    --cc-action-min-w: 11.25rem;
+    --cc-action-h: 2.5rem;
+  }
 }
 
 @media (min-width: 1024px) {
   :root.creatorcore {
-    --cc-action-min-w: 11.25vw;
-    --cc-action-h: 2.5vw;
+    /* FIXED px between 1024 and 1600, not vw, because the body zoom below does
+       the scaling in that range and a viewport unit would apply it twice. A
+       `vw` inside a zoomed subtree resolves against the REAL viewport, not the
+       zoomed canvas: measured at 1440, 2.5vw gave 36 layout px which the 0.9
+       zoom then painted at 32.4, against their 36. 180 and 40 are what the
+       reference's own declarations read at every desktop width -- its numbers
+       shrink because the page is zoomed, not because it re-computes -- so
+       stating them as constants and letting the zoom scale them reproduces
+       both the paint and the mechanism. Above 1600 there is no zoom on either
+       side and the ratio takes over again; see the next block. */
+    --cc-action-min-w: 180px;
+    --cc-action-h: 40px;
 
     /* No top bar above the desktop breakpoint, and the page starts where their
        page starts. MEASURED on the reference, dashboard shell:
@@ -1085,21 +1904,74 @@
           1600            26.0           1.625%
           1440            23.5           1.632%
 
-       so 1.625vw reproduces both. Below 1024 this stays off: at 768 their own
-       header sits at y=36, not at a ratio, and the top bar is where our mobile
-       nav drawer's only trigger lives -- hiding it there would leave a phone
-       with no way to reach the nav at all. */
+       The ratio was read off those two numbers before the zoom was found, and
+       it is the zoom that produces them: 26 painted at 0.9 is 23.4, which is
+       the 23.5. So 26px here and the ratio above 1600. Below 1024 this stays
+       off: at 768 their own header sits at y=36, not at a ratio, and the top
+       bar is where our mobile nav drawer's only trigger lives -- hiding it
+       there would leave a phone with no way to reach the nav at all. */
     --cc-topbar-display: none;
-    --cc-page-pad-top: 1.625vw;
+    --cc-page-pad-top: 26px;
     --cc-rail-utility-display: flex;
+  }
+}
+
+/* Above the reference's 1600px canvas there is no zoom on their side, and the
+   layout goes fluid again -- their body spans the full 1920 at 1920, measured.
+   So the three lengths the block above pinned go back to being ratios of the
+   viewport, which is what they were measured as at 1600 in the first place and
+   what every other shell number in this theme already is. */
+@media (min-width: 1600px) {
+  :root.creatorcore {
+    --cc-action-min-w: 11.25vw;
+    --cc-action-h: 2.5vw;
+    --cc-page-pad-top: 1.625vw;
+  }
+}
+
+/* Their campaign header's action is a BIGGER button than the dashboard's, and
+   the difference is not a rounding artefact: MEASURED at desktop-1600 their
+   dashboard primary is 180x40 on seven surfaces (205 on `connections`, where
+   the label "New Connection" overruns the floor) while their campaign primary
+   is 200x45 on all five campaign sections. desktop-1440 confirms it is the same
+   canvas scaled -- 162x36 and 180x40.5, i.e. exactly 0.9 of each -- so these are
+   the authored 1600 values and the body zoom paints the rest. Same px-then-vw
+   split as the theme root uses, for the same reason: a vw inside a zoomed
+   subtree resolves against the real viewport and applies the scale twice. */
+@media (min-width: 1024px) {
+  :root.creatorcore .cc-shell-root:has(.cc-sidebar-rail[data-shell="campaign"]) {
+    --cc-action-min-w: 200px;
+    --cc-action-h: 45px;
+  }
+}
+
+@media (min-width: 1600px) {
+  :root.creatorcore .cc-shell-root:has(.cc-sidebar-rail[data-shell="campaign"]) {
+    --cc-action-min-w: 12.5vw;
+    --cc-action-h: 2.8125vw;
   }
 }
 
 /* Was an inline `background: var(--cc-bg)` on the dashboard root. Inline styles
    are the one thing a theme cannot outrank, so every such site is a hole in the
    theming contract even when the value it sets is the right one. */
+/* The shell fills the VISUAL viewport, not the layout one.
+   MEASURED 2026-09-14 at 1400x680 in creatorcore: `h-screen` on this element is
+   `height: 100vh`, and a viewport unit inside a zoomed subtree resolves against
+   the REAL viewport -- the same trap the --cc-action-min-w note records for vw.
+   So the shell laid out at 680px and PAINTED at 612 (680 x 0.9), leaving 68px
+   of bare page under it; at the 0.85 band it is 15% of the window. The last row
+   of cards ended mid-card and the rest of the column was empty, which is what
+   it looked like on screen.
+
+   Dividing by the zoom is the exact inverse and nothing else changes: 680/0.9
+   lays out at 755.6 and paints at 680. --cc-zoom is 1 at base and outside the
+   two bands, so this is `calc(100vh / 1)` everywhere else -- the same 100vh the
+   utility class already set. Unlayered, so it beats Tailwind's h-screen without
+   !important. */
 .cc-shell-root {
   background: var(--cc-bg);
+  height: calc(100vh / var(--cc-zoom));
 }
 
 /* The PRIMARY action only. This was `> *` and that was wrong: the action row
@@ -1112,9 +1984,82 @@
    Applies in every theme and is inert until one re-points the tokens, since
    min-width:auto and height:auto are the initial values. Unlayered, so it beats
    the ui library's own button rules in layer(components) without !important. */
+/* The rail's settings sub-pages. `[href^="/settings/"]` is exactly the six --
+   General, Team, Tracker settings, API Keys, Billing, Ingestion -- and matches
+   neither `/settings` itself (no trailing slash) nor `/connections`, which
+   leaves precisely the two rows CreatorCore shows. Selected by href rather than
+   a new data attribute because Link already renders one, so the theme reaches
+   this with no JSX edit at all. */
+.cc-nav-item[href^="/settings/"] {
+  display: var(--cc-nav-subpage-display);
+}
+
+.cc-page-actions > .cc-link-btn {
+  order: var(--cc-order-link);
+}
+
 .cc-page-actions > [data-cc-slot="primary"] {
+  /* `width` as well as `min-width`: MEASURED at desktop-1600, their New
+     Campaign is exactly 180x40 and ours was 183.6x40, because the same label
+     at the same size renders 2.2px wider in our face and a min-width only sets
+     a floor. Their whole cluster is two IDENTICAL boxes, so the width is the
+     declaration, not the content. Both read the same token, which is `auto` at
+     base -- the property's initial value -- so nothing changes off-theme. */
   min-width: var(--cc-action-min-w);
+  width: var(--cc-action-min-w);
   height: var(--cc-action-h);
+  /* Inert at the base value of 0, which is also `order`'s initial value, so
+     this changes nothing until a theme re-points the token. Button.tsx already
+     stamps data-cc-slot="primary" on every variant="primary" button, so no JSX
+     carries a placement decision -- the theme does. */
+  order: var(--cc-order-primary);
+}
+
+/* The SECONDARY action takes the same box. MEASURED 2026-09-14 at desktop-1600
+   on the reference: /campaigns runs [New Campaign 1188..1367.5, Folders
+   1374..1553.5], both 180x40; the campaign header runs [Refresh Data
+   1117..1316.5, Add Posts 1332..1531.5], both 200x45. Their action cluster is
+   two identical boxes at both sizes. Ours put a 200x45 primary next to a 134x38
+   secondary, because only the primary was ever addressed.
+
+   Still NOT `> *`. The action row also carries badges, range pickers and count
+   chips, and the note above records what forcing a box onto those did; the
+   slot attribute is what separates "a button that is one of this page's
+   actions" from "something else in the same row". Inert outside a theme that
+   re-points the tokens, exactly like the primary rule. */
+.cc-page-actions > [data-cc-slot="secondary"] {
+  min-width: var(--cc-action-min-w);
+  width: var(--cc-action-min-w);
+  height: var(--cc-action-h);
+}
+
+/* The library's secondary button, re-pointed at tokens whose base values are
+   its own. See --cc-btn-sec-* for why the palette could not be moved instead.
+   Unlayered, so it beats the library's layered rule without !important. */
+.ui-btn-secondary {
+  background: var(--cc-btn-sec-bg);
+  color: var(--cc-btn-sec-fg);
+  border-color: var(--cc-btn-sec-border);
+}
+
+.ui-btn-secondary:hover:not(:disabled) {
+  background: var(--cc-btn-sec-bg-hover);
+  color: var(--cc-btn-sec-fg-hover);
+  border-color: var(--cc-btn-sec-border-hover);
+}
+
+/* CreatorCore puts the glyph AFTER the label on every action button -- measured
+   on `New Campaign +`, `Folders <folder>`, `Refresh Data <refresh>` and
+   `Add Posts +`. Ours passes iconLeft, which the library renders as a
+   `.ui-btn-icon` span before the children.
+
+   `order` rather than a JSX sweep across 21 call sites: `.ui-btn` is already
+   inline-flex, the icon is its own element, and the label is an anonymous flex
+   item whose order stays at the initial 0. Scoped to the action cluster because
+   that is where the measurement is -- an icon inside a table row or a toolbar
+   button is not covered by it. */
+:root.creatorcore .cc-page-actions .ui-btn > .ui-btn-icon:first-child {
+  order: 1;
 }
 
 /* The box above is theme-agnostic because `auto` is both the token's base value
@@ -1126,11 +2071,43 @@
    to the header's 16px. A base-level declaration therefore cannot be inert, so
    this one is scoped to the theme that asked for it. The values stay in tokens,
    so an org theme can still re-point them without touching this rule. */
+/* CreatorCore leads its action cluster with the primary: measured on
+   /campaigns, they order [New Campaign, Folders] where we order [Folders,
+   Self-serve campaign, New Campaign]. Jakob's Law is the whole argument --
+   their users scan position 1 for the create action, and ours sat at 3 of 3.
+
+   Scoped to this theme deliberately. Light and dark keep the primary last,
+   which is the prevailing web convention for a header strip, so re-pointing
+   one token moves only the theme that asked for it and the JSX keeps a single
+   DOM order for all three.
+
+   The cost, stated rather than hidden: `order` moves paint, not focus, so in
+   this theme a keyboard user still tabs Folders -> Self-serve -> New Campaign
+   while seeing New Campaign first. That is tolerable only because these three
+   are independent siblings with no meaning in their sequence (WCAG 2.4.3 is
+   about meaningful sequences); the moment a cluster's order carries meaning,
+   this token is the wrong tool and the JSX has to move instead. */
 :root.creatorcore .cc-page-actions > [data-cc-slot="primary"] {
   font-size: var(--cc-action-fs);
   font-weight: var(--cc-action-fw);
   color: var(--cc-action-fg);
   border: var(--cc-action-border);
+}
+
+/* The SAME type on the secondary slot, which this rule did not cover while the
+   box rule beside it (min-width/height) always did. MEASURED 2026-09-14 at
+   desktop-1600 by a full-page census of both sides: their `Folders` label is
+   18px/400 in a 180x40 box and ours was 12px/500 in a box that already measured
+   180x40 exactly -- the right button at the right size with the wrong type in
+   it. Same reading for `Export Data` on /payouts and /requests. Every one of
+   these call sites passes size="sm" to the shared Button, and sm is a 12px
+   label, which is correct everywhere else it is used; the header strip is the
+   exception and the theme is where that exception belongs. Colour and border
+   stay on the primary rule only -- the secondary has its own --cc-btn-sec-*
+   skin and would be overpainted by --cc-action-fg. */
+:root.creatorcore .cc-page-actions > [data-cc-slot="secondary"] {
+  font-size: var(--cc-action-fs);
+  font-weight: var(--cc-action-fw);
 }
 
 @media (min-width: 1024px) {
@@ -1146,6 +2123,12 @@
        the content's margin are the same number; here they differ by the inset,
        so the card cannot simply take the token or it would fill the gap. */
     width: var(--cc-rail-card-w);
+    /* Their 20px. This lands our first group label at y=91 against their 85 --
+       6px short of exact, and deliberately so: the residual is our taller logo
+       head (--cc-rail-head-h 56px vs their 50px), kept at Pratham's explicit
+       request for "more space to client logo". Matching them to the pixel here
+       would mean shrinking the client logo, which is the opposite of the ask. */
+    --cc-rail-pad-block: var(--cc-sp-8);
   }
 
   .creatorcore .cc-sidebar-rail[data-collapsed="true"] {
@@ -1158,19 +2141,131 @@
   padding either side -- with 8px between them, so the pitch is 48px. The nav
   carries that padding here because our rail element has none of its own.
 */
+:root.creatorcore {
+  /* 16px on their MAIN rail rows, measured at desktop-1600; the untheme default
+     is 13.5. On the theme root rather than on .cc-nav-item, so the campaign
+     rail -- a closer ancestor of the same rows -- can re-point it to their 18
+     without a second nav ruleset. */
+  --cc-nav-item-fs: 1rem;
+}
+
 .creatorcore .cc-sidebar-nav {
   padding: 0 10px;
 }
 
 .creatorcore .cc-nav-item {
-  min-height: 40px;
+  min-height: var(--cc-nav-row-h);
   padding: 10px;
   gap: 10px;
-  font-size: 16px;
   line-height: 20px;
   font-weight: 400;
-  margin-bottom: 8px;
+  margin-bottom: var(--cc-nav-row-gap);
   color: var(--cc-primary);
+}
+
+/* The campaign rail is a DIFFERENT rail, and their own numbers say so: 50px rows
+   butted together with no gap, against the main rail's 40px rows with 8px
+   between. Scoped by the rail's own data-shell, which NewSidebar already emits,
+   so this is a token re-point on one subtree rather than a second nav ruleset. */
+.creatorcore .cc-sidebar-rail[data-shell="campaign"] {
+  --cc-nav-row-h: 50px;
+  --cc-nav-row-gap: 0px;
+  /* MEASURED at desktop-1600 on all seven paired campaign surfaces: their
+     campaign rail rows are 18px while their MAIN rail rows are 16px, which ours
+     already matched. The 16px was a literal on `.creatorcore .cc-nav-item`, so
+     there was nothing to re-point for one shell; it is now
+     --cc-nav-item-fs and this is the only place that moves it. */
+  --cc-nav-item-fs: 1.125rem;
+}
+
+/* The campaign rail's SKIN, measured against the reference at desktop-1600 and
+   listed property by property in the --cc-camp-rail-* block above.
+
+   The geometry has to be re-declared rather than tokenised: the floating-card
+   look (top/bottom 15px, left inset, 20px radius) is set by the
+   `.creatorcore .cc-sidebar-rail` rule inside the same media query, as literal
+   declarations rather than through tokens, so the only way to undo it for one
+   shell is to out-specify it. */
+@media (min-width: 1024px) {
+  .creatorcore .cc-sidebar-rail[data-shell="campaign"] {
+    top: 0;
+    bottom: 0;
+    left: 0;
+    border-radius: 0;
+    /* 13% of 1600 is 208, their measured width, and it tracks the viewport the
+       way every other rail number in this theme does. */
+    width: 13%;
+    background: var(--cc-camp-rail-bg);
+    /* Their 10px above the first row and nothing below it. */
+    --cc-rail-pad-block: 10px 0px;
+  }
+
+  .creatorcore .cc-sidebar-rail[data-shell="campaign"] .cc-sidebar-nav {
+    padding: 0 var(--cc-camp-rail-nav-pad-inline);
+  }
+}
+
+/* Every element inside the rail that sets its own colour, re-pointed as one
+   list. The list is not guessed: a tree walk over the live rail (creatorcore,
+   1600, /campaigns/<id>?section=drafts) returned exactly these text-bearing
+   nodes -- the brand, the username, the group label, the head's two icon
+   buttons, the utility icons, the user chevron, and the nav rows including the
+   "All campaigns" back link, which is itself a .cc-nav-item. The count chips
+   and the "9+" badge are deliberately absent: they carry their own opaque
+   background and stay legible on any ground. */
+.cc-sidebar-rail[data-shell="campaign"] .cc-sidebar-nav .cc-nav-item,
+.cc-sidebar-rail[data-shell="campaign"] .cc-nav-group-label,
+.cc-sidebar-rail[data-shell="campaign"] .cc-rail-brand,
+.cc-sidebar-rail[data-shell="campaign"] .cc-sidebar-username,
+.cc-sidebar-rail[data-shell="campaign"] .cc-sidebar-head button,
+.cc-sidebar-rail[data-shell="campaign"] .cc-rail-utility button,
+.cc-sidebar-rail[data-shell="campaign"] .cc-rail-utility a,
+.cc-sidebar-rail[data-shell="campaign"] .cc-rail-utility svg,
+.cc-sidebar-rail[data-shell="campaign"] .cc-rail-user-chevron {
+  color: var(--cc-camp-rail-fg);
+}
+
+/* Scoped to .cc-sidebar-nav on purpose. The user menu that opens from the rail
+   FOOT is built from .cc-nav-item too, and it renders on its own white
+   popover -- colouring it for the blue ground would paint white text on white
+   and lose Settings and Sign out entirely. */
+.cc-sidebar-rail[data-shell="campaign"] .cc-sidebar-nav .cc-nav-item:hover {
+  background: var(--cc-camp-rail-hover-bg);
+  color: var(--cc-camp-rail-hover-fg);
+}
+
+.cc-sidebar-rail[data-shell="campaign"] .cc-sidebar-nav .cc-nav-item.active,
+.cc-sidebar-rail[data-shell="campaign"] .cc-sidebar-nav .cc-nav-item.active:hover {
+  background: var(--cc-camp-rail-active-bg);
+  color: var(--cc-camp-rail-active-fg);
+  font-weight: var(--cc-camp-rail-active-fw);
+}
+
+/* The rail's two icon buttons hover in the RAIL's vocabulary, not the page's.
+
+   MEASURED 2026-09-14, hovering the theme toggle and the bell on
+   /campaigns/<id>?section=posts in creatorcore at 1600: the plate resolved to
+   --cc-hover-bg (#EBEEFE, a near-white) while the glyph kept
+   --cc-camp-rail-fg (rgba(255,255,255,0.6)) from the colour list above, which
+   out-specifies `.cc-icon-btn`'s own `color`. White ink on a near-white plate:
+   1.09:1. The icon did not dim on hover, it DISAPPEARED -- the one hover state
+   in the theme that removes information instead of adding it.
+
+   Re-pointing the two tokens fixes the plate, because nothing out-specifies
+   `.cc-icon-btn`'s `background`. The glyph needs the rule below as well: the
+   `svg` arm of that colour list is (0,3,1) and the token re-point cannot reach
+   past it. Both values are the rail's existing hover pair -- the same one every
+   nav row in it already uses -- so the rail keeps one hover language rather
+   than gaining a second. Measured after: plate 1.24:1 on the blue, ink 5.69:1
+   on the plate, and the glyph steps 3.43:1 -> 7.05:1 against the rail. */
+.cc-sidebar-rail[data-shell="campaign"] .cc-rail-utility .cc-icon-btn {
+  --cc-icon-btn-bg-hover: var(--cc-camp-rail-hover-bg);
+  --cc-icon-btn-fg-hover: var(--cc-camp-rail-hover-fg);
+}
+
+.cc-sidebar-rail[data-shell="campaign"] .cc-rail-utility .cc-icon-btn:hover,
+.cc-sidebar-rail[data-shell="campaign"] .cc-rail-utility .cc-icon-btn:hover svg {
+  color: var(--cc-camp-rail-hover-fg);
 }
 
 /* Icons are 18px and full-strength indigo, not the dimmed grey ours uses --
@@ -1293,6 +2388,302 @@
   --cc-fs-page-title: 1.5rem;
   --cc-lh-page-title: 1.25;
   --cc-fw-page-title: 700;
+
+  /* ── The content ramp, measured rather than chosen ──────────────────────
+     A census of every text run on 23 paired surfaces at desktop-1600 (1232
+     runs on theirs, 1819 on ours, rail excluded because the rail already
+     matched) put the two scales side by side:
+
+       size/weight   theirs   ours (before)
+       15 / 400      17.3%      0.5%     <- their body
+       13 / 400       0.4%     11.7%     <- our body
+       18 / 700       8.0%      1.0%     <- their section heading
+       15 / 700       0.9%      3.5%     <- our section heading
+       18 / 400       8.8%      1.6%
+       any / 600      0.0%     16.0%     <- a weight they never use
+
+     Two facts, not opinions. Their body copy is 15px where ours was 13, and
+     they set exactly three weights -- 400, 500 and 700 -- while 600 carried a
+     sixth of our text. Every individual finding this pass produced ("Activity"
+     18->15, "Slack" 18->15, "Integrations" 18->15, the analytics chart titles,
+     the settings section headings) is the same two facts seen one label at a
+     time, which is why they are fixed here once instead of at ~40 call sites.
+
+     The rail is untouched: its own tokens were measured separately and already
+     read 16/400 for nav items and 15/400 for group labels on both sides.
+
+     Fixed px, not the base ramp's clamps, for the reason the page title above
+     is fixed: this is a 1600px canvas that scales by zoom, so a viewport-fluid
+     type ramp would apply the scale twice. */
+  /* The ladder, re-pointed to the sizes measured on their side. Only the rungs
+     that MOVE are listed; the rest resolve to the base px, which the census
+     already found matching. Derivation, from the paired size/weight histogram:
+
+       13 -> 15   their body copy is 15/400 (17.3% of their text) where ours
+                  was 13/400 (11.7% of ours); this rung alone is 421 call sites
+       15 -> 18   their section heading is 18/700 (8.0%); ours was 15/700
+       17 -> 18   folds a two-site rung onto the heading they actually use
+        9 -> 11   they set no 9px text; 11/400 is 6.6% of theirs
+       10 -> 11   same, and our 10/500 (4.4%) has no counterpart at all
+       22 -> 24   their display numbers step 20, 24, 30, 32; ours 22, 26, 28
+       26 -> 30
+       28 -> 32
+
+     11, 12, 14, 16, 18, 20, 24, 30, 32 and 36 are left alone: each is already
+     within a percentage point of its share on their side. */
+  /* 18px at 400, measured on every section heading of theirs -- `Creator Tags`,
+     `Creator Flags`, `Campaign Tags`, `Integrations`, `Campaigns`. Ours read
+     15/600 everywhere, which is the same two facts the type ladder above
+     records, reaching the one heading Tailwind owned rather than an inline
+     style. */
+  /* The two-column section layout and the single-panel stack were both
+     measured on Settings only, so their numbers live in the settings shell
+     block further down rather than here -- SectionCard is also the dashboard's
+     and analytics' chart frame, and a 280px label column there is a layout
+     nobody measured. Only the heading's type is theme-wide: 18px/400 is what
+     their section headings read on Settings AND on the campaign sections. */
+  --cc-section-card-title-fs: 1.125rem;
+  --cc-section-card-title-fw: 400;
+  --cc-section-card-title-tk: normal;
+
+  /* Chart headings only -- see .cc-chart-title for the six measurements that
+     separate a centred chart heading from a left-aligned section heading. */
+  --cc-chart-title-align: center;
+
+  --cc-t-9: 0.6875rem;
+  --cc-t-10: 0.6875rem;
+  --cc-t-13: 0.9375rem;
+  /* THE REVIEW PILL. MEASURED at desktop-1600 on campaign drafts: their three
+     pills sit at 299 / 439.1 / 554.7 on an 8px gap, each 33 tall and fully
+     rounded. The label is inset 34 -- 17, then a 14px glyph, then 3 -- and the
+     pill ends 17 after it, so 'Approved' is 107.7 over a 56.7 label. That
+     label is Lexend Deca 12px/400 to the hundredth (measured 56.66 at 400
+     against 58.81 at 700), which is why the weight drops here rather than
+     staying on --cc-fw-strong like every other control.
+     16, not 17, because box-sizing folds in the 1px border; and the line box is
+     pinned at 15px because the page's 1.5 leading would make 12px text 18 and
+     the pill 36. */
+  --cc-pill-pad: 8px 16px;
+  --cc-pill-r: 999px;
+  --cc-pill-fs: 0.75rem;
+  --cc-pill-fw: 400;
+  --cc-pill-lh: 15px;
+  --cc-pill-glyph-gap: 3px;
+  --cc-pill-align: flex-start;
+  --cc-pill-min-w: 68px;
+  --cc-pill-ink: var(--cc-text);
+  --cc-pill-on-bw: 0;
+  --cc-pill-on-edge: transparent;
+  --cc-pill-on-bg: var(--cc-primary);
+  --cc-pill-on-ink: var(--cc-on-primary);
+  --cc-t-15: 1.125rem;
+  --cc-t-17: 1.125rem;
+  --cc-t-22: 1.5rem;
+  --cc-t-26: 1.875rem;
+  --cc-t-28: 2rem;
+  /* 600 does not exist in their type. 700 is where those runs belong -- it is
+     what they use for every emphatic label, and 500 is already a rung of ours
+     that 600 sites did not choose. */
+  --cc-fw-strong: 700;
+  --cc-fw-black: 700;
+
+  --cc-fs-body: 0.9375rem;
+  --cc-fs-body-sm: 0.875rem;
+  --cc-fs-section-title: 1.125rem;
+  --cc-fs-subtitle: 0.9375rem;
+  --cc-fs-metric: 1.25rem;
+
+  /* Their small label is 12px at 400 in sentence case -- their own column
+     headers read "Creation Date", not "CREATION DATE". Ours was 12px at 600,
+     uppercased and tracked, which is a different typographic voice at the same
+     measured size. */
+  --cc-fw-label: 400;
+  --cc-label-transform: none;
+  --cc-label-tracking: normal;
+
+  /* The reference carries no subtitle under a page title. MEASURED 2026-09-14
+     across 13 paired surfaces at 1600: their header strip is a single title line
+     with 10px of slack (h=40 against a 30px title) on all ten nav surfaces,
+     while ours ran 61-71. Hiding the subtitle lands calendar, requests,
+     recipients and connections EXACTLY on their 40, and moves every other
+     surface toward them.
+
+     This is variant A of three that were measured. Variant B/C additionally
+     dropped the subtitle's grid row, which reaches EXACT on six surfaces instead
+     of four but undershoots on seven by up to 17.5px -- a strip shorter than
+     theirs reads cramped, where +10px merely reads roomy. Pratham chose A.
+
+     Three surfaces cannot be reached by any variant -- discovery (ref 45) and
+     the two settings pages at ref 72 whose best case is 64.5 -- because the
+     reference's own structure differs there. Those are recorded in
+     docs/parity/README.md, not chased.
+
+     Scoped to this theme only: light and dark keep their subtitles. One line to
+     revert. */
+  --cc-page-subtitle-display: none;
+  /* Same mechanism, same reason, for the campaign header's meta line. Their
+     campaign header is title + status and nothing else: MEASURED at
+     desktop-1600 on their Financials, `MONTAGEM KALI` 238,38.3 20/700 over
+     `Complete` 238,73.3 14/400, and the first panel heading at 243,139. Ours
+     carried `15 Aug 2026 · 73 creators · 88 posts` at y=124 in between, which
+     put the same heading at 175 and every campaign tab's content 36px low.
+     The two counts are already on the rail rows (`Creators 73`, `Posts 88`),
+     so this theme loses only the created date; light and dark keep the line. */
+  --cc-page-meta-display: none;
+  /* The micro-label, re-pointed. MEASURED 2026-09-14 at desktop-1600 across the
+     merged census: of the 16 scoreable labels we render at 11px, theirs is
+     14px/400 eleven times, 15px/400 twice, 16px/400 twice and 12px/400 once --
+     `Total Views` and `Total Saves` on the campaign tabs, `Awaiting Approval`
+     and `Awaiting Posting` on Activations, `Creator Rate Totals` on Financials,
+     `Status` on Payouts, `Role` on Settings -> Team. Not one of them is
+     uppercase and not one is bold. 14px is the mode, so that is the size; the
+     rest follows from the same reading. Light and dark keep the small bold
+     uppercase label. */
+  --cc-microlabel-fs: 0.875rem;
+  --cc-microlabel-fw: 400;
+  --cc-microlabel-transform: none;
+  --cc-microlabel-tracking: normal;
+  --cc-microlabel-fg: var(--cc-text-muted);
+  /* Their record-count caption, MEASURED 2026-09-14 on campaigns, clients,
+     creators, lists and recipients -- identical on all five: 15px/400,
+     line-height 18.75px, margin-bottom 5px, sitting flush under the header
+     strip. Their colour is rgba(31, 60, 239, 0.36), which measures 1.89:1 and
+     fails WCAG AA exactly as their rail label does, so this takes the same
+     retuned --cc-text-subtle (0.85) rather than shipping a second instance of
+     a contrast failure the repo's own contrast.spec.ts would fail on. */
+  /* Their caption is a fixed 200px Bubble box. Ours was a full-width block, so
+     the painted text was identical and left-aligned but the BOX differed by a
+     full content width -- which is what report.mjs's box-class guard reads as
+     "different elements". Matching the box makes the comparison honest; nothing
+     moves visually, because the text starts on the same edge either way. */
+  --cc-page-caption-w: 200px;
+  --cc-page-caption-fs: 0.9375rem;
+  --cc-page-caption-lh: 18.75px;
+  --cc-page-caption-mb: 5px;
+  --cc-page-caption-fg: var(--cc-text-faint);
+  /* Their strip uses the palette raw -- Pending rgb(231,173,0), Complete
+     rgb(86,186,87), Canceled rgb(255,0,0) all measured undarkened. */
+  --cc-status-ink-strength: 100%;
+  --cc-payout-banner-display: flex;
+  --cc-act-dash-display: flex;
+  --cc-queue-head-fs: 0.875rem;
+  --cc-queue-head-fw: 400;
+  --cc-queue-head-tk: normal;
+  --cc-queue-head-transform: none;
+  --cc-queue-head-fg: var(--cc-primary);
+  --cc-act-card-title-display: block;
+  --cc-act-overview-display: block;
+  --cc-act-tiles-mb: 0px;
+  --cc-act-deliverables-mb: 0px;
+  --cc-act-slice-1: #1F3CEF;
+  --cc-act-slice-2: #7F95EB;
+  --cc-act-slice-3: #B9C4F5;
+  --cc-act-slice-4: #DCE2FA;
+  --cc-act-slice-5: #F0F3FC;
+  /* MEASURED at desktop-1600. Their campaign analytics carries THREE 434x80
+     panels (Total Views / Avg. Campaign Engagement Rate / Total Engagement) and
+     ours carried four narrower ones, so our rate figure sat at x=924 against
+     their 702; ordering our two extra chips last drops them to a second row and
+     leaves the first row exactly three panels of (1322 - 20) / 3 = 434.
+     Their /clients and /recipients carry no metric tiles at all -- their search
+     box sits directly under the caption at y=89.8 where ours sat at 251.2. */
+  --cc-kpi-extra-order: 2;
+  --cc-listpage-tiles-order: 2;
+  --cc-payout-head-display: block;
+  --cc-paypage-search-h: 40px;
+  --cc-status-neutral-ink: #8E8E8E;
+  --cc-stage-label-fs: var(--cc-t-14);
+  --cc-stage-label-fg: var(--cc-primary);
+  --cc-taxonomy-empty-fg: var(--cc-text);
+  --cc-overview-gap: 27.2px;
+  /* 1px border + 18 = the 19px inset their Activity heading MEASURED at
+     936.6 against a card edge of 917.6. The library nests a padded
+     .ui-card-body inside the padded card, which is where our 49 came from. */
+  --cc-activity-pad: 18px;
+  --cc-activity-body-pad: 0px;
+  --cc-activity-tab-off: rgba(0, 0, 0, 0.5);
+  /* 1px border + 19 = the 20px inset their Post Performance panel MEASURED at
+     243 against a card edge of 223, which also puts the first KPI label on
+     their 258. */
+  --cc-analytics-pad: 19px;
+  --cc-analytics-body-pad: 0px;
+  --cc-analytics-title-mb: 8px;
+  --cc-fin-cols: minmax(0, 681fr) minmax(0, 671fr);
+  --cc-fin-gap: 10px;
+  /* MEASURED, and every number is a gap between two of their rows: their stat
+     banner opens at 87 where ours opened at 66, their card heading sits on 197,
+     the count on 236, the search on 265.8 and the filter labels on 278.3. */
+  /* The top gap is left alone: it collapses against the header's own bottom
+     margin, so only the gap UNDER the stat row can place their heading. */
+  --cc-reqpage-stats-mt: 0px;
+  --cc-reqpage-stats-mb: 42.6px;
+  --cc-reqpage-title-mb: 11.2px;
+  --cc-reqpage-caption-mb: 8.8px;
+  --cc-reqpage-filter-lift: 5px;
+  --cc-reqpage-head-display: block;
+  --cc-reqpage-bar-display: grid;
+  --cc-reqpage-bar-align: center;
+  /* 309.5 search + 367.3 of empty track = the 676.8 that puts their first
+     filter label on 966.8, counted from the 290 text column. */
+  /* minmax(0, ...) not a bare length: the two fixed tracks add up to 667.8px and
+     at 390 they drove the filter strip 598px past the page. The tracks still
+     take their full width wherever there is room, so desktop is unchanged. */
+  --cc-reqpage-bar-cols: var(--cc-reqpage-bar-cols-wide);
+  --cc-reqpage-bar-cols-wide: minmax(0, 309.5px) minmax(0, 358.3px) auto;
+  --cc-reqpage-search-max-w: none;
+  --cc-reqpage-search-mb: 0px;
+  --cc-reqpage-search-order: 0;
+  --cc-reqpage-filter-order: 0;
+  --cc-reqpage-filter-mb: 0px;
+  /* MEASURED on their Financials cards: 'Creator Rate Totals' is 15px/400
+     sentence case at rgba(31,60,239,0.36) -- 140.1 wide, which is Lexend Deca
+     15/400 to the tenth. Ours was an 11px letter-spaced uppercase grey. */
+  --cc-metric-label-fs: 15px;
+  --cc-metric-label-fw: 400;
+  --cc-metric-label-tk: normal;
+  --cc-metric-label-transform: none;
+  --cc-metric-label-fg: var(--cc-text-faint);
+
+  /* List rows: theirs are transparent on a tinted page ground and 90px tall;
+     ours painted white cards at 67. MEASURED 2026-09-14 on `recipients`, the
+     one surface where both sides resolve a real run: their series is 17 rows,
+     rowHeight 90, pitch 90 uniform across all 16 gaps, gapEffective 0, row
+     background rgba(0,0,0,0) over a painted ground of rgb(243,245,252). Ours
+     measured rowHeight 67, pitch 68, painted ground rgb(255,255,255).
+
+     Painting the ROW rather than restyling the card is deliberate: their rows
+     are contiguous (gapEffective 0), so a tinted row butted against the next
+     one paints the same pixels as a tinted ground behind transparent rows, and
+     it does not require unpicking the card wrapper that the injected <style> in
+     RecipientsClient.tsx owns.
+
+     Blast radius, stated because it is wider than the measurement: this re-points
+     every `.cc-table-row` in the creatorcore theme, not only recipients.
+     Recipients is the only surface where the reference resolves a comparable
+     run, so the other tables follow the same decision without an individual
+     measurement behind them. Light and dark are untouched. */
+  --cc-table-row-bg: rgb(243, 245, 252);
+  --cc-table-row-min-h: 90px;
+  /* Their row label is 700 against our 600 -- `rest.fontWeight` in the probe,
+     which reads the first text-bearing descendant of the row (the recipient
+     name), not the row wrapper. */
+  --cc-list-row-name-fw: 700;
+  /* Their list is full-bleed and ours is not. MEASURED on `recipients`: their
+     rows are 1310px wide at x=270 with padding 0, ours 1260.9 at x=291 with
+     14px/24px. Their row therefore starts 21px LEFT of their own header strip
+     (x=291) and ends 26.1px right of it -- their list does not line up with
+     their own page header, and matching them reproduces that misalignment
+     deliberately. Pratham chose this with the tradeoff stated.
+
+     22/27.1 rather than the 21/26.1 the raw subtraction gives: measured, the
+     first pair landed the row at 271..1579 against their 270..1580, one pixel
+     short at each edge. The extra pixel is not a fudge -- it closes rect.w to
+     within 0.5px, which is the threshold `geomMatch` uses to recognise that two
+     boxes are the same box built differently, and that is what lets the row's
+     display/flex/grid properties classify as mechanism instead of drift. */
+  --cc-list-bleed-start: 22px;
+  --cc-list-bleed-end: 27.1px;
+  --cc-table-row-pad: 0px;
 }
 
 /* MEASURED: their header strip is exactly as tall as the button inside it --
@@ -1304,12 +2695,47 @@
    No JSX changes to say that. The heading block dissolves, the title and the
    subtitle become items of the header's own grid, and the areas put them on
    different rows -- the mechanism the header tokens were built for. */
-:root.creatorcore .rsp-header {
-  --cc-heading-display: contents;
+/* The header's box, on the THEME ROOT rather than on .rsp-header -- the same
+   law the note at the --cc-header-gap trap records, and the same trap sprung
+   again: these five sat in the `:root.creatorcore .rsp-header` block below, and
+   a token declared on the target element out-inherits one declared on any
+   ancestor, so the settings shell's own `--cc-header-gap: 0px` (set on
+   .cc-shell-root, measured on their settings strip at 768 AND 390) never
+   reached the header. Only --cc-heading-display and --cc-page-title-mb stay on
+   the element, because those two are deliberately scoped: the first must not
+   dissolve headings outside the strip, the second must not zero the campaign
+   titlebar's title margin. */
+:root.creatorcore {
   --cc-header-display: grid;
-  --cc-header-areas: "title actions" "subtitle subtitle";
+  /* ONE row, not two. The two-row version gave the subtitle its own row -- but
+     this theme hides the subtitle entirely (--cc-page-subtitle-display: none),
+     so row 2 is a 0px row that still pays the 10px row-gap between them.
+     MEASURED 2026-09-14, live, grid-template-rows computed as `40px 0px` with
+     rowGap 10px: the strip stood 10px taller than its content on every surface
+     that renders a subtitle. Their strip is 40px flat; ours was actions-row+10,
+     i.e. 50 where the actions row is 40 and 40 where it is 30. Dropping the
+     dead row and putting the 40 on --cc-header-minh instead matched 11 of the
+     12 probed surfaces exactly and cut total height deviation from 72.5px to
+     5px, the remainder being `discovery` alone (theirs 45, ours 40). */
+  --cc-header-areas: "title actions";
   --cc-header-cols: minmax(0, 1fr) auto;
   --cc-header-align: center;
+  /* MEASURED: their header strip gaps at 10px, ours at 12px (--cc-sp-6), on all
+     10 surfaces the diff could pair. --cc-sp-5 is 0.625rem = 10px, so this rides
+     the existing ramp rather than hardcoding a literal, and it keeps following
+     --cc-density like every other spacing token. */
+  --cc-header-gap: var(--cc-sp-5);
+}
+
+:root.creatorcore .rsp-header {
+  --cc-heading-display: contents;
+  /* NOT re-pointed. Setting it to 0 to match `discovery` was measured and
+     reverted: it closed discovery and opened activations, because their own
+     row gap is inconsistent (`10px`, `0px 10px`, `normal`, `5px 0px` across
+     15 surfaces). The row axis paints nothing on this theme's single-row
+     header either way, so it is an ACCEPTED report rather than a value to
+     chase. Ours stays at their most common 10px, inherited from
+     --cc-header-gap. */
   /* The title's bottom margin existed to separate it from the subtitle stacked
      under it. On its own grid row the subtitle no longer needs it, and leaving
      it in shifts the title 2px up, because centring a grid item centres its
@@ -1322,6 +2748,88 @@
    reads the rail's own attribute rather than routing the same fact twice. */
 :root.creatorcore .cc-shell-root:has(.cc-sidebar-rail[data-shell="campaign"]) {
   --cc-fs-page-title: 1.25rem;
+  /* The rail is 13% here, not the dashboard's 15.31%, and the content starts
+     where the rail ends plus their 15px gutter: MEASURED, their campaign header
+     card is x=223 w=1362 at 1600, and 208 + 15 = 223, 1600 - 15 = 1585,
+     1585 - 223 = 1362. Declared on the shell root so the rail and the content
+     column take the same number from one place. */
+  --cc-sidebar-w: 13%;
+  --cc-rail-card-w: 13%;
+  --cc-rail-inset-x: 0px;
+  --cc-page-pad-inline: 15px;
+  --cc-page-pad-end: 15px;
+  /* 15px, not the dashboard's 26. MEASURED 2026-09-14 by census at
+     desktop-1600: their campaign header card is x=223 y=15 w=1362 h=100 and
+     ours was the same box at y=26, so everything inside it -- the title, the
+     three buttons, the close, and by knock-on the KPI strip below -- sat 11px
+     low on every campaign section.
+
+     26 is right where it was measured and wrong here. That number came from
+     their DASHBOARD, where the `header-strip` landmark resolves to the action
+     row (their New Campaign is at y=26) and we have no card, so our buttons
+     land at 26 and match. The campaign shell does have a card, so the same
+     padding pushes the card instead of the buttons, and the card's own 27.5px
+     centring (100 - 45)/2 then carries the error inward. Their two shells
+     genuinely differ: dashboard card at y=15 with contents at 26, campaign
+     card at y=15 with contents at 42.5. */
+  --cc-page-pad-top: 15px;
+  /* Two rows, not one. MEASURED at desktop-1600: title x=238 y=38.3 20px/700
+     indigo, status x=238 y=73.3 14px/400 rgb(172,185,246) directly under it.
+     Stacking is the whole change -- the x, the size and the weight of the
+     title already matched. */
+  --cc-titleblock-dir: column;
+  --cc-titleblock-align: flex-start;
+  --cc-titleblock-gap: 10px;
+  --cc-camp-status-fs: 0.875rem;
+  --cc-camp-status-fw: 400;
+  --cc-camp-status-fg: #ACB9F6;
+  /* The primary paints LAST here, unlike the dashboard.
+     MEASURED at desktop-1600: their campaign header cluster reads
+     [Share Campaign x=896, Refresh Data x=1117, Add Posts x=1332, close x=1544],
+     so the create action is the last real button, while on their /campaigns
+     LIST the cluster is [New Campaign, Folders] and the create action leads.
+     --cc-order-primary is -1 on the theme root for that list; 0 restores DOM
+     order for this shell. One token, no JSX, and the same five campaign
+     sections all take it. */
+  --cc-order-primary: 0;
+  /* MEASURED at desktop-1600 off the reference's own header card: Refresh Data
+     1117..1316.5, Add Posts 1332..1531.5, close box 1542..1570 (a 16px glyph at
+     1548..1563.5 centred in 28px), card inner edge 1570. That is 15.5px between
+     the two actions and 10.5px between the cluster and the close.
+
+     The titlebar gap is here rather than left at the base 12px because the
+     close is a SIBLING of the action cluster, so the row's own column-gap is
+     what separates them -- 12 + a 10px margin put the close 22px out and
+     dragged both buttons 12px left of their marks. Setting the row gap to 10
+     and the close margin to 0 lands all three. Nothing is lost by moving it:
+     their title block is two ROWS (title, then `In-Progress` as a caption
+     under it), so this row's column gap has no counterpart to match. */
+  --cc-page-titlebar-gap: 10px;
+  --cc-actions-gap: 15px;
+  --cc-page-close-ml: 0px;
+  /* Their campaign header is a CARD, where the dashboard's is a bare strip:
+     white, 10px radius, 10px/15px padding, 100px tall, spanning the full
+     content width. Measured identical on all seven paired campaign surfaces. */
+  --cc-page-titlebar-bg: var(--card);
+  --cc-page-titlebar-r: 10px;
+  --cc-page-titlebar-pad: 10px 15px;
+  --cc-page-titlebar-minh: 100px;
+  /* The dashboard header already zeroes this on .rsp-header; the campaign
+     titlebar is not an .rsp-header, so it kept the 4px and reported it on all
+     seven paired surfaces. Their title has no bottom margin on any of them. */
+  --cc-page-title-mb: 0px;
+  /* MEASURED: with the meta line hidden their first piece of tab content sits
+     at y=134 on every campaign tab -- the Financials tiles, the Overview
+     heading at 139, the Posts filter row -- and the card ends at 118, so the
+     gap under it is 16 and not the base 8. */
+  --cc-page-titlebar-mb: 16px;
+  /* Their campaign tab strips are bare pills on the page ground, where the
+     dashboard's list-page strip is a white card (MEASURED: campaigns 1262.9x47
+     r=10 against the Posts filter row's 293,134 99x32 with nothing painted
+     behind it). Same component, two treatments, so the shell decides. */
+  --cc-tabs-bg: transparent;
+  --cc-tabs-pad: 0px;
+  --cc-tabs-r: 0px;
 }
 
 /* And the settings shell is a THIRD style, not a variation on the other two:
@@ -1334,10 +2842,462 @@
    This was mis-read once as a resolver landing on a section sub-heading. It is
    not: the resolver returns "General Settings" with candidateCount 1. Their
    settings screen is genuinely quieter than their list screens. */
+/* The dashboard shell's header sits 32px above its content; theirs sits on it.
+   MEASURED 2026-09-14 at 1600, dumping every element below the header strip on
+   both sides rather than guessing a predicate (two earlier scans disagreed with
+   each other precisely because the predicate was guessed):
+
+     ref  campaigns  strip bottom 66     -> "4 Active Campaigns" at 70    gap 4
+     ref  clients    strip bottom 66     -> "2 Clients"          at 66    gap 0
+     ours campaigns  strip bottom 116.5  -> toolbar row          at 148.5 gap 32
+     ours clients    strip bottom 116.5  -> stat cards           at 148.5 gap 32
+
+   So the 32px is real and it paints -- this is NOT a mechanism finding, and the
+   8 `page.header-strip :: marginBottom` rows were right. An earlier scan reported
+   ref gap 31.8 and nearly had me accept them; it had skipped the caption and
+   landed on the filter group 32px lower.
+
+   Scoped to the dashboard shell, not the theme root: the settings shell already
+   re-points this to 0 a few rules below, and the CAMPAIGN shell reports no
+   marginBottom finding at all, so it has no measurement behind it and is left
+   alone rather than changed blind. */
+:root.creatorcore .cc-shell-root:has(.cc-sidebar-rail[data-shell="dashboard"]) {
+  --cc-header-mb: 0px;
+  /* 6px between the two actions, not the base 10. MEASURED at desktop-1600 on
+     their /campaigns: New Campaign 1188..1368 and Folders 1374..1554, both
+     180x40, right edge 1554. Ours right-aligned to the same 1553.9 but with a
+     10px gap, which put the primary at 1183.9 -- the whole 4.1px difference the
+     harness was reporting on that button. The campaign shell keeps its own 15,
+     which is measured separately on their campaign header. */
+  --cc-actions-gap: 6px;
+  /* Their status strip spans the page card, 270..1575, where the content
+     column it sits under starts at 291 and stops at 1553.9. That 21px is the
+     page gutter, so the strip claims it by sitting in the bleed tracks. */
+  --cc-page-bleed-l: 21px;
+  --cc-page-bleed-r: 21.1px;
+  /* Search row 89.8..134.8, sort row under it, strip at 202.8. */
+  --cc-list-searchrow-mb: 11px;
+  --cc-list-sortrow-mb: 16px;
+  --cc-list-sortrow-justify: flex-start;
+  /* Their dashboard pill is 15px of padding, an 18px status glyph, 8px, the
+     label, 15px, with a 100px floor -- 111.5 for Pending, 120.9 for Complete,
+     118.9 for Canceled, 100 for Active and for All, which carries no glyph at
+     all, and 28 tall: 5 + 18 + 5. Ours carried a 14px glyph on every pill and a
+     count badge after the label, which made each one 30-50px too wide and
+     pushed every label further right than the last.
+
+     Dashboard shell only. MEASURED on their campaign Posts tab the same filter
+     strip is 32 tall at 12px/400 -- a different strip, not this one -- and
+     setting these on the theme root shrank ours there by 4px, which carried the
+     KPI row up with it and moved all nine of its labels. */
+  --cc-tab-min-w: 100px;
+  --cc-tab-lh: 18px;
+  --cc-tab-icon-size: 18px;
+  --cc-tab-justify: center;
+}
+
+:root.creatorcore .cc-shell-root:has(.cc-sidebar-rail[data-shell="dashboard"]) .cc-tab-count,
+:root.creatorcore .cc-shell-root:has(.cc-sidebar-rail[data-shell="dashboard"]) .cc-tabs > .cc-tab:first-child > svg {
+  display: none;
+}
+
 :root.creatorcore .cc-shell-root:has(.cc-sidebar-rail[data-shell="settings"]) {
   --cc-fs-page-title: 1.125rem;
   --cc-fw-page-title: 400;
   --cc-fg-page-title: var(--cc-text-ink);
+  /* 16px, not the dashboard's 26. MEASURED at desktop-1600: their settings
+     header card is x=291 y=16 and ours was the same box at y=26, which carried
+     10px into every card below it. This shell is exempt from the body zoom, so
+     the number is 1:1 at every width. */
+  --cc-page-pad-top: 16px;
+  /* Their section action is a filled brand button, 163.3x36 with a 13px/400
+     white label -- the same "Add X" the dashboard header uses, not the outline
+     secondary ours painted at 146.9x30. Re-pointing the secondary skin for this
+     one slot keeps the JSX on `variant="secondary"`, which is what it is in
+     light and dark. */
+  --cc-section-action-h: 36px;
+  --cc-section-action-fs: 0.8125rem;
+  --cc-section-action-fw: 400;
+  /* Their label starts 16px inside the button and leaves 44px to its right --
+     16 of padding plus a 14px glyph plus the 14px gap between them, which is
+     where the glyph-after-label order comes from. Same finding as the action
+     cluster in the page header, on a different button. */
+  --cc-section-action-pad-x: 16px;
+  --cc-section-action-gap: 14px;
+  --cc-section-action-border-w: 0px;
+  --cc-section-action-icon-order: 1;
+
+  /* SETTINGS LAYS SECTIONS OUT IN TWO COLUMNS, AND THE STACK IS THE CARD.
+     Both numbers below are measured on this shell only -- SectionCard is also
+     the dashboard's and analytics' chart frame, where a 280px label column is
+     a layout nobody measured, which is why these do not sit in :root.creatorcore.
+
+     280px = 603 - 323, their label column; 32px of stack padding puts the
+     heading at 291 + 32 = 323, which is where theirs is; the row itself then
+     carries `32px 0` so the rows stay flush to the card's inner edges and the
+     32px reappears above and below each one (their row 1 runs 161..376.5 with
+     its heading at 193 and its action ending at 343.5). */
+  --cc-section-label-w: 280px;
+  --cc-section-card-pad: 32px 0;
+  --cc-section-action-mt: 24px;
+  --cc-section-stack-gap: 0px;
+  --cc-section-stack-bg: var(--cc-card);
+  --cc-section-stack-pad: 32px;
+  --cc-section-stack-r: 10px;
+  --cc-section-stack-title-display: block;
+  --cc-section-stack-title-fs: 1.25rem;
+  --cc-section-stack-title-fw: 400;
+  --cc-section-desc-w: 240px;
+  --cc-section-desc-lh: 15px;
+  --cc-section-head-gap: 9px;
+  --cc-section-card-solo-pad: 32px;
+  --cc-taxonomy-pad: 9px;
+  --cc-taxonomy-gap: 8px;
+  --cc-chip-pad: 3px 6px;
+  --cc-chip-gap: 12px;
+  --cc-chip-emoji-fs: 0.75rem;
+  --cc-chip-emoji-fw: 500;
+  --cc-chip-emoji-gap: 5px;
+  --cc-chip-action-gap: 3px;
+  --cc-chip-icon-size: 15px;
+  --cc-chip-border-w: 0px;
+
+  /* THE SETTINGS ROW. MEASURED at desktop-1600.
+
+     Notifications: content card 291,104 1293x276 -> rows run 136..380 inside
+     32px of card padding, with NO rule between them:
+       row 1  136..196   title 603,135  18/500   desc 603,162.5 14/400
+       row 2  196..272   title 603,211           desc 603,238.5
+       row 3  272..348   title 603,287           desc 603,314.5
+     so 15px above and below each row, none above the first, and 4.5px between
+     a title's glyph box and its description. Ours was 14/600 titles over
+     12.5px descriptions in an 8px row with a hairline under every one.
+
+     Integrations: content card 291,104 1293x142 -> one row 136..214, 17px
+     above and below a 44px CTA; logo 628,161 28x28 and name 668,162.8 18/400,
+     i.e. 25px in from the column's 603 and 12px between the two; the pill ends
+     at 1527, 25px short of 1552. */
+  --cc-pref-rows-gap: 0px;
+  --cc-pref-row-pad-y: 16px;
+  --cc-pref-row-pad-y-first: 0px;
+  --cc-pref-row-rule-w: 0px;
+  --cc-pref-row-text-gap: 6px;
+  --cc-pref-title-fs: 1.125rem;
+  --cc-pref-title-fw: 500;
+  --cc-pref-title-lh: 21px;
+  --cc-pref-desc-fs: 0.875rem;
+  --cc-pref-desc-lh: 17px;
+  --cc-provider-row-pad-y: 17px;
+  --cc-provider-row-pad-x: 25px;
+  --cc-provider-logo-size: 28px;
+  --cc-provider-name-fs: 1.125rem;
+  --cc-provider-name-fw: 400;
+  --cc-provider-cta-h: 44px;
+  --cc-provider-cta-r: 70px;
+  --cc-provider-cta-fs: 0.9375rem;
+  --cc-provider-cta-fw: 600;
+  --cc-provider-cta-pad-x: 24px;
+
+  /* MEASURED on all five reference settings surfaces, identical on each:
+     background rgb(255,255,255), border-radius 10px, padding 16px on all four
+     sides, border 0, box-shadow none. Ours was transparent with no padding --
+     10 of the 44 remaining real differences, and the largest coherent one.
+     --card is the same #FFFFFF their card uses, so this rides the palette
+     rather than restating a literal.
+
+     --cc-header-mb is 16px. The note that used to sit here said 0px, because
+     it compared the `margin-bottom` PROPERTY -- theirs computes 0 -- and read
+     the +14px content shift as damage. That is the same mistake this harness
+     keeps catching: it compared how the space is produced instead of whether
+     the space is painted. The page.content-top landmark measures the painted
+     gap between the header's bottom edge and the first in-flow content, and on
+     all five reference settings surfaces that gap is 16px while ours was 0.
+     They get it from the following element, we take it from the header's
+     margin; the pixels are what has to agree. */
+  --cc-header-bg: var(--card);
+  --cc-header-pad: 16px;
+  --cc-header-radius: 10px;
+  --cc-header-mb: 16px;
+  /* 72 = the 40px floor the rest of the theme uses plus this card's own 16px
+     top and bottom padding. MEASURED: their five settings strips are 72px on
+     all five, while ours were 64.5 on three and 82 on two. */
+  --cc-header-minh: 72px;
+  /* MEASURED at 1600: on the DASHBOARD shell both sides leave a 46px right
+     gutter and agree to 0.1px (their 1263 vs our 1262.9). On the SETTINGS
+     shell theirs narrows to 16px while ours stayed 46.1, which is the whole of
+     the 30.1px width gap reported on all five paired settings surfaces.
+     1355 - 46.06 (start, unchanged) - 16 = 1292.9, against their 1293. Only
+     the END side moves; the start stays put, so the content's left edge and
+     every x-coordinate under it are untouched. */
+  --cc-page-pad-end: 16px;
+  /* MEASURED on their settings strip at 1600, 1440, 768 and 390 alike:
+     columnGap 0, rowGap 5 (`gap: 5px 0px`). These two used to live only in the
+     `max-width: 1023px` block, which is why the same 0px column gap that
+     matched at 768 read 10px against their 0px on all five paired settings
+     surfaces at 1440. Our header is a two-column grid whose first column is
+     minmax(0, 1fr), so dropping the column gap to 0 hands those 10px to the
+     title column and moves no other box -- the action keeps its right edge. */
+  --cc-header-gap: 0px;
+  --cc-header-row-gap: 5px;
+}
+
+/* FIXED px, because the settings shell is the one surface their canvas does NOT
+   zoom (measured: `getComputedStyle(document.body).zoom` reads 1 on
+   settings-team and settings-general at 1600, 1440 AND 1200, while
+   campaigns/recipients/calendar read 0.9 and 0.85). With no zoom to absorb it, a
+   percentage rail shrinks with the viewport while theirs does not: MEASURED,
+   their settings.nav is x=12 w=251 and their header strip x=291 at BOTH 1600 and
+   1440, so their left chrome is a constant 291px and only the right edge moves
+   (w 1293 -> 1133 = the 160px viewport delta, exactly). Ours was 15.31% + 3.4%,
+   which lands on 291.03 at 1600 -- which is why the one width being checked
+   paired to 0.1px -- and on 261.9 at 1440, a 29.1px error that moved every
+   x-coordinate under it. 245 + 46 = 291 reproduces the 1600 reading and holds it
+   at every width; the rail card and its inset are pinned to the widths they
+   resolved to at 1600 for the same reason.
+
+   Above the rail's own breakpoint only: below 1024 their rail is not in the DOM
+   and ours is a drawer, whose width comes from the base --cc-sidebar-w: 260px.
+   Pinning 245 unconditionally would have narrowed that drawer by 15px at tablet
+   and phone to fix a desktop bug. */
+@media (min-width: 1024px) {
+  :root.creatorcore .cc-shell-root:has(.cc-sidebar-rail[data-shell="settings"]) {
+    --cc-sidebar-w: 245px;
+    --cc-page-pad-inline: 46px;
+    --cc-rail-card-w: 240px;
+    --cc-rail-inset-x: 10px;
+  }
+}
+
+/* The campaign shell's 13% has the bug the note above describes, in the other
+   direction: below 1024 our rail is a DRAWER, and 13% of a 390px phone is a
+   50.7px drawer -- the nav counts ("Creators 73", "Posts 88") and the user
+   avatar all painted outside it. The settings shell avoids this by pinning its
+   numbers inside a min-width query; this restores the drawer width the same
+   way, at the same breakpoint, using the theme's own base 260px.
+   MEASURED 2026-09-15: rail 50.7px at 390 before, 260px after. */
+@media (max-width: 1023px) {
+  :root.creatorcore .cc-shell-root:has(.cc-sidebar-rail[data-shell="campaign"]) {
+    --cc-sidebar-w: 260px;
+    --cc-rail-card-w: 260px;
+  }
+}
+
+/* ── tablet-768: their responsive step is a different set of numbers, not a
+   scaled-down copy of the desktop one ──────────────────────────────────────
+
+   Every value below was read off the reference capture
+   `2026-09-14T08-26-29` at 768x1024, and every one of them is a MODE across
+   their own surfaces, not a single page's reading -- their Bubble pages
+   disagree with each other by a few px at this width, so the mode is the only
+   defensible target and report.mjs's reference-outlier rule re-buckets the
+   stragglers once we sit on it.
+
+     page gutter, dashboard shell   31px on clients, recipients, activations,
+                                    connections, requests (5/8) and 30 on
+                                    calendar; 21 on creators and lists.
+                                    706 = 768 - 31 - 31.
+     page gutter, settings shell    10px on all five settings surfaces, so 748.
+     header strip height            45 on 9 of 10 dashboard surfaces (clients
+                                    is the 50), against our desktop floor of 40.
+     settings header card           65px tall on 4 of 5 (team is the 110),
+                                    10px padding on 5 of 5, gap `5px 0px`.
+     list row bleed                 their recipients row is x=10 w=748, i.e. it
+                                    bleeds out to 10px from each viewport edge
+                                    rather than to the page gutter. With a 31px
+                                    gutter that is a 21px bleed on both sides.
+
+   The top padding is deliberately NOT re-pointed: our mobile top bar is on
+   below 1024 (it carries the only trigger for the nav drawer) so our header
+   starts at y=77.8 against their 31-36, and that offset is a structural
+   difference already argued at --cc-topbar-display, not a spacing one. Every
+   landmark below the header is compared relative to it, so it costs nothing. */
+@media (max-width: 1023px) {
+  :root.creatorcore {
+    --cc-page-pad-inline: 31px;
+    --cc-page-pad-end: 31px;
+    --cc-header-minh: 45px;
+    /* Their caption sits 0, 4, 8, 10 and 10px under the header strip on the
+       five list pages that render one -- no mode clears 60%, so there is no
+       value that matches them all. 8px is their MEDIAN and lands within 2px of
+       three of the five; it is the choice that leaves no reading further than
+       8px away, which is the boundary between a medium finding and a high one.
+       At desktop this stays 0, which is what they measure there. */
+    --cc-page-caption-mt: 8px;
+    /* 22, not the 21 the arithmetic suggests. MEASURED: a 21px bleed landed
+       the row at x=11 w=746 against their x=10 w=748 -- the scroll container
+       gives up 1px on each side to the `min-width` floor it carries, so the
+       declared bleed is always 1px more than the distance travelled. 22 lands
+       10/748 exactly. */
+    --cc-list-bleed-start: 22px;
+    --cc-list-bleed-end: 22px;
+  }
+
+  /* Their campaign card at this width: x=10 w=748 (so 10px gutters, not the
+     desktop shell's 15), 100px tall, 20px radius, 10px padding on all four
+     sides. Measured on both campaign surfaces that resolve on both sides at
+     768. The min-height carries over from the desktop block unchanged -- it is
+     100 at both widths. */
+  :root.creatorcore .cc-shell-root:has(.cc-sidebar-rail[data-shell="campaign"]) {
+    --cc-page-pad-inline: 10px;
+    --cc-page-pad-end: 10px;
+    --cc-page-titlebar-r: 20px;
+    --cc-page-titlebar-pad: 10px;
+  }
+
+  :root.creatorcore .cc-shell-root:has(.cc-sidebar-rail[data-shell="settings"]) {
+    --cc-page-pad-inline: 10px;
+    --cc-page-pad-end: 10px;
+    --cc-header-pad: 10px;
+    --cc-header-minh: 65px;
+    /* `5px 0px`: the row axis is 5 and the COLUMN axis is 0. Our header is a
+       two-column grid whose first column is minmax(0, 1fr), so dropping the
+       column gap to 0 hands those 10px to the title column and moves no other
+       box -- the action sits at the same right edge either way. */
+    --cc-header-gap: 0px;
+    --cc-header-row-gap: 5px;
+  }
+}
+
+/* ── mobile-390: their action becomes an icon, and the campaign card goes ──
+
+   MEASURED on the reference capture `2026-09-14T09-24-38` at 390x844.
+
+   THE ACTION. page.primary-action resolves on none of their dashboard surfaces
+   at this width, and the screenshot says why: the labelled 180px button becomes
+   a ~45px CIRCLE holding just the plus, sitting on the title row beside their
+   folder, bell and menu buttons. Ours kept the full 180x44 pill, and in a 328px
+   column that is not a cosmetic difference -- it is a broken header. Measured,
+   before this block: `campaigns` wrapped the header grid to two rows and stood
+   86px against their 45, and `calendar` gave the title column 1.5px, so the
+   page title was gone. Two settings titles wrapped to 45px against their 22.5
+   for the same reason.
+
+   `font-size: 0` is what drops the label without touching twenty call sites.
+   The actions slot takes arbitrary JSX from each page -- there is no label
+   element to hide -- and the text stays in the DOM, so the button keeps its
+   accessible name. The icons are lucide, which writes width/height as
+   ATTRIBUTES, so they are unaffected by the font-size.
+
+   THE CAMPAIGN CARD. Their campaign header is a white 10px-radius card at 1600
+   and a white 20px-radius card at 768, and at 390 it is not a card at all:
+   x=20 w=350 h=53.5, transparent, no padding, no radius, on all three campaign
+   surfaces that resolve. 350 = 390 - 20 - 20. */
+@media (max-width: 767px) {
+  /* The two-column grid is a DESKTOP shape and it breaks on a phone. MEASURED
+     live at 390: `minmax(0, 1fr) auto` gave the actions track 316.5px on
+     /calendar and 318px on /campaigns -- the range picker and the folder tabs
+     are simply wider than the 328px column -- which left the 1fr title track
+     1.45px and 0px respectively, so the page title was painted as a sliver.
+     Their own strip is a WRAPPING FLEX ROW below the tablet breakpoint (flex,
+     wrap, space-between, title 103.5px wide on /campaigns), which is exactly
+     what the base tokens already describe, so this reverts to them rather than
+     inventing a third shape. Above 768 the grid stays: that is where it was
+     measured and where it is at parity. */
+  :root.creatorcore {
+    --cc-header-display: flex;
+    /* The grid's two tracks go with it. `.rsp-header` declares
+       grid-template-columns and -areas unconditionally, and a grid property on
+       a flex container is inert but still COMPUTES -- it reported as
+       `minmax(0px, 1fr) auto` against their `none` on nine surfaces the moment
+       the display token flipped. Re-point the tokens rather than drop the
+       declarations: the grid is still the desktop shape. */
+    --cc-header-cols: none;
+    --cc-header-areas: none;
+  }
+
+  /* The two box tokens are NOT re-pointed here -- see the mobile-first note
+     above; a token block in this media query is outranked by the injected theme
+     sheet. Only element rules, which nothing downstream contradicts, belong in
+     here. `min-height` is listed because the ui library's .ui-btn-sm sets one:
+     `height` alone loses to it and the button stayed 44px tall. */
+  :root.creatorcore .cc-page-actions > [data-cc-slot="primary"] {
+    width: var(--cc-action-h);
+    min-height: var(--cc-action-h);
+    padding: 0;
+    gap: 0;
+    border-radius: 50%;
+    font-size: 0;
+  }
+
+  :root.creatorcore .cc-shell-root:has(.cc-sidebar-rail[data-shell="campaign"]) {
+    --cc-page-pad-inline: 20px;
+    --cc-page-pad-end: 20px;
+    --cc-page-titlebar-bg: transparent;
+    --cc-page-titlebar-r: 0px;
+    --cc-page-titlebar-pad: 0px;
+    --cc-page-titlebar-minh: 0px;
+    /* MEASURED on their campaign header at 390: gap `10px 20px` and no bottom
+       margin, on all three reference campaign surfaces that resolve the
+       landmark. Both are plain box values with no content dependency, unlike
+       the justify-content and the strip height on the same element -- those two
+       are driven by the drawer trigger and close button their strip carries and
+       ours does not, and are recorded in report.mjs ACCEPTED instead. */
+    --cc-page-titlebar-gap: 10px 20px;
+    /* 10px, which is NOT their declaration -- their strip carries
+       margin-bottom 0 and the 10px gap comes from the content block below it.
+       The painted distance is the thing: MEASURED, page.content-top sits 10px
+       under the strip on their side, and matching their 0 put ours flush at
+       0px, which is a visible difference where the margin declaration is not.
+       Same pixels by a different mechanism, the case report.mjs already accepts
+       for the rail's padding-vs-margin gap; the declaration is recorded there
+       so the trade stays visible rather than silently passing. */
+    --cc-page-titlebar-mb: 10px;
+  }
+}
+
+/* THE DESKTOP CANVAS IS SCALED, NOT REFLOWED -- and this is one declaration
+   standing in for 150 findings.
+
+   MEASURED 2026-09-14 by reading `getComputedStyle(document.body).zoom` on the
+   reference at nine widths:
+
+       1920 1700 1600 -> 1        1500 1440 1280 -> 0.9       1200 1100 1024 -> 0.85
+
+   Their page is authored at a fixed 1600px canvas and Bubble zooms it to fit
+   anything narrower, in two steps. That is why a diff of desktop-1600 against
+   desktop-1440 found EVERY box at exactly 0.9x -- rail 970->873, nav row
+   40->36, pitch 48->43.19, header strip 100->90 and 40->36, page title line
+   30->27 and 25->22.5, campaign rail row 50->45 -- while not one COMPUTED
+   style differed between the two runs. A zoomed page reports its unscaled
+   declarations and paints them scaled, so chasing those numbers property by
+   property would have meant converting the whole vertical ramp to vw and still
+   missing every text-driven width, which does not scale with a token.
+
+   `zoom` reproduces it exactly and for free: inside the zoomed body the layout
+   width becomes 1600 again at 1440 (1440 / 0.9) and 1412 at 1200, so the
+   ratios, the vw tokens and the fixed rail all resolve against the same canvas
+   they were measured on. Chrome confirms the rail arithmetic: bottom:15px in a
+   1000px layout viewport paints 873px tall at 1440, which is their number.
+
+   Scoped to the creatorcore theme alone. Our own light and dark themes reflow
+   rather than scale, which is the better behaviour for a product; this exists
+   because the theme's job is to reproduce CreatorCore, and their canvas is
+   fixed. The band edges are their measured edges, not round numbers of ours.
+   Below 1024 there is no zoom on either side -- their phone and tablet layouts
+   are real layouts, not scaled ones.
+
+   AND THE SETTINGS PAGES ARE EXEMPT, measured the same way: body zoom on
+   /settings/team and /settings (general) reads 1 at 1600, 1440 AND 1200, while
+   /campaigns, /recipients, /calendar and a campaign sub-tab all read
+   0.9 / 0.85 at the same widths. They are a separate Bubble page with its own
+   canvas. That exemption is not cosmetic -- it is the whole reason their
+   settings strip measures 72px and their settings title 22.5px at both 1600
+   and 1440 while every dashboard number scales, which read as `ratio=1.0000`
+   rows in the 1600-vs-1440 diff and as five high findings the moment ours
+   zoomed. `:not(:has(...))` on body selects it: the rail is the only node that
+   knows which shell it is, and it already carries data-shell. */
+@media (min-width: 1280px) and (max-width: 1599.98px) {
+  :root.creatorcore body:not(:has(.cc-sidebar-rail[data-shell="settings"])) {
+    zoom: 0.9;
+    --cc-zoom: 0.9;
+  }
+}
+
+@media (min-width: 1024px) and (max-width: 1279.98px) {
+  :root.creatorcore body:not(:has(.cc-sidebar-rail[data-shell="settings"])) {
+    zoom: 0.85;
+    --cc-zoom: 0.85;
+  }
 }
 
 body {
@@ -1352,7 +3312,7 @@ body {
 
 /* ── Typographic hierarchy (Geist): tight display tracking, balanced wrapping ── */
 h1, h2, h3, h4, h5, h6 {
-  letter-spacing: -0.02em;
+  letter-spacing: var(--cc-heading-tk);
   line-height: 1.2;
   text-wrap: balance;
 }
@@ -1454,7 +3414,7 @@ h1, h2, h3, h4, h5, h6 {
   padding: 9px 14px;
   border-radius: 10px;
   transition: all 0.15s ease;
-  font-size: 13.5px;
+  font-size: var(--cc-nav-item-fs);
   font-weight: 500;
   color: var(--cc-text);
   text-decoration: none;
@@ -1520,6 +3480,849 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 /* ── Stat card enhancements ── */
+/* ── Campaign KPI strip ───────────────────────────────────────────────────
+   MEASURED 2026-09-14 at desktop-1600 by a full-page census of both sides on
+   the campaign Posts tab. Theirs and ours start at the same x (223), and
+   everything after that differed:
+
+     |            | theirs              | ours (before)        |
+     | chips      | 10                  | 9 (no Downloads)     |
+     | box        | 132.7 x 75, r 20px  | 104-157 x 58.5, r 8  |
+     | fill       | rgb(165, 58, 218)   | rgb(31, 60, 239)     |
+     | gap        | 5px                 | 8px                  |
+     | label      | 14px / 400 / #fff   | 11px / 400 / 85%     |
+     | value      | 18px / 700          | 16px / 700           |
+     | right edge | 1585                | 1320.2               |
+
+   The width is the load-bearing one: theirs are equal-width flex children that
+   fill the column, ours were content-sized, so eight chips stopped 265px short
+   of the edge and the strip read as a huddle of pills rather than a band. The
+   fill is not --cc-primary on their side -- the strip is the one purple surface
+   in the app, and it is the same purple as their Share Campaign button. */
+/* ── SectionCard, as a two-column section ─────────────────────────────────
+   MEASURED 2026-09-14 at desktop-1600 on their Settings > General. Their
+   section is a label column and a content column:
+
+     Creator Tags        heading   x=323  y=192   18px/400
+     Search Creator Tags control   x=612  y=202   931x48
+     Anime               chip      x=618  y=261
+     Add Creator Tag     button    x=323  y=307.5 163.3x36, fill rgb(31,60,239)
+
+   so the heading and the section's action share a 280px column on the left
+   (603 - 323) and everything else sits to their right. Ours stacked instead --
+   heading at 360 (the icon chip pushes it 37px in), action at 1412 on the
+   header's right edge as a white outline button 146.9x30, content full width
+   below.
+
+   `display: contents` on the header is what makes this reachable from CSS: it
+   promotes the heading group and the action to grid items of the card, so the
+   action can take the cell under the heading without the JSX knowing. The
+   header's own border and padding go with it, which is right -- their sections
+   carry no rule under the heading.
+
+   Base leaves every one of these tokens at the value the Tailwind classes
+   already produced, so light and dark keep the header row they had. */
+:root.creatorcore .cc-shell-root:has(.cc-sidebar-rail[data-shell="settings"]) .cc-section-card {
+  display: grid;
+  grid-template-columns: var(--cc-section-label-w) 1fr;
+  align-items: start;
+  padding: var(--cc-section-card-pad);
+}
+
+:root.creatorcore .cc-shell-root:has(.cc-sidebar-rail[data-shell="settings"]) .cc-section-card-head {
+  display: contents;
+}
+
+:root.creatorcore .cc-shell-root:has(.cc-sidebar-rail[data-shell="settings"]) .cc-section-card-heading {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+/* No icon chip on their side, and it is what put our heading at 360 against
+   their 323. */
+:root.creatorcore .cc-shell-root:has(.cc-sidebar-rail[data-shell="settings"]) .cc-section-card-icon {
+  display: none;
+}
+
+:root.creatorcore .cc-shell-root:has(.cc-sidebar-rail[data-shell="settings"]) .cc-section-card-action {
+  grid-column: 1;
+  grid-row: 2;
+  align-self: start;
+  padding-top: var(--cc-section-action-mt);
+
+  --cc-btn-sec-bg: var(--cc-primary);
+  --cc-btn-sec-fg: var(--cc-on-primary);
+  --cc-btn-sec-border: var(--cc-primary);
+  --cc-btn-sec-bg-hover: var(--cc-primary-hover, var(--cc-primary));
+  --cc-btn-sec-fg-hover: var(--cc-on-primary);
+  --cc-btn-sec-border-hover: var(--cc-primary-hover, var(--cc-primary));
+}
+
+/* `min-height` as well as `height`: the library's .ui-btn-sm carries its own
+   min-height, and height alone loses to it -- the same trap recorded on the
+   mobile primary-action rule above. Both tokens resolve to `auto` at base,
+   which is each property's initial value, so this is inert outside the shell
+   that re-points them. */
+:root.creatorcore .cc-shell-root:has(.cc-sidebar-rail[data-shell="settings"]) .cc-section-card-action .ui-btn {
+  height: var(--cc-section-action-h);
+  min-height: var(--cc-section-action-h);
+  font-size: var(--cc-section-action-fs);
+  font-weight: var(--cc-section-action-fw);
+  padding-inline: var(--cc-section-action-pad-x);
+  gap: var(--cc-section-action-gap);
+  border-width: var(--cc-section-action-border-w);
+}
+
+/* Glyph after the label, as on every other CreatorCore action button. The
+   page-header rule a few hundred lines up says the same thing for
+   `.cc-page-actions`; this is the section card's own action cluster, which
+   that selector does not reach. */
+:root.creatorcore .cc-shell-root:has(.cc-sidebar-rail[data-shell="settings"]) .cc-section-card-action .ui-btn > .ui-btn-icon:first-child {
+  order: var(--cc-section-action-icon-order);
+}
+
+/* Their connector CTA is a pill, not a rounded rectangle: MEASURED 1417.7,153
+   109.3x44 r=70 rgb(31,60,239), label 15/600 white 24px in on each side.
+   Scoped like the section action above, and for the same reason -- the five
+   tokens it reads are `auto`/`0`/`inherit` at base and are only meaningful
+   here. */
+:root.creatorcore .cc-shell-root:has(.cc-sidebar-rail[data-shell="settings"]) .cc-provider-cta.ui-btn {
+  height: var(--cc-provider-cta-h);
+  min-height: var(--cc-provider-cta-h);
+  border-radius: var(--cc-provider-cta-r);
+  font-size: var(--cc-provider-cta-fs);
+  font-weight: var(--cc-provider-cta-fw);
+  padding-inline: var(--cc-provider-cta-pad-x);
+}
+
+:root.creatorcore .cc-shell-root:has(.cc-sidebar-rail[data-shell="settings"]) .cc-section-card-body {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  padding: 0;
+}
+
+/* Inside a stack the card is no longer a card -- the stack is. So the indigo
+   hairline, the indigo glow and the 20px radius that `.creatorcore
+   [data-slot="card"]` paints come off, and the row is left with the
+   border-bottom their rows carry. Scoped to `> .cc-section-card` so a
+   SectionCard used on its own anywhere in Settings keeps its skin.
+
+   `:not(:last-child)` because the divider is between rows, not under the last
+   one: theirs sit flush (row 1 ends at 376.5, row 2 starts at 376.5), so the
+   line reads as a separator and a trailing one would float above the card's
+   own 32px of bottom padding. */
+:root.creatorcore .cc-shell-root:has(.cc-sidebar-rail[data-shell="settings"]) .cc-section-stack > .cc-section-card {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+:root.creatorcore .cc-shell-root:has(.cc-sidebar-rail[data-shell="settings"]) .cc-section-stack > .cc-section-card:not(:last-child) {
+  border-bottom: 1px solid var(--cc-border);
+}
+
+/* Notifications and Integrations paint a card PER section rather than one card
+   holding every section: MEASURED at desktop-1600, their Notifications is
+   291,104 1293x276 and 291,396 1293x124.5 with 16px between them, while their
+   General is a single 291,104 1293x2058. So the same SectionCard is the card
+   here and a row there, and it needs the skin the stack carries -- the 32px is
+   what puts the heading at 323 and the content column at 603 on both pages.
+   `32px 0` on the row form is deliberate: there the stack supplies the sides. */
+:root.creatorcore .cc-shell-root:has(.cc-sidebar-rail[data-shell="settings"]) .cc-settings-groups > .cc-section-card {
+  padding: var(--cc-section-card-solo-pad);
+  background: var(--cc-section-stack-bg);
+  border: 0;
+  border-radius: var(--cc-section-stack-r);
+  box-shadow: none;
+}
+
+.cc-section-card-title {
+  font-size: var(--cc-section-card-title-fs);
+  font-weight: var(--cc-section-card-title-fw);
+  letter-spacing: var(--cc-section-card-title-tk);
+}
+
+/* The stack of SectionCards -- replacing the inline
+   `display:flex; flex-direction:column; gap:20` in GeneralClient, which no rule
+   could reach. Base restates exactly that, so light and dark are unchanged.
+
+   MEASURED at desktop-1600, their Settings -> General:
+
+     page ground         275,0    1325x2615.5  #f6f6f6
+     header card         291,16   1293x72      white  r=10  no border, no shadow
+     ONE content card    291,104  1293x2058    white  r=10  no border, no shadow
+       `Tags & Statuses` 323,136  20px/400              (= card + 32 on both axes)
+       section row       323,161  1229x215.5   transparent, border-bottom
+       section row       323,376.5 1229x230.5  flush with the row above
+       section row       323,607  1229x200.5
+       section row       323,807.5 1229x200.5
+
+   Ours painted five separate 1293x178.6 cards -- r=20, indigo hairline, indigo
+   glow -- with 20px of page ground between them, and no group title. Every
+   element on the page therefore sat 56px high at the first section and 107px by
+   the fourth, which is what made this surface read 26/26 moved: the drift was
+   one structural fact repeated, not 26 findings. */
+.cc-section-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cc-section-stack-gap);
+  background: var(--cc-section-stack-bg);
+  border-radius: var(--cc-section-stack-r);
+  padding: var(--cc-section-stack-pad);
+}
+
+/* `display` is the token, so the group title is simply absent in light and
+   dark -- the same mechanism the icon chip above uses. It is a heading for a
+   panel that only this theme paints, and hanging it over six separate cards
+   would be asserting a grouping the other themes do not draw. */
+.cc-section-stack-title {
+  display: var(--cc-section-stack-title-display);
+  margin: 0;
+  font-size: var(--cc-section-stack-title-fs);
+  font-weight: var(--cc-section-stack-title-fw);
+}
+
+/* The stack heading -- 'Tags & Statuses'. MEASURED: theirs is rgb(16, 24, 40),
+   the same near-black their settings page titles use, not the indigo the
+   blanket h2 rule gives every other heading in this theme. Scoped rather than
+   excluded from that rule, because it needs a colour of its own rather than
+   the fallback. */
+:root.creatorcore .cc-section-stack-title {
+  color: var(--cc-text-ink);
+}
+
+/* The heading block and its description. MEASURED at desktop-1600 on their
+   Settings -> General: the description is 12px/400 and wraps at 240px -- 240
+   on `Creator Tags`, 227.6 on `Creator Flags`, 224.7 on `Campaign Tags`,
+   242.3 on `Deliverable Types`, i.e. a 240px cap that each string stops short
+   of -- and it sits 8.5px under the heading's glyph box against our 1.6px.
+   Both tokens are the values the Tailwind classes already produced at base, so
+   light and dark are unchanged. */
+.cc-section-card-headtext {
+  gap: var(--cc-section-head-gap);
+}
+
+.cc-section-card-desc {
+  max-width: var(--cc-section-desc-w);
+  line-height: var(--cc-section-desc-lh);
+}
+
+/* The list inside a taxonomy section, replacing GeneralClient's inline
+   `padding: 24; gap: 16`. Their content wrapper is 603,193 949x99 with the
+   field at 612,202 931x48 -- 9px of padding, not 24, and 8px between rows. */
+.cc-taxonomy-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cc-taxonomy-gap);
+  padding: var(--cc-taxonomy-pad);
+}
+
+/* Their taxonomy chips are NOT one size. MEASURED at desktop-1600: a creator
+   FLAG label ('Fast Turnaround') is 118.6px = Lexend Deca 15px/400, while a
+   DELIVERABLE TYPE label ('Instagram Feed Post') is 163.3px = Lexend 16px/400.
+   Setting 16px on .cc-chip for everything fixed the five deliverable rows and
+   broke four flag rows plus their four emoji, which is why this is scoped to
+   the one list rather than living in the theme block. */
+/* Their right content edge is not the same on every page. MEASURED at 1600:
+   the primary action ends at 1554 on campaigns, clients and creators -- which
+   our 3.4% gutter already matches to a tenth -- and at 1559 on payouts and
+   requests. 1600 - 1559 = 41px. This mirrors an inconsistency on their side
+   rather than correcting one, so it is scoped to the two pages that have it
+   instead of moving the gutter for everything. */
+:root.creatorcore .cc-end-41 {
+  --cc-page-pad-end: 41px;
+}
+
+:root.creatorcore .cc-taxonomy-list[data-kind="deliverable-types"] {
+  --cc-chip-fs: 1rem;
+  /* 14 + 24 + 23 = the 61px their label sits in from the chip's left edge;
+     9 + 24 + 9 = its 42px height; and the right half already totalled their
+     51px once the uppercase platform badge came out (12 gap + 15 + 3 + 15 + 6). */
+  --cc-chip-pad: 9px 6px 9px 14px;
+  --cc-chip-glyph-size: 24px;
+  --cc-chip-glyph-gap: 23px;
+  --cc-chip-r: 999px;
+}
+
+/* The Drafts review filters. Their row is four pills -- a selected 'All' that
+   carries no glyph and no border, then three bordered ones that each lead with
+   a 14px mark. MEASURED at desktop-1600: 223 / 299 / 439.1 / 554.7 on an 8px
+   gap, the first 68 wide and 31 tall, the other three 33. 68 is a floor rather
+   than a wider padding -- 'All' is 14.4 across and sits 26.8 in from both
+   edges, while each of the other three already exceeds 68 on its own. The two
+   pixels of height are the border the selected pill drops, and the row is
+   top-aligned rather than centred so the shorter pill still starts on their
+   y=130, which is what theirs does. */
+.cc-pillbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: var(--cc-pill-align);
+  gap: var(--cc-pill-bar-gap);
+}
+
+.cc-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--cc-pill-glyph-gap);
+  min-width: var(--cc-pill-min-w);
+  padding: var(--cc-pill-pad);
+  border: var(--cc-pill-bw) solid var(--cc-pill-edge);
+  border-radius: var(--cc-pill-r);
+  background: var(--cc-pill-bg);
+  color: var(--cc-pill-ink);
+  font-size: var(--cc-pill-fs);
+  font-weight: var(--cc-pill-fw);
+  line-height: var(--cc-pill-lh);
+  cursor: pointer;
+}
+
+.cc-pill[data-on="true"] {
+  --cc-pill-bw: var(--cc-pill-on-bw);
+  --cc-pill-edge: var(--cc-pill-on-edge);
+  --cc-pill-bg: var(--cc-pill-on-bg);
+  --cc-pill-ink: var(--cc-pill-on-ink);
+}
+
+/* The mark is sized here, not on the component: a CSS variable is not a valid
+   SVG length, so passing it as width/height drops it and every glyph falls
+   back to lucide's 24px default. */
+.cc-pill > svg {
+  width: var(--cc-pill-glyph);
+  height: var(--cc-pill-glyph);
+  flex: none;
+}
+
+.cc-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cc-chip-gap);
+  padding: var(--cc-chip-pad);
+  border: var(--cc-chip-border-w) solid var(--cc-border);
+  border-radius: var(--cc-chip-r);
+  background: var(--cc-bg);
+  font-size: var(--cc-chip-fs);
+  color: var(--cc-text);
+}
+
+.cc-chip-glyph {
+  margin-right: calc(var(--cc-chip-glyph-gap) - var(--cc-chip-gap));
+}
+
+.cc-chip-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cc-chip-emoji-gap);
+  min-width: 0;
+}
+
+.cc-chip-emoji {
+  font-size: var(--cc-chip-emoji-fs);
+  font-weight: var(--cc-chip-emoji-fw);
+}
+
+.cc-chip-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cc-chip-action-gap);
+}
+
+.cc-chip-action {
+  display: inline-flex;
+  align-items: center;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  color: var(--cc-text-muted);
+}
+
+.cc-chip-action > svg {
+  width: var(--cc-chip-icon-size);
+  height: var(--cc-chip-icon-size);
+}
+
+/* The settings row, shared by the notification switches and the Slack
+   connector. Both were inline `display:flex; justify-content:space-between`
+   blocks inside a 760px card, which no theme rule could reach; the numbers
+   they hold are restated by the base tokens above, so light and dark render
+   what they rendered before. */
+.cc-pref-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cc-pref-rows-gap);
+}
+
+.cc-pref-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-block: var(--cc-pref-row-pad-y);
+  padding-inline: var(--cc-pref-row-pad-x);
+  border-bottom: var(--cc-pref-row-rule-w) solid var(--cc-border);
+}
+
+.cc-pref-row:first-child {
+  padding-top: var(--cc-pref-row-pad-y-first);
+}
+
+.cc-pref-row-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cc-pref-row-text-gap);
+  min-width: 0;
+}
+
+.cc-pref-row-title {
+  font-size: var(--cc-pref-title-fs);
+  font-weight: var(--cc-pref-title-fw);
+  line-height: var(--cc-pref-title-lh);
+  color: var(--cc-text);
+}
+
+.cc-pref-row-desc {
+  font-size: var(--cc-pref-desc-fs);
+  line-height: var(--cc-pref-desc-lh);
+  color: var(--cc-text-muted);
+}
+
+/* A campaign tab panel's own heading. Theirs has none -- the tab strip already
+   names the panel, so their content card starts at y=130 where ours started 38.6
+   lower. MEASURED on Documents, Financials and Analytics alike. */
+/* The layout lives here, not inline: an inline `display: flex` beats any
+   selector short of !important, so the creatorcore rule below could never
+   hide it. */
+.cc-tabpanel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+:root.creatorcore .cc-tabpanel-head { display: none; }
+
+/* Campaign Financials. Base restates the inline grid it replaced -- 1.2fr/1fr
+   with a 16px gutter -- and creatorcore takes their 681/10/671 split, which
+   lands the right card's edge on 914. */
+.cc-fin-grid {
+  display: grid;
+  grid-template-columns: var(--cc-fin-cols);
+  gap: var(--cc-fin-gap);
+  align-items: start;
+}
+.cc-fin-tiles { display: flex; flex-direction: column; gap: var(--cc-fin-gap); }
+.cc-fin-tile { position: relative; }
+.cc-fin-tile-icon { display: none; }
+:root.creatorcore .cc-fin-tile-icon {
+  display: block;
+  position: absolute;
+  left: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--cc-primary);
+}
+/* MetricTile is the shadcn Card, not the ui-card -- its box is
+   [data-metric-tile] with the block padding, and its one child carries the
+   inline padding. 20 + a 30px glyph + 10 = the 60 that puts their label on
+   974. */
+:root.creatorcore .cc-fin-tile [data-metric-tile] { padding-block: 4px; }
+:root.creatorcore .cc-fin-tile [data-metric-tile] > * {
+  padding-left: 60px;
+  padding-right: 20px;
+}
+
+.cc-reqpage-stats {
+  margin-top: var(--cc-reqpage-stats-mt);
+  margin-bottom: var(--cc-reqpage-stats-mb);
+}
+.cc-reqpage-title {
+  display: var(--cc-reqpage-head-display);
+  font-size: var(--cc-t-24);
+  font-weight: var(--cc-fw-strong);
+  color: var(--cc-primary);
+  margin: 0 0 var(--cc-reqpage-title-mb);
+}
+.cc-reqpage-caption {
+  display: var(--cc-reqpage-head-display);
+  /* 15px as a literal: --cc-t-15 renders 18 under creatorcore, which is the
+     same rem-ladder shift that caught the empty-state line. */
+  font-size: 15px;
+  /* Their count box MEASURED 19 tall, not the 27 a default line-height gives
+     a 15px line here -- and the 10.8 under it is what puts their search on
+     265.8. */
+  line-height: 19px;
+  color: var(--cc-text-faint);
+  margin: 0 0 var(--cc-reqpage-caption-mb);
+}
+/* The search now sits before the filter in the DOM, because their toolbar
+   reads search-then-filter left to right. Base puts it back the way it was --
+   a flex column with the filter ordered first -- since `order` is inert in the
+   block box this used to be. flex-direction is ignored once this is a grid. */
+.cc-reqpage-bar {
+  display: var(--cc-reqpage-bar-display);
+  flex-direction: column;
+  grid-template-columns: var(--cc-reqpage-bar-cols);
+  align-items: var(--cc-reqpage-bar-align);
+}
+.cc-reqpage-search {
+  max-width: var(--cc-reqpage-search-max-w);
+  margin-bottom: var(--cc-reqpage-search-mb);
+  order: var(--cc-reqpage-search-order);
+}
+.cc-reqpage-filter {
+  /* The lift is how a centred row puts their labels 2.5 above the search's
+     own centre line. */
+  margin-bottom: calc(var(--cc-reqpage-filter-mb) + var(--cc-reqpage-filter-lift));
+  order: var(--cc-reqpage-filter-order);
+}
+/* Their filter labels are 12px plain text, not pills -- MEASURED 'All' at
+   14.4px wide against our 16.8. */
+:root.creatorcore .cc-reqpage-filter { grid-column: 3; }
+:root.creatorcore .cc-reqpage-filter .cc-tabs { gap: 21px; }
+:root.creatorcore .cc-reqpage-filter .cc-tabs .cc-tab {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  font-size: var(--cc-t-12);
+  min-width: 0;
+  --cc-tab-bg: transparent;
+  --cc-tab-fg: var(--cc-text);
+}
+:root.creatorcore .cc-reqpage-filter .cc-tabs[data-variant="pill"] .cc-tab[aria-selected="true"] {
+  --cc-tab-bg: transparent;
+  --cc-tab-fg: var(--cc-text);
+}
+
+.cc-analytics-summary { padding: var(--cc-analytics-pad); }
+.cc-analytics-summary > .ui-card-body { padding: var(--cc-analytics-body-pad); }
+.cc-analytics-summary-title { margin-bottom: var(--cc-analytics-title-mb); }
+
+/* Their empty state is one centred line in a 100px card. Ours stacks a 32px
+   glyph, the line and a second sentence, which is 99px taller. */
+:root.creatorcore .cc-empty-flush {
+  background: var(--cc-card);
+  border: 1px solid var(--cc-border);
+  /* A flat 12px, not --cc-r-card: creatorcore re-points that to 20px. */
+  border-radius: 12px;
+}
+:root.creatorcore .cc-empty-flush .ui-empty {
+  min-height: 98px;
+  /* Their line sits a little above the card's centre -- MEASURED at card+38.1
+     where a true centre would be card+41. */
+  padding: 0 0 6px;
+  gap: 0;
+}
+:root.creatorcore .cc-empty-flush .ui-empty-icon,
+:root.creatorcore .cc-empty-flush .ui-empty-desc { display: none; }
+
+/* MEASURED on their Creator Activations: the four stage counters label in
+   14px indigo, where ours drew 11px muted. */
+/* Campaign Overview. At base the two wrappers are inert -- `display: contents`
+   hands their children straight to the flex column, so the page renders exactly
+   the flat stack it rendered before. */
+.cc-overview-grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cc-overview-gap);
+}
+.cc-overview-main,
+.cc-overview-side { display: contents; }
+
+:root.creatorcore .cc-overview-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: var(--cc-overview-gap);
+  row-gap: 24px;
+  align-items: start;
+}
+:root.creatorcore .cc-overview-main {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  grid-column: 1;
+}
+:root.creatorcore .cc-overview-side {
+  display: block;
+  grid-column: 2;
+  grid-row: 1 / span 2;
+}
+
+.cc-activity-card { padding: var(--cc-activity-pad); }
+.cc-activity-card > .ui-card-body { padding: var(--cc-activity-body-pad); }
+
+/* Their activity filter is not a pill pair -- it is two 16px text links at the
+   panel's right edge, All in black and Comments at half black, 21px apart.
+   MEASURED at 1440.9 and 1481.7 against a content edge of 1566. */
+:root.creatorcore .cc-activity-filter .cc-tabs { gap: 21px; }
+:root.creatorcore .cc-activity-filter .cc-tabs .cc-tab {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  font-size: var(--cc-t-16);
+  --cc-tab-bg: transparent;
+  --cc-tab-fg: var(--cc-activity-tab-off);
+}
+:root.creatorcore .cc-activity-filter .cc-tabs[data-variant="pill"] .cc-tab[aria-selected="true"] {
+  --cc-tab-bg: transparent;
+  --cc-tab-fg: var(--cc-text);
+}
+
+.cc-stage-label {
+  font-size: var(--cc-stage-label-fs);
+  color: var(--cc-stage-label-fg);
+}
+
+/* The line a taxonomy list shows when it holds nothing. MEASURED on their
+   Settings > General: 'No Campaign Tags Found' is black, not muted -- same x,
+   same width, same 13px box as ours, only the ink differs. */
+.cc-taxonomy-empty {
+  font-size: var(--cc-t-13);
+  color: var(--cc-taxonomy-empty-fg);
+}
+
+.cc-metric-label {
+  font-size: var(--cc-metric-label-fs);
+  font-weight: var(--cc-metric-label-fw);
+  letter-spacing: var(--cc-metric-label-tk);
+  text-transform: var(--cc-metric-label-transform);
+  color: var(--cc-metric-label-fg);
+}
+
+/* The empty-state line. MEASURED on their Documents tab: 'No documents added to
+   this campaign!' is 15px/400 at rgba(31,60,239,0.36) -- a faint note, not the
+   18px near-black headline the library ships. 15px as a literal, not
+   --cc-t-15: creatorcore shifts the whole rem ladder up a step, so that token
+   renders 18 here and the slot that renders 15 is --cc-t-13. */
+:root.creatorcore .ui-empty-title {
+  font-size: 15px;
+  font-weight: 400;
+  color: var(--cc-text-faint);
+}
+
+/* Payouts: the row their balance banner holds. Right-aligned because that is
+   where their New Payout sits -- 1160..1560 on the banner's right half. */
+.cc-payout-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: var(--cc-payout-actions-mb);
+}
+
+/* The caption under a section heading. It ships with Tailwind's
+   text-muted-foreground, which stays neutral in creatorcore because only
+   --cc-text-muted was re-cast blue-grey; MEASURED, theirs is the blue-grey. */
+:root.creatorcore .cc-section-card-desc {
+  color: var(--cc-text-muted);
+}
+
+/* A connector row -- logo, name, and the action that turns it on. */
+.cc-provider-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-block: var(--cc-provider-row-pad-y);
+  padding-inline: var(--cc-provider-row-pad-x);
+}
+
+.cc-provider-id {
+  display: flex;
+  align-items: center;
+  gap: var(--cc-provider-gap);
+  min-width: 0;
+}
+
+.cc-provider-logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--cc-provider-logo-size);
+  height: var(--cc-provider-logo-size);
+  font-size: var(--cc-provider-logo-size);
+  line-height: 1;
+}
+
+.cc-provider-name {
+  font-size: var(--cc-provider-name-fs);
+  font-weight: var(--cc-provider-name-fw);
+  color: var(--cc-text);
+}
+
+/* One column of settings sections, each its own card. Notifications and
+   Integrations both drew this as an inline `display:grid; gap:16; maxWidth:760`
+   -- the 760 is what held our cards to a little over half the 1293 theirs are
+   painted at. */
+.cc-settings-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.cc-settings-note {
+  font-size: 12.5px;
+  color: var(--cc-text-muted);
+}
+
+.cc-panel-title {
+  font-weight: var(--cc-panel-title-fw);
+  font-size: var(--cc-panel-title-fs);
+  color: var(--cc-panel-title-fg);
+  text-align: var(--cc-panel-title-align);
+}
+
+.cc-microlabel {
+  font-size: var(--cc-microlabel-fs);
+  font-weight: var(--cc-microlabel-fw);
+  text-transform: var(--cc-microlabel-transform);
+  letter-spacing: var(--cc-microlabel-tracking);
+  color: var(--cc-microlabel-fg);
+}
+
+/* The sorted column. It was an inline ternary before the hoist, which no theme
+   could have reached; as an attribute it stays a token swap away. */
+.cc-microlabel[data-active] {
+  color: var(--cc-primary);
+}
+
+/* A heading that sits over a chart, which is the one place CreatorCore centres
+   it. MEASURED at desktop-1600 on their campaign analytics:
+
+     Post Performance         243,148.3   18/700   left, at the content edge
+     Views/Engagement Chart   453.9,277.3 18/700   centred over 243..902
+     Posts Chart             1182.8,277.3 18/700   centred over 906.5..1565.5
+     TikTok Audio             248,626.3   18/700   left
+     Audio Usage              511.5,746.3 18/700   centred over 248..891
+     Velocity                1202,746.3   18/700   centred over 917.1..1560.1
+
+   So it is not "their headings are centred" -- section headings are left and
+   chart headings are centred, and the two need separate classes. Ours were all
+   left. */
+.cc-chart-title {
+  text-align: var(--cc-chart-title-align);
+}
+
+.cc-kpi-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cc-kpi-strip-gap);
+  margin-top: var(--cc-kpi-strip-mt);
+}
+
+.cc-kpi-chip {
+  display: flex;
+  flex-direction: column;
+  justify-content: var(--cc-kpi-justify);
+  gap: var(--cc-kpi-gap);
+  flex: var(--cc-kpi-grow) 1 var(--cc-kpi-basis);
+  min-width: var(--cc-kpi-min-w);
+  height: var(--cc-kpi-h);
+  min-height: var(--cc-kpi-min-h);
+  padding: var(--cc-kpi-pad);
+  border-radius: var(--cc-kpi-r);
+  background: var(--cc-kpi-bg);
+  color: var(--cc-kpi-fg);
+}
+
+/* Carried by the chips CreatorCore has no counterpart for. `order` is honoured
+   by flex AND grid children, so this one declaration serves both the flex strip
+   at base and the three-column grid the theme turns it into. */
+.cc-kpi-chip-extra {
+  order: var(--cc-kpi-extra-order);
+}
+
+.cc-kpi-chip-label {
+  font-size: var(--cc-kpi-label-fs);
+  line-height: var(--cc-kpi-label-lh);
+  opacity: var(--cc-kpi-label-op);
+  color: var(--cc-kpi-label-fg);
+  text-transform: var(--cc-kpi-label-transform);
+  letter-spacing: var(--cc-kpi-label-tracking);
+  margin-bottom: var(--cc-kpi-label-mb);
+}
+
+.cc-kpi-chip-value {
+  font-size: var(--cc-kpi-value-fs);
+  font-weight: var(--cc-kpi-value-fw);
+  font-variant-numeric: tabular-nums;
+}
+
+/* THE SECOND KPI STRIP. CreatorCore paints two of them and they are not the
+   same object: the campaign Posts header runs 132.7x75 chips in
+   rgb(165,58,218), the campaign Analytics summary runs 434x80 panels in
+   rgb(31,60,239). Both are radius 20 with a 14px/400 label over a 20px/700
+   figure, so the difference is a palette and a box, which is what a variant is
+   for -- one set of rules above, two sets of tokens.
+
+   Base restates the inline style this class replaced on the analytics summary:
+   a --cc-bg tile, radius 10, 16px of padding, an uppercase 11px muted label
+   with 0.06em of tracking over a 22px figure. Light and dark are unchanged. */
+.cc-kpi-quiet {
+  --cc-kpi-bg: var(--cc-bg);
+  --cc-kpi-fg: var(--cc-text);
+  --cc-kpi-r: 10px;
+  --cc-kpi-pad: 16px;
+  --cc-kpi-gap: 0px;
+  --cc-kpi-label-fs: var(--cc-t-11);
+  --cc-kpi-label-op: 1;
+  --cc-kpi-label-fg: var(--cc-text-muted);
+  --cc-kpi-label-transform: uppercase;
+  --cc-kpi-label-tracking: 0.06em;
+  --cc-kpi-label-mb: 4px;
+  --cc-kpi-value-fs: var(--cc-t-22);
+  --cc-kpi-min-w: 0px;
+  --cc-kpi-grow: 1;
+  --cc-kpi-basis: 200px;
+  --cc-kpi-h: auto;
+  --cc-kpi-strip-gap: 12px;
+}
+
+/* MEASURED at desktop-1600 on their campaign analytics: panels 243,182 /
+   687,182 / 1131,182, each 434x80 r=20 rgb(31,60,239); label 14/400 white at
+   +15,+17.8; figure 20/700 white at +15,+40; 10px between panels, the three of
+   them filling 243..1565. */
+/* fitFigureSize() shrinks a long figure so it still fits a narrow tile, and it
+   has to reach the element as a custom property rather than an inline
+   font-size: an inline font-size is the one declaration the theme cannot
+   outrank, which is the whole reason this strip was unreachable before. Both
+   declarations sit on the CHIP, because a var() substitutes where it is
+   DECLARED -- put the fallback chain on the strip and the chip's own
+   --cc-kpi-fit is never seen. */
+.cc-kpi-quiet .cc-kpi-chip {
+  --cc-kpi-value-fs: var(--cc-kpi-fit, var(--cc-t-22));
+}
+
+/* The engagement figure was the one tile painted in the brand colour. On their
+   indigo panel that would be invisible, so the theme re-points it to the
+   panel's own foreground. */
+.cc-kpi-chip-value-accent {
+  color: var(--cc-kpi-accent-fg);
+}
+
+:root.creatorcore .cc-kpi-quiet .cc-kpi-chip {
+  --cc-kpi-value-fs: 1.25rem;
+}
+
+:root.creatorcore .cc-kpi-quiet {
+  --cc-kpi-label-lh: inherit;
+  --cc-kpi-justify: flex-start;
+  --cc-kpi-strip-mt: 0px;
+  --cc-kpi-bg: var(--cc-primary);
+  --cc-kpi-fg: var(--cc-on-primary);
+  --cc-kpi-accent-fg: var(--cc-on-primary);
+  --cc-kpi-label-fg: var(--cc-on-primary);
+  --cc-kpi-label-transform: none;
+  --cc-kpi-label-tracking: normal;
+  --cc-kpi-label-fs: 0.875rem;
+  --cc-kpi-label-mb: 4px;
+  --cc-kpi-value-fs: 1.25rem;
+  --cc-kpi-r: 20px;
+  --cc-kpi-pad: 15px;
+  --cc-kpi-h: auto;
+  --cc-kpi-min-h: 80px;
+  --cc-kpi-basis: 0;
+  --cc-kpi-strip-gap: 10px;
+}
+
 .cc-stat-card {
   background: var(--cc-card);
   border: 1px solid var(--cc-border);
@@ -1545,6 +4348,43 @@ h1, h2, h3, h4, h5, h6 {
 .cc-table-row {
   transition: background 0.15s ease;
   cursor: pointer;
+  background: var(--cc-table-row-bg);
+  min-height: var(--cc-table-row-min-h);
+}
+
+/* Scoped to the theme AND carrying a type selector on purpose, not by habit.
+   `.recip-row { padding: 14px 24px }` is printed by the injected <style> in
+   RecipientsClient.tsx, which lands in the body -- AFTER globals.css in document
+   order -- so a bare `.cc-table-row` rule ties on specificity (0,1,0) and loses
+   on order. `main .cc-table-row` is (0,1,1) and wins honestly; `!important` is
+   banned and would have been the lazy answer here.
+
+   Theme-scoped rather than token-only because the base theme must keep each
+   table's own padding: `.cc-table-row` is used across the app with different
+   paddings, and hoisting one value into a global rule would flatten all of them
+   in light and dark too. Precedent for a scoped creatorcore rule:
+   `:root.creatorcore .cc-shell-root:has(...)` above. */
+:root.creatorcore main .cc-table-row {
+  padding: var(--cc-table-row-pad);
+}
+
+/* The bleed goes on the SCROLL CONTAINER, not the row. Putting it on the row
+   was measured and rejected: `.rsp-table-wrap` carries `overflow-x: auto` and
+   spans 292..1552.9, so a row at 271..1579 had its left 21px CLIPPED and its
+   right 26px pushed into a horizontal scrollbar. That is not their layout, it
+   is a broken one -- the row reached the right numbers while painting the wrong
+   pixels, which is the exact trap this harness exists to catch. Widening the
+   container instead lets the rows fill it naturally. */
+:root.creatorcore main .rsp-table-wrap {
+  margin-inline-start: calc(-1 * var(--cc-list-bleed-start));
+  margin-inline-end: calc(-1 * var(--cc-list-bleed-end));
+  /* `.rsp-table-wrap` carries `max-width: 100%`, which pins it to the container
+     and made the negative margins SHIFT the box without widening it -- measured
+     271..1531.9, still 1260.9 wide. Releasing the cap here only, at (0,3,1)
+     against its (0,1,0), lets the bleed do what it says. The `min-width` floor
+     on the child table is untouched: that is what makes a wide table scroll
+     rather than squash, and it is not what was capping this. */
+  max-width: none;
 }
 
 .cc-table-row:hover {
@@ -1687,6 +4527,39 @@ h1, h2, h3, h4, h5, h6 {
   box-shadow: 0 0 0 3px var(--cc-primary-light);
 }
 
+/* THE PAGE-LEVEL SEARCH BOX IS A FIXED WIDTH ON THEIR SIDE, NOT THE ROW.
+   MEASURED at desktop-1600, `control|search <thing>` on each list surface:
+
+     surface       theirs        ours (before)
+     creators      500 x 45      1041.3 x 38
+     lists         500 x 45      1262.9 x 38
+     recipients    500 x 45      1262.9 x 38
+     payouts       500 x 40       719.4 x 38
+     campaigns     408 x 40       866.3 x 38   (four 200px filter pills beside it)
+     clients       637.5 x 40    1262.9 x 38
+     requests      309.5 x 45      340   x 38
+
+   500x45 is the modal box and the one this caps to; campaigns, clients and
+   requests keep a width their own row composition sets, and those three are
+   recorded as composition differences rather than forced to a number that is
+   only right on four screens.
+
+   Selected on the placeholder because there is no class to hold on to: the
+   Input is the library's and every call site renders it the same way, so the
+   thing that distinguishes "the list's search box" from "a field in a form" is
+   the placeholder text, which all seven of ours begin with `Search `. Both the
+   wrap and the input are capped -- the wrap owns the icon's positioning
+   context, and leaving it full width would strand the box inside a 1262px
+   transparent parent. */
+.ui-input[placeholder^="Search "] {
+  max-width: var(--cc-search-max-w);
+  height: var(--cc-search-h);
+}
+
+.ui-input-wrap:has(> .ui-input[placeholder^="Search "]) {
+  max-width: var(--cc-search-max-w);
+}
+
 /* ── Status filter tabs ──────────────────────────────────────────────────────
    This replaces `.cc-filter-tab`, every declaration of which was dead. Both of
    its two call sites set padding, radius, background and colour inline, and an
@@ -1701,10 +4574,121 @@ h1, h2, h3, h4, h5, h6 {
      pill       a tinted lozenge, no rule                      (StatusTabs)
      solid      a bordered chip that fills when selected       (FeatureAccess)
 */
+.cc-list-searchrow {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin-top: var(--cc-list-searchrow-mt);
+  margin-bottom: var(--cc-list-searchrow-mb);
+}
+
+/* Campaigns only -- this class has exactly one call site. MEASURED at
+   desktop-1600: their search is 408x40 at y=97.8, riding a row with four 200x40
+   filter dropdowns; ours is 500x45 at 89.8 under a caption their page does not
+   print at all. The 8px is that missing caption's space, added back on the row
+   rather than taken off .cc-page-caption, because the caption's 5px bottom
+   margin is what puts Creators' search exactly on theirs -- a global change
+   there trades one passing surface for another. */
+:root.creatorcore .cc-list-searchrow {
+  --cc-search-max-w: 408px;
+  --cc-search-h: 40px;
+  --cc-list-searchrow-mt: 8px;
+}
+
+/* Lists only. MEASURED: their caption sits 0.8 above the search box, ours 5 --
+   .cc-page-caption's own bottom margin, which every other list page needs. */
+:root.creatorcore .cc-caption-flush {
+  --cc-page-caption-mb: 0px;
+}
+
+/* `flex-wrap` costs nothing while the row fits -- it only decides what happens
+   when it does not, and at 390 the Filters button sat 28.6px outside the row. */
+.cc-list-sortrow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: var(--cc-list-sortrow-justify);
+  margin-bottom: var(--cc-list-sortrow-mb);
+}
+
 .cc-tabs {
   display: flex;
   gap: var(--cc-tab-gap);
   overflow-x: auto;
+  margin-top: var(--cc-tabs-mt);
+}
+
+.cc-tab {
+  min-width: var(--cc-tab-min-w);
+  justify-content: var(--cc-tab-justify);
+}
+
+.cc-tab > svg {
+  width: var(--cc-tab-icon-size);
+  height: var(--cc-tab-icon-size);
+}
+
+/* ── Month grid ──────────────────────────────────────────────────────────────
+   MEASURED at desktop-1600 on their /calendar: the weekday row is 181.1px
+   columns 64px tall with a 10px/400 uppercase label centred at y=152 (row top
+   146), and the day number under it is 20px/600 at y=172. Ours read 12/700 in a
+   43px row with a 12/500 number. Both were inline styles, which is why no theme
+   rule could reach them. */
+.cc-cal-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: var(--cc-cal-toolbar-mt);
+  margin-bottom: var(--cc-cal-toolbar-mb);
+  min-height: var(--cc-cal-toolbar-h);
+  justify-content: var(--cc-cal-toolbar-justify);
+}
+
+
+.cc-cal-body {
+  margin-top: var(--cc-cal-grid-mt);
+}
+
+.cc-cal-today.ui-btn {
+  width: var(--cc-cal-today-w);
+  /* .ui-btn-sm carries its own min-height, so height alone would lose. */
+  height: var(--cc-cal-today-h);
+  min-height: var(--cc-cal-today-h);
+  font-size: var(--cc-cal-today-fs);
+  font-weight: var(--cc-cal-today-fw);
+  margin-left: var(--cc-cal-today-ml);
+}
+
+.cc-cal-legend {
+  display: var(--cc-cal-legend-display);
+  margin-bottom: var(--cc-cal-legend-mb);
+}
+
+.cal-weekday {
+  padding: var(--cc-cal-weekday-pad);
+  text-align: center;
+  font-size: var(--cc-cal-weekday-fs);
+  font-weight: var(--cc-cal-weekday-fw);
+  color: var(--cc-cal-weekday-fg);
+  text-transform: uppercase;
+  letter-spacing: var(--cc-cal-weekday-tk);
+}
+
+.cal-daynum {
+  display: inline-flex;
+  width: var(--cc-cal-daynum-size);
+  height: var(--cc-cal-daynum-size);
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: var(--cc-cal-daynum-fs);
+  font-weight: var(--cc-cal-daynum-fw);
+}
+
+.cal-daynum[data-today="true"] {
+  font-weight: var(--cc-cal-daynum-fw-today);
 }
 
 .cc-tabs[data-variant="underline"] {
@@ -1717,6 +4701,81 @@ h1, h2, h3, h4, h5, h6 {
   --cc-tab-r: 0.5rem;
   --cc-tab-fw: 600;
   --cc-tab-icon-gap: var(--cc-sp-3);
+}
+
+/* CREATORCORE'S STATUS STRIP IS A ROW OF TINTED PILLS IN A WHITE BAR.
+   MEASURED at desktop-1600 on their /campaigns:
+
+     strip       270,202.8  1305x44   white  r=10
+     All         278,210.8   100x28   rgba(142,142,142,0.07)   r=50
+     Pending     386,210.8 111.5x28   rgba(249,204,71,0.125)
+     Active    505.5,210.8   100x28   rgb(59,117,242)   <- the selected one, solid
+     Complete  613.5,210.8 120.9x28   rgba(86,186,87,0.125)
+     Canceled  742.4,210.8 118.9x28   rgba(255,0,0,0.125)
+     labels    14px/400, centred in the pill; 8px between pills;
+               8px from the strip's edge to the first pill (202.8 -> 210.8)
+     each pill but `All` carries an 18x18 glyph 15px in, then 8px, then the label
+
+   Ours were 44px-tall transparent underline tabs with a count badge, at 13/500
+   with the selected one at 13/600. Every declaration below is a token the
+   variant rules already read, so this is a re-point, not a second tab system --
+   but it has to out-specify `.cc-tabs[data-variant="pill"]`, which is (0,2,0)
+   and declared later in the file, so it hangs off `.cc-tabs` rather than
+   :root.creatorcore alone. */
+/* Their calendar spans the page card's full inner width, 290..1560, where every
+   other nav surface of theirs stops at 1554 -- ours runs 291..1553.9 on all of
+   them, which is right everywhere else (their New Campaign, New Client and New
+   Creator buttons all land on our 1373.9). So this page takes a smaller bleed
+   than the rest of the dashboard shell, declared on the page itself: a token
+   set on a descendant wins for that descendant, whatever the shell says. */
+:root.creatorcore .cc-cal-page {
+  --cc-page-bleed-l: 1px;
+  --cc-page-bleed-r: 6px;
+}
+
+:root.creatorcore .cc-tabs {
+  --cc-tab-fs: 0.875rem;
+  --cc-tab-fw: 400;
+  --cc-tab-fw-selected: 400;
+  /* 14, not their 15, because .cc-tab carries a 1px transparent border -- the
+     no-jump spacer for the solid variant, which swaps it for a visible one on
+     select -- and box-sizing folds it into the width. MEASURED: their Pending
+     tab is 111.5 wide over a 55.5 label, i.e. 15 + 18 icon + 8 gap + 15. Ours
+     was 113.5: the same padding PLUS the two border pixels, and that 2px
+     compounded along the row until 'Canceled' sat 5.3px right of theirs.
+     1 + 14 reproduces their 15px icon offset and their outer width at once. */
+  --cc-tab-pad: 5px 14px;
+  --cc-tab-r: 50px;
+  --cc-tab-gap: 8px;
+  --cc-tab-icon-gap: 8px;
+  --cc-tab-bg: color-mix(in srgb, var(--cc-tab-ink) 12.5%, transparent);
+  /* The label takes the status's own colour, not the page's ink. MEASURED on
+     their campaigns strip: All rgb(142,142,142), Pending rgb(231,173,0),
+     Complete rgb(86,186,87), Canceled rgb(255,0,0) -- the same hue the pill is
+     already tinted 12.5% with. Ours painted all four black, which is what
+     --cc-text gave every unselected tab regardless of its ink. The declaration
+     itself sits on .cc-tab below, not here: a custom property substitutes at
+     the element that declares it, so `--cc-tab-fg: var(--cc-tab-ink)` written
+     on the strip would freeze the strip's OWN ink -- indigo -- and hand every
+     child the same colour, which is the bug it was meant to fix. */
+  --cc-tab-rule-w: 0px;
+
+  background: var(--cc-tabs-bg);
+  border-radius: var(--cc-tabs-r);
+  padding: var(--cc-tabs-pad);
+  border-bottom: 0;
+}
+
+:root.creatorcore .cc-tabs .cc-tab {
+  --cc-tab-fg: var(--cc-tab-ink);
+}
+
+/* Selected is a SOLID fill of the status's own colour with the strip's
+   foreground on it -- their Active pill is rgb(59,117,242) with a white label,
+   where every unselected pill is the same hue at 12.5%. */
+:root.creatorcore .cc-tabs .cc-tab[aria-selected="true"] {
+  --cc-tab-bg: var(--cc-tab-ink);
+  --cc-tab-fg: var(--cc-on-primary);
 }
 
 .cc-tabs[data-variant="solid"] {
@@ -1743,6 +4802,7 @@ h1, h2, h3, h4, h5, h6 {
   color: var(--cc-tab-fg);
   font-size: var(--cc-tab-fs);
   font-weight: var(--cc-tab-fw);
+  line-height: var(--cc-tab-lh);
   white-space: nowrap;
   cursor: pointer;
   transition: all 0.15s ease;
@@ -1901,6 +4961,27 @@ h1, h2, h3, h4, h5, h6 {
   margin-left: 0;
 }
 
+/* Recharts measures its legend against the chart width and then lays the items
+   out as inline-blocks that do not wrap, so three platform names ran 12px past
+   the wrapper at 768. Flex + wrap changes nothing while they fit on one line. */
+.recharts-legend-wrapper .recharts-default-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  row-gap: 2px;
+}
+
+/* Their toolbar is three tracks side by side and there is no width at which
+   309.5 + 358.3 + a filter button fits a phone. Below 900px it stacks, which is
+   what the base (flex, column) already did -- the token, not the class, is what
+   changes, so the theme keeps its own responsive behaviour. */
+@media (max-width: 899px) {
+  :root.creatorcore {
+    --cc-reqpage-bar-cols: minmax(0, 1fr);
+  }
+}
+
 /* ── Smooth content transitions for main area ── */
 /* On mobile, no sidebar offset; on lg+, offset handled by Tailwind lg:ml-64 */
 .cc-main-content {
@@ -1916,9 +4997,31 @@ h1, h2, h3, h4, h5, h6 {
    values, now reachable by a theme. */
 .rsp-page {
   padding: var(--cc-page-pad-top) var(--cc-page-pad-inline) var(--cc-page-pad-bottom);
+  padding-inline-end: var(--cc-page-pad-end);
   max-width: var(--cc-page-max);
   margin-inline: var(--cc-page-align);
   width: 100%;
+}
+
+/* Only a page that actually carries a bleed element becomes a grid; every other
+   page stays the block it was. */
+.rsp-page:has(> .cc-bleed) {
+  display: grid;
+  grid-template-columns:
+    [full-start] var(--cc-page-bleed-l)
+    [content-start] minmax(0, 1fr) [content-end]
+    var(--cc-page-bleed-r) [full-end];
+  padding-inline:
+    calc(var(--cc-page-pad-inline) - var(--cc-page-bleed-l))
+    calc(var(--cc-page-pad-end) - var(--cc-page-bleed-r));
+}
+
+.rsp-page:has(> .cc-bleed) > * {
+  grid-column: content;
+}
+
+.rsp-page > .cc-bleed {
+  grid-column: full;
 }
 
 /* Responsive behaviour lives in the TOKENS, not in the class, so a theme that
@@ -2033,9 +5136,14 @@ h1, h2, h3, h4, h5, h6 {
   flex-direction: var(--cc-header-direction);
   flex-wrap: var(--cc-header-wrap);
   gap: var(--cc-header-gap);
+  row-gap: var(--cc-header-row-gap);
   align-items: var(--cc-header-align);
   justify-content: var(--cc-header-justify);
   margin-bottom: var(--cc-header-mb);
+  min-height: var(--cc-header-minh);
+  background: var(--cc-header-bg);
+  padding: var(--cc-header-pad);
+  border-radius: var(--cc-header-radius);
 }
 
 /* The header's parts. Each declares grid-area unconditionally -- a grid-area
@@ -2097,6 +5205,10 @@ h1, h2, h3, h4, h5, h6 {
    this is a second row type rather than a variant of that one. Every value is
    a token, so a theme can re-place the chips without touching the page. */
 .cc-page-titlebar {
+  background: var(--cc-page-titlebar-bg);
+  border-radius: var(--cc-page-titlebar-r);
+  padding: var(--cc-page-titlebar-pad);
+  min-height: var(--cc-page-titlebar-minh);
   display: var(--cc-page-titlebar-display);
   align-items: var(--cc-page-titlebar-align);
   flex-wrap: wrap;
@@ -2104,9 +5216,70 @@ h1, h2, h3, h4, h5, h6 {
   margin-bottom: var(--cc-page-titlebar-mb);
 }
 
+/* The campaign section's actions, portalled in by CampaignHeaderActions. The
+   titlebar is a flex row whose first items are the title and its status chips,
+   so `auto` is what puts the actions on the far edge -- MEASURED on their
+   campaign header at desktop-1600, Add Posts ends at x=1532 against a card that
+   ends at 1585, i.e. the card's own 15px right padding plus its 38px close
+   button. `justify-content` on the row would move the chips too. */
+.cc-page-titlebar > .cc-page-actions {
+  margin-left: auto;
+}
+
+/* The title and its status, as one block the theme can turn on its side.
+   Base is a row with the titlebar's own gap and centred items, which is the
+   geometry these three nodes had as direct children of the titlebar -- so
+   light and dark are unchanged by the wrapper. */
+.cc-page-titleblock {
+  display: flex;
+  flex-direction: var(--cc-titleblock-dir);
+  align-items: var(--cc-titleblock-align);
+  gap: var(--cc-titleblock-gap);
+  min-width: 0;
+}
+
+.cc-page-titlemeta {
+  display: flex;
+  align-items: center;
+  gap: var(--cc-titlemeta-gap);
+  flex-wrap: wrap;
+}
+
+/* On the campaign header their status is plain caption text, not a pill: no
+   fill, no border, no padding, no uppercasing -- just 14px/400 in a light
+   indigo, sitting at the title's own x. Stripping the badge skin here rather
+   than swapping the component keeps ONE piece of JSX for all three themes,
+   and light and dark keep their pills.
+
+   Ours carries a second datum theirs does not -- the campaign type, "Budget
+   Based" -- and it stays, on the same caption line rather than as a third
+   element, because dropping it would lose product information for a layout
+   match. It is the one thing on this row with no counterpart on theirs. */
+:root.creatorcore .cc-page-titlemeta .ui-badge {
+  background: none;
+  border: 0;
+  padding: 0;
+  min-height: 0;
+  border-radius: 0;
+  font-size: var(--cc-camp-status-fs);
+  font-weight: var(--cc-camp-status-fw);
+  color: var(--cc-camp-status-fg);
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+/* Re-points the icon button's own tokens rather than setting width/height/color
+   here: a second declaration of the same properties would win by source order
+   and leave two places that decide the box. */
+.cc-page-close {
+  --cc-icon-btn-size: var(--cc-page-close-size);
+  --cc-icon-btn-fg: var(--cc-page-close-fg);
+  margin-left: var(--cc-page-close-ml);
+}
+
 /* The line under it: created-date, counts, separators. */
 .cc-page-meta {
-  display: flex;
+  display: var(--cc-page-meta-display);
   align-items: center;
   flex-wrap: wrap;
   gap: var(--cc-page-meta-gap);
@@ -2511,7 +5684,11 @@ h1, h2, h3, h4, h5, h6 {
   inset-block: var(--cc-drawer-inset-block);
   inset-inline-start: var(--cc-drawer-inset-start);
   inset-inline-end: var(--cc-drawer-inset-end);
-  height: 100dvh;
+  /* Divided by the zoom for the same reason .cc-shell-root is: a fixed element
+     inside a zoomed subtree still resolves dvh against the real viewport and is
+     then painted at the zoom, so a bare 100dvh stops 10%/15% short of the
+     window bottom in the creatorcore bands. --cc-zoom is 1 elsewhere. */
+  height: calc(100dvh / var(--cc-zoom));
   width: var(--cc-drawer-w);
   background: var(--cc-drawer-bg);
   border-inline-start: var(--cc-drawer-edge);
@@ -2813,11 +5990,22 @@ h1, h2, h3, h4, h5, h6 {
   text-overflow: ellipsis;
 }
 
+.cc-page-caption {
+  display: var(--cc-page-caption-display);
+  width: var(--cc-page-caption-w);
+  margin: var(--cc-page-caption-mt) 0 var(--cc-page-caption-mb);
+  font-size: var(--cc-page-caption-fs);
+  font-weight: var(--cc-page-caption-fw);
+  line-height: var(--cc-page-caption-lh);
+  color: var(--cc-page-caption-fg);
+}
+
 .cc-page-subtitle {
   /* Inert while the heading block is a flex column; it only takes effect once a
      theme sets the heading to `display: contents` and these become grid items of
      the header itself. A grid-area on a flex child costs nothing. */
   grid-area: subtitle;
+  display: var(--cc-page-subtitle-display);
   font-size: var(--cc-fs-subtitle);
   font-weight: var(--cc-fw-subtitle);
   color: var(--cc-text-muted);
@@ -2906,6 +6094,7 @@ h1, h2, h3, h4, h5, h6 {
   width: var(--cc-sidebar-w);
   background: var(--cc-sidebar);
   border-right: 1px solid var(--cc-border);
+  padding-block: var(--cc-rail-pad-block);
 }
 .cc-sidebar-rail[data-collapsed="true"] {
   width: var(--cc-sidebar-w-collapsed);
@@ -2951,7 +6140,29 @@ h1, h2, h3, h4, h5, h6 {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 140px;
+  /* `max-width: 140px` was here and it is why a long name COLLIDED with the
+     theme toggle instead of truncating. MEASURED 2026-09-14 at 1600 in the
+     creatorcore theme: "Pratham Sharma" renders 124px -- UNDER the 140 cap, so
+     the ellipsis never engaged -- starting at x=70 and ending at x=194, while
+     `.cc-rail-utility` begins at x=174. A 20x23px overlap, the toggle sitting on
+     top of "Sharma". The seeded local account is "Admin" (47px), which is why
+     nothing showed it.
+
+     140px was a guess at the available space; the real space is whatever is left
+     in the chip, which depends on the rail width and the chevron. So the cap is
+     gone and the name now shrinks to fit: `min-width: 0` is what actually lets a
+     flex item narrow below its content, and without it on the wrapper too the
+     text cannot shrink no matter what this rule says. */
+  min-width: 0;
+}
+
+/* The avatar+name wrapper is a Tailwind `flex items-center gap-2.5` div in
+   NewSidebar.tsx with no min-width, so as a flex item it refused to shrink below
+   its content and pushed 174px of content out of a 160px button. Fixing it here
+   rather than in the component keeps the change in the layer that owns layout. */
+.cc-rail-user > :first-child {
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 /* Collapsed rail: reclaim the scrollbar gutter that eats a 72px column. */
@@ -3752,3 +6963,406 @@ h1, h2, h3, h4, h5, h6 {
   .spr-tiles { grid-template-columns: repeat(auto-fit, minmax(min(130px, 100%), 1fr)); }
 }
 
+/* ---- /payouts: the Balance banner and the transactions card head ----------
+   MEASURED 2026-09-14, payouts census, desktop-1600. Their page runs
+   header strip (270,15,1310x62) -> indigo banner (270,87,1310x135) -> white
+   transactions card (270,232,1310x753). The banner carries `Balance` at
+   290,97, the figure at 290,132, and New Payout as a 400x50 WHITE button at
+   1160,104.5 -- which is why New Payout left our header strip. Everything
+   here is inert at base: the wrapper is `display: contents` and the balance
+   block is `display: none`, so light and dark still render the plain
+   right-aligned action row. */
+.cc-payout-banner {
+  display: var(--cc-payout-banner-display);
+}
+
+.cc-payout-balance {
+  display: var(--cc-payout-head-display);
+}
+
+:root.creatorcore .cc-payout-banner {
+  justify-content: space-between;
+  align-items: flex-start;
+  min-height: 135px;
+  /* No side padding: their banner bleeds to 270..1580 and ours to 291..1559,
+     so the 20px inset that puts their text at 290 would put ours at 311. The
+     column edge IS the inset here. */
+  padding: 10px 0;
+  border-radius: 20px;
+  background: var(--cc-primary);
+  margin-top: 21px;
+  margin-bottom: 25px;
+}
+
+:root.creatorcore .cc-payout-balance-label {
+  display: block;
+  font-size: 24px;
+  line-height: 30px;
+  font-weight: 600;
+  color: #fff;
+}
+
+:root.creatorcore .cc-payout-balance-value {
+  display: block;
+  margin-top: 5px;
+  font-size: 36px;
+  line-height: 45px;
+  font-weight: var(--cc-fw-strong);
+  color: #fff;
+}
+
+/* The banner's action sits 17.5px below the banner top, not on the 10px
+   padding line the balance label uses -- so the offset is the row's, not the
+   box's. */
+:root.creatorcore .cc-payout-banner .cc-payout-actions {
+  margin-top: 7.5px;
+  margin-bottom: 0;
+  /* A flex item's `min-width: auto` floors it at its content's min-content,
+     which here is the button's own `width: 400px` -- so the button's
+     `max-width: 100%` resolved against 400 and nothing shrank. Releasing the
+     wrapper is what lets the percentage mean the banner. */
+  min-width: 0;
+}
+
+/* Their banner button is 400x50 with an 18px indigo label on white, and the
+   glyph follows the label exactly as it does in the header strip. */
+/* 400px is their measured width, not a floor: at 390 the banner is 318 wide and
+   a 400px min-width hung the button 267px outside it. `width` states the size,
+   `max-width` lets a narrow window win. MEASURED 2026-09-15. */
+:root.creatorcore .cc-payout-actions > [data-cc-slot="secondary"] {
+  min-width: 0;
+  width: 400px;
+  max-width: 100%;
+  height: 50px;
+  font-size: var(--cc-action-fs);
+  font-weight: var(--cc-action-fw);
+  background: #fff;
+  color: var(--cc-primary);
+  border-color: #fff;
+}
+
+:root.creatorcore .cc-payout-actions .ui-btn > .ui-btn-icon:first-child {
+  order: 1;
+}
+
+.cc-paypage-title {
+  display: var(--cc-payout-head-display);
+  font-size: var(--cc-t-24);
+  font-weight: var(--cc-fw-strong);
+  color: var(--cc-primary);
+  margin: 0 0 var(--cc-paypage-title-mb, 4px);
+}
+
+/* A literal 15px, not var(--cc-t-15): creatorcore re-points that step of the
+   rem ladder to 18px, and the measurement here is 15. */
+.cc-paypage-caption {
+  display: var(--cc-payout-head-display);
+  font-size: 15px;
+  line-height: 19px;
+  color: var(--cc-text-faint);
+  margin: 0 0 var(--cc-paypage-caption-mb, 6px);
+}
+
+/* Their search box is 500x40 here (it is 309.5x45 on /requests -- the two
+   pages do not share a control size). */
+:root.creatorcore .cc-paypage-search .ui-input,
+:root.creatorcore .cc-paypage-search input {
+  height: var(--cc-paypage-search-h);
+}
+
+/* Their /payouts has no summary tiles -- the indigo banner is the whole money
+   summary, and the transactions card starts at 232. Ours has four, and they
+   push the card head 90px down the page. They are real figures, so this theme
+   REORDERS them below the transactions card rather than hiding them: the page
+   keeps every number it had and the fold matches theirs. `order` needs a flex
+   parent, which is why the page root turns into a column here; it is inert at
+   base, where `order` does nothing in a block container. */
+:root.creatorcore .cc-payoutpage {
+  display: flex;
+  flex-direction: column;
+}
+
+:root.creatorcore .cc-payoutpage .payout-tiles {
+  order: 2;
+  margin-top: 24px;
+  margin-bottom: 0;
+}
+
+/* ---- /clients and /recipients: their toolbar leads the page ---------------
+   MEASURED at desktop-1600. Their /clients search sits at 291,89.8 (637.5x40)
+   and their /recipients search at 291,105.8 (500x45) -- directly under the
+   caption, with no metric tiles between. Ours sat at 251.2 and 211.2 because a
+   tile row occupies that space. Same treatment as the payouts tiles: the row
+   is ordered below the table rather than hidden, so the page keeps its figures.
+   `order` needs a flex parent, which is what the page root becomes; it is inert
+   at base, where a block container ignores `order` entirely. */
+:root.creatorcore .cc-listpage {
+  display: flex;
+  flex-direction: column;
+}
+
+.cc-listpage-tiles {
+  order: var(--cc-listpage-tiles-order);
+}
+
+:root.creatorcore .cc-listpage .cc-listpage-tiles {
+  margin-top: 24px;
+  margin-bottom: 0;
+}
+
+/* Their two search boxes are not the same control: 637.5x40 on /clients and
+   500x45 on /recipients, which is also our size. Only /clients is re-pointed,
+   and `min()` keeps it from outgrowing a narrow window. */
+:root.creatorcore .cc-clientspage-search .ui-input-wrap,
+:root.creatorcore .cc-clientspage-search .ui-input {
+  max-width: min(637.5px, 100%);
+}
+
+:root.creatorcore .cc-clientspage-search .ui-input {
+  height: 40px;
+}
+
+/* Their /recipients header block is 16px taller than their /clients one --
+   caption at y=73 against 65, search at 105.8 against 89.8. Their own two
+   pages disagree; this reproduces the page we are matching. */
+:root.creatorcore .cc-recipientspage-search {
+  margin-top: 16px;
+}
+
+/* ---- campaign analytics: their three panels ------------------------------
+   Their row is three 434x80 panels at x=243/687/1131 with a 10px gap, labels
+   inset 15px. Ours was four 323-wide chips, so only Total Views landed. As a
+   three-column grid the first row reproduces their pitch exactly and the two
+   extra chips (ordered last) wrap to a second row instead of disappearing. */
+:root.creatorcore .cc-analytics-summary .cc-kpi-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+/* ---- /activations: their three-card dashboard -----------------------------
+   MEASURED 2026-09-14, activations census, desktop-1600. Their page opens with
+   three cards at y=97, 368.5 tall: Overview (270..560) holding a 250x250 donut
+   at 290,159.5; In-progress deliverables (580..1070) holding a 2x2 grid of
+   220x120 tiles at 600/830 x 159.5/289.5; Filters (1090..1580).
+
+   Ours is 21px narrower on each side (our column is 291..1559 against their
+   270..1580), so the first card runs flush to the column edge and carries no
+   side padding -- that is what lands the second card's inner grid on their
+   600, and the third column on their 1110. We have no Filters panel, so the
+   third slot holds the three summary tiles this page already had.
+
+   All of it is inert at base: the row is `display: contents`, the Overview
+   card and both card headings are `display: none`, and the tile keeps the
+   label-over-figure order it has always had. */
+.cc-act-dash {
+  display: var(--cc-act-dash-display);
+}
+
+.cc-act-tiles {
+  margin-bottom: var(--cc-act-tiles-mb);
+}
+
+.cc-act-deliverables {
+  margin-bottom: var(--cc-act-deliverables-mb);
+}
+
+.cc-act-card-title {
+  display: var(--cc-act-card-title-display);
+}
+
+.cc-act-overview {
+  display: var(--cc-act-overview-display);
+}
+
+/* Base restates the inline styles this row used to carry, verbatim, so the
+   rule is inert off-theme. */
+.cc-stage-grid {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.cc-stage-tile {
+  background: var(--cc-card);
+  border: 1px solid var(--cc-border);
+  border-radius: 10px;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 150px;
+}
+
+.cc-stage-count {
+  font-size: var(--cc-t-20);
+  font-weight: 700;
+  color: var(--cc-text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* `flex-wrap` and a shrinkable basis, not fixed bases: 280 + 9 + 490 + 20 plus
+   the tiles column needs 1100px of room, and at 768 the deliverables card hung
+   73px outside the row. The bases are unchanged at desktop-1600, where the free
+   space goes to the tiles column (`flex: 1 1 auto`) and nothing has to shrink. */
+:root.creatorcore .cc-act-dash {
+  align-items: stretch;
+  flex-wrap: wrap;
+  min-height: 368.5px;
+  margin-top: 31px;
+  margin-bottom: 28px;
+}
+
+:root.creatorcore .cc-act-overview {
+  order: 1;
+  flex: 0 1 280px;
+  min-width: 0;
+  background: var(--cc-card);
+  border-radius: 20px;
+  padding: 19px 0 0;
+}
+
+:root.creatorcore .cc-act-deliverables {
+  order: 2;
+  flex: 0 1 490px;
+  min-width: 0;
+  margin-left: 9px;
+  background: var(--cc-card);
+  border-radius: 20px;
+  padding: 19px 20px 0;
+}
+
+:root.creatorcore .cc-act-tiles {
+  order: 3;
+  flex: 1 1 auto;
+  margin-left: 20px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  gap: 12px;
+}
+
+:root.creatorcore .cc-act-card-title {
+  font-size: 18px;
+  line-height: 23px;
+  font-weight: var(--cc-fw-strong);
+  color: var(--cc-primary);
+  margin-bottom: 20.5px;
+}
+
+:root.creatorcore .cc-act-donut {
+  position: relative;
+  width: 250px;
+  height: 250px;
+}
+
+:root.creatorcore .cc-act-donut-centre {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+:root.creatorcore .cc-act-donut-value {
+  font-size: 30px;
+  line-height: 38px;
+  font-weight: var(--cc-fw-strong);
+  color: #656565;
+}
+
+:root.creatorcore .cc-act-donut-label {
+  font-size: 13px;
+  line-height: 16px;
+  color: #656565;
+}
+
+/* Two columns of AT MOST 220px, not exactly 220px. The card that holds this
+   grid is 450px of content at desktop-1600, so 2 x 220 + 10 lands on their
+   figure to the pixel; at 390px the same declaration shrinks instead of
+   hanging the second tile 171px outside the card. MEASURED 2026-09-15. */
+:root.creatorcore .cc-stage-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 220px));
+  gap: 10px;
+}
+
+:root.creatorcore .cc-stage-tile {
+  /* The track caps the width; stretching to it keeps the tile inside its own
+     column at every width instead of pinning 220px into a narrower one. */
+  width: auto;
+  /* A floor. Their tile is 220x120 and the tallest label in it wraps to two
+     lines (85 of content), so 120 is what this renders; a longer label added
+     later grows the tile instead of pushing the figure out of it. */
+  min-height: 120px;
+  min-width: 0;
+  padding: 0 20px;
+  gap: 4px;
+  justify-content: center;
+  border: 0;
+  border-radius: 12px;
+  background: #F0F3FC;
+}
+
+/* Their figure sits ABOVE the label. `order` rather than a JSX swap, so the
+   two blocks stay in the reading order the other themes render. */
+:root.creatorcore .cc-stage-tile .cc-stage-label {
+  order: 1;
+  line-height: 18px;
+}
+
+:root.creatorcore .cc-stage-count {
+  font-size: 36px;
+  line-height: 45px;
+  color: var(--cc-primary);
+}
+
+/* A selected pill fills with the status's OWN ink and paints --cc-on-primary
+   (white) on it. That reads on their solid blue; it does not read the moment
+   the ink is a pale one -- MEASURED on the Posts tab, where Pending Review's
+   ink resolved to #FEF3C7 and the pill drew white on cream.
+
+   StatusTabs now emits --cc-tab-on-ink beside --cc-tab-ink, chosen from the
+   literal it already had in hand (see whiteReadsOnInk). contrast-color() would
+   read the resolved colour and is supported here, but it maximises contrast
+   rather than meeting a threshold -- on their own rgb(59,117,242) Active pill
+   it picks black, which is a colour key we currently match with white. The
+   fallback keeps today's value for a tab whose colour is already a variable,
+   and this sits after both rules it corrects so it wins on order. */
+.cc-tabs[data-variant="solid"] .cc-tab[aria-selected="true"],
+:root.creatorcore .cc-tabs .cc-tab[aria-selected="true"] {
+  --cc-tab-fg: var(--cc-tab-on-ink, var(--cc-on-primary));
+}
+
+/* The Posts tab's own filter strip. MEASURED 2026-09-14 on their
+   campaign-busy-posts and campaign-busy-drafts: selected is a solid
+   rgb(31,60,239) pill with a white label at 223,136 60x28, and every
+   unselected label is plain rgb(0,0,0) -- the status hue is not used here at
+   all, which is why this strip needs its own rule rather than the
+   status-coloured one the campaigns list gets. */
+:root.creatorcore .cc-poststab-filter .cc-tabs .cc-tab {
+  --cc-tab-bg: transparent;
+  --cc-tab-fg: var(--cc-text);
+}
+
+:root.creatorcore .cc-poststab-filter .cc-tabs .cc-tab[aria-selected="true"] {
+  --cc-tab-bg: var(--cc-primary);
+  --cc-tab-fg: var(--cc-on-primary);
+}
+
+/* The activations queue table's header row. Base restates the inline style it
+   replaced, verbatim, so light and dark are unchanged. */
+.cc-queue-head {
+  display: grid;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--cc-border);
+  background: var(--cc-bg);
+  font-size: var(--cc-queue-head-fs);
+  font-weight: var(--cc-queue-head-fw);
+  letter-spacing: var(--cc-queue-head-tk);
+  text-transform: var(--cc-queue-head-transform);
+  color: var(--cc-queue-head-fg);
+}

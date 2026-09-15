@@ -143,10 +143,10 @@ export function ContractTermsReview({
         }}
       >
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <h3 style={{ fontSize: 18, fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>
+          <h3 style={{ fontSize: "var(--cc-t-18)", fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>
             Contract terms review
           </h3>
-          <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>
+          <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
             Review the proposed terms before approval
           </span>
         </div>
@@ -170,10 +170,10 @@ export function ContractTermsReview({
             background: "var(--cc-card)",
           }}
         >
-          <span aria-hidden="true" style={{ color: "var(--cc-danger)", fontSize: 14, lineHeight: "18px" }}>
+          <span aria-hidden="true" style={{ color: "var(--cc-danger)", fontSize: "var(--cc-t-14)", lineHeight: "18px" }}>
             <XCircle size={14} color="var(--cc-danger)" />
           </span>
-          <span style={{ fontSize: 13, fontWeight: 700, color: "var(--cc-danger)" }}>
+          <span style={{ fontSize: "var(--cc-t-13)", fontWeight: 700, color: "var(--cc-danger)" }}>
             Cannot proceed — resolve errors
           </span>
         </div>
@@ -182,14 +182,14 @@ export function ContractTermsReview({
       {typeof summary === "string" && summary.trim().length > 0 ? (
         <p
           data-testid="contract-summary"
-          style={{ fontSize: 13, color: "var(--cc-text-muted)", margin: 0 }}
+          style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", margin: 0 }}
         >
           {summary}
         </p>
       ) : null}
 
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        <h4 style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)", margin: 0 }}>
+        <h4 style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", margin: 0 }}>
           Deliverables
         </h4>
         {deliverables.length > 0 ? (
@@ -218,10 +218,10 @@ export function ContractTermsReview({
                   borderBottom: "1px solid var(--cc-border)",
                 }}
               >
-                <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>
+                <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>
                   {deliverable.kind}
                 </span>
-                <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>
+                <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
                   {`${deliverable.kind} × ${safeNum(deliverable.quantity).toLocaleString("en-US")}`}
                 </span>
               </li>
@@ -232,7 +232,7 @@ export function ContractTermsReview({
             data-testid="contract-deliverables-empty"
             role="status"
             aria-label="No deliverables listed"
-            style={{ fontSize: 13, color: "var(--cc-text-muted)", margin: 0 }}
+            style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", margin: 0 }}
           >
             No deliverables listed.
           </p>
@@ -249,37 +249,37 @@ export function ContractTermsReview({
         }}
       >
         <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
-          <dt style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text-muted)" }}>Rate</dt>
+          <dt style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text-muted)" }}>Rate</dt>
           <dd
             data-testid="contract-rate"
-            style={{ fontSize: 14, fontWeight: 700, color: "var(--cc-text)", margin: 0 }}
+            style={{ fontSize: "var(--cc-t-14)", fontWeight: 700, color: "var(--cc-text)", margin: 0 }}
           >
             {rateText}
           </dd>
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
-          <dt style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text-muted)" }}>Schedule</dt>
+          <dt style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text-muted)" }}>Schedule</dt>
           <dd
             data-testid="contract-schedule"
-            style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)", margin: 0 }}
+            style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", margin: 0 }}
           >
             {`${days.toLocaleString("en-US")} ${dayWord}`}
           </dd>
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
-          <dt style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text-muted)" }}>Usage rights</dt>
+          <dt style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text-muted)" }}>Usage rights</dt>
           <dd
             data-testid="contract-usage-rights"
-            style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)", margin: 0 }}
+            style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", margin: 0 }}
           >
             {usageRightsText}
           </dd>
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
-          <dt style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text-muted)" }}>Exclusivity</dt>
+          <dt style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text-muted)" }}>Exclusivity</dt>
           <dd
             data-testid="contract-exclusivity"
-            style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)", margin: 0 }}
+            style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", margin: 0 }}
           >
             {`${exclusivityDays.toLocaleString("en-US")} ${exclusivityWord}`}
           </dd>
@@ -287,7 +287,7 @@ export function ContractTermsReview({
       </dl>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        <h4 style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)", margin: 0 }}>
+        <h4 style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", margin: 0 }}>
           Validation issues
         </h4>
         {ordered.length > 0 ? (
@@ -320,10 +320,10 @@ export function ContractTermsReview({
                     {meta.word}
                   </Badge>
                   <span style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>
+                    <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>
                       {labelForCode(issue.code)}
                     </span>
-                    <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{issue.detail}</span>
+                    <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>{issue.detail}</span>
                   </span>
                 </li>
               );
@@ -336,10 +336,10 @@ export function ContractTermsReview({
             aria-label="No validation issues"
             style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--cc-success)", margin: 0 }}
           >
-            <span aria-hidden="true" style={{ fontSize: 16, lineHeight: "20px" }}>
+            <span aria-hidden="true" style={{ fontSize: "var(--cc-t-16)", lineHeight: "20px" }}>
               <CheckCircle2 size={16} color="var(--cc-success)" />
             </span>
-            <span style={{ fontSize: 13, fontWeight: 600 }}>No validation issues.</span>
+            <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)"}}>No validation issues.</span>
           </p>
         )}
       </div>
@@ -358,10 +358,10 @@ export function ContractTermsReview({
           background: "var(--cc-card)",
         }}
       >
-        <span style={{ fontSize: 13, fontWeight: 700, color: "var(--cc-text)" }}>
+        <span style={{ fontSize: "var(--cc-t-13)", fontWeight: 700, color: "var(--cc-text)" }}>
           Draft — Not signed
         </span>
-        <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>
+        <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
           This is a display-only review. E-signature requires approval and cannot happen here.
         </span>
       </div>

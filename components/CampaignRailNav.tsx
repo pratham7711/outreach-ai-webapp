@@ -95,8 +95,16 @@ export default function CampaignRailNav({
                   marginLeft: "auto",
                   background: activeSection ? "var(--cc-primary)" : "var(--cc-bg)",
                   color: activeSection ? "var(--primary-foreground)" : "var(--cc-text-muted)",
-                  fontSize: 10,
+                  fontSize: "var(--cc-t-10)",
                   fontWeight: 700,
+                  /* The badge inherits the row's 20px line-height while setting
+                     10px text, so its box measured 20+2+2 = 24px -- taller than
+                     the 20px label, which made it the tallest flex item and grew
+                     the whole row from 40px to 44px. MEASURED: only the two rows
+                     carrying counts were 44px, so the rail's pitch alternated
+                     48/52 against CreatorCore's uniform 50. A 10px badge does
+                     not need a 20px line box. */
+                  lineHeight: 1,
                   padding: "2px 7px",
                   borderRadius: 999,
                 }}

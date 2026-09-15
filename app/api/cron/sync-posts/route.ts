@@ -235,6 +235,7 @@ export async function GET(request: NextRequest) {
         likesCount: true,
         commentsCount: true,
         sharesCount: true,
+        savesCount: true,
         reachCount: true,
         engagementRate: true,
         syncFailCount: true,

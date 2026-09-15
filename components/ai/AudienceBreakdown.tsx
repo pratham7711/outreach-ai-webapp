@@ -109,8 +109,8 @@ export function AudienceBreakdown({ estimate, topN }: AudienceBreakdownProps) {
                   border: "1px solid var(--cc-warning)",
                   color: "var(--cc-warning)",
                   background: "var(--cc-card)",
-                  fontSize: 11,
-                  fontWeight: 600,
+                  fontSize: "var(--cc-t-11)",
+                  fontWeight: "var(--cc-fw-strong)",
                 }}
               >
                 {flagLabel(flag)}
@@ -127,13 +127,13 @@ export function AudienceBreakdown({ estimate, topN }: AudienceBreakdownProps) {
             key={section.id}
             style={{ display: "flex", flexDirection: "column", gap: 8 }}
           >
-            <h4 style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)", margin: 0 }}>
+            <h4 style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", margin: 0 }}>
               {section.title}
             </h4>
             {rows.length === 0 ? (
               <p
                 data-testid={`audience-${section.id}-empty`}
-                style={{ fontSize: 12, color: "var(--cc-text-muted)", margin: 0 }}
+                style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: 0 }}
               >
                 No data
               </p>
@@ -154,7 +154,7 @@ export function AudienceBreakdown({ estimate, topN }: AudienceBreakdownProps) {
                         style={{
                           flex: "0 0 auto",
                           minWidth: 96,
-                          fontSize: 13,
+                          fontSize: "var(--cc-t-13)",
                           fontWeight: 500,
                           color: "var(--cc-text)",
                         }}
@@ -189,8 +189,8 @@ export function AudienceBreakdown({ estimate, topN }: AudienceBreakdownProps) {
                           flex: "0 0 auto",
                           minWidth: 40,
                           textAlign: "right",
-                          fontSize: 12,
-                          fontWeight: 600,
+                          fontSize: "var(--cc-t-12)",
+                          fontWeight: "var(--cc-fw-strong)",
                           color: "var(--cc-text-muted)",
                         }}
                       >

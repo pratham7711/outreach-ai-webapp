@@ -18,6 +18,7 @@ jest.mock("@/lib/db", () => ({
     creatorSocialAccount: {
       findMany: jest.fn(),
       findFirst: jest.fn(),
+      findUnique: jest.fn(),
       upsert: jest.fn(),
       update: jest.fn(),
       delete: jest.fn(),
@@ -37,6 +38,7 @@ const mockDb = db as unknown as {
   creatorSocialAccount: {
     findMany: jest.Mock;
     findFirst: jest.Mock;
+    findUnique: jest.Mock;
     upsert: jest.Mock;
     update: jest.Mock;
     delete: jest.Mock;
@@ -81,6 +83,9 @@ beforeEach(() => {
   ]);
   mockDb.creator.findFirst.mockResolvedValue({ id: "c1", orgId: "org-1" });
   mockDb.creatorSocialAccount.findMany.mockResolvedValue([]);
+  /* No row yet: the callback reads the stored follower figure so a rounded
+     platform cannot overwrite an exact one, and a first connection has none. */
+  mockDb.creatorSocialAccount.findUnique.mockResolvedValue(null);
   mockDb.creatorSocialAccount.upsert.mockResolvedValue({ id: "sa-1" });
   mockDb.creatorSocialAccount.delete.mockResolvedValue({ id: "sa-1" });
   mockDb.creatorSocialAccount.count.mockResolvedValue(0);
