@@ -10,7 +10,11 @@ import {
   type TopPost,
 } from "@/lib/platforms/creatorProfile";
 import { followerLadder, keepPrecise } from "@/lib/platforms/precision";
-import { readInstagramFollowersFromPost } from "@/lib/platforms/instagramCreatorFallback";
+import {
+  describeInstagramPostReads,
+  readInstagramPostForFollowers,
+  type InstagramPostRead,
+} from "@/lib/platforms/instagramCreatorFallback";
 import { readTikTokTopPostsOfficial } from "@/lib/platforms/tiktokTopPostsOfficial";
 import {
   readTikTokTopPostsEmbed,
@@ -134,29 +138,42 @@ async function embedHtmlVia(
   return injected ? injected(handle) : null;
 }
 
+/* Four, and the number is measured rather than chosen. Walking a creator's own
+   posts newest-first on production 2026-09-16, over 40 tracked creators: 22 of
+   40 answered on the first post, 23 within three, 24 within four, and the curve
+   is FLAT from four to twelve. So a deeper walk buys nothing and costs a ~450ms
+   fetch (p90 846ms) per extra post on exactly the creators that are already
+   failing -- the ones whose posts are all gone, or all owned by somebody
+   else. */
+const IG_FALLBACK_POSTS = 4;
+
+/** The read, or a line saying what stopped it. */
+type InstagramOwnPostRead =
+  | { read: CreatorReadResult }
+  | { read: null; note: string };
+
 /**
  * The Instagram posts this workspace holds for a creator, read for the one
  * thing it can tell us that the platform will not: their follower count.
  *
- * Newest first, and up to three of them, because the commonest reason a read
- * comes back empty is that the post itself is gone -- the embed for a deleted
- * reel still answers 200 with a full-size page, just with "contextJSON":null
- * and no owner in it. MEASURED 2026-09-16 over the 20 most recently added
- * Instagram creators holding a post: the newest post alone answered for 9 of
- * them, and walking up to three answered for 11. The extra fetches only ever
- * happen for a creator whose earlier post did not answer, and only after the
- * credentialled read has already failed.
+ * Newest first, because the commonest reason a read comes back empty is that
+ * the post itself is gone -- the embed for a deleted reel still answers 200
+ * with a full-size page, just with "contextJSON":null and no owner in it. The
+ * extra fetches only ever happen for a creator whose earlier post did not
+ * answer, and only after the credentialled read has already failed.
  *
  * Scoped through Campaign.orgId -- Post has no orgId of its own -- so a
  * creator's read can only ever be answered by their own org's rows.
+ *
+ * When none of them answers it returns a note rather than a bare null: the
+ * three ways this rung fails need three different things done about them, and
+ * the caller has no other way to tell them apart.
  */
-const IG_FALLBACK_POSTS = 3;
-
 async function readInstagramFollowersViaOwnPost(creator: {
   id: string;
   orgId: string;
   handle: string;
-}): Promise<CreatorReadResult | null> {
+}): Promise<InstagramOwnPostRead> {
   const posts = await db.post
     .findMany({
       where: {
@@ -169,12 +186,15 @@ async function readInstagramFollowersViaOwnPost(creator: {
       take: IG_FALLBACK_POSTS,
     })
     .catch(() => []);
+
+  const outcomes: InstagramPostRead[] = [];
   for (const post of posts) {
     if (!post.postUrl) continue;
-    const read = await readInstagramFollowersFromPost(creator.handle, post.postUrl);
-    if (read) return read;
+    const read = await readInstagramPostForFollowers(creator.handle, post.postUrl);
+    if (read.ok) return { read: { ok: true, profile: read.profile } };
+    outcomes.push(read);
   }
-  return null;
+  return { read: null, note: describeInstagramPostReads(outcomes) };
 }
 
 /** Writes only the posts columns, for the paths where no snapshot was taken. */
@@ -397,10 +417,13 @@ export async function snapshotCreators(
        post: one of the creator's own, which is exactly what a tracked creator
        tends to have. Same shape as TikTok's sandbox rung above -- it only runs
        when the platform read has already failed, and it never downgrades a
-       reason, because it returns null rather than a failure of its own. */
+       reason: what it returns on failure is a note appended to the platform's
+       own, not a reason of its own. */
+    let instagramNote: string | null = null;
     if (!result.ok && creator.platform === "INSTAGRAM" && !dryRun) {
       const fromPost = await readInstagramFollowersViaOwnPost(creator);
-      if (fromPost) result = fromPost;
+      if (fromPost.read) result = fromPost.read;
+      else instagramNote = fromPost.note;
     }
 
     if (dryRun) {
@@ -420,6 +443,7 @@ export async function snapshotCreators(
         handle: creator.handle,
         reason: result.reason,
         detail: result.detail ?? null,
+        ownPosts: instagramNote,
       });
       /* A creator we cannot read is exactly the one whose tracked campaign
          posts are the only Top Posts we will ever have -- a renamed handle
@@ -438,9 +462,12 @@ export async function snapshotCreators(
           where: { id: creator.id },
           data: {
             trackerLastAttemptAt: new Date(),
-            trackerLastError: result.detail
-              ? `${result.reason}: ${result.detail}`
-              : result.reason,
+            trackerLastError: [
+              result.detail ? `${result.reason}: ${result.detail}` : result.reason,
+              instagramNote,
+            ]
+              .filter(Boolean)
+              .join(" — "),
             ...(salvaged
               ? {
                   topPosts: salvaged.topPosts as unknown as Prisma.InputJsonValue,
