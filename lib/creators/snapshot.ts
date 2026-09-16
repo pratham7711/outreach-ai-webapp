@@ -4,6 +4,7 @@ import { createLogger } from "@/lib/observability/logger";
 import { velocityBetween } from "@/lib/trackers/metrics";
 import { isDueForRead, parseGranularity, DEFAULT_GRANULARITY } from "@/lib/trackers/granularity";
 import {
+  formatTrackerError,
   moreSpecificFailure,
   readCreatorProfile,
   type CreatorReadResult,
@@ -462,12 +463,11 @@ export async function snapshotCreators(
           where: { id: creator.id },
           data: {
             trackerLastAttemptAt: new Date(),
-            trackerLastError: [
-              result.detail ? `${result.reason}: ${result.detail}` : result.reason,
-              instagramNote,
-            ]
-              .filter(Boolean)
-              .join(" — "),
+            trackerLastError: formatTrackerError(
+              result.reason,
+              result.detail,
+              instagramNote
+            ),
             ...(salvaged
               ? {
                   topPosts: salvaged.topPosts as unknown as Prisma.InputJsonValue,

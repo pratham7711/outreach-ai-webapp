@@ -17,7 +17,7 @@ import {
   parseGranularity,
   snapshotFetchLimit,
 } from "@/lib/trackers/granularity";
-import { READ_FAILURE_COPY, type CreatorReadFailure } from "@/lib/platforms/creatorProfile";
+import { parseTrackerError, READ_FAILURE_COPY } from "@/lib/platforms/creatorProfile";
 import { trackerLimitError, trackerUsage } from "@/lib/trackers/limit";
 import {
   byMetricDescending,
@@ -172,9 +172,19 @@ export async function GET(req: NextRequest) {
       /* A read that failed is not the same as a read that has not happened.
          Instagram will never return figures for a personal account, and saying
          so is more useful than a permanent blank. */
-      const reason = (c.trackerLastError ?? "").split(":")[0] as CreatorReadFailure;
-      const readError = c.trackerLastError
-        ? READ_FAILURE_COPY[reason] ?? "We could not read this creator's figures."
+      /* The stored string carries the platform's reason and, where a fallback
+         rung looked, what it saw. Both reach the reader: the copy says what
+         kind of failure it is, the note says which of this creator's posts it
+         tried and what it found there, and only the second distinguishes a
+         renamed handle from one whose posts are simply gone. */
+      const failure = c.trackerLastError ? parseTrackerError(c.trackerLastError) : null;
+      const readError = failure
+        ? [
+            READ_FAILURE_COPY[failure.reason] ?? "We could not read this creator's figures.",
+            failure.note ? `We also looked at their own posts: ${failure.note}.` : null,
+          ]
+            .filter(Boolean)
+            .join(" ")
         : null;
 
       return {

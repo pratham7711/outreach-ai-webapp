@@ -9,7 +9,9 @@
  */
 import {
   READ_FAILURE_COPY,
+  formatTrackerError,
   moreSpecificFailure,
+  parseTrackerError,
   type CreatorReadFailure,
 } from "@/lib/platforms/creatorProfile";
 import { parseTikTokProfileHtml } from "@/lib/platforms/tiktokProfile";
@@ -85,5 +87,57 @@ describe("moreSpecificFailure", () => {
     expect(moreSpecificFailure("no-such-account", "not-a-professional-account")).toBe(
       "no-such-account"
     );
+  });
+});
+
+/**
+ * Creator.trackerLastError is one column doing two jobs, and the reason half
+ * has to survive the note half being bolted on -- including for the rows
+ * written before the note existed, which are most of them.
+ */
+describe("trackerLastError round-trip", () => {
+  it("keeps the reason parseable once a note is appended", () => {
+    const stored = formatTrackerError(
+      "unreadable",
+      "Error validating access token: The session has been invalidated",
+      "4 post(s) tried; none is still available on Instagram"
+    );
+    expect(parseTrackerError(stored)).toEqual({
+      reason: "unreadable",
+      note: "4 post(s) tried; none is still available on Instagram",
+    });
+  });
+
+  it("reads a row written before notes existed", () => {
+    expect(parseTrackerError("no-such-account: statusCode 10221")).toEqual({
+      reason: "no-such-account",
+      note: null,
+    });
+    expect(parseTrackerError("rate-limited")).toEqual({
+      reason: "rate-limited",
+      note: null,
+    });
+  });
+
+  it("does not split on a colon inside the detail", () => {
+    /* The Graph error that prompted all of this carries two colons of its own,
+       and the reason is only ever the first token. */
+    const stored = formatTrackerError("unreadable", "Error validating access token: invalid");
+    expect(parseTrackerError(stored).reason).toBe("unreadable");
+  });
+
+  it("carries a note even when the platform gave no detail", () => {
+    const stored = formatTrackerError("unreadable", undefined, "no post of theirs is on record");
+    expect(parseTrackerError(stored)).toEqual({
+      reason: "unreadable",
+      note: "no post of theirs is on record",
+    });
+  });
+
+  it("maps every parsed reason onto copy the reader can act on", () => {
+    const reason = parseTrackerError(
+      formatTrackerError("not-a-professional-account", null, "1 post(s) tried")
+    ).reason;
+    expect(READ_FAILURE_COPY[reason]).toContain("Business and Creator accounts");
   });
 });

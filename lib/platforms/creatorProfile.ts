@@ -66,7 +66,8 @@ export function rankTopPosts(posts: TopPost[]): TopPost[] {
     .slice(0, TOP_POSTS_LIMIT);
 }
 
-/** Why a read produced nothing. Stored on Creator.trackerLastError verbatim. */
+/** Why a read produced nothing. Leads Creator.trackerLastError -- see
+ *  formatTrackerError below for what else that column may carry. */
 export type CreatorReadFailure =
   /** No token/key configured for this platform in this environment. */
   | "no-credentials"
@@ -97,6 +98,37 @@ export const READ_FAILURE_COPY: Record<CreatorReadFailure, string> = {
     "We could not find this handle on the platform. It may have been renamed or deleted, or the spelling may be off — waiting will not fix it.",
   "rate-limited": "We are reading too many creators right now. This one retries on the next sweep.",
 };
+
+/**
+ * How a failed read is written into, and read back out of, Creator.trackerLastError.
+ *
+ * That column is one free-text string doing two jobs: it carries the machine
+ * reason the UI maps to copy, and -- since 2026-09-16 -- whatever a fallback
+ * rung observed on the way, which is the only thing that tells three
+ * identical-looking Instagram failures apart. A newline separates them because
+ * a platform error message is one line and never contains one, so the reason
+ * survives being parsed out of strings written before the note existed.
+ */
+const TRACKER_NOTE_SEP = "\n";
+
+export function formatTrackerError(
+  reason: CreatorReadFailure,
+  detail?: string | null,
+  note?: string | null
+): string {
+  const head = detail ? `${reason}: ${detail}` : reason;
+  return note ? `${head}${TRACKER_NOTE_SEP}${note}` : head;
+}
+
+/** The reason and the note, from a stored string of either vintage. */
+export function parseTrackerError(stored: string): {
+  reason: CreatorReadFailure;
+  note: string | null;
+} {
+  const [head, ...rest] = stored.split(TRACKER_NOTE_SEP);
+  const note = rest.join(TRACKER_NOTE_SEP).trim();
+  return { reason: head.split(":")[0].trim() as CreatorReadFailure, note: note || null };
+}
 
 /**
  * Which of two failures to keep when a fallback rung answers after the first.
