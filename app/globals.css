@@ -4562,7 +4562,28 @@ h1, h2, h3, h4, h5, h6 {
    is a broken one -- the row reached the right numbers while painting the wrong
    pixels, which is the exact trap this harness exists to catch. Widening the
    container instead lets the rows fill it naturally. */
-:root.creatorcore main .rsp-table-wrap {
+/* ...and onto the CARD, when a card is what paints the list's edge.
+   `.rsp-table-wrap` is a direct child of a `<Card>` on six screens -- Feature
+   Access, Deadlines, Recipients, Media Kits, Reports and the Audit Log -- and
+   there the bleed moved the rows out from under the border that is supposed to
+   contain them: measured at 1440px, the card spanned 261.9..1398.5 while the
+   rows spanned 243.1..1421.9, so the first cell's text began 4.4px to the LEFT
+   of the card's own left edge and was painted over by it. Recipients is the
+   screen the bleed was measured on, and it was broken there too -- the harness
+   reads row positions, and a row can hit the reference's numbers while sitting
+   outside its own card.
+
+   Bleeding the card instead keeps the rows where the reference puts them and
+   takes the border, background and radius with them. */
+:root.creatorcore main .ui-card:has(> .rsp-table-wrap) {
+  margin-inline-start: calc(-1 * var(--cc-list-bleed-start));
+  margin-inline-end: calc(-1 * var(--cc-list-bleed-end));
+  max-width: none;
+}
+
+/* The wrap keeps the bleed only where no card is carrying it, or the two would
+   compound and the list would sit outside the page's gutter entirely. */
+:root.creatorcore main .rsp-table-wrap:not(.ui-card *) {
   margin-inline-start: calc(-1 * var(--cc-list-bleed-start));
   margin-inline-end: calc(-1 * var(--cc-list-bleed-end));
   /* `.rsp-table-wrap` carries `max-width: 100%`, which pins it to the container
