@@ -7,12 +7,19 @@ import { createLogger } from "@/lib/observability/logger";
  *
  * INSTAGRAM_BUSINESS_TOKEN is the only credential that yields Instagram *views*
  * (Business Discovery; see lib/platforms/instagramBusinessDiscovery.ts). When it
- * dies, lib/platforms/fetchPostMetrics falls through to the public embed, which
- * carries likes and comments but no view count -- so nothing errors, no post is
- * marked failed, and the only symptom is that view numbers stop moving. That
- * happened for ~2 days in production with a single log line as the only signal.
- * This turns the silence into something a page can render and a cron can email
- * about.
+ * dies, lib/platforms/fetchPostMetrics falls through to the public embed -- so
+ * nothing errors, no post is marked failed, and the only symptom is that the
+ * numbers stop moving. That happened for ~2 days in production with a single log
+ * line as the only signal. This turns the silence into something a page can
+ * render and a cron can email about.
+ *
+ * How much the fallback catches is now measured rather than assumed. This module
+ * used to state, in the alert and in the banner both, that likes and comments
+ * kept updating through the embed. Measured 2026-09-17 against production: 150
+ * Instagram posts had non-seal snapshots written in the previous 7 days and NONE
+ * of them changed a like count, because the embed surface closed (see
+ * lib/platforms/instagramEmbed). Hence checkInstagramEmbedFallback: the second
+ * source gets probed too, and what we tell people is whatever came back.
  *
  * The probe is `me/accounts`, not a business_discovery read, because that is the
  * call whose 190 the production logs actually carry and because it needs no
@@ -197,6 +204,65 @@ export async function checkInstagramBusinessSource(): Promise<InstagramSourceHea
 }
 
 /**
+ * Is the credential-free fallback still serving?
+ *
+ * Separate from the Business Discovery probe above and deliberately not folded
+ * into it: they are different surfaces with different owners and they fail
+ * independently. Answering "Instagram is down" from one of them is how the
+ * product came to promise, on two screens and in an email, that likes and
+ * comments were still updating through a fallback that had stopped answering.
+ *
+ * Needs a post to ask about -- the embed is per-media, there is no status page
+ * -- and takes it from the caller, so the probe never goes looking through rows
+ * that belong to some other tenant for something to read.
+ */
+export type InstagramFallbackHealth = {
+  /** True only when a real media payload came back. */
+  serving: boolean;
+  /** Which of the surface's states this was; see InstagramEmbedSurfaceState. */
+  state: string;
+  reason: string;
+  checkedAt: string;
+};
+
+export async function checkInstagramEmbedFallbackUncached(
+  postUrl: string,
+): Promise<InstagramFallbackHealth> {
+  const checkedAt = new Date().toISOString();
+  /* Lazy, like every other import here: this module's types are imported by a
+     client component and instagramEmbed pulls in node:https. */
+  const { probeInstagramEmbedSurface } = await import("@/lib/platforms/instagramEmbed");
+  const surface = await probeInstagramEmbedSurface(
+    postUrl,
+    AbortSignal.timeout(PROBE_TIMEOUT_MS),
+  );
+  return { serving: surface.serving, state: surface.state, reason: surface.reason, checkedAt };
+}
+
+/**
+ * Cached on the same 5-minute bucket as the Graph probe, and keyed by the post
+ * as well: the answer is a property of the surface, but a 404 for one deleted
+ * post is not, and sharing one entry across posts would let that 404 be read as
+ * Instagram closing.
+ */
+export async function checkInstagramEmbedFallback(
+  postUrl: string,
+): Promise<InstagramFallbackHealth> {
+  const bucket = Math.floor(Date.now() / (HEALTH_TTL_SECONDS * 1000));
+  const cached = unstable_cache(
+    () => checkInstagramEmbedFallbackUncached(postUrl),
+    ["instagram-embed-fallback", String(bucket), postUrl],
+    { revalidate: HEALTH_TTL_SECONDS },
+  );
+  try {
+    return await cached();
+  } catch (err) {
+    if (!(err instanceof Error) || !err.message.includes("incrementalCache missing")) throw err;
+    return checkInstagramEmbedFallbackUncached(postUrl);
+  }
+}
+
+/**
  * The one email a dead token earns, at most once a day.
  *
  * Wording matches the banner deliberately: whoever reads the mail and whoever
@@ -257,11 +323,21 @@ async function alreadyAlertedToday(): Promise<boolean> {
 export async function alertIfInstagramSourceDown(facts: {
   rejectedPosts: number;
   totalPosts: number;
+  /** A post from the run, so the mail can say what the fallback actually did
+   *  rather than what it used to do. Optional: an older caller still works, and
+   *  gets "not checked" instead of a claim nobody measured. */
+  samplePostUrl?: string | null;
 }): Promise<{ alerted: boolean; reason: string }> {
   try {
     const health = await checkInstagramBusinessSource();
     if (health.ok) return { alerted: false, reason: "source-healthy" };
     if (await alreadyAlertedToday()) return { alerted: false, reason: "already-alerted-today" };
+
+    /* Probed only on the branch that sends mail, and only once a day because of
+       the throttle above -- one extra request against Instagram per outage. */
+    const fallback = facts.samplePostUrl
+      ? await checkInstagramEmbedFallback(facts.samplePostUrl).catch(() => null)
+      : null;
 
     await alertOps({
       source: "instagram-business-token",
@@ -272,8 +348,18 @@ export async function alertIfInstagramSourceDown(facts: {
            sentence, and neither of those is a secret. */
         cause: health.reason,
         graphCode: health.code ?? "none",
-        stillUpdating: "likes and comments (public embed fallback)",
-        notUpdating: "views (Business Discovery only)",
+        /* Was a hardcoded "likes and comments (public embed fallback)". It was
+           true when written and false by 2026-09-17, and nothing in the system
+           noticed -- so it is measured now, and an unmeasured run says so. */
+        publicFallback: fallback
+          ? `${fallback.serving ? "serving" : "not serving"} -- ${fallback.reason}`
+          : "not checked (no Instagram post in this run to check with)",
+        stillUpdating: fallback?.serving
+          ? "likes and comments (public embed fallback)"
+          : "nothing, except for creators who connected their own Instagram account",
+        notUpdating: fallback?.serving
+          ? "views (Business Discovery only)"
+          : "views, likes and comments",
         remedy: "replace the INSTAGRAM_BUSINESS_TOKEN environment variable",
         instagramPostsAffectedThisRun: facts.rejectedPosts,
         postsInRun: facts.totalPosts,

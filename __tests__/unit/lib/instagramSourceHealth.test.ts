@@ -11,7 +11,18 @@ jest.mock("@/lib/observability/logger", () => ({
   createLogger: () => ({ error: jest.fn(), warn: jest.fn(), info: jest.fn(), debug: jest.fn() }),
 }));
 
+const alertOps = jest.fn();
+jest.mock("@/lib/alerts", () => ({ alertOps: (...args: unknown[]) => alertOps(...args) }));
+/* The throttle reads EmailLog; an empty history means "not alerted today". */
+jest.mock("@/lib/db", () => ({ db: { emailLog: { findFirst: jest.fn(async () => null) } } }));
+
+const probeInstagramEmbedSurface = jest.fn();
+jest.mock("@/lib/platforms/instagramEmbed", () => ({
+  probeInstagramEmbedSurface: (...args: unknown[]) => probeInstagramEmbedSurface(...args),
+}));
+
 import {
+  alertIfInstagramSourceDown,
   checkInstagramBusinessSourceUncached,
   type InstagramSourceHealth,
 } from "@/lib/integrations/health";
@@ -120,5 +131,88 @@ describe("checkInstagramBusinessSource", () => {
     expect(url.pathname).toMatch(/\/me\/accounts$/);
     expect(url.searchParams.get("access_token")).toBe("test-token");
     expect(url.searchParams.get("fields")).toContain("instagram_business_account");
+  });
+});
+
+/**
+ * What the outage email claims, as opposed to what was true when it was written.
+ *
+ * `stillUpdating` was the string "likes and comments (public embed fallback)",
+ * hardcoded. It was accurate in 2026-09 and wrong by 2026-09-17, when the embed
+ * stopped serving post payloads -- and nothing in the system could tell, because
+ * no code path ever asked the fallback anything. Measured against production the
+ * same day: 150 Instagram posts with fresh snapshots over 7 days, zero moved
+ * like counts. So the field is a measurement now, and these pin it.
+ */
+describe("alertIfInstagramSourceDown", () => {
+  const down = () =>
+    graphReplies(400, { error: { code: 190, message: "Session has been invalidated" } });
+
+  it("reports the fallback as dead when the probe says it is", async () => {
+    down();
+    probeInstagramEmbedSurface.mockResolvedValue({
+      state: "closed",
+      serving: false,
+      reason: "Instagram no longer publishes post figures on its public embed",
+      status: 200,
+      bytes: 1000,
+    });
+
+    const out = await alertIfInstagramSourceDown({
+      rejectedPosts: 3,
+      totalPosts: 10,
+      samplePostUrl: "https://www.instagram.com/p/DcQFHR5pdYw/",
+    });
+
+    expect(out.alerted).toBe(true);
+    const facts = alertOps.mock.calls[0][0].facts;
+    expect(facts.stillUpdating).not.toMatch(/likes and comments \(public embed/i);
+    expect(facts.stillUpdating).toMatch(/nothing/i);
+    expect(facts.notUpdating).toBe("views, likes and comments");
+    expect(facts.publicFallback).toMatch(/not serving/i);
+  });
+
+  it("goes back to the old sentence if the fallback answers again", async () => {
+    down();
+    probeInstagramEmbedSurface.mockResolvedValue({
+      state: "serving",
+      serving: true,
+      reason: "the public Instagram embed is serving post data",
+      status: 200,
+      bytes: 262_000,
+    });
+
+    await alertIfInstagramSourceDown({
+      rejectedPosts: 3,
+      totalPosts: 10,
+      samplePostUrl: "https://www.instagram.com/p/DcQFHR5pdYw/",
+    });
+
+    const facts = alertOps.mock.calls[0][0].facts;
+    expect(facts.stillUpdating).toMatch(/likes and comments/i);
+    expect(facts.notUpdating).toMatch(/views \(Business Discovery only\)/);
+  });
+
+  it("says it did not check rather than guessing, with no post to check with", async () => {
+    down();
+    await alertIfInstagramSourceDown({ rejectedPosts: 3, totalPosts: 10 });
+    const facts = alertOps.mock.calls[0][0].facts;
+    expect(probeInstagramEmbedSurface).not.toHaveBeenCalled();
+    expect(facts.publicFallback).toMatch(/not checked/i);
+    expect(facts.stillUpdating).toMatch(/nothing/i);
+  });
+
+  it("sends nothing at all while the platform token works", async () => {
+    graphReplies(200, { data: [{ id: "p1", instagram_business_account: { id: "ig1" } }] });
+    const out = await alertIfInstagramSourceDown({
+      rejectedPosts: 3,
+      totalPosts: 10,
+      samplePostUrl: "https://www.instagram.com/p/DcQFHR5pdYw/",
+    });
+    expect(out).toEqual({ alerted: false, reason: "source-healthy" });
+    expect(alertOps).not.toHaveBeenCalled();
+    /* A rejected creator token is not an operator's problem, and probing the
+       fallback for it would be an outbound request per cron run. */
+    expect(probeInstagramEmbedSurface).not.toHaveBeenCalled();
   });
 });

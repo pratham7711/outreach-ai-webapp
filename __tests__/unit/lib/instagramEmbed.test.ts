@@ -3,8 +3,10 @@ import https from "node:https";
 import { gzipSync } from "node:zlib";
 
 import {
+  classifyInstagramEmbedHtml,
   parseInstagramEmbed,
   fetchInstagramEmbedPost,
+  probeInstagramEmbedSurface,
 } from "@/lib/platforms/instagramEmbed";
 
 /**
@@ -324,6 +326,124 @@ describe("fetchInstagramEmbedPost — the request on the wire", () => {
   it("does not open a socket for a URL with no shortcode", async () => {
     const spy = jest.spyOn(https, "request");
     await expect(fetchInstagramEmbedPost("https://example.com/nope")).resolves.toBeNull();
+    expect(spy).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * The three shapes the surface has actually served, told apart.
+ *
+ * Every one of them reaches fetchInstagramEmbedPost as `null`, which is right
+ * for a caller that only wants numbers and useless for telling a client why
+ * their figures stopped. The product spent ten days asserting "likes and
+ * comments still update" on the strength of that ambiguity.
+ */
+describe("classifyInstagramEmbedHtml", () => {
+  it("calls a real payload serving", () => {
+    const html = embedHtml(context({ ...BASE, edge_liked_by: { count: 12 } }));
+    expect(classifyInstagramEmbedHtml(html).state).toBe("serving");
+  });
+
+  it("calls a null contextJSON closed, not a failure of ours", () => {
+    /* Measured 2026-09-17 from iad1 with a warmed cookie jar: HTTP 200, the key
+       still present, the value literally null. Instagram did not fail to serve
+       this page -- it served an empty one. */
+    const html = '<html><script type="application/json">{"contextJSON":null}</script></html>';
+    const out = classifyInstagramEmbedHtml(html);
+    expect(out.state).toBe("closed");
+    expect(out.reason).toMatch(/no longer publishes/i);
+  });
+
+  it("keeps the login shell apart from an empty payload", () => {
+    const out = classifyInstagramEmbedHtml(`<html><title>Instagram</title>${"x".repeat(500_000)}</html>`);
+    expect(out.state).toBe("login-wall");
+    expect(out.reason).toMatch(/login page/i);
+  });
+});
+
+describe("probeInstagramEmbedSurface", () => {
+  let server: http.Server;
+  let port: number;
+  let respondWith: { status: number; body: string } = { status: 200, body: "" };
+
+  beforeAll(async () => {
+    server = http.createServer((_req, res) => {
+      res.writeHead(respondWith.status);
+      res.end(respondWith.body);
+    });
+    await new Promise<void>((r) => server.listen(0, "127.0.0.1", () => r()));
+    port = (server.address() as any).port;
+  });
+
+  afterAll(async () => {
+    await new Promise<void>((r) => server.close(() => r()));
+  });
+
+  function redirect() {
+    const real = https.request;
+    jest.spyOn(https, "request").mockImplementation(((opts: any, cb: any) =>
+      http.request(
+        { ...opts, hostname: "127.0.0.1", port, protocol: "http:", agent: undefined },
+        cb,
+      )) as any);
+    return () => {
+      (https.request as any).mockRestore?.();
+      https.request = real;
+    };
+  }
+
+  afterEach(() => jest.restoreAllMocks());
+
+  it("reports serving when the payload is there", async () => {
+    respondWith = { status: 200, body: embedHtml(context({ ...BASE, edge_liked_by: { count: 4 } })) };
+    const restore = redirect();
+    try {
+      const out = await probeInstagramEmbedSurface("https://www.instagram.com/p/DcQFHR5pdYw/");
+      expect(out.serving).toBe(true);
+      expect(out.state).toBe("serving");
+    } finally {
+      restore();
+    }
+  });
+
+  it("separates Instagram closing the surface from Instagram refusing the post", async () => {
+    /* The remedy differs: one is nobody's to fix, the other is about that one
+       post. Reported as the same null, they were indistinguishable. */
+    respondWith = { status: 200, body: '<html>{"contextJSON":null}</html>' };
+    const restore = redirect();
+    try {
+      const closed = await probeInstagramEmbedSurface("https://www.instagram.com/p/DcQFHR5pdYw/");
+      expect(closed).toMatchObject({ serving: false, state: "closed", status: 200 });
+
+      respondWith = { status: 404, body: "" };
+      const refused = await probeInstagramEmbedSurface("https://www.instagram.com/p/DcQFHR5pdYw/");
+      expect(refused).toMatchObject({ serving: false, state: "refused", status: 404 });
+      expect(refused.reason).toMatch(/404/);
+    } finally {
+      restore();
+    }
+  });
+
+  it("does not blame Instagram for our own deadline", async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const restore = redirect();
+    try {
+      const out = await probeInstagramEmbedSurface(
+        "https://www.instagram.com/p/DcQFHR5pdYw/",
+        controller.signal,
+      );
+      expect(out.state).toBe("unreachable");
+      expect(out.serving).toBe(false);
+    } finally {
+      restore();
+    }
+  });
+
+  it("answers without a socket when the link carries no post id", async () => {
+    const spy = jest.spyOn(https, "request");
+    const out = await probeInstagramEmbedSurface("https://example.com/nope");
+    expect(out.state).toBe("unreachable");
     expect(spy).not.toHaveBeenCalled();
   });
 });

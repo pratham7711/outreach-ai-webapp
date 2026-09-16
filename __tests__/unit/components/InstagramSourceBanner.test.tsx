@@ -24,9 +24,11 @@ import { InstagramSourceBanner } from "@/components/integrations/InstagramSource
 const mockFetch = apiFetch as jest.Mock;
 const CHECKED = "2026-09-16T09:00:00.000Z";
 
-function answer(instagram: unknown) {
-  mockFetch.mockResolvedValue({ instagram });
+function answer(instagram: unknown, instagramFallback: unknown = null) {
+  mockFetch.mockResolvedValue({ instagram, instagramFallback });
 }
+
+const DOWN = { ok: false, code: 190, reason: "token expired or revoked", checkedAt: CHECKED };
 
 beforeEach(() => mockFetch.mockReset());
 
@@ -105,6 +107,53 @@ describe("InstagramSourceBanner", () => {
     await screen.findByText(/are not refreshing/i);
     expect(container.textContent).toMatch(/when we checked on/i);
     expect(container.textContent).not.toMatch(/expired on/i);
+  });
+
+  describe("what it says is still updating", () => {
+    /* The claim this suite now exists for. Every failure branch used to end
+       "Likes and comments still update." -- written when the public embed
+       served them, still on the screen after it stopped. Measured 2026-09-17:
+       150 production Instagram posts re-read over 7 days, zero like counts
+       moved. The sentence is now whatever the fallback probe came back with. */
+    it("says likes and comments stopped too when the fallback is closed", async () => {
+      answer(DOWN, {
+        serving: false,
+        state: "closed",
+        reason: "Instagram no longer publishes post figures on its public embed",
+        checkedAt: CHECKED,
+      });
+      const { container } = render(<InstagramSourceBanner />);
+      expect(await screen.findByText(/Instagram numbers are not refreshing/i)).toBeInTheDocument();
+      expect(container.textContent).toMatch(/Likes and comments have stopped too/i);
+      expect(container.textContent).toMatch(/no longer publishes post figures/i);
+      expect(container.textContent).not.toMatch(/Likes and comments still update/i);
+    });
+
+    it("still says so when the fallback is genuinely serving", async () => {
+      // Not a one-way change: if the embed answers again, the old sentence is
+      // true again and should come back on its own.
+      answer(DOWN, {
+        serving: true,
+        state: "serving",
+        reason: "the public Instagram embed is serving post data",
+        checkedAt: CHECKED,
+      });
+      const { container } = render(<InstagramSourceBanner />);
+      expect(await screen.findByText(/Instagram views are not refreshing/i)).toBeInTheDocument();
+      expect(container.textContent).toMatch(/Likes and comments still update/i);
+    });
+
+    it("claims nothing when nobody probed the fallback", async () => {
+      /* The route only probes once the official source is down and only when
+         the org has an Instagram post to probe with. An unprobed fallback is
+         not a working one, and must not be described as either. */
+      answer(DOWN);
+      const { container } = render(<InstagramSourceBanner />);
+      await screen.findByText(/are not refreshing/i);
+      expect(container.textContent).toMatch(/only for creators who connected their own Instagram/i);
+      expect(container.textContent).not.toMatch(/Likes and comments still update/i);
+      expect(container.textContent).not.toMatch(/have stopped too/i);
+    });
   });
 
   it("renders nothing when the health check itself fails", async () => {

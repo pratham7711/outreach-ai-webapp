@@ -176,6 +176,9 @@ export async function GET(request: NextRequest) {
   let sealed = 0;
   let unavailable = 0;
   let instagramCredentialsRejected = 0;
+  /* One of the posts the rejection happened on, kept so the alert can probe the
+     public fallback rather than assert what it used to do. */
+  let instagramRejectedSampleUrl: string | null = null;
   let failed = 0;
   let deadLettered = 0;
   let skippedForBudget = 0;
@@ -473,7 +476,10 @@ export async function GET(request: NextRequest) {
                platform token -- and only the platform token is worth emailing
                an operator about. The count is the trigger; the probe at the end
                of the run is the diagnosis. */
-            if (post.platform === "INSTAGRAM") instagramCredentialsRejected++;
+            if (post.platform === "INSTAGRAM") {
+              instagramCredentialsRejected++;
+              instagramRejectedSampleUrl ??= post.postUrl;
+            }
             log.warn("skipped post; platform credentials could not be used", {
               postId: post.id,
               platform: post.platform,
@@ -628,6 +634,7 @@ export async function GET(request: NextRequest) {
       instagramSourceAlert = await alertIfInstagramSourceDown({
         rejectedPosts: instagramCredentialsRejected,
         totalPosts: posts.length,
+        samplePostUrl: instagramRejectedSampleUrl,
       });
     }
 

@@ -7,7 +7,19 @@ import { shortcodeFromUrl } from "./instagram";
 const log = createLogger({ context: { platform: "INSTAGRAM", source: "embed" } });
 
 /**
- * The last Instagram surface that still answers without a credential.
+ * The captioned embed -- the last Instagram surface that answered without a
+ * credential, and as of 2026-09-17 it does not answer either.
+ *
+ * Measured that day from a Vercel Sandbox in iad1, which is production's own
+ * egress, with a warmed cookie jar (mid + csrftoken): the page still returns
+ * HTTP 200 and still contains the `"contextJSON":` key, but its value is now
+ * literally `null` -- no `gql_data`, no `shortcode_media`, no counters. The
+ * four other anonymous routes were re-checked in the same run and are closed
+ * too (graphql 401 require_login, media/shortcode info 404, web_profile_info
+ * 400, and no og: metas on the logged-out post page). So this module now
+ * reports what it finds rather than only returning null: a surface that serves
+ * nothing and a request that never arrived are the same absence to a caller,
+ * and only one of them is Instagram's doing. See probeInstagramEmbedSurface.
  *
  * Every documented public endpoint is now closed. Measured 2026-09-02, from a
  * residential address AND from a Vercel Sandbox, both getting the same answer:
@@ -213,10 +225,19 @@ const EMBED_HEADERS: Record<string, string> = {
  * Instagram serves this gzipped and ignores `accept-encoding: identity`, so the
  * response is decompressed here rather than assumed to be text.
  */
-function getEmbedHtml(path: string, signal?: AbortSignal): Promise<string | null> {
+type EmbedResponse = {
+  /** The decoded page, when one arrived. */
+  html: string | null;
+  /** Instagram's status, when Instagram answered at all. */
+  status: number | null;
+  /** Our own failure -- DNS, TLS, the caller's deadline. Never Instagram's verdict. */
+  transportError: string | null;
+};
+
+function getEmbedResponse(path: string, signal?: AbortSignal): Promise<EmbedResponse> {
   return new Promise((resolve) => {
     let settled = false;
-    const done = (value: string | null) => {
+    const done = (value: EmbedResponse) => {
       if (!settled) {
         settled = true;
         resolve(value);
@@ -229,7 +250,7 @@ function getEmbedHtml(path: string, signal?: AbortSignal): Promise<string | null
         if (res.statusCode !== 200) {
           log.warn("instagram embed refused", { path, status: res.statusCode });
           res.resume();
-          return done(null);
+          return done({ html: null, status: res.statusCode ?? null, transportError: null });
         }
         const chunks: Buffer[] = [];
         res.on("data", (c: Buffer) => chunks.push(c));
@@ -243,35 +264,35 @@ function getEmbedHtml(path: string, signal?: AbortSignal): Promise<string | null
                 : encoding === "deflate"
                   ? inflateSync(buf).toString("utf8")
                   : buf.toString("utf8");
-            done(text);
+            done({ html: text, status: res.statusCode ?? 200, transportError: null });
           } catch (error) {
-            log.warn("instagram embed body could not be decoded", {
-              path,
-              error: error instanceof Error ? error.message : String(error),
-            });
-            done(null);
+            const reason = error instanceof Error ? error.message : String(error);
+            log.warn("instagram embed body could not be decoded", { path, error: reason });
+            done({ html: null, status: res.statusCode ?? 200, transportError: reason });
           }
         });
-        res.on("error", () => done(null));
+        res.on("error", (error) =>
+          done({ html: null, status: res.statusCode ?? null, transportError: error.message }),
+        );
       },
     );
 
     req.on("error", (error) => {
       log.warn("instagram embed request failed", { path, error: error.message });
-      done(null);
+      done({ html: null, status: null, transportError: error.message });
     });
 
     /* The chain's other legs take an AbortSignal, so this one honours it too --
        a refresh's time budget has to be able to cut this off. */
     if (signal) {
+      const abandon = () => {
+        req.destroy();
+        done({ html: null, status: null, transportError: "the read was cut off by our own deadline" });
+      };
       if (signal.aborted) {
-        req.destroy();
-        return done(null);
+        return abandon();
       }
-      signal.addEventListener("abort", () => {
-        req.destroy();
-        done(null);
-      }, { once: true });
+      signal.addEventListener("abort", abandon, { once: true });
     }
     req.end();
   });
@@ -284,7 +305,7 @@ export async function fetchInstagramEmbedPost(
   const shortcode = shortcodeFromUrl(url);
   if (!shortcode) return null;
 
-  const html = await getEmbedHtml(`/p/${shortcode}/embed/captioned/`, signal);
+  const { html } = await getEmbedResponse(`/p/${shortcode}/embed/captioned/`, signal);
   if (!html) return null;
 
   const parsed = parseInstagramEmbed(html);
@@ -301,4 +322,115 @@ export async function fetchInstagramEmbedPost(
     return null;
   }
   return parsed;
+}
+
+/**
+ * What the captioned-embed surface is doing right now, as opposed to what one
+ * post's read returned.
+ *
+ * The distinction is the point. `fetchInstagramEmbedPost` answers null for a
+ * closed surface, a deleted post, a login wall and a DNS failure alike, which
+ * is correct for a caller that only wants numbers and useless to anyone trying
+ * to tell a client why their figures stopped. These states each need a
+ * different person: "closed" is Instagram's decision and nobody here can undo
+ * it, "unreachable" is ours and usually passes, "refused" is about that one
+ * post.
+ */
+export type InstagramEmbedSurfaceState =
+  /** The page carried a real media payload. The fallback works. */
+  | "serving"
+  /** 200 with a contextJSON that holds no media -- the surface is open and empty. */
+  | "closed"
+  /** 200, but the login shell rather than the embed. */
+  | "login-wall"
+  /** Instagram answered with a status other than 200 (a deleted post is a 404). */
+  | "refused"
+  /** We never got an answer: our network, our deadline, our failure to decode. */
+  | "unreachable";
+
+export type InstagramEmbedSurface = {
+  state: InstagramEmbedSurfaceState;
+  /** True only for "serving": the one state in which likes and comments arrive. */
+  serving: boolean;
+  /** A sentence a non-engineer can read, already free of URLs and tokens. */
+  reason: string;
+  status: number | null;
+  bytes: number | null;
+};
+
+/* The login shell and the real embed differ by a factor of ~2.4 in size, and
+   that was the tell that caught the forbidden-header rewrite. It stays a
+   heuristic: the authoritative check is whether contextJSON is there at all. */
+const LOGIN_WALL_BYTES = 400_000;
+
+/**
+ * Classify a page body. Pure, so the three shapes measured against live
+ * Instagram can be pinned as fixtures rather than re-measured on every run.
+ */
+export function classifyInstagramEmbedHtml(html: string): {
+  state: Extract<InstagramEmbedSurfaceState, "serving" | "closed" | "login-wall">;
+  reason: string;
+} {
+  if (parseInstagramEmbed(html)) {
+    return { state: "serving", reason: "the public Instagram embed is serving post data" };
+  }
+  if (html.indexOf(CONTEXT_KEY) < 0) {
+    return {
+      state: "login-wall",
+      reason:
+        html.length > LOGIN_WALL_BYTES
+          ? "Instagram served its login page instead of the embed"
+          : "Instagram served a page with no embed payload in it",
+    };
+  }
+  /* The 2026-09-17 shape: the key is present and its value is null. Instagram
+     did not fail to serve this, it served an empty one. */
+  return {
+    state: "closed",
+    reason: "Instagram no longer publishes post figures on its public embed",
+  };
+}
+
+/**
+ * Ask the surface itself, using a post we already track.
+ *
+ * Takes a URL rather than choosing one, because the caller is the only party
+ * that knows which posts belong to the org asking -- the probe must not go
+ * hunting through another tenant's rows for something to read.
+ */
+export async function probeInstagramEmbedSurface(
+  url: string,
+  signal?: AbortSignal,
+): Promise<InstagramEmbedSurface> {
+  const shortcode = shortcodeFromUrl(url);
+  if (!shortcode) {
+    return {
+      state: "unreachable",
+      serving: false,
+      reason: "that Instagram link carries no post id to check",
+      status: null,
+      bytes: null,
+    };
+  }
+
+  const { html, status, transportError } = await getEmbedResponse(
+    `/p/${shortcode}/embed/captioned/`,
+    signal,
+  );
+
+  if (!html) {
+    const refused = status !== null && status !== 200;
+    return {
+      state: refused ? "refused" : "unreachable",
+      serving: false,
+      reason: refused
+        ? `Instagram answered HTTP ${status} for that post`
+        : `we could not read Instagram (${transportError ?? "no response"})`,
+      status,
+      bytes: null,
+    };
+  }
+
+  const { state, reason } = classifyInstagramEmbedHtml(html);
+  return { state, serving: state === "serving", reason, status, bytes: html.length };
 }
