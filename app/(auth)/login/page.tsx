@@ -67,7 +67,18 @@ export default function LoginPage() {
       redirect: false,
     });
     if (result?.error) {
-      setError("Invalid email or password");
+      /* "Invalid email or password" is the right answer to almost everything
+         here and deliberately so -- it is what an unauthenticated stranger is
+         told whether or not the address exists. A throttle is the exception:
+         somebody who mistyped their own password ten times needs to know that
+         waiting fixes it, or they will sit there retyping a password that was
+         correct two attempts ago. `code` is the only field @auth/core copies
+         onto the redirect URL, so it is the only thing available to branch on. */
+      setError(
+        result.code === "rate-limited"
+          ? "Too many sign-in attempts. Wait a minute and try again."
+          : "Invalid email or password"
+      );
       setLoading(false);
     } else {
       window.location.href = "/campaigns";

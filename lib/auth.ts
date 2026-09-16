@@ -8,9 +8,26 @@ import { loginBlockedForUnverified } from "@/lib/emailVerification";
 import { accessFor, isPlatformAdmin } from "@/lib/billing/subscription";
 import { authConfig } from "@/lib/auth.config";
 import { getRequestIp } from "@/lib/request";
+import { checkLoginAttempt } from "@/lib/loginRateLimit";
 
 /** How stale a JWT's copy of role/isActive may get. See the jwt callback. */
 const ROLE_REFRESH_MS = 60_000;
+
+/**
+ * Only this string reaches the browser -- @auth/core copies `code`, never the
+ * message, onto the redirect URL. So it carries no fact about the account: a
+ * throttle notice is true whether or not the address exists, which is the same
+ * care the checks inside authorize() take.
+ */
+const RATE_LIMITED_CODE = "rate-limited";
+
+function loginRateLimited(retryAfterSeconds: number): CredentialsSignin {
+  const err = new CredentialsSignin(
+    `Too many sign-in attempts; retry in ${retryAfterSeconds}s`
+  );
+  err.code = RATE_LIMITED_CODE;
+  return err;
+}
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
@@ -24,6 +41,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
       authorize: async (credentials, request) => {
         if (!credentials?.email || !credentials?.password) return null;
+
+        /* Before the database read, not after: a throttled attempt should cost
+           an attacker one query and one bcrypt comparison fewer, not more. */
+        const attempt = checkLoginAttempt(
+          String(credentials.email),
+          request ? getRequestIp(request) : null
+        );
+        if (!attempt.allowed) throw loginRateLimited(attempt.retryAfterSeconds);
+
         const user = await db.user.findUnique({
           where: { email: credentials.email as string },
           include: { org: true },
