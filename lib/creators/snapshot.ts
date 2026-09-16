@@ -74,6 +74,19 @@ export type CreatorSnapshotOptions = {
  */
 const MAX_CREATORS_PER_RUN = 200;
 
+/**
+ * How expensive one creator's read is, as an ordering key rather than a time.
+ *
+ * Only the ranking matters, so this is deliberately not a millisecond
+ * estimate that would go stale silently. TikTok is the one platform whose
+ * profile and post reads go through a browser or a Vercel Sandbox; everything
+ * else is a plain fetch. If another platform ever needs a browser, it belongs
+ * on the same rung -- the cost that matters is "does this hold the budget".
+ */
+export function readCostRank(platform: string): number {
+  return platform === "TIKTOK" ? 1 : 0;
+}
+
 /** Posts move much slower than follower counts; a grid read costs ~12s of
  * browser where a stats read costs one HTTP request. Once a day is the same
  * cadence CreatorCore refreshes its own Top Posts at. */
@@ -277,6 +290,28 @@ export async function snapshotCreators(
   });
 
   if (creators.length === 0) return { snapshots, failed, skipped };
+
+  /* Cheapest platforms first, within the batch the query already chose.
+   *
+   * The selection above stays exactly as it was -- the 200 stalest rows, so
+   * nothing is starved out of being CONSIDERED. What changes is the order they
+   * are worked through, because the deadline is what actually ends a run and a
+   * TikTok read is not like the others: it opens a browser or a Sandbox, while
+   * Instagram and YouTube are ordinary HTTP.
+   *
+   * MEASURED on production 2026-09-16, the 06:30 sweep: 58 creators processed
+   * inside the 4-minute budget -- 56 TikTok and 2 Instagram -- and 142 of the
+   * 200 read were dropped at the deadline. That is ~4.2s per TikTok creator
+   * against ~450ms for an Instagram embed read (p90 846ms). Instagram has 246
+   * tracked creators; at two per six-hourly run the column fills in some time
+   * next year.
+   *
+   * Sorting the cheap ones to the front costs TikTok only the seconds the
+   * cheap reads take -- on that batch's mix, roughly four TikTok creators out
+   * of fifty-six -- and buys every Instagram and YouTube creator in the batch
+   * a read instead of two of them. Stable, so within a platform the staleness
+   * order the query established is untouched. */
+  creators.sort((a, b) => readCostRank(a.platform) - readCostRank(b.platform));
 
   /* Cadence is per-organisation, as it is for sounds, so an org on the 6-hourly
      setting does work on one run in six rather than needing its own schedule. */

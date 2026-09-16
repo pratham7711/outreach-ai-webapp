@@ -27,7 +27,8 @@ import type { Platform, Prisma } from "@/lib/generated/prisma/client";
  * via the same creatorHandleVariants() the portal and the creators route use.
  *
  * Always scoped to the org: a pasted URL is untrusted input and must never
- * reach across a tenant.
+ * reach across a tenant, and narrowed to the platform whenever the URL said
+ * which one it is, because a handle is only unique within a platform.
  */
 export async function findCreatorByHandle(
   orgId: string,
@@ -37,8 +38,23 @@ export async function findCreatorByHandle(
   const variants = creatorHandleVariants(handle);
   const handleClauses = variants.map((h) => ({ handle: { equals: h, mode: "insensitive" as const } }));
 
+  /* Platform-narrowed, for the reason the social lookup below already gives:
+     the same handle is genuinely two different people on two platforms, and
+     MEASURED on production 2026-09-16 that is not hypothetical -- 44 creator
+     rows across 22 handles hold the same name on both Instagram and TikTok
+     inside one org. Without this, adding an Instagram post by @gumenasaivfx
+     files it against the TikTok creator of that name, and the post's views
+     then land in a stranger's totals.
+
+     Ordered, too. Twelve handles are duplicated outright by the 2026-08-31
+     CreatorCore import, so an unordered findFirst can answer the same question
+     with a different row from one call to the next -- which splits one
+     creator's posts across two rows by luck of the scan. Tracked first,
+     because that is the row someone is actually watching; oldest id second,
+     so the answer is at least stable. */
   const direct = await db.creator.findFirst({
-    where: { orgId, deletedAt: null, OR: handleClauses },
+    where: { orgId, deletedAt: null, ...(platform ? { platform } : {}), OR: handleClauses },
+    orderBy: [{ trackedSince: { sort: "asc", nulls: "last" } }, { id: "asc" }],
     select: { id: true, name: true, handle: true },
   });
   if (direct) return direct;
