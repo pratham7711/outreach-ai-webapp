@@ -297,7 +297,7 @@ export default function PlatformDashboardClient({ stats }: { stats: PlatformStat
   const { orgs, creators, campaigns, posts, clients, cost } = stats;
 
   return (
-    <div>
+    <div className="rsp-page">
       <PageHeader
         title="Platform"
         subtitle="Every organization on the platform. Operator-only — this is the one screen that reads across tenants."
