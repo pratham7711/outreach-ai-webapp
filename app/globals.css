@@ -1026,6 +1026,25 @@
   --cc-chip-glyph-size: 1.15em;
   --cc-chip-glyph-gap: var(--cc-chip-gap);
 
+  /* The Add Post link field. A token here is a different object from a
+     taxonomy chip -- it must read as a removable unit inside an input, so it
+     keeps its edge in every theme, where the taxonomy chip drops its border in
+     the CreatorCore theme. Hence its own vocabulary rather than a variant. */
+  --cc-linkfield-pad: 6px;
+  --cc-linkfield-gap: 6px;
+  --cc-linkfield-r: 10px;
+  --cc-linkfield-min-h: 76px;
+  --cc-linkfield-input-min: 220px;
+  --cc-linkfield-input-pad: 4px 8px;
+  --cc-linkchip-pad: 4px 4px 4px 9px;
+  --cc-linkchip-gap: 7px;
+  --cc-linkchip-r: 7px;
+  --cc-linkchip-fs: var(--cc-t-12);
+  --cc-linkchip-glyph: 13px;
+  --cc-linkchip-icon: 13px;
+  --cc-linkchip-max-w: 260px;
+  --cc-linkchip-touch: 28px;
+
   /* A status-filter pill -- the Drafts review queue. Base restates the inline
      style it replaced in DraftsTab (6px 14px, radius 8, a 13px strong label,
      an 8px row gap) so the only change outside creatorcore is the leading
@@ -3831,6 +3850,135 @@ h1, h2, h3, h4, h5, h6 {
   width: var(--cc-pill-glyph);
   height: var(--cc-pill-glyph);
   flex: none;
+}
+
+/* THE ADD POST LINK FIELD.
+
+   Each identified link is one object: a chip carrying the platform's mark, a
+   short label and its own remove control, sitting in a box that behaves like a
+   text input. Backspace on the empty input removes the last chip whole, the way
+   a multiselect drops the last option -- backspacing through ninety characters
+   of a TikTok share URL was never what "delete that link" should cost. */
+.cc-linkfield {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  align-items: center;
+  gap: var(--cc-linkfield-gap);
+  box-sizing: border-box;
+  width: 100%;
+  min-height: var(--cc-linkfield-min-h);
+  padding: var(--cc-linkfield-pad);
+  border: 1px solid var(--cc-border);
+  border-radius: var(--cc-linkfield-r);
+  background: var(--cc-card);
+  cursor: text;
+}
+
+.cc-linkfield:focus-within {
+  border-color: var(--cc-primary);
+}
+
+.cc-linkfield-input {
+  flex: 1 1 var(--cc-linkfield-input-min);
+  min-width: 0;
+  padding: var(--cc-linkfield-input-pad);
+  border: 0;
+  outline: none;
+  background: none;
+  color: var(--cc-text);
+  font-family: inherit;
+  font-size: var(--cc-t-13);
+}
+
+.cc-linkfield-input::placeholder {
+  color: var(--cc-text-muted);
+}
+
+.cc-linkchip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cc-linkchip-gap);
+  max-width: var(--cc-linkchip-max-w);
+  padding: var(--cc-linkchip-pad);
+  border: 1px solid var(--cc-border);
+  border-radius: var(--cc-linkchip-r);
+  background: var(--cc-bg);
+  color: var(--cc-text);
+  font-size: var(--cc-linkchip-fs);
+  line-height: 1.5;
+}
+
+/* The chip states restate what the row below it already says, so the field
+   alone answers "did that paste land" without scrolling through the rows. */
+.cc-linkchip[data-tone="danger"] {
+  border-color: var(--cc-danger);
+  background: var(--cc-danger-light);
+  color: var(--cc-danger-ink);
+}
+
+.cc-linkchip[data-tone="done"] {
+  border-color: var(--cc-success);
+  background: var(--cc-primary-light);
+}
+
+.cc-linkchip[data-tone="busy"] {
+  opacity: 0.65;
+}
+
+.cc-linkchip-glyph {
+  flex: none;
+  color: var(--cc-text-muted);
+}
+
+.cc-linkchip[data-tone="danger"] .cc-linkchip-glyph {
+  color: inherit;
+}
+
+.cc-linkchip-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cc-linkchip-remove {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--cc-text-muted);
+  cursor: pointer;
+}
+
+.cc-linkchip[data-tone="danger"] .cc-linkchip-remove {
+  color: inherit;
+}
+
+.cc-linkchip-remove:hover {
+  background: color-mix(in srgb, var(--cc-text) 10%, transparent);
+  color: var(--cc-text);
+}
+
+.cc-linkchip-remove > svg {
+  width: var(--cc-linkchip-icon);
+  height: var(--cc-linkchip-icon);
+}
+
+/* The blanket mobile touch target below (button[aria-label]:not(.ui-btn)) makes
+   every labelled button a 44px box, which turns a 28px token into a 54px card
+   and puts one link per row on a phone -- the opposite of reading as a chip.
+   Scoped tighter rather than overridden: the token's own control is a
+   comfortable 28px, and the 44px way to remove the same link is still there on
+   the row card below, whose remove button the blanket does cover. */
+@media (max-width: 767px) {
+  .cc-linkfield .cc-linkchip-remove[aria-label] {
+    min-width: var(--cc-linkchip-touch);
+    min-height: var(--cc-linkchip-touch);
+  }
 }
 
 .cc-chip {

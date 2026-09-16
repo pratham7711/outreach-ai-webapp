@@ -20,7 +20,8 @@ import { summariseRefresh } from "@/lib/refreshSummary";
 import { toast } from "sonner";
 import { CampaignHeaderActions } from "@/components/campaigns/CampaignHeaderActions";
 import { detectPlatform } from "@/lib/platforms/fetchPostMetrics";
-import { MAX_BULK_POSTS, parsePastedPostEntries } from "@/lib/posts/pastedUrls";
+import { MAX_BULK_POSTS, mergePastedEntries, parsePastedPostEntries, pastedUrlLabel } from "@/lib/posts/pastedUrls";
+import { PlatformGlyph } from "@/components/ui/PlatformGlyph";
 import { platformFromHost, detectPlatformFromUrl, platformLabel } from "@/lib/platforms/registry";
 
 type SnapshotLite = { id: string; viewsCount: number; recordedAt: string };
@@ -351,11 +352,55 @@ export default function PostsTab({
   const [submitting, setSubmitting] = useState(false);
   /* One pasted blob, many posts. Operators receive links in batches (a client
      sends the week's ten in one message), and adding them one modal at a time
-     was ten round trips through the same three fields. */
-  const [addText, setAddText] = useState("");
+     was ten round trips through the same three fields.
+
+     The rows are the state and the text is not. `addDraft` holds only what has
+     been typed and not yet recognised as a link -- everything the parser claims
+     becomes a row, and a row is what the field renders as a chip. */
+  const [addDraft, setAddDraft] = useState("");
   const [addRows, setAddRows] = useState<AddRow[]>([]);
+  const addDraftRef = useRef<HTMLInputElement>(null);
   /** True while the paste is being checked against the roster and the org's posts. */
   const [checkingUrls, setCheckingUrls] = useState(false);
+
+  /* Adds every link the text carries, keeping whatever has already been chosen
+     for a link that was already there. The spread matters: two rows for the
+     same link must not share one object, or picking a creator on one changes
+     both. Answers whether anything was found, so the caller knows whether the
+     draft it came from has been consumed. */
+  const addLinks = useCallback((text: string) => {
+    if (parsePastedPostEntries(text).length === 0) return false;
+    setAddRows((prev) => {
+      const merged = mergePastedEntries(prev.map((r) => r.url), text);
+      return merged.map((entry, i) => {
+        const kept = prev[i]?.url === entry.url ? prev[i] : undefined;
+        return {
+          ...(kept ?? { creatorId: "", mediaType: "", state: "idle" as const }),
+          url: entry.url,
+          key: entry.key,
+          repeatOfPaste: entry.duplicate,
+        };
+      });
+    });
+    return true;
+  }, []);
+
+  /* Removing a link re-decides which of the survivors is a repeat. Filtering
+     alone left the second copy of a doubled paste still marked as the repeat of
+     a link that was no longer on screen -- and therefore still refusing to be
+     submitted, with nothing to point at. */
+  const removeAddRow = useCallback((index: number) => {
+    setAddRows((prev) => {
+      const seen = new Set<string>();
+      return prev
+        .filter((_, j) => j !== index)
+        .map((r) => {
+          const repeat = seen.has(r.key);
+          seen.add(r.key);
+          return { ...r, repeatOfPaste: repeat };
+        });
+    });
+  }, []);
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [refreshingAll, setRefreshingAll] = useState(false);
   /** How far a run in flight has got, so the button can say "12 of 88" the way
@@ -415,7 +460,8 @@ export default function PostsTab({
     const urls = addUrlsKey ? addUrlsKey.split("\n") : [];
     if (urls.length === 0) return;
     let cancelled = false;
-    /* Debounced: this fires while someone is still typing into the textarea. */
+    /* Debounced: a paste of ten arrives as ten chips in one go, and this asks
+       about all of them once rather than ten times. */
     const t = setTimeout(async () => {
       setCheckingUrls(true);
       try {
@@ -546,7 +592,7 @@ export default function PostsTab({
       if (failed.length === 0) {
         setShowAddPost(false);
         setAddRows([]);
-        setAddText("");
+        setAddDraft("");
         toast.success(added === 1 ? "Post added." : `${added} posts added.`);
       } else {
         toast.error(
@@ -727,7 +773,7 @@ export default function PostsTab({
   const openAddPost = () => {
     /* Reset here rather than on close: a failed batch leaves its rows on screen
        so the operator can read what went wrong, and only reopening clears them. */
-    setAddText("");
+    setAddDraft("");
     setAddRows([]);
     setShowAddPost(true);
   };
@@ -1507,55 +1553,134 @@ export default function PostsTab({
               <label htmlFor="add-post-urls" style={{ display: "block", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6 }}>
                 Post links
               </label>
-              <textarea
-                id="add-post-urls"
-                autoFocus
-                value={addText}
-                onChange={(e) => {
-                  const text = e.target.value;
-                  setAddText(text);
-                  const entries = parsePastedPostEntries(text).slice(0, MAX_BULK_POSTS);
-                  /* Keep whatever the operator already chose for a link that is
-                     still in the list -- retyping ten creators because one line
-                     changed would defeat the point of the batch. Spread rather
-                     than reuse: two rows for the same link must not share one
-                     object, or picking a creator on one changes both. */
-                  setAddRows((prev) =>
-                    entries.map((e) => {
-                      const kept = prev.find((r) => r.url === e.url);
-                      return {
-                        ...(kept ?? { creatorId: "", mediaType: "", state: "idle" as const }),
-                        url: e.url,
-                        key: e.key,
-                        repeatOfPaste: e.duplicate,
-                      };
-                    })
+              {/* A box that behaves like an input and holds each identified
+                  link as one object. `onPaste` is where the batch actually
+                  arrives -- operators paste, they do not type ninety-character
+                  share URLs -- and the keyboard handlers cover the typed case
+                  and the removal. */}
+              <div
+                className="cc-linkfield"
+                onMouseDown={(e) => {
+                  /* Clicking the padding focuses the input, the way clicking
+                     anywhere in a text box does. Not on a chip's own remove
+                     button, which would steal its click. */
+                  if (e.target === e.currentTarget) {
+                    e.preventDefault();
+                    addDraftRef.current?.focus();
+                  }
+                }}
+              >
+                {addRows.map((row, i) => {
+                  const detected = addDetections[i];
+                  const problem = addProblems[i];
+                  const tone =
+                    row.state === "done"
+                      ? "done"
+                      : row.state === "saving"
+                        ? "busy"
+                        : row.state === "failed" || problem
+                          /* Any problem, blocking or not -- the same predicate
+                             the row card below uses to turn itself red. A
+                             field reading "3 links found" while one of them is
+                             quietly being skipped is the surprise the skipped
+                             count under the button exists to prevent. */
+                          ? "danger"
+                          : undefined;
+                  return (
+                    <span
+                      /* The index is in the key because pasting one link twice
+                         is precisely the case being flagged, and both chips
+                         carry the same URL. */
+                      key={`chip:${i}:${row.url}`}
+                      className="cc-linkchip"
+                      data-tone={tone}
+                      title={row.url}
+                    >
+                      {detected && (
+                        <PlatformGlyph
+                          platform={detected.platform}
+                          size="var(--cc-linkchip-glyph)"
+                          className="cc-linkchip-glyph"
+                        />
+                      )}
+                      <span className="cc-linkchip-label">{pastedUrlLabel(row.url)}</span>
+                      {row.state === "idle" && (
+                        <button
+                          type="button"
+                          className="cc-linkchip-remove"
+                          aria-label={`Remove ${row.url}`}
+                          onClick={() => removeAddRow(i)}
+                        >
+                          <X />
+                        </button>
+                      )}
+                    </span>
                   );
-                }}
-                placeholder={"Paste one link per line — or a whole batch at once:\nhttps://www.tiktok.com/@someone/video/123...\nhttps://www.instagram.com/reel/ABC...\nhttps://youtube.com/watch?v=..."}
-                rows={4}
-                style={{
-                  width: "100%",
-                  padding: "10px 14px",
-                  borderRadius: 10,
-                  border: "1px solid var(--cc-border)",
-                  fontSize: "var(--cc-t-13)",
-                  fontFamily: "inherit",
-                  color: "var(--cc-text)",
-                  background: "var(--cc-card)",
-                  outline: "none",
-                  boxSizing: "border-box",
-                  resize: "vertical",
-                }}
-              />
+                })}
+                <input
+                  id="add-post-urls"
+                  ref={addDraftRef}
+                  className="cc-linkfield-input"
+                  autoFocus
+                  value={addDraft}
+                  inputMode="url"
+                  autoComplete="off"
+                  spellCheck={false}
+                  placeholder={
+                    addRows.length === 0
+                      ? "Paste one link, or a whole batch at once"
+                      : "Add another link"
+                  }
+                  onPaste={(e) => {
+                    /* Joined to whatever is already in the draft, so pasting the
+                       tail of a half-typed link still lands as one link. */
+                    const text = addDraft + e.clipboardData.getData("text");
+                    if (parsePastedPostEntries(text).length === 0) return;
+                    e.preventDefault();
+                    addLinks(text);
+                    setAddDraft("");
+                  }}
+                  onChange={(e) => {
+                    const text = e.target.value;
+                    /* A separator is the commit for a typed link: a space, a
+                       comma or a newline turns what precedes it into a chip,
+                       which is the same punctuation parsePastedPostEntries
+                       already splits a blob on. */
+                    if (/[\s,]/.test(text) && addLinks(text)) {
+                      setAddDraft("");
+                      return;
+                    }
+                    setAddDraft(text);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      if (addLinks(addDraft)) setAddDraft("");
+                      return;
+                    }
+                    /* One press, one link. This is the whole point of holding a
+                       link as a chip: backspacing through ninety characters of
+                       a TikTok share URL was never what "delete that link"
+                       should cost. Only when there is nothing typed, so
+                       backspace still edits a half-written link normally. */
+                    if (e.key === "Backspace" && addDraft === "" && addRows.length > 0) {
+                      e.preventDefault();
+                      removeAddRow(addRows.length - 1);
+                    }
+                  }}
+                  onBlur={() => {
+                    /* Clicking Submit with a link still sitting in the input
+                       should submit that link, not silently drop it. */
+                    if (addLinks(addDraft)) setAddDraft("");
+                  }}
+                />
+              </div>
               <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: "6px 0 0" }}>
                 {addRows.length === 0
                   ? `Separated by new lines, spaces or commas. Up to ${MAX_BULK_POSTS} at a time.`
                   : `${addRows.length} link${addRows.length === 1 ? "" : "s"} found${
-                      parsePastedPostEntries(addText).length > MAX_BULK_POSTS
-                        ? ` — only the first ${MAX_BULK_POSTS} are used`
-                        : ""
-                    }${checkingUrls ? " — checking…" : ""}.`}
+                      addRows.length >= MAX_BULK_POSTS ? ` — the limit is ${MAX_BULK_POSTS} at a time` : ""
+                    }. ${checkingUrls ? "Checking… " : ""}Backspace removes the last one.`}
               </p>
             </div>
 
@@ -1596,9 +1721,21 @@ export default function PostsTab({
                   }}
                 >
                   <div style={{ display: "flex", alignItems: "center", gap: 8, justifyContent: "space-between" }}>
-                    <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
-                      {det ? `${det.platform} \u00b7 ` : ""}{row.url}
+                    {/* The same chip as the one in the field above, so the row
+                        and its token read as one object. The URL itself stays
+                        on the title, because the label is a summary and the
+                        operator must still be able to check the whole link. */}
+                    <span className="cc-linkchip" title={row.url} style={{ flex: "0 1 auto" }}>
+                      {det && (
+                        <PlatformGlyph
+                          platform={det.platform}
+                          size="var(--cc-linkchip-glyph)"
+                          className="cc-linkchip-glyph"
+                        />
+                      )}
+                      <span className="cc-linkchip-label">{pastedUrlLabel(row.url)}</span>
                     </span>
+                    <span style={{ flex: 1 }} />
                     {row.state === "done" && <Badge variant="success">Added</Badge>}
                     {row.state === "saving" && <Badge variant="neutral">Adding…</Badge>}
                     {row.state === "failed" && <Badge variant="danger">{row.error ?? "Failed"}</Badge>}
@@ -1607,17 +1744,7 @@ export default function PostsTab({
                       <button
                         type="button"
                         aria-label={`Remove ${row.url}`}
-                        onClick={() => {
-                          setAddRows((prev) => prev.filter((_, j) => j !== i));
-                          /* Only the first line carrying this link, so removing
-                             one half of a duplicated paste leaves the other. */
-                          setAddText((t) => {
-                            const lines = t.split(/\r?\n/);
-                            const at = lines.findIndex((l) => l.includes(row.url));
-                            if (at === -1) return t;
-                            return lines.filter((_, j) => j !== at).join("\n");
-                          });
-                        }}
+                        onClick={() => removeAddRow(i)}
                         style={{ border: "none", background: "none", cursor: "pointer", color: "var(--cc-text-muted)", fontSize: "var(--cc-t-16)", lineHeight: 1 }}
                       >
                         ×

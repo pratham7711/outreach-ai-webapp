@@ -86,3 +86,68 @@ export function parsePastedPostUrls(text: string): string[] {
     .filter((e) => !e.duplicate)
     .map((e) => e.url);
 }
+
+/**
+ * The links already held, plus whatever this paste adds, as one list.
+ *
+ * The dialog used to keep the pasted text as its source of truth and derive the
+ * rows from it on every keystroke. That works while the text is the only way in
+ * and out, but it cannot survive links becoming chips: removing one meant
+ * finding and splicing a line out of a blob, and removing the first of a
+ * duplicated pair left the second still marked as the repeat of a link that was
+ * no longer there. Holding the links themselves and re-deriving `duplicate`
+ * across the whole list on every change is what makes a chip a chip.
+ *
+ * The cap is applied to the combined list, so a paste that would take it past
+ * the limit is truncated rather than displacing links already on screen.
+ */
+export function mergePastedEntries(
+  existingUrls: string[],
+  text: string,
+  max: number = MAX_BULK_POSTS
+): PastedUrl[] {
+  const seen = new Set<string>();
+  const out: PastedUrl[] = [];
+  const push = (url: string) => {
+    if (out.length >= max) return;
+    const key = postIdentityKey(url);
+    out.push({ url, key, duplicate: seen.has(key) });
+    seen.add(key);
+  };
+  for (const url of existingUrls) push(url);
+  for (const entry of parsePastedPostEntries(text)) push(entry.url);
+  return out;
+}
+
+/**
+ * What a link says on a chip.
+ *
+ * A chip is a fixed-width object in a wrapping row, and a TikTok share URL is
+ * ninety characters of which about twelve identify the post -- rendered whole
+ * it is a paragraph, and four of them fill the dialog. The handle and the post
+ * id are the two things an operator checks a pasted link against, so those are
+ * what the label carries; the full URL stays on the chip's title and on the row
+ * below it, because the label is a summary and must never be the only copy.
+ */
+export function pastedUrlLabel(url: string): string {
+  const detected = detectPlatform(url);
+  if (detected) {
+    const handle = detected.handle?.replace(/^@/, "") ?? "";
+    const id = detected.id ?? "";
+    const shortId = id.length > 12 ? `${id.slice(0, 5)}…${id.slice(-4)}` : id;
+    if (handle && shortId) return `@${handle} · ${shortId}`;
+    if (handle) return `@${handle}`;
+    if (shortId) return shortId;
+  }
+  /* No detector claims it. The host plus the last path segment is the most
+     identifying pair a bare URL offers, and it is still the operator's link
+     rather than a generic "unrecognised". */
+  try {
+    const u = new URL(url);
+    const tail = u.pathname.replace(/\/+$/, "").split("/").filter(Boolean).pop() ?? "";
+    const label = u.host.replace(/^www\./i, "") + (tail ? `/${tail}` : "");
+    return label.length > 40 ? `${label.slice(0, 39)}…` : label;
+  } catch {
+    return url.length > 40 ? `${url.slice(0, 39)}…` : url;
+  }
+}
