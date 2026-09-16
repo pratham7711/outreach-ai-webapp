@@ -5,22 +5,24 @@ import Link from "next/link";
 import { useState, useEffect, useMemo, useCallback, useDeferredValue, useRef } from "react";
 import { Card, Badge, Input, Modal, EmptyState, Skeleton, Avatar } from "@pratham7711/ui";
 import { Dropdown, StatusTabs, Pagination, Button } from "@/components/ds";
-import { Grid3X3, List, Plus, Check, X, TrendingUp, BarChart3, ArrowUp, ArrowDown, ArrowUpDown, Flag, Video, AlertTriangle, RefreshCw, Info } from "lucide-react";
+import { Grid3X3, List, Plus, Check, X, TrendingUp, BarChart3, ArrowUp, ArrowDown, ArrowUpDown, Flag, Video, AlertTriangle, RefreshCw, Info, Radio, ExternalLink } from "lucide-react";
 import { CreatorSelect } from "@/components/CreatorSelect";
 import { stripAt, formatDateAbs, formatFull } from "@/lib/format";
 import type { ComplianceFlag } from "@/lib/compliance/postCompliance";
 import PostMedia from "@/components/PostMedia";
 import { imgSrc } from "@/lib/postMedia";
-import { metricValue, unwrittenMetricValue, fieldMetricValue, engagementRateValue, summarizePostMetrics } from "@/lib/metricDisplay";
+import { unwrittenMetricValue, fieldMetricValue, engagementRateValue, summarizePostMetrics } from "@/lib/metricDisplay";
 import { isPostRemoved, removedNote } from "@/lib/postRemoval";
 import RemovedPostOverlay from "@/components/posts/RemovedPostOverlay";
 import PostGridCard from "@/components/posts/PostGridCard";
-import { STATUS_BADGE, formatSince, engRatePct } from "@/lib/posts/postDisplay";
+import { STATUS_BADGE, formatSince, engRatePct, trackingLabel } from "@/lib/posts/postDisplay";
 import { summariseRefresh } from "@/lib/refreshSummary";
 import { toast } from "sonner";
 import { CampaignHeaderActions } from "@/components/campaigns/CampaignHeaderActions";
-import { detectPlatform } from "@/lib/platforms/fetchPostMetrics";
+import { detectPlatform } from "@/lib/platforms/postUrl";
 import { MAX_BULK_POSTS, mergePastedEntries, parsePastedPostEntries, pastedUrlLabel } from "@/lib/posts/pastedUrls";
+import { MAX_BULK_ACTION_POSTS, type BulkAction } from "@/lib/posts/bulkActions";
+import PostActionMenu, { type PostMenuItem } from "@/components/posts/PostActionMenu";
 import { PlatformGlyph } from "@/components/ui/PlatformGlyph";
 import { platformFromHost, detectPlatformFromUrl, platformLabel } from "@/lib/platforms/registry";
 
@@ -46,6 +48,8 @@ type PostData = {
   status: string;
   fetchState: string | null; // LIVE / UNAVAILABLE / ERROR — is the post still up
   rejectionReason: string | null;
+  trackingEnabled?: boolean;
+  trackingExpiresAt?: string | null;
   lastSyncedAt: string | null;
   authorProfilePic: string | null;
   createdAt?: string;
@@ -258,6 +262,7 @@ function deltaViews(post: PostData): number | null {
    post in the campaign has been fetched, and a fixed template would leave their
    tracks behind as dead space. */
 const COL_WIDTHS = {
+  select: "32px",
   creator: "minmax(240px, 1.6fr)",
   platform: "92px",
   posted: "88px",
@@ -271,10 +276,22 @@ const COL_WIDTHS = {
   delta: "148px",
   status: "136px", // "PENDING REVIEW" is ~130px at this type size; 104 ran into Last synced
   lastSynced: "140px",
-  actions: "140px",
+  actions: "172px", // was 140; the tracking toggle is the fourth control here
 } as const;
 
 const COL_GAP = 12;
+
+/* The same ladder the post page offers, so the two controls cannot disagree
+   about what a tracking window may be. 30 is the default because it is also
+   the maximum: the shorter windows are for a launch you only care about this
+   week, not the normal case. */
+const BULK_TTL_CHOICES = [1, 3, 7, 14, 30] as const;
+const BULK_TTL_DEFAULT = 30;
+
+/* The reject modal asks for a reason and is shared by both paths. A sentinel
+   rather than a second piece of state, so there is exactly one answer to "is
+   the reject dialog open". No post id can collide with it. */
+const BULK_REJECT = "__bulk__";
 
 function gridTemplate(cols: readonly (keyof typeof COL_WIDTHS)[]) {
   const widths = cols.map((c) => COL_WIDTHS[c]);
@@ -336,6 +353,18 @@ export default function PostsTab({
   const [error, setError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [statusFilter, setStatusFilter] = useState("ALL");
+  const [trackingFilter, setTrackingFilter] = useState<"ALL" | "TRACKED" | "UNTRACKED">("ALL");
+  /* A Set keyed by post id rather than an array of posts: the selection has to
+     survive a refetch, a filter change and a page turn, and an id is the only
+     part of a post that does. Ids that fall out of the filtered set stay in
+     here deliberately -- unticking them because a chip changed would lose work
+     the operator did on purpose -- but every action is applied to the
+     intersection with what is currently on screen, which `selectedOnPage`
+     below is for. */
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkTtlDays, setBulkTtlDays] = useState(BULK_TTL_DEFAULT);
+  const [trackingBusyId, setTrackingBusyId] = useState<string | null>(null);
   const [platformFilter, setPlatformFilter] = useState("ALL");
   const [mediaTypeFilter, setMediaTypeFilter] = useState("ALL");
   const [minViews, setMinViews] = useState("");
@@ -617,6 +646,15 @@ export default function PostsTab({
 
   const handleReject = async () => {
     if (!showRejectModal) return;
+    /* One dialog, two callers. The reason box is the whole reason rejection
+       cannot be a plain bulk button, so the bulk path borrows this modal
+       rather than growing a second one that asks the same question. */
+    if (showRejectModal === BULK_REJECT) {
+      await runBulkAction("reject");
+      setShowRejectModal(null);
+      setRejectionReason("");
+      return;
+    }
     await fetch(`/api/campaigns/${campaignId}/posts/${showRejectModal}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -659,6 +697,92 @@ export default function PostsTab({
       fetchPosts();
     } finally {
       setSyncingId(null);
+    }
+  };
+
+  /**
+   * One post's tracker, from the list.
+   *
+   * Deliberately the single-post route, not the bulk one, even though the bulk
+   * route could do it in a single statement: that route also takes the first
+   * reading, so a post tracked from here behaves exactly like a post tracked
+   * from its own page. The wait is the cost of that -- a platform round trip --
+   * which is what trackingBusyId is for.
+   */
+  const handleToggleTracking = useCallback(
+    async (postId: string, next: boolean) => {
+      setTrackingBusyId(postId);
+      setRefreshNote(null);
+      try {
+        const res = await fetch(`/api/campaigns/${campaignId}/posts/${postId}/track`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(next ? { enabled: true, ttlDays: bulkTtlDays } : { enabled: false }),
+        });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          toast.error(body.error ?? "Could not change tracking for that post.");
+          return;
+        }
+        /* Patched in place rather than refetching the list: a refetch here
+           would throw away the scroll position and the selection for a change
+           to two fields on one row. */
+        const updated = await res.json().catch(() => null);
+        setPosts((prev) =>
+          prev.map((p) =>
+            p.id === postId
+              ? {
+                  ...p,
+                  trackingEnabled: updated?.trackingEnabled ?? next,
+                  trackingExpiresAt: updated?.trackingExpiresAt ?? null,
+                }
+              : p
+          )
+        );
+      } finally {
+        setTrackingBusyId(null);
+      }
+    },
+    [campaignId, bulkTtlDays]
+  );
+
+  /**
+   * The same action over a selection.
+   *
+   * Reject is not handled here -- it needs a reason, so it opens the modal that
+   * already exists for the single-post case and comes back through
+   * `handleReject`.
+   */
+  const runBulkAction = async (action: BulkAction) => {
+    const ids = selectedOnPage;
+    if (ids.length === 0) return;
+    setBulkBusy(true);
+    try {
+      const res = await fetch(`/api/campaigns/${campaignId}/posts/bulk`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action,
+          postIds: ids,
+          ...(action === "track" ? { ttlDays: bulkTtlDays } : {}),
+          ...(action === "reject" ? { rejectionReason: rejectionReason || null } : {}),
+        }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(body.error ?? "Could not apply that to the selection.");
+        return;
+      }
+      /* The server's own sentence, not one assembled here: it is the only
+         party that knows how many rows it actually touched, and for tracking
+         it is also the one that knows when the first reading arrives. */
+      setRefreshNote(body.message ?? null);
+      clearSelection();
+      fetchPosts();
+    } catch {
+      toast.error("Could not apply that to the selection.");
+    } finally {
+      setBulkBusy(false);
     }
   };
 
@@ -803,6 +927,8 @@ export default function PostsTab({
          payload small. Measured: a slow /posts response left all four camp-1
          posts on screen under a YOUTUBE chip for the whole request. */
       if (statusFilter !== "ALL" && p.status !== statusFilter) return false;
+      if (trackingFilter === "TRACKED" && p.trackingEnabled !== true) return false;
+      if (trackingFilter === "UNTRACKED" && p.trackingEnabled === true) return false;
       if (platformFilter !== "ALL" && p.platform !== platformFilter) return false;
       if (mediaTypeFilter !== "ALL" && p.mediaType !== mediaTypeFilter) return false;
       if (Number.isFinite(minV) && p.viewsCount < minV) return false;
@@ -839,7 +965,7 @@ export default function PostsTab({
       return sortDir === "asc" ? diff : -diff;
     });
     return sorted;
-  }, [posts, statusFilter, platformFilter, mediaTypeFilter, deferredMinViews, deferredCreatorSearch, postedFrom, postedTo, sortKey, sortDir]);
+  }, [posts, statusFilter, trackingFilter, platformFilter, mediaTypeFilter, deferredMinViews, deferredCreatorSearch, postedFrom, postedTo, sortKey, sortDir]);
 
   const anyDelta = useMemo(() => posts.some((p) => (p.snapshots?.length ?? 0) >= 2), [posts]);
   /* Imported posts carried view counts only, so likes, comments and engagement
@@ -876,6 +1002,7 @@ export default function PostsTab({
   const listCols = useMemo(
     () =>
       [
+        "select",
         "creator",
         "platform",
         "posted",
@@ -959,6 +1086,52 @@ export default function PostsTab({
     () => filteredSorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
     [filteredSorted, page]
   );
+
+  /* Every bulk action reads THIS, never selectedIds directly. The set can hold
+     ids that a filter has since hidden, and acting on a post the operator
+     cannot see is the one thing a bulk control must never do. */
+  const selectedOnPage = useMemo(
+    () => pageRows.filter((p) => selectedIds.has(p.id)).map((p) => p.id),
+    [pageRows, selectedIds]
+  );
+  const allOnPageSelected = pageRows.length > 0 && selectedOnPage.length === pageRows.length;
+  const someOnPageSelected = selectedOnPage.length > 0 && !allOnPageSelected;
+
+  /* useCallback, not an inline arrow: PostGridCard is memoised and a fresh
+     function identity on every render would defeat it silently -- the tiles
+     would still be correct and would simply stop being skipped. See the
+     docblock on that component, and renderDiscipline.test.tsx. */
+  const toggleSelect = useCallback((postId: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(postId)) next.delete(postId);
+      else next.add(postId);
+      return next;
+    });
+  }, []);
+
+  const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
+
+  /* Where the right-click landed, in viewport coordinates. Held here rather
+     than in the tile so one menu serves the grid and the list, and so the tile
+     stays a pure function of its post -- opening a menu must not re-render the
+     other twenty-four. Both callbacks are stable for the same reason. */
+  const [menu, setMenu] = useState<{ postId: string; x: number; y: number } | null>(null);
+  const openMenu = useCallback((postId: string, x: number, y: number) => setMenu({ postId, x, y }), []);
+  const closeMenu = useCallback(() => setMenu(null), []);
+
+  const toggleSelectAllOnPage = useCallback(() => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      const ids = pageRows.map((p) => p.id);
+      const every = ids.length > 0 && ids.every((id) => next.has(id));
+      for (const id of ids) {
+        if (every) next.delete(id);
+        else next.add(id);
+      }
+      return next;
+    });
+  }, [pageRows]);
 
   /* Which columns can be sorted on this campaign's data -- the same conditions
      the list headers use, so the two controls always offer the same set. A
@@ -1072,6 +1245,95 @@ export default function PostsTab({
   const PlainHeader = ({ label }: { label: string }) => (
     <span className="cc-microlabel">{label}</span>
   );
+
+  /* What the right-clicked post may have done to it.
+   *
+   * The rule is the file-manager one: right-clicking something that is part of
+   * the current selection acts on the whole selection, right-clicking anything
+   * else acts on that post alone. Anything that reads as "open this one thing"
+   * -- the analytics page, the platform, a single sync -- is offered only in
+   * the single-post case, because there is no sensible batch version of it.
+   */
+  const menuPost = menu ? pageRows.find((p) => p.id === menu.postId) ?? null : null;
+  const menuOnSelection = !!menuPost && selectedIds.has(menuPost.id) && selectedOnPage.length > 1;
+  const menuTracked = menuPost?.trackingEnabled === true;
+  const mayReview = postApprovalMode === "MANUAL" || !!marketplace;
+
+  const menuItems: PostMenuItem[] = !menuPost
+    ? []
+    : [
+        {
+          kind: "head" as const,
+          label: menuOnSelection
+            ? `${selectedOnPage.length} posts selected`
+            : `@${stripAt(menuPost.creator.handle) || menuPost.creator.name}`,
+        },
+        ...(menuOnSelection || !menuTracked
+          ? [
+              {
+                kind: "action" as const,
+                label: `Track for ${bulkTtlDays} day${bulkTtlDays === 1 ? "" : "s"}`,
+                icon: <Radio size={14} />,
+                onSelect: () =>
+                  menuOnSelection ? runBulkAction("track") : handleToggleTracking(menuPost.id, true),
+              },
+            ]
+          : []),
+        ...(menuOnSelection || menuTracked
+          ? [
+              {
+                kind: "action" as const,
+                label: "Stop tracking",
+                icon: <Radio size={14} />,
+                onSelect: () =>
+                  menuOnSelection ? runBulkAction("untrack") : handleToggleTracking(menuPost.id, false),
+              },
+            ]
+          : []),
+        ...(mayReview && (menuOnSelection || menuPost.status === "PENDING_REVIEW")
+          ? [
+              { kind: "sep" as const },
+              {
+                kind: "action" as const,
+                label: "Approve",
+                icon: <Check size={14} />,
+                onSelect: () => (menuOnSelection ? runBulkAction("approve") : handleApprove(menuPost.id)),
+              },
+              {
+                kind: "action" as const,
+                label: "Reject…",
+                icon: <X size={14} />,
+                danger: true,
+                onSelect: () => setShowRejectModal(menuOnSelection ? BULK_REJECT : menuPost.id),
+              },
+            ]
+          : []),
+        ...(menuOnSelection
+          ? []
+          : [
+              { kind: "sep" as const },
+              {
+                kind: "action" as const,
+                label: "Sync now",
+                icon: <TrendingUp size={14} />,
+                disabled: syncingId === menuPost.id,
+                onSelect: () => handleSyncNow(menuPost.id),
+              },
+              {
+                kind: "link" as const,
+                label: "View analytics",
+                icon: <BarChart3 size={14} />,
+                href: `/campaigns/${campaignId}/posts/${menuPost.id}`,
+              },
+              {
+                kind: "link" as const,
+                label: "Open on platform",
+                icon: <ExternalLink size={14} />,
+                href: menuPost.postUrl,
+                external: true,
+              },
+            ]),
+      ];
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -1195,6 +1457,22 @@ export default function PostsTab({
             onChange={setMediaTypeFilter}
             options={MEDIA_TYPE_FILTERS.map((m) => ({ value: m, label: m === "ALL" ? "All Types" : m }))}
           />
+          {/* Tracking is a state a post is in, so it belongs beside the other
+              states you can filter on. It is also the cheapest way to answer
+              "what am I actually recording a series for", which nothing on this
+              page could answer before. */}
+          <Dropdown
+            ariaLabel="Filter by tracking"
+            align="left"
+            minWidth={150}
+            value={trackingFilter}
+            onChange={(v) => setTrackingFilter(v as "ALL" | "TRACKED" | "UNTRACKED")}
+            options={[
+              { value: "ALL", label: "Tracked & not" },
+              { value: "TRACKED", label: "Tracked only" },
+              { value: "UNTRACKED", label: "Not tracked" },
+            ]}
+          />
 
           {/* Sorting used to live entirely in the list headers, and grid is the
               default view, so the view most people see could not be sorted at
@@ -1312,6 +1590,80 @@ export default function PostsTab({
         </Card>
       )}
 
+      {/* The bar only exists while something is selected, and it is sticky
+          because the selection is made by scrolling: a control that scrolls
+          away with the rows would be reachable only by scrolling back to it.
+          Above the list rather than below it, so it never covers the last row
+          of a full page. */}
+      {selectedOnPage.length > 0 && (
+        <div
+          role="region"
+          aria-label="Bulk actions"
+          style={{
+            position: "sticky",
+            top: 8,
+            zIndex: 20,
+            display: "flex",
+            flexWrap: "wrap",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12,
+            padding: "10px 16px",
+            borderRadius: 12,
+            border: "1px solid var(--cc-primary)",
+            background: "var(--cc-card)",
+            boxShadow: "0 6px 20px rgba(0,0,0,0.12)",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+            <span style={{ fontSize: "var(--cc-t-13)", fontWeight: 700, color: "var(--cc-text)" }}>
+              {selectedOnPage.length} selected
+            </span>
+            <button
+              type="button"
+              onClick={clearSelection}
+              disabled={bulkBusy}
+              style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", textDecoration: "underline" }}
+            >
+              Clear
+            </button>
+          </div>
+
+          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
+              <span>Track for</span>
+              <select
+                value={bulkTtlDays}
+                onChange={(e) => setBulkTtlDays(Number(e.target.value))}
+                disabled={bulkBusy}
+                aria-label="Tracking window for the selection"
+                style={{ ...selectStyle, width: 96 }}
+              >
+                {BULK_TTL_CHOICES.map((d) => (
+                  <option key={d} value={d}>
+                    {d} day{d === 1 ? "" : "s"}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <Button variant="primary" onClick={() => runBulkAction("track")} loading={bulkBusy} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+              <Radio size={14} aria-hidden="true" />Track
+            </Button>
+            <Button variant="secondary" onClick={() => runBulkAction("untrack")} loading={bulkBusy}>
+              Untrack
+            </Button>
+            <Button variant="secondary" onClick={() => runBulkAction("approve")} loading={bulkBusy}>
+              Approve
+            </Button>
+            {/* Rejection needs a reason, so this opens the dialog the
+                single-post path already uses rather than acting immediately. */}
+            <Button variant="secondary" onClick={() => setShowRejectModal(BULK_REJECT)} loading={bulkBusy}>
+              Reject
+            </Button>
+          </div>
+        </div>
+      )}
+
       {!error && filteredSorted.length === 0 ? (
         <EmptyState
           icon={<Video size={32} color="var(--cc-text-subtle)" />}
@@ -1325,6 +1677,21 @@ export default function PostsTab({
               display: "grid", ...listGrid,
               gap: COL_GAP, padding: "12px 24px", borderBottom: "1px solid var(--cc-border)", background: "var(--cc-bg)", alignItems: "center",
             }}>
+              {/* Indeterminate is set through the DOM node because React has
+                  no prop for it -- it is a property, not an attribute, and a
+                  half-selected page that renders as empty is a lie about what
+                  clicking it will do. */}
+              <input
+                type="checkbox"
+                checked={allOnPageSelected}
+                ref={(el) => {
+                  if (el) el.indeterminate = someOnPageSelected;
+                }}
+                onChange={toggleSelectAllOnPage}
+                aria-label={allOnPageSelected ? "Deselect all posts on this page" : "Select all posts on this page"}
+                title={allOnPageSelected ? "Deselect all on this page" : "Select all on this page"}
+                style={{ width: 15, height: 15, accentColor: "var(--cc-primary)", cursor: "pointer", margin: 0 }}
+              />
               <PlainHeader label="Creator" />
               <PlainHeader label="Platform" />
               <SortHeader label="Posted" sk="posted" />
@@ -1343,14 +1710,20 @@ export default function PostsTab({
             {pageRows.map((post, i) => {
               const er = engRatePct(post);
               const dv = deltaViews(post);
-              // A 0 we never fetched is unknown, not zero -- see lib/metricDisplay.
-              const views = metricValue(post.viewsCount, post.lastSyncedAt);
+              /* Per field, like the three below it. Views was the one counter
+                 still asking only "was this row ever synced", and that answer
+                 is wrong for Instagram: a post read without a Meta credential
+                 comes back with comments and nothing else, stamps
+                 lastSyncedAt, and every row then printed a confident 0 views.
+                 MEASURED on production 2026-09-16: 149 Instagram posts synced
+                 in 24h, not one of them carrying a view count, all showing 0. */
+              const views = fieldMetricValue(post.viewsCount, post.lastSyncedAt, post.platformMetrics, "views");
               // Per field: Instagram reports no shares, so a 0 there is ours, not theirs.
               const likes = fieldMetricValue(post.likesCount, post.lastSyncedAt, post.platformMetrics, "likes");
               const comments = fieldMetricValue(post.commentsCount, post.lastSyncedAt, post.platformMetrics, "comments");
               const shares = fieldMetricValue(post.sharesCount, post.lastSyncedAt, post.platformMetrics, "shares");
-              // Nothing in this repo writes these two, so lastSyncedAt cannot vouch for a
-              // zero here the way it can for views -- see unwrittenMetricValue.
+              // A sync stamp cannot vouch for a zero in these two -- most rows carry one
+              // with no saves or downloads reading behind it. See unwrittenMetricValue.
               const saves = unwrittenMetricValue(post.savesCount);
               const downloads = unwrittenMetricValue(post.downloadsCount);
               const erShown =
@@ -1360,6 +1733,11 @@ export default function PostsTab({
               return (
                 <div
                   key={post.id}
+                  className="cc-postrow"
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    openMenu(post.id, e.clientX, e.clientY);
+                  }}
                   style={{
                     display: "grid",
                     ...listGrid,
@@ -1367,6 +1745,19 @@ export default function PostsTab({
                     borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined,
                   }}
                 >
+                  {/* Same reveal as the grid: a checkbox on every row of a long
+                      table is a column of noise until somebody is actually
+                      selecting. The header's own box stays visible, so there is
+                      always one to find. */}
+                  <span className="cc-rowpick" data-on={selectedIds.has(post.id) || selectedIds.size > 0 ? "1" : "0"} style={{ display: "flex" }}>
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(post.id)}
+                      onChange={() => toggleSelect(post.id)}
+                      aria-label={`Select post by ${post.creator.name}`}
+                      style={{ width: 15, height: 15, accentColor: "var(--cc-primary)", cursor: "pointer", margin: 0 }}
+                    />
+                  </span>
                   <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
                     <PostMedia
                       platform={post.platform}
@@ -1457,6 +1848,35 @@ export default function PostsTab({
                   </div>
                   <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>{formatSince(post.lastSyncedAt)}</span>
                   <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                    {/* Tracking, first and stateful. It used to be reachable only
+                        by opening the post's own page, which is why almost
+                        nothing on this platform is tracked: the control was two
+                        clicks and one guess away from the list where posts are
+                        actually worked on. */}
+                    <button
+                      onClick={() => handleToggleTracking(post.id, post.trackingEnabled !== true)}
+                      disabled={trackingBusyId === post.id}
+                      aria-label={post.trackingEnabled ? "Stop tracking this post" : "Track this post"}
+                      aria-pressed={post.trackingEnabled === true}
+                      title={trackingLabel(post.trackingEnabled === true, post.trackingExpiresAt ?? null)}
+                      style={{
+                        padding: "4px 8px",
+                        borderRadius: 6,
+                        border: `1px solid ${post.trackingEnabled ? "var(--cc-primary)" : "var(--cc-border)"}`,
+                        background: post.trackingEnabled
+                          ? "color-mix(in srgb, var(--cc-primary) 14%, transparent)"
+                          : "var(--cc-card)",
+                        color: post.trackingEnabled ? "var(--cc-primary)" : "var(--cc-text-muted)",
+                        cursor: trackingBusyId === post.id ? "wait" : "pointer",
+                        fontSize: "var(--cc-t-12)",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 2,
+                        opacity: trackingBusyId === post.id ? 0.6 : 1,
+                      }}
+                    >
+                      <Radio size={12} />
+                    </button>
                     {/* The only way into our own post page now that the row itself
                         goes out to the platform. Tracking and bot signals live
                         there and nothing else in a campaign links to it. */}
@@ -1503,7 +1923,14 @@ export default function PostsTab({
                 See PostGridCard: the tab holds twenty-odd pieces of state and
                 every one of them used to re-render all 25 tiles. */}
             {pageRows.map((post) => (
-              <PostGridCard key={post.id} post={post} campaignId={campaignId} />
+              <PostGridCard
+                key={post.id}
+                post={post}
+                selected={selectedIds.has(post.id)}
+                selectionActive={selectedIds.size > 0}
+                onToggleSelect={toggleSelect}
+                onOpenMenu={openMenu}
+              />
             ))}
           </div>
           {filteredSorted.length > PAGE_SIZE && (
@@ -1858,13 +2285,24 @@ export default function PostsTab({
       )}
 
       {showRejectModal && (
-        <Modal open={true} onClose={() => { setShowRejectModal(null); setRejectionReason(""); }} title="Reject Post" size="sm" footer={
+        <Modal open={true} onClose={() => { setShowRejectModal(null); setRejectionReason(""); }} title={showRejectModal === BULK_REJECT ? `Reject ${selectedOnPage.length} Post${selectedOnPage.length === 1 ? "" : "s"}` : "Reject Post"} size="sm" footer={
           <div className="cc-modal-footer">
             <Button variant="secondary" onClick={() => { setShowRejectModal(null); setRejectionReason(""); }}>Cancel</Button>
-            <Button variant="primary" onClick={handleReject} style={{ background: "#DC2626" }}>Reject Post</Button>
+            {/* The count is in the button too, not only the title: this is the
+                irreversible half of the dialog and it should say how many rows
+                it is about to change. */}
+            <Button variant="primary" onClick={handleReject} loading={bulkBusy} style={{ background: "#DC2626" }}>
+              {showRejectModal === BULK_REJECT ? `Reject ${selectedOnPage.length} Post${selectedOnPage.length === 1 ? "" : "s"}` : "Reject Post"}
+            </Button>
           </div>
         }>
           <div>
+            {showRejectModal === BULK_REJECT && (
+              <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", margin: "0 0 10px" }}>
+                The same reason is stored on every post in the selection, and each
+                creator sees it on their own post.
+              </p>
+            )}
             <label htmlFor="reject-reason" style={{ display: "block", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6 }}>Reason (optional)</label>
             <textarea
               id="reject-reason"
@@ -1876,6 +2314,10 @@ export default function PostsTab({
             />
           </div>
         </Modal>
+      )}
+
+      {menu && menuItems.length > 0 && (
+        <PostActionMenu x={menu.x} y={menu.y} items={menuItems} onClose={closeMenu} />
       )}
     </div>
   );

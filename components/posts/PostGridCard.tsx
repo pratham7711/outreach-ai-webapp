@@ -1,15 +1,14 @@
 "use client";
 
 import { memo, type ReactNode } from "react";
-import Link from "next/link";
 import { Badge } from "@pratham7711/ui";
-import { Eye, Heart, MessageCircle, TrendingUp, BarChart3, Share2, Bookmark } from "lucide-react";
+import { Eye, Heart, MessageCircle, TrendingUp, Share2, Bookmark, Check } from "lucide-react";
 import { formatDateAbs, formatFull } from "@/lib/format";
-import { metricValue, fieldMetricValue, engagementRateValue } from "@/lib/metricDisplay";
+import { fieldMetricValue, engagementRateValue } from "@/lib/metricDisplay";
 import { isPostRemoved, removedNote } from "@/lib/postRemoval";
 import RemovedPostOverlay from "@/components/posts/RemovedPostOverlay";
 import PostCover from "@/components/posts/PostCover";
-import { STATUS_BADGE, formatSince, engRatePct } from "@/lib/posts/postDisplay";
+import { STATUS_BADGE, formatSince, engRatePct, trackingLabel } from "@/lib/posts/postDisplay";
 import type { ComplianceFlag } from "@/lib/compliance/postCompliance";
 
 /**
@@ -45,6 +44,8 @@ export type PostCardPost = {
   status: string;
   fetchState: string | null;
   lastSyncedAt: string | null;
+  trackingEnabled?: boolean;
+  trackingExpiresAt?: string | null;
   complianceFlags?: ComplianceFlag[];
   creator: { name: string; handle: string };
 };
@@ -53,8 +54,29 @@ function formatNumber(num: number): string {
   return formatFull(num);
 }
 
-function PostGridCardImpl({ post, campaignId }: { post: PostCardPost; campaignId: string }) {
-  const cardViews = metricValue(post.viewsCount, post.lastSyncedAt);
+/**
+ * Every prop here is a primitive or a stable callback, which is what keeps the
+ * memo above meaningful: selecting one tile must not re-render the other
+ * twenty-four. `selected` and `trackingBusy` are per-tile booleans, and both
+ * handlers are useCallback'd by the tab.
+ */
+function PostGridCardImpl({
+  post,
+  selected,
+  selectionActive,
+  onToggleSelect,
+  onOpenMenu,
+}: {
+  post: PostCardPost;
+  selected: boolean;
+  /** Something on this page is selected -- not necessarily this tile. Keeps
+   *  every pick visible while a selection is being built. */
+  selectionActive: boolean;
+  onToggleSelect: (postId: string) => void;
+  onOpenMenu: (postId: string, x: number, y: number) => void;
+}) {
+  const tracking = post.trackingEnabled === true;
+  const cardViews = fieldMetricValue(post.viewsCount, post.lastSyncedAt, post.platformMetrics, "views");
   const cardLikes = fieldMetricValue(post.likesCount, post.lastSyncedAt, post.platformMetrics, "likes");
   const cardComments = fieldMetricValue(post.commentsCount, post.lastSyncedAt, post.platformMetrics, "comments");
   const cardShares = fieldMetricValue(post.sharesCount, post.lastSyncedAt, post.platformMetrics, "shares");
@@ -69,7 +91,32 @@ function PostGridCardImpl({ post, campaignId }: { post: PostCardPost; campaignId
           post.lastSyncedAt
         ) ?? engRatePct(post);
   return (
-    <div style={{ position: "relative" }}>
+    /* onContextMenu rather than a visible trigger: the corner used to hold two
+       icons on every tile, and the actions they opened are worth less than the
+       artwork they covered. The menu is opened by the tab, which is the only
+       party that knows whether this post is part of a larger selection. */
+    <div
+      className="cc-posttile"
+      style={{ position: "relative" }}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        onOpenMenu(post.id, e.clientX, e.clientY);
+      }}
+    >
+    {/* The ring, not a tint: a selected tile still has to show its artwork
+        truthfully, and a wash over the thumbnail changes what the operator is
+        judging. 3px because 2 disappears against a busy frame. */}
+    <div
+      aria-hidden="true"
+      style={{
+        position: "absolute",
+        inset: -3,
+        borderRadius: 23,
+        border: selected ? "3px solid var(--cc-primary)" : "3px solid transparent",
+        pointerEvents: "none",
+        zIndex: 2,
+      }}
+    />
     <a
       href={post.postUrl}
       target="_blank"
@@ -91,7 +138,7 @@ function PostGridCardImpl({ post, campaignId }: { post: PostCardPost; campaignId
           to be, because only the element reports a failed fetch --
           see PostCover for what that was costing. */}
       <PostCover thumbnailUrl={post.thumbnailUrl} width={320} height={568} alt={post.caption} />
-      <span style={{ position: "absolute", top: 10, left: 10, padding: "3px 9px", borderRadius: 999, background: "rgba(0,0,0,0.55)", color: "white", fontSize: "var(--cc-t-10)", fontWeight: 700, letterSpacing: 0.4, backdropFilter: "blur(4px)" }}>
+      <span style={{ position: "absolute", top: 10, left: 42, padding: "3px 9px", borderRadius: 999, background: "rgba(0,0,0,0.55)", color: "white", fontSize: "var(--cc-t-10)", fontWeight: 700, letterSpacing: 0.4, backdropFilter: "blur(4px)" }}>
         {post.platform}
       </span>
       <span style={{ position: "absolute", top: 10, right: 10 }}>
@@ -159,12 +206,9 @@ function PostGridCardImpl({ post, campaignId }: { post: PostCardPost; campaignId
             </div>
           ));
         })()}
-        {/* paddingRight clears the analytics link, which is pinned
-            12px off the card's right edge and 14px wide -- inside
-            this row's own 14px padding, so "Updated 1mo ago" was
-            printing straight through the chart icon. The reserve is
-            that 26px back to this box's edge, plus a 6px gap. */}
-        <div style={{ marginTop: 8, paddingTop: 7, paddingRight: 18, borderTop: "1px solid rgba(255,255,255,0.22)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, fontSize: 10.5, color: "rgba(255,255,255,0.78)" }}>
+        {/* No paddingRight any more: the corner icons this row used to clear
+            are gone, so the date line gets the tile's full width back. */}
+        <div style={{ marginTop: 8, paddingTop: 7, borderTop: "1px solid rgba(255,255,255,0.22)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, fontSize: 10.5, color: "rgba(255,255,255,0.78)" }}>
           {/* Only once a platform has answered for this post: until
               then postedAt is the day someone added it here, not the
               day it went up, and Post.postedAt cannot be null. */}
@@ -176,17 +220,42 @@ function PostGridCardImpl({ post, campaignId }: { post: PostCardPost; campaignId
               It never shrinks -- a clipped "Updated 1mo a…" is worse
               than a clipped date, which the reader can still date by
               its month. */}
-          <span style={{ flexShrink: 0, whiteSpace: "nowrap" }}>
+          <span style={{ flexShrink: 0, whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 5 }}>
+            {/* State, not a control. Removing the tracking button would
+                otherwise make tracking invisible on the grid again, which is
+                the thing that was wrong with this screen in the first place. */}
+            {tracking && (
+              <span
+                title={trackingLabel(true, post.trackingExpiresAt ?? null)}
+                style={{ width: 6, height: 6, borderRadius: 999, background: "var(--cc-primary)", boxShadow: "0 0 0 2px rgba(255,255,255,0.28)", flexShrink: 0 }}
+              />
+            )}
             Updated {formatSince(post.lastSyncedAt)}
           </span>
         </div>
       </div>
     </a>
-    {/* Sits over the tile's solid footer rather than inside the
-        anchor -- an <a> cannot nest. */}
-    <Link href={`/campaigns/${campaignId}/posts/${post.id}`} aria-label="View post analytics" title="View post analytics" style={{ position: "absolute", right: 12, bottom: 10, display: "flex", alignItems: "center", color: "rgba(255,255,255,0.78)", textDecoration: "none" }}>
-      <BarChart3 size={14} />
-    </Link>
+    {/* Selection lives outside the anchor, or every click would open the
+        platform post instead of ticking the box. Hidden until the pointer is
+        over the tile, the keyboard is inside it, or a selection is already
+        running -- see .cc-postpick in globals.css, which is where hover has to
+        live. */}
+    <label
+      className="cc-postpick"
+      data-on={selected || selectionActive ? "1" : "0"}
+      title={selected ? "Deselect this post" : "Select this post"}
+    >
+      <input
+        type="checkbox"
+        checked={selected}
+        onChange={() => onToggleSelect(post.id)}
+        aria-label={`Select post by ${post.creator.handle || post.creator.name}`}
+      />
+      <span className="cc-postpick-box" aria-hidden="true">
+        <Check size={13} strokeWidth={3} />
+      </span>
+    </label>
+
     </div>
   );
 }

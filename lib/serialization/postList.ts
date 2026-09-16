@@ -97,6 +97,9 @@ export type PostDto = {
   authorProfilePic: string | null;
   createdAt: string | null;
   hasOpenFraudFlag: boolean;
+  /** Whether a post tracker is running, and the moment it stops. */
+  trackingEnabled: boolean;
+  trackingExpiresAt: string | null;
   platformMetrics: PlatformMetricsDto;
   creator: CreatorDto | null;
   snapshots: SnapshotDto[];
@@ -197,6 +200,8 @@ export function toPostDto(row: PostRow, hasOpenFraudFlag: boolean, complianceFla
     authorProfilePic: strOrNull(row.authorProfilePic),
     createdAt: iso(row.createdAt),
     hasOpenFraudFlag,
+    trackingEnabled: row.trackingEnabled === true,
+    trackingExpiresAt: iso(row.trackingExpiresAt),
     platformMetrics: provenanceFrom(row.platformMetrics),
     creator: creator
       ? {
@@ -240,6 +245,8 @@ export function encodePostList(posts: PostDto[]): Uint8Array {
       authorProfilePic: p.authorProfilePic ?? undefined,
       createdAtMs: ms(p.createdAt) ?? undefined,
       hasOpenFraudFlag: p.hasOpenFraudFlag,
+      trackingEnabled: p.trackingEnabled,
+      trackingExpiresAtMs: ms(p.trackingExpiresAt) ?? undefined,
       creator: p.creator
         ? {
             id: p.creator.id,
@@ -313,6 +320,8 @@ export function decodePostList(bytes: Uint8Array): PostDto[] {
       authorProfilePic: p.authorProfilePic ?? null,
       createdAt: msToIso(p.createdAtMs),
       hasOpenFraudFlag: p.hasOpenFraudFlag ?? false,
+      trackingEnabled: p.trackingEnabled ?? false,
+      trackingExpiresAt: msToIso(p.trackingExpiresAtMs),
       platformMetrics,
       creator: p.creator
         ? {

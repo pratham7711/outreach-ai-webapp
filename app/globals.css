@@ -7496,3 +7496,155 @@ h1, h2, h3, h4, h5, h6 {
   text-transform: var(--cc-queue-head-transform);
   color: var(--cc-queue-head-fg);
 }
+
+/* ── Post tile selection + the menu that replaced its corner icons ─────────
+   A grid tile used to carry two always-on controls in its bottom corner and an
+   always-on checkbox in its top one. Three pieces of chrome on every tile, on a
+   screen whose job is judging artwork, so they are gone: actions now come from
+   selecting, and the per-post ones from the context menu below.
+
+   The pick has to be discoverable without being permanent, which is a hover
+   problem and therefore a CSS one -- an inline style cannot express :hover, and
+   doing it with React state would re-render a memoised tile on every mouse
+   move. Four states show it: pointer over the tile, keyboard focus inside it,
+   the tile is selected, or a selection is already running (data-on), so once
+   one box is ticked every other box is visible to extend it. On touch, where
+   hover does not exist and the first tick would otherwise be unreachable, it is
+   simply always shown. */
+.cc-postpick {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  cursor: pointer;
+  opacity: 0;
+  transform: scale(0.82);
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+.cc-posttile:hover > .cc-postpick,
+.cc-posttile:focus-within > .cc-postpick,
+.cc-postpick[data-on="1"] {
+  opacity: 1;
+  transform: none;
+}
+@media (hover: none) {
+  .cc-postpick { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cc-postpick,
+  .cc-postpick .cc-postpick-box { transition: none; }
+}
+
+/* The input stays in the DOM and keeps the whole 30px hit area -- it is the
+   checkbox, and a div with a click handler would not be. Only its painting is
+   handed to the box beside it. */
+.cc-postpick input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+/* White over a scrim rather than a themed surface, like the rest of the
+   overlay in this tile: what sits behind it is the creator's photograph, which
+   is the same photograph in both themes. */
+.cc-postpick-box {
+  /* Painted above the input (it comes later in the DOM) and would otherwise
+     swallow every click aimed at the checkbox underneath it. It is decoration
+     and aria-hidden; the input is the control. */
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  border: 1.5px solid rgba(255, 255, 255, 0.92);
+  background: rgba(0, 0, 0, 0.42);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(3px);
+  color: transparent;
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+/* Ticked, from the input itself rather than from data-on. The two say
+   different things and binding both to data-on painted every pick as checked
+   the moment anything on the page was selected: data-on means "a selection is
+   running, show the boxes", :checked means "this one is in it". */
+.cc-postpick input:checked + .cc-postpick-box {
+  background: var(--cc-primary);
+  border-color: var(--cc-primary);
+  color: var(--cc-on-primary);
+}
+.cc-postpick input:focus-visible + .cc-postpick-box {
+  outline: 2px solid var(--cc-primary);
+  outline-offset: 2px;
+}
+
+/* The same reveal for a list row's checkbox, which has no artwork to sit on
+   and so needs no scrim. */
+.cc-rowpick {
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.cc-postrow:hover .cc-rowpick,
+.cc-postrow:focus-within .cc-rowpick,
+.cc-rowpick[data-on="1"] { opacity: 1; }
+@media (hover: none) {
+  .cc-rowpick { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cc-rowpick { transition: none; }
+}
+
+.cc-ctxmenu {
+  position: fixed;
+  z-index: 60;
+  min-width: 208px;
+  padding: 6px;
+  border-radius: 12px;
+  border: 1px solid var(--cc-border);
+  background: var(--cc-card);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.22);
+}
+.cc-ctxmenu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: var(--cc-text);
+  font-size: var(--cc-t-13);
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+.cc-ctxmenu-item:hover,
+.cc-ctxmenu-item:focus-visible {
+  background: var(--cc-hover-bg);
+  outline: none;
+}
+.cc-ctxmenu-item[disabled] {
+  color: var(--cc-text-muted);
+  cursor: default;
+}
+.cc-ctxmenu-sep {
+  height: 1px;
+  margin: 5px 6px;
+  background: var(--cc-border);
+}
+.cc-ctxmenu-head {
+  padding: 5px 10px 7px;
+  color: var(--cc-text-muted);
+  font-size: var(--cc-t-12);
+}

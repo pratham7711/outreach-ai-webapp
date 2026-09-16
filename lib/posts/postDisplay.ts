@@ -39,3 +39,20 @@ export function engRatePct(post: EngagementCounts): number | null {
   });
   return r === null ? null : r * 100;
 }
+
+/**
+ * What a tracking control says when you hover it.
+ *
+ * Tracking is the one thing on this page that keeps working after you leave
+ * it, so the label has to carry the two facts that follow from that: whether
+ * it is on, and when it stops on its own. "Tracking" alone reads as permanent,
+ * which no post tracker is.
+ */
+export function trackingLabel(enabled: boolean, expiresAt: string | null): string {
+  if (!enabled) return "Not tracked — track this post to record a time series";
+  if (!expiresAt) return "Tracking";
+  const stops = new Date(expiresAt);
+  if (Number.isNaN(stops.getTime())) return "Tracking";
+  const days = Math.max(0, Math.ceil((stops.getTime() - Date.now()) / 86_400_000));
+  return `Tracking — stops in ${days} day${days === 1 ? "" : "s"}, on ${stops.toLocaleDateString()}`;
+}

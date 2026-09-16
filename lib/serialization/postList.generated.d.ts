@@ -423,6 +423,12 @@ export namespace outreach {
                 /** Post provenance. */
                 provenance?: (outreach.postlist.v1.MetricProvenance.$Properties|null);
 
+                /** Post trackingEnabled. */
+                trackingEnabled?: (boolean|null);
+
+                /** Post trackingExpiresAtMs. */
+                trackingExpiresAtMs?: (number|Long|null);
+
                 /**
                  * Encodes the specified Post message. Does not implicitly {@link outreach.postlist.v1.Post.verify|verify} messages.
                  * @param message Post message or plain object to encode
@@ -531,6 +537,12 @@ export namespace outreach {
 
                     /** Post provenance */
                     provenance?: (outreach.postlist.v1.MetricProvenance.$Properties|null);
+
+                    /** Post trackingEnabled */
+                    trackingEnabled?: (boolean|null);
+
+                    /** Post trackingExpiresAtMs */
+                    trackingExpiresAtMs?: (number|Long|null);
 
                     /** Unknown fields preserved while decoding when enabled */
                     $unknowns?: Uint8Array[];

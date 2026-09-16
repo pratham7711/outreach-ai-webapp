@@ -88,6 +88,14 @@ message Post {
   repeated Snapshot snapshots = 24;
   repeated ComplianceFlag compliance_flags = 25;
   optional MetricProvenance provenance = 26;
+
+  /* Tracking state, so the post list can show it and act on it in bulk. Two
+     fields rather than one: whether the tracker is running, and when it stops.
+     The TTL itself is not here -- the expiry is what the UI counts down to,
+     and deriving one from the other needs the start date, which is not
+     rendered anywhere. */
+  optional bool tracking_enabled = 27;
+  optional int64 tracking_expires_at_ms = 28;
 }
 
 message PostList {
