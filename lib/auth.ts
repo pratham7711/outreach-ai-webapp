@@ -9,6 +9,8 @@ import { accessFor, isPlatformAdmin } from "@/lib/billing/subscription";
 import { authConfig } from "@/lib/auth.config";
 import { getRequestIp } from "@/lib/request";
 import { checkLoginAttempt } from "@/lib/loginRateLimit";
+import { cookies } from "next/headers";
+import { ACT_AS_COOKIE, applyActingAs, resolveActAs } from "@/lib/platform/actAs";
 
 /** How stale a JWT's copy of role/isActive may get. See the jwt callback. */
 const ROLE_REFRESH_MS = 60_000;
@@ -29,7 +31,7 @@ function loginRateLimited(retryAfterSeconds: number): CredentialsSignin {
   return err;
 }
 
-export const { handlers, auth, signIn, signOut } = NextAuth({
+const nextAuth = NextAuth({
   ...authConfig,
   adapter: PrismaAdapter(db),
   session: { strategy: "jwt" },
@@ -178,3 +180,41 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   },
   secret: process.env.NEXTAUTH_SECRET,
 });
+
+export const { handlers, signIn, signOut } = nextAuth;
+
+/**
+ * The session, as the request should be read.
+ *
+ * Wrapped rather than re-exported so the platform operator's org switch lands
+ * in one place: 83 files read `orgId` off this session, and a switch applied
+ * anywhere else would be 83 opportunities to miss one. Everything else about
+ * the session is untouched -- same token, same identity, same email, which is
+ * what keeps isPlatformAdmin answering about the real person while acting.
+ *
+ * The cookie jar is read here because this is the layer that has a request.
+ * A caller outside one (a script, a build-time render) throws on cookies(),
+ * which is caught: no switch, plain session, rather than a crash in the one
+ * function every authenticated path calls.
+ */
+export const auth: typeof nextAuth.auth = (async (...args: unknown[]) => {
+  const session = await (nextAuth.auth as (...a: unknown[]) => Promise<SessionShape>)(...args);
+  if (!session?.user) return session;
+
+  try {
+    const jar = await cookies();
+    const acting = await resolveActAs(
+      session.user.email,
+      jar.get(ACT_AS_COOKIE)?.value ?? null,
+      (session.user as { orgId?: string }).orgId ?? null,
+    );
+    return applyActingAs(session, acting);
+  } catch {
+    /* No request scope, or no cookie store. The operator simply is not acting. */
+    return session;
+  }
+}) as typeof nextAuth.auth;
+
+type SessionShape = {
+  user?: { email?: string | null; orgId?: string; role?: string; campaignScope?: string } | null;
+} | null;

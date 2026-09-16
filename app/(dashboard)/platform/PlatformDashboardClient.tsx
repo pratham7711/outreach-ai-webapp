@@ -6,12 +6,84 @@
  * look; the page's isPlatformAdmin() check is the only gate.
  */
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Badge, Card, Input } from "@pratham7711/ui";
 import type { PlatformStats, TenantRow } from "@/lib/platform/stats";
 import { PageHeader } from "@/components/ds";
 
 const NUM = new Intl.NumberFormat("en-US");
 const fmt = (n: number) => NUM.format(n);
+
+/**
+ * Entering a tenant's own workspace.
+ *
+ * Two buttons rather than one with a default, because the choice between
+ * looking and editing inside a customer's data is not one to make on their
+ * behalf. Landing on /campaigns rather than the dashboard: it is the screen an
+ * operator is nearly always heading for, and it is the one that proves the
+ * switch took.
+ */
+function OpenTenant({ orgId, name }: { orgId: string; name: string }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState<"read" | "full" | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function open(mode: "read" | "full") {
+    setBusy(mode);
+    setError(null);
+    try {
+      const res = await fetch("/api/platform/act-as", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orgId, mode }),
+      });
+      if (!res.ok) throw new Error(String(res.status));
+      router.push("/campaigns");
+      router.refresh();
+    } catch {
+      setBusy(null);
+      setError("Could not open");
+    }
+  }
+
+  return (
+    <span style={{ display: "inline-flex", gap: 6, alignItems: "center", justifyContent: "flex-end" }}>
+      <button
+        type="button"
+        onClick={() => open("read")}
+        disabled={busy !== null}
+        aria-label={`Open ${name} read-only`}
+        style={openButtonStyle(false, busy !== null)}
+      >
+        {busy === "read" ? "Opening…" : "View"}
+      </button>
+      <button
+        type="button"
+        onClick={() => open("full")}
+        disabled={busy !== null}
+        aria-label={`Open ${name} with full access`}
+        style={openButtonStyle(true, busy !== null)}
+      >
+        {busy === "full" ? "Opening…" : "Full"}
+      </button>
+      {error && <span style={{ color: "var(--cc-danger)", fontSize: "var(--cc-t-11)" }}>{error}</span>}
+    </span>
+  );
+}
+
+function openButtonStyle(emphasised: boolean, busy: boolean): React.CSSProperties {
+  return {
+    padding: "4px 10px",
+    borderRadius: 6,
+    border: "1px solid var(--cc-border)",
+    background: emphasised ? "var(--cc-hover-bg)" : "transparent",
+    color: "var(--cc-text)",
+    fontSize: "var(--cc-t-12)",
+    fontWeight: "var(--cc-fw-strong)",
+    cursor: busy ? "default" : "pointer",
+    opacity: busy ? 0.6 : 1,
+  };
+}
 
 /** Tone for a subscription status. Suspended and past-due must not read as fine. */
 function statusTone(status: string): "success" | "warning" | "danger" | "neutral" {
@@ -169,6 +241,7 @@ function TenantTable({ tenants }: { tenants: TenantRow[] }) {
               <th style={{ padding: "10px 12px", textAlign: "right" }}>Posts</th>
               <th style={{ padding: "10px 12px", textAlign: "right" }}>Users</th>
               <th style={{ padding: "10px 12px", textAlign: "right" }}>Synced 30d</th>
+              <th style={{ padding: "10px 12px", textAlign: "right" }}>Workspace</th>
             </tr>
           </thead>
           <tbody>
@@ -198,12 +271,15 @@ function TenantTable({ tenants }: { tenants: TenantRow[] }) {
                 <td style={{ padding: "10px 12px", textAlign: "right" }}>
                   {fmt(t.measuredInWindow)}
                 </td>
+                <td style={{ padding: "10px 12px", textAlign: "right" }}>
+                  <OpenTenant orgId={t.id} name={t.name} />
+                </td>
               </tr>
             ))}
             {!rows.length && (
               <tr>
                 <td
-                  colSpan={9}
+                  colSpan={10}
                   style={{ padding: 24, textAlign: "center", color: "var(--cc-text-muted)" }}
                 >
                   No organizations match “{q}”.

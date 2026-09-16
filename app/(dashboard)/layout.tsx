@@ -16,6 +16,8 @@ import type { OrgUiConfig } from "@/lib/orgConfig";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { VerifyEmailBanner } from "@/components/layout/VerifyEmailBanner";
+import { ActingAsBanner } from "@/components/layout/ActingAsBanner";
+import type { ActingAs } from "@/lib/platform/actAs";
 import type { Metadata } from "next";
 
 /**
@@ -92,6 +94,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
     : null;
   const needsEmailVerification = Boolean(account && !account.emailVerified);
 
+  /* Set by lib/auth.ts when a platform operator has opened somebody else's
+     workspace. Everything above this line already describes THAT org -- the
+     entitlements, the branding, the nav -- which is the point; the banner is
+     what stops that from being invisible. */
+  const actingAs = (session.user as { actingAs?: ActingAs }).actingAs ?? null;
+
   const uiConfig = (entitlements?.uiConfig as OrgUiConfig | null) ?? null;
   const policy = resolveDashboardPolicy({ entitlements, uiConfig });
 
@@ -142,6 +150,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
           />
           <DashboardContent>
             <TopBar user={user} />
+            {actingAs && (
+              <ActingAsBanner orgName={actingAs.orgName} mode={actingAs.mode} />
+            )}
             {needsEmailVerification && account?.email && (
               <VerifyEmailBanner email={account.email} />
             )}
