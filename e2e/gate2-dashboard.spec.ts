@@ -1,4 +1,5 @@
 import { test, expect, request as playwrightRequest } from '@playwright/test';
+import { postHandles, firstPostDetailHref } from './helpers';
 
 test.describe('Gate 2 Dashboard — Performance Tab', () => {
   test('Performance section shows KPI tiles and Views > 0', async ({ page }) => {
@@ -98,7 +99,7 @@ test.describe('Gate 2 Dashboard — Performance Tab', () => {
     await page.getByRole('combobox', { name: /filter by platform/i })
       .waitFor({ state: 'visible', timeout: 30000 });
 
-    const rows = page.locator('a[href*="/posts/"]');
+    const rows = postHandles(page);
     await expect.poll(() => rows.count(), { timeout: 20000 }).toBeGreaterThan(0);
     const total = await rows.count();
 
@@ -119,18 +120,10 @@ test.describe('Gate 2 Dashboard — Performance Tab', () => {
     await postsTab.click();
     await page.waitForTimeout(3000);
 
-    const postLinks = page.locator('a[href*="/posts/"]');
-    const count = await postLinks.count();
-    if (count === 0) {
-      test.fixme();
-      return;
-    }
-
-    const href = await postLinks.first().getAttribute('href');
-    if (!href) {
-      test.fixme();
-      return;
-    }
+    /* No test.fixme() on an empty list any more. camp-1 is seeded, so zero
+       posts here is a broken tab reporting itself as a skip inside a green
+       run -- the one failure mode this suite has already been bitten by. */
+    const href = await firstPostDetailHref(page);
 
     await page.goto(href);
     await page.waitForLoadState('networkidle');

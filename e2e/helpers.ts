@@ -75,3 +75,41 @@ export async function openCampaignSection(page: Page, name: RegExp): Promise<voi
   await link.click();
   await page.waitForLoadState('networkidle');
 }
+
+/**
+ * Every post on the Posts tab, counted the way the tab itself identifies one.
+ *
+ * The grid used to carry an `<a href=".../posts/<id>">` in each tile's corner
+ * and five specs counted those anchors. The tiles now open a context menu
+ * instead -- the corner icons were permanent chrome over the artwork the screen
+ * exists to show -- so the anchor is gone and an anchor count reads 0 on a page
+ * full of posts. The select box is per post in both the grid and the list, and
+ * it is what the tab uses to address one, so it is the honest row handle.
+ */
+export function postHandles(page: Page) {
+  return page.getByRole('checkbox', { name: /^Select post by/ });
+}
+
+/**
+ * The post detail page for the first post, reached as a user reaches it.
+ *
+ * Right-click is the only route from the tab to a post's own page since the
+ * corner link was removed, so a spec that wants that page has to take it --
+ * navigating by a URL the test assembled itself would pass while the route in
+ * the product was broken.
+ */
+export async function firstPostDetailHref(page: Page): Promise<string> {
+  const handle = postHandles(page).first();
+  await expect(handle).toBeVisible({ timeout: 20000 });
+  /* The contextmenu listener sits on the tile, and the event bubbles, so the
+     box is a fine target -- and a right-click does not toggle it. */
+  await handle.click({ button: 'right' });
+
+  const item = page.getByRole('menu', { name: 'Post actions' })
+    .getByRole('menuitem', { name: 'View analytics' });
+  await expect(item).toBeVisible({ timeout: 10000 });
+  const href = await item.getAttribute('href');
+  expect(href, 'the View analytics item should carry an href').toBeTruthy();
+  await page.keyboard.press('Escape');
+  return href as string;
+}

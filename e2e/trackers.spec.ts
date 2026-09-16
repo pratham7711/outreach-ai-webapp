@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { openCampaignSection } from './helpers';
+import { openCampaignSection, firstPostDetailHref } from './helpers';
 
 async function navigateToFirstPostDetail(page: import('@playwright/test').Page): Promise<string> {
   await page.goto('/campaigns/camp-1');
@@ -15,12 +15,7 @@ async function navigateToFirstPostDetail(page: import('@playwright/test').Page):
      then reported as a SKIPPED test inside a green run, which is how a real
      assertion failure in this file went unnoticed. Wait for the thing itself
      and let its absence fail. */
-  const firstPostLink = page.locator('a[href*="/posts/"]').first();
-  await expect(firstPostLink).toBeVisible({ timeout: 20000 });
-
-  const href = await firstPostLink.getAttribute('href');
-  expect(href, 'seeded post link should carry an href').toBeTruthy();
-  return href as string;
+  return firstPostDetailHref(page);
 }
 
 test.describe('Post Tracking', () => {
