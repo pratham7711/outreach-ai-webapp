@@ -10,6 +10,7 @@ import {
   type TopPost,
 } from "@/lib/platforms/creatorProfile";
 import { followerLadder, keepPrecise } from "@/lib/platforms/precision";
+import { readInstagramFollowersFromPost } from "@/lib/platforms/instagramCreatorFallback";
 import { readTikTokTopPostsOfficial } from "@/lib/platforms/tiktokTopPostsOfficial";
 import {
   readTikTokTopPostsEmbed,
@@ -131,6 +132,49 @@ async function embedHtmlVia(
   const direct = await fetchTikTokEmbedHtmlDirect(handle);
   if (direct) return direct;
   return injected ? injected(handle) : null;
+}
+
+/**
+ * The Instagram posts this workspace holds for a creator, read for the one
+ * thing it can tell us that the platform will not: their follower count.
+ *
+ * Newest first, and up to three of them, because the commonest reason a read
+ * comes back empty is that the post itself is gone -- the embed for a deleted
+ * reel still answers 200 with a full-size page, just with "contextJSON":null
+ * and no owner in it. MEASURED 2026-09-16 over the 20 most recently added
+ * Instagram creators holding a post: the newest post alone answered for 9 of
+ * them, and walking up to three answered for 11. The extra fetches only ever
+ * happen for a creator whose earlier post did not answer, and only after the
+ * credentialled read has already failed.
+ *
+ * Scoped through Campaign.orgId -- Post has no orgId of its own -- so a
+ * creator's read can only ever be answered by their own org's rows.
+ */
+const IG_FALLBACK_POSTS = 3;
+
+async function readInstagramFollowersViaOwnPost(creator: {
+  id: string;
+  orgId: string;
+  handle: string;
+}): Promise<CreatorReadResult | null> {
+  const posts = await db.post
+    .findMany({
+      where: {
+        creatorId: creator.id,
+        platform: "INSTAGRAM",
+        campaign: { orgId: creator.orgId, deletedAt: null },
+      },
+      orderBy: { postedAt: "desc" },
+      select: { postUrl: true },
+      take: IG_FALLBACK_POSTS,
+    })
+    .catch(() => []);
+  for (const post of posts) {
+    if (!post.postUrl) continue;
+    const read = await readInstagramFollowersFromPost(creator.handle, post.postUrl);
+    if (read) return read;
+  }
+  return null;
 }
 
 /** Writes only the posts columns, for the paths where no snapshot was taken. */
@@ -345,6 +389,18 @@ export async function snapshotCreators(
           },
         };
       }
+    }
+
+    /* Instagram's one credentialled reader answers for nobody without a Meta
+       token and for no personal account with one, which on production means it
+       has never answered at all. The embed rung needs no credential but needs a
+       post: one of the creator's own, which is exactly what a tracked creator
+       tends to have. Same shape as TikTok's sandbox rung above -- it only runs
+       when the platform read has already failed, and it never downgrades a
+       reason, because it returns null rather than a failure of its own. */
+    if (!result.ok && creator.platform === "INSTAGRAM" && !dryRun) {
+      const fromPost = await readInstagramFollowersViaOwnPost(creator);
+      if (fromPost) result = fromPost;
     }
 
     if (dryRun) {
