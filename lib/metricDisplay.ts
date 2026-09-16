@@ -28,15 +28,21 @@ export function metricValue(
 }
 
 /**
- * For counters nothing in this repo ever writes: saves and downloads.
+ * For counters a sync stamp cannot vouch for: saves and downloads.
  *
- * PostMetrics carries views, likes, comments and shares and nothing else -- no
- * fetcher here has ever populated savesCount or downloadsCount, and only the
- * CreatorCore import did. So a 0 in those two columns is the column default, not
- * a reading, and lastSyncedAt cannot rescue it: a TikTok sync legitimately
- * stamps that timestamp while leaving both untouched, which made metricValue
- * report "Total Saves 0" on a campaign whose saves we never asked for. The same
- * argument already applies to reachCount -- see lib/reports/shareVisibility.
+ * Nothing here writes downloadsCount at all; only the CreatorCore import did.
+ * Saves are now read on two paths -- TikTok's collectCount, and Instagram's
+ * `saved` off the insights edge -- but neither is guaranteed to be in any given
+ * fetch, and every row synced before those existed carries a timestamp with no
+ * saves reading behind it. So a 0 in these two columns is the column default
+ * rather than a reading, and lastSyncedAt cannot rescue it: a TikTok sync
+ * legitimately stamps that timestamp while leaving both untouched, which made
+ * metricValue report "Total Saves 0" on a campaign whose saves we never asked
+ * for. The same argument already applies to reachCount -- see
+ * lib/reports/shareVisibility.
+ *
+ * Rows written since carry the per-field list, so fieldMetricValue below is the
+ * sharper test where one exists; this stays the rule for the rest.
  *
  * A genuine zero is hidden by this rule. That is the cheaper mistake: omitting a
  * true zero costs a tile, while asserting a false one tells a brand its campaign

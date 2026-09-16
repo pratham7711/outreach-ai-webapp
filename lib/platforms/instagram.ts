@@ -17,6 +17,14 @@ export type InstagramCounts = {
   /* Optional, not defaulted: Instagram omits reach rather than sending zero,
      and a missing reach must not be sealed as a measured zero. */
   reachCount?: number;
+  /* Insights-only, and reels-only in practice. Instagram publishes no share
+     count on any public endpoint -- not oEmbed, not the embed page, not
+     Business Discovery -- so this arrives for a creator who has connected
+     their account and for nobody else. */
+  sharesCount?: number;
+  /* Insights-only, same as shares. "saved" is the bookmark count, the figure
+     CreatorCore's report calls Total Saves. */
+  savesCount?: number;
   postedAt?: Date;
 };
 
@@ -228,37 +236,63 @@ export async function resolveIgUserId(token: string, signal?: AbortSignal): Prom
 }
 
 /**
- * Read the per-media insights we care about in ONE round trip.
+ * Every per-media insight we can get, in as few round trips as the endpoint
+ * allows.
  *
- * `views` and `reach` are asked for together because this endpoint bills per
- * call, not per metric, so splitting them would double the cost of the media
- * walk for nothing. Each is parsed independently: an image publishes no play
- * count, and until Meta App Review lands reach is absent on every post, so a
- * missing one of the pair must not discard the other.
+ * All four metrics are asked for together because this endpoint bills per call,
+ * not per metric, so splitting them would multiply the cost of the media walk
+ * for nothing. Each is parsed independently: an image publishes no play count,
+ * reach is absent until Meta App Review lands, and shares is reels-only -- so a
+ * missing one must not discard the rest.
  *
- * Both stay `undefined` when absent rather than becoming 0 -- a measured zero
- * and "Instagram did not tell us" are different facts, and the seal makes
- * whichever one it is stored permanently.
+ * The ladder is not defensive padding. Instagram rejects the WHOLE request
+ * (400, "Invalid parameter") when any one metric is unsupported for that
+ * media's type, rather than omitting the offending metric -- measured in
+ * instagramAccount.ts, where asking for `views,shares` on a non-reel answered
+ * nothing at all. So the widest set is tried first, and each rung drops the
+ * metrics most likely to be the one being refused.
+ *
+ * Everything stays `undefined` when absent rather than becoming 0 -- a measured
+ * zero and "Instagram did not tell us" are different facts, and the seal stores
+ * whichever one it is permanently.
  */
+const INSIGHT_LADDER = ["views,reach,shares,saved", "views,reach", "views"] as const;
+
 async function fetchInsights(
   mediaId: string,
   token: string,
   signal?: AbortSignal,
-): Promise<{ views?: number; reach?: number }> {
-  const data = await graphGet(
-    `${mediaId}/insights`,
-    { metric: "views,reach", access_token: token },
-    signal,
-  );
+): Promise<{ views?: number; reach?: number; shares?: number; saved?: number }> {
+  let data: any = null;
+  for (const metric of INSIGHT_LADDER) {
+    data = await graphGet(`${mediaId}/insights`, { metric, access_token: token }, signal).catch(
+      (err) => {
+        /* An auth failure must reach the caller: the token or the scope is
+           gone, and every later media would fail identically. A timeout must
+           too, or a slow endpoint is waited on once per rung and one stalled
+           media costs three full timeouts instead of one. Anything else is
+           this media's own metric set, and the next rung may still answer. */
+        if (err instanceof InstagramAuthError || err instanceof InstagramTimeoutError) throw err;
+        return null;
+      },
+    );
+    if (data) break;
+  }
+  if (!data) return {};
+
   const read = (name: string): number | undefined => {
     const value = data?.data?.find((d: { name?: string }) => d.name === name)?.values?.[0]?.value;
     return typeof value === "number" ? value : undefined;
   };
   const views = read("views");
   const reach = read("reach");
+  const shares = read("shares");
+  const saved = read("saved");
   return {
     ...(views === undefined ? {} : { views }),
     ...(reach === undefined ? {} : { reach }),
+    ...(shares === undefined ? {} : { shares }),
+    ...(saved === undefined ? {} : { saved }),
   };
 }
 
@@ -303,6 +337,8 @@ export async function fetchInstagramMetricsGraph(
         ...(typeof match.comments_count === "number" ? { commentsCount: match.comments_count } : {}),
         ...(typeof insights.views === "number" ? { viewsCount: insights.views } : {}),
         ...(typeof insights.reach === "number" ? { reachCount: insights.reach } : {}),
+        ...(typeof insights.shares === "number" ? { sharesCount: insights.shares } : {}),
+        ...(typeof insights.saved === "number" ? { savesCount: insights.saved } : {}),
         postedAt: match.timestamp ? new Date(match.timestamp) : undefined,
       };
     }
