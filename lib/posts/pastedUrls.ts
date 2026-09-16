@@ -6,7 +6,7 @@
  * someone split it into ten separate adds. Lives apart from the dialog so it
  * can be tested without pulling the component's UI dependencies into jest.
  */
-import { detectPlatform } from "@/lib/platforms/fetchPostMetrics";
+import { detectPlatform } from "@/lib/platforms/postUrl";
 
 /** A guard, not a product limit: a stray paste of a whole document should be
  *  refused rather than fired at the API a few hundred times. */

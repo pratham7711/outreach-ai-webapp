@@ -11,7 +11,7 @@
 import { db } from "@/lib/db";
 import { creatorHandleVariants } from "@/lib/creator-auth";
 import { resolveAuthorFromPlatform } from "@/lib/platforms/postAuthor";
-import { detectPlatform } from "@/lib/platforms/fetchPostMetrics";
+import { detectPlatform } from "@/lib/platforms/postUrl";
 import { readCreatorProfile } from "@/lib/platforms/creatorProfile";
 import type { Platform, Prisma } from "@/lib/generated/prisma/client";
 

@@ -13,6 +13,7 @@ import { fetchTikTokVideosByIds } from "./tiktokDisplay";
 import { isRounded, TIKTOK_DISPLAY } from "./precision";
 import { fetchTwitchMetrics } from "./twitch";
 import { createLogger } from "../observability/logger";
+import { MEDIA_TYPES, detectPlatform, type MediaType } from "./postUrl";
 
 export type FetchMetricsContext = {
   instagramToken?: string;
@@ -55,9 +56,13 @@ export type PostMetrics = {
    * months and left the fifth sitting next to them, so the tile had no source and
    * a campaign with 1,762 saves reported none.
    *
-   * Instagram and YouTube publish no equivalent, and no platform we can reach
-   * publishes a download count at all, which is why there is no downloadsCount
-   * here: a field nothing can ever fill is worse than an absent one.
+   * Instagram publishes it as `saved`, but only on the insights edge -- so it
+   * arrives for a creator who has connected their account and for nobody else.
+   * YouTube's Data API has no equivalent statistic at all (playlist adds live
+   * in the Analytics API, which only a channel's owner may call), and no
+   * platform we can reach publishes a download count, which is why there is no
+   * downloadsCount here: a field nothing can ever fill is worse than an absent
+   * one.
    */
   savesCount?: number;
   /**
@@ -258,94 +263,12 @@ function fetchTimeoutSignal(ms = 8000): AbortSignal | undefined {
     : undefined;
 }
 
-export const MEDIA_TYPES = ["REEL", "STORY", "POST", "SHORT", "VIDEO"] as const;
-export type MediaType = (typeof MEDIA_TYPES)[number];
-
-/**
- * What a post URL says about itself.
- *
- * The URL already carries the two things an operator was being asked to retype:
- * which kind of post it is, and often whose it is. A TikTok link cannot be
- * anything but /@handle/video/id, and an Instagram reel says "reel" in the path.
- * `mediaType` and `handle` are optional because not every form carries them --
- * a youtu.be link names no channel, and instagram.com/p/CODE names no author --
- * and an absent field means "the URL does not say", never "there is none".
- */
-export function detectPlatform(
-  url: string
-): { platform: PostMetrics["platform"]; id: string; mediaType?: MediaType; handle?: string } | null {
-  // YouTube: watch?v=ID, youtu.be/ID, shorts/ID, live/ID, embed/ID (IDs are 11 chars).
-  // Host-guarded so a stray ?v= on another domain can't be misread as YouTube.
-  if (/(?:youtube\.com|youtu\.be)/.test(url)) {
-    const ytMatch =
-      url.match(/(?:youtube\.com\/(?:shorts|live|embed)\/|youtu\.be\/)([\w-]{11})/) ||
-      url.match(/[?&]v=([\w-]{11})/);
-    if (ytMatch) {
-      // A channel handle only appears on some YouTube forms, and never on the
-      // watch?v= one that most people paste.
-      const yHandle = url.match(/youtube\.com\/@([\w.-]+)/)?.[1];
-      return {
-        platform: "YOUTUBE",
-        id: ytMatch[1],
-        mediaType: /youtube\.com\/shorts\//.test(url) ? "SHORT" : "VIDEO",
-        ...(yHandle ? { handle: yHandle } : {}),
-      };
-    }
-  }
-
-  // TikTok: tiktok.com/@user/video/ID, and /photo/ID for image carousels.
-  const ttMatch = url.match(/tiktok\.com\/@([\w.]+)\/(video|photo)\/(\d+)/);
-  if (ttMatch) {
-    return {
-      platform: "TIKTOK",
-      id: ttMatch[3],
-      mediaType: ttMatch[2] === "photo" ? "POST" : "VIDEO",
-      handle: ttMatch[1],
-    };
-  }
-
-  // Instagram: /reel/CODE and /p/CODE, either bare or prefixed with the author
-  // -- instagram.com/someone/reel/CODE is what the app's own share sheet gives
-  // you, and it used to match nothing here at all.
-  const igStory = url.match(/instagram\.com\/stories\/([\w.]+)\/(\d+)/);
-  if (igStory) {
-    return { platform: "INSTAGRAM", id: igStory[2], mediaType: "STORY", handle: igStory[1] };
-  }
-  const igMatch = url.match(/instagram\.com\/(?:([\w.]+)\/)?(reels?|p|tv)\/([\w-]+)/);
-  if (igMatch) {
-    return {
-      platform: "INSTAGRAM",
-      id: igMatch[3],
-      mediaType: igMatch[2].startsWith("reel") ? "REEL" : "POST",
-      ...(igMatch[1] ? { handle: igMatch[1] } : {}),
-    };
-  }
-
-
-  /* Twitch: a VOD is /videos/<numeric id>, a clip is either clips.twitch.tv/<slug>
-     or /<channel>/clip/<slug>. The two are served by different Helix endpoints,
-     which is why fetchTwitchMetrics re-reads the kind off the url. Clips are
-     short-form, so they map to SHORT rather than VIDEO. */
-  const twVod = url.match(/twitch\.tv\/videos\/(\d+)/i);
-  if (twVod) {
-    return { platform: "TWITCH", id: twVod[1], mediaType: "VIDEO" };
-  }
-  const twClipHosted = url.match(/clips\.twitch\.tv\/([\w-]+)/i);
-  if (twClipHosted) {
-    return { platform: "TWITCH", id: twClipHosted[1], mediaType: "SHORT" };
-  }
-  const twClipChannel = url.match(/twitch\.tv\/(\w+)\/clip\/([\w-]+)/i);
-  if (twClipChannel) {
-    return {
-      platform: "TWITCH",
-      id: twClipChannel[2],
-      mediaType: "SHORT",
-      handle: twClipChannel[1],
-    };
-  }
-
-  return null;
-}
+/* Moved to ./postUrl so the posts screen can read a pasted URL without pulling
+   this module -- and everything it fetches from -- into the browser bundle.
+   Re-exported here because seventeen call sites import it from this path and
+   the split is not their business. */
+export { MEDIA_TYPES, detectPlatform };
+export type { MediaType };
 
 export async function fetchYouTubeMetrics(videoId: string): Promise<Partial<PostMetrics>> {
   const log = createLogger({ context: { platform: "YOUTUBE", videoId } });
@@ -1258,16 +1181,20 @@ export async function fetchInstagramMetrics(
         ...(typeof graph.likesCount === "number" ? { likesCount: graph.likesCount } : {}),
         ...(typeof graph.commentsCount === "number" ? { commentsCount: graph.commentsCount } : {}),
         ...(typeof graph.reachCount === "number" ? { reachCount: graph.reachCount } : {}),
-        /* No sharesCount at all. Instagram publishes no share count on any
-           endpoint we can reach, so writing 0 asserted a measurement we cannot
-           make -- and CreatorCore's report of the same posts shows no shares row
-           for them either. */
+        /* Shares and saves arrive from the insights edge and from nowhere else:
+           no public Instagram endpoint publishes either, which is why the two
+           sources below still cannot fill them and why a post read without the
+           creator's own token has neither. Present here means measured -- an
+           absent metric stays absent rather than becoming a 0 that asserts a
+           reading nobody took. */
+        ...(typeof graph.sharesCount === "number" ? { sharesCount: graph.sharesCount } : {}),
+        ...(typeof graph.savesCount === "number" ? { savesCount: graph.savesCount } : {}),
         postedAt: graph.postedAt,
       });
     }
   }
 
-  const bizToken = businessDiscoveryToken();
+  const bizToken = await businessDiscoveryToken();
   if (bizToken && handle) {
     let post: Awaited<ReturnType<typeof fetchInstagramPublicPostMetrics>> = null;
     try {
