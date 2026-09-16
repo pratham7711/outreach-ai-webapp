@@ -419,7 +419,7 @@ export default function TrackersPage() {
       {/* Above the tabs, not inside one: creator trackers carry Instagram view
           counts, so the warning has to be visible before a reader picks a tab
           and starts believing a number. Renders nothing while the source is up. */}
-      <InstagramSourceBanner style={{ marginBottom: 16 }} />
+      <InstagramSourceBanner style={{ marginTop: 16, marginBottom: 16 }} />
 
       {/* Sub-tabs: Audios | Creators */}
       <div style={{ display: "flex", gap: 8, marginBottom: 24 }}>

@@ -5,6 +5,11 @@ import { apiFetch } from "@/lib/api/client";
 import { formatDateAbs } from "@/lib/format";
 import type { InstagramSourceHealth } from "@/lib/integrations/health";
 
+/** How close to expiry a working credential has to be before it is worth
+ *  interrupting someone. The refresher starts trying at 14 days out, so 7 means
+ *  roughly a week of daily attempts have already failed by the time this shows. */
+const EARLY_WARNING_DAYS = 7;
+
 /**
  * "Instagram views are not refreshing."
  *
@@ -18,7 +23,13 @@ import type { InstagramSourceHealth } from "@/lib/integrations/health";
  * page here is worth blocking on Meta answering. Nothing renders until the
  * answer arrives, and nothing renders at all when the source is healthy -- a
  * banner that says "all fine" is a banner people learn to scroll past.
+ *
+ * The one exception is a token that still works but is nearly out of time and
+ * is not renewing itself. Saying that a week early is the difference between a
+ * calm afternoon and two days of missing views, which is what the incident this
+ * module came from actually cost.
  */
+
 export function InstagramSourceBanner({ style }: { style?: React.CSSProperties }) {
   const [health, setHealth] = useState<InstagramSourceHealth | null>(null);
 
@@ -36,14 +47,65 @@ export function InstagramSourceBanner({ style }: { style?: React.CSSProperties }
     };
   }, []);
 
-  if (!health || health.ok) return null;
+  if (!health) return null;
 
-  /* checkedAt, not an expiry date: nothing is stored about when the token died,
-     and Graph's debug_token needs the app secret, which this route does not
-     touch. The honest date is the one we measured -- when we last looked and
-     found it down. */
-  const when = formatDateAbs(health.checkedAt);
+  if (health.ok) {
+    const left = health.expiresInDays;
+    if (left === null || left > EARLY_WARNING_DAYS) return null;
+    return (
+      <Banner
+        headline={
+          left <= 0
+            ? "Instagram views stop refreshing today"
+            : `Instagram views stop refreshing in ${left} day${left === 1 ? "" : "s"}`
+        }
+        detail={`the Instagram data connection is close to expiring and has not renewed itself${
+          health.renewalError ? ` (${health.renewalError})` : ""
+        }. Views are still updating for now. Ask your admin to reconnect.`}
+        style={style}
+      />
+    );
+  }
 
+  /* What we actually measured, said as what it is.
+   *
+   * This used to read "the connection expired on {checkedAt}" for every
+   * failure. checkedAt is when the probe ran, not when anything expired --
+   * nothing here knows an expiry date, and lib/integrations/health.ts says so
+   * in its own comment -- so the banner was printing today's date as the day
+   * the credential died. It also flattened three different situations into
+   * that one sentence: a token that was never configured, a token Meta
+   * rejected, and our own failure to reach Meta at all. Only the middle one is
+   * something an admin can go and fix, and health.ts separates them precisely
+   * so that nobody is sent to replace a credential that was never asked for. */
+  const checked = formatDateAbs(health.checkedAt);
+  const notConfigured = health.reason === "not configured";
+  const unreachable = health.reason.startsWith("could not reach");
+
+  const headline = unreachable
+    ? "Instagram views may be out of date"
+    : "Instagram views are not refreshing";
+
+  const detail = notConfigured
+    ? "no Instagram data connection is set up, so view counts are never collected. Likes and comments still update."
+    : unreachable
+      ? `we could not reach Instagram when we checked on ${checked}, so views may be behind. Likes and comments still update. This usually clears on its own.`
+      : `the Instagram data connection was refused when we checked on ${checked} (${health.reason}). Likes and comments still update. Ask your admin to reconnect.`;
+
+  return <Banner headline={headline} detail={detail} style={style} />;
+}
+
+/** The warning treatment itself. Every branch above differs only in its two
+ *  sentences, so the box is written once. */
+function Banner({
+  headline,
+  detail,
+  style,
+}: {
+  headline: string;
+  detail: string;
+  style?: React.CSSProperties;
+}) {
   return (
     <div
       role="status"
@@ -65,9 +127,7 @@ export function InstagramSourceBanner({ style }: { style?: React.CSSProperties }
     >
       <AlertTriangle size={16} aria-hidden="true" style={{ flexShrink: 0, marginTop: 1 }} />
       <span>
-        <strong style={{ fontWeight: 700 }}>Instagram views are not refreshing</strong> — the
-        Instagram data connection expired on {when}. Likes and comments still update. Ask your
-        admin to reconnect.
+        <strong style={{ fontWeight: 700 }}>{headline}</strong> — {detail}
       </span>
     </div>
   );
