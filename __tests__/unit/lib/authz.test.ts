@@ -1,8 +1,9 @@
 /**
  * @jest-environment node
  */
-import { requirePermission } from "@/lib/authz";
+import { permissionDenial, requirePermission } from "@/lib/authz";
 import { authenticateRequest } from "@/lib/authenticate";
+import { ACT_AS_ROLE } from "@/lib/platform/actAs";
 
 jest.mock("@/lib/authenticate", () => ({
   authenticateRequest: jest.fn(),
@@ -70,5 +71,42 @@ describe("requirePermission", () => {
   it("API keys act as org service accounts (minting them is gated at POST /api/keys via settings:manage)", async () => {
     mockAuth.mockResolvedValue(auth(null, "api_key"));
     expect((await requirePermission(undefined, "campaigns:delete")).ok).toBe(true);
+  });
+});
+
+/**
+ * The session-side half of the same gate.
+ *
+ * It exists because several post routes authenticate through auth() rather than
+ * authenticateRequest, and the interesting property is that both halves answer
+ * the same question: what a VIEWER may not do through one must stay refused
+ * through the other.
+ */
+describe("permissionDenial", () => {
+  it("lets a role through when it holds the permission", () => {
+    expect(permissionDenial({ role: "MEMBER" }, "campaigns:edit_own")).toBeNull();
+    expect(permissionDenial({ role: "VIEWER" }, "campaigns:read")).toBeNull();
+  });
+
+  it("403s a VIEWER on a write", () => {
+    const r = permissionDenial({ role: "VIEWER" }, "campaigns:edit_own");
+    expect(r?.status).toBe(403);
+  });
+
+  it("fails closed on a missing or unreadable role", () => {
+    // A session shape that changed, or a user row with no role, must not be
+    // read as permission -- there is no orgId check left to catch it here.
+    for (const user of [null, undefined, {}, { role: 7 }, { role: "" }, { role: "TYPO" }]) {
+      expect(permissionDenial(user, "campaigns:read")?.status).toBe(403);
+    }
+  });
+
+  it("refuses a post write in read-only act-as, and allows it in full", () => {
+    /* The reason this gate was added: a platform operator inside a tenant in
+       read mode carries the VIEWER role, so every route that only checked orgId
+       let them approve, reject, track and sync posts. */
+    expect(permissionDenial({ role: ACT_AS_ROLE.read }, "campaigns:edit_own")?.status).toBe(403);
+    expect(permissionDenial({ role: ACT_AS_ROLE.read }, "campaigns:read")).toBeNull();
+    expect(permissionDenial({ role: ACT_AS_ROLE.full }, "campaigns:edit_own")).toBeNull();
   });
 });

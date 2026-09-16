@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { permissionDenial } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { campaignScopeWhere, scopeSubjectFromSession } from "@/lib/campaignScope";
 import { httpUrl } from "@/lib/validation/url";
@@ -24,6 +25,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   try {
     const session = await auth();
     if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    // Reads only, so it is gated as a read even though it is a POST.
+    const denied = permissionDenial(session.user, "campaigns:read");
+    if (denied) return denied;
     const orgId = (session.user as any).orgId;
     const { id: campaignId } = await params;
 

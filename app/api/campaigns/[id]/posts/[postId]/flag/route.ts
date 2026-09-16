@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
+import { permissionDenial } from "@/lib/authz";
 import { z } from "zod";
 import type { FraudFlagType, FraudFlagSeverity } from "@/lib/generated/prisma/client";
 
@@ -19,6 +20,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
     const session = await auth();
     if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const denied = permissionDenial(session.user, "campaigns:edit_own");
+    if (denied) return denied;
     const orgId = (session.user as any).orgId;
     const userId = (session.user as any).id;
     const { id: campaignId, postId } = await params;

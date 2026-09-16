@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
+import { permissionDenial } from "@/lib/authz";
 import { decrypt } from "@/lib/crypto/encrypt";
 import { InstagramAuthError } from "@/lib/platforms/instagram";
 import {
@@ -46,6 +47,9 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
     const orgId = (session.user as { orgId?: string }).orgId;
     if (!orgId)
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const denied = permissionDenial(session.user, "campaigns:read");
+    if (denied) return denied;
 
     const { id: campaignId, postId } = await params;
 

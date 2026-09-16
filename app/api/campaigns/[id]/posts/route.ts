@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
+import { permissionDenial } from "@/lib/authz";
 import { campaignScopeWhere, scopeSubjectFromSession } from "@/lib/campaignScope";
 import { httpUrl } from "@/lib/validation/url";
 import { z } from "zod";
@@ -53,6 +54,8 @@ export async function GET(
   try {
     const session = await auth();
     if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const denied = permissionDenial(session.user, "campaigns:read");
+    if (denied) return denied;
     const orgId = (session.user as any).orgId;
     const { id: campaignId } = await params;
 
@@ -115,6 +118,8 @@ export async function GET(
         platformMetrics: true,
         syncFailCount: true,
         syncDisabledAt: true,
+        trackingEnabled: true,
+        trackingExpiresAt: true,
         creator: { select: { id: true, name: true, handle: true, avatarUrl: true } },
         snapshots: {
           orderBy: { recordedAt: "desc" },
@@ -169,6 +174,8 @@ export async function POST(
   try {
     const session = await auth();
     if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const denied = permissionDenial(session.user, "campaigns:edit_own");
+    if (denied) return denied;
     const orgId = (session.user as any).orgId;
     const { id: campaignId } = await params;
 

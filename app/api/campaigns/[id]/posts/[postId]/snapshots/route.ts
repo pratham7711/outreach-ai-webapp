@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
+import { permissionDenial } from "@/lib/authz";
 
 // GET /api/campaigns/[id]/posts/[postId]/snapshots
 export async function GET(
@@ -10,6 +11,8 @@ export async function GET(
   try {
     const session = await auth();
     if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const denied = permissionDenial(session.user, "campaigns:read");
+    if (denied) return denied;
     const orgId = (session.user as any).orgId;
     const { id: campaignId, postId } = await params;
 

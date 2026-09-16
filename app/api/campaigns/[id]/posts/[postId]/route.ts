@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
+import { permissionDenial } from "@/lib/authz";
 import { z } from "zod";
 import type { PostStatus } from "@/lib/generated/prisma/client";
 
@@ -16,6 +17,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
     const session = await auth();
     if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const denied = permissionDenial(session.user, "campaigns:read");
+    if (denied) return denied;
     const orgId = (session.user as any).orgId;
     const { id: campaignId, postId } = await params;
 
@@ -46,6 +49,8 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
   try {
     const session = await auth();
     if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const denied = permissionDenial(session.user, "campaigns:edit_own");
+    if (denied) return denied;
     const orgId = (session.user as any).orgId;
     const { id: campaignId, postId } = await params;
 

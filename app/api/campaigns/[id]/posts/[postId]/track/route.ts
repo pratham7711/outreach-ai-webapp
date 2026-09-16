@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { authenticateRequest } from "@/lib/authenticate";
+import { requirePermission } from "@/lib/authz";
 import { fetchPostMetrics } from "@/lib/platforms/fetchPostMetrics";
 import { applyPostMetrics } from "@/lib/sync/syncPost";
 import { getInstagramAccountForCreator } from "@/lib/platforms/instagramToken";
@@ -34,9 +34,9 @@ type RouteParams = { params: Promise<{ id: string; postId: string }> };
 
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
-    const authResult = await authenticateRequest(request);
-    if (!authResult) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    const { orgId } = authResult;
+    const gate = await requirePermission(request, "campaigns:edit_own");
+    if (!gate.ok) return gate.response;
+    const { orgId } = gate.auth;
     const { id: campaignId, postId } = await params;
 
     const campaign = await db.campaign.findFirst({ where: { id: campaignId, orgId, deletedAt: null } });

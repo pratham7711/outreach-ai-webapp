@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
+import { permissionDenial } from "@/lib/authz";
 import { syncPost } from "@/lib/sync/syncPost";
 import { openTikTokPostFetcherForOne } from "@/lib/platforms/tiktokEgress";
 
@@ -12,6 +13,9 @@ export async function POST(
   try {
     const session = await auth();
     if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    // A sync writes the post's metric columns, so it is a write.
+    const denied = permissionDenial(session.user, "campaigns:edit_own");
+    if (denied) return denied;
     const orgId = (session.user as any).orgId;
     const { id: campaignId, postId } = await params;
 
