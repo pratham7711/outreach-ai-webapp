@@ -1,3 +1,4 @@
+import { getInstagramBusinessToken } from "@/lib/platforms/instagramBusinessToken";
 import { graphGet, resolveIgUserId, shortcodeFromUrl } from "./instagram";
 
 export type IgPublicPost = {
@@ -45,8 +46,16 @@ type DiscoveryMediaNode = {
   media_url?: string;
 };
 
-export function businessDiscoveryToken(): string | undefined {
-  return process.env.INSTAGRAM_BUSINESS_TOKEN || undefined;
+/**
+ * Async now, because the credential moved somewhere that can be rewritten.
+ *
+ * It used to be one env lookup, which is why it was synchronous. The value now
+ * comes from the credential store (lib/platforms/instagramBusinessToken.ts)
+ * with the env var behind it, cached in-process so a sync reading two hundred
+ * posts still costs about one query a minute.
+ */
+export async function businessDiscoveryToken(): Promise<string | undefined> {
+  return getInstagramBusinessToken();
 }
 
 function normalizeUsername(input: string): string {

@@ -42,6 +42,19 @@ export type InstagramSourceHealth =
       /** Facebook Pages with a linked instagram_business_account. */
       igAccounts: number;
       checkedAt: string;
+      /**
+       * Days until the credential in use expires, when that is known -- i.e.
+       * when it is the stored one, which is the only one with a date attached.
+       * Null for a token pasted into the environment: it has an expiry, we just
+       * have no way to ask what it is.
+       *
+       * A working token with very little runway left is the state this whole
+       * module exists to catch early, so it travels on the healthy branch
+       * rather than waiting to become a failure.
+       */
+      expiresInDays: number | null;
+      /** Why the last automatic renewal did not happen, if one has failed. */
+      renewalError: string | null;
     }
   | {
       ok: false;
@@ -77,7 +90,16 @@ function reasonFor(status: number, code: number | null, message: string | null):
  */
 export async function checkInstagramBusinessSourceUncached(): Promise<InstagramSourceHealth> {
   const checkedAt = new Date().toISOString();
-  const token = process.env.INSTAGRAM_BUSINESS_TOKEN;
+  /* The stored credential first, the env var behind it -- the same order every
+     Graph call uses, so the banner can never report a source the data path is
+     not actually using. */
+  /* Imported here rather than at the top: this module's type is imported by a
+     client component, and the accessor reaches the database. Same reason as
+     alreadyAlertedToday below. */
+  const { getInstagramBusinessToken, instagramCredentialStatus } = await import(
+    "@/lib/platforms/instagramBusinessToken"
+  );
+  const token = await getInstagramBusinessToken();
   if (!token) {
     return { ok: false, code: null, reason: "not configured", checkedAt };
   }
@@ -135,7 +157,17 @@ export async function checkInstagramBusinessSourceUncached(): Promise<InstagramS
     };
   }
 
-  return { ok: true, igAccounts, checkedAt };
+  /* Only read once the probe has passed: on the failing branches the reason is
+     already the actionable sentence, and an expiry date beside it would be a
+     second, competing explanation. */
+  const credential = await instagramCredentialStatus().catch(() => null);
+  return {
+    ok: true,
+    igAccounts,
+    checkedAt,
+    expiresInDays: credential?.daysLeft ?? null,
+    renewalError: credential?.lastError ?? null,
+  };
 }
 
 /**

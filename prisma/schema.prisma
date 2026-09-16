@@ -1970,3 +1970,52 @@ model CampaignRefreshRun {
   @@index([campaignId, startedAt])
   @@index([orgId, startedAt])
 }
+
+/// A credential the deployment holds on its own behalf, and refreshes on its own.
+///
+/// Deliberately NOT org-scoped, and the one model here that is not. The org rule
+/// exists so tenant data cannot leak between tenants; this is the platform's own
+/// key to a third-party API — one value serving every org, exactly like the
+/// environment variable it replaces. There is nothing here to filter by orgId,
+/// and adding one would imply a per-tenant credential that does not exist.
+///
+/// It exists because a Meta long-lived token lasts 60 days and lived in
+/// INSTAGRAM_BUSINESS_TOKEN, which the application cannot write. So the only
+/// possible renewal was a person remembering, and when they did not, Instagram
+/// view counts stopped moving with no error anywhere — the outage this platform
+/// has already had. A row can be rewritten by a cron; an env var cannot.
+model PlatformCredential {
+  id       String @id @default(cuid())
+  /// One row per credential. "instagram_business" is the only one today.
+  provider String @unique
+
+  /// AES-256-GCM ciphertext at rest — lib/crypto/encrypt.ts, AAD = provider.
+  /// Never logged, never returned by an API, never compared in a response.
+  accessToken String
+
+  /// When the value stops working, as the provider itself reported it at
+  /// exchange time. Never null: a provider that declines to say is recorded at
+  /// its documented lifetime instead, so the refresher always has a date to
+  /// work from rather than a silence it has to interpret as "forever".
+  expiresAt DateTime
+
+  /// The last exchange that actually produced a new value, and the last one
+  /// attempted whatever came of it. Two columns, because "we tried an hour ago
+  /// and it failed" and "we last succeeded five weeks ago" are the two
+  /// different questions asked when views stop moving.
+  refreshedAt   DateTime
+  lastAttemptAt DateTime?
+  /// Why the last attempt failed, for the operator. Provider prose, never a
+  /// token; truncated by the writer.
+  lastError String?
+
+  /// How the current value got here: "manual" (an operator supplied it) or
+  /// "refresh" (this platform exchanged the previous one).
+  source String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// The refresher selects on "expiring soonest", not by provider.
+  @@index([expiresAt])
+}

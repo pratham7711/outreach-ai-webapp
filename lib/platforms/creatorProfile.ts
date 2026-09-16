@@ -163,7 +163,7 @@ function mean(values: number[]): number {
 }
 
 async function readInstagram(handle: string): Promise<CreatorReadResult> {
-  const token = businessDiscoveryToken();
+  const token = await businessDiscoveryToken();
   if (!token) return { ok: false, reason: "no-credentials" };
 
   let profile;
