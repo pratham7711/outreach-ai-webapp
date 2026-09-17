@@ -74,6 +74,28 @@ export async function findCreatorByHandle(
 }
 
 /**
+ * Whether a handle the platform named is one of the spellings a roster creator
+ * is known by.
+ *
+ * `knownHandles` is Creator.handle plus that platform's CreatorSocialAccount
+ * handles, for the reason findCreatorByHandle already reads both: a creator
+ * whose roster entry says "jane" but who connected Instagram as "@jane.official"
+ * is one person, and comparing the roster column alone would call their own post
+ * somebody else's.
+ *
+ * Comparison is case-insensitive and "@"-tolerant, matching creatorHandleVariants.
+ * An empty handle matches everything -- there is nothing to disagree with, and a
+ * guard built on this must never refuse a post because a reader stayed silent.
+ */
+export function handleMatchesCreator(handle: string, knownHandles: (string | null | undefined)[]): boolean {
+  const want = handle.replace(/^@/, "").toLowerCase();
+  if (!want) return true;
+  return knownHandles.some(
+    (h) => typeof h === "string" && h.replace(/^@/, "").toLowerCase() === want,
+  );
+}
+
+/**
  * The URL with only its fragment removed.
  *
  * Deliberately NOT the query string: a YouTube link carries its video id in

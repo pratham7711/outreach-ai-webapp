@@ -110,6 +110,15 @@ type AddRow = {
   /** The chosen creator's own platform, kept so a mismatch with the link's
    *  platform can be pointed out. Undefined until somebody picks one. */
   creatorPlatform?: string;
+  /** The chosen creator's handle, for the same reason: it is what the author
+   *  the platform named is compared against. Undefined until somebody picks. */
+  creatorHandle?: string;
+  /** The operator has seen the author warning and said file it there anyway. */
+  allowMismatch?: boolean;
+  /** The author the server said posted this, when it refused the add over it.
+   *  Set from the 409, so a row the precheck could not judge still offers the
+   *  same two ways out. */
+  mismatchHandle?: string;
   /** Blank means auto-detect. */
   mediaType: string;
   state: "idle" | "saving" | "done" | "failed";
@@ -129,7 +138,7 @@ type AddRow = {
 function addRowProblem(
   row: AddRow,
   detectedHandle: string | undefined,
-): { blocking: boolean; message: string } | null {
+): { blocking: boolean; message: string; kind?: "author_mismatch"; handle?: string } | null {
   if (row.state === "done") return null;
   /* Marked, not blocking. The submit loop skips it, so a messy paste with one
      line doubled still goes through -- holding the whole batch hostage to a
@@ -169,6 +178,42 @@ function addRowProblem(
   /* A post another campaign already tracks is not a problem at all -- it is
      added, and the row says so in a note rather than a refusal. Only the same
      post twice in THIS campaign double-counts anything. */
+  /* The chosen creator is not who posted it.
+     Checked BEFORE the early return below, which used to let any chosen creator
+     skip every question about the link. That is how ten Instagram reels by
+     @ispeedsworld came to be filed against @ispeedsword: the operator picked a
+     creator, so nothing compared that choice with the post, and every later
+     metrics read went out under a username Instagram does not have.
+
+     Two signals have to disagree, not one. The handles are compared because a
+     handle is the thing the platform actually names, and the ids because the
+     roster holds 12 duplicated handles from the CreatorCore import -- picking
+     the second of two rows spelled the same is not a mis-attribution, and
+     comparing ids alone would call it one. The other way round, a creator whose
+     Instagram is connected under a different spelling resolves to the same id,
+     which is why the id agreeing is enough to stay quiet.
+
+     Only a handle the LINK or the PLATFORM named. "record" is the creator an
+     older copy of this post was filed against, which is a previous operator's
+     answer to this same question -- and if that answer was wrong, believing it
+     here would spread it. */
+  const chosenHandle = row.creatorHandle?.replace(/^@/, "").toLowerCase();
+  const authored = row.check?.handle?.replace(/^@/, "").toLowerCase();
+  if (
+    row.creatorId &&
+    !row.allowMismatch &&
+    authored &&
+    (row.check?.handleSource === "url" || row.check?.handleSource === "platform") &&
+    row.check?.creator?.id !== row.creatorId &&
+    chosenHandle !== authored
+  ) {
+    return {
+      blocking: true,
+      kind: "author_mismatch",
+      handle: authored,
+      message: `Posted by @${authored}, not the creator picked.`,
+    };
+  }
   if (row.creatorId) return null;
   if (!detectedHandle) {
     /* The precheck asks the platform whenever the link itself names nobody, so
@@ -574,6 +619,7 @@ export default function PostsTab({
               postUrl: results[i].url,
               ...(results[i].creatorId ? { creatorId: results[i].creatorId } : {}),
               ...(results[i].mediaType ? { mediaType: results[i].mediaType } : {}),
+              ...(results[i].allowMismatch ? { allowHandleMismatch: true } : {}),
             }),
           });
           if (res.ok) {
@@ -586,6 +632,15 @@ export default function PostsTab({
               /* message first: it is the sentence written for a person,
                  where error is the machine reason ("duplicate_post"). */
               error: body?.message ?? body?.error ?? `Rejected (${res.status})`,
+              /* The server asks the platform on every add, so it refuses rows
+                 the precheck never judged -- one whose precheck had not come
+                 back, or whose creator came off an older copy of the post.
+                 Carrying the handle over means the row offers the same two
+                 buttons either way instead of a dead end. */
+              mismatchHandle:
+                body?.error === "author_mismatch" && typeof body?.detectedHandle === "string"
+                  ? body.detectedHandle
+                  : undefined,
             };
           }
         } catch (err) {
@@ -2114,6 +2169,11 @@ export default function PostsTab({
             {addRows.map((row, i) => {
               const det = addDetections[i];
               const problem = addProblems[i];
+              /* Both sources of "somebody else posted this": the precheck, which
+                 knows before anything is sent, and the server's own refusal,
+                 which is the only one a row the precheck could not judge gets. */
+              const authorSaid =
+                row.mismatchHandle ?? (problem?.kind === "author_mismatch" ? problem.handle : undefined);
               const otherCampaigns = row.check?.inOtherCampaigns ?? [];
               /* Said, not asked. The post is going in either way; what is worth
                  knowing is that its views are also counted somewhere else. Not
@@ -2200,7 +2260,19 @@ export default function PostsTab({
                           onChange={(id, creator) =>
                             setAddRows((prev) =>
                               prev.map((r, j) =>
-                                j === i ? { ...r, creatorId: id, creatorPlatform: creator?.platform } : r
+                                j === i
+                                  ? {
+                                      ...r,
+                                      creatorId: id,
+                                      creatorPlatform: creator?.platform,
+                                      creatorHandle: creator?.handle,
+                                      /* A different creator is a different
+                                         answer to the question the last one was
+                                         waved through on. */
+                                      allowMismatch: false,
+                                      mismatchHandle: undefined,
+                                    }
+                                  : r
                               )
                             )
                           }
@@ -2253,6 +2325,82 @@ export default function PostsTab({
                         {problem && !row.check?.inThisCampaign && otherCampaigns.length === 0 && (
                           <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-danger)", margin: "6px 0 0" }}>
                             {problem.message}
+                          </p>
+                        )}
+                        {/* Refusing the row is only half an answer -- the operator
+                            still has a post to file. The first button is the one
+                            that is almost always right: hand the link back to the
+                            server with no creator on it, which attributes it to the
+                            account the platform named and adds that creator if the
+                            roster has never seen them. The second is for a collab,
+                            where one account published a post two creators made. */}
+                        {authorSaid && !row.allowMismatch && row.state !== "saving" && (
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, margin: "6px 0 0" }}>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setAddRows((prev) =>
+                                  prev.map((r, j) =>
+                                    j === i
+                                      ? {
+                                          ...r,
+                                          creatorId: "",
+                                          creatorPlatform: undefined,
+                                          creatorHandle: undefined,
+                                          mismatchHandle: undefined,
+                                          state: "idle",
+                                          error: undefined,
+                                        }
+                                      : r
+                                  )
+                                )
+                              }
+                              style={{
+                                border: "1px solid var(--cc-border)",
+                                background: "var(--cc-card)",
+                                color: "var(--cc-text)",
+                                borderRadius: 6,
+                                padding: "4px 10px",
+                                fontSize: "var(--cc-t-12)",
+                                cursor: "pointer",
+                              }}
+                            >
+                              Attribute to @{authorSaid}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setAddRows((prev) =>
+                                  prev.map((r, j) =>
+                                    j === i
+                                      ? {
+                                          ...r,
+                                          allowMismatch: true,
+                                          mismatchHandle: undefined,
+                                          state: "idle",
+                                          error: undefined,
+                                        }
+                                      : r
+                                  )
+                                )
+                              }
+                              style={{
+                                border: "none",
+                                background: "none",
+                                color: "var(--cc-text-muted)",
+                                padding: "4px 2px",
+                                fontSize: "var(--cc-t-12)",
+                                textDecoration: "underline",
+                                cursor: "pointer",
+                              }}
+                            >
+                              Add anyway
+                            </button>
+                          </div>
+                        )}
+                        {row.allowMismatch && row.creatorId && (
+                          <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-warning)", margin: "6px 0 0" }}>
+                            Filed against the creator picked, not the account that posted it.
                           </p>
                         )}
                       </div>

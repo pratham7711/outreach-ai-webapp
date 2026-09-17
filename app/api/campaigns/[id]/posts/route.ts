@@ -19,7 +19,13 @@ import { logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
 import type { PostStatus, Platform } from "@/lib/generated/prisma/client";
 import { PLATFORM_VALUES } from "@/lib/platforms/constants";
-import { ensureCreatorForHandle, findCreatorByHandle, findExistingPosts } from "@/lib/posts/addPostChecks";
+import { platformLabel } from "@/lib/format";
+import {
+  ensureCreatorForHandle,
+  findCreatorByHandle,
+  findExistingPosts,
+  handleMatchesCreator,
+} from "@/lib/posts/addPostChecks";
 import { resolveAuthorFromPlatform } from "@/lib/platforms/postAuthor";
 import { hasPermission } from "@/lib/rbac";
 import {
@@ -44,6 +50,11 @@ const createPostSchema = z.object({
   creatorId: z.string().min(1).optional(),
   mediaType: z.enum(MEDIA_TYPES).optional(),
   activationId: z.string().nullable().optional(),
+  /* "I know, file it under them anyway" -- the operator's answer to the
+     author check below. A collab reel is published by one account and the
+     platform names only that one, so the check has to be refusable; it is a
+     deliberate second click, never a default. */
+  allowHandleMismatch: z.boolean().optional(),
 });
 
 // GET /api/campaigns/[id]/posts
@@ -248,8 +259,17 @@ export async function POST(
        Both YouTube and Instagram answer; see resolveAuthorFromPlatform for
        what each was measured to give. */
     const urlHandle = detected?.handle?.replace(/^@/, "") ?? null;
-    const resolvedHandle =
-      urlHandle ?? (creatorId ? null : (await resolveAuthorFromPlatform(postUrl, detected?.platform))?.handle ?? null);
+    /* Asked whenever the link itself names nobody -- INCLUDING when a creator
+       was chosen. It used to be skipped in that case (`creatorId ? null : ...`)
+       on the reasoning that a chosen creator needs no lookup, and that is what
+       let ten Instagram reels by @ispeedsworld be filed against @ispeedsword on
+       production: a reel URL carries no handle, so nothing ever asked who
+       posted it and the misspelt roster row was accepted unverified. Every
+       metric read afterwards went out under a username Instagram has never
+       heard of, which is why those posts show no views. The answer is now
+       checked against the chosen creator below. */
+    const platformAuthor = urlHandle ? null : await resolveAuthorFromPlatform(postUrl, detected?.platform);
+    const resolvedHandle = urlHandle ?? platformAuthor?.handle?.replace(/^@/, "") ?? null;
     if (!creatorId && resolvedHandle && detected?.platform) {
       const bare = resolvedHandle;
       const mayCreate = hasPermission((session.user as any).role ?? "", "creators:create");
@@ -276,8 +296,45 @@ export async function POST(
       );
     }
 
-    const creator = await db.creator.findFirst({ where: { id: creatorId, orgId, deletedAt: null } });
+    const creator = await db.creator.findFirst({
+      where: { id: creatorId, orgId, deletedAt: null },
+      include: { socialAccounts: { select: { platform: true, handle: true } } },
+    });
     if (!creator) return NextResponse.json({ error: "Creator not found" }, { status: 404 });
+
+    /* Whoever the platform says posted it has to be somebody this creator is
+       known as. Nothing here invents an attribution -- it only refuses one the
+       platform contradicts, and only when the platform actually answered:
+       resolvedHandle is null for a reader that was rate limited, a deleted
+       post or a platform with no author lookup, and a silent reader must never
+       cost an operator a post.
+
+       Narrowed to the link's platform when it named one, because a handle is
+       only unique within a platform -- the same spelling is two different
+       people on Instagram and TikTok in 22 handles of this database.
+
+       A creator we just created FROM this handle cannot disagree with it, and
+       skipping the comparison there keeps the batch path honest about what it
+       checked. */
+    if (resolvedHandle && !addedCreator && !parsed.data.allowHandleMismatch) {
+      const known = [
+        creator.handle,
+        ...creator.socialAccounts
+          .filter((a) => !detected?.platform || a.platform === detected.platform)
+          .map((a) => a.handle),
+      ];
+      if (!handleMatchesCreator(resolvedHandle, known)) {
+        return NextResponse.json(
+          {
+            error: "author_mismatch",
+            message: `${platformLabel(detected?.platform) || "The platform"} says @${resolvedHandle} posted this, not ${creator.name} (${creator.handle}). Attribute it to @${resolvedHandle}, or add it anyway if they posted it together.`,
+            detectedHandle: resolvedHandle,
+            creator: { id: creator.id, name: creator.name, handle: creator.handle },
+          },
+          { status: 409 }
+        );
+      }
+    }
 
     if (activationId) {
       const activation = await db.activation.findFirst({ where: { id: activationId, campaignId } });

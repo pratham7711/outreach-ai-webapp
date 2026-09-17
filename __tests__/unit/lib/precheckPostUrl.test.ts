@@ -22,7 +22,7 @@ jest.mock("@/lib/platforms/postAuthor", () => ({
   resolveAuthorFromPlatform: (...a: unknown[]) => mockResolveAuthor(...a),
 }));
 
-import { precheckPostUrl } from "@/lib/posts/addPostChecks";
+import { handleMatchesCreator, precheckPostUrl } from "@/lib/posts/addPostChecks";
 
 const ORG = "org-1";
 const CAMPAIGN = "camp-1";
@@ -91,5 +91,38 @@ describe("precheckPostUrl", () => {
     const r = await precheckPostUrl(ORG, CAMPAIGN, "https://www.tiktok.com/@jane/video/123", true);
     expect(r.inThisCampaign?.campaignId).toBe(CAMPAIGN);
     expect(r.inOtherCampaigns).toHaveLength(1);
+  });
+});
+
+/**
+ * The comparison the add path refuses on. It decides whether a post is filed
+ * against the account that made it, so every way two spellings can be the same
+ * person has to pass, and the one way they are not has to fail.
+ */
+describe("handleMatchesCreator", () => {
+  it("ignores case and a leading @ on either side", () => {
+    expect(handleMatchesCreator("Jane", ["@jane"])).toBe(true);
+    expect(handleMatchesCreator("@jane", ["JANE"])).toBe(true);
+  });
+
+  it("matches any of the spellings the creator is known by", () => {
+    expect(handleMatchesCreator("jane.official", ["jane", "@jane.official"])).toBe(true);
+  });
+
+  /* The production defect: one letter apart is a different account, and
+     Instagram answers "user cannot be found" for the one that does not exist. */
+  it("refuses a handle that is one letter off", () => {
+    expect(handleMatchesCreator("ispeedsworld", ["ispeedsword"])).toBe(false);
+  });
+
+  it("refuses when the creator is known by nothing at all", () => {
+    expect(handleMatchesCreator("jane", [null, undefined, ""])).toBe(false);
+  });
+
+  // Silence is not disagreement: a reader that answered nothing must never
+  // cost an operator a post.
+  it("matches everything when there is no handle to compare", () => {
+    expect(handleMatchesCreator("", ["jane"])).toBe(true);
+    expect(handleMatchesCreator("@", [])).toBe(true);
   });
 });

@@ -23,6 +23,12 @@ jest.mock('@/lib/auth', () => ({ auth: jest.fn() }));
    so the auto-add cases below use one, and these two keep it off the network. */
 jest.mock('@/lib/platforms/tiktokToken', () => ({ getTikTokTokenForCreator: jest.fn().mockResolvedValue(undefined) }));
 jest.mock('@/lib/platforms/instagramToken', () => ({ getInstagramAccountForCreator: jest.fn().mockResolvedValue(undefined) }));
+/* The route asks the platform who posted every link that does not name an
+   author in its URL -- which is every Instagram reel. Mocked so these run
+   offline and so each case can say exactly what the platform answered,
+   including "nothing", which is the silence the guard must not refuse over. */
+jest.mock('@/lib/platforms/postAuthor', () => ({ resolveAuthorFromPlatform: jest.fn().mockResolvedValue(null) }));
+
 jest.mock('@/lib/platforms/creatorProfile', () => ({
   ...jest.requireActual('@/lib/platforms/creatorProfile'),
   readCreatorProfile: jest.fn().mockResolvedValue({ ok: false, reason: 'unreadable' }),
@@ -49,7 +55,9 @@ jest.mock('@/lib/platforms/fetchPostMetrics', () => ({
 
 import { db } from '@/lib/db';
 import { auth } from '@/lib/auth';
+import { resolveAuthorFromPlatform } from '@/lib/platforms/postAuthor';
 
+const mockAuthor = resolveAuthorFromPlatform as jest.Mock;
 const mockAuth = auth as jest.Mock;
 const mockDb = db as any;
 
@@ -72,7 +80,15 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockAuth.mockResolvedValue(authedSession);
   mockDb.campaign.findFirst.mockResolvedValue(mockCampaign);
-  mockDb.creator.findFirst.mockResolvedValue({ id: 'c1', orgId: 'org-1', deletedAt: null });
+  mockDb.creator.findFirst.mockResolvedValue({
+    id: 'c1',
+    orgId: 'org-1',
+    name: 'Jane',
+    handle: '@jane',
+    deletedAt: null,
+    socialAccounts: [],
+  });
+  mockAuthor.mockResolvedValue(null);
   mockDb.creatorSocialAccount.findFirst.mockResolvedValue(null);
   // The duplicate check runs on every add, so "no post looks like this one" is
   // the default every case here starts from.
@@ -258,6 +274,97 @@ describe('POST /api/campaigns/[id]/posts', () => {
     expect(mockDb.creator.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ handle: 'newface', orgId: 'org-1' }) })
     );
+  });
+
+  /* The defect this guards, as it happened: ten Instagram reels by
+     @ispeedsworld were filed against a roster row misspelt @ispeedsword,
+     because a reel URL names no author and a chosen creator used to skip the
+     question entirely. Every metrics read then went out under a username
+     Instagram has never had, which is why those posts show no views. */
+  it('refuses a post the platform says somebody else made', async () => {
+    mockAuthor.mockResolvedValue({ handle: 'ispeedsworld', name: 'iSpeed' });
+    mockDb.creator.findFirst.mockResolvedValue({
+      id: 'c1', orgId: 'org-1', name: 'iSpeed', handle: 'ispeedsword', deletedAt: null, socialAccounts: [],
+    });
+
+    const req = makeRequest('http://localhost/api/campaigns/camp-1/posts', {
+      method: 'POST',
+      body: JSON.stringify({ postUrl: 'https://www.instagram.com/reel/DcxTwd7oLL8/', creatorId: 'c1' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const res = await POST(req, makeParams('camp-1'));
+    const body = await res.json();
+
+    expect(res.status).toBe(409);
+    expect(body.error).toBe('author_mismatch');
+    expect(body.detectedHandle).toBe('ispeedsworld');
+    expect(mockDb.post.create).not.toHaveBeenCalled();
+  });
+
+  // A collab reel is published by one account and the platform names only that
+  // one, so the check has to be refusable -- by the operator, deliberately.
+  it('files it against the chosen creator anyway when told to', async () => {
+    mockAuthor.mockResolvedValue({ handle: 'ispeedsworld', name: 'iSpeed' });
+    mockDb.creator.findFirst.mockResolvedValue({
+      id: 'c1', orgId: 'org-1', name: 'iSpeed', handle: 'ispeedsword', deletedAt: null, socialAccounts: [],
+    });
+    mockDb.post.create.mockResolvedValue({ id: 'post-new', creator: { id: 'c1', handle: 'ispeedsword' } });
+
+    const req = makeRequest('http://localhost/api/campaigns/camp-1/posts', {
+      method: 'POST',
+      body: JSON.stringify({
+        postUrl: 'https://www.instagram.com/reel/DcxTwd7oLL8/',
+        creatorId: 'c1',
+        allowHandleMismatch: true,
+      }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const res = await POST(req, makeParams('camp-1'));
+
+    expect(res.status).toBe(201);
+    expect(mockDb.post.create).toHaveBeenCalled();
+  });
+
+  // The roster spelling and the connected account's spelling are one person.
+  it('accepts an author that matches the creator only through a linked account', async () => {
+    mockAuthor.mockResolvedValue({ handle: 'jane.official', name: 'Jane' });
+    mockDb.creator.findFirst.mockResolvedValue({
+      id: 'c1',
+      orgId: 'org-1',
+      name: 'Jane',
+      handle: 'jane',
+      deletedAt: null,
+      socialAccounts: [{ platform: 'INSTAGRAM', handle: '@jane.official' }],
+    });
+    mockDb.post.create.mockResolvedValue({ id: 'post-new', creator: { id: 'c1', handle: 'jane' } });
+
+    const req = makeRequest('http://localhost/api/campaigns/camp-1/posts', {
+      method: 'POST',
+      body: JSON.stringify({ postUrl: 'https://www.instagram.com/reel/DcxTwd7oLL8/', creatorId: 'c1' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const res = await POST(req, makeParams('camp-1'));
+
+    expect(res.status).toBe(201);
+    expect(mockDb.post.create).toHaveBeenCalled();
+  });
+
+  /* A rate limited reader, a deleted post, a platform with no author lookup:
+     all answer nothing, and nothing is not a disagreement. Refusing here would
+     cost an operator posts over a platform being slow. */
+  it('adds the post when the platform names nobody at all', async () => {
+    mockAuthor.mockResolvedValue(null);
+    mockDb.post.create.mockResolvedValue({ id: 'post-new', creator: { id: 'c1', handle: '@jane' } });
+
+    const req = makeRequest('http://localhost/api/campaigns/camp-1/posts', {
+      method: 'POST',
+      body: JSON.stringify({ postUrl: 'https://www.instagram.com/reel/DcxTwd7oLL8/', creatorId: 'c1' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const res = await POST(req, makeParams('camp-1'));
+
+    expect(res.status).toBe(201);
+    expect(mockDb.post.create).toHaveBeenCalled();
   });
 
   it('still refuses when the seat is not allowed to add creators', async () => {
