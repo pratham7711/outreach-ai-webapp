@@ -304,8 +304,19 @@ export const DEFAULT_POST_TRACKING: PostTrackingGranularity = {
 
 /** Hold a requested TTL inside the product's bounds. A non-number falls back to
  *  the default rather than to zero -- "always an expiration" cuts both ways, and
- *  a 0-day tracker would expire before its first read. */
+ *  a 0-day tracker would expire before its first read.
+ *
+ *  "Absent" has to be tested before Number(), not through it. `Number(null)` is
+ *  0 and `Number("")` is 0, and both are finite, so they sailed past the
+ *  isFinite guard and clamped to the 1-day floor instead of taking the
+ *  fallback. That is not a rounding error: Prisma hands a column nobody set
+ *  back as `null`, so every post tracker created without an explicit TTL was
+ *  given a one-day window and sealed -- permanently, the seal is one-way -- on
+ *  the first sweep a day later. Measured on prod 2026-09-17: 900 of 900
+ *  candidates sealed in a single run, 0 synced. An explicit 0 still clamps to
+ *  1, because a caller that names zero has said something; a null has not. */
 export function clampTtlDays(raw: unknown, fallback = DEFAULT_POST_TRACKING.defaultTtlDays): number {
+  if (raw === null || raw === undefined || raw === "") return fallback;
   const n = Number(raw);
   if (!Number.isFinite(n)) return fallback;
   return Math.min(POST_TTL_MAX_DAYS, Math.max(POST_TTL_MIN_DAYS, Math.round(n)));

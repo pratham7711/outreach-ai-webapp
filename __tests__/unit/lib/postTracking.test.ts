@@ -54,6 +54,27 @@ describe("post tracking TTL bounds", () => {
     expect(clampTtlDays(NaN, 5)).toBe(5);
   });
 
+  /* Number(null) and Number("") are both 0, and 0 is finite, so these once
+     reached the clamp and came back as the 1-day floor. Prisma returns null for
+     a column nobody set, so that path is the common one, not the exotic one. */
+  it("treats null and an empty string as absent, not as zero", () => {
+    expect(clampTtlDays(null)).toBe(DEFAULT_POST_TRACKING.defaultTtlDays);
+    expect(clampTtlDays(null, 30)).toBe(30);
+    expect(clampTtlDays("", 30)).toBe(30);
+    expect(clampTtlDays(null, 7)).toBe(7);
+  });
+
+  it("still honours an explicit zero, which a caller actually chose", () => {
+    expect(clampTtlDays(0, 30)).toBe(1);
+  });
+
+  it("gives a tracker with no stored TTL the whole default window", () => {
+    const started = new Date("2026-09-15T10:35:00.000Z");
+    expect(postTrackingExpiry(started, clampTtlDays(null, 30)).toISOString()).toBe(
+      "2026-10-15T10:35:00.000Z",
+    );
+  });
+
   it("computes an expiry a whole number of days out", () => {
     expect(postTrackingExpiry(NOW, 3).toISOString()).toBe("2026-09-12T12:00:00.000Z");
   });
@@ -202,6 +223,35 @@ describe("effectiveExpiry — rows written before the column existed", () => {
       input({ trackingExpiresAt: null, trackingStartedAt: null, trackingTtlDays: null }),
     );
     expect(decision.action).not.toBe("seal");
+  });
+
+  /* The outage this file did not catch. "Does not seal on sight" above starts
+     tracking an hour ago, which survives even a one-day window, so a null TTL
+     collapsing to one day was invisible here while it retired the entire
+     tracked pool on prod. A null TTL must mean the org default, and the only
+     test that proves it is one where a one-day window would already have
+     closed. */
+  it("gives a null TTL the org default, not the one-day floor", () => {
+    const started = hoursAgo(48);
+    expect(effectiveExpiry(input({ trackingExpiresAt: null, trackingTtlDays: null, trackingStartedAt: started })).toISOString())
+      .toBe(new Date(started.getTime() + DEFAULT_POST_TRACKING.defaultTtlDays * 86_400_000).toISOString());
+    expect(
+      decidePostTracking(
+        input({ trackingExpiresAt: null, trackingTtlDays: null, trackingStartedAt: started }),
+      ).action,
+    ).not.toBe("seal");
+  });
+
+  it("honours a smaller org default for a null TTL", () => {
+    const decision = decidePostTracking(
+      input({
+        trackingExpiresAt: null,
+        trackingTtlDays: null,
+        trackingStartedAt: hoursAgo(48),
+        granularity: { ...DEFAULT_POST_TRACKING, defaultTtlDays: 1 },
+      }),
+    );
+    expect(decision).toEqual({ action: "seal", reason: "ttl-expired" });
   });
 });
 
