@@ -4599,6 +4599,31 @@ h1, h2, h3, h4, h5, h6 {
   background: var(--cc-row-hover);
 }
 
+/* The campaign list row, which is the one `.cc-table-row` whose trailing
+   controls are interactive rather than text.
+
+   It used to carry `flex-wrap: wrap` inline, and wrap is the wrong instrument
+   here: flex breaks lines on each item's CONTENT width before any shrinking
+   happens, so a row 46px over its 845px box did not ellipsise the campaign
+   title -- it pushed the last control onto a line of its own. Shrinking is what
+   that row wanted, and the title is already built to give way for it
+   (`min-width: 0` with an ellipsis).
+
+   Wrapping still has to exist somewhere, so it comes back below the width where
+   the identity block would be squeezed to nothing. The value is the row's own
+   content, not a device: 240px of title plus the widest chip set plus the
+   control group. Scoped to this class so the other `.cc-table-row` screens,
+   which wrap text cells and want to, are untouched. */
+.cc-campaign-row {
+  flex-wrap: nowrap;
+}
+
+@media (max-width: 900px) {
+  .cc-campaign-row {
+    flex-wrap: wrap;
+  }
+}
+
 /* ── Button enhancements ── */
 .cc-btn {
   display: inline-flex;

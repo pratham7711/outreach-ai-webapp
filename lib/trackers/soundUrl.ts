@@ -201,13 +201,19 @@ export const SOUND_URL_ERRORS: Record<string, string> = {
     "We couldn't find a sound in that link. Open the sound's own page on TikTok or Instagram and copy the link from there.",
   short_link_unresolvable:
     "We couldn't open that short link right now. Try again, or paste the full tiktok.com/music/ link instead.",
-  /* Parsed, named, and then refused. The parser understands Instagram audio
-     URLs -- CreatorCore stores them verbatim -- but no reader does: both
-     lib/sounds/snapshot and the hourly cron ignore `platform` and query
-     TikTok's music endpoints with whatever id the row holds. An Instagram
-     tracker therefore sat at "awaiting first reading" forever while occupying a
-     plan slot, which is worse than not accepting it. Rejected at the front door
-     until a reader exists. */
-  instagram_unsupported:
-    "Instagram audio tracking is not supported yet. We can only read usage counts from TikTok sound pages — paste a tiktok.com/music/ link instead.",
+  /* The three answers the Instagram reader can give that mean "this link
+     cannot become a tracker". They replaced one blanket instagram_unsupported
+     refusal, which was correct while no reader existed and is not any more.
+
+     Both of the first two are 200s from Instagram, which is why they have to be
+     asked about rather than assumed: a made-up id returns the generic audio
+     shell rather than a 404, and an original-audio page exists but publishes no
+     count. Accepting either would recreate the dead tracker the old blanket
+     refusal was there to prevent. */
+  instagram_audio_not_found:
+    "We couldn't find that audio on Instagram. Open the audio page from a reel and copy the link from there — the id in the link may have changed or the audio may have been removed.",
+  instagram_audio_no_count:
+    "Instagram doesn't publish a use count for that audio. Original audio pages show the reels but not how many there are, so there's no number for a tracker to follow. Licensed music from Instagram's audio library does publish one.",
+  instagram_audio_unreadable:
+    "We couldn't reach Instagram to check that audio just now. Try again in a minute.",
 };

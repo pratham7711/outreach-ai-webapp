@@ -45,11 +45,19 @@ function handleUnauthorized(): void {
 async function readError(res: Response): Promise<{ message: string; details: unknown }> {
   try {
     const body = await res.json();
+    /* `message` first, because a route that sends both is saying the code in
+       `error` and the sentence in `message` -- every one of the eight that do
+       (trackers, campaigns audio, duplicate post) follows that shape. Reading
+       `error` first put the code itself in the toast: adding an Instagram
+       original-audio link answered the operator with "instagram_audio_no_count"
+       while the sentence explaining it sat unused in the same payload. Routes
+       that send only `error` are unaffected -- most put their human text there,
+       and it is still what gets read. */
     const message =
-      typeof body?.error === "string"
-        ? body.error
-        : typeof body?.message === "string"
-          ? body.message
+      typeof body?.message === "string" && body.message
+        ? body.message
+        : typeof body?.error === "string"
+          ? body.error
           : res.statusText;
     return { message: message || `Request failed (${res.status})`, details: body };
   } catch {

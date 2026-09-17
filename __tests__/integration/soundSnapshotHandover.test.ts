@@ -57,6 +57,12 @@ function soundLastReadHoursAgo(hours: number | null) {
   return [
     {
       id: "sound-1",
+      /* Not decoration. The job no longer filters `platform` in the query -- it
+         partitions on it and hands each half to its own platform's reader -- so
+         a row without one reaches no reader at all. That is the intended
+         behaviour for a platform nothing can read, and it makes a fixture that
+         omits the column silently test nothing. */
+      platform: "TIKTOK",
       tiktokSoundId: SOUND_ID,
       title: "Wherever I Go",
       artist: null,

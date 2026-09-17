@@ -10,7 +10,8 @@ import { fetchTikTokSoundStats } from "@/lib/platforms/tiktokSound";
 import { openSoundBrowserSession } from "@/lib/platforms/tiktokSoundBrowser";
 import { readTikTokAudioUsage } from "@/lib/platforms/tiktokAudioUsage";
 import { openSandboxProfileFetcher } from "@/lib/platforms/tiktokProfileSandbox";
-import { soundMetadataPatch } from "@/lib/sounds/snapshot";
+import { readInstagramAudioUsage } from "@/lib/platforms/instagramAudioUsage";
+import { recordSoundSnapshot, soundMetadataPatch } from "@/lib/sounds/snapshot";
 import {
   previousOf,
   velocityBetween,
@@ -84,20 +85,16 @@ export async function GET(request: NextRequest) {
        The first is one row per sound with its newest snapshot only -- light
        enough to run over the whole table -- and the second pulls the 30-point
        history for just the window that won. */
-    /* TikTok rows only, and the filter is load-bearing rather than defensive.
-       TikTokSound.platform also admits INSTAGRAM -- the create route parses it
-       off the pasted URL and stores it -- but every reader below builds a
-       TikTok sound URL out of `tiktokSoundId`. Without this filter an Instagram
-       audio tracker is not merely unread: the same numeric id can exist on both
-       platforms, so it would be read against TIKTOK's usage curve and stored as
-       if it were Instagram's. The create route already refuses to merge the two
-       ("the same numeric id can exist on both"); reading has to honour the same
-       line. Measured on prod 2026-09-09: 1 audio tracker, TIKTOK, so this is a
-       guard against a reachable state rather than a fix to a live one --
-       Instagram audio has no reader yet, and skipping is the honest behaviour
-       until it does. */
+    /* Both platforms now, and the row's own `platform` decides which reader
+       sees it -- the dispatch in the read loop below is what keeps them apart.
+       This used to be `where: { platform: "TIKTOK" }`, and that filter was
+       load-bearing rather than defensive: every reader here builds a TikTok
+       sound URL out of `tiktokSoundId`, and because the same numeric id can
+       exist on both platforms, an Instagram row falling through would not
+       merely go unread -- it would be read against TIKTOK's usage curve and
+       stored as if it were Instagram's. That hazard has not gone away; it has
+       moved into the branch. Keep the branch exhaustive. */
     const candidates = await db.tikTokSound.findMany({
-      where: { platform: "TIKTOK" },
       select: {
         id: true,
         snapshots: { orderBy: { recordedAt: "desc" }, take: 1, select: { recordedAt: true } },
@@ -120,6 +117,7 @@ export async function GET(request: NextRequest) {
         select: {
           id: true,
           orgId: true,
+          platform: true,
           tiktokSoundId: true,
           title: true,
           artist: true,
@@ -190,16 +188,91 @@ export async function GET(request: NextRequest) {
        creator profile embed gave Top Posts.
 
        allowMusicPage stays off: that rung belongs BEHIND the browser, below. */
-    const embedReadings = due.length
+    const dueTikTok = due.filter((sound) => sound.platform === "TIKTOK");
+    const dueInstagram = due.filter((sound) => sound.platform === "INSTAGRAM");
+
+    const embedReadings = dueTikTok.length
       ? await readTikTokAudioUsage(
-          due.map((sound) => sound.tiktokSoundId),
+          dueTikTok.map((sound) => sound.tiktokSoundId),
           { deadlineAt: deadline, sandbox: remoteEmbed, allowMusicPage: false },
+        )
+      : new Map();
+
+    /* Instagram needs none of the machinery above -- no sandbox, no browser
+       session, one plain GET per audio that answers on the first try. */
+    const instagramReadings = dueInstagram.length
+      ? await readInstagramAudioUsage(
+          dueInstagram.map((sound) => sound.tiktokSoundId),
+          { deadlineAt: deadline },
         )
       : new Map();
 
     for (const sound of due) {
       if (Date.now() > deadline) {
         decisions.push({ soundId: sound.id, action: "skip", reason: "deadline-passed" });
+        skipped++;
+        continue;
+      }
+
+      if (sound.platform === "INSTAGRAM") {
+        const outcome = instagramReadings.get(sound.tiktokSoundId);
+        if (!outcome || (!outcome.ok && outcome.reason === "deadline")) {
+          decisions.push({ soundId: sound.id, action: "skip", reason: "deadline-passed" });
+          skipped++;
+          continue;
+        }
+        if (!outcome.ok) {
+          /* An audio that publishes no count is working as Instagram allows and
+             must not sit in the failure ratio forever; anything else is a real
+             miss and is named as one. */
+          const isSilent = outcome.reason === "no-count";
+          decisions.push({
+            soundId: sound.id,
+            action: isSilent ? "skip" : "fail",
+            reason: outcome.reason,
+          });
+          if (isSilent) skipped++;
+          else failed++;
+          continue;
+        }
+
+        try {
+          /* The shared writer rather than another inline create. The delta
+             arithmetic in this file is already documented as its third copy,
+             and the one thing Instagram adds -- withholding a delta between two
+             rounded levels -- belongs beside the other two, not in a fourth.
+             recordSoundSnapshot also applies soundMetadataPatch, which is why
+             this branch returns before the TikTok tail does it again. */
+          await recordSoundSnapshot(sound, outcome.reading, {
+            deltaKnown: outcome.reading.precision === "exact",
+          });
+        } catch (e) {
+          log.error("snapshot write failed", {
+            soundId: sound.id,
+            error: e instanceof Error ? e.message : String(e),
+          });
+          decisions.push({ soundId: sound.id, action: "fail", reason: "write-failed" });
+          failed++;
+          continue;
+        }
+
+        decisions.push({
+          soundId: sound.id,
+          action: "snapshot",
+          reason: `instagram-${outcome.reading.precision}`,
+          usesCount: outcome.reading.usesCount,
+        });
+        snapshotted++;
+        continue;
+      }
+
+      /* Same predicate as the `due` partitions above, so a row that was handed
+         to no reader is not then read through the wrong one. The column carries
+         the app-wide Platform enum, which is wider than the two platforms whose
+         audio pages publish a use count; falling through to the TikTok ladder
+         is the defect the old `platform: "TIKTOK"` filter prevented. */
+      if (sound.platform !== "TIKTOK") {
+        decisions.push({ soundId: sound.id, action: "skip", reason: "no-reader-for-platform" });
         skipped++;
         continue;
       }

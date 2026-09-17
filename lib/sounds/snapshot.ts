@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { isCoverUrlStale } from "@/lib/sounds/coverUrl";
 import { readTikTokAudioUsage, isMeasuredRung } from "@/lib/platforms/tiktokAudioUsage";
+import { readInstagramAudioUsage } from "@/lib/platforms/instagramAudioUsage";
 import { createLogger } from "@/lib/observability/logger";
 import { velocityBetween } from "@/lib/trackers/metrics";
 
@@ -45,19 +46,19 @@ export async function snapshotSounds(options: SnapshotOptions = {}): Promise<Sna
     // orgId stays in the filter alongside soundId: the caller passes an id it
     // read off its own campaign, and a scope check costs nothing here.
     //
-    // platform is not optional here. Every reader below builds a TikTok sound
-    // URL from `tiktokSoundId`, while the column admits INSTAGRAM too -- and
-    // because the same numeric id can exist on both platforms, an unfiltered
-    // sweep would quietly store TikTok's usage curve against an Instagram
-    // tracker. Instagram audio has no reader yet; skipping says so, guessing
-    // does not.
+    // Both platforms, and `platform` is selected rather than filtered on,
+    // because the row decides which reader sees it. The same numeric id can
+    // exist on TikTok and on Instagram, so reading an Instagram row through the
+    // TikTok ladder would store one platform's usage curve against the other's
+    // tracker -- which is why this used to be `platform: "TIKTOK"` outright.
+    // The dispatch below is what replaces that guard; it must stay exhaustive.
     where: {
-      platform: "TIKTOK",
       ...(soundId ? { id: soundId } : {}),
       ...(orgId ? { orgId } : {}),
     },
     select: {
       id: true,
+      platform: true,
       tiktokSoundId: true,
       title: true,
       artist: true,
@@ -92,19 +93,77 @@ export async function snapshotSounds(options: SnapshotOptions = {}): Promise<Sna
     return true;
   });
 
+  const dueTikTok = due.filter((sound) => sound.platform === "TIKTOK");
+  const dueInstagram = due.filter((sound) => sound.platform === "INSTAGRAM");
+
   /* allowMusicPage stays on here even though that rung has never answered from
      a server. It is the documented last resort, the fetcher now runs it
      concurrently rather than paying its timeout one sound after another, and
      dropping a fallback is a separate decision from making the reader fast. */
-  const readings = due.length
+  const tiktokReadings = dueTikTok.length
     ? await readTikTokAudioUsage(
-        due.map((sound) => sound.tiktokSoundId),
+        dueTikTok.map((sound) => sound.tiktokSoundId),
         { deadlineAt: deadline, allowMusicPage: true },
       )
     : new Map();
 
+  /* One plain GET per audio, no ladder and no sandbox -- Instagram's audio page
+     serves its Open Graph block to a non-browser client on the first try. The
+     reasons it can fail are its own (an id that is no audio page at all still
+     answers 200, and original audio publishes no count), which is why they do
+     not flow through the TikTok outcome type. */
+  const instagramReadings = dueInstagram.length
+    ? await readInstagramAudioUsage(
+        dueInstagram.map((sound) => sound.tiktokSoundId),
+        { deadlineAt: deadline },
+      )
+    : new Map();
+
   for (const sound of due) {
-    const outcome = readings.get(sound.tiktokSoundId);
+    if (sound.platform === "INSTAGRAM") {
+      const outcome = instagramReadings.get(sound.tiktokSoundId);
+
+      if (!outcome || (!outcome.ok && outcome.reason === "deadline")) {
+        unread++;
+        continue;
+      }
+
+      if (!outcome.ok) {
+        /* "The page exists and publishes no count" is not a failed read, and
+           counting it as one would put a permanent failure in the nightly alert
+           ratio for a tracker that is working exactly as Instagram allows. The
+           front door refuses these, so a row reaching here is one whose audio
+           stopped publishing a count after it was added. */
+        if (outcome.reason === "no-count") skipped++;
+        else failed++;
+        continue;
+      }
+
+      if (dryRun) {
+        snapshots++;
+        continue;
+      }
+
+      const { reading } = outcome;
+      await recordSoundSnapshot(sound, reading, { deltaKnown: reading.precision === "exact" });
+      snapshots++;
+      continue;
+    }
+
+    /* The column holds the app-wide Platform enum, which is wider than the two
+       platforms whose audio anything here can read -- soundUrl only ever writes
+       TIKTOK or INSTAGRAM, but nothing in the schema stops a third from
+       arriving. Falling through to the TikTok branch is exactly the bug the old
+       `platform: "TIKTOK"` filter existed to prevent, so an unreadable platform
+       is skipped and says so. This also keeps the dispatch and the two `due`
+       partitions above agreeing on one predicate: a row selected for no reader
+       must not then be counted as one the run ran out of time for. */
+    if (sound.platform !== "TIKTOK") {
+      skipped++;
+      continue;
+    }
+
+    const outcome = tiktokReadings.get(sound.tiktokSoundId);
 
     /* Never asked, because the run ran out of time. Not a failure: counting it
        as one would page ops whenever a sweep is simply large. */
@@ -154,9 +213,30 @@ export async function snapshotSounds(options: SnapshotOptions = {}): Promise<Sna
  * second copy put a percentage into videosAdded24h, so a sound with 46 uses and
  * no history reported "+100 videos added" on the campaign report.
  */
+export type RecordSnapshotOptions = {
+  /**
+   * False when this reading's level is trustworthy but its distance from the
+   * previous one is not.
+   *
+   * Instagram abbreviates a large count ("1M reels"), so two consecutive
+   * readings of a sound sitting anywhere near a rounding boundary can differ by
+   * the whole rounding step while nothing happened — 950,000 and 1,000,000
+   * print the same, and 999,999 crossing to 1,000,001 prints as a jump of
+   * 50,000. Subtracting one from the other manufactures whichever gap the
+   * rounding exposes, and the column it lands in is rendered as
+   * "Videos Added (Since Last Sync)" on a client-facing report.
+   *
+   * The level still gets recorded — "about a million reels" is worth having.
+   * Only the change is withheld, and it is withheld the same way a first-ever
+   * snapshot withholds it: zero, which the reader already renders as unknown.
+   */
+  deltaKnown?: boolean;
+};
+
 export async function recordSoundSnapshot(
   sound: { id: string; title?: string | null; artist?: string | null; coverImageUrl?: string | null; snapshots: { usesCount: number }[] },
   stats: { usesCount: number; title?: string | null; artist?: string | null; coverImageUrl?: string | null },
+  options: RecordSnapshotOptions = {},
 ): Promise<void> {
   // A delta needs two observations. On the first snapshot of a sound there is no
   // earlier reading to subtract, and the lifetime total is not a 24-hour figure:
@@ -164,7 +244,7 @@ export async function recordSoundSnapshot(
   // history for a sound that may have been trending for a month. Record the
   // level, leave the change at zero, and let the reader say "unknown" -- it can,
   // because a single snapshot has no predecessor.
-  const baseline = sound.snapshots[0];
+  const baseline = options.deltaKnown === false ? undefined : sound.snapshots[0];
   const delta = baseline ? stats.usesCount - baseline.usesCount : 0;
 
   await db.soundTrackerSnapshot.create({

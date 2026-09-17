@@ -19,6 +19,7 @@ import {
   snapshotFetchLimit,
 } from "@/lib/trackers/granularity";
 import { SOUND_URL_ERRORS, parseSoundUrl } from "@/lib/trackers/soundUrl";
+import { readOneInstagramAudio } from "@/lib/platforms/instagramAudioUsage";
 import { expandShortLink } from "@/lib/trackers/expandShortLink";
 import { trackerLimitError, trackerUsage } from "@/lib/trackers/limit";
 
@@ -240,23 +241,55 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      /* No reader can serve this row, so refusing it is the honest answer.
-         The column and the parser stay — existing Instagram rows are left
-         alone — but a new one would be a tracker that never reads and still
-         costs a plan slot. See SOUND_URL_ERRORS.instagram_unsupported. */
-      if (result.platform === "INSTAGRAM") {
-        return NextResponse.json(
-          { error: "instagram_unsupported", message: SOUND_URL_ERRORS.instagram_unsupported },
-          { status: 400 }
-        );
-      }
+      /* Instagram is read at the door rather than accepted on faith.
 
-      tiktokSoundId = result.tiktokSoundId;
-      platform = result.platform;
-      // Marked provisional wherever it is shown; the first reading replaces it
-      // with whatever TikTok actually calls the sound.
-      title = result.provisionalTitle ?? `Sound ${result.tiktokSoundId.slice(-6)}`;
-      artist = "";
+         This used to be a flat refusal, because no reader existed and the row
+         would have sat at "awaiting first reading" forever while occupying a
+         plan slot. A reader exists now (lib/platforms/instagramAudioUsage), so
+         the refusal narrows to the cases that reader genuinely cannot serve --
+         and those have to be found by asking, because Instagram answers 200 for
+         an id that is no audio page at all, and original audio publishes no use
+         count while plainly existing. Both would otherwise create exactly the
+         dead tracker the old refusal was protecting against.
+
+         One request, and only on the Instagram branch: TikTok's own add path
+         does not fetch, and making it do so would slow the common case to
+         validate the rare one. */
+      if (result.platform === "INSTAGRAM") {
+        const probe = await readOneInstagramAudio(result.tiktokSoundId, {
+          deadlineAt: Date.now() + 15_000,
+        });
+
+        if (!probe.ok) {
+          const error =
+            probe.reason === "not-found"
+              ? "instagram_audio_not_found"
+              : probe.reason === "no-count"
+                ? "instagram_audio_no_count"
+                : "instagram_audio_unreadable";
+          return NextResponse.json(
+            { error, message: SOUND_URL_ERRORS[error] },
+            // Not-found and no-count are answers; the rest is us failing to
+            // reach Instagram, which is worth retrying and says so.
+            { status: error === "instagram_audio_unreadable" ? 422 : 400 }
+          );
+        }
+
+        tiktokSoundId = result.tiktokSoundId;
+        platform = result.platform;
+        /* Instagram names the audio in the page we just read, so unlike TikTok
+           there is nothing provisional to show and then correct. */
+        title = probe.reading.title ?? `Audio ${result.tiktokSoundId.slice(-6)}`;
+        artist = probe.reading.artist ?? "";
+        coverImageUrl = probe.reading.coverImageUrl;
+      } else {
+        tiktokSoundId = result.tiktokSoundId;
+        platform = result.platform;
+        // Marked provisional wherever it is shown; the first reading replaces it
+        // with whatever TikTok actually calls the sound.
+        title = result.provisionalTitle ?? `Sound ${result.tiktokSoundId.slice(-6)}`;
+        artist = "";
+      }
     } else {
       tiktokSoundId = parsed.data.tiktokSoundId;
       title = parsed.data.title;

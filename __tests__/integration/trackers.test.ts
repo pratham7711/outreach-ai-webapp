@@ -34,9 +34,19 @@ jest.mock("@/lib/db", () => ({
 
 jest.mock("@/lib/auth", () => ({ auth: jest.fn() }));
 
+/* The add path reads the real Instagram audio page for an Instagram link. The
+   unit tests cover the parser against captured HTML; here the reader is mocked
+   so these assert the route's behaviour rather than Instagram's availability. */
+jest.mock("@/lib/platforms/instagramAudioUsage", () => ({
+  readOneInstagramAudio: jest.fn(),
+}));
+
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { orgFixture } from "../helpers/orgFixture";
+import { readOneInstagramAudio as readOneInstagramAudioImpl } from "@/lib/platforms/instagramAudioUsage";
+
+const readOneInstagramAudio = readOneInstagramAudioImpl as jest.Mock;
 
 const mockAuth = auth as jest.Mock;
 const mockDb = db as any;
@@ -177,26 +187,117 @@ describe("POST /api/trackers", () => {
   });
 
   /**
-   * Instagram audio parses and is then refused.
+   * Instagram audio is admitted, but only after the page has been read.
    *
-   * Both readers (lib/sounds/snapshot and the hourly cron) ignore `platform`
-   * and query TikTok, so an Instagram row would sit at "awaiting first reading"
-   * forever while holding a plan slot. Accepting it was worse than saying no.
+   * The blanket refusal these tests used to assert was right while no reader
+   * existed. Now one does, and the question moved: an audio page can be a 200
+   * and still be untrackable, so the route probes it. Every case below is a 200
+   * from Instagram -- that is precisely why they have to be distinguished
+   * rather than assumed.
    */
-  it("refuses an Instagram audio link with a message that says why", async () => {
-    mockDb.tikTokSound.findFirst.mockResolvedValue(null);
-    const req = makeRequest("http://localhost/api/trackers", {
-      method: "POST",
-      body: JSON.stringify({ url: "https://www.instagram.com/reels/audio/1234567890123456/" }),
+  describe("adding Instagram audio", () => {
+    const igUrl = "https://www.instagram.com/reels/audio/2094289147512017/";
+
+    it("creates the tracker, naming it from the page rather than the link", async () => {
+      readOneInstagramAudio.mockResolvedValue({
+        ok: true,
+        reading: {
+          usesCount: 1_000_000,
+          precision: "rounded",
+          title: "Runaway",
+          artist: "AURORA",
+          coverImageUrl: "https://scontent.cdninstagram.com/cover.jpg",
+        },
+      });
+      mockDb.tikTokSound.findFirst.mockResolvedValue(null);
+      mockDb.tikTokSound.create.mockResolvedValue({
+        id: "sound-ig-1",
+        orgId: "org-1",
+        platform: "INSTAGRAM",
+        tiktokSoundId: "2094289147512017",
+        title: "Runaway",
+        artist: "AURORA",
+        coverImageUrl: "https://scontent.cdninstagram.com/cover.jpg",
+      });
+
+      const res = await postTracker(
+        makeRequest("http://localhost/api/trackers", { method: "POST", body: JSON.stringify({ url: igUrl }) }),
+      );
+
+      expect(res.status).toBe(201);
+      expect(mockDb.tikTokSound.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            platform: "INSTAGRAM",
+            tiktokSoundId: "2094289147512017",
+            title: "Runaway",
+            artist: "AURORA",
+          }),
+        }),
+      );
     });
 
-    const res = await postTracker(req);
+    /* A fabricated id returns Instagram's generic audio shell with a 200. */
+    it("refuses an audio that does not exist, despite the 200", async () => {
+      readOneInstagramAudio.mockResolvedValue({ ok: false, reason: "not-found" });
+      mockDb.tikTokSound.findFirst.mockResolvedValue(null);
 
-    expect(res.status).toBe(400);
-    const body = await res.json();
-    expect(body.error).toBe("instagram_unsupported");
-    expect(body.message).toMatch(/Instagram audio tracking is not supported yet/);
-    expect(mockDb.tikTokSound.create).not.toHaveBeenCalled();
+      const res = await postTracker(
+        makeRequest("http://localhost/api/trackers", { method: "POST", body: JSON.stringify({ url: igUrl }) }),
+      );
+
+      expect(res.status).toBe(400);
+      expect((await res.json()).error).toBe("instagram_audio_not_found");
+      expect(mockDb.tikTokSound.create).not.toHaveBeenCalled();
+    });
+
+    /* Original audio exists and is in use; Instagram just never says by how
+       many. Tracking it would park a row that can never produce a number --
+       the exact failure the old blanket refusal was protecting against. */
+    it("refuses audio that publishes no use count", async () => {
+      readOneInstagramAudio.mockResolvedValue({ ok: false, reason: "no-count" });
+      mockDb.tikTokSound.findFirst.mockResolvedValue(null);
+
+      const res = await postTracker(
+        makeRequest("http://localhost/api/trackers", { method: "POST", body: JSON.stringify({ url: igUrl }) }),
+      );
+
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body.error).toBe("instagram_audio_no_count");
+      expect(body.message).toMatch(/doesn't publish a use count/);
+      expect(mockDb.tikTokSound.create).not.toHaveBeenCalled();
+    });
+
+    /* Not reaching Instagram is our problem, not the link's, so it is a 422
+       and the copy invites a retry rather than telling them the audio is bad. */
+    it("answers 422 when Instagram could not be reached", async () => {
+      readOneInstagramAudio.mockResolvedValue({ ok: false, reason: "fetch-failed" });
+      mockDb.tikTokSound.findFirst.mockResolvedValue(null);
+
+      const res = await postTracker(
+        makeRequest("http://localhost/api/trackers", { method: "POST", body: JSON.stringify({ url: igUrl }) }),
+      );
+
+      expect(res.status).toBe(422);
+      expect((await res.json()).error).toBe("instagram_audio_unreadable");
+      expect(mockDb.tikTokSound.create).not.toHaveBeenCalled();
+    });
+
+    /* The TikTok path must not have grown a network call: it does not fetch,
+       and making the common case pay for the rare one is the regression. */
+    it("does not probe Instagram for a TikTok link", async () => {
+      mockDb.tikTokSound.findFirst.mockResolvedValue(null);
+
+      await postTracker(
+        makeRequest("http://localhost/api/trackers", {
+          method: "POST",
+          body: JSON.stringify({ url: "https://www.tiktok.com/music/Roots-7678797827745155089" }),
+        }),
+      );
+
+      expect(readOneInstagramAudio).not.toHaveBeenCalled();
+    });
   });
 
   /* The free tier allows 0 trackers, and 0 is exactly the value a falsy check

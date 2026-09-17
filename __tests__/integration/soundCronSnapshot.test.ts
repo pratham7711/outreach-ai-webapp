@@ -78,6 +78,10 @@ function soundWithHistory(...usesNewestFirst: number[]) {
     {
       id: "sound-1",
       orgId: "org-1",
+      /* The sweep partitions on this rather than filtering the query on it, so
+         a row without a platform reaches no reader at all -- see
+         audioSweepDispatch, where that dispatch is what is under test. */
+      platform: "TIKTOK",
       tiktokSoundId: "7546394810303694849",
       snapshots: usesNewestFirst.map((usesCount, i) => ({
         usesCount,
@@ -268,6 +272,10 @@ function soundReadWithinTheDay() {
     {
       id: "sound-1",
       orgId: "org-1",
+      /* The sweep partitions on this rather than filtering the query on it, so
+         a row without a platform reaches no reader at all -- see
+         audioSweepDispatch, where that dispatch is what is under test. */
+      platform: "TIKTOK",
       tiktokSoundId: "7546394810303694849",
       snapshots: [
         // Newest first. 13h old, so the 12-hourly cadence says it is due.

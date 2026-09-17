@@ -273,11 +273,13 @@ export default function TrackersPage() {
     const raw = urlInput.trim();
     if (!raw) return null;
     const parsed = parseSoundUrl(raw);
-    // Parseable and still refused: nothing reads Instagram audio, so the route
-    // 400s rather than parking a tracker that never gets a reading.
-    if (parsed.kind === "sound" && parsed.platform === "INSTAGRAM") {
-      return SOUND_URL_ERRORS.instagram_unsupported;
-    }
+    /* Instagram audio is no longer refused here. Whether a given audio page can
+       be tracked is not a property of the link -- Instagram serves a 200 for an
+       id that is no audio page, and original audio publishes no use count -- so
+       only the server, which fetches the page, can say. It answers
+       instagram_audio_not_found / _no_count / _unreadable, and the modal shows
+       that sentence. Guessing here would either refuse links that work or
+       promise ones that do not. */
     if (parsed.kind === "sound" || parsed.kind === "short-link") return null;
     const reason = parsed.kind === "video" ? "video_url" : parsed.reason;
     return SOUND_URL_ERRORS[reason] ?? SOUND_URL_ERRORS.unrecognised;

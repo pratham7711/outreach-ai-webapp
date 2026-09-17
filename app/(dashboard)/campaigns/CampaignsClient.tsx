@@ -745,7 +745,7 @@ export default function CampaignsClient({
           {filtered.map((campaign) => (
             <div
               key={campaign.id}
-              className="cc-table-row"
+              className="cc-table-row cc-campaign-row"
               style={{
                 background: "var(--cc-card)",
                 border: "1px solid var(--cc-border)",
@@ -754,7 +754,6 @@ export default function CampaignsClient({
                 display: "flex",
                 alignItems: "center",
                 gap: 14,
-                flexWrap: "wrap",
               }}
             >
               {/* Only the identity block navigates. The chips and the status
@@ -799,7 +798,7 @@ export default function CampaignsClient({
               {/* Budget and Team are dropped when absent rather than shown as a
                   zero or an empty avatar row: budget is nullable and unset on
                   most campaigns, and nothing assigns team members yet. */}
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", flexShrink: 0 }}>
                 {campaign.budget !== null && (
                   <StatChip icon={<Wallet size={15} />} label="Budget">
                     {formatFullCurrency(campaign.budget, campaign.currency)}
@@ -829,15 +828,24 @@ export default function CampaignsClient({
                 )}
               </div>
 
-              <FolderSelect id={campaign.id} folderId={campaign.folderId} folders={folders} />
-              <StatusSelect
-                id={campaign.id}
-                status={campaign.status}
-                statusDefId={campaign.statusDefId}
-                statusDefs={statusDefs}
-              />
-              <ShareButton id={campaign.id} title={campaign.title} />
-              {canDelete && <DeleteButton id={campaign.id} title={campaign.title} />}
+              {/* One box, not four siblings. As four, the row's wrap could break
+                  anywhere along them, and on a campaign carrying a Budget chip
+                  it broke after Share -- leaving the delete button alone on a
+                  second line, measured at 891px of content against 845px of
+                  row. Grouped, the controls are one unit that stays whole and
+                  keeps its right edge; it also never shrinks, because a select
+                  squeezed narrower than its own label reads as broken. */}
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, marginLeft: "auto" }}>
+                <FolderSelect id={campaign.id} folderId={campaign.folderId} folders={folders} />
+                <StatusSelect
+                  id={campaign.id}
+                  status={campaign.status}
+                  statusDefId={campaign.statusDefId}
+                  statusDefs={statusDefs}
+                />
+                <ShareButton id={campaign.id} title={campaign.title} />
+                {canDelete && <DeleteButton id={campaign.id} title={campaign.title} />}
+              </div>
             </div>
           ))}
         </div>
