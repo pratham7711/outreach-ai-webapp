@@ -1,10 +1,17 @@
 type Level = "debug" | "info" | "warn" | "error";
 
-const LEVELS: Record<Level, number> = { debug: 0, info: 1, warn: 2, error: 3 };
+/* "silent" is a threshold, never something anything logs AT -- it sits above
+   every level so nothing clears it. The test runs are what need it: a suite
+   that writes 46KB of application logs to stdout has its output persisted to a
+   file by the harness, and the deploy gate then sees no pass summary and
+   withholds the receipt for a suite that was entirely green. */
+type Threshold = Level | "silent";
 
-function resolveLevel(): Level {
+const LEVELS: Record<Threshold, number> = { debug: 0, info: 1, warn: 2, error: 3, silent: 4 };
+
+function resolveLevel(): Threshold {
   const raw = (process.env.LOG_LEVEL ?? "info").toLowerCase();
-  if (raw === "debug" || raw === "info" || raw === "warn" || raw === "error") return raw;
+  if (raw === "debug" || raw === "info" || raw === "warn" || raw === "error" || raw === "silent") return raw;
   return "info";
 }
 
