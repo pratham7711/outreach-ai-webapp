@@ -185,6 +185,29 @@ export async function instagramCredentialStatus(): Promise<CredentialStatus> {
  * one, and storing that would schedule a refresh for six weeks after it died.
  * A token that is already long-lived survives the same exchange unchanged.
  */
+/**
+ * Prisma's code for "that table is not in this database" (P2021).
+ *
+ * It is worth naming rather than letting the raw error through, because the
+ * situation is real and the raw error is useless to the person in it. Measured
+ * on production 2026-09-17: PlatformCredential does not exist there -- the
+ * model is in schema.prisma, the DDL was never applied -- so every read here
+ * already falls back to INSTAGRAM_BUSINESS_TOKEN and nothing looks wrong. The
+ * write path had no such fallback: an operator pasting a replacement token into
+ * /api/platform/instagram-token got a 500 with a Prisma stack, at the exact
+ * moment the credential was dead and they were trying to fix it.
+ */
+function missingCredentialStore(err: unknown): boolean {
+  const code = (err as { code?: unknown } | null)?.code;
+  if (code === "P2021") return true;
+  const message = err instanceof Error ? err.message : String(err);
+  return /PlatformCredential/i.test(message) && /does not exist|relation|undefined table/i.test(message);
+}
+
+/** What to tell whoever just tried to store a credential here. */
+const NO_STORE_REASON =
+  "this deployment has no credential store (the PlatformCredential table is absent), so a token cannot be saved here — set INSTAGRAM_BUSINESS_TOKEN in the project's environment variables instead, and redeploy";
+
 export async function storeInstagramBusinessToken(
   suppliedToken: string,
 ): Promise<{ ok: true; expiresAt: Date; exchanged: boolean } | { ok: false; reason: string }> {
@@ -199,12 +222,17 @@ export async function storeInstagramBusinessToken(
      INSTAGRAM_CLIENT_ID/SECRET, and an instance that has the token but not the
      app credentials would otherwise be unable to store anything at all. It is
      recorded as unexchanged so the operator can see which happened. */
-  await writeCredential({
-    accessToken,
-    expiresAt,
-    source: "manual",
-    refreshedAt: new Date(),
-  });
+  try {
+    await writeCredential({
+      accessToken,
+      expiresAt,
+      source: "manual",
+      refreshedAt: new Date(),
+    });
+  } catch (err) {
+    if (missingCredentialStore(err)) return { ok: false, reason: NO_STORE_REASON };
+    throw err;
+  }
   return { ok: true, expiresAt, exchanged: exchanged !== null };
 }
 
@@ -285,12 +313,20 @@ export async function refreshInstagramBusinessToken(
        lifetime. The next tick then tries a real exchange immediately and
        replaces this guess with a date Meta actually stated. */
     const provisional = new Date(now.getTime() + REFRESH_WHEN_DAYS_LEFT * DAY_MS);
-    await writeCredential({
-      accessToken: seed,
-      expiresAt: provisional,
-      source: "manual",
-      refreshedAt: now,
-    });
+    try {
+      await writeCredential({
+        accessToken: seed,
+        expiresAt: provisional,
+        source: "manual",
+        refreshedAt: now,
+      });
+    } catch (err) {
+      /* Same absent table as above. The daily cron runs through here, so an
+         unhandled throw would fail the whole token-refresh run every night on a
+         deployment that is otherwise working off the env var. */
+      if (!missingCredentialStore(err)) throw err;
+      return { status: "failed", reason: NO_STORE_REASON, expiresAt: null, daysLeft: null };
+    }
     log.warn("adopted INSTAGRAM_BUSINESS_TOKEN into the credential store", {
       provisionalExpiry: provisional.toISOString(),
     });

@@ -170,6 +170,53 @@ describe("storeInstagramBusinessToken", () => {
   });
 });
 
+describe("a deployment with no credential store", () => {
+  /* Measured on production 2026-09-17: PlatformCredential is in schema.prisma
+     and not in the database. Reads already fell back to the env var, so nothing
+     looked wrong -- until an operator tried to paste a replacement for a token
+     Graph was rejecting, and got a Prisma stack trace instead of a sentence. */
+  const tableMissing = () => {
+    const err = new Error(
+      "The table `public.PlatformCredential` does not exist in the current database.",
+    ) as Error & { code?: string };
+    err.code = "P2021";
+    return err;
+  };
+
+  it("tells the operator where to put the token instead of throwing", async () => {
+    mockExchange.mockResolvedValue({ accessToken: "long-lived", expiresAt: null });
+    mockUpsert.mockRejectedValueOnce(tableMissing());
+
+    const result = await storeInstagramBusinessToken("a-token");
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("unreachable");
+    expect(result.reason).toMatch(/INSTAGRAM_BUSINESS_TOKEN/);
+    expect(result.reason).toMatch(/environment variables/i);
+  });
+
+  it("does not fail the nightly refresh run over it", async () => {
+    /* refreshInstagramBusinessToken adopts the env var into the store on its
+       first run. Unhandled, the same missing table would fail the whole
+       token-refresh cron every night on a deployment working fine off the env. */
+    mockFindUnique.mockResolvedValue(null);
+    process.env.INSTAGRAM_BUSINESS_TOKEN = "env-token";
+    mockUpsert.mockRejectedValueOnce(tableMissing());
+
+    const outcome = await refreshInstagramBusinessToken({ now: NOW });
+    expect(outcome.status).toBe("failed");
+    if (outcome.status !== "failed") throw new Error("unreachable");
+    expect(outcome.reason).toMatch(/credential store/i);
+  });
+
+  it("still lets a real database error through", async () => {
+    // A connection failure is not a missing table and must not be dressed up as
+    // one: the remedy for it is not "paste the token somewhere else".
+    mockExchange.mockResolvedValue({ accessToken: "x", expiresAt: null });
+    mockUpsert.mockRejectedValueOnce(new Error("Can't reach database server"));
+    await expect(storeInstagramBusinessToken("a-token")).rejects.toThrow(/reach database/);
+  });
+});
+
 describe("refreshInstagramBusinessToken", () => {
   it("does nothing while the credential is nowhere near expiry", async () => {
     mockFindUnique.mockResolvedValue(row(40));

@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import type { Platform } from "@/lib/generated/prisma/client";
+import {
+  SWEEP_PLATFORMS,
+  candidateTake,
+  roundRobin,
+} from "@/lib/sync/sweepCandidates";
 import {
   detectPlatform,
   fetchPostMetrics,
@@ -131,6 +137,7 @@ function parseBudget(raw: string | undefined): number {
   return Number.isInteger(parsed) && parsed >= 0 ? parsed : DEFAULT_PLATFORM_BUDGET;
 }
 
+
 /**
  * How many sandbox lanes one cron run may hold open for TikTok.
  *
@@ -208,8 +215,9 @@ export async function GET(request: NextRequest) {
        written before the column existed; effectiveExpiry() gives it a window
        measured from trackingStartedAt rather than sealing it on sight, and no
        WHERE clause could express that. */
-    const posts = await db.post.findMany({
+    const candidatesFor = (platform: Platform) => db.post.findMany({
       where: {
+        platform,
         trackingEnabled: true,
         syncDisabledAt: null,
         snapshots: { none: { isFinalSnapshot: true } },
@@ -267,8 +275,32 @@ export async function GET(request: NextRequest) {
         },
       },
       orderBy: { lastSyncedAt: { sort: "asc", nulls: "first" } },
-      take: 300,
+      take: candidateTake(budgets[platform] ?? DEFAULT_PLATFORM_BUDGET),
     });
+
+    /* One query per platform, not one query for all of them.
+     *
+     * The budgets above are per platform and are spent per platform, but the
+     * candidate list used to be a single oldest-read-first query across every
+     * row -- so which platforms got read was decided entirely by whichever one
+     * had the biggest backlog. Measured on prod 2026-09-17, after 17,971
+     * trackers were switched on in one action two days earlier: the next 300
+     * candidates were 243 TikTok, 57 Instagram and 0 YouTube, and YouTube had
+     * had zero reads in 24 hours with 2,236 of its 2,237 posts unread for more
+     * than 48. Its 100-read budget went unspent on every single run.
+     *
+     * Asking each platform separately spends budgets that are already there.
+     * It adds no reads beyond what the budgets already allow, and YouTube's are
+     * nearly free anyway: they are answered by one batched API call per 50 ids
+     * (fetchYouTubeMetricsBatch, below) rather than a request per post. */
+    const byPlatform = await Promise.all(SWEEP_PLATFORMS.map((p) => candidatesFor(p)));
+
+    /* Interleaved, not concatenated. The run has a four-minute deadline and
+       TikTok reads are the slow ones; in platform order, a TikTok backlog would
+       eat the clock before the cheap platforms were reached, which is the same
+       starvation in a new place. Round-robin means a deadline cut lands on all
+       three proportionally. */
+    const posts = roundRobin(byPlatform);
 
     /* Read cadence and default TTL are per organisation, so one lookup for the
        orgs actually represented in this batch -- not one per post, and not the
@@ -304,10 +336,18 @@ export async function GET(request: NextRequest) {
         now,
       });
 
+    /* Per platform, because a total alone cannot show starvation: 300 of 300
+       read exactly the same whether it is three platforms or one. */
+    const candidatesByPlatform = Object.fromEntries(
+      SWEEP_PLATFORMS.map((p, i) => [p, byPlatform[i].length]),
+    );
     log.info("post tracker sweep", {
       trackedCandidates: posts.length,
+      candidatesByPlatform,
       orgs: orgIds.length,
-      capped: posts.length === 300,
+      capped: SWEEP_PLATFORMS.some(
+        (p, i) => byPlatform[i].length === candidateTake(budgets[p] ?? DEFAULT_PLATFORM_BUDGET),
+      ),
     });
 
     const youtubeIds: string[] = [];
