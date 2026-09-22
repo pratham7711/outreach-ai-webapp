@@ -153,6 +153,17 @@ export async function POST(req: NextRequest) {
     "MCP-Protocol-Version": negotiateVersion(req.headers.get("mcp-protocol-version")),
   };
 
+  /* A body that is neither a message nor a batch of them is a malformed
+     request, not a message this server declined: it gets the transport's 400,
+     as it did before batches were accepted here. Handled at the top because
+     handleMessage answers per message and has no say in the HTTP status. */
+  if (!body || typeof body !== "object") {
+    return NextResponse.json(jsonrpcError(null, -32600, "Invalid Request"), {
+      status: 400,
+      headers: protocolHeader,
+    });
+  }
+
   /* Batches were part of the protocol until 2025-06-18 removed them, and a
      client speaking an older version may still send one. Answering each message
      costs nothing and refusing the array outright looks like a dead server. */

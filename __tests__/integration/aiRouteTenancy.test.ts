@@ -387,7 +387,11 @@ describe("cross-tenant isolation — AI, discovery and MCP routes", () => {
         request,
         assertResponse: async ({ status, body }) => {
           expect(status).toBe(200);
-          expect(mcpToolPayload(body)).toEqual([]);
+          // A page envelope since the tool learned to page; the point of this
+          // assertion is that the other org's page is empty.
+          expect(mcpToolPayload(body)).toEqual(
+            expect.objectContaining({ campaigns: [], total: 0 }),
+          );
           expect(serialised(body)).not.toContain(CAMPAIGN_A.id);
           expect(mockDb.campaign.findMany).toHaveBeenCalledWith(
             expect.objectContaining({
@@ -401,8 +405,8 @@ describe("cross-tenant isolation — AI, discovery and MCP routes", () => {
         expectedStatuses: [200],
         assertResponse: async ({ body }) => {
           const payload = mcpToolPayload(body);
-          expect(payload).toHaveLength(1);
-          expect(payload[0].id).toBe(CAMPAIGN_A.id);
+          expect(payload.campaigns).toHaveLength(1);
+          expect(payload.campaigns[0].id).toBe(CAMPAIGN_A.id);
           expect(mockDb.campaign.findMany).toHaveBeenCalledWith(
             expect.objectContaining({
               where: expect.objectContaining({ orgId: ORG_A }),
