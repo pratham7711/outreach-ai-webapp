@@ -330,8 +330,10 @@ const TOOLS: Tool[] = [
       ]);
 
       const rows = (posts as any[]).map((post) => {
-        const shaped = shapePost(post);
-        if (args.includeCaption !== true) delete (shaped as any).caption;
+        /* The campaign is repeated on every row of a result the caller scoped
+           to one campaign. It was 10% of the bytes of a hundred-post page. */
+        const shaped = shapePost(args.campaignId ? { ...post, campaign: null } : post);
+        if (args.includeCaption === true) (shaped as any).caption = post.caption ?? null;
         return shaped;
       });
 

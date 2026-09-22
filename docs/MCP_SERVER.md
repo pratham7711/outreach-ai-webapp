@@ -152,6 +152,59 @@ get_post { "postUrl": "https://instagram.com/reel/..." }
 get_post_timeseries { "id": "post_...", "limit": 100 }
 ```
 
+## Measured performance
+
+Against a production-shaped copy of the database (18,676 posts, 515 campaigns,
+the largest campaign holding 492 posts), on a production build.
+
+Query time in Postgres, which is the part that transfers to production:
+
+| Query | Execution |
+|---|---|
+| `list_posts` count, org-wide | 7.7ms |
+| `list_posts` page of 100, ordered by views | 22.9ms |
+| `list_posts` page of 100 at offset 18,000 | 84.1ms |
+| `get_org_kpis`, both aggregates over every post | 12.4ms, 13.5ms |
+| `get_campaign_performance` group-by on a 492-post campaign | 0.6ms |
+| `list_activations` overdue | 0.1ms |
+
+Wall-clock measured from this laptop is **not** representative: the e2e database
+is in `us-east-1` and a single round trip from here is 215ms, so a tool costs
+0.8&ndash;1.6s locally. Production runs Vercel `sin1` against Neon
+`ap-southeast-1`, co-located, so the same tools are dominated by the query times
+above plus three or four round trips: one to look up the API key, one to touch
+its `lastUsedAt`, and one or two for the org's entitlements.
+
+The org-wide reads are sequential scans of `Post`. At 18,676 rows that costs
+tens of milliseconds and is fine. They are the queries to watch first if the
+table grows an order of magnitude; `Post` is indexed on `campaignId`,
+`creatorId` and `activationId`, so anything scoped to a campaign or a creator
+stays on an index.
+
+Payload, which is the agent's context budget:
+
+| Result | Payload | Over the wire |
+|---|---|---|
+| `list_posts` limit 20 (the default) | 12KB | 26KB |
+| `list_posts` limit 100 (the maximum) | 60KB | 128KB |
+
+The wire figure is about twice the payload because the spec asks a tool that
+returns `structuredContent` to also return the same JSON as text for older
+clients. A client hands the model one of the two, not both.
+
+A post costs 600 bytes. It was 787 until structural nulls and ids repeated
+inside their own nested object were dropped: `campaignId` beside `campaign.id`
+and `creatorId` beside `creator.id` were 13% of a page, and `mediaType: null`,
+`notMeasuredReason: null` and an inactive tracker another 12%. **A null metric
+is never dropped** &mdash; that null is the fact being reported.
+
+Other measured behaviour: 25 concurrent tool calls all returned 200 with no
+connection-pool failures; the 120/min limit fires with `Retry-After` on a burst
+(80 accepted, 120 refused); and a missing, malformed or unknown key is 401.
+
+The limit is per process. Vercel runs several, so it is a guardrail against a
+runaway agent rather than a quota.
+
 ## Tenancy
 
 Every query filters by the `orgId` on the authenticated credential, never on

@@ -137,6 +137,7 @@ const SHAPED_FIELDS: MetricField[] = ["views", "likes", "comments", "shares", "s
  * carries why the last read came back empty.
  */
 export function shapePost(post: ShapeablePost): Record<string, unknown> {
+  const note = lastFetchNote(post.platformMetrics);
   const metrics: Record<string, number | null> = {};
   for (const field of SHAPED_FIELDS) {
     const raw =
@@ -148,20 +149,33 @@ export function shapePost(post: ShapeablePost): Record<string, unknown> {
     metrics[field] = fieldMetricValue(raw, post.lastSyncedAt ?? null, post.platformMetrics, field);
   }
 
+  /*
+   * Structural nulls and repeated ids are left out; a null METRIC never is.
+   *
+   * Measured over a hundred real posts: the id repeated inside the campaign and
+   * creator objects was 13% of the result, and fields that were null or at
+   * their default on nearly every row -- mediaType, notMeasuredReason, an
+   * inactive tracker -- another 12%. A hundred posts cost 78KB, which is real
+   * context an agent then cannot spend on the answer.
+   *
+   * The distinction is the whole contract: `metrics` keeps every key with an
+   * explicit null, because "nobody measured this" is the fact being reported
+   * and an absent key would be read as an oversight. A missing `mediaType` is
+   * an oversight, and reads correctly as one.
+   */
   return {
     id: post.id,
-    ...(post.campaignId ? { campaignId: post.campaignId } : {}),
-    ...(post.campaign ? { campaign: { id: post.campaign.id, title: post.campaign.title } } : {}),
-    ...(post.creatorId ? { creatorId: post.creatorId } : {}),
+    ...(post.campaign
+      ? { campaign: { id: post.campaign.id, title: post.campaign.title } }
+      : post.campaignId ? { campaignId: post.campaignId } : {}),
     ...(post.creator
       ? { creator: { id: post.creator.id, name: post.creator.name, handle: post.creator.handle } }
-      : {}),
+      : post.creatorId ? { creatorId: post.creatorId } : {}),
     platform: post.platform,
     postUrl: post.postUrl,
-    mediaType: post.mediaType ?? null,
+    ...(post.mediaType ? { mediaType: post.mediaType } : {}),
     status: post.status ?? null,
     postedAt: iso(post.postedAt),
-    caption: post.caption ?? null,
     metrics: {
       ...metrics,
       /* Two decimals, the same as every rate this product prints. The raw
@@ -178,12 +192,11 @@ export function shapePost(post: ShapeablePost): Record<string, unknown> {
       ),
     },
     measured: measuredFields(post.platformMetrics),
-    notMeasuredReason: lastFetchNote(post.platformMetrics),
+    ...(note ? { notMeasuredReason: note } : {}),
     lastSyncedAt: iso(post.lastSyncedAt ?? null),
-    tracking: {
-      enabled: post.trackingEnabled ?? false,
-      expiresAt: iso(post.trackingExpiresAt ?? null),
-    },
+    ...(post.trackingEnabled
+      ? { tracking: { enabled: true, expiresAt: iso(post.trackingExpiresAt ?? null) } }
+      : {}),
   };
 }
 
