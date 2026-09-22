@@ -5,6 +5,7 @@ import { Key, Plus, Trash2, Copy, Check, AlertTriangle } from "lucide-react";
 import { PageHeader } from "@/components/ds";
 import { toast } from "sonner";
 import { action } from "@/lib/ui/actions";
+import { BRAND } from "@/lib/brand";
 
 interface ApiKeyItem {
   id: string;
@@ -27,6 +28,12 @@ export default function ApiKeysClient() {
   const [copied, setCopied] = useState(false);
   const [revoking, setRevoking] = useState<string | null>(null);
   const [confirmRevoke, setConfirmRevoke] = useState<string | null>(null);
+  /* The real origin, so what is printed below can be pasted as it stands. The
+     server render has no window and BRAND.url is the same host in production,
+     so the placeholder these snippets used to carry ("your-domain.com") was
+     never anything but a step the reader had to get right themselves. */
+  const [origin, setOrigin] = useState(BRAND.url);
+  useEffect(() => setOrigin(window.location.origin), []);
 
   const fetchKeys = useCallback(async () => {
     setLoading(true);
@@ -448,19 +455,37 @@ export default function ApiKeysClient() {
           <div style={{ background: "#1C2048", borderRadius: 8, padding: "12px 16px", overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
             <code style={{ fontFamily: "monospace", fontSize: "var(--cc-t-12)", color: "#A5B4FC", whiteSpace: "pre" }}>
               {`curl -H "Authorization: Bearer oai_YOUR_KEY_HERE" \\
-  https://your-domain.com/api/campaigns`}
+  ${origin}/api/campaigns`}
             </code>
           </div>
         </div>
         <div style={{ marginBottom: 16 }}>
           <p className="cc-microlabel" style={{ marginBottom: 6 }}>
-            MCP Server config
+            MCP server &mdash; Claude Code
+          </p>
+          <div style={{ background: "#1C2048", borderRadius: 8, padding: "12px 16px", overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+            <code style={{ fontFamily: "monospace", fontSize: "var(--cc-t-12)", color: "#A5B4FC", whiteSpace: "pre" }}>
+              {`claude mcp add --transport http campaigns \\
+  ${origin}/api/mcp \\
+  --header "Authorization: Bearer oai_YOUR_KEY_HERE"`}
+            </code>
+          </div>
+        </div>
+        <div style={{ marginBottom: 16 }}>
+          <p className="cc-microlabel" style={{ marginBottom: 6 }}>
+            MCP server &mdash; any other client
           </p>
           <div style={{ background: "#1C2048", borderRadius: 8, padding: "12px 16px", overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
             <code style={{ fontFamily: "monospace", fontSize: "var(--cc-t-12)", color: "#A5B4FC", whiteSpace: "pre" }}>
               {`{
-  "headers": {
-    "Authorization": "Bearer oai_YOUR_KEY_HERE"
+  "mcpServers": {
+    "campaigns": {
+      "type": "http",
+      "url": "${origin}/api/mcp",
+      "headers": {
+        "Authorization": "Bearer oai_YOUR_KEY_HERE"
+      }
+    }
   }
 }`}
             </code>
@@ -476,7 +501,7 @@ export default function ApiKeysClient() {
             color: "var(--cc-primary)",
           }}
         >
-          For Discord bots, use this key in your bot&apos;s HTTP client when calling campaign, creator, or payout endpoints.
+          The MCP server gives an AI client read access to campaigns, posts, creators, activations and payouts, and lets it refresh a campaign&apos;s metrics under the same 30-minute limit as the Refresh Data button. A key carries the whole organisation, so revoke it here the moment a client no longer needs it.
         </div>
       </div>
 

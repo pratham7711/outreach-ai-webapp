@@ -7,10 +7,18 @@ import { BRAND } from "@/lib/brand";
 
 jest.mock("@/lib/db", () => ({
   db: {
-    campaign: { findMany: jest.fn(), findFirst: jest.fn() },
-    creator: { findMany: jest.fn() },
-    post: { findMany: jest.fn(), aggregate: jest.fn() },
-    payout: { findMany: jest.fn(), aggregate: jest.fn() },
+    campaign: { findMany: jest.fn(), findFirst: jest.fn(), count: jest.fn() },
+    creator: { findMany: jest.fn(), findFirst: jest.fn(), count: jest.fn() },
+    post: {
+      findMany: jest.fn(),
+      findFirst: jest.fn(),
+      aggregate: jest.fn(),
+      count: jest.fn(),
+      groupBy: jest.fn(),
+    },
+    postMetricSnapshot: { findMany: jest.fn() },
+    activation: { findMany: jest.fn(), count: jest.fn() },
+    payout: { findMany: jest.fn(), aggregate: jest.fn(), count: jest.fn(), groupBy: jest.fn() },
     apiKey: { findUnique: jest.fn(), update: jest.fn() },
     campaignRefreshRun: { findFirst: jest.fn(), create: jest.fn(), update: jest.fn() },
   },
@@ -49,16 +57,32 @@ beforeEach(() => {
   mockDb.creator.findMany.mockResolvedValue([]);
   mockDb.post.findMany.mockResolvedValue([]);
   mockDb.payout.findMany.mockResolvedValue([]);
+  mockDb.campaign.count.mockResolvedValue(0);
+  mockDb.creator.count.mockResolvedValue(0);
+  mockDb.creator.findFirst.mockResolvedValue(null);
+  mockDb.post.count.mockResolvedValue(0);
+  mockDb.post.findFirst.mockResolvedValue(null);
+  mockDb.post.groupBy.mockResolvedValue([]);
+  mockDb.postMetricSnapshot.findMany.mockResolvedValue([]);
+  mockDb.activation.findMany.mockResolvedValue([]);
+  mockDb.activation.count.mockResolvedValue(0);
+  mockDb.payout.count.mockResolvedValue(0);
+  mockDb.payout.groupBy.mockResolvedValue([]);
   mockDb.apiKey.update.mockResolvedValue({});
 });
 
+/* A Streamable HTTP endpoint that offers no server-initiated SSE stream must
+   answer GET with 405. It used to answer 200 and a service banner, which tells
+   a client that opened a stream that it has one -- and it then waits for events
+   that never come. */
 describe("GET /api/mcp", () => {
-  it("returns service info", async () => {
+  it("refuses the SSE stream it does not serve, and says where to send messages", async () => {
     const res = await GET();
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(405);
+    expect(res.headers.get("Allow")).toBe("POST");
     const body = await res.json();
     expect(body.service).toBe(`${BRAND.name} MCP`);
-    expect(body.version).toBe("1.0.0");
+    expect(body.protocolVersions).toContain("2025-06-18");
   });
 });
 
@@ -80,25 +104,76 @@ describe("POST /api/mcp", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.result.serverInfo.name).toBe(BRAND.name);
+    // Echoed because we speak it, not because it is hardcoded -- see below.
     expect(body.result.protocolVersion).toBe("2025-03-26");
+    expect(body.result.instructions).toContain("null, never 0");
   });
 
-  it("lists 7 tools via tools/list", async () => {
+  it("negotiates the protocol version instead of pinning one", async () => {
+    const newer = await POST(makeJsonRpcRequest("initialize", { protocolVersion: "2025-06-18" }));
+    expect((await newer.json()).result.protocolVersion).toBe("2025-06-18");
+
+    // A version we do not speak gets our newest, which is what lets the client
+    // decide whether to carry on.
+    const alien = await POST(makeJsonRpcRequest("initialize", { protocolVersion: "1999-01-01" }));
+    expect((await alien.json()).result.protocolVersion).toBe("2025-06-18");
+  });
+
+  it("answers ping, and answers a notification with nothing at all", async () => {
+    const ping = await POST(makeJsonRpcRequest("ping"));
+    expect((await ping.json()).result).toEqual({});
+
+    /* A notification has no id and the spec forbids a reply. Returning
+       "Method not found" for notifications/cancelled is a protocol violation
+       some clients show the user as a server error. */
+    const note = new NextRequest("http://localhost/api/mcp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", method: "notifications/cancelled", params: {} }),
+    });
+    const res = await POST(note);
+    expect(res.status).toBe(202);
+    expect(await res.text()).toBe("");
+  });
+
+  it("lists every tool via tools/list", async () => {
     const req = makeJsonRpcRequest("tools/list");
     const res = await POST(req);
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.result.tools).toHaveLength(7);
     const toolNames = body.result.tools.map((t: any) => t.name).sort();
     expect(toolNames).toEqual([
       "get_campaign",
+      "get_campaign_performance",
+      "get_creator_performance",
       "get_org_kpis",
+      "get_post",
+      "get_post_timeseries",
       "get_refresh_status",
+      "list_activations",
       "list_campaigns",
       "list_creators",
+      "list_payouts",
+      "list_posts",
       "refresh_campaign",
       "search_creators",
     ]);
+  });
+
+  /* Annotations are how a client decides what to run without asking. Exactly
+     one tool here reaches a platform and spends its allowance, and it is the
+     only one that may not be labelled read-only. */
+  it("annotates every tool, and only refresh_campaign is not read-only", async () => {
+    const body = await (await POST(makeJsonRpcRequest("tools/list"))).json();
+    const writers = body.result.tools
+      .filter((t: any) => t.annotations?.readOnlyHint !== true)
+      .map((t: any) => t.name);
+    expect(writers).toEqual(["refresh_campaign"]);
+    for (const tool of body.result.tools) {
+      expect(typeof tool.annotations.title).toBe("string");
+      expect(tool.annotations.title.length).toBeGreaterThan(0);
+      expect(tool.annotations.destructiveHint).toBe(false);
+    }
   });
 
   /* The refresh tool drives the same operation as the Refresh Data button and
@@ -142,6 +217,7 @@ describe("POST /api/mcp", () => {
         _count: { activations: 2, posts: 3 },
       },
     ]);
+    mockDb.campaign.count.mockResolvedValue(1);
 
     const req = makeJsonRpcRequest("tools/call", {
       name: "list_campaigns",
@@ -152,8 +228,14 @@ describe("POST /api/mcp", () => {
     const body = await res.json();
     expect(body.result.content[0].type).toBe("text");
     const data = JSON.parse(body.result.content[0].text);
-    expect(data).toHaveLength(1);
-    expect(data[0].title).toBe("Test Campaign");
+    expect(data.campaigns).toHaveLength(1);
+    expect(data.campaigns[0].title).toBe("Test Campaign");
+    // Without a total, an agent cannot tell one page from the whole roster.
+    expect(data.total).toBe(1);
+    expect(data.hasMore).toBe(false);
+    // The same object again, so a client that reads structured output and a
+    // model that reads the text cannot be told different things.
+    expect(body.result.structuredContent).toEqual(data);
   });
 
   it("scopes list_campaigns queries to orgId", async () => {
@@ -255,6 +337,146 @@ describe("POST /api/mcp", () => {
     expect(mockDb.payout.aggregate).toHaveBeenCalledWith(
       expect.objectContaining({ where: expect.objectContaining({ orgId: "org-1" }) })
     );
+  });
+
+
+  /* The tools added for post-level questions. Everything below is about the one
+     thing that makes this surface safe to answer a brand with: a counter nobody
+     measured is null, and it can never be read as a zero. */
+  describe("list_posts", () => {
+    const UNMEASURED = {
+      id: "p-unmeasured",
+      campaignId: "camp-1",
+      creatorId: "cr-1",
+      platform: "INSTAGRAM",
+      postUrl: "https://instagram.com/reel/aaa",
+      caption: "hello",
+      mediaType: "REEL",
+      status: "APPROVED",
+      postedAt: new Date("2026-09-02T00:00:00Z"),
+      viewsCount: 192,
+      likesCount: 0,
+      commentsCount: 4,
+      sharesCount: 0,
+      savesCount: 0,
+      // Views and comments came back; likes, shares and saves never did.
+      platformMetrics: { __measured: ["views", "comments"] },
+      lastSyncedAt: new Date("2026-09-20T00:00:00Z"),
+      trackingEnabled: false,
+      trackingExpiresAt: null,
+      creator: { id: "cr-1", name: "Speed", handle: "ispeedsworld" },
+      campaign: { id: "camp-1", title: "Launch" },
+    };
+
+    beforeEach(() => {
+      mockDb.campaign.findFirst.mockResolvedValue({ id: "camp-1", title: "Launch" });
+      mockDb.post.findMany.mockResolvedValue([UNMEASURED]);
+      mockDb.post.count.mockResolvedValue(1);
+    });
+
+    async function callListPosts(args: Record<string, unknown> = {}) {
+      const res = await POST(makeJsonRpcRequest("tools/call", { name: "list_posts", arguments: args }));
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      return JSON.parse(body.result.content[0].text);
+    }
+
+    it("reports an unmeasured counter as null and names the ones that were read", async () => {
+      const data = await callListPosts({ campaignId: "camp-1" });
+      const post = data.posts[0];
+
+      expect(post.metrics.views).toBe(192);
+      expect(post.metrics.comments).toBe(4);
+      // The database column is 0. Nobody measured it, so the answer is not 0.
+      expect(post.metrics.likes).toBeNull();
+      expect(post.metrics.shares).toBeNull();
+      expect(post.metrics.saves).toBeNull();
+      expect(post.measured).toEqual(["views", "comments"]);
+    });
+
+    it("scopes every read to the caller's org through the campaign relation", async () => {
+      await callListPosts({});
+      const where = mockDb.post.findMany.mock.calls[0][0].where;
+      expect(where.campaign.orgId).toBe("org-1");
+      expect(mockDb.post.count).toHaveBeenCalledWith(expect.objectContaining({ where }));
+    });
+
+    it("refuses a campaign id belonging to another org before reading a single post", async () => {
+      mockDb.campaign.findFirst.mockResolvedValue(null);
+      const data = await callListPosts({ campaignId: "camp-of-another-org" });
+      expect(data.error).toBe("Campaign not found");
+      expect(mockDb.post.findMany).not.toHaveBeenCalled();
+    });
+
+    it("leaves captions out unless they are asked for", async () => {
+      const without = await callListPosts({});
+      expect(without.posts[0].caption).toBeUndefined();
+      const withCaption = await callListPosts({ includeCaption: true });
+      expect(withCaption.posts[0].caption).toBe("hello");
+    });
+
+    it("caps a caller that asks for more rows than the page limit allows", async () => {
+      await callListPosts({ limit: 5000 });
+      expect(mockDb.post.findMany.mock.calls[0][0].take).toBe(100);
+    });
+
+    it("rejects a date it cannot parse instead of silently ignoring the filter", async () => {
+      const data = await callListPosts({ postedAfter: "last tuesday" });
+      expect(data.error).toContain("postedAfter");
+      expect(mockDb.post.findMany).not.toHaveBeenCalled();
+    });
+  });
+
+  /* get_campaign_performance is the third door onto the numbers the Performance
+     tab and the client PDF already print. It has to say what the sample was,
+     because a rate over six of forty posts is a different claim from a rate over
+     forty. */
+  it("get_campaign_performance reports the sample its rate rests on", async () => {
+    mockDb.campaign.findFirst.mockResolvedValue({
+      id: "camp-1",
+      title: "Launch",
+      status: "IN_PROGRESS",
+      campaignType: "BUDGET_BASED",
+      budget: 1000,
+      currency: "USD",
+    });
+    mockDb.post.aggregate
+      .mockResolvedValueOnce({ _sum: { viewsCount: 50000 }, _count: { _all: 40 } })
+      .mockResolvedValueOnce({
+        _sum: { viewsCount: 30000, likesCount: 1000, commentsCount: 100, sharesCount: 100, savesCount: 0 },
+        _count: { _all: 6 },
+      })
+      .mockResolvedValueOnce({ _min: { postedAt: new Date("2026-09-02T00:00:00Z") }, _max: { postedAt: new Date("2026-09-15T00:00:00Z") } });
+    mockDb.post.groupBy
+      .mockResolvedValueOnce([{ platform: "INSTAGRAM", _sum: { viewsCount: 50000 }, _count: { _all: 40 } }])
+      .mockResolvedValueOnce([{ creatorId: "cr-1", _count: { _all: 40 } }]);
+    mockDb.post.findMany.mockResolvedValue([]);
+
+    const res = await POST(
+      makeJsonRpcRequest("tools/call", { name: "get_campaign_performance", arguments: { id: "camp-1" } }),
+    );
+    const data = JSON.parse((await res.json()).result.content[0].text);
+
+    expect(data.posts.total).toBe(40);
+    expect(data.posts.measured).toBe(6);
+    // 1,200 engagements over the 30,000 views of the measured six.
+    expect(data.totals.engagementRatePercent).toBe(4);
+    expect(data.totals.views).toBe(50000);
+    expect(data.totals.measuredViews).toBe(30000);
+    expect(data.byPlatform).toEqual([{ platform: "INSTAGRAM", posts: 40, views: 50000 }]);
+  });
+
+  it("a tool that throws is reported inside the result, not as a dead transport", async () => {
+    mockDb.campaign.findFirst.mockRejectedValue(new Error("connection lost"));
+    const res = await POST(
+      makeJsonRpcRequest("tools/call", { name: "get_campaign", arguments: { id: "camp-1" } }),
+    );
+    const body = await res.json();
+    // The model can read this and choose another call; a JSON-RPC error ends
+    // the turn instead.
+    expect(body.error).toBeUndefined();
+    expect(body.result.isError).toBe(true);
+    expect(body.result.content[0].text).toContain("connection lost");
   });
 
   it("returns error for unknown tool", async () => {
