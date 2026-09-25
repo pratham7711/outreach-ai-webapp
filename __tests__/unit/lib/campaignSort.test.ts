@@ -18,9 +18,17 @@ import {
    and shows another twice while looking perfectly normal. */
 
 describe("readCampaignSort", () => {
-  it("defaults to most recently updated first", () => {
-    expect(readCampaignSort({})).toEqual({ key: "updated", dir: "desc" });
-    expect(DEFAULT_CAMPAIGN_SORT).toEqual({ key: "updated", dir: "desc" });
+  it("defaults to most recently CREATED first", () => {
+    expect(readCampaignSort({})).toEqual({ key: "created", dir: "desc" });
+    expect(DEFAULT_CAMPAIGN_SORT).toEqual({ key: "created", dir: "desc" });
+  });
+
+  /* Guarding the reason, not just the value. `updatedAt` is `@updatedAt`, so a
+     background write -- the sync cron stamping lastRefreshAt -- reorders the
+     list under the reader. Defaulting back to it would restore that silently,
+     and nothing else in the suite would notice. */
+  it("does not default to a field that background writes can move", () => {
+    expect(DEFAULT_CAMPAIGN_SORT.key).not.toBe("updated");
   });
 
   it("reads a key and direction it recognises", () => {
@@ -57,9 +65,9 @@ describe("readCampaignSort", () => {
 
 describe("isDefaultCampaignSort", () => {
   it("recognises the default so it can be kept out of the URL", () => {
-    expect(isDefaultCampaignSort({ key: "updated", dir: "desc" })).toBe(true);
-    expect(isDefaultCampaignSort({ key: "updated", dir: "asc" })).toBe(false);
-    expect(isDefaultCampaignSort({ key: "created", dir: "desc" })).toBe(false);
+    expect(isDefaultCampaignSort({ key: "created", dir: "desc" })).toBe(true);
+    expect(isDefaultCampaignSort({ key: "created", dir: "asc" })).toBe(false);
+    expect(isDefaultCampaignSort({ key: "updated", dir: "desc" })).toBe(false);
   });
 });
 

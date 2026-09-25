@@ -144,7 +144,7 @@ export function TopBar({ user }: { user?: TopBarUser }) {
             </span>
           </>
         ) : (
-          <span className="cc-crumb-current">{title}</span>
+          <span title={title} className="cc-crumb-current" data-truncate="true">{title}</span>
         )}
       </nav>
 

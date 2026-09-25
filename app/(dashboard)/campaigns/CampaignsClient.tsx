@@ -402,8 +402,10 @@ function DeleteButton({ id, title }: { id: string; title: string }) {
  * the options are what it actually does.
  */
 const SORT_FIELDS: { key: CampaignSortKey; label: string }[] = [
-  { key: "updated", label: "Last Updated" },
+  // The default leads, so the option the list actually opens on is the first
+  // thing read in the menu.
   { key: "created", label: "Created" },
+  { key: "updated", label: "Last Updated" },
 ];
 
 function SortControl({
@@ -442,18 +444,7 @@ function SortControl({
 
 function StatChip({ icon, label, children }: { icon: React.ReactNode; label: string; children: React.ReactNode }) {
   return (
-    <span
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 8,
-        border: "1px solid var(--cc-border)",
-        borderRadius: 10,
-        padding: "6px 10px",
-        background: "var(--cc-card)",
-        minWidth: 0,
-      }}
-    >
+    <span className="cc-stat-chip">
       <span aria-hidden="true" style={{ display: "flex", color: "var(--cc-text-muted)" }}>{icon}</span>
       <span style={{ display: "flex", flexDirection: "column", lineHeight: 1.25, minWidth: 0 }}>
         <span className="cc-microlabel">
@@ -615,7 +606,8 @@ export default function CampaignsClient({
   const totalPages = Math.max(1, Math.ceil(filteredTotal / CAMPAIGNS_PAGE_SIZE));
 
   return (
-    <div className="cc-page-content rsp-page">
+    <div className="cc-page-content rsp-page cc-campaigns-page">
+      <div className="cc-campaigns-head">
       <PageHeader
         title="Campaigns"
         caption={countLabel}
@@ -666,6 +658,7 @@ export default function CampaignsClient({
       <div className="cc-list-sortrow">
         <SortControl sort={sort} onChange={changeSort} />
         <FilterButton count={filterCount} onClick={() => setShowFilters(true)} />
+      </div>
       </div>
 
       {folderLabel && (
@@ -743,26 +736,14 @@ export default function CampaignsClient({
       ) : (
         <div className="cc-stagger" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {filtered.map((campaign) => (
-            <div
-              key={campaign.id}
-              className="cc-table-row cc-campaign-row"
-              style={{
-                background: "var(--cc-card)",
-                border: "1px solid var(--cc-border)",
-                borderRadius: 12,
-                padding: 14,
-                display: "flex",
-                alignItems: "center",
-                gap: 14,
-              }}
-            >
+            <div key={campaign.id} className="cc-table-row cc-campaign-row">
               {/* Only the identity block navigates. The chips and the status
                   dropdown sit outside the link, because a select nested in an
                   anchor navigates instead of opening. */}
               <Link
                 prefetch={false}
                 href={`/campaigns/${campaign.id}`}
-                style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 12, flex: "1 1 240px", minWidth: 0 }}
+                className="cc-campaign-id"
               >
                 <CampaignThumb title={campaign.title} src={campaign.thumbnailUrl} size={56} />
                 <span style={{ minWidth: 0 }}>
@@ -798,7 +779,7 @@ export default function CampaignsClient({
               {/* Budget and Team are dropped when absent rather than shown as a
                   zero or an empty avatar row: budget is nullable and unset on
                   most campaigns, and nothing assigns team members yet. */}
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", flexShrink: 0 }}>
+              <div className="cc-campaign-stats">
                 {campaign.budget !== null && (
                   <StatChip icon={<Wallet size={15} />} label="Budget">
                     {formatFullCurrency(campaign.budget, campaign.currency)}
@@ -835,7 +816,7 @@ export default function CampaignsClient({
                   row. Grouped, the controls are one unit that stays whole and
                   keeps its right edge; it also never shrinks, because a select
                   squeezed narrower than its own label reads as broken. */}
-              <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, marginLeft: "auto" }}>
+              <div className="cc-campaign-controls">
                 <FolderSelect id={campaign.id} folderId={campaign.folderId} folders={folders} />
                 <StatusSelect
                   id={campaign.id}

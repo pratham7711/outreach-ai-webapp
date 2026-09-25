@@ -71,8 +71,21 @@ export const CAMPAIGN_SORT_KEYS = ["updated", "created"] as const;
 export type CampaignSortKey = (typeof CAMPAIGN_SORT_KEYS)[number];
 export type CampaignSort = { key: CampaignSortKey; dir: "asc" | "desc" };
 
-/** Most recently touched first, which is what the list did before it could sort. */
-export const DEFAULT_CAMPAIGN_SORT: CampaignSort = { key: "updated", dir: "desc" };
+/*
+ * Newest first, by CREATION date.
+ *
+ * This used to be `updated`, which reads as "most recently worked on" and is
+ * not: `Campaign.updatedAt` is Prisma's `@updatedAt`, so any write to the row
+ * bumps it, including background ones nobody asked for. The 6-hourly
+ * `sync-posts` cron stamps `lastRefreshAt` on every campaign it sweeps, which
+ * drags `updatedAt` with it and silently reorders the list under whoever is
+ * reading it. `createdAt` is set once and never moves, so the order only
+ * changes when a campaign is created or deleted.
+ *
+ * "Last Updated" is still one click away in the sort control, for anyone who
+ * does want most-recently-touched first.
+ */
+export const DEFAULT_CAMPAIGN_SORT: CampaignSort = { key: "created", dir: "desc" };
 
 export function isDefaultCampaignSort(sort: CampaignSort): boolean {
   return sort.key === DEFAULT_CAMPAIGN_SORT.key && sort.dir === DEFAULT_CAMPAIGN_SORT.dir;

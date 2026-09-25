@@ -65,11 +65,11 @@ function PillGroup({
   onChange: (v: string) => void;
 }) {
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className="flex min-w-0 max-w-full flex-col gap-1.5">
       <span className="text-[11px] font-semibold tracking-[0.06em] text-muted-foreground uppercase">
         {legend}
       </span>
-      <div role="group" aria-label={legend} className="inline-flex gap-1 rounded-lg bg-muted p-[3px]">
+      <div role="group" aria-label={legend} className="inline-flex max-w-full flex-wrap gap-1 rounded-lg bg-muted p-[3px]">
         {options.map((o) => {
           const isActive = o.key === active;
           return (
@@ -168,7 +168,7 @@ export default function AnalyticsPage() {
         />
       ) : (
         <Tabs defaultValue="overview" className="gap-6">
-          <TabsList variant="line">
+          <TabsList variant="line" className="max-w-full justify-start overflow-x-auto">
             <TabsTrigger value="overview">
               <BarChart3 aria-hidden="true" />
               Overview

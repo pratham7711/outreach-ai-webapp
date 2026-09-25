@@ -121,6 +121,12 @@ export default function SharedPerformanceReport({
   const rowCols = ["minmax(120px, 1fr)", "56px", "104px", anyEngagementMeasured ? "64px" : null]
     .filter(Boolean)
     .join(" ");
+  // A phone's card is ~284px wide, so the desktop tracks forced a sideways
+  // scroll inside the card. These fit it, and the name takes whatever is left.
+  const rowColsPhone = ["minmax(0, 1fr)", "44px", "68px", anyEngagementMeasured ? "44px" : null]
+    .filter(Boolean)
+    .join(" ");
+  const boardCols = { "--spr-board-cols": rowCols, "--spr-board-cols-phone": rowColsPhone } as React.CSSProperties;
 
   const isEmpty = kpis.views === 0 && leaderboard.length === 0 && timeSeries.length === 0;
   const cover = coverBroken ? null : shareImgSrc(token, data.audio?.coverUrl ?? null, 302);
@@ -303,14 +309,14 @@ export default function SharedPerformanceReport({
                   <section className="spr-card spr-stack">
                     <h2 className="spr-section">Top Creators</h2>
                     <div style={{ overflowX: "auto" }}>
-                      <div style={{ minWidth: 380 }}>
-                        <div className="spr-board-head" style={{ gridTemplateColumns: rowCols }}>
+                      <div className="spr-board" style={boardCols}>
+                        <div className="spr-board-head">
                           {["Creator", "Posts", "Views", ...(anyEngagementMeasured ? ["Eng."] : [])].map((h) => (
                             <span key={h}>{h}</span>
                           ))}
                         </div>
                         {leaderboard.map((row) => (
-                          <div key={row.creatorId} className="spr-board-row" style={{ gridTemplateColumns: rowCols }}>
+                          <div key={row.creatorId} className="spr-board-row">
                             <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
                               <div className="spr-avatar">
                                 {/* Through the share-scoped proxy, not straight to the
@@ -329,7 +335,7 @@ export default function SharedPerformanceReport({
                                 )}
                               </div>
                               <div style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 3 }}>
-                                <span className="spr-board-name" title={row.name} style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                <span className="spr-board-name" title={row.name}>
                                   {row.name}
                                 </span>
                                 {anyStatus && row.status && (

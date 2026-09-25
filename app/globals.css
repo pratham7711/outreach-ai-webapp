@@ -6213,6 +6213,11 @@ h1, h2, h3, h4, h5, h6 {
   /* Touch targets: ensure primary interactive controls meet 44px on touch/mobile */
   a.cc-nav-item, .cc-topbar [role="button"], .cc-topbar button, [role="tab"], .ui-btn { min-height: 44px; }
   .cc-topbar [role="button"], .cc-topbar button, button[aria-label]:not(.ui-btn) { min-width: 44px; min-height: 44px; }
+  /* The 44px tab above sits in a list that keeps its desktop 32px height, so
+     each trigger overhung the list by 6px each side and ran into the controls
+     above it (/dashboard's range select). fit-content outranks the list's own
+     height only where its tabs are taller than it. */
+  [role="tablist"] { min-height: fit-content; }
 }
 
 /* ── UI Polish utilities ── */
@@ -7055,9 +7060,11 @@ h1, h2, h3, h4, h5, h6 {
 
 /* Leaderboard and empty states keep the report's own ink rather than the
    dashboard tokens they used to inherit. */
+.spr-board { min-width: 380px; }
 .spr-board-head,
 .spr-board-row {
   display: grid;
+  grid-template-columns: var(--spr-board-cols);
   gap: 12px;
   padding: 12px 0;
   align-items: center;
@@ -7071,7 +7078,7 @@ h1, h2, h3, h4, h5, h6 {
   color: var(--spr-label);
 }
 .spr-board-row + .spr-board-row { border-top: 1px solid var(--spr-hairline); }
-.spr-board-name { font-size: 14px; font-weight: 600; color: var(--spr-ink); }
+.spr-board-name { font-size: 14px; font-weight: 600; color: var(--spr-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .spr-board-cell { font-size: 13px; color: var(--spr-ink-muted); font-variant-numeric: tabular-nums; }
 .spr-board-cell-strong { font-size: 13px; font-weight: 600; color: var(--spr-ink); font-variant-numeric: tabular-nums; }
 .spr-avatar {
@@ -7137,6 +7144,29 @@ h1, h2, h3, h4, h5, h6 {
   }
   .spr-fact { max-width: none; }
   .spr-tiles { grid-template-columns: repeat(auto-fit, minmax(min(130px, 100%), 1fr)); }
+  /* At 360 a 130px tile cut "Total Comments" to "Total Commen...", and an odd
+     count left the last tile alone in half a row (Total Eng., Total Shares).
+     The label wraps instead of truncating, and a lone last tile takes the row.
+     Two columns is the only track count a phone's card can fit at this floor
+     (3 x 130 + 20 > 354 at 430px), so "odd" means the same thing everywhere
+     this applies. */
+  .spr-tile-label { white-space: normal; }
+  .spr-tiles > .spr-tile:last-child:nth-child(odd) { grid-column: 1 / -1; }
+  /* The leaderboard fits the card rather than scrolling inside it, and a
+     name gets two lines before it is cut. */
+  .spr-board { min-width: 0; }
+  .spr-board-head,
+  .spr-board-row {
+    grid-template-columns: var(--spr-board-cols-phone);
+    gap: 8px;
+  }
+  .spr-board-name {
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+  }
 }
 
 /* ---- /payouts: the Balance banner and the transactions card head ----------
@@ -7693,4 +7723,360 @@ h1, h2, h3, h4, h5, h6 {
   padding: 5px 10px 7px;
   color: var(--cc-text-muted);
   font-size: var(--cc-t-12);
+}
+
+/* ── Campaign list rows ──────────────────────────────────────────────────────
+   These were inline styles on CampaignsClient.tsx, which made them unreachable
+   from a media query without !important. Moved here unchanged. The row keeps
+   the specificity the inline style effectively had over the two rules that
+   also paint it -- `:root.creatorcore main .cc-table-row` (0,3,1) and
+   `.cc-table-row:hover` (0,2,0) -- by matching the first and coming after it,
+   so desktop renders exactly as before. */
+:root main .cc-campaign-row.cc-table-row {
+  background: var(--cc-card);
+  border: 1px solid var(--cc-border);
+  border-radius: 12px;
+  padding: 14px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.cc-campaign-id {
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1 1 240px;
+  min-width: 0;
+}
+.cc-campaign-stats {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  flex-shrink: 0;
+}
+.cc-campaign-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+.cc-stat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--cc-border);
+  border-radius: 10px;
+  padding: 6px 10px;
+  background: var(--cc-card);
+  min-width: 0;
+}
+/* Only the /campaigns header is a card, and only on a phone; elsewhere this
+   wrapper is not a box at all. */
+.cc-campaigns-head {
+  display: contents;
+}
+/* A `display: contents` box's children are still grid items of .rsp-page, but
+   `.rsp-page:has(> .cc-bleed) > *` no longer reaches them, so they would drop
+   into the bleed track. Measured: without this, the list sat 41px lower. */
+.rsp-page:has(> .cc-bleed) > .cc-campaigns-head > * {
+  grid-column: content;
+}
+
+/* ── /campaigns at phone width ───────────────────────────────────────────────
+   MEASURED on docs/parity/reference/mobile-390/campaigns.viewport.png (a 2x
+   capture, so halved here). /campaigns is one of the few pages the reference
+   supports on a phone at all -- clients, creators and the rest answer "We do
+   not currently support mobile for this page" -- and it has its own shape:
+
+     header     one white card, x=10 w=370, 1px accent border, ~18px radius,
+                11px padding: title + round 45px actions on one line, then the
+                caption, the search field and the sort.
+     tabs       a white 10px-radius strip, x=10 w=370, no visible scrollbar.
+     card       x=10 w=370, 16px padding: identity on top, then the stats as a
+                two-column grid of 56px tinted tiles, with an odd last tile
+                spanning both columns (their Posts).
+
+   Before this, at 390: a 31px gutter (the 768 measurement, applied to every
+   width under 1024), a stats row 307px wide in a 293px card that painted past
+   the card's edge, and a Folders button squeezed to 40px with its 18px label
+   still in it, so it read "older".
+
+   Where ours differs on purpose: their bell and menu live in this card, ours
+   stay in the top bar, which carries the only trigger for the nav drawer (see
+   --cc-topbar-display); and their row hides folder, status and delete behind a
+   kebab, while ours keeps them as inline controls on a row of their own -- the
+   same controls desktop has, in one line instead of off the card's edge. */
+@media (max-width: 767px) {
+  :root main .cc-campaign-row.cc-table-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+    gap: 12px;
+  }
+  .cc-campaign-stats {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .cc-campaign-stats > :last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+  .cc-campaign-controls {
+    margin-left: 0;
+    flex-wrap: wrap;
+  }
+  /* The sort row fits one line in every theme: the arrow glyph goes and
+     Filters becomes a round icon, keeping its count as a corner badge. */
+  .cc-campaigns-page .cc-list-sortrow {
+    flex-wrap: nowrap;
+    gap: 8px;
+    justify-content: flex-start;
+  }
+  .cc-campaigns-page .cc-list-sortrow > span > svg {
+    display: none;
+  }
+  .cc-campaigns-page .cc-filter-btn {
+    width: 40px;
+    min-width: 40px;
+    height: 40px;
+    padding: 0;
+    gap: 0;
+    justify-content: center;
+    border-radius: 50%;
+    font-size: 0;
+    flex-shrink: 0;
+    margin-left: auto;
+    position: relative;
+  }
+  .cc-campaigns-page .cc-filter-btn-count {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    font-size: var(--cc-t-11);
+  }
+  /* Outside creatorcore the three labelled actions stay labelled, and read
+     left to right under the title instead of stacking against the right edge. */
+  :root:not(.creatorcore) .cc-campaigns-page .cc-page-actions {
+    justify-content: flex-start;
+  }
+
+  /* On the page element itself, not the shell root: the dashboard shell's own
+     tokens sit on `.cc-shell-root:has(.cc-sidebar-rail[data-shell=...])`, which
+     outranks any sibling `:has()` here, and a declaration on the element that
+     consumes a token beats every inherited one regardless of specificity. */
+  :root.creatorcore .cc-campaigns-page {
+    --cc-page-pad-inline: 10px;
+    --cc-page-pad-end: 10px;
+    --cc-list-bleed-start: 0px;
+    --cc-list-bleed-end: 0px;
+    --cc-list-searchrow-mb: 10px;
+    --cc-list-sortrow-mb: 0px;
+    /* The dashboard shell's 21px bleed column, which is what actually put the
+       content at x=21: the gutter token alone moved nothing. */
+    --cc-page-bleed-l: 0px;
+    --cc-page-bleed-r: 0px;
+    /* Their title is 18px/700 at this width (page.title landmark, 22.5px line)
+       and their round actions are 45px across. */
+    --cc-fs-page-title: 18px;
+    --cc-lh-page-title: 22.5px;
+    --cc-action-h: 45px;
+  }
+  /* Self-serve is ours, not theirs: it goes after the reference's own two
+     (plus, then folder) rather than in front of them. */
+  :root.creatorcore .cc-campaigns-head .cc-page-actions > .cc-link-btn {
+    order: 1;
+  }
+  :root.creatorcore .cc-campaigns-head {
+    display: block;
+    background: var(--cc-card);
+    border: 1px solid var(--cc-primary);
+    border-radius: 18px;
+    padding: 11px;
+    margin-bottom: 16px;
+    box-shadow: 0 6px 16px color-mix(in srgb, var(--cc-primary) 14%, transparent);
+  }
+  /* The primary is already a circle at this width (the mobile-390 block
+     above); the other two actions join it, as the reference's folder button
+     does. font-size 0 keeps each label in the DOM as the accessible name. */
+  :root.creatorcore .cc-campaigns-head .cc-page-actions > [data-cc-slot="secondary"],
+  :root.creatorcore .cc-campaigns-head .cc-page-actions > .cc-link-btn {
+    width: var(--cc-action-h);
+    min-width: var(--cc-action-h);
+    height: var(--cc-action-h);
+    min-height: var(--cc-action-h);
+    padding: 0;
+    gap: 0;
+    justify-content: center;
+    border: none;
+    border-radius: 50%;
+    background: var(--cc-bg);
+    color: var(--cc-primary);
+    font-size: 0;
+  }
+  :root.creatorcore .cc-campaigns-page .cc-tabs {
+    background: var(--cc-card);
+    border-radius: 10px;
+    padding: 10px;
+    scrollbar-width: none;
+  }
+  :root.creatorcore .cc-campaigns-page .cc-tabs::-webkit-scrollbar {
+    display: none;
+  }
+  :root.creatorcore main .cc-campaign-row.cc-table-row {
+    padding: 16px;
+    border: none;
+    min-height: 0;
+  }
+  :root.creatorcore .cc-campaigns-page .cc-stat-chip {
+    background: var(--cc-bg);
+    border: none;
+    min-height: 56px;
+    padding: 10px 12px;
+    gap: 12px;
+  }
+}
+
+/* ---- phone header actions and KPI strip (creatorcore) ----------------------
+   MEASURED 2026-09-26 on the reference campaign Posts tab at 390: the two
+   header actions leave the title row and sit on a row of their own, two
+   labelled 167.5x40 buttons at x=20 and 202.5 (15px apart), radius 10, a
+   15px/500 label. Ours kept them beside the title, where the 40px box token
+   clipped "Refresh Data" to a 40px sliver. */
+@media (max-width: 767px) {
+  :root.creatorcore .cc-shell-root:has(.cc-sidebar-rail[data-shell="campaign"]) .cc-page-titlebar > .cc-page-actions {
+    order: 1;
+    flex: 1 0 100%;
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    gap: 15px;
+  }
+
+  :root.creatorcore .cc-shell-root:has(.cc-sidebar-rail[data-shell="campaign"]) .cc-page-actions > [data-cc-slot] {
+    width: auto;
+    min-width: 0;
+    height: 40px;
+    min-height: 40px;
+    padding: 0 12px;
+    gap: 8px;
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: 500;
+  }
+
+  /* Everywhere else CreatorCore shows "not supported on mobile", so there is no
+     measurement to copy. The 40px box is right for an icon-only primary and
+     wrong for a secondary that still carries its label (Export PDF, Refresh,
+     Remove all were all clipped to 40px), so the secondary sizes to its label
+     and the cluster wraps under the title when it runs out of room. */
+  :root.creatorcore .cc-page-actions > [data-cc-slot="secondary"] {
+    width: auto;
+    padding-inline: 14px;
+    font-size: 14px;
+  }
+
+  :root.creatorcore .cc-shell-root:has(.cc-sidebar-rail[data-shell="campaign"]) .cc-page-titlebar > .cc-page-close {
+    margin-left: auto;
+  }
+
+  /* Their chips are 88.8x42, four to a row with 5px between, radius 10, and a
+     9px label. Ours put all ten chips on one flex line with a 0 basis, so each
+     was 31px wide and every label and figure was cut. Four columns is their
+     pitch; the extra chips wrap to further rows instead of shrinking. */
+  :root.creatorcore .cc-kpi-strip:not(.cc-kpi-quiet) {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 5px;
+    --cc-kpi-r: 10px;
+    --cc-kpi-min-h: 42px;
+    --cc-kpi-pad: 6px 8px;
+    --cc-kpi-gap: 2px;
+    --cc-kpi-label-fs: 9px;
+    --cc-kpi-label-lh: 11px;
+    --cc-kpi-value-fs: 14px;
+  }
+}
+
+/* ---- settings sections on a phone -------------------------------------------
+   The two-column section (a 280px label column beside the content) was
+   measured at desktop-1600, and the rule applies at every width. At 390 it left
+   the content column 73-156px wide inside a 370px card: the Notifications
+   switches, the Slack Connect button and the Creator Tags chips were all cut
+   off by the card's overflow. CreatorCore does not render Settings on a phone
+   ("We do not currently support mobile for this page"), so the fallback is the
+   plain stack: heading, content, then the section's action. The 32px
+   paddings are desktop measurements too and come down to the phone gutter. */
+@media (max-width: 767px) {
+  :root.creatorcore .cc-shell-root:has(.cc-sidebar-rail[data-shell="settings"]) .cc-section-card {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 16px;
+  }
+
+  :root.creatorcore .cc-shell-root:has(.cc-sidebar-rail[data-shell="settings"]) .cc-section-card-body {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  :root.creatorcore .cc-shell-root:has(.cc-sidebar-rail[data-shell="settings"]) .cc-section-card-action {
+    grid-row: 3;
+    padding-top: 0;
+  }
+
+  :root.creatorcore .cc-shell-root:has(.cc-sidebar-rail[data-shell="settings"]) .cc-settings-groups > .cc-section-card {
+    padding: 20px 16px;
+  }
+}
+
+/* ---- campaign overview and payouts banner on a phone ------------------------
+   MEASURED 2026-09-26 on the reference campaign Overview at 390: one column,
+   every card full width, Activity last. Ours kept the desktop 1fr 1fr, which
+   squeezed the Activity card to 182px and ran the page 85px past the screen. */
+@media (max-width: 767px) {
+  :root.creatorcore .cc-overview-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  :root.creatorcore .cc-overview-side {
+    grid-column: 1;
+    grid-row: auto;
+  }
+
+  /* The balance and New Payout share one row at desktop; at 390 that left the
+     button 131px for an 18px label. It takes a full row under the balance. */
+  :root.creatorcore .cc-payout-banner {
+    flex-wrap: wrap;
+    row-gap: 12px;
+    padding: 16px;
+  }
+
+  :root.creatorcore .cc-payout-banner .cc-payout-actions {
+    flex: 1 0 100%;
+  }
+
+  :root.creatorcore .cc-payout-banner .cc-payout-actions > [data-cc-slot="secondary"] {
+    width: 100%;
+  }
+
+  /* The 0 row padding is their desktop list, which bleeds past the card. On a
+     phone each payout row is its own card, and 0 put the checkbox in the
+     corner and the status badge on the border. The 14px 16px is the value
+     PayoutsClient already asks for at this width. */
+  :root.creatorcore main .cc-table-row.payout-row {
+    --cc-table-row-pad: 14px 16px;
+  }
+}
+
+/* ---- breadcrumb on a phone ---------------------------------------------------
+   The top bar leaves the trail about 170px between the menu button and the
+   icons. "Home > Settings > Notifications" does not fit, and the leaf, the one
+   crumb that says where you are, was the one that got truncated, down to "N".
+   On a detail trail (two separators) Home goes, since the menu button already
+   leads there. */
+@media (max-width: 767px) {
+  .cc-topbar-start:has(> .cc-crumb-sep ~ .cc-crumb-sep) > .cc-crumb:first-child,
+  .cc-topbar-start:has(> .cc-crumb-sep ~ .cc-crumb-sep) > .cc-crumb:first-child + .cc-crumb-sep {
+    display: none;
+  }
 }
