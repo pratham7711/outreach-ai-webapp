@@ -8,6 +8,7 @@ import { ChevronLeft, ChevronRight, Check, Search, Users, Info } from "lucide-re
 import { computeSelfServeBudget } from "@/lib/campaigns/selfServeBudget";
 import { stripAt, formatFull } from "@/lib/format";
 import { PageHeader, Dropdown, Button } from "@/components/ds";
+import CreatorAvatar from "@/components/creators/CreatorAvatar";
 
 type Currency = "USD" | "EUR" | "GBP" | "INR";
 type Platform = "TIKTOK" | "INSTAGRAM" | "YOUTUBE" | "TWITTER";
@@ -407,6 +408,7 @@ export default function SelfServeWizard({
                       >
                         {isSelected && <Check size={13} />}
                       </span>
+                      <CreatorAvatar id={c.id} name={c.name} size="sm" />
                       <span style={{ flex: 1, minWidth: 0 }}>
                         <span title={c.name} style={{ display: "block", fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                           {c.name}
@@ -461,9 +463,12 @@ export default function SelfServeWizard({
                 const rate = typeof c.rate === "number" ? c.rate : 0;
                 return (
                   <div key={c.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px", borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+                    <CreatorAvatar id={c.id} name={c.name} size="sm" />
                     <div style={{ minWidth: 0 }}>
                       <p style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{c.name}</p>
                       <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>@{stripAt(c.handle)} · {c.platform}</p>
+                    </div>
                     </div>
                     <p style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{rate > 0 ? money(currency, rate) : "No rate"}</p>
                   </div>

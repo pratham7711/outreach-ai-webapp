@@ -7,7 +7,7 @@ test.describe('Creators', () => {
   });
 
   test('renders creators heading', async ({ page }) => {
-    await expectHeading(page, 'Creators');
+    await expectHeading(page, 'Creator Roster');
   });
 
   test('lists seed creators', async ({ page }) => {

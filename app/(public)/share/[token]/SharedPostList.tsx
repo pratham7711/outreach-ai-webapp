@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ImageOff, Eye, Heart, MessageCircle, Share2, Bookmark, Download, Activity } from "lucide-react";
 import type { SharedReportData } from "@/lib/reports/campaignPerformance";
 import { shareImgSrc } from "@/lib/postMedia";
@@ -89,6 +89,10 @@ export default function SharedPostList({
                   keyboard: the link's accessible name becomes every metric on
                   the card read out in one breath. This way the card has one tab
                   stop still named "@handle". */}
+              <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+                {showCreators && post.creator?.id && (
+                  <SharedCreatorAvatar token={token} creatorId={post.creator.id} avatarUrl={post.creator.avatarUrl ?? null} />
+                )}
               {post.postUrl ? (
                 <a
                   className="spr-post-handle spr-post-hit"
@@ -102,6 +106,7 @@ export default function SharedPostList({
               ) : (
                 <span className="spr-post-handle">{label}</span>
               )}
+              </div>
 
               {/* Only ever true on a link whose owner turned "Flag removed
                   posts" on -- redactForShare flattens it to false otherwise,
@@ -149,5 +154,33 @@ export default function SharedPostList({
         );
       })}
     </div>
+  );
+}
+
+/* A 20px picture beside the handle: the stored copy first, the creator's own
+   CDN link through the share proxy second, and nothing at all after that --
+   the handle beside it already names the creator. */
+function SharedCreatorAvatar({ token, creatorId, avatarUrl }: { token: string; creatorId: string; avatarUrl: string | null }) {
+  const [miss, setMiss] = useState(0);
+  /* Not rendered server-side: a 404 there arrives before onError is attached. */
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => setHydrated(true), []);
+  if (!hydrated) return null;
+  const sources = [
+    `/api/share/${encodeURIComponent(token)}/avatar/${encodeURIComponent(creatorId)}?w=64`,
+    shareImgSrc(token, avatarUrl, 64),
+  ].filter((u): u is string => Boolean(u));
+  const src = sources[miss];
+  if (!src) return null;
+  return (
+    <img
+      key={miss}
+      src={src}
+      alt=""
+      aria-hidden="true"
+      loading="lazy"
+      onError={() => setMiss((m) => m + 1)}
+      style={{ width: 20, height: 20, borderRadius: "50%", objectFit: "cover", flexShrink: 0, marginBottom: 4 }}
+    />
   );
 }

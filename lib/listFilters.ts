@@ -197,7 +197,23 @@ export type CreatorFilters = {
   hasPosts?: boolean;
   tags: string[];
   excludeTags: string[];
+  minAvgViews?: number;
+  maxAvgViews?: number;
+  minRate?: number;
+  maxRate?: number;
+  /** Where a creator's audience is; matches any one listed. Roster tables only. */
+  audienceCountry: string[];
+  /** Where the creator is. Roster tables only. */
+  country: string[];
+  /** Has an account on any of these, primary or not. */
+  accounts: Platform[];
 };
+
+const optionalAmountParam = z.coerce.number().nonnegative().optional();
+const csvTextParam = z
+  .string()
+  .optional()
+  .transform((raw) => csvParam(raw));
 
 export const creatorFilterSchema = z.object({
   search: z.string().optional(),
@@ -218,7 +234,34 @@ export const creatorFilterSchema = z.object({
     .string()
     .optional()
     .transform((raw) => csvParam(raw)),
+  minAvgViews: optionalCountParam,
+  maxAvgViews: optionalCountParam,
+  minRate: optionalAmountParam,
+  maxRate: optionalAmountParam,
+  audienceCountry: csvTextParam,
+  country: csvTextParam,
+  accounts: csvEnumParam(PLATFORMS),
 });
+
+/** Every URL key the creator filters read, for callers that forward them. */
+export const CREATOR_FILTER_KEYS = [
+  "q",
+  "platform",
+  "minFollowers",
+  "maxFollowers",
+  "addedFrom",
+  "addedTo",
+  "hasPosts",
+  "tags",
+  "excludeTags",
+  "minAvgViews",
+  "maxAvgViews",
+  "minRate",
+  "maxRate",
+  "audienceCountry",
+  "country",
+  "accounts",
+] as const;
 
 export function readCreatorFilters(sp: Record<string, string | string[] | undefined>): CreatorFilters {
   const parsed = creatorFilterSchema.safeParse({
@@ -232,13 +275,45 @@ export function readCreatorFilters(sp: Record<string, string | string[] | undefi
     hasPosts: firstParam(sp.hasPosts),
     tags: firstParam(sp.tags),
     excludeTags: firstParam(sp.excludeTags),
+    minAvgViews: firstParam(sp.minAvgViews),
+    maxAvgViews: firstParam(sp.maxAvgViews),
+    minRate: firstParam(sp.minRate),
+    maxRate: firstParam(sp.maxRate),
+    audienceCountry: firstParam(sp.audienceCountry),
+    country: firstParam(sp.country),
+    accounts: firstParam(sp.accounts),
   });
   if (parsed.success) return parsed.data;
-  return { platform: [], tags: [], excludeTags: [] };
+  return { platform: [], tags: [], excludeTags: [], audienceCountry: [], country: [], accounts: [] };
 }
 
-export function creatorWhere(orgId: string, f: CreatorFilters): Prisma.CreatorWhereInput {
+/**
+ * `roster` says the roster tables exist on this database. Until they do, the
+ * filters that live in them are left out rather than failing the page; see
+ * lib/creators/rosterTables.ts.
+ */
+export function creatorWhere(orgId: string, f: CreatorFilters, { roster = false }: { roster?: boolean } = {}): Prisma.CreatorWhereInput {
+  const and: Prisma.CreatorWhereInput[] = [];
+  if (countRange(f.minAvgViews, f.maxAvgViews)) and.push({ averageViews: countRange(f.minAvgViews, f.maxAvgViews) });
+  if (countRange(f.minRate, f.maxRate)) and.push({ rate: countRange(f.minRate, f.maxRate) });
+  if (f.accounts?.length) {
+    and.push({
+      OR: [
+        { platform: { in: f.accounts } },
+        ...(roster ? [{ profileLinks: { some: { platform: { in: f.accounts } } } }] : []),
+      ],
+    });
+  }
+  if (roster && f.audienceCountry?.length) {
+    and.push({
+      OR: f.audienceCountry.map((c) => ({ detail: { audienceCountry: { contains: c, mode: Prisma.QueryMode.insensitive } } })),
+    });
+  }
+  if (roster && f.country?.length) {
+    and.push({ OR: f.country.map((c) => ({ detail: { country: { contains: c, mode: Prisma.QueryMode.insensitive } } })) });
+  }
   return {
+    ...(and.length && { AND: and }),
     orgId,
     deletedAt: null,
     ...(f.platform.length && { platform: { in: f.platform } }),
@@ -259,6 +334,13 @@ export function creatorWhere(orgId: string, f: CreatorFilters): Prisma.CreatorWh
           OR: [
             { name: { contains: f.search, mode: Prisma.QueryMode.insensitive } },
             { handle: { contains: f.search, mode: Prisma.QueryMode.insensitive } },
+            // A niche is free text, so "naruto" finds the Anime pages that said so.
+            ...(roster
+              ? [
+                  { detail: { niche: { contains: f.search, mode: Prisma.QueryMode.insensitive } } },
+                  { profileLinks: { some: { handle: { contains: f.search.replace(/^@/, ""), mode: Prisma.QueryMode.insensitive } } } },
+                ]
+              : []),
           ],
         }
       : {}),
@@ -272,7 +354,12 @@ export function countCreatorFilters(f: CreatorFilters): number {
     (f.addedFrom || f.addedTo ? 1 : 0) +
     (f.hasPosts ? 1 : 0) +
     (f.tags.length ? 1 : 0) +
-    (f.excludeTags.length ? 1 : 0)
+    (f.excludeTags.length ? 1 : 0) +
+    (f.minAvgViews !== undefined || f.maxAvgViews !== undefined ? 1 : 0) +
+    (f.minRate !== undefined || f.maxRate !== undefined ? 1 : 0) +
+    (f.audienceCountry?.length ? 1 : 0) +
+    (f.country?.length ? 1 : 0) +
+    (f.accounts?.length ? 1 : 0)
   );
 }
 
@@ -306,6 +393,9 @@ export function creatorOrderBy(sort: CreatorSort): Prisma.CreatorOrderByWithRela
       return [{ name: dir }, tiebreak];
     case "posts":
       return [{ posts: { _count: dir } }, tiebreak];
+    case "price":
+      // Unpriced creators are unknown, not free, so they sit at the end either way.
+      return [{ rate: { sort: dir, nulls: "last" } }, tiebreak];
     case "added":
     default:
       return [{ addedAt: dir }, tiebreak];

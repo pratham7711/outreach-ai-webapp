@@ -15,6 +15,7 @@ import { imgSrc, embedSrcFor } from "@/lib/postMedia";
 import { stripAt, formatDateAbs, formatDateTimeAbs, formatFull, fitFigureSize } from "@/lib/format";
 import { loadCharts } from "@/components/charts/lazyCharts";
 import { readCadenceLabel, DEFAULT_POST_TRACKING } from "@/lib/trackers/granularity";
+import CreatorAvatar from "@/components/creators/CreatorAvatar";
 
 const PerformanceOverTimeArea = dynamic(() => loadCharts().then((m) => m.PerformanceOverTimeArea), {
   ssr: false,
@@ -477,7 +478,8 @@ export default function PostDetailPage() {
                   put — they are the post's last real numbers. */}
               {isPostRemoved(post) && <RemovedPostOverlay variant="inline" note={removedNote(post)} />}
             </div>
-            <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", margin: 0 }}>
+            <p style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 6, fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", margin: 0 }}>
+              <CreatorAvatar id={post.creator.id} name={post.creator.name} size="sm" />
               by <strong>{post.creator.name}</strong> (@{stripAt(post.creator.handle)}) · {post.platform} · Posted {formatDateAbs(post.postedAt)}
             </p>
             {post.lastSyncedAt ? (

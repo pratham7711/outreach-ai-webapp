@@ -4,6 +4,8 @@ import { auth } from "@/lib/auth";
 import { createAuditActor, logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
 
+const MAX_PER_REQUEST = 500;
+
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -13,10 +15,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const list = await db.creatorList.findFirst({ where: { id, orgId } });
   if (!list) return NextResponse.json({ error: "List not found" }, { status: 404 });
 
-  const { creatorId, creatorIds } = await req.json();
-  const ids = creatorIds ?? (creatorId ? [creatorId] : []);
+  const body = await req.json().catch(() => ({}));
+  const { creatorId, creatorIds } = body ?? {};
+  const raw: unknown[] = Array.isArray(creatorIds) ? creatorIds : creatorId ? [creatorId] : [];
+  // Deduplicated, so the org-membership count below compares like with like.
+  const ids: string[] = Array.from(new Set(raw.filter((v): v is string => typeof v === "string" && v.length > 0)));
 
   if (!ids.length) return NextResponse.json({ error: "creatorId(s) required" }, { status: 400 });
+  if (ids.length > MAX_PER_REQUEST) {
+    return NextResponse.json({ error: `At most ${MAX_PER_REQUEST} creators per request` }, { status: 400 });
+  }
 
   const creators = await db.creator.findMany({
     where: { id: { in: ids }, orgId, deletedAt: null },
@@ -26,17 +34,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "One or more creators were not found in this organization" }, { status: 404 });
   }
 
-  const results = [];
-  for (const cId of ids) {
-    try {
-      const item = await db.creatorListItem.create({
-        data: { listId: id, creatorId: cId },
-      });
-      results.push(item);
-    } catch {
-      // Duplicate — skip
-    }
-  }
+  // One round trip for a bulk add; a creator already on the list is a no-op.
+  const { count: added } = await db.creatorListItem.createMany({
+    data: ids.map((cId) => ({ listId: id, creatorId: cId })),
+    skipDuplicates: true,
+  });
 
   await logAudit({
     orgId,
@@ -48,7 +50,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     ipAddress: getRequestIp(req),
     metadata: {
       requestedCreatorIds: ids,
-      added: results.length,
+      added,
+      skippedAsDuplicate: ids.length - added,
     },
     after: {
       listId: list.id,
@@ -56,5 +59,5 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     },
   });
 
-  return NextResponse.json({ added: results.length }, { status: 201 });
+  return NextResponse.json({ added, skipped: ids.length - added }, { status: 201 });
 }

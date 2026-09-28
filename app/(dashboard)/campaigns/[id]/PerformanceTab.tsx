@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect, useCallback } from "react";
-import { Card, Badge, EmptyState, Skeleton, Avatar, Modal } from "@pratham7711/ui";
+import { Card, Badge, EmptyState, Skeleton, Modal } from "@pratham7711/ui";
 import { ChartFrame, MetricTile, Button } from "@/components/ds";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -12,6 +12,7 @@ import { platformColor } from "@/app/(dashboard)/analytics/shared";
 import { ShareModal } from "@/app/(dashboard)/campaigns/ShareModal";
 import { AudioCard } from "@/components/campaigns/AudioCard";
 import type { CampaignAudio, CampaignPerformance } from "@/lib/reports/campaignPerformance";
+import CreatorAvatar from "@/components/creators/CreatorAvatar";
 
 /* Taken from the report seam rather than restated here. It was restated, and the
    two drifted the moment the seam grew the per-counter totals. */
@@ -398,7 +399,7 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
                   }}
                 >
                   <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-                    <Avatar name={row.name} src={row.avatarUrl ?? undefined} size="sm" />
+                    <CreatorAvatar id={row.creatorId} name={row.name} size="sm" />
                     <span title={row.name} style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.name}</span>
                   </div>
                   <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{row.posts}</span>

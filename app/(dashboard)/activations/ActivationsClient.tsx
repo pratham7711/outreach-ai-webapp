@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Plus, Zap } from "lucide-react";
 import { PieChart, Pie, Cell } from "recharts";
-import { EmptyState, Card, Avatar, Modal } from "@pratham7711/ui";
+import { EmptyState, Card, Modal } from "@pratham7711/ui";
 import { PageHeader, MetricTile, EntityPicker, Button } from "@/components/ds";
 import type { PickerOption } from "@/components/ds";
 import { toast } from "sonner";
@@ -22,6 +22,7 @@ import {
 import { Dropdown } from "@/components/ds";
 import DeliverablesModal from "./DeliverablesModal";
 import { action } from "@/lib/ui/actions";
+import CreatorAvatar from "@/components/creators/CreatorAvatar";
 
 type StatusDef = { id: string; name: string; bucket: string };
 
@@ -140,7 +141,7 @@ function QueueSection({
                     }}
                   >
                     <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-                      <Avatar name={a.creator.name} size="sm" src={a.creator.avatarUrl ?? undefined} />
+                      <CreatorAvatar id={a.creator.id} name={a.creator.name} size="sm" />
                       <div style={{ minWidth: 0 }}>
                         <div title={a.creator.name} style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                           {a.creator.name}

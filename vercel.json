@@ -25,6 +25,14 @@
       "schedule": "30 */6 * * *"
     },
     {
+      "path": "/api/cron/refresh-creator-avatars",
+      "schedule": "45 3 * * *"
+    },
+    {
+      "path": "/api/cron/refresh-roster-profiles",
+      "schedule": "10 * * * *"
+    },
+    {
       "path": "/api/cron/snapshot-org-views",
       "schedule": "30 0 * * *"
     },

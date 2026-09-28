@@ -9,6 +9,7 @@ import { pageParam, pageSizeParam, parseQuery } from "@/lib/http/queryParams";
 import { creatorFilterSchema, creatorOrderBy, creatorWhere } from "@/lib/listFilters";
 import { creatorHandleVariants } from "@/lib/creator-auth";
 import { DEFAULT_CREATOR_SORT } from "@/lib/listParams";
+import { rosterTablesReady } from "@/lib/creators/rosterTables";
 
 const listCreatorsQuerySchema = creatorFilterSchema.extend({
   page: pageParam,
@@ -38,7 +39,7 @@ export async function GET(request: NextRequest) {
     const { page, limit, ...filters } = parsedQuery.data;
     const skip = (page - 1) * limit;
 
-    const where = creatorWhere(orgId, filters);
+    const where = creatorWhere(orgId, filters, { roster: await rosterTablesReady() });
 
     const [creators, total] = await Promise.all([
       db.creator.findMany({

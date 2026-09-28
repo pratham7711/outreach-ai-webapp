@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip,
   PieChart, Pie, Cell, Legend,
@@ -99,7 +99,19 @@ export default function SharedPerformanceReport({
   /* A creator whose picture would not decode, so the circle shows their initial
      instead of an empty ring. Keyed by creator, because the same avatar can
      appear on more than one row of a re-brief. */
-  const [brokenAvatars, setBrokenAvatars] = useState<Set<string>>(new Set());
+  /* How many avatar sources each creator has already failed on. The stored
+     picture comes first; the creator's own CDN link is the fallback for one
+     the store has not reached yet; then the initial. */
+  const [avatarMisses, setAvatarMisses] = useState<Record<string, number>>({});
+  /* Sources are offered only after hydration: in server-rendered HTML a 404
+     lands before onError is attached, and the row keeps a broken image. */
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => setHydrated(true), []);
+  const avatarSources = (row: { creatorId: string; avatarUrl?: string | null }) =>
+    !hydrated ? [] : [
+      `/api/share/${encodeURIComponent(token)}/avatar/${encodeURIComponent(row.creatorId)}?w=64`,
+      shareImgSrc(token, row.avatarUrl ?? null, 56),
+    ].filter((u): u is string => Boolean(u));
   const [coverBroken, setCoverBroken] = useState(false);
   // Already redacted server-side — a hidden leaderboard arrives empty rather
   // than arriving whole and being skipped at render time.
@@ -323,11 +335,14 @@ export default function SharedPerformanceReport({
                                     CDN: these avatars are image/heic and every one of
                                     them rendered as a broken box. onError falls back to
                                     the initial rather than leaving an empty circle. */}
-                                {shareImgSrc(token, row.avatarUrl, 56) && !brokenAvatars.has(row.creatorId) ? (
+                                {avatarSources(row)[avatarMisses[row.creatorId] ?? 0] ? (
                                   <img
-                                    src={shareImgSrc(token, row.avatarUrl, 56)!}
+                                    key={avatarMisses[row.creatorId] ?? 0}
+                                    src={avatarSources(row)[avatarMisses[row.creatorId] ?? 0]}
                                     alt={row.name}
-                                    onError={() => setBrokenAvatars((prev) => new Set(prev).add(row.creatorId))}
+                                    onError={() =>
+                                      setAvatarMisses((prev) => ({ ...prev, [row.creatorId]: (prev[row.creatorId] ?? 0) + 1 }))
+                                    }
                                     style={{ width: "100%", height: "100%", objectFit: "cover" }}
                                   />
                                 ) : (

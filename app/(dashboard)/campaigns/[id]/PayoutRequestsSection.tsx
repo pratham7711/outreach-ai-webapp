@@ -6,6 +6,7 @@ import { Dropdown, StatusTabs, Button } from "@/components/ds";
 import { Banknote, Check, X } from "lucide-react";
 import { CreatorSelect } from "@/components/CreatorSelect";
 import { formatDateAbs, stripAt } from "@/lib/format";
+import CreatorAvatar from "@/components/creators/CreatorAvatar";
 
 type PayoutReq = {
   id: string;
@@ -170,7 +171,10 @@ export default function PayoutRequestsSection({ campaignId }: { campaignId: stri
               gap: 12, padding: "14px 24px", alignItems: "center",
               borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined,
             }}>
-              <span style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{creatorName(req.creator)}</span>
+              <span style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0, fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>
+                <CreatorAvatar id={req.creator?.id ?? req.creatorId} name={req.creator?.name ?? "Deleted creator"} size="sm" />
+                <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{creatorName(req.creator)}</span>
+              </span>
               <span style={{ fontSize: "var(--cc-t-14)", fontWeight: 700, color: "var(--cc-text)" }}>{formatCurrency(req.requestedAmount, req.currency)}</span>
               <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{req.currency}</span>
               <Badge variant={STATUS_BADGE[req.status] ?? "neutral"}>{req.status}</Badge>

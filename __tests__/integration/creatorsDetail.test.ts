@@ -15,6 +15,8 @@ jest.mock('@/lib/db', () => ({
     post: { groupBy: jest.fn().mockResolvedValue([]) },
     activation: { groupBy: jest.fn().mockResolvedValue([]), findMany: jest.fn().mockResolvedValue([]) },
     campaign: { findMany: jest.fn().mockResolvedValue([]) },
+    // The lists a creator is on, shown on their profile.
+    creatorListItem: { findMany: jest.fn().mockResolvedValue([]) },
   },
 }));
 
@@ -111,6 +113,20 @@ describe('GET /api/creators/[id]', () => {
     expect(body.campaigns).toHaveLength(1);
     expect(body.campaigns[0].activation.status).toBe('AWAITING_DRAFT');
     expect(body.campaigns[0].postCount).toBe(0);
+  });
+
+  it('names the lists the creator is on, scoped to the org', async () => {
+    mockDb.creator.findFirst.mockResolvedValue({ id: 'cr-1', orgId: 'org-1', name: 'A', handle: '@a', platform: 'TIKTOK', activations: [], posts: [] });
+    mockDb.creatorListItem.findMany.mockResolvedValueOnce([{ list: { id: 'list-1', name: 'Anime Pages' } }]);
+
+    const res = await GET(makeRequest('http://localhost/api/creators/cr-1'), makeParams('cr-1'));
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.lists).toEqual([{ id: 'list-1', name: 'Anime Pages' }]);
+    expect(mockDb.creatorListItem.findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({ where: { creatorId: 'cr-1', list: { orgId: 'org-1' } } }),
+    );
   });
 
   it('returns creator with correct shape', async () => {

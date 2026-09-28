@@ -53,6 +53,9 @@ export type CreatorProfileRead = {
    * stats come from a page that renders no posts -- and the caller must keep
    * whatever it already has rather than erase it. */
   topPosts?: TopPost[];
+  /** The profile picture the same read saw, when it carried one. Usually a
+   * signed CDN URL with a shelf life of days -- download it, do not store it. */
+  avatarUrl?: string;
 };
 
 export const TOP_POSTS_LIMIT = 6;
@@ -216,11 +219,18 @@ async function readInstagram(handle: string): Promise<CreatorReadResult> {
       avgViews: mean(views),
       sampledPosts: views.length,
       ...(topPosts.length ? { topPosts } : {}),
+      ...(profile.profilePictureUrl ? { avatarUrl: profile.profilePictureUrl } : {}),
     },
   };
 }
 
 const YT_RECENT = 20;
+
+export function channelThumbnail(thumbnails: unknown): string | null {
+  const t = (thumbnails ?? {}) as Record<string, { url?: unknown } | undefined>;
+  const url = t.high?.url ?? t.medium?.url ?? t.default?.url;
+  return typeof url === "string" && url ? url : null;
+}
 
 async function readYouTube(handle: string): Promise<CreatorReadResult> {
   const key = process.env.YOUTUBE_API_KEY;
@@ -242,7 +252,9 @@ async function readYouTube(handle: string): Promise<CreatorReadResult> {
     // forHandle resolves @handles directly; forUsername only matches the old
     // legacy usernames, which almost no current channel has.
     const ch = await api("channels", {
-      part: "statistics,contentDetails",
+      // snippet carries the channel picture; channels.list costs one quota
+      // unit whatever parts are asked for.
+      part: "snippet,statistics,contentDetails",
       forHandle: `@${clean}`,
     });
     const item = ch?.items?.[0];
@@ -334,6 +346,7 @@ async function readYouTube(handle: string): Promise<CreatorReadResult> {
         avgViews,
         sampledPosts,
         ...(topPosts.length ? { topPosts } : {}),
+        ...(channelThumbnail(item.snippet?.thumbnails) ? { avatarUrl: channelThumbnail(item.snippet?.thumbnails)! } : {}),
       },
     };
   } catch (e) {

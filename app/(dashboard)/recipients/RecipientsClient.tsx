@@ -2,10 +2,11 @@
 
 import { useMemo, useState } from "react";
 import { Search, Mailbox } from "lucide-react";
-import { Card, Badge, EmptyState, Input, Tag, Avatar } from "@pratham7711/ui";
+import { Card, Badge, EmptyState, Input, Tag } from "@pratham7711/ui";
 import { PageHeader, MetricTile } from "@/components/ds";
 import type { Recipient, RecipientStats } from "@/lib/recipients/aggregate";
 import { stripAt } from "@/lib/format";
+import CreatorAvatar from "@/components/creators/CreatorAvatar";
 
 const METHOD_LABELS: Record<string, string> = {
   PAYPAL: "PayPal",
@@ -136,7 +137,7 @@ export default function RecipientsClient({
                   }}
                 >
                   <div data-col="recipient" style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
-                    <Avatar name={r.name} size="sm" />
+                    <CreatorAvatar id={r.creatorId} name={r.name} size="sm" />
                     <div style={{ minWidth: 0 }}>
                       <p style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-list-row-name-fw)", color: "var(--cc-text)" }}>{r.name}</p>
                       <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>

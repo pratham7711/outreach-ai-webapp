@@ -102,7 +102,7 @@ export function readCampaignSort(
   return { key: key as CampaignSortKey, dir: dir === "asc" ? "asc" : "desc" };
 }
 
-export const CREATOR_SORT_KEYS = ["name", "posts", "added"] as const;
+export const CREATOR_SORT_KEYS = ["name", "posts", "added", "price"] as const;
 export type CreatorSortKey = (typeof CREATOR_SORT_KEYS)[number];
 export type CreatorSort = { key: CreatorSortKey; dir: "asc" | "desc" };
 

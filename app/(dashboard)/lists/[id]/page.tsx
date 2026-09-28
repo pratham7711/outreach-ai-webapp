@@ -1,12 +1,16 @@
 "use client";
 import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ChevronRight, Plus, Trash2, Users, ClipboardList } from "lucide-react";
+import { ArrowLeft, ChevronRight, Plus, Trash2, Users, ClipboardList, Share2 } from "lucide-react";
 import Link from "next/link";
-import { Card, Badge, Avatar, EmptyState, Skeleton, Input } from "@pratham7711/ui";
+import { Card, Badge, EmptyState, Skeleton, Input } from "@pratham7711/ui";
 import { toast } from "sonner";
 import { stripAt, formatDateAbs, formatFull } from "@/lib/format";
 import { useConfirm, Button, PageHeader } from "@/components/ds";
+import AddCreatorsDropdown from "@/components/lists/AddCreatorsDropdown";
+import ListSharePanel from "@/components/lists/ListSharePanel";
+import ExportMenu from "@/components/creators/ExportMenu";
+import CreatorAvatar from "@/components/creators/CreatorAvatar";
 
 type CreatorItem = {
   id: string;
@@ -36,6 +40,7 @@ export default function ListDetailPage({ params }: { params: Promise<{ id: strin
   const [list, setList] = useState<ListDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
+  const [sharing, setSharing] = useState(false);
 
   const fetchList = () => {
     setLoading(true);
@@ -124,15 +129,34 @@ export default function ListDetailPage({ params }: { params: Promise<{ id: strin
           </div>
         }
         actions={
-          <Button variant="danger" size="sm" iconLeft={<Trash2 size={14} />} onClick={handleDeleteList} disabled={deleting}>
-            {deleting ? "Deleting…" : "Delete List"}
-          </Button>
+          <>
+            <Button variant="danger" size="sm" iconLeft={<Trash2 size={14} />} onClick={handleDeleteList} disabled={deleting}>
+              {deleting ? "Deleting…" : "Delete List"}
+            </Button>
+            {list._count.items > 0 && (
+              <ExportMenu
+                align="down"
+                items={[
+                  { label: "Excel (.xlsx)", href: `/api/lists/${list.id}/export?format=xlsx` },
+                  { label: "CSV", href: `/api/lists/${list.id}/export?format=csv` },
+                ]}
+              />
+            )}
+            <Button variant="secondary" size="sm" iconLeft={<Share2 size={14} />} onClick={() => setSharing(true)}>
+              Share
+            </Button>
+            <AddCreatorsDropdown
+              listId={list.id}
+              onList={list.items.map((item) => item.creator.id)}
+              onAdded={() => fetchList()}
+            />
+          </>
         }
       />
 
       {/* Creators table */}
       {list.items.length === 0 ? (
-        <EmptyState icon={<Users size={32} color="var(--cc-text-subtle)" />} title="No creators in this list" description="Add creators from the Discovery page or creator profiles." />
+        <EmptyState icon={<Users size={32} color="var(--cc-text-subtle)" />} title="No creators in this list" description="Use Add Creators above to pick several from your roster at once." />
       ) : (
         <Card variant="solid" noPadding>
           <div className="rsp-table-wrap">
@@ -150,7 +174,7 @@ export default function ListDetailPage({ params }: { params: Promise<{ id: strin
                 className="cc-table-row"
               >
                 <Link prefetch={false} href={`/creators/${item.creator.id}`} style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 12 }}>
-                  <Avatar name={item.creator.name} size="sm" />
+                  <CreatorAvatar id={item.creator.id} name={item.creator.name} size="sm" />
                   <div>
                     <p style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{item.creator.name}</p>
                     <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>@{stripAt(item.creator.handle)}</p>
@@ -174,6 +198,8 @@ export default function ListDetailPage({ params }: { params: Promise<{ id: strin
           </div>
         </Card>
       )}
+
+      {sharing && <ListSharePanel listId={list.id} listName={list.name} onClose={() => setSharing(false)} />}
     </div>
   );
 }

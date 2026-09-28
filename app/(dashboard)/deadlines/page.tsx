@@ -6,6 +6,7 @@ import { CalendarClock, AlertTriangle, CheckCircle2, Clock, CalendarOff, Edit2, 
 import { format, isAfter, isBefore, differenceInDays } from "date-fns";
 import { stripAt } from "@/lib/format";
 import { ACTIVATION_STATUS_LABEL, activationStatusBadgeStyle } from "@/lib/activationQueues";
+import CreatorAvatar from "@/components/creators/CreatorAvatar";
 
 type DeadlineActivation = {
   id: string;
@@ -356,12 +357,17 @@ export default function DeadlinesPage() {
                   >
                     {/* Creator */}
                     <td style={{ padding: "14px 16px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <CreatorAvatar id={a.creator.id} name={a.creator.name} size="sm" />
+                      <div style={{ minWidth: 0 }}>
                       <p style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", margin: 0 }}>{a.creator.name}</p>
                       {a.creator.handle && (
                         <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: "2px 0 0" }}>
                           @{stripAt(a.creator.handle)} · {a.creator.platform}
                         </p>
                       )}
+                      </div>
+                      </div>
                     </td>
 
                     {/* Campaign */}

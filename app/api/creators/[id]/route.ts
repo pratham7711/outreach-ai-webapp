@@ -6,6 +6,7 @@ import { authenticateRequest, getAuditActor } from "@/lib/authenticate";
 import { logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
 import { deriveCampaignCounts, deriveCreatorCampaigns } from "@/lib/creatorMetrics";
+import { rosterTablesReady } from "@/lib/creators/rosterTables";
 
 const updateCreatorSchema = z.object({
   name: z.string().optional(),
@@ -53,14 +54,36 @@ export async function GET(
     if (!creator) return NextResponse.json({ error: "Not found" }, { status: 404 });
     // Campaigns counted from posts as well as activations: activations did not
     // import from CreatorCore, so the relation count alone reads 0.
-    const [campaignCounts, campaigns] = await Promise.all([
+    const roster = await rosterTablesReady();
+    const [campaignCounts, campaigns, profileLinks, detail, lists] = await Promise.all([
       deriveCampaignCounts([creator.id]),
       deriveCreatorCampaigns(creator.id, orgId),
+      roster
+        ? db.creatorProfileLink.findMany({
+            where: { orgId, creatorId: creator.id },
+            orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
+            select: { platform: true, handle: true, url: true, followersCount: true, averageViews: true, isPrimary: true, refreshedAt: true },
+          })
+        : [],
+      roster
+        ? db.creatorDetail.findFirst({
+            where: { orgId, creatorId: creator.id },
+            select: { country: true, audienceCountry: true, niche: true, source: true, signedUpAt: true },
+          })
+        : null,
+      db.creatorListItem.findMany({
+        where: { creatorId: creator.id, list: { orgId } },
+        orderBy: { addedAt: "desc" },
+        select: { list: { select: { id: true, name: true } } },
+      }),
     ]);
     return NextResponse.json({
       ...creator,
       campaignCount: campaignCounts.get(creator.id) ?? 0,
       campaigns,
+      profileLinks,
+      detail,
+      lists: lists.map((l) => l.list),
     });
   } catch (e) {
     return NextResponse.json({ error: "Failed" }, { status: 500 });

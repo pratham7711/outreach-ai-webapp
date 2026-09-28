@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { captureAvatarIfStale } from "@/lib/creators/avatarStore";
 import type { Prisma } from "@/lib/generated/prisma";
 import { createLogger } from "@/lib/observability/logger";
 import { velocityBetween } from "@/lib/trackers/metrics";
@@ -466,6 +467,17 @@ export async function snapshotCreators(
       if (result.ok) snapshots++;
       else failed++;
       continue;
+    }
+
+    /* The read that produced these figures also saw the profile picture, on a
+       signed link that will be dead within days. Keep the image, not the link. */
+    if (result.ok && result.profile.avatarUrl) {
+      await captureAvatarIfStale(creator, result.profile.avatarUrl).catch((e) =>
+        log.warn("avatar capture failed", {
+          creatorId: creator.id,
+          error: e instanceof Error ? e.message : String(e),
+        })
+      );
     }
 
     if (!result.ok) {

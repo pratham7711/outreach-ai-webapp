@@ -56,6 +56,7 @@ export type PerformanceData = {
     viewsCount: number;
     likesCount: number;
     engagementRate: number;
+    creatorId?: string | null;
     creatorName: string | null;
     campaignTitle: string | null;
   }[];

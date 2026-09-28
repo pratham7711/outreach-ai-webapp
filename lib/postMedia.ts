@@ -93,6 +93,9 @@ export const PROXYABLE_HOSTS: RegExp[] = [
   // note above, same consequence on any network that filters Meta.
   /\.fbcdn\.net$/,
   /^i\.ytimg\.com$/,
+  // YouTube channel pictures, which the avatar store downloads.
+  /^yt3\.ggpht\.com$/,
+  /^yt3\.googleusercontent\.com$/,
 ];
 
 export function isProxyableHost(host: string): boolean {

@@ -4,6 +4,7 @@ import { RefreshCw, User } from "lucide-react";
 import { timeAgo, formatFull } from "@/lib/format";
 import { AudioUsesChart, type SeriesPoint } from "./SoundCharts";
 import type { ChartGranularity } from "@/lib/trackers/granularity";
+import CreatorAvatar from "@/components/creators/CreatorAvatar";
 
 /**
  * The creator detail, matching the reference's ?tracker=<id> modal: the figure,
@@ -75,23 +76,7 @@ export function CreatorDetailModal({
   return (
     <Modal open={open} onClose={onClose} title="" size="lg">
       <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 20 }}>
-        {creator.avatarUrl ? (
-          <img
-            src={creator.avatarUrl}
-            alt=""
-            style={{ width: 52, height: 52, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }}
-          />
-        ) : (
-          <div
-            style={{
-              width: 52, height: 52, borderRadius: "50%", flexShrink: 0,
-              display: "flex", alignItems: "center", justifyContent: "center",
-              background: "var(--cc-primary-light)",
-            }}
-          >
-            <User size={22} style={{ color: "var(--cc-primary)" }} />
-          </div>
-        )}
+        <CreatorAvatar id={creator.id} name={creator.name} size="lg" />
         <div style={{ minWidth: 0 }}>
           <div style={{ fontSize: "var(--cc-t-20)", fontWeight: 700, color: "var(--cc-text)" }}>{creator.name}</div>
           <div style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>

@@ -166,6 +166,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       engagementRate: p.engagementRate,
       status: p.status,
       lastSyncedAt: p.lastSyncedAt,
+      creatorId: p.creator?.id ?? null,
       creatorName: p.creator?.name ?? null,
       creatorHandle: p.creator?.handle ?? null,
     })),

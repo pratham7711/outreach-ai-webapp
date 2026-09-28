@@ -147,6 +147,11 @@ export function parseTikTokProfileHtml(html: string): CreatorReadResult {
      video grid over XHR. sampledPosts stays 0, which the caller reads as "not
      measured" rather than "measured zero", so averageViews is left untouched
      rather than overwritten with a fabricated 0. */
+  const user = userInfo.user ?? {};
+  const avatar = [user.avatarLarger, user.avatarMedium, user.avatarThumb].find(
+    (u: unknown): u is string => typeof u === "string" && u.startsWith("https://")
+  );
+
   return {
     ok: true,
     profile: {
@@ -154,6 +159,7 @@ export function parseTikTokProfileHtml(html: string): CreatorReadResult {
       postsCount: Number.isFinite(postsCount) ? postsCount : 0,
       avgViews: 0,
       sampledPosts: 0,
+      ...(avatar ? { avatarUrl: avatar } : {}),
     },
   };
 }

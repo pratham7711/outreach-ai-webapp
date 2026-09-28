@@ -7,6 +7,7 @@ import { CreatorSelect, type PickableCreator } from "@/components/CreatorSelect"
 import { stripAt } from "@/lib/format";
 import { Dropdown, Button } from "@/components/ds";
 import { formatCurrencyTotals, type CurrencyAmount } from "@/lib/money";
+import CreatorAvatar from "@/components/creators/CreatorAvatar";
 
 type Offer = {
   id: string;
@@ -318,8 +319,9 @@ export default function NegotiationsSection({
                 borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined,
               }}
             >
-              <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>
-                {creatorName(offer)}
+              <span style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0, fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>
+                <CreatorAvatar id={offer.creator?.id} name={offer.creator?.name ?? "Deleted creator"} size="sm" />
+                <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{creatorName(offer)}</span>
               </span>
               <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text)" }}>
                 {formatCurrency(offer.offeredRate, offer.currency)}

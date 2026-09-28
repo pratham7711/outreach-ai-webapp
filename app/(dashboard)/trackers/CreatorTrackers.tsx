@@ -7,11 +7,11 @@ import { Card, EmptyState, Input, Modal, Skeleton } from "@pratham7711/ui";
 import { Button } from "@/components/ds";
 import { Play, Trash2, User, Users } from "lucide-react";
 import { formatFull } from "@/lib/format";
-import { imgSrc } from "@/lib/postMedia";
 import { apiDelete, apiFetch, apiPost } from "@/lib/api/client";
 import { CreatorDetailModal, type TopPost } from "./CreatorDetailModal";
 import type { ChartGranularity } from "@/lib/trackers/granularity";
 import { errorMessage } from "@/lib/api/errorMessage";
+import CreatorAvatar from "@/components/creators/CreatorAvatar";
 
 /**
  * The Creators sub-tab of Trackers, matching the reference's card layout: two
@@ -382,34 +382,12 @@ export function CreatorTrackers({
       ) : (
         <>
           {creators.map((c) => {
-            const avatar = imgSrc(c.avatarUrl, 112);
             const m = c.metrics;
             return (
               <Card key={c.id} variant="outlined" style={{ marginBottom: 12 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 12, flex: "1 1 220px", minWidth: 200 }}>
-                    {avatar ? (
-                      <img
-                        src={avatar}
-                        alt=""
-                        style={{ width: 56, height: 56, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }}
-                      />
-                    ) : (
-                      <div
-                        style={{
-                          width: 56,
-                          height: 56,
-                          borderRadius: "50%",
-                          background: "var(--cc-bg)",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          flexShrink: 0,
-                        }}
-                      >
-                        <User size={22} style={{ color: "var(--cc-text-muted)" }} />
-                      </div>
-                    )}
+                    <CreatorAvatar id={c.id} name={c.name} size="lg" />
                     <div
                       style={{ minWidth: 0, cursor: "pointer" }}
                       onClick={() => setOpenCreator(c.id)}

@@ -7,6 +7,7 @@ import { CreatorSelect } from "@/components/CreatorSelect";
 import { Dropdown, Button } from "@/components/ds";
 import { formatDateAbs, stripAt } from "@/lib/format";
 import { OutreachDraftPanel } from "@/components/ai/OutreachDraftPanel";
+import CreatorAvatar from "@/components/creators/CreatorAvatar";
 
 type AiDraft = {
   subject: string;
@@ -168,7 +169,10 @@ export default function InvitesSection({ campaignId }: { campaignId: string }) {
               gap: 12, padding: "14px 24px", alignItems: "center",
               borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined,
             }}>
-              <span style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{creatorName(inv.creator)}</span>
+              <span style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0, fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>
+                <CreatorAvatar id={inv.creator?.id ?? inv.creatorId} name={inv.creator?.name ?? "Deleted creator"} size="sm" />
+                <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{creatorName(inv.creator)}</span>
+              </span>
               <Badge variant="neutral" style={{ fontSize: "var(--cc-t-11)"}}>{inv.channel}</Badge>
               <Badge variant={STATUS_BADGE[inv.status] ?? "neutral"}>{inv.status}</Badge>
               <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>{inv.sentAt ? formatDateAbs(inv.sentAt) : "—"}</span>

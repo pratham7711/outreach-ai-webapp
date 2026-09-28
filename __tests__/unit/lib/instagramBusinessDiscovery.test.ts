@@ -42,6 +42,15 @@ function page(nodes: unknown[], after?: string) {
 }
 
 describe("parseBusinessDiscovery", () => {
+  it("carries the profile picture URL when Instagram sends one", () => {
+    const data = page([]);
+    (data.business_discovery as Record<string, unknown>).profile_picture_url = "https://scontent.cdninstagram.com/p.jpg?oe=6A000000";
+    expect(parseBusinessDiscovery(data, "creator")?.profilePictureUrl).toBe(
+      "https://scontent.cdninstagram.com/p.jpg?oe=6A000000",
+    );
+    expect(parseBusinessDiscovery(page([]), "creator")).not.toHaveProperty("profilePictureUrl");
+  });
+
   it("surfaces the media cursor when Instagram sends one", () => {
     expect(parseBusinessDiscovery(page([media("AAA")], "CURSOR_1"), "creator")?.nextMediaCursor)
       .toBe("CURSOR_1");

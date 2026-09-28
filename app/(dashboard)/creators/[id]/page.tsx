@@ -7,10 +7,12 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Card, Badge, Avatar, EmptyState, Skeleton, Modal, Input, Tooltip } from "@pratham7711/ui";
+import { Card, Badge, EmptyState, Skeleton, Modal, Input, Tooltip } from "@pratham7711/ui";
 import { Dropdown, MetricTile } from "@/components/ds";
-import { formatDateAbs, platformLabel, formatFull } from "@/lib/format";
+import { formatDateAbs, platformLabel, formatFull, formatFullCurrency } from "@/lib/format";
 import { toast } from "sonner";
+import CreatorAvatar from "@/components/creators/CreatorAvatar";
+import PlatformChips from "@/components/creators/PlatformChips";
 
 function formatNumber(num: number): string {
   return formatFull(num);
@@ -116,6 +118,10 @@ type Creator = {
   tagLinks?: { tag: { id: string; name: string } }[];
   flagLinks?: { flag: { id: string; name: string; emoji: string | null } }[];
   _count: { activations: number; posts: number };
+  /** Every account on the roster for this person, primary (TikTok first) at the head. */
+  profileLinks?: { platform: string; handle: string; url: string | null; followersCount: number | null; averageViews: number | null; isPrimary: boolean }[];
+  detail?: { country: string | null; audienceCountry: string | null; niche: string | null; source: string | null; signedUpAt: string | null } | null;
+  lists?: { id: string; name: string }[];
 };
 
 type LabelDef = { id: string; name: string; emoji?: string | null };
@@ -244,6 +250,102 @@ function LabelCard({
 
       {error && (
         <p role="alert" style={{ marginTop: 8, fontSize: "var(--cc-t-12)", color: "var(--cc-danger)" }}>{error}</p>
+      )}
+    </Card>
+  );
+}
+
+/** The lists this creator is on, each a link, with a way onto another. */
+function ListsCard({ creatorId, lists, onSaved }: { creatorId: string; lists: { id: string; name: string }[]; onSaved: () => void }) {
+  const [all, setAll] = useState<{ id: string; name: string }[] | null>(null);
+  const [shown, setShown] = useState(lists);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => setShown(lists), [lists]);
+
+  useEffect(() => {
+    fetch("/api/lists")
+      .then((r) => r.json())
+      .then((d) => setAll(Array.isArray(d.lists) ? d.lists.map((l: { id: string; name: string }) => ({ id: l.id, name: l.name })) : []))
+      .catch(() => setAll([]));
+  }, []);
+
+  async function change(url: string, init: RequestInit, done: string, next: (s: typeof lists) => typeof lists) {
+    setBusy(true);
+    try {
+      const res = await fetch(url, init);
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({}));
+        throw new Error(payload.error ?? `Could not save (${res.status})`);
+      }
+      toast.success(done);
+      setShown(next);
+      onSaved();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not save");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const onIds = shown.map((l) => l.id);
+  const available = (all ?? []).filter((l) => !onIds.includes(l.id));
+
+  return (
+    <Card variant="outlined" style={{ padding: 24 }}>
+      <span className="cc-panel-title" style={{ display: "block", marginBottom: 12 }}>
+        On lists
+      </span>
+      {shown.length === 0 ? (
+        <p style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text-muted)", lineHeight: 1.6 }}>Not on any list yet.</p>
+      ) : (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+          {shown.map((l) => (
+            <span
+              key={l.id}
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 6,
+                background: "var(--cc-bg)", border: "1px solid var(--cc-border)",
+                borderRadius: 8, padding: "6px 8px 6px 12px", fontSize: "var(--cc-t-13)",
+              }}
+            >
+              <Link href={`/lists/${l.id}`} style={{ color: "var(--cc-text)", textDecoration: "none" }}>
+                {l.name}
+              </Link>
+              <button
+                type="button"
+                aria-label={`Remove from ${l.name}`}
+                disabled={busy}
+                onClick={() => void change(`/api/lists/${l.id}/creators/${creatorId}`, { method: "DELETE" }, `Removed from ${l.name}`, (s) => s.filter((x) => x.id !== l.id))}
+                style={{ background: "none", border: "none", cursor: "pointer", color: "var(--cc-text-muted)", display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 0 }}
+              >
+                <Trash2 size={13} aria-hidden="true" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      {all && available.length > 0 && (
+        <div style={{ marginTop: 12 }}>
+          <Dropdown
+            ariaLabel="Add to list"
+            value=""
+            placeholder="Add to list"
+            disabled={busy}
+            align="left"
+            minWidth={180}
+            onChange={(listId) => {
+              const name = available.find((l) => l.id === listId)?.name ?? "the list";
+              void change(
+                "/api/lists/from-roster",
+                { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ listId, creatorIds: [creatorId] }) },
+                `Added to ${name}`,
+                (s) => [{ id: listId, name }, ...s.filter((x) => x.id !== listId)],
+              );
+            }}
+            options={available.map((l) => ({ value: l.id, label: l.name }))}
+          />
+        </div>
       )}
     </Card>
   );
@@ -683,16 +785,27 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
         <div style={{ height: 80, background: `linear-gradient(to right, ${PLATFORM_COLORS[creator.platform] ?? "var(--cc-primary)"}22, ${PLATFORM_COLORS[creator.platform] ?? "var(--cc-primary)"}11)` }} />
         <div className="cd-banner-inner">
           <div className="cd-profile-header">
-            <Avatar name={creator.name} size="lg" style={{ width: 72, height: 72, fontSize: "var(--cc-t-22)", border: "4px solid var(--cc-card)", flexShrink: 0 }} />
+            <CreatorAvatar id={creator.id} name={creator.name} size="lg" />
             <div className="cd-profile-info">
               <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                 <h1 className="cc-page-title" data-mb="0">{creator.name}</h1>
-                <Badge variant="neutral">{platformLabel(creator.platform)}</Badge>
+                {!creator.profileLinks?.length && <Badge variant="neutral">{platformLabel(creator.platform)}</Badge>}
               </div>
               <div style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text-muted)", marginTop: 2 }}>
                 {creator.handle.startsWith("@") ? creator.handle : `@${creator.handle}`}
                 {creator.contactEmail && <> · {creator.contactEmail}</>}
               </div>
+              {creator.profileLinks && creator.profileLinks.length > 0 && (
+                <div style={{ marginTop: 8 }}>
+                  <PlatformChips links={creator.profileLinks} />
+                </div>
+              )}
+              {(creator.detail?.source || creator.detail?.signedUpAt) && (
+                <div style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", marginTop: 6 }}>
+                  {creator.detail.source ? `Joined via ${creator.detail.source}` : "Signed up"}
+                  {creator.detail.signedUpAt && <> · {formatDateAbs(creator.detail.signedUpAt)}</>}
+                </div>
+              )}
             </div>
             <div className="cd-profile-actions">
               <button
@@ -767,6 +880,18 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
                   <strong>Email:</strong> {creator.contactEmail}
                 </div>
               )}
+              {[
+                ["Price per video", creator.rate ? formatFullCurrency(creator.rate) : null],
+                ["Country", creator.detail?.country],
+                ["Audience", creator.detail?.audienceCountry],
+                ["Niche", creator.detail?.niche],
+              ]
+                .filter(([, v]) => v)
+                .map(([label, value]) => (
+                  <div key={label} style={{ marginTop: 8, fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
+                    <strong>{label}:</strong> {value}
+                  </div>
+                ))}
             </Card>
             <Card variant="outlined" style={{ padding: 24 }}>
               <span className="cc-panel-title" style={{ display: "block", marginBottom: 12 }}>Notes</span>
@@ -792,6 +917,7 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
               selected={(creator.flagLinks ?? []).map((l) => l.flag)}
               onSaved={refreshCreator}
             />
+            <ListsCard creatorId={id} lists={creator.lists ?? []} onSaved={refreshCreator} />
           </div>
         )}
 

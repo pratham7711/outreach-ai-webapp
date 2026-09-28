@@ -2,12 +2,13 @@
 
 import React from "react";
 import { useState, useEffect, useCallback } from "react";
-import { Card, Badge, Modal, EmptyState, Skeleton, Avatar } from "@pratham7711/ui";
+import { Card, Badge, Modal, EmptyState, Skeleton } from "@pratham7711/ui";
 import { Dropdown, Button } from "@/components/ds";
 import { CheckCircle2, XCircle, ExternalLink, FileText, Plus, Check, X, Loader } from "lucide-react";
 import { toast } from "sonner";
 import { CampaignHeaderActions } from "@/components/campaigns/CampaignHeaderActions";
 import { stripAt, formatDateAbs } from "@/lib/format";
+import CreatorAvatar from "@/components/creators/CreatorAvatar";
 
 type Draft = {
   id: string;
@@ -278,7 +279,7 @@ export default function DraftsTab({
                 }}
               >
                 <div style={{ display: "flex", alignItems: "flex-start", gap: 12, flex: 1, minWidth: 240 }}>
-                  <Avatar name={d.creator.name} src={d.creator.avatarUrl ?? undefined} size="sm" />
+                  <CreatorAvatar id={d.creator.id} name={d.creator.name} size="sm" />
                   <div style={{ minWidth: 0 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                       <p style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{d.creator.name}</p>

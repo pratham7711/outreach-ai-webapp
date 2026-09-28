@@ -21,6 +21,7 @@ export const ACTIONS = [
   "create-api-key",
   "export-csv",
   "export-data",
+  "import-creators",
   "invite-member",
   "new-campaign",
   "new-client",

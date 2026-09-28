@@ -16,6 +16,8 @@ export const authConfig = {
       // Public marketplace (Phase 2M) — unauthenticated /explore browsing.
       const isPublicMarketplacePage = nextUrl.pathname.startsWith("/explore");
       const isPublicSharePage = nextUrl.pathname.startsWith("/share/");
+      // A creator list shared with a brand (/l/<token>); the token is the auth.
+      const isPublicListPage = nextUrl.pathname.startsWith("/l/");
       /* Reachable in EITHER auth state, which is why it does not belong with
          the auth pages below.
          Signed out, because a confirmation link is opened from a mail client
@@ -61,6 +63,7 @@ export const authConfig = {
         isPublicCreatorPage ||
         isPublicMarketplacePage ||
         isPublicSharePage ||
+        isPublicListPage ||
         isPublicLegalPage ||
         isVerifyEmailPage
       )

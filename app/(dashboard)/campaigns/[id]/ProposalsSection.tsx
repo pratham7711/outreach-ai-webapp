@@ -6,6 +6,7 @@ import { StatusTabs, Button } from "@/components/ds";
 import { Check, X, Users, Star, TrendingUp, Inbox } from "lucide-react";
 import { toast } from "sonner";
 import { stripAt, formatDateAbs, formatFull } from "@/lib/format";
+import { imgSrc } from "@/lib/postMedia";
 
 type Proposal = {
   id: string;
@@ -127,7 +128,7 @@ export default function ProposalsSection({ campaignId }: { campaignId: string })
             <Card key={p.id} variant="outlined" style={{ padding: 16 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}>
                 <div style={{ display: "flex", gap: 12, alignItems: "start" }}>
-                  <Avatar name={p.creatorUser.name} size="md" />
+                  <Avatar name={p.creatorUser.name} size="md" src={imgSrc(p.creatorUser.avatarUrl, 96) ?? undefined} />
                   <div>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
                       <span style={{ fontSize: "var(--cc-t-15)", fontWeight: 700, color: "var(--cc-text)" }}>{p.creatorUser.name}</span>

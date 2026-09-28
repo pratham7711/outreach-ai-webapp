@@ -20,6 +20,7 @@ import { render, screen, act, fireEvent } from "@testing-library/react";
 
 jest.mock("@pratham7711/ui", () => ({
   Badge: ({ children }: any) => <span>{children}</span>,
+  Avatar: ({ name }: any) => <span>{name}</span>,
 }), { virtual: true });
 
 jest.mock("next/link", () => ({

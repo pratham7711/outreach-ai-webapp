@@ -1,10 +1,11 @@
 "use client";
 import React from "react";
 import Link from "next/link";
-import { Card, Avatar, EmptyState } from "@pratham7711/ui";
+import { Card, EmptyState } from "@pratham7711/ui";
 import { User } from "lucide-react";
 import { formatNumber, formatPercent } from "./shared";
 import { stripAt } from "@/lib/format";
+import CreatorAvatar from "@/components/creators/CreatorAvatar";
 
 export type LeaderboardCreator = {
   id: string;
@@ -72,7 +73,7 @@ export default function CreatorLeaderboard({ creators }: { creators: Leaderboard
                 {i + 1}
               </span>
               <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-                <Avatar name={creator.name} src={creator.avatarUrl ?? undefined} size="sm" />
+                <CreatorAvatar id={creator.id} name={creator.name} size="sm" />
                 <div style={{ minWidth: 0 }}>
                   <p title={creator.name} style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", lineHeight: 1.3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{creator.name}</p>
                   <p title={`@${stripAt(creator.handle)}`} style={{ fontSize: "var(--cc-t-11)", color: "var(--cc-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>@{stripAt(creator.handle)}</p>

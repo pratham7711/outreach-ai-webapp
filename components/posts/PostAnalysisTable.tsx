@@ -6,6 +6,7 @@ import { Badge } from "@pratham7711/ui";
 import { Dropdown, SortableTh, numericCell, type SortAccessors, useTableSort } from "@/components/ds";
 import { formatDateTimeAbs, platformLabel, stripAt, timeAgo, formatFull } from "@/lib/format";
 import { PLATFORM_FILTER_OPTIONS } from "@/lib/platforms/constants";
+import CreatorAvatar from "@/components/creators/CreatorAvatar";
 
 export type AnalysisPost = {
   id: string;
@@ -22,6 +23,7 @@ export type AnalysisPost = {
   engagementRate: number;
   status: string;
   lastSyncedAt: string | null;
+  creatorId?: string | null;
   creatorName: string | null;
   creatorHandle: string | null;
 };
@@ -167,6 +169,9 @@ export function PostAnalysisTable({
               {sorted.map((p) => (
                 <tr key={p.id} className="cc-table-row" style={{ borderTop: "1px solid var(--cc-border)" }}>
                   <td style={{ padding: "12px 24px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <CreatorAvatar id={p.creatorId} name={p.creatorName ?? "Unknown"} size="sm" />
+                    <div style={{ minWidth: 0 }}>
                     <Link
                       href={`/campaigns/${p.campaignId}/posts/${p.id}`}
                       style={{ textDecoration: "none", color: "var(--cc-text)", fontWeight: "var(--cc-fw-strong)", fontSize: "var(--cc-t-14)"}}
@@ -176,6 +181,8 @@ export function PostAnalysisTable({
                     {p.creatorHandle && (
                       <div style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>@{stripAt(p.creatorHandle)}</div>
                     )}
+                    </div>
+                    </div>
                   </td>
                   <td style={{ padding: "12px 24px", fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
                     {p.campaignTitle ?? "—"}

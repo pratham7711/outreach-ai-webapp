@@ -1,8 +1,9 @@
 "use client";
 
-import { Modal, Badge, Avatar } from "@pratham7711/ui";
+import { Modal, Badge } from "@pratham7711/ui";
 import { Button } from "@/components/ds";
 import { ArrowRight, CheckCircle2, ExternalLink } from "lucide-react";
+import CreatorAvatar from "@/components/creators/CreatorAvatar";
 
 type Payout = {
   id: string;
@@ -71,7 +72,7 @@ export default function PayoutDetailModal({
     <Modal open onClose={onClose} title="Payout Details" size="md">
       {/* Creator header */}
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20, padding: "12px 16px", background: "var(--cc-bg)", borderRadius: 10 }}>
-        <Avatar name={payout.creator.name} size="md" />
+        <CreatorAvatar id={payout.creator.id} name={payout.creator.name} size="md" />
         <div style={{ flex: 1 }}>
           <p style={{ fontSize: "var(--cc-t-15)", fontWeight: 700, color: "var(--cc-text)" }}>{payout.creator.name}</p>
           <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>@{payout.creator.handle} · {payout.creator.platform}</p>

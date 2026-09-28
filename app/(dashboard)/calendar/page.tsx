@@ -8,6 +8,7 @@ import {
   format, isSameMonth, isSameDay, isToday, addMonths, subMonths,
 } from "date-fns";
 import { campaignStatusCss, campaignStatusDot } from "@/lib/statusColors";
+import CreatorAvatar from "@/components/creators/CreatorAvatar";
 
 /* CreatorCore's calendar starts its week on SATURDAY. MEASURED at
    desktop-1600, their weekday row reads, left to right:
@@ -270,7 +271,10 @@ export default function CalendarPage() {
                       <span className="cc-microlabel">Deliverables Due</span>
                       {selectedDetail!.activations.map(a => (
                         <div key={a.id} style={{ marginTop: 8, padding: 10, borderRadius: 8, background: "rgba(124,58,237,0.06)" }}>
-                          <p style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", margin: 0 }}>{a.creator.name}</p>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <CreatorAvatar id={a.creator.id} name={a.creator.name} size="sm" />
+                            <p style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", margin: 0 }}>{a.creator.name}</p>
+                          </div>
                           <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: "2px 0 0" }}>{a.campaign.title}</p>
                           <Badge variant="neutral" style={{ marginTop: 4, fontSize: "var(--cc-t-10)"}}>{a.status.replace(/_/g, " ")}</Badge>
                         </div>

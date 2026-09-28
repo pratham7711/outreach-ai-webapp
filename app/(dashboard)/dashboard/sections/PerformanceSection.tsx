@@ -19,6 +19,7 @@ import { platformColor } from "@/app/(dashboard)/analytics/shared";
 import { stripAt } from "@/lib/format";
 import { loadCharts } from "@/components/charts/lazyCharts";
 import { formatNumber, type PerformanceData } from "../types";
+import CreatorAvatar from "@/components/creators/CreatorAvatar";
 
 const PlatformBreakdownPie = dynamic(
   () => loadCharts().then((m) => m.PlatformBreakdownPie),
@@ -149,7 +150,10 @@ export function PerformanceSection({
                   {topPosts.map((post) => (
                     <TableRow key={post.id}>
                       <TableCell className="font-semibold text-foreground">
-                        {post.creatorName ?? "Unknown"}
+                        <div className="flex items-center gap-2.5">
+                          <CreatorAvatar id={post.creatorId} name={post.creatorName ?? "Unknown"} size="sm" />
+                          <span>{post.creatorName ?? "Unknown"}</span>
+                        </div>
                       </TableCell>
                       <TableCell className="text-muted-foreground">
                         {post.campaignTitle ?? "—"}
@@ -212,6 +216,9 @@ export function PerformanceSection({
                   {creators.map((c) => (
                     <TableRow key={c.creatorId}>
                       <TableCell>
+                        <div className="flex items-center gap-2.5">
+                        <CreatorAvatar id={c.creatorId} name={c.name} size="sm" />
+                        <div className="min-w-0">
                         <div className="font-semibold text-foreground">{c.name}</div>
                         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                           <span>@{stripAt(c.handle)}</span>
@@ -221,6 +228,8 @@ export function PerformanceSection({
                           {c.platform ? (
                             <Badge variant="neutral" size="sm">{c.platform}</Badge>
                           ) : null}
+                        </div>
+                        </div>
                         </div>
                       </TableCell>
                       <TableCell className="text-right text-muted-foreground tabular-nums">

@@ -28,7 +28,7 @@ describe('NewSidebar', () => {
   it('renders all main navigation links', () => {
     render(<NewSidebar />);
     expect(screen.getByRole('link', { name: /Campaigns/i })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Creators/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Creator Roster/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Lists/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Clients/i })).toBeInTheDocument();
   });
@@ -46,7 +46,7 @@ describe('NewSidebar', () => {
   it('links have correct hrefs', () => {
     render(<NewSidebar />);
     expect(screen.getByRole('link', { name: /Campaigns/i })).toHaveAttribute('href', '/campaigns');
-    expect(screen.getByRole('link', { name: /Creators/i })).toHaveAttribute('href', '/creators');
+    expect(screen.getByRole('link', { name: /Creator Roster/i })).toHaveAttribute('href', '/creators');
   });
 
   it('renders user section with name Pratham', () => {

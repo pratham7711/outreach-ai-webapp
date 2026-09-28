@@ -20,6 +20,8 @@ jest.mock('@/lib/db', () => ({
     post: { groupBy: jest.fn().mockResolvedValue([]) },
     activation: { groupBy: jest.fn().mockResolvedValue([]), findMany: jest.fn().mockResolvedValue([]) },
     campaign: { findMany: jest.fn().mockResolvedValue([]) },
+    // The lists a creator is on, shown on their profile.
+    creatorListItem: { findMany: jest.fn().mockResolvedValue([]) },
   },
 }));
 

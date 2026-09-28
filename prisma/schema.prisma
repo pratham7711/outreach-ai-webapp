@@ -695,6 +695,9 @@ model Creator {
   tagLinks         CreatorTagLink[]
   flagLinks        CreatorFlagLink[]
   trackerSnapshots CreatorTrackerSnapshot[]
+  avatar           CreatorAvatar?
+  profileLinks     CreatorProfileLink[]
+  detail           CreatorDetail?
   creatorUser      CreatorUser?             @relation("RosterIdentity", fields: [creatorUserId], references: [id], onDelete: SetNull)
 
   @@index([creatorUserId])
@@ -804,6 +807,26 @@ model CreatorList {
 
   org   Organization      @relation(fields: [orgId], references: [id])
   items CreatorListItem[]
+  share CreatorListShare?
+}
+
+/// A public, read-only link to one list. Its own table rather than columns on
+/// CreatorList so a deploy that lands before the DDL cannot break list queries.
+model CreatorListShare {
+  listId      String    @id
+  orgId       String
+  token       String    @unique
+  /// Which columns the public page shows: { price, tags, stats, audienceCountry }.
+  /// Contact email is never public, so it is not a field here.
+  fields      Json
+  revokedAt   DateTime?
+  createdById String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  list CreatorList @relation(fields: [listId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
 }
 
 model CreatorListItem {
@@ -816,6 +839,74 @@ model CreatorListItem {
   creator Creator     @relation(fields: [creatorId], references: [id])
 
   @@unique([listId, creatorId])
+}
+
+/// A social account a creator has told us about, by link. Unlike
+/// CreatorSocialAccount it carries no token: it is what a sign-up form or an
+/// import knows. Creator.platform/handle mirror the primary one.
+model CreatorProfileLink {
+  id             String    @id @default(cuid())
+  creatorId      String
+  orgId          String
+  platform       Platform
+  handle         String
+  url            String
+  followersCount Float?
+  averageViews   Float?
+  isPrimary      Boolean   @default(false)
+  /// When the hourly refresh last read this account, whether or not it worked.
+  refreshedAt    DateTime?
+  /// Why that read produced nothing; null after a good read.
+  refreshError   String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  creator Creator @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, platform, handle])
+  @@index([creatorId])
+  @@index([refreshedAt])
+}
+
+/// Roster attributes that arrive with an import: where the creator is, where
+/// their audience is, and how they reached the agency.
+model CreatorDetail {
+  creatorId       String    @id
+  orgId           String
+  country         String?
+  audienceCountry String?
+  /// The creator's own words for their niche, kept whole: tags are a short
+  /// canonical set, this is what search reads.
+  niche           String?
+  source          String?
+  signedUpAt      DateTime?
+  updatedAt       DateTime  @updatedAt
+
+  creator Creator @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, audienceCountry])
+  @@index([orgId, country])
+}
+
+/// A creator's profile picture, held as bytes rather than as a link.
+///
+/// TikTok and Instagram serve profile pictures from signed CDN paths that stop
+/// answering within days, so a stored URL is a picture with a shelf life. The
+/// image is downloaded the moment a fresh URL is seen and kept here as a small
+/// WebP, which every surface then reads through /api/creators/[id]/avatar.
+model CreatorAvatar {
+  creatorId String    @id
+  orgId     String
+  data      Bytes?
+  sourceUrl String?
+  fetchedAt DateTime?
+  failedAt  DateTime?
+  failure   String?
+
+  creator Creator @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@index([fetchedAt])
 }
 
 // ─── Activations ──────────────────────────────────────────────────────────────
@@ -1393,7 +1484,7 @@ model CreatorUser {
   /// ever describe one platform.
   socialAccounts CreatorSocialAccount[]
   /// The per-org roster rows that resolve to this identity.
-  rosterRows     Creator[]                 @relation("RosterIdentity")
+  rosterRows     Creator[]              @relation("RosterIdentity")
 }
 
 model CreatorSession {
@@ -2007,7 +2098,7 @@ model PlatformCredential {
   lastAttemptAt DateTime?
   /// Why the last attempt failed, for the operator. Provider prose, never a
   /// token; truncated by the writer.
-  lastError String?
+  lastError     String?
 
   /// How the current value got here: "manual" (an operator supplied it) or
   /// "refresh" (this platform exchanged the previous one).

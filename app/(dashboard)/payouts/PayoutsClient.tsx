@@ -4,7 +4,7 @@ import { useState, type ReactNode } from "react";
 import { PageHeader } from "@/components/ds/PageHeader";
 import { useRouter } from "next/navigation";
 import { Plus, Search, ArrowRight, Check, Banknote, Download } from "lucide-react";
-import { Card, Badge, EmptyState, Input, Avatar } from "@pratham7711/ui";
+import { Card, Badge, EmptyState, Input } from "@pratham7711/ui";
 import { MetricTile, useConfirm, Button } from "@/components/ds";
 import { StatusTabs } from "@/components/ds";
 import { toast } from "sonner";
@@ -14,6 +14,7 @@ import { stripAt, formatDateAbs } from "@/lib/format";
 import { downloadCsv, exportStamp } from "@/lib/csv";
 import type { PayoutCurrencyTotals } from "@/lib/payouts/totals";
 import { action } from "@/lib/ui/actions";
+import CreatorAvatar from "@/components/creators/CreatorAvatar";
 
 type Payout = {
   id: string;
@@ -437,7 +438,7 @@ export default function PayoutsClient({ payouts, stats }: {
                     aria-label={`View payout details for ${p.creator.name}`}
                     style={{ display: "flex", alignItems: "center", gap: 12, background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left", font: "inherit", minWidth: 0 }}
                   >
-                    <Avatar name={p.creator.name} size="sm" />
+                    <CreatorAvatar id={p.creator.id} name={p.creator.name} size="sm" />
                     <div style={{ minWidth: 0 }}>
                       <p style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{p.creator.name}</p>
                       <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>@{stripAt(p.creator.handle)}</p>

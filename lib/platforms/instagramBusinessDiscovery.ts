@@ -23,6 +23,8 @@ export type IgPublicProfile = {
      figure is not a creator with no followers. */
   followersCount?: number;
   mediaCount?: number;
+  /** Signed Meta CDN URL; it expires, so it is downloaded rather than kept. */
+  profilePictureUrl?: string;
   recentPosts: IgPublicPost[];
   /**
    * Instagram's cursor for the NEXT page of this profile's media, when one
@@ -84,6 +86,9 @@ export function parseBusinessDiscovery(data: any, username: string): IgPublicPro
     username: normalizeUsername(username),
     ...(typeof bd.followers_count === "number" ? { followersCount: bd.followers_count } : {}),
     ...(typeof bd.media_count === "number" ? { mediaCount: bd.media_count } : {}),
+    ...(typeof bd.profile_picture_url === "string" && bd.profile_picture_url
+      ? { profilePictureUrl: bd.profile_picture_url }
+      : {}),
     recentPosts: nodes.map(mapMedia),
     ...(typeof after === "string" && after.length > 0 ? { nextMediaCursor: after } : {}),
   };
@@ -122,7 +127,7 @@ export async function fetchInstagramProfile(
   const data = await graphGet(
     igUserId,
     {
-      fields: `business_discovery.username(${handle}){followers_count,media_count,${mediaFields}}`,
+      fields: `business_discovery.username(${handle}){followers_count,media_count,profile_picture_url,${mediaFields}}`,
       access_token: token,
     },
     signal,

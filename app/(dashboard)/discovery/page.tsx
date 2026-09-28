@@ -2,11 +2,12 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Plus, Search, SlidersHorizontal, X, Lock } from "lucide-react";
-import { Card, EmptyState, Input, Avatar, Badge, Skeleton, StatCard } from "@pratham7711/ui";
+import { Card, EmptyState, Input, Badge, Skeleton, StatCard } from "@pratham7711/ui";
 import { PageHeader, Dropdown, Pagination, Button, LoadError } from "@/components/ds";
 import Link from "next/link";
 import { toast } from "sonner";
 import { stripAt, platformLabel, formatFull } from "@/lib/format";
+import CreatorAvatar from "@/components/creators/CreatorAvatar";
 
 const PLATFORMS = ["All", "TIKTOK", "INSTAGRAM", "YOUTUBE", "TWITTER"];
 const SORT_OPTIONS = [
@@ -388,7 +389,7 @@ export default function DiscoveryPage() {
           {creators.map((c) => (
             <Card key={c.id} variant="outlined" style={{ padding: 20 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
-                <Avatar name={c.name} size="md" />
+                <CreatorAvatar id={c.id} name={c.name} size="md" />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 700, fontSize: "var(--cc-t-14)", color: "var(--cc-text)" }}>{c.name}</div>
                   <div title={`@${stripAt(c.handle)}`} style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>@{stripAt(c.handle)}</div>

@@ -50,7 +50,7 @@ export const NAV_SECTIONS = [
     label: "Creators & Pitching",
     items: [
       { href: "/discovery", icon: Search, label: "Discovery" },
-      { href: "/creators", icon: Users, label: "Creators" },
+      { href: "/creators", icon: Users, label: "Creator Roster" },
       { href: "/lists", icon: List, label: "Lists" },
     ],
   },

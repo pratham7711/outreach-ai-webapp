@@ -3,14 +3,13 @@
 import React from "react";
 import Link from "next/link";
 import { useState, useEffect, useMemo, useCallback, useDeferredValue, useRef } from "react";
-import { Card, Badge, Input, Modal, EmptyState, Skeleton, Avatar } from "@pratham7711/ui";
+import { Card, Badge, Input, Modal, EmptyState, Skeleton } from "@pratham7711/ui";
 import { Dropdown, StatusTabs, Pagination, Button } from "@/components/ds";
 import { Grid3X3, List, Plus, Check, X, TrendingUp, BarChart3, ArrowUp, ArrowDown, ArrowUpDown, Flag, Video, AlertTriangle, RefreshCw, Info, Radio, ExternalLink } from "lucide-react";
 import { CreatorSelect } from "@/components/CreatorSelect";
 import { stripAt, formatDateAbs, formatFull } from "@/lib/format";
 import type { ComplianceFlag } from "@/lib/compliance/postCompliance";
 import PostMedia from "@/components/PostMedia";
-import { imgSrc } from "@/lib/postMedia";
 import { unwrittenMetricValue, fieldMetricValue, engagementRateValue, summarizePostMetrics } from "@/lib/metricDisplay";
 import { isPostRemoved, removedNote } from "@/lib/postRemoval";
 import RemovedPostOverlay from "@/components/posts/RemovedPostOverlay";
@@ -25,6 +24,7 @@ import { MAX_BULK_ACTION_POSTS, type BulkAction } from "@/lib/posts/bulkActions"
 import PostActionMenu, { type PostMenuItem } from "@/components/posts/PostActionMenu";
 import { PlatformGlyph } from "@/components/ui/PlatformGlyph";
 import { platformFromHost, detectPlatformFromUrl, platformLabel } from "@/lib/platforms/registry";
+import CreatorAvatar from "@/components/creators/CreatorAvatar";
 
 type SnapshotLite = { id: string; viewsCount: number; recordedAt: string };
 
@@ -1828,11 +1828,7 @@ export default function PostsTab({
                         detail page — tracking and bot signals — is still reached
                         from the Performance tab's post table. */}
                     <a href={post.postUrl} target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", minWidth: 0 }}>
-                      <Avatar
-                        name={post.creator.name}
-                        size="sm"
-                        src={imgSrc(post.authorProfilePic, 64) ?? imgSrc(post.creator.avatarUrl, 64) ?? undefined}
-                      />
+                      <CreatorAvatar id={post.creator.id} name={post.creator.name} size="sm" />
                       <div style={{ minWidth: 0 }}>
                         <div title={post.creator.name} style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{post.creator.name}</div>
                         <div title={`@${stripAt(post.creator.handle)}`} style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>@{stripAt(post.creator.handle)}</div>

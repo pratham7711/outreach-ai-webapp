@@ -5,6 +5,7 @@ import { Badge, Card, Skeleton } from "@pratham7711/ui";
 import { MetricTile } from "@/components/ds";
 import { formatDateAbs } from "@/lib/format";
 import { Wallet, TrendingUp } from "lucide-react";
+import CreatorAvatar from "@/components/creators/CreatorAvatar";
 
 /**
  * The reference's Financials sub-tab, read only.
@@ -227,7 +228,10 @@ export default function FinancialsTab({
             </div>
             {payouts.map((p, i) => (
               <div key={p.id} style={{ ...ROW, borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined }}>
-                <span style={{ color: "var(--cc-text)" }}>{p.creator?.name || p.creator?.handle || "—"}</span>
+                <span style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, color: "var(--cc-text)" }}>
+                  {p.creator && <CreatorAvatar id={p.creator.id} name={p.creator.name || p.creator.handle} size="sm" />}
+                  <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.creator?.name || p.creator?.handle || "—"}</span>
+                </span>
                 <span>{money(p.amount, p.currency)}</span>
                 <span>{p.paymentMethod}</span>
                 <span>{formatDateAbs(p.createdAt)}</span>

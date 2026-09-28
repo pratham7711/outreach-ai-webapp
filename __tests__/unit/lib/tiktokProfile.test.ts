@@ -78,4 +78,22 @@ describe("fetchTikTokProfile", () => {
        operator -- the UI maps the reason to copy. It is now the reason. */
     if (!res.ok) expect(res.reason).toBe("no-such-account");
   });
+
+  it("returns the profile picture the same page carried", async () => {
+    mockHtml(
+      pageWith({
+        user: { avatarLarger: "https://p16-sign.tiktokcdn.com/a.jpeg?x-expires=1", avatarThumb: "https://p16/t.jpeg" },
+        stats: { followerCount: 10, videoCount: 1 },
+      })
+    );
+    const res = await fetchTikTokProfile("someone");
+    expect(res.ok && res.profile.avatarUrl).toBe("https://p16-sign.tiktokcdn.com/a.jpeg?x-expires=1");
+  });
+
+  it("leaves avatarUrl absent when the page has no picture", async () => {
+    mockHtml(pageWith({ user: {}, stats: { followerCount: 10, videoCount: 1 } }));
+    const res = await fetchTikTokProfile("someone");
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.profile).not.toHaveProperty("avatarUrl");
+  });
 });

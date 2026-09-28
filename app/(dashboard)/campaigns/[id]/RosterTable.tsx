@@ -2,11 +2,12 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { Avatar, Badge, Card, EmptyState, Input } from "@pratham7711/ui";
+import { Badge, Card, EmptyState, Input } from "@pratham7711/ui";
 import { Columns3, Search, UserPlus, Users } from "lucide-react";
 import { Button, useTableSort, type SortAccessors, type SortState } from "@/components/ds";
 import { formatDateAbs, stripAt, formatFull } from "@/lib/format";
 import { CampaignHeaderActions } from "@/components/campaigns/CampaignHeaderActions";
+import CreatorAvatar from "@/components/creators/CreatorAvatar";
 
 /**
  * The campaign roster, with the toolbar the reference puts above it.
@@ -236,7 +237,7 @@ export default function RosterTable({
       case "creator":
         return (
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <Avatar name={r.creator.name} size="sm" src={r.creator.avatarUrl ?? undefined} />
+            <CreatorAvatar id={r.creator.id} name={r.creator.name} size="sm" />
             <div>
               <p style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{r.creator.name}</p>
               <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>@{stripAt(r.creator.handle)}</p>

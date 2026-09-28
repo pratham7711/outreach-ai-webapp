@@ -17,7 +17,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       items: {
         include: {
           creator: {
-            select: { id: true, name: true, handle: true, platform: true, followersCount: true, avatarUrl: true },
+            select: { id: true, name: true, handle: true, platform: true, followersCount: true, averageViews: true, avatarUrl: true },
           },
         },
         orderBy: { addedAt: "desc" },
@@ -36,7 +36,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     ...list,
     items: list.items.map((i) => ({
       ...i,
-      creator: { ...i.creator, avgViews: avgViews.get(i.creator.id) ?? null },
+      // Measured from posts where there are any; otherwise what the account's own page last said.
+      creator: { ...i.creator, avgViews: avgViews.get(i.creator.id) ?? (i.creator.averageViews || null) },
     })),
   });
 }

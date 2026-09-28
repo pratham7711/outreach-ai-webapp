@@ -31,7 +31,7 @@ test.describe('Dashboard', () => {
 
   test('sidebar has navigation links', async ({ page }) => {
     await expect(page.getByRole('link', { name: /campaigns/i }).first()).toBeVisible({ timeout: 10000 });
-    await expect(page.getByRole('link', { name: /creators/i }).first()).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('link', { name: /creator roster/i }).first()).toBeVisible({ timeout: 10000 });
     // Payouts is deliberately unlinked while payments are parked -- the route
     // and its tables stay, but nothing in the nav points at it.
     await expect(page.getByRole('link', { name: /activations/i }).first()).toBeVisible({ timeout: 10000 });

@@ -1,10 +1,11 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
-import { Card, Badge, EmptyState, Skeleton, Avatar, Modal } from "@pratham7711/ui";
+import { Card, Badge, EmptyState, Skeleton, Modal } from "@pratham7711/ui";
 import { Star } from "lucide-react";
 import { toast } from "sonner";
 import { stripAt, formatDateAbs } from "@/lib/format";
 import { Dropdown, Button } from "@/components/ds";
+import CreatorAvatar from "@/components/creators/CreatorAvatar";
 
 type Activation = {
   id: string;
@@ -174,11 +175,7 @@ export default function ReviewsSection({
             >
               {/* Row 1: Avatar + name + handle + date */}
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <Avatar
-                  name={review.creator?.name ?? "Creator"}
-                  src={review.creator?.avatarUrl ?? undefined}
-                  size="sm"
-                />
+                <CreatorAvatar id={review.creator?.id ?? review.creatorId} name={review.creator?.name ?? "Creator"} size="sm" />
                 <span style={{ fontWeight: "var(--cc-fw-strong)", fontSize: "var(--cc-t-14)", color: "var(--cc-text)" }}>
                   {review.creator?.name ?? "Unknown"}
                 </span>

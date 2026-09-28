@@ -13,7 +13,7 @@ jest.mock("@/lib/db", () => ({
       findMany: jest.fn(),
     },
     creatorListItem: {
-      create: jest.fn(),
+      createMany: jest.fn(),
     },
   },
 }));
@@ -67,7 +67,7 @@ describe("POST /api/lists/[id]/creators", () => {
   it("adds creator to list when list and creator belong to the org", async () => {
     mockDb.creatorList.findFirst.mockResolvedValue({ id: "list-1", orgId: "org-1", name: "Top Creators" });
     mockDb.creator.findMany.mockResolvedValue([{ id: "creator-1", name: "Alice" }]);
-    mockDb.creatorListItem.create.mockResolvedValue({ id: "item-1", listId: "list-1", creatorId: "creator-1" });
+    mockDb.creatorListItem.createMany.mockResolvedValue({ count: 1 });
 
     const req = new NextRequest("http://localhost/api/lists/list-1/creators", {
       method: "POST",

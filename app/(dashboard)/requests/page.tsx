@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
-import { Badge, Card, Avatar, Skeleton, EmptyState, Input } from "@pratham7711/ui";
+import { Badge, Card, Skeleton, EmptyState, Input } from "@pratham7711/ui";
 import { PageHeader, MetricTile, Button } from "@/components/ds";
 import { StatusTabs } from "@/components/ds";
 import { formatDateAbs } from "@/lib/format";
@@ -9,6 +9,7 @@ import { downloadCsv, exportStamp } from "@/lib/csv";
 import { formatMoney, formatRowsByCurrency } from "@/lib/money";
 import { toast } from "sonner";
 import { action } from "@/lib/ui/actions";
+import CreatorAvatar from "@/components/creators/CreatorAvatar";
 
 /**
  * Mirrors what `GET /api/payout-requests` actually returns.
@@ -287,7 +288,7 @@ export default function RequestsPage() {
                   borderBottom: i < filtered.length - 1 ? "1px solid var(--cc-border)" : "none",
                 }}
               >
-                <Avatar name={creatorName} size="sm" />
+                <CreatorAvatar id={r.creatorId} name={creatorName} size="sm" />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: "var(--cc-fw-strong)", fontSize: "var(--cc-t-14)", color: "var(--cc-text)" }}>{creatorName}</div>
                   <div title={r.campaignTitle ?? undefined} style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
