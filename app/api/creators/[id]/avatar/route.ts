@@ -14,7 +14,7 @@ export const runtime = "nodejs";
  * Every screen asks for a creator's picture by id alone, so none of them has to
  * know where it lives. What is stored in CreatorAvatar wins. Failing that, the
  * creator's own link is downloaded and stored on the spot -- the first view is
- * the fetcher for anyone the daily pass has not reached yet. A 404 means no
+ * the fetcher for anyone the hourly pass has not reached yet. A 404 means no
  * picture, and the Avatar component shows initials for it.
  */
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

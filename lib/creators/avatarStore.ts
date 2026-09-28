@@ -15,7 +15,7 @@ import { createLogger } from "@/lib/observability/logger";
  * /api/creators/[id]/avatar and never touches the CDN link again.
  *
  * Fresh URLs arrive from three places: the creator tracker's profile reads
- * (captured in snapshot.ts), a post's authorProfilePic, and the daily refresh
+ * (captured in snapshot.ts), a post's authorProfilePic, and the hourly refresh
  * pass below for everyone the tracker never reads.
  */
 
@@ -133,8 +133,8 @@ export async function captureAvatarIfStale(
 export type AvatarRefreshCounts = { considered: number; stored: number; failed: number; skipped: number };
 
 /**
- * The daily pass: every creator with no picture, or one older than
- * AVATAR_STALE_MS, least recently tried first, bounded by `limit` and a clock.
+ * The hourly pass: every creator with no picture, or one older than
+ * AVATAR_STALE_MS, newest first, bounded by `limit` and a clock.
  *
  * Cheapest source first. The links we already hold cost one image fetch and
  * no platform call; only when none of them is still live does it read the

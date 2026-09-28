@@ -8,8 +8,11 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * Daily: store a profile picture for every creator who has none, or whose
- * picture is a fortnight old. Bounded per run; the backlog drains across days.
+ * Hourly: store a profile picture for every creator who has none, or whose
+ * picture is a fortnight old. Hourly with a due-row selection rather than a
+ * bigger daily run, like refresh-roster-profiles: one run fits about 150 before
+ * its clock ends, so a roster of a couple of thousand is covered within the
+ * day, and once it is, most hours find nothing due.
  *
  * The sandbox is opened lazily by the fetcher, so a run where every picture
  * came from a link we already held, or from a plain profile fetch, boots none.
