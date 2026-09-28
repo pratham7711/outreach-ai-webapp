@@ -45,7 +45,7 @@ function updateData() {
 beforeEach(() => {
   jest.clearAllMocks();
   jest.spyOn(console, "error").mockImplementation(() => {});
-  mockAuth.mockResolvedValue({ orgId: "org-1" });
+  mockAuth.mockResolvedValue({ orgId: "org-1", role: "ADMIN" });
   mockDb.campaign.findFirst.mockResolvedValue({ id: "camp-1" });
   mockDb.post.findFirst.mockResolvedValue({
     id: "post-1",

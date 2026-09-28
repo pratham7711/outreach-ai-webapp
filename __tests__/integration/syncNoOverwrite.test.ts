@@ -31,10 +31,19 @@ import { auth } from "@/lib/auth";
 import { fetchPostMetrics } from "@/lib/platforms/fetchPostMetrics";
 
 const mockDb = db as any;
+
+/* The sweep asks for candidates one platform at a time, so the mock answers
+   each query with that platform's posts rather than all of them every time. */
+function mockPostCandidates(posts: any[]) {
+  mockDb.post.findMany.mockImplementation(async (args: any) => {
+    const platform = args?.where?.platform;
+    return platform ? posts.filter((p) => p.platform === platform) : posts;
+  });
+}
 const mockAuth = auth as jest.Mock;
 const mockFetch = fetchPostMetrics as jest.Mock;
 
-const authedSession = { user: { id: "u1", orgId: "org-1" } };
+const authedSession = { user: { id: "u1", orgId: "org-1", role: "ADMIN" } };
 
 function makeParams(id: string, postId: string) {
   return { params: Promise.resolve({ id, postId }) };
@@ -124,7 +133,7 @@ describe("cron sync — never overwrites real counts with unknowns", () => {
   });
 
   it("with unknown counts, updates metadata only — no snapshot", async () => {
-    mockDb.post.findMany.mockResolvedValue([
+    mockPostCandidates([
       {
         id: "post-1",
         campaignId: "camp-1",

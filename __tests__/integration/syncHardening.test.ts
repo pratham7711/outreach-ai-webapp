@@ -46,6 +46,15 @@ import { fetchPostMetrics } from "@/lib/platforms/fetchPostMetrics";
 import { openSandboxPostPool } from "@/lib/platforms/tiktokPostSandbox";
 
 const mockDb = db as any;
+
+/* The sweep asks for candidates one platform at a time, so the mock answers
+   each query with that platform's posts rather than all of them every time. */
+function mockPostCandidates(posts: any[]) {
+  mockDb.post.findMany.mockImplementation(async (args: any) => {
+    const platform = args?.where?.platform;
+    return platform ? posts.filter((p) => p.platform === platform) : posts;
+  });
+}
 const mockFetch = fetchPostMetrics as jest.Mock;
 const mockAlert = alertOps as jest.Mock;
 
@@ -107,6 +116,9 @@ const realInstagramBudget = process.env.SYNC_BUDGET_INSTAGRAM;
 
 beforeEach(() => {
   jest.clearAllMocks();
+  /* clearAllMocks keeps queued *Once implementations; one a test never
+     consumed would otherwise fire in whichever test runs next. */
+  mockDb.post.update.mockReset();
   jest.spyOn(console, "error").mockImplementation(() => {});
   process.env.CRON_SECRET = "secret";
   /* Campaigns no longer gate the sweep -- post trackers do -- but the route
@@ -134,7 +146,7 @@ describe("cron sync hardening — dry run", () => {
     /* One fixture per branch of decidePostTracking. Note what "old" now means:
        a post whose TRACKER expired, not a post that is old. Post age stopped
        being an input -- a year-old post with a live tracker is still read. */
-    mockDb.post.findMany.mockResolvedValue([
+    mockPostCandidates([
       makePost({ id: "fresh" }),
       makePost({ id: "old", trackingExpiresAt: hoursAgo(1) }),
       makePost({ id: "disabled", syncDisabledAt: hoursAgo(2) }),
@@ -187,7 +199,7 @@ describe("cron sync hardening — dead-letter", () => {
    * for good and nothing in this codebase ever clears syncDisabledAt again.
    */
   it("does not charge a thrown error to the post, and leaves it eligible", async () => {
-    mockDb.post.findMany.mockResolvedValue([
+    mockPostCandidates([
       makePost({ id: "p-low", syncFailCount: 0 }),
       makePost({ id: "p-edge", postUrl: "https://www.instagram.com/reel/AAA2/", syncFailCount: 4 }),
     ]);
@@ -212,7 +224,7 @@ describe("cron sync hardening — dead-letter", () => {
   });
 
   it("skips a dead-lettered post without fetching", async () => {
-    mockDb.post.findMany.mockResolvedValue([
+    mockPostCandidates([
       makePost({ id: "p-dead", syncFailCount: 5, syncDisabledAt: hoursAgo(24) }),
     ]);
 
@@ -226,7 +238,7 @@ describe("cron sync hardening — dead-letter", () => {
   });
 
   it("resets syncFailCount to 0 on successful sync", async () => {
-    mockDb.post.findMany.mockResolvedValue([makePost({ id: "p-recover", syncFailCount: 3 })]);
+    mockPostCandidates([makePost({ id: "p-recover", syncFailCount: 3 })]);
     mockFetch.mockResolvedValue({
       platform: "INSTAGRAM",
       platformPostId: "1",
@@ -267,7 +279,7 @@ describe("cron sync hardening — dead-letter", () => {
    * cannot quietly start dead-lettering good posts.
    */
   it("does not spend a post's retry budget when our own reader was what failed", async () => {
-    mockDb.post.findMany.mockResolvedValue([
+    mockPostCandidates([
       makePost({ id: "p-ours", syncFailCount: 4 }), // one away from dead-letter
     ]);
     mockFetch.mockResolvedValue({
@@ -306,7 +318,7 @@ describe("cron sync hardening — dead-letter", () => {
    * control: the platform answered, about this post, and published no numbers.
    */
   it("still spends the budget when the post is what has nothing to report", async () => {
-    mockDb.post.findMany.mockResolvedValue([makePost({ id: "p-theirs", syncFailCount: 4 })]);
+    mockPostCandidates([makePost({ id: "p-theirs", syncFailCount: 4 })]);
     mockFetch.mockResolvedValue({
       platform: "INSTAGRAM",
       platformPostId: "1",
@@ -331,7 +343,7 @@ describe("cron sync hardening — dead-letter", () => {
 
 describe("cron sync hardening — sealing", () => {
   it("seals an expired tracker from stored counts without a platform fetch", async () => {
-    mockDb.post.findMany.mockResolvedValue([
+    mockPostCandidates([
       makePost({
         id: "p-old",
         trackingExpiresAt: hoursAgo(1),
@@ -380,7 +392,7 @@ describe("cron sync hardening — sealing", () => {
   });
 
   it("stamps lastSyncedAt on the seal only when the post was measured before", async () => {
-    mockDb.post.findMany.mockResolvedValue([
+    mockPostCandidates([
       makePost({
         id: "p-measured",
         trackingExpiresAt: hoursAgo(1),
@@ -400,7 +412,7 @@ describe("cron sync hardening — sealing", () => {
   });
 
   it("is idempotent — skips when a final snapshot already exists", async () => {
-    mockDb.post.findMany.mockResolvedValue([
+    mockPostCandidates([
       makePost({ id: "p-done", trackingExpiresAt: hoursAgo(1), snapshots: [{ id: "snap-1" }] }),
     ]);
 
@@ -419,7 +431,7 @@ describe("cron sync hardening — sealing", () => {
 describe("cron sync hardening — per-platform budgets", () => {
   it("skips remaining posts of a platform once its budget is exhausted", async () => {
     process.env.SYNC_BUDGET_INSTAGRAM = "1";
-    mockDb.post.findMany.mockResolvedValue([
+    mockPostCandidates([
       makePost({ id: "ig-1" }),
       makePost({ id: "ig-2", postUrl: "https://www.instagram.com/reel/AAA2/" }),
       makePost({
@@ -455,7 +467,7 @@ describe("cron sync hardening — per-platform budgets", () => {
 
   it("reports budget skips in dry-run decisions", async () => {
     process.env.SYNC_BUDGET_INSTAGRAM = "1";
-    mockDb.post.findMany.mockResolvedValue([
+    mockPostCandidates([
       makePost({ id: "ig-1" }),
       makePost({ id: "ig-2", postUrl: "https://www.instagram.com/reel/AAA2/" }),
     ]);
@@ -502,7 +514,7 @@ describe("cron sync — TikTok", () => {
   });
 
   it("opens one pool for the run, reads TikTok through it, and closes it", async () => {
-    mockDb.post.findMany.mockResolvedValue([tiktokPost({ id: "tt-1" }), tiktokPost({ id: "tt-2" })]);
+    mockPostCandidates([tiktokPost({ id: "tt-1" }), tiktokPost({ id: "tt-2" })]);
     mockFetch.mockResolvedValue(undefined);
 
     const res = await cronSync(cronReq());
@@ -517,7 +529,7 @@ describe("cron sync — TikTok", () => {
   });
 
   it("opens no sandbox when no TikTok post is due", async () => {
-    mockDb.post.findMany.mockResolvedValue([makePost({ id: "ig-1" })]);
+    mockPostCandidates([makePost({ id: "ig-1" })]);
     mockFetch.mockResolvedValue(undefined);
 
     await cronSync(cronReq());
@@ -530,7 +542,7 @@ describe("cron sync — TikTok", () => {
   });
 
   it("opens no sandbox on a dry run, which reads nothing", async () => {
-    mockDb.post.findMany.mockResolvedValue([tiktokPost({ id: "tt-1" })]);
+    mockPostCandidates([tiktokPost({ id: "tt-1" })]);
 
     const res = await cronSync(cronReq("http://localhost/api/cron/sync-posts?dryRun=1"));
     const body = await res.json();
@@ -543,7 +555,7 @@ describe("cron sync — TikTok", () => {
   });
 
   it("closes the pool even when the run crashes", async () => {
-    mockDb.post.findMany.mockResolvedValue([tiktokPost({ id: "tt-1" })]);
+    mockPostCandidates([tiktokPost({ id: "tt-1" })]);
     mockFetch.mockRejectedValue(new Error("lane died"));
     // The per-post catch records the failure; make that write blow up too so
     // the run's own catch is reached.
@@ -555,7 +567,7 @@ describe("cron sync — TikTok", () => {
   });
 
   it("still sweeps the other platforms in the same run", async () => {
-    mockDb.post.findMany.mockResolvedValue([
+    mockPostCandidates([
       tiktokPost({ id: "tt-1" }),
       makePost({ id: "ig-1" }),
     ]);
@@ -610,7 +622,7 @@ describe("cron sync — post tracker selection", () => {
    * now is the post tracker -- on, unexpired, due on the org's read cadence.
    */
   it("asks only for tracked, unsealed posts of live campaigns", async () => {
-    mockDb.post.findMany.mockResolvedValue([]);
+    mockPostCandidates([]);
 
     await cronSync(cronReq());
 
@@ -624,7 +636,7 @@ describe("cron sync — post tracker selection", () => {
   });
 
   it("does not filter on campaign status, refreshActive or refreshInterval", async () => {
-    mockDb.post.findMany.mockResolvedValue([]);
+    mockPostCandidates([]);
 
     await cronSync(cronReq());
 
@@ -636,7 +648,7 @@ describe("cron sync — post tracker selection", () => {
   });
 
   it("returns expired trackers from the query so they can seal, rather than filtering them out", async () => {
-    mockDb.post.findMany.mockResolvedValue([]);
+    mockPostCandidates([]);
 
     await cronSync(cronReq());
 
@@ -648,7 +660,7 @@ describe("cron sync — post tracker selection", () => {
   });
 
   it("reads each org's cadence once, not once per post", async () => {
-    mockDb.post.findMany.mockResolvedValue([
+    mockPostCandidates([
       makePost({ id: "a" }),
       makePost({ id: "b" }),
       makePost({ id: "c", creator: { orgId: "org-2", handle: null, socialAccounts: [] } }),
@@ -668,7 +680,7 @@ describe("cron sync — post tracker selection", () => {
 
   it("honours a slower read cadence stored on the org", async () => {
     // Read 3h ago; a daily org is not due, a 2-hourly org is.
-    mockDb.post.findMany.mockResolvedValue([
+    mockPostCandidates([
       makePost({ id: "p-1", lastSyncedAt: hoursAgo(3) }),
     ]);
     mockDb.organization.findMany.mockResolvedValue([
@@ -684,7 +696,7 @@ describe("cron sync — post tracker selection", () => {
   });
 
   it("reads a year-old post whose tracker is still live", async () => {
-    mockDb.post.findMany.mockResolvedValue([
+    mockPostCandidates([
       makePost({ id: "ancient", postedAt: hoursAgo(400 * 24), lastSyncedAt: hoursAgo(13) }),
     ]);
 
@@ -703,7 +715,7 @@ describe("cron sync — campaign lastRefreshAt", () => {
       { id: "campaign-2", refreshActive: true, refreshInterval: 1, lastRefreshAt: hoursAgo(4) },
     ]);
     // Due, but only campaign-1 has a post in this run.
-    mockDb.post.findMany.mockResolvedValue([makePost({ id: "ig-1", campaignId: "campaign-1" })]);
+    mockPostCandidates([makePost({ id: "ig-1", campaignId: "campaign-1" })]);
     mockFetch.mockResolvedValue({
       platform: "INSTAGRAM",
       platformPostId: "1",
@@ -730,7 +742,7 @@ describe("cron sync — campaign lastRefreshAt", () => {
     mockDb.campaign.findMany.mockResolvedValue([
       { id: "campaign-1", refreshActive: true, refreshInterval: 1, lastRefreshAt: hoursAgo(4) },
     ]);
-    mockDb.post.findMany.mockResolvedValue([]);
+    mockPostCandidates([]);
 
     await cronSync(cronReq());
 
@@ -764,7 +776,7 @@ describe("cron sync — alerting on a run that measured nothing", () => {
   }
 
   it("alerts when every attempt came back with no counts, though nothing threw", async () => {
-    mockDb.post.findMany.mockResolvedValue(challengedPosts(6));
+    mockPostCandidates(challengedPosts(6));
     mockFetch.mockResolvedValue({
       platform: "INSTAGRAM",
       platformPostId: "1",
@@ -790,7 +802,7 @@ describe("cron sync — alerting on a run that measured nothing", () => {
   });
 
   it("stays quiet when the same run mostly measured", async () => {
-    mockDb.post.findMany.mockResolvedValue(challengedPosts(6));
+    mockPostCandidates(challengedPosts(6));
     mockFetch.mockImplementation((url: string) =>
       Promise.resolve(
         url.endsWith("A0/")
@@ -838,7 +850,7 @@ describe("cron sync — uncharged reasons", () => {
   ] as const;
 
   it.each(uncharged)("does not charge %s to the post", async (fetchReason) => {
-    mockDb.post.findMany.mockResolvedValue([makePost({ id: "p-ours", syncFailCount: 4 })]);
+    mockPostCandidates([makePost({ id: "p-ours", syncFailCount: 4 })]);
     mockFetch.mockResolvedValue({
       platform: "INSTAGRAM",
       platformPostId: "1",

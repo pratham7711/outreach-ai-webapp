@@ -39,7 +39,7 @@ import { auth } from '@/lib/auth';
 const mockAuth = auth as jest.Mock;
 const mockDb = db as any;
 
-const authedSession = { user: { id: 'user-1', orgId: 'org-1' } };
+const authedSession = { user: { id: 'user-1', orgId: 'org-1', role: 'ADMIN' } };
 const mockCampaign = { id: 'camp-1', orgId: 'org-1', postApprovalMode: 'MANUAL', deletedAt: null };
 const mockPost = {
   id: 'post-1', campaignId: 'camp-1', platform: 'YOUTUBE',

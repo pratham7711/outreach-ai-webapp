@@ -378,7 +378,8 @@ describe('POST /api/campaigns/[id]/posts', () => {
     });
     const res = await POST(req, makeParams('camp-1'));
 
-    expect(res.status).toBe(404);
+    // The permission gate answers before the route reads the campaign or the body.
+    expect(res.status).toBe(403);
     expect(mockDb.creator.create).not.toHaveBeenCalled();
   });
 });

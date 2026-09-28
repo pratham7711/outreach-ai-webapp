@@ -47,7 +47,7 @@ const mockFetch = fetchPostMetrics as jest.Mock;
 const mockSnapshot = snapshotSounds as jest.Mock;
 const mockRateLimit = rateLimit as jest.Mock;
 
-const session = { user: { id: 'u1', orgId: 'org-1' } };
+const session = { user: { id: 'u1', orgId: 'org-1', role: 'ADMIN' } };
 const post = {
   id: 'post-1',
   platform: 'TIKTOK',
