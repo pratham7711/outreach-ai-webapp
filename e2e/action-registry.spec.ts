@@ -55,6 +55,16 @@ const PAGES = [
   '/campaigns/camp-1?tab=posts',
 ];
 
+/* Campaign sections portal their actions into the page header after mount
+   (components/campaigns/CampaignHeaderActions), so the header is empty when
+   the header selector below resolves. On a section that has such an action the
+   sweep waits for it by name; without that the primary slot was inspected only
+   when the portal happened to land inside the fixed pause, and an untagged
+   `Add Posts` failed some runs and passed others. */
+const HEADER_ACTIONS: Record<string, string> = {
+  '/campaigns/camp-1?tab=posts': 'Add Posts',
+};
+
 type Control = {
   path: string;
   tag: string;
@@ -77,6 +87,10 @@ test('every action control is addressable by a theme', async ({ page }) => {
          network condition; `networkidle` never settles on the chart pages. */
       await page.waitForSelector('[data-region="page-header"], main', { timeout: 20000 }).catch(() => {});
       await page.waitForTimeout(600);
+      const headerAction = HEADER_ACTIONS[p];
+      if (headerAction) {
+        await page.locator('#campaign-header-actions').getByRole('button', { name: headerAction }).waitFor({ timeout: 15000 });
+      }
 
       const found = await page.evaluate(() => {
         const out: { tag: string; text: string; actionId: string | null; slot: string | null; region: string }[] = [];

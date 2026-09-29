@@ -7,6 +7,7 @@ import { Columns3, Search, UserPlus, Users } from "lucide-react";
 import { Button, useTableSort, type SortAccessors, type SortState } from "@/components/ds";
 import { formatDateAbs, stripAt, formatFull } from "@/lib/format";
 import { CampaignHeaderActions } from "@/components/campaigns/CampaignHeaderActions";
+import { action } from "@/lib/ui/actions";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
 
 /**
@@ -301,7 +302,7 @@ export default function RosterTable({
           parity harness finds the primary action through the
           `data-cc-slot="primary"` that only ds/Button emits. */}
       <CampaignHeaderActions>
-        <Button variant="primary" iconLeft={<UserPlus size={14} />} onClick={onAddCreator}>
+        <Button variant="primary" iconLeft={<UserPlus size={14} />} onClick={onAddCreator} {...action("add-campaign-creator")}>
           Add Creator
         </Button>
       </CampaignHeaderActions>

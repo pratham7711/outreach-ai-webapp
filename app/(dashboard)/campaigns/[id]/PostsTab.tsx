@@ -18,6 +18,7 @@ import { STATUS_BADGE, formatSince, engRatePct, trackingLabel } from "@/lib/post
 import { summariseRefresh } from "@/lib/refreshSummary";
 import { toast } from "sonner";
 import { CampaignHeaderActions } from "@/components/campaigns/CampaignHeaderActions";
+import { action } from "@/lib/ui/actions";
 import { detectPlatform } from "@/lib/platforms/postUrl";
 import { MAX_BULK_POSTS, mergePastedEntries, parsePastedPostEntries, pastedUrlLabel } from "@/lib/posts/pastedUrls";
 import { MAX_BULK_ACTION_POSTS, type BulkAction } from "@/lib/posts/bulkActions";
@@ -1607,7 +1608,7 @@ export default function PostsTab({
           Refresh Data
         </Button>
 
-        <Button variant="primary" iconLeft={<Plus size={16} />} onClick={openAddPost}>
+        <Button variant="primary" iconLeft={<Plus size={16} />} onClick={openAddPost} {...action("add-posts")}>
           Add Posts
         </Button>
       </CampaignHeaderActions>

@@ -7,6 +7,7 @@ import { Dropdown, Button } from "@/components/ds";
 import { CheckCircle2, XCircle, ExternalLink, FileText, Plus, Check, X, Loader } from "lucide-react";
 import { toast } from "sonner";
 import { CampaignHeaderActions } from "@/components/campaigns/CampaignHeaderActions";
+import { action } from "@/lib/ui/actions";
 import { stripAt, formatDateAbs } from "@/lib/format";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
 
@@ -249,6 +250,7 @@ export default function DraftsTab({
           disabled={awaiting.length === 0}
           title={awaiting.length === 0 ? "Every creator on this campaign has already submitted" : undefined}
           onClick={() => setAdding(true)}
+          {...action("add-draft")}
         >
           Add Draft
         </Button>

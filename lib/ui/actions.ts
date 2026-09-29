@@ -17,6 +17,10 @@
  */
 export const ACTIONS = [
   "add-activation",
+  "add-campaign-creator",
+  "add-document",
+  "add-draft",
+  "add-posts",
   "add-song",
   "create-api-key",
   "export-csv",

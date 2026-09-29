@@ -7,6 +7,7 @@ import { Button } from "@/components/ds";
 import { FileText, ExternalLink, Trash2, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { CampaignHeaderActions } from "@/components/campaigns/CampaignHeaderActions";
+import { action } from "@/lib/ui/actions";
 import { formatDateAbs } from "@/lib/format";
 
 /**
@@ -129,7 +130,7 @@ export default function DocumentsTab({ campaignId }: { campaignId: string }) {
 
       {/* In the campaign header, where theirs is (MEASURED at desktop-1600). */}
       <CampaignHeaderActions>
-        <Button variant="primary" iconLeft={<Plus size={16} />} onClick={() => setShowAdd(true)}>
+        <Button variant="primary" iconLeft={<Plus size={16} />} onClick={() => setShowAdd(true)} {...action("add-document")}>
           Add Document
         </Button>
       </CampaignHeaderActions>

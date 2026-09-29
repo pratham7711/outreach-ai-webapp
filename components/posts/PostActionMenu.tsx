@@ -75,17 +75,30 @@ export default function PostActionMenu({
     };
     /* Closed on scroll rather than repositioned: the menu is anchored to a
        point in the viewport, and a page that moves under it leaves it pointing
-       at a different post. */
-    const onScroll = () => onClose();
+       at a different post. "Moves" is measured, not inferred from the event:
+       a scroll event is delivered on the next frame, so one that brought the
+       post into view just before the right-click arrives after the menu is
+       open and would close it at once. */
+    const scrollers = new Map<Element | Document, string>();
+    const offsetOf = (n: Element | Document) =>
+      n instanceof Element ? `${n.scrollLeft},${n.scrollTop}` : `${window.scrollX},${window.scrollY}`;
+    scrollers.set(document, offsetOf(document));
+    for (let n = ref.current?.parentElement; n; n = n.parentElement) scrollers.set(n, offsetOf(n));
+    const onScroll = (e: Event) => {
+      const target = e.target === document || e.target === document.documentElement ? document : (e.target as Element);
+      const at = scrollers.get(target);
+      if (at !== undefined && offsetOf(target) !== at) onClose();
+    };
+    const onResize = () => onClose();
     window.addEventListener("keydown", onKey, true);
     window.addEventListener("mousedown", onDown, true);
     window.addEventListener("scroll", onScroll, true);
-    window.addEventListener("resize", onScroll);
+    window.addEventListener("resize", onResize);
     return () => {
       window.removeEventListener("keydown", onKey, true);
       window.removeEventListener("mousedown", onDown, true);
       window.removeEventListener("scroll", onScroll, true);
-      window.removeEventListener("resize", onScroll);
+      window.removeEventListener("resize", onResize);
     };
   }, [onClose]);
 
