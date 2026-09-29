@@ -15,6 +15,7 @@ import {
   type ImportPerson,
 } from "@/lib/creators/importParse";
 import { LEGACY_CELL_RULES } from "@/lib/creators/importParseLegacy";
+import { resolvePostLinks } from "@/lib/creators/resolvePostLinks";
 
 export const maxDuration = 60;
 export const dynamic = "force-dynamic";
@@ -107,11 +108,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Roster tables are missing; run migrate-creator-roster first." }, { status: 503 });
     }
 
-    const sheet = parseSheet(rows, mapping);
+    const post = await resolvePostLinks(rows, mapping);
+    const sheet = parseSheet(post.rows, mapping);
     if (sheet.people.length > MAX_IMPORT_PEOPLE) {
       return NextResponse.json({ error: `The sheet has ${sheet.people.length} people; at most ${MAX_IMPORT_PEOPLE}.` }, { status: 413 });
     }
-    const firstReading = new Map(parseSheet(rows, mapping, LEGACY_CELL_RULES).people.map((p) => [p.rows.join(","), p]));
+    const firstReading = new Map(parseSheet(post.rows, mapping, LEGACY_CELL_RULES).people.map((p) => [p.rows.join(","), p]));
     const earlier = (people: ImportPerson[]) => people.map((p) => firstReading.get(p.rows.join(",")));
     const who = (p: ImportPerson) => {
       const l = primaryLink(p.links);
@@ -133,7 +135,9 @@ export async function POST(request: NextRequest) {
         unchanged: of("unchanged").length,
         rejected: sheet.rejected.length,
         merged: sheet.mergedRows,
+        resolvedFromPosts: post.resolved.length,
       },
+      resolved: post.resolved.map((r) => `row ${r.row}: ${r.platform.toLowerCase()} @${r.handle}`),
       corrections: { values: corrections.length, sample: corrections.slice(0, SAMPLE) },
       updates: {
         byChange: tally(of("update").flatMap((p) => p.changes)),

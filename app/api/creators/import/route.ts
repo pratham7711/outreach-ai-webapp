@@ -16,6 +16,7 @@ import {
   type ImportPerson,
 } from "@/lib/creators/importParse";
 import { LEGACY_CELL_RULES } from "@/lib/creators/importParseLegacy";
+import { resolvePostLinks } from "@/lib/creators/resolvePostLinks";
 
 export const maxDuration = 60;
 
@@ -52,12 +53,13 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const sheet = parseSheet(rows, mapping);
+  const post = await resolvePostLinks(rows, mapping);
+  const sheet = parseSheet(post.rows, mapping);
   // The same rows as the first import's parser read them, so a value it
   // misread and nobody has touched since can be told from one that was typed.
   // Rows group into the same people either way: grouping is by account and
   // email, which neither parser reads differently.
-  const firstReading = new Map(parseSheet(rows, mapping, LEGACY_CELL_RULES).people.map((p) => [p.rows.join(","), p]));
+  const firstReading = new Map(parseSheet(post.rows, mapping, LEGACY_CELL_RULES).people.map((p) => [p.rows.join(","), p]));
   const earlier = (people: ImportPerson[]) => people.map((p) => firstReading.get(p.rows.join(",")));
   if (sheet.people.length > MAX_IMPORT_PEOPLE) {
     return NextResponse.json(
@@ -79,6 +81,7 @@ export async function POST(request: NextRequest) {
         unchanged: count("unchanged"),
         rejected: sheet.rejected.length,
         merged: sheet.mergedRows,
+        resolvedFromPosts: post.resolved.length,
       },
       newTags: plan.newTags,
       people: plan.people.map((p, index) => ({
