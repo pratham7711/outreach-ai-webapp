@@ -142,6 +142,8 @@ export const AREAS = {
       "app/(dashboard)/payouts/",
       "app/(dashboard)/admin/",
       "app/api/settings/",
+      "app/api/admin/migrate-platform-credentials/",
+      "lib/platforms/platformCredentialDdl.ts",
       "lib/trackers/",
     ],
   },
