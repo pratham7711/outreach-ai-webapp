@@ -92,6 +92,8 @@ export const AREAS = {
       "lib/creators/importCreators.ts",
       "lib/creators/importParse.ts",
       "lib/creators/importParseLegacy.ts",
+      "lib/creators/rosterAudit.ts",
+      "app/api/admin/roster-audit/",
       "lib/creators/profileRefresh.ts",
       "lib/creators/rosterExport.ts",
       "lib/creators/rosterSchemaDdl.ts",
