@@ -25,6 +25,13 @@ export const AVATAR_STORE_PX = 256;
 export const AVATAR_STALE_MS = 14 * 24 * 60 * 60 * 1000;
 /** A creator with nothing readable is retried weekly, not every run. */
 export const AVATAR_RETRY_MS = 7 * 24 * 60 * 60 * 1000;
+/**
+ * How a rate-limited read used to be recorded. Those rows are due again at
+ * once rather than after AVATAR_RETRY_MS: the platform was busy, the creator
+ * was fine.
+ */
+const RATE_LIMITED_FAILURE = "profile read: rate-limited";
+
 /** A signature this close to expiry is treated as already expired. */
 const EXPIRY_MARGIN_S = 10 * 60;
 
@@ -169,7 +176,15 @@ export async function refreshCreatorAvatars({
           {
             avatar: {
               OR: [{ fetchedAt: null }, { fetchedAt: { lt: staleBefore } }],
-              AND: [{ OR: [{ failedAt: null }, { failedAt: { lt: retryBefore } }] }],
+              AND: [
+                {
+                  OR: [
+                    { failedAt: null },
+                    { failedAt: { lt: retryBefore } },
+                    { failure: { startsWith: RATE_LIMITED_FAILURE } },
+                  ],
+                },
+              ],
             },
           },
         ],
@@ -198,6 +213,10 @@ export async function refreshCreatorAvatars({
     throw e;
   }
 
+  // As in refreshRosterProfiles: once a platform rate-limits us, stop asking
+  // it this run, and do not count that as the creator's failure.
+  const limited = new Set<string>();
+
   for (let i = 0; i < creators.length; i++) {
     if (Date.now() > deadline) {
       counts.skipped += creators.length - i;
@@ -218,6 +237,10 @@ export async function refreshCreatorAvatars({
     }
 
     let failure = held.length ? "stored links did not load" : "no live link held";
+    if (!stored && creator.handle && limited.has(creator.platform)) {
+      counts.skipped++;
+      continue;
+    }
     if (!stored && creator.handle) {
       let read: CreatorReadResult = await readCreatorProfile(creator.platform, creator.handle).catch(
         (e): CreatorReadResult => ({ ok: false, reason: "unreadable", detail: String(e) })
@@ -225,6 +248,11 @@ export async function refreshCreatorAvatars({
       if (!read.ok && creator.platform === "TIKTOK" && readTikTokProfileRemote) {
         const remote = await readTikTokProfileRemote(creator.handle).catch(() => null);
         if (remote) read = remote;
+      }
+      if (!read.ok && read.reason === "rate-limited") {
+        limited.add(creator.platform);
+        counts.skipped++;
+        continue;
       }
       if (read.ok && read.profile.avatarUrl) {
         stored = await storeAvatarFromUrl(creator.id, creator.orgId, read.profile.avatarUrl);

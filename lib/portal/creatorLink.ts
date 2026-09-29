@@ -18,25 +18,28 @@ import { stripAt } from "@/lib/format";
  * good for — showing a creator the campaigns they are on — and everything that
  * is the creator's own private data is gated on one of these proofs instead:
  *
- *  1. EMAIL. The roster row's contactEmail is the portal account's email,
- *     compared case-insensitively and trimmed. This is how an agency-created
- *     row gets linked, and it is how a row created by the marketplace join
- *     itself is linked (lib/marketplace/join.ts writes contactEmail from the
- *     CreatorUser profile).
+ *  1. IDENTITY. The roster row's creatorUserId is this portal account. The
+ *     marketplace join writes it when the creator's own join creates the row
+ *     (lib/marketplace/join.ts), so it is only ever set by the person it names.
  *  2. OAUTH. The roster row carries a CreatorSocialAccount whose handle — the
  *     one the PLATFORM returned at connect time (lib/platforms/accountSync.ts),
  *     never the portal username — is this portal handle. Connecting somebody
  *     else's account proves nothing, because the handle stored is the handle of
  *     the account that actually authorised.
  *
- * There is no third signal available: CampaignInvite carries a creatorId and no
- * portal identity, so an invite cannot say WHO accepted it, and the schema is
- * frozen for this change. When one is added, add it here — this is the only
- * place that decides.
+ * An email is not a proof. A roster row's contactEmail is typed in by the
+ * agency or imported from a sign-up sheet, and portal registration never
+ * verifies the address it is given, so matching the two let anyone who knew a
+ * creator's email and handle take over that creator's profile. It can come back
+ * only as a VERIFIED address, once registration proves the account owns it.
+ *
+ * CampaignInvite carries a creatorId and no portal identity, so an invite
+ * cannot say WHO accepted it. When a new proof is added, add it here — this is
+ * the only place that decides.
  */
 export type LinkedCreator = { id: string; orgId: string };
 
-export type LinkSubject = { handle: string; email: string };
+export type LinkSubject = { handle: string; email: string; creatorUserId?: string | null };
 
 function handleVariants(handle: string): string[] {
   const bare = stripAt(handle);
@@ -59,18 +62,12 @@ export async function findLinkedCreatorsForHandle(
       deletedAt: null,
       OR: handleVariants(subject.handle).map((handle) => ({ handle })),
     },
-    select: { id: true, orgId: true, contactEmail: true },
+    select: { id: true, orgId: true, creatorUserId: true },
   });
   if (candidates.length === 0) return [];
 
-  const email = (subject.email ?? "").trim().toLowerCase();
-  const proven = new Set(
-    email
-      ? candidates
-          .filter((c) => (c.contactEmail ?? "").trim().toLowerCase() === email)
-          .map((c) => c.id)
-      : [],
-  );
+  const self = subject.creatorUserId ?? null;
+  const proven = new Set(self ? candidates.filter((c) => c.creatorUserId === self).map((c) => c.id) : []);
 
   const unproven = candidates.filter((c) => !proven.has(c.id));
   if (unproven.length > 0) {

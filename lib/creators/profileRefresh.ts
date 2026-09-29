@@ -64,12 +64,21 @@ export async function refreshRosterProfiles({
     select: { id: true, creatorId: true, orgId: true, platform: true, handle: true, isPrimary: true },
   });
 
+  // A platform that says "too many requests" is left alone for the rest of the
+  // run: its limit is app-wide, so every further read spends quota the
+  // campaign post sync needs, and the account is simply due again next hour.
+  const limited = new Set<string>();
+
   for (let i = 0; i < due.length; i++) {
     if (Date.now() > deadline) {
       counts.skipped += due.length - i;
       break;
     }
     const link = due[i];
+    if (limited.has(link.platform)) {
+      counts.skipped++;
+      continue;
+    }
     counts.considered++;
     const now = new Date(nowMs);
 
@@ -80,6 +89,12 @@ export async function refreshRosterProfiles({
     if (!read.ok && link.platform === "TIKTOK" && readTikTokProfileRemote) {
       const remote = await readTikTokProfileRemote(link.handle).catch(() => null);
       if (remote) read = remote;
+    }
+
+    if (!read.ok && read.reason === "rate-limited") {
+      limited.add(link.platform);
+      counts.skipped++;
+      continue;
     }
 
     if (!read.ok) {

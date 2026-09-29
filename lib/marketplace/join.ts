@@ -54,6 +54,7 @@ export async function resolveOrgCreator(
       averageViews: profile?.averageViews ?? 0,
       rate: profile?.rate ?? null,
       contactEmail: profile?.email ?? session.email,
+      creatorUserId: session.creatorUserId,
     },
     select: { id: true },
   });

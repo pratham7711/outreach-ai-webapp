@@ -140,6 +140,32 @@ describe("refreshCreatorAvatars", () => {
     expect(arg.update).not.toHaveProperty("data");
   });
 
+  it("stops asking a platform that rate-limits, and records no failure for it", async () => {
+    mdb.creator.findMany.mockResolvedValue([
+      { ...base, id: "c1", platform: "INSTAGRAM", handle: "one" },
+      { ...base, id: "c2", platform: "INSTAGRAM", handle: "two" },
+      { ...base, id: "c3", platform: "YOUTUBE", handle: "three" },
+    ]);
+    read.mockImplementation(async (platform: string) =>
+      platform === "INSTAGRAM"
+        ? { ok: false, reason: "rate-limited", detail: "(#4) Application request limit reached" }
+        : { ok: true, profile: { avatarUrl: "https://yt3.ggpht.com/fresh" } },
+    );
+    load.mockResolvedValue(webp);
+    const counts = await refreshCreatorAvatars({ nowMs: NOW });
+    expect(read.mock.calls.map((c) => c[0])).toEqual(["INSTAGRAM", "YOUTUBE"]);
+    const failures = mdb.creatorAvatar.upsert.mock.calls.filter((c: any[]) => c[0].update.failure);
+    expect(failures).toEqual([]);
+    expect(counts).toMatchObject({ stored: 1, failed: 0, skipped: 2 });
+  });
+
+  it("retries a creator whose last failure was a rate limit without waiting a week", async () => {
+    mdb.creator.findMany.mockResolvedValue([]);
+    await refreshCreatorAvatars({ nowMs: NOW });
+    const where = mdb.creator.findMany.mock.calls[0][0].where;
+    expect(JSON.stringify(where)).toContain('"failure":{"startsWith":"profile read: rate-limited"}');
+  });
+
   it("returns empty counts when the table has not been created yet", async () => {
     mdb.creator.findMany.mockRejectedValue(Object.assign(new Error("x"), { code: "P2021" }));
     await expect(refreshCreatorAvatars({ nowMs: NOW })).resolves.toEqual({ considered: 0, stored: 0, failed: 0, skipped: 0 });

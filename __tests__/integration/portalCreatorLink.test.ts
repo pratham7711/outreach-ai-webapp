@@ -13,9 +13,11 @@
  * Registration stays open (agencies roster a creator before that person signs
  * up, and expect them to find their campaigns waiting), so the fix is a second
  * question asked before any of that data is released: has this portal account
- * PROVEN it owns the roster row? Two proofs, no others available on a frozen
- * schema — a contactEmail match, or an OAuth connection whose platform-resolved
- * handle is this handle.
+ * PROVEN it owns the roster row? Two proofs: the row names this portal account
+ * as its creatorUserId (written by the creator's own marketplace join), or an
+ * OAuth connection whose platform-resolved handle is this handle. A contactEmail
+ * match is not one: the agency typed or imported that address, and the portal
+ * never verified the one it was registered with.
  */
 import { findLinkedCreatorsForHandle, isCreatorLinked } from "@/lib/portal/creatorLink";
 import { computeCreatorEarnings } from "@/lib/marketplace/earnings";
@@ -33,7 +35,7 @@ import { db } from "@/lib/db";
 
 const mockDb = db as any;
 
-const subject = { handle: "bigcreator", email: "real@creator.com" };
+const subject = { handle: "bigcreator", email: "real@creator.com", creatorUserId: "cu-1" };
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -43,23 +45,30 @@ beforeEach(() => {
 describe("findLinkedCreatorsForHandle", () => {
   it("returns nothing for a bare handle match with no proof", async () => {
     mockDb.creator.findMany.mockResolvedValue([
-      { id: "c1", orgId: "org-1", contactEmail: "someone.else@brand.com" },
-      { id: "c2", orgId: "org-2", contactEmail: null },
+      { id: "c1", orgId: "org-1", creatorUserId: "cu-someone-else" },
+      { id: "c2", orgId: "org-2", creatorUserId: null },
     ]);
     expect(await findLinkedCreatorsForHandle(subject)).toEqual([]);
   });
 
-  it("links a row whose contactEmail matches, ignoring case and padding", async () => {
+  it("links a row that names this portal account as its creator", async () => {
     mockDb.creator.findMany.mockResolvedValue([
-      { id: "c1", orgId: "org-1", contactEmail: "  Real@Creator.COM " },
-      { id: "c2", orgId: "org-2", contactEmail: "other@brand.com" },
+      { id: "c1", orgId: "org-1", creatorUserId: "cu-1" },
+      { id: "c2", orgId: "org-2", creatorUserId: "cu-2" },
     ]);
     expect(await findLinkedCreatorsForHandle(subject)).toEqual([{ id: "c1", orgId: "org-1" }]);
   });
 
+  it("does not link on the roster's contactEmail: that address was never verified", async () => {
+    mockDb.creator.findMany.mockResolvedValue([{ id: "c1", orgId: "org-1", creatorUserId: null }]);
+    await findLinkedCreatorsForHandle(subject);
+    expect(mockDb.creator.findMany.mock.calls[0][0].select).not.toHaveProperty("contactEmail");
+    expect(await findLinkedCreatorsForHandle(subject)).toEqual([]);
+  });
+
   it("links a row carrying an OAuth connection resolved to this handle", async () => {
     mockDb.creator.findMany.mockResolvedValue([
-      { id: "c1", orgId: "org-1", contactEmail: null },
+      { id: "c1", orgId: "org-1", creatorUserId: null },
     ]);
     mockDb.creatorSocialAccount.findMany.mockResolvedValue([
       { creatorId: "c1", handle: "@BigCreator" },
@@ -69,7 +78,7 @@ describe("findLinkedCreatorsForHandle", () => {
 
   it("does not link a row whose only connection is somebody else's account", async () => {
     mockDb.creator.findMany.mockResolvedValue([
-      { id: "c1", orgId: "org-1", contactEmail: null },
+      { id: "c1", orgId: "org-1", creatorUserId: null },
     ]);
     mockDb.creatorSocialAccount.findMany.mockResolvedValue([
       { creatorId: "c1", handle: "attackers_own_tiktok" },
@@ -90,9 +99,9 @@ describe("findLinkedCreatorsForHandle", () => {
     );
   });
 
-  it("treats an empty email as no proof rather than matching empty contactEmails", async () => {
+  it("treats a missing portal id as no proof rather than matching rows with no creatorUserId", async () => {
     mockDb.creator.findMany.mockResolvedValue([
-      { id: "c1", orgId: "org-1", contactEmail: "" },
+      { id: "c1", orgId: "org-1", creatorUserId: null },
     ]);
     expect(await findLinkedCreatorsForHandle({ handle: "bigcreator", email: "" })).toEqual([]);
   });
@@ -104,8 +113,8 @@ describe("findLinkedCreatorsForHandle", () => {
 
   it("isCreatorLinked answers for one row", async () => {
     mockDb.creator.findMany.mockResolvedValue([
-      { id: "c1", orgId: "org-1", contactEmail: "real@creator.com" },
-      { id: "c2", orgId: "org-2", contactEmail: "other@brand.com" },
+      { id: "c1", orgId: "org-1", creatorUserId: "cu-1" },
+      { id: "c2", orgId: "org-2", creatorUserId: "cu-2" },
     ]);
     expect(await isCreatorLinked("c1", subject)).toBe(true);
     expect(await isCreatorLinked("c2", subject)).toBe(false);
@@ -120,7 +129,7 @@ describe("findLinkedCreatorsForHandle", () => {
 describe("computeCreatorEarnings — money is gated, the campaign list is not", () => {
   beforeEach(() => {
     mockDb.creator.findMany.mockResolvedValue([
-      { id: "c1", orgId: "org-1", contactEmail: "someone.else@brand.com" },
+      { id: "c1", orgId: "org-1", creatorUserId: "cu-someone-else" },
     ]);
     mockDb.activation.findMany.mockResolvedValue([
       {
@@ -165,7 +174,7 @@ describe("computeCreatorEarnings — money is gated, the campaign list is not", 
 
   it("reports the real accrual once ownership is proven", async () => {
     mockDb.creator.findMany.mockResolvedValue([
-      { id: "c1", orgId: "org-1", contactEmail: "real@creator.com" },
+      { id: "c1", orgId: "org-1", creatorUserId: "cu-1" },
     ]);
     const [row] = await computeCreatorEarnings(subject);
     expect(row.linked).toBe(true);

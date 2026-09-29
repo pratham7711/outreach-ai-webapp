@@ -90,6 +90,22 @@ describe("refreshRosterProfiles", () => {
     expect(counts).toMatchObject({ failed: 1, refreshed: 0 });
   });
 
+  it("stops reading a platform once it rate-limits, and leaves those accounts due", async () => {
+    mockDb.creatorProfileLink.findMany.mockResolvedValue([
+      link({ id: "l1", platform: "INSTAGRAM", handle: "one" }),
+      link({ id: "l2", platform: "INSTAGRAM", handle: "two" }),
+      link({ id: "l3", platform: "YOUTUBE", handle: "three" }),
+    ]);
+    mockRead.mockImplementation(async (platform: string) =>
+      platform === "INSTAGRAM" ? { ok: false, reason: "rate-limited", detail: "(#4) Application request limit reached" } : profile(),
+    );
+    const counts = await refreshRosterProfiles({ nowMs: NOW });
+    expect(mockRead.mock.calls.map((c) => c[0])).toEqual(["INSTAGRAM", "YOUTUBE"]);
+    const touched = mockDb.creatorProfileLink.update.mock.calls.map((c: any[]) => c[0].where.id);
+    expect(touched).toEqual(["l3"]);
+    expect(counts).toMatchObject({ refreshed: 1, failed: 0, skipped: 2 });
+  });
+
   it("does nothing before the roster tables exist", async () => {
     (rosterTablesReady as jest.Mock).mockResolvedValue(false);
     expect(await refreshRosterProfiles({ nowMs: NOW })).toMatchObject({ considered: 0 });
