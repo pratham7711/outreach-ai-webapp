@@ -191,6 +191,15 @@ describe("planImport + applyImport", () => {
     expect(store.link.find((l) => l.platform === "TIKTOK")).toMatchObject({ creatorId: c.id, isPrimary: true });
   });
 
+  it("does not offer the handle back as a name", async () => {
+    legacyCreator();
+    for (const name of ["@AkiEdits", "AKIEDITS", "akiedits"]) {
+      const plan = await planImport("org-1", [person({ name })]);
+      expect(plan.people[0].fill.name).toBeUndefined();
+      expect(plan.people[0].changes).not.toContain("fills name");
+    }
+  });
+
   it("keeps a real name the agency gave", async () => {
     legacyCreator({ name: "Aki (priority)" });
     const plan = await planImport("org-1", [person()]);

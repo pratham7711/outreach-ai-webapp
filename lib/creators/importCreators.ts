@@ -191,8 +191,10 @@ export async function planImport(
 
     const fill: PlannedPerson["fill"] = {};
     const own = person.links.find((l) => linkKey(l.platform, l.handle) === linkKey(creator.platform, creator.handle)) ?? primaryLink(person.links)!;
-    const placeholderName = !creator.name.trim() || creator.name.replace(/^@/, "").toLowerCase() === creator.handle.replace(/^@/, "").toLowerCase();
-    if (placeholderName && person.name && person.name !== own.handle) {
+    const bare = (s: string) => s.replace(/^@/, "").toLowerCase();
+    const placeholderName = !creator.name.trim() || bare(creator.name) === bare(creator.handle);
+    // A sheet name that is only the handle again (another case, an @) names no one.
+    if (placeholderName && person.name && bare(person.name) !== bare(own.handle)) {
       fill.name = person.name;
       changes.push("fills name");
     }

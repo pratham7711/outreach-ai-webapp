@@ -538,6 +538,9 @@ function EditCreatorModal({ open, onClose, creator, onSaved }: { open: boolean; 
     contactEmail: creator.contactEmail ?? "",
     rate: creator.rate != null ? String(creator.rate) : "",
     notes: creator.notes ?? "",
+    country: creator.detail?.country ?? "",
+    audienceCountry: creator.detail?.audienceCountry ?? "",
+    niche: creator.detail?.niche ?? "",
   });
   const [saving, setSaving] = useState(false);
 
@@ -551,6 +554,9 @@ function EditCreatorModal({ open, onClose, creator, onSaved }: { open: boolean; 
         contactEmail: creator.contactEmail ?? "",
         rate: creator.rate != null ? String(creator.rate) : "",
         notes: creator.notes ?? "",
+        country: creator.detail?.country ?? "",
+        audienceCountry: creator.detail?.audienceCountry ?? "",
+        niche: creator.detail?.niche ?? "",
       });
     }
   }, [open, creator]);
@@ -569,6 +575,9 @@ function EditCreatorModal({ open, onClose, creator, onSaved }: { open: boolean; 
     const rateNum = form.rate ? Number(form.rate) : null;
     if (rateNum !== (creator.rate != null ? Number(creator.rate) : null)) payload.rate = rateNum;
     if (form.notes !== (creator.notes ?? "")) payload.notes = form.notes || null;
+    for (const k of ["country", "audienceCountry", "niche"] as const) {
+      if (form[k].trim() !== (creator.detail?.[k] ?? "")) payload[k] = form[k].trim() || null;
+    }
 
     try {
       const res = await fetch(`/api/creators/${creator.id}`, {
@@ -629,6 +638,9 @@ function EditCreatorModal({ open, onClose, creator, onSaved }: { open: boolean; 
         </div>
         <Input label="Contact Email" type="email" value={form.contactEmail} onChange={(e: React.ChangeEvent<HTMLInputElement>) => set("contactEmail", e.target.value)} />
         <Input label="Rate per Post (USD)" type="number" value={form.rate} onChange={(e: React.ChangeEvent<HTMLInputElement>) => set("rate", e.target.value)} />
+        <Input label="Country" value={form.country} onChange={(e: React.ChangeEvent<HTMLInputElement>) => set("country", e.target.value)} />
+        <Input label="Audience country" value={form.audienceCountry} onChange={(e: React.ChangeEvent<HTMLInputElement>) => set("audienceCountry", e.target.value)} />
+        <Input label="Niche" value={form.niche} onChange={(e: React.ChangeEvent<HTMLInputElement>) => set("niche", e.target.value)} />
         <div>
           <label htmlFor="edit-creator-notes" style={{ display: "block", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6 }}>Notes</label>
           <textarea id="edit-creator-notes" value={form.notes} onChange={e => set("notes", e.target.value)} style={textareaStyle} />

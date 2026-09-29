@@ -4,12 +4,14 @@
 import { NextRequest } from 'next/server';
 import { GET, PATCH } from '@/app/api/creators/[id]/route';
 
-jest.mock('@/lib/db', () => ({
-  db: {
+jest.mock('@/lib/db', () => {
+  const db: any = {
     creator: {
       findFirst: jest.fn(),
       update: jest.fn(),
     },
+    creatorDetail: { findUnique: jest.fn().mockResolvedValue(null), upsert: jest.fn() },
+    $queryRawUnsafe: jest.fn(),
     // Campaign counts, and the campaign list behind them, are derived from
     // posts and activations rather than read off the relation.
     post: { groupBy: jest.fn().mockResolvedValue([]) },
@@ -17,8 +19,10 @@ jest.mock('@/lib/db', () => ({
     campaign: { findMany: jest.fn().mockResolvedValue([]) },
     // The lists a creator is on, shown on their profile.
     creatorListItem: { findMany: jest.fn().mockResolvedValue([]) },
-  },
-}));
+  };
+  db.$transaction = jest.fn(async (fn: (tx: unknown) => unknown) => fn(db));
+  return { db };
+});
 
 jest.mock('@/lib/auth', () => ({
   auth: jest.fn(),
@@ -26,6 +30,8 @@ jest.mock('@/lib/auth', () => ({
 
 import { db } from '@/lib/db';
 import { auth } from '@/lib/auth';
+import { ROSTER_TABLES } from '@/lib/creators/rosterSchemaDdl';
+import { resetRosterTablesCache } from '@/lib/creators/rosterTables';
 
 const mockAuth = auth as jest.Mock;
 const mockDb = db as any;
@@ -237,6 +243,40 @@ describe('PATCH /api/creators/[id]', () => {
         data: { name: 'Updated Name', handle: '@updated' },
       })
     );
+  });
+
+  it('saves country, audience country and niche onto the detail row', async () => {
+    resetRosterTablesCache();
+    mockDb.$queryRawUnsafe.mockResolvedValue([{ n: ROSTER_TABLES.length }]);
+    mockDb.creator.findFirst.mockResolvedValue({ id: 'cr-1', orgId: 'org-1' });
+    mockDb.creator.update.mockResolvedValue({ id: 'cr-1', name: 'A' });
+
+    const req = makeRequest('http://localhost/api/creators/cr-1', {
+      method: 'PATCH',
+      body: JSON.stringify({ audienceCountry: ' Indonesia, Thailand ', niche: '' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const res = await PATCH(req, makeParams('cr-1'));
+
+    expect(res.status).toBe(200);
+    expect(mockDb.creator.update).toHaveBeenCalledWith(expect.objectContaining({ data: {} }));
+    expect(mockDb.creatorDetail.upsert).toHaveBeenCalledWith({
+      where: { creatorId: 'cr-1' },
+      create: { creatorId: 'cr-1', orgId: 'org-1', audienceCountry: 'Indonesia, Thailand', niche: null },
+      update: { audienceCountry: 'Indonesia, Thailand', niche: null },
+    });
+  });
+
+  it('leaves the detail row alone when no detail field is sent', async () => {
+    mockDb.creator.findFirst.mockResolvedValue({ id: 'cr-1', orgId: 'org-1' });
+    mockDb.creator.update.mockResolvedValue({ id: 'cr-1', name: 'B' });
+    const req = makeRequest('http://localhost/api/creators/cr-1', {
+      method: 'PATCH',
+      body: JSON.stringify({ name: 'B' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    await PATCH(req, makeParams('cr-1'));
+    expect(mockDb.creatorDetail.upsert).not.toHaveBeenCalled();
   });
 
   it('returns 500 on database error', async () => {

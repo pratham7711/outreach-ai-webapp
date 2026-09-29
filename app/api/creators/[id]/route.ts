@@ -19,7 +19,12 @@ const updateCreatorSchema = z.object({
   notes: z.string().nullable().optional(),
   avatarUrl: httpUrl().nullable().optional(),
   paymentInfo: z.string().nullable().optional(),
+  country: z.string().trim().max(200).nullable().optional(),
+  audienceCountry: z.string().trim().max(200).nullable().optional(),
+  niche: z.string().trim().max(500).nullable().optional(),
 });
+
+const DETAIL_FIELDS = ["country", "audienceCountry", "niche"] as const;
 
 export async function GET(
   req: NextRequest,
@@ -117,7 +122,29 @@ export async function PATCH(
     }
     const existing = await db.creator.findFirst({ where: { id, orgId, deletedAt: null } });
     if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
-    const creator = await db.creator.update({ where: { id }, data: parsed.data });
+    const { country, audienceCountry, niche, ...fields } = parsed.data;
+    const detail = Object.fromEntries(
+      Object.entries({ country, audienceCountry, niche })
+        .filter(([, v]) => v !== undefined)
+        .map(([k, v]) => [k, v || null]),
+    ) as Partial<Record<(typeof DETAIL_FIELDS)[number], string | null>>;
+    if (Object.keys(detail).length && !(await rosterTablesReady())) {
+      return NextResponse.json({ error: "Country and niche can't be saved yet." }, { status: 503 });
+    }
+    const detailBefore = Object.keys(detail).length
+      ? await db.creatorDetail.findUnique({ where: { creatorId: id }, select: { country: true, audienceCountry: true, niche: true } })
+      : null;
+    const creator = await db.$transaction(async (tx) => {
+      const updated = await tx.creator.update({ where: { id }, data: fields });
+      if (Object.keys(detail).length) {
+        await tx.creatorDetail.upsert({
+          where: { creatorId: id },
+          create: { creatorId: id, orgId, ...detail },
+          update: detail,
+        });
+      }
+      return updated;
+    });
 
     await logAudit({
       orgId,
@@ -132,12 +159,14 @@ export async function PATCH(
         name: existing.name,
         handle: existing.handle,
         platform: existing.platform,
+        ...(Object.keys(detail).length && { detail: detailBefore }),
       },
       after: {
         id: creator.id,
         name: creator.name,
         handle: creator.handle,
         platform: creator.platform,
+        ...(Object.keys(detail).length && { detail }),
       },
     });
 
