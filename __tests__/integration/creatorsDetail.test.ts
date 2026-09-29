@@ -279,6 +279,31 @@ describe('PATCH /api/creators/[id]', () => {
     expect(mockDb.creatorDetail.upsert).not.toHaveBeenCalled();
   });
 
+  it('sets the follower and average-view counts of a record no refresh reads', async () => {
+    mockDb.creator.findFirst.mockResolvedValue({ id: 'cr-1', orgId: 'org-1', followersCount: 1100000, averageViews: 0 });
+    mockDb.creator.update.mockResolvedValue({ id: 'cr-1', name: 'B', followersCount: 276169, averageViews: 3200 });
+    const req = makeRequest('http://localhost/api/creators/cr-1', {
+      method: 'PATCH',
+      body: JSON.stringify({ followersCount: 276169, averageViews: 3200 }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    expect((await PATCH(req, makeParams('cr-1'))).status).toBe(200);
+    expect(mockDb.creator.update).toHaveBeenCalledWith({ where: { id: 'cr-1' }, data: { followersCount: 276169, averageViews: 3200 } });
+  });
+
+  it('refuses a count that cannot be one', async () => {
+    mockDb.creator.findFirst.mockResolvedValue({ id: 'cr-1', orgId: 'org-1' });
+    for (const followersCount of [-1, '17.3k', null]) {
+      const req = makeRequest('http://localhost/api/creators/cr-1', {
+        method: 'PATCH',
+        body: JSON.stringify({ followersCount }),
+        headers: { 'Content-Type': 'application/json' },
+      });
+      expect((await PATCH(req, makeParams('cr-1'))).status).toBe(400);
+    }
+    expect(mockDb.creator.update).not.toHaveBeenCalled();
+  });
+
   it('returns 500 on database error', async () => {
     mockDb.creator.findFirst.mockResolvedValue({ id: 'cr-1', orgId: 'org-1' });
     mockDb.creator.update.mockRejectedValue(new Error('DB error'));
