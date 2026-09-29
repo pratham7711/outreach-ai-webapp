@@ -100,4 +100,54 @@ describe("PATCH /api/creators/[id]/profile-links/[linkId]", () => {
     expect((await res.json()).error).toBe("@taken is already on Someone Else's profile.");
     expect(tx.creatorProfileLink.update).not.toHaveBeenCalled();
   });
+
+  it("sets the counts of an account the read cannot see, keeps its place in the queue and mirrors the primary", async () => {
+    findFirst.mockReset().mockResolvedValueOnce({ ...LINK, followersCount: 104, averageViews: null });
+    const res = await patch({ followersCount: 102376, averageViews: 5400 });
+    expect(res.status).toBe(200);
+    expect((await res.json()).link).toMatchObject({ handle: "synthfixx", followersCount: 102376, averageViews: 5400 });
+    expect(tx.creatorProfileLink.update).toHaveBeenCalledWith({
+      where: { id: "link-1", orgId: "org-1" },
+      data: { followersCount: 102376, averageViews: 5400 },
+    });
+    expect(tx.creator.update).toHaveBeenCalledWith({
+      where: { id: "creator-1", orgId: "org-1" },
+      data: { followersCount: 102376, averageViews: 5400 },
+    });
+    expect(findFirst).toHaveBeenCalledTimes(1);
+    expect(logAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        before: { platform: "TIKTOK", handle: "synthfixx", followersCount: 104, averageViews: null },
+        after: { platform: "TIKTOK", handle: "synthfixx", followersCount: 102376, averageViews: 5400 },
+      }),
+    );
+  });
+
+  it("clears a count to unknown, and leaves a secondary account's counts off the creator", async () => {
+    findFirst.mockReset().mockResolvedValueOnce({ ...LINK, isPrimary: false });
+    expect((await patch({ averageViews: null })).status).toBe(200);
+    expect(tx.creatorProfileLink.update.mock.calls[0][0].data).toEqual({ averageViews: null });
+    expect(tx.creator.update).not.toHaveBeenCalled();
+  });
+
+  it("takes a new handle and counts together", async () => {
+    const res = await patch({ handle: "synthfix01", followersCount: 2000 });
+    expect(res.status).toBe(200);
+    expect(tx.creatorProfileLink.update.mock.calls[0][0].data).toEqual({
+      handle: "synthfix01",
+      url: "https://www.tiktok.com/@synthfix01",
+      refreshedAt: null,
+      refreshError: null,
+      followersCount: 2000,
+    });
+    expect(tx.creator.update.mock.calls[0][0].data).toEqual({ handle: "@synthfix01", followersCount: 2000 });
+  });
+
+  it("refuses an empty body and a count that cannot be one", async () => {
+    expect((await patch({})).status).toBe(400);
+    findFirst.mockReset().mockResolvedValue(LINK);
+    expect((await patch({ followersCount: -5 })).status).toBe(400);
+    expect((await patch({ followersCount: "17.3k" })).status).toBe(400);
+    expect(tx.creatorProfileLink.update).not.toHaveBeenCalled();
+  });
 });

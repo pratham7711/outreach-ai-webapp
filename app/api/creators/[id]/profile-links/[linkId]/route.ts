@@ -11,15 +11,23 @@ import { platformLabel } from "@/lib/format";
 
 const LINKABLE = new Set<string>(["TIKTOK", "INSTAGRAM", "YOUTUBE", "TWITTER"]);
 
-const fixSchema = z.object({ handle: z.string().trim().min(1).max(300) });
+const count = z.number().finite().min(0).max(5e9).nullable().optional();
+
+const fixSchema = z
+  .object({ handle: z.string().trim().min(1).max(300).optional(), followersCount: count, averageViews: count })
+  .refine((b) => b.handle !== undefined || b.followersCount !== undefined || b.averageViews !== undefined);
 
 /**
  * PATCH /api/creators/[id]/profile-links/[linkId] — correct an account's handle,
- * typed bare, with an @, or as the profile link.
+ * typed bare, with an @, or as the profile link; or its follower and average
+ * view counts.
  *
- * The account is queued for the next hourly read (refreshedAt cleared) and its
- * "not found" is dropped. Its counts are kept: they are what the creator wrote
- * on the sign-up form about their real account, and the read replaces them.
+ * A new handle queues the account for the next hourly read (refreshedAt
+ * cleared) and drops its "not found". Its counts are kept unless new ones are
+ * sent: they are what the creator wrote on the sign-up form about their real
+ * account, and the read replaces them. Counts set here are for an account the
+ * read cannot see (a personal Instagram, say); on the primary account they are
+ * mirrored onto the creator, as the read does.
  */
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string; linkId: string }> }) {
   const gate = await requirePermission(request, "creators:create");
@@ -35,44 +43,65 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   const link = await db.creatorProfileLink.findFirst({
     where: { id: linkId, orgId, creatorId: id, creator: { deletedAt: null } },
-    select: { id: true, platform: true, handle: true, isPrimary: true, creator: { select: { name: true } } },
+    select: { id: true, platform: true, handle: true, url: true, isPrimary: true, followersCount: true, averageViews: true, creator: { select: { name: true } } },
   });
   if (!link) return NextResponse.json({ error: "Not found" }, { status: 404 });
   if (!LINKABLE.has(link.platform)) {
     return NextResponse.json({ error: `${platformLabel(link.platform)} handles can't be changed here.` }, { status: 400 });
   }
 
-  const read = parseProfileLink(parsed.data.handle, link.platform as ImportPlatform);
-  if (!read.ok) {
-    return NextResponse.json({ error: "empty" in read ? "Type the handle or paste the profile link." : read.reason }, { status: 400 });
-  }
-  if (read.link.platform !== link.platform) {
-    return NextResponse.json(
-      { error: `That link is for ${platformLabel(read.link.platform)}; this account is on ${platformLabel(link.platform)}.` },
-      { status: 400 },
-    );
-  }
-  const { handle, url } = read.link;
-  if (handle === link.handle) {
-    return NextResponse.json({ error: `@${handle} is the handle it already has.` }, { status: 400 });
-  }
+  const counts: { followersCount?: number | null; averageViews?: number | null } = {};
+  if (parsed.data.followersCount !== undefined) counts.followersCount = parsed.data.followersCount;
+  if (parsed.data.averageViews !== undefined) counts.averageViews = parsed.data.averageViews;
 
-  const taken = await db.creatorProfileLink.findFirst({
-    where: { orgId, platform: link.platform, handle, NOT: { id: link.id } },
-    select: { creator: { select: { name: true } } },
-  });
-  if (taken) {
-    return NextResponse.json({ error: `@${handle} is already on ${taken.creator.name}'s profile.` }, { status: 409 });
+  let handle = link.handle;
+  let url = link.url;
+  if (parsed.data.handle !== undefined) {
+    const read = parseProfileLink(parsed.data.handle, link.platform as ImportPlatform);
+    if (!read.ok) {
+      return NextResponse.json({ error: "empty" in read ? "Type the handle or paste the profile link." : read.reason }, { status: 400 });
+    }
+    if (read.link.platform !== link.platform) {
+      return NextResponse.json(
+        { error: `That link is for ${platformLabel(read.link.platform)}; this account is on ${platformLabel(link.platform)}.` },
+        { status: 400 },
+      );
+    }
+    if (read.link.handle === link.handle && !Object.keys(counts).length) {
+      return NextResponse.json({ error: `@${read.link.handle} is the handle it already has.` }, { status: 400 });
+    }
+    handle = read.link.handle;
+    url = read.link.url;
+  }
+  const handleChanged = handle !== link.handle;
+
+  if (handleChanged) {
+    const taken = await db.creatorProfileLink.findFirst({
+      where: { orgId, platform: link.platform, handle, NOT: { id: link.id } },
+      select: { creator: { select: { name: true } } },
+    });
+    if (taken) {
+      return NextResponse.json({ error: `@${handle} is already on ${taken.creator.name}'s profile.` }, { status: 409 });
+    }
   }
 
   try {
     await db.$transaction(async (tx) => {
       await tx.creatorProfileLink.update({
         where: { id: link.id, orgId },
-        data: { handle, url, refreshedAt: null, refreshError: null },
+        data: { ...(handleChanged ? { handle, url, refreshedAt: null, refreshError: null } : {}), ...counts },
       });
-      // Creator.handle mirrors the primary account; every list and the tracker read it.
-      if (link.isPrimary) await tx.creator.update({ where: { id, orgId }, data: { handle: `@${handle}` } });
+      // Creator.handle and its counts mirror the primary account; every list and the tracker read them.
+      if (link.isPrimary) {
+        await tx.creator.update({
+          where: { id, orgId },
+          data: {
+            ...(handleChanged ? { handle: `@${handle}` } : {}),
+            ...(counts.followersCount !== undefined ? { followersCount: counts.followersCount ?? 0 } : {}),
+            ...(counts.averageViews !== undefined ? { averageViews: counts.averageViews ?? 0 } : {}),
+          },
+        });
+      }
     });
   } catch (err: any) {
     if (err?.code === "P2002") {
@@ -89,9 +118,16 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     entityId: id,
     entityLabel: link.creator.name,
     ipAddress: getRequestIp(request),
-    before: { platform: link.platform, handle: link.handle },
-    after: { platform: link.platform, handle },
+    before: {
+      platform: link.platform,
+      handle: link.handle,
+      ...(counts.followersCount !== undefined ? { followersCount: link.followersCount } : {}),
+      ...(counts.averageViews !== undefined ? { averageViews: link.averageViews } : {}),
+    },
+    after: { platform: link.platform, handle, ...counts },
   });
 
-  return NextResponse.json({ link: { id: link.id, platform: link.platform, handle, url, problem: null, refreshedAt: null } });
+  return NextResponse.json({
+    link: { id: link.id, platform: link.platform, handle, url, ...counts, ...(handleChanged ? { problem: null, refreshedAt: null } : {}) },
+  });
 }
