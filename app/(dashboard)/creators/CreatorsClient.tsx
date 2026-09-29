@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Plus, LayoutGrid, List as ListIcon, Users, Upload, X, Globe2, ChevronRight } from "lucide-react";
+import { Plus, LayoutGrid, List as ListIcon, Users, Upload, X, Globe2, ChevronRight, AlertTriangle } from "lucide-react";
 import { Badge, Card, Input, EmptyState } from "@pratham7711/ui";
 import { PageHeader, StatusTabs, Pagination, FilterDrawer, FilterButton, SortableTh, Button } from "@/components/ds";
 import type { FilterDef, FilterValues } from "@/components/ds";
@@ -127,6 +127,7 @@ export default function CreatorsClient({
   tagOptions,
   query,
   rosterReady,
+  handleIssueCount = 0,
   audienceCountryOptions,
   countryOptions,
 }: {
@@ -142,6 +143,8 @@ export default function CreatorsClient({
   sort: CreatorSort;
   query: string;
   rosterReady: boolean;
+  /** Creators with an account the platform could not find, across the roster. */
+  handleIssueCount?: number;
   audienceCountryOptions: CountryOption[];
   countryOptions: CountryOption[];
 }) {
@@ -239,6 +242,15 @@ export default function CreatorsClient({
       label: "Activity",
       options: [{ key: "hasPosts", label: "Has tracked posts" }],
     },
+    ...(rosterReady
+      ? [
+          {
+            type: "toggleGroup" as const,
+            label: "Handle check",
+            options: [{ key: "handleIssues", label: "Account not found" }],
+          },
+        ]
+      : []),
   ];
 
   const anyFilter = Boolean(q) || platform !== "All" || filterCount > 0;
@@ -293,6 +305,7 @@ export default function CreatorsClient({
       out.push({ id: "added", label: `Added ${label}`, clear: { addedFrom: null, addedTo: null } });
     }
     if (fv.hasPosts) out.push({ id: "hasPosts", label: "Has tracked posts", clear: { hasPosts: null } });
+    if (fv.handleIssues) out.push({ id: "handleIssues", label: "Account not found", clear: { handleIssues: null } });
     return out;
   }, [q, platform, filterValues]);
 
@@ -412,6 +425,18 @@ export default function CreatorsClient({
         active={platform}
         onChange={(key) => push({ platform: key === "All" ? null : key, page: null })}
       />
+
+      {handleIssueCount > 0 && !filterValues.handleIssues && (
+        <div className="cc-roster-notice" role="note">
+          <AlertTriangle size={16} aria-hidden className="cc-roster-notice-icon" />
+          <span>
+            {`${handleIssueCount === 1 ? "1 creator has" : `${formatFull(handleIssueCount)} creators have`} an account we couldn't find. The handle may be misspelt.`}
+          </span>
+          <button type="button" onClick={() => push({ handleIssues: "1", page: null })}>
+            Review {handleIssueCount === 1 ? "it" : "them"}
+          </button>
+        </div>
+      )}
 
       {active.length > 0 && (
         <div className="cc-roster-active" aria-label="Filters in use">

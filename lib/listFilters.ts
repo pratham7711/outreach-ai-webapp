@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { csvParam, firstParam, UNFILED, type CampaignSort, type CreatorSort } from "@/lib/listParams";
 import { Prisma, type CampaignStatus, type CampaignType, type Platform } from "@/lib/generated/prisma/client";
+import { HANDLE_PROBLEM_WHERE } from "@/lib/creators/handleCheck";
 
 /**
  * Filters for the server-paginated list pages, defined once and read from the
@@ -207,6 +208,8 @@ export type CreatorFilters = {
   country: string[];
   /** Has an account on any of these, primary or not. */
   accounts: Platform[];
+  /** Has an account the platform could not find (lib/creators/handleCheck). Roster tables only. */
+  handleIssues?: boolean;
 };
 
 const optionalAmountParam = z.coerce.number().nonnegative().optional();
@@ -241,6 +244,7 @@ export const creatorFilterSchema = z.object({
   audienceCountry: csvTextParam,
   country: csvTextParam,
   accounts: csvEnumParam(PLATFORMS),
+  handleIssues: z.enum(["1"]).optional().transform((v) => (v ? true : undefined)),
 });
 
 /** Every URL key the creator filters read, for callers that forward them. */
@@ -261,6 +265,7 @@ export const CREATOR_FILTER_KEYS = [
   "audienceCountry",
   "country",
   "accounts",
+  "handleIssues",
 ] as const;
 
 export function readCreatorFilters(sp: Record<string, string | string[] | undefined>): CreatorFilters {
@@ -282,6 +287,7 @@ export function readCreatorFilters(sp: Record<string, string | string[] | undefi
     audienceCountry: firstParam(sp.audienceCountry),
     country: firstParam(sp.country),
     accounts: firstParam(sp.accounts),
+    handleIssues: firstParam(sp.handleIssues),
   });
   if (parsed.success) return parsed.data;
   return { platform: [], tags: [], excludeTags: [], audienceCountry: [], country: [], accounts: [] };
@@ -312,6 +318,7 @@ export function creatorWhere(orgId: string, f: CreatorFilters, { roster = false 
   if (roster && f.country?.length) {
     and.push({ OR: f.country.map((c) => ({ detail: { country: { contains: c, mode: Prisma.QueryMode.insensitive } } })) });
   }
+  if (roster && f.handleIssues) and.push({ profileLinks: { some: HANDLE_PROBLEM_WHERE } });
   return {
     ...(and.length && { AND: and }),
     orgId,
@@ -359,7 +366,8 @@ export function countCreatorFilters(f: CreatorFilters): number {
     (f.minRate !== undefined || f.maxRate !== undefined ? 1 : 0) +
     (f.audienceCountry?.length ? 1 : 0) +
     (f.country?.length ? 1 : 0) +
-    (f.accounts?.length ? 1 : 0)
+    (f.accounts?.length ? 1 : 0) +
+    (f.handleIssues ? 1 : 0)
   );
 }
 

@@ -13,6 +13,8 @@ import { formatDateAbs, platformLabel, formatFull, formatFullCurrency } from "@/
 import { toast } from "sonner";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
 import PlatformChips from "@/components/creators/PlatformChips";
+import HandleFix from "@/components/creators/HandleFix";
+import type { HandleProblem } from "@/lib/creators/handleCheck";
 
 function formatNumber(num: number): string {
   return formatFull(num);
@@ -119,7 +121,17 @@ type Creator = {
   flagLinks?: { flag: { id: string; name: string; emoji: string | null } }[];
   _count: { activations: number; posts: number };
   /** Every account on the roster for this person, primary (TikTok first) at the head. */
-  profileLinks?: { platform: string; handle: string; url: string | null; followersCount: number | null; averageViews: number | null; isPrimary: boolean }[];
+  profileLinks?: {
+    id: string;
+    platform: string;
+    handle: string;
+    url: string | null;
+    followersCount: number | null;
+    averageViews: number | null;
+    isPrimary: boolean;
+    /** The platform could not find this account; see lib/creators/handleCheck. */
+    problem: HandleProblem | null;
+  }[];
   detail?: { country: string | null; audienceCountry: string | null; niche: string | null; source: string | null; signedUpAt: string | null } | null;
   lists?: { id: string; name: string }[];
 };
@@ -822,6 +834,16 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
               </button>
             </div>
           </div>
+
+          {creator.profileLinks?.some((l) => l.problem) && (
+            <div className="cc-handle-fixes">
+              {creator.profileLinks.map((l) =>
+                l.problem ? (
+                  <HandleFix key={l.id} creatorId={creator.id} link={{ ...l, problem: l.problem }} onSaved={refreshCreator} />
+                ) : null,
+              )}
+            </div>
+          )}
 
           {/* Stats row */}
           {/* Only the figures this creator actually has. Follower counts and

@@ -8,6 +8,7 @@ import { CREATOR_FILTER_KEYS, countCreatorFilters, creatorOrderBy, creatorWhere,
 import { firstParam, readCreatorSort } from "@/lib/listParams";
 import { rosterTablesReady } from "@/lib/creators/rosterTables";
 import { isFetchableAvatarUrl, storedAvatarVersions } from "@/lib/creators/avatarStore";
+import { HANDLE_PROBLEM_WHERE, handleProblem } from "@/lib/creators/handleCheck";
 
 /** "United States, Brazil" rows counted per country, most common first. */
 function countryOptions(groups: { value: string | null; _count: number }[]) {
@@ -71,14 +72,23 @@ export default async function CreatorsPage({
   // and counting activations alone reads 0 campaigns for the imported roster.
   const ids = creators.map((c) => c.id);
   const detailWhere = { orgId, creator: { deletedAt: null } };
-  const [derivedAvgViews, campaignCounts, links, details, audienceGroups, countryGroups, avatarVersions] = await Promise.all([
+  const [derivedAvgViews, campaignCounts, links, details, audienceGroups, countryGroups, avatarVersions, handleIssueCount] = await Promise.all([
     deriveAverageViews(ids),
     deriveCampaignCounts(ids),
     roster
       ? db.creatorProfileLink.findMany({
           where: { orgId, creatorId: { in: ids } },
           orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
-          select: { creatorId: true, platform: true, handle: true, url: true, followersCount: true, averageViews: true, refreshedAt: true },
+          select: {
+            creatorId: true,
+            platform: true,
+            handle: true,
+            url: true,
+            followersCount: true,
+            averageViews: true,
+            refreshedAt: true,
+            refreshError: true,
+          },
         })
       : [],
     roster
@@ -87,6 +97,8 @@ export default async function CreatorsPage({
     roster ? db.creatorDetail.groupBy({ by: ["audienceCountry"], where: detailWhere, _count: true }) : [],
     roster ? db.creatorDetail.groupBy({ by: ["country"], where: detailWhere, _count: true }) : [],
     storedAvatarVersions(ids, orgId),
+    // Across the whole roster, not this page: it is what tells someone there is anything to fix.
+    roster ? db.creator.count({ where: { orgId, deletedAt: null, profileLinks: { some: HANDLE_PROBLEM_WHERE } } }) : 0,
   ]);
   const linksBy = new Map<string, typeof links>();
   for (const l of links) linksBy.set(l.creatorId, [...(linksBy.get(l.creatorId) ?? []), l]);
@@ -123,11 +135,16 @@ export default async function CreatorsPage({
         _count: c._count,
         rate: c.rate,
         tags: c.tagLinks.map((t) => t.tag.name).sort((a, b) => a.localeCompare(b)),
-        links: (linksBy.get(c.id) ?? []).map((l) => ({ ...l, refreshedAt: l.refreshedAt?.toISOString() ?? null })),
+        links: (linksBy.get(c.id) ?? []).map(({ refreshError, ...l }) => ({
+          ...l,
+          refreshedAt: l.refreshedAt?.toISOString() ?? null,
+          problem: handleProblem(l.platform, refreshError),
+        })),
         audienceCountry: detailBy.get(c.id)?.audienceCountry ?? null,
       }))}
       query={query.toString()}
       rosterReady={roster}
+      handleIssueCount={handleIssueCount}
       audienceCountryOptions={countryOptions(audienceGroups.map((g) => ({ value: g.audienceCountry, _count: g._count })))}
       countryOptions={countryOptions(countryGroups.map((g) => ({ value: g.country, _count: g._count })))}
       platformCounts={platformCounts}
@@ -151,6 +168,7 @@ export default async function CreatorsPage({
         audienceCountry: firstParam(sp.audienceCountry),
         country: firstParam(sp.country),
         accounts: firstParam(sp.accounts),
+        handleIssues: firstParam(sp.handleIssues),
       }}
       filterCount={countCreatorFilters({ ...filters, platform: [] })}
       sort={sort}

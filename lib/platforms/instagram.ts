@@ -82,6 +82,21 @@ export class InstagramTimeoutError extends Error {
 }
 
 /**
+ * Meta throttled us. Thrown only to callers that ask (`rateLimitThrows`), because
+ * to everyone else it has always been one more null -- and to the roster read a
+ * null means "this account is personal", which is a permanent-sounding answer
+ * for what is only a busy hour.
+ */
+export class InstagramRateLimitError extends Error {
+  constructor(readonly code: number) {
+    super(`Graph rate limit (#${code})`);
+    this.name = "InstagramRateLimitError";
+  }
+}
+
+const RATE_LIMIT_CODES = new Set([4, 17, 32, 613]);
+
+/**
  * How long ONE Graph round trip may take.
  *
  * Callers pass a signal covering the whole walk, and that walk is not one
@@ -107,6 +122,7 @@ export async function graphGet(
   path: string,
   params: Record<string, string>,
   signal?: AbortSignal,
+  { rateLimitThrows = false }: { rateLimitThrows?: boolean } = {},
 ): Promise<any | null> {
   const url = new URL(`${GRAPH_BASE}/${path}`);
   for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
@@ -142,11 +158,14 @@ export async function graphGet(
           typeof message === "string" ? message : `Graph auth failure (${res.status})`,
         );
       }
+      if (rateLimitThrows && typeof code === "number" && RATE_LIMIT_CODES.has(code)) {
+        throw new InstagramRateLimitError(code);
+      }
       return null;
     }
     return await res.json();
   } catch (err) {
-    if (err instanceof InstagramAuthError) throw err;
+    if (err instanceof InstagramAuthError || err instanceof InstagramRateLimitError) throw err;
     /* An abort is ours, so it is named and thrown rather than folded in with
        Graph 500s and empty results. AbortSignal.timeout raises TimeoutError;
        an explicitly aborted caller signal raises AbortError. */

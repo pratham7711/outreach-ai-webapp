@@ -1,5 +1,6 @@
 import { formatCompact, formatFull, platformLabel } from "@/lib/format";
 import { PlatformGlyph } from "@/components/ui/PlatformGlyph";
+import { handleProblemText, type HandleProblem } from "@/lib/creators/handleCheck";
 
 export type PlatformChipLink = {
   platform: string;
@@ -7,6 +8,8 @@ export type PlatformChipLink = {
   url?: string | null;
   followersCount?: number | null;
   averageViews?: number | null;
+  /** The platform could not find this account; its chip says so instead of a count. */
+  problem?: HandleProblem | null;
 };
 
 /**
@@ -34,25 +37,30 @@ export default function PlatformChips({
     <span className="cc-platform-chips" data-compact={compact || undefined}>
       {shown.map((l) => {
         const label = platformLabel(l.platform);
-        const title = [
-          `${label} @${l.handle}`,
-          l.followersCount ? `${formatFull(l.followersCount)} followers` : null,
-          l.averageViews ? `${formatFull(l.averageViews)} avg views` : null,
-        ]
-          .filter(Boolean)
-          .join(" · ");
+        const title = l.problem
+          ? handleProblemText(l.platform, l.handle, l.problem)
+          : [
+              `${label} @${l.handle}`,
+              l.followersCount ? `${formatFull(l.followersCount)} followers` : null,
+              l.averageViews ? `${formatFull(l.averageViews)} avg views` : null,
+            ]
+              .filter(Boolean)
+              .join(" · ");
         const body = compact ? (
           <>
             <PlatformGlyph platform={l.platform} size="1.15em" className="cc-platform-chip-mark" />
-            <span className="cc-platform-chip-text">{l.followersCount ? formatCompact(l.followersCount) : label}</span>
+            <span className="cc-platform-chip-text">
+              {l.problem ? "Not found" : l.followersCount ? formatCompact(l.followersCount) : label}
+            </span>
           </>
         ) : (
           <>
             {label}
-            {l.followersCount ? ` · ${formatFull(l.followersCount)}` : ""}
+            {l.problem ? " · not found" : l.followersCount ? ` · ${formatFull(l.followersCount)}` : ""}
           </>
         );
-        const a11y = compact ? { "aria-label": title } : {};
+        const a11y = compact || l.problem ? { "aria-label": title } : {};
+        const flag = l.problem ? { "data-problem": l.problem } : {};
         return l.url ? (
           <a
             key={`${l.platform}:${l.handle}`}
@@ -63,11 +71,12 @@ export default function PlatformChips({
             title={title}
             onClick={(e) => e.stopPropagation()}
             {...a11y}
+            {...flag}
           >
             {body}
           </a>
         ) : (
-          <span key={`${l.platform}:${l.handle}`} className="cc-platform-chip" title={title} {...a11y}>
+          <span key={`${l.platform}:${l.handle}`} className="cc-platform-chip" title={title} {...a11y} {...flag}>
             {body}
           </span>
         );

@@ -8161,6 +8161,19 @@ a.cc-platform-chip:focus-visible {
 a.cc-platform-chip:hover .cc-platform-chip-mark {
   color: inherit;
 }
+/* The platform could not find this account (lib/creators/handleCheck). */
+.cc-platform-chip[data-problem] {
+  border-color: color-mix(in srgb, var(--cc-danger) 35%, var(--cc-border));
+  background: var(--cc-danger-light);
+  color: var(--cc-danger-ink);
+}
+.cc-platform-chip[data-problem] .cc-platform-chip-mark {
+  color: inherit;
+}
+a.cc-platform-chip[data-problem]:hover {
+  border-color: var(--cc-danger);
+  color: var(--cc-danger-ink);
+}
 
 /* Roster → Import. */
 .cc-import {
@@ -8761,6 +8774,98 @@ a.cc-platform-chip:hover .cc-platform-chip-mark {
 .cc-roster-export-menu a:focus-visible {
   outline: 2px solid var(--cc-primary);
   outline-offset: 1px;
+}
+/* Creator profile: an account the platform could not find, and its fix. */
+.cc-handle-fixes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cc-sp-3);
+  margin-top: var(--cc-sp-4);
+}
+.cc-handle-fix {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--cc-sp-3);
+  max-width: 560px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--cc-danger) 25%, var(--cc-border));
+  border-radius: 10px;
+  background: var(--cc-danger-light);
+}
+.cc-handle-fix-text {
+  display: flex;
+  gap: 8px;
+  margin: 0;
+  color: var(--cc-text);
+  font-size: var(--cc-t-13);
+  line-height: 1.5;
+}
+.cc-handle-fix-icon {
+  flex: none;
+  margin-top: 2px;
+  color: var(--cc-danger-ink);
+}
+.cc-handle-fix-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cc-sp-3);
+  width: 100%;
+}
+.cc-handle-fix-error {
+  margin: 0;
+  color: var(--cc-danger-ink);
+  font-size: var(--cc-t-13);
+}
+.cc-handle-fix-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cc-sp-3);
+}
+.cc-roster-notice {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 4px 8px;
+  margin-bottom: 16px;
+  padding: 8px 12px;
+  border: 1px solid color-mix(in srgb, var(--cc-danger) 25%, var(--cc-border));
+  border-radius: 10px;
+  background: var(--cc-danger-light);
+  color: var(--cc-text);
+  font-size: var(--cc-t-13);
+}
+.cc-roster-notice-icon {
+  color: var(--cc-danger-ink);
+}
+.cc-roster-notice button {
+  padding: 4px 6px;
+  border: 0;
+  background: none;
+  color: var(--cc-danger-ink);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  font-size: var(--cc-t-13);
+  font-weight: 600;
+  cursor: pointer;
+}
+.cc-roster-notice button:focus-visible {
+  outline: 2px solid var(--cc-primary);
+  outline-offset: 1px;
+}
+@media (max-width: 640px) {
+  .cc-roster-notice {
+    grid-template-columns: auto 1fr;
+    align-items: start;
+  }
+  .cc-roster-notice-icon {
+    margin-top: 2px;
+  }
+  .cc-roster-notice button {
+    grid-column: 2;
+    justify-self: start;
+    margin-left: -6px;
+  }
 }
 .cc-roster-selectall {
   display: flex;

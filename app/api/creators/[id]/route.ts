@@ -7,6 +7,7 @@ import { logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
 import { deriveCampaignCounts, deriveCreatorCampaigns } from "@/lib/creatorMetrics";
 import { rosterTablesReady } from "@/lib/creators/rosterTables";
+import { handleProblem } from "@/lib/creators/handleCheck";
 
 const updateCreatorSchema = z.object({
   name: z.string().optional(),
@@ -62,7 +63,17 @@ export async function GET(
         ? db.creatorProfileLink.findMany({
             where: { orgId, creatorId: creator.id },
             orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
-            select: { platform: true, handle: true, url: true, followersCount: true, averageViews: true, isPrimary: true, refreshedAt: true },
+            select: {
+              id: true,
+              platform: true,
+              handle: true,
+              url: true,
+              followersCount: true,
+              averageViews: true,
+              isPrimary: true,
+              refreshedAt: true,
+              refreshError: true,
+            },
           })
         : [],
       roster
@@ -81,7 +92,7 @@ export async function GET(
       ...creator,
       campaignCount: campaignCounts.get(creator.id) ?? 0,
       campaigns,
-      profileLinks,
+      profileLinks: profileLinks.map(({ refreshError, ...l }) => ({ ...l, problem: handleProblem(l.platform, refreshError) })),
       detail,
       lists: lists.map((l) => l.list),
     });

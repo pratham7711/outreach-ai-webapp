@@ -112,6 +112,7 @@ export async function fetchInstagramProfile(
   token: string,
   signal?: AbortSignal,
   after?: string,
+  { rateLimitThrows = false }: { rateLimitThrows?: boolean } = {},
 ): Promise<IgPublicProfile | null> {
   const handle = normalizeUsername(username);
   if (!handle) return null;
@@ -131,6 +132,7 @@ export async function fetchInstagramProfile(
       access_token: token,
     },
     signal,
+    { rateLimitThrows },
   );
   return parseBusinessDiscovery(data, handle);
 }

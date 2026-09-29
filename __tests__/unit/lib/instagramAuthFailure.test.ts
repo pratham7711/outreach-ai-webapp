@@ -1,4 +1,4 @@
-import { graphGet, isAuthFailure, InstagramAuthError } from "@/lib/platforms/instagram";
+import { graphGet, isAuthFailure, InstagramAuthError, InstagramRateLimitError } from "@/lib/platforms/instagram";
 
 const realFetch = global.fetch;
 afterEach(() => {
@@ -67,5 +67,35 @@ describe("graphGet", () => {
       .mockResolvedValue({ ok: true, json: async () => ({ data: [{ id: "1" }] }) }) as unknown as typeof fetch;
 
     expect(await graphGet("me/accounts", { access_token: "t" })).toEqual({ data: [{ id: "1" }] });
+  });
+});
+
+/* Meta throttles with HTTP 400 and codes 4/17/32/613. To the roster read a null
+   means "this account is personal", which would file a busy hour as a permanent
+   property of the account -- and flag its handle as one nobody can find. */
+describe("graphGet rate limits", () => {
+  it("still returns null by default, as every existing caller expects", async () => {
+    global.fetch = jest.fn().mockResolvedValue(graphError(400, 4)) as unknown as typeof fetch;
+
+    expect(await graphGet("me", { access_token: "t" })).toBeNull();
+  });
+
+  it.each([4, 17, 32, 613])("throws a rate-limit error for code %i when asked to", async (code) => {
+    global.fetch = jest.fn().mockResolvedValue(graphError(400, code)) as unknown as typeof fetch;
+
+    await expect(graphGet("me", { access_token: "t" }, undefined, { rateLimitThrows: true })).rejects.toMatchObject({
+      name: "InstagramRateLimitError",
+      code,
+    });
+  });
+
+  it("keeps any other failure a null even when asked to throw on rate limits", async () => {
+    global.fetch = jest.fn().mockResolvedValue(graphError(400, 110)) as unknown as typeof fetch;
+
+    expect(await graphGet("me", { access_token: "t" }, undefined, { rateLimitThrows: true })).toBeNull();
+  });
+
+  it("is an error of its own type", () => {
+    expect(new InstagramRateLimitError(4)).toBeInstanceOf(Error);
   });
 });

@@ -1,4 +1,5 @@
 import { fetchInstagramProfile, businessDiscoveryToken } from "./instagramBusinessDiscovery";
+import { InstagramRateLimitError } from "./instagram";
 import { fetchTikTokProfile } from "./tiktokProfile";
 
 /**
@@ -171,12 +172,12 @@ async function readInstagram(handle: string): Promise<CreatorReadResult> {
 
   let profile;
   try {
-    profile = await fetchInstagramProfile(handle, token);
+    profile = await fetchInstagramProfile(handle, token, undefined, undefined, { rateLimitThrows: true });
   } catch (e) {
     const detail = e instanceof Error ? e.message : String(e);
-    // Graph signals throttling with codes 4/17/32; treat those as retryable so a
+    // Graph signals throttling with codes 4/17/32/613; treat those as retryable so a
     // busy hour does not get written down as "this account is personal".
-    if (/rate|limit|\(#(4|17|32)\)/i.test(detail)) {
+    if (e instanceof InstagramRateLimitError || /rate|limit|\(#(4|17|32|613)\)/i.test(detail)) {
       return { ok: false, reason: "rate-limited", detail };
     }
     return { ok: false, reason: "unreadable", detail };
