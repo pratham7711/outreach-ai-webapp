@@ -10,6 +10,7 @@ import { CampaignHeaderActions } from "@/components/campaigns/CampaignHeaderActi
 import { action } from "@/lib/ui/actions";
 import { stripAt, formatDateAbs } from "@/lib/format";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
+import { creatorNameText } from "@/lib/creators/creatorName";
 
 type Draft = {
   id: string;
@@ -369,7 +370,7 @@ export default function DraftsTab({
                 onChange={(v) => setNewDraft((f) => ({ ...f, activationId: v }))}
                 options={awaiting.map((a) => ({
                   value: a.id,
-                  label: `${a.creator.name} (${stripAt(a.creator.handle)})`,
+                  label: creatorNameText(a.creator.name, a.creator.handle),
                 }))}
               />
             </div>

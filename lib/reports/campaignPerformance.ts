@@ -89,6 +89,7 @@ export type CampaignPerformance = {
   leaderboard: {
     creatorId: string;
     name: string;
+    handle: string | null;
     avatarUrl: string | null;
     posts: number;
     views: number;
@@ -613,6 +614,7 @@ async function computeCampaignPerformanceUncached(
       return {
         creatorId: creator.id,
         name: creator.name,
+        handle: creator.handle ?? null,
         avatarUrl: creator.avatarUrl,
         posts: creatorPosts.length,
         views: creatorPosts.reduce((s, p) => s + (p.viewsCount ?? 0), 0),

@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { stripAt, formatDateAbs } from "@/lib/format";
 import { Dropdown, Button } from "@/components/ds";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
+import { creatorNameText } from "@/lib/creators/creatorName";
 
 type Activation = {
   id: string;
@@ -263,7 +264,7 @@ export default function ReviewsSection({
                 { value: "", label: "Select a creator..." },
                 ...unreviewedActivations.map((act) => ({
                   value: act.creator.id,
-                  label: `${act.creator.name} (@${stripAt(act.creator.handle)})`,
+                  label: creatorNameText(act.creator.name, act.creator.handle),
                 })),
               ]}
             />

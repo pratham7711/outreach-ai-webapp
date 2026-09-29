@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
       },
       select: {
         id: true, status: true, deliverableDueDate: true,
-        creator: { select: { id: true, name: true } },
+        creator: { select: { id: true, name: true, handle: true } },
         campaign: { select: { id: true, title: true } },
       },
     }),

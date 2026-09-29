@@ -9,6 +9,7 @@ import { formatDateAbs, stripAt, formatFull } from "@/lib/format";
 import { CampaignHeaderActions } from "@/components/campaigns/CampaignHeaderActions";
 import { action } from "@/lib/ui/actions";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
+import CreatorName from "@/components/creators/CreatorName";
 
 /**
  * The campaign roster, with the toolbar the reference puts above it.
@@ -239,10 +240,7 @@ export default function RosterTable({
         return (
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <CreatorAvatar id={r.creator.id} name={r.creator.name} size="sm" />
-            <div>
-              <p style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{r.creator.name}</p>
-              <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>@{stripAt(r.creator.handle)}</p>
-            </div>
+            <CreatorName name={r.creator.name} handle={r.creator.handle} />
           </div>
         );
       case "platform":

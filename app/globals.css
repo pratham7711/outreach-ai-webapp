@@ -7046,6 +7046,17 @@ h1, h2, h3, h4, h5, h6 {
   text-overflow: ellipsis;
   margin-bottom: 4px;
 }
+.spr-post-name,
+.spr-post-at {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.spr-post-at {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--spr-tile-ink-dim);
+}
 .spr-post-metric {
   display: flex;
   align-items: center;
@@ -7091,6 +7102,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 .spr-board-row + .spr-board-row { border-top: 1px solid var(--spr-hairline); }
 .spr-board-name { font-size: 14px; font-weight: 600; color: var(--spr-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.spr-board-handle { font-size: 12px; color: var(--spr-ink-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .spr-board-cell { font-size: 13px; color: var(--spr-ink-muted); font-variant-numeric: tabular-nums; }
 .spr-board-cell-strong { font-size: 13px; font-weight: 600; color: var(--spr-ink); font-variant-numeric: tabular-nums; }
 .spr-avatar {
@@ -8821,6 +8833,49 @@ a.cc-platform-chip[data-problem]:hover {
   display: flex;
   flex-wrap: wrap;
   gap: var(--cc-sp-3);
+}
+/* A creator's name with their @handle (components/creators/CreatorName.tsx).
+   The colours are variables so a surface with its own ink can restyle both. */
+.cc-creator-name {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.cc-creator-name[data-layout="inline"] {
+  flex-direction: row;
+  align-items: baseline;
+  gap: 6px;
+}
+.cc-creator-name[data-tone="overlay"] {
+  --cc-creator-name-ink: var(--cc-overlay-ink-text);
+  --cc-creator-name-muted: var(--cc-overlay-ink-text);
+}
+.cc-creator-name-main,
+.cc-creator-name-handle {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cc-creator-name-main {
+  color: var(--cc-creator-name-ink, var(--cc-text));
+  font-size: var(--cc-t-14);
+  font-weight: var(--cc-fw-strong);
+}
+.cc-creator-name-handle {
+  color: var(--cc-creator-name-muted, var(--cc-text-muted));
+  font-size: var(--cc-t-12);
+  font-weight: 400;
+}
+.cc-creator-name[data-size="sm"] .cc-creator-name-main {
+  font-size: var(--cc-t-13);
+}
+.cc-creator-name[data-size="lg"] .cc-creator-name-main {
+  font-size: var(--cc-t-20);
+  font-weight: 700;
+}
+.cc-creator-name[data-size="lg"] .cc-creator-name-handle {
+  font-size: var(--cc-t-13);
 }
 .cc-roster-notice {
   display: grid;

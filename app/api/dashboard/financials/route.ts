@@ -172,7 +172,7 @@ export async function GET(req: NextRequest) {
         select: {
           id: true, postUrl: true, platform: true, viewsCount: true,
           likesCount: true, engagementRate: true,
-          creator: { select: { id: true, name: true } },
+          creator: { select: { id: true, name: true, handle: true } },
           campaign: { select: { title: true } },
         },
       }),
@@ -258,6 +258,7 @@ export async function GET(req: NextRequest) {
       engagementRate: p.engagementRate,
       creatorId: p.creator?.id ?? null,
       creatorName: p.creator?.name ?? null,
+      creatorHandle: p.creator?.handle ?? null,
       campaignTitle: p.campaign?.title ?? null,
     }));
 

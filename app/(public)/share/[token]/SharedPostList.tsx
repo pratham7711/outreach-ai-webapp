@@ -5,6 +5,7 @@ import { ImageOff, Eye, Heart, MessageCircle, Share2, Bookmark, Download, Activi
 import type { SharedReportData } from "@/lib/reports/campaignPerformance";
 import { shareImgSrc } from "@/lib/postMedia";
 import { stripAt, formatDateAbs, timeAgo } from "@/lib/format";
+import { creatorNameParts, creatorNameText } from "@/lib/creators/creatorName";
 import RemovedPostOverlay from "@/components/posts/RemovedPostOverlay";
 
 /**
@@ -56,11 +57,19 @@ export default function SharedPostList({
         // 478 = the reference card's 239px track at 2x, so a retina screen gets
         // a sharp thumbnail rather than an upscaled 160.
         const thumb = shareImgSrc(token, post.thumbnailUrl, 478, 490);
-        const handle = post.creator?.handle ? `@${stripAt(post.creator.handle)}` : null;
+        const who = showCreators && post.creator ? creatorNameParts(post.creator.name, post.creator.handle) : null;
         const shown = METRICS.map((m) => ({ ...m, value: post[m.key] as number | null })).filter(
           (m) => m.value !== null
         );
-        const label = showCreators && handle ? handle : post.platform;
+        const label = who && post.creator ? creatorNameText(post.creator.name, post.creator.handle) : post.platform;
+        const shownLabel = who ? (
+          <>
+            <span className="spr-post-name">{who.name}</span>
+            {who.handle && <span className="spr-post-at"> {who.handle}</span>}
+          </>
+        ) : (
+          post.platform
+        );
 
         return (
           <article key={post.id} className="spr-post">
@@ -100,11 +109,14 @@ export default function SharedPostList({
                   target="_blank"
                   rel="noopener noreferrer"
                   title={label}
+                  aria-label={label}
                 >
-                  {label}
+                  {shownLabel}
                 </a>
               ) : (
-                <span className="spr-post-handle">{label}</span>
+                <span className="spr-post-handle" title={label}>
+                  {shownLabel}
+                </span>
               )}
               </div>
 

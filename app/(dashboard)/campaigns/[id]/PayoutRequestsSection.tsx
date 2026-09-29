@@ -7,6 +7,7 @@ import { Banknote, Check, X } from "lucide-react";
 import { CreatorSelect } from "@/components/CreatorSelect";
 import { formatDateAbs, stripAt } from "@/lib/format";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
+import { creatorNameText } from "@/lib/creators/creatorName";
 
 type PayoutReq = {
   id: string;
@@ -24,9 +25,7 @@ type PayoutReq = {
 /* Nobody can approve a payout to "cmt1m1wq...". The route resolves the name
    now; this only formats it. */
 function creatorName(creator: { name: string; handle: string } | null): string {
-  if (!creator) return "Deleted creator";
-  const handle = stripAt(creator.handle);
-  return handle ? `${creator.name} (@${handle})` : creator.name;
+  return creator ? creatorNameText(creator.name, creator.handle) : "Deleted creator";
 }
 
 const STATUS_TABS = [

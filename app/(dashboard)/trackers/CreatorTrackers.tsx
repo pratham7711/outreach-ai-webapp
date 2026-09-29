@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { Card, EmptyState, Input, Modal, Skeleton } from "@pratham7711/ui";
 import { Button } from "@/components/ds";
 import { Play, Trash2, User, Users } from "lucide-react";
-import { formatFull } from "@/lib/format";
+import { formatFull, formatHandle } from "@/lib/format";
 import { apiDelete, apiFetch, apiPost } from "@/lib/api/client";
 import { CreatorDetailModal, type TopPost } from "./CreatorDetailModal";
 import type { ChartGranularity } from "@/lib/trackers/granularity";
@@ -406,7 +406,7 @@ export function CreatorTrackers({
                         {c.name}
                       </div>
                       <div style={{ fontSize: "var(--cc-t-15)", color: "var(--cc-text-muted)" }}>
-                        @{c.handle}
+                        {formatHandle(c.handle)}
                       </div>
                     </div>
                   </div>
@@ -525,7 +525,7 @@ export function CreatorTrackers({
                     <div style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>
                       {cand.name}
                     </div>
-                    <div style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>@{cand.handle}</div>
+                    <div style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>{formatHandle(cand.handle)}</div>
                   </div>
                   <Button
                     variant={already ? "ghost" : "primary"}

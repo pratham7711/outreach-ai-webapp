@@ -10,6 +10,7 @@ import { formatMoney, formatRowsByCurrency } from "@/lib/money";
 import { toast } from "sonner";
 import { action } from "@/lib/ui/actions";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
+import CreatorName from "@/components/creators/CreatorName";
 
 /**
  * Mirrors what `GET /api/payout-requests` actually returns.
@@ -290,7 +291,11 @@ export default function RequestsPage() {
               >
                 <CreatorAvatar id={r.creatorId} name={creatorName} size="sm" />
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: "var(--cc-fw-strong)", fontSize: "var(--cc-t-14)", color: "var(--cc-text)" }}>{creatorName}</div>
+                  {r.creatorName || r.creatorHandle ? (
+                    <CreatorName name={r.creatorName} handle={r.creatorHandle} layout="inline" />
+                  ) : (
+                    <div style={{ fontWeight: "var(--cc-fw-strong)", fontSize: "var(--cc-t-14)", color: "var(--cc-text)" }}>{creatorName}</div>
+                  )}
                   <div title={r.campaignTitle ?? undefined} style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {r.campaignTitle ?? "Unknown campaign"}
                   </div>

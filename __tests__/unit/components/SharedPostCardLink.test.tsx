@@ -66,7 +66,8 @@ describe("shared report post card — the whole card opens the post", () => {
     renderGrid([basePost, { ...basePost, id: "p2", creator: { ...basePost.creator, handle: "@other" } }]);
     const links = screen.getAllByRole("link");
     expect(links).toHaveLength(2);
-    expect(links.map((l) => l.textContent)).toEqual(["@someone", "@other"]);
+    // The name with the handle; a name that only repeats the handle is said once.
+    expect(links.map((l) => l.getAttribute("aria-label"))).toEqual(["@someone", "Someone (@other)"]);
     // Not "@someone 55,364 views 1,204 likes Posted ... Last updated ...",
     // which is what wrapping the card in an anchor would have produced.
     expect(links[0].textContent).not.toMatch(/views/);

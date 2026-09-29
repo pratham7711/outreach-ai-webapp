@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Modal, Input } from "@pratham7711/ui";
 import { Dropdown, Button } from "@/components/ds";
+import { creatorNameText } from "@/lib/creators/creatorName";
 
 type Creator = { id: string; name: string; handle: string };
 type Campaign = { id: string; title: string };
@@ -140,7 +141,7 @@ export default function AddPayoutModal({ onClose }: { onClose: () => void }) {
                       ? "Creators unavailable"
                       : "Select creator...",
               },
-              ...creators.map((c) => ({ value: c.id, label: `${c.name} (${c.handle})` })),
+              ...creators.map((c) => ({ value: c.id, label: creatorNameText(c.name, c.handle) })),
             ]}
           />
         </div>

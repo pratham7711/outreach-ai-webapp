@@ -8,6 +8,7 @@ import { stripAt } from "@/lib/format";
 import { Dropdown, Button } from "@/components/ds";
 import { formatCurrencyTotals, type CurrencyAmount } from "@/lib/money";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
+import { creatorNameText } from "@/lib/creators/creatorName";
 
 type Offer = {
   id: string;
@@ -206,7 +207,7 @@ export default function NegotiationsSection({
   };
 
   const creatorName = (offer: Offer) =>
-    offer.creator ? `${offer.creator.name} (@${stripAt(offer.creator.handle)})` : "Deleted creator";
+    offer.creator ? creatorNameText(offer.creator.name, offer.creator.handle) : "Deleted creator";
 
   const platformFee = platformFeeMinor > 0 ? platformFeeMinor / 100 : 0;
 

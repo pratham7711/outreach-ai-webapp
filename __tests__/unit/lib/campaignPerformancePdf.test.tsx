@@ -85,9 +85,9 @@ it("leads with Total Posts, the tile the web report leads with", () => {
   expect(screen.getByText("Total Posts")).toBeInTheDocument();
 });
 
-it("lists each post with its handle, platform, date and counters", () => {
+it("lists each post with its creator, platform, date and counters", () => {
   draw();
-  expect(screen.getByText("@mariasantos")).toBeInTheDocument();
+  expect(screen.getByText("Maria Santos (@mariasantos)")).toBeInTheDocument();
   expect(screen.getByText("TIKTOK")).toBeInTheDocument();
   expect(screen.getByText("Aug 20, 2026")).toBeInTheDocument();
   // An unmeasured counter is an em dash, never a zero a brand would read as
@@ -99,7 +99,7 @@ it("drops the creator column on a link that hides creators", () => {
   // redactForShare nulls the creator on every row before the document sees it.
   draw({ posts: [post({ creator: null, postUrl: null, caption: null })] });
   expect(screen.queryByText("Creator")).not.toBeInTheDocument();
-  expect(screen.queryByText("@mariasantos")).not.toBeInTheDocument();
+  expect(screen.queryByText(/mariasantos/)).not.toBeInTheDocument();
   // The numbers are the point of the report and survive.
   expect(screen.getByText("Posts")).toBeInTheDocument();
   expect(screen.getByText("TIKTOK")).toBeInTheDocument();

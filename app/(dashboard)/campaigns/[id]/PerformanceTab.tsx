@@ -13,6 +13,7 @@ import { ShareModal } from "@/app/(dashboard)/campaigns/ShareModal";
 import { AudioCard } from "@/components/campaigns/AudioCard";
 import type { CampaignAudio, CampaignPerformance } from "@/lib/reports/campaignPerformance";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
+import CreatorName from "@/components/creators/CreatorName";
 
 /* Taken from the report seam rather than restated here. It was restated, and the
    two drifted the moment the seam grew the per-counter totals. */
@@ -27,6 +28,7 @@ type PlatformSplit = { platform: string; views: number; posts: number };
 type LeaderboardRow = {
   creatorId: string;
   name: string;
+  handle: string | null;
   avatarUrl: string | null;
   posts: number;
   views: number;
@@ -400,7 +402,7 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
                 >
                   <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
                     <CreatorAvatar id={row.creatorId} name={row.name} size="sm" />
-                    <span title={row.name} style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.name}</span>
+                    <CreatorName name={row.name} handle={row.handle} />
                   </div>
                   <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{row.posts}</span>
                   <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{formatNumber(row.views)}</span>

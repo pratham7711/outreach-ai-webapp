@@ -26,6 +26,8 @@ import PostActionMenu, { type PostMenuItem } from "@/components/posts/PostAction
 import { PlatformGlyph } from "@/components/ui/PlatformGlyph";
 import { platformFromHost, detectPlatformFromUrl, platformLabel } from "@/lib/platforms/registry";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
+import CreatorName from "@/components/creators/CreatorName";
+import { creatorNameText } from "@/lib/creators/creatorName";
 
 type SnapshotLite = { id: string; viewsCount: number; recordedAt: string };
 
@@ -1322,7 +1324,7 @@ export default function PostsTab({
           kind: "head" as const,
           label: menuOnSelection
             ? `${selectedOnPage.length} posts selected`
-            : `@${stripAt(menuPost.creator.handle) || menuPost.creator.name}`,
+            : creatorNameText(menuPost.creator.name, menuPost.creator.handle),
         },
         ...(menuOnSelection || !menuTracked
           ? [
@@ -1830,10 +1832,7 @@ export default function PostsTab({
                         from the Performance tab's post table. */}
                     <a href={post.postUrl} target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", minWidth: 0 }}>
                       <CreatorAvatar id={post.creator.id} name={post.creator.name} size="sm" />
-                      <div style={{ minWidth: 0 }}>
-                        <div title={post.creator.name} style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{post.creator.name}</div>
-                        <div title={`@${stripAt(post.creator.handle)}`} style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>@{stripAt(post.creator.handle)}</div>
-                      </div>
+                      <CreatorName name={post.creator.name} handle={post.creator.handle} />
                     </a>
                   </div>
                   <Badge variant={PLATFORM_BADGE[post.platform] ?? "neutral"} style={{ fontSize: "var(--cc-t-11)"}}>{post.platform}</Badge>
@@ -2276,7 +2275,7 @@ export default function PostsTab({
                         />
                         {row.check?.creator && !row.creatorId && (
                           <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: "6px 0 0" }}>
-                            Matched <strong style={{ color: "var(--cc-text)" }}>{row.check.creator.name}</strong>
+                            Matched <strong style={{ color: "var(--cc-text)" }}>{creatorNameText(row.check.creator.name, row.check.creator.handle)}</strong>
                             {row.check.handleSource === "platform"
                               ? " from the post itself"
                               : row.check.handleSource === "record"

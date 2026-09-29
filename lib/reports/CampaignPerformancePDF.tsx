@@ -2,6 +2,7 @@ import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
 import type { SharedReportData } from "@/lib/reports/campaignPerformance";
 import { DEFAULT_SHARE_VISIBILITY, type ShareVisibility } from "@/lib/reports/shareVisibility";
 import { formatFull } from "@/lib/format";
+import { creatorNameText } from "@/lib/creators/creatorName";
 import { ACTIVATION_STATUS_LABEL } from "@/lib/activationQueues";
 import { POWERED_BY } from "@/lib/brand";
 
@@ -240,7 +241,7 @@ export function CampaignPerformancePDF({
               </View>
               {leaderboard.map((row) => (
                 <View key={row.creatorId} style={styles.tableRow}>
-                  <Text style={[styles.tableCell, { flex: 2 }]}>{row.name}</Text>
+                  <Text style={[styles.tableCell, { flex: 2 }]}>{creatorNameText(row.name, row.handle)}</Text>
                   <Text style={[styles.tableCell, { flex: 1 }]}>{row.posts}</Text>
                   <Text style={[styles.tableCell, { flex: 1 }]}>{fmtNumber(row.views)}</Text>
                   <Text style={[styles.tableCell, { flex: 1 }]}>
@@ -281,7 +282,7 @@ export function CampaignPerformancePDF({
                 <View key={row.id} style={styles.tableRow} wrap={false}>
                   {showPostCreators && (
                     <Text style={[styles.tableCell, { flex: 1.6 }]}>
-                      {row.creator?.handle ? `@${row.creator.handle}` : row.creator?.name ?? "—"}
+                      {row.creator ? creatorNameText(row.creator.name, row.creator.handle) : "—"}
                     </Text>
                   )}
                   <Text style={[styles.tableCell, { flex: 1.1 }]}>{row.platform}</Text>

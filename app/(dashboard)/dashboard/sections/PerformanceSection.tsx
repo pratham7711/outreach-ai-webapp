@@ -20,6 +20,7 @@ import { stripAt } from "@/lib/format";
 import { loadCharts } from "@/components/charts/lazyCharts";
 import { formatNumber, type PerformanceData } from "../types";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
+import { creatorNameParts } from "@/lib/creators/creatorName";
 
 const PlatformBreakdownPie = dynamic(
   () => loadCharts().then((m) => m.PlatformBreakdownPie),
@@ -152,7 +153,12 @@ export function PerformanceSection({
                       <TableCell className="font-semibold text-foreground">
                         <div className="flex items-center gap-2.5">
                           <CreatorAvatar id={post.creatorId} name={post.creatorName ?? "Unknown"} size="sm" />
-                          <span>{post.creatorName ?? "Unknown"}</span>
+                          <div className="min-w-0">
+                            <div>{creatorNameParts(post.creatorName, post.creatorHandle).name}</div>
+                            {creatorNameParts(post.creatorName, post.creatorHandle).handle && (
+                              <div className="text-xs font-normal text-muted-foreground">{creatorNameParts(post.creatorName, post.creatorHandle).handle}</div>
+                            )}
+                          </div>
                         </div>
                       </TableCell>
                       <TableCell className="text-muted-foreground">

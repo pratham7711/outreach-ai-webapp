@@ -1,5 +1,6 @@
 import { db } from "./db";
 import { campaignStatusLabel } from "./statusColors";
+import { creatorNameText } from "./creators/creatorName";
 
 /**
  * The campaign activity feed's event vocabulary, phrased to match CreatorCore.
@@ -88,7 +89,7 @@ function creatorPhrase(id: string | null, creators: Map<string, { name: string; 
   if (!id) return "A creator";
   const c = creators.get(id);
   if (!c) return "A creator";
-  return c.handle ? `${c.name} (@${c.handle.replace(/^@/, "")})` : c.name;
+  return creatorNameText(c.name, c.handle);
 }
 
 /**

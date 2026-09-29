@@ -8,6 +8,7 @@ import { Dropdown, Button } from "@/components/ds";
 import { formatDateAbs, stripAt } from "@/lib/format";
 import { OutreachDraftPanel } from "@/components/ai/OutreachDraftPanel";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
+import { creatorNameText } from "@/lib/creators/creatorName";
 
 type AiDraft = {
   subject: string;
@@ -39,9 +40,7 @@ const STATUS_BADGE: Record<string, "warning" | "success" | "danger" | "neutral">
 /* The Creator column is the whole point of this table and it was printing a
    truncated cuid. The route resolves the name now; this only formats it. */
 function creatorName(creator: { name: string; handle: string } | null): string {
-  if (!creator) return "Deleted creator";
-  const handle = stripAt(creator.handle);
-  return handle ? `${creator.name} (@${handle})` : creator.name;
+  return creator ? creatorNameText(creator.name, creator.handle) : "Deleted creator";
 }
 
 export default function InvitesSection({ campaignId }: { campaignId: string }) {

@@ -58,6 +58,7 @@ export type PerformanceData = {
     engagementRate: number;
     creatorId?: string | null;
     creatorName: string | null;
+    creatorHandle?: string | null;
     campaignTitle: string | null;
   }[];
 };

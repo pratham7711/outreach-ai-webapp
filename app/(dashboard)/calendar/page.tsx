@@ -9,6 +9,7 @@ import {
 } from "date-fns";
 import { campaignStatusCss, campaignStatusDot } from "@/lib/statusColors";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
+import CreatorName from "@/components/creators/CreatorName";
 
 /* CreatorCore's calendar starts its week on SATURDAY. MEASURED at
    desktop-1600, their weekday row reads, left to right:
@@ -37,7 +38,7 @@ type CalendarCampaign = {
 
 type CalendarActivation = {
   id: string; status: string; deliverableDueDate: string;
-  creator: { id: string; name: string };
+  creator: { id: string; name: string; handle?: string | null };
   campaign: { id: string; title: string };
 };
 
@@ -273,7 +274,7 @@ export default function CalendarPage() {
                         <div key={a.id} style={{ marginTop: 8, padding: 10, borderRadius: 8, background: "rgba(124,58,237,0.06)" }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                             <CreatorAvatar id={a.creator.id} name={a.creator.name} size="sm" />
-                            <p style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", margin: 0 }}>{a.creator.name}</p>
+                            <CreatorName name={a.creator.name} handle={a.creator.handle} layout="inline" size="sm" />
                           </div>
                           <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: "2px 0 0" }}>{a.campaign.title}</p>
                           <Badge variant="neutral" style={{ marginTop: 4, fontSize: "var(--cc-t-10)"}}>{a.status.replace(/_/g, " ")}</Badge>

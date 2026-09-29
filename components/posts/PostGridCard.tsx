@@ -11,6 +11,8 @@ import PostCover from "@/components/posts/PostCover";
 import { STATUS_BADGE, formatSince, engRatePct, trackingLabel } from "@/lib/posts/postDisplay";
 import type { ComplianceFlag } from "@/lib/compliance/postCompliance";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
+import CreatorName from "@/components/creators/CreatorName";
+import { creatorNameText } from "@/lib/creators/creatorName";
 
 /**
  * One post tile in the campaign grid.
@@ -173,9 +175,9 @@ function PostGridCardImpl({
           color: "var(--cc-overlay-ink-text)",
         }}
       >
-        <div title={post.creator.name} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "var(--cc-t-14)", fontWeight: 700, marginBottom: 6, minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6, minWidth: 0 }}>
           <CreatorAvatar id={post.creator.id} name={post.creator.name} size="sm" />
-          <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{post.creator.handle || post.creator.name}</span>
+          <CreatorName name={post.creator.name} handle={post.creator.handle} tone="overlay" />
         </div>
         {/* One row per counter the platform actually reported, which is
             how the reference card behaves too: it prints a downloads
@@ -251,7 +253,7 @@ function PostGridCardImpl({
         type="checkbox"
         checked={selected}
         onChange={() => onToggleSelect(post.id)}
-        aria-label={`Select post by ${post.creator.handle || post.creator.name}`}
+        aria-label={`Select post by ${creatorNameText(post.creator.name, post.creator.handle)}`}
       />
       <span className="cc-postpick-box" aria-hidden="true">
         <Check size={13} strokeWidth={3} />

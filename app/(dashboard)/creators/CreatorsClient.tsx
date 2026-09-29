@@ -15,6 +15,7 @@ import { CREATORS_PAGE_SIZE } from "@/lib/listPageSize";
 import type { CreatorSort } from "@/lib/listParams";
 import { action } from "@/lib/ui/actions";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
+import { creatorNameParts } from "@/lib/creators/creatorName";
 import PlatformChips, { type PlatformChipLink } from "@/components/creators/PlatformChips";
 import RosterActions, { type RosterSelection } from "@/components/creators/RosterActions";
 import { profileUrl, type ImportPlatform } from "@/lib/creators/importParse";
@@ -85,15 +86,6 @@ function rangeLabel(min: string | undefined, max: string | undefined, fmt: (n: n
 }
 
 type ActiveFilter = { id: string; label: string; clear: Record<string, string | null> };
-
-/* A sign-up with no name was given its handle as one, so a card would read
-   "synthpage18 / @synthpage18". The handle is always shown; the name only
-   when it says something the handle does not. */
-function nameLines(c: Creator): { title: string; handle: string | null } {
-  const handle = stripAt(c.handle);
-  const same = c.name.trim().replace(/^@/, "").toLowerCase() === handle.toLowerCase();
-  return same || !c.name.trim() ? { title: `@${handle}`, handle: null } : { title: c.name, handle: `@${handle}` };
-}
 
 function TagList({ tags, max = 3 }: { tags: string[]; max?: number }) {
   if (!tags.length) return null;
@@ -511,7 +503,7 @@ export default function CreatorsClient({
         <div className="cc-stagger cc-roster-grid">
           {filtered.map((creator) => {
             const on = allMatching || picked.has(creator.id);
-            const { title, handle } = nameLines(creator);
+            const { name: title, handle } = creatorNameParts(creator.name, creator.handle);
             return (
               /* The name is the link and stretches over the card, so the
                  account chips and the checkbox can be controls of their own --
@@ -616,8 +608,8 @@ export default function CreatorsClient({
                     <Link prefetch={false} href={`/creators/${c.id}`} style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 12 }}>
                       <CreatorAvatar id={c.id} name={c.name} size="sm" version={c.avatarVersion} />
                       <div>
-                        <p style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{nameLines(c).title}</p>
-                        {nameLines(c).handle && <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>{nameLines(c).handle}</p>}
+                        <p style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{creatorNameParts(c.name, c.handle).name}</p>
+                        {creatorNameParts(c.name, c.handle).handle && <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>{creatorNameParts(c.name, c.handle).handle}</p>}
                       </div>
                     </Link>
                   </td>

@@ -9,6 +9,7 @@ import { ChartFrame } from "@/components/ds";
 import type { SharedReportData } from "@/lib/reports/campaignPerformance";
 import { DEFAULT_SHARE_VISIBILITY, type ShareVisibility } from "@/lib/reports/shareVisibility";
 import { formatFull, formatCompact } from "@/lib/format";
+import { creatorNameParts, creatorNameText } from "@/lib/creators/creatorName";
 import { ACTIVATION_STATUS_LABEL, activationStatusBadgeStyle } from "@/lib/activationQueues";
 import { platformColor } from "@/app/(dashboard)/analytics/shared";
 import { chartGreysFor, chartStrokeFor } from "@/lib/reports/shareChartPalette";
@@ -350,9 +351,12 @@ export default function SharedPerformanceReport({
                                 )}
                               </div>
                               <div style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 3 }}>
-                                <span className="spr-board-name" title={row.name}>
-                                  {row.name}
+                                <span className="spr-board-name" title={creatorNameText(row.name, row.handle)}>
+                                  {creatorNameParts(row.name, row.handle).name}
                                 </span>
+                                {creatorNameParts(row.name, row.handle).handle && (
+                                  <span className="spr-board-handle">{creatorNameParts(row.name, row.handle).handle}</span>
+                                )}
                                 {anyStatus && row.status && (
                                   <span
                                     style={{

@@ -1,7 +1,7 @@
 "use client";
 import { Modal, Badge } from "@pratham7711/ui";
 import { RefreshCw, User } from "lucide-react";
-import { timeAgo, formatFull } from "@/lib/format";
+import { timeAgo, formatFull, formatHandle } from "@/lib/format";
 import { AudioUsesChart, type SeriesPoint } from "./SoundCharts";
 import type { ChartGranularity } from "@/lib/trackers/granularity";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
@@ -80,7 +80,7 @@ export function CreatorDetailModal({
         <div style={{ minWidth: 0 }}>
           <div style={{ fontSize: "var(--cc-t-20)", fontWeight: 700, color: "var(--cc-text)" }}>{creator.name}</div>
           <div style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
-            @{creator.handle} · {creator.platform}
+            {formatHandle(creator.handle)} · {creator.platform}
           </div>
         </div>
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
