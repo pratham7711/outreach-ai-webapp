@@ -75,6 +75,26 @@ export async function readStoredAvatar(creatorId: string, orgId: string): Promis
 }
 
 /**
+ * When each creator's stored picture was taken, for the ones that have one.
+ * A list page puts it in the picture's URL, so a picture stored after the
+ * browser cached a 404 for that creator is fetched fresh instead of waiting
+ * out the hour.
+ */
+export async function storedAvatarVersions(creatorIds: string[], orgId: string): Promise<Map<string, number>> {
+  if (!creatorIds.length) return new Map();
+  try {
+    const rows = await db.creatorAvatar.findMany({
+      where: { orgId, creatorId: { in: creatorIds }, data: { not: null } },
+      select: { creatorId: true, fetchedAt: true },
+    });
+    return new Map(rows.map((r) => [r.creatorId, r.fetchedAt?.getTime() ?? 0]));
+  } catch (e) {
+    if (isMissingTable(e)) return new Map();
+    throw e;
+  }
+}
+
+/**
  * Download one URL and keep it. Returns whether a picture is now stored from it.
  * A failure never erases a picture already held -- a creator whose new link is
  * dead keeps showing the last good one.
@@ -152,11 +172,14 @@ export type AvatarRefreshCounts = { considered: number; stored: number; failed: 
 export async function refreshCreatorAvatars({
   limit = 150,
   deadlineMs = 4 * 60 * 1000,
+  concurrency = 1,
   readTikTokProfileRemote,
   nowMs = Date.now(),
 }: {
   limit?: number;
   deadlineMs?: number;
+  /** Creators worked on at once. Each one waits on a CDN or a profile page, not on us. */
+  concurrency?: number;
   readTikTokProfileRemote?: (handle: string) => Promise<CreatorReadResult>;
   nowMs?: number;
 } = {}): Promise<AvatarRefreshCounts> {
@@ -217,12 +240,7 @@ export async function refreshCreatorAvatars({
   // it this run, and do not count that as the creator's failure.
   const limited = new Set<string>();
 
-  for (let i = 0; i < creators.length; i++) {
-    if (Date.now() > deadline) {
-      counts.skipped += creators.length - i;
-      break;
-    }
-    const creator = creators[i];
+  const refreshOne = async (creator: (typeof creators)[number]) => {
     counts.considered++;
 
     const held = [creator.avatarUrl, creator.posts[0]?.authorProfilePic].filter((u): u is string =>
@@ -239,7 +257,7 @@ export async function refreshCreatorAvatars({
     let failure = held.length ? "stored links did not load" : "no live link held";
     if (!stored && creator.handle && limited.has(creator.platform)) {
       counts.skipped++;
-      continue;
+      return;
     }
     if (!stored && creator.handle) {
       let read: CreatorReadResult = await readCreatorProfile(creator.platform, creator.handle).catch(
@@ -252,7 +270,7 @@ export async function refreshCreatorAvatars({
       if (!read.ok && read.reason === "rate-limited") {
         limited.add(creator.platform);
         counts.skipped++;
-        continue;
+        return;
       }
       if (read.ok && read.profile.avatarUrl) {
         stored = await storeAvatarFromUrl(creator.id, creator.orgId, read.profile.avatarUrl);
@@ -267,7 +285,19 @@ export async function refreshCreatorAvatars({
       counts.failed++;
       await recordFailure(creator.id, creator.orgId, failure);
     }
-  }
+  };
+
+  // Workers take the next creator in order until the list or the clock runs
+  // out; whoever is left unclaimed is counted as skipped for the next hour.
+  let next = 0;
+  const worker = async () => {
+    while (next < creators.length && Date.now() <= deadline) {
+      await refreshOne(creators[next++]);
+    }
+  };
+  const workers = Math.max(1, Math.min(Math.floor(concurrency) || 1, creators.length));
+  await Promise.all(Array.from({ length: workers }, worker));
+  counts.skipped += creators.length - next;
 
   log.info("avatar refresh complete", { ...counts });
   return counts;

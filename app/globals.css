@@ -4849,8 +4849,19 @@ h1, h2, h3, h4, h5, h6 {
 .cc-tabs {
   display: flex;
   gap: var(--cc-tab-gap);
+  /* Each tab overlaps the strip's bottom border by 1px so the active underline
+     sits on it. With overflow-y left to auto that 1px counted as overflow and
+     drew a vertical scrollbar beside every tab row wherever scrollbars are
+     always shown. */
   overflow-x: auto;
+  overflow-y: hidden;
   margin-top: var(--cc-tabs-mt);
+}
+/* A tab row is swiped on a phone; the bar under it only covered the underline. */
+@media (max-width: 640px) {
+  .cc-tabs {
+    scrollbar-width: none;
+  }
 }
 
 .cc-tab {
@@ -8135,6 +8146,21 @@ a.cc-platform-chip:focus-visible {
 .cc-platform-chip-more {
   color: var(--cc-text-muted);
 }
+.cc-platform-chips[data-compact] {
+  gap: 6px;
+}
+.cc-platform-chips[data-compact] .cc-platform-chip {
+  gap: 5px;
+  padding: 2px 9px 2px 7px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.cc-platform-chip-mark {
+  color: var(--cc-text-muted);
+}
+a.cc-platform-chip:hover .cc-platform-chip-mark {
+  color: inherit;
+}
 
 /* Roster → Import. */
 .cc-import {
@@ -8395,12 +8421,90 @@ a.cc-platform-chip:focus-visible {
 }
 
 /* ── Creator Roster: selection, active filters, bulk bar ─────────────────── */
+.cc-roster-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+.cc-roster-search {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.cc-roster-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 20px;
+}
+
 .cc-roster-card {
   position: relative;
+  min-width: 0;
 }
-.cc-roster-card[data-selected] .ui-card {
+.cc-roster-card > .ui-card {
+  height: 100%;
+}
+/* Card wraps its children in a padded .ui-card-body, so that is the box that
+   carries the padding and the column the footer is pinned to the bottom of. */
+.cc-roster-card > .ui-card > .ui-card-body {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 20px;
+}
+/* The library's solid card is the tinted --ui-bg-2, one step darker than the
+   page, so a grid of them read as grey slabs. A roster card is a surface to
+   scan, so it takes the card ground and a resting shadow. creatorcore draws
+   its own cards and keeps them. */
+:root:not(.creatorcore) .cc-roster-card > .ui-card {
+  background: var(--cc-card);
+  box-shadow: var(--ui-shadow-sm);
+}
+:root:not(.creatorcore) .cc-roster-card > .ui-card:hover {
+  border-color: var(--ui-border-strong);
+  box-shadow: var(--ui-shadow-md);
+}
+.cc-roster-card[data-selected] > .ui-card,
+.cc-roster-card[data-selected] > .ui-card:hover,
+:root:not(.creatorcore) .cc-roster-card[data-selected] > .ui-card,
+:root:not(.creatorcore) .cc-roster-card[data-selected] > .ui-card:hover {
   border-color: var(--cc-primary);
-  box-shadow: 0 0 0 1px var(--cc-primary);
+  box-shadow: 0 0 0 1px var(--cc-primary), var(--ui-shadow-sm);
+}
+
+.cc-roster-card-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  padding-right: 32px;
+}
+.cc-roster-card-id {
+  flex: 1;
+  min-width: 0;
+}
+.cc-roster-card-link {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--cc-t-16);
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--cc-text);
+  text-decoration: none;
+}
+.cc-roster-card:hover .cc-roster-card-link {
+  color: var(--cc-primary);
+}
+.cc-roster-card-handle {
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--cc-t-13);
+  color: var(--cc-text-muted);
 }
 /* The name link covers the whole card; the controls below sit above it. */
 .cc-roster-card-link::after {
@@ -8415,7 +8519,7 @@ a.cc-platform-chip:focus-visible {
 .cc-roster-card-link:focus-visible::after {
   outline: 2px solid var(--cc-primary);
   outline-offset: 2px;
-  border-radius: 14px;
+  border-radius: 18px;
 }
 .cc-roster-check,
 .cc-roster-card-meta .cc-platform-chips,
@@ -8425,19 +8529,62 @@ a.cc-platform-chip:focus-visible {
 }
 .cc-roster-check {
   position: absolute;
-  top: 14px;
-  right: 14px;
+  top: 12px;
+  right: 12px;
   display: grid;
   place-items: center;
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   border-radius: 8px;
   cursor: pointer;
 }
 .cc-roster-check:hover {
   background: var(--cc-hover-bg);
 }
-.cc-roster-check input,
+.cc-roster-check input {
+  appearance: none;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  border: 1.5px solid var(--ui-border-strong);
+  border-radius: 5px;
+  background: var(--cc-card);
+  cursor: pointer;
+  transition: background-color 0.15s ease-out, border-color 0.15s ease-out;
+}
+.cc-roster-check:hover input {
+  border-color: var(--cc-primary);
+}
+.cc-roster-check input::after {
+  content: "";
+  width: 5px;
+  height: 9px;
+  border: solid var(--cc-on-primary);
+  border-width: 0 2px 2px 0;
+  transform: translateY(-1px) rotate(45deg) scale(0);
+  transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.cc-roster-check input:checked {
+  border-color: var(--cc-primary);
+  background: var(--cc-primary);
+}
+.cc-roster-check input:checked::after {
+  transform: translateY(-1px) rotate(45deg) scale(1);
+}
+.cc-roster-check input:focus-visible {
+  outline: 2px solid var(--cc-primary);
+  outline-offset: 2px;
+}
+@media (pointer: coarse) {
+  .cc-roster-check {
+    top: 6px;
+    right: 6px;
+    width: 44px;
+    height: 44px;
+  }
+}
 .cc-roster-th-check input,
 .cc-roster-td-check input {
   width: 16px;
@@ -8467,39 +8614,108 @@ a.cc-platform-chip:focus-visible {
 .cc-roster-card-meta {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
+  min-width: 0;
+  margin-top: 16px;
+}
+.cc-roster-card-stats {
+  display: grid;
+  gap: 12px;
+  margin: 16px 0 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--cc-border);
+}
+.cc-roster-card-stats > div {
   min-width: 0;
 }
-.cc-roster-card-line {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 12px;
-  font-size: var(--cc-t-13);
-  color: var(--cc-text-muted);
-  min-width: 0;
+.cc-roster-card-stats dt {
+  margin-bottom: 2px;
 }
-.cc-roster-card-line span {
+.cc-roster-card-stats dd {
+  margin: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 100%;
+  font-size: var(--cc-t-16);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--cc-text);
+}
+.cc-roster-card-stats dd[data-empty] {
+  font-weight: 500;
+  color: var(--cc-text-muted);
+}
+.cc-roster-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: auto;
+  padding-top: 16px;
+  font-size: var(--cc-t-13);
+  color: var(--cc-text-muted);
+}
+.cc-roster-card-audience {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.cc-roster-card-audience svg {
+  flex: none;
+}
+.cc-roster-card-audience span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cc-roster-card-open {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+  font-weight: 600;
+  transition: color 0.15s ease-out;
+}
+.cc-roster-card-open svg {
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.cc-roster-card:hover .cc-roster-card-open {
+  color: var(--cc-primary);
+}
+.cc-roster-card:hover .cc-roster-card-open svg {
+  transform: translateX(2px);
 }
 .cc-roster-tags {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
 }
+/* Neutral, so the one blue on a card is what can be clicked. */
 .cc-roster-tag {
   display: inline-flex;
   align-items: center;
   padding: 1px 8px;
+  border: 1px solid var(--cc-border);
   border-radius: 6px;
-  background: var(--cc-primary-light);
-  color: var(--cc-primary);
+  background: var(--cc-hover-bg);
+  color: var(--cc-text-muted);
   font-size: var(--cc-t-12);
   font-weight: 500;
   line-height: 1.6;
   white-space: nowrap;
+}
+@media (max-width: 640px) {
+  .cc-roster-search {
+    flex-basis: 100%;
+  }
+  .cc-roster-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+  .cc-roster-card > .ui-card > .ui-card-body {
+    padding: 16px;
+  }
 }
 
 .cc-roster-active {
@@ -8645,6 +8861,12 @@ a.cc-platform-chip:focus-visible {
   .cc-roster-bar-head {
     justify-content: space-between;
     width: 100%;
+  }
+  /* With nothing ticked the count repeats the caption above the grid, and on a
+     phone it cost the bar a second row laid over the cards. Once something is
+     ticked it is the only place the selection is counted, so it comes back. */
+  .cc-roster-bar:not([data-picked]) .cc-roster-bar-head {
+    display: none;
   }
   .cc-roster-bar-actions {
     width: 100%;

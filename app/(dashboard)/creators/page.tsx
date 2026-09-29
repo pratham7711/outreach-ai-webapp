@@ -7,6 +7,7 @@ import { CREATORS_PAGE_SIZE } from "@/lib/listPageSize";
 import { CREATOR_FILTER_KEYS, countCreatorFilters, creatorOrderBy, creatorWhere, readCreatorFilters } from "@/lib/listFilters";
 import { firstParam, readCreatorSort } from "@/lib/listParams";
 import { rosterTablesReady } from "@/lib/creators/rosterTables";
+import { isFetchableAvatarUrl, storedAvatarVersions } from "@/lib/creators/avatarStore";
 
 /** "United States, Brazil" rows counted per country, most common first. */
 function countryOptions(groups: { value: string | null; _count: number }[]) {
@@ -70,7 +71,7 @@ export default async function CreatorsPage({
   // and counting activations alone reads 0 campaigns for the imported roster.
   const ids = creators.map((c) => c.id);
   const detailWhere = { orgId, creator: { deletedAt: null } };
-  const [derivedAvgViews, campaignCounts, links, details, audienceGroups, countryGroups] = await Promise.all([
+  const [derivedAvgViews, campaignCounts, links, details, audienceGroups, countryGroups, avatarVersions] = await Promise.all([
     deriveAverageViews(ids),
     deriveCampaignCounts(ids),
     roster
@@ -85,6 +86,7 @@ export default async function CreatorsPage({
       : [],
     roster ? db.creatorDetail.groupBy({ by: ["audienceCountry"], where: detailWhere, _count: true }) : [],
     roster ? db.creatorDetail.groupBy({ by: ["country"], where: detailWhere, _count: true }) : [],
+    storedAvatarVersions(ids, orgId),
   ]);
   const linksBy = new Map<string, typeof links>();
   for (const l of links) linksBy.set(l.creatorId, [...(linksBy.get(l.creatorId) ?? []), l]);
@@ -106,6 +108,13 @@ export default async function CreatorsPage({
         handle: c.handle,
         platform: c.platform,
         avatarUrl: c.avatarUrl,
+        // Stored: when it was taken. Not stored but a live link is held: the
+        // route stores it on this view. Neither: nothing to ask for.
+        avatarVersion: avatarVersions.has(c.id)
+          ? avatarVersions.get(c.id)!.toString(36)
+          : isFetchableAvatarUrl(c.avatarUrl)
+            ? "link"
+            : null,
         followerCount: c.followersCount,
         // Measured from tracked posts where there are any; otherwise what the
         // account's own page last said (import, then the daily refresh).

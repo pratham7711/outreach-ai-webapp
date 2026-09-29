@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Plus, LayoutGrid, List as ListIcon, Users, Upload, X } from "lucide-react";
+import { Plus, LayoutGrid, List as ListIcon, Users, Upload, X, Globe2, ChevronRight } from "lucide-react";
 import { Badge, Card, Input, EmptyState } from "@pratham7711/ui";
 import { PageHeader, StatusTabs, Pagination, FilterDrawer, FilterButton, SortableTh, Button } from "@/components/ds";
 import type { FilterDef, FilterValues } from "@/components/ds";
@@ -25,6 +25,8 @@ type Creator = {
   handle: string;
   platform: string;
   avatarUrl: string | null;
+  /** See CreatorAvatar's `version`: stored, fetchable on view, or nothing to ask for. */
+  avatarVersion: string | null;
   followerCount: number | null;
   /** Distinct campaigns, counted from posts as well as activations. */
   campaignCount: number;
@@ -83,6 +85,15 @@ function rangeLabel(min: string | undefined, max: string | undefined, fmt: (n: n
 }
 
 type ActiveFilter = { id: string; label: string; clear: Record<string, string | null> };
+
+/* A sign-up with no name was given its handle as one, so a card would read
+   "synthpage18 / @synthpage18". The handle is always shown; the name only
+   when it says something the handle does not. */
+function nameLines(c: Creator): { title: string; handle: string | null } {
+  const handle = stripAt(c.handle);
+  const same = c.name.trim().replace(/^@/, "").toLowerCase() === handle.toLowerCase();
+  return same || !c.name.trim() ? { title: `@${handle}`, handle: null } : { title: c.name, handle: `@${handle}` };
+}
 
 function TagList({ tags, max = 3 }: { tags: string[]; max?: number }) {
   if (!tags.length) return null;
@@ -342,6 +353,11 @@ export default function CreatorsClient({
     hasFollowers && { key: "followers", label: "Followers", read: (c: Creator) => c.followerCount },
     hasAvgViews && { key: "avgViews", label: "Avg. Views", read: (c: Creator) => c.avgViews },
   ].filter(Boolean) as { key: string; label: string; read: (c: Creator) => number | null }[];
+  // The card's strip adds price, which the table keeps in a column of its own.
+  const cardStats = [
+    ...optionalStats.map((stat) => ({ ...stat, format: formatNumber })),
+    ...(hasPrice ? [{ key: "price", label: "Price", read: (c: Creator) => c.rate, format: (n: number) => formatFullCurrency(n) }] : []),
+  ];
 
   return (
     <div className="rsp-page">
@@ -366,8 +382,8 @@ export default function CreatorsClient({
       />
 
       {/* Filters */}
-      <div style={{ marginBottom: 24, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
+      <div className="cc-roster-toolbar">
+        <div className="cc-roster-search">
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -467,63 +483,64 @@ export default function CreatorsClient({
           }
         />
       ) : view === "grid" ? (
-        <div className="cc-stagger grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" style={{ gap: 20 }}>
+        <div className="cc-stagger cc-roster-grid">
           {filtered.map((creator) => {
             const on = allMatching || picked.has(creator.id);
+            const { title, handle } = nameLines(creator);
             return (
               /* The name is the link and stretches over the card, so the
                  account chips and the checkbox can be controls of their own --
                  an <a> inside the card's <a> is invalid and breaks both. */
               <div key={creator.id} className="cc-roster-card" data-selected={on || undefined}>
-                <Card variant="solid" className="ui-card-clickable" style={{ padding: 24, height: "100%" }}>
+                <Card variant="solid" className="ui-card-clickable">
                   <label className="cc-roster-check">
                     <input type="checkbox" checked={on} onChange={() => toggle(creator.id)} aria-label={`Select ${creator.name}`} />
                   </label>
-                  <div style={{ display: "flex", alignItems: "flex-start", gap: 14, marginBottom: 14, paddingRight: 28 }}>
-                    <CreatorAvatar id={creator.id} name={creator.name} size="lg" />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      {/* A long handle used to wrap under the badge and collide with it. */}
-                      <Link
-                        prefetch={false}
-                        href={`/creators/${creator.id}`}
-                        className="cc-roster-card-link"
-                        style={{ display: "block", fontWeight: 700, fontSize: "var(--cc-t-16)", color: "var(--cc-text)", marginBottom: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textDecoration: "none" }}
-                        title={creator.name}
-                      >
-                        {creator.name}
+                  <div className="cc-roster-card-head">
+                    <CreatorAvatar id={creator.id} name={creator.name} size="lg" version={creator.avatarVersion} />
+                    <div className="cc-roster-card-id">
+                      <Link prefetch={false} href={`/creators/${creator.id}`} className="cc-roster-card-link" title={creator.name}>
+                        {title}
                       </Link>
-                      <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>@{stripAt(creator.handle)}</p>
+                      {handle && <p className="cc-roster-card-handle">{handle}</p>}
                     </div>
                   </div>
                   <div className="cc-roster-card-meta">
-                    <PlatformChips links={accountsOf(creator)} max={4} />
+                    <PlatformChips links={accountsOf(creator)} max={4} compact />
                     <TagList tags={creator.tags} />
-                    {(creator.audienceCountry || creator.rate) && (
-                      <p className="cc-roster-card-line">
-                        {creator.rate ? <span>{formatFullCurrency(creator.rate)} per video</span> : null}
-                        {creator.audienceCountry ? <span title={creator.audienceCountry}>Audience: {creator.audienceCountry}</span> : null}
-                      </p>
-                    )}
                   </div>
-                  {optionalStats.length > 0 && (
-                    <div style={{ display: "grid", gridTemplateColumns: `repeat(${optionalStats.length}, 1fr)`, gap: 12, margin: "16px 0 20px" }}>
-                      {optionalStats.map((stat) => {
+                  {cardStats.length > 0 && (
+                    <dl className="cc-roster-card-stats" style={{ gridTemplateColumns: `repeat(${cardStats.length}, minmax(0, 1fr))` }}>
+                      {cardStats.map((stat) => {
                         const value = stat.read(creator);
                         return (
                           <div key={stat.key}>
-                            <p className="cc-microlabel" style={{ marginBottom: 3 }}>{stat.label}</p>
+                            <dt className="cc-microlabel">{stat.label}</dt>
                             {/* An em dash, not "". The column is only drawn when
                                 somebody on the page has this stat, so a card
                                 without one still has to say so -- an empty string
                                 left "Avg. Views" captioning blank space, which
                                 reads as a value that failed to load. */}
-                            <p style={{ fontWeight: 700, fontSize: "var(--cc-t-16)", color: value ? "var(--cc-text)" : "var(--cc-text-muted)" }}>{value ? formatNumber(value) : "—"}</p>
+                            <dd data-empty={value ? undefined : true}>{value ? stat.format(value) : "—"}</dd>
                           </div>
                         );
                       })}
-                    </div>
+                    </dl>
                   )}
-                  <div className="ui-btn ui-btn-ghost ui-btn-sm" style={{ width: "100%", justifyContent: "center", pointerEvents: "none", marginTop: optionalStats.length ? 0 : 16 }} aria-hidden="true">View Profile</div>
+                  <div className="cc-roster-card-foot">
+                    {creator.audienceCountry ? (
+                      <span className="cc-roster-card-audience" title={`Audience: ${creator.audienceCountry}`}>
+                        <Globe2 size={14} aria-hidden />
+                        <span>{creator.audienceCountry}</span>
+                      </span>
+                    ) : (
+                      <span />
+                    )}
+                    <span className="cc-roster-card-open" aria-hidden="true">
+                      View profile
+                      <ChevronRight size={14} />
+                    </span>
+                  </div>
                 </Card>
               </div>
             );
@@ -572,15 +589,15 @@ export default function CreatorsClient({
                   </td>
                   <td style={{ padding: "14px 24px" }}>
                     <Link prefetch={false} href={`/creators/${c.id}`} style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 12 }}>
-                      <CreatorAvatar id={c.id} name={c.name} size="sm" />
+                      <CreatorAvatar id={c.id} name={c.name} size="sm" version={c.avatarVersion} />
                       <div>
-                        <p style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{c.name}</p>
-                        <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>@{stripAt(c.handle)}</p>
+                        <p style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{nameLines(c).title}</p>
+                        {nameLines(c).handle && <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>{nameLines(c).handle}</p>}
                       </div>
                     </Link>
                   </td>
                   <td style={{ padding: "14px 24px" }}>
-                    <PlatformChips links={accountsOf(c)} max={3} />
+                    <PlatformChips links={accountsOf(c)} max={3} compact />
                   </td>
                   <td style={{ padding: "14px 24px" }}>
                     {c.tags.length ? <TagList tags={c.tags} max={2} /> : <span style={{ color: "var(--cc-text-muted)" }}>—</span>}

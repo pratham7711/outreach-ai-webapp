@@ -10,9 +10,10 @@ export const dynamic = "force-dynamic";
 /**
  * Hourly: store a profile picture for every creator who has none, or whose
  * picture is a fortnight old. Hourly with a due-row selection rather than a
- * bigger daily run, like refresh-roster-profiles: one run fits about 150 before
- * its clock ends, so a roster of a couple of thousand is covered within the
- * day, and once it is, most hours find nothing due.
+ * bigger daily run, like refresh-roster-profiles. One creator takes about 1.5s,
+ * nearly all of it waiting on a profile page or a CDN, so four at a time fit
+ * about 600 into a run -- a 2,500-creator import is covered in five hours
+ * rather than seventeen, and once it is, most hours find nothing due.
  *
  * The sandbox is opened lazily by the fetcher, so a run where every picture
  * came from a link we already held, or from a plain profile fetch, boots none.
@@ -27,6 +28,8 @@ export async function GET(request: NextRequest) {
   const remote = openSandboxProfileFetcher();
   try {
     const counts = await refreshCreatorAvatars({
+      limit: 600,
+      concurrency: 4,
       deadlineMs: 4 * 60 * 1000,
       readTikTokProfileRemote: (handle) => remote.read(handle),
     });

@@ -1,4 +1,5 @@
-import { formatFull, platformLabel } from "@/lib/format";
+import { formatCompact, formatFull, platformLabel } from "@/lib/format";
+import { PlatformGlyph } from "@/components/ui/PlatformGlyph";
 
 export type PlatformChipLink = {
   platform: string;
@@ -12,15 +13,27 @@ export type PlatformChipLink = {
  * One chip per account a creator has: "TikTok · 50,000". Each opens the
  * account; the label is text, never an icon alone, so it reads to a screen
  * reader and to someone who does not know every platform's logo.
+ *
+ * `compact` is for a card or a table cell, where four accounts have to fit on
+ * one line: the platform's mark and "50K". The name and the exact count move to
+ * the accessible name and the tooltip rather than going missing, and an
+ * account with no count shows its name beside the mark instead.
  */
-export default function PlatformChips({ links, max }: { links: PlatformChipLink[]; max?: number }) {
+export default function PlatformChips({
+  links,
+  max,
+  compact = false,
+}: {
+  links: PlatformChipLink[];
+  max?: number;
+  compact?: boolean;
+}) {
   const shown = max ? links.slice(0, max) : links;
   const hidden = links.length - shown.length;
   return (
-    <span className="cc-platform-chips">
+    <span className="cc-platform-chips" data-compact={compact || undefined}>
       {shown.map((l) => {
         const label = platformLabel(l.platform);
-        const count = l.followersCount ? ` · ${formatFull(l.followersCount)}` : "";
         const title = [
           `${label} @${l.handle}`,
           l.followersCount ? `${formatFull(l.followersCount)} followers` : null,
@@ -28,6 +41,18 @@ export default function PlatformChips({ links, max }: { links: PlatformChipLink[
         ]
           .filter(Boolean)
           .join(" · ");
+        const body = compact ? (
+          <>
+            <PlatformGlyph platform={l.platform} size="1.15em" className="cc-platform-chip-mark" />
+            <span className="cc-platform-chip-text">{l.followersCount ? formatCompact(l.followersCount) : label}</span>
+          </>
+        ) : (
+          <>
+            {label}
+            {l.followersCount ? ` · ${formatFull(l.followersCount)}` : ""}
+          </>
+        );
+        const a11y = compact ? { "aria-label": title } : {};
         return l.url ? (
           <a
             key={`${l.platform}:${l.handle}`}
@@ -37,18 +62,21 @@ export default function PlatformChips({ links, max }: { links: PlatformChipLink[
             rel="noopener noreferrer"
             title={title}
             onClick={(e) => e.stopPropagation()}
+            {...a11y}
           >
-            {label}
-            {count}
+            {body}
           </a>
         ) : (
-          <span key={`${l.platform}:${l.handle}`} className="cc-platform-chip" title={title}>
-            {label}
-            {count}
+          <span key={`${l.platform}:${l.handle}`} className="cc-platform-chip" title={title} {...a11y}>
+            {body}
           </span>
         );
       })}
-      {hidden > 0 && <span className="cc-platform-chip cc-platform-chip-more">+{hidden}</span>}
+      {hidden > 0 && (
+        <span className="cc-platform-chip cc-platform-chip-more" title={links.slice(shown.length).map((l) => platformLabel(l.platform)).join(", ")}>
+          +{hidden}
+        </span>
+      )}
     </span>
   );
 }

@@ -3,7 +3,7 @@
  */
 jest.mock("@/lib/db", () => ({
   db: {
-    creatorAvatar: { findUnique: jest.fn(), findFirst: jest.fn(), upsert: jest.fn() },
+    creatorAvatar: { findUnique: jest.fn(), findFirst: jest.fn(), findMany: jest.fn(), upsert: jest.fn() },
     creator: { findMany: jest.fn() },
   },
 }));
@@ -21,6 +21,7 @@ import {
   refreshCreatorAvatars,
   signedUrlExpiry,
   storeAvatarFromUrl,
+  storedAvatarVersions,
 } from "@/lib/creators/avatarStore";
 
 const mdb = db as unknown as Record<string, Record<string, jest.Mock>>;
@@ -79,6 +80,28 @@ describe("readStoredAvatar", () => {
     mdb.creatorAvatar.findFirst.mockResolvedValue({ data: new Uint8Array([1]), fetchedAt: null });
     await readStoredAvatar("c1", "org-1");
     expect(mdb.creatorAvatar.findFirst.mock.calls[1][0].where).toMatchObject({ creatorId: "c1", orgId: "org-1" });
+  });
+});
+
+describe("storedAvatarVersions", () => {
+  it("reads only this org's stored pictures and keys them by creator", async () => {
+    const at = new Date("2026-09-20T00:00:00Z");
+    mdb.creatorAvatar.findMany.mockResolvedValue([{ creatorId: "c1", fetchedAt: at }]);
+    const versions = await storedAvatarVersions(["c1", "c2"], "org-1");
+    expect(versions.get("c1")).toBe(at.getTime());
+    expect(versions.has("c2")).toBe(false);
+    expect(mdb.creatorAvatar.findMany.mock.calls[0][0].where).toEqual({
+      orgId: "org-1",
+      creatorId: { in: ["c1", "c2"] },
+      data: { not: null },
+    });
+  });
+
+  it("asks nothing for an empty page and treats a missing table as no pictures", async () => {
+    expect((await storedAvatarVersions([], "org-1")).size).toBe(0);
+    expect(mdb.creatorAvatar.findMany).not.toHaveBeenCalled();
+    mdb.creatorAvatar.findMany.mockRejectedValue(Object.assign(new Error("x"), { code: "P2021" }));
+    expect((await storedAvatarVersions(["c1"], "org-1")).size).toBe(0);
   });
 });
 
@@ -164,6 +187,32 @@ describe("refreshCreatorAvatars", () => {
     await refreshCreatorAvatars({ nowMs: NOW });
     const where = mdb.creator.findMany.mock.calls[0][0].where;
     expect(JSON.stringify(where)).toContain('"failure":{"startsWith":"profile read: rate-limited"}');
+  });
+
+  it("works on several creators at once and still reaches every one", async () => {
+    mdb.creator.findMany.mockResolvedValue(
+      Array.from({ length: 6 }, (_, i) => ({ ...base, id: `c${i}`, avatarUrl: `https://yt3.ggpht.com/${i}` })),
+    );
+    let inFlight = 0;
+    let peak = 0;
+    load.mockImplementation(async () => {
+      inFlight++;
+      peak = Math.max(peak, inFlight);
+      await new Promise((r) => setTimeout(r, 5));
+      inFlight--;
+      return webp;
+    });
+    const counts = await refreshCreatorAvatars({ nowMs: NOW, concurrency: 3 });
+    expect(peak).toBe(3);
+    expect(counts).toMatchObject({ considered: 6, stored: 6, skipped: 0 });
+    expect(new Set(mdb.creatorAvatar.upsert.mock.calls.map((c: any[]) => c[0].where.creatorId)).size).toBe(6);
+  });
+
+  it("leaves the creators it had no time for as skipped", async () => {
+    mdb.creator.findMany.mockResolvedValue([{ ...base, id: "c1" }, { ...base, id: "c2" }]);
+    const counts = await refreshCreatorAvatars({ nowMs: NOW, deadlineMs: -1, concurrency: 4 });
+    expect(counts).toEqual({ considered: 0, stored: 0, failed: 0, skipped: 2 });
+    expect(read).not.toHaveBeenCalled();
   });
 
   it("returns empty counts when the table has not been created yet", async () => {

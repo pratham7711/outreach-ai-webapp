@@ -55,7 +55,7 @@ export default function RosterActions({ total, filtered, selection, query, sugge
 
   return (
     <>
-      <div className="cc-roster-bar" role="region" aria-label="Bulk actions">
+      <div className="cc-roster-bar" role="region" aria-label="Bulk actions" data-picked={picked || undefined}>
         <div className="cc-roster-bar-head">
           <span className="cc-roster-bar-count" aria-live="polite">
             {label}
