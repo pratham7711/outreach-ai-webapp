@@ -8834,8 +8834,7 @@ a.cc-platform-chip[data-problem]:hover {
   flex-wrap: wrap;
   gap: var(--cc-sp-3);
 }
-/* A creator's name with their @handle (components/creators/CreatorName.tsx).
-   The colours are variables so a surface with its own ink can restyle both. */
+/* A creator's name with their @handle (components/creators/CreatorName.tsx). */
 .cc-creator-name {
   display: flex;
   flex-direction: column;
@@ -8846,10 +8845,6 @@ a.cc-platform-chip[data-problem]:hover {
   align-items: baseline;
   gap: 6px;
 }
-.cc-creator-name[data-tone="overlay"] {
-  --cc-creator-name-ink: var(--cc-overlay-ink-text);
-  --cc-creator-name-muted: var(--cc-overlay-ink-text);
-}
 .cc-creator-name-main,
 .cc-creator-name-handle {
   min-width: 0;
@@ -8858,14 +8853,18 @@ a.cc-platform-chip[data-problem]:hover {
   white-space: nowrap;
 }
 .cc-creator-name-main {
-  color: var(--cc-creator-name-ink, var(--cc-text));
+  color: var(--cc-text);
   font-size: var(--cc-t-14);
   font-weight: var(--cc-fw-strong);
 }
 .cc-creator-name-handle {
-  color: var(--cc-creator-name-muted, var(--cc-text-muted));
+  color: var(--cc-text-muted);
   font-size: var(--cc-t-12);
   font-weight: 400;
+}
+.cc-creator-name[data-tone="overlay"] .cc-creator-name-main,
+.cc-creator-name[data-tone="overlay"] .cc-creator-name-handle {
+  color: var(--cc-overlay-ink-text);
 }
 .cc-creator-name[data-size="sm"] .cc-creator-name-main {
   font-size: var(--cc-t-13);
