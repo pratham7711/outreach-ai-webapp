@@ -75,11 +75,11 @@ beforeEach(() => {
   jest.clearAllMocks();
   for (const key of PROVIDER_ENV_KEYS) delete process.env[key];
   mockGetCreatorSession.mockResolvedValue(authedCreatorSession);
-  /* contactEmail is the session's, so c1 is a LINKED row — proven ownership.
+  /* c1 names this portal account as its creator, so it is a LINKED row — proven ownership.
      A bare handle match no longer reaches any of this; see
      lib/portal/creatorLink.ts. */
   mockDb.creator.findMany.mockResolvedValue([
-    { id: "c1", orgId: "org-1", contactEmail: "creator@demo.com" },
+    { id: "c1", orgId: "org-1", creatorUserId: "cu-1" },
   ]);
   mockDb.creator.findFirst.mockResolvedValue({ id: "c1", orgId: "org-1" });
   mockDb.creatorSocialAccount.findMany.mockResolvedValue([]);
@@ -524,10 +524,10 @@ describe("GET /api/portal/connections/[platform]/callback", () => {
    reaches outside our database and cannot be undone from our side.
    lib/portal/creatorLink.ts is the gate; these are its edges. */
 describe("portal connections — ownership of the roster row", () => {
-  /** A handle match whose contactEmail is somebody else's: no proof. */
+  /** A handle match that names some other portal account: no proof. */
   const unproven = () => {
     mockDb.creator.findMany.mockResolvedValue([
-      { id: "c1", orgId: "org-1", contactEmail: "the-real-creator@example.com" },
+      { id: "c1", orgId: "org-1", creatorUserId: "cu-someone-else" },
     ]);
     mockDb.creatorSocialAccount.findMany.mockResolvedValue([]);
   };
@@ -558,7 +558,7 @@ describe("portal connections — ownership of the roster row", () => {
 
   it("still revokes once an OAuth connection under this handle proves the row", async () => {
     mockDb.creator.findMany.mockResolvedValue([
-      { id: "c1", orgId: "org-1", contactEmail: null },
+      { id: "c1", orgId: "org-1", creatorUserId: null },
     ]);
     mockDb.creatorSocialAccount.findMany.mockResolvedValue([
       { creatorId: "c1", handle: "@BlessingJolie" },
@@ -626,9 +626,9 @@ describe("GET /api/portal/connections/[platform]/callback — where the token ma
   };
 
   beforeEach(() => {
-    // A bare handle match: contactEmail belongs to somebody else.
+    // A bare handle match that names some other portal account.
     mockDb.creator.findMany.mockResolvedValue([
-      { id: "c1", orgId: "org-1", contactEmail: "the-real-creator@example.com" },
+      { id: "c1", orgId: "org-1", creatorUserId: "cu-someone-else" },
     ]);
     mockDb.creatorSocialAccount.findMany.mockResolvedValue([]);
     mockDb.creatorSocialAccount.upsert.mockResolvedValue({ id: "acc-1" });
