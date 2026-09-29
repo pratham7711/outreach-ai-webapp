@@ -9,9 +9,11 @@ import {
   parseProfileLink,
   parseSheet,
   parseTimestamp,
+  personName,
   readRow,
   type ImportCell,
 } from "@/lib/creators/importParse";
+import { LEGACY_CELL_RULES } from "@/lib/creators/importParseLegacy";
 
 /* Every input here is made up, but each is the SHAPE of an answer found in
    LKAY Media's real sign-up sheet (1,239 rows, measured 2026-09-28). The real
@@ -94,13 +96,49 @@ describe("parseCount", () => {
     ["10k to 20k", 15000],
     ["~50k+", 50000],
     [6600000, 6600000],
+    // Thousands with the "k" dropped, or a European "17.300" the sheet read as 17.3.
+    [17.3, 17300],
+    [69.225, 69225],
+    ["19,3", 19300],
+    ["164,93", 164930],
+    [67766.2, 67766],
+    [800, 800],
+    // "mil" is the Spanish and Portuguese thousand; the other units in other words.
+    ["31,2 mil", 31200],
+    ["543mil", 543000],
+    ["2 milhões", 2000000],
+    ["1 millón de folowers", 1000000],
+    ["1 millions of followers on TikTok", 1000000],
+    ["284 thousands", 284000],
+    ["19Thousand", 19000],
+    ["13.075.000 Millions", 13075000],
+    ["11k6", 11600],
+    ["168+.k", 168000],
+    ["24000Followers", 24000],
+    ["150k of followers", 150000],
+    ["20k above", 20000],
+    ["Almost 3k", 3000],
+    ["average 50k views", 50000],
+    ["404K (old video)", 404000],
+    ["80 (don't post here anymore)", 80],
+    ["1,29,600", 129600],
+    // A bare lower bound takes the upper bound's unit only when it must.
+    ["50-100k", 75000],
+    ["8 to 10k", 9000],
+    ["40-50000", 45000],
+    ["20/30k", 25000],
+    ["10k or 100k", 55000],
+    ["300-500", 400],
   ])("reads %p as %p", (raw, n) => {
     expect(parseCount(raw)).toBe(n);
   });
 
-  it.each(["", "N/A", "none", "a lot", null, undefined])("reads %p as unknown, never 0", (raw) => {
-    expect(parseCount(raw as never)).toBeNull();
-  });
+  it.each(["", "N/A", "none", "a lot", null, undefined, "0 (I'm not posting)", "40(for a lot songs) 60(for few)", "350.000.232.990", "I don't post on YouTube"])(
+    "reads %p as unknown, never 0",
+    (raw) => {
+      expect(parseCount(raw as never)).toBeNull();
+    },
+  );
 });
 
 describe("parsePrice, parseTimestamp", () => {
@@ -110,6 +148,30 @@ describe("parsePrice, parseTimestamp", () => {
     expect(parsePrice(12.5)).toBe(12.5);
     expect(parsePrice("negotiable")).toBeNull();
     expect(parsePrice("0")).toBeNull();
+  });
+
+  it.each([
+    ["10 dollars", 10],
+    ["10 dólares", 10],
+    ["15$ per post", 15],
+    ["$10 per post", 10],
+    ["5$/video", 5],
+    ["12.5 Dollar", 12.5],
+    ["15 or 20", 17.5],
+    ["40/30", 35],
+    ["13/26$", 19.5],
+    ["$15/$35", 25],
+    ["8-10 (cuz of fees)", 9],
+    ["11-15 Euro", 13],
+    ["£7", 7],
+    ["500 INR (6-7$)", 6.5],
+    ["6$ or 500 inr", 6],
+  ])("reads the price %p as %p dollars", (raw, n) => {
+    expect(parsePrice(raw)).toBe(n);
+  });
+
+  it.each(["700 rupees", "500 to 700₹", "₹500"])("leaves %p unknown rather than reading rupees as dollars", (raw) => {
+    expect(parsePrice(raw)).toBeNull();
   });
 
   it("reads an Excel serial day as a date", () => {
@@ -131,6 +193,58 @@ describe("nicheTags, normalizeCountries", () => {
     expect(normalizeCountries("USA, Brazil")).toBe("United States, Brazil");
     expect(normalizeCountries("Other")).toBeNull();
     expect(normalizeCountries("Worldwide")).toBeNull();
+  });
+
+  it.each([
+    ["Indonésia, Tailândia", "Indonesia, Thailand"],
+    ["República dominicana", "Dominican Republic"],
+    ["Other (48%) Mexico (17.1%)", "Mexico"],
+    ["1.Mexico  2.Brazil  3.USA", "Mexico, Brazil, United States"],
+    ["USA Brazil Others", "United States, Brazil"],
+    ["Brasil/USA (top1/2)", "Brazil, United States"],
+    ["Indonesian", "Indonesia"],
+    ["EE.UU", "United States"],
+    ["Kazachstan", "Kazakhstan"],
+    ["Philippines/ canda", "Philippines, Canada"],
+    ["united stated and mexico", "United States, Mexico"],
+    ["Russia , Ukraine and the whole of Europe", "Russia, Ukraine, Europe"],
+    ["Mostly Asean", "Southeast Asia"],
+    ["Россия", "Russia"],
+    ["🇺🇸", "United States"],
+    ["Rio de Janeiro", "Rio De Janeiro"],
+    ["Nova Iguaçu", "Nova Iguaçu"],
+  ])("reads %p as %p", (raw, out) => {
+    expect(normalizeCountries(raw)).toBe(out);
+  });
+
+  it.each(["Idk", "there are several", "Whole world", "All over the world", "4.6 views", "Randy829217", "It says other so idk"])(
+    "reads %p as no country",
+    (raw) => {
+      expect(normalizeCountries(raw)).toBeNull();
+    },
+  );
+});
+
+describe("personName", () => {
+  it("keeps the name and drops the email, link or handle typed with it", () => {
+    expect(personName("Aki Edits (@aki.edits)")).toBe("Aki Edits");
+    expect(personName("Aki (@aki_edits)")).toBe("Aki");
+    expect(personName("Aki Edits https://www.tiktok.com/@aki")).toBe("Aki Edits");
+  });
+
+  it.each(["aki2024@example.com", "@aki.edits", "Name", "N/A"])("reads %p as no name, so the handle stands in", (raw) => {
+    expect(personName(raw)).toBeNull();
+  });
+});
+
+describe("LEGACY_CELL_RULES", () => {
+  it("still reads cells exactly as the first import did", () => {
+    expect(LEGACY_CELL_RULES.count(17.3)).toBe(17);
+    expect(LEGACY_CELL_RULES.count("31,2 mil")).toBe(31200000);
+    expect(LEGACY_CELL_RULES.count("50-100k")).toBe(50025);
+    expect(LEGACY_CELL_RULES.price("10 dollars")).toBeNull();
+    expect(LEGACY_CELL_RULES.countries("Indonésia")).toBe("IndonÉSia");
+    expect(LEGACY_CELL_RULES.name("aki2024@example.com")).toBe("aki2024@example.com");
   });
 });
 

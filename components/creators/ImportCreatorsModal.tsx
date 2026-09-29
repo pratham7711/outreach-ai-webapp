@@ -36,19 +36,20 @@ type PreviewPerson = {
   rate: number | null;
   audienceCountry: string | null;
   tags: string[];
-  action: "create" | "update" | "unchanged";
+  action: "create" | "update" | "correct" | "unchanged";
   changes: string[];
+  corrections: string[];
 };
 
 type DryRun = {
-  counts: { totalRows: number; people: number; create: number; update: number; unchanged: number; rejected: number; merged: number };
+  counts: { totalRows: number; people: number; create: number; update: number; correct: number; unchanged: number; rejected: number; merged: number };
   newTags: string[];
   people: PreviewPerson[];
   rejected: { row: number; name: string; reason: string }[];
 };
 
 type Step = "upload" | "tab" | "map" | "review" | "saving" | "done";
-type ReviewTab = "create" | "update" | "unchanged" | "rejected";
+type ReviewTab = "create" | "update" | "correct" | "unchanged" | "rejected";
 
 const CHUNK = 200;
 const PAGE = 100;
@@ -81,6 +82,11 @@ function splitTags(text: string) {
   return [...new Set(text.split(",").map((t) => t.trim()).filter(Boolean))].slice(0, 10);
 }
 
+/** "a", "a and b", "a, b and c". */
+function listing(parts: string[]) {
+  return parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}` : (parts[0] ?? "");
+}
+
 export default function ImportCreatorsModal({ onClose }: { onClose: () => void }) {
   const router = useRouter();
   const fileInput = useRef<HTMLInputElement>(null);
@@ -100,7 +106,7 @@ export default function ImportCreatorsModal({ onClose }: { onClose: () => void }
   const [shown, setShown] = useState(PAGE);
 
   const [progress, setProgress] = useState(0);
-  const [saved, setSaved] = useState({ created: 0, updated: 0, unchanged: 0 });
+  const [saved, setSaved] = useState({ created: 0, updated: 0, corrected: 0, unchanged: 0 });
   const [resumeAt, setResumeAt] = useState<number | null>(null);
 
   const recognised = mapping.length > 0 && isSignupFormMapping(mapping);
@@ -173,7 +179,10 @@ export default function ImportCreatorsModal({ onClose }: { onClose: () => void }
           return;
         }
         setDry(body);
-        setReviewTab((t) => (t === "create" && !body.counts.create && body.counts.update ? "update" : t));
+        setReviewTab((t) => {
+          if (t !== "create" || body.counts.create) return t;
+          return body.counts.correct ? "correct" : body.counts.update ? "update" : t;
+        });
       } catch (e) {
         if ((e as Error).name !== "AbortError") setError("Could not reach the server. Check your connection and try again.");
       } finally {
@@ -212,7 +221,12 @@ export default function ImportCreatorsModal({ onClose }: { onClose: () => void }
         });
         const out = await res.json().catch(() => null);
         if (!res.ok) throw new Error(out?.error ?? `The save stopped (${res.status}).`);
-        setSaved((s) => ({ created: s.created + out.created, updated: s.updated + out.updated, unchanged: s.unchanged + out.unchanged }));
+        setSaved((s) => ({
+          created: s.created + out.created,
+          updated: s.updated + out.updated,
+          corrected: s.corrected + (out.corrected ?? 0),
+          unchanged: s.unchanged + out.unchanged,
+        }));
         offset = out.nextOffset;
         setProgress(offset);
         if (out.done) break;
@@ -231,15 +245,16 @@ export default function ImportCreatorsModal({ onClose }: { onClose: () => void }
     onClose();
   };
 
-  const toWrite = dry ? dry.counts.create + dry.counts.update : 0;
+  const toWrite = dry ? dry.counts.create + dry.counts.update + dry.counts.correct : 0;
   const confirmLabel = (() => {
     if (!dry) return "Import";
     if (!toWrite) return "Nothing new to import";
     const parts = [
       dry.counts.create ? `add ${formatFull(dry.counts.create)}` : null,
       dry.counts.update ? `update ${formatFull(dry.counts.update)}` : null,
-    ].filter(Boolean);
-    const text = `${parts.join(" and ")} creator${toWrite === 1 ? "" : "s"}`;
+      dry.counts.correct ? `correct ${formatFull(dry.counts.correct)}` : null,
+    ].filter((p): p is string => p !== null);
+    const text = `${listing(parts)} creator${toWrite === 1 ? "" : "s"}`;
     return text.charAt(0).toUpperCase() + text.slice(1);
   })();
 
@@ -430,6 +445,8 @@ export default function ImportCreatorsModal({ onClose }: { onClose: () => void }
                     [
                       ["create", "New", dry.counts.create],
                       ["update", "Updated", dry.counts.update],
+                      // Only when there is something to correct; most imports have nothing.
+                      ...(dry.counts.correct ? ([["correct", "Corrected", dry.counts.correct]] as const) : []),
                       ["unchanged", "Already up to date", dry.counts.unchanged],
                       ["rejected", "Needs attention", dry.counts.rejected],
                     ] as const
@@ -457,6 +474,12 @@ export default function ImportCreatorsModal({ onClose }: { onClose: () => void }
                   </p>
                 )}
 
+                {reviewTab === "correct" && (
+                  <p className="cc-import-hint">
+                    An earlier import misread these numbers, names or countries from the sheet. Only values nobody has changed
+                    since are corrected; anything edited by hand or refreshed from the platform stays as it is.
+                  </p>
+                )}
                 {reviewTab === "rejected" ? (
                   <>
                     <p className="cc-import-hint">These rows are skipped. Fix them in the sheet and import again.</p>
@@ -493,7 +516,10 @@ export default function ImportCreatorsModal({ onClose }: { onClose: () => void }
                               </span>
                             ))}
                             {p.tags.length > 3 && <span className="cc-import-hint">+{p.tags.length - 3}</span>}
-                            {p.action === "update" && <span className="cc-import-changes">{p.changes.join(" · ")}</span>}
+                            {p.action === "correct" && <span className="cc-import-changes">{p.corrections.join(" · ")}</span>}
+                            {(p.action === "update" || p.action === "correct") && p.changes.length > 0 && (
+                              <span className="cc-import-changes">{p.changes.join(" · ")}</span>
+                            )}
                           </div>
                         </li>
                       ))}
@@ -533,7 +559,18 @@ export default function ImportCreatorsModal({ onClose }: { onClose: () => void }
           <div className="cc-import-done">
             <CheckCircle2 size={28} aria-hidden className="cc-import-done-icon" />
             <p className="cc-import-lead">
-              {formatFull(saved.created)} added and {formatFull(saved.updated)} updated in your roster.
+              {listing(
+                (
+                  [
+                    [saved.created, "added"],
+                    [saved.updated, "updated"],
+                    [saved.corrected, "corrected"],
+                  ] as const
+                )
+                  .filter(([n]) => n > 0)
+                  .map(([n, done]) => `${formatFull(n)} ${done}`),
+              ) || "Nothing changed"}{" "}
+              in your roster.
             </p>
             {dry && dry.counts.rejected > 0 && (
               <p className="cc-import-hint">

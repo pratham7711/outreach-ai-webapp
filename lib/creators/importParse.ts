@@ -22,7 +22,7 @@ export type ImportCell = string | number | boolean | Date | null | undefined;
 
 // ─── Profile links ──────────────────────────────────────────────────────────
 
-const JUNK = /^(n\/?a|na|none|null|nil|no|nope|-+|\.+|0+(\.0+)?|x|\?|not yet|don'?t have|dont have|no account)$/i;
+export const JUNK = /^(n\/?a|na|none|null|nil|no|nope|-+|\.+|0+(\.0+)?|x|\?|not yet|don'?t have|dont have|no account)$/i;
 
 const HANDLE = /^[A-Za-z0-9._-]{1,64}$/;
 
@@ -128,18 +128,53 @@ export function parseProfileLink(raw: ImportCell, columnPlatform?: ImportPlatfor
 
 // ─── Counts and money ───────────────────────────────────────────────────────
 
-const SUFFIX: Record<string, number> = { k: 1e3, m: 1e6, b: 1e9, mil: 1e6, million: 1e6, thousand: 1e3, lakh: 1e5, lac: 1e5, cr: 1e7 };
+/**
+ * Units people write after a number, in the languages the sign-up form is
+ * answered in. "mil" is the Spanish and Portuguese thousand: every "mil"
+ * answer in the sheet ("31,2 mil", "1,46mil" subscribers beside 3k views)
+ * only makes sense as thousands.
+ */
+const UNIT: Record<string, number> = {
+  k: 1e3, thousand: 1e3, thousands: 1e3, mil: 1e3, mille: 1e3, milles: 1e3,
+  m: 1e6, million: 1e6, millions: 1e6, milion: 1e6, milions: 1e6, millon: 1e6, millones: 1e6, milhao: 1e6, milhoes: 1e6,
+  b: 1e9, lakh: 1e5, lac: 1e5, cr: 1e7,
+};
 
-function parseOne(raw: string): number | null {
-  let s = raw.trim().toLowerCase().replace(/[+~≈$€£₹]|usd|approx\.?|about|around|followers?|subs(cribers)?|views?/g, "").trim();
+/** No account has this many followers or views a video; a bigger number is a typo. */
+const MAX_COUNT = 5e9;
+
+/** "about", "followers", "on TikTok": the words around a number that say nothing about it. */
+const COUNT_FILLER =
+  /(?<![a-z])(?:approx(?:imately)?|about|around|almost|nearly|roughly|above|over|more than|less than|under|at least|up to|average|avg|of|de|followers?|folowers?|seguidores|subs(?:cribers)?|views?|visitas|per (?:video|vid|post)|on (?:tiktok|instagram|youtube|ig|tt|yt))(?![a-z])/g;
+
+const RANGE = /\s*(?:-|–|—|\/|\bto\b|\bor\b)\s*/;
+
+/** Lowercased, accents dropped, and an aside in brackets removed: "404K (old video)" is 404K. */
+function plain(raw: string): string {
+  return raw
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .toLowerCase()
+    .replace(/\([^)]*\)?/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+type Amount = { n: number; unit: boolean };
+
+function readAmount(raw: string): Amount | null {
+  let s = raw.replace(/[+~≈$€£₹…!?*]|usd/g, "").replace(/(\d)\.(?=[a-z])/g, "$1").replace(/\s+/g, " ").trim();
+  // "11k6" is 11.6k.
+  const split = /^(\d+)([km])(\d{1,3})$/.exec(s);
+  if (split) s = `${split[1]}.${split[3]}${split[2]}`;
   if (!s) return null;
   const m = /^([\d.,\s]*\d)\s*([a-z]*)$/.exec(s);
   if (!m) return null;
   let digits = m[1];
   const suffix = m[2];
-  const mult = suffix ? SUFFIX[suffix] : 1;
+  const mult = suffix ? UNIT[suffix] : 1;
   if (mult === undefined) return null;
-  digits = digits.replace(/(\d)\s+(?=\d)/g, "$1"); // "477 000"
+  digits = digits.replace(/(\d)\s+(?=\d{3}(?!\d))/g, "$1"); // "477 000", but not "40 60"
   if (/,/.test(digits) && /\./.test(digits)) {
     // Whichever comes last is the decimal mark: "1,234.5" or "1.234,5".
     digits = digits.lastIndexOf(",") > digits.lastIndexOf(".")
@@ -155,40 +190,81 @@ function parseOne(raw: string): number | null {
   }
   const n = Number(digits);
   if (!Number.isFinite(n) || n < 0) return null;
-  return n * mult;
+  // "13.075.000 Millions" already wrote the millions out.
+  if (mult >= 1e6 && n >= 1e5) return { n, unit: true };
+  return { n: n * mult, unit: Boolean(suffix) };
+}
+
+/**
+ * A count below a thousand with a fraction and no unit is thousands with the
+ * "k" left off, or a European "17.300" that the sheet already read as 17.3:
+ * both mean 17,300, and nobody has 17.3 followers.
+ */
+function countOf(a: Amount): number {
+  return !a.unit && a.n < 1000 && !Number.isInteger(a.n) ? a.n * 1000 : a.n;
 }
 
 /**
  * A follower or view count typed by a person. Unknown is null, never 0: a
  * creator who left the box empty is not a creator with no audience. A range
- * ("500-10k") reads as its midpoint.
+ * ("500-10k", "50-100k", "20/30k") reads as its midpoint, with a bare lower
+ * bound taken in the upper bound's unit when that is the only way it can be
+ * the smaller one ("50-100k" is 50k to 100k, "500-10k" stays 500 to 10k).
  */
 export function parseCount(raw: ImportCell): number | null {
   if (raw == null || raw === "") return null;
-  if (typeof raw === "number") return Number.isFinite(raw) && raw >= 0 ? Math.round(raw) : null;
-  const text = String(raw).trim();
+  if (typeof raw === "number") return Number.isFinite(raw) && raw >= 0 ? plausible(countOf({ n: raw, unit: false })) : null;
+  const text = plain(String(raw)).replace(COUNT_FILLER, " ").replace(/\s+/g, " ").trim();
   if (!text || JUNK.test(text)) return null;
-  const range = text.split(/\s*(?:-|–|—|to)\s*/i).filter(Boolean);
+  const range = text.split(RANGE).filter(Boolean);
   if (range.length === 2) {
-    const a = parseOne(range[0]);
-    const b = parseOne(range[1]);
-    if (a !== null && b !== null) return Math.round((a + b) / 2);
+    const a = readAmount(range[0]);
+    const b = readAmount(range[1]);
+    if (a && b) {
+      const hi = countOf(b);
+      let lo = countOf(a);
+      if (!a.unit && lo < 1000 && lo * 1000 <= hi) lo *= 1000;
+      return plausible((lo + hi) / 2);
+    }
   }
-  const n = parseOne(text);
-  return n === null ? null : Math.round(n);
+  const one = readAmount(text);
+  return one ? plausible(countOf(one)) : null;
 }
 
-/** A price per video, in whole or fractional dollars. */
+function plausible(n: number): number | null {
+  return n <= MAX_COUNT ? Math.round(n) : null;
+}
+
+const PRICE_FILLER =
+  /(?<![a-z])(?:usd|us|dollars?|dolares|dolar|dol|bucks|eur|euros?|gbp|pounds?|per (?:post|video|vid|reel|edit)|each|a (?:post|video))(?![a-z])|\/\s*(?:post|video|vid)(?![a-z])/g;
+
+/**
+ * The sheet asks for dollars. Euros and pounds are near enough to read as
+ * the number given; rupees, pesos and reais are not, and are left unknown.
+ */
+const OTHER_CURRENCY = /₹|(?<![a-z])(?:inr|rs|rupees?|pesos?|reais)(?![a-z])|r\$/;
+
+/**
+ * A price per video, in whole or fractional dollars. When a creator gave a
+ * dollar figure alongside another currency ("500 INR (6-7$)", "6$ or 500
+ * inr"), the dollar figure is the answer.
+ */
 export function parsePrice(raw: ImportCell): number | null {
   if (raw == null || raw === "") return null;
   if (typeof raw === "number") return Number.isFinite(raw) && raw > 0 ? raw : null;
-  const text = String(raw).trim();
+  let text = String(raw).normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().trim();
   if (!text || JUNK.test(text) || /free|negotia|depends|dm/i.test(text)) return null;
-  const range = text.split(/\s*(?:-|–|—|to)\s*/i).filter(Boolean);
+  if (OTHER_CURRENCY.test(text)) {
+    const dollars = /\(([^)]*\$[^)]*)\)/.exec(text)?.[1] ?? text.split(/\s+or\s+/).find((p) => p.includes("$") && !OTHER_CURRENCY.test(p));
+    if (!dollars) return null;
+    text = dollars;
+  }
+  text = plain(text).replace(PRICE_FILLER, " ").replace(/\s+/g, " ").trim();
   const read = (s: string) => {
-    const n = parseOne(s);
-    return n !== null && n > 0 ? n : null;
+    const a = readAmount(s);
+    return a && a.n > 0 ? a.n : null;
   };
+  const range = text.split(RANGE).filter(Boolean);
   if (range.length === 2) {
     const a = read(range[0]);
     const b = read(range[1]);
@@ -245,33 +321,169 @@ export function nicheTags(raw: ImportCell): string[] {
   return [...tags];
 }
 
+const COUNTRIES =
+  "Afghanistan|Albania|Algeria|Andorra|Angola|Argentina|Armenia|Australia|Austria|Azerbaijan|Bahamas|Bahrain|Bangladesh|" +
+  "Barbados|Belarus|Belgium|Belize|Benin|Bermuda|Bhutan|Bolivia|Bosnia and Herzegovina|Botswana|Brazil|Brunei|Bulgaria|Burkina Faso|" +
+  "Burundi|Cambodia|Cameroon|Canada|Cape Verde|Chad|Chile|China|Colombia|Congo|Costa Rica|Croatia|Cuba|Cyprus|Czechia|Denmark|Djibouti|" +
+  "Dominican Republic|Ecuador|Egypt|El Salvador|Estonia|Ethiopia|Fiji|Finland|France|Gabon|Gambia|Georgia|Germany|Ghana|" +
+  "Greece|Guatemala|Guinea|Guyana|Haiti|Honduras|Hong Kong|Hungary|Iceland|India|Indonesia|Iran|Iraq|Ireland|Israel|Italy|" +
+  "Ivory Coast|Jamaica|Japan|Jordan|Kazakhstan|Kenya|Kosovo|Kuwait|Kyrgyzstan|Laos|Latvia|Lebanon|Liberia|Libya|Lithuania|" +
+  "Luxembourg|Madagascar|Malawi|Malaysia|Maldives|Mali|Malta|Mauritania|Mauritius|Mexico|Moldova|Monaco|Mongolia|Montenegro|" +
+  "Morocco|Mozambique|Myanmar|Namibia|Nepal|Netherlands|New Zealand|Nicaragua|Niger|Nigeria|North Korea|North Macedonia|Norway|" +
+  "Oman|Pakistan|Palestine|Panama|Papua New Guinea|Paraguay|Peru|Philippines|Poland|Portugal|Puerto Rico|Qatar|Romania|Russia|" +
+  "Rwanda|Saudi Arabia|Senegal|Serbia|Sierra Leone|Singapore|Slovakia|Slovenia|Somalia|South Africa|South Korea|South Sudan|" +
+  "Spain|Sri Lanka|Sudan|Suriname|Sweden|Switzerland|Syria|Taiwan|Tajikistan|Tanzania|Thailand|Togo|Trinidad and Tobago|" +
+  "Tunisia|Turkey|Turkmenistan|Uganda|Ukraine|United Arab Emirates|United Kingdom|United States|Uruguay|Uzbekistan|Venezuela|" +
+  "Vietnam|Yemen|Zambia|Zimbabwe|Europe|Asia|Africa|Middle East|Latin America|North America|South America|Southeast Asia";
+
+/**
+ * Other spellings, languages and demonyms, keyed without accents. Each one
+ * here was typed into the sign-up form's country boxes.
+ */
 const COUNTRY_ALIASES: Record<string, string> = {
-  usa: "United States", us: "United States", "u.s.": "United States", "u.s.a.": "United States",
-  "united states": "United States", "united states of america": "United States", america: "United States", eua: "United States", "estados unidos": "United States",
-  uk: "United Kingdom", "u.k.": "United Kingdom", england: "United Kingdom", "great britain": "United Kingdom", britain: "United Kingdom",
-  brasil: "Brazil", brazil: "Brazil", "méxico": "Mexico", mexico: "Mexico", ph: "Philippines", philippines: "Philippines", pilipinas: "Philippines",
-  india: "India", indonesia: "Indonesia", uae: "United Arab Emirates", "south korea": "South Korea", korea: "South Korea",
-  "españa": "Spain", espana: "Spain", deutschland: "Germany", "türkiye": "Turkey", turkiye: "Turkey", "perú": "Peru", "colômbia": "Colombia",
+  usa: "United States", us: "United States", "united states of america": "United States", america: "United States",
+  amerika: "United States", "amerika serikat": "United States", eua: "United States", eeuu: "United States",
+  "estados unidos": "United States", estadunidenses: "United States", abd: "United States", american: "United States",
+  uk: "United Kingdom", england: "United Kingdom", "great britain": "United Kingdom", britain: "United Kingdom",
+  scotland: "United Kingdom", wales: "United Kingdom",
+  brasil: "Brazil", brazilian: "Brazil", brazilians: "Brazil", bresil: "Brazil", brasilien: "Brazil", brazillia: "Brazil",
+  mexique: "Mexico", messico: "Mexico", meksiko: "Mexico", mexican: "Mexico", "мехико": "Mexico",
+  ph: "Philippines", pilipinas: "Philippines", filipinas: "Philippines", filipina: "Philippines", filipino: "Philippines",
+  philippine: "Philippines", filippine: "Philippines", fliphinne: "Philippines",
+  indonesian: "Indonesia", indonesie: "Indonesia", indo: "Indonesia", "ɪndonesia": "Indonesia",
+  indian: "India", russian: "Russia", rusia: "Russia", "россия": "Russia", ukrainian: "Ukraine",
+  uae: "United Arab Emirates", emirates: "United Arab Emirates", dubai: "United Arab Emirates",
+  korea: "South Korea", "czech republic": "Czechia", macedonia: "North Macedonia",
+  turkiye: "Turkey", turkish: "Turkey", espana: "Spain", espanha: "Spain", deutschland: "Germany", german: "Germany",
+  french: "France", tailandia: "Thailand", thai: "Thailand", "таиланд": "Thailand", "бразилия": "Brazil",
+  irak: "Iraq", "arabia saudi": "Saudi Arabia", saudi: "Saudi Arabia", ksa: "Saudi Arabia",
+  "kingdom of saudi arabia": "Saudi Arabia", "azərbaycan": "Azerbaijan", "afrique du sud": "South Africa",
+  tunisie: "Tunisia", vietman: "Vietnam", "viet nam": "Vietnam", malesia: "Malaysia", malasia: "Malaysia",
+  morroco: "Morocco", "republica dominicana": "Dominican Republic", "cote d ivoire": "Ivory Coast",
+  qazaqstan: "Kazakhstan", swiss: "Switzerland", espagne: "Spain", turquie: "Turkey", euu: "United States",
+  latam: "Latin America", latinoamerica: "Latin America", latioameria: "Latin America", "norte america": "North America",
+  european: "Europe", europa: "Europe", asian: "Asia", asean: "Southeast Asia",
 };
 
-function titleCase(s: string): string {
-  return s.toLowerCase().replace(/\b\p{L}/gu, (c) => c.toUpperCase());
+/** Words in a country answer that name no place: "Other (48%)", "mostly", "and the whole of Europe". */
+const COUNTRY_FILLER = new Set(
+  ("other others другое etc and or e y et und ande the of a an with from then remaining mostly mainly most some little bit " +
+    "top first second third st nd rd th place main account vpn equal based too more country countries world worldwide whole " +
+    "entire all over global everywhere any various mixed mix several idk unknown many maybe probably small foreign it is its " +
+    "says say saying showing here there no specific largest audience my mu are нет usd i don t know lainnya otros english spanish internationally random private"
+  ).split(" "),
+);
+
+/** Folded to how an answer is compared: lowercase, no accents, no dots ("U.S.A." is usa). */
+function countryKey(s: string): string {
+  return s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().replace(/\./g, "");
+}
+
+let countryIndex: Map<string, string> | null = null;
+function countryLookup(): Map<string, string> {
+  if (!countryIndex) {
+    countryIndex = new Map(COUNTRIES.split("|").map((c) => [countryKey(c), c]));
+    for (const [k, v] of Object.entries(COUNTRY_ALIASES)) countryIndex.set(countryKey(k), v);
+  }
+  return countryIndex;
+}
+
+/** Edit distance with adjacent swaps, stopping early once it passes `max`. */
+function editDistance(a: string, b: string, max: number): number {
+  if (Math.abs(a.length - b.length) > max) return max + 1;
+  const d = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array<number>(b.length).fill(0)]);
+  for (let j = 1; j <= b.length; j++) d[0][j] = j;
+  for (let i = 1; i <= a.length; i++) {
+    let rowMin = Infinity;
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + cost);
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
+      rowMin = Math.min(rowMin, d[i][j]);
+    }
+    if (rowMin > max) return max + 1;
+  }
+  return d[a.length][b.length];
 }
 
 /**
- * One or more countries, spelled one way. "USA, Brazil" stays a list (joined
- * with ", "), because an audience split across two countries is an answer;
- * "Other" and "worldwide" are not a country and read as unknown.
+ * A misspelt country ("Kazachstan", "Philipines", "canda"): the one name
+ * within one edit (two for long names) that starts with the same letter.
+ * Short words are never guessed at; "mali" and "chad" have to be typed right.
+ */
+function nearestCountry(phrase: string): string | null {
+  if (phrase.length < 5) return null;
+  const max = phrase.length >= 8 ? 2 : 1;
+  let best: string | null = null;
+  let bestD = max + 1;
+  for (const [key, name] of countryLookup()) {
+    if (key[0] !== phrase[0] || key.length < 4) continue;
+    const d = editDistance(phrase, key, max);
+    if (d < bestD) {
+      best = name;
+      bestD = d;
+    }
+  }
+  return best;
+}
+
+/** "🇺🇸" is two regional-indicator letters, "US"; the flag is written out as the country's name. */
+function spellFlags(s: string): string {
+  let names: Intl.DisplayNames | null = null;
+  return s.replace(/[\u{1F1E6}-\u{1F1FF}]{2}/gu, (flag) => {
+    const code = [...flag].map((c) => String.fromCharCode(c.codePointAt(0)! - 0x1f1e6 + 65)).join("");
+    try {
+      names ??= new Intl.DisplayNames(["en"], { type: "region" });
+      return ` ${names.of(code) ?? ""} `;
+    } catch {
+      return " ";
+    }
+  });
+}
+
+function titleCase(s: string): string {
+  return s.toLowerCase().replace(/(^|[^\p{L}\p{M}'’])(\p{L})/gu, (_, before: string, c: string) => before + c.toUpperCase());
+}
+
+/**
+ * The countries named in a free-text answer, spelled one way, in the order
+ * given, at most four: "Other (48%) Mexico (17.1%)" is Mexico, "1.Mexico
+ * 2.Brazil 3.USA" is three countries, "Indonésia" is Indonesia. An answer
+ * that names none is kept only when it reads as a place ("Rio de Janeiro");
+ * "Other", "worldwide" and "idk" are not a country and read as unknown.
  */
 export function normalizeCountries(raw: ImportCell): string | null {
   const text = raw == null ? "" : String(raw).trim();
-  if (!text || JUNK.test(text) || /^(other|others|worldwide|global|world|all|everywhere|mixed|various)$/i.test(text)) return null;
-  const parts = text
-    .split(/\s*(?:,|\/|;|&|\+|\band\b|\be\b|\by\b)\s*/i)
-    .map((p) => p.replace(/[()%\d.]/g, "").trim())
-    .filter((p) => p && !/^(other|others|worldwide|global)$/i.test(p));
-  const names = [...new Set(parts.map((p) => COUNTRY_ALIASES[p.toLowerCase()] ?? (p.length <= 3 ? p.toUpperCase() : titleCase(p))))];
-  return names.length ? names.slice(0, 4).join(", ") : null;
+  if (!text || JUNK.test(text)) return null;
+  const lookup = countryLookup();
+  const tokens = countryKey(spellFlags(text)).split(/[^\p{L}]+/u).filter(Boolean);
+
+  const found: string[] = [];
+  let i = 0;
+  while (i < tokens.length) {
+    let hit: { name: string; used: number } | null = null;
+    for (let n = Math.min(4, tokens.length - i); n >= 1 && !hit; n--) {
+      const name = lookup.get(tokens.slice(i, i + n).join(" "));
+      if (name) hit = { name, used: n };
+    }
+    // A misspelling is only guessed at in a short answer, not inside a sentence.
+    if (!hit && tokens.length <= 8 && !COUNTRY_FILLER.has(tokens[i])) {
+      for (let n = Math.min(2, tokens.length - i); n >= 1 && !hit; n--) {
+        const name = nearestCountry(tokens.slice(i, i + n).join(" "));
+        if (name) hit = { name, used: n };
+      }
+    }
+    if (hit) {
+      if (!found.includes(hit.name)) found.push(hit.name);
+      i += hit.used;
+    } else i++;
+  }
+  if (found.length) return found.slice(0, 4).join(", ");
+
+  const words = text.replace(/\s+/g, " ").replace(/[.,;]+$/, "").trim();
+  const readsAsPlace =
+    /^[\p{L}\p{M}' -]+$/u.test(words) && tokens.length <= 3 && !tokens.some((t) => COUNTRY_FILLER.has(t));
+  return readsAsPlace ? titleCase(words) : null;
 }
 
 // ─── Column mapping ─────────────────────────────────────────────────────────
@@ -410,11 +622,46 @@ const LINK_FIELDS: Record<ImportPlatform, { link: ImportField; followers: Import
   TWITTER: { link: "twitterLink", followers: "twitterFollowers" },
 };
 
-function text(v: ImportCell): string | null {
+export function text(v: ImportCell): string | null {
   if (v == null) return null;
   const s = (v instanceof Date ? v.toISOString() : String(v)).trim();
   return s && !JUNK.test(s) ? s : null;
 }
+
+/**
+ * The name a creator typed, without what is not a name: an email address, a
+ * link, or the "(@handle)" typed after it. Nothing is left of "name@mail.com"
+ * or "@handle", and the account's handle stands in.
+ */
+export function personName(raw: ImportCell): string | null {
+  const t = text(raw);
+  if (!t) return null;
+  const s = t
+    .replace(/\S+@\S+\.\S+/g, " ")
+    .replace(/(?:https?:\/\/|www\.)\S+/gi, " ")
+    .replace(/\S+\.(?:com|net|org|me|be|am|io|co)(?:\/\S*)?/gi, " ")
+    .replace(/\(\s*@[\w.]+\s*\)/g, " ")
+    .replace(/(^|\s)@[\w.]+/g, "$1")
+    .replace(/\(\s*\)|\[\s*\]/g, " ")
+    .replace(/\s+/g, " ")
+    .replace(/^[\s,;:|/\\-]+|[\s,;:|/\\-]+$/g, "")
+    .trim();
+  return s && s.toLowerCase() !== "name" ? s : null;
+}
+
+/**
+ * How each free-text cell is read. The import always uses CELL_RULES; the
+ * rules an earlier version shipped with are kept in importParseLegacy, so a
+ * re-import can tell a value that version misread from one someone typed.
+ */
+export type CellRules = {
+  count: (raw: ImportCell) => number | null;
+  price: (raw: ImportCell) => number | null;
+  countries: (raw: ImportCell) => string | null;
+  name: (raw: ImportCell) => string | null;
+};
+
+export const CELL_RULES: CellRules = { count: parseCount, price: parsePrice, countries: normalizeCountries, name: personName };
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
@@ -431,6 +678,7 @@ export function readRow(
   row: ImportCell[],
   mapping: ColumnMapping,
   rowNumber: number,
+  rules: CellRules = CELL_RULES,
 ): { person: ImportPerson } | { rejected: RejectedRow } | { blank: true } {
   const get = (field: ImportField): ImportCell => {
     const i = mapping.indexOf(field);
@@ -450,16 +698,15 @@ export function readRow(
       if (links.some((l) => l.platform === parsed.link.platform && l.handle === parsed.link.handle)) continue;
       links.push({
         ...parsed.link,
-        followersCount: parseCount(get(f.followers)),
-        averageViews: f.views ? parseCount(get(f.views)) : null,
+        followersCount: rules.count(get(f.followers)),
+        averageViews: f.views ? rules.count(get(f.views)) : null,
       });
     } else if ("reason" in parsed) {
       problems.push(parsed.reason);
     }
   }
 
-  const rawName = text(get("name"));
-  const name = rawName && rawName.toLowerCase() !== "name" ? rawName : null;
+  const name = rules.name(get("name"));
   if (!links.length) {
     return {
       rejected: {
@@ -473,8 +720,8 @@ export function readRow(
   const primary = primaryLink(links)!;
   // "Followers" and "Average Views" with no platform in the header describe
   // the primary account (the sign-up sheet's cleaned "Creator Directory" tab).
-  if (primary.followersCount === null) primary.followersCount = parseCount(get("followers"));
-  if (primary.averageViews === null) primary.averageViews = parseCount(get("avgViews"));
+  if (primary.followersCount === null) primary.followersCount = rules.count(get("followers"));
+  if (primary.averageViews === null) primary.averageViews = rules.count(get("avgViews"));
 
   const email = text(get("email"));
   const niche = text(get("niche"));
@@ -483,11 +730,11 @@ export function readRow(
       rows: [rowNumber],
       name: (name ?? primary.handle).slice(0, 200),
       email: email && EMAIL.test(email) ? email.toLowerCase() : null,
-      country: normalizeCountries(get("country")),
-      audienceCountry: normalizeCountries(get("audienceCountry")),
+      country: rules.countries(get("country")),
+      audienceCountry: rules.countries(get("audienceCountry")),
       niche: niche ? niche.slice(0, 500) : null,
       tags: nicheTags(niche),
-      rate: parsePrice(get("price")),
+      rate: rules.price(get("price")),
       signedUpAt: parseTimestamp(get("signedUpAt")),
       links,
     },
@@ -570,14 +817,14 @@ export type ParsedSheet = {
 };
 
 /** A whole sheet: header row first, then data. */
-export function parseSheet(rows: ImportCell[][], mapping?: ColumnMapping): ParsedSheet {
+export function parseSheet(rows: ImportCell[][], mapping?: ColumnMapping, rules: CellRules = CELL_RULES): ParsedSheet {
   const [header = [], ...data] = rows;
   const map = mapping ?? detectMapping(header);
   const people: ImportPerson[] = [];
   const rejected: RejectedRow[] = [];
   let totalRows = 0;
   data.forEach((row, i) => {
-    const result = readRow(row, map, i + 2);
+    const result = readRow(row, map, i + 2, rules);
     if ("blank" in result) return;
     totalRows++;
     if ("rejected" in result) rejected.push(result.rejected);

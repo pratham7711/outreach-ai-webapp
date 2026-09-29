@@ -32,6 +32,12 @@ const fake: any = {
       }
       return { count };
     }),
+    update: jest.fn(async ({ where, data }: any) => {
+      const l = store.link.find((x) => x.id === where.id && x.orgId === where.orgId && x.creatorId === where.creatorId);
+      if (!l) throw new Error("update: no such link for this creator in org");
+      Object.assign(l, data);
+      return l;
+    }),
     deleteMany: jest.fn(async ({ where }: any) => {
       const before = store.link.length;
       store.link = store.link.filter((l) => {
@@ -216,6 +222,64 @@ describe("planImport + applyImport", () => {
     await applyImport("org-1", plan, "x");
     const fresh = store.creator.find((c) => c.deletedAt === null)!;
     expect(store.link.filter((l) => l.creatorId === fresh.id).map((l) => l.platform)).toEqual(["TIKTOK", "INSTAGRAM"]);
+  });
+
+  describe("correcting what the first import misread", () => {
+    // What the first import's parser made of the row, and what today's makes of it.
+    const misread = () =>
+      person({ name: "aki@example.com", audienceCountry: "IndonÉSia", links: [link("TIKTOK", "akiedits", 17), link("INSTAGRAM", "aki.edits", null)] });
+    const reread = () =>
+      person({ name: "akiedits", audienceCountry: "Indonesia", links: [link("TIKTOK", "akiedits", 17300), link("INSTAGRAM", "aki.edits", 284000)] });
+
+    beforeEach(async () => {
+      await applyImport("org-1", await planImport("org-1", [misread()]), "Sign-up form");
+    });
+
+    it("corrects each value still exactly as that import wrote it, and says before → after", async () => {
+      const plan = await planImport("org-1", [reread()], [], [misread()]);
+      expect(plan.people[0].action).toBe("correct");
+      expect(plan.people[0].corrections).toEqual(
+        expect.arrayContaining([
+          "TikTok followers 17 → 17,300",
+          "name “aki@example.com” → “akiedits”",
+          "audience country “IndonÉSia” → “Indonesia”",
+        ]),
+      );
+      // A blank the first import left is filled, not "corrected".
+      expect(plan.people[0].changes).toContain("fills Instagram followers");
+
+      expect(await applyImport("org-1", plan, "x")).toMatchObject({ created: 0, updated: 0, corrected: 1 });
+      expect(store.creator[0]).toMatchObject({ name: "akiedits", followersCount: 17300 });
+      expect(store.link.map((l) => [l.platform, l.followersCount])).toEqual([
+        ["TIKTOK", 17300],
+        ["INSTAGRAM", 284000],
+      ]);
+      expect(store.detail[0].audienceCountry).toBe("Indonesia");
+
+      const again = await planImport("org-1", [reread()], [], [misread()]);
+      expect(again.people[0]).toMatchObject({ action: "unchanged", corrections: [], changes: [] });
+    });
+
+    it("leaves a value alone once anyone has changed it", async () => {
+      // A live refresh fetched the real count; the agency typed the audience.
+      Object.assign(store.creator[0], { followersCount: 18000 });
+      Object.assign(store.link.find((l) => l.platform === "TIKTOK")!, { followersCount: 18000 });
+      Object.assign(store.detail[0], { audienceCountry: "Indonesia, Malaysia" });
+      Object.assign(store.creator[0], { name: "Aki (priority)" });
+
+      const plan = await planImport("org-1", [reread()], [], [misread()]);
+      expect(plan.people[0].corrections).toEqual([]);
+      await applyImport("org-1", plan, "x");
+      expect(store.creator[0]).toMatchObject({ name: "Aki (priority)", followersCount: 18000 });
+      expect(store.link.find((l) => l.platform === "TIKTOK")!.followersCount).toBe(18000);
+      expect(store.detail[0].audienceCountry).toBe("Indonesia, Malaysia");
+    });
+
+    it("never overwrites a set value without the first reading to compare against", async () => {
+      const plan = await planImport("org-1", [reread()]);
+      expect(plan.people[0].corrections).toEqual([]);
+      expect(plan.people[0].fill).not.toHaveProperty("followersCount");
+    });
   });
 
   it("reuses an existing tag whatever its case", async () => {

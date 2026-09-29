@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import type { Platform } from "@/lib/generated/prisma/client";
 import { creatorHandleVariants } from "@/lib/creator-auth";
 import { primaryLink, type ImportLink, type ImportPerson, type ImportPlatform } from "@/lib/creators/importParse";
+import { formatFull } from "@/lib/format";
 
 /**
  * Putting parsed people onto an org's roster.
@@ -15,10 +16,12 @@ import { primaryLink, type ImportLink, type ImportPerson, type ImportPlatform } 
  *
  * An existing creator is only ever filled in, never overwritten: an import is
  * a sign-up sheet, and what the agency typed into a profile by hand wins over
- * what a creator typed into a form.
+ * what a creator typed into a form. The one exception is a correction: a
+ * value an earlier version of the import misread from this same sheet, and
+ * that is still exactly what that version wrote (see importParseLegacy).
  */
 
-export type PlanAction = "create" | "update" | "unchanged";
+export type PlanAction = "create" | "update" | "correct" | "unchanged";
 
 export type PlannedPerson = {
   person: ImportPerson;
@@ -29,18 +32,22 @@ export type PlannedPerson = {
   rosterName: string | null;
   /** Human-readable, for the review table: "adds Instagram", "fills price". */
   changes: string[];
+  /** Misread values being put right, before → after: "TikTok followers 17 → 17,300". */
+  corrections: string[];
   addLinks: ImportLink[];
+  /** Accounts the creator already has, with counts to fill or correct. */
+  linkUpdates: { id: string; data: { followersCount?: number; averageViews?: number } }[];
   /** linkKey of the added link to mark primary, when the creator has none yet. */
   primaryKey: string | null;
   addTags: string[];
   fill: {
     name?: string;
     contactEmail?: string;
-    rate?: number;
+    rate?: number | null;
     followersCount?: number;
     averageViews?: number;
   };
-  detail: "create" | { country?: string; audienceCountry?: string; niche?: string; signedUpAt?: Date } | null;
+  detail: "create" | { country?: string | null; audienceCountry?: string | null; niche?: string; signedUpAt?: Date } | null;
 };
 
 export type ImportPlan = { people: PlannedPerson[]; newTags: string[] };
@@ -62,7 +69,26 @@ async function existingTagNames(orgId: string): Promise<Map<string, { id: string
   return new Map(defs.map((d) => [d.name.toLowerCase(), d]));
 }
 
-export async function planImport(orgId: string, people: ImportPerson[], extraTags: string[] = []): Promise<ImportPlan> {
+const COUNT_LABEL = { followersCount: "followers", averageViews: "avg views" } as const;
+
+const shown = (v: string | null) => (v ? `“${v}”` : "not set");
+
+/** A price as typed, cents included: "$5.9" must not read as "$6". */
+const dollars = (n: number | null) =>
+  n == null ? "not set" : new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(n);
+
+/**
+ * `earlier[i]` is people[i] as the first import's parser read the same rows
+ * (importParseLegacy). Where the roster still holds exactly that reading and
+ * today's parser reads the cell differently, the value is corrected; any
+ * other stored value was typed or fetched since, and is left alone.
+ */
+export async function planImport(
+  orgId: string,
+  people: ImportPerson[],
+  extraTags: string[] = [],
+  earlier: (ImportPerson | undefined)[] = [],
+): Promise<ImportPlan> {
   const allKeys = new Map<ImportPlatform, Set<string>>();
   for (const p of people) {
     for (const l of p.links) {
@@ -115,7 +141,7 @@ export async function planImport(orgId: string, people: ImportPerson[], extraTag
           rate: true,
           followersCount: true,
           averageViews: true,
-          profileLinks: { select: { platform: true, handle: true } },
+          profileLinks: { select: { id: true, platform: true, handle: true, followersCount: true, averageViews: true } },
           detail: { select: { country: true, audienceCountry: true, niche: true, signedUpAt: true } },
           tagLinks: { select: { tag: { select: { name: true } } } },
         },
@@ -127,7 +153,7 @@ export async function planImport(orgId: string, people: ImportPerson[], extraTag
   const newTags = new Set<string>();
   const extras = extraTags.map((t) => t.trim()).filter(Boolean);
 
-  const planned = people.map((person): PlannedPerson => {
+  const planned = people.map((person, index): PlannedPerson => {
     const tags = [...new Set([...person.tags, ...extras])];
     for (const t of tags) if (!tagDefs.has(t.toLowerCase())) newTags.add(t);
 
@@ -140,7 +166,9 @@ export async function planImport(orgId: string, people: ImportPerson[], extraTag
         creatorId: null,
         rosterName: null,
         changes: [],
+        corrections: [],
         addLinks: person.links,
+        linkUpdates: [],
         primaryKey: linkKey(primaryLink(person.links)!.platform, primaryLink(person.links)!.handle),
         addTags: tags,
         fill: {},
@@ -207,8 +235,69 @@ export async function planImport(orgId: string, people: ImportPerson[], extraTag
     const addTags = tags.filter((t) => !heldTags.has(t.toLowerCase()));
     if (addTags.length) changes.push(`adds ${addTags.length} tag${addTags.length === 1 ? "" : "s"}`);
 
-    const action: PlanAction =
-      addLinks.length || addTags.length || Object.keys(fill).length || detail ? "update" : "unchanged";
+    // An account the creator already has: its blank counts are filled, and
+    // what the first import misread is corrected.
+    const was = earlier[index];
+    const corrections = new Set<string>();
+    const linkUpdates: PlannedPerson["linkUpdates"] = [];
+    for (const l of person.links) {
+      const key = linkKey(l.platform, l.handle);
+      const heldLink = creator.profileLinks.find((h) => linkKey(h.platform, h.handle) === key);
+      if (!heldLink) continue;
+      const before = was?.links.find((b) => linkKey(b.platform, b.handle) === key);
+      const data: PlannedPerson["linkUpdates"][number]["data"] = {};
+      for (const k of ["followersCount", "averageViews"] as const) {
+        const stored = heldLink[k];
+        const now = l[k];
+        if (now == null || stored === now) continue;
+        if (stored == null) {
+          data[k] = now;
+          changes.push(`fills ${PLATFORM_LABEL[l.platform]} ${COUNT_LABEL[k]}`);
+        } else if (before && stored === before[k]) {
+          data[k] = now;
+          corrections.add(`${PLATFORM_LABEL[l.platform]} ${COUNT_LABEL[k]} ${formatFull(stored)} → ${formatFull(now)}`);
+        }
+      }
+      if (Object.keys(data).length) linkUpdates.push({ id: heldLink.id, data });
+    }
+
+    if (was) {
+      // The creator's own figures mirror its main account's, as the first import wrote them.
+      const ownBefore = was.links.find((b) => linkKey(b.platform, b.handle) === linkKey(own.platform, own.handle));
+      for (const k of ["followersCount", "averageViews"] as const) {
+        if (!ownBefore || fill[k] !== undefined) continue;
+        const stored = creator[k];
+        const now = own[k];
+        if (stored && now != null && stored === (ownBefore[k] ?? 0) && now !== stored) {
+          fill[k] = now;
+          corrections.add(`${PLATFORM_LABEL[own.platform]} ${COUNT_LABEL[k]} ${formatFull(stored)} → ${formatFull(now)}`);
+        }
+      }
+      if (fill.rate === undefined && creator.rate != null && creator.rate === was.rate && person.rate !== was.rate) {
+        fill.rate = person.rate;
+        corrections.add(`price ${dollars(creator.rate)} → ${dollars(person.rate)}`);
+      }
+      if (fill.name === undefined && creator.name === was.name && person.name !== was.name) {
+        fill.name = person.name;
+        corrections.add(`name ${shown(was.name)} → ${shown(person.name)}`);
+      }
+      if (creator.detail && detail !== "create") {
+        const d = detail ?? {};
+        for (const [k, label] of [["country", "country"], ["audienceCountry", "audience country"]] as const) {
+          const stored = creator.detail[k];
+          if (d[k] !== undefined || stored == null || stored !== was[k] || person[k] === was[k]) continue;
+          d[k] = person[k];
+          corrections.add(`${label} ${shown(stored)} → ${shown(person[k])}`);
+        }
+        if (Object.keys(d).length) detail = d;
+      }
+    }
+
+    const action: PlanAction = corrections.size
+      ? "correct"
+      : addLinks.length || addTags.length || Object.keys(fill).length || detail || linkUpdates.length
+        ? "update"
+        : "unchanged";
     // A creator that predates profile links has no primary yet; its own account is it.
     const primaryKey = creator.profileLinks.length ? null : linkKey(creator.platform, creator.handle);
     return {
@@ -217,7 +306,9 @@ export async function planImport(orgId: string, people: ImportPerson[], extraTag
       creatorId: creator.id,
       rosterName: fill.name ?? creator.name,
       changes,
+      corrections: [...corrections],
       addLinks,
+      linkUpdates,
       primaryKey,
       addTags,
       fill,
@@ -228,11 +319,11 @@ export async function planImport(orgId: string, people: ImportPerson[], extraTag
   return { people: planned, newTags: [...newTags].sort() };
 }
 
-export type ApplyCounts = { created: number; updated: number; unchanged: number; creatorIds: string[] };
+export type ApplyCounts = { created: number; updated: number; corrected: number; unchanged: number; creatorIds: string[] };
 
 /** Writes one slice of a plan. Safe to repeat: every insert skips what exists. */
 export async function applyImport(orgId: string, plan: ImportPlan, source: string): Promise<ApplyCounts> {
-  const counts: ApplyCounts = { created: 0, updated: 0, unchanged: 0, creatorIds: [] };
+  const counts: ApplyCounts = { created: 0, updated: 0, corrected: 0, unchanged: 0, creatorIds: [] };
   const todo = plan.people.filter((p) => p.action !== "unchanged");
   counts.unchanged = plan.people.length - todo.length;
   if (!todo.length) return counts;
@@ -320,7 +411,10 @@ export async function applyImport(orgId: string, plan: ImportPlan, source: strin
       if (tagRows.length) await tx.creatorTagLink.createMany({ data: tagRows, skipDuplicates: true });
 
       for (const p of todo) {
-        if (p.action !== "update") continue;
+        if (p.action === "create") continue;
+        for (const u of p.linkUpdates) {
+          await tx.creatorProfileLink.update({ where: { id: u.id, orgId, creatorId: p.creatorId! }, data: u.data });
+        }
         if (Object.keys(p.fill).length) {
           await tx.creator.update({ where: { id: p.creatorId!, orgId }, data: p.fill });
         }
@@ -342,7 +436,8 @@ export async function applyImport(orgId: string, plan: ImportPlan, source: strin
       }
 
       counts.created = creates.length;
-      counts.updated = todo.length - creates.length;
+      counts.corrected = todo.filter((p) => p.action === "correct").length;
+      counts.updated = todo.length - creates.length - counts.corrected;
       counts.creatorIds = todo.map(idFor);
     },
     { timeout: 45_000, maxWait: 10_000 },

@@ -55,7 +55,7 @@ describe("POST /api/creators/import", () => {
 
   it("takes the org from the session, never the body", async () => {
     await post({ rows: sheet(2), mode: "dryRun", orgId: "org-evil" });
-    expect(mockPlan).toHaveBeenCalledWith("org-1", expect.any(Array), []);
+    expect(mockPlan).toHaveBeenCalledWith("org-1", expect.any(Array), [], expect.any(Array));
   });
 
   it("answers 503 with a plain reason until the roster tables exist", async () => {
@@ -71,8 +71,16 @@ describe("POST /api/creators/import", () => {
     const body = await res.json();
     expect(res.status).toBe(200);
     expect(mockApply).not.toHaveBeenCalled();
-    expect(body.counts).toEqual({ totalRows: 3, people: 3, create: 3, update: 0, unchanged: 0, rejected: 0, merged: 0 });
+    expect(body.counts).toEqual({ totalRows: 3, people: 3, create: 3, update: 0, correct: 0, unchanged: 0, rejected: 0, merged: 0 });
     expect(body.people[0]).toMatchObject({ name: "Page 0", primary: { platform: "TIKTOK", handle: "page0" }, tags: ["Anime"] });
+  });
+
+  it("hands the planner each person as the first import read the same rows", async () => {
+    const rows = [HEADERS, ["Page 0", "p0@example.com", "https://www.tiktok.com/@page0", 17.3, ""], ["Page 1", "p1@example.com", "https://www.tiktok.com/@page1", "31,2 mil", ""]];
+    await post({ rows, mode: "commit", offset: 1, limit: 1 });
+    const [, people, , earlier] = mockPlan.mock.calls[0];
+    expect(people.map((p: any) => [p.rows, p.links[0].followersCount])).toEqual([[[3], 31200]]);
+    expect(earlier.map((p: any) => [p.rows, p.links[0].followersCount])).toEqual([[[3], 31200000]]);
   });
 
   it("commits one slice at a time and says where to resume", async () => {

@@ -13,7 +13,9 @@ import {
   MAX_IMPORT_ROWS,
   parseSheet,
   primaryLink,
+  type ImportPerson,
 } from "@/lib/creators/importParse";
+import { LEGACY_CELL_RULES } from "@/lib/creators/importParseLegacy";
 
 export const maxDuration = 60;
 
@@ -51,6 +53,12 @@ export async function POST(request: NextRequest) {
   }
 
   const sheet = parseSheet(rows, mapping);
+  // The same rows as the first import's parser read them, so a value it
+  // misread and nobody has touched since can be told from one that was typed.
+  // Rows group into the same people either way: grouping is by account and
+  // email, which neither parser reads differently.
+  const firstReading = new Map(parseSheet(rows, mapping, LEGACY_CELL_RULES).people.map((p) => [p.rows.join(","), p]));
+  const earlier = (people: ImportPerson[]) => people.map((p) => firstReading.get(p.rows.join(",")));
   if (sheet.people.length > MAX_IMPORT_PEOPLE) {
     return NextResponse.json(
       { error: `This sheet has ${sheet.people.length} creators; import at most ${MAX_IMPORT_PEOPLE} at a time.` },
@@ -59,7 +67,7 @@ export async function POST(request: NextRequest) {
   }
 
   if (mode === "dryRun") {
-    const plan = await planImport(orgId, sheet.people, extraTags);
+    const plan = await planImport(orgId, sheet.people, extraTags, earlier(sheet.people));
     const count = (a: string) => plan.people.filter((p) => p.action === a).length;
     return NextResponse.json({
       counts: {
@@ -67,6 +75,7 @@ export async function POST(request: NextRequest) {
         people: sheet.people.length,
         create: count("create"),
         update: count("update"),
+        correct: count("correct"),
         unchanged: count("unchanged"),
         rejected: sheet.rejected.length,
         merged: sheet.mergedRows,
@@ -84,6 +93,7 @@ export async function POST(request: NextRequest) {
         tags: [...new Set([...p.person.tags, ...extraTags])],
         action: p.action,
         changes: p.changes,
+        corrections: p.corrections,
         creatorId: p.creatorId,
       })),
       rejected: sheet.rejected,
@@ -93,11 +103,11 @@ export async function POST(request: NextRequest) {
   // Re-planned here rather than trusting the preview: the commit writes what
   // the database says now, which is what makes a retried chunk a no-op.
   const slice = sheet.people.slice(offset, offset + limit);
-  const plan = await planImport(orgId, slice, extraTags);
+  const plan = await planImport(orgId, slice, extraTags, earlier(slice));
   const result = await applyImport(orgId, plan, source);
   const nextOffset = Math.min(offset + limit, sheet.people.length);
 
-  if (result.created || result.updated) {
+  if (result.created || result.updated || result.corrected) {
     await logAudit({
       orgId,
       ...getAuditActor(gate.auth),
@@ -111,6 +121,7 @@ export async function POST(request: NextRequest) {
         people: slice.length,
         created: result.created,
         updated: result.updated,
+        corrected: result.corrected,
         unchanged: result.unchanged,
       },
       after: { creatorIds: result.creatorIds },
@@ -120,6 +131,7 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({
     created: result.created,
     updated: result.updated,
+    corrected: result.corrected,
     unchanged: result.unchanged,
     total: sheet.people.length,
     nextOffset,
