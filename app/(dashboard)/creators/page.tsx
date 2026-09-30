@@ -8,7 +8,7 @@ import { CREATOR_FILTER_KEYS, countCreatorFilters, creatorOrderBy, creatorWhere,
 import { firstParam, readCreatorSort } from "@/lib/listParams";
 import { rosterTablesReady } from "@/lib/creators/rosterTables";
 import { isFetchableAvatarUrl, storedAvatarVersions } from "@/lib/creators/avatarStore";
-import { HANDLE_PROBLEM_WHERE, handleProblem } from "@/lib/creators/handleCheck";
+import { HANDLE_GONE_WHERE, HANDLE_UNREADABLE_WHERE, handleProblem } from "@/lib/creators/handleCheck";
 
 /** "United States, Brazil" rows counted per country, most common first. */
 function countryOptions(groups: { value: string | null; _count: number }[]) {
@@ -72,7 +72,7 @@ export default async function CreatorsPage({
   // and counting activations alone reads 0 campaigns for the imported roster.
   const ids = creators.map((c) => c.id);
   const detailWhere = { orgId, creator: { deletedAt: null } };
-  const [derivedAvgViews, campaignCounts, links, details, audienceGroups, countryGroups, avatarVersions, handleIssueCount] = await Promise.all([
+  const [derivedAvgViews, campaignCounts, links, details, audienceGroups, countryGroups, avatarVersions, handleGone, handleUnreadable] = await Promise.all([
     deriveAverageViews(ids),
     deriveCampaignCounts(ids),
     roster
@@ -98,7 +98,10 @@ export default async function CreatorsPage({
     roster ? db.creatorDetail.groupBy({ by: ["country"], where: detailWhere, _count: true }) : [],
     storedAvatarVersions(ids, orgId),
     // Across the whole roster, not this page: it is what tells someone there is anything to fix.
-    roster ? db.creator.count({ where: { orgId, deletedAt: null, profileLinks: { some: HANDLE_PROBLEM_WHERE } } }) : 0,
+    roster ? db.creator.count({ where: { orgId, deletedAt: null, profileLinks: { some: HANDLE_GONE_WHERE } } }) : 0,
+    roster
+      ? db.creator.count({ where: { orgId, deletedAt: null, profileLinks: { some: HANDLE_UNREADABLE_WHERE, none: HANDLE_GONE_WHERE } } })
+      : 0,
   ]);
   const linksBy = new Map<string, typeof links>();
   for (const l of links) linksBy.set(l.creatorId, [...(linksBy.get(l.creatorId) ?? []), l]);
@@ -144,7 +147,7 @@ export default async function CreatorsPage({
       }))}
       query={query.toString()}
       rosterReady={roster}
-      handleIssueCount={handleIssueCount}
+      handleIssues={{ gone: handleGone, unreadable: handleUnreadable }}
       audienceCountryOptions={countryOptions(audienceGroups.map((g) => ({ value: g.audienceCountry, _count: g._count })))}
       countryOptions={countryOptions(countryGroups.map((g) => ({ value: g.country, _count: g._count })))}
       platformCounts={platformCounts}

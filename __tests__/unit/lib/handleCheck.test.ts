@@ -1,7 +1,7 @@
 /**
  * @jest-environment node
  */
-import { HANDLE_PROBLEM_WHERE, handleProblem, handleProblemText } from "@/lib/creators/handleCheck";
+import { HANDLE_PROBLEM_WHERE, handleIssueSummary, handleProblem, handleProblemText } from "@/lib/creators/handleCheck";
 import { countCreatorFilters, creatorWhere, readCreatorFilters } from "@/lib/listFilters";
 
 describe("handleProblem", () => {
@@ -32,10 +32,25 @@ describe("handleProblem", () => {
 
 describe("handleProblemText", () => {
   it("says which platform could not find which handle", () => {
-    expect(handleProblemText("TIKTOK", "synthfixx", "not-found")).toMatch(/^TikTok has no account called @synthfixx\. The handle may be misspelt/);
+    expect(handleProblemText("TIKTOK", "synthfixx", "not-found")).toMatch(/^TikTok has no account called @synthfixx\. It was deleted or renamed/);
     expect(handleProblemText("INSTAGRAM", "@synth.fix", "not-found-or-personal")).toMatch(
-      /^Instagram can't find a Business or Creator account called @synth\.fix\..*personal or private\.$/,
+      /^Instagram can't find a Business or Creator account called @synth\.fix\. It's personal, private or deleted/,
     );
+  });
+});
+
+describe("handleIssueSummary", () => {
+  it("leads with deleted accounts and names the Instagram ones it can't read apart", () => {
+    expect(handleIssueSummary(272, 129)).toBe(
+      "272 creators have an account that was deleted or renamed. 129 more have an Instagram account that's personal, private or deleted, so its numbers can't be read.",
+    );
+  });
+
+  it("drops the half with nothing in it, and reads a single creator in the singular", () => {
+    expect(handleIssueSummary(1, 0)).toBe("1 creator has an account that was deleted or renamed.");
+    expect(handleIssueSummary(0, 1)).toBe("1 creator has an Instagram account that's personal, private or deleted, so its numbers can't be read.");
+    expect(handleIssueSummary(1_204, 1)).toMatch(/^1,204 creators have .* 1 more has an Instagram account/);
+    expect(handleIssueSummary(0, 0)).toBeNull();
   });
 });
 

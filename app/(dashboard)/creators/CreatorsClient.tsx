@@ -19,6 +19,7 @@ import { creatorNameParts } from "@/lib/creators/creatorName";
 import PlatformChips, { type PlatformChipLink } from "@/components/creators/PlatformChips";
 import RosterActions, { type RosterSelection } from "@/components/creators/RosterActions";
 import { profileUrl, type ImportPlatform } from "@/lib/creators/importParse";
+import { handleIssueSummary } from "@/lib/creators/handleCheck";
 
 type Creator = {
   id: string;
@@ -119,7 +120,7 @@ export default function CreatorsClient({
   tagOptions,
   query,
   rosterReady,
-  handleIssueCount = 0,
+  handleIssues = { gone: 0, unreadable: 0 },
   audienceCountryOptions,
   countryOptions,
 }: {
@@ -136,7 +137,7 @@ export default function CreatorsClient({
   query: string;
   rosterReady: boolean;
   /** Creators with an account the platform could not find, across the roster. */
-  handleIssueCount?: number;
+  handleIssues?: { gone: number; unreadable: number };
   audienceCountryOptions: CountryOption[];
   countryOptions: CountryOption[];
 }) {
@@ -147,6 +148,7 @@ export default function CreatorsClient({
   const [showFilters, setShowFilters] = useState(false);
   const [picked, setPicked] = useState<Set<string>>(() => new Set());
   const [allMatching, setAllMatching] = useState(false);
+  const handleIssueText = handleIssueSummary(handleIssues.gone, handleIssues.unreadable);
 
   // A selection belongs to one set of filters. Ticks survive paging through
   // them, but change what matches and they would silently point at creators
@@ -418,14 +420,12 @@ export default function CreatorsClient({
         onChange={(key) => push({ platform: key === "All" ? null : key, page: null })}
       />
 
-      {handleIssueCount > 0 && !filterValues.handleIssues && (
+      {handleIssueText && !filterValues.handleIssues && (
         <div className="cc-roster-notice" role="note">
           <AlertTriangle size={16} aria-hidden className="cc-roster-notice-icon" />
-          <span>
-            {`${handleIssueCount === 1 ? "1 creator has" : `${formatFull(handleIssueCount)} creators have`} an account we couldn't find. The handle may be misspelt.`}
-          </span>
+          <span>{handleIssueText}</span>
           <button type="button" onClick={() => push({ handleIssues: "1", page: null })}>
-            Review {handleIssueCount === 1 ? "it" : "them"}
+            Review {handleIssues.gone + handleIssues.unreadable === 1 ? "it" : "them"}
           </button>
         </div>
       )}
