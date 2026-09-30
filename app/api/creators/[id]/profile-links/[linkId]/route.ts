@@ -131,3 +131,69 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     link: { id: link.id, platform: link.platform, handle, url, ...counts, ...(handleChanged ? { problem: null, refreshedAt: null } : {}) },
   });
 }
+
+/** Which account takes over as primary when the primary is removed: TikTok first, as on import. */
+const PRIMARY_ORDER = ["TIKTOK", "INSTAGRAM", "YOUTUBE", "TWITTER"];
+
+/**
+ * DELETE /api/creators/[id]/profile-links/[linkId] — take an account off the
+ * profile: a sign-up answer that was never a handle ("any", "none"), or an
+ * account that isn't this creator's.
+ *
+ * The creator's only account stays; its handle is corrected instead. When the
+ * primary account goes, the next one becomes primary and the creator mirrors
+ * it, as the import would have.
+ */
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string; linkId: string }> }) {
+  const gate = await requirePermission(request, "creators:create");
+  if (!gate.ok) return gate.response;
+  const { orgId } = gate.auth;
+  const { id, linkId } = await params;
+
+  if (!(await rosterTablesReady())) {
+    return NextResponse.json({ error: "Profile links aren't set up yet." }, { status: 503 });
+  }
+
+  const link = await db.creatorProfileLink.findFirst({
+    where: { id: linkId, orgId, creatorId: id, creator: { deletedAt: null } },
+    select: { id: true, platform: true, handle: true, isPrimary: true, creator: { select: { name: true } } },
+  });
+  if (!link) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  const others = await db.creatorProfileLink.findMany({
+    where: { orgId, creatorId: id, NOT: { id: link.id } },
+    orderBy: { createdAt: "asc" },
+    select: { id: true, platform: true, handle: true, followersCount: true, averageViews: true },
+  });
+  if (!others.length) {
+    return NextResponse.json({ error: "This is the creator's only account. Correct its handle instead." }, { status: 409 });
+  }
+  const next = link.isPrimary
+    ? [...others].sort((a, b) => PRIMARY_ORDER.indexOf(a.platform) - PRIMARY_ORDER.indexOf(b.platform))[0]
+    : null;
+
+  await db.$transaction(async (tx) => {
+    await tx.creatorProfileLink.delete({ where: { id: link.id, orgId } });
+    if (next) {
+      await tx.creatorProfileLink.update({ where: { id: next.id, orgId }, data: { isPrimary: true } });
+      await tx.creator.update({
+        where: { id, orgId },
+        data: { platform: next.platform, handle: `@${next.handle}`, followersCount: next.followersCount ?? 0, averageViews: next.averageViews ?? 0 },
+      });
+    }
+  });
+
+  await logAudit({
+    orgId,
+    ...getAuditActor(gate.auth),
+    action: "creator.profile_link.delete",
+    entityType: "creator",
+    entityId: id,
+    entityLabel: link.creator.name,
+    ipAddress: getRequestIp(request),
+    before: { platform: link.platform, handle: link.handle, isPrimary: link.isPrimary },
+    after: next ? { primary: { platform: next.platform, handle: next.handle } } : null,
+  });
+
+  return NextResponse.json({ removed: link.id, primary: next ? { id: next.id, platform: next.platform, handle: next.handle } : null });
+}

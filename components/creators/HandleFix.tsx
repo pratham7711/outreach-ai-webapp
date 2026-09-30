@@ -14,14 +14,37 @@ export type FixableLink = { id: string; platform: string; handle: string; proble
  * An account the platform could not find, with the way to correct it: the
  * handle as typed, with an @, or the profile link pasted from the app. Saving
  * queues it for the next hourly read, which is when the flag clears for good
- * or comes back.
+ * or comes back. An answer that was never an account ("any", "none") is
+ * removed instead.
  */
 export default function HandleFix({ creatorId, link, onSaved }: { creatorId: string; link: FixableLink; onSaved: () => void }) {
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState(link.handle);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmRemove, setConfirmRemove] = useState(false);
+  const [removing, setRemoving] = useState(false);
   const label = platformLabel(link.platform);
+
+  const remove = async () => {
+    setRemoving(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/creators/${creatorId}/profile-links/${link.id}`, { method: "DELETE" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error ?? "Couldn't remove the account. Try again.");
+        return;
+      }
+      toast.success(`Removed @${link.handle} from this profile.`);
+      onSaved();
+    } catch {
+      setError("The request didn't go through. The account is still on the profile.");
+    } finally {
+      setRemoving(false);
+      setConfirmRemove(false);
+    }
+  };
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -86,10 +109,32 @@ export default function HandleFix({ creatorId, link, onSaved }: { creatorId: str
             </Button>
           </div>
         </form>
+      ) : confirmRemove ? (
+        <>
+          <p className="cc-handle-fix-text">Remove @{link.handle} from this profile? Its numbers go with it.</p>
+          <div className="cc-handle-fix-actions">
+            <Button type="button" variant="primary" size="sm" loading={removing} onClick={remove}>
+              Remove
+            </Button>
+            <Button type="button" variant="secondary" size="sm" onClick={() => setConfirmRemove(false)}>
+              Keep
+            </Button>
+          </div>
+        </>
       ) : (
-        <Button type="button" variant="secondary" size="sm" onClick={() => setOpen(true)}>
-          Fix {label} handle
-        </Button>
+        <div className="cc-handle-fix-actions">
+          <Button type="button" variant="secondary" size="sm" onClick={() => setOpen(true)}>
+            Fix {label} handle
+          </Button>
+          <Button type="button" variant="secondary" size="sm" onClick={() => setConfirmRemove(true)}>
+            Not an account? Remove
+          </Button>
+        </div>
+      )}
+      {!open && error && (
+        <p role="alert" className="cc-handle-fix-error">
+          {error}
+        </p>
       )}
     </div>
   );

@@ -3,7 +3,7 @@ import { useState, useEffect, use } from "react";
 import { motion } from "framer-motion";
 import {
   ArrowLeft, Eye, Heart, MessageCircle, Share2, Play, ChevronRight, ExternalLink, DollarSign, Pencil, Plus, Trash2, Users,
-  User, Video, ClipboardList, Link2,
+  User, Video, ClipboardList, Link2, Combine,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
 import PlatformChips from "@/components/creators/PlatformChips";
 import HandleFix from "@/components/creators/HandleFix";
+import MergeCreatorModal from "@/components/creators/MergeCreatorModal";
 import type { HandleProblem } from "@/lib/creators/handleCheck";
 
 function formatNumber(num: number): string {
@@ -674,6 +675,7 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
   const [creator, setCreator] = useState<Creator | null>(null);
   const [loading, setLoading] = useState(true);
   const [editOpen, setEditOpen] = useState(false);
+  const [mergeOpen, setMergeOpen] = useState(false);
   const [socialAccounts, setSocialAccounts] = useState<SocialAccount[]>([]);
   const [socialLoading, setSocialLoading] = useState(false);
   const [showAddSocial, setShowAddSocial] = useState(false);
@@ -843,6 +845,18 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
                 }}
               >
                 <Pencil size={14} /> Edit
+              </button>
+              <button
+                onClick={() => setMergeOpen(true)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  padding: "6px 14px", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)",
+                  color: "var(--cc-text)", background: "var(--cc-card)",
+                  border: "1.5px solid var(--cc-border)", borderRadius: 8, cursor: "pointer",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                <Combine size={14} /> Merge duplicate
               </button>
             </div>
           </div>
@@ -1266,6 +1280,12 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
         onClose={() => setEditOpen(false)}
         creator={creator}
         onSaved={refreshCreator}
+      />
+      <MergeCreatorModal
+        open={mergeOpen}
+        onClose={() => setMergeOpen(false)}
+        creator={creator}
+        onMerged={refreshCreator}
       />
     </div>
   );
