@@ -10,6 +10,7 @@ import { creatorNameText } from "@/lib/creators/creatorName";
 type Summary = {
   filled: string[];
   links: number;
+  account: { platform: string; handle: string } | null;
   posts: number;
   activations: number;
   lists: number;
@@ -163,6 +164,11 @@ export default function MergeCreatorModal({
         {preview && picked && (
           <div aria-live="polite" style={{ border: "1px solid var(--cc-border)", borderRadius: 8, padding: 12, fontSize: "var(--cc-t-13)", color: "var(--cc-text)" }}>
             <p style={{ margin: 0 }}>{movedText(preview)}</p>
+            {preview.account && (
+              <p style={{ margin: "6px 0 0" }}>
+                Adds its {platformLabel(preview.account.platform)} account @{preview.account.handle} to this profile.
+              </p>
+            )}
             {filled.length > 0 && <p style={{ margin: "6px 0 0" }}>Fills this profile&rsquo;s empty {filled.join(", ")} from it.</p>}
             <p style={{ margin: "6px 0 0", color: "var(--cc-text-muted)" }}>{picked.label} then leaves the roster. This can&rsquo;t be undone here.</p>
           </div>

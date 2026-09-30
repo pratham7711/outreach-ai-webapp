@@ -2,6 +2,7 @@ import type { Prisma } from "@/lib/generated/prisma/client";
 import { db } from "@/lib/db";
 import { stripAt } from "@/lib/format";
 import { creatorNameParts } from "@/lib/creators/creatorName";
+import { profileUrl, type ImportPlatform } from "@/lib/creators/importParse";
 
 /**
  * Folding a duplicate creator into the one to keep.
@@ -13,7 +14,10 @@ import { creatorNameParts } from "@/lib/creators/creatorName";
  * duplicate, so campaigns, lists and payouts all read one profile.
  *
  * The kept creator's own identity never changes: its name, handle, platform and
- * counts stay, and the duplicate only fills what it leaves blank. The duplicate
+ * counts stay, and the duplicate only fills what it leaves blank. A duplicate
+ * that is an older record of the person's account on another platform (no
+ * profile links, just its own platform and handle) hands that account over as a
+ * link, so the kept profile still tracks it. The duplicate
  * is soft-deleted, not removed, so nothing it held is destroyed; its tracker
  * history and picture stay with it, since they describe its own account.
  */
@@ -31,6 +35,8 @@ export type MergeSide = {
   name: string;
   handle: string;
   platform: string;
+  followersCount: number;
+  averageViews: number;
   contactEmail: string | null;
   rate: number | null;
   boostRate: number | null;
@@ -49,10 +55,13 @@ export type MergeSide = {
   socialAccounts: { id: string; platform: string; platformUserId: string | null }[];
 };
 
+export type CarriedAccount = { platform: ImportPlatform; handle: string; followersCount: number | null; averageViews: number | null };
+
 export type MergePlan = {
   creator: Record<string, unknown>;
   filled: string[];
   links: { id: string; isPrimary: boolean }[];
+  account: CarriedAccount | null;
   detail: { move: true } | { fill: Partial<DetailFields> } | null;
   activations: { move: string[]; fold: { from: string; into: string }[] };
   tagIds: string[];
@@ -69,6 +78,24 @@ const sameAccount = (platform: string, handle: string, keep: MergeSide) =>
   platform === keep.platform && stripAt(handle).toLowerCase() === stripAt(keep.handle).toLowerCase();
 
 const earliest = (a: Date | null, b: Date | null) => (a && b ? (a <= b ? a : b) : a ?? b);
+
+const LINKABLE = new Set<string>(["TIKTOK", "INSTAGRAM", "YOUTUBE", "TWITTER"]);
+
+/**
+ * The duplicate's own account, when it is a record of one the kept creator has
+ * no link for. A handle with a space in it is a display name, not an account,
+ * and the same platform as the kept one means an older handle of that account.
+ */
+function carriedAccount(keep: MergeSide, drop: MergeSide): CarriedAccount | null {
+  if (drop.links.length || !keep.links.length) return null;
+  if (!LINKABLE.has(drop.platform) || drop.platform === keep.platform) return null;
+  if (keep.links.some((l) => l.platform === drop.platform)) return null;
+  const raw = stripAt(drop.handle).trim();
+  if (!raw || /\s/.test(raw)) return null;
+  const handle = drop.platform === "YOUTUBE" && /^UC[A-Za-z0-9_-]{22}$/.test(raw) ? raw : raw.toLowerCase();
+  const count = (n: number) => (n > 0 ? n : null);
+  return { platform: drop.platform as ImportPlatform, handle, followersCount: count(drop.followersCount), averageViews: count(drop.averageViews) };
+}
 
 export function planMerge(keep: MergeSide, drop: MergeSide): { ok: true; plan: MergePlan } | { ok: false; error: string } {
   if (keep.id === drop.id) return { ok: false, error: "A creator can't be merged into itself." };
@@ -139,6 +166,7 @@ export function planMerge(keep: MergeSide, drop: MergeSide): { ok: true; plan: M
       creator,
       filled,
       links,
+      account: carriedAccount(keep, drop),
       detail,
       activations,
       tagIds: drop.tagIds.filter((t) => !keptTags.has(t)),
@@ -157,6 +185,8 @@ export async function loadMergeSide(orgId: string, id: string, roster: boolean):
       name: true,
       handle: true,
       platform: true,
+      followersCount: true,
+      averageViews: true,
       contactEmail: true,
       rate: true,
       boostRate: true,
@@ -249,6 +279,7 @@ async function foldActivation(tx: Tx, dropId: string, from: string, into: string
 export type MergeSummary = {
   filled: string[];
   links: number;
+  account: { platform: string; handle: string } | null;
   activations: number;
   lists: number;
   tags: number;
@@ -259,6 +290,7 @@ export function summarise(plan: MergePlan, owned: Record<OwnedKind, number>): Me
   return {
     filled: plan.filled,
     links: plan.links.length,
+    account: plan.account && { platform: plan.account.platform, handle: plan.account.handle },
     activations: plan.activations.move.length + plan.activations.fold.length,
     lists: plan.lists.length,
     tags: plan.tagIds.length,
@@ -288,6 +320,13 @@ export async function executeMerge(orgId: string, keep: MergeSide, drop: MergeSi
       const secondary = plan.links.filter((l) => !l.isPrimary).map((l) => l.id);
       if (primary.length) await tx.creatorProfileLink.updateMany({ where: { orgId, creatorId: drop.id, id: { in: primary } }, data: { creatorId: keep.id, isPrimary: true } });
       if (secondary.length) await tx.creatorProfileLink.updateMany({ where: { orgId, creatorId: drop.id, id: { in: secondary } }, data: { creatorId: keep.id, isPrimary: false } });
+      if (plan.account) {
+        const a = plan.account;
+        await tx.creatorProfileLink.createMany({
+          data: [{ orgId, creatorId: keep.id, platform: a.platform, handle: a.handle, url: profileUrl(a.platform, a.handle), followersCount: a.followersCount, averageViews: a.averageViews, isPrimary: false }],
+          skipDuplicates: true,
+        });
+      }
 
       if (plan.detail && "move" in plan.detail) await tx.creatorDetail.update({ where: { creatorId: drop.id }, data: { creatorId: keep.id } });
       else if (plan.detail) await tx.creatorDetail.update({ where: { creatorId: keep.id }, data: plan.detail.fill });

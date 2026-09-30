@@ -7,7 +7,7 @@ jest.mock("@/lib/db", () => {
   const fns = (...names: string[]) => Object.fromEntries(names.map((n) => [n, jest.fn()]));
   const db: Record<string, unknown> = {
     creator: fns("findFirst", "update"),
-    creatorProfileLink: fns("findMany", "updateMany"),
+    creatorProfileLink: fns("findMany", "updateMany", "createMany"),
     creatorDetail: fns("findFirst", "update"),
     activation: fns("updateMany"),
     post: fns("count", "updateMany"),
@@ -144,6 +144,37 @@ describe("POST /api/creators/[id]/merge", () => {
     expect(m.deliverable.updateMany).toHaveBeenCalledWith({ where: { activationId: "act-d" }, data: { activationId: "act-k" } });
     expect(m.viewLedger.updateMany).not.toHaveBeenCalledWith(expect.objectContaining({ where: { activationId: "act-d" } }));
     expect(m.activation.updateMany).toHaveBeenCalledWith({ where: { id: "act-d", creatorId: "drop-1" }, data: { deletedAt: expect.any(Date) } });
+  });
+
+  it("adds an older Instagram record's account to the kept creator as a link", async () => {
+    m.creator.findFirst.mockImplementation(async ({ where }: any) =>
+      where.id === "keep-1"
+        ? { ...KEEP, platform: "TIKTOK", handle: "@synthchannel" }
+        : where.id === "drop-1"
+          ? { ...DROP, platform: "INSTAGRAM", handle: "synthchannel.ig", followersCount: 900, averageViews: 0 }
+          : null,
+    );
+    m.creatorProfileLink.findMany.mockImplementation(async ({ where }: any) =>
+      where.creatorId === "keep-1" ? [{ id: "link-k", platform: "TIKTOK", handle: "synthchannel", isPrimary: true }] : [],
+    );
+    const dry = await (await post({ from: "drop-1", dryRun: true })).json();
+    expect(dry.summary.account).toEqual({ platform: "INSTAGRAM", handle: "synthchannel.ig" });
+    await post({ from: "drop-1" });
+    expect(m.creatorProfileLink.createMany).toHaveBeenCalledWith({
+      data: [
+        {
+          orgId: "org-1",
+          creatorId: "keep-1",
+          platform: "INSTAGRAM",
+          handle: "synthchannel.ig",
+          url: "https://www.instagram.com/synthchannel.ig/",
+          followersCount: 900,
+          averageViews: null,
+          isPrimary: false,
+        },
+      ],
+      skipDuplicates: true,
+    });
   });
 
   it("treats a table production doesn't have as nothing to move", async () => {

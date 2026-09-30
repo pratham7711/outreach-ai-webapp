@@ -8,6 +8,8 @@ function side(over: Partial<MergeSide> = {}): MergeSide {
     name: "Synth Keeper",
     handle: "@synthkeep",
     platform: "TIKTOK",
+    followersCount: 0,
+    averageViews: 0,
     contactEmail: null,
     rate: null,
     boostRate: null,
@@ -94,6 +96,23 @@ describe("planMerge", () => {
     });
     expect(plan(side(), drop).links).toEqual([{ id: "d1", isPrimary: true }, { id: "d2", isPrimary: false }]);
     expect(plan(side({ handle: "@someoneelse" }), drop).links).toEqual([{ id: "d1", isPrimary: false }, { id: "d2", isPrimary: false }]);
+  });
+
+  it("hands an older record's account on another platform over as a link", () => {
+    const keep = side({ links: [{ id: "k1", platform: "TIKTOK", handle: "synthkeep", isPrimary: true }] });
+    const drop = side({ id: "drop", platform: "INSTAGRAM", handle: "@Synth.Keep.IG", followersCount: 1200, averageViews: 0 });
+    expect(plan(keep, drop).account).toEqual({ platform: "INSTAGRAM", handle: "synth.keep.ig", followersCount: 1200, averageViews: null });
+  });
+
+  it("carries no account for a display name, an older handle, or a platform already linked", () => {
+    const keep = side({ links: [{ id: "k1", platform: "TIKTOK", handle: "synthkeep", isPrimary: true }] });
+    expect(plan(keep, side({ id: "drop", platform: "YOUTUBE", handle: "synth keep channel" })).account).toBeNull();
+    expect(plan(keep, side({ id: "drop", platform: "TIKTOK", handle: "@synthkeep_old" })).account).toBeNull();
+    const withIg = side({ links: [...keep.links, { id: "k2", platform: "INSTAGRAM", handle: "synthkeep.ig", isPrimary: false }] });
+    expect(plan(withIg, side({ id: "drop", platform: "INSTAGRAM", handle: "synthkeep.other" })).account).toBeNull();
+    expect(plan(side(), side({ id: "drop", platform: "INSTAGRAM", handle: "synthkeep.ig" })).account).toBeNull();
+    const linkedDrop = side({ id: "drop", platform: "INSTAGRAM", handle: "synthkeep.ig", links: [{ id: "d1", platform: "INSTAGRAM", handle: "synthkeep.ig", isPrimary: true }] });
+    expect(plan(keep, linkedDrop).account).toBeNull();
   });
 
   it("moves the detail row when the kept creator has none, else fills its blanks", () => {
