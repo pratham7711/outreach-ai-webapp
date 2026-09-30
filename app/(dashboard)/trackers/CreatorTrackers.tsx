@@ -6,12 +6,13 @@ import { toast } from "sonner";
 import { Card, EmptyState, Input, Modal, Skeleton } from "@pratham7711/ui";
 import { Button } from "@/components/ds";
 import { Play, Trash2, User, Users } from "lucide-react";
-import { formatFull, formatHandle } from "@/lib/format";
+import { formatDateAbs, formatFull, formatHandle, timeAgo } from "@/lib/format";
 import { apiDelete, apiFetch, apiPost } from "@/lib/api/client";
 import { CreatorDetailModal, type TopPost } from "./CreatorDetailModal";
 import type { ChartGranularity } from "@/lib/trackers/granularity";
 import { errorMessage } from "@/lib/api/errorMessage";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
+import { LATEST_TEN_SINCE } from "@/lib/trackers/recentViews";
 
 /**
  * The Creators sub-tab of Trackers, matching the reference's card layout: two
@@ -29,6 +30,14 @@ type CreatorMetrics = {
   changePercent: number | null;
   changeAbsentReason: "no-posts-in-window" | "no-posts-before" | "zero-baseline" | null;
   postsInPrevious: number;
+};
+
+/** The creator's own Avg. Views: their ten newest posts, pinned ones left out. */
+type CreatorViews = {
+  avgViews: number | null;
+  changePercent: number | null;
+  delta: number | null;
+  measuredAt: string | null;
 };
 
 type TrackedCreator = {
@@ -49,6 +58,8 @@ type TrackedCreator = {
   series: { value: number; recordedAt: string }[];
   chartGranularity: ChartGranularity;
   snapshotCount: number;
+  views: CreatorViews;
+  /** Posts this workspace tracks with them -- a different, narrower set. */
   metrics: CreatorMetrics;
   topPosts: TopPost[] | null;
   topPostsAt: string | null;
@@ -77,17 +88,16 @@ function periodLabel(key: string): string {
   return PERIODS.find((p) => p.key === key)?.label ?? key;
 }
 
-function changeReasonText(m: CreatorMetrics, period: string): string {
-  switch (m.changeAbsentReason) {
-    case "no-posts-in-window":
-      return `No posts in the last ${periodLabel(period).toLowerCase()}, so there is nothing to compare.`;
-    case "no-posts-before":
-      return `Nothing posted in the ${periodLabel(period).toLowerCase()} before this one, so there is no baseline.`;
-    case "zero-baseline":
-      return "Every post in the earlier period measured zero views, which gives no percentage to grow from.";
-    default:
-      return "";
+/** Why an Avg. Views change is absent, in the same spirit as followersReason. */
+function viewsReason(c: TrackedCreator): string {
+  if (c.views.avgViews === null) {
+    if (c.readError) return c.readError;
+    return "We have not measured this creator's recent posts yet. Posts are read once a day.";
   }
+  if (c.health !== "live") {
+    return "The last reading is too old to compare against, so no change is shown.";
+  }
+  return `A change needs two readings of their newest posts since ${formatDateAbs(LATEST_TEN_SINCE)}, and there is one so far. It fills in within a day.`;
 }
 
 /**
@@ -116,12 +126,14 @@ function FigureGroup({
   icon,
   label,
   value,
+  valueTitle,
   changeNode,
   changeTitle,
 }: {
   icon: React.ReactNode;
   label: string;
   value: string;
+  valueTitle?: string;
   changeNode: React.ReactNode;
   changeTitle: string;
 }) {
@@ -152,7 +164,7 @@ function FigureGroup({
         {icon}
       </div>
       <div style={{ display: "flex", flex: 1, minWidth: 0 }}>
-        <div style={{ padding: "10px 16px", minWidth: 0, flex: "1 1 auto" }}>
+        <div style={{ padding: "10px 16px", minWidth: 0, flex: "1 1 auto" }} title={valueTitle}>
           <div style={{ fontSize: "var(--cc-t-11)", color: "var(--cc-text-muted)" }}>{label}</div>
           <div
             style={{
@@ -382,7 +394,7 @@ export function CreatorTrackers({
       ) : (
         <>
           {creators.map((c) => {
-            const m = c.metrics;
+            const v = c.views;
             return (
               <Card key={c.id} variant="outlined" style={{ marginBottom: 12 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
@@ -431,18 +443,23 @@ export function CreatorTrackers({
 
                   <FigureGroup
                     icon={<Play size={22} />}
-                    label={`Avg. Views (${periodLabel(period)})`}
-                    value={m.avgViews === null ? "—" : formatFull(Math.round(m.avgViews))}
+                    label="Avg. Views"
+                    value={v.avgViews === null ? "—" : formatFull(Math.round(v.avgViews))}
+                    valueTitle={
+                      v.avgViews === null
+                        ? viewsReason(c)
+                        : `Average views of their 10 newest posts, pinned posts left out. Measured ${timeAgo(v.measuredAt)}.`
+                    }
                     changeNode={
-                      m.changePercent !== null ? (
-                        <ChangeValue percent={m.changePercent} />
+                      v.changePercent !== null ? (
+                        <ChangeValue percent={v.changePercent} />
                       ) : (
-                        <NoData title={changeReasonText(m, period)} />
+                        <NoData title={viewsReason(c)} />
                       )
                     }
                     changeTitle={
-                      m.changePercent !== null
-                        ? `${m.postsInWindow} post${m.postsInWindow === 1 ? "" : "s"} this period against ${m.postsInPrevious} in the one before`
+                      v.delta !== null
+                        ? `${v.delta >= 0 ? "+" : ""}${Math.round(v.delta).toLocaleString()} average views over ${periodLabel(period).toLowerCase()}`
                         : ""
                     }
                   />

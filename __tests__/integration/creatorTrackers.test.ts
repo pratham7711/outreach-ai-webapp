@@ -34,7 +34,8 @@ import { db } from "@/lib/db";
 import { authenticateRequest } from "@/lib/authenticate";
 import { orgFixture } from "../helpers/orgFixture";
 import { GET, POST } from "@/app/api/trackers/creators/route";
-import { DELETE } from "@/app/api/trackers/creators/[id]/route";
+import { DELETE, GET as GET_ONE } from "@/app/api/trackers/creators/[id]/route";
+import { LATEST_TEN_SINCE } from "@/lib/trackers/recentViews";
 
 const mockDb = db as any;
 const mockAuth = authenticateRequest as jest.Mock;
@@ -151,8 +152,44 @@ describe("GET /api/trackers/creators", () => {
     expect(a.metrics).toMatchObject({ avgViews: 200, changePercent: 100, postsInWindow: 2, postsInPrevious: 4 });
     expect(a.followersCount).toBe(2891236);
     expect(b.metrics.avgViews).toBeNull();
-    // Measured first, unmeasured last.
-    expect(body.creators[0].handle).toBe("a");
+  });
+
+  describe("Avg. Views from the creator's own readings", () => {
+    const NOW = new Date("2026-10-12T00:00:00Z");
+    const daysAgo = (d: number) => new Date(NOW.getTime() - d * 86_400_000);
+    beforeEach(() => jest.useFakeTimers().setSystemTime(NOW));
+    afterEach(() => jest.useRealTimers());
+
+    it("serves the latest measured average and its change, ranked by it", async () => {
+      mockDb.creator.findMany.mockResolvedValue([
+        creatorRow({
+          id: "cr1",
+          handle: "small",
+          trackerSnapshots: [
+            { followersCount: 100, avgViews: 0, recordedAt: daysAgo(0.1) },
+            { followersCount: 100, avgViews: 900, recordedAt: daysAgo(1) },
+          ],
+        }),
+        creatorRow({
+          id: "cr2",
+          handle: "big",
+          trackerSnapshots: [
+            { followersCount: 500, avgViews: 0, recordedAt: daysAgo(0.1) },
+            { followersCount: 500, avgViews: 30_000, recordedAt: daysAgo(1) },
+            { followersCount: 490, avgViews: 20_000, recordedAt: daysAgo(6) },
+          ],
+        }),
+      ]);
+      // The campaign aggregate says the opposite; the ranking must not follow it.
+      mockDb.$queryRawUnsafe.mockResolvedValue([
+        { creatorId: "cr1", avgCurrent: "999999", postsCurrent: BigInt(1), avgPrevious: null, postsPrevious: BigInt(0) },
+      ]);
+      const body = await (await GET(req(BASE))).json();
+      expect(body.creators.map((c: { handle: string }) => c.handle)).toEqual(["big", "small"]);
+      expect(body.creators[0].views).toMatchObject({ avgViews: 30_000, changePercent: 50, delta: 10_000 });
+      expect(body.creators[1].views).toMatchObject({ avgViews: 900, changePercent: null });
+      expect(body.creators[1].metrics.avgViews).toBe(999999);
+    });
   });
 
   it("falls back to the default window and sort rather than trusting the query string", async () => {
@@ -293,5 +330,43 @@ describe("POST /api/trackers/creators is gated by the plan", () => {
 
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ tracked: true, alreadyTracked: true });
+  });
+});
+
+describe("GET /api/trackers/creators/[id]", () => {
+  const params = (id: string) => ({ params: Promise.resolve({ id }) });
+  const at = (hours: number) => new Date(LATEST_TEN_SINCE.getTime() + hours * 3600_000);
+
+  it("refuses an unauthenticated caller", async () => {
+    mockAuth.mockResolvedValue(null);
+    expect((await GET_ONE(req(`${BASE}/cr1`), params("cr1"))).status).toBe(401);
+  });
+
+  it("looks the creator up inside the caller's org only", async () => {
+    mockDb.creator.findFirst.mockResolvedValue(null);
+    const res = await GET_ONE(req(`${BASE}/cr-other`), params("cr-other"));
+    expect(res.status).toBe(404);
+    expect(mockDb.creator.findFirst.mock.calls[0][0].where).toMatchObject({
+      id: "cr-other",
+      orgId: "org-1",
+      deletedAt: null,
+      trackedSince: { not: null },
+    });
+  });
+
+  it("charts followers from every reading and views only from readings that measured them", async () => {
+    mockDb.creator.findFirst.mockResolvedValue({
+      id: "cr1",
+      trackerSnapshots: [
+        { followersCount: 100, avgViews: 250_000, recordedAt: at(-48) },
+        { followersCount: 110, avgViews: 1200, recordedAt: at(24) },
+        { followersCount: 120, avgViews: 0, recordedAt: at(72) },
+        { followersCount: 130, avgViews: 1500, recordedAt: at(120) },
+      ],
+    });
+    const body = await (await GET_ONE(req(`${BASE}/cr1`), params("cr1"))).json();
+    expect(body.followers.map((p: { value: number }) => p.value)).toEqual([100, 110, 120, 130]);
+    // The pre-definition reading and the unmeasured one are both left out.
+    expect(body.views.map((p: { value: number }) => p.value)).toEqual([1200, 1500]);
   });
 });

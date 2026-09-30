@@ -5,8 +5,10 @@ import {
   metricsFromRow,
   sortValueFor,
   toNumber,
+  viewsFromSnapshots,
   windowBounds,
 } from "@/lib/trackers/creatorMetrics";
+import { LATEST_TEN_SINCE } from "@/lib/trackers/recentViews";
 
 /* The creator tracker reports two figures it does not own the collection of, so
    every rule here is about the difference between a measurement and a default.
@@ -159,7 +161,8 @@ describe("followerCount", () => {
 
 describe("sorting", () => {
   const row = (avgViews: number | null, changePercent: number | null, posts: number, followers: number | null) => ({
-    metrics: { avgViews, changePercent, postsInWindow: posts },
+    views: { avgViews, changePercent },
+    metrics: { postsInWindow: posts },
     followersCount: followers,
   });
 
@@ -184,8 +187,8 @@ describe("sorting", () => {
     ];
     // A creator we know nothing about must not head a leaderboard because null
     // happened to compare high.
-    expect(byMetricDescending(rows, "views").map((r) => r.metrics.avgViews)).toEqual([1000, 50, null, null]);
-    expect(byMetricDescending(rows, "change").map((r) => r.metrics.changePercent)).toEqual([5, -80, null, null]);
+    expect(byMetricDescending(rows, "views").map((r) => r.views.avgViews)).toEqual([1000, 50, null, null]);
+    expect(byMetricDescending(rows, "change").map((r) => r.views.changePercent)).toEqual([5, -80, null, null]);
     expect(byMetricDescending(rows, "followers").map((r) => r.followersCount)).toEqual([900, 100, null, null]);
   });
 
@@ -201,5 +204,51 @@ describe("sorting", () => {
     expect(isCreatorTrackerSort("followers")).toBe(true);
     expect(isCreatorTrackerSort("velocity")).toBe(false);
     expect(isCreatorTrackerSort(null)).toBe(false);
+  });
+});
+
+describe("viewsFromSnapshots", () => {
+  const after = (hours: number) => new Date(LATEST_TEN_SINCE.getTime() + hours * HOUR);
+  const now = after(24 * 10);
+
+  it("reports the latest reading that measured views, and its change over the window", () => {
+    const snapshots = [
+      { avgViews: 0, recordedAt: after(24 * 10) },
+      { avgViews: 1500, recordedAt: after(24 * 9) },
+      { avgViews: 0, recordedAt: after(24 * 8) },
+      { avgViews: 1000, recordedAt: after(24 * 5) },
+    ];
+    expect(viewsFromSnapshots(snapshots, "7d", now)).toEqual({
+      avgViews: 1500,
+      changePercent: 50,
+      delta: 500,
+      measuredAt: after(24 * 9),
+    });
+  });
+
+  it("does not compare across the change of definition", () => {
+    const snapshots = [
+      { avgViews: 1500, recordedAt: after(24) },
+      { avgViews: 300_000, recordedAt: after(-24) },
+    ];
+    const views = viewsFromSnapshots(snapshots, "7d", after(48));
+    expect(views.avgViews).toBe(1500);
+    expect(views.changePercent).toBeNull();
+    expect(views.delta).toBeNull();
+  });
+
+  it("still shows the latest figure when every reading predates the new definition", () => {
+    const views = viewsFromSnapshots([{ avgViews: 800, recordedAt: after(-48) }], "7d", after(0));
+    expect(views.avgViews).toBe(800);
+    expect(views.changePercent).toBeNull();
+  });
+
+  it("has nothing to say about a creator whose readings never measured views", () => {
+    expect(viewsFromSnapshots([{ avgViews: 0, recordedAt: after(1) }], "7d", after(2))).toEqual({
+      avgViews: null,
+      changePercent: null,
+      delta: null,
+      measuredAt: null,
+    });
   });
 });

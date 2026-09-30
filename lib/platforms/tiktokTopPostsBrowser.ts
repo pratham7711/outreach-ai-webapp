@@ -1,5 +1,6 @@
 import { createBrowserSession, type BrowserSession, type LaunchedBrowser } from "./tiktokBrowser";
 import { rankTopPosts, type TopPost } from "./creatorProfile";
+import { latestAverageViews } from "@/lib/trackers/recentViews";
 
 /**
  * A TikTok creator's recent posts, with view counts.
@@ -32,7 +33,7 @@ const PAYLOAD_WAIT_MS = 25_000;
 
 export type TikTokPostsRead = {
   topPosts: TopPost[];
-  /** Mean plays across every post the grid returned, not just the top ones. */
+  /** Mean plays of the newest ten posts, pinned ones left out. */
   avgViews: number;
   sampledPosts: number;
   /** The profile stats from the page's own rehydration blob, when present.
@@ -153,11 +154,16 @@ async function readWith(
         };
       });
 
-    const views = posts.map((p) => p.views).filter((v): v is number => typeof v === "number");
+    const pinned = new Set(
+      (items as { id?: unknown; isPinnedItem?: unknown }[])
+        .filter((it) => it?.id && it.isPinnedItem === true)
+        .map((it) => String(it.id))
+    );
+    const recent = latestAverageViews(posts.map((p) => ({ ...p, pinned: pinned.has(p.postId) })));
     return {
       topPosts: rankTopPosts(posts),
-      avgViews: views.length ? views.reduce((a, b) => a + b, 0) / views.length : 0,
-      sampledPosts: views.length,
+      avgViews: recent.avgViews,
+      sampledPosts: recent.sampledPosts,
       profile,
     };
   } finally {

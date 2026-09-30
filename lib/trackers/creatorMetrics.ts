@@ -1,25 +1,17 @@
-import { windowHours, type TrackerWindow } from "./metrics";
+import { changeOverWindow, windowHours, type TrackerSnapshot, type TrackerWindow } from "./metrics";
+import { LATEST_TEN_SINCE } from "./recentViews";
 
 /**
- * Creator trackers, and why they measure views rather than followers.
+ * Creator trackers: Followers and Avg. Views, each with a change.
  *
- * The reference shows two figures per creator — Followers and Avg. Views — each
- * with a Change cell, and in the captured state every Change cell on the page
- * reads "No data yet.". It keeps a follower count it cannot yet trend.
+ * Both figures come from the tracker's own readings of the creator's profile
+ * (CreatorTrackerSnapshot), so they describe the creator, not our campaigns
+ * with them. Avg. Views is the mean views of their ten newest posts, pinned
+ * ones left out (lib/trackers/recentViews.ts) -- the figure CreatorCore shows.
  *
- * We are in a worse position on followers and a better one on views.
- * Creator.followersCount is populated on 11 of 1,834 creators and averageViews
- * on exactly 1, both being Float @default(0) — so printing them straight would
- * report a measured zero for everyone the import never filled. There is no
- * follower history table either, so a follower trend is not available at any
- * price we can pay right now.
- *
- * Views we do have: 18,708 posts carrying postedAt and viewsCount across 1,830
- * of those creators. So Avg. Views here is the mean views of a creator's posts
- * inside the selected window, and its change is the same figure over the window
- * immediately before it. Value and change come from one source, which is the
- * point — a change computed against a differently-sourced headline would be a
- * percentage of two different things.
+ * The campaign aggregate below is still computed: the views of this
+ * workspace's posts with the creator inside the window, and the window before.
+ * It is a narrower claim, shown as such and used for the Posts sort.
  */
 
 const HOUR_MS = 1000 * 60 * 60;
@@ -110,6 +102,40 @@ export function followerCount(value: number | null | undefined): number | null {
   return value;
 }
 
+export type CreatorViews = {
+  /** Mean views of the newest ten posts at the latest reading that measured any. */
+  avgViews: number | null;
+  changePercent: number | null;
+  delta: number | null;
+  measuredAt: Date | null;
+};
+
+/**
+ * Avg. Views and its change over the window, from stored readings newest first.
+ *
+ * A reading of 0 is a reading that did not measure views -- TikTok posts are
+ * re-read once a day, and the readings between carry 0 -- so it is skipped,
+ * never treated as a creator whose posts drew nothing.
+ */
+export function viewsFromSnapshots(
+  snapshots: readonly { avgViews: number; recordedAt: Date }[],
+  window: TrackerWindow,
+  now: Date
+): CreatorViews {
+  const measured = snapshots.filter((s) => s.avgViews > 0);
+  const latest = measured[0] ?? null;
+  const comparable: TrackerSnapshot[] = measured
+    .filter((s) => s.recordedAt >= LATEST_TEN_SINCE)
+    .map((s) => ({ value: s.avgViews, recordedAt: s.recordedAt }));
+  const change = changeOverWindow(comparable, window, now);
+  return {
+    avgViews: latest?.avgViews ?? null,
+    changePercent: change?.percent ?? null,
+    delta: change?.added ?? null,
+    measuredAt: latest?.recordedAt ?? null,
+  };
+}
+
 export const CREATOR_TRACKER_SORTS = ["views", "change", "posts", "followers"] as const;
 export type CreatorTrackerSort = (typeof CREATOR_TRACKER_SORTS)[number];
 
@@ -118,15 +144,16 @@ export function isCreatorTrackerSort(value: string | null): value is CreatorTrac
 }
 
 type SortableCreator = {
-  metrics: Pick<CreatorWindowMetrics, "avgViews" | "changePercent" | "postsInWindow">;
+  views: Pick<CreatorViews, "avgViews" | "changePercent">;
+  metrics: Pick<CreatorWindowMetrics, "postsInWindow">;
   followersCount: number | null;
 };
 
 export function sortValueFor(row: SortableCreator, sort: CreatorTrackerSort): number | null {
-  if (sort === "change") return row.metrics.changePercent;
+  if (sort === "change") return row.views.changePercent;
   if (sort === "posts") return row.metrics.postsInWindow > 0 ? row.metrics.postsInWindow : null;
   if (sort === "followers") return row.followersCount;
-  return row.metrics.avgViews;
+  return row.views.avgViews;
 }
 
 /**

@@ -146,6 +146,7 @@ export const AREAS = {
       "app/(dashboard)/audit-log/",
       "app/(dashboard)/clients/",
       "app/(dashboard)/trackers/",
+      "app/api/trackers/",
       "app/(dashboard)/payouts/",
       "app/(dashboard)/admin/",
       "app/api/settings/",

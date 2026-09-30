@@ -1,20 +1,36 @@
 "use client";
-import { Modal, Badge } from "@pratham7711/ui";
-import { RefreshCw, User } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Modal, Badge, Skeleton } from "@pratham7711/ui";
+import { RefreshCw } from "lucide-react";
 import { timeAgo, formatFull, formatHandle } from "@/lib/format";
+import { apiFetch } from "@/lib/api/client";
 import { AudioUsesChart, type SeriesPoint } from "./SoundCharts";
+import { changeOver } from "./horizonChange";
 import type { ChartGranularity } from "@/lib/trackers/granularity";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
 
 /**
- * The creator detail, matching the reference's ?tracker=<id> modal: the figure,
- * its change at several horizons, and a Refresh Data button.
+ * The creator detail, matching the reference's ?tracker=<id> modal: a Followers
+ * card and an Average Views card, each with its 7-, 14- and 30-day change and a
+ * chart, and a Refresh Data button.
  *
- * The reference shows 7/14/30-Day Change here and, on the account we compared
- * against, every one of them reads 0 for every creator -- it displays two numbers
- * it cannot trend. This shows a real change where there is history for one, and
- * says which of the several different "no" it is where there is not.
+ * The changes come from the creator's own 31-day history rather than the list's
+ * readings, which cover only the selected period -- a 30-Day Change taken from
+ * seven days of readings would be the seven-day change under a wrong label.
+ * Where the history does not reach back far enough, the cell says so.
  */
+
+const HORIZONS: { label: string; days: number }[] = [
+  { label: "7-Day Change", days: 7 },
+  { label: "14-Day Change", days: 14 },
+  { label: "30-Day Change", days: 30 },
+];
+
+type CreatorHistory = {
+  followers: SeriesPoint[];
+  views: SeriesPoint[];
+  chartGranularity: ChartGranularity;
+};
 
 export type DetailCreator = {
   id: string;
@@ -28,9 +44,10 @@ export type DetailCreator = {
   lastReadAt: string | null;
   health: "pending" | "live" | "regressed" | "stale";
   readError: string | null;
-  series: { value: number; recordedAt: string }[];
-  chartGranularity: ChartGranularity;
   snapshotCount: number;
+  /** Their ten newest posts, pinned ones left out, at the latest reading. */
+  views: { avgViews: number | null; measuredAt: string | null };
+  /** Only the posts this workspace tracks with them, over the list's period. */
   metrics: { avgViews: number | null; postsInWindow: number };
   topPosts?: TopPost[] | null;
   topPostsAt?: string | null;
@@ -65,13 +82,15 @@ export function CreatorDetailModal({
   onRefresh?: (creatorId: string) => void;
   refreshing?: boolean;
 }) {
+  const creatorId = creator?.id ?? null;
+  const history = useQuery({
+    queryKey: ["creator-trackers", "history", creatorId],
+    queryFn: () => apiFetch<CreatorHistory>(`/api/trackers/creators/${creatorId}`),
+    enabled: open && creatorId !== null,
+  });
+
   if (!creator) return null;
   const stale = creator.health !== "live";
-
-  const series: SeriesPoint[] = creator.series.map((p) => ({
-    value: p.value,
-    recordedAt: p.recordedAt,
-  }));
 
   return (
     <Modal open={open} onClose={onClose} title="" size="lg">
@@ -121,20 +140,44 @@ export function CreatorDetailModal({
         </div>
       ) : null}
 
-      <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 20 }}>
-        <Figure label="Followers" value={creator.followersCount === null ? "—" : formatFull(creator.followersCount)} />
-        <Figure
-          label="Change"
-          value={
-            creator.followersChangePercent === null
-              ? "No data yet."
-              : `${creator.followersChangePercent >= 0 ? "+" : ""}${creator.followersChangePercent.toFixed(2)}%`
-          }
-          muted={creator.followersChangePercent === null}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 300px), 1fr))",
+          gap: 14,
+          marginBottom: 14,
+        }}
+      >
+        <MetricCard
+          title="Followers"
+          value={creator.followersCount}
+          unit="followers"
+          series={history.data?.followers}
+          granularity={history.data?.chartGranularity}
+          loading={history.isPending}
+          failed={history.isError}
         />
+        <MetricCard
+          title="Average Views"
+          value={creator.views.avgViews === null ? null : Math.round(creator.views.avgViews)}
+          note={
+            creator.views.avgViews === null
+              ? "Not measured yet. Posts are read once a day."
+              : `Their 10 newest posts, pinned posts left out · measured ${timeAgo(creator.views.measuredAt)}`
+          }
+          unit="avg. views"
+          series={history.data?.views}
+          granularity={history.data?.chartGranularity}
+          loading={history.isPending}
+          failed={history.isError}
+        />
+      </div>
+
+      <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 20 }}>
         <Figure
-          label="Avg. Views"
+          label="Avg. Views in your campaigns"
           value={creator.metrics.avgViews === null ? "—" : formatFull(Math.round(creator.metrics.avgViews))}
+          title={`${creator.metrics.postsInWindow} post${creator.metrics.postsInWindow === 1 ? "" : "s"} tracked with them in the selected period`}
         />
         <Figure label="Readings" value={String(creator.snapshotCount)} />
       </div>
@@ -207,23 +250,117 @@ export function CreatorDetailModal({
         </div>
       ) : null}
 
-      {series.length >= 2 ? (
-        <AudioUsesChart series={series} granularity={creator.chartGranularity} unit="followers" />
+      {creator.lastReadAt ? (
+        <div style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
+          Last read {timeAgo(creator.lastReadAt)}
+        </div>
+      ) : null}
+    </Modal>
+  );
+}
+
+/** One CreatorCore-style card: the current figure, its changes, and its chart. */
+function MetricCard({
+  title,
+  value,
+  note,
+  unit,
+  series,
+  granularity,
+  loading,
+  failed,
+}: {
+  title: string;
+  value: number | null;
+  note?: string;
+  unit: string;
+  series: SeriesPoint[] | undefined;
+  granularity: ChartGranularity | undefined;
+  loading: boolean;
+  failed: boolean;
+}) {
+  return (
+    <section
+      style={{
+        background: "var(--cc-card)", border: "1px solid var(--cc-border)",
+        borderRadius: 12, padding: 16, minWidth: 0,
+      }}
+    >
+      <h3 style={{ fontSize: "var(--cc-t-14)", fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>
+        {title}
+      </h3>
+      <div style={{ fontSize: "var(--cc-t-24)", fontWeight: 700, color: "var(--cc-primary)" }}>
+        {value === null ? "—" : formatFull(value)}
+      </div>
+      {note ? (
+        <div style={{ fontSize: "var(--cc-t-11)", color: "var(--cc-text-muted)", marginTop: 2 }}>{note}</div>
+      ) : null}
+
+      <div style={{ display: "flex", gap: 14, flexWrap: "wrap", margin: "12px 0" }}>
+        {HORIZONS.map((h) => (
+          <div key={h.label} style={{ minWidth: 84 }}>
+            <div style={{ fontSize: "var(--cc-t-11)", color: "var(--cc-text-muted)" }}>{h.label}</div>
+            {loading ? (
+              <Skeleton width={64} height={16} />
+            ) : (
+              <HorizonValue change={series ? changeOver(series, h.days) : null} days={h.days} />
+            )}
+          </div>
+        ))}
+      </div>
+
+      {loading ? (
+        <Skeleton width="100%" height={200} />
+      ) : failed ? (
+        <p role="alert" style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
+          Could not load this creator&apos;s history. Close and reopen to try again.
+        </p>
+      ) : series && granularity && series.length >= 2 ? (
+        <AudioUsesChart series={series} granularity={granularity} height={200} unit={unit} />
       ) : (
         <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
           {/* Two points is the minimum for a line to mean anything; drawing one
               would imply a flat trend we have not measured. */}
           A chart appears once there are at least two readings.
-          {creator.lastReadAt ? ` Last read ${timeAgo(creator.lastReadAt)}.` : ""}
         </p>
       )}
-    </Modal>
+    </section>
   );
 }
 
-function Figure({ label, value, muted = false }: { label: string; value: string; muted?: boolean }) {
+function HorizonValue({ change, days }: { change: ReturnType<typeof changeOver>; days: number }) {
+  if (change === "short-history") {
+    return (
+      <div
+        style={{ fontSize: "var(--cc-t-14)", fontWeight: 700, color: "var(--cc-text-muted)" }}
+        title={`Not enough history — there is no reading from ${days} days ago yet.`}
+      >
+        —
+      </div>
+    );
+  }
+  if (!change) {
+    return <div style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>No data yet.</div>;
+  }
+  const rounded = Math.round(change.added);
+  return (
+    <div style={{ fontSize: "var(--cc-t-14)", fontWeight: 700, color: rounded < 0 ? "var(--cc-danger)" : "var(--cc-text)" }}>
+      {rounded >= 0 ? "+" : ""}
+      {formatFull(rounded)}
+      {change.percent !== null ? (
+        <span style={{ fontSize: "var(--cc-t-11)", fontWeight: 500, color: "var(--cc-text-muted)", marginLeft: 4 }}>
+          {change.percent >= 0 ? "+" : ""}
+          {change.percent.toFixed(2)}%
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+function Figure({ label, value, title }: { label: string; value: string; title?: string }) {
   return (
     <div
+      title={title}
       style={{
         border: "1px solid var(--cc-border)", borderRadius: 12,
         padding: "10px 16px", flex: "1 1 150px", minWidth: 140,
@@ -232,9 +369,9 @@ function Figure({ label, value, muted = false }: { label: string; value: string;
       <div style={{ fontSize: "var(--cc-t-11)", color: "var(--cc-text-muted)" }}>{label}</div>
       <div
         style={{
-          fontSize: muted ? 12 : 18,
+          fontSize: 18,
           fontWeight: 700,
-          color: muted ? "var(--cc-text-subtle)" : "var(--cc-primary)",
+          color: "var(--cc-primary)",
         }}
       >
         {value}

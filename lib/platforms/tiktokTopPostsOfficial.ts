@@ -1,6 +1,7 @@
 import { fetchTikTokVideos } from "./tiktokDisplay";
 import { getTikTokTokenForCreator } from "./tiktokToken";
 import { rankTopPosts, type TopPost } from "./creatorProfile";
+import { latestAverageViews } from "@/lib/trackers/recentViews";
 
 /**
  * TikTok Top Posts through the official Display API — the sanctioned path, and
@@ -28,7 +29,7 @@ import { rankTopPosts, type TopPost } from "./creatorProfile";
 
 export type OfficialTopPostsRead = {
   topPosts: TopPost[];
-  /** Mean views across every video returned, not just the ranked ones. */
+  /** Mean views of the newest ten videos returned. */
   avgViews: number;
   sampledPosts: number;
 };
@@ -65,11 +66,11 @@ export async function readTikTokTopPostsOfficial(
     postedAt: v.postedAt ?? null,
   }));
 
-  const views = posts.map((p) => p.views).filter((v): v is number => typeof v === "number");
+  const recent = latestAverageViews(posts);
 
   return {
     topPosts: rankTopPosts(posts),
-    avgViews: views.length ? views.reduce((a, b) => a + b, 0) / views.length : 0,
-    sampledPosts: views.length,
+    avgViews: recent.avgViews,
+    sampledPosts: recent.sampledPosts,
   };
 }

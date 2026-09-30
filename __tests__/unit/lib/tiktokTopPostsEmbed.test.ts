@@ -113,6 +113,19 @@ describe("reading", () => {
     expect(read!.sampledPosts).toBe(3);
   });
 
+  it("averages the newest ten, leaving the pinned videos at the head of the list out", async () => {
+    const at = (iso: string) =>
+      ((BigInt(Math.floor(Date.parse(iso) / 1000)) << BigInt(32)) + BigInt(7)).toString();
+    const pinned = [vid(at("2025-06-29T14:19:00Z"), 4_400_000), vid(at("2024-12-31T18:02:00Z"), 155_600)];
+    const newest = Array.from({ length: 11 }, (_, i) =>
+      vid(at(new Date(Date.UTC(2026, 8, 29 - i, 12)).toISOString()), i < 10 ? 1000 : 999_999)
+    );
+    const read = await readTikTokTopPostsEmbed("sonheii", async () => page([...pinned, ...newest]));
+    expect(read!.avgViews).toBe(1000);
+    expect(read!.sampledPosts).toBe(10);
+    expect(read!.topPosts[0].postedAt).toBe("2025-06-29T14:19:00.000Z");
+  });
+
   it("returns null when the handle does not resolve", async () => {
     const read = await readTikTokTopPostsEmbed("nobody", async () => "<html>no list</html>");
     expect(read).toBeNull();

@@ -1,4 +1,5 @@
 import { rankTopPosts, type TopPost } from "./creatorProfile";
+import { latestAverageViews, pinnedByGridOrder, tiktokPostedAtFromId } from "@/lib/trackers/recentViews";
 
 /**
  * A TikTok creator's own videos, from the page TikTok publishes for embedding.
@@ -28,12 +29,18 @@ import { rankTopPosts, type TopPost } from "./creatorProfile";
  * codebase has already made once. Verify authorship, always.
  *
  * What the embed does NOT carry: like and comment counts, and post dates.
- * Those stay null rather than being guessed at.
+ * The counts stay null rather than being guessed at. The date is not a guess:
+ * a TikTok id encodes its creation time (see tiktokPostedAtFromId).
+ *
+ * The list is the creator's pinned videos, if any, followed by their newest
+ * ten. Measured 2026-10-01 across six creators: 1 pinned + 10, 3 + 10, 3 + 10,
+ * and 0 + 10 for the other three. Play counts of 10,000 and over arrive rounded
+ * to three significant figures (4,400,000); below that they are exact.
  */
 
 export type EmbedTopPostsRead = {
   topPosts: TopPost[];
-  /** Mean views across every video the embed listed, not just the ranked ones. */
+  /** Mean views of the newest ten videos, pinned ones left out. */
   avgViews: number;
   sampledPosts: number;
 };
@@ -111,7 +118,7 @@ export function parseTikTokEmbedVideoList(html: string, handle: string): TopPost
          zero on a video with millions of views. */
       likes: null,
       comments: null,
-      postedAt: null,
+      postedAt: tiktokPostedAtFromId(String(v.id)),
     }));
 }
 
@@ -132,11 +139,12 @@ export async function readTikTokTopPostsEmbed(
   const posts = parseTikTokEmbedVideoList(html, handle);
   if (!posts?.length) return null;
 
-  const views = posts.map((p) => p.views).filter((v): v is number => typeof v === "number");
+  const pinned = pinnedByGridOrder(posts);
+  const recent = latestAverageViews(posts.map((p, i) => ({ ...p, pinned: pinned[i] })));
   return {
     topPosts: rankTopPosts(posts),
-    avgViews: views.length ? views.reduce((a, b) => a + b, 0) / views.length : 0,
-    sampledPosts: views.length,
+    avgViews: recent.avgViews,
+    sampledPosts: recent.sampledPosts,
   };
 }
 

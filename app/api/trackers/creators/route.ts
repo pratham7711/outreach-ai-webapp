@@ -25,6 +25,7 @@ import {
   isCreatorTrackerSort,
   metricsFromRow,
   toNumber,
+  viewsFromSnapshots,
   windowBounds,
   type CreatorTrackerSort,
   type CreatorWindowRow,
@@ -161,6 +162,7 @@ export async function GET(req: NextRequest) {
       }));
       const latest = c.trackerSnapshots[0] ?? null;
       const followerChange = changeOverWindow(followerHistory, period, now);
+      const views = viewsFromSnapshots(c.trackerSnapshots, period, now);
 
       /* Age is served with the figure, never separately -- the same rule as the
          sound tracker, learned the same way: a change computed from two readings
@@ -200,6 +202,13 @@ export async function GET(req: NextRequest) {
         followersCount: latest ? latest.followersCount : followerCount(c.followersCount),
         followersChangePercent: measurable ? followerChange?.percent ?? null : null,
         followersDelta: measurable ? followerChange?.added ?? null : null,
+        /* The creator's own ten newest posts, from the same readings as the
+           follower figure; the change is withheld on the same health rule. */
+        views: {
+          ...views,
+          changePercent: measurable ? views.changePercent : null,
+          delta: measurable ? views.delta : null,
+        },
         lastReadAt,
         lastAttemptAt: c.trackerLastAttemptAt,
         health,
@@ -217,6 +226,8 @@ export async function GET(req: NextRequest) {
         /* Which claim the list makes -- the creator's own catalogue, or only
            the posts this workspace runs with them. The panel says so. */
         topPostsSource: c.topPostsSource ?? null,
+        /* This workspace's own posts with the creator: a narrower claim than
+           `views`, kept for the Posts sort and labelled as such in the panel. */
         metrics: metricsFromRow(byCreator.get(c.id)),
       };
     });

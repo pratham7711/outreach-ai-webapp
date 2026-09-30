@@ -1,6 +1,7 @@
 import { fetchInstagramProfile, businessDiscoveryToken } from "./instagramBusinessDiscovery";
 import { InstagramRateLimitError } from "./instagram";
 import { fetchTikTokProfile } from "./tiktokProfile";
+import { latestAverageViews } from "@/lib/trackers/recentViews";
 
 /**
  * Reading a tracked creator's public numbers, per platform.
@@ -161,11 +162,6 @@ export function moreSpecificFailure(
   return FAILURE_SPECIFICITY[second] > FAILURE_SPECIFICITY[first] ? second : first;
 }
 
-function mean(values: number[]): number {
-  if (values.length === 0) return 0;
-  return values.reduce((a, b) => a + b, 0) / values.length;
-}
-
 async function readInstagram(handle: string): Promise<CreatorReadResult> {
   const token = await businessDiscoveryToken();
   if (!token) return { ok: false, reason: "no-credentials" };
@@ -192,12 +188,11 @@ async function readInstagram(handle: string): Promise<CreatorReadResult> {
     return { ok: false, reason: "unreadable", detail: "no followers_count in response" };
   }
 
-  /* Only posts that actually carry a view count feed the mean. Instagram omits
-     view_count on stills rather than sending zero, and averaging the absent ones
-     in as zero is how a reel-heavy creator gets reported as having no views. */
-  const views = profile.recentPosts
-    .map((p) => p.viewsCount)
-    .filter((v): v is number => typeof v === "number");
+  /* Business Discovery sends view_count on reels only, so the newest ten posts
+     that carry one are the newest ten reels. */
+  const recent = latestAverageViews(
+    profile.recentPosts.map((p) => ({ views: p.viewsCount, postedAt: p.postedAt }))
+  );
 
   const topPosts = rankTopPosts(
     profile.recentPosts.map((p) => ({
@@ -217,8 +212,8 @@ async function readInstagram(handle: string): Promise<CreatorReadResult> {
     profile: {
       followersCount: profile.followersCount,
       postsCount: profile.mediaCount ?? 0,
-      avgViews: mean(views),
-      sampledPosts: views.length,
+      avgViews: recent.avgViews,
+      sampledPosts: recent.sampledPosts,
       ...(topPosts.length ? { topPosts } : {}),
       ...(profile.profilePictureUrl ? { avatarUrl: profile.profilePictureUrl } : {}),
     },
@@ -288,11 +283,14 @@ async function readYouTube(handle: string): Promise<CreatorReadResult> {
         // publish date -- at no extra quota unit beyond the part itself.
         const vids = await api("videos", { part: "statistics,snippet", id: ids.join(",") });
         const items: any[] = vids?.items ?? [];
-        const views = items
-          .map((v: any) => Number(v?.statistics?.viewCount))
-          .filter((n: number) => Number.isFinite(n));
-        avgViews = mean(views);
-        sampledPosts = views.length;
+        const recent = latestAverageViews(
+          items.map((v) => ({
+            views: Number.isFinite(Number(v?.statistics?.viewCount)) ? Number(v.statistics.viewCount) : null,
+            postedAt: v?.snippet?.publishedAt ?? null,
+          }))
+        );
+        avgViews = recent.avgViews;
+        sampledPosts = recent.sampledPosts;
         topPosts = rankTopPosts(
           items.map((v: any) => ({
             postId: String(v?.id ?? ""),
