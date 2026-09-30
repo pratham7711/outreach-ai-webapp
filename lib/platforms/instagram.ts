@@ -97,6 +97,25 @@ export class InstagramRateLimitError extends Error {
 const RATE_LIMIT_CODES = new Set([4, 17, 32, 613]);
 
 /**
+ * Business Discovery found no Business or Creator account under the name we
+ * asked about: Graph error 110, "Invalid user id". Thrown only to callers that
+ * ask (`noSuchAccountThrows`), for the same reason as the rate limit above --
+ * everywhere else it has always been one more null.
+ *
+ * It is an answer about a NAME, not about a post. The account may be deleted,
+ * renamed, personal or private, or the name may simply be the wrong one; Graph
+ * says the same thing for all five.
+ */
+export class InstagramNoSuchAccountError extends Error {
+  constructor(readonly subcode: number | undefined) {
+    super("Business Discovery found no Business or Creator account by that name (#110)");
+    this.name = "InstagramNoSuchAccountError";
+  }
+}
+
+const NO_SUCH_ACCOUNT_CODE = 110;
+
+/**
  * How long ONE Graph round trip may take.
  *
  * Callers pass a signal covering the whole walk, and that walk is not one
@@ -122,7 +141,10 @@ export async function graphGet(
   path: string,
   params: Record<string, string>,
   signal?: AbortSignal,
-  { rateLimitThrows = false }: { rateLimitThrows?: boolean } = {},
+  {
+    rateLimitThrows = false,
+    noSuchAccountThrows = false,
+  }: { rateLimitThrows?: boolean; noSuchAccountThrows?: boolean } = {},
 ): Promise<any | null> {
   const url = new URL(`${GRAPH_BASE}/${path}`);
   for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
@@ -134,10 +156,12 @@ export async function graphGet(
       // scope and a genuinely empty result are indistinguishable to callers.
       // Log the Graph error code so the difference is at least recoverable.
       let code: unknown;
+      let subcode: unknown;
       let message: unknown;
       try {
         const body = await res.json();
         code = body?.error?.code;
+        subcode = body?.error?.error_subcode;
         message = body?.error?.message;
       } catch {
         // non-JSON error body; status alone has to do
@@ -145,6 +169,7 @@ export async function graphGet(
       log.error("Graph request failed", {
         status: res.status,
         code,
+        subcode,
         message,
         /* Named so the log says which of the causes it was without anyone
            having to remember Meta's numbering. Never the token: params carries
@@ -161,11 +186,20 @@ export async function graphGet(
       if (rateLimitThrows && typeof code === "number" && RATE_LIMIT_CODES.has(code)) {
         throw new InstagramRateLimitError(code);
       }
+      if (noSuchAccountThrows && code === NO_SUCH_ACCOUNT_CODE) {
+        throw new InstagramNoSuchAccountError(typeof subcode === "number" ? subcode : undefined);
+      }
       return null;
     }
     return await res.json();
   } catch (err) {
-    if (err instanceof InstagramAuthError || err instanceof InstagramRateLimitError) throw err;
+    if (
+      err instanceof InstagramAuthError ||
+      err instanceof InstagramRateLimitError ||
+      err instanceof InstagramNoSuchAccountError
+    ) {
+      throw err;
+    }
     /* An abort is ours, so it is named and thrown rather than folded in with
        Graph 500s and empty results. AbortSignal.timeout raises TimeoutError;
        an explicitly aborted caller signal raises AbortError. */
@@ -198,6 +232,8 @@ function graphErrorMeaning(code: unknown): string {
       return "bad-request: unknown field, or an object this token cannot see";
     case 803:
       return "object-not-found";
+    case NO_SUCH_ACCOUNT_CODE:
+      return "no-such-account: Business Discovery has no Business or Creator account by that name";
     default:
       return "unclassified";
   }

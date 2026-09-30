@@ -245,6 +245,27 @@ describe("readPost spends its attempts on addresses, not on wreckage", () => {
  * A cooldown is a statement about ONE IP and every sandbox gets its own, so
  * booting another IS the wait, completed in seconds.
  */
+describe("photo posts", () => {
+  /* TikTok's own shape, measured 2026-09-30: a carousel's /photo/ page answers
+     200 with a rehydration payload that carries no webapp.video-detail, and the
+     same id under /video/ carries the whole item. */
+  const PHOTO_SHELL = `<html><body><script id="__UNIVERSAL_DATA_FOR_REHYDRATION__" type="application/json">${JSON.stringify(
+    { __DEFAULT_SCOPE__: { "webapp.app-context": {} } },
+  )}</script></body></html>`;
+
+  it("reads a carousel from its /video/ page without spending a lane", async () => {
+    mockRespond = () => (mockCalls[mockCalls.length - 1].url.includes("/photo/") ? PHOTO_SHELL : page());
+    const pool = openSandboxPostPool(1);
+
+    const lookup = await pool.readPost("https://www.tiktok.com/@someone/photo/7535776824069016838");
+
+    expect(lookup?.state).toBe("live");
+    expect(lookup?.metrics?.viewsCount).toBe(4165);
+    expect(mockCalls.map((c) => c.url)).toEqual(["https://www.tiktok.com/@someone/video/7535776824069016838"]);
+    expect(mockCreated).toEqual(["iad1"]);
+  });
+});
+
 describe("a latched lane is re-addressed", () => {
   beforeEach(() => {
     // One wall latches the gate, so these tests do not need ten round trips.

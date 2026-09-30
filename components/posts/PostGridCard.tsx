@@ -5,7 +5,7 @@ import { Badge } from "@pratham7711/ui";
 import { Eye, Heart, MessageCircle, TrendingUp, Share2, Bookmark, Check } from "lucide-react";
 import { formatDateAbs, formatFull } from "@/lib/format";
 import { fieldMetricValue, engagementRateValue } from "@/lib/metricDisplay";
-import { isPostRemoved, removedNote } from "@/lib/postRemoval";
+import { postNotice } from "@/lib/postRemoval";
 import RemovedPostOverlay from "@/components/posts/RemovedPostOverlay";
 import PostCover from "@/components/posts/PostCover";
 import { STATUS_BADGE, formatSince, engRatePct, trackingLabel } from "@/lib/posts/postDisplay";
@@ -79,6 +79,7 @@ function PostGridCardImpl({
   onOpenMenu: (postId: string, x: number, y: number) => void;
 }) {
   const tracking = post.trackingEnabled === true;
+  const notice = postNotice(post);
   const cardViews = fieldMetricValue(post.viewsCount, post.lastSyncedAt, post.platformMetrics, "views");
   const cardLikes = fieldMetricValue(post.likesCount, post.lastSyncedAt, post.platformMetrics, "likes");
   const cardComments = fieldMetricValue(post.commentsCount, post.lastSyncedAt, post.platformMetrics, "comments");
@@ -153,7 +154,7 @@ function PostGridCardImpl({
           the thumbnail and every count below it are left alone,
           because they are the last true reading of a post that has
           since come down, not a claim that it is still up. */}
-      {isPostRemoved(post) && <RemovedPostOverlay note={removedNote(post)} />}
+      {notice && <RemovedPostOverlay label={notice.label} note={notice.note} />}
 
       {/* Metrics read out over the frame itself — display only, never editable. */}
       <div

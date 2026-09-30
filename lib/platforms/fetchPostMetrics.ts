@@ -2,6 +2,7 @@ import type { SandboxPostFetcher } from "./tiktokPostSandbox";
 import {
   fetchInstagramMetricsGraph,
   InstagramAuthError,
+  InstagramNoSuchAccountError,
   InstagramTimeoutError,
 } from "./instagram";
 import {
@@ -13,7 +14,7 @@ import { fetchTikTokVideosByIds } from "./tiktokDisplay";
 import { isRounded, TIKTOK_DISPLAY } from "./precision";
 import { fetchTwitchMetrics } from "./twitch";
 import { createLogger } from "../observability/logger";
-import { MEDIA_TYPES, detectPlatform, type MediaType } from "./postUrl";
+import { MEDIA_TYPES, detectPlatform, tiktokPageUrl, type MediaType } from "./postUrl";
 
 export type FetchMetricsContext = {
   instagramToken?: string;
@@ -155,6 +156,17 @@ export type FetchReason =
    *  that would stamp lastSyncedAt and report a success -- but it becomes
    *  readable the moment the token is replaced, so it must keep its retries. */
   | "credentials-rejected"
+  /** Instagram: Business Discovery has no Business or Creator account under the
+   *  name we asked about, so it shares nothing for the post. The account may be
+   *  deleted, renamed, personal or private -- Graph answers all of them with the
+   *  same error 110 -- and on 2026-09-30, 79 of the 80 posts filed this way no
+   *  longer existed on Instagram. Not "post-deleted": the one live post among
+   *  them reads the same, and nothing public tells the two apart.
+   *
+   *  Not charged to the post either. The name is ours to get wrong, and a
+   *  charged post is switched off for good after five runs, so a corrected
+   *  handle would never be read. */
+  | "not-a-professional-account"
   /** A fetcher came back empty without saying why.
    *
    *  Exists so that "we do not know" stops being spelled
@@ -203,6 +215,8 @@ const SOURCE_WENT_QUIET: Record<FetchReason, boolean> = {
 
   /* A real verdict about the post, and the commonest one in any large library. */
   "post-deleted": false,
+  /* A verdict about the account, said out loud as error 110. */
+  "not-a-professional-account": false,
 };
 
 /** True when a reason is evidence the platform stopped answering, not that we did. */
@@ -433,6 +447,8 @@ export const UNCHARGEABLE_REASONS: ReadonlySet<FetchReason> = new Set<FetchReaso
   "reader-timeout",
   "credentials-rejected",
   "not-configured",
+  /* About a name we chose, not about the post -- see the reason's own note. */
+  "not-a-professional-account",
 ]);
 
 /**
@@ -897,7 +913,7 @@ export async function lookupTikTokPost(
   }
 
   try {
-    const res = await fetch(url, {
+    const res = await fetch(tiktokPageUrl(url), {
       headers: {
         "User-Agent": TIKTOK_DIRECT_UA,
         "Accept-Language": "en-US,en;q=0.9",
@@ -1146,6 +1162,10 @@ export async function fetchInstagramMetrics(
      same reason authFailed exists: all three arrive here as an absence of
      counts, and only these flags say which. */
   let timedOut = false;
+  /* Set when Business Discovery said there is no Business or Creator account
+     under `handle`. The embed below still runs, but it has been closed since
+     2026-09-17, so in practice this decides the reason. */
+  let noSuchAccount = false;
 
   if (token) {
     let graph: Awaited<ReturnType<typeof fetchInstagramMetricsGraph>> = null;
@@ -1212,6 +1232,12 @@ export async function fetchInstagramMetrics(
           { path: err.path },
         );
         post = null;
+      } else if (err instanceof InstagramNoSuchAccountError) {
+        noSuchAccount = true;
+        createLogger({ context: { platform: "INSTAGRAM", call: "businessDiscovery" } }).warn(
+          "Business Discovery has no Business or Creator account by this name",
+          { handle, subcode: err.subcode },
+        );
       } else {
       if (!(err instanceof InstagramAuthError)) throw err;
       // INSTAGRAM_BUSINESS_TOKEN itself is rejected — an operator problem, not a
@@ -1309,9 +1335,11 @@ export async function fetchInstagramMetrics(
     ? "credentials-rejected"
     : timedOut
       ? "reader-timeout"
-      : attempted
-        ? "platform-refused"
-        : "not-configured";
+      : noSuchAccount
+        ? "not-a-professional-account"
+        : attempted
+          ? "platform-refused"
+          : "not-configured";
   log.warn("instagram metrics unavailable from every source", { reason, sources });
 
   try {

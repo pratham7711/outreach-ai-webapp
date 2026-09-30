@@ -15,11 +15,11 @@
  * caller, and is what tells the client *when* we last checked. Either one alone
  * is enough to say the post is gone.
  *
- * Instagram is absent from all of this on purpose: our Instagram reads cannot
- * tell a deleted post from a private account from a throttled request, so
- * nothing in the sync path ever writes post-deleted for it. There is no
- * detection to surface, and inventing one would put a "deleted" badge on posts
- * that are still up.
+ * Instagram never gets the removed pill: our Instagram reads cannot tell a
+ * deleted post from a personal account, so nothing in the sync path writes
+ * post-deleted for it. What it does get is its own, weaker pill (postNotice
+ * below) when Business Discovery knows no Business or Creator account by the
+ * post's handle -- a statement about the account, which is all we measured.
  */
 
 import { lastFetchNote, type LastFetchNote } from "@/lib/metricDisplay";
@@ -73,4 +73,35 @@ export function removedNote(post: RemovablePost | null | undefined): LastFetchNo
   if (!post) return null;
   const note = lastFetchNote(post.platformMetrics);
   return note?.reason === REMOVED_FETCH_REASON ? note : null;
+}
+
+/**
+ * The FetchReason for an Instagram post whose handle Business Discovery knows
+ * as no Business or Creator account (Graph #110).
+ *
+ * Its own pill rather than the removed one, because the platform said nothing
+ * about the post. On 2026-09-30, 79 of the 80 posts carrying it no longer
+ * existed on Instagram, so "may be gone" is the likely story; a personal
+ * account with the post still up gives the identical answer, so the wording
+ * names both and claims neither.
+ */
+export const NO_PUBLIC_NUMBERS_REASON = "not-a-professional-account";
+
+export function noPublicNumbersLabel(): string {
+  return "No Instagram numbers — the post or account may be gone";
+}
+
+export type PostNotice = { label: string; note: LastFetchNote | null };
+
+/**
+ * The pill a post carries, if any. Removal wins: it is the stronger claim and
+ * the one the platform actually made. A later successful read clears
+ * __lastFetch, so a post that starts sharing numbers loses its pill on the next
+ * sync without anyone touching it.
+ */
+export function postNotice(post: RemovablePost | null | undefined): PostNotice | null {
+  if (!post) return null;
+  if (isPostRemoved(post)) return { label: removedPostLabel(), note: removedNote(post) };
+  const note = lastFetchNote(post.platformMetrics);
+  return note?.reason === NO_PUBLIC_NUMBERS_REASON ? { label: noPublicNumbersLabel(), note } : null;
 }

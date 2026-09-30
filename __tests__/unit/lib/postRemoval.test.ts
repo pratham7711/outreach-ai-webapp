@@ -1,6 +1,8 @@
 import {
+  NO_PUBLIC_NUMBERS_REASON,
   REMOVED_FETCH_REASON,
   isPostRemoved,
+  postNotice,
   removedNote,
   removedPostLabel,
   removedSince,
@@ -81,5 +83,34 @@ describe("removedSince", () => {
     expect(removedSince(undefined)).toBeNull();
     expect(removedSince({ reason: REMOVED_FETCH_REASON, at: "", via: "cron" })).toBeNull();
     expect(removedSince({ reason: REMOVED_FETCH_REASON, at: "not-a-date", via: "cron" })).toBeNull();
+  });
+});
+
+describe("postNotice", () => {
+  it("says the post is unavailable when it was removed", () => {
+    expect(postNotice({ fetchState: "UNAVAILABLE", platformMetrics: note(REMOVED_FETCH_REASON) })).toEqual({
+      label: "Post unavailable — it may have been deleted",
+      note: { reason: REMOVED_FETCH_REASON, at: "2026-09-01T00:00:00.000Z", via: "cron" },
+    });
+  });
+
+  it("names the Instagram account case in its own weaker words, never as removed", () => {
+    const post = { fetchState: null, platformMetrics: note(NO_PUBLIC_NUMBERS_REASON) };
+    expect(isPostRemoved(post)).toBe(false);
+    expect(postNotice(post)?.label).toBe("No Instagram numbers — the post or account may be gone");
+    expect(postNotice(post)?.note?.reason).toBe(NO_PUBLIC_NUMBERS_REASON);
+  });
+
+  it("lets removal win when both are on the post", () => {
+    const post = { fetchState: "UNAVAILABLE", platformMetrics: note(NO_PUBLIC_NUMBERS_REASON) };
+    expect(postNotice(post)?.label).toBe("Post unavailable — it may have been deleted");
+  });
+
+  it("is null for every reason that only means we could not look", () => {
+    for (const reason of ["platform-refused", "rate-limited", "reader-timeout", "platform-challenged"]) {
+      expect(postNotice({ platformMetrics: note(reason) })).toBeNull();
+    }
+    expect(postNotice({ fetchState: "LIVE" })).toBeNull();
+    expect(postNotice(null)).toBeNull();
   });
 });

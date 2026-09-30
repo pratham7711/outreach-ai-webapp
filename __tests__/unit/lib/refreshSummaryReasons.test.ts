@@ -40,6 +40,11 @@ describe("describeReasons", () => {
     expect(describeReasons({ "credentials-rejected": 12 }))
       .toBe("12 need Instagram reconnected");
   });
+
+  it("says an Instagram account shares no numbers, not that the post is gone", () => {
+    expect(describeReasons({ "not-a-professional-account": 40 }))
+      .toBe("40 are on Instagram accounts that share no numbers");
+  });
 });
 
 describe("summariseRefresh with reasons", () => {

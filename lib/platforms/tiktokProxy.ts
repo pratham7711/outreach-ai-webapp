@@ -7,6 +7,7 @@ import {
   type TikTokPostLookup,
 } from "./fetchPostMetrics";
 import type { SandboxPostFetcher } from "./tiktokPostSandbox";
+import { tiktokPageUrl } from "./postUrl";
 
 /**
  * Read TikTok through residential/mobile proxies, from the function itself.
@@ -317,7 +318,7 @@ export function openTikTokProxyPool(size: number): SandboxPostFetcher | null {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      const res = await fetch(url, {
+      const res = await fetch(tiktokPageUrl(url), {
         headers: browserHeaders(),
         redirect: "follow",
         signal: controller.signal,

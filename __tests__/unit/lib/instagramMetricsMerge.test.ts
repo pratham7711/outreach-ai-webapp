@@ -42,7 +42,7 @@ import {
   fetchInstagramPublicPostMetrics,
 } from "@/lib/platforms/instagramBusinessDiscovery";
 import { fetchInstagramEmbedPost } from "@/lib/platforms/instagramEmbed";
-import { InstagramAuthError } from "@/lib/platforms/instagram";
+import { InstagramAuthError, InstagramNoSuchAccountError } from "@/lib/platforms/instagram";
 
 const graph = fetchInstagramMetricsGraph as jest.Mock;
 const bizToken = businessDiscoveryToken as jest.Mock;
@@ -313,5 +313,56 @@ describe("fetchInstagramMetrics — a rejected credential is named, not silently
     await expect(fetchInstagramMetrics(URL, "some-token", undefined)).rejects.toThrow(
       "socket hang up",
     );
+  });
+});
+
+/**
+ * Business Discovery knowing no Business or Creator account by the name is an
+ * answer, and it used to be filed with the refusals: retried every twelve hours
+ * and counted toward the page. 79 of the 80 posts it covered on 2026-09-30 no
+ * longer existed.
+ */
+describe("fetchInstagramMetrics — a name Business Discovery does not know", () => {
+  const realFetch = global.fetch;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    graph.mockResolvedValue(null);
+    bizToken.mockReturnValue("biz-token");
+    bizPost.mockRejectedValue(new InstagramNoSuchAccountError(undefined));
+    embed.mockResolvedValue(null);
+    global.fetch = jest.fn(async () => ({ ok: false, status: 500 })) as any;
+  });
+  afterEach(() => {
+    global.fetch = realFetch;
+  });
+
+  it("files it as not-a-professional-account, not platform-refused", async () => {
+    const m = await fetchInstagramMetrics(URL, undefined, "personal.name");
+
+    expect(m.fetchReason).toBe("not-a-professional-account");
+  });
+
+  it("keeps asking the embed after it", async () => {
+    await fetchInstagramMetrics(URL, undefined, "personal.name");
+
+    expect(embed).toHaveBeenCalled();
+  });
+
+  it("gives way to a rejected credential, which is ours to fix", async () => {
+    graph.mockRejectedValue(new InstagramAuthError(400, 190, "token expired"));
+
+    const m = await fetchInstagramMetrics(URL, "dead-token", "personal.name");
+
+    expect(m.fetchReason).toBe("credentials-rejected");
+  });
+
+  it("is no reason at all once a later source answers", async () => {
+    embed.mockResolvedValue({ likesCount: 12, commentsCount: 1, likesHidden: false, thumbnailUrl: "t.jpg", caption: "c" });
+
+    const m = await fetchInstagramMetrics(URL, undefined, "personal.name");
+
+    expect(m.likesCount).toBe(12);
+    expect(m.fetchReason).toBeUndefined();
   });
 });

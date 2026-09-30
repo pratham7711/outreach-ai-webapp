@@ -102,7 +102,7 @@ function makePost(overrides: Record<string, unknown> = {}) {
     trackingStartedAt: hoursAgo(1),
     trackingTtlDays: 30,
     trackingExpiresAt: new Date(Date.now() + 29 * 24 * HOUR_MS),
-    creator: { orgId: "org-1", handle: null, socialAccounts: [] },
+    creator: { orgId: "org-1", handle: null, platform: null, profileLinks: [], socialAccounts: [] },
     ...overrides,
   };
 }
@@ -663,7 +663,7 @@ describe("cron sync — post tracker selection", () => {
     mockPostCandidates([
       makePost({ id: "a" }),
       makePost({ id: "b" }),
-      makePost({ id: "c", creator: { orgId: "org-2", handle: null, socialAccounts: [] } }),
+      makePost({ id: "c", creator: { orgId: "org-2", handle: null, platform: null, profileLinks: [], socialAccounts: [] } }),
     ]);
     mockDb.organization.findMany.mockResolvedValue([
       { id: "org-1", uiConfig: null },
@@ -835,6 +835,99 @@ describe("cron sync — alerting on a run that measured nothing", () => {
     expect(body.synced).toBe(5);
     expect(body.noCounts).toBe(1);
     expect(mockAlert).not.toHaveBeenCalled();
+  });
+
+  /* An answer about the post is not a failure to read it. Counted as one, 54
+     deletions paged at 80% on 2026-09-24, and ~40 Instagram posts that no longer
+     exist kept every run between 46% and 53% for the week after -- while the
+     readers were healthy. */
+  function answeredWith(reason: string) {
+    return {
+      platform: "INSTAGRAM",
+      platformPostId: "1",
+      thumbnailUrl: null,
+      caption: null,
+      fetchReason: reason,
+      postedAt: new Date(),
+    };
+  }
+
+  it.each(["post-deleted", "not-a-professional-account", "no-counts-published", "unrecognised-url"])(
+    "stays quiet when every post answered %s",
+    async (reason) => {
+      mockPostCandidates(challengedPosts(6));
+      mockFetch.mockResolvedValue(answeredWith(reason));
+      mockDb.post.update.mockResolvedValue({});
+
+      const body = await (await cronSync(cronReq())).json();
+
+      expect(body.noCounts).toBe(6);
+      /* A settled reason still dead-letters and says so in its own notice; what
+         must not fire is the critical "returning nothing" page. */
+      expect(mockAlert.mock.calls.filter(([a]) => a.severity === "critical")).toEqual([]);
+    },
+  );
+
+  it("still pages on the reads that failed when answers are mixed in", async () => {
+    mockPostCandidates(challengedPosts(10));
+    mockFetch.mockImplementation((url: string) =>
+      Promise.resolve(answeredWith(/A[0-4]\/$/.test(url) ? "not-a-professional-account" : "platform-challenged")),
+    );
+    mockDb.post.update.mockResolvedValue({});
+
+    await cronSync(cronReq());
+
+    expect(mockAlert).toHaveBeenCalledTimes(1);
+    const alert = mockAlert.mock.calls[0][0];
+    expect(alert.title).toBe("Post metric sync returning nothing: 5/10 attempts");
+    expect(alert.facts).toMatchObject({ noCounts: 10, answered: 5, attempted: 10 });
+  });
+});
+
+describe("cron sync — which Instagram name is asked for", () => {
+  function igPost(postUrl: string, creator: Record<string, unknown>) {
+    return makePost({
+      postUrl,
+      creator: { orgId: "org-1", handle: null, platform: null, profileLinks: [], socialAccounts: [], ...creator },
+    });
+  }
+
+  async function askedHandle(post: ReturnType<typeof makePost>) {
+    mockPostCandidates([post]);
+    mockFetch.mockResolvedValue({
+      platform: "INSTAGRAM",
+      platformPostId: "1",
+      thumbnailUrl: null,
+      caption: null,
+      fetchReason: "platform-refused",
+      postedAt: new Date(),
+    });
+    mockDb.post.update.mockResolvedValue({});
+    await cronSync(cronReq());
+    return mockFetch.mock.calls[0][1].instagramHandle;
+  }
+
+  it("never asks Instagram about a TikTok-first creator's TikTok handle", async () => {
+    expect(await askedHandle(igPost("https://www.instagram.com/reel/AAA1/", { handle: "tt_name", platform: "TIKTOK" })))
+      .toBeUndefined();
+  });
+
+  it("takes the Instagram account on the creator's profile over their primary handle", async () => {
+    const post = igPost("https://www.instagram.com/reel/AAA1/", {
+      handle: "tt_name",
+      platform: "TIKTOK",
+      profileLinks: [{ handle: "ig_name" }],
+    });
+    expect(await askedHandle(post)).toBe("ig_name");
+  });
+
+  it("takes the author named in the post's own link over everything", async () => {
+    const post = igPost("https://www.instagram.com/author.name/reel/AAA1/", {
+      handle: "ig_primary",
+      platform: "INSTAGRAM",
+      profileLinks: [{ handle: "ig_name" }],
+    });
+    expect(await askedHandle(post)).toBe("author.name");
   });
 });
 

@@ -20,10 +20,13 @@ import type { LastFetchNote } from "@/lib/metricDisplay";
  * is the follow-up question, not the headline.
  */
 export default function RemovedPostOverlay({
+  label = removedPostLabel(),
   note,
   variant = "overlay",
   compact = false,
 }: {
+  /** What the pill says; the removed wording unless postNotice chose another. */
+  label?: string;
   /** The `__lastFetch` note, when the caller has it. Only its `at` is used. */
   note?: LastFetchNote | null;
   variant?: "overlay" | "inline";
@@ -33,7 +36,6 @@ export default function RemovedPostOverlay({
       finding reads the same everywhere and hover shows the rest. */
   compact?: boolean;
 }) {
-  const label = removedPostLabel();
   const since = removedSince(note);
   const description = since ? `${label}. ${since}.` : label;
   const visible = compact ? label.split(" — ")[0] : label;

@@ -47,4 +47,12 @@ describe("RemovedPostOverlay", () => {
     rerender(<RemovedPostOverlay variant="inline" />);
     expect(screen.getByRole("status")).toHaveStyle({ position: "static" });
   });
+  it("says what postNotice chose, compacting it the same way", () => {
+    const label = "No Instagram numbers — the post or account may be gone";
+    const { rerender } = render(<RemovedPostOverlay label={label} />);
+    expect(screen.getByText(label)).toBeInTheDocument();
+    rerender(<RemovedPostOverlay label={label} variant="inline" compact />);
+    expect(screen.getByText("No Instagram numbers")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveAttribute("aria-label", label);
+  });
 });

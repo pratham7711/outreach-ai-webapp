@@ -9,7 +9,7 @@ import { ArrowLeft, ExternalLink, RefreshCw, Eye, Heart, MessageCircle, Share2, 
 import dynamic from "next/dynamic";
 import { computeEngagementRate } from "@/lib/metrics";
 import { metricValue, fieldMetricValue, type MetricField } from "@/lib/metricDisplay";
-import { isPostRemoved, removedNote } from "@/lib/postRemoval";
+import { postNotice } from "@/lib/postRemoval";
 import RemovedPostOverlay from "@/components/posts/RemovedPostOverlay";
 import { imgSrc, embedSrcFor } from "@/lib/postMedia";
 import { stripAt, formatDateAbs, formatDateTimeAbs, formatFull, fitFigureSize } from "@/lib/format";
@@ -347,6 +347,8 @@ export default function PostDetailPage() {
     );
   }
 
+  const notice = postNotice(post);
+
   /* Held in component state for as long as the screen is open and never sent
      anywhere else. There is no column for a comment body and no cache in front
      of the route — see app/api/campaigns/[id]/posts/[postId]/comments. */
@@ -476,7 +478,7 @@ export default function PostDetailPage() {
               {/* Beside the status rather than over the 120x80 thumbnail: the
                   pill is wider than the image. Every metric card below stays
                   put — they are the post's last real numbers. */}
-              {isPostRemoved(post) && <RemovedPostOverlay variant="inline" note={removedNote(post)} />}
+              {notice && <RemovedPostOverlay variant="inline" label={notice.label} note={notice.note} />}
             </div>
             <p style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 6, fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", margin: 0 }}>
               <CreatorAvatar id={post.creator.id} name={post.creator.name} size="sm" />

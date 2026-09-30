@@ -370,7 +370,7 @@ export async function syncPost(
 ): Promise<SyncPostOutcome> {
   const instagram =
     post.platform === "INSTAGRAM"
-      ? await getInstagramAccountForCreator(post.creatorId, orgId)
+      ? await getInstagramAccountForCreator(post.creatorId, orgId, post.postUrl)
       : undefined;
   const tiktokToken =
     post.platform === "TIKTOK" ? await getTikTokTokenForCreator(post.creatorId, orgId) : undefined;

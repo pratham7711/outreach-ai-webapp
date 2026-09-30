@@ -11,7 +11,7 @@ import { stripAt, formatDateAbs, formatFull } from "@/lib/format";
 import type { ComplianceFlag } from "@/lib/compliance/postCompliance";
 import PostMedia from "@/components/PostMedia";
 import { unwrittenMetricValue, fieldMetricValue, engagementRateValue, summarizePostMetrics } from "@/lib/metricDisplay";
-import { isPostRemoved, removedNote } from "@/lib/postRemoval";
+import { postNotice } from "@/lib/postRemoval";
 import RemovedPostOverlay from "@/components/posts/RemovedPostOverlay";
 import PostGridCard from "@/components/posts/PostGridCard";
 import { STATUS_BADGE, formatSince, engRatePct, trackingLabel } from "@/lib/posts/postDisplay";
@@ -1768,6 +1768,7 @@ export default function PostsTab({
             {pageRows.map((post, i) => {
               const er = engRatePct(post);
               const dv = deltaViews(post);
+              const notice = postNotice(post);
               /* Per field, like the three below it. Views was the one counter
                  still asking only "was this row ever synced", and that answer
                  is wrong for Instagram: a post read without a Meta credential
@@ -1879,7 +1880,7 @@ export default function PostsTab({
                     <Badge variant={STATUS_BADGE[post.status] ?? "neutral"}>{post.status.replace(/_/g, " ")}</Badge>
                     {/* The counters in this row stay exactly as stored: the post
                         is gone, the reach it earned while it was up is not. */}
-                    {isPostRemoved(post) && <RemovedPostOverlay variant="inline" compact note={removedNote(post)} />}
+                    {notice && <RemovedPostOverlay variant="inline" compact label={notice.label} note={notice.note} />}
                     {post.fetchState && FETCH_STATE_LABEL[post.fetchState] && (
                       <Badge variant={FETCH_STATE_BADGE[post.fetchState]} style={{ fontSize: "var(--cc-t-10)"}}>
                         {FETCH_STATE_LABEL[post.fetchState]}

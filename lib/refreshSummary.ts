@@ -111,6 +111,7 @@ const REASON_LABEL: Record<RefreshFailReason, (n: number) => string> = {
      token. "refused by the platform" -- which is where this used to land --
      reads as nothing anyone can do. */
   "credentials-rejected": (n) => `${n} need Instagram reconnected`,
+  "not-a-professional-account": (n) => `${n} are on Instagram accounts that share no numbers`,
   error: (n) => `${n} errored`,
 };
 

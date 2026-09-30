@@ -112,7 +112,10 @@ export async function fetchInstagramProfile(
   token: string,
   signal?: AbortSignal,
   after?: string,
-  { rateLimitThrows = false }: { rateLimitThrows?: boolean } = {},
+  {
+    rateLimitThrows = false,
+    noSuchAccountThrows = false,
+  }: { rateLimitThrows?: boolean; noSuchAccountThrows?: boolean } = {},
 ): Promise<IgPublicProfile | null> {
   const handle = normalizeUsername(username);
   if (!handle) return null;
@@ -132,7 +135,7 @@ export async function fetchInstagramProfile(
       access_token: token,
     },
     signal,
-    { rateLimitThrows },
+    { rateLimitThrows, noSuchAccountThrows },
   );
   return parseBusinessDiscovery(data, handle);
 }
@@ -156,7 +159,11 @@ export async function fetchInstagramPublicPostMetrics(
   let followers: number | undefined;
 
   for (let page = 0; page < MAX_MEDIA_PAGES; page++) {
-    const profile = await fetchInstagramProfile(username, token, signal, cursor);
+    /* Throws on the first page only: once a page has answered, the account
+       exists, and a later 110 would be about something else. */
+    const profile = await fetchInstagramProfile(username, token, signal, cursor, {
+      noSuchAccountThrows: page === 0,
+    });
     if (!profile) return null;
     /* Carried across pages because Instagram repeats followers_count on every
        page and the caller wants it even when the post turns up on page four. */

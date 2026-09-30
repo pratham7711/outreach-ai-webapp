@@ -95,7 +95,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       try {
         const instagram =
           post.platform === "INSTAGRAM"
-            ? await getInstagramAccountForCreator(post.creatorId, orgId)
+            ? await getInstagramAccountForCreator(post.creatorId, orgId, post.postUrl)
             : undefined;
         const tiktokToken =
           post.platform === "TIKTOK"

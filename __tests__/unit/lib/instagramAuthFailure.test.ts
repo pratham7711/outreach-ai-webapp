@@ -1,4 +1,10 @@
-import { graphGet, isAuthFailure, InstagramAuthError, InstagramRateLimitError } from "@/lib/platforms/instagram";
+import {
+  graphGet,
+  isAuthFailure,
+  InstagramAuthError,
+  InstagramNoSuchAccountError,
+  InstagramRateLimitError,
+} from "@/lib/platforms/instagram";
 
 const realFetch = global.fetch;
 afterEach(() => {
@@ -97,5 +103,43 @@ describe("graphGet rate limits", () => {
 
   it("is an error of its own type", () => {
     expect(new InstagramRateLimitError(4)).toBeInstanceOf(Error);
+  });
+});
+
+describe("graphGet #110, no Business or Creator account by that name", () => {
+  function noSuchAccount(subcode?: number) {
+    return {
+      ok: false,
+      status: 400,
+      json: async () => ({ error: { code: 110, error_subcode: subcode, message: "Invalid user id" } }),
+    };
+  }
+
+  it("still returns null by default", async () => {
+    global.fetch = jest.fn().mockResolvedValue(noSuchAccount(99)) as unknown as typeof fetch;
+
+    expect(await graphGet("me", { access_token: "t" })).toBeNull();
+  });
+
+  it("throws its own error, carrying the subcode, when asked to", async () => {
+    global.fetch = jest.fn().mockResolvedValue(noSuchAccount(99)) as unknown as typeof fetch;
+
+    const err = await graphGet("me", { access_token: "t" }, undefined, { noSuchAccountThrows: true }).catch((e) => e);
+    expect(err).toBeInstanceOf(InstagramNoSuchAccountError);
+    expect(err.subcode).toBe(99);
+  });
+
+  it("leaves a missing subcode undefined rather than inventing one", async () => {
+    global.fetch = jest.fn().mockResolvedValue(noSuchAccount()) as unknown as typeof fetch;
+
+    await expect(
+      graphGet("me", { access_token: "t" }, undefined, { noSuchAccountThrows: true }),
+    ).rejects.toMatchObject({ subcode: undefined });
+  });
+
+  it("does not turn any other failure into it", async () => {
+    global.fetch = jest.fn().mockResolvedValue(graphError(400, 100)) as unknown as typeof fetch;
+
+    expect(await graphGet("me", { access_token: "t" }, undefined, { noSuchAccountThrows: true })).toBeNull();
   });
 });

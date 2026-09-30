@@ -1,6 +1,7 @@
 import { Sandbox } from "@vercel/sandbox";
 import { createLogger } from "@/lib/observability/logger";
 import { createRateGate, readTikTokPostHtml, type TikTokPostLookup } from "./fetchPostMetrics";
+import { tiktokPageUrl } from "./postUrl";
 
 /**
  * Post metrics, fetched from egresses TikTok actually answers -- several at
@@ -273,7 +274,7 @@ export function openSandboxPostPool(size: number): SandboxPostFetcher {
           "accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
           "-H",
           "accept-language: en-US,en;q=0.9",
-          url,
+          tiktokPageUrl(url),
         ],
         { timeoutMs: 30_000 }
       );

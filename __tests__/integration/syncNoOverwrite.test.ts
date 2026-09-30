@@ -160,7 +160,7 @@ describe("cron sync — never overwrites real counts with unknowns", () => {
         trackingStartedAt: new Date(),
         trackingTtlDays: 30,
         trackingExpiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-        creator: { orgId: "org-1", handle: null, socialAccounts: [] },
+        creator: { orgId: "org-1", handle: null, platform: null, profileLinks: [], socialAccounts: [] },
       },
     ]);
     mockDb.organization.findMany.mockResolvedValue([{ id: "org-1", uiConfig: null }]);

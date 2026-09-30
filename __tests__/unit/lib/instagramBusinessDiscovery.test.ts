@@ -146,6 +146,18 @@ describe("fetchInstagramPublicPostMetrics — paging", () => {
     expect(get).not.toHaveBeenCalled();
   });
 
+  it("asks Graph to name a missing account on the first page only", async () => {
+    // A cursor proves the account exists, so a #110 on a later page would be
+    // something else and must not be reported as "no such account".
+    get
+      .mockResolvedValueOnce(page([media("OTHER1")], "CURSOR_1"))
+      .mockResolvedValueOnce(page([media("WANTED", { like_count: 1 })]));
+    await fetchInstagramPublicPostMetrics("creator", "https://www.instagram.com/p/WANTED/", "tok");
+
+    expect(get.mock.calls[0][3]).toMatchObject({ noSuchAccountThrows: true });
+    expect(get.mock.calls[1][3]).toMatchObject({ noSuchAccountThrows: false });
+  });
+
   it("stops when Graph itself returns nothing", async () => {
     get.mockResolvedValueOnce(null);
     const out = await fetchInstagramPublicPostMetrics(

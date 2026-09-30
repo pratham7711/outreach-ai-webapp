@@ -345,7 +345,7 @@ export async function POST(
     const detectedPlatform = detected?.platform;
     const instagram =
       detectedPlatform === "INSTAGRAM"
-        ? await getInstagramAccountForCreator(creatorId, orgId)
+        ? await getInstagramAccountForCreator(creatorId, orgId, postUrl)
         : undefined;
     const tiktokToken =
       detectedPlatform === "TIKTOK"

@@ -86,4 +86,31 @@ describe("lookupTikTokPost", () => {
     expect(r.state).toBe("unavailable");
     expect(r.metrics).toBeNull();
   });
+
+  it("asks for a carousel's /video/ page, the one TikTok renders on the server", async () => {
+    const fetchMock = jest.fn().mockResolvedValue(
+      htmlResponse(
+        page({
+          statusCode: 0,
+          itemInfo: {
+            itemStruct: {
+              desc: "a carousel",
+              createTime: "1750000000",
+              imagePost: { images: [{}] },
+              video: { cover: "https://cdn.example/c.jpg" },
+              stats: { playCount: 143200, diggCount: 1572, commentCount: 9, shareCount: 28, collectCount: "105" },
+            },
+          },
+        })
+      )
+    );
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    const r = await lookupTikTokPost("https://www.tiktok.com/@someone/photo/7535776824069016838");
+
+    expect(fetchMock.mock.calls[0][0]).toBe("https://www.tiktok.com/@someone/video/7535776824069016838");
+    expect(r.state).toBe("live");
+    expect(r.metrics?.viewsCount).toBe(143200);
+    expect(r.metrics?.likesCount).toBe(1572);
+  });
 });

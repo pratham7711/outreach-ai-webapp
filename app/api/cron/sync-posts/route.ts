@@ -20,7 +20,7 @@ import {
   type SandboxPostFetcher,
 } from "@/lib/platforms/tiktokPostSandbox";
 import { openTikTokPostFetcher } from "@/lib/platforms/tiktokEgress";
-import { ensureFreshInstagramToken } from "@/lib/platforms/instagramToken";
+import { ensureFreshInstagramToken, INSTAGRAM_HANDLE_SELECT, instagramLookupHandle } from "@/lib/platforms/instagramToken";
 import { ensureFreshTikTokToken } from "@/lib/platforms/tiktokToken";
 import { decidePostTracking, type PostTrackingAction } from "@/lib/sync/postTracking";
 import { parsePostTracking, type PostTrackingGranularity } from "@/lib/trackers/granularity";
@@ -54,6 +54,14 @@ const DEFAULT_PLATFORM_BUDGET = 100;
 const SETTLED_REASONS: ReadonlySet<FetchReason> = new Set<FetchReason>([
   "post-deleted",
   "unrecognised-url",
+]);
+
+/* Empty reads that were still answers about the post or its account, so the
+   outage alert leaves them out. */
+const ANSWERED_REASONS: ReadonlySet<FetchReason> = new Set<FetchReason>([
+  ...SETTLED_REASONS,
+  "no-counts-published",
+  "not-a-professional-account",
 ]);
 
 type Decision = { postId: string; platform: string; action: PostTrackingAction; reason: string };
@@ -259,7 +267,7 @@ export async function GET(request: NextRequest) {
         creator: {
           select: {
             orgId: true,
-            handle: true,
+            ...INSTAGRAM_HANDLE_SELECT,
             socialAccounts: {
               where: { platform: { in: ["INSTAGRAM", "TIKTOK"] } },
               select: {
@@ -450,7 +458,13 @@ export async function GET(request: NextRequest) {
             : undefined;
         const instagramHandle =
           post.platform === "INSTAGRAM"
-            ? (igAccount?.handle ?? post.creator.handle ?? undefined)
+            ? instagramLookupHandle({
+                postUrl: post.postUrl,
+                connected: igAccount?.handle,
+                profileLink: post.creator.profileLinks[0]?.handle,
+                creatorHandle: post.creator.handle,
+                creatorPlatform: post.creator.platform,
+              })
             : undefined;
         const tiktokToken =
           post.platform === "TIKTOK"
@@ -645,14 +659,22 @@ export async function GET(request: NextRequest) {
        ratio. shouldAlertOnBatch's minFailures still keeps a two-post batch from
        waking anyone. */
     const attempted = synced + noCounts + failed;
-    const unproductive = noCounts + failed;
+    /* An answer is not an outage. A post the platform says is gone, one that
+       publishes no counters, or an account Instagram says shares nothing were
+       all asked and answered. Counted here, 54 deletions paged at 80% on
+       2026-09-24, and ~40 Instagram posts that no longer exist kept every run
+       between 46% and 53% for the week after. */
+    const answered = Object.entries(noCountReasons)
+      .filter(([reason]) => ANSWERED_REASONS.has(reason as FetchReason))
+      .reduce((sum, [, n]) => sum + n, 0);
+    const unproductive = noCounts - answered + failed;
     if (shouldAlertOnBatch({ failed: unproductive, total: attempted })) {
       await alertOps({
         source: "cron/sync-posts",
         title: `Post metric sync returning nothing: ${unproductive}/${attempted} attempts`,
         severity: "critical",
         facts: {
-          synced, sealed, failed, noCounts, noCountReasons, deadLettered,
+          synced, sealed, failed, noCounts, answered, noCountReasons, deadLettered,
           skippedForBudget, attempted, total: posts.length,
         },
       });

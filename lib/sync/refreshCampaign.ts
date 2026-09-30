@@ -135,6 +135,8 @@ const REASON_IS_RETRYABLE: Record<RefreshFailReason, boolean> = {
      cron route's SETTLED_REASONS, because across runs it is very much
      retryable -- the moment a creator reconnects, the post reads again. */
   "credentials-rejected": false,
+  /* The same name gets the same answer within one request. */
+  "not-a-professional-account": false,
   // Our bug, not their verdict -- and a thrown call is often transient.
   error: true,
 };

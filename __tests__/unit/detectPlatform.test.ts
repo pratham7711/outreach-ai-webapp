@@ -1,4 +1,5 @@
 import { detectPlatform } from "@/lib/platforms/fetchPostMetrics";
+import { tiktokPageUrl } from "@/lib/platforms/postUrl";
 
 /**
  * The URL is the only evidence available at paste time, so what it does and
@@ -68,3 +69,25 @@ describe("detectPlatform", () => {
     expect(detectPlatform("not a url")).toBeNull();
   });
 });
+
+describe("tiktokPageUrl", () => {
+  it("reads a carousel through its /video/ address", () => {
+    expect(tiktokPageUrl("https://www.tiktok.com/@some__boyy/photo/7529837402773310727")).toBe(
+      "https://www.tiktok.com/@some__boyy/video/7529837402773310727",
+    );
+    expect(tiktokPageUrl("https://www.tiktok.com/@steve.i4/photo/7535776824069016838?is_from_webapp=1")).toBe(
+      "https://www.tiktok.com/@steve.i4/video/7535776824069016838?is_from_webapp=1",
+    );
+  });
+
+  it("leaves every other address alone", () => {
+    for (const url of [
+      "https://www.tiktok.com/@someone/video/7675846963421646098",
+      "https://www.instagram.com/p/DOZLensEQ04/",
+      "https://www.tiktok.com/@someone",
+    ]) {
+      expect(tiktokPageUrl(url)).toBe(url);
+    }
+  });
+});
+

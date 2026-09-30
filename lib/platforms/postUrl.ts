@@ -101,3 +101,19 @@ export function detectPlatform(
 
   return null;
 }
+
+/**
+ * The address a TikTok post's page is read from.
+ *
+ * A carousel's own /photo/ID page renders in the browser: it answers 200 with
+ * no webapp.video-detail in the rehydration payload, so every reader found
+ * nothing to parse and took it for a WAF challenge -- the sandbox latched and
+ * replaced its lane each time, and a run's replacement budget went on photo
+ * posts alone. The same id under /video/ is rendered on the server with the
+ * whole item, imagePost included. Measured 2026-09-30 from iad1 on one
+ * carousel: /photo/ gave 371KB and no detail scope; /video/ gave statusCode 0
+ * and 143,200 plays, 1,572 likes, 9 comments, 28 shares, 105 saves.
+ */
+export function tiktokPageUrl(url: string): string {
+  return url.replace(/(tiktok\.com\/@[\w.]+)\/photo\/(\d+)/, "$1/video/$2");
+}

@@ -1,6 +1,8 @@
 import {
   decryptInstagramToken,
   ensureFreshInstagramToken,
+  getInstagramAccountForCreator,
+  instagramLookupHandle,
 } from "@/lib/platforms/instagramToken";
 
 jest.mock("@/lib/db", () => ({
@@ -85,5 +87,60 @@ describe("ensureFreshInstagramToken", () => {
 
     expect(await ensureFreshInstagramToken(account(3 * DAY), "org-1")).toBe("plain:stored");
     expect(mockUpdate).not.toHaveBeenCalled();
+  });
+});
+
+describe("instagramLookupHandle", () => {
+  const REEL = "https://www.instagram.com/reel/AAA1/";
+
+  it("takes the author named in the post's own link over everything else", () => {
+    for (const path of ["reel", "reels", "p", "tv"]) {
+      expect(
+        instagramLookupHandle({
+          postUrl: `https://www.instagram.com/author.name/${path}/AAA1/`,
+          connected: "connected",
+          profileLink: "linked",
+          creatorHandle: "primary",
+          creatorPlatform: "INSTAGRAM",
+        }),
+      ).toBe("author.name");
+    }
+  });
+
+  it("then the connected account, then the profile link", () => {
+    expect(instagramLookupHandle({ postUrl: REEL, connected: "connected", profileLink: "linked" })).toBe("connected");
+    expect(instagramLookupHandle({ postUrl: REEL, profileLink: "linked", creatorHandle: "tt" })).toBe("linked");
+  });
+
+  it("uses the creator's handle only when Instagram is their platform", () => {
+    expect(instagramLookupHandle({ postUrl: REEL, creatorHandle: "ig_name", creatorPlatform: "INSTAGRAM" })).toBe("ig_name");
+    expect(instagramLookupHandle({ postUrl: REEL, creatorHandle: "tt_name", creatorPlatform: "TIKTOK" })).toBeUndefined();
+    expect(instagramLookupHandle({ postUrl: REEL, creatorHandle: "unknown", creatorPlatform: null })).toBeUndefined();
+  });
+});
+
+describe("getInstagramAccountForCreator", () => {
+  const mockFindCreator = (db as any).creator.findUnique as jest.Mock;
+
+  it("does not hand a TikTok-first creator's TikTok handle to Instagram", async () => {
+    mockFindCreator.mockResolvedValue({ handle: "tt_name", platform: "TIKTOK", profileLinks: [], socialAccounts: [] });
+
+    const out = await getInstagramAccountForCreator("c-1", "org-1", "https://www.instagram.com/reel/AAA1/");
+
+    expect(out.handle).toBeUndefined();
+  });
+
+  it("reads the Instagram account on the creator's profile", async () => {
+    mockFindCreator.mockResolvedValue({
+      handle: "tt_name",
+      platform: "TIKTOK",
+      profileLinks: [{ handle: "ig_name" }],
+      socialAccounts: [],
+    });
+
+    const out = await getInstagramAccountForCreator("c-1", "org-1", "https://www.instagram.com/reel/AAA1/");
+
+    expect(out.handle).toBe("ig_name");
+    expect(mockFindCreator.mock.calls[0][0].select.profileLinks.where).toEqual({ platform: "INSTAGRAM" });
   });
 });
