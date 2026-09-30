@@ -41,9 +41,10 @@ export type ChartGranularity = (typeof CHART_GRANULARITIES)[number];
 /**
  * Hours between reads, per cadence.
  *
- * The cron fires every 6 hours and asks this which trackers are actually due,
- * so adding a cadence at or above the floor is the whole change -- no new
- * schedule, no new job. A 24/N reading of these gives snapshots per day:
+ * The crons fire every 6 hours for sounds and every 2 for creators -- whose
+ * sweep gets through only part of the due list per fire -- and ask this which
+ * trackers are actually due, so adding a cadence at or above the floor is the
+ * whole change -- no new schedule, no new job. A 24/N reading of these gives snapshots per day:
  * 6hourly is 4, 12hourly is 2, daily is 1.
  */
 export const READ_CADENCE_HOURS: Record<ReadCadence, number> = {
@@ -234,9 +235,11 @@ export function downsample<T extends { recordedAt: Date }>(
  * list, so this is where cadence is actually enforced. The tolerance stops a
  * timer that fires early from deferring every sound by a whole cycle -- which
  * since 2026-09-09 means six hours rather than one, so it is sized in tens of
- * minutes, not minutes. It cannot cause an extra read: consecutive cron fires
+ * minutes, not minutes. It cannot cause an extra read: consecutive sound fires
  * are six hours apart, so a sound can come up due at most once per fire
- * however wide this is. See DUE_GRACE_MS in lib/sync/postTracking.ts.
+ * however wide this is. Creator fires are two hours apart, so there it must
+ * stay under four hours, or a 6-hourly creator would come up due on the fire
+ * after its read. See DUE_GRACE_MS in lib/sync/postTracking.ts.
  */
 const DUE_TOLERANCE_MS = 30 * 60 * 1000;
 

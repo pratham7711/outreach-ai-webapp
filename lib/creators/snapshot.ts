@@ -72,8 +72,37 @@ export type CreatorSnapshotOptions = {
  * Ordered by trackerLastAttemptAt (see the query), so these are the staleest
  * rows and the rest rotate in next run. Not applied to a single-creator refresh,
  * which selects one row by id.
+ *
+ * Sized to what SWEEP_CONCURRENCY can get through in the budget -- six reads at
+ * ~3.8s each for four minutes is ~380 -- so the page is not the limit.
  */
-const MAX_CREATORS_PER_RUN = 200;
+const MAX_CREATORS_PER_RUN = 400;
+
+/**
+ * Creators read at once.
+ *
+ * MEASURED on production 2026-09-30, the 18:30 sweep: 48 snapshots and 10
+ * failures in 241s, with 142 of the 200 dropped at the deadline. The 41
+ * successful TikTok reads took 155.6s, ~3.8s each, and almost all of it is
+ * waiting -- on TikTok, on the embed page, on the avatar store, on Neon from
+ * sin1 -- which is why the sweep's sandbox used 7-9s of CPU in a 240s life.
+ * One at a time, that is ~58 creators a run and a reading every ~5.5 days
+ * (median gap between readings over 14 days: 132h) against a 12-hour cadence.
+ *
+ * Six keeps the request rate any one TikTok egress sees modest; the direct read
+ * falls back to the sandbox on its own if a burst draws the WAF shell.
+ */
+const SWEEP_CONCURRENCY = 6;
+
+/** Calls `fn` one at a time, in the order asked, whatever the caller's concurrency. */
+function oneAtATime<A extends unknown[], R>(fn: (...args: A) => Promise<R>): (...args: A) => Promise<R> {
+  let tail: Promise<unknown> = Promise.resolve();
+  return (...args) => {
+    const run = tail.then(() => fn(...args));
+    tail = run.catch(() => {});
+    return run;
+  };
+}
 
 /**
  * How expensive one creator's read is, as an ordering key rather than a time.
@@ -237,12 +266,22 @@ export async function snapshotCreators(
     creatorId,
     dryRun = false,
     deadlineMs = 4 * 60 * 1000,
-    readTikTokPosts,
+    readTikTokPosts: readTikTokPostsInjected,
     readTikTokProfileRemote,
     readTikTokEmbedHtml,
   } = options;
   const log = createLogger({ context: { job: "snapshot-creators", orgId: orgId ?? "all" } });
   const deadline = Date.now() + deadlineMs;
+  /* The browser rung opens a Chromium page per read, in a function that runs
+     single-process Chromium in its memory. It has already reported
+     ERR_INSUFFICIENT_RESOURCES one page at a time, so however many creators
+     are in flight, it only ever sees one. A read still queued at the deadline
+     gets nothing: each can take up to 90s, and a queue of them would outlive
+     the function. The rungs after it treat null as "no grid", as they always
+     have. */
+  const readTikTokPosts = readTikTokPostsInjected
+    ? oneAtATime((handle: string) => (Date.now() > deadline ? Promise.resolve(null) : readTikTokPostsInjected(handle)))
+    : undefined;
 
   let snapshots = 0;
   let failed = 0;
@@ -294,7 +333,7 @@ export async function snapshotCreators(
 
   /* Cheapest platforms first, within the batch the query already chose.
    *
-   * The selection above stays exactly as it was -- the 200 stalest rows, so
+   * The selection above stays exactly as it was -- the stalest rows, so
    * nothing is starved out of being CONSIDERED. What changes is the order they
    * are worked through, because the deadline is what actually ends a run and a
    * TikTok read is not like the others: it opens a browser or a Sandbox, while
@@ -336,21 +375,7 @@ export async function snapshotCreators(
     }, {}),
   });
 
-  for (let i = 0; i < creators.length; i++) {
-    const creator = creators[i];
-    /* Break, not continue. Past the deadline every remaining creator is skipped
-       for the same reason, and walking the rest of the list one `continue` at a
-       time spends the overrun re-asking a clock that has already answered. The
-       remainder is counted in one go so the tally still adds up to the read. */
-    if (Date.now() > deadline) {
-      skipped += creators.length - i;
-      log.warn("creator sweep hit its deadline", {
-        processed: i,
-        remaining: creators.length - i,
-      });
-      break;
-    }
-
+  const readOne = async (creator: (typeof creators)[number]): Promise<void> => {
     const cadence = cadenceByOrg.get(creator.orgId) ?? DEFAULT_GRANULARITY;
     const previous = creator.trackerSnapshots[0] ?? null;
 
@@ -374,7 +399,7 @@ export async function snapshotCreators(
         const read = await readPostsWithoutBrowser(creator, readTikTokEmbedHtml);
         if (read) await storeTopPostsOnly(creator.id, read);
       }
-      continue;
+      return;
     }
 
     let result: CreatorReadResult;
@@ -466,7 +491,7 @@ export async function snapshotCreators(
     if (dryRun) {
       if (result.ok) snapshots++;
       else failed++;
-      continue;
+      return;
     }
 
     /* The read that produced these figures also saw the profile picture, on a
@@ -525,7 +550,7 @@ export async function snapshotCreators(
           },
         })
         .catch(() => {});
-      continue;
+      return;
     }
 
     const { profile } = result;
@@ -755,6 +780,43 @@ export async function snapshotCreators(
         })
         .catch(() => {});
     }
+  };
+
+  /* A pool, not a batch: each worker takes the next creator as soon as its last
+     one is done, so one slow read holds up one worker rather than a whole wave.
+     Past the deadline a worker stops taking new ones; the creators nobody
+     started are counted in one go so the tally still adds up to the read. */
+  let started = 0;
+  let deadlineHit = false;
+  const worker = async (): Promise<void> => {
+    while (started < creators.length) {
+      if (Date.now() > deadline) {
+        deadlineHit = true;
+        return;
+      }
+      const creator = creators[started++];
+      try {
+        await readOne(creator);
+      } catch (e) {
+        /* Every read above has its own catch; this is for the one nobody
+           foresaw. It used to end the whole sweep, and with other reads in
+           flight it would now leave them running unobserved. */
+        failed++;
+        log.error("creator read threw", {
+          creatorId: creator.id,
+          error: e instanceof Error ? e.message : String(e),
+        });
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(SWEEP_CONCURRENCY, creators.length) }, worker));
+
+  if (deadlineHit) {
+    skipped += creators.length - started;
+    log.warn("creator sweep hit its deadline", {
+      processed: started,
+      remaining: creators.length - started,
+    });
   }
 
   log.info("creator sweep complete", { snapshots, failed, skipped, considered: creators.length });

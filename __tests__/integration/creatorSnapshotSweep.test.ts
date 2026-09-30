@@ -80,7 +80,7 @@ describe("creator sweep — bounded and rotating", () => {
     await snapshotCreators({});
 
     const args = mockDb.creator.findMany.mock.calls[0][0];
-    expect(args.take).toBe(200);
+    expect(args.take).toBe(400);
     /* trackedSince asc never changes, so the same prefix was read and processed
        on every run and the tail was never reached. */
     expect(args.orderBy).toEqual({ trackerLastAttemptAt: { sort: "asc", nulls: "first" } });
@@ -109,6 +109,79 @@ describe("creator sweep — the deadline", () => {
 
     expect(counts).toEqual({ snapshots: 0, failed: 0, skipped: 3 });
     expect(mockRead).not.toHaveBeenCalled();
+  });
+});
+
+describe("creator sweep — reads in parallel", () => {
+  const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  const creatorsNamed = (n: number, over: Record<string, unknown> = {}) =>
+    Array.from({ length: n }, (_, i) => makeCreator({ id: `c-${i}`, handle: `h${i}`, ...over }));
+
+  function tracked<T>(ms: number, value: T) {
+    const state = { inFlight: 0, peak: 0 };
+    const fn = jest.fn(async () => {
+      state.inFlight++;
+      state.peak = Math.max(state.peak, state.inFlight);
+      await wait(ms);
+      state.inFlight--;
+      return value;
+    });
+    return { fn, state };
+  }
+
+  it("has six reads in flight at once and still reads every creator", async () => {
+    const read = tracked(20, okProfile);
+    mockRead.mockImplementation(read.fn);
+    mockDb.creator.findMany.mockResolvedValue(creatorsNamed(14));
+
+    const counts = await snapshotCreators({});
+
+    expect(read.state.peak).toBe(6);
+    expect(counts).toEqual({ snapshots: 14, failed: 0, skipped: 0 });
+  });
+
+  it("finishes the reads already started at the deadline and skips only the ones nobody started", async () => {
+    mockRead.mockImplementation(tracked(80, okProfile).fn);
+    mockDb.creator.findMany.mockResolvedValue(creatorsNamed(10));
+
+    const counts = await snapshotCreators({ deadlineMs: 40 });
+
+    expect(mockRead).toHaveBeenCalledTimes(6);
+    expect(counts).toEqual({ snapshots: 6, failed: 0, skipped: 4 });
+  });
+
+  it("gives the browser one creator at a time however many are in flight", async () => {
+    mockRead.mockResolvedValue({ ok: false, reason: "unreadable", detail: "waf shell" });
+    const browser = tracked(10, null);
+    mockDb.creator.findMany.mockResolvedValue(creatorsNamed(5, { platform: "TIKTOK" }));
+
+    const counts = await snapshotCreators({ readTikTokPosts: browser.fn });
+
+    expect(browser.fn).toHaveBeenCalledTimes(5);
+    expect(browser.state.peak).toBe(1);
+    expect(counts).toEqual({ snapshots: 0, failed: 5, skipped: 0 });
+  });
+
+  it("does not open a browser page for a read still queued at the deadline", async () => {
+    mockRead.mockResolvedValue({ ok: false, reason: "unreadable", detail: "waf shell" });
+    const browser = tracked(80, null);
+    mockDb.creator.findMany.mockResolvedValue(creatorsNamed(3, { platform: "TIKTOK" }));
+
+    const counts = await snapshotCreators({ deadlineMs: 40, readTikTokPosts: browser.fn });
+
+    expect(browser.fn).toHaveBeenCalledTimes(1);
+    expect(counts).toEqual({ snapshots: 0, failed: 3, skipped: 0 });
+  });
+
+  it("counts a creator whose read throws and carries on with the rest", async () => {
+    mockDb.creator.findMany.mockResolvedValue([
+      makeCreator({ id: "c-broken", trackerSnapshots: undefined }),
+      makeCreator({ id: "c-fine" }),
+    ]);
+
+    const counts = await snapshotCreators({});
+
+    expect(counts).toEqual({ snapshots: 1, failed: 1, skipped: 0 });
   });
 });
 
