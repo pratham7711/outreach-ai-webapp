@@ -101,6 +101,7 @@ const REASON_LABEL: Record<RefreshFailReason, (n: number) => string> = {
   "reader-timeout": (n) => `${n} timed out on our side, retrying`,
   "backing-off": (n) => `${n} skipped while backing off`,
   "post-deleted": (n) => `${n} no longer exist`,
+  "post-hidden": (n) => `${n} were hidden by their creator`,
   "platform-refused": (n) => `${n} refused by the platform`,
   "no-counts-published": (n) => `${n} publish no counts`,
   unknown: (n) => `${n} could not be read`,

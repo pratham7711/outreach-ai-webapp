@@ -125,6 +125,7 @@ const REASON_IS_RETRYABLE: Record<RefreshFailReason, boolean> = {
      and silence is not one of them. */
   unknown: true,
   "post-deleted": false,
+  "post-hidden": false,
   "unrecognised-url": false,
   "no-counts-published": false,
   /* Three sweeps inside one request will not make the key appear. */

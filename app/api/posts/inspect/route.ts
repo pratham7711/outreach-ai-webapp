@@ -59,6 +59,7 @@ export async function GET(req: NextRequest) {
     state: lookup.state,
     isLive: lookup.state === "live",
     isDeleted: lookup.state === "deleted",
+    isHidden: lookup.state === "hidden",
     platformStatusCode: lookup.statusCode,
     reason: lookup.reason,
     checkedAt,

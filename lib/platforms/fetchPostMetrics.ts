@@ -137,6 +137,14 @@ export type FetchReason =
   | "backing-off"
   /** The platform says the post is gone. */
   | "post-deleted"
+  /** TikTok: the creator set the post to "Only me". It still exists and can come
+   *  back, so unlike post-deleted it is never charged and never dead-lettered --
+   *  a post that went dark this way is re-read once a day until its tracker
+   *  expires. Measured 2026-09-30: TikTok answers statusCode 10204 for both, and
+   *  only statusMsg tells them apart ("…&status_self_see" against
+   *  "…&status_deleted"); five of the first six posts filed as deleted after the
+   *  carousel fix were this. */
+  | "post-hidden"
   /** Refused outright: 403, 429, 5xx, or the request threw. */
   | "platform-refused"
   /** We reached it and it simply carries no counters (oEmbed, and similar). */
@@ -215,6 +223,7 @@ const SOURCE_WENT_QUIET: Record<FetchReason, boolean> = {
 
   /* A real verdict about the post, and the commonest one in any large library. */
   "post-deleted": false,
+  "post-hidden": false,
   /* A verdict about the account, said out loud as error 110. */
   "not-a-professional-account": false,
 };
@@ -397,6 +406,7 @@ export async function fetchYouTubeMetricsBatch(videoIds: string[]): Promise<Map<
 
 export function reasonFromLookup(lookup: TikTokPostLookup): FetchReason {
   if (lookup.state === "deleted") return "post-deleted";
+  if (lookup.state === "hidden") return "post-hidden";
   if (lookup.reason === "breaker-open") return "backing-off";
   if (lookup.reason === "no-parsable-payload") return "platform-challenged";
   return "platform-refused";
@@ -449,6 +459,8 @@ export const UNCHARGEABLE_REASONS: ReadonlySet<FetchReason> = new Set<FetchReaso
   "not-configured",
   /* About a name we chose, not about the post -- see the reason's own note. */
   "not-a-professional-account",
+  /* The creator can undo it, and a dead letter is forever. */
+  "post-hidden",
 ]);
 
 /**
@@ -502,7 +514,7 @@ export async function fetchTikTokMetrics(
   if (sandbox) {
     const viaSandbox = await sandbox.readPost(url);
     if (viaSandbox?.metrics) return tiktokMetricsToPartial(viaSandbox.metrics);
-    if (viaSandbox?.state === "deleted") return stubMetrics("post-deleted");
+    if (viaSandbox && isGoneFromPublic(viaSandbox)) return stubMetrics(reasonFromLookup(viaSandbox));
     if (viaSandbox === null) laneFailed = true;
     else if (viaSandbox.state === "unavailable") sandboxRefusal = reasonFromLookup(viaSandbox);
   }
@@ -520,11 +532,11 @@ export async function fetchTikTokMetrics(
   const viaSocialKit = await fetchTikTokMetricsSocialKit(url);
   if (viaSocialKit) return viaSocialKit;
 
-  /* Three reasons not to go on to oEmbed. A deleted post is a settled answer
-     and asking a second endpoint will not un-delete it; backing off has to mean
+  /* Three reasons not to go on to oEmbed. A deleted or hidden post is a settled
+     answer and asking a second endpoint will not bring it back; backing off has to mean
      the host, not one endpoint on it; and a bulk refresh would rather spend the
      slot on the next post than on a thumbnail. */
-  if (lookup.state === "deleted" || reason === "backing-off" || countsOnly) {
+  if (isGoneFromPublic(lookup) || reason === "backing-off" || countsOnly) {
     return stubMetrics(reason);
   }
 
@@ -776,17 +788,23 @@ export function isDisplayRounded(value: number | undefined): boolean {
 // Returns null when there is no payload at all, which IS the blocked/changed
 // -markup case.
 export function parseTikTokDetailStatus(html: string): number | null {
+  const detail = tiktokVideoDetail(html);
+  return typeof detail?.statusCode === "number" ? detail.statusCode : null;
+}
+
+function tiktokVideoDetail(html: string): { statusCode?: unknown; statusMsg?: unknown } | null {
   const match = html.match(TIKTOK_REHYDRATION_RE);
   if (!match) return null;
-
   try {
-    const detail = JSON.parse(match[1])?.__DEFAULT_SCOPE__?.["webapp.video-detail"];
-    if (!detail) return null;
-    return typeof detail.statusCode === "number" ? detail.statusCode : null;
+    return JSON.parse(match[1])?.__DEFAULT_SCOPE__?.["webapp.video-detail"] ?? null;
   } catch {
     return null;
   }
 }
+
+/* The one privacy status measured (2026-09-30). Any other non-zero status is
+   still read as deleted, as it always was. */
+const HIDDEN_BY_CREATOR_RE = /status_self_see/;
 
 export function parseTikTokRehydration(html: string): TikTokDirectMetrics | null {
   const match = html.match(TIKTOK_REHYDRATION_RE);
@@ -841,11 +859,18 @@ export function metricsFromItemStruct(item: any): TikTokDirectMetrics | null {
  *
  * - `live`        the post exists and `metrics` is populated
  * - `deleted`     TikTok answered normally and said the item is gone
+ * - `hidden`      TikTok answered normally and said the creator made it
+ *                 "Only me"; the post exists and may come back
  * - `unavailable` we could not get a usable answer: blocked, rate-gated,
  *                 timed out, or the page shape changed. Says nothing about
  *                 whether the post exists.
  */
-export type TikTokPostState = "live" | "deleted" | "unavailable";
+export type TikTokPostState = "live" | "deleted" | "hidden" | "unavailable";
+
+/** TikTok answered, about this post, that the public cannot see it. */
+export function isGoneFromPublic(lookup: TikTokPostLookup): boolean {
+  return lookup.state === "deleted" || lookup.state === "hidden";
+}
 
 export type TikTokPostLookup = {
   state: TikTokPostState;
@@ -874,9 +899,11 @@ export function readTikTokPostHtml(html: string): TikTokPostLookup {
   const parsed = parseTikTokRehydration(html);
   if (parsed) return { state: "live", statusCode: 0, reason: null, metrics: parsed };
 
-  const statusCode = parseTikTokDetailStatus(html);
+  const detail = tiktokVideoDetail(html);
+  const statusCode = typeof detail?.statusCode === "number" ? detail.statusCode : null;
   if (statusCode !== null && statusCode !== 0) {
-    return { state: "deleted", statusCode, reason: null, metrics: null };
+    const hidden = typeof detail?.statusMsg === "string" && HIDDEN_BY_CREATOR_RE.test(detail.statusMsg);
+    return { state: hidden ? "hidden" : "deleted", statusCode, reason: null, metrics: null };
   }
   return { state: "unavailable", statusCode: null, reason: "no-parsable-payload", metrics: null };
 }
@@ -936,12 +963,12 @@ export async function lookupTikTokPost(
     const html = await res.text();
     const lookup = readTikTokPostHtml(html);
 
-    if (lookup.state === "deleted") {
+    if (isGoneFromPublic(lookup)) {
       // A removed post answers 200 with a non-zero statusCode. Counting that as
       // a block let five deleted posts in a row latch the breaker for 15
       // minutes and stall every healthy fetch behind them.
       gate.success();
-      log.warn("TikTok says this post is gone", { statusCode: lookup.statusCode });
+      log.warn("TikTok says this post is not public", { state: lookup.state, statusCode: lookup.statusCode });
       return lookup;
     }
     if (lookup.state === "unavailable") {

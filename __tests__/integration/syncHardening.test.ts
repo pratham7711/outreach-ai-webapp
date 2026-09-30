@@ -852,8 +852,8 @@ describe("cron sync — alerting on a run that measured nothing", () => {
     };
   }
 
-  it.each(["post-deleted", "not-a-professional-account", "no-counts-published", "unrecognised-url"])(
-    "stays quiet when every post answered %s",
+  it.each(["post-deleted", "not-a-professional-account", "no-counts-published", "unrecognised-url", "post-hidden"])(
+    "sends nothing when every post answered %s",
     async (reason) => {
       mockPostCandidates(challengedPosts(6));
       mockFetch.mockResolvedValue(answeredWith(reason));
@@ -862,11 +862,43 @@ describe("cron sync — alerting on a run that measured nothing", () => {
       const body = await (await cronSync(cronReq())).json();
 
       expect(body.noCounts).toBe(6);
-      /* A settled reason still dead-letters and says so in its own notice; what
-         must not fire is the critical "returning nothing" page. */
-      expect(mockAlert.mock.calls.filter(([a]) => a.severity === "critical")).toEqual([]);
+      /* Not even the dead-letter notice: a post the platform said is gone
+         dead-letters once and carries its pill, and six of those were the whole
+         of the mail on 2026-09-30. */
+      expect(mockAlert).not.toHaveBeenCalled();
     },
   );
+
+  it("mails about posts stopped after five reads nobody explained", async () => {
+    mockPostCandidates(
+      challengedPosts(3).map((p, i) => ({ ...p, syncFailCount: i === 0 ? 0 : 4 })),
+    );
+    mockFetch.mockResolvedValue(answeredWith("no-counts-published"));
+    mockDb.post.update.mockResolvedValue({});
+
+    const body = await (await cronSync(cronReq())).json();
+
+    expect(body.deadLettered).toBe(2);
+    expect(mockAlert).toHaveBeenCalledTimes(1);
+    const alert = mockAlert.mock.calls[0][0];
+    expect(alert.title).toBe("2 post(s) stopped syncing after 5 reads with no numbers");
+    expect(alert.facts).toMatchObject({ unexplained: 2, byReason: { "no-counts-published": 2 } });
+  });
+
+  it("leaves settled dead letters out of that mail's count", async () => {
+    mockPostCandidates(
+      challengedPosts(3).map((p) => ({ ...p, syncFailCount: 4 })),
+    );
+    mockFetch.mockImplementation((url: string) =>
+      Promise.resolve(answeredWith(url.endsWith("A0/") ? "no-counts-published" : "post-deleted")),
+    );
+    mockDb.post.update.mockResolvedValue({});
+
+    const body = await (await cronSync(cronReq())).json();
+
+    expect(body.deadLettered).toBe(3);
+    expect(mockAlert.mock.calls[0][0].title).toBe("1 post(s) stopped syncing after 5 reads with no numbers");
+  });
 
   it("still pages on the reads that failed when answers are mixed in", async () => {
     mockPostCandidates(challengedPosts(10));
@@ -940,6 +972,8 @@ describe("cron sync — uncharged reasons", () => {
     "reader-timeout",
     "credentials-rejected",
     "not-configured",
+    "not-a-professional-account",
+    "post-hidden",
   ] as const;
 
   it.each(uncharged)("does not charge %s to the post", async (fetchReason) => {

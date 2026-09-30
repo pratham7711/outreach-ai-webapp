@@ -264,3 +264,34 @@ describe("hoursRemaining", () => {
     expect(hoursRemaining(input({ trackingExpiresAt: hoursAgo(5) }))).toBe(0);
   });
 });
+
+describe("a post its creator hid", () => {
+  const twelveHourly: PostTrackingInput["granularity"] = { ...DEFAULT_POST_TRACKING, readCadence: "12hourly" };
+  const hidden = (hoursSinceAsked: number, granularity = twelveHourly) =>
+    decidePostTracking(
+      input({ lastSyncedAt: hoursAgo(72), lastAttemptAt: hoursAgo(hoursSinceAsked), lastReason: "post-hidden", granularity }),
+    );
+
+  it("is asked again once a day, not at the org's 12-hourly cadence", () => {
+    expect(hidden(13)).toEqual({ action: "skip", reason: "hidden-throttle" });
+    expect(hidden(24)).toEqual({ action: "sync", reason: "hidden-recheck" });
+  });
+
+  it("never waits longer than a slower cadence already would", () => {
+    const daily: PostTrackingInput["granularity"] = { ...DEFAULT_POST_TRACKING, readCadence: "daily" };
+    expect(hidden(24, daily)).toEqual({ action: "sync", reason: "cadence-daily" });
+  });
+
+  it("changes nothing for any other reason", () => {
+    const refused = decidePostTracking(
+      input({ lastSyncedAt: hoursAgo(72), lastAttemptAt: hoursAgo(13), lastReason: "platform-refused", granularity: twelveHourly }),
+    );
+    expect(refused).toEqual({ action: "sync", reason: "cadence-12hourly" });
+  });
+
+  it("still seals when the tracker expires", () => {
+    expect(
+      decidePostTracking(input({ lastReason: "post-hidden", trackingExpiresAt: hoursAgo(1), granularity: twelveHourly })),
+    ).toMatchObject({ action: "seal" });
+  });
+});

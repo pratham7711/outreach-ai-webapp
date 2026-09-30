@@ -1,4 +1,5 @@
 import {
+  HIDDEN_FETCH_REASON,
   NO_PUBLIC_NUMBERS_REASON,
   REMOVED_FETCH_REASON,
   isPostRemoved,
@@ -112,5 +113,17 @@ describe("postNotice", () => {
     }
     expect(postNotice({ fetchState: "LIVE" })).toBeNull();
     expect(postNotice(null)).toBeNull();
+  });
+});
+
+describe("a post its creator hid", () => {
+  it("counts as removed, so the share report's flag and Live Posts agree", () => {
+    expect(isPostRemoved({ fetchState: null, platformMetrics: note(HIDDEN_FETCH_REASON) })).toBe(true);
+  });
+
+  it("says hidden, not 'may have been deleted', even with UNAVAILABLE on the post", () => {
+    const post = { fetchState: "UNAVAILABLE", platformMetrics: note(HIDDEN_FETCH_REASON) };
+    expect(postNotice(post)?.label).toBe("Post hidden — the creator made it private");
+    expect(postNotice(post)?.note?.at).toBe("2026-09-01T00:00:00.000Z");
   });
 });

@@ -2,8 +2,8 @@
  * "The creator took it down" — the one fetch failure that is about the post
  * rather than about us.
  *
- * syncPost writes `fetchState: "UNAVAILABLE"` on exactly one reason,
- * `post-deleted`, and on no other: a rate limit, a timeout or a blocked region
+ * syncPost writes `fetchState: "UNAVAILABLE"` on exactly two reasons,
+ * `post-deleted` and `post-hidden`, and on no other: a rate limit, a timeout or a blocked region
  * all mean we could not look, which is not the same claim. It deliberately
  * leaves the last recorded counts and the thumbnail in place, because those
  * numbers were real while the post was up and a brand still bought them. So
@@ -36,10 +36,14 @@ export type RemovablePost = {
   platformMetrics?: unknown;
 };
 
+/** TikTok's "Only me": gone from public view, but the creator can bring it back. */
+export const HIDDEN_FETCH_REASON = "post-hidden";
+
 export function isPostRemoved(post: RemovablePost | null | undefined): boolean {
   if (!post) return false;
   if (post.fetchState === REMOVED_FETCH_STATE) return true;
-  return lastFetchNote(post.platformMetrics)?.reason === REMOVED_FETCH_REASON;
+  const reason = lastFetchNote(post.platformMetrics)?.reason;
+  return reason === REMOVED_FETCH_REASON || reason === HIDDEN_FETCH_REASON;
 }
 
 /**
@@ -87,6 +91,11 @@ export function removedNote(post: RemovablePost | null | undefined): LastFetchNo
  */
 export const NO_PUBLIC_NUMBERS_REASON = "not-a-professional-account";
 
+/** Not hedged, unlike the removed pill: TikTok names this state outright. */
+export function hiddenPostLabel(): string {
+  return "Post hidden — the creator made it private";
+}
+
 export function noPublicNumbersLabel(): string {
   return "No Instagram numbers — the post or account may be gone";
 }
@@ -94,14 +103,16 @@ export function noPublicNumbersLabel(): string {
 export type PostNotice = { label: string; note: LastFetchNote | null };
 
 /**
- * The pill a post carries, if any. Removal wins: it is the stronger claim and
- * the one the platform actually made. A later successful read clears
+ * The pill a post carries, if any. Hidden is checked first because it is the
+ * more exact form of removal; removal then wins over the Instagram note, being
+ * the stronger claim and the one the platform actually made. A later successful read clears
  * __lastFetch, so a post that starts sharing numbers loses its pill on the next
  * sync without anyone touching it.
  */
 export function postNotice(post: RemovablePost | null | undefined): PostNotice | null {
   if (!post) return null;
-  if (isPostRemoved(post)) return { label: removedPostLabel(), note: removedNote(post) };
   const note = lastFetchNote(post.platformMetrics);
+  if (note?.reason === HIDDEN_FETCH_REASON) return { label: hiddenPostLabel(), note };
+  if (isPostRemoved(post)) return { label: removedPostLabel(), note: removedNote(post) };
   return note?.reason === NO_PUBLIC_NUMBERS_REASON ? { label: noPublicNumbersLabel(), note } : null;
 }

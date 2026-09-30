@@ -3,6 +3,8 @@ import {
   isBlockedStatus,
   parseTikTokDetailStatus,
   parseTikTokRehydration,
+  readTikTokPostHtml,
+  reasonFromLookup,
 } from "@/lib/platforms/fetchPostMetrics";
 
 function page(scope: unknown): string {
@@ -369,5 +371,34 @@ describe("a challenge is not a block", () => {
     /* Two blocks, threshold three. The challenges in between must not count
        toward it -- mixing the counters is the original bug. */
     expect(g.isOpen()).toBe(false);
+  });
+});
+
+/* Both answers were measured on 2026-09-30 from iad1, on posts the cron had
+   just dead-lettered as deleted: five set to "Only me", one actually gone. */
+describe("readTikTokPostHtml — hidden is not deleted", () => {
+  const gone = (statusMsg: string) =>
+    page({ "webapp.video-detail": { statusCode: 10204, statusMsg } });
+
+  it("reads 'Only me' as hidden, and files it as post-hidden", () => {
+    const lookup = readTikTokPostHtml(gone("item_privacy_authorization&status_self_see"));
+    expect(lookup).toMatchObject({ state: "hidden", statusCode: 10204, metrics: null });
+    expect(reasonFromLookup(lookup)).toBe("post-hidden");
+  });
+
+  it("still reads a deleted post as deleted", () => {
+    const lookup = readTikTokPostHtml(gone("item_privacy_authorization&status_deleted"));
+    expect(lookup.state).toBe("deleted");
+    expect(reasonFromLookup(lookup)).toBe("post-deleted");
+  });
+
+  it("keeps any other non-zero status deleted, as it always was", () => {
+    expect(readTikTokPostHtml(gone("item doesn't exist")).state).toBe("deleted");
+    expect(readTikTokPostHtml(page({ "webapp.video-detail": { statusCode: 10204 } })).state).toBe("deleted");
+  });
+
+  it("leaves a live post and a blocked page alone", () => {
+    expect(readTikTokPostHtml(page(videoDetail())).state).toBe("live");
+    expect(readTikTokPostHtml("<html><body>nope</body></html>").state).toBe("unavailable");
   });
 });

@@ -1,5 +1,5 @@
 import { unstable_cache } from "next/cache";
-import { alertOps } from "@/lib/alerts";
+import { alertOps, alertSentWithin } from "@/lib/alerts";
 import { createLogger } from "@/lib/observability/logger";
 
 /**
@@ -276,37 +276,12 @@ const ALERT_SUBJECT = `[WARN] ${ALERT_TITLE}`;
 const ALERT_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
 /**
- * Has this alert already gone out inside the window?
- *
- * The throttle store is EmailLog, which lib/email writes for every send attempt
- * -- so the rate limit needs no new table and no new column, and it survives
- * serverless the way an in-memory flag cannot: the cron runs in a fresh instance
- * every hour, so a module-level timestamp would let through 24 emails a day.
- *
- * A row is counted whatever its status. "failed" and "not_configured" still mean
- * this run already tried, and retrying an unconfigured provider hourly produces
- * nothing but EmailLog rows.
+ * Has this alert already gone out inside the window? The shared once-a-day
+ * check from lib/alerts, asked here as well because it gates the embed probe
+ * below, not just the mail.
  */
 async function alreadyAlertedToday(): Promise<boolean> {
-  try {
-    /* Imported here, not at the top: this module's type is imported by a client
-       component, and lib/email documents the same reason -- nothing that can be
-       reached from the browser bundle should pull in a database client. */
-    const { db } = await import("@/lib/db");
-    const recent = await db.emailLog?.findFirst?.({
-      where: {
-        kind: "ops_alert",
-        subject: ALERT_SUBJECT,
-        createdAt: { gte: new Date(Date.now() - ALERT_INTERVAL_MS) },
-      },
-      select: { id: true },
-    });
-    return Boolean(recent);
-  } catch {
-    /* A throttle that cannot read its own history must not silence the alert --
-       a duplicate email is a smaller failure than no email. */
-    return false;
-  }
+  return alertSentWithin(ALERT_SUBJECT, ALERT_INTERVAL_MS);
 }
 
 /**

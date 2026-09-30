@@ -7,8 +7,11 @@ import { createLogger } from "@/lib/observability/logger";
  * Call this ONLY at aggregation points -- the end of a cron run, a catch that
  * ends a whole job. Never inside a per-item fetch loop: when TikTok returns 429
  * for 500 posts we want one email saying "497/500 failed", not 500 emails.
- * That is why there is no throttle store here; the call sites are already
- * once-per-run, which is the only rate limit that survives serverless.
+ *
+ * Once per run is not enough on its own, though: the post sync runs every six
+ * hours, so a problem that outlives one run mailed four times a day. Each alert
+ * is now sent at most once a day (alertSentWithin); the log line is still
+ * written every time.
  */
 
 export type Severity = "warn" | "critical";
@@ -48,10 +51,59 @@ function renderBody(input: AlertInput): string {
   return lines.join("\n");
 }
 
+/** How long an alert stays quiet after it has gone out. */
+const REPEAT_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * An alert's identity from one run to the next: its subject with every number
+ * masked. Titles carry the run's counts ("90/170 attempts", "6 post(s)"), so the
+ * same problem never has the same subject twice.
+ */
+export function alertKey(subject: string): string {
+  return subject.replace(/\d+/g, "#");
+}
+
+/**
+ * Has this alert already gone out inside the window?
+ *
+ * The store is EmailLog, which lib/email writes for every send attempt, so this
+ * needs no table of its own and survives serverless the way a module-level
+ * timestamp cannot: every cron run is a fresh instance.
+ *
+ * A "failed" send does not count, so a provider hiccup is retried next run
+ * rather than silencing a real outage for a day. "not_configured" does count:
+ * retrying an unconfigured provider only writes more rows. And a throttle that
+ * cannot read its own history says no -- a duplicate email is a smaller
+ * failure than none.
+ */
+export async function alertSentWithin(subject: string, windowMs = REPEAT_WINDOW_MS): Promise<boolean> {
+  try {
+    /* Imported here, not at the top, for the reason lib/email gives: a client
+       component imports this module's types, and nothing reachable from the
+       browser bundle may pull in a database client. */
+    const { db } = await import("@/lib/db");
+    const recent = await db.emailLog?.findMany?.({
+      where: {
+        kind: "ops_alert",
+        status: { not: "failed" },
+        createdAt: { gte: new Date(Date.now() - windowMs) },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 200,
+      select: { subject: true },
+    });
+    const key = alertKey(subject);
+    return Boolean(recent?.some((row) => alertKey(row.subject) === key));
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Emits an operational alert. Always logs; emails when a provider and at least
- * one recipient are configured. Never throws -- alerting must not be able to
- * fail the work it is reporting on.
+ * one recipient are configured and the same alert has not gone out in the last
+ * day. Never throws -- alerting must not be able to fail the work it is
+ * reporting on.
  */
 export async function alertOps(input: AlertInput): Promise<void> {
   const log = createLogger({ context: { lib: "alerts", source: input.source } });
@@ -71,6 +123,12 @@ export async function alertOps(input: AlertInput): Promise<void> {
     return;
   }
 
+  const subject = `[${severity === "critical" ? "CRITICAL" : "WARN"}] ${input.title}`;
+  if (await alertSentWithin(subject)) {
+    log.info("alert.repeat_suppressed", { title: input.title, windowHours: REPEAT_WINDOW_MS / 3_600_000 });
+    return;
+  }
+
   try {
     await sendEmail({
       /* No orgId on purpose: an ops alert is about the platform, usually a
@@ -78,7 +136,7 @@ export async function alertOps(input: AlertInput): Promise<void> {
          lie. EmailLog.orgId is nullable for exactly this. */
       kind: "ops_alert",
       to,
-      subject: `[${severity === "critical" ? "CRITICAL" : "WARN"}] ${input.title}`,
+      subject,
       text: renderBody(input),
     });
   } catch (err) {

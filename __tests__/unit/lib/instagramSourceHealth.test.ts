@@ -12,9 +12,13 @@ jest.mock("@/lib/observability/logger", () => ({
 }));
 
 const alertOps = jest.fn();
-jest.mock("@/lib/alerts", () => ({ alertOps: (...args: unknown[]) => alertOps(...args) }));
+jest.mock("@/lib/alerts", () => ({
+  alertOps: (...args: unknown[]) => alertOps(...args),
+  alertSentWithin: jest.requireActual("@/lib/alerts").alertSentWithin,
+}));
 /* The throttle reads EmailLog; an empty history means "not alerted today". */
-jest.mock("@/lib/db", () => ({ db: { emailLog: { findFirst: jest.fn(async () => null) } } }));
+const emailLogRows = jest.fn(async (): Promise<{ subject: string }[]> => []);
+jest.mock("@/lib/db", () => ({ db: { emailLog: { findMany: (...args: unknown[]) => emailLogRows(...(args as [])) } } }));
 
 const probeInstagramEmbedSurface = jest.fn();
 jest.mock("@/lib/platforms/instagramEmbed", () => ({
@@ -200,6 +204,23 @@ describe("alertIfInstagramSourceDown", () => {
     expect(probeInstagramEmbedSurface).not.toHaveBeenCalled();
     expect(facts.publicFallback).toMatch(/not checked/i);
     expect(facts.stillUpdating).toMatch(/nothing/i);
+  });
+
+  it("neither probes nor mails again inside the same day", async () => {
+    down();
+    emailLogRows.mockResolvedValueOnce([
+      { subject: "[WARN] Instagram views are not refreshing — the Instagram data connection was rejected" },
+    ]);
+
+    const out = await alertIfInstagramSourceDown({
+      rejectedPosts: 3,
+      totalPosts: 10,
+      samplePostUrl: "https://www.instagram.com/p/DcQFHR5pdYw/",
+    });
+
+    expect(out).toEqual({ alerted: false, reason: "already-alerted-today" });
+    expect(probeInstagramEmbedSurface).not.toHaveBeenCalled();
+    expect(alertOps).not.toHaveBeenCalled();
   });
 
   it("sends nothing at all while the platform token works", async () => {

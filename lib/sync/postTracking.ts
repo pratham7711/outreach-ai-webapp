@@ -52,6 +52,8 @@ export type PostTrackingInput = {
   /** When we last ASKED, from the __lastFetch stamp. A post that never measures
    *  must still be throttled, or it becomes the one row retried on every run. */
   lastAttemptAt?: Date | null;
+  /** The reason that attempt recorded, from the same stamp. */
+  lastReason?: string | null;
   syncDisabledAt: Date | null;
   hasFinalSnapshot: boolean;
   granularity: PostTrackingGranularity;
@@ -71,6 +73,11 @@ const HOUR_MS = 60 * 60 * 1000;
    above the 300s function ceiling so a read taken at the very end of a long
    sweep still keeps its slot. */
 const DUE_GRACE_MS = 30 * 60 * 1000;
+
+/* A post its creator hid ("post-hidden") is asked about once a day, whatever
+   the org's cadence: often enough to notice it coming back, and no more, since
+   until it does every read returns the same refusal. */
+const HIDDEN_RECHECK_HOURS = 24;
 
 /**
  * The expiry to enforce, including for rows written before the column existed.
@@ -111,7 +118,13 @@ export function decidePostTracking(input: PostTrackingInput): PostTrackingDecisi
   );
   if (lastTouchMs === -Infinity) return { action: "sync", reason: "never-read" };
 
-  const dueAfterMs = READ_CADENCE_HOURS[input.granularity.readCadence] * HOUR_MS;
+  const cadenceHours = READ_CADENCE_HOURS[input.granularity.readCadence];
+  if (input.lastReason === "post-hidden" && cadenceHours < HIDDEN_RECHECK_HOURS) {
+    return input.now.getTime() - lastTouchMs >= HIDDEN_RECHECK_HOURS * HOUR_MS - DUE_GRACE_MS
+      ? { action: "sync", reason: "hidden-recheck" }
+      : { action: "skip", reason: "hidden-throttle" };
+  }
+  const dueAfterMs = cadenceHours * HOUR_MS;
   if (input.now.getTime() - lastTouchMs >= dueAfterMs - DUE_GRACE_MS) {
     return { action: "sync", reason: `cadence-${input.granularity.readCadence}` };
   }

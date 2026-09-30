@@ -24,7 +24,7 @@ import { ensureFreshInstagramToken, INSTAGRAM_HANDLE_SELECT, instagramLookupHand
 import { ensureFreshTikTokToken } from "@/lib/platforms/tiktokToken";
 import { decidePostTracking, type PostTrackingAction } from "@/lib/sync/postTracking";
 import { parsePostTracking, type PostTrackingGranularity } from "@/lib/trackers/granularity";
-import { LAST_FETCH_KEY } from "@/lib/metricDisplay";
+import { LAST_FETCH_KEY, lastFetchNote } from "@/lib/metricDisplay";
 import { alertOps, shouldAlertOnBatch } from "@/lib/alerts";
 import { alertIfInstagramSourceDown } from "@/lib/integrations/health";
 import { createLogger } from "@/lib/observability/logger";
@@ -62,6 +62,7 @@ const ANSWERED_REASONS: ReadonlySet<FetchReason> = new Set<FetchReason>([
   ...SETTLED_REASONS,
   "no-counts-published",
   "not-a-professional-account",
+  "post-hidden",
 ]);
 
 type Decision = { postId: string; platform: string; action: PostTrackingAction; reason: string };
@@ -196,6 +197,10 @@ export async function GET(request: NextRequest) {
   let instagramRejectedSampleUrl: string | null = null;
   let failed = 0;
   let deadLettered = 0;
+  /* The dead letters nobody explained: a post switched off after five reads that
+     came back with nothing and said nothing about why. The settled ones -- the
+     platform saying the post is gone -- are already on the post as a pill. */
+  const unexplainedDeadLetters: Record<string, number> = {};
   let skippedForBudget = 0;
   const decisions: Decision[] = [];
   /* Campaigns this run actually spent a request on. lastRefreshAt no longer
@@ -338,6 +343,7 @@ export async function GET(request: NextRequest) {
         trackingTtlDays: post.trackingTtlDays ?? null,
         lastSyncedAt: post.lastSyncedAt ? new Date(post.lastSyncedAt) : null,
         lastAttemptAt: lastAttemptFrom(post.platformMetrics),
+        lastReason: lastFetchNote(post.platformMetrics)?.reason ?? null,
         syncDisabledAt: post.syncDisabledAt ? new Date(post.syncDisabledAt) : null,
         hasFinalSnapshot: post.snapshots.length > 0,
         granularity: granularityFor(post.creator.orgId),
@@ -567,6 +573,9 @@ export async function GET(request: NextRequest) {
           if (nextFailCount >= MAX_SYNC_FAILURES) {
             failData.syncDisabledAt = now;
             deadLettered++;
+            if (!settled) {
+              unexplainedDeadLetters[outcome.reason] = (unexplainedDeadLetters[outcome.reason] ?? 0) + 1;
+            }
           }
           await db.post.update({ where: { id: post.id }, data: failData });
         }
@@ -639,7 +648,7 @@ export async function GET(request: NextRequest) {
 
     log.info("sync complete", {
       synced, noCounts, noCountReasons, unavailable, instagramCredentialsRejected,
-      sealed, failed, deadLettered, skipped,
+      sealed, failed, deadLettered, unexplainedDeadLetters, skipped,
       skippedByReason, skippedForBudget, total: posts.length,
     });
 
@@ -678,12 +687,17 @@ export async function GET(request: NextRequest) {
           skippedForBudget, attempted, total: posts.length,
         },
       });
-    } else if (deadLettered > 0) {
-      // Dead-lettered posts stop syncing forever until someone intervenes.
+    } else if (Object.keys(unexplainedDeadLetters).length > 0) {
+      /* Dead-lettered posts stop syncing forever until someone intervenes, and
+         these ones nobody explained -- which is also what a platform changing
+         its page under us looks like, so it is worth a person's look. A post
+         the platform said is gone is not: it dead-letters once, carries its
+         pill, and on 2026-09-30 six of those were the whole of this mail. */
+      const unexplained = Object.values(unexplainedDeadLetters).reduce((a, b) => a + b, 0);
       await alertOps({
         source: "cron/sync-posts",
-        title: `${deadLettered} post(s) dead-lettered and will no longer sync`,
-        facts: { deadLettered, failed, total: posts.length },
+        title: `${unexplained} post(s) stopped syncing after ${MAX_SYNC_FAILURES} reads with no numbers`,
+        facts: { unexplained, byReason: unexplainedDeadLetters, deadLettered, failed, total: posts.length },
       });
     }
     /* Aggregation point, not the fetch loop: the loop runs per post and would

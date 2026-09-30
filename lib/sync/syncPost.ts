@@ -199,9 +199,10 @@ export async function applyPostMetrics(
       data: {
         thumbnailUrl: metrics.thumbnailUrl ?? post.thumbnailUrl,
         caption: metrics.caption ?? post.caption,
-        /* UNAVAILABLE on exactly one reason, and never on the others.
-           "post-deleted" is the platform stating positively that the post is
-           gone; every other failure here is us failing to read it, and the
+        /* UNAVAILABLE on exactly two reasons, and never on the others.
+           "post-deleted" and "post-hidden" are the platform stating positively
+           that the public cannot see the post; every other failure here is us
+           failing to read it, and the
            measured branch below explains at length why writing UNAVAILABLE on
            those would tell a brand its creators had pulled the campaign.
 
@@ -210,7 +211,7 @@ export async function applyPostMetrics(
            that used to accumulate toward one are precisely the reasons the cron
            now refuses to charge. The honest per-post record of a failed read is
            __lastFetch, written just below. */
-        ...(reason === "post-deleted" ? { fetchState: "UNAVAILABLE" as const } : {}),
+        ...(reason === "post-deleted" || reason === "post-hidden" ? { fetchState: "UNAVAILABLE" as const } : {}),
         /* The cause, on the post, in the write this branch already made.
            Costs no extra query and is the only record that survives the run:
            the aggregate on CampaignRefreshRun says 21 posts went unmeasured
