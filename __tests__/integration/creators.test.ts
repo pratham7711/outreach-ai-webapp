@@ -5,8 +5,8 @@ import { NextRequest } from 'next/server';
 import { GET, POST } from '@/app/api/creators/route';
 import { GET as GETById, PATCH } from '@/app/api/creators/[id]/route';
 
-jest.mock('@/lib/db', () => ({
-  db: {
+jest.mock('@/lib/db', () => {
+  const db: Record<string, unknown> = {
     creator: {
       findMany: jest.fn(),
       count: jest.fn(),
@@ -22,8 +22,11 @@ jest.mock('@/lib/db', () => ({
     campaign: { findMany: jest.fn().mockResolvedValue([]) },
     // The lists a creator is on, shown on their profile.
     creatorListItem: { findMany: jest.fn().mockResolvedValue([]) },
-  },
-}));
+    // The PATCH writes the creator and its detail row in one transaction.
+    $transaction: jest.fn((fn: (tx: unknown) => unknown) => fn(db)),
+  };
+  return { db };
+});
 
 jest.mock('@/lib/auth', () => ({
   auth: jest.fn(),
