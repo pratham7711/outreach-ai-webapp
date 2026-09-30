@@ -113,7 +113,7 @@ export default function HandleFix({ creatorId, link, onSaved }: { creatorId: str
         <>
           <p className="cc-handle-fix-text">Remove @{link.handle} from this profile? Its numbers go with it.</p>
           <div className="cc-handle-fix-actions">
-            <Button type="button" variant="primary" size="sm" loading={removing} onClick={remove}>
+            <Button type="button" variant="danger" size="sm" loading={removing} onClick={remove}>
               Remove
             </Button>
             <Button type="button" variant="secondary" size="sm" onClick={() => setConfirmRemove(false)}>

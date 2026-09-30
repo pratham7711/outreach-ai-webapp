@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Modal } from "@pratham7711/ui";
 import { toast } from "sonner";
 import { Button, EntityPicker, type PickerOption } from "@/components/ds";
-import { stripAt } from "@/lib/format";
+import { platformLabel, stripAt } from "@/lib/format";
 import { creatorNameText } from "@/lib/creators/creatorName";
 
 type Summary = {
@@ -153,7 +153,7 @@ export default function MergeCreatorModal({
             extract={(json) =>
               json.creators
                 .filter((c: any) => c.id !== creator.id)
-                .map((c: any) => ({ id: c.id, label: c.name, hint: `@${stripAt(c.handle)} · ${c.platform}` }))
+                .map((c: any) => ({ id: c.id, label: c.name, hint: `@${stripAt(c.handle)} · ${platformLabel(c.platform)}` }))
             }
             value={picked}
             onChange={setPicked}
