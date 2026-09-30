@@ -34,6 +34,8 @@ const FIELD_LABEL: Record<string, string> = {
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n.toLocaleString()} ${n === 1 ? one : many}`;
 
+const NOTHING_MOVES = "Nothing else is attached to it.";
+
 /** "7 posts, 1 campaign and 2 accounts", leaving out what is zero. */
 function movedText(s: Summary): string {
   const parts = [
@@ -45,7 +47,7 @@ function movedText(s: Summary): string {
     s.flags && plural(s.flags, "flag"),
     s.payouts && plural(s.payouts, "payout"),
   ].filter(Boolean) as string[];
-  if (!parts.length) return "Nothing else is attached to it.";
+  if (!parts.length) return NOTHING_MOVES;
   const last = parts.pop();
   return `Moves ${parts.length ? `${parts.join(", ")} and ${last}` : last} onto this profile.`;
 }
@@ -162,15 +164,15 @@ export default function MergeCreatorModal({
         </div>
         {loading && <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", margin: 0 }}>Checking what would move…</p>}
         {preview && picked && (
-          <div aria-live="polite" style={{ border: "1px solid var(--cc-border)", borderRadius: 8, padding: 12, fontSize: "var(--cc-t-13)", color: "var(--cc-text)" }}>
-            <p style={{ margin: 0 }}>{movedText(preview)}</p>
+          <div aria-live="polite" style={{ display: "flex", flexDirection: "column", gap: 6, border: "1px solid var(--cc-border)", borderRadius: 8, padding: 12, fontSize: "var(--cc-t-13)", color: "var(--cc-text)" }}>
+            {!(preview.account && movedText(preview) === NOTHING_MOVES) && <p style={{ margin: 0 }}>{movedText(preview)}</p>}
             {preview.account && (
-              <p style={{ margin: "6px 0 0" }}>
+              <p style={{ margin: 0 }}>
                 Adds its {platformLabel(preview.account.platform)} account @{preview.account.handle} to this profile.
               </p>
             )}
-            {filled.length > 0 && <p style={{ margin: "6px 0 0" }}>Fills this profile&rsquo;s empty {filled.join(", ")} from it.</p>}
-            <p style={{ margin: "6px 0 0", color: "var(--cc-text-muted)" }}>{picked.label} then leaves the roster. This can&rsquo;t be undone here.</p>
+            {filled.length > 0 && <p style={{ margin: 0 }}>Fills this profile&rsquo;s empty {filled.join(", ")} from it.</p>}
+            <p style={{ margin: 0, color: "var(--cc-text-muted)" }}>{picked.label} then leaves the roster. This can&rsquo;t be undone here.</p>
           </div>
         )}
         {error && (
