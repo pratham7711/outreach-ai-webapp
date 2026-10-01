@@ -1,6 +1,8 @@
 import {
   READ_FAILURE_COPY,
+  isYouTubeChannelId,
   readCreatorProfile,
+  youtubeChannelIdForVideos,
   type CreatorReadFailure,
 } from "@/lib/platforms/creatorProfile";
 
@@ -124,6 +126,92 @@ describe("readYouTube subscriber counts", () => {
 
     expect(result.ok).toBe(true);
     expect(result.ok && result.profile.followersCount).toBe(2654363);
+  });
+});
+
+/*
+ * A YouTube handle column that holds a display name.
+ *
+ * Measured on prod 2026-10-02: 40 of 78 tracked YouTube creators failed "no
+ * channel for handle", 37 of them because the stored value was the channel's
+ * name with spaces in it, and every one had campaign videos of its own. The
+ * sweep now asks those videos which channel published them and reads that
+ * channel by id.
+ */
+describe("readYouTube by channel id", () => {
+  const env = process.env;
+  const realFetch = global.fetch;
+  const CHANNEL = "UC" + "a".repeat(22);
+  let urls: string[] = [];
+
+  function mockYouTube(byPath: Record<string, unknown>) {
+    urls = [];
+    global.fetch = jest.fn(async (input: unknown) => {
+      const url = String(input);
+      urls.push(url);
+      const path = Object.keys(byPath).find((p) => url.includes(`/youtube/v3/${p}?`));
+      return { ok: true, status: 200, json: async () => (path ? byPath[path] : { items: [] }) } as unknown as Response;
+    }) as unknown as typeof fetch;
+  }
+
+  beforeEach(() => {
+    process.env = { ...env, YOUTUBE_API_KEY: "test-key" };
+  });
+  afterEach(() => {
+    global.fetch = realFetch;
+    process.env = env;
+  });
+
+  it("looks the channel up by id, not by handle, when it has one", async () => {
+    mockYouTube({
+      channels: { items: [{ id: CHANNEL, statistics: { subscriberCount: "5100", videoCount: "3" }, contentDetails: { relatedPlaylists: {} } }] },
+    });
+
+    const result = await readCreatorProfile("YOUTUBE", "Some Display Name", { youtubeChannelId: CHANNEL });
+
+    expect(result.ok && result.profile.followersCount).toBe(5100);
+    const lookup = new URL(urls[0]);
+    expect(lookup.searchParams.get("id")).toBe(CHANNEL);
+    expect(lookup.searchParams.has("forHandle")).toBe(false);
+  });
+
+  it("says which lookup found nothing", async () => {
+    mockYouTube({ channels: { items: [] } });
+
+    await expect(readCreatorProfile("YOUTUBE", "x", { youtubeChannelId: CHANNEL })).resolves.toEqual({
+      ok: false,
+      reason: "no-such-account",
+      detail: "no channel for id",
+    });
+  });
+
+  it("names the one channel that published every video", async () => {
+    mockYouTube({ videos: { items: [{ snippet: { channelId: CHANNEL } }, { snippet: { channelId: CHANNEL } }] } });
+
+    await expect(youtubeChannelIdForVideos(["v1aaaaaaaaa", "v2aaaaaaaaa"])).resolves.toBe(CHANNEL);
+  });
+
+  it("refuses to guess when the videos come from different channels", async () => {
+    const other = "UC" + "b".repeat(22);
+    mockYouTube({ videos: { items: [{ snippet: { channelId: CHANNEL } }, { snippet: { channelId: other } }] } });
+
+    await expect(youtubeChannelIdForVideos(["v1aaaaaaaaa", "v2aaaaaaaaa"])).resolves.toBeNull();
+  });
+
+  it("returns null for videos that are gone, and spends nothing on an empty list", async () => {
+    mockYouTube({ videos: { items: [] } });
+    await expect(youtubeChannelIdForVideos(["v1aaaaaaaaa"])).resolves.toBeNull();
+
+    mockYouTube({});
+    await expect(youtubeChannelIdForVideos([])).resolves.toBeNull();
+    expect(urls).toHaveLength(0);
+  });
+
+  it("recognises channel ids and nothing else", () => {
+    expect(isYouTubeChannelId(CHANNEL)).toBe(true);
+    expect(isYouTubeChannelId("UCshort")).toBe(false);
+    expect(isYouTubeChannelId("Some Display Name")).toBe(false);
+    expect(isYouTubeChannelId(null)).toBe(false);
   });
 });
 

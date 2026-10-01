@@ -228,21 +228,54 @@ export function channelThumbnail(thumbnails: unknown): string | null {
   return typeof url === "string" && url ? url : null;
 }
 
-async function readYouTube(handle: string): Promise<CreatorReadResult> {
+async function youtubeApi(key: string, path: string, params: Record<string, string>) {
+  const url = new URL(`https://www.googleapis.com/youtube/v3/${path}`);
+  for (const [k, v] of Object.entries({ ...params, key })) url.searchParams.set(k, v);
+  const res = await fetch(url, { cache: "no-store" });
+  if (res.status === 403 || res.status === 429) throw new Error(`quota:${res.status}`);
+  if (!res.ok) throw new Error(`${path} ${res.status}`);
+  return res.json();
+}
+
+/** A channel id as YouTube issues them: "UC" and 22 more characters. */
+export function isYouTubeChannelId(value: string | null | undefined): value is string {
+  return typeof value === "string" && /^UC[\w-]{22}$/.test(value);
+}
+
+/**
+ * The channel that published these videos, when they all agree on one.
+ *
+ * A tracked creator's handle column is free text from an import or the add
+ * form, and for YouTube it often holds the channel's display name rather than
+ * its @handle -- which forHandle can never resolve. MEASURED on prod
+ * 2026-10-02: 40 of 78 tracked YouTube creators failed "no channel for
+ * handle", 37 of the 40 stored values contained a space, and all 40 had
+ * campaign posts of their own. The posts name the channel outright. Null when
+ * the videos are gone or disagree, so a wrong guess is never made.
+ */
+export async function youtubeChannelIdForVideos(videoIds: string[]): Promise<string | null> {
+  const key = process.env.YOUTUBE_API_KEY;
+  const ids = [...new Set(videoIds)].filter(Boolean).slice(0, 50);
+  if (!key || !ids.length) return null;
+  try {
+    const vids = await youtubeApi(key, "videos", { part: "snippet", id: ids.join(",") });
+    const channels = new Set<string>(
+      (vids?.items ?? []).map((v: any) => v?.snippet?.channelId).filter(isYouTubeChannelId)
+    );
+    return channels.size === 1 ? [...channels][0] : null;
+  } catch {
+    return null;
+  }
+}
+
+async function readYouTube(handle: string, channelId?: string): Promise<CreatorReadResult> {
   const key = process.env.YOUTUBE_API_KEY;
   if (!key) return { ok: false, reason: "no-credentials" };
 
   const clean = handle.replace(/^@/, "").trim();
-  if (!clean) return { ok: false, reason: "unreadable", detail: "empty handle" };
+  if (!clean && !channelId) return { ok: false, reason: "unreadable", detail: "empty handle" };
 
-  const api = async (path: string, params: Record<string, string>) => {
-    const url = new URL(`https://www.googleapis.com/youtube/v3/${path}`);
-    for (const [k, v] of Object.entries({ ...params, key })) url.searchParams.set(k, v);
-    const res = await fetch(url, { cache: "no-store" });
-    if (res.status === 403 || res.status === 429) throw new Error(`quota:${res.status}`);
-    if (!res.ok) throw new Error(`${path} ${res.status}`);
-    return res.json();
-  };
+  const api = (path: string, params: Record<string, string>) => youtubeApi(key, path, params);
 
   try {
     // forHandle resolves @handles directly; forUsername only matches the old
@@ -251,13 +284,19 @@ async function readYouTube(handle: string): Promise<CreatorReadResult> {
       // snippet carries the channel picture; channels.list costs one quota
       // unit whatever parts are asked for.
       part: "snippet,statistics,contentDetails",
-      forHandle: `@${clean}`,
+      ...(channelId ? { id: channelId } : { forHandle: `@${clean}` }),
     });
     const item = ch?.items?.[0];
     /* An empty items array from forHandle is definitive: YouTube resolved the
        lookup and there is no such channel. Distinct from "unreadable" because
        the fix is editing the handle, not waiting for the next sweep. */
-    if (!item) return { ok: false, reason: "no-such-account", detail: "no channel for handle" };
+    if (!item) {
+      return {
+        ok: false,
+        reason: "no-such-account",
+        detail: channelId ? "no channel for id" : "no channel for handle",
+      };
+    }
 
     const followersCount = Number(item.statistics?.subscriberCount ?? NaN);
     const postsCount = Number(item.statistics?.videoCount ?? 0);
@@ -364,13 +403,14 @@ async function readYouTube(handle: string): Promise<CreatorReadResult> {
  */
 export async function readCreatorProfile(
   platform: string,
-  handle: string
+  handle: string,
+  options: { youtubeChannelId?: string } = {}
 ): Promise<CreatorReadResult> {
   switch (platform?.toUpperCase()) {
     case "INSTAGRAM":
       return readInstagram(handle);
     case "YOUTUBE":
-      return readYouTube(handle);
+      return readYouTube(handle, options.youtubeChannelId);
     case "TIKTOK":
       /* Profile pages are server-rendered, unlike music pages, so this is a
          plain fetch and belongs here with the others rather than behind the

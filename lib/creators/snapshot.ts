@@ -6,11 +6,14 @@ import { velocityBetween } from "@/lib/trackers/metrics";
 import { isDueForRead, parseGranularity, DEFAULT_GRANULARITY } from "@/lib/trackers/granularity";
 import {
   formatTrackerError,
+  isYouTubeChannelId,
   moreSpecificFailure,
   readCreatorProfile,
+  youtubeChannelIdForVideos,
   type CreatorReadResult,
   type TopPost,
 } from "@/lib/platforms/creatorProfile";
+import { detectPlatform } from "@/lib/platforms/postUrl";
 import { followerLadder, keepPrecise } from "@/lib/platforms/precision";
 import {
   describeInstagramPostReads,
@@ -258,6 +261,30 @@ async function readInstagramFollowersViaOwnPost(creator: {
   return { read: null, note: describeInstagramPostReads(outcomes) };
 }
 
+const YT_FALLBACK_POSTS = 5;
+
+/** The channel behind a YouTube creator's own campaign posts, if they agree. */
+async function youtubeChannelFromOwnPosts(creator: { id: string; orgId: string }): Promise<string | null> {
+  const posts = await db.post
+    .findMany({
+      where: {
+        creatorId: creator.id,
+        platform: "YOUTUBE",
+        campaign: { orgId: creator.orgId, deletedAt: null },
+      },
+      orderBy: { postedAt: "desc" },
+      select: { platformPostId: true, postUrl: true },
+      take: YT_FALLBACK_POSTS,
+    })
+    .catch(() => []);
+  const videoIds = posts
+    .map((p) =>
+      /^[\w-]{11}$/.test(p.platformPostId) ? p.platformPostId : detectPlatform(p.postUrl ?? "")?.id ?? null
+    )
+    .filter((id): id is string => Boolean(id));
+  return youtubeChannelIdForVideos(videoIds);
+}
+
 /** Writes only the posts columns, for the paths where no snapshot was taken. */
 async function storeTopPostsOnly(
   creatorId: string,
@@ -320,6 +347,7 @@ export async function snapshotCreators(
       orgId: true,
       handle: true,
       platform: true,
+      platformUserId: true,
       /* Read only to refuse a lossy overwrite below -- see keepPrecise. */
       followersCount: true,
       topPostsAt: true,
@@ -521,6 +549,25 @@ export async function snapshotCreators(
       const fromPost = await readInstagramFollowersViaOwnPost(creator);
       if (fromPost.read) result = fromPost.read;
       else instagramNote = fromPost.note;
+    }
+
+    /* YouTube's handle column often holds the channel's display name, which
+       forHandle cannot resolve however long we wait. The handle stays the
+       first question, so a corrected handle always wins; after it, the channel
+       id this rung found last time, then the channel the creator's own
+       campaign videos were published by. */
+    let youtubeChannelId: string | null = null;
+    if (!result.ok && result.reason === "no-such-account" && creator.platform === "YOUTUBE" && !dryRun) {
+      at.stage = "youtube-own-post";
+      youtubeChannelId = isYouTubeChannelId(creator.platformUserId)
+        ? creator.platformUserId
+        : await youtubeChannelFromOwnPosts(creator);
+      if (youtubeChannelId) {
+        /* Whatever the channel read says is truer than "no channel for
+           handle": the channel exists, so a failure here is about it. */
+        result = await readCreatorProfile(creator.platform, creator.handle, { youtubeChannelId });
+        if (!result.ok) youtubeChannelId = null;
+      }
     }
 
     if (dryRun) {
@@ -794,6 +841,9 @@ export async function snapshotCreators(
                      nothing must not relabel what is already there. */
                   ...(topPostsSource ? { topPostsSource } : {}),
                 }
+              : {}),
+            ...(youtubeChannelId && youtubeChannelId !== creator.platformUserId
+              ? { platformUserId: youtubeChannelId }
               : {}),
             trackerLastAttemptAt: recordedAt,
             trackerLastError: null,
