@@ -51,6 +51,9 @@ export type CreatorSnapshotOptions = {
   creatorId?: string;
   dryRun?: boolean;
   deadlineMs?: number;
+  /** How long past the deadline to wait for reads still in flight before
+   *  abandoning them. A test knob; the default fits inside maxDuration. */
+  abandonGraceMs?: number;
   /** Injected by routes that traced Chromium into their bundle. TikTok stats
    * are a plain fetch, but the post grid arrives from a signed XHR only a real
    * browser can trigger -- the same constraint as sounds. Absent means TikTok
@@ -93,6 +96,20 @@ const MAX_CREATORS_PER_RUN = 400;
  * falls back to the sandbox on its own if a burst draws the WAF shell.
  */
 const SWEEP_CONCURRENCY = 6;
+
+/**
+ * How long past the deadline the sweep waits for reads still in flight.
+ *
+ * MEASURED on production 2026-10-01: three of the first five pooled sweeps
+ * stopped writing two to three minutes in and sat silent until the platform
+ * killed them at 300s -- no "complete", no "deadline" line, because every
+ * worker was parked on an await that never settled, and the creators they held
+ * were never stamped, so they led the next run's page and wedged it sooner
+ * (332, 261, 197, 89, 51 snapshots). Whatever the await, the sweep now stops
+ * waiting here: 240s deadline + 30s, inside the route's 300s with room for its
+ * cleanup and response.
+ */
+const ABANDON_AFTER_DEADLINE_MS = 30_000;
 
 /** Calls `fn` one at a time, in the order asked, whatever the caller's concurrency. */
 function oneAtATime<A extends unknown[], R>(fn: (...args: A) => Promise<R>): (...args: A) => Promise<R> {
@@ -266,6 +283,7 @@ export async function snapshotCreators(
     creatorId,
     dryRun = false,
     deadlineMs = 4 * 60 * 1000,
+    abandonGraceMs = ABANDON_AFTER_DEADLINE_MS,
     readTikTokPosts: readTikTokPostsInjected,
     readTikTokProfileRemote,
     readTikTokEmbedHtml,
@@ -375,7 +393,7 @@ export async function snapshotCreators(
     }, {}),
   });
 
-  const readOne = async (creator: (typeof creators)[number]): Promise<void> => {
+  const readOne = async (creator: (typeof creators)[number], at: { stage: string }): Promise<void> => {
     const cadence = cadenceByOrg.get(creator.orgId) ?? DEFAULT_GRANULARITY;
     const previous = creator.trackerSnapshots[0] ?? null;
 
@@ -396,6 +414,7 @@ export async function snapshotCreators(
          old. The upgrade from a campaigns list to a platform list still
          happens; it happens once a day, like every other posts read. */
       if (!dryRun && postsAreStaleFor(creator)) {
+        at.stage = "posts";
         const read = await readPostsWithoutBrowser(creator, readTikTokEmbedHtml);
         if (read) await storeTopPostsOnly(creator.id, read);
       }
@@ -404,6 +423,7 @@ export async function snapshotCreators(
 
     let result: CreatorReadResult;
     try {
+      at.stage = "profile";
       result = await readCreatorProfile(creator.platform, creator.handle);
     } catch (e) {
       result = {
@@ -418,6 +438,7 @@ export async function snapshotCreators(
        failed direct read goes to the sandbox fetcher, which runs the same
        request from an egress TikTok answers. */
     if (!result.ok && creator.platform === "TIKTOK" && readTikTokProfileRemote && !dryRun) {
+      at.stage = "sandbox";
       const remote = await readTikTokProfileRemote(creator.handle).catch(
         (e): CreatorReadResult => ({
           ok: false,
@@ -443,9 +464,22 @@ export async function snapshotCreators(
 
     /* Last resort for stats, and normally pointless (the WAF shells the
        browser too) -- but it is also how the grid read reports evidence, so it
-       stays behind the remote read rather than ahead of it. */
+       stays behind the remote read rather than ahead of it.
+
+       Not for an account TikTok has already said does not exist. That answer
+       (statusCode 10221) comes inside a page TikTok served in full, and the
+       browser would only ask the same server again -- once per renamed or
+       deleted handle, every run, which is how the pooled sweep came to spend
+       most of its browser pages, and its wedges, on accounts that are gone. */
     let gridRead: TikTokPostsRead | null | undefined;
-    if (!result.ok && creator.platform === "TIKTOK" && readTikTokPosts && !dryRun) {
+    if (
+      !result.ok &&
+      result.reason !== "no-such-account" &&
+      creator.platform === "TIKTOK" &&
+      readTikTokPosts &&
+      !dryRun
+    ) {
+      at.stage = "browser";
       let browserDetail: string | null = null;
       gridRead = await readTikTokPosts(creator.handle).catch((e) => {
         browserDetail = e instanceof Error ? e.message : String(e);
@@ -483,6 +517,7 @@ export async function snapshotCreators(
        own, not a reason of its own. */
     let instagramNote: string | null = null;
     if (!result.ok && creator.platform === "INSTAGRAM" && !dryRun) {
+      at.stage = "instagram-post";
       const fromPost = await readInstagramFollowersViaOwnPost(creator);
       if (fromPost.read) result = fromPost.read;
       else instagramNote = fromPost.note;
@@ -497,6 +532,7 @@ export async function snapshotCreators(
     /* The read that produced these figures also saw the profile picture, on a
        signed link that will be dead within days. Keep the image, not the link. */
     if (result.ok && result.profile.avatarUrl) {
+      at.stage = "avatar";
       await captureAvatarIfStale(creator, result.profile.avatarUrl).catch((e) =>
         log.warn("avatar capture failed", {
           creatorId: creator.id,
@@ -523,6 +559,7 @@ export async function snapshotCreators(
          does not un-publish the videos they made for us. So the fallback runs
          here too, on its own cadence, without pretending the follower read
          succeeded. */
+      at.stage = "posts";
       const salvaged =
         platformPostsAreStaleFor(creator) && !dryRun
           ? await readPostsWithoutBrowser(creator, readTikTokEmbedHtml)
@@ -573,6 +610,7 @@ export async function snapshotCreators(
     let tiktokPosts: TikTokPostsRead | null = null;
     let topPostsSource: "platform" | "campaigns" | null = null;
     if (creator.platform === "TIKTOK" && platformPostsAreStale && !dryRun) {
+      at.stage = "posts-official";
       const official = await readTikTokTopPostsOfficial(creator.id, creator.orgId, creator.handle).catch(
         (e) => {
           log.warn("tiktok official posts read failed", {
@@ -602,6 +640,7 @@ export async function snapshotCreators(
        This is what covers a creator who never connected their account, which
        every rung below it failed to do. */
     if (!tiktokPosts && creator.platform === "TIKTOK" && platformPostsAreStale && !dryRun) {
+      at.stage = "posts-embed";
       const embed = await readTikTokTopPostsEmbed(creator.handle, (h) =>
         embedHtmlVia(h, readTikTokEmbedHtml)
       ).catch((e) => {
@@ -630,6 +669,7 @@ export async function snapshotCreators(
       gridRead === undefined && // the WAF fallback above has not already read the page
       platformPostsAreStale
     ) {
+      at.stage = "browser";
       tiktokPosts = await readTikTokPosts(creator.handle).catch((e) => {
         log.warn("tiktok grid read failed", {
           creatorId: creator.id,
@@ -651,6 +691,7 @@ export async function snapshotCreators(
        Runs for every platform: an Instagram or YouTube creator whose API read
        came back without posts gets the same fallback. */
     if (!tiktokPosts?.topPosts.length && !profile.topPosts?.length && postsAreStale && !dryRun) {
+      at.stage = "posts-campaigns";
       const fromCampaigns = await readTopPostsFromCampaigns(creator.id).catch((e) => {
         log.warn("campaign top posts read failed", {
           creatorId: creator.id,
@@ -718,6 +759,7 @@ export async function snapshotCreators(
        browser and sandbox time. One creator's write failing is one creator's
        problem. */
     try {
+      at.stage = "write";
       await db.$transaction([
         db.creatorTrackerSnapshot.create({
           data: {
@@ -787,16 +829,15 @@ export async function snapshotCreators(
      Past the deadline a worker stops taking new ones; the creators nobody
      started are counted in one go so the tally still adds up to the read. */
   let started = 0;
-  let deadlineHit = false;
+  const inFlight = new Map<string, { stage: string }>();
   const worker = async (): Promise<void> => {
     while (started < creators.length) {
-      if (Date.now() > deadline) {
-        deadlineHit = true;
-        return;
-      }
+      if (Date.now() > deadline) return;
       const creator = creators[started++];
+      const at = { stage: "start" };
+      inFlight.set(creator.id, at);
       try {
-        await readOne(creator);
+        await readOne(creator, at);
       } catch (e) {
         /* Every read above has its own catch; this is for the one nobody
            foresaw. It used to end the whole sweep, and with other reads in
@@ -806,16 +847,51 @@ export async function snapshotCreators(
           creatorId: creator.id,
           error: e instanceof Error ? e.message : String(e),
         });
+      } finally {
+        inFlight.delete(creator.id);
       }
     }
   };
-  await Promise.all(Array.from({ length: Math.min(SWEEP_CONCURRENCY, creators.length) }, worker));
 
-  if (deadlineHit) {
-    skipped += creators.length - started;
+  let backstop: ReturnType<typeof setTimeout> | undefined;
+  const finished = await Promise.race([
+    Promise.all(Array.from({ length: Math.min(SWEEP_CONCURRENCY, creators.length) }, worker)).then(() => true),
+    new Promise<false>((resolve) => {
+      backstop = setTimeout(() => resolve(false), Math.max(0, deadline + abandonGraceMs - Date.now()));
+    }),
+  ]);
+  clearTimeout(backstop);
+
+  if (!finished) {
+    /* See ABANDON_AFTER_DEADLINE_MS. The stage says which await never came
+       back, which is the one thing the silence before a 504 never told us.
+       Stamping the attempt sends these creators to the back of the rotation
+       instead of to the head of the next run. */
+    const stuck = [...inFlight.entries()];
+    skipped += stuck.length;
+    log.error("creator sweep abandoned reads that never returned", {
+      abandoned: stuck.length,
+      stages: stuck.reduce<Record<string, number>>((acc, [, at]) => {
+        acc[at.stage] = (acc[at.stage] ?? 0) + 1;
+        return acc;
+      }, {}),
+    });
+    if (!dryRun && stuck.length) {
+      await db.creator
+        .updateMany({
+          where: { id: { in: stuck.map(([id]) => id) } },
+          data: { trackerLastAttemptAt: new Date() },
+        })
+        .catch(() => {});
+    }
+  }
+
+  const notStarted = creators.length - started;
+  if (notStarted > 0) {
+    skipped += notStarted;
     log.warn("creator sweep hit its deadline", {
       processed: started,
-      remaining: creators.length - started,
+      remaining: notStarted,
     });
   }
 

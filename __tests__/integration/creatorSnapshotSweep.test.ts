@@ -5,7 +5,7 @@ import { snapshotCreators } from "@/lib/creators/snapshot";
 
 jest.mock("@/lib/db", () => ({
   db: {
-    creator: { findMany: jest.fn(), update: jest.fn() },
+    creator: { findMany: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
     creatorTrackerSnapshot: { create: jest.fn() },
     organization: { findMany: jest.fn() },
     $transaction: jest.fn(),
@@ -64,6 +64,7 @@ beforeEach(() => {
   jest.spyOn(console, "warn").mockImplementation(() => {});
   mockDb.organization.findMany.mockResolvedValue([{ id: "org-1", uiConfig: null }]);
   mockDb.creator.update.mockResolvedValue({});
+  mockDb.creator.updateMany.mockResolvedValue({ count: 0 });
   mockDb.$transaction.mockResolvedValue([{}, {}]);
   mockRead.mockResolvedValue(okProfile);
 });
@@ -171,6 +172,35 @@ describe("creator sweep — reads in parallel", () => {
 
     expect(browser.fn).toHaveBeenCalledTimes(1);
     expect(counts).toEqual({ snapshots: 0, failed: 3, skipped: 0 });
+  });
+
+  it("never opens the browser for an account TikTok says does not exist", async () => {
+    mockRead.mockResolvedValue({ ok: false, reason: "no-such-account", detail: "statusCode 10221" });
+    const browser = tracked(10, null);
+    mockDb.creator.findMany.mockResolvedValue(creatorsNamed(3, { platform: "TIKTOK" }));
+
+    const counts = await snapshotCreators({ readTikTokPosts: browser.fn });
+
+    expect(browser.fn).not.toHaveBeenCalled();
+    expect(counts).toEqual({ snapshots: 0, failed: 3, skipped: 0 });
+  });
+
+  it("returns past the deadline when a read never settles, and rotates that creator to the back", async () => {
+    mockRead.mockImplementation((_platform: string, handle: string) =>
+      handle === "stuck" ? new Promise(() => {}) : Promise.resolve(okProfile)
+    );
+    mockDb.creator.findMany.mockResolvedValue([
+      makeCreator({ id: "c-stuck", handle: "stuck" }),
+      ...creatorsNamed(3),
+    ]);
+
+    const counts = await snapshotCreators({ deadlineMs: 20, abandonGraceMs: 20 });
+
+    expect(counts).toEqual({ snapshots: 3, failed: 0, skipped: 1 });
+    expect(mockDb.creator.updateMany).toHaveBeenCalledWith({
+      where: { id: { in: ["c-stuck"] } },
+      data: { trackerLastAttemptAt: expect.any(Date) },
+    });
   });
 
   it("counts a creator whose read throws and carries on with the rest", async () => {

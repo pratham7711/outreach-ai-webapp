@@ -79,18 +79,27 @@ export function createBrowserSession<Arg, Out>(
   return {
     async read(arg, { timeoutMs = defaultTimeoutMs } = {}) {
       if (!browserPromise) {
-        browserPromise = withTimeout(launch(), LAUNCH_TIMEOUT_MS, "browser launch").then(
-          async (browser) => {
+        const launching = launch();
+        /* The timeout covers the keeper page too. It used to cover launch()
+           alone, and the keeper's newPage() is exactly the call rule 2 says can
+           neither resolve nor reject: a wedge there left this promise pending
+           forever, and every later read awaited it until the function was
+           killed. */
+        browserPromise = withTimeout(
+          launching.then(async (browser) => {
             /* The keeper page. With it open, closing a read's page never drops
                the page count to zero, which is the state --single-process
                Chromium wedges in. Never navigated, never closed until the
                session is. */
             await browser.newPage({}).catch(() => {});
             return browser;
-          }
+          }),
+          LAUNCH_TIMEOUT_MS,
+          "browser launch"
         );
         browserPromise.catch(() => {
           browserPromise = null;
+          launching.then((b) => b.close()).catch(() => {});
         });
       }
 
