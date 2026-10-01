@@ -26,7 +26,7 @@
     },
     {
       "path": "/api/cron/refresh-creator-avatars",
-      "schedule": "45 * * * *"
+      "schedule": "12 * * * *"
     },
     {
       "path": "/api/cron/refresh-roster-profiles",
