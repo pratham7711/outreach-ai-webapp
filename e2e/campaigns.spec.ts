@@ -45,3 +45,39 @@ test.describe('Campaigns', () => {
     await expect(page.getByText('New Campaign').first()).toBeVisible({ timeout: 15000 });
   });
 });
+
+/*
+ * The one flow LKM runs most after adding posts: making a campaign. Nothing
+ * else in the suite submits the wizard, so a change that left Create Campaign
+ * disabled (a hidden step's validation, say) would have shipped green. This
+ * drives it the way a person does and removes what it made.
+ */
+test.describe('Creating a campaign', () => {
+  test('the wizard creates a campaign and opens it', async ({ page }) => {
+    const title = `E2E create ${Date.now()}`;
+    await navigateAndWait(page, '/campaigns');
+    await page.getByRole('button', { name: 'New Campaign' }).first().click();
+    await page.getByLabel('Campaign Name').fill(title);
+
+    const next = page.getByRole('button', { name: /^Next/ });
+    while (await next.isVisible().catch(() => false)) {
+      await expect(next).toBeEnabled();
+      await next.click();
+    }
+    const negotiated = page.getByRole('radio', { name: /Negotiated/ });
+    if (await negotiated.isVisible().catch(() => false)) await negotiated.click();
+
+    const create = page.getByRole('button', { name: /Create Campaign/ });
+    await expect(create).toBeEnabled();
+    await create.click();
+
+    await page.waitForURL(/\/campaigns\/[^/?#]+$/, { timeout: 30000 });
+    const id = new URL(page.url()).pathname.split('/').pop()!;
+    try {
+      await expect(page.getByText(title).first()).toBeVisible({ timeout: 15000 });
+    } finally {
+      const res = await page.request.delete(`/api/campaigns/${id}`);
+      expect(res.ok()).toBe(true);
+    }
+  });
+});

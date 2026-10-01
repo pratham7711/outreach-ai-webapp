@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
+import { permissionDenial } from "@/lib/authz";
+import { ORG_ADMIN_PERMISSION } from "@/lib/dashboardPolicy";
 
 const BulkPlanSchema = z.object({
   clientIds: z.array(z.string()).min(1),
@@ -12,6 +14,8 @@ const BulkPlanSchema = z.object({
 export async function PUT(req: NextRequest) {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const denied = permissionDenial(session.user, ORG_ADMIN_PERMISSION);
+  if (denied) return denied;
   const orgId = (session.user as any).orgId as string;
 
   const body = await req.json();

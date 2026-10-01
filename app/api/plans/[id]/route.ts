@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { authenticateRequest, getAuditActor } from "@/lib/authenticate";
+import { requirePermission } from "@/lib/authz";
+import { ORG_ADMIN_PERMISSION } from "@/lib/dashboardPolicy";
 
 const UpdatePlanSchema = z.object({
   name: z.string().min(1).optional(),
@@ -26,8 +28,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const result = await authenticateRequest(req);
-  if (!result) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const authz = await requirePermission(req, ORG_ADMIN_PERMISSION);
+  if (!authz.ok) return authz.response;
+  const result = authz.auth;
   const { orgId } = result;
   const { id } = await params;
 
@@ -52,8 +55,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const result = await authenticateRequest(req);
-  if (!result) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const authz = await requirePermission(req, ORG_ADMIN_PERMISSION);
+  if (!authz.ok) return authz.response;
+  const result = authz.auth;
   const { orgId } = result;
   const { id } = await params;
 

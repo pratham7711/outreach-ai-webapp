@@ -1,6 +1,7 @@
 import type { OrgEntitlements } from "@/lib/entitlements";
 import type { OrgUiConfig } from "@/lib/orgConfig";
 import { PLATFORM_DEFAULT_BRANDING } from "@/lib/brandingDefaults";
+import { hasPermission } from "@/lib/rbac";
 import {
   AUDIT_LOG_FEATURE,
   MEDIA_KITS_FEATURE,
@@ -27,9 +28,14 @@ type DashboardNavRule = {
   key?: string;
   featureKeys?: string[];
   alwaysVisible?: boolean;
+  /** A role permission the signed-in user needs. See navHrefsForRole. */
+  permission?: string;
 };
 
 const DEFAULT_PRIMARY_COLOR = PLATFORM_DEFAULT_BRANDING.primaryColor;
+
+/** Granted to OWNER ("*") and ADMIN ("settings:*") only. lib/rbac.ts. */
+export const ORG_ADMIN_PERMISSION = "settings:manage";
 
 export const DASHBOARD_NAV_RULES: DashboardNavRule[] = [
   { href: "/dashboard", alwaysVisible: true },
@@ -89,9 +95,30 @@ export const DASHBOARD_NAV_RULES: DashboardNavRule[] = [
   { href: "/settings/notifications", alwaysVisible: true },
   { href: "/settings/integrations", alwaysVisible: true },
   { href: "/audit-log", key: "audit-log", featureKeys: [AUDIT_LOG_FEATURE] },
-  { href: "/admin", alwaysVisible: true },
-  { href: "/plans", alwaysVisible: true },
+  /* This org's own client plans and per-client feature overrides. They were
+     shown to every role, viewers included, with no check on the pages or the
+     write routes behind them. Owners and admins only now. */
+  { href: "/admin", alwaysVisible: true, permission: ORG_ADMIN_PERMISSION },
+  { href: "/plans", alwaysVisible: true, permission: ORG_ADMIN_PERMISSION },
 ];
+
+const NAV_PERMISSIONS = new Map(
+  DASHBOARD_NAV_RULES.flatMap((rule) => (rule.permission ? [[rule.href, rule.permission] as const] : []))
+);
+
+/**
+ * Drops the hrefs whose rule needs a permission this role lacks.
+ *
+ * Separate from resolveDashboardPolicy because that answers what the org has,
+ * and this answers what the person may open. An unknown role keeps nothing
+ * that needs a permission.
+ */
+export function navHrefsForRole(hrefs: string[], role: string | null | undefined): string[] {
+  return hrefs.filter((href) => {
+    const permission = NAV_PERMISSIONS.get(href);
+    return !permission || (typeof role === "string" && hasPermission(role, permission));
+  });
+}
 
 const NAV_KEYS_TO_ROUTE = new Map(
   DASHBOARD_NAV_RULES.flatMap((rule) => (rule.key ? [[rule.key, rule.href] as const] : []))

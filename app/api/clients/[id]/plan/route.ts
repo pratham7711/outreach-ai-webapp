@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
+import { permissionDenial } from "@/lib/authz";
+import { ORG_ADMIN_PERMISSION } from "@/lib/dashboardPolicy";
 import { Prisma } from "@/lib/generated/prisma/client";
 import { createAuditActor, logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
@@ -14,6 +16,8 @@ const AssignPlanSchema = z.object({
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const denied = permissionDenial(session.user, ORG_ADMIN_PERMISSION);
+  if (denied) return denied;
   const orgId = (session.user as any).orgId as string;
   const { id } = await params;
 

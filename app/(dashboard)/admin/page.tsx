@@ -1,4 +1,6 @@
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { hasPermission } from "@/lib/rbac";
+import { ORG_ADMIN_PERMISSION } from "@/lib/dashboardPolicy";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import FeatureAccessClient from "./FeatureAccessClient";
@@ -7,6 +9,7 @@ import { asFeatureMap } from "@/lib/features";
 export default async function AdminPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
+  if (!hasPermission((session.user as { role?: string }).role ?? "", ORG_ADMIN_PERMISSION)) notFound();
   const orgId = (session.user as any).orgId as string;
 
   const [clients, plans] = await Promise.all([

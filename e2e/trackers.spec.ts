@@ -114,3 +114,21 @@ test.describe('Post Tracking', () => {
     expect(bodyText?.toLowerCase()).toMatch(/tracking|track/i);
   });
 });
+
+/*
+ * The Trackers page itself, which LKM opens daily. Until now only the
+ * responsive sweep loaded it, and that only waited for an h1, so an API
+ * failure rendering "Could not load trackers" still passed.
+ */
+test.describe('Trackers page', () => {
+  test('lists the seeded sounds and switches to Creators', async ({ page }) => {
+    await page.goto('/trackers');
+    await expect(page.getByRole('heading', { name: 'Trackers' }).first()).toBeVisible({ timeout: 20000 });
+    await expect(page.getByText('Beat Drop Remix').first()).toBeVisible({ timeout: 20000 });
+    await expect(page.getByText('Could not load trackers')).toHaveCount(0);
+
+    await page.getByRole('button', { name: 'Creators', exact: true }).first().click();
+    await expect(page).toHaveURL(/sub=creator/);
+    await expect(page.getByText('Could not load trackers')).toHaveCount(0);
+  });
+});

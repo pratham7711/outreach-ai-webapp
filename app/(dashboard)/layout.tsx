@@ -10,7 +10,7 @@ import { auth } from "@/lib/auth";
 import { isPlatformAdmin } from "@/lib/billing/subscription";
 import { getOrgEntitlements } from "@/lib/entitlements";
 import { ThemeStyle } from "@/components/sdui/ThemeStyle";
-import { resolveDashboardPolicy } from "@/lib/dashboardPolicy";
+import { navHrefsForRole, resolveDashboardPolicy } from "@/lib/dashboardPolicy";
 import { customBrandingValue, usableIconHref } from "@/lib/brandingDefaults";
 import type { OrgUiConfig } from "@/lib/orgConfig";
 import { redirect } from "next/navigation";
@@ -137,7 +137,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
           <Toaster richColors position="bottom-right" />
           <NewSidebar
-            allowedNavHrefs={orgId ? policy.allowedNavHrefs : null}
+            allowedNavHrefs={orgId ? navHrefsForRole(policy.allowedNavHrefs, (session.user as { role?: string }).role) : null}
             /* A separate axis from allowedNavHrefs: that is what this org bought,
                this is whether the person signed in operates the platform. Read
                from the email rather than the JWT because the token is minted at

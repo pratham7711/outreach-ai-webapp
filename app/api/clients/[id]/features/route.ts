@@ -3,6 +3,8 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { Prisma } from "@/lib/generated/prisma";
 import { auth } from "@/lib/auth";
+import { permissionDenial } from "@/lib/authz";
+import { ORG_ADMIN_PERMISSION } from "@/lib/dashboardPolicy";
 import { createAuditActor, logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
 import { asFeatureMap } from "@/lib/features";
@@ -38,6 +40,8 @@ const UpdateFeaturesSchema = z.object({
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const denied = permissionDenial(session.user, ORG_ADMIN_PERMISSION);
+  if (denied) return denied;
   const orgId = (session.user as any).orgId as string;
   const { id } = await params;
 
