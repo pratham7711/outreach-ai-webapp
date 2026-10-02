@@ -1,4 +1,6 @@
 import { db } from "@/lib/db";
+import { grantTablesReady } from "@/lib/creators/grantTables";
+import { REVOKE_REASONS, revokeGrantsForConnections } from "@/lib/creators/grants";
 
 /**
  * Removes a creator's login and everything that exists only because of it.
@@ -28,6 +30,20 @@ export async function deleteCreatorLogin(creatorUserId: string): Promise<void> {
     select: { id: true },
   });
   const conversationIds = conversations.map((c) => c.id);
+
+  /* The rows the transaction deletes below end their grants first, while
+     there is still something to name them by. Asked only once the grant table
+     exists; before that this function is exactly what it was. */
+  if (await grantTablesReady({ fresh: true })) {
+    const stamped = await db.creatorSocialAccount.findMany({
+      where: { creatorUserId },
+      select: { id: true },
+    });
+    await revokeGrantsForConnections(
+      stamped.map((a) => a.id),
+      REVOKE_REASONS.ACCOUNT_DELETED,
+    );
+  }
 
   await db.$transaction([
     ...(conversationIds.length > 0

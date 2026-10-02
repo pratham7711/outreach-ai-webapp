@@ -5,6 +5,7 @@ import { revokeInstagramToken } from "@/lib/platforms/instagramAccount";
 import { revokeYouTubeToken } from "@/lib/platforms/youtube";
 import { revokeFacebookToken } from "@/lib/platforms/facebookPage";
 import { isInstagramLoginRow } from "@/lib/platforms/accountOrigin";
+import { REVOKE_REASONS, revokeGrantsForConnections, type RevokeReason } from "@/lib/creators/grants";
 
 /**
  * Disconnect: revoke at the platform where one can, then delete the row.
@@ -31,9 +32,16 @@ export async function disconnectSocialAccount(
     /** The platform has already withdrawn the grant (a deauthorize webhook),
      *  so there is nothing left to revoke and no call is made. */
     alreadyRevoked?: boolean;
+    /** Why, for the grant record. The creator pressing Disconnect unless the
+     *  caller says otherwise (a webhook names its own event). */
+    revokeReason?: RevokeReason;
   } = {},
 ): Promise<void> {
   if (!options.alreadyRevoked) await revokeAtPlatform(account, orgId);
+  /* The grant ends before the row goes, and outlives it: the row is the
+     connection, the grant is the record that this org was allowed to read it
+     and when that stopped (lib/creators/grants). Never throws. */
+  await revokeGrantsForConnections([account.id], options.revokeReason ?? REVOKE_REASONS.DISCONNECT);
   await db.creatorSocialAccount.delete({ where: { id: account.id } });
 }
 

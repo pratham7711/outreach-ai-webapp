@@ -19,6 +19,7 @@ import {
   verifyTikTokSignature,
 } from "@/lib/oauth/tiktokWebhook";
 import { disconnectSocialAccount } from "@/lib/portal/disconnect";
+import { REVOKE_REASONS } from "@/lib/creators/grants";
 
 export const dynamic = "force-dynamic";
 
@@ -61,7 +62,10 @@ export async function POST(req: NextRequest) {
   let failed = 0;
   for (const { creator, ...account } of accounts) {
     try {
-      await disconnectSocialAccount(account, creator.orgId, { alreadyRevoked: true });
+      await disconnectSocialAccount(account, creator.orgId, {
+        alreadyRevoked: true,
+        revokeReason: REVOKE_REASONS.TIKTOK_AUTHORIZATION_REMOVED,
+      });
       removed++;
     } catch (err) {
       failed++;

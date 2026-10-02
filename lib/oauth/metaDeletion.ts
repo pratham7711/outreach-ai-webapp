@@ -8,6 +8,8 @@ import { ACCOUNT_ORIGINS } from "@/lib/platforms/accountOrigin";
 import { accountIdsForGrantor } from "@/lib/platforms/accountState";
 import { isGrantorPlatform } from "@/lib/platforms/metaGrantor";
 import { toPlatformEnum, type OAuthPlatform } from "./providers";
+import { grantTablesReady } from "@/lib/creators/grantTables";
+import { REVOKE_REASONS, revokeGrantsForConnections, type RevokeReason } from "@/lib/creators/grants";
 
 /**
  * Meta posts `signed_request` as a form field. The JSON and query-string forms
@@ -59,7 +61,12 @@ export async function readSignedRequest(req: NextRequest): Promise<string | null
  * Absent CreatorAccountState table: the grantor half matches nothing and this
  * behaves exactly as it did before the table existed.
  */
-export async function forgetMetaUser(userId: string, platforms: OAuthPlatform[]): Promise<number> {
+export async function forgetMetaUser(
+  userId: string,
+  platforms: OAuthPlatform[],
+  /** For the grant record: which of Meta's two callbacks this is. */
+  reason: RevokeReason = REVOKE_REASONS.META_DEAUTHORIZE,
+): Promise<number> {
   if (!userId || platforms.length === 0) return 0;
 
   const needsGrantor = platforms.some(isGrantorPlatform);
@@ -99,8 +106,23 @@ export async function forgetMetaUser(userId: string, platforms: OAuthPlatform[])
   }
 
   if (clauses.length === 0) return 0;
-  const { count } = await db.creatorSocialAccount.deleteMany({
-    where: clauses.length === 1 ? clauses[0] : { OR: clauses },
-  });
+  const where = clauses.length === 1 ? clauses[0] : { OR: clauses };
+  /* Every org's grant on these rows ends first, with Meta's reason on it,
+     because the delete below leaves nothing to look the rows up by. Only
+     asked once the grant table exists, so before it does this is the same
+     single deleteMany it always was. */
+  if (await grantTablesReady({ fresh: true })) {
+    try {
+      const rows = await db.creatorSocialAccount.findMany({ where, select: { id: true } });
+      await revokeGrantsForConnections(
+        rows.map((r) => r.id),
+        reason,
+      );
+    } catch {
+      /* The connection is still forgotten below; a grant left live points at
+         a row that no longer exists, which the gate cannot read anyway. */
+    }
+  }
+  const { count } = await db.creatorSocialAccount.deleteMany({ where });
   return count;
 }

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { authenticateRequest, getAuditActor } from "@/lib/authenticate";
 import { encrypt } from "@/lib/crypto/encrypt";
+import { REVOKE_REASONS, revokeGrantsForConnections } from "@/lib/creators/grants";
 
 // ─── GET — list social accounts (secrets excluded) ───────────────────────────
 
@@ -141,6 +142,9 @@ export async function DELETE(
       { status: 404 },
     );
 
+  /* The agency removing a connection ends this org's right to read it, and
+     the record says who ended it. Never throws; absent table, no-op. */
+  await revokeGrantsForConnections([accountId], REVOKE_REASONS.AGENCY_REMOVED);
   await db.creatorSocialAccount.delete({ where: { id: accountId } });
   return NextResponse.json({ success: true });
 }
