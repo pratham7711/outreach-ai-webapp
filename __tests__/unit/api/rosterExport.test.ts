@@ -9,16 +9,20 @@ jest.mock("@/lib/db", () => ({
     creator: { findMany: jest.fn(), count: jest.fn() },
     creatorList: { findFirst: jest.fn() },
     creatorListItem: { findMany: jest.fn() },
+    creatorListItemDetail: { findMany: jest.fn() },
   },
 }));
 jest.mock("@/lib/auth", () => ({ auth: jest.fn() }));
 jest.mock("@/lib/creators/rosterTables", () => ({ rosterTablesReady: jest.fn().mockResolvedValue(true) }));
+// Absent by default, so the list export above runs exactly as it did before the rate card.
+jest.mock("@/lib/lists/approvalTables", () => ({ listApprovalTablesReady: jest.fn().mockResolvedValue(false) }));
 
 import { GET as exportRoster } from "@/app/api/creators/export/route";
 import { GET as exportList } from "@/app/api/lists/[id]/export/route";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { MAX_BULK_CREATORS } from "@/lib/creators/rosterSelection";
+import { listApprovalTablesReady } from "@/lib/lists/approvalTables";
 
 const mdb = db as unknown as Record<string, Record<string, jest.Mock>>;
 const get = (url: string) => new NextRequest(`http://localhost${url}`);
@@ -116,5 +120,29 @@ describe("GET /api/lists/[id]/export", () => {
     mdb.creatorList.findFirst.mockResolvedValue(null);
     expect((await exportList(get("/api/lists/theirs/export"), params("theirs"))).status).toBe(404);
     expect(mdb.creatorListItem.findMany).not.toHaveBeenCalled();
+  });
+});
+
+describe("GET /api/lists/[id]/export with the rate card", () => {
+  const params = (id: string) => ({ params: Promise.resolve({ id }) });
+  beforeEach(() => (listApprovalTablesReady as jest.Mock).mockResolvedValue(true));
+  afterEach(() => (listApprovalTablesReady as jest.Mock).mockResolvedValue(false));
+
+  it("follows the card's order and appends the list rate, note and the client's verdict", async () => {
+    mdb.creatorList.findFirst.mockResolvedValue({ name: "Anime Pages" });
+    // Newest first; the card has dragged "a" to the top.
+    mdb.creatorListItem.findMany.mockResolvedValue([{ id: "item-b", creatorId: "b" }, { id: "item-a", creatorId: "a" }]);
+    mdb.creatorListItemDetail.findMany.mockResolvedValue([
+      { itemId: "item-a", rate: 900, notes: "fast", sortOrder: 0, decision: "REJECTED", decisionNote: "Off-brand", decidedAt: null },
+    ]);
+    mdb.creator.findMany.mockResolvedValue([evil, plain]);
+    const res = await exportList(get("/api/lists/l1/export?format=csv"), params("l1"));
+    const lines = (await res.text()).split("\n");
+    expect(lines[0]).toMatch(/"List rate \(USD\)","Notes","Client decision","Client note"$/);
+    expect(lines[1].startsWith(`"'=HYPERLINK`)).toBe(true);
+    expect(lines[1]).toMatch(/,"900","fast","Declined","Off-brand"$/);
+    // No detail row: no rate, no note, undecided.
+    expect(lines[2]).toMatch(/,"","","Pending",""$/);
+    expect(mdb.creatorListItemDetail.findMany.mock.calls[0][0].where).toEqual({ orgId: "org-1", listId: "l1" });
   });
 });

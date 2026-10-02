@@ -852,9 +852,31 @@ model CreatorList {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  org   Organization      @relation(fields: [orgId], references: [id])
-  items CreatorListItem[]
-  share CreatorListShare?
+  org    Organization      @relation(fields: [orgId], references: [id])
+  items  CreatorListItem[]
+  share  CreatorListShare?
+  detail CreatorListDetail?
+}
+
+/// A list's place in the client-approval loop: starred, archived, and which
+/// list it was duplicated from. Its own table rather than columns on
+/// CreatorList so a deploy that lands before the DDL cannot break list queries.
+/// No row reads as unstarred, unarchived and never duplicated. The list's
+/// status (draft, awaiting client, approved) is derived from its items'
+/// decisions and its share link, never stored.
+model CreatorListDetail {
+  listId           String    @id
+  orgId            String
+  isFavorite       Boolean   @default(false)
+  archivedAt       DateTime?
+  /// No foreign key: the source may be deleted later, and a copy outlives it.
+  duplicatedFromId String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  list CreatorList @relation(fields: [listId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
 }
 
 /// A public, read-only link to one list. Its own table rather than columns on
@@ -884,8 +906,38 @@ model CreatorListItem {
 
   list    CreatorList @relation(fields: [listId], references: [id])
   creator Creator     @relation(fields: [creatorId], references: [id])
+  detail  CreatorListItemDetail?
 
   @@unique([listId, creatorId])
+}
+
+/// One creator's row on a pitch: the rate quoted on this list, the team's
+/// note, the manual order, and the client's verdict from the share link. Its
+/// own table, keyed by the item, for the same reason as CreatorListDetail;
+/// removing the creator from the list removes this with it.
+model CreatorListItemDetail {
+  itemId       String    @id
+  listId       String
+  orgId        String
+  /// A snapshot of what was quoted, not a pointer at Creator.rate: editing the
+  /// creator's standing rate later must not rewrite what a client approved.
+  rate         Float?
+  /// The team's own note. Not decisionNote, which is the client's.
+  notes        String?
+  /// Set by dragging. Null sorts after every number, so a row added after a
+  /// drag lands at the bottom.
+  sortOrder    Int?
+  /// PENDING, APPROVED or REJECTED. Text rather than an enum, so the DDL is a
+  /// plain CREATE TABLE with no type to create first.
+  decision     String    @default("PENDING")
+  decisionNote String?
+  decidedAt    DateTime?
+  updatedAt    DateTime  @updatedAt
+
+  item CreatorListItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@index([listId])
+  @@index([orgId])
 }
 
 /// A social account a creator has told us about, by link. Unlike

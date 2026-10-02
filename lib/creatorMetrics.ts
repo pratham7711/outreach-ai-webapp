@@ -30,6 +30,35 @@ export async function deriveAverageViews(creatorIds: string[]): Promise<Map<stri
 }
 
 /**
+ * Engagement rate per creator, as a percentage: (likes + comments + shares) /
+ * views over their posts.
+ *
+ * Same discipline as deriveAverageViews: derived, never read from a stored
+ * column, and a creator whose posts were never measured is absent from the map
+ * rather than present at 0.00%. A post only counts once it carries a sync
+ * timestamp, because likes and comments default to 0 on an unfetched row and
+ * summing those would manufacture a very confident 0%.
+ */
+export async function deriveEngagementRates(creatorIds: string[]): Promise<Map<string, number>> {
+  const result = new Map<string, number>();
+  if (creatorIds.length === 0) return result;
+
+  const grouped = await db.post.groupBy({
+    by: ["creatorId"],
+    where: { creatorId: { in: creatorIds }, viewsCount: { gt: 0 }, lastSyncedAt: { not: null } },
+    _sum: { viewsCount: true, likesCount: true, commentsCount: true, sharesCount: true },
+  });
+
+  for (const g of grouped) {
+    const views = g._sum.viewsCount ?? 0;
+    if (views <= 0) continue;
+    const engagement = (g._sum.likesCount ?? 0) + (g._sum.commentsCount ?? 0) + (g._sum.sharesCount ?? 0);
+    result.set(g.creatorId, Math.round((engagement / views) * 10_000) / 100);
+  }
+  return result;
+}
+
+/**
  * How many distinct campaigns each creator is attached to, counting a post as
  * an attachment and not only a formal activation.
  *

@@ -12,10 +12,15 @@ import { rosterTablesReady } from "@/lib/creators/rosterTables";
 
 const PLATFORM_COLUMNS = ["TIKTOK", "INSTAGRAM", "YOUTUBE", "TWITTER"] as const;
 
-export type RosterExportOptions = { email?: boolean; price?: boolean };
+export type RosterExportOptions = {
+  email?: boolean;
+  price?: boolean;
+  /** Extra trailing columns, keyed by creator id -- the list export's rate card. */
+  append?: { header: Cell[]; cells: Map<string, Cell[]> };
+};
 
 export async function rosterExportRows(orgId: string, ids: string[], opts: RosterExportOptions = {}): Promise<Cell[][]> {
-  const { email = true, price = true } = opts;
+  const { email = true, price = true, append } = opts;
   const roster = await rosterTablesReady();
   const creators = ids.length
     ? await db.creator.findMany({
@@ -52,6 +57,7 @@ export async function rosterExportRows(orgId: string, ids: string[], opts: Roste
     "Tags",
     "Niche",
     "Added",
+    ...(append?.header ?? []),
   ];
 
   const rows = ids.flatMap((id): Cell[][] => {
@@ -79,6 +85,7 @@ export async function rosterExportRows(orgId: string, ids: string[], opts: Roste
         c.tagLinks.map((t) => t.tag.name).sort().join(", "),
         detail?.niche ?? null,
         c.addedAt.toISOString().slice(0, 10),
+        ...(append ? (append.cells.get(id) ?? append.header.map(() => null)) : []),
       ],
     ];
   });

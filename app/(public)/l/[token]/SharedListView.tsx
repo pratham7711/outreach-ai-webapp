@@ -6,6 +6,8 @@ import CreatorAvatar, { avatarRequestPx } from "@/components/creators/CreatorAva
 import PlatformChips from "@/components/creators/PlatformChips";
 import { formatFull, formatFullCurrency, platformLabel } from "@/lib/format";
 import type { ListShareFields, SharedCreator } from "@/lib/lists/listShare";
+import type { SharedReview, SharedVerdict } from "@/lib/lists/listReview";
+import ShareVerdict, { type VerdictResult } from "./ShareVerdict";
 
 const PAGE = 60;
 const FOLLOWER_STEPS = [
@@ -32,6 +34,7 @@ export default function SharedListView({
   orgName,
   fields,
   creators,
+  review = null,
   poweredBy,
 }: {
   token: string;
@@ -40,8 +43,17 @@ export default function SharedListView({
   orgName: string | null;
   fields: ListShareFields;
   creators: SharedCreator[];
+  /** Present once the list-approval tables exist; null renders the plain read-only page. */
+  review?: SharedReview | null;
   poweredBy: string;
 }) {
+  const [verdicts, setVerdicts] = useState<Record<string, SharedVerdict>>(review?.verdicts ?? {});
+  const [counts, setCounts] = useState(review?.counts ?? null);
+  const approvals = Boolean(review?.settings.approvals);
+  const onSaved = (creatorId: string) => (result: VerdictResult) => {
+    setVerdicts((v) => ({ ...v, [creatorId]: result.verdict }));
+    setCounts(result.list.counts);
+  };
   const [q, setQ] = useState("");
   const [platform, setPlatform] = useState("");
   const [tag, setTag] = useState("");
@@ -84,7 +96,26 @@ export default function SharedListView({
         <p className="cc-sl-count">
           {formatFull(creators.length)} creator{creators.length === 1 ? "" : "s"}
         </p>
+        {review && (approvals || review.rateTotal != null) && (
+          <p className="cc-sl-review" aria-live="polite">
+            {approvals && counts && (
+              <span>
+                <strong>{formatFull(counts.total - counts.pending)}</strong> of {formatFull(counts.total)} reviewed ·{" "}
+                {formatFull(counts.approved)} approved · {formatFull(counts.rejected)} declined
+              </span>
+            )}
+            {review.rateTotal != null && (
+              <span>
+                List total <strong>{formatFullCurrency(review.rateTotal)}</strong>
+              </span>
+            )}
+          </p>
+        )}
       </header>
+
+      {review?.closed && approvals && (
+        <p className="cc-sl-closed">This list is closed for review. Your decisions are saved, but can no longer be changed.</p>
+      )}
 
       {creators.length > 0 && (
         <div className="cc-sl-filters" role="search">
@@ -178,7 +209,7 @@ export default function SharedListView({
                   ))}
                 </span>
               )}
-              {(fields.stats || c.audienceCountry || c.rate) && (
+              {(fields.stats || c.audienceCountry || c.rate || review?.settings.engagementRate) && (
                 <dl className="cc-sl-facts">
                   {fields.stats && (
                     <div>
@@ -198,6 +229,12 @@ export default function SharedListView({
                       <dd>{c.audienceCountry}</dd>
                     </div>
                   )}
+                  {review?.settings.engagementRate && (
+                    <div>
+                      <dt>Eng. rate</dt>
+                      <dd>{verdicts[c.id]?.engagementRate != null ? `${verdicts[c.id].engagementRate!.toFixed(2)}%` : "—"}</dd>
+                    </div>
+                  )}
                   {c.rate ? (
                     <div>
                       <dt>Price per video</dt>
@@ -205,6 +242,17 @@ export default function SharedListView({
                     </div>
                   ) : null}
                 </dl>
+              )}
+              {approvals && verdicts[c.id] && (
+                <ShareVerdict
+                  token={token}
+                  creatorId={c.id}
+                  creatorName={c.name}
+                  verdict={verdicts[c.id]}
+                  feedback={Boolean(review?.settings.feedback)}
+                  closed={Boolean(review?.closed)}
+                  onSaved={onSaved(c.id)}
+                />
               )}
             </li>
           ))}
