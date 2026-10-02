@@ -22,6 +22,7 @@ export TRACKER_PLAN_B_HEALTH_TOKEN="$(token planb-health-token)"
 export TRACKER_PLAN_B_URL="http://127.0.0.1:8787"
 export TRACKER_PLAN_B_TOKEN="$(token planb-worker-token)"
 export ADMIN_MIGRATE_TOKEN="$(token admin-migrate-token)"
+export OPS_SCHEDULER_TOKEN="$(token ops-scheduler-token)"
 export PORT=3009
 if [ "${1:-start}" = "build" ]; then
   npm run build > .qa-local/build.log 2>&1 || { echo "build failed: .qa-local/build.log" >&2; exit 1; }

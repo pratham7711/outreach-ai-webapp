@@ -594,7 +594,7 @@ export default function CreatorsClient({
                                 left "Avg. Views" captioning blank space, which
                                 reads as a value that failed to load. */}
                             <dd data-empty={stat.empty(creator) || undefined}>{stat.render(creator)}</dd>
-                            {stat.age?.(creator)}
+                            {stat.age && <dd className="cc-roster-card-age">{stat.age(creator)}</dd>}
                           </div>
                         );
                       })}

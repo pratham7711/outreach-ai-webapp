@@ -1,0 +1,190 @@
+{
+ "run": "36951147593",
+ "runner": "GitHub Actions ubuntu (Azure, AS8075, US)",
+ "daily": {
+  "kind": "daily-check",
+  "reads": 12,
+  "proper": 12,
+  "walls": 0,
+  "failures": 0,
+  "medianMs": 1855,
+  "embeds": {
+   "list": 3,
+   "none": 0
+  },
+  "startedAt": "2026-10-02T01:29:14.359Z",
+  "finishedAt": "2026-10-02T01:29:42.553Z",
+  "passed": true,
+  "network": "AS8075 Microsoft Corporation",
+  "where": "US"
+ },
+ "result": {
+  "mode": "soak-through-fetch-server",
+  "minutes": 180,
+  "counts": {
+   "proper": 5379,
+   "wall": 4,
+   "failure": 1
+  },
+  "buckets": [
+   {
+    "proper": 150,
+    "n": 150
+   },
+   {
+    "proper": 148,
+    "n": 148
+   },
+   {
+    "proper": 148,
+    "n": 148
+   },
+   {
+    "proper": 150,
+    "n": 150
+   },
+   {
+    "proper": 150,
+    "n": 150
+   },
+   {
+    "proper": 150,
+    "n": 150
+   },
+   {
+    "proper": 149,
+    "n": 149
+   },
+   {
+    "proper": 152,
+    "n": 152
+   },
+   {
+    "proper": 148,
+    "n": 149
+   },
+   {
+    "proper": 149,
+    "n": 150
+   },
+   {
+    "proper": 149,
+    "n": 150
+   },
+   {
+    "proper": 149,
+    "n": 149
+   },
+   {
+    "proper": 150,
+    "n": 150
+   },
+   {
+    "proper": 150,
+    "n": 150
+   },
+   {
+    "proper": 150,
+    "n": 150
+   },
+   {
+    "proper": 149,
+    "n": 149
+   },
+   {
+    "proper": 149,
+    "n": 149
+   },
+   {
+    "proper": 148,
+    "n": 148
+   },
+   {
+    "proper": 149,
+    "n": 149
+   },
+   {
+    "proper": 150,
+    "n": 150
+   },
+   {
+    "proper": 142,
+    "n": 143
+   },
+   {
+    "proper": 150,
+    "n": 150
+   },
+   {
+    "proper": 148,
+    "n": 148
+   },
+   {
+    "proper": 149,
+    "n": 149
+   },
+   {
+    "proper": 150,
+    "n": 150
+   },
+   {
+    "proper": 150,
+    "n": 150
+   },
+   {
+    "proper": 152,
+    "n": 152
+   },
+   {
+    "proper": 150,
+    "n": 150
+   },
+   {
+    "proper": 151,
+    "n": 151
+   },
+   {
+    "proper": 151,
+    "n": 151
+   },
+   {
+    "proper": 150,
+    "n": 150
+   },
+   {
+    "proper": 150,
+    "n": 150
+   },
+   {
+    "proper": 150,
+    "n": 150
+   },
+   {
+    "proper": 149,
+    "n": 150
+   },
+   {
+    "proper": 151,
+    "n": 151
+   },
+   {
+    "proper": 149,
+    "n": 149
+   }
+  ],
+  "reads": 5384,
+  "properRate": 99.91,
+  "gapMs": {
+   "min": 400,
+   "median": 2002
+  }
+ },
+ "health": {
+  "ok": true,
+  "served": 5398,
+  "refused": 2,
+  "failed": 1,
+  "startedAt": "2026-10-02T01:29:13.465Z",
+  "queued": 0
+ }
+}

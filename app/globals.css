@@ -8883,6 +8883,14 @@ a.cc-platform-chip[data-problem]:hover {
   font-weight: 500;
   color: var(--cc-text-muted);
 }
+.cc-roster-card-stats dd.cc-roster-card-age {
+  overflow: visible;
+  white-space: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  font-variant-numeric: inherit;
+  color: inherit;
+}
 .cc-roster-card-foot {
   display: flex;
   align-items: center;

@@ -1,0 +1,15 @@
+Backup scheduler, shown locally on the integration build (port 3009, e2e test database), 2026-10-02 04:40 UTC.
+
+1. No heartbeat rows: GET /api/ops/overdue-crons
+   {"overdue":[],"recheckInMinutes":60}                     200
+   Without the bearer token:                                401
+
+2. One test-DB heartbeat row made stale (refresh-creator-avatars, hourly, last started 150 min ago):
+   {"overdue":[{"job":"refresh-creator-avatars","path":"/api/cron/refresh-creator-avatars","minutesOverdue":90}],"recheckInMinutes":0}
+
+3. scripts/creator-worker/backup-scheduler.mjs --dry-run against the local app:
+   overdue: refresh-creator-avatars
+   (dry run: asks and prints only, triggers nothing)
+
+4. The row removed again:
+   {"overdue":[],"recheckInMinutes":60}
