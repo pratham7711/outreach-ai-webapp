@@ -100,6 +100,13 @@ export type LastFetchNote = {
   at: string;
   /** Which caller saw it: cron, api, or a named backfill. */
   via: string;
+  /** When this same reason was first seen, unbroken since. Absent on notes
+   *  written before streaks were kept; read `at` then. */
+  since?: string;
+  /** How many reads in a row have come back with this reason. Absent on notes
+   *  written before streaks were kept, which were one. lib/posts/postStatus
+   *  calls a post deleted only on the second. */
+  strikes?: number;
 };
 
 /** The stored cause, or null when the last read succeeded. */
@@ -113,7 +120,38 @@ export function lastFetchNote(platformMetrics: unknown): LastFetchNote | null {
     reason: note.reason,
     at: typeof note.at === "string" ? note.at : "",
     via: typeof note.via === "string" ? note.via : "",
+    ...(typeof note.since === "string" && note.since ? { since: note.since } : {}),
+    ...(typeof note.strikes === "number" && Number.isFinite(note.strikes) && note.strikes > 0
+      ? { strikes: Math.floor(note.strikes) }
+      : {}),
   };
+}
+
+/**
+ * The note to store for a read that came back empty for `reason`, carrying
+ * the streak forward from the note already on the post.
+ *
+ * Same reason as last time: one more strike, same `since`. A different reason
+ * (or none before): a fresh streak of one. A successful read deletes the note,
+ * which is what ends a streak -- so "two strikes" always means two empty reads
+ * in a row with nothing measured between them.
+ */
+export function nextLastFetchNote(
+  previous: LastFetchNote | null,
+  reason: string,
+  at: string,
+  via: string,
+): LastFetchNote {
+  if (previous && previous.reason === reason) {
+    return {
+      reason,
+      at,
+      via,
+      since: previous.since || previous.at || at,
+      strikes: (previous.strikes ?? 1) + 1,
+    };
+  }
+  return { reason, at, via, since: at, strikes: 1 };
 }
 
 export type MetricField = "views" | "likes" | "comments" | "shares" | "saves" | "downloads" | "reach";

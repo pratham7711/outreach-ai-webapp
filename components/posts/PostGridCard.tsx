@@ -5,10 +5,11 @@ import { Badge } from "@pratham7711/ui";
 import { Eye, Heart, MessageCircle, TrendingUp, Share2, Bookmark, Check } from "lucide-react";
 import { formatDateAbs, formatFull } from "@/lib/format";
 import { fieldMetricValue, engagementRateValue } from "@/lib/metricDisplay";
-import { postNotice } from "@/lib/postRemoval";
-import RemovedPostOverlay from "@/components/posts/RemovedPostOverlay";
+import { postAgeContext, postMeasuredAt, postStatus } from "@/lib/posts/postStatus";
+import PostStatusChip from "@/components/posts/PostStatusChip";
+import { AgeLabel } from "@/components/ds/AgeLabel";
 import PostCover from "@/components/posts/PostCover";
-import { STATUS_BADGE, formatSince, engRatePct, trackingLabel } from "@/lib/posts/postDisplay";
+import { STATUS_BADGE, engRatePct, trackingLabel } from "@/lib/posts/postDisplay";
 import type { ComplianceFlag } from "@/lib/compliance/postCompliance";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
 import CreatorName from "@/components/creators/CreatorName";
@@ -47,6 +48,8 @@ export type PostCardPost = {
   status: string;
   fetchState: string | null;
   lastSyncedAt: string | null;
+  /** CreatorCore's last refresh, for an imported post we have not read. */
+  lastFreshAt?: string | null;
   trackingEnabled?: boolean;
   trackingExpiresAt?: string | null;
   complianceFlags?: ComplianceFlag[];
@@ -79,7 +82,8 @@ function PostGridCardImpl({
   onOpenMenu: (postId: string, x: number, y: number) => void;
 }) {
   const tracking = post.trackingEnabled === true;
-  const notice = postNotice(post);
+  const status = postStatus(post);
+  const measured = postMeasuredAt(post);
   const cardViews = fieldMetricValue(post.viewsCount, post.lastSyncedAt, post.platformMetrics, "views");
   const cardLikes = fieldMetricValue(post.likesCount, post.lastSyncedAt, post.platformMetrics, "likes");
   const cardComments = fieldMetricValue(post.commentsCount, post.lastSyncedAt, post.platformMetrics, "comments");
@@ -154,7 +158,7 @@ function PostGridCardImpl({
           the thumbnail and every count below it are left alone,
           because they are the last true reading of a post that has
           since come down, not a claim that it is still up. */}
-      {notice && <RemovedPostOverlay label={notice.label} note={notice.note} />}
+      <PostStatusChip status={status} variant="overlay" />
 
       {/* Metrics read out over the frame itself — display only, never editable. */}
       <div
@@ -235,7 +239,17 @@ function PostGridCardImpl({
                 style={{ width: 6, height: 6, borderRadius: 999, background: "var(--cc-primary)", boxShadow: "0 0 0 2px rgba(255,255,255,0.28)", flexShrink: 0 }}
               />
             )}
-            Updated {formatSince(post.lastSyncedAt)}
+            {/* The counters' age; a Stale chip joins it once a tracked post
+                has missed two reads (lib/dataAge). Inherits the overlay ink. */}
+            <AgeLabel
+              at={measured.at}
+              field="post"
+              ctx={postAgeContext(post, status)}
+              source={measured.source}
+              prefix="Updated"
+              never="Never updated"
+              style={{ color: "inherit", fontSize: "inherit" }}
+            />
           </span>
         </div>
       </div>

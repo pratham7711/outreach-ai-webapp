@@ -275,6 +275,12 @@ export namespace outreach {
                 /** MetricProvenance lastFetchVia. */
                 lastFetchVia?: (string|null);
 
+                /** MetricProvenance lastFetchSince. */
+                lastFetchSince?: (string|null);
+
+                /** MetricProvenance lastFetchStrikes. */
+                lastFetchStrikes?: (number|null);
+
                 /**
                  * Encodes the specified MetricProvenance message. Does not implicitly {@link outreach.postlist.v1.MetricProvenance.verify|verify} messages.
                  * @param message MetricProvenance message or plain object to encode
@@ -317,6 +323,12 @@ export namespace outreach {
 
                     /** MetricProvenance lastFetchVia */
                     lastFetchVia?: (string|null);
+
+                    /** MetricProvenance lastFetchSince */
+                    lastFetchSince?: (string|null);
+
+                    /** MetricProvenance lastFetchStrikes */
+                    lastFetchStrikes?: (number|null);
 
                     /** Unknown fields preserved while decoding when enabled */
                     $unknowns?: Uint8Array[];
@@ -428,6 +440,9 @@ export namespace outreach {
 
                 /** Post trackingExpiresAtMs. */
                 trackingExpiresAtMs?: (number|Long|null);
+
+                /** Post lastFreshAtMs. */
+                lastFreshAtMs?: (number|Long|null);
 
                 /**
                  * Encodes the specified Post message. Does not implicitly {@link outreach.postlist.v1.Post.verify|verify} messages.
@@ -543,6 +558,9 @@ export namespace outreach {
 
                     /** Post trackingExpiresAtMs */
                     trackingExpiresAtMs?: (number|Long|null);
+
+                    /** Post lastFreshAtMs */
+                    lastFreshAtMs?: (number|Long|null);
 
                     /** Unknown fields preserved while decoding when enabled */
                     $unknowns?: Uint8Array[];

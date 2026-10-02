@@ -9,8 +9,10 @@ import { ArrowLeft, ExternalLink, RefreshCw, Eye, Heart, MessageCircle, Share2, 
 import dynamic from "next/dynamic";
 import { computeEngagementRate } from "@/lib/metrics";
 import { metricValue, fieldMetricValue, type MetricField } from "@/lib/metricDisplay";
-import { postNotice } from "@/lib/postRemoval";
-import RemovedPostOverlay from "@/components/posts/RemovedPostOverlay";
+import { postAgeContext, postMeasuredAt, postStatus } from "@/lib/posts/postStatus";
+import PostStatusChip from "@/components/posts/PostStatusChip";
+import { AgeLabel } from "@/components/ds/AgeLabel";
+import { metricReason, metricText, postCounterValue } from "@/lib/creators/metricValue";
 import { imgSrc, embedSrcFor } from "@/lib/postMedia";
 import { stripAt, formatDateAbs, formatDateTimeAbs, formatFull, fitFigureSize } from "@/lib/format";
 import { loadCharts } from "@/components/charts/lazyCharts";
@@ -51,6 +53,8 @@ type PostDetail = {
      one the platform has stopped serving. */
   fetchState: string | null;
   platformMetrics?: unknown;
+  /** CreatorCore's last refresh, for an imported post we have not read. */
+  lastFreshAt?: string | null;
   creator: { id: string; name: string; handle: string; avatarUrl: string | null; platform: string };
   snapshots: Snapshot[];
 };
@@ -347,7 +351,8 @@ export default function PostDetailPage() {
     );
   }
 
-  const notice = postNotice(post);
+  const status = postStatus(post);
+  const measured = postMeasuredAt(post);
 
   /* Held in component state for as long as the screen is open and never sent
      anywhere else. There is no column for a comment body and no cache in front
@@ -478,15 +483,20 @@ export default function PostDetailPage() {
               {/* Beside the status rather than over the 120x80 thumbnail: the
                   pill is wider than the image. Every metric card below stays
                   put — they are the post's last real numbers. */}
-              {notice && <RemovedPostOverlay variant="inline" label={notice.label} note={notice.note} />}
+              <PostStatusChip status={status} showLive />
             </div>
             <p style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 6, fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", margin: 0 }}>
               <CreatorAvatar id={post.creator.id} name={post.creator.name} size="sm" />
               by <strong>{post.creator.name}</strong> (@{stripAt(post.creator.handle)}) · {post.platform} · Posted {formatDateAbs(post.postedAt)}
             </p>
             {post.lastSyncedAt ? (
-              <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-subtle)", margin: "4px 0 0" }}>
+              <p style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 6, fontSize: "var(--cc-t-12)", color: "var(--cc-text-subtle)", margin: "4px 0 0" }}>
                 Last synced: {formatDateTimeAbs(post.lastSyncedAt)}
+                <AgeLabel at={post.lastSyncedAt} field="post" ctx={postAgeContext({ postedAt: post.postedAt, trackingEnabled: timeseries?.trackingEnabled, trackingExpiresAt: timeseries?.trackingExpiresAt }, status)} source={measured.source} />
+              </p>
+            ) : measured.at ? (
+              <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-subtle)", margin: "4px 0 0" }}>
+                Not read by us yet. The figures below are the CreatorCore import&apos;s, as of {formatDateTimeAbs(measured.at)}.
               </p>
             ) : (
               <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-subtle)", margin: "4px 0 0" }}>
@@ -530,13 +540,30 @@ export default function PostDetailPage() {
       )}
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: 12, marginBottom: 24 }}>
-        {metricCards.map(({ key, label, icon: Icon, color }) => (
+        {metricCards.map(({ key, field, label, icon: Icon, color }) => (
           <Card key={key} variant="outlined" style={{ padding: "16px 20px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
               <Icon size={16} color={color} />
               <span className="cc-microlabel">{label}</span>
             </div>
-            <FigureValue text={formatNumber((post as any)[key] ?? 0)} />
+            {/* "—" with its reason for a counter nobody read, never a 0;
+                a hidden or deleted post keeps its last real figures. */}
+            {(() => {
+              const value = postCounterValue((post as unknown as Record<string, number>)[key], post, field);
+              return (
+                <span title={metricReason(value)}>
+                  <FigureValue text={metricText(value, formatNumber)} />
+                </span>
+              );
+            })()}
+            <AgeLabel
+              at={measured.at}
+              field="post"
+              ctx={postAgeContext({ postedAt: post.postedAt, trackingEnabled: timeseries?.trackingEnabled, trackingExpiresAt: timeseries?.trackingExpiresAt }, status)}
+              source={measured.source}
+              never={null}
+              style={{ marginTop: 4 }}
+            />
           </Card>
         ))}
         {engRate !== null && (

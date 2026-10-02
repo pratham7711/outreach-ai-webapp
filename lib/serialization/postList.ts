@@ -71,7 +71,7 @@ export type ComplianceFlagDto = {
  */
 export type PlatformMetricsDto = {
   __measured?: string[];
-  __lastFetch?: { reason: string; at: string; via: string };
+  __lastFetch?: { reason: string; at: string; via: string; since?: string; strikes?: number };
 } | null;
 
 export type PostDto = {
@@ -94,6 +94,8 @@ export type PostDto = {
   fetchState: string | null;
   rejectionReason: string | null;
   lastSyncedAt: string | null;
+  /** CreatorCore's last refresh, for an imported post; null otherwise. */
+  lastFreshAt: string | null;
   authorProfilePic: string | null;
   createdAt: string | null;
   hasOpenFraudFlag: boolean;
@@ -159,7 +161,13 @@ function provenanceFrom(platformMetrics: unknown): PlatformMetricsDto {
   if (typeof note === "object" && note !== null) {
     const n = note as Record<string, unknown>;
     if (typeof n.reason === "string") {
-      out.__lastFetch = { reason: n.reason, at: str(n.at), via: str(n.via) };
+      out.__lastFetch = {
+        reason: n.reason,
+        at: str(n.at),
+        via: str(n.via),
+        ...(typeof n.since === "string" && n.since ? { since: n.since } : {}),
+        ...(typeof n.strikes === "number" && n.strikes > 0 ? { strikes: Math.floor(n.strikes) } : {}),
+      };
     }
   }
 
@@ -197,6 +205,7 @@ export function toPostDto(row: PostRow, hasOpenFraudFlag: boolean, complianceFla
     fetchState: strOrNull(row.fetchState),
     rejectionReason: strOrNull(row.rejectionReason),
     lastSyncedAt: iso(row.lastSyncedAt),
+    lastFreshAt: iso(row.lastFreshAt),
     authorProfilePic: strOrNull(row.authorProfilePic),
     createdAt: iso(row.createdAt),
     hasOpenFraudFlag,
@@ -242,6 +251,7 @@ export function encodePostList(posts: PostDto[]): Uint8Array {
       fetchState: p.fetchState ?? undefined,
       rejectionReason: p.rejectionReason ?? undefined,
       lastSyncedAtMs: ms(p.lastSyncedAt) ?? undefined,
+      lastFreshAtMs: ms(p.lastFreshAt) ?? undefined,
       authorProfilePic: p.authorProfilePic ?? undefined,
       createdAtMs: ms(p.createdAt) ?? undefined,
       hasOpenFraudFlag: p.hasOpenFraudFlag,
@@ -271,6 +281,8 @@ export function encodePostList(posts: PostDto[]): Uint8Array {
             lastFetchReason: p.platformMetrics.__lastFetch?.reason,
             lastFetchAt: p.platformMetrics.__lastFetch?.at,
             lastFetchVia: p.platformMetrics.__lastFetch?.via,
+            lastFetchSince: p.platformMetrics.__lastFetch?.since,
+            lastFetchStrikes: p.platformMetrics.__lastFetch?.strikes,
           }
         : undefined,
     })),
@@ -292,6 +304,8 @@ export function decodePostList(bytes: Uint8Array): PostDto[] {
           reason: prov.lastFetchReason,
           at: prov.lastFetchAt ?? "",
           via: prov.lastFetchVia ?? "",
+          ...(prov.lastFetchSince ? { since: prov.lastFetchSince } : {}),
+          ...(prov.lastFetchStrikes ? { strikes: prov.lastFetchStrikes } : {}),
         };
       }
       if (Object.keys(bag).length) platformMetrics = bag;
@@ -317,6 +331,7 @@ export function decodePostList(bytes: Uint8Array): PostDto[] {
       fetchState: p.fetchState ?? null,
       rejectionReason: p.rejectionReason ?? null,
       lastSyncedAt: msToIso(p.lastSyncedAtMs),
+      lastFreshAt: msToIso(p.lastFreshAtMs),
       authorProfilePic: p.authorProfilePic ?? null,
       createdAt: msToIso(p.createdAtMs),
       hasOpenFraudFlag: p.hasOpenFraudFlag ?? false,
