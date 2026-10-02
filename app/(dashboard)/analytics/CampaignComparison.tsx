@@ -37,7 +37,7 @@ export function DeltaBadge({ pct }: { pct: number | null }) {
   }
   const positive = pct >= 0;
   /* `color + "16"` appended hex alpha to whatever `color` held. That works for
-     a literal like "#DC2626" and produces "var(--cc-success)16" for the other
+     a hex literal and produces "var(--cc-success)16" for the other
      branch -- not a colour at all, so a positive delta drew its text on no
      background while a negative one got a tint. Both are tokens now, and the
      tint comes from color-mix, which takes a variable. */
@@ -129,7 +129,7 @@ export default function CampaignComparison({
                   style={{
                     border: isSel ? "1.5px solid var(--cc-primary)" : "1px solid var(--cc-border)",
                     background: isSel ? "var(--cc-primary)" : "var(--cc-card)",
-                    color: isSel ? "#fff" : atLimit ? "var(--cc-text-subtle)" : "var(--cc-text)",
+                    color: isSel ? "var(--cc-on-primary)" : atLimit ? "var(--cc-text-subtle)" : "var(--cc-text)",
                     borderRadius: 8,
                     padding: "6px 12px",
                     fontSize: "var(--cc-t-13)",

@@ -15,8 +15,8 @@ type ActivityEvent = {
 };
 
 const FILTER_TABS = [
-  { key: "all", label: "All", bg: "#F3F4F6", color: "#374151" },
-  { key: "comments", label: "Comments", bg: "#EEF2FF", color: "#4F46E5" },
+  { key: "all", label: "All", bg: "var(--cc-neutral-bg)", color: "var(--cc-status-neutral-ink)" },
+  { key: "comments", label: "Comments", bg: "var(--cc-accent-bg)", color: "var(--cc-primary)" },
 ];
 
 function relative(iso: string): string {

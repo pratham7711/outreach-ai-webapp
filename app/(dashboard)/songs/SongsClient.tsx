@@ -105,7 +105,7 @@ export default function SongsClient({ songs: initial }: { songs: SongRow[] }) {
               {saving ? "Saving…" : "Save"}
             </Button>
           </form>
-          {error && <p style={{ marginTop: 10, fontSize: "var(--cc-t-13)", color: "#DC2626" }}>{error}</p>}
+          {error && <p style={{ marginTop: 10, fontSize: "var(--cc-t-13)", color: "var(--cc-danger-fg)" }}>{error}</p>}
         </Card>
       )}
 

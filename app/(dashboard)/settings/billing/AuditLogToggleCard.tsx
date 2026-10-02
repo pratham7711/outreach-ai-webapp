@@ -100,7 +100,7 @@ export default function AuditLogToggleCard({ initialEnabled, planName, canManage
                   width: 42,
                   height: 42,
                   borderRadius: 12,
-                  background: "rgba(79, 70, 229, 0.08)",
+                  background: "var(--cc-primary-light)",
                   color: "var(--cc-primary)",
                   display: "flex",
                   alignItems: "center",

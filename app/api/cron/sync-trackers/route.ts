@@ -76,7 +76,7 @@ export async function GET(request: NextRequest) {
        was added.
 
        This was `orderBy: createdAt asc, take: MAX_SOUNDS`, and createdAt never
-       changes: sound #201 was never read, on any run, for as long as the first
+       changes: sound number 201 was never read, on any run, for as long as the first
        200 existed. Ordering by the newest snapshot ascending (never-read
        first) makes the window rotate, so the tail comes in on a later run
        instead of waiting for someone to delete a sound above it.

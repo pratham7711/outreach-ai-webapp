@@ -38,7 +38,7 @@ export function LandingHeroVisual() {
         background: "var(--cc-card)",
         padding: 20,
         overflow: "hidden",
-        boxShadow: "0 24px 60px -32px rgba(28, 32, 72, 0.35)",
+        boxShadow: "0 24px 60px -32px color-mix(in srgb, var(--cc-overlay-ink) 35%, transparent)",
       }}
     >
       <div

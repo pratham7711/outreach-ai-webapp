@@ -294,7 +294,7 @@ export default function ClientDetailClient({ client, plans }: Props) {
               const isOverridden = overrideVal !== undefined;
               return (
                 <div key={key} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 20px", borderBottom: i < featureKeys.length - 1 ? "1px solid var(--cc-border)" : "none", background: isOverridden ? "var(--cc-primary-light)" : "transparent" }}>
-                  <div style={{ width: 8, height: 8, borderRadius: "50%", flexShrink: 0, background: effective ? "#22c55e" : "#D1D5DB" }} />
+                  <div style={{ width: 8, height: 8, borderRadius: "50%", flexShrink: 0, background: effective ? "var(--cc-success-fg)" : "var(--ui-border-strong)" }} />
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: "var(--cc-t-13)", fontWeight: 500, color: effective ? "var(--cc-text)" : "var(--cc-text-muted)" }}>{FEATURES[key].label}</div>
                     <div style={{ fontSize: "var(--cc-t-11)", color: "var(--cc-text-muted)" }}>{FEATURES[key].description}</div>

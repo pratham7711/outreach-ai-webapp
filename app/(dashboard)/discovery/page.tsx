@@ -453,7 +453,7 @@ export default function DiscoveryPage() {
           style={{
             position: "fixed",
             inset: 0,
-            background: "rgba(15, 23, 42, 0.35)",
+            background: "var(--cc-scrim-bg)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -474,7 +474,7 @@ export default function DiscoveryPage() {
               borderRadius: 16,
               background: "var(--cc-card)",
               border: "1px solid var(--cc-border)",
-              boxShadow: "0 24px 64px rgba(15, 23, 42, 0.18)",
+              boxShadow: "0 24px 64px color-mix(in srgb, var(--cc-shadow-ink) 18%, transparent)",
               padding: 24,
             }}
           >

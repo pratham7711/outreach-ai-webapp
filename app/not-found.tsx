@@ -8,7 +8,7 @@ export default function NotFound() {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        background: "var(--cc-bg, #EFF0F8)",
+        background: "var(--cc-bg)",
         padding: 24,
       }}
     >
@@ -18,7 +18,7 @@ export default function NotFound() {
             width: 80,
             height: 80,
             borderRadius: 20,
-            background: "linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%)",
+            background: "linear-gradient(135deg, var(--cc-accent-bg) 0%, var(--cc-primary-medium) 100%)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -32,7 +32,7 @@ export default function NotFound() {
           style={{
             fontSize: 28,
             fontWeight: 800,
-            color: "var(--cc-text, #1C2048)",
+            color: "var(--cc-text)",
             marginBottom: 8,
             letterSpacing: "-0.02em",
           }}
@@ -42,7 +42,7 @@ export default function NotFound() {
         <p
           style={{
             fontSize: 15,
-            color: "var(--cc-text-muted, #9097B4)",
+            color: "var(--cc-text-muted)",
             marginBottom: 32,
             lineHeight: 1.6,
           }}
@@ -56,8 +56,8 @@ export default function NotFound() {
             alignItems: "center",
             gap: 8,
             padding: "12px 24px",
-            background: "var(--cc-primary, #5B5BD6)",
-            color: "white",
+            background: "var(--cc-primary)",
+            color: "var(--cc-on-primary)",
             borderRadius: 10,
             fontSize: 14,
             fontWeight: 600,

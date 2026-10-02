@@ -105,7 +105,7 @@ export default async function SettingsPage() {
                 color: "inherit",
               }}
             >
-              <div className="group h-full rounded-2xl border border-[var(--cc-border)] bg-[var(--cc-card)] p-5 shadow-[0_1px_0_rgba(15,23,42,0.02)] transition-[transform,border-color,box-shadow] duration-150 hover:-translate-y-0.5 hover:border-[rgba(99,102,241,0.35)] hover:shadow-[0_12px_30px_rgba(15,23,42,0.06)]">
+              <div className="group h-full rounded-2xl border border-[var(--cc-border)] bg-[var(--cc-card)] p-5 shadow-[0_1px_0_color-mix(in_srgb,var(--cc-shadow-ink)_2%,transparent)] transition-[transform,border-color,box-shadow] duration-150 hover:-translate-y-0.5 hover:border-[color-mix(in_srgb,var(--cc-primary)_35%,transparent)] hover:shadow-[0_12px_30px_color-mix(in_srgb,var(--cc-shadow-ink)_6%,transparent)]">
                 <div
                   style={{
                     width: 44,

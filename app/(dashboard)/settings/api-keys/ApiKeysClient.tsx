@@ -14,6 +14,10 @@ interface ApiKeyItem {
   lastUsedAt: string | null;
 }
 
+/* Snippet text on the --cc-overlay-ink code ground: the accent lifted toward
+   white, so it stays a pale tint of whichever primary the theme carries. */
+const CODE_INK = "color-mix(in srgb, var(--cc-primary) 40%, var(--cc-overlay-ink-text))";
+
 export default function ApiKeysClient() {
   const [keys, setKeys] = useState<ApiKeyItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -238,7 +242,7 @@ export default function ApiKeysClient() {
           style={{
             position: "fixed",
             inset: 0,
-            background: "rgba(0,0,0,0.4)",
+            background: "var(--cc-scrim-bg)",
             zIndex: 100,
             display: "flex",
             alignItems: "center",
@@ -254,7 +258,7 @@ export default function ApiKeysClient() {
               padding: 24,
               width: 420,
               maxWidth: "90vw",
-              boxShadow: "0 20px 60px rgba(0,0,0,0.15)",
+              boxShadow: "0 20px 60px color-mix(in srgb, var(--cc-shadow-ink) 15%, transparent)",
             }}
           >
             <h2
@@ -349,7 +353,7 @@ export default function ApiKeysClient() {
           style={{
             position: "fixed",
             inset: 0,
-            background: "rgba(0,0,0,0.4)",
+            background: "var(--cc-scrim-bg)",
             zIndex: 100,
             display: "flex",
             alignItems: "center",
@@ -365,7 +369,7 @@ export default function ApiKeysClient() {
               padding: 24,
               width: 400,
               maxWidth: "90vw",
-              boxShadow: "0 20px 60px rgba(0,0,0,0.15)",
+              boxShadow: "0 20px 60px color-mix(in srgb, var(--cc-shadow-ink) 15%, transparent)",
             }}
           >
             <h2
@@ -419,8 +423,8 @@ export default function ApiKeysClient() {
                   fontWeight: "var(--cc-fw-strong)",
                   borderRadius: 8,
                   border: "none",
-                  background: "#DC2626",
-                  color: "white",
+                  background: "var(--cc-danger-solid)",
+                  color: "var(--cc-on-primary)",
                   cursor: "pointer",
                   opacity: revoking === confirmRevoke ? 0.6 : 1,
                 }}
@@ -452,8 +456,8 @@ export default function ApiKeysClient() {
           <p className="cc-microlabel" style={{ marginBottom: 6 }}>
             REST / cURL
           </p>
-          <div style={{ background: "#1C2048", borderRadius: 8, padding: "12px 16px", overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
-            <code style={{ fontFamily: "monospace", fontSize: "var(--cc-t-12)", color: "#A5B4FC", whiteSpace: "pre" }}>
+          <div style={{ background: "var(--cc-overlay-ink)", borderRadius: 8, padding: "12px 16px", overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+            <code style={{ fontFamily: "monospace", fontSize: "var(--cc-t-12)", color: CODE_INK, whiteSpace: "pre" }}>
               {`curl -H "Authorization: Bearer oai_YOUR_KEY_HERE" \\
   ${origin}/api/campaigns`}
             </code>
@@ -463,8 +467,8 @@ export default function ApiKeysClient() {
           <p className="cc-microlabel" style={{ marginBottom: 6 }}>
             MCP server &mdash; Claude Code
           </p>
-          <div style={{ background: "#1C2048", borderRadius: 8, padding: "12px 16px", overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
-            <code style={{ fontFamily: "monospace", fontSize: "var(--cc-t-12)", color: "#A5B4FC", whiteSpace: "pre" }}>
+          <div style={{ background: "var(--cc-overlay-ink)", borderRadius: 8, padding: "12px 16px", overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+            <code style={{ fontFamily: "monospace", fontSize: "var(--cc-t-12)", color: CODE_INK, whiteSpace: "pre" }}>
               {`claude mcp add --transport http campaigns \\
   ${origin}/api/mcp \\
   --header "Authorization: Bearer oai_YOUR_KEY_HERE"`}
@@ -475,8 +479,8 @@ export default function ApiKeysClient() {
           <p className="cc-microlabel" style={{ marginBottom: 6 }}>
             MCP server &mdash; any other client
           </p>
-          <div style={{ background: "#1C2048", borderRadius: 8, padding: "12px 16px", overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
-            <code style={{ fontFamily: "monospace", fontSize: "var(--cc-t-12)", color: "#A5B4FC", whiteSpace: "pre" }}>
+          <div style={{ background: "var(--cc-overlay-ink)", borderRadius: 8, padding: "12px 16px", overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+            <code style={{ fontFamily: "monospace", fontSize: "var(--cc-t-12)", color: CODE_INK, whiteSpace: "pre" }}>
               {`{
   "mcpServers": {
     "campaigns": {

@@ -30,17 +30,17 @@ type Invite = {
 const ROLE_OPTIONS = ["ADMIN", "MANAGER", "MEMBER", "VIEWER"] as const;
 
 const ROLE_COLORS: Record<string, { bg: string; color: string }> = {
-  OWNER:   { bg: "#FEF3C7", color: "var(--cc-warning-ink)" },
-  ADMIN:   { bg: "#EEF2FF", color: "#4F46E5" },
-  MANAGER: { bg: "#D1FAE5", color: "#059669" },
-  MEMBER:  { bg: "#F3F4F6", color: "#374151" },
-  VIEWER:  { bg: "#FEE2E2", color: "#DC2626" },
+  OWNER:   { bg: "var(--cc-warning-bg)", color: "var(--cc-warning-fg)" },
+  ADMIN:   { bg: "var(--cc-accent-bg)", color: "var(--cc-accent-fg)" },
+  MANAGER: { bg: "var(--cc-success-bg)", color: "var(--cc-success-fg)" },
+  MEMBER:  { bg: "var(--cc-neutral-bg)", color: "var(--cc-neutral-fg)" },
+  VIEWER:  { bg: "var(--cc-danger-bg)", color: "var(--cc-danger-fg)" },
 };
 
 const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
-  pending:  { bg: "#FEF3C7", color: "var(--cc-warning-ink)" },
-  accepted: { bg: "#D1FAE5", color: "#059669" },
-  expired:  { bg: "#FEE2E2", color: "#DC2626" },
+  pending:  { bg: "var(--cc-warning-bg)", color: "var(--cc-warning-fg)" },
+  accepted: { bg: "var(--cc-success-bg)", color: "var(--cc-success-fg)" },
+  expired:  { bg: "var(--cc-danger-bg)", color: "var(--cc-danger-fg)" },
 };
 
 type Seats = { used: number; pending: number; max: number | null };
@@ -285,7 +285,7 @@ export default function TeamClient({
         <Card variant="solid" style={{ padding: "20px 24px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div style={{ width: 40, height: 40, borderRadius: 10, background: "var(--cc-primary)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Users size={18} style={{ color: "#fff" }} />
+              <Users size={18} style={{ color: "var(--cc-on-primary)" }} />
             </div>
             <div>
               <div style={{ fontSize: "var(--cc-t-22)", fontWeight: "var(--cc-fw-black)", color: "var(--cc-text)" }}>{users.length}</div>
@@ -295,8 +295,8 @@ export default function TeamClient({
         </Card>
         <Card variant="solid" style={{ padding: "20px 24px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{ width: 40, height: 40, borderRadius: 10, background: "#D97706", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Clock size={18} style={{ color: "#fff" }} />
+            <div style={{ width: 40, height: 40, borderRadius: 10, background: "var(--cc-warning-solid)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Clock size={18} style={{ color: "var(--cc-on-primary)" }} />
             </div>
             <div>
               <div style={{ fontSize: "var(--cc-t-22)", fontWeight: "var(--cc-fw-black)", color: "var(--cc-text)" }}>{pendingInvites.filter((i) => i.status === "pending").length}</div>
@@ -565,7 +565,7 @@ export default function TeamClient({
                       justifyContent: "center",
                       transition: "color 0.15s",
                     }}
-                    onMouseEnter={(e) => { e.currentTarget.style.color = "#DC2626"; }}
+                    onMouseEnter={(e) => { e.currentTarget.style.color = "var(--cc-danger-fg)"; }}
                     onMouseLeave={(e) => { e.currentTarget.style.color = "var(--cc-text-muted)"; }}
                   >
                     <Trash2 size={15} />

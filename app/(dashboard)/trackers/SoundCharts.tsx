@@ -62,7 +62,7 @@ function TooltipBox({
         padding: "6px 10px",
         fontSize: "var(--cc-t-12)",
         color: "var(--cc-text)",
-        boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+        boxShadow: "0 2px 8px color-mix(in srgb, var(--cc-shadow-ink) 8%, transparent)",
       }}
     >
       <div style={{ color: "var(--cc-text-muted)", marginBottom: 2 }}>{label}</div>

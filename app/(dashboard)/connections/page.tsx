@@ -209,7 +209,7 @@ export default function ConnectionsPage() {
           position: "fixed", top: 24, right: 24, zIndex: 9999,
           background: "var(--cc-overlay-ink)", color: "var(--cc-overlay-ink-text)",
           padding: "12px 20px", borderRadius: 8, fontSize: "var(--cc-t-14)", fontWeight: 500,
-          boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+          boxShadow: "0 4px 12px color-mix(in srgb, var(--cc-shadow-ink) 15%, transparent)",
         }}>
           {toast}
         </div>
@@ -305,7 +305,7 @@ export default function ConnectionsPage() {
                 variant="primary"
                 onClick={handleDisconnect}
                 disabled={submitting}
-                style={{ background: "#DC2626", borderColor: "#DC2626" }}
+                style={{ background: "var(--cc-danger-solid)", borderColor: "var(--cc-danger-solid)" }}
               >
                 {submitting ? "Disconnecting..." : "Disconnect"}
               </Button>

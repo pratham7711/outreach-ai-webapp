@@ -185,7 +185,7 @@ function TaxonomyList({
   );
 
   /* MEASURED 2026-09-14 at desktop-1600, their Settings -> General flag row:
-       chip   612,417.5 195.6x25   fill rgb(242,244,251)
+       chip   612,417.5 195.6x25   fill pale lavender
        emoji  618,422   15x15      12/500
        label  638,420.5 118.6x19   15/400
        edit   768.6,423 15x14   delete  786.6,423 15x14   chip ends 807.6

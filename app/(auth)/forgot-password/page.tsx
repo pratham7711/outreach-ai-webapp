@@ -153,7 +153,7 @@ export default function ForgotPasswordPage() {
                 />
 
                 {error && (
-                  <p role="alert" style={{ fontSize: 13, color: "var(--cc-danger, #DC2626)", margin: 0 }}>
+                  <p role="alert" style={{ fontSize: 13, color: "var(--cc-danger)", margin: 0 }}>
                     {error}
                   </p>
                 )}

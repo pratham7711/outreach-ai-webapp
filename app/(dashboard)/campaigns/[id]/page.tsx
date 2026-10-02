@@ -732,7 +732,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
             on a line or stack. MEASURED 2026-09-14 at desktop-1600: their
             campaign header is two rows at the same x -- the title at y=38.3
             (20px/700, brand indigo) and the status alone under it at y=73.3
-            (14px/400, rgb(172,185,246)) -- while ours was one row with the
+            (14px/400, pale indigo) -- while ours was one row with the
             status and type as pills to the right of the title. The wrapper is
             a flex row at base with the titlebar's own gap, so light and dark
             paint exactly what they painted before. */}

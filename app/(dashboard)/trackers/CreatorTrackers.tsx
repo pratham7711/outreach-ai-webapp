@@ -189,7 +189,7 @@ function FigureGroup({
 function ChangeValue({ percent }: { percent: number }) {
   const up = percent >= 0;
   return (
-    <div style={{ fontSize: "var(--cc-t-14)", fontWeight: 700, color: up ? "var(--cc-primary)" : "#DC2626" }}>
+    <div style={{ fontSize: "var(--cc-t-14)", fontWeight: 700, color: up ? "var(--cc-primary)" : "var(--cc-danger-fg)" }}>
       {up ? "+" : ""}
       {percent.toFixed(2)}%
     </div>

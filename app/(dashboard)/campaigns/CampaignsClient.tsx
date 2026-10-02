@@ -134,7 +134,7 @@ function FolderSelect({
         options={[{ value: "", label: "Unfiled" }, ...folders.map((f) => ({ value: f.id, label: f.name }))]}
       />
       {error && (
-        <span style={{ fontSize: "var(--cc-t-11)", color: "#DC2626", maxWidth: 160, textAlign: "right" }} role="alert">
+        <span style={{ fontSize: "var(--cc-t-11)", color: "var(--cc-danger-fg)", maxWidth: 160, textAlign: "right" }} role="alert">
           {error}
         </span>
       )}

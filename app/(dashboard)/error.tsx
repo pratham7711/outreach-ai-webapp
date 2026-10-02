@@ -35,14 +35,14 @@ export default function DashboardError({
               width: 64,
               height: 64,
               borderRadius: 16,
-              background: "rgba(239, 68, 68, 0.1)",
+              background: "var(--cc-danger-bg)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               margin: "0 auto 20px",
             }}
           >
-            <AlertTriangle size={28} style={{ color: "#DC2626" }} />
+            <AlertTriangle size={28} style={{ color: "var(--cc-danger-fg)" }} />
           </div>
 
           <h2

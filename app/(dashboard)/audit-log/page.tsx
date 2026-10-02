@@ -51,11 +51,11 @@ export default async function AuditLogPage() {
                     padding: "10px 16px",
                     borderRadius: 10,
                     background: "var(--cc-primary)",
-                    color: "white",
+                    color: "var(--cc-on-primary)",
                     fontSize: "var(--cc-t-14)",
                     fontWeight: "var(--cc-fw-strong)",
                     textDecoration: "none",
-                    boxShadow: "0 8px 18px rgba(79, 70, 229, 0.18)",
+                    boxShadow: "0 8px 18px color-mix(in srgb, var(--cc-primary) 18%, transparent)",
                   }}
                 >
                   Open Billing
