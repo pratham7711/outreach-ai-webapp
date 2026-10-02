@@ -1,11 +1,5 @@
 {
-  "light": [
-    "/analytics  p.ui-empty-desc  11,11,11,0.45 on 245,245,245,1",
-    "/campaigns/camp-1?tab=creators  p.ui-empty-desc  11,11,11,0.45 on 245,245,245,1",
-    "/campaigns/camp-1?tab=overview  p.ui-empty-desc  11,11,11,0.45 on 245,245,245,1",
-    "/settings/ingestion  p.ui-empty-desc  11,11,11,0.45 on 245,245,245,1",
-    "/songs  p.ui-empty-desc  11,11,11,0.45 on 245,245,245,1"
-  ],
+  "light": [],
   "dark": [
     "/analytics  div.cc-rail-initials  255,255,255,1 on 57,135,229,1",
     "/analytics  div.cc-sidebar-avatar  255,255,255,1 on 57,135,229,1",
