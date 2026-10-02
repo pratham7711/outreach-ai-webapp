@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { memo, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Search, Target, Sun, Zap, CheckCircle2, XCircle, Wallet, Users, FileText, LayoutList, Folder, Share2, ArrowUpDown, Trash2 } from "lucide-react";
 import Link from "next/link";
@@ -479,6 +479,116 @@ function StatChip({ icon, label, children }: { icon: React.ReactNode; label: str
   );
 }
 
+/* One campaign row. Memoised because its props are the server's own objects,
+   which a keystroke in the search box does not change: typing re-rendered all
+   25 rows -- 50 dropdowns among them -- on every character. */
+const CampaignRow = memo(function CampaignRow({
+  campaign,
+  folders,
+  statusDefs,
+  canDelete,
+}: {
+  campaign: Campaign;
+  folders: FolderOption[];
+  statusDefs: StatusDef[];
+  canDelete: boolean;
+}) {
+  return (
+    <div className="cc-table-row cc-campaign-row">
+      {/* Only the identity block navigates. The chips and the status
+          dropdown sit outside the link, because a select nested in an
+          anchor navigates instead of opening. */}
+      <Link
+        prefetch={false}
+        href={`/campaigns/${campaign.id}`}
+        className="cc-campaign-id"
+      >
+        <CampaignThumb title={campaign.title} src={campaign.thumbnailUrl} size={56} />
+        <span style={{ minWidth: 0 }}>
+          <span
+            title={campaign.title}
+            style={{
+              display: "block",
+              fontSize: "var(--cc-t-15)",
+              fontWeight: 700,
+              color: "var(--cc-primary)",
+              marginBottom: 3,
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+          >
+            {campaign.title}
+          </span>
+          <span style={{ display: "block", fontSize: "var(--cc-t-12)", color: "var(--cc-text-subtle)" }}>
+            Last updated {timeAgo(campaign.updatedAt)}
+            {campaign.client ? ` \u00b7 ${campaign.client.name}` : ""}
+          </span>
+          {campaign.tags.length > 0 && (
+            <span style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 5 }}>
+              {campaign.tags.map((tag) => (
+                <Badge key={tag} variant="neutral" size="sm">{tag}</Badge>
+              ))}
+            </span>
+          )}
+        </span>
+      </Link>
+
+      {/* Budget and Team are dropped when absent rather than shown as a
+          zero or an empty avatar row: budget is nullable and unset on
+          most campaigns, and nothing assigns team members yet. */}
+      <div className="cc-campaign-stats">
+        {campaign.budget !== null && (
+          <StatChip icon={<Wallet size={15} />} label="Budget">
+            {formatFullCurrency(campaign.budget, campaign.currency)}
+          </StatChip>
+        )}
+        <StatChip icon={<Users size={15} />} label="Creators">
+          {campaign.creatorCount}
+        </StatChip>
+        <StatChip icon={<FileText size={15} />} label="Posts">
+          {campaign._count.posts}
+        </StatChip>
+        {campaign.team.length > 0 && (
+          <StatChip icon={<Users size={15} />} label="Team">
+            <span style={{ display: "inline-flex", alignItems: "center" }}>
+              {campaign.team.slice(0, 3).map((member, idx) => (
+                <span key={member.id} title={member.name} style={{ marginLeft: idx === 0 ? 0 : -6 }}>
+                  <Avatar name={member.name} src={member.avatarUrl ?? undefined} size="sm" />
+                </span>
+              ))}
+              {campaign.team.length > 3 && (
+                <span style={{ marginLeft: 5, fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
+                  +{campaign.team.length - 3}
+                </span>
+              )}
+            </span>
+          </StatChip>
+        )}
+      </div>
+
+      {/* One box, not four siblings. As four, the row's wrap could break
+          anywhere along them, and on a campaign carrying a Budget chip
+          it broke after Share -- leaving the delete button alone on a
+          second line, measured at 891px of content against 845px of
+          row. Grouped, the controls are one unit that stays whole and
+          keeps its right edge; it also never shrinks, because a select
+          squeezed narrower than its own label reads as broken. */}
+      <div className="cc-campaign-controls">
+        <FolderSelect id={campaign.id} folderId={campaign.folderId} folders={folders} />
+        <StatusSelect
+          id={campaign.id}
+          status={campaign.status}
+          statusDefId={campaign.statusDefId}
+          statusDefs={statusDefs}
+        />
+        <ShareButton id={campaign.id} title={campaign.title} />
+        {canDelete && <DeleteButton id={campaign.id} title={campaign.title} />}
+      </div>
+    </div>
+  );
+});
+
 export default function CampaignsClient({
   campaigns,
   stats,
@@ -631,7 +741,7 @@ export default function CampaignsClient({
   const totalPages = Math.max(1, Math.ceil(filteredTotal / CAMPAIGNS_PAGE_SIZE));
 
   return (
-    <div className="cc-page-content rsp-page cc-campaigns-page">
+    <div className={`cc-page-content rsp-page cc-campaigns-page${statusCounts.ALL > 0 ? " cc-bleed-page" : ""}`}>
       <div className="cc-campaigns-head">
       <PageHeader
         title="Campaigns"
@@ -749,98 +859,13 @@ export default function CampaignsClient({
       ) : (
         <div className="cc-stagger" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {filtered.map((campaign) => (
-            <div key={campaign.id} className="cc-table-row cc-campaign-row">
-              {/* Only the identity block navigates. The chips and the status
-                  dropdown sit outside the link, because a select nested in an
-                  anchor navigates instead of opening. */}
-              <Link
-                prefetch={false}
-                href={`/campaigns/${campaign.id}`}
-                className="cc-campaign-id"
-              >
-                <CampaignThumb title={campaign.title} src={campaign.thumbnailUrl} size={56} />
-                <span style={{ minWidth: 0 }}>
-                  <span
-                    title={campaign.title}
-                    style={{
-                      display: "block",
-                      fontSize: "var(--cc-t-15)",
-                      fontWeight: 700,
-                      color: "var(--cc-primary)",
-                      marginBottom: 3,
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                    }}
-                  >
-                    {campaign.title}
-                  </span>
-                  <span style={{ display: "block", fontSize: "var(--cc-t-12)", color: "var(--cc-text-subtle)" }}>
-                    Last updated {timeAgo(campaign.updatedAt)}
-                    {campaign.client ? ` \u00b7 ${campaign.client.name}` : ""}
-                  </span>
-                  {campaign.tags.length > 0 && (
-                    <span style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 5 }}>
-                      {campaign.tags.map((tag) => (
-                        <Badge key={tag} variant="neutral" size="sm">{tag}</Badge>
-                      ))}
-                    </span>
-                  )}
-                </span>
-              </Link>
-
-              {/* Budget and Team are dropped when absent rather than shown as a
-                  zero or an empty avatar row: budget is nullable and unset on
-                  most campaigns, and nothing assigns team members yet. */}
-              <div className="cc-campaign-stats">
-                {campaign.budget !== null && (
-                  <StatChip icon={<Wallet size={15} />} label="Budget">
-                    {formatFullCurrency(campaign.budget, campaign.currency)}
-                  </StatChip>
-                )}
-                <StatChip icon={<Users size={15} />} label="Creators">
-                  {campaign.creatorCount}
-                </StatChip>
-                <StatChip icon={<FileText size={15} />} label="Posts">
-                  {campaign._count.posts}
-                </StatChip>
-                {campaign.team.length > 0 && (
-                  <StatChip icon={<Users size={15} />} label="Team">
-                    <span style={{ display: "inline-flex", alignItems: "center" }}>
-                      {campaign.team.slice(0, 3).map((member, idx) => (
-                        <span key={member.id} title={member.name} style={{ marginLeft: idx === 0 ? 0 : -6 }}>
-                          <Avatar name={member.name} src={member.avatarUrl ?? undefined} size="sm" />
-                        </span>
-                      ))}
-                      {campaign.team.length > 3 && (
-                        <span style={{ marginLeft: 5, fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
-                          +{campaign.team.length - 3}
-                        </span>
-                      )}
-                    </span>
-                  </StatChip>
-                )}
-              </div>
-
-              {/* One box, not four siblings. As four, the row's wrap could break
-                  anywhere along them, and on a campaign carrying a Budget chip
-                  it broke after Share -- leaving the delete button alone on a
-                  second line, measured at 891px of content against 845px of
-                  row. Grouped, the controls are one unit that stays whole and
-                  keeps its right edge; it also never shrinks, because a select
-                  squeezed narrower than its own label reads as broken. */}
-              <div className="cc-campaign-controls">
-                <FolderSelect id={campaign.id} folderId={campaign.folderId} folders={folders} />
-                <StatusSelect
-                  id={campaign.id}
-                  status={campaign.status}
-                  statusDefId={campaign.statusDefId}
-                  statusDefs={statusDefs}
-                />
-                <ShareButton id={campaign.id} title={campaign.title} />
-                {canDelete && <DeleteButton id={campaign.id} title={campaign.title} />}
-              </div>
-            </div>
+            <CampaignRow
+              key={campaign.id}
+              campaign={campaign}
+              folders={folders}
+              statusDefs={statusDefs}
+              canDelete={canDelete}
+            />
           ))}
         </div>
       )}

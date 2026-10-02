@@ -5,13 +5,31 @@
  */
 export const UNKNOWN = "—";
 
+/* Building an Intl formatter costs 10-40us; reusing one costs under 2. A list
+   renders several figures and dates per row, every row, on every keystroke, so
+   each formatter here is built once and kept. Currency ones are kept per code;
+   an unknown code still throws, because a failed build is never stored. */
+const COMPACT = new Intl.NumberFormat("en-US", {
+  notation: "compact",
+  maximumFractionDigits: 1,
+  trailingZeroDisplay: "stripIfInteger",
+});
+const FULL = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
+const FULL_CURRENCY = new Map<string, Intl.NumberFormat>();
+const COMPACT_CURRENCY = new Map<string, Intl.NumberFormat>();
+
+function kept(cache: Map<string, Intl.NumberFormat>, key: string, build: () => Intl.NumberFormat): Intl.NumberFormat {
+  let f = cache.get(key);
+  if (!f) {
+    f = build();
+    cache.set(key, f);
+  }
+  return f;
+}
+
 export function formatCompact(n: number): string {
   if (!Number.isFinite(n)) return "0";
-  return new Intl.NumberFormat("en-US", {
-    notation: "compact",
-    maximumFractionDigits: 1,
-    trailingZeroDisplay: "stripIfInteger",
-  }).format(n);
+  return COMPACT.format(n);
 }
 
 /**
@@ -29,16 +47,14 @@ export function formatCompact(n: number): string {
  */
 export function formatFull(n: number): string {
   if (!Number.isFinite(n)) return "0";
-  return new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(n);
+  return FULL.format(n);
 }
 
 /** formatFull's currency twin, for the same reason. */
 export function formatFullCurrency(n: number, currency = "USD"): string {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency,
-    maximumFractionDigits: 0,
-  }).format(Number.isFinite(n) ? n : 0);
+  return kept(FULL_CURRENCY, currency, () =>
+    new Intl.NumberFormat("en-US", { style: "currency", currency, maximumFractionDigits: 0 }),
+  ).format(Number.isFinite(n) ? n : 0);
 }
 
 /**
@@ -105,13 +121,15 @@ export function parseCountInput(raw: string): ParsedCount {
 export function formatCompactCurrency(n: number, currency = "USD"): string {
   // Zero in the caller's currency, not a hardcoded "$0": the whole point of the
   // currency argument is that this function is not USD-only.
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency,
-    notation: "compact",
-    maximumFractionDigits: 1,
-    trailingZeroDisplay: "stripIfInteger",
-  }).format(Number.isFinite(n) ? n : 0);
+  return kept(COMPACT_CURRENCY, currency, () =>
+    new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency,
+      notation: "compact",
+      maximumFractionDigits: 1,
+      trailingZeroDisplay: "stripIfInteger",
+    }),
+  ).format(Number.isFinite(n) ? n : 0);
 }
 
 export function stripAt(handle: string | null | undefined): string {
@@ -157,27 +175,21 @@ export function platformLabel(platform: string | null | undefined): string {
  * is bucketed by UTC day, so a local-time label would disagree with its own
  * chart.
  */
-const UTC_DATE = { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" } as const;
+const UTC_DATE = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+const UTC_TIME = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "UTC" });
 
 export function formatDateAbs(iso: string | Date | null | undefined): string {
   if (!iso) return "—";
   const d = iso instanceof Date ? iso : new Date(iso);
   if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString("en-GB", UTC_DATE);
+  return UTC_DATE.format(d);
 }
 
 export function formatDateTimeAbs(iso: string | Date | null | undefined): string {
   if (!iso) return "—";
   const d = iso instanceof Date ? iso : new Date(iso);
   if (Number.isNaN(d.getTime())) return "—";
-  const date = d.toLocaleDateString("en-GB", UTC_DATE);
-  const time = d.toLocaleTimeString("en-GB", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-    timeZone: "UTC",
-  });
-  return `${date}, ${time}`;
+  return `${UTC_DATE.format(d)}, ${UTC_TIME.format(d)}`;
 }
 
 export function timeAgo(iso: string | Date | null | undefined): string {

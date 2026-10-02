@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { Plus, LayoutGrid, List as ListIcon, Users, Upload, X, Globe2, ChevronRight, AlertTriangle } from "lucide-react";
 import { Badge, Card, Input, EmptyState } from "@pratham7711/ui";
 import { PageHeader, StatusTabs, Pagination, FilterDrawer, FilterButton, SortableTh, Button } from "@/components/ds";
@@ -137,6 +137,155 @@ function TagList({ tags, max = 3 }: { tags: string[]; max?: number }) {
   );
 }
 
+type OptionalStat = {
+  key: string;
+  label: string;
+  read: (c: Creator) => MetricValue;
+  at: (c: Creator) => FigureTimeDto | undefined;
+};
+
+type CardStat = {
+  key: string;
+  label: string;
+  empty: (c: Creator) => boolean;
+  render: (c: Creator) => React.ReactNode;
+  age?: (c: Creator) => React.ReactNode;
+};
+
+/* The grid card and the table row are memoised, and everything they are handed
+   keeps its identity while someone types in the search box, so a keystroke no
+   longer re-renders 24 cards of chips, figures and ages. */
+const CreatorCard = memo(function CreatorCard({
+  creator,
+  on,
+  onToggle,
+  cardStats,
+}: {
+  creator: Creator;
+  on: boolean;
+  onToggle: (id: string) => void;
+  cardStats: CardStat[];
+}) {
+  const { name: title, handle } = creatorNameParts(creator.name, creator.handle);
+  return (
+    /* The name is the link and stretches over the card, so the
+       account chips and the checkbox can be controls of their own --
+       an <a> inside the card's <a> is invalid and breaks both. */
+    <div className="cc-roster-card" data-selected={on || undefined}>
+      <Card variant="solid" className="ui-card-clickable">
+        <label className="cc-roster-check">
+          <input type="checkbox" checked={on} onChange={() => onToggle(creator.id)} aria-label={`Select ${creator.name}`} />
+        </label>
+        <div className="cc-roster-card-head">
+          <CreatorAvatar id={creator.id} name={creator.name} size="lg" version={creator.avatarVersion} />
+          <div className="cc-roster-card-id">
+            <Link prefetch={false} href={`/creators/${creator.id}`} className="cc-roster-card-link" title={creator.name}>
+              {title}
+            </Link>
+            {handle && <p className="cc-roster-card-handle">{handle}</p>}
+          </div>
+        </div>
+        <div className="cc-roster-card-meta">
+          <PlatformChips links={accountsOf(creator)} max={4} compact />
+          <TagList tags={creator.tags} />
+        </div>
+        {cardStats.length > 0 && (
+          <dl className="cc-roster-card-stats" style={{ gridTemplateColumns: `repeat(${cardStats.length}, minmax(0, 1fr))` }}>
+            {cardStats.map((stat) => {
+              return (
+                <div key={stat.key}>
+                  <dt className="cc-microlabel">{stat.label}</dt>
+                  {/* An em dash, not "". The column is only drawn when
+                      somebody on the page has this stat, so a card
+                      without one still has to say so -- an empty string
+                      left "Avg. Views" captioning blank space, which
+                      reads as a value that failed to load. */}
+                  <dd data-empty={stat.empty(creator) || undefined}>{stat.render(creator)}</dd>
+                  {stat.age && <dd className="cc-roster-card-age">{stat.age(creator)}</dd>}
+                </div>
+              );
+            })}
+          </dl>
+        )}
+        <div className="cc-roster-card-foot">
+          {creator.audienceCountry ? (
+            <span className="cc-roster-card-audience" title={`Audience: ${creator.audienceCountry}`}>
+              <Globe2 size={14} aria-hidden />
+              <span>{creator.audienceCountry}</span>
+            </span>
+          ) : (
+            <span />
+          )}
+          <span className="cc-roster-card-open" aria-hidden="true">
+            View profile
+            <ChevronRight size={14} />
+          </span>
+        </div>
+      </Card>
+    </div>
+  );
+});
+
+const CreatorRow = memo(function CreatorRow({
+  c,
+  on,
+  onToggle,
+  optionalStats,
+  hasAudience,
+  hasPrice,
+}: {
+  c: Creator;
+  on: boolean;
+  onToggle: (id: string) => void;
+  optionalStats: OptionalStat[];
+  hasAudience: boolean;
+  hasPrice: boolean;
+}) {
+  return (
+    <tr className="cc-table-row" data-selected={on || undefined} style={{ borderTop: "1px solid var(--cc-border)" }}>
+      <td className="cc-roster-td-check">
+        <input type="checkbox" checked={on} onChange={() => onToggle(c.id)} aria-label={`Select ${c.name}`} />
+      </td>
+      <td style={{ padding: "14px 24px" }}>
+        <Link prefetch={false} href={`/creators/${c.id}`} style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 12 }}>
+          <CreatorAvatar id={c.id} name={c.name} size="sm" version={c.avatarVersion} />
+          <div>
+            <p style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{creatorNameParts(c.name, c.handle).name}</p>
+            {creatorNameParts(c.name, c.handle).handle && <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>{creatorNameParts(c.name, c.handle).handle}</p>}
+          </div>
+        </Link>
+      </td>
+      <td style={{ padding: "14px 24px" }}>
+        <PlatformChips links={accountsOf(c)} max={3} compact />
+      </td>
+      <td style={{ padding: "14px 24px" }}>
+        {c.tags.length ? <TagList tags={c.tags} max={2} /> : <span style={{ color: "var(--cc-text-muted)" }}>—</span>}
+      </td>
+      {optionalStats.map((stat) => {
+        const value = stat.read(c);
+        return (
+          <td key={stat.key} style={{ padding: "14px 24px", fontSize: "var(--cc-t-14)", fontWeight: 500, color: isUnknownMetric(value) ? "var(--cc-text-muted)" : "var(--cc-text)" }}>
+            <MetricFigure value={value} format={formatNumber} />
+            <FigureAge value={value} time={stat.at(c)} />
+          </td>
+        );
+      })}
+      {hasAudience && (
+        <td className="cc-roster-td-text" title={c.audienceCountry ?? undefined}>
+          {c.audienceCountry ?? "—"}
+        </td>
+      )}
+      {hasPrice && (
+        <td style={{ padding: "14px 24px", fontSize: "var(--cc-t-14)", fontWeight: 500, color: c.rate ? "var(--cc-text)" : "var(--cc-text-muted)" }}>
+          {c.rate ? formatFullCurrency(c.rate) : "—"}
+        </td>
+      )}
+      <td style={{ padding: "14px 24px", fontSize: "var(--cc-t-14)", fontWeight: 500, color: "var(--cc-text)" }}>{c.campaignCount}</td>
+      <td style={{ padding: "14px 24px", fontSize: "var(--cc-t-14)", fontWeight: 500, color: "var(--cc-text)" }}>{c._count.posts}</td>
+    </tr>
+  );
+});
+
 export default function CreatorsClient({
   creators,
   platformCounts,
@@ -187,7 +336,9 @@ export default function CreatorsClient({
   // them, but change what matches and they would silently point at creators
   // that are no longer on screen.
   useEffect(() => {
-    setPicked(new Set());
+    /* Kept when already empty: a fresh Set is a new value, and on mount that
+       re-rendered the whole roster once for nothing. */
+    setPicked((prev) => (prev.size ? new Set() : prev));
     setAllMatching(false);
   }, [query]);
   // Defaults are passed as undefined so they stay out of the URL entirely —
@@ -354,7 +505,7 @@ export default function CreatorsClient({
   const pageIds = filtered.map((c) => c.id);
   const pickedOnPage = pageIds.filter((id) => picked.has(id)).length;
   const allOnPage = pageIds.length > 0 && pickedOnPage === pageIds.length;
-  const toggle = (id: string) => {
+  const toggle = useCallback((id: string) => {
     setAllMatching(false);
     setPicked((prev) => {
       const next = new Set(prev);
@@ -362,7 +513,7 @@ export default function CreatorsClient({
       else next.add(id);
       return next;
     });
-  };
+  }, []);
   const togglePage = () => {
     setAllMatching(false);
     setPicked((prev) => {
@@ -393,36 +544,30 @@ export default function CreatorsClient({
   const hasAvgViews = filtered.some((c) => !isUnknownMetric(c.avgViewsFigure));
   /* A creator without the figure in a drawn column gets "—" with the reason
      the server gave (plan A1) -- never blank, never 0. */
-  const optionalStats = [
-    hasFollowers && { key: "followers", label: "Followers", read: (c: Creator) => c.followers, at: (c: Creator) => c.followersAt },
-    hasAvgViews && { key: "avgViews", label: "Avg. Views", read: (c: Creator) => c.avgViewsFigure, at: (c: Creator) => c.avgViewsAt },
-  ].filter(Boolean) as {
-    key: string;
-    label: string;
-    read: (c: Creator) => MetricValue;
-    at: (c: Creator) => FigureTimeDto | undefined;
-  }[];
-  /* The card's strip adds price, which the table keeps in a column of its own.
-     A missing price is "not set" rather than an unmeasured figure, so it keeps
-     its plain dash. */
-  const cardStats: {
-    key: string;
-    label: string;
-    empty: (c: Creator) => boolean;
-    render: (c: Creator) => React.ReactNode;
-    age?: (c: Creator) => React.ReactNode;
-  }[] = [
-    ...optionalStats.map((stat) => ({
-      key: stat.key,
-      label: stat.label,
-      empty: (c: Creator) => isUnknownMetric(stat.read(c)),
-      render: (c: Creator) => <MetricFigure value={stat.read(c)} format={formatNumber} />,
-      age: (c: Creator) => <FigureAge value={stat.read(c)} time={stat.at(c)} />,
-    })),
-    ...(hasPrice
-      ? [{ key: "price", label: "Price", empty: (c: Creator) => !c.rate, render: (c: Creator) => (c.rate ? formatFullCurrency(c.rate) : "—") }]
-      : []),
-  ];
+  /* Built from three booleans, so they keep their identity while someone types
+     and the memoised rows below can skip. */
+  const { optionalStats, cardStats } = useMemo(() => {
+    const optionalStats = [
+      hasFollowers && { key: "followers", label: "Followers", read: (c: Creator) => c.followers, at: (c: Creator) => c.followersAt },
+      hasAvgViews && { key: "avgViews", label: "Avg. Views", read: (c: Creator) => c.avgViewsFigure, at: (c: Creator) => c.avgViewsAt },
+    ].filter(Boolean) as OptionalStat[];
+    /* The card's strip adds price, which the table keeps in a column of its own.
+       A missing price is "not set" rather than an unmeasured figure, so it keeps
+       its plain dash. */
+    const cardStats: CardStat[] = [
+      ...optionalStats.map((stat) => ({
+        key: stat.key,
+        label: stat.label,
+        empty: (c: Creator) => isUnknownMetric(stat.read(c)),
+        render: (c: Creator) => <MetricFigure value={stat.read(c)} format={formatNumber} />,
+        age: (c: Creator) => <FigureAge value={stat.read(c)} time={stat.at(c)} />,
+      })),
+      ...(hasPrice
+        ? [{ key: "price", label: "Price", empty: (c: Creator) => !c.rate, render: (c: Creator) => (c.rate ? formatFullCurrency(c.rate) : "—") }]
+        : []),
+    ];
+    return { optionalStats, cardStats };
+  }, [hasFollowers, hasAvgViews, hasPrice]);
 
   return (
     <div className="rsp-page">
@@ -562,67 +707,15 @@ export default function CreatorsClient({
         />
       ) : view === "grid" ? (
         <div className="cc-stagger cc-roster-grid">
-          {filtered.map((creator) => {
-            const on = allMatching || picked.has(creator.id);
-            const { name: title, handle } = creatorNameParts(creator.name, creator.handle);
-            return (
-              /* The name is the link and stretches over the card, so the
-                 account chips and the checkbox can be controls of their own --
-                 an <a> inside the card's <a> is invalid and breaks both. */
-              <div key={creator.id} className="cc-roster-card" data-selected={on || undefined}>
-                <Card variant="solid" className="ui-card-clickable">
-                  <label className="cc-roster-check">
-                    <input type="checkbox" checked={on} onChange={() => toggle(creator.id)} aria-label={`Select ${creator.name}`} />
-                  </label>
-                  <div className="cc-roster-card-head">
-                    <CreatorAvatar id={creator.id} name={creator.name} size="lg" version={creator.avatarVersion} />
-                    <div className="cc-roster-card-id">
-                      <Link prefetch={false} href={`/creators/${creator.id}`} className="cc-roster-card-link" title={creator.name}>
-                        {title}
-                      </Link>
-                      {handle && <p className="cc-roster-card-handle">{handle}</p>}
-                    </div>
-                  </div>
-                  <div className="cc-roster-card-meta">
-                    <PlatformChips links={accountsOf(creator)} max={4} compact />
-                    <TagList tags={creator.tags} />
-                  </div>
-                  {cardStats.length > 0 && (
-                    <dl className="cc-roster-card-stats" style={{ gridTemplateColumns: `repeat(${cardStats.length}, minmax(0, 1fr))` }}>
-                      {cardStats.map((stat) => {
-                        return (
-                          <div key={stat.key}>
-                            <dt className="cc-microlabel">{stat.label}</dt>
-                            {/* An em dash, not "". The column is only drawn when
-                                somebody on the page has this stat, so a card
-                                without one still has to say so -- an empty string
-                                left "Avg. Views" captioning blank space, which
-                                reads as a value that failed to load. */}
-                            <dd data-empty={stat.empty(creator) || undefined}>{stat.render(creator)}</dd>
-                            {stat.age && <dd className="cc-roster-card-age">{stat.age(creator)}</dd>}
-                          </div>
-                        );
-                      })}
-                    </dl>
-                  )}
-                  <div className="cc-roster-card-foot">
-                    {creator.audienceCountry ? (
-                      <span className="cc-roster-card-audience" title={`Audience: ${creator.audienceCountry}`}>
-                        <Globe2 size={14} aria-hidden />
-                        <span>{creator.audienceCountry}</span>
-                      </span>
-                    ) : (
-                      <span />
-                    )}
-                    <span className="cc-roster-card-open" aria-hidden="true">
-                      View profile
-                      <ChevronRight size={14} />
-                    </span>
-                  </div>
-                </Card>
-              </div>
-            );
-          })}
+          {filtered.map((creator) => (
+            <CreatorCard
+              key={creator.id}
+              creator={creator}
+              on={allMatching || picked.has(creator.id)}
+              onToggle={toggle}
+              cardStats={cardStats}
+            />
+          ))}
         </div>
       ) : (
         <Card variant="solid" noPadding>
@@ -658,52 +751,17 @@ export default function CreatorsClient({
               </tr>
             </thead>
             <tbody>
-              {filtered.map((c) => {
-                const on = allMatching || picked.has(c.id);
-                return (
-                <tr key={c.id} className="cc-table-row" data-selected={on || undefined} style={{ borderTop: "1px solid var(--cc-border)" }}>
-                  <td className="cc-roster-td-check">
-                    <input type="checkbox" checked={on} onChange={() => toggle(c.id)} aria-label={`Select ${c.name}`} />
-                  </td>
-                  <td style={{ padding: "14px 24px" }}>
-                    <Link prefetch={false} href={`/creators/${c.id}`} style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 12 }}>
-                      <CreatorAvatar id={c.id} name={c.name} size="sm" version={c.avatarVersion} />
-                      <div>
-                        <p style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{creatorNameParts(c.name, c.handle).name}</p>
-                        {creatorNameParts(c.name, c.handle).handle && <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>{creatorNameParts(c.name, c.handle).handle}</p>}
-                      </div>
-                    </Link>
-                  </td>
-                  <td style={{ padding: "14px 24px" }}>
-                    <PlatformChips links={accountsOf(c)} max={3} compact />
-                  </td>
-                  <td style={{ padding: "14px 24px" }}>
-                    {c.tags.length ? <TagList tags={c.tags} max={2} /> : <span style={{ color: "var(--cc-text-muted)" }}>—</span>}
-                  </td>
-                  {optionalStats.map((stat) => {
-                    const value = stat.read(c);
-                    return (
-                      <td key={stat.key} style={{ padding: "14px 24px", fontSize: "var(--cc-t-14)", fontWeight: 500, color: isUnknownMetric(value) ? "var(--cc-text-muted)" : "var(--cc-text)" }}>
-                        <MetricFigure value={value} format={formatNumber} />
-                        <FigureAge value={value} time={stat.at(c)} />
-                      </td>
-                    );
-                  })}
-                  {hasAudience && (
-                    <td className="cc-roster-td-text" title={c.audienceCountry ?? undefined}>
-                      {c.audienceCountry ?? "—"}
-                    </td>
-                  )}
-                  {hasPrice && (
-                    <td style={{ padding: "14px 24px", fontSize: "var(--cc-t-14)", fontWeight: 500, color: c.rate ? "var(--cc-text)" : "var(--cc-text-muted)" }}>
-                      {c.rate ? formatFullCurrency(c.rate) : "—"}
-                    </td>
-                  )}
-                  <td style={{ padding: "14px 24px", fontSize: "var(--cc-t-14)", fontWeight: 500, color: "var(--cc-text)" }}>{c.campaignCount}</td>
-                  <td style={{ padding: "14px 24px", fontSize: "var(--cc-t-14)", fontWeight: 500, color: "var(--cc-text)" }}>{c._count.posts}</td>
-                </tr>
-                );
-              })}
+              {filtered.map((c) => (
+                <CreatorRow
+                  key={c.id}
+                  c={c}
+                  on={allMatching || picked.has(c.id)}
+                  onToggle={toggle}
+                  optionalStats={optionalStats}
+                  hasAudience={hasAudience}
+                  hasPrice={hasPrice}
+                />
+              ))}
             </tbody>
           </table>
           </div>

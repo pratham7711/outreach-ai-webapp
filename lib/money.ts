@@ -39,17 +39,24 @@ export function totalsByCurrency(
   );
 }
 
+/* Built once per currency and options, as lib/format keeps its own: a payout
+   or roster table formats a figure per row on every render. */
+const MONEY_FORMATS = new Map<string, Intl.NumberFormat>();
+
 /** One amount, in its own currency. Intl knows every currency's symbol. */
 export function formatMoney(
   amount: number,
   currency = "USD",
   options: Intl.NumberFormatOptions = {}
 ): string {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: currency || "USD",
-    ...options,
-  }).format(Number.isFinite(amount) ? amount : 0);
+  const code = currency || "USD";
+  const key = `${code}|${JSON.stringify(options)}`;
+  let f = MONEY_FORMATS.get(key);
+  if (!f) {
+    f = new Intl.NumberFormat("en-US", { style: "currency", currency: code, ...options });
+    MONEY_FORMATS.set(key, f);
+  }
+  return f.format(Number.isFinite(amount) ? amount : 0);
 }
 
 /**

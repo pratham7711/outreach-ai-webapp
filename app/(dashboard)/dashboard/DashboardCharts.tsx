@@ -94,6 +94,7 @@ export function ViewsOverTimeArea({
               formatter={(value) => [formatNumber(Number(value)), "Views"]}
             />
             <Area
+              isAnimationActive={false}
               type="monotone"
               dataKey="views"
               stroke="var(--chart-3)"
@@ -130,6 +131,7 @@ export function PlatformBreakdownPie({
     <ChartFrame height={200}>
       <PieChart>
         <Pie
+          isAnimationActive={false}
           data={data}
           cx="50%"
           cy="50%"
@@ -213,7 +215,7 @@ export function CpmTrendLine({
             fontWeight: "var(--cc-fw-strong)",
           }}
         />
-        <Area type="monotone" dataKey="cpm" stroke="var(--chart-3)" strokeWidth={2} fill="url(#cpmFill)" />
+        <Area isAnimationActive={false} type="monotone" dataKey="cpm" stroke="var(--chart-3)" strokeWidth={2} fill="url(#cpmFill)" />
       </AreaChart>
     </ChartFrame>
   );
@@ -236,7 +238,7 @@ export function ViewsByCampaignBar({
           contentStyle={chartTooltipStyle}
           formatter={(v) => [formatNumber(Number(v)), "Views"]}
         />
-        <Bar dataKey="views" fill="var(--chart-3)" radius={[0, 4, 4, 0]} barSize={18}>
+        <Bar isAnimationActive={false} dataKey="views" fill="var(--chart-3)" radius={[0, 4, 4, 0]} barSize={18}>
           <LabelList
             dataKey="views"
             position="right"

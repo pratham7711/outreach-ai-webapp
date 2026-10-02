@@ -40,6 +40,7 @@ export function MonthlyTrendArea({ data }: { data: MonthlyTrend[] }) {
         />
         <Legend wrapperStyle={{ fontSize: "var(--cc-t-12)"}} />
         <Area
+          isAnimationActive={false}
           type="monotone"
           dataKey="campaigns"
           name="Total"
@@ -49,6 +50,7 @@ export function MonthlyTrendArea({ data }: { data: MonthlyTrend[] }) {
           dot={false}
         />
         <Area
+          isAnimationActive={false}
           type="monotone"
           dataKey="active"
           name="Active"
@@ -87,7 +89,7 @@ export function PlatformBreakdownBar({ data }: { data: PlatformBreakdown[] }) {
           contentStyle={chartTooltipStyle}
           formatter={(v: any) => [formatNumber(Number(v)), "Views"]}
         />
-        <Bar dataKey="views" radius={[0, 4, 4, 0]} fill="var(--chart-1)" />
+        <Bar isAnimationActive={false} dataKey="views" radius={[0, 4, 4, 0]} fill="var(--chart-1)" />
       </BarChart>
     </ChartFrame>
   );
@@ -122,6 +124,7 @@ export function CampaignComparisonLine({
         <Legend formatter={(value: any) => titleById[value] ?? value} wrapperStyle={{ fontSize: "var(--cc-t-12)"}} />
         {selected.map((id) => (
           <Line
+            isAnimationActive={false}
             key={id}
             type="monotone"
             dataKey={id}

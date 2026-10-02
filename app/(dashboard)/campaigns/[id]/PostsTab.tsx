@@ -323,6 +323,43 @@ type SortKey =
   | "delta";
 type SortDir = "asc" | "desc";
 
+/* Declared here rather than inside PostsTab: a component written in a render
+   body is a new type on every render, so React tore down and rebuilt every
+   list header each time the tab re-rendered -- on each keystroke, for one. */
+function SortHeader({
+  label,
+  sk,
+  align = "left",
+  sortKey,
+  sortDir,
+  onSort,
+}: {
+  label: string;
+  sk: SortKey;
+  align?: "left" | "right";
+  sortKey: SortKey;
+  sortDir: SortDir;
+  onSort: (key: SortKey) => void;
+}) {
+  const active = sortKey === sk;
+  return (
+    <button
+      type="button"
+      onClick={() => onSort(sk)}
+      className="cc-microlabel"
+      data-active={active || undefined}
+      style={{ display: "flex", alignItems: "center", gap: 4, justifyContent: align === "right" ? "flex-end" : "flex-start", background: "none", border: "none", padding: 0, cursor: "pointer" }}
+    >
+      {label}
+      {active ? (sortDir === "asc" ? <ArrowUp size={11} /> : <ArrowDown size={11} />) : <ArrowUpDown size={11} />}
+    </button>
+  );
+}
+
+function PlainHeader({ label }: { label: string }) {
+  return <span className="cc-microlabel">{label}</span>;
+}
+
 function formatNumber(num: number): string {
   return formatFull(num);
 }
@@ -1188,11 +1225,15 @@ export default function PostsTab({
       }
     };
 
-    const sorted = [...rows].sort((a, b) => {
-      const diff = valueOf(a) - valueOf(b);
+    /* Each key once per row, not twice per comparison: the default sort parsed
+       a date on both sides of every one of ~7,700 comparisons for 800 posts,
+       on every keystroke in the search box. */
+    const keyed = rows.map((p) => [valueOf(p), p] as const);
+    keyed.sort((a, b) => {
+      const diff = a[0] - b[0];
       return sortDir === "asc" ? diff : -diff;
     });
-    return sorted;
+    return keyed.map(([, p]) => p);
   }, [posts, statusFilter, trackingFilter, platformFilter, mediaTypeFilter, deferredMinViews, deferredCreatorSearch, postedFrom, postedTo, sortKey, sortDir]);
 
   const anyDelta = useMemo(() => posts.some((p) => (p.snapshots?.length ?? 0) >= 2), [posts]);
@@ -1309,6 +1350,7 @@ export default function PostsTab({
   }, [posts]);
 
   const pendingCount = useMemo(() => posts.filter((p) => p.status === "PENDING_REVIEW").length, [posts]);
+  const mixedStatuses = useMemo(() => new Set(posts.map((p) => p.status)).size > 1, [posts]);
   const capMinor = marketplace?.budgetCapMinor ?? null;
   const capFraction = capMinor && capMinor > 0 ? Math.min(1, accruedMinor / capMinor) : null;
   const capReached = capMinor != null && capMinor > 0 && accruedMinor >= capMinor;
@@ -1452,25 +1494,7 @@ export default function PostsTab({
     outline: "none",
   };
 
-  const SortHeader = ({ label, sk, align = "left" }: { label: string; sk: SortKey; align?: "left" | "right" }) => {
-    const active = sortKey === sk;
-    return (
-      <button
-        type="button"
-        onClick={() => toggleSort(sk)}
-        className="cc-microlabel"
-        data-active={active || undefined}
-        style={{ display: "flex", alignItems: "center", gap: 4, justifyContent: align === "right" ? "flex-end" : "flex-start", background: "none", border: "none", padding: 0, cursor: "pointer" }}
-      >
-        {label}
-        {active ? (sortDir === "asc" ? <ArrowUp size={11} /> : <ArrowDown size={11} />) : <ArrowUpDown size={11} />}
-      </button>
-    );
-  };
-
-  const PlainHeader = ({ label }: { label: string }) => (
-    <span className="cc-microlabel">{label}</span>
-  );
+  const sortProps = { sortKey, sortDir, onSort: toggleSort };
 
   /* What the right-clicked post may have done to it.
    *
@@ -1609,7 +1633,7 @@ export default function PostsTab({
           until someone approves it, and four pills that all filter to the same
           list are a control for nothing. Kept while a status is picked, so the
           way back to All never disappears. */}
-      {(statusFilter !== "ALL" || new Set(posts.map((p) => p.status)).size > 1) && (
+      {(statusFilter !== "ALL" || mixedStatuses) && (
         <div className="cc-poststab-filter" style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <StatusTabs
             variant="pill"
@@ -1931,15 +1955,15 @@ export default function PostsTab({
               />
               <PlainHeader label="Creator" />
               <PlainHeader label="Platform" />
-              <SortHeader label="Posted" sk="posted" />
-              <SortHeader label="Views" sk="views" align="right" />
-              {anyLikes && <SortHeader label="Likes" sk="likes" align="right" />}
-              {anyComments && <SortHeader label="Comments" sk="comments" align="right" />}
-              {anyShares && <SortHeader label="Shares" sk="shares" align="right" />}
-              {anySaves && <SortHeader label="Saves" sk="saves" align="right" />}
-              {anyDownloads && <SortHeader label="Downloads" sk="downloads" align="right" />}
-              {anyEngRate && <SortHeader label="Eng %" sk="engRate" align="right" />}
-              {anyDelta && <SortHeader label="Δ Views" sk="delta" align="right" />}
+              <SortHeader label="Posted" sk="posted" {...sortProps} />
+              <SortHeader label="Views" sk="views" align="right" {...sortProps} />
+              {anyLikes && <SortHeader label="Likes" sk="likes" align="right" {...sortProps} />}
+              {anyComments && <SortHeader label="Comments" sk="comments" align="right" {...sortProps} />}
+              {anyShares && <SortHeader label="Shares" sk="shares" align="right" {...sortProps} />}
+              {anySaves && <SortHeader label="Saves" sk="saves" align="right" {...sortProps} />}
+              {anyDownloads && <SortHeader label="Downloads" sk="downloads" align="right" {...sortProps} />}
+              {anyEngRate && <SortHeader label="Eng %" sk="engRate" align="right" {...sortProps} />}
+              {anyDelta && <SortHeader label="Δ Views" sk="delta" align="right" {...sortProps} />}
               <PlainHeader label="Status" />
               <PlainHeader label="Last Synced" />
               <PlainHeader label="Actions" />

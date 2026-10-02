@@ -16,10 +16,12 @@ import type { CampaignSectionCounts } from "@/lib/campaignSections";
  * regardless -- a section list that waited for counts would flash an empty rail
  * on every campaign open.
  */
+type Publish = (value: { title: string | null; counts: CampaignSectionCounts }) => void;
+
 type CampaignNavContextType = {
   title: string | null;
   counts: CampaignSectionCounts;
-  publish: (value: { title: string | null; counts: CampaignSectionCounts }) => void;
+  publish: Publish;
 };
 
 const CampaignNavContext = createContext<CampaignNavContextType>({
@@ -30,6 +32,15 @@ const CampaignNavContext = createContext<CampaignNavContextType>({
 
 export function useCampaignNav() {
   return useContext(CampaignNavContext);
+}
+
+/* Publish on its own, for the page that only writes. Reading it through
+   useCampaignNav subscribed the whole campaign page to what it had just
+   published, so every publish rendered the page -- and its posts tab -- again. */
+const CampaignNavPublishContext = createContext<Publish>(() => {});
+
+export function useCampaignNavPublish() {
+  return useContext(CampaignNavPublishContext);
 }
 
 export function CampaignNavProvider({ children }: { children: ReactNode }) {
@@ -58,5 +69,9 @@ export function CampaignNavProvider({ children }: { children: ReactNode }) {
     [state, publish]
   );
 
-  return <CampaignNavContext.Provider value={value}>{children}</CampaignNavContext.Provider>;
+  return (
+    <CampaignNavPublishContext.Provider value={publish}>
+      <CampaignNavContext.Provider value={value}>{children}</CampaignNavContext.Provider>
+    </CampaignNavPublishContext.Provider>
+  );
 }

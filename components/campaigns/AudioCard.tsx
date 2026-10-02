@@ -252,6 +252,7 @@ export function AudioCard({
                   contentStyle={{ fontSize: "var(--cc-t-12)", borderRadius: 8 }}
                 />
                 <Area
+                  isAnimationActive={false}
                   type="monotone"
                   dataKey={view === "velocity" ? "velocity" : "uses"}
                   stroke="var(--cc-primary)"
@@ -460,6 +461,7 @@ function ReportAudio({
                     a solid mid grey meeting a black line, and a translucent fill
                     over a white card reads several shades lighter than that. */}
                 <Area
+                  isAnimationActive={false}
                   type="monotone"
                   dataKey={view === "velocity" ? "velocity" : "uses"}
                   stroke="var(--spr-audio-line)"

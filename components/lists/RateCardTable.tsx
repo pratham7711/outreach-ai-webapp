@@ -97,7 +97,7 @@ export default function RateCardTable({
           {items.map((item, i) => (
             <div
               key={item.id}
-              className="cc-table-row"
+              className="cc-table-row cc-row-deferred"
               style={{ display: "grid", gridTemplateColumns: COLUMNS, gap: 12, padding: "12px 24px", alignItems: "center", borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined }}
             >
               <span style={{ display: "flex", gap: 2 }}>

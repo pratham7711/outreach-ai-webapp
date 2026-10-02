@@ -169,7 +169,7 @@ export default function MarketplaceAnalytics({
                   formatter={(v: any, name: any) => [formatNumber(Number(v ?? 0)), String(name)]}
                   contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 12, color: "var(--popover-foreground)", fontSize: "var(--cc-t-13)"}}
                 />
-                <Area type="monotone" dataKey="cumulative" name="Total joined" stroke="var(--cc-primary)" strokeWidth={2} fill="url(#mktJoins)" />
+                <Area isAnimationActive={false} type="monotone" dataKey="cumulative" name="Total joined" stroke="var(--cc-primary)" strokeWidth={2} fill="url(#mktJoins)" />
               </AreaChart>
             </ChartFrame>
           ) : (

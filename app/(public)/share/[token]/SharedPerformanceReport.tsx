@@ -246,6 +246,7 @@ export default function SharedPerformanceReport({
                       <Legend wrapperStyle={{ fontSize: 12, color: "var(--spr-label)" }} />
                       {activeSeries.map((s, i) => (
                         <Area
+                          isAnimationActive={false}
                           key={s.key}
                           type="monotone"
                           dataKey={s.key}
@@ -286,6 +287,7 @@ export default function SharedPerformanceReport({
                     <ChartFrame height={260}>
                       <PieChart>
                         <Pie
+                          isAnimationActive={false}
                           data={platformSplit.filter((p) => p.views > 0)}
                           cx="50%"
                           cy="50%"

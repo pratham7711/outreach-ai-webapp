@@ -70,6 +70,7 @@ export function PerformanceOverTimeArea({ data }: { data: PerformancePoint[] }) 
               formatter={(value) => [formatFull(Number(value)), "Views"]}
             />
             <Area
+              isAnimationActive={false}
               type="monotone"
               dataKey="views"
               name="Views"
@@ -105,6 +106,7 @@ export function PerformanceOverTimeArea({ data }: { data: PerformancePoint[] }) 
             />
             <Legend wrapperStyle={{ fontSize: "var(--cc-t-12)"}} />
             <Area
+              isAnimationActive={false}
               type="monotone"
               dataKey="likes"
               name="Likes"
@@ -115,6 +117,7 @@ export function PerformanceOverTimeArea({ data }: { data: PerformancePoint[] }) 
               dot={false}
             />
             <Area
+              isAnimationActive={false}
               type="monotone"
               dataKey="comments"
               name="Comments"
@@ -156,6 +159,7 @@ export function TrackingLine({ data }: { data: TrackingPoint[] }) {
               formatter={(value) => [formatFull(Number(value)), "Views"]}
             />
             <Line
+              isAnimationActive={false}
               type="monotone"
               dataKey="views"
               name="Views"
@@ -190,6 +194,7 @@ export function TrackingLine({ data }: { data: TrackingPoint[] }) {
               formatter={(value) => [formatFull(Number(value)), "Engagement"]}
             />
             <Line
+              isAnimationActive={false}
               type="monotone"
               dataKey="engagement"
               name="Engagement"

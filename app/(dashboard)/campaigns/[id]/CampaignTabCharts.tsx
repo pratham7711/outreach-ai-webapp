@@ -29,7 +29,7 @@ export function PlatformViewsPie({
   return (
     <ChartFrame minHeight={200}>
       <PieChart>
-        <Pie data={data} cx="50%" cy="50%" innerRadius={55} outerRadius={85} dataKey="value" nameKey="name" paddingAngle={2} label={false} stroke="var(--cc-card)" strokeWidth={2}>
+        <Pie isAnimationActive={false} data={data} cx="50%" cy="50%" innerRadius={55} outerRadius={85} dataKey="value" nameKey="name" paddingAngle={2} label={false} stroke="var(--cc-card)" strokeWidth={2}>
           {data.map((entry, i) => (
             <Cell key={i} fill={entry.fill} />
           ))}
@@ -94,8 +94,8 @@ export function CreatorPerformanceBar({
           wrapperStyle={{ fontSize: "var(--cc-t-12)"}}
           formatter={(value: any) => <span style={{ color: "var(--cc-text-muted)" }}>{value}</span>}
         />
-        <Bar yAxisId="views" dataKey="views" name="Views" fill="var(--chart-1)" radius={[4, 4, 0, 0]} />
-        <Bar yAxisId="likes" dataKey="likes" name="Likes" fill="var(--chart-3)" radius={[4, 4, 0, 0]} />
+        <Bar isAnimationActive={false} yAxisId="views" dataKey="views" name="Views" fill="var(--chart-1)" radius={[4, 4, 0, 0]} />
+        <Bar isAnimationActive={false} yAxisId="likes" dataKey="likes" name="Likes" fill="var(--chart-3)" radius={[4, 4, 0, 0]} />
       </BarChart>
     </ChartFrame>
   );
@@ -113,7 +113,7 @@ export function BudgetBreakdownPie({
   return (
     <ChartFrame minHeight={200}>
       <PieChart>
-        <Pie data={data} cx="50%" cy="50%" innerRadius={60} outerRadius={80} dataKey="value" paddingAngle={2}>
+        <Pie isAnimationActive={false} data={data} cx="50%" cy="50%" innerRadius={60} outerRadius={80} dataKey="value" paddingAngle={2}>
           <Cell fill="var(--cc-primary)" />
           {/* The "remaining" arc used --cc-bg, the page background, which sits
               on a --cc-card surface: the page's off-white on a white card is not

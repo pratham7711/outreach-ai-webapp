@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Card, EmptyState, Input, Modal, Skeleton } from "@pratham7711/ui";
@@ -231,6 +231,133 @@ function NoData({ title }: { title: string }) {
   );
 }
 
+/* One tracked creator. Memoised, with props that hold still while the list's
+   search box is typed in: every keystroke re-rendered all fifty rows and their
+   hundred age labels before the debounced search had even been sent. */
+const TrackerRow = memo(function TrackerRow({
+  c,
+  period,
+  cadenceHours,
+  anyFollowersChange,
+  anyViewsChange,
+  untracking,
+  onUntrack,
+  onOpen,
+}: {
+  c: TrackedCreator;
+  period: string;
+  cadenceHours: number | null;
+  anyFollowersChange: boolean;
+  anyViewsChange: boolean;
+  untracking: boolean;
+  onUntrack: (c: TrackedCreator) => void;
+  onOpen: (id: string) => void;
+}) {
+  const v = c.views;
+  const figures = trackedFigures(c);
+  return (
+    <Card variant="outlined" style={{ marginBottom: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flex: "1 1 220px", minWidth: 200 }}>
+          <CreatorAvatar id={c.id} name={c.name} size="lg" />
+          <div
+            style={{ minWidth: 0, cursor: "pointer" }}
+            onClick={() => onOpen(c.id)}
+          >
+            <div
+              title={c.name}
+              style={{
+                fontSize: "var(--cc-t-16)",
+                fontWeight: 700,
+                color: "var(--cc-primary)",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {c.name}
+            </div>
+            <div style={{ fontSize: "var(--cc-t-15)", color: "var(--cc-text-muted)" }}>
+              {formatHandle(c.handle)}
+            </div>
+          </div>
+        </div>
+
+        <FigureGroup
+          icon={<User size={22} />}
+          label="Followers"
+          value={<MetricFigure value={figures.followers} />}
+          valueTitle={metricReason(figures.followers)}
+          changeNode={
+            !anyFollowersChange ? undefined : c.followersChangePercent !== null ? (
+              <ChangeValue percent={c.followersChangePercent} />
+            ) : (
+              <NoData title={followersReason(c, period)} />
+            )
+          }
+          changeTitle={
+            c.followersDelta !== null
+              ? `${c.followersDelta >= 0 ? "+" : ""}${c.followersDelta.toLocaleString()} followers over ${periodLabel(period).toLowerCase()}`
+              : ""
+          }
+          age={
+            isUnknownMetric(figures.followers) ? undefined : (
+              <AgeLabel at={c.lastReadAt} field="tracker" ctx={{ cadenceHours }} source="Tracker reading" never="time not recorded" />
+            )
+          }
+        />
+
+        <FigureGroup
+          icon={<Play size={22} />}
+          label="Avg. Views"
+          value={<MetricFigure value={figures.avgViews} />}
+          valueTitle={
+            isUnknownMetric(figures.avgViews)
+              ? viewsReason(c)
+              : `Average views of their 10 newest posts, pinned posts left out. Measured ${timeAgo(v.measuredAt)}.`
+          }
+          changeNode={
+            !anyViewsChange ? undefined : v.changePercent !== null ? (
+              <ChangeValue percent={v.changePercent} />
+            ) : (
+              <NoData title={viewsReason(c)} />
+            )
+          }
+          changeTitle={
+            v.delta !== null
+              ? `${v.delta >= 0 ? "+" : ""}${Math.round(v.delta).toLocaleString()} average views over ${periodLabel(period).toLowerCase()}`
+              : ""
+          }
+          age={
+            isUnknownMetric(figures.avgViews) ? undefined : (
+              <AgeLabel at={v.measuredAt} field="tracker" ctx={{ cadenceHours }} source="Tracker reading" never="time not recorded" />
+            )
+          }
+        />
+
+        <button
+          onClick={() => onUntrack(c)}
+          disabled={untracking}
+          title="Stop tracking this creator"
+          style={{
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            padding: 6,
+            borderRadius: 6,
+            color: "var(--cc-text-muted)",
+            display: "flex",
+            alignItems: "center",
+            flexShrink: 0,
+          }}
+        >
+          <Trash2 size={16} />
+        </button>
+      </div>
+    </Card>
+  );
+});
+
 export function CreatorTrackers({
   pickerOpen,
   setPickerOpen,
@@ -329,7 +456,7 @@ export function CreatorTrackers({
     onError: (error) => toast.error(errorMessage(error, "Could not refresh this creator")),
   });
 
-  const untrackMutation = useMutation({
+  const { mutate: untrackMutate, isPending: untracking } = useMutation({
     mutationFn: (id: string) => apiDelete(`/api/trackers/creators/${id}`),
     onSuccess: () => {
       invalidate();
@@ -348,9 +475,11 @@ export function CreatorTrackers({
         confirmLabel: "Stop tracking",
         tone: "danger",
       });
-      if (ok) untrackMutation.mutate(c.id);
+      if (ok) untrackMutate(c.id);
     },
-    [confirm, untrackMutation]
+    /* mutate, not the mutation: the mutation object is new on every render,
+       which would hand every memoised row a new callback. */
+    [confirm, untrackMutate]
   );
 
   /* The page holds fifty, so the picker also trusts the creator's own row --
@@ -494,111 +623,19 @@ export function CreatorTrackers({
         />
       ) : (
         <>
-          {creators.map((c) => {
-            const v = c.views;
-            const figures = trackedFigures(c);
-            return (
-              <Card key={c.id} variant="outlined" style={{ marginBottom: 12 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 12, flex: "1 1 220px", minWidth: 200 }}>
-                    <CreatorAvatar id={c.id} name={c.name} size="lg" />
-                    <div
-                      style={{ minWidth: 0, cursor: "pointer" }}
-                      onClick={() => setOpenCreator(c.id)}
-                    >
-                      <div
-                        title={c.name}
-                        style={{
-                          fontSize: "var(--cc-t-16)",
-                          fontWeight: 700,
-                          color: "var(--cc-primary)",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {c.name}
-                      </div>
-                      <div style={{ fontSize: "var(--cc-t-15)", color: "var(--cc-text-muted)" }}>
-                        {formatHandle(c.handle)}
-                      </div>
-                    </div>
-                  </div>
-
-                  <FigureGroup
-                    icon={<User size={22} />}
-                    label="Followers"
-                    value={<MetricFigure value={figures.followers} />}
-                    valueTitle={metricReason(figures.followers)}
-                    changeNode={
-                      !anyFollowersChange ? undefined : c.followersChangePercent !== null ? (
-                        <ChangeValue percent={c.followersChangePercent} />
-                      ) : (
-                        <NoData title={followersReason(c, period)} />
-                      )
-                    }
-                    changeTitle={
-                      c.followersDelta !== null
-                        ? `${c.followersDelta >= 0 ? "+" : ""}${c.followersDelta.toLocaleString()} followers over ${periodLabel(period).toLowerCase()}`
-                        : ""
-                    }
-                    age={
-                      isUnknownMetric(figures.followers) ? undefined : (
-                        <AgeLabel at={c.lastReadAt} field="tracker" ctx={{ cadenceHours }} source="Tracker reading" never="time not recorded" />
-                      )
-                    }
-                  />
-
-                  <FigureGroup
-                    icon={<Play size={22} />}
-                    label="Avg. Views"
-                    value={<MetricFigure value={figures.avgViews} />}
-                    valueTitle={
-                      isUnknownMetric(figures.avgViews)
-                        ? viewsReason(c)
-                        : `Average views of their 10 newest posts, pinned posts left out. Measured ${timeAgo(v.measuredAt)}.`
-                    }
-                    changeNode={
-                      !anyViewsChange ? undefined : v.changePercent !== null ? (
-                        <ChangeValue percent={v.changePercent} />
-                      ) : (
-                        <NoData title={viewsReason(c)} />
-                      )
-                    }
-                    changeTitle={
-                      v.delta !== null
-                        ? `${v.delta >= 0 ? "+" : ""}${Math.round(v.delta).toLocaleString()} average views over ${periodLabel(period).toLowerCase()}`
-                        : ""
-                    }
-                    age={
-                      isUnknownMetric(figures.avgViews) ? undefined : (
-                        <AgeLabel at={v.measuredAt} field="tracker" ctx={{ cadenceHours }} source="Tracker reading" never="time not recorded" />
-                      )
-                    }
-                  />
-
-                  <button
-                    onClick={() => untrack(c)}
-                    disabled={untrackMutation.isPending}
-                    title="Stop tracking this creator"
-                    style={{
-                      background: "none",
-                      border: "none",
-                      cursor: "pointer",
-                      padding: 6,
-                      borderRadius: 6,
-                      color: "var(--cc-text-muted)",
-                      display: "flex",
-                      alignItems: "center",
-                      flexShrink: 0,
-                    }}
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-              </Card>
-            );
-          })}
+          {creators.map((c) => (
+            <TrackerRow
+              key={c.id}
+              c={c}
+              period={period}
+              cadenceHours={cadenceHours}
+              anyFollowersChange={anyFollowersChange}
+              anyViewsChange={anyViewsChange}
+              untracking={untracking}
+              onUntrack={untrack}
+              onOpen={setOpenCreator}
+            />
+          ))}
           {data && data.total > data.pageSize && (
             <Pagination
               style={{ marginTop: 16 }}

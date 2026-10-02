@@ -104,7 +104,7 @@ export default function CalendarPage() {
   } : null;
 
   return (
-    <div className="rsp-page cc-cal-page">
+    <div className="rsp-page cc-bleed-page cc-cal-page">
       <style>{`
         .cal-more { display: none; }
         @media (max-width: 767px) {

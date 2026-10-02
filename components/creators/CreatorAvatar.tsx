@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Avatar } from "@pratham7711/ui";
+import { useState, useSyncExternalStore } from "react";
 
 type Size = "sm" | "md" | "lg";
 
@@ -52,16 +51,35 @@ export default function CreatorAvatar({
 }) {
   /* The src is set only after hydration. In server-rendered HTML the browser
      starts the request before React attaches onError, so a 404 for a creator
-     with no picture left a broken-image icon instead of initials. */
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+     with no picture left a broken-image icon instead of initials. A component
+     mounted by a client-side navigation is already past hydration, so it gets
+     its src on the first render instead of rendering twice. */
+  const hydrated = useSyncExternalStore(noSubscription, () => true, () => false);
+  /* The src that failed, rather than a flag: a new src gets its own attempt
+     without remounting the avatar to clear it. */
+  const [failed, setFailed] = useState<string | null>(null);
+  const url = hydrated && version !== null ? (src ?? creatorAvatarSrc(id, size, version)) : undefined;
+  /* The markup and classes of the design system's Avatar, which has no way to
+     ask for a lazy image: a 300-creator list asked the server for all 300
+     pictures at once, where only the rows on screen need one. */
   return (
-    <Avatar
-      key={`${id ?? name}:${mounted}`}
-      name={name}
-      size={size}
-      src={mounted && version !== null ? (src ?? creatorAvatarSrc(id, size, version)) : undefined}
-      className={className}
-    />
+    <span className={`ui-avatar ui-avatar-${size} ${className ?? ""}`}>
+      {url && failed !== url ? (
+        // eslint-disable-next-line @next/next/no-img-element -- the route resizes and caches it; next/image would proxy it a second time
+        <img src={url} alt={name} loading="lazy" decoding="async" onError={() => setFailed(url)} />
+      ) : (
+        <span aria-label={name}>{name ? initials(name) : "?"}</span>
+      )}
+    </span>
   );
+}
+
+const noSubscription = () => () => {};
+
+/** The design system Avatar's initials: first two letters of one word, else first and last initials. */
+function initials(name: string): string {
+  const words = name.trim().split(/\s+/);
+  return words.length === 1
+    ? words[0].slice(0, 2).toUpperCase()
+    : (words[0][0] + words[words.length - 1][0]).toUpperCase();
 }

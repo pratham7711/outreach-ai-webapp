@@ -3758,7 +3758,7 @@ h1, h2, h3, h4, h5, h6 {
 
 /* ── Animation utilities ── */
 .cc-animate-in {
-  animation: cc-fade-in 0.3s ease-out;
+  animation: cc-fade-in 0.15s ease-out;
 }
 
 .cc-slide-up {
@@ -3773,18 +3773,33 @@ h1, h2, h3, h4, h5, h6 {
   animation: cc-scale-in 0.25s ease-out;
 }
 
-/* Staggered animation delays for list items */
+/* List rows fade in together. They used to slide up one after another, 50ms
+   apart over 0.4s, which held a list that had already loaded half-drawn for
+   about 0.75s: measured, content ready 80-380ms after a click and the last row
+   still moving at 1.1s. */
 .cc-stagger > * {
-  animation: cc-slide-up 0.4s ease-out both;
+  animation: cc-fade-in 0.15s ease-out both;
 }
-.cc-stagger > *:nth-child(1) { animation-delay: 0ms; }
-.cc-stagger > *:nth-child(2) { animation-delay: 50ms; }
-.cc-stagger > *:nth-child(3) { animation-delay: 100ms; }
-.cc-stagger > *:nth-child(4) { animation-delay: 150ms; }
-.cc-stagger > *:nth-child(5) { animation-delay: 200ms; }
-.cc-stagger > *:nth-child(6) { animation-delay: 250ms; }
-.cc-stagger > *:nth-child(7) { animation-delay: 300ms; }
-.cc-stagger > *:nth-child(8) { animation-delay: 350ms; }
+
+/* A long list's rows skip style, layout and paint while they are off screen.
+   A 300-row list was one 165ms style-and-layout task at 4x CPU (192ms in
+   creatorcore), nearly all of it for rows nobody could see yet. The intrinsic
+   size is the rate card row's measured CONTENT box -- the property sizes the
+   content box, so its 24px of padding and 1px rule are added on top -- which
+   keeps the scroller exactly as long as it was. It only stands in for rows not
+   yet drawn, and `auto` keeps a row's real height once it has been. Creatorcore
+   needs nothing of its own: its rows are held at 90px by min-height, which a
+   skipped row still obeys. Only for rows that render no popover of their own:
+   paint containment would clip it. */
+.cc-row-deferred {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 39px;
+}
+@media (max-width: 767px) {
+  .cc-row-deferred {
+    contain-intrinsic-size: auto 44px;
+  }
+}
 
 /* ── Sidebar nav item styles ── */
 .cc-nav-item {
@@ -5591,7 +5606,7 @@ h1, h2, h3, h4, h5, h6 {
 /* ── Page content area ── */
 .cc-page-content {
   padding: 32px 40px 48px;
-  animation: cc-fade-in 0.3s ease-out;
+  animation: cc-fade-in 0.15s ease-out;
 }
 
 /* ── Empty state ── */
@@ -5717,8 +5732,12 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 /* Only a page that actually carries a bleed element becomes a grid; every other
-   page stays the block it was. */
-.rsp-page:has(> .cc-bleed) {
+   page stays the block it was. The page says so with .cc-bleed-page rather than
+   this being worked out with `.rsp-page:has(> .cc-bleed) > *`: a rule whose
+   subject sits under a :has() makes Chrome restyle the whole document on every
+   DOM insertion anywhere -- measured at 15ms per insertion on a 9,300-element
+   list, where it was 0.2ms without one. */
+.rsp-page.cc-bleed-page {
   display: grid;
   grid-template-columns:
     [full-start] var(--cc-page-bleed-l)
@@ -5729,7 +5748,7 @@ h1, h2, h3, h4, h5, h6 {
     calc(var(--cc-page-pad-end) - var(--cc-page-bleed-r));
 }
 
-.rsp-page:has(> .cc-bleed) > * {
+.rsp-page.cc-bleed-page > * {
   grid-column: content;
 }
 
@@ -7566,7 +7585,9 @@ html:has(.lp-page) { scroll-behavior: smooth; }
 /* ── UI Polish utilities ── */
 
 /* Page transition — fade + subtle slide up */
-.page-enter { animation: pageEnter 0.3s ease-out; }
+/* Short on purpose: a page whose data is already here should not spend longer
+   arriving than it took to load. */
+.page-enter { animation: pageEnter 0.15s ease-out; }
 @keyframes pageEnter {
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
@@ -9228,9 +9249,9 @@ html:has(.lp-page) { scroll-behavior: smooth; }
   display: contents;
 }
 /* A `display: contents` box's children are still grid items of .rsp-page, but
-   `.rsp-page:has(> .cc-bleed) > *` no longer reaches them, so they would drop
+   `.rsp-page.cc-bleed-page > *` no longer reaches them, so they would drop
    into the bleed track. Measured: without this, the list sat 41px lower. */
-.rsp-page:has(> .cc-bleed) > .cc-campaigns-head > * {
+.rsp-page.cc-bleed-page > .cc-campaigns-head > * {
   grid-column: content;
 }
 
@@ -9522,11 +9543,12 @@ html:has(.lp-page) { scroll-behavior: smooth; }
    The top bar leaves the trail about 170px between the menu button and the
    icons. "Home > Settings > Notifications" does not fit, and the leaf, the one
    crumb that says where you are, was the one that got truncated, down to "N".
-   On a detail trail (two separators) Home goes, since the menu button already
+   On a detail trail (two separators, which TopBar marks data-trail="detail")
+   Home goes, since the menu button already
    leads there. */
 @media (max-width: 767px) {
-  .cc-topbar-start:has(> .cc-crumb-sep ~ .cc-crumb-sep) > .cc-crumb:first-child,
-  .cc-topbar-start:has(> .cc-crumb-sep ~ .cc-crumb-sep) > .cc-crumb:first-child + .cc-crumb-sep {
+  .cc-topbar-start[data-trail="detail"] > .cc-crumb:first-child,
+  .cc-topbar-start[data-trail="detail"] > .cc-crumb:first-child + .cc-crumb-sep {
     display: none;
   }
 }

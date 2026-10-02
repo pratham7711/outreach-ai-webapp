@@ -332,6 +332,7 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
               <Legend wrapperStyle={{ fontSize: "var(--cc-t-12)"}} />
               {activeSeries.map((s) => (
                 <Area
+                  isAnimationActive={false}
                   key={s.key}
                   type="monotone"
                   dataKey={s.key}
@@ -357,6 +358,7 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
             <ChartFrame height={260}>
               <PieChart>
                 <Pie
+                  isAnimationActive={false}
                   data={pieData}
                   cx="50%"
                   cy="50%"

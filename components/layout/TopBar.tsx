@@ -146,7 +146,7 @@ export function TopBar({ user, navHrefs }: { user?: TopBarUser; navHrefs?: strin
   return (
     <header className="cc-topbar" data-region="topbar">
       {/* Breadcrumb */}
-      <nav aria-label="Breadcrumb" className="cc-topbar-start">
+      <nav aria-label="Breadcrumb" className="cc-topbar-start" data-trail={isDetailPage ? "detail" : undefined}>
         <Link href="/dashboard" className="cc-crumb">
           Home
         </Link>

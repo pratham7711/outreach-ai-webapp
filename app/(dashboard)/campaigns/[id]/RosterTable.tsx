@@ -6,6 +6,7 @@ import { Badge, Card, EmptyState, Input } from "@pratham7711/ui";
 import { Columns3, Search, UserPlus, Users } from "lucide-react";
 import { Button, useTableSort, type SortAccessors, type SortState } from "@/components/ds";
 import { formatDateAbs, stripAt, formatFull } from "@/lib/format";
+import { formatMoney } from "@/lib/money";
 import { CampaignHeaderActions } from "@/components/campaigns/CampaignHeaderActions";
 import { action } from "@/lib/ui/actions";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
@@ -83,7 +84,7 @@ function unwritten(v: number | null | undefined): number | null {
 }
 
 function currencyOf(n: number, currency: string): string {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: currency || "USD" }).format(n);
+  return formatMoney(n, currency);
 }
 
 const ACCESSORS: SortAccessors<RosterRow> = {

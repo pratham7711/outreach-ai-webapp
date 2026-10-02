@@ -14,7 +14,7 @@ import CreativeBriefCard from "./CreativeBriefCard";
 import RosterTable, { ROSTER_COLUMNS, ROSTER_DEFAULT_COLUMNS } from "./RosterTable";
 import { readCampaignSection } from "@/lib/campaignSections";
 import { SHOW_MONEY } from "@/lib/moneyUi";
-import { useCampaignNav } from "@/components/providers/CampaignNavProvider";
+import { useCampaignNavPublish } from "@/components/providers/CampaignNavProvider";
 import { CampaignAudioSetup } from "@/components/campaigns/CampaignAudioSetup";
 import { CAMPAIGN_HEADER_ACTIONS_ID } from "@/components/campaigns/CampaignHeaderActions";
 import InvitesSection from "./InvitesSection";
@@ -166,6 +166,8 @@ type Activation = {
     followersCount: number; avatarUrl: string | null; rate: number | null;
   };
 };
+
+const TOP_CREATOR_BARS = 10;
 
 const CAMPAIGN_TYPE_LABELS: Record<string, string> = {
   BUDGET_BASED: "Budget Based",
@@ -461,35 +463,39 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
 
   useEffect(() => { loadCampaign(); }, [loadCampaign]);
 
-  useEffect(() => {
-    if (campaign) {
-      setEditForm({
-        title: campaign.title,
-        status: campaign.status,
-        currency: campaign.currency,
-        notes: campaign.notes ?? "",
-        clientId: campaign.clientId ?? "",
-        budget: campaign.budget != null ? String(campaign.budget) : "",
-      });
-      const rates: Partial<Record<(typeof MARKETPLACE_PLATFORMS)[number], string>> = {};
-      const src = campaign.ratePerThousand ?? {};
-      for (const p of MARKETPLACE_PLATFORMS) {
-        const v = src[p];
-        if (v != null) rates[p] = minorToMajor(v);
-      }
-      setMkt({
-        marketplaceVisibility: campaign.marketplaceVisibility ?? "PRIVATE",
-        guidelines: campaign.guidelines ?? "",
-        requirements: campaign.requirements ?? "",
-        contentAssetsUrl: campaign.contentAssetsUrl ?? "",
-        rates,
-        submissionDeadline: campaign.submissionDeadline
-          ? campaign.submissionDeadline.slice(0, 10)
-          : "",
-        autoApproveHours: campaign.autoApproveHours != null ? String(campaign.autoApproveHours) : "48",
-      });
+  /* The edit and marketplace forms start from the campaign. Reset while
+     rendering the campaign that changed rather than in an effect after it: the
+     effect committed the whole page once with the old forms, then rendered it
+     all again with the new ones. */
+  const [formsFrom, setFormsFrom] = useState<Campaign | null>(null);
+  if (campaign && campaign !== formsFrom) {
+    setFormsFrom(campaign);
+    setEditForm({
+      title: campaign.title,
+      status: campaign.status,
+      currency: campaign.currency,
+      notes: campaign.notes ?? "",
+      clientId: campaign.clientId ?? "",
+      budget: campaign.budget != null ? String(campaign.budget) : "",
+    });
+    const rates: Partial<Record<(typeof MARKETPLACE_PLATFORMS)[number], string>> = {};
+    const src = campaign.ratePerThousand ?? {};
+    for (const p of MARKETPLACE_PLATFORMS) {
+      const v = src[p];
+      if (v != null) rates[p] = minorToMajor(v);
     }
-  }, [campaign]);
+    setMkt({
+      marketplaceVisibility: campaign.marketplaceVisibility ?? "PRIVATE",
+      guidelines: campaign.guidelines ?? "",
+      requirements: campaign.requirements ?? "",
+      contentAssetsUrl: campaign.contentAssetsUrl ?? "",
+      rates,
+      submissionDeadline: campaign.submissionDeadline
+        ? campaign.submissionDeadline.slice(0, 10)
+        : "",
+      autoApproveHours: campaign.autoApproveHours != null ? String(campaign.autoApproveHours) : "48",
+    });
+  }
 
 
   useEffect(() => {
@@ -653,7 +659,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
   /* What the rail shows beside each section. The rail lives in the dashboard
      layout, above this page, so the counts travel up through the provider
      rather than the sidebar fetching this campaign a second time. */
-  const { publish: publishCampaignNav } = useCampaignNav();
+  const publishCampaignNav = useCampaignNavPublish();
   useEffect(() => {
     publishCampaignNav({
       title: campaign?.title ?? null,
@@ -732,9 +738,18 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
     return acc;
   }, {} as Record<string, { views: number; likes: number; posts: number }>);
 
-  const creatorBarData = Object.entries(creatorStats).map(([name, stats]) => ({
-    name: name.split(" ")[0], views: stats.views, likes: stats.likes,
-  }));
+  /* The leaders only. Every creator used to get a bar pair, in post order: a
+     120-creator campaign drew 240 bars into a 240px card, so no label could be
+     read, and recharts measured every one of those 120 tick labels in the DOM
+     -- a single 290ms task at 4x CPU, which put this tab over the 200ms
+     Total Blocking Time budget on its own. */
+  const creatorCount = Object.keys(creatorStats).length;
+  const creatorBarData = Object.entries(creatorStats)
+    .sort(([, a], [, b]) => b.views - a.views)
+    .slice(0, TOP_CREATOR_BARS)
+    .map(([name, stats]) => ({
+      name: name.split(" ")[0], views: stats.views, likes: stats.likes,
+    }));
 
   return (
     <div className="cc-page-content rsp-page">
@@ -816,6 +831,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
         id="campaign-section-panel"
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.15, ease: "easeOut" }}
       >
         {/* Performance */}
         {activeTab === "performance" && (
@@ -1016,7 +1032,12 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
 
               {/* Creator performance */}
               <Card variant="outlined" style={{ padding: 24 }}>
-                <span className="cc-panel-title cc-chart-title" style={{ display: "block", marginBottom: 16 }}>Creator Performance</span>
+                <span className="cc-panel-title cc-chart-title" style={{ display: "block", marginBottom: creatorCount > TOP_CREATOR_BARS ? 4 : 16 }}>Creator Performance</span>
+                {creatorCount > TOP_CREATOR_BARS && (
+                  <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", marginBottom: 12 }}>
+                    Top {TOP_CREATOR_BARS} of {creatorCount} creators, by views
+                  </p>
+                )}
                 {creatorBarData.length > 0 ? (
                   <div style={{ height: 240 }}>
                     <CreatorPerformanceBar data={creatorBarData} formatNumber={formatNumber} />
