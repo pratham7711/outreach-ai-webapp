@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import type { Platform, Prisma } from "@/lib/generated/prisma/client";
 import { grantTablesReady } from "@/lib/creators/grantTables";
 import { createLogger } from "@/lib/observability/logger";
+import { ACCOUNT_ORIGINS } from "@/lib/platforms/accountOrigin";
 
 /**
  * The one way an agency-side reader gets a creator's connection (plan K4, A8).
@@ -76,14 +77,29 @@ function orderFor(filter: ConnectionFilter): Prisma.CreatorSocialAccountOrderByW
   return undefined;
 }
 
+/**
+ * A hand-entered row is the agency's note of who a creator is, never their
+ * connection: its token is the literal "manual-entry" and no consent stands
+ * behind it (plan A8). The grant check refuses one too, but only once the grant
+ * table exists; before that this is the only lock, and an unordered first match
+ * could hand a reader the typed-in row in place of the real connection beside
+ * it on the same platform. NULL origin predates the column and stays readable.
+ */
+export const NOT_MANUAL_ORIGIN: Prisma.CreatorSocialAccountWhereInput = {
+  OR: [{ origin: null }, { origin: { not: ACCOUNT_ORIGINS.MANUAL } }],
+};
+
 export async function connectionForRead(
   orgId: string,
   creatorId: string,
   platform: Platform,
   filter: ConnectionFilter = {},
 ): Promise<ConnectionRead> {
+  /* The reader's filter goes under AND rather than being spread in, so its own
+     OR or AND cannot displace the manual-row exclusion, and a creator, platform
+     or org it names can only narrow the answer, never redirect it. */
   const where: Prisma.CreatorSocialAccountWhereInput = {
-    ...filter.where,
+    AND: [filter.where ?? {}, NOT_MANUAL_ORIGIN],
     creatorId,
     platform,
     creator: { orgId },
@@ -166,4 +182,19 @@ export async function grantedConnectionKeys(
     });
     return new Set();
   }
+}
+
+/**
+ * Whether a bulk reader may use `account` for `orgId`, given what
+ * grantedConnectionKeys answered: the same two locks as connectionForRead. A
+ * hand-entered row is refused outright, which matters while the gate is open
+ * (`granted` null) and every row would otherwise pass.
+ */
+export function readableConnection(
+  granted: Set<string> | null,
+  orgId: string,
+  account: { id: string; origin: string | null },
+): boolean {
+  if (account.origin === ACCOUNT_ORIGINS.MANUAL) return false;
+  return granted === null || granted.has(grantKey(orgId, account.id));
 }

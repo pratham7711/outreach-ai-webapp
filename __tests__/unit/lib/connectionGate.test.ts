@@ -25,6 +25,8 @@ import {
   connectionForRead,
   grantedConnectionKeys,
   grantKey,
+  NOT_MANUAL_ORIGIN,
+  readableConnection,
   resetConnectionGateLog,
 } from "@/lib/creators/connectionGate";
 
@@ -34,7 +36,7 @@ const mockDb = db as unknown as {
   creatorGrant: { findMany: jest.Mock };
 };
 
-type Row = { id: string; creatorId: string; orgId: string; platform: string };
+type Row = { id: string; creatorId: string; orgId: string; platform: string; origin?: string | null };
 type Grant = { id: string; orgId: string; connectionId: string; revokedAt: Date | null };
 
 /* A two-org world. The same person is rostered in both; only org A's roster
@@ -48,7 +50,7 @@ function connectionFields(r: Row) {
     creatorId: r.creatorId,
     platform: r.platform,
     handle: "fake_handle_a",
-    origin: "oauth",
+    origin: r.origin === undefined ? "oauth" : r.origin,
     accessToken: "enc:v1:sealed",
     refreshToken: null,
     tokenExpiry: null,
@@ -58,11 +60,14 @@ function connectionFields(r: Row) {
   };
 }
 
-/** The where clause as Postgres would apply it, org filter included. */
-function matchRows(where: { creatorId: string; platform: string; creator?: { orgId: string } }) {
+/** The where clause as Postgres would apply it, org filter and the manual-row
+ *  exclusion included -- the latter only when the gate actually asked for it. */
+function matchRows(where: { creatorId: string; platform: string; creator?: { orgId: string }; AND?: unknown[] }) {
+  const excludesManual = Array.isArray(where.AND) && where.AND.includes(NOT_MANUAL_ORIGIN);
   return rows
     .filter((r) => r.creatorId === where.creatorId && r.platform === where.platform)
     .filter((r) => !where.creator || r.orgId === where.creator.orgId)
+    .filter((r) => !excludesManual || r.origin !== "manual")
     .map(connectionFields);
 }
 
@@ -152,7 +157,12 @@ describe("connectionForRead, with the grant table", () => {
   it("passes a reader's filter and order through, under the org it names", async () => {
     await connectionForRead("org-a", "creator-a", "TIKTOK", { where: { origin: "oauth" }, order: "oldest" });
     const args = mockDb.creatorSocialAccount.findMany.mock.calls[0][0];
-    expect(args.where).toEqual({ origin: "oauth", creatorId: "creator-a", platform: "TIKTOK", creator: { orgId: "org-a" } });
+    expect(args.where).toEqual({
+      AND: [{ origin: "oauth" }, NOT_MANUAL_ORIGIN],
+      creatorId: "creator-a",
+      platform: "TIKTOK",
+      creator: { orgId: "org-a" },
+    });
     expect(args.orderBy).toEqual({ createdAt: "asc" });
   });
 
@@ -196,6 +206,52 @@ describe("connectionForRead, before the grant table exists", () => {
     mockDb.$queryRawUnsafe.mockRejectedValue(new Error("db down"));
     const read = await connectionForRead("org-a", "creator-a", "TIKTOK");
     expect(read.ok).toBe(true);
+  });
+
+  /* Plan A8. With no grant to check, the query is the only lock: a typed-in
+     row sitting first on the same platform used to be the "first matching
+     row", and the reader then took a creator who had connected for one who
+     had not. */
+  it("never hands a reader a hand-entered row, even one ahead of the real connection", async () => {
+    rows = [
+      { id: "conn-manual", creatorId: "creator-a", orgId: "org-a", platform: "TIKTOK", origin: "manual" },
+      { id: "conn-a", creatorId: "creator-a", orgId: "org-a", platform: "TIKTOK" },
+    ];
+    const read = await connectionForRead("org-a", "creator-a", "TIKTOK");
+    expect(read.ok && read.connection.id).toBe("conn-a");
+  });
+
+  it("answers no_connection when the only row was typed in", async () => {
+    rows = [{ id: "conn-manual", creatorId: "creator-a", orgId: "org-a", platform: "TIKTOK", origin: "manual" }];
+    expect(await connectionForRead("org-a", "creator-a", "TIKTOK")).toEqual({ ok: false, unknown: "no_connection" });
+  });
+
+  it("still reads a row from before the origin column existed", async () => {
+    rows = [{ id: "conn-legacy", creatorId: "creator-a", orgId: "org-a", platform: "TIKTOK", origin: null }];
+    const read = await connectionForRead("org-a", "creator-a", "TIKTOK");
+    expect(read.ok && read.connection.id).toBe("conn-legacy");
+  });
+});
+
+describe("readableConnection (the bulk reader's per-row check)", () => {
+  const granted = new Set([grantKey("org-a", "conn-a")]);
+
+  it("refuses a hand-entered row while the gate is open", () => {
+    expect(readableConnection(null, "org-a", { id: "conn-manual", origin: "manual" })).toBe(false);
+  });
+
+  it("refuses a hand-entered row even if a grant were on record for it", () => {
+    expect(readableConnection(new Set([grantKey("org-a", "conn-manual")]), "org-a", { id: "conn-manual", origin: "manual" })).toBe(false);
+  });
+
+  it("uses every other row while the gate is open, as before", () => {
+    expect(readableConnection(null, "org-a", { id: "conn-a", origin: "oauth" })).toBe(true);
+    expect(readableConnection(null, "org-a", { id: "conn-old", origin: null })).toBe(true);
+  });
+
+  it("uses a row only for the org holding its grant once the gate is closed", () => {
+    expect(readableConnection(granted, "org-a", { id: "conn-a", origin: "oauth" })).toBe(true);
+    expect(readableConnection(granted, "org-b", { id: "conn-a", origin: "oauth" })).toBe(false);
   });
 });
 

@@ -20,6 +20,7 @@ const mockTransaction = jest.fn();
 const mockSnapshotCreate = jest.fn();
 const mockCreatorUpdate = jest.fn();
 const mockCreatorUpdateMany = jest.fn();
+const mockProtectedFollowers = jest.fn();
 
 jest.mock("@/lib/db", () => ({
   db: {
@@ -31,6 +32,10 @@ jest.mock("@/lib/db", () => ({
     },
     $transaction: (...a: any[]) => mockTransaction(...a),
   },
+}));
+
+jest.mock("@/lib/creators/followerWriter", () => ({
+  protectedCreatorFollowers: (...a: any[]) => mockProtectedFollowers(...a),
 }));
 
 import { applyPostMetrics, keepPrecise } from "@/lib/sync/syncPost";
@@ -66,6 +71,7 @@ beforeEach(() => {
   mockSnapshotCreate.mockReset().mockResolvedValue({});
   mockCreatorUpdate.mockReset().mockResolvedValue({});
   mockCreatorUpdateMany.mockReset().mockResolvedValue({ count: 1 });
+  mockProtectedFollowers.mockReset().mockResolvedValue(null);
   // The real $transaction resolves the array it is handed; the calls inside it
   // have already been made by the time it runs, which is what we assert on.
   mockTransaction.mockReset().mockImplementation(async (ops: unknown[]) => {
@@ -378,5 +384,75 @@ describe("a rounded read never destroys an exact figure", () => {
       const call = mockCreatorUpdateMany.mock.calls[0][0];
       expect(call.where).toEqual({ id: post.creatorId });
     });
+  });
+});
+
+/**
+ * One writer per field (plan A7). A counter the creator's own connection wrote
+ * is not replaced by a public reading inside the field's freshness window --
+ * neither on the post nor in the snapshot drawn from it -- and the post's
+ * author-follower figure yields the same way to a connected one on the creator.
+ */
+describe("applyPostMetrics — the source order", () => {
+  const ago = (h: number) => new Date(Date.now() - h * 60 * 60 * 1000).toISOString();
+  const signed = (views: { source: string; at: string }) => ({
+    ...post,
+    platform: "TIKTOK",
+    viewsCount: 48_210,
+    likesCount: 480,
+    platformMetrics: { __writers: { views } },
+  });
+
+  it("keeps a fresh connected view count when a public read arrives", async () => {
+    const at = ago(1);
+    await applyPostMetrics(signed({ source: "connected", at }) as any, metrics({ viewsCount: 47_900, likesCount: 500 }));
+    const data = postWriteData();
+    expect(data.viewsCount).toBe(48_210);
+    expect(data.likesCount).toBe(500);
+    expect(data.platformMetrics.__writers.views).toEqual({ source: "connected", at });
+    expect(data.platformMetrics.__writers.likes.source).toBe("public");
+    // The history is drawn from the same figure, so it shows no drop.
+    expect(mockSnapshotCreate.mock.calls[0][0].data.viewsCount).toBe(48_210);
+    expect(data.engagementRate).toBeCloseTo(((500 + 0) / 48_210) * 100);
+  });
+
+  it("replaces a connected view count once it is stale", async () => {
+    await applyPostMetrics(signed({ source: "connected", at: ago(7) }) as any, metrics({ viewsCount: 47_900 }));
+    expect(postWriteData().viewsCount).toBe(47_900);
+    expect(postWriteData().platformMetrics.__writers.views.source).toBe("public");
+    expect(mockSnapshotCreate.mock.calls[0][0].data.viewsCount).toBe(47_900);
+  });
+
+  it("never lets a manual figure block a reading", async () => {
+    await applyPostMetrics(signed({ source: "manual", at: ago(0) }) as any, metrics({ viewsCount: 47_900 }));
+    expect(postWriteData().viewsCount).toBe(47_900);
+  });
+
+  it("signs a counter the connection read as connected", async () => {
+    await applyPostMetrics(
+      { ...post, platformMetrics: {} } as any,
+      metrics({ viewsCount: 48_210, likesCount: 500, connectedCounters: ["views"] }),
+    );
+    const writers = postWriteData().platformMetrics.__writers;
+    expect(writers.views.source).toBe("connected");
+    expect(writers.likes.source).toBe("public");
+  });
+
+  it("leaves a fresh connected follower figure on the creator in place", async () => {
+    mockProtectedFollowers.mockResolvedValue(215_400);
+    await applyPostMetrics(
+      { ...post, platform: "INSTAGRAM" } as any,
+      metrics({ viewsCount: 100, authorFollowers: 215_293 }),
+    );
+    expect(mockProtectedFollowers).toHaveBeenCalledWith(post.creatorId, expect.any(Date));
+    const call = mockCreatorUpdateMany.mock.calls[0][0];
+    expect(call.where).toEqual({ id: post.creatorId, NOT: { followersCount: 215_400 } });
+    expect(call.data).toEqual({ followersCount: 215_293 });
+  });
+
+  it("does not ask about followers when the read carried none", async () => {
+    await applyPostMetrics(post, metrics({ viewsCount: 100 }));
+    expect(mockProtectedFollowers).not.toHaveBeenCalled();
+    expect(mockCreatorUpdateMany).not.toHaveBeenCalled();
   });
 });

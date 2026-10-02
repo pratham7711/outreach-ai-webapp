@@ -4,9 +4,10 @@
 jest.mock("@/lib/db", () => ({
   db: {
     creatorProfileLink: { findMany: jest.fn(), update: jest.fn() },
-    creator: { update: jest.fn() },
+    creator: { update: jest.fn(), updateMany: jest.fn() },
   },
 }));
+jest.mock("@/lib/creators/followerWriter", () => ({ protectedCreatorFollowers: jest.fn() }));
 jest.mock("@/lib/platforms/creatorProfile", () => ({ readCreatorProfile: jest.fn() }));
 jest.mock("@/lib/creators/avatarStore", () => ({ captureLatestAvatar: jest.fn() }));
 jest.mock("@/lib/creators/rosterTables", () => ({ rosterTablesReady: jest.fn() }));
@@ -15,6 +16,7 @@ import { db } from "@/lib/db";
 import { readCreatorProfile } from "@/lib/platforms/creatorProfile";
 import { captureLatestAvatar } from "@/lib/creators/avatarStore";
 import { rosterTablesReady } from "@/lib/creators/rosterTables";
+import { protectedCreatorFollowers } from "@/lib/creators/followerWriter";
 import { PROFILE_REFRESH_MS, refreshRosterProfiles } from "@/lib/creators/profileRefresh";
 
 const mockDb = db as any;
@@ -34,6 +36,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   (rosterTablesReady as jest.Mock).mockResolvedValue(true);
   mockCapture.mockResolvedValue(true);
+  (protectedCreatorFollowers as jest.Mock).mockResolvedValue(null);
 });
 
 describe("refreshRosterProfiles", () => {
@@ -120,5 +123,36 @@ describe("refreshRosterProfiles", () => {
     });
     const counts = await refreshRosterProfiles({ nowMs: NOW, deadlineMs: 10 });
     expect(counts).toMatchObject({ considered: 1, skipped: 1 });
+  });
+
+  /* Plan A7: this read is public, so a connected figure the tracker wrote onto
+     the creator inside its freshness window stays. */
+  it("leaves a fresh connected follower figure on the creator and still writes the averages", async () => {
+    (protectedCreatorFollowers as jest.Mock).mockResolvedValue(51_234);
+    mockDb.creatorProfileLink.findMany.mockResolvedValue([link()]);
+    mockRead.mockResolvedValue(profile());
+    await refreshRosterProfiles({ nowMs: NOW });
+    expect(protectedCreatorFollowers).toHaveBeenCalledWith("c1", new Date(NOW));
+    expect(mockDb.creator.updateMany).toHaveBeenCalledWith({
+      where: { id: "c1", orgId: "org-1", NOT: { followersCount: 51_234 } },
+      data: { followersCount: 51000 },
+    });
+    expect(mockDb.creator.update).toHaveBeenCalledWith({ where: { id: "c1", orgId: "org-1" }, data: { averageViews: 9000 } });
+  });
+
+  it("writes no empty update when a protected creator's read sampled no posts", async () => {
+    (protectedCreatorFollowers as jest.Mock).mockResolvedValue(51_234);
+    mockDb.creatorProfileLink.findMany.mockResolvedValue([link()]);
+    mockRead.mockResolvedValue(profile({ sampledPosts: 0 }));
+    await refreshRosterProfiles({ nowMs: NOW });
+    expect(mockDb.creator.updateMany).toHaveBeenCalledTimes(1);
+    expect(mockDb.creator.update).not.toHaveBeenCalled();
+  });
+
+  it("does not ask about a non-primary account, which never writes the creator", async () => {
+    mockDb.creatorProfileLink.findMany.mockResolvedValue([link({ isPrimary: false })]);
+    mockRead.mockResolvedValue(profile());
+    await refreshRosterProfiles({ nowMs: NOW });
+    expect(protectedCreatorFollowers).not.toHaveBeenCalled();
   });
 });
