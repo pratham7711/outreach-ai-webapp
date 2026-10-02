@@ -42,7 +42,7 @@ describe('GET /api/campaigns/[id]/invites', () => {
   });
 
   it('returns invite list', async () => {
-    const invites = [{ id: 'inv-1', creatorId: 'c1', status: 'PENDING' }];
+    const invites = [{ id: 'inv-1', creatorId: 'c1', inviteToken: 'tok_abc', status: 'PENDING' }];
     mockDb.campaignInvite.findMany.mockResolvedValue(invites);
     const creator = { id: 'c1', name: 'Cee Creator', handle: 'cee' };
     mockDb.creator.findMany.mockResolvedValue([creator]);
@@ -50,7 +50,8 @@ describe('GET /api/campaigns/[id]/invites', () => {
     const body = await res.json();
     expect(res.status).toBe(200);
     // The table shows a name, not a cuid, so each row carries its creator.
-    expect(body.invites).toEqual([{ ...invites[0], creator }]);
+    // ...and the link the agency copies is the landing page, not the POST-only API.
+    expect(body.invites).toEqual([{ ...invites[0], invitePath: '/invite/tok_abc', creator }]);
     // Looked up inside the caller's org only.
     expect(mockDb.creator.findMany.mock.calls[0][0].where).toEqual({ id: { in: ['c1'] }, orgId: 'org-1' });
   });
@@ -69,6 +70,7 @@ describe('POST /api/campaigns/[id]/invites', () => {
     expect(res.status).toBe(201);
     const body = await res.json();
     expect(body.inviteToken).toBe('tok_123');
+    expect(body.invitePath).toBe('/invite/tok_123');
   });
 });
 

@@ -7,36 +7,12 @@ import { Input } from "@pratham7711/ui";
 import { Button } from "@/components/ds";
 import { Eye, EyeOff } from "lucide-react";
 import { ConnectPrompt } from "@/components/portal/ConnectPrompt";
-
-/**
- * Run the join funnel after successful auth when ?join=[slug] is present.
- * Returns where the creator should land once onboarding finishes.
- */
-async function runJoin(
-  joinSlug: string | null,
-  inviteCode: string | null
-): Promise<string> {
-  if (!joinSlug) return "/portal/campaigns";
-  try {
-    const res = await fetch("/api/portal/campaigns/join", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ slug: joinSlug, ...(inviteCode ? { inviteCode } : {}) }),
-    });
-    if (res.ok) return `/portal/campaigns/${joinSlug}?joined=1`;
-    // Joined-auth succeeded but join failed (deadline/invite/private) — surface on the campaign page.
-    const data = await res.json().catch(() => ({}));
-    return `/portal/campaigns/${joinSlug}?joinError=${encodeURIComponent(data.error ?? "Could not join")}`;
-  } catch {
-    return `/portal/campaigns/${joinSlug}?joinError=${encodeURIComponent("Network error")}`;
-  }
-}
+import { errandQuery, landingAfterAuth, readAuthErrand } from "@/lib/portal/afterAuth";
 
 function RegisterInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const joinSlug = searchParams.get("join");
-  const inviteCode = searchParams.get("invite");
+  const errand = readAuthErrand(searchParams);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -45,9 +21,7 @@ function RegisterInner() {
   const [nextPath, setNextPath] = useState<string | null>(null);
   const set = (patch: Partial<typeof form>) => setForm((f) => ({ ...f, ...patch }));
 
-  const loginHref = `/portal/login${
-    joinSlug ? `?join=${encodeURIComponent(joinSlug)}${inviteCode ? `&invite=${encodeURIComponent(inviteCode)}` : ""}` : ""
-  }`;
+  const loginHref = `/portal/login${errandQuery(errand)}`;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,7 +40,14 @@ function RegisterInner() {
       });
       const data = await res.json();
       if (res.ok) {
-        setNextPath(await runJoin(joinSlug, inviteCode));
+        const next = await landingAfterAuth(errand, "/portal/campaigns?tab=open");
+        /* A refused invitation goes back to its public landing page; the
+           connect step is for creators who made it into the app. */
+        if (!next.startsWith("/portal/")) {
+          router.push(next);
+          return;
+        }
+        setNextPath(next);
         setLoading(false);
       } else {
         setError(data.error ?? "Something went wrong");
@@ -106,9 +87,11 @@ function RegisterInner() {
         <p style={{ fontSize: 14, color: "var(--cc-text-muted)", marginBottom: 24, textAlign: "center" }}>
           {nextPath
             ? "Your account is ready"
-            : joinSlug
-              ? "Sign up to join this campaign"
-              : "Join the marketplace and start earning"}
+            : errand.invitation
+              ? "Sign up to accept your invitation"
+              : errand.join
+                ? "Sign up to join this campaign"
+                : "Join campaigns and track how your posts do"}
         </p>
 
         {nextPath && (

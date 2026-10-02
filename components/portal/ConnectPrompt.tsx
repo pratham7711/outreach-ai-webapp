@@ -121,9 +121,9 @@ export function ConnectPrompt({
       )}
 
       <p style={{ fontSize: "var(--cc-t-12)", lineHeight: 1.6, color: "var(--cc-text-subtle)", marginTop: 14 }}>
-        We read your public profile and public post stats only. We never post, never read your
-        direct messages, and never see private videos. You can disconnect at any time from
-        Settings.
+        We read your profile and the numbers on your posts. We never post, edit or delete
+        anything, and never read your direct messages. My accounts lists each permission in plain
+        words, and you can disconnect there at any time.
       </p>
 
       {onSkip && (

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { fetchMarketplaceDetail } from "@/lib/marketplace/public";
 import { BRAND } from "@/lib/brand";
+import { SHOW_MONEY } from "@/lib/moneyUi";
 import {
   CAMPAIGN_TYPE_LABEL,
   PLATFORM_META,
@@ -56,7 +57,9 @@ export async function generateMetadata({
   const title = `${campaign.title} — ${campaign.orgName} | ${BRAND.name}`;
   const description =
     campaign.guidelines?.slice(0, 155) ??
-    `Join ${campaign.orgName}'s campaign and get paid per verified view. Post your content and start earning.`;
+    (SHOW_MONEY
+      ? `Join ${campaign.orgName}'s campaign and get paid per verified view. Post your content and start earning.`
+      : `Join ${campaign.orgName}'s campaign, post your content and see how it does.`);
   return {
     title,
     description,
@@ -101,7 +104,10 @@ export default async function CampaignLandingPage({
     return Math.ceil(ms / 86_400_000);
   })();
   const showDaysLeft = daysLeft != null && daysLeft <= 7;
-  const showClaimed = pct != null && pct >= 60;
+  /* Money is hidden while SHOW_MONEY is off (lib/moneyUi.ts): the pool, the
+     rates and what each creator earned. Hidden, never cleared -- the figures
+     are still loaded and come back with the switch. */
+  const showClaimed = SHOW_MONEY && pct != null && pct >= 60;
 
   const joinRegisterHref = `/portal/register?join=${encodeURIComponent(campaign.slug)}`;
   const joinLoginHref = `/portal/login?join=${encodeURIComponent(campaign.slug)}`;
@@ -198,7 +204,7 @@ export default async function CampaignLandingPage({
       {/* Body */}
       <div style={{ maxWidth: 880, margin: "0 auto", padding: "28px 20px 0" }}>
         {/* Budget bar */}
-        {(budget.capMajor != null || budget.earnedMajor > 0) && (
+        {SHOW_MONEY && (budget.capMajor != null || budget.earnedMajor > 0) && (
           <Section title="Reward pool">
             <div
               style={{
@@ -244,7 +250,19 @@ export default async function CampaignLandingPage({
         )}
 
         {/* Rate table */}
-        {campaign.rates.length > 0 && (
+        {!SHOW_MONEY && campaign.rates.length > 0 && (
+          <Section title="Platforms">
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {campaign.rates.map((r) => (
+                <span key={r.platform} style={chipStyle}>
+                  {PLATFORM_META[r.platform.toUpperCase()]?.label ?? r.platform}
+                </span>
+              ))}
+            </div>
+          </Section>
+        )}
+
+        {SHOW_MONEY && campaign.rates.length > 0 && (
           <Section title="Payout rates">
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {campaign.rates.map((r) => {
@@ -411,17 +429,19 @@ export default async function CampaignLandingPage({
                     <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>
                       {formatCount(entry.verifiedViews)} views
                     </span>
-                    <span
-                      style={{
-                        fontSize: 13,
-                        fontWeight: 700,
-                        color: "var(--cc-text)",
-                        minWidth: 60,
-                        textAlign: "right",
-                      }}
-                    >
-                      {formatMoney(entry.earnedMajor, sym)}
-                    </span>
+                    {SHOW_MONEY && (
+                      <span
+                        style={{
+                          fontSize: 13,
+                          fontWeight: 700,
+                          color: "var(--cc-text)",
+                          minWidth: 60,
+                          textAlign: "right",
+                        }}
+                      >
+                        {formatMoney(entry.earnedMajor, sym)}
+                      </span>
+                    )}
                   </>
                 );
                 return entry.profileHandle ? (
@@ -469,7 +489,7 @@ export default async function CampaignLandingPage({
         >
           <div style={{ flex: "1 1 160px", minWidth: 0 }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>
-              Ready to start earning?
+              {SHOW_MONEY ? "Ready to start earning?" : "Want to take part?"}
             </div>
             <div style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>
               Join {campaign.orgName}&apos;s campaign in seconds.

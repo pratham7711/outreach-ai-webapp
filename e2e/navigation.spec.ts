@@ -34,6 +34,14 @@ const PARKED: Array<[string, string]> = [
   ['/fan-pages', '/campaigns'],
   ['/media-kits', '/creators'],
   ['/reports', '/campaigns'],
+  ['/portal/messages', '/portal/dashboard'],
+  ['/portal/offers', '/portal/dashboard'],
+  ['/portal/proposals', '/portal/dashboard'],
+  ['/portal/earnings', '/portal/dashboard'],
+  ['/portal/reviews', '/portal/dashboard'],
+  ['/portal/payout-requests', '/portal/dashboard'],
+  ['/portal/discover', '/portal/campaigns'],
+  ['/portal/settings', '/portal/accounts'],
 ];
 
 test.describe('Navigation', () => {

@@ -2,10 +2,43 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getCreatorSession } from "@/lib/creator-auth";
 import { parseRatePerThousand, earnedMinorForPost } from "@/lib/marketplace/earnings";
-import { isPortalCampaignVisible } from "@/lib/marketplace/portalVisibility";
-import { findCreatorInOrgForHandle } from "@/lib/portal/creatorLookup";
+import { isPortalCampaignActionable } from "@/lib/marketplace/portalVisibility";
+import { isCampaignIdKey, resolvePortalAccess } from "@/lib/portal/campaignAccess";
+import { campaignDates } from "@/lib/portal/campaignDates";
 
-// GET /api/portal/campaigns/[slug] — detail for a joined marketplace campaign
+const CAMPAIGN_SELECT = {
+  id: true,
+  orgId: true,
+  title: true,
+  status: true,
+  publicSlug: true,
+  currency: true,
+  guidelines: true,
+  requirements: true,
+  contentAssetsUrl: true,
+  ratePerThousand: true,
+  minPayoutMinor: true,
+  submissionDeadline: true,
+  marketplaceVisibility: true,
+  deletedAt: true,
+  org: { select: { name: true, logoUrl: true } },
+  brief: { select: { content: true } },
+  phases: {
+    select: { name: true, startDate: true, endDate: true },
+    orderBy: { sequence: "asc" as const },
+  },
+} as const;
+
+/**
+ * GET /api/portal/campaigns/<slug-or-id> -- the creator app's Campaign screen.
+ *
+ * The key is a marketplace campaign's public slug or, for an agency's private
+ * campaign (which has none), its id. Who may see it is decided in
+ * lib/portal/campaignAccess.ts: a GLOBAL campaign is public; anything else
+ * needs the creator's own activation, and on a PRIVATE campaign that
+ * activation must hang off a roster row linked to this login rather than one
+ * that merely shares the handle (F10).
+ */
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ slug: string }> }
@@ -16,50 +49,15 @@ export async function GET(
 
     const { slug } = await params;
 
-    const campaign = await db.campaign.findUnique({
-      where: { publicSlug: slug },
-      select: {
-        id: true,
-        orgId: true,
-        title: true,
-        status: true,
-        publicSlug: true,
-        currency: true,
-        guidelines: true,
-        requirements: true,
-        contentAssetsUrl: true,
-        ratePerThousand: true,
-        minPayoutMinor: true,
-        submissionDeadline: true,
-        marketplaceVisibility: true,
-        deletedAt: true,
-        org: { select: { name: true, logoUrl: true } },
-      },
-    });
+    const campaign =
+      (await db.campaign.findUnique({ where: { publicSlug: slug }, select: CAMPAIGN_SELECT })) ??
+      (isCampaignIdKey(slug)
+        ? await db.campaign.findUnique({ where: { id: slug }, select: CAMPAIGN_SELECT })
+        : null);
 
-    if (!campaign || campaign.deletedAt || !campaign.publicSlug) {
+    if (!campaign || campaign.deletedAt) {
       return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
     }
-
-    /* Resolve the creator link (handle match within campaign org) — must be
-       joined. Normalised: exact equality missed a roster row stored as
-       "@handle", so a creator who had joined saw joined:false and no
-       submissions. */
-    const creator = await findCreatorInOrgForHandle(campaign.orgId, session.handle);
-    const activation = creator
-      ? await db.activation.findFirst({
-          where: { campaignId: campaign.id, creatorId: creator.id, deletedAt: null },
-          select: {
-            id: true,
-            status: true,
-            draftUrl: true,
-            draftCaption: true,
-            draftMediaType: true,
-            draftSubmittedAt: true,
-            feedbackNotes: true,
-          },
-        })
-      : null;
 
     /* marketplaceVisibility was selected and never read, so a campaign pulled
        back to PRIVATE (or one that was only ever INVITE_ONLY) kept serving its
@@ -68,12 +66,11 @@ export async function GET(
        public surface applies (lib/marketplace/public.ts, and the join gate in
        lib/marketplace/join.ts). The rule now lives in one place, because the
        submissions and draft routes behind the same slug have to apply it too. */
-    if (!isPortalCampaignVisible({
-      marketplaceVisibility: campaign.marketplaceVisibility,
-      hasActivation: !!activation,
-    })) {
+    const access = await resolvePortalAccess(session, campaign);
+    if (!access.visible) {
       return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
     }
+    const activation = access.activation;
 
     const rates = parseRatePerThousand(campaign.ratePerThousand);
 
@@ -87,6 +84,7 @@ export async function GET(
       caption: string | null;
       rejectionReason: string | null;
       createdAt: Date;
+      lastSyncedAt: Date | null;
       earnedMinor: number;
     }[] = [];
 
@@ -103,6 +101,7 @@ export async function GET(
           caption: true,
           rejectionReason: true,
           createdAt: true,
+          lastSyncedAt: true,
         },
         orderBy: { createdAt: "desc" },
       });
@@ -122,7 +121,18 @@ export async function GET(
         title: campaign.title,
         slug: campaign.publicSlug,
         status: campaign.status,
+        /* Whether this creator could join it from here: a marketplace campaign
+           they are not on yet. A private one is reached by invite instead. */
+        joinable:
+          !activation &&
+          !!campaign.publicSlug &&
+          campaign.marketplaceVisibility !== "PRIVATE" &&
+          isPortalCampaignActionable(campaign.status) &&
+          !deadlinePassed,
+        acceptsPosts: isPortalCampaignActionable(campaign.status) && !deadlinePassed,
+        marketplace: campaign.marketplaceVisibility !== "PRIVATE",
         currency: campaign.currency,
+        brief: campaign.brief?.content?.trim() || null,
         guidelines: campaign.guidelines,
         requirements: campaign.requirements,
         contentAssetsUrl: campaign.contentAssetsUrl,
@@ -130,6 +140,11 @@ export async function GET(
         minPayoutMinor: campaign.minPayoutMinor,
         submissionDeadline: campaign.submissionDeadline,
         deadlinePassed,
+        dates: campaignDates({
+          deliverableDueDate: activation?.deliverableDueDate ?? null,
+          submissionDeadline: campaign.submissionDeadline,
+          phases: campaign.phases,
+        }),
         orgName: campaign.org.name,
         orgLogoUrl: campaign.org.logoUrl,
       },

@@ -7,6 +7,7 @@ import {
   formatDeadline,
   formatMoney,
 } from "./format";
+import { SHOW_MONEY } from "@/lib/moneyUi";
 
 /** Public marketplace campaign card (server component, links to landing page). */
 export default function CampaignCard({ campaign }: { campaign: MarketplaceCardDTO }) {
@@ -14,7 +15,10 @@ export default function CampaignCard({ campaign }: { campaign: MarketplaceCardDT
   const typeLabel = CAMPAIGN_TYPE_LABEL[campaign.campaignType] ?? campaign.campaignType;
   const topRates = campaign.rates.slice(0, 3);
   const showDaysLeft = campaign.daysLeft != null && campaign.daysLeft <= 7;
-  const showClaimed = campaign.budgetClaimedPct != null && campaign.budgetClaimedPct >= 60;
+  /* "% claimed" is a share of the reward pool, so it hides with the rest of
+     the money while SHOW_MONEY is off (lib/moneyUi.ts). */
+  const showClaimed =
+    SHOW_MONEY && campaign.budgetClaimedPct != null && campaign.budgetClaimedPct >= 60;
 
   return (
     <Link
@@ -155,17 +159,23 @@ export default function CampaignCard({ campaign }: { campaign: MarketplaceCardDT
                   >
                     {meta.label}
                   </span>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>
-                    {formatMoney(r.ratePerThousand, campaign.currencySymbol)}
-                  </span>
-                  <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>/ 1k views</span>
+                  {SHOW_MONEY && (
+                    <>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cc-text)" }}>
+                        {formatMoney(r.ratePerThousand, campaign.currencySymbol)}
+                      </span>
+                      <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>/ 1k views</span>
+                    </>
+                  )}
                 </div>
               );
             })
           ) : (
-            <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>
-              Rewards on approval
-            </span>
+            SHOW_MONEY && (
+              <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>
+                Rewards on approval
+              </span>
+            )
           )}
         </div>
 
@@ -179,7 +189,7 @@ export default function CampaignCard({ campaign }: { campaign: MarketplaceCardDT
             alignItems: "center",
           }}
         >
-          {campaign.budgetCapMajor != null && (
+          {SHOW_MONEY && campaign.budgetCapMajor != null && (
             <span
               style={{
                 fontSize: 12,

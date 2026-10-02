@@ -1,5 +1,11 @@
 import type { NextAuthConfig } from "next-auth";
 
+/** `path` is `root` itself or something beneath it -- a segment match, so
+ *  "/invite" covers "/invite/abc" and never "/invites". */
+function underSegment(path: string, root: string): boolean {
+  return path === root || path.startsWith(`${root}/`);
+}
+
 export const authConfig = {
   trustHost: true,
   session: { strategy: "jwt" },
@@ -18,9 +24,6 @@ export const authConfig = {
       const isPublicSharePage = nextUrl.pathname.startsWith("/share/");
       // A creator list shared with a brand (/l/<token>); the token is the auth.
       const isPublicListPage = nextUrl.pathname.startsWith("/l/");
-      // A roster creator's connect link (/connect/<token>); the token is the
-      // auth, and the creator has no account here to sign in to.
-      const isPublicConnectPage = nextUrl.pathname.startsWith("/connect/");
       /* Reachable in EITHER auth state, which is why it does not belong with
          the auth pages below.
          Signed out, because a confirmation link is opened from a mail client
@@ -33,7 +36,17 @@ export const authConfig = {
       const isVerifyEmailPage = nextUrl.pathname.startsWith("/verify-email");
       const isPublicLegalPage =
         nextUrl.pathname.startsWith("/privacy") ||
-        nextUrl.pathname.startsWith("/terms");
+        nextUrl.pathname.startsWith("/terms") ||
+        underSegment(nextUrl.pathname, "/data-deletion");
+      /* The creator app's two ways in that need no account: an agency's connect
+         link (/connect/<token>) and its campaign invite (/invite/<code>). Both
+         are opened from inside Instagram, TikTok or WhatsApp, usually on a phone
+         with no session of any kind, and the token in the path is the
+         authorisation. Matched as whole segments, never as prefixes:
+         startsWith("/connect") would also open /connections, an agency page. */
+      const isCreatorEntryPage =
+        underSegment(nextUrl.pathname, "/connect") ||
+        underSegment(nextUrl.pathname, "/invite");
       // Files under public/ are served to anyone by definition, but the proxy
       // matcher only exempts _next and favicon, so without this every image
       // redirects to /login — including the og:image a social crawler fetches.
@@ -67,8 +80,8 @@ export const authConfig = {
         isPublicMarketplacePage ||
         isPublicSharePage ||
         isPublicListPage ||
-        isPublicConnectPage ||
         isPublicLegalPage ||
+        isCreatorEntryPage ||
         isVerifyEmailPage
       )
         return true;

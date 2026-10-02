@@ -26,6 +26,20 @@ const PARKED_PAGE_REDIRECTS: ReadonlyArray<readonly [string, string]> = [
   ["/fan-pages", "/campaigns"],
   ["/media-kits", "/creators"],
   ["/reports", "/campaigns"],
+  /* The creator app, October 2026: nothing in it talks to the creator about
+     money or negotiates with them, so these screens go Home. Discover became
+     Campaigns -> Open and the Connect list in Settings became My accounts.
+     The query string passes through, which matters for /portal/settings: it is
+     still the OAuth callback's default return, so ?connected= and ?error=
+     reach My accounts' banner. */
+  ["/portal/messages", "/portal/dashboard"],
+  ["/portal/offers", "/portal/dashboard"],
+  ["/portal/proposals", "/portal/dashboard"],
+  ["/portal/earnings", "/portal/dashboard"],
+  ["/portal/reviews", "/portal/dashboard"],
+  ["/portal/payout-requests", "/portal/dashboard"],
+  ["/portal/discover", "/portal/campaigns?tab=open"],
+  ["/portal/settings", "/portal/accounts"],
 ];
 
 const nextConfig: NextConfig = {

@@ -19,7 +19,7 @@ import { POST as draft } from "@/app/api/portal/campaigns/[slug]/draft/route";
 jest.mock("@/lib/db", () => ({
   db: {
     campaign: { findUnique: jest.fn() },
-    creator: { findFirst: jest.fn() },
+    creator: { findFirst: jest.fn(), findMany: jest.fn() },
     activation: { findFirst: jest.fn(), update: jest.fn() },
     post: { findFirst: jest.fn(), create: jest.fn() },
   },
@@ -85,6 +85,7 @@ beforeEach(() => {
   mockSession.mockResolvedValue({ creatorUserId: "cu-1", handle: "awxyken", name: "Awx", email: "a@b.com" });
   mockDb.campaign.findUnique.mockResolvedValue(campaign());
   mockDb.creator.findFirst.mockResolvedValue(null);
+  mockDb.creator.findMany.mockResolvedValue([]);
   mockDb.activation.findFirst.mockResolvedValue(null);
   mockDb.post.findFirst.mockResolvedValue(null);
   mockDb.post.create.mockResolvedValue({ id: "post-1" });
@@ -277,5 +278,66 @@ describe("POST /api/portal/campaigns/[slug]/submissions — state disclosed only
         data: expect.objectContaining({ campaignId: "camp-1", creatorId: "cr-1", activationId: "act-1" }),
       })
     );
+  });
+});
+
+/* An agency's private campaign now reaches the creator app through an invite.
+   Its creators act through the roster row linked to their login, never through
+   a handle someone else could register (F10). */
+describe.each([
+  ["submissions", submitReq],
+  ["draft", draftReq],
+] as const)("POST /api/portal/campaigns/[slug]/%s — private campaigns", (_name, call) => {
+  const linkedActivation = { id: "act-1", creatorId: "cr-linked", status: "AWAITING_DRAFT" };
+
+  it("accepts work from the login the roster row is linked to", async () => {
+    mockDb.campaign.findUnique.mockResolvedValue(
+      campaign({ marketplaceVisibility: "PRIVATE", ratePerThousand: null })
+    );
+    mockDb.creator.findMany.mockResolvedValue([{ id: "cr-linked" }]);
+    mockDb.activation.findFirst.mockResolvedValue(linkedActivation);
+
+    const res = await call();
+    expect(res.status).toBe(201);
+    expect(mockDb.creator.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ orgId: "org-1", creatorUserId: "cu-1" }),
+      })
+    );
+  });
+
+  it("404s a login that only shares the handle of a creator on it", async () => {
+    mockDb.campaign.findUnique.mockResolvedValue(campaign({ marketplaceVisibility: "PRIVATE" }));
+    mockDb.creator.findMany.mockResolvedValue([]);
+    joined();
+
+    const res = await call();
+    expect(res.status).toBe(404);
+    expect(mockDb.creator.findFirst).not.toHaveBeenCalled();
+    expect(mockDb.post.create).not.toHaveBeenCalled();
+    expect(mockDb.activation.update).not.toHaveBeenCalled();
+  });
+});
+
+describe("POST /api/portal/campaigns/[slug]/submissions — platform rates", () => {
+  /* A private campaign carries no per-view rate: its creators are on a fee.
+     The rate check is for the marketplace, where an unpriced platform is one
+     the campaign does not take. */
+  it("takes a post on a private campaign with no rate for its platform", async () => {
+    mockDb.campaign.findUnique.mockResolvedValue(
+      campaign({ marketplaceVisibility: "PRIVATE", ratePerThousand: { INSTAGRAM: 100 } })
+    );
+    mockDb.creator.findMany.mockResolvedValue([{ id: "cr-linked" }]);
+    mockDb.activation.findFirst.mockResolvedValue({ id: "act-1", creatorId: "cr-linked", status: "ACCEPTED" });
+
+    expect((await submitReq()).status).toBe(201);
+  });
+
+  it("still refuses an unpriced platform on a marketplace campaign", async () => {
+    mockDb.campaign.findUnique.mockResolvedValue(campaign({ ratePerThousand: { INSTAGRAM: 100 } }));
+    joined();
+    const res = await submitReq();
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/TIKTOK/);
   });
 });

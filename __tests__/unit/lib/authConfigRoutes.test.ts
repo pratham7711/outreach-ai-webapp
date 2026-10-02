@@ -68,15 +68,35 @@ describe("a shared creator list", () => {
   });
 });
 
-describe("a creator's connect link", () => {
-  it("opens signed out and signed in", () => {
-    expect(allowed(visit("/connect/abc123token", false))).toBe(true);
-    expect(allowed(visit("/connect/abc123token", true))).toBe(true);
+describe("the creator app's entry links", () => {
+  /* Opened from inside Instagram, TikTok or WhatsApp with no session at all;
+     the token in the path is the authorisation. */
+  it.each([
+    "/connect/tok_abc123",
+    "/invite/cinv_abc123",
+    "/invite/cinv_abc123?accept=1",
+    "/data-deletion",
+  ])("%s opens signed out", (path) => {
+    expect(allowed(visit(path, false))).toBe(true);
   });
 
-  it.each(["/connect", "/connections", "/connectx/abc"])("does not open %s", (path) => {
-    expect(redirectsTo(visit(path, false))).toBe("/login");
-  });
+  /* An agency user who taps a creator's link must not be bounced to
+     /dashboard the way an auth page would bounce them. */
+  it.each(["/connect/tok_abc123", "/invite/cinv_abc123", "/data-deletion"])(
+    "%s opens signed in too",
+    (path) => {
+      expect(allowed(visit(path, true))).toBe(true);
+    }
+  );
+
+  /* Segment matches, not prefixes: "/connect" is one suffix away from
+     "/connections", an agency page, and "/invite" from "/invites". */
+  it.each(["/connections", "/connectionsx", "/invites", "/inviteabc", "/data-deletionx"])(
+    "does not open %s",
+    (path) => {
+      expect(redirectsTo(visit(path, false))).toBe("/login");
+    }
+  );
 });
 
 describe("and the app is still protected", () => {

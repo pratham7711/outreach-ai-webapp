@@ -105,8 +105,6 @@ export const AREAS = {
     specs: [
       "portal-dashboard.spec.ts",
       "portal-discover.spec.ts",
-      "portal-proposals.spec.ts",
-      "portal-reviews.spec.ts",
     ],
     sources: [
       "app/(portal)/",
@@ -120,6 +118,8 @@ export const AREAS = {
       "app/api/webhooks/meta/",
       "lib/portal/",
       "lib/oauth/",
+      "app/(public)/invite/",
+      "app/(public)/data-deletion/",
     ],
   },
   marketplace: {

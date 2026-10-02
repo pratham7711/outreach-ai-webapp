@@ -3,8 +3,8 @@ import { db } from "@/lib/db";
 import { getCreatorSession } from "@/lib/creator-auth";
 import { z } from "zod";
 import { httpUrl } from "@/lib/validation/url";
-import { isPortalCampaignVisible, isPortalCampaignActionable } from "@/lib/marketplace/portalVisibility";
-import { findCreatorInOrgForHandle } from "@/lib/portal/creatorLookup";
+import { isPortalCampaignActionable } from "@/lib/marketplace/portalVisibility";
+import { isCampaignIdKey, resolvePortalAccess } from "@/lib/portal/campaignAccess";
 
 // Statuses from which a creator may (re)submit a draft for approval.
 const SUBMITTABLE = ["AWAITING_DRAFT", "DECLINED", "DRAFT_SUBMITTED"];
@@ -34,17 +34,20 @@ export async function POST(
     }
     const { draftUrl, draftCaption, draftMediaType } = parsed.data;
 
-    const campaign = await db.campaign.findUnique({
-      where: { publicSlug: slug },
-      select: {
-        id: true,
-        orgId: true,
-        status: true,
-        deletedAt: true,
-        submissionDeadline: true,
-        marketplaceVisibility: true,
-      },
-    });
+    const CAMPAIGN_SELECT = {
+      id: true,
+      orgId: true,
+      status: true,
+      deletedAt: true,
+      submissionDeadline: true,
+      marketplaceVisibility: true,
+    } as const;
+    /* Slug or id, as on the detail route (lib/portal/campaignAccess.ts). */
+    const campaign =
+      (await db.campaign.findUnique({ where: { publicSlug: slug }, select: CAMPAIGN_SELECT })) ??
+      (isCampaignIdKey(slug)
+        ? await db.campaign.findUnique({ where: { id: slug }, select: CAMPAIGN_SELECT })
+        : null);
     if (!campaign || campaign.deletedAt) {
       return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
     }
@@ -55,21 +58,14 @@ export async function POST(
        deadline had passed — the detail route behind the same slug 404s them.
        The write was never at risk; the 403 below has always required an
        activation. */
-    /* Normalised via the shared matcher — the exact equality this used to do
-       missed a roster row stored as "@handle" and 403'd a creator who had
-       already joined. */
-    const creator = await findCreatorInOrgForHandle(campaign.orgId, session.handle);
-    const activation = creator
-      ? await db.activation.findFirst({
-          where: { campaignId: campaign.id, creatorId: creator.id, deletedAt: null },
-          select: { id: true, status: true },
-        })
-      : null;
+    /* Same resolution as the detail and submissions routes: an identity-linked
+       roster row for a PRIVATE campaign, the @-insensitive handle match for a
+       marketplace one (F10). */
+    const access = await resolvePortalAccess(session, campaign);
+    const activation = access.activation;
+    const creator = access.creatorId ? { id: access.creatorId } : null;
 
-    if (!isPortalCampaignVisible({
-      marketplaceVisibility: campaign.marketplaceVisibility,
-      hasActivation: !!activation,
-    })) {
+    if (!access.visible) {
       return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
     }
 

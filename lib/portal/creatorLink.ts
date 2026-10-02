@@ -20,7 +20,10 @@ import { stripAt } from "@/lib/format";
  *
  *  1. IDENTITY. The roster row's creatorUserId is this portal account. The
  *     marketplace join writes it when the creator's own join creates the row
- *     (lib/marketplace/join.ts), so it is only ever set by the person it names.
+ *     (lib/marketplace/join.ts), and accepting an agency's per-creator invite
+ *     link writes it on the invited row (lib/portal/campaignInvite.ts) -- the
+ *     token is the agency's own grant to that creator, handed over through the
+ *     agency's channel. Either way it is only ever set by the person it names.
  *  2. OAUTH. The roster row carries a CreatorSocialAccount whose handle — the
  *     one the PLATFORM returned at connect time (lib/platforms/accountSync.ts),
  *     never the portal username — is this portal handle. Connecting somebody
@@ -33,9 +36,9 @@ import { stripAt } from "@/lib/format";
  * creator's email and handle take over that creator's profile. It can come back
  * only as a VERIFIED address, once registration proves the account owns it.
  *
- * CampaignInvite carries a creatorId and no portal identity, so an invite
- * cannot say WHO accepted it. When a new proof is added, add it here — this is
- * the only place that decides.
+ * CampaignInvite itself carries a creatorId and no portal identity; who
+ * accepted it is recorded on the roster row (proof 1), not on the invite. When a
+ * new proof is added, add it here — this is the only place that decides.
  */
 export type LinkedCreator = { id: string; orgId: string };
 

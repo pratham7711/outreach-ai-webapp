@@ -6,44 +6,12 @@ import Link from "next/link";
 import { Input } from "@pratham7711/ui";
 import { Button } from "@/components/ds";
 import { Eye, EyeOff } from "lucide-react";
-
-/**
- * Run the join funnel after successful auth when ?join=[slug] is present.
- * Lands on the campaign portal page with ?joined=1, else "My campaigns".
- */
-async function runJoinAndRedirect(
-  router: ReturnType<typeof useRouter>,
-  joinSlug: string | null,
-  inviteCode: string | null
-) {
-  if (!joinSlug) {
-    router.push("/portal/dashboard");
-    return;
-  }
-  try {
-    const res = await fetch("/api/portal/campaigns/join", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ slug: joinSlug, ...(inviteCode ? { inviteCode } : {}) }),
-    });
-    if (res.ok) {
-      router.push(`/portal/campaigns/${joinSlug}?joined=1`);
-      return;
-    }
-    const data = await res.json().catch(() => ({}));
-    router.push(
-      `/portal/campaigns/${joinSlug}?joinError=${encodeURIComponent(data.error ?? "Could not join")}`
-    );
-  } catch {
-    router.push(`/portal/campaigns/${joinSlug}?joinError=${encodeURIComponent("Network error")}`);
-  }
-}
+import { errandQuery, landingAfterAuth, readAuthErrand } from "@/lib/portal/afterAuth";
 
 function LoginInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const joinSlug = searchParams.get("join");
-  const inviteCode = searchParams.get("invite");
+  const errand = readAuthErrand(searchParams);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -51,9 +19,7 @@ function LoginInner() {
   const [form, setForm] = useState({ email: "", password: "" });
   const set = (patch: Partial<typeof form>) => setForm((f) => ({ ...f, ...patch }));
 
-  const registerHref = `/portal/register${
-    joinSlug ? `?join=${encodeURIComponent(joinSlug)}${inviteCode ? `&invite=${encodeURIComponent(inviteCode)}` : ""}` : ""
-  }`;
+  const registerHref = `/portal/register${errandQuery(errand)}`;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -67,7 +33,7 @@ function LoginInner() {
       });
       const data = await res.json();
       if (res.ok) {
-        await runJoinAndRedirect(router, joinSlug, inviteCode);
+        router.push(await landingAfterAuth(errand, "/portal/dashboard"));
       } else {
         setError(data.error ?? "Something went wrong");
         setLoading(false);
@@ -104,7 +70,11 @@ function LoginInner() {
           Creator Portal
         </h1>
         <p style={{ fontSize: 14, color: "var(--cc-text-muted)", marginBottom: 24, textAlign: "center" }}>
-          {joinSlug ? "Sign in to join this campaign" : "Sign in to your creator account"}
+          {errand.invitation
+            ? "Log in to accept your invitation"
+            : errand.join
+              ? "Sign in to join this campaign"
+              : "Sign in to your creator account"}
         </p>
 
         {error && (

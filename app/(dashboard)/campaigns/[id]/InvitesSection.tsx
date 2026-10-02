@@ -8,6 +8,7 @@ import { Dropdown, Button } from "@/components/ds";
 import { formatDateAbs } from "@/lib/format";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
 import { creatorNameText } from "@/lib/creators/creatorName";
+import { campaignInvitePath } from "@/lib/portal/invitePath";
 
 type Invite = {
   id: string;
@@ -85,7 +86,10 @@ export default function InvitesSection({ campaignId }: { campaignId: string }) {
   };
 
   const copyLink = (token: string) => {
-    navigator.clipboard.writeText(`${window.location.origin}/api/campaign-invites/respond?token=${token}`);
+    /* The creator-facing landing page (/invite/<token>), with the brief, the
+       dates and Accept. This used to copy the POST-only respond API, which a
+       browser opens as a 405. */
+    navigator.clipboard.writeText(`${window.location.origin}${campaignInvitePath(token)}`);
     setCopied(token);
     setTimeout(() => setCopied(null), 2000);
   };

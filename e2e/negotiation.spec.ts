@@ -85,10 +85,12 @@ async function startBatchViaApi(adminToken: string, campaignId: string, creatorI
 
 /* The agency's side of this flow -- Make Offer, Approve, Reject in the
    campaign's Negotiations section -- left the UI in October 2026 with the rest
-   of the payments surface, and its three tests with it. What stays is the
-   creator's side, which the API still drives. */
+   of the payments surface, and its three tests with it. The creator's Offers
+   screen followed when the creator app was rebuilt (/portal/offers now
+   redirects to Home), so what stays is the creator's side as the API drives
+   it. */
 test.describe('AI Negotiation', () => {
-  test('(b) portal: counter at 200 → AI counter between 100 and 125, status COUNTERED, aiRound=1', async ({ browser }) => {
+  test('(b) portal: counter at 200 → AI counter between 100 and 125, status COUNTERED, aiRound=1', async () => {
     const adminToken = await orgAdminToken();
 
     let offerId: string | null = null;
@@ -113,35 +115,21 @@ test.describe('AI Negotiation', () => {
     }
 
     const portalState = await portalLoginStorageState();
-    const portalCtx = await browser.newContext({ storageState: portalState });
-    const portalPage = await portalCtx.newPage();
-    await portalPage.goto('/portal/offers');
-    await expect(portalPage.getByText(/Offers/i).first()).toBeVisible({ timeout: 20000 });
+    const portalReqCtx = await playwrightRequest.newContext({ baseURL: BASE, storageState: portalState });
+    const res = await portalReqCtx.post(`/api/portal/offers/${offerId}/respond`, {
+      data: { action: 'counter', counterRate: CREATOR_COUNTER },
+    });
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    await portalReqCtx.dispose();
 
-    await portalPage.screenshot({ path: '/tmp/pw-debug-neg-b-offers.png' });
-
-    await expect(portalPage.getByRole('button', { name: /Counter/i }).first()).toBeVisible({ timeout: 20000 });
-    await portalPage.getByRole('button', { name: /Counter/i }).first().click();
-
-    const counterModal = portalPage.locator('[role="dialog"]');
-    await expect(counterModal).toBeVisible({ timeout: 10000 });
-    await counterModal.locator('input[type="number"]').fill(String(CREATOR_COUNTER));
-    await counterModal.getByRole('button', { name: /Send Counter/i }).click();
-
-    await expect(counterModal).not.toBeVisible({ timeout: 20000 });
-    await portalPage.screenshot({ path: '/tmp/pw-debug-neg-b-after-counter.png' });
-
-    await expect(portalPage.getByText(/COUNTERED/i).first()).toBeVisible({ timeout: 20000 });
-
-    const pageText = await portalPage.locator('body').innerText();
-    const dollarMatches = [...pageText.matchAll(/\$[\d,.]+/g)].map(m => parseFloat(m[0].replace(/[$,]/g, '')));
-    const aiCounterValues = dollarMatches.filter(n => n >= OFFERED_RATE && n <= OFFERED_RATE * 1.25);
-    expect(aiCounterValues.length).toBeGreaterThan(0);
-
-    await portalCtx.close();
+    expect(body.status).toBe('COUNTERED');
+    expect(body.aiRound).toBe(1);
+    expect(Number(body.aiCounterRate)).toBeGreaterThanOrEqual(OFFERED_RATE);
+    expect(Number(body.aiCounterRate)).toBeLessThanOrEqual(OFFERED_RATE * 1.25);
   });
 
-  test('(c) portal: second counter returns 409 and UI shows awaiting brand decision', async ({ browser }) => {
+  test('(c) portal: second counter returns 409', async () => {
     const adminToken = await orgAdminToken();
 
     let offerId: string | null = null;
@@ -182,15 +170,5 @@ test.describe('AI Negotiation', () => {
     });
     expect(secondCounter.status()).toBe(409);
     await portalReqCtx.dispose();
-
-    const portalCtx = await browser.newContext({ storageState: portalState });
-    const portalPage = await portalCtx.newPage();
-    await portalPage.goto('/portal/offers');
-    // Scoped to this offer's card: the portal lists every offer the creator has,
-    // and the others are legitimately still counterable.
-    const card = portalPage.locator(`[data-offer-id="${offerId}"]`);
-    await expect(card.getByText(/Awaiting brand decision/i)).toBeVisible({ timeout: 20000 });
-    await expect(card.getByRole('button', { name: /Counter/i })).toHaveCount(0);
-    await portalCtx.close();
   });
 });
