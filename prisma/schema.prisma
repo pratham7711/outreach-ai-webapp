@@ -697,6 +697,8 @@ model Creator {
   trackerSnapshots CreatorTrackerSnapshot[]
   avatar           CreatorAvatar?
   profileLinks     CreatorProfileLink[]
+  /// Relation only, no column: the platform account ids beside the handles (plan A4).
+  platformAccountIds CreatorPlatformAccountId[]
   detail           CreatorDetail?
   creatorUser      CreatorUser?             @relation("RosterIdentity", fields: [creatorUserId], references: [id], onDelete: SetNull)
 
@@ -965,6 +967,32 @@ model CreatorProfileLink {
   @@unique([orgId, platform, handle])
   @@index([creatorId])
   @@index([refreshedAt])
+}
+
+/// The platform's own id for a creator's TikTok or Instagram account (plan A4).
+/// A handle can be renamed; this cannot. Written by the roster refresh and the
+/// tracker sweep from the read they already made (lib/creators/accountIds), and
+/// only once /api/admin/migrate-creator-account-ids has created the table.
+model CreatorPlatformAccountId {
+  id                String   @id @default(cuid())
+  creatorId         String
+  orgId             String
+  platform          Platform
+  /// TikTok user.id or Instagram user id.
+  platformAccountId String
+  /// TikTok's secUid, when the read carried it.
+  secUid            String?
+  /// The handle it was last seen under.
+  handle            String?
+  /// Which reader saw it: "profile-refresh" or "tracker".
+  source            String
+  firstSeenAt       DateTime @default(now())
+  lastSeenAt        DateTime @default(now())
+
+  creator Creator @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  @@unique([creatorId, platform, platformAccountId], map: "CreatorPlatformAccountId_creator_platform_id_key")
+  @@index([orgId, platform, platformAccountId], map: "CreatorPlatformAccountId_org_platform_id_idx")
 }
 
 /// Roster attributes that arrive with an import: where the creator is, where

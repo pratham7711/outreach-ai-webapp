@@ -58,6 +58,11 @@ export type CreatorProfileRead = {
   /** The profile picture the same read saw, when it carried one. Usually a
    * signed CDN URL with a shelf life of days -- download it, do not store it. */
   avatarUrl?: string;
+  /** The platform's own id for the account, when the same read carried it:
+   * TikTok's user id and secUid, Instagram's user id (plan A4). A handle can be
+   * renamed; these cannot. Recorded in CreatorPlatformAccountId. */
+  accountId?: string;
+  secUid?: string;
 };
 
 export const TOP_POSTS_LIMIT = 6;
@@ -216,6 +221,7 @@ async function readInstagram(handle: string): Promise<CreatorReadResult> {
       sampledPosts: recent.sampledPosts,
       ...(topPosts.length ? { topPosts } : {}),
       ...(profile.profilePictureUrl ? { avatarUrl: profile.profilePictureUrl } : {}),
+      ...(profile.igUserId ? { accountId: profile.igUserId } : {}),
     },
   };
 }

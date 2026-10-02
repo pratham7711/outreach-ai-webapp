@@ -25,6 +25,9 @@ export type IgPublicProfile = {
   mediaCount?: number;
   /** Signed Meta CDN URL; it expires, so it is downloaded rather than kept. */
   profilePictureUrl?: string;
+  /** The account's Instagram user id: stable across renames, unlike the
+   *  username (plan A4). Asked for in the same request, so it costs nothing. */
+  igUserId?: string;
   recentPosts: IgPublicPost[];
   /**
    * Instagram's cursor for the NEXT page of this profile's media, when one
@@ -89,6 +92,7 @@ export function parseBusinessDiscovery(data: any, username: string): IgPublicPro
     ...(typeof bd.profile_picture_url === "string" && bd.profile_picture_url
       ? { profilePictureUrl: bd.profile_picture_url }
       : {}),
+    ...(typeof bd.id === "string" && /^\d+$/.test(bd.id) ? { igUserId: bd.id } : {}),
     recentPosts: nodes.map(mapMedia),
     ...(typeof after === "string" && after.length > 0 ? { nextMediaCursor: after } : {}),
   };
@@ -131,7 +135,7 @@ export async function fetchInstagramProfile(
   const data = await graphGet(
     igUserId,
     {
-      fields: `business_discovery.username(${handle}){followers_count,media_count,profile_picture_url,${mediaFields}}`,
+      fields: `business_discovery.username(${handle}){id,followers_count,media_count,profile_picture_url,${mediaFields}}`,
       access_token: token,
     },
     signal,

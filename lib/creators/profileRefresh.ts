@@ -3,6 +3,7 @@ import type { Platform } from "@/lib/generated/prisma/client";
 import { readCreatorProfile, type CreatorReadResult } from "@/lib/platforms/creatorProfile";
 import { captureAvatarIfStale } from "@/lib/creators/avatarStore";
 import { rosterTablesReady } from "@/lib/creators/rosterTables";
+import { recordPlatformAccountId } from "@/lib/creators/accountIds";
 import { createLogger } from "@/lib/observability/logger";
 
 /**
@@ -112,6 +113,17 @@ export async function refreshRosterProfiles({
     await db.creatorProfileLink.update({
       where: { id: link.id },
       data: { followersCount, ...views, refreshedAt: now, refreshError: null },
+    });
+    /* The account's stable id, from this same read (plan A4). Never throws and
+       never reads anything itself; a missing table or id writes nothing. */
+    await recordPlatformAccountId({
+      creatorId: link.creatorId,
+      orgId: link.orgId,
+      platform: link.platform,
+      handle: link.handle,
+      profile: read.profile,
+      source: "profile-refresh",
+      now,
     });
     if (link.isPrimary) {
       await db.creator.update({ where: { id: link.creatorId, orgId: link.orgId }, data: { followersCount, ...views } });
