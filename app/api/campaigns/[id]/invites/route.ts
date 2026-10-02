@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { createAuditActor, logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
+import { campaignInvitePath } from "@/lib/portal/invitePath";
 import { z } from "zod";
 import type { InviteChannel } from "@/lib/generated/prisma/client";
 
@@ -42,8 +43,16 @@ export async function GET(
       : [];
     const byId = new Map(creators.map((c) => [c.id, c]));
 
+    /* invitePath is what the agency copies and sends: the creator-facing
+       landing page. The token alone used to be glued onto
+       /api/campaign-invites/respond, a POST-only route that answers a browser
+       with 405, so no copied invite link ever opened. */
     return NextResponse.json({
-      invites: invites.map((i) => ({ ...i, creator: byId.get(i.creatorId) ?? null })),
+      invites: invites.map((i) => ({
+        ...i,
+        invitePath: campaignInvitePath(i.inviteToken),
+        creator: byId.get(i.creatorId) ?? null,
+      })),
     });
   } catch (error) {
     console.error("Failed to fetch invites:", error);
@@ -92,7 +101,10 @@ export async function POST(
       after: { id: invite.id, creatorId: invite.creatorId, channel: invite.channel, token: invite.inviteToken },
     });
 
-    return NextResponse.json(invite, { status: 201 });
+    return NextResponse.json(
+      { ...invite, invitePath: campaignInvitePath(invite.inviteToken) },
+      { status: 201 },
+    );
   } catch (error) {
     console.error("Failed to create invite:", error);
     return NextResponse.json({ error: "Failed to create invite" }, { status: 500 });
