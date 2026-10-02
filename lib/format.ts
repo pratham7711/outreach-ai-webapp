@@ -186,7 +186,16 @@ export function timeAgo(iso: string | Date | null | undefined): string {
   if (!iso) return UNKNOWN;
   const d = iso instanceof Date ? iso : new Date(iso);
   if (Number.isNaN(d.getTime())) return UNKNOWN;
-  const mins = Math.floor((Date.now() - d.getTime()) / 60000);
+  return formatElapsed(Date.now() - d.getTime());
+}
+
+/**
+ * An elapsed time as the app words it: "Just now", "5m ago", "3h ago", "2d ago",
+ * "4mo ago", "1y ago". timeAgo and lib/dataAge's formatAge both word ages
+ * through this, so a number's age reads the same on every screen.
+ */
+export function formatElapsed(ms: number): string {
+  const mins = Math.floor(ms / 60000);
   if (mins < 1) return "Just now";
   if (mins < 60) return `${mins}m ago`;
   const hours = Math.floor(mins / 60);
