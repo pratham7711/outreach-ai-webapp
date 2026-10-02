@@ -86,6 +86,29 @@ const SOURCE = "ops-canary";
 const pct = (n: number) => `${Math.round(n * 100)}%`;
 const hoursAgo = (nowMs: number, at: Date) => Math.max(0, Math.round((nowMs - at.getTime()) / 3_600_000));
 
+export type JobHealth = "ok" | "running" | "failing" | "stuck" | "overdue" | "no-heartbeat" | "killed";
+
+/**
+ * Pure: one job's state, as both the canary and the ops page's badge read it.
+ * In order of what it says about the job: killed outranks everything, then
+ * not running when it should, then running too long, then failing.
+ */
+export function jobHealth(
+  job: CronJobName,
+  hb: Pick<HeartbeatRow, "lastStartedAt" | "lastFinishedAt" | "consecutiveFailures"> | null | undefined,
+  nowMs: number,
+  killed: boolean,
+): JobHealth {
+  if (killed) return "killed";
+  if (!hb?.lastStartedAt) return "no-heartbeat";
+  const sinceStart = nowMs - hb.lastStartedAt.getTime();
+  if (sinceStart > cronCadenceMinutes(job) * 60_000 * HEARTBEAT_OVERDUE_FACTOR) return "overdue";
+  const unfinished = !hb.lastFinishedAt || hb.lastFinishedAt.getTime() < hb.lastStartedAt.getTime();
+  if (unfinished) return sinceStart > HEARTBEAT_STUCK_MS ? "stuck" : "running";
+  if (hb.consecutiveFailures >= CRON_FAILURE_STREAK_ALERT) return "failing";
+  return "ok";
+}
+
 /** Pure: the liveness findings for every registered job. */
 export function heartbeatFindings(input: Pick<CanaryInput, "nowMs" | "heartbeats" | "killed">): AlertFinding[] {
   if (!input.heartbeats) return [];
@@ -99,47 +122,46 @@ export function heartbeatFindings(input: Pick<CanaryInput, "nowMs" | "heartbeats
   const watchingSince = byJob.get("ops-canary")?.firstSeenAt ?? null;
 
   for (const { job, label } of CRON_JOBS) {
-    if (job === "ops-canary" || killed.has(cronKillKey(job))) continue;
-    const allowedMs = cronCadenceMinutes(job as CronJobName) * 60_000 * HEARTBEAT_OVERDUE_FACTOR;
+    if (job === "ops-canary") continue;
     const hb = byJob.get(job);
-    if (!hb?.lastStartedAt) {
-      if (watchingSince && input.nowMs - watchingSince.getTime() > allowedMs) {
+    const cadence = cronCadenceMinutes(job);
+    switch (jobHealth(job, hb, input.nowMs, killed.has(cronKillKey(job)))) {
+      case "no-heartbeat":
+        if (watchingSince && input.nowMs - watchingSince.getTime() > cadence * 60_000 * HEARTBEAT_OVERDUE_FACTOR) {
+          out.push({
+            source: SOURCE,
+            title: `Cron ${job} has no heartbeat since the canary started`,
+            facts: { job, label, expectedEveryMinutes: cadence },
+            severity: "critical",
+          });
+        }
+        break;
+      case "overdue":
         out.push({
           source: SOURCE,
-          title: `Cron ${job} has no heartbeat since the canary started`,
-          facts: { job, label, expectedEveryMinutes: cronCadenceMinutes(job as CronJobName) },
+          title: `Cron ${job} is overdue: last started ${hoursAgo(input.nowMs, hb!.lastStartedAt!)}h ago`,
+          facts: { job, label, lastStartedAt: hb!.lastStartedAt!.toISOString(), expectedEveryMinutes: cadence },
           severity: "critical",
         });
-      }
-      continue;
-    }
-    const sinceStart = input.nowMs - hb.lastStartedAt.getTime();
-    if (sinceStart > allowedMs) {
-      out.push({
-        source: SOURCE,
-        title: `Cron ${job} is overdue: last started ${hoursAgo(input.nowMs, hb.lastStartedAt)}h ago`,
-        facts: { job, label, lastStartedAt: hb.lastStartedAt.toISOString(), expectedEveryMinutes: cronCadenceMinutes(job as CronJobName) },
-        severity: "critical",
-      });
-      continue;
-    }
-    const unfinished = !hb.lastFinishedAt || hb.lastFinishedAt.getTime() < hb.lastStartedAt.getTime();
-    if (unfinished && sinceStart > HEARTBEAT_STUCK_MS) {
-      out.push({
-        source: SOURCE,
-        title: `Cron ${job} started and never finished`,
-        facts: { job, label, lastStartedAt: hb.lastStartedAt.toISOString(), meaning: "killed at its time limit or crashed" },
-        severity: "warn",
-      });
-      continue;
-    }
-    if (hb.consecutiveFailures >= CRON_FAILURE_STREAK_ALERT) {
-      out.push({
-        source: SOURCE,
-        title: `Cron ${job} failed ${hb.consecutiveFailures} runs in a row`,
-        facts: { job, label, lastError: hb.lastError ?? "unknown" },
-        severity: "critical",
-      });
+        break;
+      case "stuck":
+        out.push({
+          source: SOURCE,
+          title: `Cron ${job} started and never finished`,
+          facts: { job, label, lastStartedAt: hb!.lastStartedAt!.toISOString(), meaning: "killed at its time limit or crashed" },
+          severity: "warn",
+        });
+        break;
+      case "failing":
+        out.push({
+          source: SOURCE,
+          title: `Cron ${job} failed ${hb!.consecutiveFailures} runs in a row`,
+          facts: { job, label, lastError: hb!.lastError ?? "unknown" },
+          severity: "critical",
+        });
+        break;
+      default:
+        break;
     }
   }
   return out;

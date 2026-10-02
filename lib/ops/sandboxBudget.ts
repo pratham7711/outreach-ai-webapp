@@ -49,7 +49,7 @@ export const DEFAULT_SANDBOX_VCPUS = 2;
 /** What callers pass: Sandbox.create's own options, with the lifetime required. */
 export type SandboxParams = NonNullable<Parameters<typeof Sandbox.create>[0]> & { timeout: number };
 
-export function sandboxDailyCap(env: NodeJS.ProcessEnv = process.env): number {
+export function sandboxDailyCap(env: Record<string, string | undefined> = process.env): number {
   const raw = Number(env.SANDBOX_DAILY_CAP);
   return Number.isInteger(raw) && raw > 0 ? raw : DEFAULT_SANDBOX_DAILY_CAP;
 }

@@ -9,7 +9,7 @@
 jest.mock("@/lib/observability/logger", () => ({
   createLogger: () => ({ error: jest.fn(), warn: jest.fn(), info: jest.fn(), debug: jest.fn() }),
 }));
-const sendEmail = jest.fn(async (_m: { kind: string; subject: string }) => undefined);
+const sendEmail = jest.fn<Promise<undefined>, [{ kind: string; subject: string }]>(async () => undefined);
 jest.mock("@/lib/email", () => ({ sendEmail: (m: { kind: string; subject: string }) => sendEmail(m) }));
 jest.mock("@vercel/sandbox", () => ({
   Sandbox: {

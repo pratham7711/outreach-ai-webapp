@@ -8,15 +8,18 @@
 jest.mock("@/lib/observability/logger", () => ({
   createLogger: () => ({ error: jest.fn(), warn: jest.fn(), info: jest.fn(), debug: jest.fn() }),
 }));
-const alertOps = jest.fn(async (_a: { title: string }) => undefined);
+const alertOps = jest.fn<Promise<undefined>, [{ title: string }]>(async () => undefined);
 jest.mock("@/lib/alerts", () => ({ alertOps: (a: { title: string }) => alertOps(a) }));
 
 const sandboxDelete = jest.fn(async () => undefined);
-const create = jest.fn(async (_p: Record<string, unknown>) => ({ sandboxId: "sb_test", delete: sandboxDelete }));
+const create = jest.fn<Promise<{ sandboxId: string; delete: typeof sandboxDelete }>, [Record<string, unknown>]>(async () => ({
+  sandboxId: "sb_test",
+  delete: sandboxDelete,
+}));
 jest.mock("@vercel/sandbox", () => ({ Sandbox: { create: (p: Record<string, unknown>) => create(p) } }));
 
 const queryRaw = jest.fn();
-const executeRaw = jest.fn(async (..._a: unknown[]) => 1);
+const executeRaw = jest.fn<Promise<number>, unknown[]>(async () => 1);
 const aggregate = jest.fn();
 jest.mock("@/lib/db", () => ({
   db: {

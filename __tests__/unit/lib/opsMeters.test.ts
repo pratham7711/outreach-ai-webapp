@@ -8,7 +8,7 @@
 jest.mock("@/lib/observability/logger", () => ({
   createLogger: () => ({ error: jest.fn(), warn: jest.fn(), info: jest.fn(), debug: jest.fn() }),
 }));
-const alertOps = jest.fn(async (_a: { title: string }) => undefined);
+const alertOps = jest.fn<Promise<undefined>, [{ title: string }]>(async () => undefined);
 jest.mock("@/lib/alerts", () => ({ alertOps: (a: { title: string }) => alertOps(a) }));
 const queryRaw = jest.fn();
 const aggregate = jest.fn();
@@ -145,13 +145,13 @@ describe("parseNeonConsumption", () => {
 
 describe("readNeonMeter", () => {
   const week = previousWeek(Date.UTC(2026, 9, 5, 3, 14));
-  const env = { NEON_API_KEY: "test-key", NEON_ORG_ID: "org-test" } as NodeJS.ProcessEnv;
+  const env = { NEON_API_KEY: "test-key", NEON_ORG_ID: "org-test" };
   const answer = (status: number, body: unknown) =>
     jest.fn(async () => ({ ok: status < 400, status, json: async () => body }) as unknown as Response);
 
   it("records not-configured, without a request, when either env var is missing", async () => {
     const f = answer(200, {});
-    const r = await readNeonMeter(week, { NEON_ORG_ID: "org-test" } as NodeJS.ProcessEnv, f);
+    const r = await readNeonMeter(week, { NEON_ORG_ID: "org-test" }, f);
     expect(r).toMatchObject({ status: "not-configured", detail: { missing: ["NEON_API_KEY"] } });
     expect(f).not.toHaveBeenCalled();
   });
@@ -193,7 +193,7 @@ describe("runMeters", () => {
   it("stores one row per meter for last week and alerts only on what is over", async () => {
     const vcpuSeconds = ((weeklyModel("sandbox-compute").high * 1.5) / SANDBOX_USD_PER_VCPU_HOUR) * 3600;
     aggregate.mockResolvedValue({ _sum: { creations: 900, closed: 880, refused: 0, seconds: vcpuSeconds / 2, vcpuSeconds } });
-    const res = await runMeters({ nowMs: now, env: {} as NodeJS.ProcessEnv, fetchImpl: jest.fn() as unknown as typeof fetch });
+    const res = await runMeters({ nowMs: now, env: {}, fetchImpl: jest.fn() as unknown as typeof fetch });
 
     expect(res.weekStart).toBe("2026-09-28");
     expect(res.rows.map((r) => [r.meter, r.status, r.saved])).toEqual([
@@ -209,14 +209,14 @@ describe("runMeters", () => {
 
   it("writes and alerts nothing on a dry run", async () => {
     aggregate.mockResolvedValue({ _sum: { vcpuSeconds: 1e9 } });
-    await runMeters({ nowMs: now, dryRun: true, env: {} as NodeJS.ProcessEnv });
+    await runMeters({ nowMs: now, dryRun: true, env: {} });
     expect(upsert).not.toHaveBeenCalled();
     expect(alertOps).not.toHaveBeenCalled();
   });
 
   it("returns rows, unsaved, when the ops tables are not applied", async () => {
     queryRaw.mockResolvedValue([{ n: 0 }]);
-    const res = await runMeters({ nowMs: now, env: {} as NodeJS.ProcessEnv });
+    const res = await runMeters({ nowMs: now, env: {} });
     expect(res.rows.map((r) => [r.status, r.saved])).toEqual([
       ["not-configured", false],
       ["not-configured", false],
@@ -226,7 +226,7 @@ describe("runMeters", () => {
 
   it("survives a failed save", async () => {
     upsert.mockRejectedValue(new Error("connection reset"));
-    const res = await runMeters({ nowMs: now, env: {} as NodeJS.ProcessEnv });
+    const res = await runMeters({ nowMs: now, env: {} });
     expect(res.rows.every((r) => r.saved === false)).toBe(true);
   });
 });

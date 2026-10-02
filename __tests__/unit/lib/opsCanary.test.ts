@@ -28,6 +28,7 @@ import {
   canaryFindings,
   guardFindings,
   heartbeatFindings,
+  jobHealth,
   valueFindings,
   type HeartbeatRow,
 } from "@/lib/ops/canary";
@@ -102,6 +103,24 @@ describe("heartbeatFindings", () => {
     const f = heartbeatFindings({ nowMs: NOW, heartbeats: two, killed: [] });
     expect(titles(f)).toEqual([`Cron sync-posts failed ${CRON_FAILURE_STREAK_ALERT} runs in a row`]);
     expect(f[0].facts.lastError).toBe("HTTP 500");
+  });
+});
+
+describe("jobHealth", () => {
+  const hb = (startedAgo: number, finishedAgo: number | null, failures = 0) => ({
+    lastStartedAt: at(startedAgo),
+    lastFinishedAt: finishedAgo === null ? null : at(finishedAgo),
+    consecutiveFailures: failures,
+  });
+
+  it("reads each state, killed first", () => {
+    expect(jobHealth("sync-posts", hb(H, H - 60_000), NOW, false)).toBe("ok");
+    expect(jobHealth("sync-posts", hb(60_000, 2 * H), NOW, false)).toBe("running");
+    expect(jobHealth("sync-posts", hb(HEARTBEAT_STUCK_MS + 1, 2 * H), NOW, false)).toBe("stuck");
+    expect(jobHealth("sync-posts", hb(H, H - 60_000, CRON_FAILURE_STREAK_ALERT), NOW, false)).toBe("failing");
+    expect(jobHealth("sync-posts", hb(13 * H, 13 * H), NOW, false)).toBe("overdue");
+    expect(jobHealth("sync-posts", null, NOW, false)).toBe("no-heartbeat");
+    expect(jobHealth("sync-posts", hb(13 * H, 13 * H), NOW, true)).toBe("killed");
   });
 });
 

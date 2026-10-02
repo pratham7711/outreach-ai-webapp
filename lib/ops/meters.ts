@@ -174,7 +174,7 @@ function priced(meter: MeterName, weekStart: string, unit: string, value: number
 
 export async function readNeonMeter(
   week: { weekStart: string; from: Date; to: Date },
-  env: NodeJS.ProcessEnv = process.env,
+  env: Record<string, string | undefined> = process.env,
   fetchImpl: typeof fetch = fetch,
 ): Promise<MeterRow> {
   const apiKey = env.NEON_API_KEY?.trim();
@@ -311,7 +311,7 @@ export function meterAlert(r: MeterRow): Parameters<typeof alertOps>[0] | null {
 
 /** Reads both meters for last week, stores a row each, alerts. Never throws. */
 export async function runMeters(
-  options: { nowMs?: number; dryRun?: boolean; env?: NodeJS.ProcessEnv; fetchImpl?: typeof fetch } = {},
+  options: { nowMs?: number; dryRun?: boolean; env?: Record<string, string | undefined>; fetchImpl?: typeof fetch } = {},
 ): Promise<{ weekStart: string; rows: (MeterRow & { saved: boolean })[] }> {
   const nowMs = options.nowMs ?? Date.now();
   const week = previousWeek(nowMs);
