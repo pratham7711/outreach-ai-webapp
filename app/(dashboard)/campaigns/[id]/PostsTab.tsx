@@ -91,15 +91,12 @@ type MarketplaceCtx = {
 };
 
 const STATUS_TABS = [
-  { key: "ALL", label: "All", bg: "#F3F4F6", color: "#374151" },
-  /* A hex, like its three siblings, NOT var(--cc-warning-ink). statusInk
-     scores a non-hex as the worst possible contrast, so the var made it pick
-     the PALE #FEF3C7 as this tab's ink -- and a selected pill fills with its
-     ink, which is how Pending Review came out white-on-cream. The literal is
-     the one STATUS_COLOR_TOKENS already maps to var(--cc-warning). */
-  { key: "PENDING_REVIEW", label: "Pending Review", bg: "#FEF3C7", color: "#d97706" },
-  { key: "APPROVED", label: "Approved", bg: "#D1FAE5", color: "#059669" },
-  { key: "REJECTED", label: "Rejected", bg: "#FEE2E2", color: "#DC2626" },
+  { key: "ALL", label: "All", bg: "var(--cc-neutral-bg)", color: "var(--cc-status-neutral-ink)" },
+  /* --cc-warning, not --cc-warning-ink: this label sits on the page, not on a
+     chip's fixed cream ground, so its amber has to follow the theme. */
+  { key: "PENDING_REVIEW", label: "Pending Review", bg: "var(--cc-warning-bg)", color: "var(--cc-warning)" },
+  { key: "APPROVED", label: "Approved", bg: "var(--cc-success-bg)", color: "var(--cc-success)" },
+  { key: "REJECTED", label: "Rejected", bg: "var(--cc-danger-bg)", color: "var(--cc-danger)" },
 ];
 
 const PLATFORM_FILTERS = ["ALL", "TIKTOK", "INSTAGRAM", "YOUTUBE"] as const;
@@ -1823,7 +1820,7 @@ export default function PostsTab({
             borderRadius: 12,
             border: "1px solid var(--cc-primary)",
             background: "var(--cc-card)",
-            boxShadow: "0 6px 20px rgba(0,0,0,0.12)",
+            boxShadow: "0 6px 20px color-mix(in srgb, var(--cc-shadow-ink) 12%, transparent)",
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
@@ -2620,7 +2617,7 @@ export default function PostsTab({
             {/* The count is in the button too, not only the title: this is the
                 irreversible half of the dialog and it should say how many rows
                 it is about to change. */}
-            <Button variant="primary" onClick={handleReject} loading={bulkBusy} style={{ background: "#DC2626" }}>
+            <Button variant="primary" onClick={handleReject} loading={bulkBusy} style={{ background: "var(--cc-danger-solid)" }}>
               {showRejectModal === BULK_REJECT ? `Reject ${selectedOnPage.length} Post${selectedOnPage.length === 1 ? "" : "s"}` : "Reject Post"}
             </Button>
           </div>

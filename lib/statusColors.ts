@@ -159,6 +159,28 @@ export function whiteReadsOnInk(ink: string): boolean {
   return contrastRatio(ink, SURFACE) >= 3.5;
 }
 
+const STATUS_COLOR_TOKENS: Record<string, string> = {
+  /* The no-status tab -- All. Their strip draws it a plain grey, not the
+     page ink: MEASURED rgb(142,142,142) on their Campaigns tabs where every
+     other unselected tab carries its own status colour. Base keeps --cc-text,
+     so light and dark render exactly what they rendered before. */
+  "#374151": "var(--cc-status-neutral-ink)",
+  "#d97706": "var(--cc-warning)",
+  "#059669": "var(--cc-success)",
+  "#dc2626": "var(--cc-danger)",
+  "#4f46e5": "var(--cc-primary)",
+  "#4338ca": "var(--cc-primary)",
+};
+
+/**
+ * The theme token a status-palette literal stands for, so a tab strip handed a
+ * hex from this file paints the token instead. Anything else passes through.
+ */
+export function statusColorToken(color?: string): string {
+  if (!color) return "var(--cc-primary)";
+  return STATUS_COLOR_TOKENS[color.trim().toLowerCase()] ?? color;
+}
+
 /**
  * One colour standing in for a status, for legend dots and other places with no
  * room for a pill.

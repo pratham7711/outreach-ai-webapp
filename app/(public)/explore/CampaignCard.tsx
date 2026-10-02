@@ -107,8 +107,8 @@ export default function CampaignCard({ campaign }: { campaign: MarketplaceCardDT
                 style={{
                   fontSize: 11,
                   fontWeight: 700,
-                  color: "#B45309",
-                  background: "#FEF3C7",
+                  color: "var(--cc-warning-fg)",
+                  background: "var(--cc-warning-bg)",
                   borderRadius: 6,
                   padding: "3px 8px",
                 }}
@@ -121,8 +121,8 @@ export default function CampaignCard({ campaign }: { campaign: MarketplaceCardDT
                 style={{
                   fontSize: 11,
                   fontWeight: 700,
-                  color: "#DC2626",
-                  background: "#FEE2E2",
+                  color: "var(--cc-danger-fg)",
+                  background: "var(--cc-danger-bg)",
                   borderRadius: 6,
                   padding: "3px 8px",
                 }}
@@ -139,8 +139,8 @@ export default function CampaignCard({ campaign }: { campaign: MarketplaceCardDT
             topRates.map((r) => {
               const meta = PLATFORM_META[r.platform.toUpperCase()] ?? {
                 label: r.platform,
-                bg: "#F3F4F6",
-                color: "#374151",
+                bg: "var(--cc-neutral-bg)",
+                color: "var(--cc-neutral-fg)",
               };
               return (
                 <div
@@ -195,7 +195,7 @@ export default function CampaignCard({ campaign }: { campaign: MarketplaceCardDT
                 fontSize: 12,
                 fontWeight: 600,
                 color: "var(--cc-text)",
-                background: "#ECFDF5",
+                background: "var(--cc-success-bg)",
                 borderRadius: 6,
                 padding: "3px 8px",
               }}
@@ -208,7 +208,7 @@ export default function CampaignCard({ campaign }: { campaign: MarketplaceCardDT
               style={{
                 fontSize: 12,
                 color: "var(--cc-text-muted)",
-                background: "#F3F4F6",
+                background: "var(--cc-neutral-bg)",
                 borderRadius: 6,
                 padding: "3px 8px",
               }}

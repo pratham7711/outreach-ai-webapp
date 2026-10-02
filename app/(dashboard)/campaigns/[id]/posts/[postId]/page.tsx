@@ -133,9 +133,9 @@ const SIGNAL_LABEL: Record<BotSignal["type"], string> = {
 };
 
 const SEVERITY_STYLE: Record<BotSignal["severity"], { bg: string; color: string }> = {
-  HIGH: { bg: "#FEE2E2", color: "#DC2626" },
-  MEDIUM: { bg: "#FEF3C7", color: "var(--cc-warning-ink)" },
-  LOW: { bg: "#EEF2FF", color: "#4F46E5" },
+  HIGH: { bg: "var(--cc-danger-bg)", color: "var(--cc-danger-fg)" },
+  MEDIUM: { bg: "var(--cc-warning-bg)", color: "var(--cc-warning-fg)" },
+  LOW: { bg: "var(--cc-accent-bg)", color: "var(--cc-accent-fg)" },
 };
 
 const STATUS_BADGE: Record<string, "warning" | "success" | "danger" | "neutral"> = {
@@ -170,9 +170,9 @@ function formatNumber(num: number): string {
 }
 
 const BASE_METRIC_CARDS = [
-  { key: "viewsCount", field: "views", label: "Views", icon: Eye, color: "#5B5BD6" },
-  { key: "likesCount", field: "likes", label: "Likes", icon: Heart, color: "#EC4899" },
-  { key: "commentsCount", field: "comments", label: "Comments", icon: MessageCircle, color: "#F59E0B" },
+  { key: "viewsCount", field: "views", label: "Views", icon: Eye, color: "var(--cc-primary)" },
+  { key: "likesCount", field: "likes", label: "Likes", icon: Heart, color: "var(--chart-5)" },
+  { key: "commentsCount", field: "comments", label: "Comments", icon: MessageCircle, color: "var(--chart-4)" },
   { key: "sharesCount", field: "shares", label: "Shares", icon: Share2, color: "var(--cc-success)" },
 ] as const;
 
@@ -389,7 +389,7 @@ export default function PostDetailPage() {
         });
   const allMetricCards = [...BASE_METRIC_CARDS] as { key: string; field: MetricField; label: string; icon: typeof Eye; color: string }[];
   if (post.platform === "INSTAGRAM") {
-    allMetricCards.push({ key: "savesCount", field: "saves", label: "Saves", icon: Bookmark, color: "#8B5CF6" });
+    allMetricCards.push({ key: "savesCount", field: "saves", label: "Saves", icon: Bookmark, color: "var(--chart-2)" });
     /* Reach is the counter instagram_manage_insights uniquely unlocks — no
        other permission, and no unauthorised read, yields it. It had no card
        because it had no value: assemblePostMetrics parsed reach off the
@@ -400,10 +400,10 @@ export default function PostDetailPage() {
        Gated on the measured-field list rather than on the number, because the
        legacy zeroes carry a lastSyncedAt from a TikTok-era sync and would
        otherwise read as a measured "reached nobody". */
-    allMetricCards.push({ key: "reachCount", field: "reach", label: "Reach", icon: Users, color: "#0EA5E9" });
+    allMetricCards.push({ key: "reachCount", field: "reach", label: "Reach", icon: Users, color: "var(--cc-info)" });
   }
   if (post.platform === "YOUTUBE") {
-    allMetricCards.push({ key: "downloadsCount", field: "downloads", label: "Downloads", icon: Download, color: "#6366F1" });
+    allMetricCards.push({ key: "downloadsCount", field: "downloads", label: "Downloads", icon: Download, color: "var(--chart-2)" });
   }
   /* Views came across in the import; every other counter defaults to 0 for a
      post we never fetched, so its card would state a figure nobody measured.
@@ -459,8 +459,8 @@ export default function PostDetailPage() {
                 style={{ position: "relative", width: 120, height: 80, borderRadius: 10, overflow: "hidden", flexShrink: 0, border: "1px solid var(--cc-border)", padding: 0, cursor: "pointer", background: "none" }}
               >
                 <img src={thumb} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                <span style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.35)" }}>
-                  <Play size={22} color="#ffffff" fill="#ffffff" />
+                <span style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "color-mix(in srgb, var(--cc-media-ink) 35%, transparent)" }}>
+                  <Play size={22} color="var(--cc-overlay-ink-text)" fill="var(--cc-overlay-ink-text)" />
                 </span>
               </button>
             ) : (
@@ -499,7 +499,7 @@ export default function PostDetailPage() {
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
             <Button variant="secondary" onClick={handleFlag} loading={flagging} disabled={flagged}>
-              <span style={{ display: "flex", alignItems: "center", gap: 4, color: flagged ? "#DC2626" : undefined }}>
+              <span style={{ display: "flex", alignItems: "center", gap: 4, color: flagged ? "var(--cc-danger-fg)" : undefined }}>
                 <Flag size={14} /> {flagged ? "Flagged" : "Flag Suspicious"}
               </span>
             </Button>
@@ -542,7 +542,7 @@ export default function PostDetailPage() {
         {engRate !== null && (
           <Card variant="outlined" style={{ padding: "16px 20px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-              <TrendingUp size={16} color="#5B5BD6" />
+              <TrendingUp size={16} color="var(--cc-primary)" />
               <span className="cc-microlabel">Engagement</span>
             </div>
             <span style={{ fontSize: "var(--cc-t-24)", fontWeight: 700, color: "var(--cc-primary)" }}>
@@ -708,7 +708,7 @@ export default function PostDetailPage() {
 
         <div style={{ marginTop: 20, paddingTop: 20, borderTop: "1px solid var(--cc-border)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-            <ShieldAlert size={16} color={botSignals.length > 0 ? "#DC2626" : "var(--cc-text-muted)"} />
+            <ShieldAlert size={16} color={botSignals.length > 0 ? "var(--cc-danger-fg)" : "var(--cc-text-muted)"} />
             <h4 style={{ fontSize: "var(--cc-t-14)", fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>Bot Signals</h4>
           </div>
           {botSignals.length === 0 ? (
@@ -739,7 +739,7 @@ export default function PostDetailPage() {
                   These signals are advisory. Flagging a post routes it into the existing fraud review queue.
                 </p>
                 <Button variant="secondary" onClick={() => handleFlagFromSignal(botSignals[0])} loading={flagging} disabled={flagged}>
-                  <span style={{ display: "flex", alignItems: "center", gap: 4, color: flagged ? "#DC2626" : undefined }}>
+                  <span style={{ display: "flex", alignItems: "center", gap: 4, color: flagged ? "var(--cc-danger-fg)" : undefined }}>
                     <Flag size={14} /> {flagged ? "Flagged" : "Flag post"}
                   </span>
                 </Button>

@@ -211,7 +211,7 @@ export default function PortalOffersClient() {
                 </div>
 
                 {offer.status === "ACCEPTED" ? (
-                  <span style={{ fontSize: 13, color: "#059669", fontWeight: 600 }}>
+                  <span style={{ fontSize: 13, color: "var(--cc-success-fg)", fontWeight: 600 }}>
                     Deal approved at {formatCurrency(offer.finalRate ?? ask, offer.currency)}.
                   </span>
                 ) : offer.status === "REJECTED" ? (

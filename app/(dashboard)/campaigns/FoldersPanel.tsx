@@ -168,7 +168,7 @@ export default function FoldersPanel({
                 type="button"
                 aria-label={`Delete ${folder.name}`}
                 onClick={() => setConfirmingDelete(folder.id)}
-                style={{ background: "none", border: "none", cursor: "pointer", padding: 6, color: "#DC2626" }}
+                style={{ background: "none", border: "none", cursor: "pointer", padding: 6, color: "var(--cc-danger-fg)" }}
               >
                 <Trash2 size={14} />
               </button>
@@ -240,7 +240,7 @@ export default function FoldersPanel({
         </div>
 
         {error && (
-          <span style={{ fontSize: "var(--cc-t-12)", color: "#DC2626" }} role="alert">
+          <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-danger-fg)" }} role="alert">
             {error}
           </span>
         )}

@@ -29,7 +29,7 @@ function ToggleSwitch({ on, onChange }: { on: boolean; onChange: (v: boolean) =>
         width: 36,
         height: 20,
         borderRadius: 10,
-        background: on ? "#22c55e" : "var(--cc-text-subtle)",
+        background: on ? "var(--cc-success-fg)" : "var(--cc-text-subtle)",
         border: "none",
         cursor: "pointer",
         position: "relative",
@@ -42,12 +42,12 @@ function ToggleSwitch({ on, onChange }: { on: boolean; onChange: (v: boolean) =>
           width: 16,
           height: 16,
           borderRadius: "50%",
-          background: "#fff",
+          background: "var(--cc-on-primary)",
           position: "absolute",
           top: 2,
           left: on ? 18 : 2,
           transition: "left 0.2s",
-          boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+          boxShadow: "0 1px 3px color-mix(in srgb, var(--cc-shadow-ink) 20%, transparent)",
         }}
       />
     </button>

@@ -107,8 +107,8 @@ function QueueSection({
                 the card rather than scrolling. MEASURED 2026-09-15. */}
             <div style={{ minWidth: 800 }}>
               {/* A class, not inline styles: MEASURED 2026-09-14, their header
-                  row is 14px/400 in rgb(31,60,239) and ours was an 11px/700
-                  uppercase rgb(152,162,179) -- and an inline style is the one
+                  row is 14px/400 in their brand indigo and ours was an 11px/700
+                  uppercase blue-grey -- and an inline style is the one
                   thing a theme cannot outrank. The labels are written in
                   sentence case and uppercased by the base rule, so off-theme
                   renders exactly the caps it always did. */}

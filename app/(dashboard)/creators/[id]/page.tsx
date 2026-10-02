@@ -34,10 +34,10 @@ function formatCurrency(n: number, currency = "USD") {
 }
 
 const PLATFORM_COLORS: Record<string, string> = {
-  TIKTOK: "#000000",
-  INSTAGRAM: "#E4405F",
-  YOUTUBE: "#FF0000",
-  TWITTER: "#1DA1F2",
+  TIKTOK: "var(--cc-brand-tiktok)",
+  INSTAGRAM: "var(--cc-brand-instagram)",
+  YOUTUBE: "var(--cc-brand-youtube)",
+  TWITTER: "var(--cc-brand-twitter)",
 };
 
 const STATUS_VARIANT: Record<string, "warning" | "success" | "danger" | "neutral"> = {
@@ -1201,7 +1201,7 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
                       <Badge
                         variant="neutral"
-                        style={{ background: `${PLATFORM_COLORS[acct.platform] ?? "var(--cc-primary)"}18`, color: PLATFORM_COLORS[acct.platform] ?? "var(--cc-primary)" }}
+                        style={{ background: `color-mix(in srgb, ${PLATFORM_COLORS[acct.platform] ?? "var(--cc-primary)"} 9.4%, transparent)`, color: PLATFORM_COLORS[acct.platform] ?? "var(--cc-primary)" }}
                       >
                         {acct.platform}
                       </Badge>

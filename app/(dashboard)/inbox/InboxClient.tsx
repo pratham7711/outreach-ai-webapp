@@ -379,7 +379,7 @@ export default function InboxClient() {
                             whiteSpace: "pre-wrap",
                             wordBreak: "break-word",
                             background: isOrg ? "var(--cc-primary)" : "var(--cc-bg)",
-                            color: isOrg ? "#fff" : "var(--cc-text)",
+                            color: isOrg ? "var(--cc-on-primary)" : "var(--cc-text)",
                             border: isOrg ? "none" : "1px solid var(--cc-border)",
                           }}
                         >
@@ -435,7 +435,7 @@ export default function InboxClient() {
                     borderRadius: 10,
                     border: "none",
                     background: "var(--cc-primary)",
-                    color: "#fff",
+                    color: "var(--cc-on-primary)",
                     cursor: sending || !draft.trim() ? "not-allowed" : "pointer",
                     opacity: sending || !draft.trim() ? 0.5 : 1,
                     flexShrink: 0,

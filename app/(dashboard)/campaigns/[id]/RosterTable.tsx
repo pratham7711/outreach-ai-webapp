@@ -172,7 +172,7 @@ function ColumnPicker({
           style={{
             position: "absolute", top: 42, right: 0, zIndex: 40, minWidth: 190,
             background: "var(--cc-card)", border: "1px solid var(--cc-border)",
-            borderRadius: 10, boxShadow: "0 8px 24px rgba(28, 32, 72, 0.12)", padding: 6,
+            borderRadius: 10, boxShadow: "var(--cc-popover-shadow)", padding: 6,
           }}
         >
           {COLUMNS.filter((c) => !c.locked).map((c) => (

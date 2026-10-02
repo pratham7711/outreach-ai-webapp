@@ -2,10 +2,10 @@ import type { PlatformRate } from "@/lib/marketplace/public";
 import { formatFull } from "@/lib/format";
 
 export const PLATFORM_META: Record<string, { label: string; bg: string; color: string }> = {
-  TIKTOK: { label: "TikTok", bg: "#EEF2FF", color: "#4F46E5" },
-  INSTAGRAM: { label: "Instagram", bg: "#FDF2F8", color: "#DB2777" },
-  YOUTUBE: { label: "YouTube", bg: "#FEF2F2", color: "#DC2626" },
-  TWITTER: { label: "Twitter", bg: "#EFF6FF", color: "#2563EB" },
+  TIKTOK: { label: "TikTok", bg: "var(--cc-accent-bg)", color: "var(--cc-accent-fg)" },
+  INSTAGRAM: { label: "Instagram", bg: "color-mix(in srgb, var(--cc-brand-instagram) 8%, transparent)", color: "var(--cc-brand-instagram)" },
+  YOUTUBE: { label: "YouTube", bg: "var(--cc-danger-bg)", color: "var(--cc-danger-fg)" },
+  TWITTER: { label: "Twitter", bg: "color-mix(in srgb, var(--cc-info) 8%, transparent)", color: "var(--cc-info)" },
 };
 
 export const CAMPAIGN_TYPE_LABEL: Record<string, string> = {

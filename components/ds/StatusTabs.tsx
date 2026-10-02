@@ -2,7 +2,7 @@
 
 import React from "react";
 import { Badge } from "@pratham7711/ui";
-import { statusInk, whiteReadsOnInk } from "@/lib/statusColors";
+import { statusColorToken, statusInk, whiteReadsOnInk } from "@/lib/statusColors";
 
 type BadgeVariant = "accent" | "success" | "warning" | "danger" | "neutral";
 
@@ -26,30 +26,12 @@ export type StatusTabsProps = {
   style?: React.CSSProperties;
 };
 
-const STATUS_COLOR_TOKENS: Record<string, string> = {
-  /* The no-status tab -- All. Their strip draws it a plain grey, not the
-     page ink: MEASURED rgb(142,142,142) on their Campaigns tabs where every
-     other unselected tab carries its own status colour. Base keeps --cc-text,
-     so light and dark render exactly what they rendered before. */
-  "#374151": "var(--cc-status-neutral-ink)",
-  "#d97706": "var(--cc-warning)",
-  "#059669": "var(--cc-success)",
-  "#dc2626": "var(--cc-danger)",
-  "#4f46e5": "var(--cc-primary)",
-  "#4338ca": "var(--cc-primary)",
-};
-
-function resolveStatusColor(color?: string): string {
-  if (!color) return "var(--cc-primary)";
-  return STATUS_COLOR_TOKENS[color.trim().toLowerCase()] ?? color;
-}
-
 /**
  * The colour to draw a tab's label, underline, dot and icon in.
  *
  * A caller may hand us a whole status style, and a status style's `color` is
  * the text colour for that status's own chip -- for a solid-fill status like
- * Active that is #FFFFFF, which painted onto this strip is white on a
+ * Active that is pure white, which painted onto this strip is white on a
  * near-white page: label, underline and icon all gone. statusInk picks
  * whichever of the pair can be seen on the surface, so the fill colour carries
  * a solid status and a tinted one keeps its foreground.
@@ -57,15 +39,15 @@ function resolveStatusColor(color?: string): string {
 function tabInk(tab: StatusTab): string {
   const base =
     tab.bg && tab.color
-      ? resolveStatusColor(statusInk({ bg: tab.bg, color: tab.color }))
-      : resolveStatusColor(tab.color);
+      ? statusColorToken(statusInk({ bg: tab.bg, color: tab.color }))
+      : statusColorToken(tab.color);
 
   /* A CSS variable is already theme-correct; only a literal from the status
      palette needs help.
 
      Those literals are copied from the reference app for chip parity, where
      each sits on a 12.5% tint of itself. On this strip there is no tint -- the
-     label sits on the page -- and Complete's #56BA57 measured 2.29:1 there.
+     label sits on the page -- and Complete's green measured 2.29:1 there.
      Darkening the palette would fix the light themes and break the dark one, so
      the mix is toward --cc-text instead: that token is near-black in light and
      creatorcore and near-white in dark, so the same expression pushes the hue
@@ -73,8 +55,8 @@ function tabInk(tab: StatusTab): string {
      its own colour; it just stops being the lightest thing on the page.
 
      How far it is pushed is --cc-status-ink-strength, because CreatorCore does
-     not push it at all: their Pending measures rgb(231,173,0) and their
-     Canceled rgb(255,0,0), which is the palette raw. */
+     not push it at all: their Pending and Canceled measure exactly the raw
+     palette values in lib/statusColors.ts. */
   if (base.startsWith("var(") || base.startsWith("color-mix(")) return base;
   return `color-mix(in srgb, ${base} var(--cc-status-ink-strength), var(--cc-text))`;
 }

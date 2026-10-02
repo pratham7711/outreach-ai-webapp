@@ -117,7 +117,7 @@ export default function PortalEarningsPage() {
       </div>
 
       {/* Manual-fulfillment notice */}
-      <div style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "12px 14px", borderRadius: 8, background: "rgba(91,91,214,0.06)", border: "1px solid var(--cc-border)", marginBottom: 24 }}>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "12px 14px", borderRadius: 8, background: "color-mix(in srgb, var(--cc-primary) 6%, transparent)", border: "1px solid var(--cc-border)", marginBottom: 24 }}>
         <Info size={16} style={{ color: "var(--cc-primary)", flexShrink: 0, marginTop: 1 }} />
         <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>
           Earnings are computed automatically from your approved submissions. Payouts are fulfilled manually by the campaign owner for now.
@@ -125,7 +125,7 @@ export default function PortalEarningsPage() {
       </div>
 
       {error && (
-        <div style={{ padding: "10px 14px", borderRadius: 8, background: "#FEE2E2", color: "#DC2626", fontSize: 13, marginBottom: 16 }}>
+        <div style={{ padding: "10px 14px", borderRadius: 8, background: "var(--cc-danger-bg)", color: "var(--cc-danger-fg)", fontSize: 13, marginBottom: 16 }}>
           {error}
         </div>
       )}
@@ -183,7 +183,7 @@ export default function PortalEarningsPage() {
                 {threshold && threshold > 0 && (
                   <div style={{ marginTop: 12 }}>
                     <div style={{ height: 6, borderRadius: 3, background: "var(--cc-bg)", overflow: "hidden" }}>
-                      <div style={{ width: `${pct}%`, height: "100%", background: pct >= 100 ? "#059669" : "var(--cc-primary)", transition: "width 0.2s" }} />
+                      <div style={{ width: `${pct}%`, height: "100%", background: pct >= 100 ? "var(--cc-success-fg)" : "var(--cc-primary)", transition: "width 0.2s" }} />
                     </div>
                     <p style={{ fontSize: 11, color: "var(--cc-text-muted)", marginTop: 4 }}>
                       {c.canRequestPayout

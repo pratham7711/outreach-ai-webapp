@@ -42,10 +42,10 @@ interface PayoutRequest {
 }
 
 const STATUS_TABS = [
-  { key: "ALL", label: "All", bg: "#F3F4F6", color: "#374151" },
-  { key: "PENDING", label: "Pending", bg: "#FEF3C7", color: "var(--cc-warning-ink)" },
-  { key: "APPROVED", label: "Approved", bg: "#D1FAE5", color: "#059669" },
-  { key: "REJECTED", label: "Rejected", bg: "#FEE2E2", color: "#DC2626" },
+  { key: "ALL", label: "All", bg: "var(--cc-neutral-bg)", color: "var(--cc-status-neutral-ink)" },
+  { key: "PENDING", label: "Pending", bg: "var(--cc-warning-bg)", color: "var(--cc-warning-ink)" },
+  { key: "APPROVED", label: "Approved", bg: "var(--cc-success-bg)", color: "var(--cc-success)" },
+  { key: "REJECTED", label: "Rejected", bg: "var(--cc-danger-bg)", color: "var(--cc-danger)" },
 ];
 
 const STATUS_BADGE: Record<string, "warning" | "success" | "danger" | "neutral"> = {
@@ -158,7 +158,7 @@ export default function RequestsPage() {
         subtitle="View and manage payout requests"
         actions={
           /* PRIMARY, not secondary. MEASURED at desktop-1600: their Export Data
-             on this screen is the filled 180x40 rgb(31,60,239) button every
+             on this screen is the filled 180x40 brand-indigo button every
              other list page gives its create action -- this page has no create,
              so the export IS the page's action. Ours rendered it as a small
              secondary, which is also why the parity harness could not see it:

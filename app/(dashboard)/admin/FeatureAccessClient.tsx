@@ -472,12 +472,12 @@ export default function FeatureAccessClient({ clients: initialClients, plans }: 
           padding: "12px 24px",
           borderRadius: 12,
           /* The bar's own ground, not the theme's. Its divider, dropdown fill
-             and ghost button are all rgba(255,…) over a dark surface, so a
-             ground that flips to #FFFFFF under .dark takes the whole set with
+             and ghost button are all translucent white over a dark surface, so a
+             ground that flips to white under .dark takes the whole set with
              it -- the label, the separator and both controls at once. */
           background: "var(--cc-overlay-ink)",
           color: "var(--cc-overlay-ink-text)",
-          boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
+          boxShadow: "0 8px 32px color-mix(in srgb, var(--cc-shadow-ink) 30%, transparent)",
           zIndex: 100,
           fontSize: "var(--cc-t-13)",
           maxWidth: "calc(100vw - 24px)",
@@ -485,7 +485,7 @@ export default function FeatureAccessClient({ clients: initialClients, plans }: 
           <span style={{ fontWeight: "var(--cc-fw-strong)"}}>
             {selected.size} client{selected.size > 1 ? "s" : ""} selected
           </span>
-          <div className="rsp-hide-mobile" style={{ width: 1, height: 20, background: "rgba(255,255,255,0.2)" }} />
+          <div className="rsp-hide-mobile" style={{ width: 1, height: 20, background: "color-mix(in srgb, var(--cc-overlay-ink-text) 20%, transparent)" }} />
           <Dropdown
             ariaLabel="Bulk plan"
             align="left"
@@ -498,8 +498,8 @@ export default function FeatureAccessClient({ clients: initialClients, plans }: 
             ]}
             triggerStyle={{
               padding: "6px 10px", borderRadius: 6, fontSize: "var(--cc-t-12)",
-              background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.2)",
-              color: "white",
+              background: "color-mix(in srgb, var(--cc-overlay-ink-text) 15%, transparent)", border: "1px solid color-mix(in srgb, var(--cc-overlay-ink-text) 20%, transparent)",
+              color: "var(--cc-overlay-ink-text)",
             }}
           />
           <Button variant="primary" size="sm" loading={bulkSaving} onClick={handleBulkAssign}>
@@ -508,7 +508,7 @@ export default function FeatureAccessClient({ clients: initialClients, plans }: 
           <Button variant="danger" size="sm" loading={bulkSaving} onClick={handleBulkClearOverrides}>
             Clear Overrides
           </Button>
-          <Button variant="ghost" size="sm" onClick={() => setSelected(new Set())} style={{ color: "rgba(255,255,255,0.8)" }}>
+          <Button variant="ghost" size="sm" onClick={() => setSelected(new Set())} style={{ color: "color-mix(in srgb, var(--cc-overlay-ink-text) 80%, transparent)" }}>
             Cancel
           </Button>
         </div>

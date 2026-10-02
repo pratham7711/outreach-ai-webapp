@@ -53,14 +53,14 @@ export function ErrorCard({
             width: 56,
             height: 56,
             borderRadius: 16,
-            background: "rgba(220, 38, 38, 0.08)",
+            background: "var(--cc-danger-bg)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             margin: "0 auto 20px",
           }}
         >
-          <AlertTriangle size={26} color="#DC2626" />
+          <AlertTriangle size={26} color="var(--cc-danger-fg)" />
         </div>
 
         <h1 style={{ fontSize: "var(--cc-t-20)", fontWeight: 700, color: "var(--cc-text)", margin: "0 0 8px" }}>

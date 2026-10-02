@@ -90,8 +90,8 @@ function ChangeChip({ value }: { value: number | null }) {
     <span style={{
       display: "inline-flex", alignItems: "center", gap: 3, fontSize: "var(--cc-t-11)", fontWeight: "var(--cc-fw-strong)",
       padding: "2px 7px", borderRadius: 20,
-      background: value === 0 ? "#F3F4F6" : positive ? "#D1FAE5" : "#FEE2E2",
-      color: value === 0 ? "#6B7280" : positive ? "#059669" : "#DC2626",
+      background: value === 0 ? "var(--cc-neutral-bg)" : positive ? "var(--cc-success-bg)" : "var(--cc-danger-bg)",
+      color: value === 0 ? "var(--cc-neutral-fg)" : positive ? "var(--cc-success-fg)" : "var(--cc-danger-fg)",
     }}>
       <Icon size={10} />
       {value === 0 ? "No change" : `${Math.abs(value)}%`}
@@ -263,7 +263,7 @@ export default function FinancialReportsPage() {
 
       {error ? (
         <Card variant="outlined" style={{ padding: 40, textAlign: "center" }}>
-          <p style={{ color: "#DC2626", fontSize: "var(--cc-t-14)"}}>{error}</p>
+          <p style={{ color: "var(--cc-danger-fg)", fontSize: "var(--cc-t-14)"}}>{error}</p>
           <Button variant="secondary" size="sm" onClick={() => load(period)} style={{ marginTop: 12 }}>Retry</Button>
         </Card>
       ) : loading ? (
@@ -281,8 +281,8 @@ export default function FinancialReportsPage() {
               role="note"
               style={{
                 display: "flex", alignItems: "center", gap: 8, marginBottom: 16, padding: "10px 14px",
-                borderRadius: 10, background: "#FEF3C7", border: "1px solid #FDE68A",
-                fontSize: "var(--cc-t-13)", color: "#92400E",
+                borderRadius: 10, background: "var(--cc-warning-bg)", border: "1px solid color-mix(in srgb, var(--cc-warning-solid) 30%, transparent)",
+                fontSize: "var(--cc-t-13)", color: "var(--cc-warning-fg)",
               }}
             >
               <TriangleAlert size={15} />
@@ -403,7 +403,7 @@ export default function FinancialReportsPage() {
                           <div style={{ flex: 1, height: 6, borderRadius: 3, background: "var(--cc-bg)", overflow: "hidden", minWidth: 60 }}>
                             <div style={{
                               height: "100%", borderRadius: 3,
-                              background: c.utilization >= 90 ? "#DC2626" : c.utilization >= 70 ? "#D97706" : "#059669",
+                              background: c.utilization >= 90 ? "var(--cc-danger-solid)" : c.utilization >= 70 ? "var(--cc-warning-solid)" : "var(--cc-success-fg)",
                               width: `${Math.min(c.utilization, 100)}%`,
                             }} />
                           </div>

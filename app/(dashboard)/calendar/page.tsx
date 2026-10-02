@@ -25,8 +25,8 @@ const WEEK_STARTS_ON = 6;
 const DAYS = ["Sat", "Sun", "Mon", "Tue", "Wed", "Thu", "Fri"];
 
 /* The chips below used to build their background by appending hex alpha to
-   whatever this map held -- `${color}20`. That works for a literal like
-   "#F59E0B" and silently produces nothing for "var(--cc-primary)20", which is
+   whatever this map held -- `${color}20`. That works for a hex literal and
+   silently produces nothing for "var(--cc-primary)20", which is
    not a colour, so Active and Complete campaigns drew their text on no
    background at all. The captured palette already carries the tinted ground as
    its own value, so there is nothing left to concatenate. */
@@ -145,7 +145,7 @@ export default function CalendarPage() {
           </div>
         ))}
         <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#7C3AED" }} />
+          <div style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--cc-deliverable)" }} />
           Deliverable Due
         </div>
       </div>
@@ -228,7 +228,7 @@ export default function CalendarPage() {
                       {deliverables.length > 0 && (
                         <div style={{ display: "flex", gap: 3, marginTop: 3 }}>
                           {deliverables.map(d => (
-                            <div key={d.id} style={{ width: 6, height: 6, borderRadius: "50%", background: "#7C3AED" }} title={`${d.creator.name} - ${d.campaign.title}`} />
+                            <div key={d.id} style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--cc-deliverable)" }} title={`${d.creator.name} - ${d.campaign.title}`} />
                           ))}
                         </div>
                       )}
@@ -271,7 +271,7 @@ export default function CalendarPage() {
                     <div>
                       <span className="cc-microlabel">Deliverables Due</span>
                       {selectedDetail!.activations.map(a => (
-                        <div key={a.id} style={{ marginTop: 8, padding: 10, borderRadius: 8, background: "rgba(124,58,237,0.06)" }}>
+                        <div key={a.id} style={{ marginTop: 8, padding: 10, borderRadius: 8, background: "color-mix(in srgb, var(--cc-deliverable) 6%, transparent)" }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                             <CreatorAvatar id={a.creator.id} name={a.creator.name} size="sm" />
                             <CreatorName name={a.creator.name} handle={a.creator.handle} layout="inline" size="sm" />

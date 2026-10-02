@@ -51,10 +51,10 @@ export function ActingAsBanner({
         gap: 10,
         flexWrap: "wrap",
         padding: "10px 20px",
-        background: mode === "full" ? "#FEE2E2" : "#E0E7FF",
+        background: mode === "full" ? "var(--cc-danger-bg)" : "var(--cc-accent-bg)",
         borderBottom: "1px solid var(--cc-border)",
         fontSize: "var(--cc-t-13)",
-        color: mode === "full" ? "#991B1B" : "#3730A3",
+        color: mode === "full" ? "var(--cc-danger-fg)" : "var(--cc-accent-fg)",
       }}
     >
       <Building2 size={16} strokeWidth={2} style={{ flexShrink: 0 }} />

@@ -68,7 +68,7 @@ export function TableSkeleton({ rows = 5, columns = 4 }: { rows?: number; column
           display: "flex",
           gap: 16,
           padding: "14px 24px",
-          background: "var(--cc-hover-bg, rgba(0,0,0,0.02))",
+          background: "var(--cc-hover-bg)",
           borderBottom: "1px solid var(--cc-border)",
         }}
       >

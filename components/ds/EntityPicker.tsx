@@ -166,7 +166,7 @@ export function EntityPicker({
             background: "var(--cc-card)",
             border: "1px solid var(--cc-border)",
             borderRadius: 8,
-            boxShadow: "0 8px 24px rgba(28, 32, 72, 0.12)",
+            boxShadow: "var(--cc-popover-shadow)",
           }}
         >
           {error ? (

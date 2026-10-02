@@ -4,7 +4,7 @@ import { Search, Bell, Plus } from "lucide-react";
 
 export function TopNav() {
   return (
-    <header className="flex h-16 items-center justify-between border-b border-white/[0.06] bg-[#0C0D18] px-6">
+    <header className="flex h-16 items-center justify-between border-b border-white/[0.06] bg-[var(--cc-card)] px-6">
       {/* Search */}
       <div className="flex-1 max-w-md">
         <div className="relative">
@@ -18,7 +18,7 @@ export function TopNav() {
 
       {/* Actions */}
       <div className="flex items-center gap-3">
-        <button className="flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-[13px] font-bold text-white hover:bg-blue-700 hover:shadow-[0_0_20px_rgba(37,99,235,0.4)] transition-all">
+        <button className="flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-[13px] font-bold text-white hover:bg-blue-700 hover:shadow-[0_0_20px_color-mix(in_srgb,var(--cc-primary)_40%,transparent)] transition-all">
           <Plus className="h-3.5 w-3.5" />
           Quick Add
         </button>

@@ -232,8 +232,8 @@ export default function PayoutsClient({ payouts, stats }: {
         actions={
           /* Export Data is the FILLED one here, New Payout the outline --
              the opposite of every other list page. MEASURED from their census:
-             their Export Data label is rgb(255,255,255) on the fill and their
-             New Payout label is rgb(31,60,239) on white. Ours had the two
+             their Export Data label is white on the fill and their
+             New Payout label is brand indigo on white. Ours had the two
              skins the other way round. The slot rule gives both the same
              180x40 box. Export Data is also the page header's ONLY action
              on their side -- their New Payout is a 400x50 outline button in

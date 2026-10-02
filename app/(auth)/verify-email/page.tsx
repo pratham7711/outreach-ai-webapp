@@ -82,7 +82,7 @@ function Badge({ tone, children }: { tone: "ok" | "warn"; children: React.ReactN
         width: 56,
         height: 56,
         borderRadius: "50%",
-        background: tone === "ok" ? "var(--cc-primary-light)" : "#FEF3C7",
+        background: tone === "ok" ? "var(--cc-primary-light)" : "var(--cc-warning-bg)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -206,7 +206,7 @@ function VerifyEmail() {
   return (
     <>
       <Badge tone="warn">
-        <MailWarning size={24} color="#D97706" strokeWidth={2} />
+        <MailWarning size={24} color="var(--cc-warning-solid)" strokeWidth={2} />
       </Badge>
       <h1 style={{ fontSize: 22, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4, textAlign: "center" }}>
         {heading}

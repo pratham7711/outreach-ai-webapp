@@ -15,8 +15,8 @@ function StarRating({ rating }: { rating: number }) {
         <Star
           key={i}
           size={18}
-          fill={i <= rating ? "#F59E0B" : "#E4E6F0"}
-          color={i <= rating ? "#F59E0B" : "#E4E6F0"}
+          fill={i <= rating ? "var(--cc-rating)" : "var(--cc-border)"}
+          color={i <= rating ? "var(--cc-rating)" : "var(--cc-border)"}
         />
       ))}
     </span>
@@ -40,11 +40,11 @@ function nicheLabel(niche: string) {
 }
 
 const PLATFORM_COLORS: Record<string, { bg: string; color: string }> = {
-  TIKTOK: { bg: "#EEF2FF", color: "#4F46E5" },
-  INSTAGRAM: { bg: "#FDF2F8", color: "#DB2777" },
-  YOUTUBE: { bg: "#FEF2F2", color: "#DC2626" },
-  TWITTER: { bg: "#EFF6FF", color: "#2563EB" },
-  TWITCH: { bg: "#F5F3FF", color: "#7C3AED" },
+  TIKTOK: { bg: "var(--cc-accent-bg)", color: "var(--cc-accent-fg)" },
+  INSTAGRAM: { bg: "color-mix(in srgb, var(--cc-brand-instagram) 8%, transparent)", color: "var(--cc-brand-instagram)" },
+  YOUTUBE: { bg: "var(--cc-danger-bg)", color: "var(--cc-danger-fg)" },
+  TWITTER: { bg: "color-mix(in srgb, var(--cc-info) 8%, transparent)", color: "var(--cc-info)" },
+  TWITCH: { bg: "color-mix(in srgb, var(--cc-favorite) 8%, transparent)", color: "var(--cc-favorite)" },
 };
 
 /* ── Page ────────────────────────────────────────────────────────────────── */
@@ -120,8 +120,8 @@ export default async function CreatorProfilePage({
 
   const avgRating = user.averageRating;
   const platformStyle = PLATFORM_COLORS[user.platform] ?? {
-    bg: "#F3F4F6",
-    color: "#374151",
+    bg: "var(--cc-neutral-bg)",
+    color: "var(--cc-neutral-fg)",
   };
 
   return (
@@ -129,7 +129,7 @@ export default async function CreatorProfilePage({
       {/* ── Header / Banner ──────────────────────────────────────────── */}
       <div
         style={{
-          background: "linear-gradient(135deg, #EEF2FF 0%, #F5F3FF 40%, #FFFFFF 100%)",
+          background: "linear-gradient(135deg, var(--cc-accent-bg) 0%, color-mix(in srgb, var(--cc-accent-bg) 50%, var(--cc-card)) 40%, var(--cc-card) 100%)",
           borderRadius: "0 0 24px 24px",
           padding: "48px 32px 32px",
           marginBottom: 32,
@@ -143,15 +143,15 @@ export default async function CreatorProfilePage({
               height: 96,
               borderRadius: "50%",
               overflow: "hidden",
-              border: "4px solid white",
-              boxShadow: "0 4px 24px rgba(91,91,214,0.15)",
+              border: "4px solid var(--cc-on-primary)",
+              boxShadow: "0 4px 24px color-mix(in srgb, var(--cc-primary) 15%, transparent)",
               background: "var(--cc-primary)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               fontSize: 36,
               fontWeight: 700,
-              color: "white",
+              color: "var(--cc-on-primary)",
             }}
           >
             {user.avatarUrl ? (
@@ -211,8 +211,8 @@ export default async function CreatorProfilePage({
                 borderRadius: 20,
                 fontSize: 12,
                 fontWeight: 600,
-                background: "#FFFBEB",
-                color: "var(--cc-warning-ink)",
+                background: "var(--cc-warning-bg)",
+                color: "var(--cc-warning-fg)",
               }}
             >
               <Star size={14} fill="var(--cc-warning)" color="var(--cc-warning)" /> {avgRating.toFixed(1)}
@@ -325,8 +325,8 @@ export default async function CreatorProfilePage({
                   borderRadius: 20,
                   fontSize: 13,
                   fontWeight: 500,
-                  background: "#EEF2FF",
-                  color: "#4F46E5",
+                  background: "var(--cc-accent-bg)",
+                  color: "var(--cc-accent-fg)",
                 }}
               >
                 {nicheLabel(n)}

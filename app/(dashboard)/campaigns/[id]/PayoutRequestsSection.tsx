@@ -29,10 +29,10 @@ function creatorName(creator: { name: string; handle: string } | null): string {
 }
 
 const STATUS_TABS = [
-  { key: "ALL", label: "All", bg: "#F3F4F6", color: "#374151" },
-  { key: "PENDING", label: "Pending", bg: "#FEF3C7", color: "var(--cc-warning-ink)" },
-  { key: "APPROVED", label: "Approved", bg: "#D1FAE5", color: "#059669" },
-  { key: "REJECTED", label: "Rejected", bg: "#FEE2E2", color: "#DC2626" },
+  { key: "ALL", label: "All", bg: "var(--cc-neutral-bg)", color: "var(--cc-status-neutral-ink)" },
+  { key: "PENDING", label: "Pending", bg: "var(--cc-warning-bg)", color: "var(--cc-warning-ink)" },
+  { key: "APPROVED", label: "Approved", bg: "var(--cc-success-bg)", color: "var(--cc-success)" },
+  { key: "REJECTED", label: "Rejected", bg: "var(--cc-danger-bg)", color: "var(--cc-danger)" },
 ];
 
 const STATUS_BADGE: Record<string, "warning" | "success" | "danger"> = {
@@ -236,7 +236,7 @@ export default function PayoutRequestsSection({ campaignId }: { campaignId: stri
         <Modal open={true} onClose={() => { setShowReject(null); setRejectionReason(""); }} title="Reject Payout Request" size="sm" footer={
           <div className="cc-modal-footer">
             <Button variant="secondary" onClick={() => { setShowReject(null); setRejectionReason(""); }}>Cancel</Button>
-            <Button variant="primary" onClick={handleReject} style={{ background: "#DC2626" }}>Reject</Button>
+            <Button variant="primary" onClick={handleReject} style={{ background: "var(--cc-danger-solid)" }}>Reject</Button>
           </div>
         }>
           <div>

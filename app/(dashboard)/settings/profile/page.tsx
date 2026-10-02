@@ -130,9 +130,9 @@ export default function OrgProfilePage() {
       {toast && (
         <div style={{
           position: "fixed", top: 20, right: 20, zIndex: 9999,
-          background: "var(--cc-success)", color: "white", padding: "10px 18px",
+          background: "var(--cc-success)", color: "var(--cc-on-primary)", padding: "10px 18px",
           borderRadius: 8, fontSize: "var(--cc-t-14)", fontWeight: 500,
-          boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+          boxShadow: "0 4px 12px color-mix(in srgb, var(--cc-shadow-ink) 15%, transparent)",
         }}>
           {toast}
         </div>

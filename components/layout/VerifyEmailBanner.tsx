@@ -41,10 +41,10 @@ export function VerifyEmailBanner({ email }: { email: string }) {
         gap: 10,
         flexWrap: "wrap",
         padding: "10px 20px",
-        background: "#FEF3C7",
+        background: "var(--cc-warning-bg)",
         borderBottom: "1px solid var(--cc-border)",
         fontSize: "var(--cc-t-13)",
-        color: "#92400E",
+        color: "var(--cc-warning-fg)",
       }}
     >
       <MailWarning size={16} strokeWidth={2} style={{ flexShrink: 0 }} />
@@ -66,7 +66,7 @@ export function VerifyEmailBanner({ email }: { email: string }) {
             padding: 0,
             font: "inherit",
             fontWeight: "var(--cc-fw-strong)",
-            color: "#92400E",
+            color: "var(--cc-warning-fg)",
             textDecoration: "underline",
             cursor: state === "sending" ? "default" : "pointer",
           }}

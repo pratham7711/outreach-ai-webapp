@@ -193,7 +193,7 @@ export function Dropdown({
           borderRadius: 10,
           border: "1px solid var(--cc-border)",
           background: "var(--cc-card)",
-          boxShadow: "0 8px 24px rgba(28, 32, 72, 0.12)",
+          boxShadow: "var(--cc-popover-shadow)",
         }}
       >
         {options.map((o, i) => {
@@ -271,7 +271,7 @@ export function Dropdown({
           fontWeight: isPrimary ? 600 : md ? 400 : 500,
           border: isPrimary ? "none" : "1px solid var(--cc-border)",
           background: isPrimary ? "var(--cc-primary)" : "var(--cc-card)",
-          color: isPrimary ? "#fff" : selected ? "var(--cc-text)" : "var(--cc-text-muted)",
+          color: isPrimary ? "var(--cc-on-primary)" : selected ? "var(--cc-text)" : "var(--cc-text-muted)",
           cursor: disabled ? "progress" : "pointer",
           opacity: disabled ? 0.65 : 1,
           ...triggerStyle,
@@ -289,7 +289,7 @@ export function Dropdown({
         <ChevronDown
           size={15}
           style={{
-            color: triggerStyle?.color ?? (isPrimary ? "#fff" : "var(--cc-text-muted)"),
+            color: triggerStyle?.color ?? (isPrimary ? "var(--cc-on-primary)" : "var(--cc-text-muted)"),
             flexShrink: 0,
           }}
         />

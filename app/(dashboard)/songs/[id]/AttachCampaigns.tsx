@@ -113,7 +113,7 @@ export default function AttachCampaigns({
         </div>
       )}
 
-      {error && <p style={{ fontSize: "var(--cc-t-12)", color: "#DC2626" }}>{error}</p>}
+      {error && <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-danger-fg)" }}>{error}</p>}
     </div>
   );
 }
