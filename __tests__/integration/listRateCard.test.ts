@@ -21,14 +21,14 @@ import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { listApprovalTablesReady } from "@/lib/lists/approvalTables";
 
-const mockDb = db as any;
+const mockDb = db as unknown as Record<string, Record<string, jest.Mock>> & { $transaction: jest.Mock };
 const mockAuth = auth as jest.Mock;
 
 const itemParams = (id: string, creatorId: string) => ({ params: Promise.resolve({ id, creatorId }) });
 const listParams = (id: string) => ({ params: Promise.resolve({ id }) });
 const req = (url: string, body: unknown, method = "POST") =>
   new NextRequest(`http://localhost${url}`, { method, body: JSON.stringify(body), headers: { "Content-Type": "application/json" } });
-const upserts = () => mockDb.creatorListItemDetail.upsert.mock.calls.map((c: any[]) => c[0]);
+const upserts = () => mockDb.creatorListItemDetail.upsert.mock.calls.map((c) => c[0]);
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -37,7 +37,7 @@ beforeEach(() => {
   mockDb.creatorList.findFirst.mockResolvedValue({ id: "list-1" });
   // $transaction is handed an array of upsert promises; resolving them is enough.
   mockDb.$transaction.mockImplementation((ops: unknown[]) => Promise.all(ops));
-  mockDb.creatorListItemDetail.upsert.mockImplementation(async ({ create }: any) => ({ rate: create.rate ?? null, notes: create.notes ?? null }));
+  mockDb.creatorListItemDetail.upsert.mockImplementation(async ({ create }) => ({ rate: create.rate ?? null, notes: create.notes ?? null }));
   mockDb.creatorListItemDetail.findMany.mockResolvedValue([]);
 });
 
@@ -145,7 +145,7 @@ describe("POST /api/lists/[id]/reorder", () => {
     const res = await reorder(["c-3", "c-1", "c-2"]);
     expect(res.status).toBe(200);
     expect(mockDb.$transaction).toHaveBeenCalledTimes(1);
-    expect(upserts().map((u: any) => [u.where.itemId, u.update.sortOrder, u.create.orgId])).toEqual([
+    expect(upserts().map((u) => [u.where.itemId, u.update.sortOrder, u.create.orgId])).toEqual([
       ["item-3", 0, "org-1"],
       ["item-1", 1, "org-1"],
       ["item-2", 2, "org-1"],
@@ -188,7 +188,7 @@ describe("POST /api/lists/[id]/import-rates", () => {
     ]);
     const body = await (await importRates()).json();
     expect(body).toEqual({ imported: 1, skipped: 2, creatorsWithoutRate: 1 });
-    expect(upserts().map((u: any) => [u.where.itemId, u.update])).toEqual([["item-1", { rate: 900 }]]);
+    expect(upserts().map((u) => [u.where.itemId, u.update])).toEqual([["item-1", { rate: 900 }]]);
   });
 
   it("overwrites a typed rate only when asked to", async () => {
@@ -201,7 +201,7 @@ describe("POST /api/lists/[id]/import-rates", () => {
     ]);
     const body = await (await importRates({ overwrite: true })).json();
     expect(body.imported).toBe(2);
-    expect(upserts().map((u: any) => u.update)).toEqual([{ rate: 900 }, { rate: 800 }]);
+    expect(upserts().map((u) => u.update)).toEqual([{ rate: 900 }, { rate: 800 }]);
   });
 
   it("reports zero imported rather than failing when no creator has a rate", async () => {

@@ -21,7 +21,7 @@ import { logAudit } from "@/lib/audit";
 import { listApprovalTablesReady } from "@/lib/lists/approvalTables";
 import { DEFAULT_SHARE_REVIEW, LEGACY_SHARE_REVIEW } from "@/lib/lists/shareSettings";
 
-const mockDb = db as any;
+const mockDb = db as unknown as Record<string, Record<string, jest.Mock>>;
 const params = { params: Promise.resolve({ id: "list-1" }) };
 const call = (method: "GET" | "POST" | "PATCH" | "DELETE", body?: unknown) =>
   shareRoute[method](
@@ -43,8 +43,8 @@ beforeEach(() => {
   (auth as jest.Mock).mockResolvedValue({ user: { id: "user-1", orgId: "org-1", role: "MEMBER" } });
   (listApprovalTablesReady as jest.Mock).mockResolvedValue(true);
   mockDb.creatorList.findFirst.mockResolvedValue({ id: "list-1", name: "Spring pitch" });
-  mockDb.creatorListShare.create.mockImplementation(async ({ data }: any) => ({ ...data, createdAt: new Date() }));
-  mockDb.creatorListShare.update.mockImplementation(async ({ data }: any) => ({ ...live(), ...data }));
+  mockDb.creatorListShare.create.mockImplementation(async ({ data }) => ({ ...data, createdAt: new Date() }));
+  mockDb.creatorListShare.update.mockImplementation(async ({ data }) => ({ ...live(), ...data }));
 });
 
 describe("GET /api/lists/[id]/share", () => {

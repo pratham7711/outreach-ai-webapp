@@ -18,7 +18,7 @@ import { listApprovalTablesReady } from "@/lib/lists/approvalTables";
 import { applyShareReview, pitchOrder, type ItemDetail } from "@/lib/lists/listReview";
 import type { SharedCreator, SharedList } from "@/lib/lists/listShare";
 
-const mdb = db as any;
+const mdb = db as unknown as Record<string, Record<string, jest.Mock>>;
 
 const share = (price = true): SharedList => ({
   token: "fake-share-token",

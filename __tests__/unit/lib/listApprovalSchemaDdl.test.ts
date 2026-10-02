@@ -1,6 +1,8 @@
 /**
  * @jest-environment node
  */
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { NextRequest } from "next/server";
 
 jest.mock("@/lib/db", () => ({ db: { $queryRawUnsafe: jest.fn(), $executeRawUnsafe: jest.fn() } }));
@@ -32,10 +34,7 @@ describe("list-approval schema DDL", () => {
   });
 
   it("keeps the tracked migration and the admin route on the same DDL", () => {
-    const sql = require("node:fs").readFileSync(
-      require("node:path").join(process.cwd(), "prisma/migrations/20261002120000_list_approval/migration.sql"),
-      "utf8",
-    );
+    const sql = readFileSync(path.join(process.cwd(), "prisma/migrations/20261002120000_list_approval/migration.sql"), "utf8");
     const normalise = (s: string) => s.replace(/\s+/g, " ").trim();
     for (const stmt of LIST_APPROVAL_DDL) expect(normalise(sql)).toContain(normalise(stmt));
   });

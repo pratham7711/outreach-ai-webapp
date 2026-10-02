@@ -23,7 +23,7 @@ import { auth } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
 import { listApprovalTablesReady } from "@/lib/lists/approvalTables";
 
-const mockDb = db as any;
+const mockDb = db as unknown as Record<string, Record<string, jest.Mock>> & { $transaction: jest.Mock };
 const params = { params: Promise.resolve({ id: "list-1" }) };
 const duplicate = (body: unknown = {}) =>
   POST(new NextRequest("http://localhost/api/lists/list-1/duplicate", { method: "POST", body: JSON.stringify(body) }), params);
@@ -45,9 +45,9 @@ beforeEach(() => {
   (listApprovalTablesReady as jest.Mock).mockResolvedValue(true);
   mockDb.$transaction.mockImplementation((fn: (tx: unknown) => unknown) => fn(mockDb));
   mockDb.creatorList.findFirst.mockResolvedValue({ id: "list-1", name: "Spring pitch", description: "Q2" });
-  mockDb.creatorList.create.mockImplementation(async ({ data }: any) => ({ id: "list-2", ...data }));
+  mockDb.creatorList.create.mockImplementation(async ({ data }) => ({ id: "list-2", ...data }));
   // Newest first, as the plain list orders them.
-  mockDb.creatorListItem.findMany.mockImplementation(async ({ where }: any) =>
+  mockDb.creatorListItem.findMany.mockImplementation(async ({ where }) =>
     where.listId === "list-1"
       ? [
           { id: "i-4", creatorId: "c-4" },
@@ -113,7 +113,7 @@ describe("POST /api/lists/[id]/duplicate", () => {
 
   it("copies every creator under the 'all' scope", async () => {
     await duplicate({ scope: "all" });
-    expect(copiedDetails().map((d: any) => d.itemId)).toEqual(["new-c-1", "new-c-2", "new-c-3", "new-c-4"]);
+    expect(copiedDetails().map((d) => d.itemId)).toEqual(["new-c-1", "new-c-2", "new-c-3", "new-c-4"]);
   });
 
   it("records where the copy came from, and never carries the share link", async () => {

@@ -244,7 +244,7 @@ describe('/api/lists/[id] with the list-approval tables', () => {
   it("shows the agency each creator's rate and the client's verdict, in pitch order", async () => {
     const body = await (await GET(makeRequest('http://localhost/api/lists/list-1'), makeParams('list-1'))).json();
     // Dragged rows first by sortOrder; the unordered newcomer lands at the end.
-    expect(body.items.map((i: any) => i.id)).toEqual(['item-1', 'item-2', 'item-3']);
+    expect(body.items.map((i: { id: string }) => i.id)).toEqual(['item-1', 'item-2', 'item-3']);
     expect(body.items[0].detail).toEqual({
       rate: 900, notes: null, sortOrder: 0, decision: 'APPROVED', decisionNote: null, decidedAt: '2026-09-30T10:00:00.000Z',
     });

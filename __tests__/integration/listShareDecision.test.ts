@@ -20,7 +20,7 @@ import { db } from "@/lib/db";
 import { logAudit } from "@/lib/audit";
 import { listApprovalTablesReady } from "@/lib/lists/approvalTables";
 
-const mockDb = db as any;
+const mockDb = db as unknown as Record<string, Record<string, jest.Mock>>;
 const TOKEN = "fake-share-token";
 
 const shareRow = (over: Record<string, unknown> = {}) => ({
@@ -62,7 +62,7 @@ beforeEach(() => {
   mockDb.creatorListItem.findFirst.mockResolvedValue({ id: "item-1" });
   mockDb.creatorListItem.findMany.mockResolvedValue([{ id: "item-1" }, { id: "item-2" }]);
   mockDb.creatorListItemDetail.findMany.mockResolvedValue([]);
-  mockDb.creatorListItemDetail.upsert.mockImplementation(async ({ update }: any) => update);
+  mockDb.creatorListItemDetail.upsert.mockImplementation(async ({ update }) => update);
 });
 
 describe("POST /api/l/[token]/decision", () => {
