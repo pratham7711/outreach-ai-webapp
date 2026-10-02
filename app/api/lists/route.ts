@@ -4,13 +4,20 @@ import { authenticateRequest, getAuditActor } from "@/lib/authenticate";
 import { requirePermission } from "@/lib/authz";
 import { logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
+import { listApprovalTablesReady } from "@/lib/lists/approvalTables";
+import { listSummaries } from "@/lib/lists/listReview";
 
 export async function GET(req: NextRequest) {
   const result = await authenticateRequest(req);
   if (!result) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { orgId } = result;
   const lists = await db.creatorList.findMany({ where: { orgId }, include: { _count: { select: { items: true } } }, orderBy: { createdAt: "desc" } });
-  return NextResponse.json({ lists });
+  if (!(await listApprovalTablesReady())) return NextResponse.json({ lists });
+
+  // Status, decision counts, favourite and archived ride along once the
+  // approval tables exist; until then the payload is exactly the plain index.
+  const summaries = await listSummaries(orgId, lists.map((l) => ({ id: l.id, total: l._count.items })));
+  return NextResponse.json({ lists: lists.map((l) => ({ ...l, ...summaries.get(l.id) })) });
 }
 
 export async function POST(req: NextRequest) {
