@@ -43,6 +43,14 @@
     {
       "path": "/api/cron/refresh-platform-tokens",
       "schedule": "0 5 * * *"
+    },
+    {
+      "path": "/api/cron/ops-canary",
+      "schedule": "44 * * * *"
+    },
+    {
+      "path": "/api/cron/ops-meters",
+      "schedule": "14 3 * * 1"
     }
   ]
 }
