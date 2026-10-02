@@ -1,4 +1,5 @@
-import { Sandbox } from "@vercel/sandbox";
+import type { Sandbox } from "@vercel/sandbox";
+import { createSandbox, type SandboxParams } from "@/lib/ops/sandboxBudget";
 
 /**
  * An exit: one network identity that can fetch a TikTok page for us.
@@ -75,13 +76,16 @@ export function sandboxExit(options: SandboxExitOptions): TikTokExit {
   let sandbox: Promise<Sandbox> | null = null;
   const boot = () => {
     if (!sandbox) {
-      sandbox = Sandbox.create({
-        region: options.region as never,
-        timeout: options.lifetimeMs,
-        persistent: false,
-        resources: { vcpus: options.vcpus ?? 1 },
-        ...(options.credentials ?? {}),
-      } as Parameters<typeof Sandbox.create>[0]);
+      sandbox = createSandbox(
+        {
+          region: options.region as never,
+          timeout: options.lifetimeMs,
+          persistent: false,
+          resources: { vcpus: options.vcpus ?? 1 },
+          ...(options.credentials ?? {}),
+        } as SandboxParams,
+        "reader-v2",
+      );
       sandbox.catch(() => {
         sandbox = null;
       });
