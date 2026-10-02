@@ -29,6 +29,7 @@ import { LAST_FETCH_KEY, lastFetchNote } from "@/lib/metricDisplay";
 import { alertOps, shouldAlertOnBatch } from "@/lib/alerts";
 import { alertIfInstagramSourceDown } from "@/lib/integrations/health";
 import { createLogger } from "@/lib/observability/logger";
+import { grantedConnectionKeys, grantKey } from "@/lib/creators/connectionGate";
 
 const MAX_SYNC_FAILURES = 5;
 const DEFAULT_PLATFORM_BUDGET = 100;
@@ -412,6 +413,21 @@ export async function GET(request: NextRequest) {
       log.info("tiktok egress opened", { lanes: tiktokSandbox.size, sandboxLanes: lanes, tiktokDue });
     }
 
+    /* The grant gate, once for the whole run (lib/creators/connectionGate.ts):
+       a connection is used only for the org that holds a live grant for it.
+       null while the grant table does not exist yet -- every row is used, as
+       before. A post whose connection is not granted reads the way an
+       unconnected creator's does. */
+    const granted = dryRun
+      ? null
+      : await grantedConnectionKeys(
+          posts.flatMap((p) =>
+            p.creator.socialAccounts.map((a) => ({ orgId: p.creator.orgId, connectionId: a.id })),
+          ),
+        );
+    const readable = (orgId: string, account: { id: string }) =>
+      granted === null || granted.has(grantKey(orgId, account.id));
+
     for (let i = 0; i < posts.length; i++) {
       const post = posts[i];
       if (!dryRun && Date.now() > deadline) {
@@ -464,10 +480,14 @@ export async function GET(request: NextRequest) {
            "auth" reason on a post whose creator had connected fine. Without a
            Facebook Login row the post reads the way an unconnected creator's
            does. */
-        const igAccount = post.creator.socialAccounts.find(
+        const orgId = post.creator.orgId;
+        const igRows = post.creator.socialAccounts.filter(
           (a) => a.platform === "INSTAGRAM" && !isInstagramLoginRow(a.origin),
         );
-        const ttAccount = post.creator.socialAccounts.find((a) => a.platform === "TIKTOK");
+        const igAccount = igRows.find((a) => readable(orgId, a));
+        const ttAccount = post.creator.socialAccounts.find(
+          (a) => a.platform === "TIKTOK" && readable(orgId, a),
+        );
         const instagramToken =
           post.platform === "INSTAGRAM"
             ? await ensureFreshInstagramToken(igAccount, post.creator.orgId)
@@ -476,7 +496,9 @@ export async function GET(request: NextRequest) {
           post.platform === "INSTAGRAM"
             ? instagramLookupHandle({
                 postUrl: post.postUrl,
-                connected: igAccount?.handle,
+                /* The handle is a lookup hint, not a read of the connection,
+                   so an ungranted row still names whom to look up. */
+                connected: igAccount?.handle ?? igRows[0]?.handle,
                 profileLink: post.creator.profileLinks[0]?.handle,
                 creatorHandle: post.creator.handle,
                 creatorPlatform: post.creator.platform,

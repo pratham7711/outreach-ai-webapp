@@ -3,6 +3,7 @@ import { decrypt, encrypt } from "@/lib/crypto/encrypt";
 import { exchangeForLongLivedToken } from "./instagram";
 import { createLogger } from "@/lib/observability/logger";
 import { ACCOUNT_ORIGINS } from "./accountOrigin";
+import { connectionForRead } from "@/lib/creators/connectionGate";
 
 const EXPIRY_SKEW_MS = 5 * 60 * 1000;
 const REFRESH_AHEAD_MS = 7 * 24 * 60 * 60 * 1000;
@@ -138,28 +139,34 @@ export async function getInstagramAccountForCreator(
   orgId: string,
   postUrl: string,
 ): Promise<{ token?: string; handle?: string }> {
+  /* Facebook Login rows only: every read this token feeds goes to
+     graph.facebook.com, which rejects an Instagram Login token. NULL origin
+     predates Instagram Login, so it is always Facebook Login. */
+  const facebookLogin = {
+    OR: [{ origin: null }, { origin: { not: ACCOUNT_ORIGINS.OAUTH_INSTAGRAM_LOGIN } }],
+  };
   const creator = await db.creator.findUnique({
     where: { id: creatorId },
     select: {
       ...INSTAGRAM_HANDLE_SELECT,
+      /* The handle only, for the lookup below. An account the agency typed in
+         is the agency's own note of who this is, so it still names the public
+         profile to look up; what it never does is lend a token. */
       socialAccounts: {
-        /* Facebook Login rows only: every read this token feeds goes to
-           graph.facebook.com, which rejects an Instagram Login token. NULL
-           origin predates Instagram Login, so it is always Facebook Login. */
-        where: {
-          platform: "INSTAGRAM",
-          OR: [{ origin: null }, { origin: { not: ACCOUNT_ORIGINS.OAUTH_INSTAGRAM_LOGIN } }],
-        },
-        select: { id: true, accessToken: true, tokenExpiry: true, handle: true },
+        where: { platform: "INSTAGRAM", ...facebookLogin },
+        select: { handle: true },
       },
     },
   });
-  const social = creator?.socialAccounts[0];
+  /* The token comes through the grant gate: only a connection THIS org holds
+     a live grant for (lib/creators/connectionGate.ts). */
+  const read = await connectionForRead(orgId, creatorId, "INSTAGRAM", { where: facebookLogin });
+  const social = read.ok ? read.connection : undefined;
   return {
     token: await ensureFreshInstagramToken(social, orgId),
     handle: instagramLookupHandle({
       postUrl,
-      connected: social?.handle,
+      connected: social?.handle ?? creator?.socialAccounts[0]?.handle,
       profileLink: creator?.profileLinks[0]?.handle,
       creatorHandle: creator?.handle,
       creatorPlatform: creator?.platform,
