@@ -80,7 +80,7 @@ export default function PortalMyCampaignsPage() {
       </div>
 
       {error && (
-        <div style={{ padding: "10px 14px", borderRadius: 8, background: "#FEE2E2", color: "#DC2626", fontSize: 13, marginBottom: 16 }}>
+        <div style={{ padding: "10px 14px", borderRadius: 8, background: "var(--cc-danger-bg)", color: "var(--cc-danger-fg)", fontSize: 13, marginBottom: 16 }}>
           {error}
         </div>
       )}
@@ -122,7 +122,7 @@ export default function PortalMyCampaignsPage() {
                           fontWeight: 600,
                           padding: "3px 8px",
                           borderRadius: 6,
-                          background: "rgba(91,91,214,0.08)",
+                          background: "var(--cc-primary-light)",
                           color: "var(--cc-primary)",
                         }}
                       >

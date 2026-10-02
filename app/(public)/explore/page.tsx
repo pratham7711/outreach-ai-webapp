@@ -176,7 +176,7 @@ export default async function ExplorePage({
       {/* Hero */}
       <div
         style={{
-          background: "linear-gradient(135deg, #EEF2FF 0%, #F5F3FF 45%, #FFFFFF 100%)",
+          background: "linear-gradient(135deg, var(--cc-accent-bg) 0%, color-mix(in srgb, var(--cc-accent-bg) 50%, var(--cc-card)) 45%, var(--cc-card) 100%)",
           borderBottom: "1px solid var(--cc-border)",
         }}
       >

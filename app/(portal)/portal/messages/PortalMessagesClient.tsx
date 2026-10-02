@@ -200,7 +200,7 @@ export default function PortalMessagesClient() {
                     padding: "12px 16px",
                     border: "none",
                     borderBottom: "1px solid var(--cc-border)",
-                    background: active ? "rgba(91, 91, 214, 0.08)" : "transparent",
+                    background: active ? "var(--cc-primary-light)" : "transparent",
                     cursor: "pointer",
                   }}
                 >
@@ -290,7 +290,7 @@ export default function PortalMessagesClient() {
                             whiteSpace: "pre-wrap",
                             wordBreak: "break-word",
                             background: isCreator ? "var(--cc-primary)" : "var(--cc-bg)",
-                            color: isCreator ? "#fff" : "var(--cc-text)",
+                            color: isCreator ? "var(--cc-on-primary)" : "var(--cc-text)",
                             border: isCreator ? "none" : "1px solid var(--cc-border)",
                           }}
                         >
@@ -338,7 +338,7 @@ export default function PortalMessagesClient() {
                     borderRadius: 10,
                     border: "none",
                     background: "var(--cc-primary)",
-                    color: "#fff",
+                    color: "var(--cc-on-primary)",
                     cursor: sending || !draft.trim() ? "not-allowed" : "pointer",
                     opacity: sending || !draft.trim() ? 0.5 : 1,
                     flexShrink: 0,

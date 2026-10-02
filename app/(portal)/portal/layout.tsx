@@ -119,7 +119,7 @@ function PortalNav() {
                 textTransform: "uppercase",
                 letterSpacing: "0.08em",
                 color: "var(--cc-primary)",
-                background: "rgba(91, 91, 214, 0.1)",
+                background: "color-mix(in srgb, var(--cc-primary) 10%, transparent)",
                 padding: "2px 6px",
                 borderRadius: 4,
               }}
@@ -147,7 +147,7 @@ function PortalNav() {
                   fontWeight: 600,
                   textDecoration: "none",
                   color: isActive ? "var(--cc-primary)" : "var(--cc-text-muted)",
-                  background: isActive ? "rgba(91, 91, 214, 0.08)" : "transparent",
+                  background: isActive ? "var(--cc-primary-light)" : "transparent",
                   transition: "background 0.15s, color 0.15s",
                   whiteSpace: "nowrap",
                 }}
@@ -199,7 +199,7 @@ function PortalNav() {
             position: "fixed",
             inset: 0,
             top: 56,
-            background: "rgba(0, 0, 0, 0.4)",
+            background: "var(--cc-scrim-bg)",
             zIndex: 40,
           }}
         />
@@ -266,7 +266,7 @@ function PortalNav() {
                   fontWeight: 600,
                   textDecoration: "none",
                   color: isActive ? "var(--cc-primary)" : "var(--cc-text-muted)",
-                  background: isActive ? "rgba(91, 91, 214, 0.08)" : "transparent",
+                  background: isActive ? "var(--cc-primary-light)" : "transparent",
                 }}
               >
                 <Icon size={18} />

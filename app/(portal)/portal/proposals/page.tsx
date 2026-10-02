@@ -25,10 +25,10 @@ type Proposal = {
 };
 
 const STATUS_TABS = [
-  { key: "ALL", label: "All", bg: "#F3F4F6", color: "#374151" },
-  { key: "PENDING", label: "Pending", bg: "#FEF3C7", color: "var(--cc-warning-ink)" },
-  { key: "ACCEPTED", label: "Accepted", bg: "#D1FAE5", color: "#059669" },
-  { key: "REJECTED", label: "Rejected", bg: "#FEE2E2", color: "#DC2626" },
+  { key: "ALL", label: "All", bg: "var(--cc-neutral-bg)", color: "var(--cc-neutral-fg)" },
+  { key: "PENDING", label: "Pending", bg: "var(--cc-warning-bg)", color: "var(--cc-warning-fg)" },
+  { key: "ACCEPTED", label: "Accepted", bg: "var(--cc-success-bg)", color: "var(--cc-success-fg)" },
+  { key: "REJECTED", label: "Rejected", bg: "var(--cc-danger-bg)", color: "var(--cc-danger-fg)" },
 ];
 
 const STATUS_BADGE: Record<string, "warning" | "success" | "danger" | "neutral"> = {

@@ -249,12 +249,12 @@ function CampaignDetailInner() {
       </div>
 
       {justJoined && (
-        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderRadius: 8, background: "#D1FAE5", color: "#059669", fontSize: 13, marginBottom: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderRadius: 8, background: "var(--cc-success-bg)", color: "var(--cc-success-fg)", fontSize: 13, marginBottom: 16 }}>
           <CheckCircle2 size={16} /> You&apos;ve joined this campaign. Submit your content below.
         </div>
       )}
       {joinError && (
-        <div style={{ padding: "10px 14px", borderRadius: 8, background: "#FEE2E2", color: "#DC2626", fontSize: 13, marginBottom: 16 }}>
+        <div style={{ padding: "10px 14px", borderRadius: 8, background: "var(--cc-danger-bg)", color: "var(--cc-danger-fg)", fontSize: 13, marginBottom: 16 }}>
           {joinError}
         </div>
       )}
@@ -270,7 +270,7 @@ function CampaignDetailInner() {
               {rateEntries.map(([platform, minor]) => (
                 <span
                   key={platform}
-                  style={{ fontSize: 13, fontWeight: 600, padding: "5px 10px", borderRadius: 8, background: "rgba(91,91,214,0.08)", color: "var(--cc-primary)" }}
+                  style={{ fontSize: 13, fontWeight: 600, padding: "5px 10px", borderRadius: 8, background: "var(--cc-primary-light)", color: "var(--cc-primary)" }}
                 >
                   {platform}: {fmtMoney(minor, detail.currency)}
                 </span>
@@ -284,7 +284,7 @@ function CampaignDetailInner() {
             <p style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--cc-text-subtle)", marginBottom: 4 }}>
               Submission deadline
             </p>
-            <p style={{ fontSize: 14, color: detail.deadlinePassed ? "#DC2626" : "var(--cc-text)" }}>
+            <p style={{ fontSize: 14, color: detail.deadlinePassed ? "var(--cc-danger-fg)" : "var(--cc-text)" }}>
               {formatDateAbs(detail.submissionDeadline)} {detail.deadlinePassed ? "(passed)" : ""}
             </p>
           </div>
@@ -334,7 +334,7 @@ function CampaignDetailInner() {
           </p>
 
           {draft.status === "DECLINED" && draft.feedbackNotes && (
-            <div style={{ padding: "10px 14px", borderRadius: 8, background: "#FEE2E2", color: "#DC2626", fontSize: 13, marginBottom: 12 }}>
+            <div style={{ padding: "10px 14px", borderRadius: 8, background: "var(--cc-danger-bg)", color: "var(--cc-danger-fg)", fontSize: 13, marginBottom: 12 }}>
               <strong>Changes requested:</strong> {draft.feedbackNotes}
             </div>
           )}
@@ -346,7 +346,7 @@ function CampaignDetailInner() {
           )}
 
           {detail.deadlinePassed ? (
-            <div style={{ padding: "10px 14px", borderRadius: 8, background: "#FEF3C7", color: "var(--cc-warning-ink)", fontSize: 13 }}>
+            <div style={{ padding: "10px 14px", borderRadius: 8, background: "var(--cc-warning-bg)", color: "var(--cc-warning-fg)", fontSize: 13 }}>
               The submission deadline has passed.
             </div>
           ) : CAN_SUBMIT_DRAFT.includes(draft.status) ? (
@@ -404,7 +404,7 @@ function CampaignDetailInner() {
                   View submitted draft <ExternalLink size={12} />
                 </a>
               )}
-              <div style={{ padding: "10px 14px", borderRadius: 8, background: "#D1FAE5", color: "#059669", fontSize: 13 }}>
+              <div style={{ padding: "10px 14px", borderRadius: 8, background: "var(--cc-success-bg)", color: "var(--cc-success-fg)", fontSize: 13 }}>
                 Your draft is approved — post it publicly, then submit the live link below.
               </div>
             </div>
@@ -423,7 +423,7 @@ function CampaignDetailInner() {
             You haven&apos;t joined this campaign yet.
           </div>
         ) : detail.deadlinePassed ? (
-          <div style={{ padding: "10px 14px", borderRadius: 8, background: "#FEF3C7", color: "var(--cc-warning-ink)", fontSize: 13 }}>
+          <div style={{ padding: "10px 14px", borderRadius: 8, background: "var(--cc-warning-bg)", color: "var(--cc-warning-fg)", fontSize: 13 }}>
             The submission deadline has passed.
           </div>
         ) : (

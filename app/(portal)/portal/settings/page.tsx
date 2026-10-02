@@ -596,7 +596,7 @@ export default function PortalSettingsPage() {
                     border: selected
                       ? "1.5px solid var(--cc-primary)"
                       : "1.5px solid var(--cc-border)",
-                    background: selected ? "rgba(91, 91, 214, 0.08)" : "var(--cc-card)",
+                    background: selected ? "var(--cc-primary-light)" : "var(--cc-card)",
                     color: selected ? "var(--cc-primary)" : "var(--cc-text-muted)",
                     transition: "all 0.15s",
                   }}

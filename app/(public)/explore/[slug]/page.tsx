@@ -111,7 +111,7 @@ export default async function CampaignLandingPage({
       {/* Hero / org branding */}
       <div
         style={{
-          background: "linear-gradient(135deg, #EEF2FF 0%, #F5F3FF 45%, #FFFFFF 100%)",
+          background: "linear-gradient(135deg, var(--cc-accent-bg) 0%, color-mix(in srgb, var(--cc-accent-bg) 50%, var(--cc-card)) 45%, var(--cc-card) 100%)",
           borderBottom: "1px solid var(--cc-border)",
         }}
       >
@@ -250,8 +250,8 @@ export default async function CampaignLandingPage({
               {campaign.rates.map((r) => {
                 const meta = PLATFORM_META[r.platform.toUpperCase()] ?? {
                   label: r.platform,
-                  bg: "#F3F4F6",
-                  color: "#374151",
+                  bg: "var(--cc-neutral-bg)",
+                  color: "var(--cc-neutral-fg)",
                 };
                 return (
                   <div
@@ -452,7 +452,7 @@ export default async function CampaignLandingPage({
           right: 0,
           background: "var(--cc-card)",
           borderTop: "1px solid var(--cc-border)",
-          boxShadow: "0 -4px 16px rgba(28,32,72,0.06)",
+          boxShadow: "0 -4px 16px color-mix(in srgb, var(--cc-overlay-ink) 6%, transparent)",
           zIndex: 20,
         }}
       >
@@ -528,9 +528,9 @@ const chipStyle: React.CSSProperties = {
 const urgentChipStyle: React.CSSProperties = {
   fontSize: 12,
   fontWeight: 700,
-  color: "#B45309",
-  background: "#FEF3C7",
-  border: "1px solid #FDE68A",
+  color: "var(--cc-warning-fg)",
+  background: "var(--cc-warning-bg)",
+  border: "1px solid color-mix(in srgb, var(--cc-warning-solid) 30%, transparent)",
   borderRadius: 20,
   padding: "5px 12px",
 };
@@ -538,9 +538,9 @@ const urgentChipStyle: React.CSSProperties = {
 const claimedChipStyle: React.CSSProperties = {
   fontSize: 12,
   fontWeight: 700,
-  color: "#DC2626",
-  background: "#FEE2E2",
-  border: "1px solid #FECACA",
+  color: "var(--cc-danger-fg)",
+  background: "var(--cc-danger-bg)",
+  border: "1px solid color-mix(in srgb, var(--cc-danger-solid) 30%, transparent)",
   borderRadius: 20,
   padding: "5px 12px",
 };

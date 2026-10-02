@@ -184,8 +184,8 @@ export default function PortalReviewsPage() {
                   <Star
                     key={i}
                     size={14}
-                    fill={i < review.rating ? "#F59E0B" : "var(--cc-text-subtle)"}
-                    color={i < review.rating ? "#F59E0B" : "var(--cc-text-subtle)"}
+                    fill={i < review.rating ? "var(--cc-rating)" : "var(--cc-text-subtle)"}
+                    color={i < review.rating ? "var(--cc-rating)" : "var(--cc-text-subtle)"}
                   />
                 ))}
               </div>
