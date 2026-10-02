@@ -68,6 +68,17 @@ describe("a shared creator list", () => {
   });
 });
 
+describe("a creator's connect link", () => {
+  it("opens signed out and signed in", () => {
+    expect(allowed(visit("/connect/abc123token", false))).toBe(true);
+    expect(allowed(visit("/connect/abc123token", true))).toBe(true);
+  });
+
+  it.each(["/connect", "/connections", "/connectx/abc"])("does not open %s", (path) => {
+    expect(redirectsTo(visit(path, false))).toBe("/login");
+  });
+});
+
 describe("and the app is still protected", () => {
   it("sends a signed-out visitor from an app page to /login", () => {
     expect(redirectsTo(visit("/campaigns", false))).toBe("/login");

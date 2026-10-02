@@ -73,6 +73,7 @@ export const AREAS = {
       "app/api/lists/",
       "app/(public)/l/",
       "app/api/l/",
+      "app/api/admin/migrate-list-approval/",
       "app/api/cron/refresh-roster-profiles/",
       "app/api/admin/migrate-creator-roster/",
       "components/creators/CreatorName.tsx",
@@ -107,7 +108,19 @@ export const AREAS = {
       "portal-proposals.spec.ts",
       "portal-reviews.spec.ts",
     ],
-    sources: ["app/(portal)/", "app/api/portal/", "components/portal/"],
+    sources: [
+      "app/(portal)/",
+      "app/api/portal/",
+      "components/portal/",
+      // A roster creator's connect link and the connection lifecycle behind it
+      // (K1-K3, K5): the public page, its tables, the deauthorize webhooks.
+      "app/(public)/connect/",
+      "app/api/admin/migrate-creator-connect/",
+      "app/api/webhooks/tiktok/",
+      "app/api/webhooks/meta/",
+      "lib/portal/",
+      "lib/oauth/",
+    ],
   },
   marketplace: {
     specs: ["marketplace-funnel.spec.ts", "negotiation.spec.ts"],
