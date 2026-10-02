@@ -7,14 +7,15 @@ const WIDTHS = [
 ];
 
 const PORTAL_ROUTES: { name: string; path: string; ready: string }[] = [
-  { name: 'dashboard', path: '/portal/dashboard', ready: 'h1' },
+  /* The creator app's five places. Discover, earnings, messages, offers,
+     proposals and settings redirect to these (next.config.ts), so they would
+     only measure the same pages twice. */
+  { name: 'home', path: '/portal/dashboard', ready: 'h1' },
   { name: 'campaigns', path: '/portal/campaigns', ready: 'h1' },
-  { name: 'discover', path: '/portal/discover', ready: 'h1' },
-  { name: 'earnings', path: '/portal/earnings', ready: 'h1' },
-  { name: 'messages', path: '/portal/messages', ready: 'h1' },
-  { name: 'offers', path: '/portal/offers', ready: 'h1' },
-  { name: 'proposals', path: '/portal/proposals', ready: 'h1' },
-  { name: 'settings', path: '/portal/settings', ready: 'h1' },
+  { name: 'campaigns-open', path: '/portal/campaigns?tab=open', ready: 'h1' },
+  { name: 'accounts', path: '/portal/accounts', ready: 'h1' },
+  { name: 'stats', path: '/portal/stats', ready: 'h1' },
+  { name: 'account', path: '/portal/account', ready: 'h1' },
 ];
 
 const NOAUTH_ROUTES: { name: string; path: string; ready: string }[] = [
@@ -23,6 +24,8 @@ const NOAUTH_ROUTES: { name: string; path: string; ready: string }[] = [
   { name: 'signup', path: '/signup', ready: 'form' },
   { name: 'portal-login', path: '/portal/login', ready: 'form' },
   { name: 'portal-register', path: '/portal/register', ready: 'form' },
+  { name: 'privacy', path: '/privacy', ready: 'h1' },
+  { name: 'data-deletion', path: '/data-deletion', ready: 'h1' },
 ];
 
 async function assertNoHScroll(page: Page, label: string) {

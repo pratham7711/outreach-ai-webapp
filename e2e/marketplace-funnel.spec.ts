@@ -188,8 +188,8 @@ test.describe('Marketplace Funnel', () => {
     await creatorPage.goto(`/portal/campaigns/${campaignSlug}`);
     await creatorPage.waitForURL(/\/portal\/campaigns\//, { timeout: 15000 });
 
-    const tiktokInput = creatorPage.locator('input[placeholder*="tiktok" i], input[placeholder*="https" i]').first();
-    const hydrated = await tiktokInput
+    const linksBox = creatorPage.getByLabel('Post links');
+    const hydrated = await linksBox
       .waitFor({ state: 'visible', timeout: 30000 })
       .then(() => true)
       .catch(() => false);
@@ -199,8 +199,8 @@ test.describe('Marketplace Funnel', () => {
       return;
     }
 
-    await tiktokInput.fill(YT_POST_URL);
-    await creatorPage.getByRole('button', { name: /^Submit$/i }).first().click();
+    await linksBox.fill(YT_POST_URL);
+    await creatorPage.getByRole('button', { name: /^Submit post$/i }).first().click();
     await creatorPage.waitForTimeout(2000);
 
     const resultText = await creatorPage.textContent('body');
@@ -209,32 +209,23 @@ test.describe('Marketplace Funnel', () => {
     await creatorContext.close();
   });
 
-  test('creator portal: /portal/earnings renders without crashing', async ({ browser }) => {
+  test('creator portal: the parked /portal/earnings lands on Home', async ({ browser }) => {
     const creatorContext = await browser.newContext();
     const creatorPage = await creatorContext.newPage();
 
     const loginRes = await creatorPage.request.post('/api/portal/auth/login', {
       data: { email: 'creator@demo.com', password: 'creator123' },
     });
-    if (!loginRes.ok()) {
-      test.fixme();
-      await creatorContext.close();
-      return;
-    }
+    expect(loginRes.ok()).toBeTruthy();
+
+    const res = await creatorPage.request.get('/portal/earnings', { maxRedirects: 0 });
+    expect(res.status()).toBe(307);
+    expect(new URL(res.headers()['location'], 'http://x').pathname).toBe('/portal/dashboard');
 
     await creatorPage.goto('/portal/earnings');
-    await creatorPage.waitForLoadState('domcontentloaded');
-    await creatorPage.waitForTimeout(2000);
-
-    const currentUrl = creatorPage.url();
-    if (currentUrl.includes('/portal/login')) {
-      test.fixme();
-      await creatorContext.close();
-      return;
-    }
-
-    const bodyText = await creatorPage.textContent('body').catch(() => '');
-    expect(bodyText?.toLowerCase()).toMatch(/earnings|payout|campaign/i);
+    await expect(creatorPage).toHaveURL(/\/portal\/dashboard/, { timeout: 30000 });
+    await expect(creatorPage.getByRole('heading', { name: 'To do', exact: true })).toBeVisible({ timeout: 30000 });
+    await expect(creatorPage.getByText(/lifetime earnings|payout/i)).toHaveCount(0);
 
     await creatorContext.close();
   });

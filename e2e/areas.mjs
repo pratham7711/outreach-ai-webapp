@@ -104,10 +104,15 @@ export const AREAS = {
     specs: [
       "portal-dashboard.spec.ts",
       "portal-discover.spec.ts",
-      "portal-proposals.spec.ts",
-      "portal-reviews.spec.ts",
     ],
-    sources: ["app/(portal)/", "app/api/portal/", "components/portal/"],
+    sources: [
+      "app/(portal)/",
+      "app/api/portal/",
+      "components/portal/",
+      "lib/portal/",
+      "app/(public)/invite/",
+      "app/(public)/data-deletion/",
+    ],
   },
   marketplace: {
     specs: ["marketplace-funnel.spec.ts", "negotiation.spec.ts"],
