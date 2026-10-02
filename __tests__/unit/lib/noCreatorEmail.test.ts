@@ -20,10 +20,12 @@ const SENDERS = new Map<string, string>([
   ["app/api/invites/[id]/resend/route.ts", "a teammate an admin typed in"],
   ["app/api/invites/route.ts", "a teammate an admin typed in"],
   ["app/api/signup/route.ts", "the person signing up"],
+  ["app/api/trackers/source-health/route.ts", "alertOps only: Plan B's failing daily check (ops)"],
   ["lib/alerts.ts", "ALERT_EMAIL_TO (ops)"],
   ["lib/auth.ts", "the account holder signing in"],
   ["lib/emailVerification.ts", "the account holder"],
   ["lib/inviteEmail.ts", "a teammate an admin typed in"],
+  ["lib/trackers/readerAlerts.ts", "alertOps only: reader v2 health (ops)"],
 ]);
 
 function walk(dir: string, out: string[] = []): string[] {

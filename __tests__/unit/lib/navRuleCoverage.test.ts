@@ -96,6 +96,8 @@ describe("every dashboard route is accounted for", () => {
     // Answers to the PLATFORM_ADMIN_EMAILS allowlist, not to what an org bought
     // — see PLATFORM_SECTION in NewSidebar.tsx, which skips the nav rules.
     "/platform": "operator-only, exempt from per-org entitlements",
+    // The tracker reader's ops page (plan T7): same allowlist as /platform.
+    "/platform/trackers": "operator-only, exempt from per-org entitlements",
     // A second way to create a campaign, linked from the /campaigns header.
     "/campaigns/self-serve": "deep link from /campaigns, not a nav destination",
     // The create form for /plans, which has a rule of its own.
