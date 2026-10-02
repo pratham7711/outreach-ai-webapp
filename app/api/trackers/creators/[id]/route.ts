@@ -46,8 +46,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       downsample(rows, chartAt).map((p) => ({ value: p.value, recordedAt: p.recordedAt }));
 
     return NextResponse.json({
+      /* A 0 is a reading that did not carry the count (plan A1), not a point. */
       followers: points(
-        creator.trackerSnapshots.map((s) => ({ value: s.followersCount, recordedAt: s.recordedAt }))
+        creator.trackerSnapshots
+          .filter((s) => s.followersCount > 0)
+          .map((s) => ({ value: s.followersCount, recordedAt: s.recordedAt }))
       ),
       /* Only readings that measured views, and only since the ten-newest-posts
          definition began: an older reading averaged a different set of posts. */

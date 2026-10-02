@@ -340,9 +340,10 @@ async function readQuarantine(nowMs: number) {
   return out;
 }
 
-/* The latest reading in the last day per tracked creator, against the reading
-   before it. Bounded to a day of snapshots, and the LATERAL walks the
-   (creatorId, recordedAt) index one row per creator. */
+/* The latest reading in the last day per tracked creator, against the last
+   non-zero reading before it -- not merely the one before it, or a second 0 in
+   a row silences the alert while the series is still wrong. Bounded to a day of
+   snapshots, and the LATERAL walks the (creatorId, recordedAt) index. */
 async function readZeroed(nowMs: number) {
   const db = await opsDb();
   const since = new Date(nowMs - 24 * 60 * 60 * 1000);
@@ -358,10 +359,11 @@ async function readZeroed(nowMs: number) {
        CROSS JOIN LATERAL (
          SELECT p."followersCount" FROM "CreatorTrackerSnapshot" p
           WHERE p."creatorId" = latest."creatorId" AND p."recordedAt" < latest."recordedAt"
+            AND p."followersCount" > 0
           ORDER BY p."recordedAt" DESC
           LIMIT 1
        ) prev
-      WHERE latest."followersCount" = 0 AND prev."followersCount" > 0
+      WHERE latest."followersCount" = 0
       GROUP BY latest.platform`,
     since,
   );

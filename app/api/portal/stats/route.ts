@@ -50,7 +50,7 @@ export async function GET() {
           platform: true,
           handle: true,
           trackerSnapshots: {
-            where: { recordedAt: { gte: since } },
+            where: { recordedAt: { gte: since }, followersCount: { gt: 0 } },
             select: { followersCount: true, recordedAt: true },
             orderBy: { recordedAt: "desc" },
             take: TREND_POINTS,

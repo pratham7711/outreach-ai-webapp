@@ -162,12 +162,17 @@ export function figuresFor(
   /* Follower history, mapped into the shape the shared window maths expects.
      Until the sweep has run twice for a creator this is empty or single-valued,
      and changeOverWindow correctly returns null rather than inventing a
-     baseline. */
-  const followerHistory: TrackerSnapshot[] = readings.map((s) => ({
+     baseline.
+
+     A reading of 0 followers did not carry the count (plan A1), so it is not
+     part of the series: as the newest point it reads as a -100% change, and as
+     the oldest one in a window as a gain of the creator's whole audience. */
+  const counted = readings.filter((s) => s.followersCount > 0);
+  const followerHistory: TrackerSnapshot[] = counted.map((s) => ({
     value: s.followersCount,
     recordedAt: s.recordedAt,
   }));
-  const latest = readings[0] ?? null;
+  const latest = counted[0] ?? readings[0] ?? null;
   const followerChange = changeOverWindow(followerHistory, period, now);
   const views = viewsFromSnapshots(readings, period, now);
 
@@ -185,7 +190,7 @@ export function figuresFor(
     /* Prefer the tracked reading over the denormalised column: the column is
        populated on 11 of 1,834 creators, so it is usually a default rather
        than a measurement. */
-    followersCount: latest ? latest.followersCount : followerCount(storedFollowers),
+    followersCount: counted[0] ? counted[0].followersCount : followerCount(storedFollowers),
     followersChangePercent: measurable ? followerChange?.percent ?? null : null,
     followersDelta: measurable ? followerChange?.added ?? null : null,
     views: {

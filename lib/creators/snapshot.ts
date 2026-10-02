@@ -339,6 +339,20 @@ async function storeTopPostsOnly(
     .catch(() => {});
 }
 
+/** The creator's newest non-zero follower reading, or null. Never throws. */
+async function lastNonZeroFollowers(creatorId: string): Promise<number | null> {
+  try {
+    const row = await db.creatorTrackerSnapshot.findFirst({
+      where: { creatorId, followersCount: { gt: 0 } },
+      orderBy: { recordedAt: "desc" },
+      select: { followersCount: true },
+    });
+    return row?.followersCount ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function snapshotCreators(
   options: CreatorSnapshotOptions = {}
 ): Promise<CreatorSnapshotResult> {
@@ -905,16 +919,25 @@ export async function snapshotCreators(
         followerLadder(creator.platform),
       ) ?? readFollowers;
 
+    /* The last real figure, which is not always the newest reading: a 0 the
+       legacy sweep stored before the rule below existed is not a baseline, and
+       judging against it waves the next 0 through and skips every hold. Looked
+       up only when the newest reading is itself 0, so the common case costs no
+       query. */
+    const anchor =
+      previous && !(previous.followersCount > 0)
+        ? ((await lastNonZeroFollowers(creator.id)) ?? previous.followersCount)
+        : (previous?.followersCount ?? null);
+
     /* Reader v2 only: a reading that cannot be right is never written, and a
        surprising one waits for a second read (plan A3). The attempt is still
        stamped so the creator rotates, but no snapshot lands, so they stay due
-       and the next hourly run is the confirming read. The legacy sweep is
-       left exactly as it was. */
+       and the next hourly run is the confirming read. */
     if (plan) {
       at.stage = "gate";
       const verdict = await gateFollowerReading({
         creator,
-        previous: previous ? { followersCount: previous.followersCount } : null,
+        previous: anchor !== null ? { followersCount: anchor } : null,
         next: { followersCount, postsCount: profile.postsCount },
         via,
       }).catch(() => ({ action: "write" as const }));
@@ -932,6 +955,27 @@ export async function snapshotCreators(
           .catch(() => {});
         return;
       }
+    }
+
+    /* Both paths, and after the gate so a gate that threw cannot let it by: a
+       count that fell to 0 from something is a page that was not the profile
+       (lib/trackers/readingGate), never a reading. The legacy sweep used to
+       write it -- three TikTok creators on 2026-10-02, found by the canary's
+       first run -- which drew a -100% change and a cliff on the chart and put
+       0 on the roster. The good figure already stored stays. */
+    if (followersCount === 0 && anchor !== null && anchor > 0) {
+      skipped++;
+      log.warn("tracker reading not written", {
+        creatorId: creator.id,
+        platform: creator.platform,
+        verdict: "reject",
+        reason: `fell to 0 from ${Math.round(anchor)}`,
+        via,
+      });
+      await db.creator
+        .update({ where: { id: creator.id }, data: { trackerLastAttemptAt: new Date() } })
+        .catch(() => {});
+      return;
     }
 
     const deltaFollowers = previous
