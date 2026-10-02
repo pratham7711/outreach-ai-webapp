@@ -1,0 +1,66 @@
+[
+  {
+    "step": "failing check ran",
+    "at": "2026-10-02T05:15:01.986Z",
+    "reads": 12,
+    "proper": 0,
+    "failures": 12,
+    "passed": false
+  },
+  {
+    "step": "failing check reported",
+    "at": "2026-10-02T05:15:04.084Z",
+    "status": 200,
+    "ok": true
+  },
+  {
+    "step": "switch as found",
+    "at": "2026-10-02T05:15:14.045Z",
+    "status": 200,
+    "switch": {
+      "position": "legacy",
+      "scopeOrgIds": [],
+      "percent": 100,
+      "changedAt": "2026-10-02T02:09:02.599Z",
+      "changedBy": "admin@demo.com",
+      "effective": "legacy",
+      "reason": null
+    }
+  },
+  {
+    "step": "switch to B after the failing check",
+    "at": "2026-10-02T05:15:14.572Z",
+    "status": 409,
+    "error": "Plan B's last daily check failed"
+  },
+  {
+    "step": "passing check ran",
+    "at": "2026-10-02T05:15:53.993Z",
+    "reads": 12,
+    "proper": 12,
+    "embeds": {
+      "list": 3,
+      "none": 0
+    },
+    "passed": true,
+    "worker": "vercel-sandbox-iad1"
+  },
+  {
+    "step": "passing check reported",
+    "at": "2026-10-02T05:15:56.166Z",
+    "status": 200,
+    "ok": true
+  },
+  {
+    "step": "switch after confirming B in the page",
+    "at": "2026-10-02T05:16:07.023Z",
+    "position": "B",
+    "effective": "B"
+  },
+  {
+    "step": "restored",
+    "at": "2026-10-02T05:16:09.700Z",
+    "status": 200,
+    "position": "legacy"
+  }
+]
