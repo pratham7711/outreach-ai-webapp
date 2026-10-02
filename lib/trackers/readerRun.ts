@@ -8,6 +8,7 @@ import {
 } from "@/lib/platforms/tiktokProfilePool";
 import { withTimeout } from "@/lib/platforms/tiktokBrowser";
 import { createLogger } from "@/lib/observability/logger";
+import { openSourceGuard } from "@/lib/ops/sourceBreaker";
 import {
   inReaderV2Scope,
   medianOf,
@@ -148,6 +149,9 @@ export async function runReaderV2(options: ReaderRunOptions): Promise<ReaderRunR
   let postsStale = 0;
   const startedAt = new Date();
   const noLanes = { result: { ok: false as const, reason: "unreadable" as const, detail: "lanes not open" }, via: null };
+  /* Kill switches and per-source breakers (plan §13 C). A dry run is guarded
+     too but never moves a breaker. */
+  const sourceGuard = await openSourceGuard({ reader: "creator-reads", breakers: true });
 
   let counts: CreatorSnapshotResult;
   try {
@@ -171,6 +175,7 @@ export async function runReaderV2(options: ReaderRunOptions): Promise<ReaderRunR
       },
       readTikTokProfileVia: (handle) => (fetcher ? fetcher.read(handle) : Promise.resolve(noLanes)),
       readTikTokEmbedHtml: (handle) => (fetcher ? fetcher.readEmbedHtml(handle) : Promise.resolve(null)),
+      sourceGuard,
     });
   } finally {
     const open = fetcher as TikTokProfileFetcher | null;
@@ -179,6 +184,7 @@ export async function runReaderV2(options: ReaderRunOptions): Promise<ReaderRunR
         log.warn("reader v2 lanes did not close in time", { error: e instanceof Error ? e.message : String(e) })
       );
     }
+    if (!options.dryRun) await sourceGuard.flush();
   }
 
   const done = fetcher as TikTokProfileFetcher | null;
@@ -204,6 +210,7 @@ export async function runReaderV2(options: ReaderRunOptions): Promise<ReaderRunR
       failed: counts.failed,
       skipped: counts.skipped,
       exits: exits.map((e) => ({ id: e.exitId, pages: e.pages, proper: e.proper, walls: e.walls, failures: e.failures })),
+      sources: sourceGuard.summary(),
     },
   };
   if (!options.dryRun) await recordSourceHealth(health);
