@@ -1,161 +1,201 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { Card, Badge, Skeleton, EmptyState, Avatar } from "@pratham7711/ui";
-import { MetricTile, Button } from "@/components/ds";
-import { DollarSign, Send, CheckCircle, TrendingUp, Search, LogOut, Inbox } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { stripAt, formatDateAbs } from "@/lib/format";
-import { MyPerformance } from "@/components/portal/MyPerformance";
-import { unwrittenMetricValue } from "@/lib/metricDisplay";
+import { useRouter } from "next/navigation";
+import { ChevronRight, Link2, MessageSquareText, Upload } from "lucide-react";
+import type { HomeTodo, InvitedCampaign, JoinedCampaign } from "@/lib/portal/myCampaigns";
+import {
+  Card,
+  EmptyState,
+  LoadFailed,
+  Screen,
+  SectionTitle,
+  SkeletonBlock,
+  StatusPill,
+  formatDay,
+  relativeDay,
+} from "@/components/portal/app/ui";
+import { CampaignRow } from "@/components/portal/app/CampaignRow";
 
-type DashboardData = {
-  user: { name: string; handle: string; avatarUrl: string | null; lifetimeEarnings: number; averageRating: number; reviewCount: number; cpm: number };
-  stats: { totalProposals: number; pendingProposals: number; acceptedProposals: number; lifetimeEarnings: number };
-  recentProposals: { id: string; proposedRate: number; currency: string; status: string; createdAt: string; campaign: { id: string; title: string; budget: number | null; currency: string; org: { name: string } } }[];
+type HomeData = {
+  name: string;
+  todo: HomeTodo[];
+  campaigns: JoinedCampaign[];
+  invited: InvitedCampaign[];
+  connectedAccounts: number;
 };
 
-const STATUS_BADGE: Record<string, "warning" | "success" | "danger" | "neutral"> = {
-  PENDING: "warning",
-  ACCEPTED: "success",
-  REJECTED: "danger",
-  WITHDRAWN: "neutral",
-};
+const TODO_ICON = { connect: Link2, post_due: Upload, draft_feedback: MessageSquareText } as const;
 
-function formatCurrency(n: number, currency = "USD") {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(n);
+function TodoRow({ item }: { item: HomeTodo }) {
+  const Icon = TODO_ICON[item.kind];
+  const detail =
+    item.kind === "connect"
+      ? "So your posts report their own numbers."
+      : item.kind === "post_due"
+        ? `${item.campaignTitle}${item.dueAt ? ` · due ${formatDay(item.dueAt)} (${relativeDay(item.dueAt)})` : ""}`
+        : `${item.campaignTitle} · “${item.feedback}”`;
+  return (
+    <Link
+      href={item.href}
+      className="rsp-touch"
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
+        padding: "12px 4px",
+        textDecoration: "none",
+        color: "inherit",
+        borderBottom: "1px solid var(--cc-border)",
+      }}
+    >
+      <span
+        aria-hidden="true"
+        style={{
+          width: 36,
+          height: 36,
+          borderRadius: 10,
+          flexShrink: 0,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background: "var(--cc-primary-light)",
+          color: "var(--cc-primary)",
+        }}
+      >
+        <Icon size={18} />
+      </span>
+      <span style={{ flex: 1, minWidth: 0 }}>
+        <span style={{ display: "block", fontSize: 15, fontWeight: 600, color: "var(--cc-text)" }}>{item.title}</span>
+        <span
+          style={{
+            display: "block",
+            fontSize: 13,
+            color: "var(--cc-text-muted)",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {detail}
+        </span>
+      </span>
+      <ChevronRight size={18} aria-hidden="true" style={{ color: "var(--cc-text-muted)", flexShrink: 0 }} />
+    </Link>
+  );
 }
 
-export default function PortalDashboardPage() {
+/**
+ * Home: what needs doing, in order -- connect an account, posts due, drafts
+ * with feedback -- and then every campaign with its next date. The order is
+ * decided on the server (lib/portal/myCampaigns.ts, buildHomeTodo) so this page
+ * only lays it out.
+ */
+export default function CreatorHomePage() {
   const router = useRouter();
-  const [data, setData] = useState<DashboardData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<HomeData | null>(null);
+  const [failed, setFailed] = useState(false);
 
-  useEffect(() => {
-    fetch("/api/portal/dashboard")
-      .then(r => { if (r.status === 401) { router.push("/portal/login"); return null; } return r.json(); })
-      .then(d => { if (d) setData(d); })
-      .finally(() => setLoading(false));
+  const load = useCallback(async () => {
+    setFailed(false);
+    try {
+      const res = await fetch("/api/portal/home");
+      if (res.status === 401) {
+        router.push("/portal/login");
+        return;
+      }
+      if (!res.ok) throw new Error("home");
+      setData(await res.json());
+    } catch {
+      setFailed(true);
+    }
   }, [router]);
 
-  const handleLogout = async () => {
-    await fetch("/api/portal/auth/logout", { method: "POST" });
-    router.push("/portal/login");
-  };
+  useEffect(() => {
+    load();
+  }, [load]);
 
-  if (loading) return (
-    <div className="rsp-page" style={{ maxWidth: 960 }}>
-      <Skeleton width="200px" height="32px" />
-      <div className="rsp-grid-tiles-4" style={{ marginTop: 24 }}>
-        {[1, 2, 3, 4].map(i => <Skeleton key={i} height="80px" borderRadius="10px" />)}
-      </div>
-    </div>
-  );
-
-  if (!data) return null;
+  const firstName = data?.name?.split(/\s+/)[0];
 
   return (
-    <div className="rsp-page" style={{ maxWidth: 960 }}>
-      {/* Header */}
-      <div className="rsp-header">
-        <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
-          <Avatar name={data.user.name} size="lg" />
-          <div style={{ minWidth: 0 }}>
-            <h1 style={{ fontSize: 24, fontWeight: 700, color: "var(--cc-text)" }}>Welcome, {data.user.name}</h1>
-            <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>@{stripAt(data.user.handle)}</p>
-          </div>
+    <Screen title={firstName ? `Hi, ${firstName}` : "Home"} subtitle="What needs doing, then your campaigns.">
+      {failed && <LoadFailed what="your home screen" onRetry={load} />}
+      {!data && !failed && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <SkeletonBlock height={140} />
+          <SkeletonBlock />
+          <SkeletonBlock />
         </div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <Link href="/portal/discover">
-            <Button variant="primary">
-              <span style={{ display: "flex", alignItems: "center", gap: 4 }}><Search size={14} /> Discover Gigs</span>
-            </Button>
-          </Link>
-          <Button variant="secondary" onClick={handleLogout}>
-            <span style={{ display: "flex", alignItems: "center", gap: 4 }}><LogOut size={14} /> Logout</span>
-          </Button>
-        </div>
-      </div>
-
-      {/* Stats */}
-      <div className="rsp-grid-tiles-4" style={{ marginBottom: 32 }}>
-        {/* An em dash, not $0.00, when nothing has written the column.
-
-            CreatorUser.lifetimeEarnings has no writer anywhere in this repo --
-            /api/portal/dashboard reads it straight off the row
-            (route.ts: `user?.lifetimeEarnings ?? 0`) and the only three
-            CreatorUser writers are register, PATCH /api/portal/me and the
-            reviews route, none of which touch it. So this tile told every
-            creator they had earned $0.00 lifetime, including creators with
-            settled activations. /portal/earnings is the honest surface: it
-            computes accrual from Activation rows.
-
-            Same rule, and the same reasoning, as the four tiles on
-            /c/[handle]. */}
-        <MetricTile
-          metric="portalLifetimeEarnings"
-          value={
-            unwrittenMetricValue(data.stats.lifetimeEarnings) === null
-              ? "—"
-              : formatCurrency(data.stats.lifetimeEarnings)
-          }
-        />
-        <MetricTile metric="portalProposals" value={String(data.stats.totalProposals)} />
-        <MetricTile metric="portalAccepted" value={String(data.stats.acceptedProposals)} />
-        <MetricTile
-          label={`Rating (${data.user.reviewCount} reviews)`}
-          what="Your average score from campaign managers you have worked with. A higher rating makes you easier to book."
-          how="Averages every rating left on your completed activations."
-          value={data.user.averageRating > 0 ? `${data.user.averageRating.toFixed(1)} / 5` : "—"}
-        />
-      </div>
-
-      <div style={{ marginBottom: 32 }}>
-        <MyPerformance />
-      </div>
-
-      {/* Recent Proposals */}
-      <div style={{ marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--cc-text)" }}>Recent Proposals</h2>
-        <Link href="/portal/proposals" style={{ fontSize: 13, color: "var(--cc-primary)", textDecoration: "none", fontWeight: 600 }}>View all</Link>
-      </div>
-
-      {data.recentProposals.length === 0 ? (
-        <Card variant="outlined" style={{ padding: 24 }}>
-          <EmptyState icon={<Inbox size={32} color="var(--cc-text-subtle)" />} title="No proposals yet" description="Browse open campaigns and submit your first proposal." action={
-            <Link href="/portal/discover"><Button variant="primary">Discover Campaigns</Button></Link>
-          } />
-        </Card>
-      ) : (
-        <Card variant="solid" noPadding>
-          <div className="rsp-table-wrap">
-          <div style={{ minWidth: 560 }}>
-          <div style={{
-            display: "grid", gridTemplateColumns: "1fr 120px 100px 100px 120px",
-            gap: 12, padding: "12px 24px", borderBottom: "1px solid var(--cc-border)", background: "var(--cc-bg)",
-          }}>
-            {["Campaign", "Org", "Your Rate", "Status", "Date"].map(h => (
-              <span key={h} style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--cc-text-subtle)" }}>{h}</span>
-            ))}
-          </div>
-          {data.recentProposals.map((p, i) => (
-            <div key={p.id} style={{
-              display: "grid", gridTemplateColumns: "1fr 120px 100px 100px 120px",
-              gap: 12, padding: "14px 24px", alignItems: "center",
-              borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined,
-            }}>
-              <span style={{ fontSize: 14, fontWeight: 600, color: "var(--cc-text)" }}>{p.campaign.title}</span>
-              <span style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{p.campaign.org.name}</span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: "var(--cc-text)" }}>{formatCurrency(p.proposedRate, p.currency)}</span>
-              <Badge variant={STATUS_BADGE[p.status] ?? "neutral"}>{p.status}</Badge>
-              <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{formatDateAbs(p.createdAt)}</span>
-            </div>
-          ))}
-          </div>
-          </div>
-        </Card>
       )}
-    </div>
+      {data && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+          <Card>
+            <SectionTitle>To do</SectionTitle>
+            {data.todo.length === 0 ? (
+              <p style={{ fontSize: 14, color: "var(--cc-text-muted)", margin: 0 }}>
+                You&apos;re all caught up. New dates and feedback show up here.
+              </p>
+            ) : (
+              <div style={{ marginBottom: -1 }}>
+                {data.todo.map((item, i) => (
+                  <TodoRow key={`${item.kind}-${item.href}-${i}`} item={item} />
+                ))}
+              </div>
+            )}
+          </Card>
+
+          {data.invited.length > 0 && (
+            <div>
+              <SectionTitle aside={<Link href="/portal/campaigns?tab=invited" style={{ fontSize: 13, color: "var(--cc-primary)" }}>See all</Link>}>
+                Invitations
+              </SectionTitle>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {data.invited.slice(0, 3).map((inv) => (
+                  <Link
+                    key={inv.campaignId}
+                    href={inv.href}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 10,
+                      padding: 14,
+                      borderRadius: 12,
+                      border: "1px solid var(--cc-border)",
+                      background: "var(--cc-card)",
+                      textDecoration: "none",
+                    }}
+                  >
+                    <span style={{ minWidth: 0 }}>
+                      <span style={{ display: "block", fontSize: 15, fontWeight: 600, color: "var(--cc-text)" }}>{inv.title}</span>
+                      <span style={{ display: "block", fontSize: 13, color: "var(--cc-text-muted)" }}>{inv.orgName} invited you</span>
+                    </span>
+                    <StatusPill tone="info">Respond</StatusPill>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div>
+            <SectionTitle>Your campaigns</SectionTitle>
+            {data.campaigns.length === 0 ? (
+              <EmptyState
+                title="You're not on a campaign yet"
+                body="Open campaigns take anyone who joins. An agency's invite link brings you straight to theirs."
+                action={{ label: "Find a campaign", href: "/portal/campaigns?tab=open" }}
+              />
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {data.campaigns.map((c) => (
+                  <CampaignRow key={c.campaignId} c={c} />
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </Screen>
   );
 }

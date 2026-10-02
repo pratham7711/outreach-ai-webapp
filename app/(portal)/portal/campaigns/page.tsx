@@ -1,179 +1,311 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Card, Badge, EmptyState, Skeleton } from "@pratham7711/ui";
+import { useRouter, useSearchParams } from "next/navigation";
+import { toast } from "sonner";
+import type { InvitedCampaign, JoinedCampaign } from "@/lib/portal/myCampaigns";
+import type { MarketplaceCardDTO } from "@/lib/marketplace/public";
 import { Button } from "@/components/ds";
-import { FileText, DollarSign, Clock, Clapperboard } from "lucide-react";
+import {
+  EmptyState,
+  LoadFailed,
+  Screen,
+  SkeletonBlock,
+  StatusPill,
+  formatCount,
+  formatDay,
+  platformLabel,
+  relativeDay,
+  secondaryButtonStyle,
+} from "@/components/portal/app/ui";
+import { CampaignRow } from "@/components/portal/app/CampaignRow";
 
-type JoinedCampaign = {
-  campaignId: string;
-  title: string;
-  slug: string | null;
-  orgName: string;
-  currency: string;
-  rates: Partial<Record<"TIKTOK" | "INSTAGRAM" | "YOUTUBE", number>>;
-  submissionCount: number;
-  approvedMinor: number;
-  pendingMinor: number;
-  minPayoutMinor: number | null;
-};
+const TABS = [
+  { key: "joined", label: "Joined" },
+  { key: "invited", label: "Invited" },
+  { key: "open", label: "Open" },
+] as const;
+type TabKey = (typeof TABS)[number]["key"];
 
-function fmtMoney(minor: number, currency: string) {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(minor / 100);
+function isTab(v: string | null): v is TabKey {
+  return v === "joined" || v === "invited" || v === "open";
 }
 
-function fmtRate(minor: number, currency: string) {
-  // Per-1k views rate in major units.
-  return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(minor / 100);
-}
-
-export default function PortalMyCampaignsPage() {
+function Tabs({ active, counts }: { active: TabKey; counts: Partial<Record<TabKey, number>> }) {
   const router = useRouter();
-  const [campaigns, setCampaigns] = useState<JoinedCampaign[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  return (
+    <div
+      role="tablist"
+      aria-label="Campaigns"
+      style={{
+        display: "grid",
+        gridTemplateColumns: `repeat(${TABS.length}, 1fr)`,
+        gap: 4,
+        padding: 4,
+        borderRadius: 12,
+        background: "var(--cc-hover-bg)",
+        border: "1px solid var(--cc-border)",
+        marginBottom: 16,
+      }}
+    >
+      {TABS.map((t) => {
+        const selected = t.key === active;
+        const count = counts[t.key];
+        return (
+          <button
+            key={t.key}
+            type="button"
+            role="tab"
+            aria-selected={selected}
+            onClick={() => router.replace(`/portal/campaigns?tab=${t.key}`, { scroll: false })}
+            style={{
+              padding: "8px 6px",
+              borderRadius: 9,
+              border: selected ? "1px solid var(--cc-border)" : "1px solid transparent",
+              background: selected ? "var(--cc-card)" : "transparent",
+              color: selected ? "var(--cc-text)" : "var(--cc-text-muted)",
+              fontSize: 14,
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            {t.label}
+            {typeof count === "number" && count > 0 ? ` (${count})` : ""}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
-  const fetchCampaigns = useCallback(async () => {
+function OpenCampaign({ c }: { c: MarketplaceCardDTO }) {
+  const router = useRouter();
+  const [joining, setJoining] = useState(false);
+
+  /* One path for the open marketplace: Join, here, joins. It used to send a
+     "proposal" from Discover, which an agency then had to accept; that step is
+     gone from the creator app. */
+  const join = async () => {
+    setJoining(true);
+    try {
+      const res = await fetch("/api/portal/campaigns/join", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slug: c.slug }),
+      });
+      if (res.status === 401) {
+        router.push(`/portal/login?join=${encodeURIComponent(c.slug)}`);
+        return;
+      }
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.error ?? "Couldn't join this campaign");
+        return;
+      }
+      toast.success(data.alreadyJoined ? "You're already on this campaign" : "You've joined");
+      router.push(`/portal/campaigns/${encodeURIComponent(data.campaignSlug ?? c.slug)}`);
+    } catch {
+      toast.error("Network error. Try again.");
+    } finally {
+      setJoining(false);
+    }
+  };
+
+  const platforms = c.rates.map((r) => platformLabel(r.platform)).join(" · ");
+  return (
+    <div
+      style={{
+        padding: 14,
+        borderRadius: 12,
+        border: "1px solid var(--cc-border)",
+        background: "var(--cc-card)",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 15, fontWeight: 600, color: "var(--cc-text)" }}>{c.title}</div>
+          <div style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>{c.orgName}</div>
+        </div>
+        {c.daysLeft !== null && c.daysLeft <= 7 && (
+          <StatusPill tone="warning">{c.daysLeft === 1 ? "1 day left" : `${c.daysLeft} days left`}</StatusPill>
+        )}
+      </div>
+      <div style={{ fontSize: 13, color: "var(--cc-text-muted)", marginTop: 8, lineHeight: 1.5 }}>
+        {platforms && <>{platforms} · </>}
+        {formatCount(c.creatorCount)} {c.creatorCount === 1 ? "creator" : "creators"}
+        {c.submissionDeadline && (
+          <> · submit by {formatDay(c.submissionDeadline)} ({relativeDay(c.submissionDeadline)})</>
+        )}
+      </div>
+      <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+        <Button variant="primary" size="sm" loading={joining} onClick={join}>
+          Join
+        </Button>
+        <Link href={`/portal/campaigns/${encodeURIComponent(c.slug)}`} className="rsp-touch" style={{ ...secondaryButtonStyle, minHeight: 32, padding: "6px 12px", fontSize: 13 }}>
+          Details
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+function CampaignsScreen() {
+  const router = useRouter();
+  const params = useSearchParams();
+  const tabParam = params.get("tab");
+  const active: TabKey = isTab(tabParam) ? tabParam : "joined";
+
+  const [mine, setMine] = useState<{ joined: JoinedCampaign[]; invited: InvitedCampaign[] } | null>(null);
+  const [mineFailed, setMineFailed] = useState(false);
+  const [open, setOpen] = useState<MarketplaceCardDTO[] | null>(null);
+  const [openFailed, setOpenFailed] = useState(false);
+
+  const loadMine = useCallback(async () => {
+    setMineFailed(false);
     try {
       const res = await fetch("/api/portal/campaigns");
       if (res.status === 401) {
         router.push("/portal/login");
         return;
       }
-      if (res.ok) {
-        const data = await res.json();
-        setCampaigns(data.campaigns ?? []);
-      } else {
-        setError("Failed to load your campaigns");
-      }
+      if (!res.ok) throw new Error("campaigns");
+      setMine(await res.json());
     } catch {
-      setError("Network error");
-    } finally {
-      setLoading(false);
+      setMineFailed(true);
     }
   }, [router]);
 
-  useEffect(() => {
-    fetchCampaigns();
-  }, [fetchCampaigns]);
+  const loadOpen = useCallback(async () => {
+    setOpenFailed(false);
+    try {
+      const res = await fetch("/api/public/marketplace?pageSize=48");
+      if (!res.ok) throw new Error("marketplace");
+      const data = await res.json();
+      setOpen(data.campaigns ?? []);
+    } catch {
+      setOpenFailed(true);
+    }
+  }, []);
 
-  if (loading) {
-    return (
-      <div className="rsp-page" style={{ maxWidth: 960 }}>
-        <Skeleton width="220px" height="32px" />
-        <div className="rsp-grid-3" style={{ marginTop: 24 }}>
-          {[1, 2, 3].map((i) => (
-            <Skeleton key={i} height="200px" borderRadius="12px" />
-          ))}
-        </div>
-      </div>
-    );
-  }
+  useEffect(() => {
+    loadMine();
+  }, [loadMine]);
+
+  useEffect(() => {
+    if (active === "open" && open === null) loadOpen();
+  }, [active, open, loadOpen]);
+
+  /* Open lists every marketplace campaign; one the creator is already on
+     belongs under Joined, not offered again. */
+  const joinedIds = new Set((mine?.joined ?? []).map((c) => c.href.split("/").pop()));
+  const openNotJoined = (open ?? []).filter((c) => !joinedIds.has(encodeURIComponent(c.slug)));
 
   return (
-    <div className="rsp-page" style={{ maxWidth: 960 }}>
-      <div style={{ marginBottom: 32 }}>
-        <h1 style={{ fontSize: 24, fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>My Campaigns</h1>
-        <p style={{ fontSize: 14, color: "var(--cc-text-muted)" }}>Campaigns you&apos;ve joined — submit content and track earnings.</p>
-      </div>
+    <Screen title="Campaigns" subtitle="The ones you're on, the ones you're invited to, and open ones anyone can join.">
+      <Tabs active={active} counts={{ joined: mine?.joined.length, invited: mine?.invited.length }} />
 
-      {error && (
-        <div style={{ padding: "10px 14px", borderRadius: 8, background: "#FEE2E2", color: "#DC2626", fontSize: 13, marginBottom: 16 }}>
-          {error}
-        </div>
-      )}
+      <div role="tabpanel" aria-label={TABS.find((t) => t.key === active)?.label}>
+        {active !== "open" && mineFailed && <LoadFailed what="your campaigns" onRetry={loadMine} />}
+        {active !== "open" && !mine && !mineFailed && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <SkeletonBlock />
+            <SkeletonBlock />
+          </div>
+        )}
 
-      {campaigns.length === 0 && !error ? (
-        <Card variant="outlined" style={{ padding: 24 }}>
-          <EmptyState
-            icon={<Clapperboard size={32} color="var(--cc-text-subtle)" />}
-            title="No campaigns yet"
-            description="Browse the marketplace to find campaigns to join and start earning."
-            action={
-              <Link href="/explore">
-                <Button variant="primary">Explore Campaigns</Button>
-              </Link>
-            }
-          />
-        </Card>
-      ) : (
-        <div className="rsp-grid-3">
-          {campaigns.map((c) => {
-            const rateEntries = Object.entries(c.rates) as [string, number][];
-            return (
-              <Card key={c.campaignId} variant="solid" style={{ padding: 20, display: "flex", flexDirection: "column", gap: 12 }}>
-                <div>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
-                    <h3 style={{ fontSize: 16, fontWeight: 700, color: "var(--cc-text)" }}>{c.title}</h3>
-                    <Badge variant="success">Joined</Badge>
-                  </div>
-                  <p style={{ fontSize: 12, color: "var(--cc-text-muted)", marginTop: 2 }}>{c.orgName}</p>
-                </div>
+        {active === "joined" && mine && (
+          mine.joined.length === 0 ? (
+            <EmptyState
+              title="You're not on a campaign yet"
+              body="Join an open campaign, or accept an agency's invite."
+              action={{ label: "See open campaigns", href: "/portal/campaigns?tab=open" }}
+            />
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {mine.joined.map((c) => (
+                <CampaignRow key={c.campaignId} c={c} />
+              ))}
+            </div>
+          )
+        )}
 
-                {rateEntries.length > 0 && (
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                    {rateEntries.map(([platform, minor]) => (
-                      <span
-                        key={platform}
-                        style={{
-                          fontSize: 11,
-                          fontWeight: 600,
-                          padding: "3px 8px",
-                          borderRadius: 6,
-                          background: "rgba(91,91,214,0.08)",
-                          color: "var(--cc-primary)",
-                        }}
-                      >
-                        {platform}: {fmtRate(minor, c.currency)}/1k
+        {active === "invited" && mine && (
+          mine.invited.length === 0 ? (
+            <EmptyState
+              title="No invitations right now"
+              body="When an agency invites you to a campaign, it shows up here."
+              action={{ label: "See open campaigns", href: "/portal/campaigns?tab=open" }}
+            />
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {mine.invited.map((inv) => (
+                <Link
+                  key={inv.campaignId}
+                  href={inv.href}
+                  style={{
+                    display: "block",
+                    padding: 14,
+                    borderRadius: 12,
+                    border: "1px solid var(--cc-border)",
+                    background: "var(--cc-card)",
+                    textDecoration: "none",
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "flex-start" }}>
+                    <span style={{ minWidth: 0 }}>
+                      <span style={{ display: "block", fontSize: 15, fontWeight: 600, color: "var(--cc-text)" }}>{inv.title}</span>
+                      <span style={{ display: "block", fontSize: 13, color: "var(--cc-text-muted)" }}>
+                        {inv.orgName} · invited {formatDay(inv.invitedAt)}
                       </span>
-                    ))}
-                  </div>
-                )}
-
-                <div style={{ display: "flex", gap: 16, marginTop: 4 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <FileText size={14} style={{ color: "var(--cc-text-muted)" }} />
-                    <span style={{ fontSize: 13, color: "var(--cc-text)" }}>
-                      {c.submissionCount} submission{c.submissionCount === 1 ? "" : "s"}
                     </span>
+                    <StatusPill tone="info">Respond</StatusPill>
                   </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <DollarSign size={14} style={{ color: "var(--cc-text-muted)" }} />
-                    <span style={{ fontSize: 13, fontWeight: 700, color: "var(--cc-text)" }}>
-                      {fmtMoney(c.approvedMinor, c.currency)} earned
-                    </span>
-                  </div>
-                </div>
-
-                {c.pendingMinor > 0 && (
-                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <Clock size={13} style={{ color: "var(--cc-text-muted)" }} />
-                    <span style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>
-                      {fmtMoney(c.pendingMinor, c.currency)} pending review
-                    </span>
-                  </div>
-                )}
-
-                <div style={{ marginTop: "auto", paddingTop: 8 }}>
-                  {c.slug ? (
-                    <Link href={`/portal/campaigns/${c.slug}`}>
-                      <Button variant="secondary" style={{ width: "100%" }}>
-                        View &amp; Submit
-                      </Button>
-                    </Link>
-                  ) : (
-                    <Button variant="secondary" disabled style={{ width: "100%" }}>
-                      Unavailable
-                    </Button>
+                  {inv.submissionDeadline && (
+                    <div style={{ fontSize: 13, color: "var(--cc-text)", marginTop: 8 }}>
+                      Submissions close {formatDay(inv.submissionDeadline)} ({relativeDay(inv.submissionDeadline)})
+                    </div>
                   )}
+                </Link>
+              ))}
+            </div>
+          )
+        )}
+
+        {active === "open" && (
+          <>
+            {openFailed && <LoadFailed what="open campaigns" onRetry={loadOpen} />}
+            {!open && !openFailed && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <SkeletonBlock />
+                <SkeletonBlock />
+              </div>
+            )}
+            {open &&
+              (openNotJoined.length === 0 ? (
+                <EmptyState
+                  title="No open campaigns right now"
+                  body="New ones appear here as agencies publish them. Your joined campaigns are under Joined."
+                  action={{ label: "See your campaigns", href: "/portal/campaigns?tab=joined" }}
+                />
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {openNotJoined.map((c) => (
+                    <OpenCampaign key={c.slug} c={c} />
+                  ))}
                 </div>
-              </Card>
-            );
-          })}
-        </div>
-      )}
-    </div>
+              ))}
+          </>
+        )}
+      </div>
+    </Screen>
+  );
+}
+
+export default function CreatorCampaignsPage() {
+  return (
+    <Suspense fallback={null}>
+      <CampaignsScreen />
+    </Suspense>
   );
 }
