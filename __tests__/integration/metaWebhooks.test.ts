@@ -4,7 +4,7 @@
 import { NextRequest } from "next/server";
 import { POST as deauthorize } from "@/app/api/webhooks/meta/deauthorize/route";
 import { GET as deletionStatus, POST as dataDeletion } from "@/app/api/webhooks/meta/data-deletion/route";
-import { signRequest } from "@/lib/oauth/metaSignedRequest";
+import { deletionConfirmationCode, signRequest } from "@/lib/oauth/metaSignedRequest";
 
 jest.mock("@/lib/db", () => ({
   db: {
@@ -14,9 +14,17 @@ jest.mock("@/lib/db", () => ({
   },
 }));
 
+/* The grantor lookup (CreatorAccountState) — empty unless a test says the
+   Facebook user granted something. */
+jest.mock("@/lib/platforms/accountState", () => ({
+  accountIdsForGrantor: jest.fn(),
+}));
+
 import { db } from "@/lib/db";
+import { accountIdsForGrantor } from "@/lib/platforms/accountState";
 
 const mockDb = db as unknown as { creatorSocialAccount: { deleteMany: jest.Mock } };
+const mockGrantor = accountIdsForGrantor as jest.Mock;
 
 const ENV_KEYS = [
   "INSTAGRAM_CLIENT_ID",
@@ -25,6 +33,8 @@ const ENV_KEYS = [
   "FACEBOOK_CLIENT_SECRET",
   "THREADS_CLIENT_ID",
   "THREADS_CLIENT_SECRET",
+  "INSTAGRAM_LOGIN_CLIENT_ID",
+  "INSTAGRAM_LOGIN_CLIENT_SECRET",
   "APP_URL",
   "NEXTAUTH_URL",
 ] as const;
@@ -50,6 +60,7 @@ beforeEach(() => {
   process.env.THREADS_CLIENT_SECRET = "threads-secret";
   process.env.APP_URL = "https://campaign.madeboring.com";
   mockDb.creatorSocialAccount.deleteMany.mockResolvedValue({ count: 2 });
+  mockGrantor.mockResolvedValue([]);
 });
 
 afterEach(() => {
@@ -71,8 +82,32 @@ describe("POST /api/webhooks/meta/deauthorize", () => {
     expect(await res.json()).toEqual({ ok: true, removed: 2 });
     expect(mockDb.creatorSocialAccount.deleteMany).toHaveBeenCalledTimes(1);
     const where = mockDb.creatorSocialAccount.deleteMany.mock.calls[0][0].where;
-    expect(where.platformUserId).toBe("17841400000000000");
     expect([...where.platform.in].sort()).toEqual(["FACEBOOK", "INSTAGRAM"]);
+    // Whatever matched on the account id before still matches.
+    expect(where.AND[1].OR).toEqual([{ platformUserId: "17841400000000000" }]);
+    // Instagram Login rows are a different grant and are left alone.
+    expect(where.AND[0].OR).toEqual([
+      { origin: null },
+      { origin: { not: "oauth_instagram_login" } },
+    ]);
+  });
+
+  it("finds Facebook and Instagram rows by the Facebook user who granted them", async () => {
+    /* Meta sends the app-scoped Facebook USER id; the rows hold the Page or IG
+       account id. Matching only platformUserId deleted nothing. */
+    mockGrantor.mockResolvedValue(["sa-ig", "sa-fb"]);
+    await deauthorize(
+      formPost(
+        "https://campaign.madeboring.com/api/webhooks/meta/deauthorize",
+        signRequest({ user_id: "fb-user-1" }, "meta-secret"),
+      ),
+    );
+    expect(mockGrantor).toHaveBeenCalledWith("fb-user-1");
+    const where = mockDb.creatorSocialAccount.deleteMany.mock.calls[0][0].where;
+    expect(where.AND[1].OR).toEqual([
+      { platformUserId: "fb-user-1" },
+      { id: { in: ["sa-ig", "sa-fb"] } },
+    ]);
   });
 
   it("scopes a Threads-signed request to Threads rows only", async () => {
@@ -84,7 +119,40 @@ describe("POST /api/webhooks/meta/deauthorize", () => {
     );
     expect(res.status).toBe(200);
     const where = mockDb.creatorSocialAccount.deleteMany.mock.calls[0][0].where;
-    expect(where.platform.in).toEqual(["THREADS"]);
+    /* Exactly the match Threads had before the grantor work: its callback
+       sends the Threads user id, which IS the stored platformUserId. */
+    expect(where).toEqual({ platformUserId: "th-user", platform: "THREADS" });
+    expect(mockGrantor).not.toHaveBeenCalled();
+  });
+
+  it("verifies an Instagram Login request with that app's own secret and forgets only Instagram Login rows", async () => {
+    process.env.INSTAGRAM_LOGIN_CLIENT_ID = "igl-id";
+    process.env.INSTAGRAM_LOGIN_CLIENT_SECRET = "igl-secret";
+    mockGrantor.mockResolvedValue(["sa-igl"]);
+    const res = await deauthorize(
+      formPost(
+        "https://campaign.madeboring.com/api/webhooks/meta/deauthorize",
+        signRequest({ user_id: "ig-scoped-1" }, "igl-secret"),
+      ),
+    );
+    expect(res.status).toBe(200);
+    const where = mockDb.creatorSocialAccount.deleteMany.mock.calls[0][0].where;
+    expect(where).toEqual({
+      platform: "INSTAGRAM",
+      origin: "oauth_instagram_login",
+      OR: [{ platformUserId: "ig-scoped-1" }, { id: { in: ["sa-igl"] } }],
+    });
+  });
+
+  it("still rejects an Instagram Login request when that secret is not configured", async () => {
+    const res = await deauthorize(
+      formPost(
+        "https://campaign.madeboring.com/api/webhooks/meta/deauthorize",
+        signRequest({ user_id: "ig-scoped-1" }, "igl-secret"),
+      ),
+    );
+    expect(res.status).toBe(400);
+    expect(mockDb.creatorSocialAccount.deleteMany).not.toHaveBeenCalled();
   });
 
   it("rejects a bad signature and deletes nothing", async () => {
@@ -143,7 +211,7 @@ describe("POST /api/webhooks/meta/data-deletion", () => {
     );
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.confirmation_code).toMatch(/^12345-[0-9a-f]{16}$/);
+    expect(body.confirmation_code).toMatch(/^12345-d-[0-9a-f]{16}$/);
     expect(body.url).toBe(
       `https://campaign.madeboring.com/api/webhooks/meta/data-deletion?code=${encodeURIComponent(body.confirmation_code)}`,
     );
@@ -152,7 +220,50 @@ describe("POST /api/webhooks/meta/data-deletion", () => {
     // The URL we handed back must answer for that code.
     const status = await deletionStatus(new NextRequest(body.url));
     expect(status.status).toBe(200);
-    expect((await status.json()).status).toBe("complete");
+    const statusBody = await status.json();
+    expect(statusBody.status).toBe("complete");
+    expect(statusBody.deleted).toBe(true);
+  });
+
+  it("does not report a deletion when no row matched", async () => {
+    mockDb.creatorSocialAccount.deleteMany.mockResolvedValue({ count: 0 });
+    const res = await dataDeletion(
+      formPost(
+        "https://campaign.madeboring.com/api/webhooks/meta/data-deletion",
+        signRequest({ user_id: "12345" }, "meta-secret"),
+      ),
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.confirmation_code).toMatch(/^12345-n-[0-9a-f]{16}$/);
+
+    const status = await deletionStatus(new NextRequest(body.url));
+    expect(status.status).toBe(200);
+    const statusBody = await status.json();
+    expect(statusBody.deleted).toBe(false);
+    expect(statusBody.detail).not.toMatch(/were deleted/);
+    expect(statusBody.detail).toMatch(/nothing to delete/);
+  });
+
+  it("refuses a 'nothing held' code edited to claim a deletion", async () => {
+    const none = deletionConfirmationCode("12345", "meta-secret", "none");
+    const forged = none.replace("-n-", "-d-");
+    const res = await deletionStatus(
+      new NextRequest(`https://campaign.madeboring.com/api/webhooks/meta/data-deletion?code=${forged}`),
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it("still answers for a code issued before codes recorded their outcome, without claiming a deletion", async () => {
+    const legacy = deletionConfirmationCode("12345", "meta-secret");
+    expect(legacy).toMatch(/^12345-[0-9a-f]{16}$/);
+    const res = await deletionStatus(
+      new NextRequest(`https://campaign.madeboring.com/api/webhooks/meta/data-deletion?code=${legacy}`),
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.status).toBe("complete");
+    expect(body.deleted).toBeUndefined();
   });
 
   it("rejects a bad signature and deletes nothing", async () => {

@@ -11,7 +11,15 @@
 import { createHmac, timingSafeEqual } from "crypto";
 import { clientSecretFor, type OAuthPlatform } from "./providers";
 
-export const META_PLATFORMS: readonly OAuthPlatform[] = ["instagram", "facebook", "threads"];
+/* instagram-login has its own app secret (the "Instagram app" inside the Meta
+   app), so without it here every Instagram Login deauthorize or deletion
+   callback failed the signature check and was answered 400. */
+export const META_PLATFORMS: readonly OAuthPlatform[] = [
+  "instagram",
+  "facebook",
+  "threads",
+  "instagram-login",
+];
 
 export type MetaSignedPayload = {
   user_id?: string;
@@ -102,6 +110,19 @@ export function verifyMetaSignedRequest(signedRequest: string): VerifiedMetaRequ
 }
 
 /**
+ * What a deletion request actually did, carried inside its confirmation code.
+ * "none" is a request that matched no stored connection: the status page must
+ * not tell that person their data was deleted when there was nothing to delete.
+ */
+export type DeletionOutcome = "deleted" | "none";
+
+const OUTCOME_TAG: Record<DeletionOutcome, string> = { deleted: "d", none: "n" };
+
+function confirmationMac(appSecret: string, message: string): string {
+  return createHmac("sha256", appSecret).update(message).digest("hex").slice(0, 16);
+}
+
+/**
  * The confirmation code handed back to Meta for a deletion request.
  *
  * Deletion runs synchronously inside the callback, so there is no job to look
@@ -109,24 +130,59 @@ export function verifyMetaSignedRequest(signedRequest: string): VerifiedMetaRequ
  * secret, which lets the status endpoint recognise a code it issued without a
  * table of them. The user id travels in the clear because Meta already holds
  * it — it is the very id it sent us.
+ *
+ * With an outcome the code is `<userId>-<d|n>-<mac>` and the MAC covers the
+ * outcome too, so the status page can say which it was and a "nothing held"
+ * code cannot be edited into a "deleted" one. Without one it is the original
+ * `<userId>-<mac>`, which codes already handed to Meta still carry.
  */
-export function deletionConfirmationCode(userId: string, appSecret: string): string {
-  const mac = createHmac("sha256", appSecret).update(`meta-deletion:${userId}`).digest("hex");
-  return `${userId}-${mac.slice(0, 16)}`;
+export function deletionConfirmationCode(
+  userId: string,
+  appSecret: string,
+  outcome?: DeletionOutcome,
+): string {
+  if (!outcome) return `${userId}-${confirmationMac(appSecret, `meta-deletion:${userId}`)}`;
+  const tag = OUTCOME_TAG[outcome];
+  return `${userId}-${tag}-${confirmationMac(appSecret, `meta-deletion:${userId}:${tag}`)}`;
+}
+
+function sameString(a: string, b: string): boolean {
+  const x = Buffer.from(a);
+  const y = Buffer.from(b);
+  return x.length === y.length && timingSafeEqual(x, y);
+}
+
+/**
+ * Which outcome a code records: "deleted", "none", or "legacy" for a code
+ * issued before outcomes were recorded. Null when this app never issued it.
+ */
+export function readDeletionConfirmationCode(
+  code: string,
+): DeletionOutcome | "legacy" | null {
+  const secrets = new Set(
+    META_PLATFORMS.map((p) => clientSecretFor(p)).filter((s): s is string => Boolean(s)),
+  );
+
+  const tagged = /^(.+)-([dn])-([0-9a-f]{16})$/.exec(code);
+  if (tagged) {
+    const [, userId, tag] = tagged;
+    const outcome: DeletionOutcome = tag === "d" ? "deleted" : "none";
+    for (const secret of secrets) {
+      if (sameString(deletionConfirmationCode(userId, secret, outcome), code)) return outcome;
+    }
+    return null;
+  }
+
+  const dash = code.lastIndexOf("-");
+  if (dash <= 0) return null;
+  const userId = code.slice(0, dash);
+  for (const secret of secrets) {
+    if (sameString(deletionConfirmationCode(userId, secret), code)) return "legacy";
+  }
+  return null;
 }
 
 /** True when `code` is one deletionConfirmationCode() would have issued. */
 export function isDeletionConfirmationCode(code: string): boolean {
-  const dash = code.lastIndexOf("-");
-  if (dash <= 0) return false;
-  const userId = code.slice(0, dash);
-  const secrets = new Set(
-    META_PLATFORMS.map((p) => clientSecretFor(p)).filter((s): s is string => Boolean(s)),
-  );
-  for (const secret of secrets) {
-    const expected = Buffer.from(deletionConfirmationCode(userId, secret));
-    const given = Buffer.from(code);
-    if (expected.length === given.length && timingSafeEqual(expected, given)) return true;
-  }
-  return false;
+  return readDeletionConfirmationCode(code) !== null;
 }
