@@ -24,7 +24,12 @@ jest.mock("@/lib/db", () => ({
 import { GET } from "@/app/api/ops/overdue-crons/route";
 import { CRON_JOBS, cronCadenceMinutes } from "@/lib/ops/cronJobs";
 import { resetKillSwitchCache } from "@/lib/ops/killSwitch";
-import { SCHEDULER_GRACE_MINUTES, selectOverdueCrons } from "@/lib/ops/overdueCrons";
+import {
+  MAX_RECHECK_MINUTES,
+  SCHEDULER_GRACE_MINUTES,
+  recheckInMinutes,
+  selectOverdueCrons,
+} from "@/lib/ops/overdueCrons";
 import { resetOpsTablesCache } from "@/lib/ops/opsTables";
 
 const NOW = Date.parse("2026-10-02T12:00:00Z");
@@ -79,6 +84,28 @@ describe("selectOverdueCrons", () => {
   });
 });
 
+describe("recheckInMinutes", () => {
+  it("is the time until the next job could first be overdue", () => {
+    /* Every job started a minute ago, so the soonest is an hourly one: its
+       cadence plus grace plus one, less the minute already gone. */
+    const hourly = cronCadenceMinutes("read-creator-trackers");
+    expect(hourly).toBe(60);
+    expect(recheckInMinutes({ nowMs: NOW, heartbeats: beats(), killed: new Set() })).toBe(
+      Math.min(MAX_RECHECK_MINUTES, hourly + SCHEDULER_GRACE_MINUTES + 1 - 1),
+    );
+    const early = CRON_JOBS.map(({ job }) => ({ job, firstSeenAt: LONG_AGO, lastStartedAt: ago(50) }));
+    expect(recheckInMinutes({ nowMs: NOW, heartbeats: early, killed: new Set() })).toBe(hourly + SCHEDULER_GRACE_MINUTES + 1 - 50);
+  });
+
+  it("is 0 while a job is overdue, ignores killed jobs, and is at most an hour", () => {
+    expect(recheckInMinutes({ nowMs: NOW, heartbeats: beats({ "sync-posts": 600 }), killed: new Set() })).toBe(0);
+    expect(
+      recheckInMinutes({ nowMs: NOW, heartbeats: beats({ "sync-posts": 600 }), killed: new Set(["cron:sync-posts"]) }),
+    ).toBeGreaterThan(0);
+    expect(recheckInMinutes({ nowMs: NOW, heartbeats: [], killed: new Set() })).toBe(MAX_RECHECK_MINUTES);
+  });
+});
+
 describe("GET /api/ops/overdue-crons", () => {
   const req = (auth?: string) =>
     new NextRequest("http://localhost/api/ops/overdue-crons", { headers: auth ? { authorization: auth } : {} });
@@ -116,24 +143,28 @@ describe("GET /api/ops/overdue-crons", () => {
     expect(heartbeats).not.toHaveBeenCalled();
   });
 
-  it("answers job names, paths and minutes, and nothing else", async () => {
+  it("answers job names, paths, minutes and when to ask again -- nothing else", async () => {
     const res = await GET(req(`Bearer ${"s".repeat(32)}`));
     expect(res.status).toBe(200);
     expect(res.headers.get("cache-control")).toBe("no-store");
     const body = await res.json();
     expect(body).toEqual({
       overdue: [{ job: "sync-posts", path: "/api/cron/sync-posts", minutesOverdue: 600 - cronCadenceMinutes("sync-posts") }],
+      recheckInMinutes: 0,
     });
   });
 
   it("leaves out a job switched off on the ops page", async () => {
     switches.mockResolvedValue([{ key: "cron:sync-posts", off: true, reason: null, updatedBy: null, updatedAt: null }]);
-    expect(await (await GET(req(`Bearer ${"s".repeat(32)}`))).json()).toEqual({ overdue: [] });
+    expect(await (await GET(req(`Bearer ${"s".repeat(32)}`))).json()).toMatchObject({ overdue: [] });
   });
 
   it("lists nothing while the ops tables are absent", async () => {
     queryRaw.mockResolvedValue([{ n: 0 }]);
-    expect(await (await GET(req(`Bearer ${"s".repeat(32)}`))).json()).toEqual({ overdue: [] });
+    expect(await (await GET(req(`Bearer ${"s".repeat(32)}`))).json()).toEqual({
+      overdue: [],
+      recheckInMinutes: MAX_RECHECK_MINUTES,
+    });
     expect(heartbeats).not.toHaveBeenCalled();
   });
 

@@ -13,7 +13,8 @@ export const dynamic = "force-dynamic";
  * only answers a question, and the box holding the token is outside Vercel.
  * Unset, the route does not exist (404), so a deployment that never set up
  * the scheduler exposes nothing. The answer is job names, cron paths and
- * minutes overdue -- no data, and no error text on failure.
+ * minutes overdue, plus when to ask next -- no data, and no error text on
+ * failure.
  */
 function tokenMatches(presented: string | null, expected: string): boolean {
   if (!presented) return false;
@@ -30,8 +31,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   try {
-    const overdue = await readOverdueCrons();
-    return NextResponse.json({ overdue }, { headers: { "cache-control": "no-store" } });
+    const { overdue, recheckInMinutes } = await readOverdueCrons();
+    return NextResponse.json({ overdue, recheckInMinutes }, { headers: { "cache-control": "no-store" } });
   } catch (e) {
     createLogger({ context: { route: "ops/overdue-crons" } }).error("overdue crons unreadable", {
       error: e instanceof Error ? e.message : String(e),
