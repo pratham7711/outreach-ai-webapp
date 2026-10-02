@@ -35,6 +35,8 @@ export const AREAS = {
       "app/api/campaigns/",
       "components/campaigns/",
       "components/posts/",
+      // Track this campaign's creators, on the campaign's Creators tab.
+      "components/creators/TrackCreators.tsx",
       "lib/sync/",
     ],
   },
@@ -83,6 +85,9 @@ export const AREAS = {
       "components/creators/MergeCreatorModal.tsx",
       "components/creators/PlatformChips.tsx",
       "components/creators/RosterActions.tsx",
+      // Track all / Track selected on the roster (plan §04); the endpoint
+      // itself is app/api/trackers/, under settings.
+      "components/creators/TrackCreators.tsx",
       "components/lists/",
       "lib/lists/",
       "lib/creators/creatorName.ts",

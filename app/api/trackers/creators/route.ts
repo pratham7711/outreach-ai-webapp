@@ -2,34 +2,26 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { authenticateRequest } from "@/lib/authenticate";
-import {
-  changeOverWindow,
-  isMeasurable,
-  isTrackerWindow,
-  readHealthFor,
-  windowHours,
-  type TrackerSnapshot,
-  type TrackerWindow,
-} from "@/lib/trackers/metrics";
-import {
-  downsample,
-  effectiveChartGranularity,
-  parseGranularity,
-  snapshotFetchLimit,
-} from "@/lib/trackers/granularity";
+import { isTrackerWindow, type TrackerWindow } from "@/lib/trackers/metrics";
+import { downsample, effectiveChartGranularity, parseGranularity } from "@/lib/trackers/granularity";
 import { parseTrackerError, READ_FAILURE_COPY } from "@/lib/platforms/creatorProfile";
 import { trackerLimitError, trackerUsage } from "@/lib/trackers/limit";
 import {
   byMetricDescending,
-  followerCount,
   isCreatorTrackerSort,
   metricsFromRow,
   toNumber,
-  viewsFromSnapshots,
   windowBounds,
   type CreatorTrackerSort,
   type CreatorWindowRow,
 } from "@/lib/trackers/creatorMetrics";
+import {
+  figuresFor,
+  mergeReadings,
+  parsePaging,
+  parseSearch,
+  readAnchorReadings,
+} from "@/lib/trackers/creatorPage";
 
 /**
  * The Creators half of the Trackers page (?sub=creator in the reference).
@@ -37,6 +29,12 @@ import {
  * Both windows come from one grouped aggregate over Post. A watchlist is small,
  * but the post table is 18,708 rows and growing, and this page's sibling routes
  * already learned what reading it into Node costs.
+ *
+ * Paged (plan §12 F3): `page` and `pageSize` (default 50, at most 200) and a
+ * server-side `q` over name and handle. The order is decided over every
+ * tracked creator before the page is cut -- sorting one page would leave the
+ * biggest creator on page 9 -- from one row per creator; only the page's own
+ * creators have their readings read. lib/trackers/creatorPage.ts has why.
  */
 
 // The reference offers 7 / 14 / 30 days on this tab and no 24h, which is too
@@ -57,48 +55,58 @@ export async function GET(req: NextRequest) {
     if (!result) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const { orgId } = result;
 
-    const period = parseWindow(req.nextUrl.searchParams.get("period"));
-    const sort = parseSort(req.nextUrl.searchParams.get("sort"));
+    const params = req.nextUrl.searchParams;
+    const period = parseWindow(params.get("period"));
+    const sort = parseSort(params.get("sort"));
+    const paging = parsePaging(params);
+    const q = parseSearch(params.get("q"));
     // One clock for the whole request: the window bounds, the read-health cutoff
     // and the change maths must all agree on when "now" is.
     const now = new Date();
     const bounds = windowBounds(period, now);
+    const empty = {
+      creators: [],
+      period,
+      sort,
+      windows: CREATOR_WINDOWS,
+      q,
+      page: 1,
+      pageSize: paging.pageSize,
+      pageCount: 0,
+      total: 0,
+    };
 
     const org = await db.organization.findUnique({
       where: { id: orgId },
       select: { uiConfig: true },
     });
     const granularity = parseGranularity(org?.uiConfig ?? null);
-    const windowDays = windowHours(period) / 24;
     const chartAt = effectiveChartGranularity(granularity);
 
+    /* Every tracked creator, but only what ranking needs from the row itself.
+       Newest-tracked first is the order a tie keeps, as it always was; the id
+       makes that order total, so a tie cannot straddle a page boundary and
+       hand one creator back twice. */
     const tracked = await db.creator.findMany({
-      where: { orgId, deletedAt: null, trackedSince: { not: null } },
-      select: {
-        id: true,
-        name: true,
-        handle: true,
-        platform: true,
-        avatarUrl: true,
-        followersCount: true,
-        trackedSince: true,
-        trackerLastAttemptAt: true,
-        trackerLastError: true,
-        topPosts: true,
-        topPostsAt: true,
-        topPostsSource: true,
-        trackerSnapshots: {
-          orderBy: { recordedAt: "desc" },
-          take: snapshotFetchLimit(granularity, windowDays),
-          select: { followersCount: true, avgViews: true, recordedAt: true },
-        },
+      where: {
+        orgId,
+        deletedAt: null,
+        trackedSince: { not: null },
+        ...(q
+          ? {
+              OR: [
+                { name: { contains: q, mode: "insensitive" as const } },
+                { handle: { contains: q, mode: "insensitive" as const } },
+              ],
+            }
+          : {}),
       },
-      orderBy: { trackedSince: "desc" },
+      select: { id: true, followersCount: true },
+      orderBy: [{ trackedSince: "desc" }, { id: "asc" }],
     });
 
-    if (tracked.length === 0) {
-      return NextResponse.json({ creators: [], period, sort, windows: CREATOR_WINDOWS });
-    }
+    if (tracked.length === 0) return NextResponse.json(empty);
+    const trackedIds = tracked.map((c) => c.id);
 
     /*
      * Scoped through Campaign.orgId, not through the id list alone: a creator can
@@ -110,6 +118,9 @@ export async function GET(req: NextRequest) {
      * time; handing pg a Date sends an offset-bearing literal whose offset
      * Postgres then discards, shifting the boundary by the server's zone. The
      * ::timestamp cast on a trailing-Z string keeps the comparison in UTC.
+     *
+     * Over every tracked creator rather than the page, because Posts is one
+     * of the sorts. It returns one small row per creator who posted.
      */
     const rows = await db.$queryRawUnsafe<
       {
@@ -135,11 +146,11 @@ export async function GET(req: NextRequest) {
       orgId,
       bounds.current.toISOString(),
       bounds.previous.toISOString(),
-      tracked.map((c) => c.id)
+      trackedIds
     );
 
     const byCreator = new Map<string, CreatorWindowRow>(
-      rows.map((r) => [
+      (rows ?? []).map((r) => [
         r.creatorId,
         {
           creatorId: r.creatorId,
@@ -151,25 +162,61 @@ export async function GET(req: NextRequest) {
       ])
     );
 
-    const creators = tracked.map((c) => {
-      /* Follower history, newest-first from the query, mapped into the shape the
-         shared window maths expects. Until the sweep has run twice for a creator
-         this is empty or single-valued, and changeOverWindow correctly returns
-         null rather than inventing a baseline. */
-      const followerHistory: TrackerSnapshot[] = c.trackerSnapshots.map((s) => ({
-        value: s.followersCount,
-        recordedAt: s.recordedAt,
-      }));
-      const latest = c.trackerSnapshots[0] ?? null;
-      const followerChange = changeOverWindow(followerHistory, period, now);
-      const views = viewsFromSnapshots(c.trackerSnapshots, period, now);
+    const anchors = await readAnchorReadings(orgId, trackedIds, bounds.current);
+    const ranked = byMetricDescending(
+      tracked.map((c) => {
+        const f = figuresFor(anchors.get(c.id) ?? [], c.followersCount, period, now);
+        return {
+          id: c.id,
+          followersCount: f.followersCount,
+          views: f.views,
+          metrics: metricsFromRow(byCreator.get(c.id)),
+        };
+      }),
+      sort
+    );
 
-      /* Age is served with the figure, never separately -- the same rule as the
-         sound tracker, learned the same way: a change computed from two readings
-         nine days old is arithmetically fine and completely misleading. */
-      const lastReadAt = latest?.recordedAt ?? null;
-      const health = readHealthFor(lastReadAt, now);
-      const measurable = isMeasurable(health);
+    const total = ranked.length;
+    const pageCount = Math.ceil(total / paging.pageSize);
+    // Past the end (the last creator on the last page was just untracked) is
+    // the last page, not an empty one.
+    const page = Math.min(paging.page, pageCount);
+    const pageIds = ranked.slice((page - 1) * paging.pageSize, page * paging.pageSize).map((r) => r.id);
+
+    /* The page's own readings: only the selected window, pushed into the SQL.
+       A nested `take` here would not bound the read (Prisma pages a to-many
+       relation in memory), so the bound is the WHERE. Anything older that the
+       figures can still need -- the latest reading of a creator not read this
+       window, a baseline from before it -- is in the anchors, merged below. */
+    const pageRows = await db.creator.findMany({
+      where: { id: { in: pageIds }, orgId, deletedAt: null, trackedSince: { not: null } },
+      select: {
+        id: true,
+        name: true,
+        handle: true,
+        platform: true,
+        avatarUrl: true,
+        followersCount: true,
+        trackedSince: true,
+        trackerLastAttemptAt: true,
+        trackerLastError: true,
+        topPosts: true,
+        topPostsAt: true,
+        topPostsSource: true,
+        trackerSnapshots: {
+          where: { recordedAt: { gte: bounds.current } },
+          orderBy: { recordedAt: "desc" },
+          select: { followersCount: true, avgViews: true, recordedAt: true },
+        },
+      },
+    });
+    const pageById = new Map(pageRows.map((c) => [c.id, c]));
+
+    const creators = pageIds.flatMap((id) => {
+      const c = pageById.get(id);
+      if (!c) return [];
+      const readings = mergeReadings(c.trackerSnapshots, anchors.get(c.id) ?? []);
+      const f = figuresFor(readings, c.followersCount, period, now);
 
       /* A read that failed is not the same as a read that has not happened.
          Instagram will never return figures for a personal account, and saying
@@ -189,54 +236,58 @@ export async function GET(req: NextRequest) {
             .join(" ")
         : null;
 
-      return {
-        id: c.id,
-        name: c.name,
-        handle: c.handle,
-        platform: c.platform,
-        avatarUrl: c.avatarUrl,
-        trackedSince: c.trackedSince,
-        /* Prefer the tracked reading over the denormalised column: the column is
-           populated on 11 of 1,834 creators, so it is usually a default rather
-           than a measurement. */
-        followersCount: latest ? latest.followersCount : followerCount(c.followersCount),
-        followersChangePercent: measurable ? followerChange?.percent ?? null : null,
-        followersDelta: measurable ? followerChange?.added ?? null : null,
-        /* The creator's own ten newest posts, from the same readings as the
-           follower figure; the change is withheld on the same health rule. */
-        views: {
-          ...views,
-          changePercent: measurable ? views.changePercent : null,
-          delta: measurable ? views.delta : null,
+      return [
+        {
+          id: c.id,
+          name: c.name,
+          handle: c.handle,
+          platform: c.platform,
+          avatarUrl: c.avatarUrl,
+          trackedSince: c.trackedSince,
+          followersCount: f.followersCount,
+          followersChangePercent: f.followersChangePercent,
+          followersDelta: f.followersDelta,
+          /* The creator's own ten newest posts, from the same readings as the
+             follower figure; the change is withheld on the same health rule. */
+          views: f.views,
+          lastReadAt: f.lastReadAt,
+          lastAttemptAt: c.trackerLastAttemptAt,
+          health: f.health,
+          readError,
+          series: downsample(f.followerHistory, chartAt).map((s) => ({
+            value: s.value,
+            recordedAt: s.recordedAt,
+          })),
+          chartGranularity: chartAt,
+          /* Readings inside the selected window, plus the latest ones before
+             it. Zero still means never read and one still means read once. */
+          snapshotCount: readings.length,
+          /* Passed through as stored; the sweep wrote it in TopPost shape and the
+             client treats it as display data, not something to recompute. */
+          topPosts: c.topPosts ?? null,
+          topPostsAt: c.topPostsAt,
+          /* Which claim the list makes -- the creator's own catalogue, or only
+             the posts this workspace runs with them. The panel says so. */
+          topPostsSource: c.topPostsSource ?? null,
+          /* This workspace's own posts with the creator: a narrower claim than
+             `views`, kept for the Posts sort and labelled as such in the panel. */
+          metrics: metricsFromRow(byCreator.get(c.id)),
         },
-        lastReadAt,
-        lastAttemptAt: c.trackerLastAttemptAt,
-        health,
-        readError,
-        series: downsample(followerHistory, chartAt).map((s) => ({
-          value: s.value,
-          recordedAt: s.recordedAt,
-        })),
-        chartGranularity: chartAt,
-        snapshotCount: c.trackerSnapshots.length,
-        /* Passed through as stored; the sweep wrote it in TopPost shape and the
-           client treats it as display data, not something to recompute. */
-        topPosts: c.topPosts ?? null,
-        topPostsAt: c.topPostsAt,
-        /* Which claim the list makes -- the creator's own catalogue, or only
-           the posts this workspace runs with them. The panel says so. */
-        topPostsSource: c.topPostsSource ?? null,
-        /* This workspace's own posts with the creator: a narrower claim than
-           `views`, kept for the Posts sort and labelled as such in the panel. */
-        metrics: metricsFromRow(byCreator.get(c.id)),
-      };
+      ];
     });
 
     return NextResponse.json({
+      /* Already in ranked order; sorted once more on the page's full figures,
+         which agree with the anchors' and break any tie the same way. */
       creators: byMetricDescending(creators, sort),
       period,
       sort,
       windows: CREATOR_WINDOWS,
+      q,
+      page,
+      pageSize: paging.pageSize,
+      pageCount,
+      total,
     });
   } catch (error) {
     console.error("Failed to fetch creator trackers:", error);
@@ -288,7 +339,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    await db.creator.update({ where: { id: creator.id }, data: { trackedSince: new Date() } });
+    /* Stamped as attempted now, so the creator joins the BACK of the reading
+       queue: the sweep reads oldest attempt first with nulls first, and a
+       null here would put this one ahead of every creator already waiting
+       (plan F3). Refresh in the detail panel reads it at once if wanted. */
+    const now = new Date();
+    await db.creator.update({ where: { id: creator.id }, data: { trackedSince: now, trackerLastAttemptAt: now } });
     return NextResponse.json({ tracked: true }, { status: 201 });
   } catch (error) {
     console.error("Failed to track creator:", error);

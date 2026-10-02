@@ -35,6 +35,8 @@ export const ACTIONS = [
   "new-plan",
   "new-report",
   "self-serve-campaign",
+  "track-all-creators",
+  "track-campaign-creators",
   "track-creator",
   "track-sound",
 ] as const;

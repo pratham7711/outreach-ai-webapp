@@ -26,13 +26,17 @@ import { getOrgEntitlements } from "@/lib/entitlements";
  */
 export type TrackerUsage = { used: number; max: number };
 
-export async function trackerUsage(orgId: string): Promise<TrackerUsage> {
+/** The two counts, from the client a caller is already using -- a bulk track
+ *  counts inside its own transaction, behind its lock. */
+export type TrackerCountClient = Pick<typeof db, "tikTokSound" | "creator">;
+
+export async function trackerUsage(orgId: string, client: TrackerCountClient = db): Promise<TrackerUsage> {
   const [entitlements, sounds, creators] = await Promise.all([
     getOrgEntitlements(orgId),
-    db.tikTokSound.count({ where: { orgId } }),
+    client.tikTokSound.count({ where: { orgId } }),
     // trackedSince is the flag: /api/trackers/creators sets it to start a
     // tracker and clears it to stop one.
-    db.creator.count({ where: { orgId, deletedAt: null, trackedSince: { not: null } } }),
+    client.creator.count({ where: { orgId, deletedAt: null, trackedSince: { not: null } } }),
   ]);
   return {
     used: sounds + creators,
@@ -46,6 +50,11 @@ export async function trackerUsage(orgId: string): Promise<TrackerUsage> {
  * Zero is a real limit and needs its own sentence: "remove one" is nonsense
  * advice to someone who has none, and the free tier is exactly that case.
  */
+/** Trackers that can still be added; Infinity on a plan without a limit. */
+export function trackerRoomLeft(usage: TrackerUsage): number {
+  return Number.isFinite(usage.max) ? Math.max(0, usage.max - usage.used) : Infinity;
+}
+
 export function trackerLimitError(usage: TrackerUsage, noun: string): string | null {
   if (!Number.isFinite(usage.max) || usage.used < usage.max) return null;
   if (usage.max === 0) {

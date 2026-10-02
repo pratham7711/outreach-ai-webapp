@@ -18,6 +18,7 @@ import CreatorAvatar from "@/components/creators/CreatorAvatar";
 import { creatorNameParts } from "@/lib/creators/creatorName";
 import PlatformChips, { type PlatformChipLink } from "@/components/creators/PlatformChips";
 import RosterActions, { type RosterSelection } from "@/components/creators/RosterActions";
+import { TrackAllButton } from "@/components/creators/TrackCreators";
 import { profileUrl, type ImportPlatform } from "@/lib/creators/importParse";
 import { handleIssueSummary } from "@/lib/creators/handleCheck";
 import { isUnknownMetric, type MetricValue } from "@/lib/creators/metricValue";
@@ -394,6 +395,9 @@ export default function CreatorsClient({
         caption={`${total} Creator${total !== 1 ? "s" : ""}`}
         actions={
           <>
+            {/* The whole roster whatever the filters say -- "all" is the
+                agency's creators, and the bulk bar below acts on a filter. */}
+            <TrackAllButton />
             <Button variant="secondary" iconLeft={<Upload size={15} />} size="sm" onClick={() => setShowImport(true)} {...action("import-creators")}>
               Import
             </Button>

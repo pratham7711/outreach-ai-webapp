@@ -29,9 +29,11 @@ jest.mock("@/lib/db", () => ({
   },
 }));
 jest.mock("@/lib/authenticate", () => ({ authenticateRequest: jest.fn() }));
+jest.mock("@/lib/audit", () => ({ logAudit: jest.fn() }));
 
 import { db } from "@/lib/db";
 import { authenticateRequest } from "@/lib/authenticate";
+import { logAudit } from "@/lib/audit";
 import { orgFixture } from "../helpers/orgFixture";
 import { GET, POST } from "@/app/api/trackers/creators/route";
 import { DELETE, GET as GET_ONE } from "@/app/api/trackers/creators/[id]/route";
@@ -236,13 +238,19 @@ describe("POST /api/trackers/creators", () => {
     expect(mockDb.creator.update).not.toHaveBeenCalled();
   });
 
-  it("tracks a creator it owns", async () => {
+  it("tracks a creator it owns, at the back of the reading queue", async () => {
     mockDb.creator.findFirst.mockResolvedValue({ id: "cr1", trackedSince: null });
     const res = await POST(req(BASE, "POST", { creatorId: "cr1" }));
     expect(res.status).toBe(201);
     expect(mockDb.creator.update).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: "cr1" }, data: { trackedSince: expect.any(Date) } })
+      expect.objectContaining({
+        where: { id: "cr1" },
+        data: { trackedSince: expect.any(Date), trackerLastAttemptAt: expect.any(Date) },
+      })
     );
+    // Null would sort first in the sweep (nulls first) and jump everyone waiting.
+    const { data } = mockDb.creator.update.mock.calls[0][0];
+    expect(data.trackerLastAttemptAt.getTime()).toBe(data.trackedSince.getTime());
   });
 
   it("tracking twice is not an error and does not reset the date", async () => {
@@ -283,6 +291,24 @@ describe("DELETE /api/trackers/creators/[id]", () => {
     const res = await DELETE(req(`${BASE}/cr1`, "DELETE"), ctx("cr1"));
     expect(res.status).toBe(200);
     expect(mockDb.creator.update).not.toHaveBeenCalled();
+    expect(logAudit).not.toHaveBeenCalled();
+  });
+
+  it("writes the untrack to the audit log, with the date the watch began", async () => {
+    const since = new Date("2026-08-01T00:00:00Z");
+    mockDb.creator.findFirst.mockResolvedValue({ id: "cr1", name: "Test Creator", trackedSince: since });
+    await DELETE(req(`${BASE}/cr1`, "DELETE"), ctx("cr1"));
+    expect(logAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orgId: "org-1",
+        userId: "u1",
+        action: "tracker.creator_untrack",
+        entityType: "creator",
+        entityId: "cr1",
+        before: { trackedSince: since.toISOString() },
+        after: { trackedSince: null },
+      })
+    );
   });
 });
 
