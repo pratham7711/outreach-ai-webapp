@@ -137,6 +137,10 @@
   --cc-warning-ink: #875C03;
   --cc-danger: var(--status-critical);
   --cc-info: #5B7BF0;
+  /* Favourites are marked in violet, deliberately off the primary accent: a
+     starred row has to read as starred in every theme, including the ones whose
+     primary is already blue. */
+  --cc-favorite: #9333EA;
   /* Danger text sitting ON a danger tint, which is a different job from the
      danger fill itself. 47 controls in this repo paint
      `color-mix(in srgb, var(--cc-danger) 14%, transparent)` and then set
@@ -1313,6 +1317,7 @@
      to move toward white rather than black -- mixing toward black here would
      make it less readable, not more. Measures 6.05:1. */
   --cc-danger-ink: color-mix(in srgb, var(--cc-danger) 60%, white);
+  --cc-favorite: #C07CF5;
   --background: #0D0D0D;
   --foreground: #FFFFFF;
   --card: #1A1A19;
@@ -1401,6 +1406,8 @@
   .recharts rules under this theme), not by hue.
 */
 :root.light {
+  /* Black-and-white theme: a starred row is marked by its filled star, not by a hue. */
+  --cc-favorite: #0A0A0A;
   --background: #F5F5F5;
   --foreground: #0A0A0A;
   --card: #FFFFFF;
@@ -6502,6 +6509,21 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 /*
+  ── Favourite star (lists index) ──
+  Driven off the button's own aria-pressed, so the star's two states live next to
+  each other here instead of as a pair of ternaries in the row component.
+*/
+.cc-star {
+  color: var(--cc-text-subtle);
+}
+.cc-star[aria-pressed="true"] {
+  color: var(--cc-favorite);
+}
+.cc-star[aria-pressed="true"] svg {
+  fill: currentColor;
+}
+
+/*
   ── List tables ──
   The header and every row share one grid template, so a wider status badge can
   no longer push the numeric columns out of line. The flex version let the name
@@ -9352,6 +9374,87 @@ a.cc-platform-chip[data-problem]:hover {
   }
 }
 
+/* Client review on a shared list: progress, verdict buttons, the note. Only
+   rendered when the link has review switched on. */
+.cc-sl-review {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 16px;
+  margin-top: 10px;
+  font-size: var(--cc-t-14);
+  color: var(--cc-text-muted);
+}
+.cc-sl-review strong {
+  color: var(--cc-text);
+}
+.cc-sl-closed {
+  margin-bottom: 16px;
+  padding: 10px 14px;
+  border: 1px solid var(--cc-border);
+  border-radius: 10px;
+  background: var(--cc-card);
+  font-size: var(--cc-t-14);
+  color: var(--cc-text-muted);
+}
+.cc-sl-verdict {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--cc-border);
+}
+.cc-sl-verdict-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.cc-sl-verdict-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 6px 12px;
+  border: 1px solid var(--cc-border);
+  border-radius: 8px;
+  background: var(--cc-card);
+  color: var(--cc-text);
+  font-size: var(--cc-t-14);
+  font-weight: 600;
+  cursor: pointer;
+}
+.cc-sl-verdict-btn:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+.cc-sl-verdict-btn:focus-visible {
+  outline: 2px solid var(--cc-primary);
+  outline-offset: 1px;
+}
+/* The label keeps the page ink: green text on a card measures under 3:1 in
+   light. The border and the tick carry the colour. */
+.cc-sl-verdict-btn[data-verdict="APPROVED"][aria-pressed="true"] {
+  border-color: var(--cc-success);
+  background: color-mix(in srgb, var(--cc-success) 9%, transparent);
+}
+.cc-sl-verdict-btn[data-verdict="APPROVED"][aria-pressed="true"] svg {
+  color: var(--cc-success);
+}
+.cc-sl-verdict-btn[data-verdict="REJECTED"][aria-pressed="true"] {
+  border-color: var(--cc-danger);
+  background: var(--cc-danger-light);
+  color: var(--cc-danger-ink);
+}
+.cc-sl-verdict-note {
+  font-size: var(--cc-t-13);
+  color: var(--cc-text-muted);
+  overflow-wrap: anywhere;
+}
+.cc-sl-verdict-error {
+  font-size: var(--cc-t-13);
+  color: var(--cc-danger-ink);
+}
+
 /* ── List share panel ─────────────────────────────────────────────────────── */
 .cc-share-link {
   display: flex;
@@ -9412,4 +9515,29 @@ a.cc-platform-chip[data-problem]:hover {
 .cc-share-field[data-locked] {
   cursor: default;
   color: var(--cc-text-muted);
+}
+.cc-share-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.cc-share-chip {
+  min-height: 32px;
+  padding: 4px 12px;
+  border: 1px solid var(--cc-border);
+  border-radius: 999px;
+  background: var(--cc-card);
+  color: var(--cc-text);
+  font-size: var(--cc-t-13);
+  font-weight: 500;
+  cursor: pointer;
+}
+.cc-share-chip[aria-pressed="true"] {
+  border-color: var(--cc-primary);
+  background: var(--cc-primary-light);
+  font-weight: 600;
+}
+.cc-share-chip:focus-visible {
+  outline: 2px solid var(--cc-primary);
+  outline-offset: 1px;
 }

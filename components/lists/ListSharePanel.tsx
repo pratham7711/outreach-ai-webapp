@@ -2,12 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { Modal } from "@pratham7711/ui";
-import { Copy, ExternalLink, Link2 } from "lucide-react";
+import { Copy, ExternalLink, Link2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { Button, useConfirm } from "@/components/ds";
 import type { ListShareFields } from "@/lib/lists/listShare";
+import { SHARE_PLATFORM_CHIPS, SHARE_REVIEW_SWITCHES, type SharePlatform, type ShareReview, type ShareReviewSwitch } from "@/lib/lists/shareSettings";
 
-type Share = { token: string; path: string; fields: ListShareFields; createdAt: string };
+/** `review` is only sent once the list-approval tables exist; absent, the panel is the plain one. */
+type Share = { token: string; path: string; fields: ListShareFields; review?: ShareReview; createdAt: string };
 
 const DEFAULTS: ListShareFields = { stats: true, tags: true, audienceCountry: true, price: false };
 
@@ -37,6 +39,7 @@ export default function ListSharePanel({ listId, listName, onClose }: { listId: 
   const confirm = useConfirm();
   const [share, setShare] = useState<Share | null>(null);
   const [draft, setDraft] = useState<ListShareFields>(DEFAULTS);
+  const [review, setReview] = useState<ShareReview | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -47,6 +50,7 @@ export default function ListSharePanel({ listId, listName, onClose }: { listId: 
       .then((d) => {
         setShare(d.share);
         if (d.share) setDraft(d.share.fields);
+        setReview(d.share?.review ?? null);
       })
       .catch((e: Error) => setError(e.message))
       .finally(() => setLoading(false));
@@ -58,6 +62,7 @@ export default function ListSharePanel({ listId, listName, onClose }: { listId: 
     try {
       const d = await call(`/api/lists/${listId}/share`, "POST", { fields: draft });
       setShare(d.share);
+      setReview(d.share?.review ?? null);
     } catch (e) {
       setError((e as Error).message);
     }
@@ -75,6 +80,47 @@ export default function ListSharePanel({ listId, listName, onClose }: { listId: 
       setDraft(draft);
       toast.error((e as Error).message);
     }
+  }
+
+  async function patchReview(patch: Partial<ShareReview>) {
+    if (!review) return;
+    const before = review;
+    setReview({ ...review, ...patch });
+    try {
+      const d = await call(`/api/lists/${listId}/share`, "PATCH", { review: patch });
+      if (d.share?.review) setReview(d.share.review);
+    } catch (e) {
+      setReview(before);
+      toast.error((e as Error).message);
+    }
+  }
+
+  const toggleReview = (key: ShareReviewSwitch) => {
+    if (review) void patchReview({ [key]: !review[key] } as Partial<ShareReview>);
+  };
+
+  function togglePlatform(p: SharePlatform) {
+    if (!review) return;
+    const next = review.platforms.includes(p) ? review.platforms.filter((x) => x !== p) : [...review.platforms, p];
+    void patchReview({ platforms: next });
+  }
+
+  async function rotate() {
+    const ok = await confirm({
+      title: "Make a new link?",
+      description: "The current link stops working straight away. Send the new one to whoever should still see this list.",
+      confirmLabel: "Make new link",
+    });
+    if (!ok) return;
+    setBusy(true);
+    try {
+      const d = await call(`/api/lists/${listId}/share`, "POST", { rotate: true });
+      setShare(d.share);
+      toast.success("New link made. The old one no longer works.");
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+    setBusy(false);
   }
 
   async function revoke() {
@@ -155,7 +201,39 @@ export default function ListSharePanel({ listId, listName, onClose }: { listId: 
             <a className="cc-share-open" href={share.path} target="_blank" rel="noopener noreferrer" aria-label="Open the shared page in a new tab">
               <ExternalLink size={16} aria-hidden />
             </a>
+            <Button variant="secondary" size="sm" iconLeft={<RefreshCw size={14} />} onClick={rotate} disabled={busy}>
+              New link
+            </Button>
           </div>
+        )}
+
+        {share && review && (
+          <fieldset className="cc-share-fields">
+            <legend className="cc-field-label">Client review</legend>
+            {SHARE_REVIEW_SWITCHES.map((f) => (
+              <label key={f.key} className="cc-share-field">
+                <input type="checkbox" checked={review[f.key]} onChange={() => toggleReview(f.key)} />
+                <span>
+                  {f.label}
+                  {f.key === "rateTotal" && !draft.price && <small>Shown only while Price per video is on.</small>}
+                </span>
+              </label>
+            ))}
+            <p className="cc-import-hint">Platforms shown. None selected shows every platform.</p>
+            <div className="cc-share-chips" role="group" aria-label="Platforms shown">
+              {SHARE_PLATFORM_CHIPS.map((c) => (
+                <button
+                  key={c.value}
+                  type="button"
+                  className="cc-share-chip"
+                  aria-pressed={review.platforms.includes(c.value)}
+                  onClick={() => togglePlatform(c.value)}
+                >
+                  {c.label}
+                </button>
+              ))}
+            </div>
+          </fieldset>
         )}
 
         <fieldset className="cc-share-fields" disabled={loading}>

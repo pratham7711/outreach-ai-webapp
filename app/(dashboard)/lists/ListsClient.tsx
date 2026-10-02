@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Users, Search, ClipboardList } from "lucide-react";
-import { Card, EmptyState, Input, Avatar, Modal } from "@pratham7711/ui";
-import { PageHeader, Button } from "@/components/ds";
+import { Plus, Users, Search, ClipboardList, Star } from "lucide-react";
+import { Card, EmptyState, Input, Avatar, Modal, Badge } from "@pratham7711/ui";
+import { PageHeader, Button, StatusTabs } from "@/components/ds";
+import { LIST_STATUS_BADGE, LIST_STATUS_LABELS, type DecisionCounts, type ListStatus } from "@/lib/lists/approval";
 import { formatDateAbs } from "@/lib/format";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -16,7 +17,20 @@ type List = {
   description: string | null;
   _count: { items: number };
   createdAt: string;
+  /* Present only once the list-approval tables exist. */
+  status?: ListStatus;
+  counts?: DecisionCounts;
+  isFavorite?: boolean;
+  archived?: boolean;
 };
+
+const STATUS_FILTERS: { key: "ALL" | ListStatus; label: string }[] = [
+  { key: "ALL", label: "All" },
+  { key: "DRAFT", label: LIST_STATUS_LABELS.DRAFT },
+  { key: "SHARED", label: LIST_STATUS_LABELS.SHARED },
+  { key: "APPROVED", label: LIST_STATUS_LABELS.APPROVED },
+  { key: "ARCHIVED", label: LIST_STATUS_LABELS.ARCHIVED },
+];
 
 /* Chart-series tokens, not the semantic status ramp: these are arbitrary list
    accents, and the raw hexes were fixed to the old purple theme. */
@@ -28,14 +42,36 @@ const ACCENT_COLORS = [
   "var(--chart-5)",
 ];
 
-export default function ListsClient({ lists }: { lists: List[] }) {
+export default function ListsClient({ lists, review = false }: { lists: List[]; review?: boolean }) {
   const router = useRouter();
   const [search, setSearch] = useState("");
+  const [status, setStatus] = useState<"ALL" | ListStatus>("ALL");
+  const [favorites, setFavorites] = useState<Record<string, boolean>>({});
   const [showCreate, setShowCreate] = useState(false);
   const [createForm, setCreateForm] = useState({ name: "", description: "" });
   const [creating, setCreating] = useState(false);
 
-  const filtered = lists.filter(l => l.name.toLowerCase().includes(search.toLowerCase()));
+  const isFavorite = (l: List) => favorites[l.id] ?? Boolean(l.isFavorite);
+  // "All" leaves archived lists out; they have their own tab. Favourites pin to
+  // the top, otherwise the server's newest-first order stands.
+  const filtered = lists
+    .filter(l => l.name.toLowerCase().includes(search.toLowerCase()))
+    .filter(l => !review || (status === "ALL" ? l.status !== "ARCHIVED" : l.status === status))
+    .sort((a, b) => (review ? Number(isFavorite(b)) - Number(isFavorite(a)) : 0));
+
+  const toggleFavorite = async (list: List) => {
+    const next = !isFavorite(list);
+    setFavorites(f => ({ ...f, [list.id]: next }));
+    const res = await fetch(`/api/lists/${list.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ isFavorite: next }),
+    }).catch(() => null);
+    if (!res?.ok) {
+      setFavorites(f => ({ ...f, [list.id]: !next }));
+      toast.error("Couldn't update the star");
+    }
+  };
 
   const handleCreate = async () => {
     if (!createForm.name.trim()) return;
@@ -66,9 +102,24 @@ export default function ListsClient({ lists }: { lists: List[] }) {
         actions={<Button variant="primary" iconLeft={<Plus size={15} />} onClick={() => setShowCreate(true)} {...action("new-list")}>New List</Button>}
       />
 
-      <div style={{ marginBottom: 24 }}>
+      <div style={{ marginBottom: review ? 16 : 24 }}>
         <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search Lists" iconLeft={<Search size={16} />} />
       </div>
+
+      {review && (
+        <div style={{ marginBottom: 24 }}>
+          <StatusTabs
+            variant="pill"
+            ariaLabel="Filter by list status"
+            tabs={STATUS_FILTERS.map((t) => ({
+              ...t,
+              ...(t.key !== "ALL" && { badgeVariant: LIST_STATUS_BADGE[t.key], count: lists.filter((l) => l.status === t.key).length }),
+            }))}
+            active={status}
+            onChange={(k) => setStatus(k as "ALL" | ListStatus)}
+          />
+        </div>
+      )}
 
       {filtered.length === 0 && lists.length === 0 ? (
         <EmptyState icon={<ClipboardList size={32} color="var(--cc-text-subtle)" />} title="No lists yet" description="Create your first list to organize creators"
@@ -77,11 +128,20 @@ export default function ListsClient({ lists }: { lists: List[] }) {
       ) : (
         <div className="cc-stagger rsp-grid-3">
           {filtered.map((list, i) => (
-            <Link prefetch={false} key={list.id} href={`/lists/${list.id}`} style={{ textDecoration: "none" }}>
+            <div key={list.id} style={{ position: "relative" }}>
+            <Link prefetch={false} href={`/lists/${list.id}`} style={{ textDecoration: "none" }}>
               <Card variant="outlined" noPadding clickable>
                 <div style={{ height: 4, background: ACCENT_COLORS[i % ACCENT_COLORS.length] }} />
                 <div style={{ padding: 20 }}>
-                  <h3 className="cc-panel-title" style={{ marginBottom: 8 }}>{list.name}</h3>
+                  <h3 className="cc-panel-title" style={{ marginBottom: 8, paddingRight: review ? 32 : 0 }}>{list.name}</h3>
+                  {list.status && (
+                    <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8, marginBottom: 8, fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
+                      <Badge variant={LIST_STATUS_BADGE[list.status]}>{LIST_STATUS_LABELS[list.status]}</Badge>
+                      {list.counts && list.counts.total - list.counts.pending > 0 && (
+                        <span>{list.counts.approved} approved · {list.counts.rejected} declined</span>
+                      )}
+                    </div>
+                  )}
                   {list.description && <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", marginBottom: 8 }}>{list.description}</p>}
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
                     <span style={{ display: "flex", alignItems: "center", gap: 4 }}><Users size={13} /> {list._count.items} creators</span>
@@ -90,6 +150,19 @@ export default function ListsClient({ lists }: { lists: List[] }) {
                 </div>
               </Card>
             </Link>
+            {review && (
+              <button
+                type="button"
+                className="cc-icon-btn cc-star"
+                aria-pressed={isFavorite(list)}
+                aria-label={isFavorite(list) ? `Unstar ${list.name}` : `Star ${list.name}`}
+                onClick={() => toggleFavorite(list)}
+                style={{ position: "absolute", top: 14, right: 12 }}
+              >
+                <Star size={16} aria-hidden />
+              </button>
+            )}
+            </div>
           ))}
 
           <div onClick={() => setShowCreate(true)} style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "48px 0", borderRadius: 12, cursor: "pointer", border: "2px dashed var(--cc-border)", minHeight: 180 }}>

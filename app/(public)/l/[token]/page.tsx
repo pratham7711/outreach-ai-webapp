@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { Link2 } from "lucide-react";
 import { POWERED_BY } from "@/lib/brand";
 import { loadListShare, sharedListCreators } from "@/lib/lists/listShare";
+import { applyShareReview } from "@/lib/lists/listReview";
 import SharedListView from "./SharedListView";
 
 /** generateMetadata and the page both need the share; cache() makes it one query per request. */
@@ -40,7 +41,9 @@ export default async function SharedListPage({ params }: { params: Promise<{ tok
   const share = await loadShare(token);
   if (!share) return <NoLongerShared />;
 
-  const creators = await sharedListCreators(share);
+  // The review layer (pitch order, the list's own rates, verdicts) is a no-op
+  // until the list-approval tables exist, which leaves this the plain page.
+  const { creators, review } = await applyShareReview(share, await sharedListCreators(share));
   return (
     <SharedListView
       token={token}
@@ -49,6 +52,7 @@ export default async function SharedListPage({ params }: { params: Promise<{ tok
       orgName={share.orgName}
       fields={share.fields}
       creators={creators}
+      review={review}
       poweredBy={POWERED_BY}
     />
   );

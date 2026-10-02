@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ChevronRight, Plus, Trash2, Users, ClipboardList, Share2 } from "lucide-react";
+import { ArrowLeft, ChevronRight, Plus, Trash2, Users, ClipboardList, Share2, Copy, DollarSign, Archive } from "lucide-react";
 import Link from "next/link";
 import { Card, Badge, EmptyState, Skeleton, Input } from "@pratham7711/ui";
 import { toast } from "sonner";
@@ -11,6 +11,9 @@ import AddCreatorsDropdown from "@/components/lists/AddCreatorsDropdown";
 import ListSharePanel from "@/components/lists/ListSharePanel";
 import ExportMenu from "@/components/creators/ExportMenu";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
+import RateCardTable, { type RateCardItem } from "@/components/lists/RateCardTable";
+import DuplicateListDialog from "@/components/lists/DuplicateListDialog";
+import { LIST_STATUS_BADGE, LIST_STATUS_LABELS, type DecisionCounts, type ListStatus } from "@/lib/lists/approval";
 
 type CreatorItem = {
   id: string;
@@ -27,6 +30,8 @@ type ListDetail = {
   description: string | null;
   items: CreatorItem[];
   _count: { items: number };
+  /** Present once the list-approval tables exist: the page becomes a rate card. */
+  approval?: { status: ListStatus; counts: DecisionCounts; isFavorite: boolean; archived: boolean };
 };
 
 function formatNumber(n: number) {
@@ -41,9 +46,13 @@ export default function ListDetailPage({ params }: { params: Promise<{ id: strin
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
   const [sharing, setSharing] = useState(false);
+  const [duplicating, setDuplicating] = useState(false);
+  const [importing, setImporting] = useState(false);
 
-  const fetchList = () => {
-    setLoading(true);
+  // Quiet refetches (a saved rate, a moved row) keep the table on screen
+  // instead of dropping back to the skeleton.
+  const fetchList = (quiet = false) => {
+    if (!quiet) setLoading(true);
     fetch(`/api/lists/${id}`)
       .then(r => r.json())
       .then(data => setList(data.error ? null : data))
@@ -67,6 +76,33 @@ export default function ListDetailPage({ params }: { params: Promise<{ id: strin
       } else {
         toast.error("Failed to remove");
       }
+    } catch { toast.error("Network error"); }
+  };
+
+  const handleImportRates = async () => {
+    setImporting(true);
+    try {
+      const res = await fetch(`/api/lists/${id}/import-rates`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) toast.error(data?.error ?? "Couldn't import rates");
+      else {
+        toast.success(
+          data.imported
+            ? `Filled ${data.imported} rate${data.imported === 1 ? "" : "s"} from the roster`
+            : "No blank rates to fill from the roster",
+        );
+        fetchList(true);
+      }
+    } catch { toast.error("Network error"); }
+    setImporting(false);
+  };
+
+  const handleArchive = async (archived: boolean) => {
+    try {
+      const res = await fetch(`/api/lists/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ archived }) });
+      if (!res.ok) { toast.error("Couldn't update the list"); return; }
+      toast.success(archived ? "List archived. The share link no longer takes decisions." : "List restored");
+      fetchList(true);
     } catch { toast.error("Network error"); }
   };
 
@@ -124,8 +160,16 @@ export default function ListDetailPage({ params }: { params: Promise<{ id: strin
         title={list.name}
         subtitle={list.description || undefined}
         meta={
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
+          <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8, marginTop: 8, fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
             <Users size={14} /> {list._count.items} creators
+            {list.approval && (
+              <>
+                <Badge variant={LIST_STATUS_BADGE[list.approval.status]}>{LIST_STATUS_LABELS[list.approval.status]}</Badge>
+                <span>
+                  {list.approval.counts.approved} approved · {list.approval.counts.rejected} declined · {list.approval.counts.pending} pending
+                </span>
+              </>
+            )}
           </div>
         }
         actions={
@@ -142,6 +186,21 @@ export default function ListDetailPage({ params }: { params: Promise<{ id: strin
                 ]}
               />
             )}
+            {list.approval && (
+              <Button variant="secondary" size="sm" iconLeft={<Archive size={14} />} onClick={() => handleArchive(!list.approval!.archived)}>
+                {list.approval.archived ? "Restore" : "Archive"}
+              </Button>
+            )}
+            {list.approval && list.items.length > 0 && (
+              <Button variant="secondary" size="sm" iconLeft={<DollarSign size={14} />} onClick={handleImportRates} loading={importing}>
+                Import rates
+              </Button>
+            )}
+            {list.approval && list.items.length > 0 && (
+              <Button variant="secondary" size="sm" iconLeft={<Copy size={14} />} onClick={() => setDuplicating(true)}>
+                Duplicate
+              </Button>
+            )}
             <Button variant="secondary" size="sm" iconLeft={<Share2 size={14} />} onClick={() => setSharing(true)}>
               Share
             </Button>
@@ -157,6 +216,15 @@ export default function ListDetailPage({ params }: { params: Promise<{ id: strin
       {/* Creators table */}
       {list.items.length === 0 ? (
         <EmptyState icon={<Users size={32} color="var(--cc-text-subtle)" />} title="No creators in this list" description="Use Add Creators above to pick several from your roster at once." />
+      ) : list.approval ? (
+        <Card variant="solid" noPadding>
+          <RateCardTable
+            listId={list.id}
+            items={list.items as unknown as RateCardItem[]}
+            onChanged={() => fetchList(true)}
+            onRemove={handleRemoveCreator}
+          />
+        </Card>
       ) : (
         <Card variant="solid" noPadding>
           <div className="rsp-table-wrap">
@@ -200,6 +268,14 @@ export default function ListDetailPage({ params }: { params: Promise<{ id: strin
       )}
 
       {sharing && <ListSharePanel listId={list.id} listName={list.name} onClose={() => setSharing(false)} />}
+      {duplicating && list.approval && (
+        <DuplicateListDialog
+          listId={list.id}
+          listName={list.name}
+          approvedCount={list.approval.counts.approved}
+          onClose={() => setDuplicating(false)}
+        />
+      )}
     </div>
   );
 }
