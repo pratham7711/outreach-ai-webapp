@@ -89,7 +89,7 @@ export default function TrackerOpsClient({ initial }: { initial: TrackerOpsRepor
   const orgName = (id: string) => report.orgs.find((o) => o.id === id)?.name ?? id;
 
   return (
-    <div className="cc-tracker-ops">
+    <div className="rsp-page cc-tracker-ops">
       <PageHeader
         title="Tracker reader"
         subtitle="Which reader reads creator trackers, how Plan A and Plan B are doing, and the switch between them."
