@@ -14,6 +14,9 @@ jest.mock('@/lib/db', () => ({
     creatorListItem: {
       deleteMany: jest.fn(),
     },
+    creatorListDetail: { findFirst: jest.fn(), upsert: jest.fn() },
+    creatorListItemDetail: { findMany: jest.fn() },
+    creatorListShare: { findMany: jest.fn() },
     post: { groupBy: jest.fn().mockResolvedValue([]) },
   },
 }));
@@ -21,9 +24,13 @@ jest.mock('@/lib/db', () => ({
 jest.mock('@/lib/auth', () => ({
   auth: jest.fn(),
 }));
+// Absent by default, so every case above the approval block runs the plain list.
+jest.mock('@/lib/lists/approvalTables', () => ({ listApprovalTablesReady: jest.fn().mockResolvedValue(false) }));
+jest.mock('@/lib/creators/rosterTables', () => ({ rosterTablesReady: jest.fn().mockResolvedValue(true) }));
 
 import { db } from '@/lib/db';
 import { auth } from '@/lib/auth';
+import { listApprovalTablesReady } from '@/lib/lists/approvalTables';
 
 const mockAuth = auth as jest.Mock;
 const mockDb = db as any;
@@ -199,5 +206,87 @@ describe('DELETE /api/lists/[id]', () => {
     const req = makeRequest('http://localhost/api/lists/nonexistent', { method: 'DELETE' });
     const res = await DELETE(req, makeParams('nonexistent'));
     expect(res.status).toBe(404);
+  });
+});
+
+// ─── The rate card, once the approval tables exist ──────────────────────────
+
+describe('/api/lists/[id] with the list-approval tables', () => {
+  const creator = (id: string) => ({ id, name: `Fake ${id}`, handle: `@fake_${id}`, platform: 'TIKTOK', followersCount: 1000, averageViews: 0, avatarUrl: null });
+  const detail = (itemId: string, over: Record<string, unknown>) => ({
+    itemId, rate: null, notes: null, sortOrder: null, decision: 'PENDING', decisionNote: null, decidedAt: null, ...over,
+  });
+
+  beforeEach(() => {
+    (listApprovalTablesReady as jest.Mock).mockResolvedValue(true);
+    mockAuth.mockResolvedValue({ user: { id: 'user-1', orgId: 'org-1', role: 'MEMBER' } });
+    mockDb.creatorList.findFirst.mockResolvedValue({
+      id: 'list-1',
+      name: 'Spring pitch',
+      orgId: 'org-1',
+      // Newest first, as the plain list orders them.
+      items: [
+        { id: 'item-3', creator: creator('c-3') },
+        { id: 'item-2', creator: creator('c-2') },
+        { id: 'item-1', creator: creator('c-1') },
+      ],
+      _count: { items: 3 },
+    });
+    mockDb.creatorListItemDetail.findMany.mockResolvedValue([
+      detail('item-1', { sortOrder: 0, rate: 900, decision: 'APPROVED', decidedAt: new Date('2026-09-30T10:00:00Z') }),
+      detail('item-2', { sortOrder: 1, decision: 'REJECTED', decisionNote: 'Off-brand' }),
+    ]);
+    mockDb.creatorListDetail.findFirst.mockResolvedValue({ isFavorite: true, archivedAt: null, duplicatedFromId: null });
+    mockDb.creatorListShare.findMany.mockResolvedValue([{ listId: 'list-1' }]);
+  });
+  afterEach(() => (listApprovalTablesReady as jest.Mock).mockResolvedValue(false));
+
+  it("shows the agency each creator's rate and the client's verdict, in pitch order", async () => {
+    const body = await (await GET(makeRequest('http://localhost/api/lists/list-1'), makeParams('list-1'))).json();
+    // Dragged rows first by sortOrder; the unordered newcomer lands at the end.
+    expect(body.items.map((i: any) => i.id)).toEqual(['item-1', 'item-2', 'item-3']);
+    expect(body.items[0].detail).toEqual({
+      rate: 900, notes: null, sortOrder: 0, decision: 'APPROVED', decisionNote: null, decidedAt: '2026-09-30T10:00:00.000Z',
+    });
+    expect(body.items[1].detail).toMatchObject({ decision: 'REJECTED', decisionNote: 'Off-brand' });
+    expect(body.items[2].detail).toMatchObject({ decision: 'PENDING', rate: null });
+    expect(body.approval).toEqual({
+      status: 'SHARED',
+      counts: { total: 3, approved: 1, rejected: 1, pending: 1 },
+      isFavorite: true,
+      archived: false,
+      duplicatedFromId: null,
+    });
+    expect(mockDb.creatorListItemDetail.findMany.mock.calls[0][0].where).toEqual({ orgId: 'org-1', listId: 'list-1' });
+  });
+
+  it('marks an unmeasured creator with no engagement rate rather than zero', async () => {
+    const body = await (await GET(makeRequest('http://localhost/api/lists/list-1'), makeParams('list-1'))).json();
+    expect(body.items[0].creator.engagementRate).toBeNull();
+  });
+
+  it('stars and archives through the list detail row', async () => {
+    mockDb.creatorList.findFirst.mockResolvedValue({ id: 'list-1', name: 'Spring pitch', description: null, orgId: 'org-1' });
+    mockDb.creatorList.update.mockResolvedValue({ id: 'list-1', name: 'Spring pitch', description: null });
+    const res = await PATCH(
+      makeRequest('http://localhost/api/lists/list-1', { method: 'PATCH', body: JSON.stringify({ isFavorite: true, archived: true }) }),
+      makeParams('list-1'),
+    );
+    expect(res.status).toBe(200);
+    const arg = mockDb.creatorListDetail.upsert.mock.calls[0][0];
+    expect(arg.where).toEqual({ listId: 'list-1' });
+    expect(arg.create).toMatchObject({ listId: 'list-1', orgId: 'org-1', isFavorite: true, archivedAt: expect.any(Date) });
+  });
+
+  it('refuses a star from a viewer, and says so before the migration has run', async () => {
+    mockDb.creatorList.findFirst.mockResolvedValue({ id: 'list-1', name: 'Spring pitch', description: null, orgId: 'org-1' });
+    const star = () =>
+      PATCH(makeRequest('http://localhost/api/lists/list-1', { method: 'PATCH', body: JSON.stringify({ isFavorite: true }) }), makeParams('list-1'));
+    mockAuth.mockResolvedValue({ user: { id: 'user-1', orgId: 'org-1', role: 'VIEWER' } });
+    expect((await star()).status).toBe(403);
+    mockAuth.mockResolvedValue({ user: { id: 'user-1', orgId: 'org-1', role: 'MEMBER' } });
+    (listApprovalTablesReady as jest.Mock).mockResolvedValue(false);
+    expect((await star()).status).toBe(503);
+    expect(mockDb.creatorListDetail.upsert).not.toHaveBeenCalled();
   });
 });

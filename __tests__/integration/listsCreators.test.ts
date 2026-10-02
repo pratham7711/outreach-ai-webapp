@@ -15,8 +15,12 @@ jest.mock("@/lib/db", () => ({
     creatorListItem: {
       createMany: jest.fn(),
     },
+    creatorListDetail: { findMany: jest.fn() },
+    creatorListItemDetail: { groupBy: jest.fn(), upsert: jest.fn(), createMany: jest.fn() },
+    creatorListShare: { findMany: jest.fn() },
   },
 }));
+jest.mock("@/lib/creators/rosterTables", () => ({ rosterTablesReady: jest.fn().mockResolvedValue(true) }));
 
 jest.mock("@/lib/auth", () => ({
   auth: jest.fn(),
@@ -24,6 +28,7 @@ jest.mock("@/lib/auth", () => ({
 
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
+import { listSummaries } from "@/lib/lists/listReview";
 
 const mockDb = db as any;
 const mockAuth = auth as jest.Mock;
@@ -83,6 +88,35 @@ describe("POST /api/lists/[id]/creators", () => {
     expect(mockDb.creator.findMany).toHaveBeenCalledWith({
       where: { id: { in: ["creator-1"] }, orgId: "org-1", deletedAt: null },
       select: { id: true, name: true },
+    });
+  });
+});
+
+describe("adding creators to a list under review", () => {
+  it("writes no approval rows, and an approved list reads as awaiting the client again", async () => {
+    mockDb.creatorList.findFirst.mockResolvedValue({ id: "list-1", orgId: "org-1", name: "Spring pitch" });
+    mockDb.creator.findMany.mockResolvedValue([{ id: "creator-9", name: "Fake Nine" }]);
+    mockDb.creatorListItem.createMany.mockResolvedValue({ count: 1 });
+    const res = await POST(
+      new NextRequest("http://localhost/api/lists/list-1/creators", { method: "POST", body: JSON.stringify({ creatorId: "creator-9" }) }),
+      makeParams("list-1"),
+    );
+    expect(res.status).toBe(201);
+    // Status is derived on read, so the add itself stays exactly the plain insert.
+    expect(mockDb.creatorListItemDetail.upsert).not.toHaveBeenCalled();
+    expect(mockDb.creatorListItemDetail.createMany).not.toHaveBeenCalled();
+
+    // Before: two creators, both decided, one approved. After: a third with no verdict.
+    mockDb.creatorListDetail.findMany.mockResolvedValue([]);
+    mockDb.creatorListShare.findMany.mockResolvedValue([{ listId: "list-1" }]);
+    mockDb.creatorListItemDetail.groupBy.mockResolvedValue([
+      { listId: "list-1", decision: "APPROVED", _count: { _all: 1 } },
+      { listId: "list-1", decision: "REJECTED", _count: { _all: 1 } },
+    ]);
+    expect((await listSummaries("org-1", [{ id: "list-1", total: 2 }])).get("list-1")?.status).toBe("APPROVED");
+    expect((await listSummaries("org-1", [{ id: "list-1", total: 3 }])).get("list-1")).toMatchObject({
+      status: "SHARED",
+      counts: { total: 3, approved: 1, rejected: 1, pending: 1 },
     });
   });
 });
