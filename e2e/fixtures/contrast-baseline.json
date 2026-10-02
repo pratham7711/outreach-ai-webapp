@@ -4,6 +4,7 @@
   "creatorcore": [
     "/analytics  div.cc-nav-group-label  31,60,239,0.36 on 255,255,255,1",
     "/analytics  p.cc-section-card-desc.text-xs  152,162,179,1 on 255,255,255,1",
+    "/analytics  span.cc-metric-label.min-w-0  31,60,239,0.36 on 255,255,255,1",
     "/calendar  div.cc-nav-group-label  31,60,239,0.36 on 255,255,255,1",
     "/calendar  span.cal-daynum  152,162,179,1 on 245,245,245,1",
     "/calendar  span.cal-daynum  152,162,179,1 on 255,255,255,1",

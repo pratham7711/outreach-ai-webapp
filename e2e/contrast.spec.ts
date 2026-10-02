@@ -422,6 +422,19 @@ async function sweep(page: import('@playwright/test').Page, theme: (typeof THEME
            silently accepted. */
       });
     await page.waitForTimeout(400);
+    /* /analytics opens on the last 30 days, so what it draws depends on the
+       seed's age: CI seeds fresh and gets the figure tiles, a test database
+       seeded weeks ago gets "Nothing published in this range". The two then
+       record different pairs and the two-way ratchet cannot hold for both.
+       "All" takes the seed's age out of it. */
+    if (p === '/analytics') {
+      await page.getByRole('group', { name: 'Date range' }).getByRole('button', { name: 'All', exact: true }).click();
+      await page.waitForLoadState('networkidle', { timeout: 30000 }).catch(() => {});
+      await page
+        .waitForFunction(() => document.querySelectorAll('.ui-skeleton').length === 0, null, { timeout: 30000 })
+        .catch(() => {});
+      await page.waitForTimeout(400);
+    }
     visited++;
 
     coverage.push({
