@@ -1,4 +1,5 @@
-import { fetchInstagramProfile, businessDiscoveryToken } from "./instagramBusinessDiscovery";
+import { fetchInstagramProfile } from "./instagramBusinessDiscovery";
+import { readWithDiscoveryToken } from "./instagramDiscoveryTokens";
 import { InstagramRateLimitError } from "./instagram";
 import { fetchTikTokProfile } from "./tiktokProfile";
 import { latestAverageViews } from "@/lib/trackers/recentViews";
@@ -163,12 +164,18 @@ export function moreSpecificFailure(
 }
 
 async function readInstagram(handle: string): Promise<CreatorReadResult> {
-  const token = await businessDiscoveryToken();
-  if (!token) return { ok: false, reason: "no-credentials" };
-
   let profile;
   try {
-    profile = await fetchInstagramProfile(handle, token, undefined, undefined, { rateLimitThrows: true });
+    /* Token A, or the standby B while A is limited (plan §13 B). Both limited
+       is a rate limit, caught below like any other. */
+    const read = await readWithDiscoveryToken((cred) =>
+      fetchInstagramProfile(handle, cred.token, undefined, undefined, {
+        rateLimitThrows: true,
+        ...cred.graphOptions,
+      })
+    );
+    if (!read.ok) return { ok: false, reason: "no-credentials" };
+    profile = read.value;
   } catch (e) {
     const detail = e instanceof Error ? e.message : String(e);
     // Graph signals throttling with codes 4/17/32/613; treat those as retryable so a

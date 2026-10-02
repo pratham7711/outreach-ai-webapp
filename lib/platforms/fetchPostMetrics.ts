@@ -3,12 +3,11 @@ import {
   fetchInstagramMetricsGraph,
   InstagramAuthError,
   InstagramNoSuchAccountError,
+  InstagramRateLimitError,
   InstagramTimeoutError,
 } from "./instagram";
-import {
-  businessDiscoveryToken,
-  fetchInstagramPublicPostMetrics,
-} from "./instagramBusinessDiscovery";
+import { fetchInstagramPublicPostMetrics } from "./instagramBusinessDiscovery";
+import { readWithDiscoveryToken } from "./instagramDiscoveryTokens";
 import { fetchInstagramEmbedPost } from "./instagramEmbed";
 import { fetchTikTokVideosByIds } from "./tiktokDisplay";
 import { isRounded, TIKTOK_DISPLAY } from "./precision";
@@ -1241,18 +1240,35 @@ export async function fetchInstagramMetrics(
     }
   }
 
-  const bizToken = await businessDiscoveryToken();
-  if (bizToken && handle) {
+  /* Whether a Business Discovery token existed to ask with -- the verdict
+     below needs it, and the chooser is what knows. Set on any outcome but
+     "no-credentials", a throw included. */
+  let bizAttempted = false;
+  if (handle) {
     let post: Awaited<ReturnType<typeof fetchInstagramPublicPostMetrics>> = null;
+    bizAttempted = true;
     try {
-      post = await fetchInstagramPublicPostMetrics(
-        handle,
-        url,
-        bizToken,
-        fetchTimeoutSignal(GRAPH_WALK_TIMEOUT_MS),
+      /* Token A, or the standby B while A is limited (plan §13 B). Each attempt
+         gets its own walk budget, so a retry on B is not starved by A's. */
+      const read = await readWithDiscoveryToken((cred) =>
+        fetchInstagramPublicPostMetrics(handle, url, cred.token, fetchTimeoutSignal(GRAPH_WALK_TIMEOUT_MS), {
+          rateLimitThrows: true,
+          ...cred.graphOptions,
+        }),
       );
+      if (read.ok) post = read.value;
+      else bizAttempted = false;
     } catch (err) {
-      if (err instanceof InstagramTimeoutError) {
+      if (err instanceof InstagramRateLimitError) {
+        /* Every token is limited. The same outcome a throttle always had on
+           this path -- no counts from here, and the embed below may still
+           answer -- now said rather than folded into an empty page. */
+        createLogger({ context: { platform: "INSTAGRAM", call: "businessDiscovery" } }).warn(
+          "Business Discovery is rate-limited; falling through to the embed",
+          { code: err.code },
+        );
+        post = null;
+      } else if (err instanceof InstagramTimeoutError) {
         timedOut = true;
         createLogger({ context: { platform: "INSTAGRAM", call: "businessDiscovery" } }).warn(
           "Business Discovery walk timed out; falling through to the embed",
@@ -1349,7 +1365,7 @@ export async function fetchInstagramMetrics(
      no handle there is no Business Discovery lookup to make, so the shortfall
      is still something the deployment has to supply, not something Instagram
      refused us. */
-  const attempted = Boolean(token) || Boolean(bizToken && handle);
+  const attempted = Boolean(token) || bizAttempted;
   /* A rejected credential outranks both other verdicts. "platform-refused"
      would send this back through the retry cycle every hour with the same dead
      token and report it as the platform's doing; naming it is what lets the

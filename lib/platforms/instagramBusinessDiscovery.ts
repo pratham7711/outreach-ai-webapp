@@ -1,5 +1,5 @@
 import { getInstagramBusinessToken } from "@/lib/platforms/instagramBusinessToken";
-import { graphGet, resolveIgUserId, shortcodeFromUrl } from "./instagram";
+import { graphGet, resolveIgUserId, shortcodeFromUrl, type GraphHeadersListener } from "./instagram";
 
 export type IgPublicPost = {
   id: string;
@@ -107,20 +107,28 @@ export const MEDIA_PAGE_SIZE = 100;
  */
 export const MAX_MEDIA_PAGES = 5;
 
+export type DiscoveryReadOptions = {
+  rateLimitThrows?: boolean;
+  noSuchAccountThrows?: boolean;
+  /** The IG user id the token belongs to, when it is configured rather than
+   *  looked up. Saves the me/accounts round trip on every page; absent, it is
+   *  resolved from the token as it always has been. */
+  igUserId?: string;
+  /** Reads Meta's usage headers on every call this read makes. */
+  onHeaders?: GraphHeadersListener;
+};
+
 export async function fetchInstagramProfile(
   username: string,
   token: string,
   signal?: AbortSignal,
   after?: string,
-  {
-    rateLimitThrows = false,
-    noSuchAccountThrows = false,
-  }: { rateLimitThrows?: boolean; noSuchAccountThrows?: boolean } = {},
+  { rateLimitThrows = false, noSuchAccountThrows = false, igUserId: knownIgUserId, onHeaders }: DiscoveryReadOptions = {},
 ): Promise<IgPublicProfile | null> {
   const handle = normalizeUsername(username);
   if (!handle) return null;
 
-  const igUserId = await resolveIgUserId(token, signal);
+  const igUserId = knownIgUserId || (await resolveIgUserId(token, signal, { rateLimitThrows, onHeaders }));
   if (!igUserId) return null;
 
   /* `.after(cursor)` before `.limit()` -- Graph reads the edge modifiers left to
@@ -135,7 +143,7 @@ export async function fetchInstagramProfile(
       access_token: token,
     },
     signal,
-    { rateLimitThrows, noSuchAccountThrows },
+    { rateLimitThrows, noSuchAccountThrows, onHeaders },
   );
   return parseBusinessDiscovery(data, handle);
 }
@@ -151,6 +159,7 @@ export async function fetchInstagramPublicPostMetrics(
   postUrl: string,
   token: string,
   signal?: AbortSignal,
+  options: Omit<DiscoveryReadOptions, "noSuchAccountThrows"> = {},
 ): Promise<(IgPublicPost & { authorFollowers?: number }) | null> {
   const shortcode = shortcodeFromUrl(postUrl);
   if (!shortcode) return null;
@@ -162,6 +171,7 @@ export async function fetchInstagramPublicPostMetrics(
     /* Throws on the first page only: once a page has answered, the account
        exists, and a later 110 would be about something else. */
     const profile = await fetchInstagramProfile(username, token, signal, cursor, {
+      ...options,
       noSuchAccountThrows: page === 0,
     });
     if (!profile) return null;
