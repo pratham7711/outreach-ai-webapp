@@ -3,11 +3,20 @@ import { db } from "@/lib/db";
 import { toCsv, type Cell } from "@/lib/csv";
 import { platformLabel } from "@/lib/format";
 import { rosterTablesReady } from "@/lib/creators/rosterTables";
+import { deriveAverageViews } from "@/lib/creatorMetrics";
+import { metricExportCell, unknownNotes, type MetricValue } from "@/lib/creators/metricValue";
+import { linkFollowers, rosterAvgViews, rosterFollowers } from "@/lib/creators/rosterMetrics";
 
 /**
  * The roster as a spreadsheet: one row per creator, one column pair per
  * platform, in the order the ids were given. Shared by the roster export and
  * the list export, so a list downloads with the same columns it was cut from.
+ *
+ * A figure we do not have is "—", never a blank and never 0 (plan §13 A1), and
+ * the last column says why, in the same words the roster shows on hover --
+ * both are decided by lib/creators/rosterMetrics. A platform the creator has no
+ * account on stays blank in both of its columns: that is no account, not an
+ * unknown count.
  */
 
 const PLATFORM_COLUMNS = ["TIKTOK", "INSTAGRAM", "YOUTUBE", "TWITTER"] as const;
@@ -27,18 +36,33 @@ export async function rosterExportRows(orgId: string, ids: string[], opts: Roste
           platform: true,
           followersCount: true,
           averageViews: true,
+          trackerLastAttemptAt: true,
+          trackerLastError: true,
           rate: true,
           contactEmail: true,
           addedAt: true,
           tagLinks: { select: { tag: { select: { name: true } } } },
+          _count: { select: { posts: true } },
           ...(roster && {
-            profileLinks: { select: { platform: true, handle: true, url: true, followersCount: true, isPrimary: true } },
+            profileLinks: {
+              select: {
+                platform: true,
+                handle: true,
+                url: true,
+                followersCount: true,
+                isPrimary: true,
+                refreshedAt: true,
+                refreshError: true,
+              },
+            },
             detail: { select: { country: true, audienceCountry: true, niche: true } },
           }),
         },
       })
     : [];
   const byId = new Map(creators.map((c) => [c.id, c]));
+  // The roster screen's Avg. views: measured from tracked posts, else the account's own page.
+  const derivedAvgViews = await deriveAverageViews(creators.map((c) => c.id));
 
   const header: Cell[] = [
     "Name",
@@ -52,6 +76,7 @@ export async function rosterExportRows(orgId: string, ids: string[], opts: Roste
     "Tags",
     "Niche",
     "Added",
+    "Why a figure is —",
   ];
 
   const rows = ids.flatMap((id): Cell[][] => {
@@ -59,19 +84,33 @@ export async function rosterExportRows(orgId: string, ids: string[], opts: Roste
     if (!c) return [];
     const links = ("profileLinks" in c && c.profileLinks) || [];
     const detail = ("detail" in c && c.detail) || null;
-    const accountFor = (platform: string) => {
+    const facts = {
+      trackerLastAttemptAt: c.trackerLastAttemptAt,
+      trackerLastError: c.trackerLastError,
+      primaryLink: links.find((l) => l.isPrimary) ?? null,
+    };
+    const followers = rosterFollowers({ followersCount: c.followersCount, ...facts });
+    const avgViews = rosterAvgViews(derivedAvgViews.get(c.id) ?? (c.averageViews || null), c._count?.posts, facts);
+    const notes: [string, MetricValue][] = [];
+    const accountFor = (platform: string): Cell[] => {
       const link = links.find((l) => l.platform === platform && l.isPrimary) ?? links.find((l) => l.platform === platform);
-      if (link) return [link.url, link.followersCount ?? null];
-      // A creator from before profile links holds one account on the row itself.
-      if (c.platform === platform) return [`@${c.handle.replace(/^@/, "")}`, c.followersCount || null];
+      if (link) {
+        const count = linkFollowers(link);
+        notes.push([`${platformLabel(platform)} followers`, count]);
+        return [link.url, metricExportCell(count)];
+      }
+      // A creator from before profile links holds one account on the row
+      // itself, so its count is the primary one and its note is that one's.
+      if (c.platform === platform) return [`@${c.handle.replace(/^@/, "")}`, metricExportCell(followers)];
       return [null, null];
     };
+    const accounts = PLATFORM_COLUMNS.flatMap(accountFor);
     return [
       [
         c.name,
-        ...PLATFORM_COLUMNS.flatMap(accountFor),
-        c.followersCount || null,
-        c.averageViews || null,
+        ...accounts,
+        metricExportCell(followers),
+        metricExportCell(avgViews),
         ...(price ? [c.rate ?? null] : []),
         ...(email ? [c.contactEmail ?? null] : []),
         detail?.country ?? null,
@@ -79,6 +118,7 @@ export async function rosterExportRows(orgId: string, ids: string[], opts: Roste
         c.tagLinks.map((t) => t.tag.name).sort().join(", "),
         detail?.niche ?? null,
         c.addedAt.toISOString().slice(0, 10),
+        unknownNotes([...notes, ["Followers (primary)", followers], ["Avg views", avgViews]]) || null,
       ],
     ];
   });

@@ -9,6 +9,8 @@ jest.mock("@/lib/db", () => ({
     creator: { findMany: jest.fn(), count: jest.fn() },
     creatorList: { findFirst: jest.fn() },
     creatorListItem: { findMany: jest.fn() },
+    // deriveAverageViews: Avg views measured from tracked posts. None by default.
+    post: { groupBy: jest.fn().mockResolvedValue([]) },
   },
 }));
 jest.mock("@/lib/auth", () => ({ auth: jest.fn() }));
@@ -91,6 +93,88 @@ describe("GET /api/creators/export", () => {
   it("is closed to the signed-out", async () => {
     (auth as jest.Mock).mockResolvedValue(null);
     expect((await exportRoster(get("/api/creators/export?ids=a"))).status).toBe(401);
+  });
+});
+
+describe("unknown figures in the export (plan §13 A1)", () => {
+  /* Followers and Avg views are Float @default(0), so a 0 on file is "never
+     read", not "no audience". The export writes "—" for it -- never 0 and
+     never an empty cell -- and the last column says why. */
+  const unread = {
+    ...evil,
+    id: "u",
+    name: "Unread Creator",
+    followersCount: 0,
+    averageViews: 0,
+    trackerLastAttemptAt: null,
+    trackerLastError: null,
+    tagLinks: [],
+    detail: null,
+    _count: { posts: 3 },
+    profileLinks: [
+      {
+        platform: "TIKTOK",
+        handle: "fake.unread",
+        url: "https://www.tiktok.com/@fake.unread",
+        followersCount: 0,
+        isPrimary: true,
+        refreshedAt: new Date("2026-09-30T00:00:00Z"),
+        refreshError: "no-such-account: statusCode 10221",
+      },
+    ],
+  };
+
+  const sheet = async (res: Response) => {
+    const wb = XLSX.read(Buffer.from(await res.arrayBuffer()), { type: "buffer" });
+    const rows = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets.Creators, { header: 1, defval: null });
+    const header = rows[0] as string[];
+    return { header, rows: rows.slice(1), col: (row: unknown[], name: string) => row[header.indexOf(name)] };
+  };
+
+  it("writes a dash, with the reason, for every figure it does not have", async () => {
+    mdb.creator.findMany.mockResolvedValueOnce([{ id: "u" }]).mockResolvedValueOnce([unread]);
+    const { header, rows, col } = await sheet(await exportRoster(get("/api/creators/export?ids=u")));
+    expect(header[header.length - 1]).toBe("Why a figure is —");
+    const [row] = rows;
+    expect(col(row, "TikTok followers")).toBe("—");
+    expect(col(row, "Followers (primary)")).toBe("—");
+    expect(col(row, "Avg views")).toBe("—");
+    // No account on Instagram is no account, not an unknown count.
+    expect(col(row, "Instagram")).toBeNull();
+    expect(col(row, "Instagram followers")).toBeNull();
+    const notes = String(col(row, "Why a figure is —"));
+    expect(notes).toMatch(/^TikTok followers, Followers \(primary\): We could not find this handle/);
+    expect(notes).toContain("Avg views: None of their 3 tracked posts has a view count yet");
+  });
+
+  it("writes the dash into the CSV too, where the formula guard leaves it alone", async () => {
+    mdb.creator.findMany.mockResolvedValueOnce([{ id: "u" }]).mockResolvedValueOnce([unread]);
+    const lines = (await (await exportRoster(get("/api/creators/export?format=csv&ids=u"))).text()).split("\n");
+    expect(lines).toHaveLength(2);
+    expect(lines[1]).toContain('"https://www.tiktok.com/@fake.unread","—"');
+    expect(lines[1]).not.toContain(`"'—"`);
+    expect(lines[0].endsWith('"Why a figure is —"')).toBe(true);
+  });
+
+  it("uses the Avg views the roster shows, measured from tracked posts", async () => {
+    mdb.creator.findMany.mockResolvedValueOnce([{ id: "a" }]).mockResolvedValueOnce([evil]);
+    mdb.post.groupBy.mockResolvedValueOnce([{ creatorId: "a", _avg: { viewsCount: 1234.4 } }]);
+    const { rows, col } = await sheet(await exportRoster(get("/api/creators/export?ids=a")));
+    expect(col(rows[0], "Avg views")).toBe(1234);
+    expect(col(rows[0], "Followers (primary)")).toBe(150000);
+    // Every figure known: nothing to explain, and the cell is left empty.
+    expect(col(rows[0], "Why a figure is —")).toBeNull();
+    expect(mdb.post.groupBy.mock.calls[0][0].where).toEqual({ creatorId: { in: ["a"] }, viewsCount: { gt: 0 } });
+  });
+
+  it("never writes 0 for an account's follower count", async () => {
+    mdb.creator.findMany.mockResolvedValueOnce([{ id: "a" }]).mockResolvedValueOnce([
+      { ...evil, profileLinks: [{ ...evil.profileLinks[0] }, { ...evil.profileLinks[1], followersCount: 0 }] },
+    ]);
+    const { rows, col } = await sheet(await exportRoster(get("/api/creators/export?ids=a")));
+    expect(col(rows[0], "TikTok followers")).toBe(150000);
+    expect(col(rows[0], "Instagram followers")).toBe("—");
+    expect(String(col(rows[0], "Why a figure is —"))).toMatch(/^Instagram followers: /);
   });
 });
 

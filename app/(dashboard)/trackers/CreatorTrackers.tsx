@@ -6,13 +6,15 @@ import { toast } from "sonner";
 import { Card, EmptyState, Input, Modal, Skeleton } from "@pratham7711/ui";
 import { Button } from "@/components/ds";
 import { Play, Trash2, User, Users } from "lucide-react";
-import { formatDateAbs, formatFull, formatHandle, timeAgo } from "@/lib/format";
+import { formatDateAbs, formatHandle, timeAgo } from "@/lib/format";
 import { apiDelete, apiFetch, apiPost } from "@/lib/api/client";
-import { CreatorDetailModal, type TopPost } from "./CreatorDetailModal";
+import { CreatorDetailModal, trackedFigures, type TopPost } from "./CreatorDetailModal";
 import type { ChartGranularity } from "@/lib/trackers/granularity";
 import { errorMessage } from "@/lib/api/errorMessage";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
 import { LATEST_TEN_SINCE } from "@/lib/trackers/recentViews";
+import { isUnknownMetric, metricReason } from "@/lib/creators/metricValue";
+import MetricFigure from "@/components/creators/MetricFigure";
 
 /**
  * The Creators sub-tab of Trackers, matching the reference's card layout: two
@@ -132,7 +134,7 @@ function FigureGroup({
 }: {
   icon: React.ReactNode;
   label: string;
-  value: string;
+  value: React.ReactNode;
   valueTitle?: string;
   changeNode: React.ReactNode;
   changeTitle: string;
@@ -395,6 +397,7 @@ export function CreatorTrackers({
         <>
           {creators.map((c) => {
             const v = c.views;
+            const figures = trackedFigures(c);
             return (
               <Card key={c.id} variant="outlined" style={{ marginBottom: 12 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
@@ -426,7 +429,8 @@ export function CreatorTrackers({
                   <FigureGroup
                     icon={<User size={22} />}
                     label="Followers"
-                    value={c.followersCount === null ? "—" : formatFull(c.followersCount)}
+                    value={<MetricFigure value={figures.followers} />}
+                    valueTitle={metricReason(figures.followers)}
                     changeNode={
                       c.followersChangePercent !== null ? (
                         <ChangeValue percent={c.followersChangePercent} />
@@ -444,9 +448,9 @@ export function CreatorTrackers({
                   <FigureGroup
                     icon={<Play size={22} />}
                     label="Avg. Views"
-                    value={v.avgViews === null ? "—" : formatFull(Math.round(v.avgViews))}
+                    value={<MetricFigure value={figures.avgViews} />}
                     valueTitle={
-                      v.avgViews === null
+                      isUnknownMetric(figures.avgViews)
                         ? viewsReason(c)
                         : `Average views of their 10 newest posts, pinned posts left out. Measured ${timeAgo(v.measuredAt)}.`
                     }

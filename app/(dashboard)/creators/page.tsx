@@ -9,6 +9,7 @@ import { firstParam, readCreatorSort } from "@/lib/listParams";
 import { rosterTablesReady } from "@/lib/creators/rosterTables";
 import { isFetchableAvatarUrl, storedAvatarVersions } from "@/lib/creators/avatarStore";
 import { HANDLE_GONE_WHERE, HANDLE_UNREADABLE_WHERE, handleProblem } from "@/lib/creators/handleCheck";
+import { rosterAvgViews, rosterFollowers } from "@/lib/creators/rosterMetrics";
 
 /** "United States, Brazil" rows counted per country, most common first. */
 function countryOptions(groups: { value: string | null; _count: number }[]) {
@@ -86,6 +87,7 @@ export default async function CreatorsPage({
             url: true,
             followersCount: true,
             averageViews: true,
+            isPrimary: true,
             refreshedAt: true,
             refreshError: true,
           },
@@ -117,34 +119,44 @@ export default async function CreatorsPage({
 
   return (
     <CreatorsClient
-      creators={creators.map((c) => ({
-        id: c.id,
-        name: c.name,
-        handle: c.handle,
-        platform: c.platform,
-        avatarUrl: c.avatarUrl,
-        // Stored: when it was taken. Not stored but a live link is held: the
-        // route stores it on this view. Neither: nothing to ask for.
-        avatarVersion: avatarVersions.has(c.id)
-          ? avatarVersions.get(c.id)!.toString(36)
-          : isFetchableAvatarUrl(c.avatarUrl)
-            ? "link"
-            : null,
-        followerCount: c.followersCount,
-        // Measured from tracked posts where there are any; otherwise what the
-        // account's own page last said (import, then the daily refresh).
-        avgViews: derivedAvgViews.get(c.id) ?? (c.averageViews || null),
-        campaignCount: campaignCounts.get(c.id) ?? 0,
-        _count: c._count,
-        rate: c.rate,
-        tags: c.tagLinks.map((t) => t.tag.name).sort((a, b) => a.localeCompare(b)),
-        links: (linksBy.get(c.id) ?? []).map(({ refreshError, ...l }) => ({
-          ...l,
-          refreshedAt: l.refreshedAt?.toISOString() ?? null,
-          problem: handleProblem(l.platform, refreshError),
-        })),
-        audienceCountry: detailBy.get(c.id)?.audienceCountry ?? null,
-      }))}
+      creators={creators.map((c) => {
+        /* "Unknown" is never shown as 0 (plan A1): each figure goes to the page
+           as a number or as the reason there is none, decided from the primary
+           account's last read -- the read that writes followersCount. */
+        const primaryLink = (linksBy.get(c.id) ?? []).find((l) => l.isPrimary) ?? null;
+        const facts = { trackerLastAttemptAt: c.trackerLastAttemptAt, trackerLastError: c.trackerLastError, primaryLink };
+        const avgViews = derivedAvgViews.get(c.id) ?? (c.averageViews || null);
+        return {
+          id: c.id,
+          name: c.name,
+          handle: c.handle,
+          platform: c.platform,
+          avatarUrl: c.avatarUrl,
+          // Stored: when it was taken. Not stored but a live link is held: the
+          // route stores it on this view. Neither: nothing to ask for.
+          avatarVersion: avatarVersions.has(c.id)
+            ? avatarVersions.get(c.id)!.toString(36)
+            : isFetchableAvatarUrl(c.avatarUrl)
+              ? "link"
+              : null,
+          followerCount: c.followersCount,
+          followers: rosterFollowers({ followersCount: c.followersCount, ...facts }),
+          // Measured from tracked posts where there are any; otherwise what the
+          // account's own page last said (import, then the daily refresh).
+          avgViews,
+          avgViewsFigure: rosterAvgViews(avgViews, c._count.posts, facts),
+          campaignCount: campaignCounts.get(c.id) ?? 0,
+          _count: c._count,
+          rate: c.rate,
+          tags: c.tagLinks.map((t) => t.tag.name).sort((a, b) => a.localeCompare(b)),
+          links: (linksBy.get(c.id) ?? []).map(({ refreshError, ...l }) => ({
+            ...l,
+            refreshedAt: l.refreshedAt?.toISOString() ?? null,
+            problem: handleProblem(l.platform, refreshError),
+          })),
+          audienceCountry: detailBy.get(c.id)?.audienceCountry ?? null,
+        };
+      })}
       query={query.toString()}
       rosterReady={roster}
       handleIssues={{ gone: handleGone, unreadable: handleUnreadable }}

@@ -1,6 +1,7 @@
 import { formatCompact, formatFull, platformLabel } from "@/lib/format";
 import { PlatformGlyph } from "@/components/ui/PlatformGlyph";
 import { handleProblemText, type HandleProblem } from "@/lib/creators/handleCheck";
+import { followersValue, isUnknownMetric } from "@/lib/creators/metricValue";
 
 export type PlatformChipLink = {
   platform: string;
@@ -10,6 +11,8 @@ export type PlatformChipLink = {
   averageViews?: number | null;
   /** The platform could not find this account; its chip says so instead of a count. */
   problem?: HandleProblem | null;
+  /** When the profile refresh last read this account, so a missing count can say why. */
+  refreshedAt?: string | null;
 };
 
 /**
@@ -37,11 +40,14 @@ export default function PlatformChips({
     <span className="cc-platform-chips" data-compact={compact || undefined}>
       {shown.map((l) => {
         const label = platformLabel(l.platform);
+        /* A chip with no count shows the platform's name rather than a 0, and
+           its tooltip says why the count is missing (plan A1). */
+        const followers = followersValue(l.followersCount, { attemptedAt: l.refreshedAt });
         const title = l.problem
           ? handleProblemText(l.platform, l.handle, l.problem)
           : [
               `${label} @${l.handle}`,
-              l.followersCount ? `${formatFull(l.followersCount)} followers` : null,
+              isUnknownMetric(followers) ? `followers unknown: ${followers.reason}` : `${formatFull(followers)} followers`,
               l.averageViews ? `${formatFull(l.averageViews)} avg views` : null,
             ]
               .filter(Boolean)
