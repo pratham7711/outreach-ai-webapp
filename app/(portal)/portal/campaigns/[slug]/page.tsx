@@ -97,7 +97,8 @@ function money(minor: number, currency: string) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(minor / 100);
 }
 
-function DatesCard({ dates }: { dates: CampaignDate[] }) {
+/** `now` is when the campaign was loaded, so the render itself stays pure. */
+function DatesCard({ dates, now }: { dates: CampaignDate[]; now: number }) {
   return (
     <Card>
       <SectionTitle>Dates</SectionTitle>
@@ -108,7 +109,7 @@ function DatesCard({ dates }: { dates: CampaignDate[] }) {
       ) : (
         <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 8 }}>
           {dates.map((d) => {
-            const past = new Date(d.at).getTime() < Date.now() - 86_400_000;
+            const past = new Date(d.at).getTime() < now - 86_400_000;
             return (
               <li key={`${d.kind}-${d.at}`} style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: 14 }}>
                 <span style={{ color: past ? "var(--cc-text-muted)" : "var(--cc-text)", fontWeight: d.kind === "post_due" ? 600 : 400 }}>
@@ -444,6 +445,7 @@ function CampaignScreen() {
   const slug = params.slug;
 
   const [detail, setDetail] = useState<CampaignDetail | null>(null);
+  const [loadedAt, setLoadedAt] = useState(0);
   const [joined, setJoined] = useState(false);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
@@ -471,6 +473,7 @@ function CampaignScreen() {
       }
       setError(null);
       setDetail(data.campaign);
+      setLoadedAt(Date.now());
       setJoined(!!data.joined);
       setDraft(data.draft ?? null);
       setSubmissions(data.submissions ?? []);
@@ -562,7 +565,7 @@ function CampaignScreen() {
           </Card>
         )}
 
-        <DatesCard dates={detail.dates} />
+        <DatesCard dates={detail.dates} now={loadedAt} />
         <BriefCard detail={detail} />
 
         {joined && draft && detail.acceptsPosts && <DraftCard slug={slug} draft={draft} onDone={load} />}
