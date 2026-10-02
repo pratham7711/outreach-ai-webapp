@@ -1,7 +1,9 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { ArrowRight, ShieldCheck } from "lucide-react";
 import { BRAND } from "@/lib/brand";
 import { LandingHeroVisual } from "./LandingHeroVisual";
+import { ShortlistDemo, TrackerDemo } from "./LandingDemos";
 
 const TITLE = `${BRAND.name} — creator campaigns from pitch to payout`;
 const DESCRIPTION =
@@ -26,31 +28,36 @@ export const metadata: Metadata = {
 
 const STAGES = [
   {
-    marker: "01 / Pitch",
+    tag: "Pitch",
+    tone: "lp-tone-blue",
     title: "Twelve pitches, one row.",
     body:
       "You brief a shortlist, not a spreadsheet. Every creator you approach is attached to the campaign from the first message, so nothing lives in one person's inbox.",
   },
   {
-    marker: "02 / Brief",
+    tag: "Brief",
+    tone: "lp-tone-violet",
     title: "The brief stops living in six places.",
     body:
       "Deliverables, rates and deadlines attach to the creator, not to a thread. Everyone on the campaign opens the same row and sees the same numbers.",
   },
   {
-    marker: "03 / Live",
+    tag: "Live",
+    tone: "lp-tone-pink",
     title: "Posts tracked without asking for a screenshot.",
     body:
       "The creator connects their own account once. Views, likes and comments refresh themselves against the campaign, so the status you quote a client is the status that is true.",
   },
   {
-    marker: "04 / Track",
+    tag: "Track",
+    tone: "lp-tone-orange",
     title: "Every number traces back to a post.",
     body:
       "Client-ready reporting that reconciles, because it is built from the same rows you approved — not from a spreadsheet somebody retyped on Friday.",
   },
   {
-    marker: "05 / Pay",
+    tag: "Pay",
+    tone: "lp-tone-green",
     title: "One approval. Every creator paid.",
     body:
       "The ledger closes itself. What you approved is what left the account, to the rupee, with a record against the creator who earned it.",
@@ -60,321 +67,229 @@ const STAGES = [
 const CONNECTIONS = [
   {
     platform: "TikTok",
+    tone: "lp-tone-blue",
     reads: "Display name and avatar, follower count, and the public view, like, comment and share counts on the videos the creator published for the campaign.",
   },
   {
     platform: "Instagram",
+    tone: "lp-tone-pink",
     reads: "Profile handle and the public engagement counts on the posts delivered against a brief.",
   },
   {
     platform: "YouTube",
+    tone: "lp-tone-orange",
     reads: "Channel name and the public view and engagement counts on the videos delivered against a brief.",
   },
 ];
 
-const shell: React.CSSProperties = {
-  maxWidth: 1080,
-  margin: "0 auto",
-  padding: "0 24px",
-};
-
-const sectionLabel: React.CSSProperties = {
-  fontSize: 12,
-  fontWeight: 700,
-  letterSpacing: 1.2,
-  textTransform: "uppercase",
-  color: "var(--cc-text-muted)",
-  marginBottom: 16,
-};
-
 export default function Home() {
   return (
-    <main style={{ background: "var(--cc-bg)", minHeight: "100vh" }}>
-      <header
-        style={{
-          borderBottom: "1px solid var(--cc-border)",
-          background: "var(--cc-card)",
-          position: "sticky",
-          top: 0,
-          zIndex: 10,
-        }}
-      >
-        <div
-          style={{
-            ...shell,
-            height: 64,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 16,
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "baseline", gap: 8, minWidth: 0 }}>
-            <span style={{ fontSize: 16, fontWeight: 700, color: "var(--cc-text)" }}>
-              {BRAND.name}
+    <div className="lp-page">
+      <a href="#content" className="lp-skip">
+        Skip to content
+      </a>
+
+      <header className="lp-header">
+        <div className="lp-shell lp-header-row">
+          <div className="lp-brand">
+            <span className="lp-brand-mark" aria-hidden>
+              {BRAND.short}
             </span>
-            <a
-              href={BRAND.umbrellaUrl}
-              className="rsp-hide-mobile"
-              style={{
-                fontSize: 12,
-                color: "var(--cc-text-muted)",
-                textDecoration: "none",
-                whiteSpace: "nowrap",
-              }}
-            >
-              by {BRAND.umbrella}
-            </a>
+            <span className="lp-brand-name">
+              {BRAND.name}
+              <a href={BRAND.umbrellaUrl} className="lp-brand-by lp-hide-sm">
+                by {BRAND.umbrella}
+              </a>
+            </span>
           </div>
-          <nav style={{ display: "flex", alignItems: "center", gap: 20, fontSize: 14 }}>
-            <Link
-              href="/explore"
-              className="rsp-hide-mobile"
-              style={{ color: "var(--cc-text-muted)", textDecoration: "none", whiteSpace: "nowrap" }}
-            >
+          <nav aria-label="Primary" className="lp-nav">
+            <a href="#product" className="lp-nav-link lp-hide-sm">
+              Product
+            </a>
+            <a href="#how" className="lp-nav-link lp-hide-sm">
+              How it works
+            </a>
+            <Link href="/explore" className="lp-nav-link lp-hide-sm">
               Marketplace
             </Link>
-            <Link href="/login" style={{ color: "var(--cc-text)", textDecoration: "none", fontWeight: 600 }}>
+            <Link href="/login" className="lp-nav-link" data-strong>
               Sign in
             </Link>
-            <Link
-              href="/signup"
-              style={{
-                background: "var(--cc-primary)",
-                color: "white",
-                borderRadius: 8,
-                padding: "9px 16px",
-                fontSize: 14,
-                fontWeight: 600,
-                textDecoration: "none",
-              }}
-            >
+            <Link href="/signup" className="lp-btn lp-btn-primary lp-btn-sm">
               Get started
             </Link>
           </nav>
         </div>
       </header>
 
-      <section
-        style={{ ...shell, paddingTop: 80, paddingBottom: 64 }}
-        className="rsp-hero"
-      >
-        <div>
-        <p style={sectionLabel}>Campaign management for agencies and labels</p>
-        <h1
-          style={{
-            fontSize: 48,
-            lineHeight: 1.1,
-            fontWeight: 700,
-            color: "var(--cc-text)",
-            maxWidth: 720,
-            marginBottom: 20,
-          }}
-        >
-          Run creator campaigns from pitch to payout.
-        </h1>
-        <p
-          style={{
-            fontSize: 18,
-            lineHeight: 1.6,
-            color: "var(--cc-text-muted)",
-            maxWidth: 620,
-            marginBottom: 32,
-          }}
-        >
-          Talent agencies and record labels brief creators, track the posts those creators
-          publish, and reconcile payouts against verified performance — in one place,
-          instead of a spreadsheet and a folder of screenshots.
-        </p>
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-          <Link
-            href="/signup"
-            style={{
-              background: "var(--cc-primary)",
-              color: "white",
-              borderRadius: 8,
-              padding: "13px 24px",
-              fontSize: 15,
-              fontWeight: 600,
-              textDecoration: "none",
-            }}
-          >
-            Create an account
-          </Link>
-          <Link
-            href="/explore"
-            style={{
-              background: "var(--cc-card)",
-              color: "var(--cc-primary)",
-              border: "1.5px solid var(--cc-primary)",
-              borderRadius: 8,
-              padding: "13px 24px",
-              fontSize: 15,
-              fontWeight: 600,
-              textDecoration: "none",
-            }}
-          >
-            Browse open campaigns
-          </Link>
-        </div>
-        </div>
-        <LandingHeroVisual />
-      </section>
-
-      <section style={{ ...shell, paddingBottom: 72 }}>
-        <p style={sectionLabel}>How a campaign runs</p>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
-            gap: 16,
-          }}
-        >
-          {STAGES.map((s) => (
-            <article
-              key={s.marker}
-              style={{
-                background: "var(--cc-card)",
-                border: "1px solid var(--cc-border)",
-                borderRadius: 12,
-                padding: 24,
-              }}
-            >
-              <p
-                style={{
-                  fontSize: 12,
-                  fontWeight: 700,
-                  letterSpacing: 0.8,
-                  color: "var(--cc-primary)",
-                  marginBottom: 12,
-                }}
-              >
-                {s.marker}
+      <main id="content">
+        <section className="lp-hero-wrap lp-hero" aria-labelledby="hero-title">
+          <div className="lp-shell rsp-hero">
+            <div>
+              <p className="lp-eyebrow lp-rise">
+                <span className="lp-eyebrow-dot" aria-hidden />
+                Campaign management for agencies and labels
               </p>
-              <h2
-                style={{
-                  fontSize: 18,
-                  fontWeight: 700,
-                  color: "var(--cc-text)",
-                  marginBottom: 8,
-                  lineHeight: 1.35,
-                }}
-              >
-                {s.title}
-              </h2>
-              <p style={{ fontSize: 14, lineHeight: 1.65, color: "var(--cc-text-muted)" }}>
-                {s.body}
+              <h1 id="hero-title" className="lp-h1 lp-rise lp-rise-2">
+                Run creator campaigns <span className="lp-grad-text">from pitch to payout.</span>
+              </h1>
+              <p className="lp-lead lp-rise lp-rise-2">
+                Talent agencies and record labels brief creators, track the posts those creators
+                publish, and reconcile payouts against verified performance — in one place,
+                instead of a spreadsheet and a folder of screenshots.
               </p>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section style={{ ...shell, paddingBottom: 72 }}>
-        <p style={sectionLabel}>Connected accounts</p>
-        <h2
-          style={{
-            fontSize: 28,
-            fontWeight: 700,
-            color: "var(--cc-text)",
-            marginBottom: 12,
-            maxWidth: 720,
-          }}
-        >
-          Creators connect their own accounts. Nothing is posted on their behalf.
-        </h2>
-        <p
-          style={{
-            fontSize: 15,
-            lineHeight: 1.7,
-            color: "var(--cc-text-muted)",
-            maxWidth: 720,
-            marginBottom: 24,
-          }}
-        >
-          A creator links an account from their own portal, and can disconnect it there at
-          any time. Disconnecting revokes the token with the platform and deletes it from
-          our database. We read public performance data for the posts delivered against a
-          campaign — we never publish, edit or delete anything.
-        </p>
-        <div
-          style={{
-            background: "var(--cc-card)",
-            border: "1px solid var(--cc-border)",
-            borderRadius: 12,
-            overflow: "hidden",
-          }}
-        >
-          {CONNECTIONS.map((c, i) => (
-            <div
-              key={c.platform}
-              style={{
-                display: "grid",
-                gridTemplateColumns: "140px 1fr",
-                gap: 16,
-                padding: 20,
-                borderTop: i === 0 ? "none" : "1px solid var(--cc-border)",
-              }}
-            >
-              <span style={{ fontSize: 14, fontWeight: 700, color: "var(--cc-text)" }}>
-                {c.platform}
-              </span>
-              <span style={{ fontSize: 14, lineHeight: 1.65, color: "var(--cc-text-muted)" }}>
-                {c.reads}
-              </span>
+              <div className="lp-cta-row lp-rise lp-rise-3">
+                <Link href="/signup" className="lp-btn lp-btn-primary">
+                  Create an account
+                  <ArrowRight size={18} aria-hidden />
+                </Link>
+                <Link href="/explore" className="lp-btn lp-btn-ghost">
+                  Browse open campaigns
+                </Link>
+              </div>
+              <div className="lp-platforms lp-rise lp-rise-4">
+                <span>Reads public post counts on</span>
+                {CONNECTIONS.map((c) => (
+                  <span key={c.platform} className={`lp-chip ${c.tone}`}>
+                    <span className="lp-dot" aria-hidden />
+                    {c.platform}
+                  </span>
+                ))}
+              </div>
             </div>
-          ))}
-        </div>
-      </section>
+            <LandingHeroVisual />
+          </div>
+        </section>
 
-      <footer
-        style={{
-          borderTop: "1px solid var(--cc-border)",
-          background: "var(--cc-card)",
-          padding: "40px 0",
-        }}
-      >
-        <div
-          style={{
-            ...shell,
-            display: "flex",
-            flexWrap: "wrap",
-            gap: 24,
-            justifyContent: "space-between",
-            alignItems: "flex-start",
-          }}
-        >
-          <div>
-            <p style={{ fontSize: 15, fontWeight: 700, color: "var(--cc-text)", marginBottom: 6 }}>
-              {BRAND.name}
+        <section id="product" className="lp-section" aria-labelledby="product-title">
+          <div className="lp-shell">
+            <p className="lp-kicker lp-tone-violet">Inside the app</p>
+            <h2 id="product-title" className="lp-h2">
+              Watch the sound. Clear the shortlist.
+            </h2>
+            <p className="lp-section-lead">
+              Two previews of the app, filled with invented demo data. The controls work — change
+              the window, approve a creator.
             </p>
-            <p style={{ fontSize: 13, color: "var(--cc-text-muted)" }}>
-              A{" "}
-              <a href={BRAND.umbrellaUrl} style={{ color: "var(--cc-primary)", textDecoration: "none" }}>
-                {BRAND.umbrella}
-              </a>{" "}
-              product. {BRAND.jurisdiction}.
+            <div className="lp-bento">
+              <TrackerDemo />
+              <ShortlistDemo />
+            </div>
+          </div>
+        </section>
+
+        <section id="how" className="lp-section lp-section-tight" aria-labelledby="how-title">
+          <div className="lp-shell lp-how">
+            <div className="lp-how-head">
+              <p className="lp-kicker lp-tone-blue">How a campaign runs</p>
+              <h2 id="how-title" className="lp-h2">
+                Five stages, one record.
+              </h2>
+              <p className="lp-section-lead">
+                Each stage adds to the same campaign, so the numbers you report and the payouts
+                you approve come from the same rows.
+              </p>
+            </div>
+            <ol className="lp-steps">
+              {STAGES.map((s, i) => (
+                <li key={s.tag} className={`lp-step ${s.tone}`}>
+                  <span className="lp-step-marker" aria-hidden>
+                    {String(i + 1).padStart(2, "0")}
+                  </span>
+                  <div className="lp-step-body">
+                    <p className="lp-step-tag">{s.tag}</p>
+                    <h3 className="lp-h3">{s.title}</h3>
+                    <p className="lp-step-text">{s.body}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </section>
+
+        <section id="accounts" className="lp-section lp-section-tight" aria-labelledby="accounts-title">
+          <div className="lp-shell">
+            <p className="lp-kicker lp-tone-green">
+              <ShieldCheck size={16} aria-hidden />
+              Connected accounts
+            </p>
+            <h2 id="accounts-title" className="lp-h2">
+              Creators connect their own accounts. Nothing is posted on their behalf.
+            </h2>
+            <p className="lp-section-lead">
+              A creator links an account from their own portal, and can disconnect it there at
+              any time. Disconnecting revokes the token with the platform and deletes it from
+              our database. We read public performance data for the posts delivered against a
+              campaign — we never publish, edit or delete anything.
+            </p>
+            <ul className="lp-accounts">
+              {CONNECTIONS.map((c) => (
+                <li key={c.platform} className={`lp-card lp-account ${c.tone}`}>
+                  <h3 className="lp-account-name">
+                    <span className="lp-dot" aria-hidden />
+                    {c.platform}
+                  </h3>
+                  <p className="lp-account-label">What we read</p>
+                  <p className="lp-account-text">{c.reads}</p>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+
+        <section className="lp-section lp-section-tight" aria-labelledby="start-title">
+          <div className="lp-shell">
+            <div className="lp-band">
+              <h2 id="start-title" className="lp-band-title">
+                Start with one campaign.
+              </h2>
+              <p className="lp-band-text">
+                Create an account, add a campaign, and send creators a link to connect their
+                accounts.
+              </p>
+              <div className="lp-cta-row">
+                <Link href="/signup" className="lp-btn lp-btn-on-band">
+                  Create an account
+                  <ArrowRight size={18} aria-hidden />
+                </Link>
+                <Link href="/explore" className="lp-btn lp-btn-outline-band">
+                  Browse open campaigns
+                </Link>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <footer className="lp-footer">
+        <div className="lp-shell lp-footer-row">
+          <div>
+            <p className="lp-brand">
+              <span className="lp-brand-mark" aria-hidden>
+                {BRAND.short}
+              </span>
+              <span className="lp-brand-name">{BRAND.name}</span>
+            </p>
+            <p className="lp-footer-note">
+              A <a href={BRAND.umbrellaUrl}>{BRAND.umbrella}</a> product. {BRAND.jurisdiction}.
             </p>
           </div>
-          <nav style={{ display: "flex", flexWrap: "wrap", gap: 24, fontSize: 14 }}>
-            <Link href="/privacy" style={{ color: "var(--cc-primary)", textDecoration: "none" }}>
+          <nav aria-label="Footer" className="lp-footer-nav">
+            <Link href="/privacy" className="lp-nav-link">
               Privacy Policy
             </Link>
-            <Link href="/terms" style={{ color: "var(--cc-primary)", textDecoration: "none" }}>
+            <Link href="/terms" className="lp-nav-link">
               Terms of Service
             </Link>
-            <a
-              href={`mailto:${BRAND.contactEmail}`}
-              style={{ color: "var(--cc-primary)", textDecoration: "none" }}
-            >
+            <a href={`mailto:${BRAND.contactEmail}`} className="lp-nav-link">
               Contact
             </a>
-            <Link href="/login" style={{ color: "var(--cc-primary)", textDecoration: "none" }}>
+            <Link href="/login" className="lp-nav-link">
               Sign in
             </Link>
           </nav>
         </div>
       </footer>
-    </main>
+    </div>
   );
 }
