@@ -283,21 +283,42 @@ export type RefreshedYouTubeToken = {
 };
 
 /**
+ * What a refresh attempt came to.
+ *
+ * `invalid_grant` is kept apart from every other failure because it is the one
+ * that will not go away by itself: Google has disowned the refresh token (the
+ * 7-day expiry of an app in Testing mode, a password change, a revoke), so only
+ * the creator reconnecting can fix it. Every other failure — a timeout, a 5xx,
+ * missing client credentials — is worth retrying tomorrow.
+ */
+export type YouTubeRefreshResult =
+  | { ok: true; token: RefreshedYouTubeToken }
+  | { ok: false; reason: "invalid_grant" | "failed" };
+
+/* Where AbortSignal.timeout is missing (older runtimes, jsdom) the refresh
+   runs unbounded rather than throwing, which would read as a failed refresh. */
+function refreshTimeout(): AbortSignal | undefined {
+  return typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function"
+    ? AbortSignal.timeout(8000)
+    : undefined;
+}
+
+/**
  * Trades the stored refresh token for a fresh access token.
  *
  * Google does not return a new refresh token on a refresh, so the caller must
  * keep the one it already has — returning null for it here means "unchanged",
  * not "revoked".
  */
-export async function refreshYouTubeAccessToken(
+export async function refreshYouTubeAccessTokenResult(
   refreshToken: string,
-): Promise<RefreshedYouTubeToken | null> {
+): Promise<YouTubeRefreshResult> {
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
   const log = createLogger({ context: { platform: "YOUTUBE", call: "token.refresh" } });
   if (!clientId || !clientSecret) {
     log.warn("Refresh attempted with no Google client credentials configured");
-    return null;
+    return { ok: false, reason: "failed" };
   }
 
   try {
@@ -310,6 +331,9 @@ export async function refreshYouTubeAccessToken(
         refresh_token: refreshToken,
         grant_type: "refresh_token",
       }).toString(),
+      /* Bounded: the daily connection refresh runs inside a cron with a fixed
+         budget, and an unanswered refresh must not hold the whole run. */
+      signal: refreshTimeout(),
     });
     if (!res.ok) {
       /* A 400 with invalid_grant here is the 7-day expiry that applies while
@@ -322,25 +346,36 @@ export async function refreshYouTubeAccessToken(
         // non-JSON body
       }
       log.warn("Token refresh failed", { status: res.status, error });
-      return null;
+      return { ok: false, reason: error === "invalid_grant" ? "invalid_grant" : "failed" };
     }
     const body = await res.json();
-    if (typeof body?.access_token !== "string") return null;
+    if (typeof body?.access_token !== "string") return { ok: false, reason: "failed" };
     return {
-      accessToken: body.access_token,
-      refreshToken:
-        typeof body.refresh_token === "string" ? body.refresh_token : null,
-      expiresAt:
-        typeof body.expires_in === "number" && body.expires_in > 0
-          ? new Date(Date.now() + body.expires_in * 1000)
-          : null,
+      ok: true,
+      token: {
+        accessToken: body.access_token,
+        refreshToken:
+          typeof body.refresh_token === "string" ? body.refresh_token : null,
+        expiresAt:
+          typeof body.expires_in === "number" && body.expires_in > 0
+            ? new Date(Date.now() + body.expires_in * 1000)
+            : null,
+      },
     };
   } catch (err) {
     log.warn("Token refresh threw", {
       error: err instanceof Error ? err.message : String(err),
     });
-    return null;
+    return { ok: false, reason: "failed" };
   }
+}
+
+/** The same refresh, for callers that only need "a token or nothing". */
+export async function refreshYouTubeAccessToken(
+  refreshToken: string,
+): Promise<RefreshedYouTubeToken | null> {
+  const result = await refreshYouTubeAccessTokenResult(refreshToken);
+  return result.ok ? result.token : null;
 }
 
 /** Revokes the grant at Google, so Disconnect means disconnected there too. */

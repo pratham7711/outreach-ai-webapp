@@ -1,7 +1,8 @@
 import { db } from "@/lib/db";
 import { decrypt, encrypt } from "@/lib/crypto/encrypt";
-import { refreshYouTubeAccessToken } from "./youtube";
+import { refreshYouTubeAccessTokenResult } from "./youtube";
 import { createLogger } from "@/lib/observability/logger";
+import { isReconnectNeeded, markReconnectNeeded } from "./accountState";
 
 const EXPIRY_SKEW_MS = 5 * 60 * 1000;
 
@@ -42,6 +43,13 @@ export type YouTubeAccountTokens = {
  * The refresh token is only replaced when Google actually sends a new one.
  * Google normally does not, so overwriting it with the null it returns would
  * discard a working credential and turn every connection into a reconnect.
+ *
+ * Google's `invalid_grant` marks the connection "Reconnect needed" and NOTHING
+ * ELSE: no delete, no token wipe. While Google's app is in Testing mode every
+ * refresh token dies after seven days, so treating invalid_grant as a
+ * disconnect would delete every YouTube connection weekly. A marked connection
+ * is not refreshed again — the answer will not change until the creator
+ * reconnects, and the reconnect clears the mark (the OAuth callback).
  */
 export async function ensureFreshYouTubeToken(
   account: YouTubeAccountTokens | null | undefined,
@@ -53,6 +61,7 @@ export async function ensureFreshYouTubeToken(
   if (current) return current;
 
   if (!account.refreshToken) return undefined;
+  if (await isReconnectNeeded(account.id)) return undefined;
 
   let refreshToken: string;
   try {
@@ -61,14 +70,19 @@ export async function ensureFreshYouTubeToken(
     return undefined;
   }
 
-  const refreshed = await refreshYouTubeAccessToken(refreshToken);
-  if (!refreshed) {
+  const result = await refreshYouTubeAccessTokenResult(refreshToken);
+  if (!result.ok) {
+    const marked =
+      result.reason === "invalid_grant"
+        ? await markReconnectNeeded(account.id, "invalid_grant")
+        : false;
     createLogger({ context: { platform: "YOUTUBE", call: "token.ensureFresh" } }).warn(
       "YouTube token refresh produced nothing; connection needs re-authorisation",
-      { accountId: account.id },
+      { accountId: account.id, reason: result.reason, marked },
     );
     return undefined;
   }
+  const refreshed = result.token;
 
   await db.creatorSocialAccount.update({
     where: { id: account.id },
