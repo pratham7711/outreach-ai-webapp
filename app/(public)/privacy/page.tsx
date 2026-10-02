@@ -4,7 +4,7 @@ import { LegalShell, LegalSection, LEGAL } from "@/components/LegalShell";
 
 export const metadata: Metadata = {
   title: "Privacy Policy",
-  description: `How ${LEGAL.name} collects, uses, and protects your data, including data from connected TikTok, Instagram, and YouTube accounts.`,
+  description: `How ${LEGAL.name} collects, uses, and protects your data, including data from connected TikTok, Instagram, YouTube, Facebook Page and Threads accounts, and public profile lookups.`,
 };
 
 export default function PrivacyPage() {
@@ -34,7 +34,12 @@ export default function PrivacyPage() {
           </li>
           <li>
             <strong>Connected platform data</strong> &mdash; when a creator connects a social
-            account, the profile and public post metrics described in the next section.
+            account, the profile, posts and post insights described in the next section.
+          </li>
+          <li>
+            <strong>Public profile data</strong> &mdash; for creators an organisation adds to its
+            roster or tracker, the numbers their public profile shows to anyone. See{" "}
+            <a href="#public-lookups">Creators who have not connected an account</a>.
           </li>
           <li>
             <strong>Technical data</strong> &mdash; server logs containing IP address, browser user
@@ -63,24 +68,95 @@ export default function PrivacyPage() {
             and likes counts, which is how campaign fees are agreed against audience size. With{" "}
             <code>video.list</code> we read the account&rsquo;s public videos and their view, like,
             comment, and share counts. This is shown only to the campaign manager in the
-            organisation that added that creator, on that organisation&rsquo;s campaign dashboard.
+            organisation that added that creator, on that organisation&rsquo;s campaign dashboard,
+            and to the creator in their own creator portal.
             We do not access private or unpublished videos, we do not read direct messages, and we
             do not post, edit, or delete content.
           </li>
           <li>
-            <strong>Instagram</strong> &mdash; we read the connected professional account&rsquo;s
-            profile and the metrics of posts relevant to a campaign, such as plays, likes, comments,
-            saves, and reach.
+            <strong>Instagram</strong> &mdash; a professional (Business or Creator) account can be
+            connected in either of two ways.
+            <ul>
+              <li>
+                <em>Through Facebook Login</em>, via the Facebook Page the Instagram account is
+                linked to. With <code>pages_show_list</code> and{" "}
+                <code>pages_read_engagement</code> we find the Page and the Instagram account linked
+                to it. With <code>instagram_basic</code> we read the username, name, bio, profile
+                picture, follower, following and post counts, and recent posts (caption, link,
+                image, date, likes and comments). With <code>instagram_manage_insights</code> we
+                read views and shares on recent posts, and reach, views, shares and saves on the
+                posts the creator submits to a campaign.
+              </li>
+              <li>
+                <em>Through Instagram Login</em>, with no Facebook Page needed. With{" "}
+                <code>instagram_business_basic</code> we read the same profile fields and recent
+                posts, and with <code>instagram_business_manage_insights</code> the views, reach and
+                shares on recent posts.
+              </li>
+            </ul>
           </li>
           <li>
-            <strong>YouTube</strong> &mdash; we read the connected channel&rsquo;s public videos and
-            their public statistics.
+            <strong>Facebook Pages</strong> &mdash; with <code>pages_show_list</code> we list the
+            Pages you manage so you can choose one. With <code>pages_read_engagement</code> we read
+            that Page&rsquo;s name, username, link, about text, picture, follower count and verified
+            status, and its recent posts with their text, date, link, picture, and like, comment and
+            share counts. With <code>pages_read_user_content</code> we read the comments left on
+            those posts: the comment, its date, its likes and the commenter&rsquo;s name. With{" "}
+            <code>read_insights</code> we read how many views each post got.
+          </li>
+          <li>
+            <strong>Threads</strong> &mdash; with <code>threads_basic</code> we read the username,
+            name, profile picture and bio, and recent posts (text, link, media and date). With{" "}
+            <code>threads_manage_insights</code> we read views, likes, replies, reposts and quotes on
+            those posts, and the follower count.
+          </li>
+          <li>
+            <strong>YouTube</strong> &mdash; with <code>youtube.readonly</code> we read the
+            connected channel&rsquo;s name, handle, picture and description, its subscriber, view
+            and video counts, and its recent videos with their title, date, views, likes and
+            comments.
           </li>
         </ul>
+        <p>
+          We do not read audience demographics from any platform. The creator portal&rsquo;s My
+          accounts screen lists the same reads, permission by permission, beside each Connect
+          button.
+        </p>
         <p>
           Access tokens are encrypted at rest with AES-256-GCM and are never exposed to other
           organisations. Revoking access in the platform&rsquo;s own settings, or disconnecting the
           account inside {LEGAL.name}, stops all further collection immediately.
+        </p>
+      </LegalSection>
+
+      <LegalSection heading="Creators who have not connected an account" id="public-lookups">
+        <p>
+          An organisation using {LEGAL.name} can add a creator to its roster or tracker without that
+          creator connecting anything. For those creators we read only what their profile shows to
+          anyone, and only on the platforms below:
+        </p>
+        <ul>
+          <li>
+            <strong>Instagram</strong> &mdash; through Meta&rsquo;s Business Discovery API, which
+            answers for Business and Creator accounts only: the username, follower and post counts,
+            profile picture, and recent public posts with their public view, like and comment
+            counts. Personal and private accounts return nothing.
+          </li>
+          <li>
+            <strong>YouTube</strong> &mdash; through the YouTube Data API: the channel&rsquo;s public
+            name, picture and subscriber count, and the public statistics of its recent videos.
+          </li>
+          <li>
+            <strong>TikTok</strong> &mdash; from the public profile page: the follower count and
+            the public counts on recent videos.
+          </li>
+        </ul>
+        <p>
+          We also read the public numbers on individual post links that a creator or an organisation
+          submits to a campaign. These readings are shown only to the organisation that added the
+          creator, and to the creator if they sign up to the creator portal. A creator who wants them
+          removed can email <a href={`mailto:${LEGAL.privacyEmail}`}>{LEGAL.privacyEmail}</a>; see{" "}
+          <a href="/data-deletion">Data deletion</a>.
         </p>
       </LegalSection>
 
@@ -92,7 +168,7 @@ export default function PrivacyPage() {
           creators to build profiles.
         </p>
         <p>
-          You can disconnect a TikTok account at any time from the connections screen inside{" "}
+          You can disconnect a TikTok account at any time from the My accounts screen inside{" "}
           {LEGAL.name}, or by revoking access in your{" "}
           <a href="https://www.tiktok.com/setting">TikTok account settings</a>. On disconnection we
           revoke the token with TikTok, delete the stored access and refresh tokens immediately, and
@@ -116,6 +192,16 @@ export default function PrivacyPage() {
           <a href="https://policies.google.com/privacy">Google Privacy Policy</a>. You can revoke{" "}
           {LEGAL.name}&rsquo;s access to your Google account at any time via{" "}
           <a href="https://myaccount.google.com/permissions">Google security settings</a>.
+        </p>
+        <p>
+          {LEGAL.name}&rsquo;s use and transfer to any other app of information received from Google
+          APIs will adhere to the{" "}
+          <a href="https://developers.google.com/terms/api-services-user-data-policy">
+            Google API Services User Data Policy
+          </a>
+          , including the Limited Use requirements. We use data from a connected YouTube channel
+          only to show its numbers to the creator and to the organisations running their campaigns.
+          We do not sell it, and we do not use it for advertising.
         </p>
       </LegalSection>
 
@@ -151,6 +237,14 @@ export default function PrivacyPage() {
           data by emailing <a href={`mailto:${LEGAL.privacyEmail}`}>{LEGAL.privacyEmail}</a>. We
           respond within 30 days. If a creator wants their connected-account data removed, they can
           email us directly and do not need to go through the agency.
+        </p>
+        <p>
+          A creator with a portal login can also do it themselves: Disconnect on the My accounts
+          screen deletes that account&rsquo;s stored access straight away, and Delete my account and
+          data on the Account screen deletes the login and every connected account. Removing{" "}
+          {LEGAL.name} from Facebook, Instagram or Threads settings sends us a deletion request that
+          deletes the linked account the moment it arrives. All three routes are described on the{" "}
+          <a href="/data-deletion">Data deletion</a> page.
         </p>
       </LegalSection>
 

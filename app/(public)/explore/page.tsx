@@ -6,22 +6,41 @@ import { fetchMarketplaceList, type SortKey } from "@/lib/marketplace/public";
 import MarketplaceFilters from "./MarketplaceFilters";
 import CampaignCard from "./CampaignCard";
 import { BRAND, POWERED_BY } from "@/lib/brand";
+import { SHOW_MONEY } from "@/lib/moneyUi";
+
+/* The marketplace pitched itself on pay per view. With money hidden from
+   creators (SHOW_MONEY, lib/moneyUi.ts) it pitches the campaigns instead; the
+   paid copy stays here and comes back with the switch. */
+const PITCH = SHOW_MONEY
+  ? {
+      tagline: "Get paid per view",
+      description:
+        "Browse open campaigns from top brands and get paid for every verified view. Join content-reward campaigns on TikTok, Instagram, and YouTube.",
+      short: "Browse open campaigns from top brands and get paid for every verified view.",
+      headline: "Get paid for every view your content earns.",
+      lede: "Browse open campaigns from brands, post your content, and earn a set rate per 1,000 verified views. No follower minimums.",
+    }
+  : {
+      tagline: "Open campaigns",
+      description:
+        "Browse open campaigns from brands on TikTok, Instagram, and YouTube. Join one, post your content, and see how it does.",
+      short: "Browse open campaigns from brands, join one, and post your content.",
+      headline: "Open campaigns you can join today.",
+      lede: "Browse campaigns from brands, join the ones that fit, post your content and see how it does. No follower minimums.",
+    };
 
 export const metadata: Metadata = {
-  title: `Creator Marketplace — Get paid per view | ${BRAND.name}`,
-  description:
-    "Browse open campaigns from top brands and get paid for every verified view. Join content-reward campaigns on TikTok, Instagram, and YouTube.",
+  title: `Creator Marketplace — ${PITCH.tagline} | ${BRAND.name}`,
+  description: PITCH.description,
   openGraph: {
-    title: "Creator Marketplace — Get paid per view",
-    description:
-      "Browse open campaigns from top brands and get paid for every verified view.",
+    title: `Creator Marketplace — ${PITCH.tagline}`,
+    description: PITCH.short,
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Creator Marketplace — Get paid per view",
-    description:
-      "Browse open campaigns from top brands and get paid for every verified view.",
+    title: `Creator Marketplace — ${PITCH.tagline}`,
+    description: PITCH.short,
   },
 };
 
@@ -206,7 +225,7 @@ export default async function ExplorePage({
               maxWidth: 680,
             }}
           >
-            Get paid for every view your content earns.
+            {PITCH.headline}
           </h1>
           <p
             style={{
@@ -217,8 +236,7 @@ export default async function ExplorePage({
               lineHeight: 1.6,
             }}
           >
-            Browse open campaigns from brands, post your content, and earn a set rate per
-            1,000 verified views. No follower minimums.
+            {PITCH.lede}
           </p>
         </div>
       </div>

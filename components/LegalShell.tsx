@@ -12,13 +12,16 @@ export const LEGAL = {
 
 export function LegalSection({
   heading,
+  id,
   children,
 }: {
   heading: string;
+  /** An anchor, for a section another page links to directly. */
+  id?: string;
   children: React.ReactNode;
 }) {
   return (
-    <section style={{ marginBottom: 40 }}>
+    <section id={id} style={{ marginBottom: 40 }}>
       <h2
         style={{
           fontSize: "var(--cc-t-18)",
@@ -109,6 +112,7 @@ export function LegalShell({
             paddingTop: 24,
             borderTop: "1px solid var(--cc-border)",
             display: "flex",
+            flexWrap: "wrap",
             gap: 20,
             fontSize: "var(--cc-t-13)",
           }}
@@ -118,6 +122,9 @@ export function LegalShell({
           </Link>
           <Link href="/terms" style={{ color: "var(--cc-primary)", textDecoration: "none" }}>
             Terms of Service
+          </Link>
+          <Link href="/data-deletion" style={{ color: "var(--cc-primary)", textDecoration: "none" }}>
+            Data deletion
           </Link>
           <a
             href={`mailto:${LEGAL.contactEmail}`}

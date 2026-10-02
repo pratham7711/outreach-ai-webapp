@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { Dropdown } from "@/components/ds";
+import { SHOW_MONEY } from "@/lib/moneyUi";
 
 const PLATFORMS = [
   { key: "", label: "All platforms" },
@@ -19,10 +20,17 @@ const TYPES = [
   { key: "OPEN_COMMUNITY", label: "Open community" },
 ];
 
+/* Sorting by rate or by budget left is sorting by money, so those two go with
+   the rest of it while SHOW_MONEY is off (lib/moneyUi.ts). A pinned ?sort=rate
+   link still sorts; the dropdown just no longer offers it. */
 const SORTS = [
   { key: "newest", label: "Newest" },
-  { key: "rate", label: "Highest rate" },
-  { key: "budget", label: "Budget remaining" },
+  ...(SHOW_MONEY
+    ? [
+        { key: "rate", label: "Highest rate" },
+        { key: "budget", label: "Budget remaining" },
+      ]
+    : []),
 ];
 
 
