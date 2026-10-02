@@ -911,6 +911,13 @@
   --cc-tiles-cols-xl: repeat(6, minmax(0, 1fr));
   --cc-tiles-gap: calc(clamp(0.75rem, 0.6571rem + 0.381vw, 1rem) * var(--cc-density));
   --cc-tiles-gap-sm: var(--cc-sp-7);
+  /* .cc-tiles-balanced: the narrowest a tile may get before the row wraps, and
+     the column count once the row is under 40rem (re-set per tile count). */
+  --cc-tiles-min: 8rem;
+  --cc-tiles-cols-mid: 3;
+  /* Registered and not inherited (@property below); the scroll timeline on
+     .cc-tabs animates it. 0px is its resting value everywhere else. */
+  --cc-tabs-fade: 0px;
   --cc-grid-gap: calc(clamp(0.75rem, 0.6571rem + 0.381vw, 1rem) * var(--cc-density));
 
   --cc-control-h: 2.375rem;
@@ -5808,7 +5815,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 .cc-tiles-balanced > * {
   flex: 1 1 calc((100% - (var(--cc-tiles-cols) - 1) * var(--cc-tiles-gap)) / var(--cc-tiles-cols));
-  min-width: var(--cc-tiles-min, 8rem);
+  min-width: var(--cc-tiles-min);
 }
 @container (max-width: 40rem) {
   .cc-tiles-balanced > * {

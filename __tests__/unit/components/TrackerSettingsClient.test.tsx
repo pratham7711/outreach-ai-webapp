@@ -1,7 +1,7 @@
 /**
  * @jest-environment jsdom
  */
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 jest.mock("@pratham7711/ui", () => ({
   Card: ({ children }: any) => <div>{children}</div>,
@@ -51,27 +51,33 @@ describe("TrackerSettingsClient", () => {
     expect(container).not.toBeEmptyDOMElement();
   });
 
-  it("renders retention read-only and says nothing prunes yet", async () => {
+  it("offers no retention control, because nothing prunes readings", async () => {
     mockFetch.mockResolvedValue(SETTINGS);
 
     render(<TrackerSettingsClient />);
 
-    const input = await screen.findByLabelText("Days of history to keep");
-    expect(input).toBeDisabled();
-    expect(input).toHaveValue(365);
-    expect(
-      screen.getByText(/Nothing prunes readings yet/i)
-    ).toBeInTheDocument();
+    await screen.findByText("Read cadence");
+    expect(screen.queryByText("History kept")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Days of history to keep")).not.toBeInTheDocument();
+    expect(screen.queryByRole("spinbutton")).not.toBeInTheDocument();
   });
 
-  it("never sends a retentionDays PATCH, because the control cannot be edited", async () => {
+  it("saves only the setting that changed, so the stored retentionDays survives", async () => {
     mockFetch.mockResolvedValue(SETTINGS);
 
     render(<TrackerSettingsClient />);
-    await screen.findByLabelText("Days of history to keep");
+    await screen.findByText("Read cadence");
 
-    for (const call of mockFetch.mock.calls) {
-      expect(call[1]?.method).not.toBe("PATCH");
+    const cadence = screen.getByRole("radiogroup", { name: "readCadence" });
+    const other = within(cadence).getAllByRole("radio").find((r) => !(r as HTMLInputElement).checked)!;
+    fireEvent.click(other);
+
+    await waitFor(() =>
+      expect(mockFetch.mock.calls.some((c) => c[1]?.method === "PATCH")).toBe(true)
+    );
+    for (const call of mockFetch.mock.calls.filter((c) => c[1]?.method === "PATCH")) {
+      const body = JSON.parse(call[1].body);
+      expect(Object.keys(body)).toEqual(["readCadence"]);
     }
   });
 });

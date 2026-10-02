@@ -277,7 +277,7 @@ function StatusSelect({
         onChange={change}
         /* Outlined until a status is chosen, so colour means "has a status".
            Primary on an empty row was a solid slab in every theme -- under Dark,
-           white blocks down the list beside #1A1A19 selects. */
+           white blocks down the list beside the dark selects. */
         variant={value ? "primary" : "outlined"}
         /* "Set status" is the action, not a hint: in the muted ink it measured
            2.58:1 on white under CreatorCore. */
