@@ -1,6 +1,6 @@
 import type { SandboxPostFetcher } from "@/lib/platforms/tiktokPostSandbox";
 import { db } from "@/lib/db";
-import { LAST_FETCH_KEY, MEASURED_FIELDS_KEY, type MetricField } from "@/lib/metricDisplay";
+import { LAST_FETCH_KEY, MEASURED_FIELDS_KEY, lastFetchNote, nextLastFetchNote, type MetricField } from "@/lib/metricDisplay";
 import {
   fetchPostMetrics,
   hasMetricCounts,
@@ -215,12 +215,21 @@ export async function applyPostMetrics(
         /* The cause, on the post, in the write this branch already made.
            Costs no extra query and is the only record that survives the run:
            the aggregate on CampaignRefreshRun says 21 posts went unmeasured
-           but never which, and the platform log lines age out. */
+           but never which, and the platform log lines age out.
+
+           It also carries the streak (since, strikes) from the note already
+           there, because "deleted" needs two checks that agree (plan A5) and
+           the previous note is the only memory of the first one. */
         ...(noMetricsBag
           ? {
               platformMetrics: {
                 ...noMetricsBag,
-                [LAST_FETCH_KEY]: { reason, at: new Date().toISOString(), via: syncSource },
+                [LAST_FETCH_KEY]: nextLastFetchNote(
+                  lastFetchNote(noMetricsBag),
+                  reason,
+                  new Date().toISOString(),
+                  syncSource,
+                ),
               },
             }
           : {}),

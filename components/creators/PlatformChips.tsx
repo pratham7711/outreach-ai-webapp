@@ -2,6 +2,7 @@ import { formatCompact, formatFull, platformLabel } from "@/lib/format";
 import { PlatformGlyph } from "@/components/ui/PlatformGlyph";
 import { handleProblemText, type HandleProblem } from "@/lib/creators/handleCheck";
 import { followersValue, isUnknownMetric } from "@/lib/creators/metricValue";
+import { formatAsOf } from "@/lib/dataAge";
 
 export type PlatformChipLink = {
   platform: string;
@@ -13,6 +14,10 @@ export type PlatformChipLink = {
   problem?: HandleProblem | null;
   /** When the profile refresh last read this account, so a missing count can say why. */
   refreshedAt?: string | null;
+  /** When the count shown was measured (lib/creators/figureTime), for the tooltip.
+      An absolute time, not "3h ago": a tooltip is not re-rendered as time
+      passes, and a relative one would differ between server and browser. */
+  age?: { at: string | null; missing: string } | null;
 };
 
 /**
@@ -49,6 +54,7 @@ export default function PlatformChips({
               `${label} @${l.handle}`,
               isUnknownMetric(followers) ? `followers unknown: ${followers.reason}` : `${formatFull(followers)} followers`,
               l.averageViews ? `${formatFull(l.averageViews)} avg views` : null,
+              !isUnknownMetric(followers) && l.age ? (l.age.at ? `read ${formatAsOf(l.age.at)}` : l.age.missing) : null,
             ]
               .filter(Boolean)
               .join(" · ");

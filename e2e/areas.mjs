@@ -82,6 +82,7 @@ export const AREAS = {
       "app/api/admin/migrate-creator-grants/",
       "app/api/admin/backfill-creator-grants/",
       "components/creators/CreatorAccess.tsx",
+      "app/api/admin/migrate-creator-account-ids/",
       "components/creators/CreatorName.tsx",
       "components/creators/ExportMenu.tsx",
       "components/creators/HandleFix.tsx",

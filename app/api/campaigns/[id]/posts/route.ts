@@ -124,6 +124,7 @@ export async function GET(
         fetchState: true,
         rejectionReason: true,
         lastSyncedAt: true,
+        lastFreshAt: true,
         authorProfilePic: true,
         createdAt: true,
         platformMetrics: true,

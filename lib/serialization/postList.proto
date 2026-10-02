@@ -58,6 +58,10 @@ message MetricProvenance {
   optional string last_fetch_reason = 2;
   optional string last_fetch_at = 3;
   optional string last_fetch_via = 4;
+  /* The streak behind the note: when this reason was first seen and how many
+     reads in a row have returned it. "Deleted" needs two (lib/posts/postStatus). */
+  optional string last_fetch_since = 5;
+  optional int32 last_fetch_strikes = 6;
 }
 
 message Post {
@@ -96,6 +100,11 @@ message Post {
      rendered anywhere. */
   optional bool tracking_enabled = 27;
   optional int64 tracking_expires_at_ms = 28;
+
+  /* CreatorCore's own last refresh, carried by imported posts. The only time
+     an imported post that we have never read was measured at, so its counters
+     can show an age and its status can say "live as of" that day. */
+  optional int64 last_fresh_at_ms = 29;
 }
 
 message PostList {

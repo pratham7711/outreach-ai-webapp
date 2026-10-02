@@ -11,10 +11,11 @@ import { stripAt, formatDateAbs, formatFull } from "@/lib/format";
 import type { ComplianceFlag } from "@/lib/compliance/postCompliance";
 import PostMedia from "@/components/PostMedia";
 import { unwrittenMetricValue, fieldMetricValue, engagementRateValue, summarizePostMetrics } from "@/lib/metricDisplay";
-import { postNotice } from "@/lib/postRemoval";
-import RemovedPostOverlay from "@/components/posts/RemovedPostOverlay";
+import { postAgeContext, postMeasuredAt, postStatus } from "@/lib/posts/postStatus";
+import PostStatusChip from "@/components/posts/PostStatusChip";
+import { AgeLabel } from "@/components/ds/AgeLabel";
 import PostGridCard from "@/components/posts/PostGridCard";
-import { STATUS_BADGE, formatSince, engRatePct, trackingLabel } from "@/lib/posts/postDisplay";
+import { STATUS_BADGE, engRatePct, trackingLabel } from "@/lib/posts/postDisplay";
 import { summariseRefresh } from "@/lib/refreshSummary";
 import { toast } from "sonner";
 import { CampaignHeaderActions } from "@/components/campaigns/CampaignHeaderActions";
@@ -72,6 +73,8 @@ type PostData = {
   trackingEnabled?: boolean;
   trackingExpiresAt?: string | null;
   lastSyncedAt: string | null;
+  /** CreatorCore's last refresh, for an imported post we have not read. */
+  lastFreshAt?: string | null;
   authorProfilePic: string | null;
   createdAt?: string;
   hasOpenFraudFlag?: boolean;
@@ -1918,7 +1921,10 @@ export default function PostsTab({
             {pageRows.map((post, i) => {
               const er = engRatePct(post);
               const dv = deltaViews(post);
-              const notice = postNotice(post);
+              /* One resolver for live / hidden / deleted / unverified, shared
+                 with the grid card, the post page and the exports. */
+              const status = postStatus(post);
+              const measured = postMeasuredAt(post);
               /* Per field, like the three below it. Views was the one counter
                  still asking only "was this row ever synced", and that answer
                  is wrong for Instagram: a post read without a Meta credential
@@ -2030,7 +2036,7 @@ export default function PostsTab({
                     <Badge variant={STATUS_BADGE[post.status] ?? "neutral"}>{post.status.replace(/_/g, " ")}</Badge>
                     {/* The counters in this row stay exactly as stored: the post
                         is gone, the reach it earned while it was up is not. */}
-                    {notice && <RemovedPostOverlay variant="inline" compact label={notice.label} note={notice.note} />}
+                    <PostStatusChip status={status} compact showLive />
                     {post.fetchState && FETCH_STATE_LABEL[post.fetchState] && (
                       <Badge variant={FETCH_STATE_BADGE[post.fetchState]} style={{ fontSize: "var(--cc-t-10)"}}>
                         {FETCH_STATE_LABEL[post.fetchState]}
@@ -2048,7 +2054,16 @@ export default function PostsTab({
                       </span>
                     )}
                   </div>
-                  <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>{formatSince(post.lastSyncedAt)}</span>
+                  {/* The counters' age, with a Stale chip once a tracked post
+                      has missed two of its reads (lib/dataAge). */}
+                  <AgeLabel
+                    at={measured.at}
+                    field="post"
+                    ctx={postAgeContext(post, status)}
+                    source={measured.source}
+                    never="Never"
+                    style={{ fontSize: "var(--cc-t-12)", whiteSpace: "normal", flexWrap: "wrap" }}
+                  />
                   <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
                     {/* Tracking, first and stateful. It used to be reachable only
                         by opening the post's own page, which is why almost

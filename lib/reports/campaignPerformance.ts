@@ -7,6 +7,7 @@ import {
 import { unwrittenMetricValue, fieldMetricValue, rollupEngagement } from "@/lib/metricDisplay";
 import type { MetricField } from "@/lib/metricDisplay";
 import { isPostRemoved } from "@/lib/postRemoval";
+import { postStatus, type PostStatusKind } from "@/lib/posts/postStatus";
 import { carryForwardViewsByDay } from "@/lib/analytics/viewsSeries";
 import type { SharePlatform } from "@/lib/reports/shareVisibility";
 import type { ActivationStatus } from "@/lib/generated/prisma/client";
@@ -162,6 +163,13 @@ export type SharedPostRow = {
    * from a live post in the RSC payload rather than merely unrendered.
    */
   removed: boolean;
+  /**
+   * The post's status in words (lib/posts/postStatus): "Hidden", "Deleted",
+   * "Unverified since 3 Sep 2026". Plain strings, because this shape is cached
+   * and serialised. Null on a share link exactly where `removed` is false, so
+   * an unmarked link carries no status in its payload either.
+   */
+  status?: { kind: PostStatusKind; label: string; detail: string } | null;
 };
 
 export type CampaignAudio = {
@@ -248,6 +256,7 @@ export function redactForShare(
          payload whether the component renders it or not. A brand reading the
          HTML of an unmarked link sees the same value on every post. */
       removed: visibility.markRemovedPosts === true && row.removed,
+      status: visibility.markRemovedPosts === true && row.removed ? row.status : null,
     })),
   };
 }
@@ -680,6 +689,10 @@ async function computeCampaignPerformanceUncached(
            wanted. The counters above are untouched either way -- a removed post
            keeps the views it earned. */
         removed: isPostRemoved({ fetchState: p.fetchState, platformMetrics: p.platformMetrics }),
+        status: (() => {
+          const s = postStatus({ fetchState: p.fetchState, platformMetrics: p.platformMetrics, lastSyncedAt: p.lastSyncedAt });
+          return { kind: s.kind, label: s.label, detail: s.detail };
+        })(),
       };
     });
 

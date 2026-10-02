@@ -15,6 +15,7 @@ import CreatorAvatar from "@/components/creators/CreatorAvatar";
 import { LATEST_TEN_SINCE } from "@/lib/trackers/recentViews";
 import { isUnknownMetric, metricReason } from "@/lib/creators/metricValue";
 import MetricFigure from "@/components/creators/MetricFigure";
+import { AgeLabel } from "@/components/ds/AgeLabel";
 
 /**
  * The Creators sub-tab of Trackers, matching the reference's card layout: two
@@ -96,6 +97,8 @@ type TrackerPage = {
   page: number;
   pageSize: number;
   pageCount: number;
+  /** The org's tracker read cadence, for the Stale rule (lib/dataAge). */
+  readCadenceHours?: number;
 };
 
 function periodLabel(key: string): string {
@@ -146,6 +149,7 @@ function FigureGroup({
   valueTitle,
   changeNode,
   changeTitle,
+  age,
 }: {
   icon: React.ReactNode;
   label: string;
@@ -153,6 +157,8 @@ function FigureGroup({
   valueTitle?: string;
   changeNode: React.ReactNode;
   changeTitle: string;
+  /** The reading's age under the value (plan A6). */
+  age?: React.ReactNode;
 }) {
   return (
     <div
@@ -193,6 +199,7 @@ function FigureGroup({
           >
             {value}
           </div>
+          {age}
         </div>
         <div style={{ padding: "10px 16px", flex: "0 0 auto" }} title={changeTitle}>
           <div style={{ fontSize: "var(--cc-t-11)", color: "var(--cc-text-muted)" }}>Change</div>
@@ -271,6 +278,7 @@ export function CreatorTrackers({
     placeholderData: keepPreviousData,
   });
   const creators = useMemo(() => data?.creators ?? [], [data]);
+  const cadenceHours = data?.readCadenceHours ?? null;
 
   // Only fetched while the picker is open, and only for what was typed.
   const { data: candidates, isFetching: searching } = useQuery({
@@ -524,6 +532,11 @@ export function CreatorTrackers({
                         ? `${c.followersDelta >= 0 ? "+" : ""}${c.followersDelta.toLocaleString()} followers over ${periodLabel(period).toLowerCase()}`
                         : ""
                     }
+                    age={
+                      isUnknownMetric(figures.followers) ? undefined : (
+                        <AgeLabel at={c.lastReadAt} field="tracker" ctx={{ cadenceHours }} source="Tracker reading" never="time not recorded" />
+                      )
+                    }
                   />
 
                   <FigureGroup
@@ -546,6 +559,11 @@ export function CreatorTrackers({
                       v.delta !== null
                         ? `${v.delta >= 0 ? "+" : ""}${Math.round(v.delta).toLocaleString()} average views over ${periodLabel(period).toLowerCase()}`
                         : ""
+                    }
+                    age={
+                      isUnknownMetric(figures.avgViews) ? undefined : (
+                        <AgeLabel at={v.measuredAt} field="tracker" ctx={{ cadenceHours }} source="Tracker reading" never="time not recorded" />
+                      )
                     }
                   />
 

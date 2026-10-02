@@ -152,6 +152,12 @@ export function parseTikTokProfileHtml(html: string): CreatorReadResult {
     (u: unknown): u is string => typeof u === "string" && u.startsWith("https://")
   );
 
+  /* The account's stable ids ride along in the same blob (plan A4): user.id is
+     numeric, secUid an opaque token. Neither changes on a rename, which is
+     what makes them worth keeping beside the handle. */
+  const accountId = typeof user.id === "string" && /^\d+$/.test(user.id) ? user.id : undefined;
+  const secUid = typeof user.secUid === "string" && user.secUid.length > 10 ? user.secUid : undefined;
+
   return {
     ok: true,
     profile: {
@@ -160,6 +166,8 @@ export function parseTikTokProfileHtml(html: string): CreatorReadResult {
       avgViews: 0,
       sampledPosts: 0,
       ...(avatar ? { avatarUrl: avatar } : {}),
+      ...(accountId ? { accountId } : {}),
+      ...(secUid ? { secUid } : {}),
     },
   };
 }

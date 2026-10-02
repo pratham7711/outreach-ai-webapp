@@ -13,6 +13,9 @@ import {
   rollupEngagement,
   unwrittenMetricValue,
 } from "@/lib/metricDisplay";
+import { UNKNOWN } from "@/lib/format";
+import { asOfCell, dataAsOf } from "@/lib/dataAge";
+import { postMeasuredAt, postStatus, postStatusSummary } from "@/lib/posts/postStatus";
 
 type Format = "xlsx" | "csv" | "pdf";
 type Cell = string | number;
@@ -93,6 +96,8 @@ export async function GET(
           downloadsCount: true,
           engagementRate: true,
           lastSyncedAt: true,
+          lastFreshAt: true,
+          fetchState: true,
           platformMetrics: true,
           creator: { select: { id: true, name: true, handle: true, platform: true } },
         },
@@ -127,6 +132,10 @@ export async function GET(
       rows: [
         ["Campaign Export", campaign.title],
         ["Generated At", new Date().toISOString()],
+        /* The newest reading behind these figures (plan A6). Generated At is
+           when the file was made; this is how fresh what is in it is. Each
+           post row carries its own As of. */
+        ["Data as of", asOfCell(dataAsOf(posts.map((p) => postMeasuredAt(p).at)))],
         [],
         ["Field", "Value"],
         ["Campaign", campaign.title],
@@ -137,8 +146,8 @@ export async function GET(
         ["Budget", campaign.budget ?? ""],
 
         ["Views", kpis.views],
-        ["Engagements", kpis.engagements ?? ""],
-        ["Engagement Rate %", kpis.engagementRate !== null ? +(kpis.engagementRate * 100).toFixed(2) : ""],
+        ["Engagements", kpis.engagements ?? UNKNOWN],
+        ["Engagement Rate %", kpis.engagementRate !== null ? +(kpis.engagementRate * 100).toFixed(2) : UNKNOWN],
 
         ["Posts", posts.length],
         ["Creators", creatorIds.length],
@@ -164,9 +173,16 @@ export async function GET(
           "Shares",
           "Saves",
           "Engagement Rate %",
+          /* Appended, so every column a saved import reads by position stays
+             where it was (plan A2/A5): when the counters were read, by what,
+             and whether the post is still up. */
+          "As of",
+          "Source",
+          "Post status",
         ],
         /* Provenance, the same way the Posts tab and the share export apply it:
-           a counter nobody ever fetched is an empty cell, not a measured zero.
+           a counter nobody ever fetched is "—" (lib/creators/metricValue's
+           export rule), never a measured zero and never a blank.
            Post.engagementRate is ALREADY a percent (lib/sync/syncPost writes it
            as one), so the x100 this row used to do printed 428% for a 4.28%
            post -- and disagreed with the Summary sheet directly above it. */
@@ -183,6 +199,7 @@ export async function GET(
               ? null
               : engagementRateValue(p.likesCount, p.commentsCount, p.viewsCount, p.lastSyncedAt) ??
                 p.engagementRate;
+          const measured = postMeasuredAt(p);
           return [
             day(p.postedAt),
             p.creator.name,
@@ -193,12 +210,15 @@ export async function GET(
             // Views are always real -- every import carried them, so no
             // provenance test here, exactly as the share export does it.
             p.viewsCount,
-            likes ?? "",
-            comments ?? "",
-            fieldMetricValue(p.sharesCount, p.lastSyncedAt, p.platformMetrics, "shares") ?? "",
+            likes ?? UNKNOWN,
+            comments ?? UNKNOWN,
+            fieldMetricValue(p.sharesCount, p.lastSyncedAt, p.platformMetrics, "shares") ?? UNKNOWN,
             // Nothing here writes saves, so a sync stamp does not vouch for a 0.
-            unwrittenMetricValue(p.savesCount) ?? "",
-            rate === null ? "" : +rate.toFixed(2),
+            unwrittenMetricValue(p.savesCount) ?? UNKNOWN,
+            rate === null ? UNKNOWN : +rate.toFixed(2),
+            asOfCell(measured.at),
+            measured.source,
+            postStatus(p).label,
           ] as Cell[];
         }),
       ],
@@ -222,8 +242,12 @@ export async function GET(
         day(activation?.deliverableDueDate),
         creatorPosts.length,
         views,
-        engagements ?? "",
-        rate !== null ? +(rate * 100).toFixed(2) : "",
+        engagements ?? UNKNOWN,
+        rate !== null ? +(rate * 100).toFixed(2) : UNKNOWN,
+        // The newest read among their posts, and what their posts' statuses are.
+        asOfCell(dataAsOf(creatorPosts.map((p) => postMeasuredAt(p).at))),
+        creatorPosts.length ? "Campaign posts" : UNKNOWN,
+        postStatusSummary(creatorPosts.map((p) => postStatus(p))),
       ] as Cell[];
     });
     creatorRows.sort((a, b) => Number(b[6]) - Number(a[6]));
@@ -241,6 +265,9 @@ export async function GET(
           "Views",
           "Engagements",
           "Engagement Rate %",
+          "As of",
+          "Source",
+          "Post status",
         ],
         ...creatorRows,
       ],

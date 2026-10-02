@@ -4,6 +4,10 @@ import { parseShareVisibility } from "@/lib/reports/shareVisibility";
 import { rateLimit } from "@/lib/rateLimit";
 import { getRequestIp } from "@/lib/request";
 import { fieldMetricValue, unwrittenMetricValue } from "@/lib/metricDisplay";
+import { UNKNOWN } from "@/lib/format";
+import { asOfCell } from "@/lib/dataAge";
+import { isPostRemoved } from "@/lib/postRemoval";
+import { postMeasuredAt, postStatus } from "@/lib/posts/postStatus";
 // The shared cell writer: quotes only where needed, and neutralises the cells a
 // spreadsheet would run rather than read -- a creator display name is user text
 // and this file is opened in Excel more often than anywhere else.
@@ -22,8 +26,13 @@ import { csvCell } from "@/lib/csv";
  *  - the same token lookup, the same kind check, the same revoked handling;
  *  - the same visibility flags, so a link that hides creators exports no creator
  *    names;
- *  - the same provenance rule, so a counter no post has measured comes out as an
- *    empty cell rather than a zero a brand would read as a measurement.
+ *  - the same provenance rule, so a counter no post has measured comes out as
+ *    "—" rather than a zero a brand would read as a measurement;
+ *  - the same status rule: a post is flagged gone only on a link whose owner
+ *    turned "Flag removed posts" on, and only where the page would flag it.
+ *
+ * Every row ends with when its figures were read and by what (plan A2/A6),
+ * appended after the existing columns so a saved import keeps its positions.
  */
 
 const SHARE_KIND = "campaign-performance";
@@ -85,6 +94,8 @@ export async function GET(
       savesCount: true,
       downloadsCount: true,
       lastSyncedAt: true,
+      lastFreshAt: true,
+      fetchState: true,
       platformMetrics: true,
       creator: { select: { name: true, handle: true } },
     },
@@ -109,7 +120,19 @@ export async function GET(
     "Saves",
     "Downloads",
     "Last synced",
+    "As of",
+    "Source",
+    ...(visibility.markRemovedPosts ? ["Post status"] : []),
   ];
+
+  /* The page's rule, cell for cell: a removed post carries the resolver's
+     wording, a live one says so, and anything else -- a read that failed on
+     our side -- is a claim the page does not make either. */
+  const statusCell = (p: (typeof posts)[number]): string => {
+    const status = postStatus(p);
+    if (isPostRemoved(p)) return status.label;
+    return status.kind === "live" ? status.label : UNKNOWN;
+  };
 
   const rows: (string | number | null)[][] = [
     header,
@@ -119,14 +142,17 @@ export async function GET(
       p.postedAt ? p.postedAt.toISOString().slice(0, 10) : "",
       ...(visibility.showCreators ? [p.postUrl] : []),
       p.viewsCount,
-      fieldMetricValue(p.likesCount, p.lastSyncedAt, p.platformMetrics, "likes"),
-      fieldMetricValue(p.commentsCount, p.lastSyncedAt, p.platformMetrics, "comments"),
-      fieldMetricValue(p.sharesCount, p.lastSyncedAt, p.platformMetrics, "shares"),
+      fieldMetricValue(p.likesCount, p.lastSyncedAt, p.platformMetrics, "likes") ?? UNKNOWN,
+      fieldMetricValue(p.commentsCount, p.lastSyncedAt, p.platformMetrics, "comments") ?? UNKNOWN,
+      fieldMetricValue(p.sharesCount, p.lastSyncedAt, p.platformMetrics, "shares") ?? UNKNOWN,
       // Nothing here writes these two, so a sync's timestamp does not vouch for
       // their zeroes the way it does for the columns above.
-      unwrittenMetricValue(p.savesCount),
-      unwrittenMetricValue(p.downloadsCount),
+      unwrittenMetricValue(p.savesCount) ?? UNKNOWN,
+      unwrittenMetricValue(p.downloadsCount) ?? UNKNOWN,
       p.lastSyncedAt ? p.lastSyncedAt.toISOString() : "",
+      asOfCell(postMeasuredAt(p).at),
+      postMeasuredAt(p).source,
+      ...(visibility.markRemovedPosts ? [statusCell(p)] : []),
     ]),
   ];
 

@@ -7,6 +7,7 @@ import { shareImgSrc } from "@/lib/postMedia";
 import { stripAt, formatDateAbs, timeAgo } from "@/lib/format";
 import { creatorNameParts, creatorNameText } from "@/lib/creators/creatorName";
 import RemovedPostOverlay from "@/components/posts/RemovedPostOverlay";
+import PostStatusChip from "@/components/posts/PostStatusChip";
 
 /**
  * The post grid on a shared client report.
@@ -125,7 +126,14 @@ export default function SharedPostList({
                   so an unmarked link carries no removal in its payload at all. */}
               {post.removed && (
                 <span style={{ marginBottom: 4 }}>
-                  <RemovedPostOverlay variant="inline" compact />
+                  {/* The resolver's wording when the payload carries it
+                      ("Hidden", "Deleted", "Unverified since …"); the plain
+                      removed pill for a payload cached before it did. */}
+                  {post.status ? (
+                    <PostStatusChip status={post.status} compact />
+                  ) : (
+                    <RemovedPostOverlay variant="inline" compact />
+                  )}
                 </span>
               )}
 

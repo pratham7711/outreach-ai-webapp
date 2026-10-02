@@ -4,7 +4,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Badge, Card, Modal, Input, Skeleton, EmptyState } from "@pratham7711/ui";
-import { PageHeader, LastUpdated, MetricTile, Button, useConfirm } from "@/components/ds";
+import { PageHeader, MetricTile, Button, useConfirm } from "@/components/ds";
+import { AgeLabel } from "@/components/ds/AgeLabel";
 import { Music, Plus, RefreshCw, Search, Trash2, TrendingUp } from "lucide-react";
 import { InstagramSourceBanner } from "@/components/integrations/InstagramSourceBanner";
 import { CreatorTrackers } from "./CreatorTrackers";
@@ -150,12 +151,13 @@ export default function TrackersPage() {
   } = useQuery({
     queryKey,
     queryFn: () =>
-      apiFetch<{ sounds: TrackedSound[]; limits?: { used: number; max: number | null } }>(
+      apiFetch<{ sounds: TrackedSound[]; limits?: { used: number; max: number | null }; readCadenceHours?: number }>(
         `/api/trackers?period=${period}&sort=${sort}`
       ),
   });
 
   const allSounds = useMemo(() => data?.sounds ?? [], [data]);
+  const cadenceHours = data?.readCadenceHours ?? null;
   const sounds = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return allSounds;
@@ -720,7 +722,17 @@ export default function TrackersPage() {
                       slot above already carries "last read …", and saying it twice
                       in two colours reads as two different facts. */}
                   {s.health === "live" ? (
-                    <LastUpdated at={snap?.recordedAt ?? null} neverLabel="Never read" prefix="Read" />
+                    /* The reading's age, with the Stale chip once it is past
+                       twice the org's read cadence (plan A6). */
+                    <AgeLabel
+                      at={snap?.recordedAt ?? null}
+                      field="sound"
+                      ctx={{ cadenceHours }}
+                      prefix="Read"
+                      source="Sound reading"
+                      never="Never read"
+                      style={{ fontSize: "var(--cc-t-12)" }}
+                    />
                   ) : null}
                   <span style={{ fontSize: "var(--cc-t-11)", color: "var(--cc-text-subtle)" }}>
                     Tracked since {formatDateAbs(s.trackedSince)}

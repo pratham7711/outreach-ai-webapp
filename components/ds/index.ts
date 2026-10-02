@@ -10,6 +10,7 @@ export type { ChartFrameProps } from "./ChartFrame";
 export { PageHeader } from "./PageHeader";
 export type { PageHeaderProps } from "./PageHeader";
 export { LastUpdated } from "./LastUpdated";
+export { AgeLabel } from "./AgeLabel";
 export type { LastUpdatedProps } from "./LastUpdated";
 export { ConfirmProvider, useConfirm } from "./ConfirmDialog";
 export type { ConfirmOptions } from "./ConfirmDialog";

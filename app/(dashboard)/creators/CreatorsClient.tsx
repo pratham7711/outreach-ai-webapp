@@ -22,6 +22,8 @@ import { TrackAllButton } from "@/components/creators/TrackCreators";
 import { profileUrl, type ImportPlatform } from "@/lib/creators/importParse";
 import { handleIssueSummary } from "@/lib/creators/handleCheck";
 import { isUnknownMetric, type MetricValue } from "@/lib/creators/metricValue";
+import type { FigureTimeDto } from "@/lib/creators/figureTime";
+import { AgeLabel } from "@/components/ds/AgeLabel";
 import MetricFigure from "@/components/creators/MetricFigure";
 
 type Creator = {
@@ -35,6 +37,9 @@ type Creator = {
   followerCount: number | null;
   /** The same count, or why there is none -- what the cells render (plan A1). */
   followers: MetricValue;
+  /** When followers / avg views were measured and by what (plan A6). */
+  followersAt?: FigureTimeDto;
+  avgViewsAt?: FigureTimeDto;
   /** Distinct campaigns, counted from posts as well as activations. */
   campaignCount: number;
   avgViews: number | null;
@@ -47,6 +52,25 @@ type Creator = {
 };
 
 type CountryOption = { name: string; n: number };
+
+/**
+ * A roster figure's age on its own line under the figure (plan A6): "3h ago",
+ * a Stale chip past twice its cadence, or "age unknown" when no read can be
+ * shown to have produced it -- the reason is in the tooltip. Nothing under an
+ * unknown figure: its "—" already says why, on hover.
+ */
+function FigureAge({ value, time }: { value: MetricValue; time: FigureTimeDto | undefined }) {
+  if (!time || isUnknownMetric(value)) return null;
+  return (
+    <AgeLabel
+      at={time.at}
+      field={time.field}
+      source={time.at ? time.source : time.missing}
+      never="age unknown"
+      style={{ display: "flex", maxWidth: "100%", overflow: "hidden", marginTop: 2 }}
+    />
+  );
+}
 
 function formatNumber(n: number): string {
   return formatFull(n);
@@ -365,18 +389,30 @@ export default function CreatorsClient({
   /* A creator without the figure in a drawn column gets "—" with the reason
      the server gave (plan A1) -- never blank, never 0. */
   const optionalStats = [
-    hasFollowers && { key: "followers", label: "Followers", read: (c: Creator) => c.followers },
-    hasAvgViews && { key: "avgViews", label: "Avg. Views", read: (c: Creator) => c.avgViewsFigure },
-  ].filter(Boolean) as { key: string; label: string; read: (c: Creator) => MetricValue }[];
+    hasFollowers && { key: "followers", label: "Followers", read: (c: Creator) => c.followers, at: (c: Creator) => c.followersAt },
+    hasAvgViews && { key: "avgViews", label: "Avg. Views", read: (c: Creator) => c.avgViewsFigure, at: (c: Creator) => c.avgViewsAt },
+  ].filter(Boolean) as {
+    key: string;
+    label: string;
+    read: (c: Creator) => MetricValue;
+    at: (c: Creator) => FigureTimeDto | undefined;
+  }[];
   /* The card's strip adds price, which the table keeps in a column of its own.
      A missing price is "not set" rather than an unmeasured figure, so it keeps
      its plain dash. */
-  const cardStats: { key: string; label: string; empty: (c: Creator) => boolean; render: (c: Creator) => React.ReactNode }[] = [
+  const cardStats: {
+    key: string;
+    label: string;
+    empty: (c: Creator) => boolean;
+    render: (c: Creator) => React.ReactNode;
+    age?: (c: Creator) => React.ReactNode;
+  }[] = [
     ...optionalStats.map((stat) => ({
       key: stat.key,
       label: stat.label,
       empty: (c: Creator) => isUnknownMetric(stat.read(c)),
       render: (c: Creator) => <MetricFigure value={stat.read(c)} format={formatNumber} />,
+      age: (c: Creator) => <FigureAge value={stat.read(c)} time={stat.at(c)} />,
     })),
     ...(hasPrice
       ? [{ key: "price", label: "Price", empty: (c: Creator) => !c.rate, render: (c: Creator) => (c.rate ? formatFullCurrency(c.rate) : "—") }]
@@ -558,6 +594,7 @@ export default function CreatorsClient({
                                 left "Avg. Views" captioning blank space, which
                                 reads as a value that failed to load. */}
                             <dd data-empty={stat.empty(creator) || undefined}>{stat.render(creator)}</dd>
+                            {stat.age?.(creator)}
                           </div>
                         );
                       })}
@@ -643,6 +680,7 @@ export default function CreatorsClient({
                     return (
                       <td key={stat.key} style={{ padding: "14px 24px", fontSize: "var(--cc-t-14)", fontWeight: 500, color: isUnknownMetric(value) ? "var(--cc-text-muted)" : "var(--cc-text)" }}>
                         <MetricFigure value={value} format={formatNumber} />
+                        <FigureAge value={value} time={stat.at(c)} />
                       </td>
                     );
                   })}

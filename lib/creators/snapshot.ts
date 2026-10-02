@@ -28,6 +28,7 @@ import {
 import { readTopPostsFromCampaigns } from "./topPostsFromCampaigns";
 import type { TikTokPostsRead } from "@/lib/platforms/tiktokTopPostsBrowser";
 import { rosterTablesReady } from "./rosterTables";
+import { recordPlatformAccountId } from "./accountIds";
 import { gateFollowerReading } from "@/lib/trackers/readingGate";
 import { recordSnapshotSources, type TrackerPosition } from "@/lib/trackers/sourceSwitch";
 import { classifyCreatorRead, type SourceGuard } from "@/lib/ops/sourceBreaker";
@@ -996,6 +997,17 @@ export async function snapshotCreators(
         }),
       ]);
       snapshots++;
+      /* The account's stable id, from this same read (plan A4). Never throws
+         and never reads anything itself; a missing table or id writes nothing. */
+      await recordPlatformAccountId({
+        creatorId: creator.id,
+        orgId: creator.orgId,
+        platform: creator.platform,
+        handle: creator.handle,
+        profile,
+        source: "tracker",
+        now: recordedAt,
+      });
       if (plan) {
         sources.push({ snapshotId: (snapshot as { id?: string } | undefined)?.id ?? "", creatorId: creator.id, plan, exitId: via, recordedAt });
         /* One read, three uses (plan T4): the roster's link for this account

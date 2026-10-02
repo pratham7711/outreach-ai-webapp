@@ -5,6 +5,7 @@ import { formatFull } from "@/lib/format";
 import { creatorNameText } from "@/lib/creators/creatorName";
 import { ACTIVATION_STATUS_LABEL } from "@/lib/activationQueues";
 import { POWERED_BY } from "@/lib/brand";
+import { dataAsOf, dataAsOfLine } from "@/lib/dataAge";
 
 const styles = StyleSheet.create({
   page: {
@@ -172,6 +173,13 @@ export function CampaignPerformancePDF({
   const hiddenPosts = posts.length - postRows.length;
   // Matches the web report: dropped entirely when nobody on it has a status.
   const showStatusColumn = leaderboard.some((r) => r.status !== null);
+  /* "Data as of" is the newest reading behind the figures (plan A6): the
+     moment the report's numbers were last refreshed. Each post row carries its
+     own read date beside it, so an older row is visible as older. */
+  const asOf = dataAsOf(posts.map((p) => p.lastSyncedAt));
+  /* Post status rides only on what redactForShare left in: every post on the
+     dashboard's own export, only the flagged ones on a link that marks them. */
+  const showPostStatus = posts.some((p) => p.status && p.status.kind !== "live");
 
   // Engagement is unknown for posts we never fetched, so those cells are left
   // out of the report rather than printed as a zero or a dash.
@@ -194,6 +202,9 @@ export function CampaignPerformancePDF({
         <View style={styles.header}>
           <Text style={styles.headerLabel}>Campaign Performance Report</Text>
           <Text style={styles.headerTitle}>{campaignTitle}</Text>
+          <Text style={[styles.headerLabel, { marginTop: 8, marginBottom: 0, textTransform: "none" }]}>
+            {dataAsOfLine(asOf)}
+          </Text>
         </View>
 
         <View style={styles.body}>
@@ -277,6 +288,8 @@ export function CampaignPerformancePDF({
                 <Text style={[styles.tableHeaderCell, { flex: 1 }]}>Views</Text>
                 <Text style={[styles.tableHeaderCell, { flex: 1 }]}>Likes</Text>
                 <Text style={[styles.tableHeaderCell, { flex: 1 }]}>Comments</Text>
+                <Text style={[styles.tableHeaderCell, { flex: 1.2 }]}>Read</Text>
+                {showPostStatus && <Text style={[styles.tableHeaderCell, { flex: 1.4 }]}>Status</Text>}
               </View>
               {postRows.map((row) => (
                 <View key={row.id} style={styles.tableRow} wrap={false}>
@@ -290,6 +303,14 @@ export function CampaignPerformancePDF({
                   <Text style={[styles.tableCell, { flex: 1 }]}>{fmtNumber(row.views)}</Text>
                   <Text style={[styles.tableCell, { flex: 1 }]}>{fmtMaybe(row.likes)}</Text>
                   <Text style={[styles.tableCell, { flex: 1 }]}>{fmtMaybe(row.comments)}</Text>
+                  {/* When these figures were read; words, not a dash, so a
+                      never-read row is not mistaken for a missing counter. */}
+                  <Text style={[styles.tableCell, { flex: 1.2 }]}>
+                    {row.lastSyncedAt ? fmtPostedAt(row.lastSyncedAt) : "Not read"}
+                  </Text>
+                  {showPostStatus && (
+                    <Text style={[styles.tableCell, { flex: 1.4 }]}>{row.status?.label ?? ""}</Text>
+                  )}
                 </View>
               ))}
             </View>

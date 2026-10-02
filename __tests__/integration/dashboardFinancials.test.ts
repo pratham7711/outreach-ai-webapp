@@ -244,6 +244,27 @@ describe("GET /api/dashboard/financials/export", () => {
     expect(csv).not.toMatch(/Budget|Spent|Paid/);
   });
 
+  /* Plan A2/A6: the creators export dates its one metric and says where it
+     came from, in columns appended after the ones it always had. */
+  it("exports creators with Avg Views, its age and its source, and — where none was measured", async () => {
+    mockDb.creator.findMany.mockResolvedValue([
+      { id: "c1", name: "Creator One", handle: "fake.one", platform: "TIKTOK", activations: [{ id: "a1" }] },
+      { id: "c2", name: "Creator Two", handle: "fake.two", platform: "INSTAGRAM", activations: [] },
+    ]);
+    mockDb.post.groupBy.mockResolvedValue([
+      { creatorId: "c1", _avg: { viewsCount: 1234.4 }, _max: { lastSyncedAt: new Date("2026-09-30T06:00:00Z"), lastFreshAt: null } },
+    ]);
+
+    const res = await EXPORT_GET(makeRequest("http://localhost/api/dashboard/financials/export?type=creators"));
+    const [header, one, two] = (await res.text()).split("\n");
+
+    expect(header).toBe("Creator,Handle,Platform,Activations,Avg Views,Avg Views as of,Avg Views source");
+    expect(one).toBe("Creator One,fake.one,TIKTOK,1,1234,2026-09-30T06:00:00.000Z,Tracked posts");
+    expect(two).toBe("Creator Two,fake.two,INSTAGRAM,0,—,—,No measured posts");
+    // The org's creators only.
+    expect(mockDb.creator.findMany.mock.calls[0][0].where).toMatchObject({ orgId: "org-1" });
+  });
+
   it("rejects the retired payouts export type", async () => {
     const req = makeRequest("http://localhost/api/dashboard/financials/export?type=payouts");
     const res = await EXPORT_GET(req);

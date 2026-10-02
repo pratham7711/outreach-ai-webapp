@@ -3,7 +3,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { authenticateRequest } from "@/lib/authenticate";
 import { isTrackerWindow, type TrackerWindow } from "@/lib/trackers/metrics";
-import { downsample, effectiveChartGranularity, parseGranularity } from "@/lib/trackers/granularity";
+import { READ_CADENCE_HOURS, downsample, effectiveChartGranularity, parseGranularity } from "@/lib/trackers/granularity";
 import { parseTrackerError, READ_FAILURE_COPY } from "@/lib/platforms/creatorProfile";
 import { trackerLimitError, trackerUsage } from "@/lib/trackers/limit";
 import {
@@ -288,6 +288,9 @@ export async function GET(req: NextRequest) {
       pageSize: paging.pageSize,
       pageCount,
       total,
+      /* The org's read cadence in hours, so the page can call a reading
+         stale past twice it (plan A6, lib/dataAge) rather than guess. */
+      readCadenceHours: READ_CADENCE_HOURS[granularity.readCadence],
     });
   } catch (error) {
     console.error("Failed to fetch creator trackers:", error);

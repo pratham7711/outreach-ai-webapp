@@ -52,15 +52,17 @@ const POST = {
    render. Counting by wrapping it in another component does not work: a
    component type created during a parent's render is a NEW type every time, so
    React remounts it and every memo below it is bypassed -- which is worth
-   knowing, because it is the same mistake in production code. */
+   knowing, because it is the same mistake in production code.
+   The helper is postMeasuredAt: the card dates its counters through it once
+   per render (it used to be formatSince, before the age label replaced it). */
 const renderSpy = jest.fn();
-jest.mock("@/lib/posts/postDisplay", () => {
-  const actual = jest.requireActual("@/lib/posts/postDisplay");
+jest.mock("@/lib/posts/postStatus", () => {
+  const actual = jest.requireActual("@/lib/posts/postStatus");
   return {
     ...actual,
-    formatSince: (iso: string | null) => {
+    postMeasuredAt: (post: unknown) => {
       renderSpy();
-      return actual.formatSince(iso);
+      return actual.postMeasuredAt(post);
     },
   };
 });

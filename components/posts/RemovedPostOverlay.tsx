@@ -22,6 +22,7 @@ import type { LastFetchNote } from "@/lib/metricDisplay";
 export default function RemovedPostOverlay({
   label = removedPostLabel(),
   note,
+  description: given,
   variant = "overlay",
   compact = false,
 }: {
@@ -29,6 +30,9 @@ export default function RemovedPostOverlay({
   label?: string;
   /** The `__lastFetch` note, when the caller has it. Only its `at` is used. */
   note?: LastFetchNote | null;
+  /** The whole sentence for title/aria, when the caller already has one
+      (lib/posts/postStatus's detail). Overrides the note-derived one. */
+  description?: string;
   variant?: "overlay" | "inline";
   /** Smaller type for the dense list row, where the full sentence wrapped to
       three lines inside the status column. The visible text drops to the noun
@@ -37,7 +41,7 @@ export default function RemovedPostOverlay({
   compact?: boolean;
 }) {
   const since = removedSince(note);
-  const description = since ? `${label}. ${since}.` : label;
+  const description = given ?? (since ? `${label}. ${since}.` : label);
   const visible = compact ? label.split(" — ")[0] : label;
 
   return (

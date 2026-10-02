@@ -32,6 +32,8 @@ export async function GET(
       followersCount: true,
       avgViews: true,
       tokenExpiry: true,
+      // When the account's own statistics were last read (plan A6).
+      statsSyncedAt: true,
       createdAt: true,
       updatedAt: true,
     },

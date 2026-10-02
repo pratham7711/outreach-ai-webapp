@@ -32,4 +32,11 @@ describe("readCreatorProfile on Instagram", () => {
     fetchProfile.mockResolvedValue(null);
     await expect(readCreatorProfile("INSTAGRAM", "someone")).resolves.toEqual({ ok: false, reason: "not-a-professional-account" });
   });
+
+  /* Plan A4: the account's own id rides in the same response, so it costs nothing. */
+  it("hands on the account's Instagram user id with the figures", async () => {
+    fetchProfile.mockResolvedValue({ username: "someone", igUserId: "17841400000000001", followersCount: 900, recentPosts: [] });
+    const res = await readCreatorProfile("INSTAGRAM", "someone");
+    expect(res).toMatchObject({ ok: true, profile: { followersCount: 900, accountId: "17841400000000001" } });
+  });
 });

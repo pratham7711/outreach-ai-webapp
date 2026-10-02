@@ -20,11 +20,17 @@ import {
   avgViewsValue,
   creatorEngagementValue,
   followersValue,
+  isUnknownMetric,
   postCounterValue,
   postEngagementValue,
 } from "@/lib/creators/metricValue";
 import MetricFigure from "@/components/creators/MetricFigure";
 import CreatorAccess from "@/components/creators/CreatorAccess";
+import { AgeLabel } from "@/components/ds/AgeLabel";
+import PostStatusChip from "@/components/posts/PostStatusChip";
+import { postAgeContext, postMeasuredAt, postStatus } from "@/lib/posts/postStatus";
+import { dataAsOf } from "@/lib/dataAge";
+import type { FigureTimeDto } from "@/lib/creators/figureTime";
 
 function formatNumber(num: number): string {
   return formatFull(num);
@@ -63,6 +69,8 @@ type SocialAccount = {
   followersCount: number;
   avgViews: number;
   tokenExpiry: string | null;
+  /** When the account's own statistics were last read; null for one entered by hand. */
+  statsSyncedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -96,6 +104,11 @@ type Post = {
   /** Set only when we read the post ourselves; what tells a measured 0 from an unread one. */
   lastSyncedAt?: string | null;
   platformMetrics?: unknown;
+  /** Read by lib/posts/postStatus and the counters' age. */
+  fetchState?: string | null;
+  lastFreshAt?: string | null;
+  trackingEnabled?: boolean | null;
+  trackingExpiresAt?: string | null;
   campaign: { id: string; title: string } | null;
 };
 
@@ -148,7 +161,11 @@ type Creator = {
     refreshedAt?: string | null;
     /** The platform could not find this account; see lib/creators/handleCheck. */
     problem: HandleProblem | null;
+    /** When its count was measured (lib/creators/figureTime). */
+    age?: FigureTimeDto;
   }[];
+  /** When the headline figures were measured and by what (plan A6). */
+  figureTimes?: { followers: FigureTimeDto };
   detail?: { country: string | null; audienceCountry: string | null; niche: string | null; source: string | null; signedUpAt: string | null } | null;
   lists?: { id: string; name: string }[];
 };
@@ -537,6 +554,28 @@ const responsiveStyles = `
   }
 `;
 
+/**
+ * A post's status chip (when it is anything but live) and its counters' age,
+ * the same two facts the campaign posts list shows (plan A5/A6).
+ */
+function PostAge({ post }: { post: Post }) {
+  const status = postStatus(post);
+  const measured = postMeasuredAt(post);
+  return (
+    <>
+      <PostStatusChip status={status} compact />
+      <AgeLabel
+        at={measured.at}
+        field="post"
+        ctx={postAgeContext(post, status)}
+        source={measured.source}
+        prefix="read"
+        never="not read by us yet"
+      />
+    </>
+  );
+}
+
 function LoadingSkeleton() {
   return (
     <div className="rsp-page" style={{ display: "flex", flexDirection: "column", gap: 24 }}>
@@ -823,6 +862,12 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
      not -- see creatorEngagementValue. */
   const avgEngagement = creatorEngagementValue(creator.posts);
   const percent = (n: number) => `${n.toFixed(1)}%`;
+  /* Ages for the tiles (plan A6). Followers: the read that produced the count,
+     decided on the server. Engagement: the newest read among the posts it is
+     averaged over -- an average of posts read at different times has no single
+     age, so it is labelled as the newest one and never called stale. */
+  const followersAt = creator.figureTimes?.followers ?? null;
+  const engagementAsOf = dataAsOf(creator.posts.map((p) => p.lastSyncedAt));
 
   return (
     <div className="rsp-page">
@@ -913,10 +958,33 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
               "—" and says why on hover (plan A1). Hiding it instead left the
               reader to guess whether the figure was missing or the page was. */}
           <div className="cd-stats-grid">
-            <MetricTile metric="followers" value={<MetricFigure value={followers} format={formatNumber} />} />
+            <MetricTile
+              metric="followers"
+              value={<MetricFigure value={followers} format={formatNumber} />}
+              footer={
+                followersAt && !isUnknownMetric(followers) ? (
+                  <AgeLabel
+                    at={followersAt.at}
+                    field={followersAt.field}
+                    source={followersAt.source}
+                    never={followersAt.missing}
+                    style={{ whiteSpace: "normal" }}
+                  />
+                ) : undefined
+              }
+            />
             <MetricTile metric="creatorCampaigns" value={String(creator.campaignCount)} />
             <MetricTile metric="posts" label="Posts" value={formatNumber(creator._count.posts)} />
-            <MetricTile metric="engagementRate" label="Avg engagement" value={<MetricFigure value={avgEngagement} format={percent} />} />
+            <MetricTile
+              metric="engagementRate"
+              label="Avg engagement"
+              value={<MetricFigure value={avgEngagement} format={percent} />}
+              footer={
+                !isUnknownMetric(avgEngagement) ? (
+                  <AgeLabel at={engagementAsOf} field="post" ctx={{ tracked: false }} prefix="Newest read" source="Tracked posts" never="no post read by us yet" />
+                ) : undefined
+              }
+            />
           </div>
         </div>
       </Card>
@@ -1029,7 +1097,10 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
                         <p title={post.caption ?? undefined} style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                           {post.caption?.slice(0, 60) ?? "Untitled Post"} <ExternalLink size={11} style={{ opacity: 0.4 }} />
                         </p>
-                        <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>{formatDateAbs(post.postedAt)}</p>
+                        <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6 }}>
+                          {formatDateAbs(post.postedAt)}
+                          <PostAge post={post} />
+                        </p>
                       </div>
                       <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{post.campaign?.title ?? "—"}</span>
                       <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}><MetricFigure value={postCounterValue(post.viewsCount, post, "views")} format={formatNumber} /></span>
@@ -1048,6 +1119,9 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
                           <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: "2px 0 0" }}>
                             {post.campaign?.title ?? "—"} · {formatDateAbs(post.postedAt)}
                           </p>
+                          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, marginTop: 4 }}>
+                            <PostAge post={post} />
+                          </div>
                         </div>
                         <span style={{ fontSize: "var(--cc-t-14)", fontWeight: 700, color: "var(--cc-primary)", flexShrink: 0 }}><MetricFigure value={postEngagementValue(post)} format={percent} /></span>
                       </div>
@@ -1230,6 +1304,11 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
                           is "not read yet" far more often than a real count. */}
                       <span><Users size={12} style={{ marginRight: 4, verticalAlign: "middle" }} /><MetricFigure value={followersValue(acct.followersCount)} format={formatNumber} /> followers</span>
                       <span><Eye size={12} style={{ marginRight: 4, verticalAlign: "middle" }} /><MetricFigure value={avgViewsValue(acct.avgViews)} format={formatNumber} /> avg views</span>
+                    </div>
+                    {/* The account's own statistics are read daily (plan A6); one
+                        entered by hand has never been read, and says so. */}
+                    <div style={{ marginBottom: 6 }}>
+                      <AgeLabel at={acct.statsSyncedAt ?? null} field="account" prefix="Read" source="Connected account" never="never read by us" />
                     </div>
                     <div style={{ fontSize: "var(--cc-t-11)", color: "var(--cc-text-subtle)" }}>
                       Connected {formatDateAbs(acct.createdAt)}
