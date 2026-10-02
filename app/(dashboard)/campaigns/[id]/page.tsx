@@ -906,6 +906,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <RosterTable
               rows={roster}
+              campaignId={id}
               currency={campaign.currency}
               columnKeys={columnKeys}
               onColumnKeysChange={setColumnKeys}

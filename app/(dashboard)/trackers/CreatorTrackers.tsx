@@ -1,11 +1,11 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Card, EmptyState, Input, Modal, Skeleton } from "@pratham7711/ui";
-import { Button } from "@/components/ds";
-import { Play, Trash2, User, Users } from "lucide-react";
+import { Button, Pagination, useConfirm } from "@/components/ds";
+import { Play, Search, Trash2, User, Users } from "lucide-react";
 import { formatDateAbs, formatFull, formatHandle, timeAgo } from "@/lib/format";
 import { apiDelete, apiFetch, apiPost } from "@/lib/api/client";
 import { CreatorDetailModal, type TopPost } from "./CreatorDetailModal";
@@ -84,6 +84,18 @@ const SORTS = [
 
 const NO_DATA = "No data yet.";
 
+/* The server pages and ranks (plan §12 F3): the order is decided over every
+   tracked creator before the page is cut, so the controls here only ask. */
+const PAGE_SIZE = 50;
+
+type TrackerPage = {
+  creators: TrackedCreator[];
+  total: number;
+  page: number;
+  pageSize: number;
+  pageCount: number;
+};
+
 function periodLabel(key: string): string {
   return PERIODS.find((p) => p.key === key)?.label ?? key;
 }
@@ -110,7 +122,10 @@ function viewsReason(c: TrackedCreator): string {
 function followersReason(c: TrackedCreator, period: string): string {
   if (c.readError) return c.readError;
   if (c.health === "pending" || c.snapshotCount === 0) {
-    return "We have not read this creator yet. The first reading usually lands within a few hours.";
+    /* New trackers join the back of the reading queue, so the first reading
+       comes after everyone already waiting has had theirs -- not "within a
+       few hours" whatever the queue's length. */
+    return "We have not read this creator yet. New creators join the back of the reading queue, so the first reading comes once those already tracked have been read.";
   }
   if (c.snapshotCount === 1) {
     return "We have one reading so far. A change needs two, so this fills in on the next sweep.";
@@ -217,18 +232,41 @@ export function CreatorTrackers({
   const [openCreator, setOpenCreator] = useState<string | null>(null);
   const [sort, setSort] = useState("views");
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  // The list's own search, separate from the picker's: one filters what is
+  // tracked, the other finds someone to track.
+  const [listSearch, setListSearch] = useState("");
+  const [q, setQ] = useState("");
+  const confirm = useConfirm();
+
+  // Searched in the database, so typing debounces into the request rather
+  // than filtering one page of fifty.
+  useEffect(() => {
+    const next = listSearch.trim();
+    if (next === q) return;
+    const t = setTimeout(() => {
+      setQ(next);
+      setPage(1);
+    }, 350);
+    return () => clearTimeout(t);
+  }, [listSearch, q]);
 
   const queryClient = useQueryClient();
   const invalidate = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ["creator-trackers"] });
+    queryClient.invalidateQueries({ queryKey: ["creator-picker"] });
+    queryClient.invalidateQueries({ queryKey: ["track-status"] });
   }, [queryClient]);
 
-  const { data, isPending, isError, refetch } = useQuery({
-    queryKey: ["creator-trackers", period, sort],
+  const { data, isPending, isError, isFetching, refetch } = useQuery({
+    queryKey: ["creator-trackers", period, sort, q, page],
     queryFn: () =>
-      apiFetch<{ creators: TrackedCreator[] }>(
-        `/api/trackers/creators?period=${period}&sort=${sort}`
+      apiFetch<TrackerPage>(
+        `/api/trackers/creators?period=${period}&sort=${sort}&page=${page}&pageSize=${PAGE_SIZE}${q ? `&q=${encodeURIComponent(q)}` : ""}`
       ),
+    // The page being left stays on screen until the next one arrives, rather
+    // than collapsing to a skeleton on every click of the pager.
+    placeholderData: keepPreviousData,
   });
   const creators = useMemo(() => data?.creators ?? [], [data]);
 
@@ -236,9 +274,9 @@ export function CreatorTrackers({
   const { data: candidates, isFetching: searching } = useQuery({
     queryKey: ["creator-picker", search],
     queryFn: () =>
-      apiFetch<{ creators: { id: string; name: string; handle: string; avatarUrl: string | null }[] }>(
-        `/api/creators?limit=10${search ? `&search=${encodeURIComponent(search)}` : ""}`
-      ),
+      apiFetch<{
+        creators: { id: string; name: string; handle: string; avatarUrl: string | null; trackedSince: string | null }[];
+      }>(`/api/creators?limit=10${search ? `&search=${encodeURIComponent(search)}` : ""}`),
     enabled: pickerOpen,
   });
 
@@ -280,6 +318,23 @@ export function CreatorTrackers({
     onError: (error) => toast.error(errorMessage(error, "Could not stop tracking")),
   });
 
+  /* One click used to stop a standing read. The readings stay, but the date
+     the watch began does not come back if the creator is tracked again. */
+  const untrack = useCallback(
+    async (c: TrackedCreator) => {
+      const ok = await confirm({
+        title: "Stop tracking this creator?",
+        description: `${c.name} will no longer be read on a schedule. Readings taken so far are kept; tracking them again starts a new watch from today.`,
+        confirmLabel: "Stop tracking",
+        tone: "danger",
+      });
+      if (ok) untrackMutation.mutate(c.id);
+    },
+    [confirm, untrackMutation]
+  );
+
+  /* The page holds fifty, so the picker also trusts the creator's own row --
+     a creator tracked on page 9 is still tracked. */
   const trackedIds = useMemo(() => new Set(creators.map((c) => c.id)), [creators]);
 
   const controls = (
@@ -298,7 +353,10 @@ export function CreatorTrackers({
         {SORTS.map((s) => (
           <button
             key={s.key}
-            onClick={() => setSort(s.key)}
+            onClick={() => {
+              setSort(s.key);
+              setPage(1);
+            }}
             style={{
               padding: "5px 10px",
               borderRadius: 8,
@@ -315,11 +373,23 @@ export function CreatorTrackers({
           </button>
         ))}
       </div>
-      <div style={{ display: "flex", gap: 8 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <div style={{ minWidth: 200 }}>
+          <Input
+            value={listSearch}
+            onChange={(e) => setListSearch(e.target.value)}
+            placeholder="Search tracked creators"
+            aria-label="Search tracked creators"
+            iconLeft={<Search size={16} />}
+          />
+        </div>
         {PERIODS.map((p) => (
           <button
             key={p.key}
-            onClick={() => setPeriod(p.key)}
+            onClick={() => {
+              setPeriod(p.key);
+              setPage(1);
+            }}
             style={{
               padding: "7px 14px",
               borderRadius: 8,
@@ -380,7 +450,18 @@ export function CreatorTrackers({
     <div>
       {controls}
 
-      {creators.length === 0 ? (
+      {creators.length === 0 && q ? (
+        <EmptyState
+          icon={<Search size={40} />}
+          title="No tracked creators match that search"
+          description={`Nothing you track matches "${q}".`}
+          action={
+            <Button variant="secondary" onClick={() => setListSearch("")}>
+              Clear search
+            </Button>
+          }
+        />
+      ) : creators.length === 0 ? (
         <EmptyState
           icon={<Users size={40} />}
           title="No creators tracked yet"
@@ -465,7 +546,7 @@ export function CreatorTrackers({
                   />
 
                   <button
-                    onClick={() => untrackMutation.mutate(c.id)}
+                    onClick={() => untrack(c)}
                     disabled={untrackMutation.isPending}
                     title="Stop tracking this creator"
                     style={{
@@ -486,6 +567,17 @@ export function CreatorTrackers({
               </Card>
             );
           })}
+          {data && data.total > data.pageSize && (
+            <Pagination
+              style={{ marginTop: 16 }}
+              page={data.page}
+              totalPages={data.pageCount}
+              total={data.total}
+              pageSize={data.pageSize}
+              loading={isFetching}
+              onPageChange={setPage}
+            />
+          )}
         </>
       )}
 
@@ -526,7 +618,7 @@ export function CreatorTrackers({
             </p>
           ) : (
             (candidates?.creators ?? []).map((cand) => {
-              const already = trackedIds.has(cand.id);
+              const already = trackedIds.has(cand.id) || Boolean(cand.trackedSince);
               return (
                 <div
                   key={cand.id}

@@ -58,24 +58,3 @@ export function trackAllGate(plan: ResolvedTrackerPlan, orgId: string): TrackAll
 export function overUngatedMaxMessage(wouldAdd: number): string {
   return `That would add ${wouldAdd} creators. Until Track all opens for this workspace, add up to ${BULK_TRACK_UNGATED_MAX} at a time.`;
 }
-
-export type BulkTrackResult = {
-  /** Creators the request covered, in this org. */
-  requested: number;
-  added: number;
-  alreadyTracked: number;
-  /** Not tracked because the plan's limit ran out. */
-  skippedForLimit: number;
-  /** After this request; null on a plan without a limit. */
-  roomLeft: number | null;
-  limit: number | null;
-};
-
-/** "Added 700 · already tracked 1,850 · room left 1,450" -- the toast. */
-export function bulkTrackSummary(r: Pick<BulkTrackResult, "added" | "alreadyTracked" | "roomLeft" | "skippedForLimit">): string {
-  const n = (v: number) => v.toLocaleString("en-US");
-  const parts = [`Added ${n(r.added)}`, `already tracked ${n(r.alreadyTracked)}`];
-  if (r.skippedForLimit > 0) parts.push(`${n(r.skippedForLimit)} over the plan's limit`);
-  if (r.roomLeft !== null) parts.push(`room left ${n(r.roomLeft)}`);
-  return parts.join(" · ");
-}

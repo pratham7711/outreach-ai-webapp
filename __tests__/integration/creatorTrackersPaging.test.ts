@@ -29,7 +29,12 @@ import { orgFixture } from "../helpers/orgFixture";
 import { GET } from "@/app/api/trackers/creators/route";
 import { TRACKER_PAGE_SIZE_DEFAULT, TRACKER_PAGE_SIZE_MAX } from "@/lib/trackers/creatorPage";
 
-const mockDb = db as any;
+const mockDb = db as unknown as {
+  creator: Record<"findMany" | "findFirst" | "update" | "count", jest.Mock>;
+  tikTokSound: Record<"count", jest.Mock>;
+  organization: Record<"findUnique", jest.Mock>;
+  $queryRawUnsafe: jest.Mock;
+};
 const BASE = "http://localhost:3009/api/trackers/creators";
 const NOW = new Date("2026-10-20T00:00:00Z");
 const hoursAgo = (h: number) => new Date(NOW.getTime() - h * 3600_000);

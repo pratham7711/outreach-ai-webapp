@@ -19,12 +19,8 @@ import {
 import { LATEST_TEN_SINCE } from "@/lib/trackers/recentViews";
 import { windowBounds } from "@/lib/trackers/creatorMetrics";
 import type { TrackerWindow } from "@/lib/trackers/metrics";
-import {
-  BULK_TRACK_UNGATED_MAX,
-  bulkTrackSummary,
-  TRACK_ALL_CLOSED,
-  trackAllGate,
-} from "@/lib/trackers/trackAll";
+import { BULK_TRACK_UNGATED_MAX, TRACK_ALL_CLOSED, trackAllGate } from "@/lib/trackers/trackAll";
+import { bulkTrackSummary } from "@/lib/trackers/bulkTrackCopy";
 import type { ResolvedTrackerPlan } from "@/lib/trackers/sourceSwitch";
 
 const HOUR = 3600_000;

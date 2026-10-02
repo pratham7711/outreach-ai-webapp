@@ -54,7 +54,14 @@ import { orgFixture } from "../helpers/orgFixture";
 import { GET, POST } from "@/app/api/trackers/creators/bulk/route";
 import { BULK_TRACK_UNGATED_MAX } from "@/lib/trackers/trackAll";
 
-const mockDb = db as any;
+const mockDb = db as unknown as {
+  creator: Record<"count" | "findMany" | "updateMany", jest.Mock>;
+  tikTokSound: Record<"count", jest.Mock>;
+  organization: Record<"findUnique", jest.Mock>;
+  campaign: Record<"findFirst", jest.Mock>;
+  $queryRawUnsafe: jest.Mock;
+  $transaction: jest.Mock;
+};
 const mockAuth = authenticateRequest as jest.Mock;
 const mockPlan = resolveTrackerPlan as jest.Mock;
 const mockAudit = logAudit as jest.Mock;

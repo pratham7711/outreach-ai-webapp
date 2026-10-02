@@ -10,6 +10,7 @@ import { CampaignHeaderActions } from "@/components/campaigns/CampaignHeaderActi
 import { action } from "@/lib/ui/actions";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
 import CreatorName from "@/components/creators/CreatorName";
+import { TrackCampaignCreatorsButton } from "@/components/creators/TrackCreators";
 
 /**
  * The campaign roster, with the toolbar the reference puts above it.
@@ -203,9 +204,12 @@ export default function RosterTable({
   columnKeys,
   onColumnKeysChange,
   onAddCreator,
+  campaignId,
 }: {
   rows: RosterRow[];
   currency: string;
+  /** Offers "Track this campaign's creators" when given. */
+  campaignId?: string;
   /** The visible columns, held by the page so they can live in the URL. */
   columnKeys: string[];
   onColumnKeysChange: (keys: string[]) => void;
@@ -292,6 +296,7 @@ export default function RosterTable({
 
         <ColumnPicker selected={columnKeys} onChange={onColumnKeysChange} />
 
+        {campaignId && <TrackCampaignCreatorsButton campaignId={campaignId} count={rows.length} />}
       </div>
 
       {/* In the campaign header, where theirs is (MEASURED at desktop-1600).

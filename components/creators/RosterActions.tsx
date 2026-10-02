@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Modal, Input } from "@pratham7711/ui";
 import { ListPlus, Tag } from "lucide-react";
 import ExportMenu from "@/components/creators/ExportMenu";
+import { TrackSelectedButton } from "@/components/creators/TrackCreators";
 import { Button } from "@/components/ds";
 import { formatFull } from "@/lib/format";
 
@@ -79,6 +80,10 @@ export default function RosterActions({ total, filtered, selection, query, sugge
               { label: `CSV · ${plural(count)}`, href: exportHref(selection, query, "csv") },
             ]}
           />
+          {/* Only on a selection: with nothing ticked, the header's Track all
+              is the action, and tracking "whatever this filter matches" from
+              here would read as the same button with a different count. */}
+          {picked && <TrackSelectedButton selection={payloadFor(selection, query)} count={count} />}
         </div>
       </div>
 
