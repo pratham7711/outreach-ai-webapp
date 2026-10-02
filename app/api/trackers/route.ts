@@ -82,7 +82,7 @@ export async function GET(req: NextRequest) {
         value: s.usesCount,
         recordedAt: s.recordedAt,
       }));
-      const change = changeOverWindow(history, period, now);
+      const change = changeOverWindow(history, period, now, { nearestBaseline: true });
       const latest = sound.snapshots[0] ?? null;
 
       // Age is served with the count, never separately. changeOverWindow will

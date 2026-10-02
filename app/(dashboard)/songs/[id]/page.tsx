@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { computeEngagementRate } from "@/lib/metrics";
+import { postEngagementPercent } from "@/lib/metricDisplay";
 import SongDashboard from "./SongDashboard";
 
 export default async function SongPage({ params }: { params: Promise<{ id: string }> }) {
@@ -136,7 +137,7 @@ export default async function SongPage({ params }: { params: Promise<{ id: strin
           likesCount: p.likesCount,
           commentsCount: p.commentsCount,
           sharesCount: p.sharesCount,
-          engagementRate: p.engagementRate,
+          engagementRate: postEngagementPercent(p),
           status: p.status,
           lastSyncedAt: p.lastSyncedAt ? p.lastSyncedAt.toISOString() : null,
           creatorId: p.creator?.id ?? null,

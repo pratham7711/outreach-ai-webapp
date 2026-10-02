@@ -13,6 +13,7 @@ import { openSandboxProfileFetcher } from "@/lib/platforms/tiktokProfileSandbox"
 import { readInstagramAudioUsage } from "@/lib/platforms/instagramAudioUsage";
 import { recordSoundSnapshot, soundMetadataPatch } from "@/lib/sounds/snapshot";
 import {
+  holdSoundReading,
   previousOf,
   velocityBetween,
   type TrackerSnapshot,
@@ -281,6 +282,8 @@ async function cronHandler(request: NextRequest) {
       const { history } = sound;
       const embed = embedReadings.get(sound.tiktokSoundId);
       let stats = embed?.ok ? embed.stats : null;
+      // Which rung answered, so a strange reading can be traced to its source.
+      let rung: string = embed?.ok ? embed.rung : "none";
 
       /* Both kept behind the embed rather than deleted: the browser is the only
          path that can read a sound the embed refuses, and the plain fetch costs
@@ -290,11 +293,31 @@ async function cronHandler(request: NextRequest) {
           log.warn("browser read failed", { soundId: sound.id, error: String(e).slice(0, 120) });
           return null;
         });
+        if (stats) rung = "browser";
       }
-      if (!stats) stats = await fetchTikTokSoundStats(sound.tiktokSoundId);
+      if (!stats) {
+        stats = await fetchTikTokSoundStats(sound.tiktokSoundId);
+        if (stats) rung = "music-page";
+      }
       if (!stats) {
         decisions.push({ soundId: sound.id, action: "fail", reason: "no-data" });
         failed++;
+        continue;
+      }
+
+      /* A fall far below the last reading waits for the next read rather than
+         being charted as half the sound's uses vanishing (see holdSoundReading).
+         The sound stays due, so the next run reads it again. */
+      const newestStored = sound.snapshots[0];
+      if (holdSoundReading(newestStored, stats.usesCount, now)) {
+        log.warn("sound reading held", {
+          soundId: sound.id,
+          rung,
+          usesCount: stats.usesCount,
+          previous: newestStored?.usesCount,
+        });
+        decisions.push({ soundId: sound.id, action: "skip", reason: `held-drop:${rung}`, usesCount: stats.usesCount });
+        skipped++;
         continue;
       }
 
@@ -378,7 +401,7 @@ async function cronHandler(request: NextRequest) {
       decisions.push({
         soundId: sound.id,
         action: "snapshot",
-        reason: "ingested",
+        reason: `ingested:${rung}`,
         usesCount: stats.usesCount,
       });
       snapshotted++;

@@ -16,7 +16,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { platformColor } from "@/app/(dashboard)/analytics/shared";
-import { stripAt } from "@/lib/format";
+import { UNKNOWN, stripAt } from "@/lib/format";
 import { loadCharts } from "@/components/charts/lazyCharts";
 import { formatNumber, type PerformanceData } from "../types";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
@@ -181,7 +181,7 @@ export function PerformanceSection({
                         {formatNumber(post.viewsCount)}
                       </TableCell>
                       <TableCell className="text-right text-muted-foreground tabular-nums">
-                        {post.engagementRate.toFixed(1)}%
+                        {post.engagementRate === null ? UNKNOWN : `${post.engagementRate.toFixed(1)}%`}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -253,7 +253,7 @@ export function PerformanceSection({
                         {formatNumber(c.views)}
                       </TableCell>
                       <TableCell className="text-right text-muted-foreground tabular-nums">
-                        {c.avgEngagement}%
+                        {c.avgEngagement === null ? UNKNOWN : `${c.avgEngagement}%`}
                       </TableCell>
                     </TableRow>
                   ))}

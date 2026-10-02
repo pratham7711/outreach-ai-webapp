@@ -4,7 +4,8 @@ import React, { useMemo, useState } from "react";
 import Link from "next/link";
 import { Badge } from "@pratham7711/ui";
 import { Dropdown, SortableTh, numericCell, type SortAccessors, useTableSort } from "@/components/ds";
-import { formatDateTimeAbs, platformLabel, stripAt, timeAgo, formatFull } from "@/lib/format";
+import { UNKNOWN, formatDateTimeAbs, platformLabel, stripAt, timeAgo, formatFull } from "@/lib/format";
+import { metricValue } from "@/lib/metricDisplay";
 import { PLATFORM_FILTER_OPTIONS } from "@/lib/platforms/constants";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
 
@@ -20,13 +21,17 @@ export type AnalysisPost = {
   likesCount: number;
   commentsCount: number;
   sharesCount: number;
-  engagementRate: number;
+  /** Percent, from the counters; null when views or likes were never read. */
+  engagementRate: number | null;
   status: string;
   lastSyncedAt: string | null;
   creatorId?: string | null;
   creatorName: string | null;
   creatorHandle: string | null;
 };
+
+// A count nobody read is "—", not 0: the row beside it says "synced never".
+const cell = (v: number | null) => (v === null ? UNKNOWN : formatFull(v));
 
 type PhaseOption = { id: string; name: string; campaignTitle: string };
 
@@ -37,8 +42,8 @@ const SORT: SortAccessors<AnalysisPost> = {
   platform: (p) => platformLabel(p.platform),
   postedAt: (p) => new Date(p.postedAt).getTime(),
   views: (p) => p.viewsCount,
-  likes: (p) => p.likesCount,
-  comments: (p) => p.commentsCount,
+  likes: (p) => metricValue(p.likesCount, p.lastSyncedAt),
+  comments: (p) => metricValue(p.commentsCount, p.lastSyncedAt),
   shares: (p) => p.sharesCount,
   engagement: (p) => p.engagementRate,
 };
@@ -199,9 +204,9 @@ export function PostAnalysisTable({
                     </div>
                   </td>
                   <td style={numericCell}>{formatFull(p.viewsCount)}</td>
-                  <td style={numericCell}>{formatFull(p.likesCount)}</td>
-                  <td style={numericCell}>{formatFull(p.commentsCount)}</td>
-                  <td style={numericCell}>{p.engagementRate.toFixed(1)}%</td>
+                  <td style={numericCell}>{cell(metricValue(p.likesCount, p.lastSyncedAt))}</td>
+                  <td style={numericCell}>{cell(metricValue(p.commentsCount, p.lastSyncedAt))}</td>
+                  <td style={numericCell}>{p.engagementRate === null ? UNKNOWN : `${p.engagementRate.toFixed(1)}%`}</td>
                 </tr>
               ))}
             </tbody>

@@ -348,7 +348,7 @@ export const METRIC_DEFINITIONS = {
   trackersNewUses: {
     label: "New uses",
     what: "Extra posts that picked up your tracked sounds over the period selected above — the reading that says whether a trend is still accelerating. It can go negative when posts using a sound are deleted faster than new ones appear.",
-    how: "Compares the newest reading of each tracker against the one at the start of the period and adds up the differences. A tracker with no fresh reading contributes nothing rather than a zero, so it cannot drag the total down.",
+    how: "Compares the newest reading of each tracker against the one nearest the start of the period and adds up the differences. Only trackers whose readings span the period are added: one measured over a shorter or longer stretch shows that stretch on its own row instead. A tracker with no fresh reading contributes nothing rather than a zero, so it cannot drag the total down.",
   },
   portalLifetimeEarnings: {
     label: "Lifetime earnings",

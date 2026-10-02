@@ -36,7 +36,11 @@ export function parseTikTokSoundRehydration(html: string): TikTokSoundStats | nu
   const music = info?.music ?? info;
   if (!music) return null;
 
-  const rawUses = info?.stats?.videoCount ?? music?.videoCount ?? music?.userCount;
+  /* Videos using the sound, which is what the embed rung reads. userCount --
+     the accounts that used it -- is a different figure, about half the size on
+     the sounds we track, and falling back to it is a reading that looks like
+     the sound lost half its uses overnight. No count beats that one. */
+  const rawUses = info?.stats?.videoCount ?? music?.videoCount;
   if (rawUses === undefined || rawUses === null) return null;
 
   const usesCount = pickCount(rawUses);

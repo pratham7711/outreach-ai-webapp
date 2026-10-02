@@ -142,6 +142,9 @@ export type CreatorFigures = {
   lastReadAt: Date | null;
   health: ReadHealth;
   followersCount: number | null;
+  /** False when followersCount is the creator row's stored figure rather than
+   *  a tracker reading -- an import, a hand edit or a roster refresh. */
+  followersFromReading: boolean;
   followersChangePercent: number | null;
   followersDelta: number | null;
   views: CreatorViews;
@@ -191,6 +194,10 @@ export function figuresFor(
        populated on 11 of 1,834 creators, so it is usually a default rather
        than a measurement. */
     followersCount: counted[0] ? counted[0].followersCount : followerCount(storedFollowers),
+    /* Said, so the card does not date a stored figure by a tracker read that
+       never carried it: 74 tracked creators on production showed an imported
+       count labelled "Tracker reading" (measured 2026-10-03). */
+    followersFromReading: counted[0] !== undefined,
     followersChangePercent: measurable ? followerChange?.percent ?? null : null,
     followersDelta: measurable ? followerChange?.added ?? null : null,
     views: {

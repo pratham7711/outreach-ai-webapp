@@ -53,6 +53,26 @@ describe("embedSrcFor", () => {
     );
   });
 
+  it("ignores a stored YouTube id that is not a video id and reads the url", () => {
+    // CreatorCore stored its own 32-character record id on 838 YouTube posts.
+    expect(
+      embedSrcFor("YOUTUBE", "0123456789abcdef0123456789abcdef", "https://www.youtube.com/watch?v=Wy0uiI_7vgY&t=3s")
+    ).toBe("https://www.youtube.com/embed/Wy0uiI_7vgY");
+    expect(embedSrcFor("YOUTUBE", "0123456789abcdef0123456789abcdef", "https://youtu.be/Wy0uiI_7vgY?si=abc")).toBe(
+      "https://www.youtube.com/embed/Wy0uiI_7vgY"
+    );
+    expect(embedSrcFor("YOUTUBE", "Wy0uiI_7vgY", "https://www.youtube.com/watch?v=Wy0uiI_7vgY")).toBe(
+      "https://www.youtube.com/embed/Wy0uiI_7vgY"
+    );
+    expect(embedSrcFor("YOUTUBE", "0123456789abcdef0123456789abcdef", "https://www.youtube.com/@someone")).toBeNull();
+  });
+
+  it("takes the Instagram shortcode from the url over a stored record id", () => {
+    expect(embedSrcFor("INSTAGRAM", "17912345678901234", "https://www.instagram.com/reel/CxYz123/")).toBe(
+      "https://www.instagram.com/p/CxYz123/embed"
+    );
+  });
+
   it("returns null when there is nothing to build a player from", () => {
     // The caller then shows the still image and an outbound link instead.
     expect(embedSrcFor("TIKTOK", null, "https://tiktok.com/@x")).toBeNull();

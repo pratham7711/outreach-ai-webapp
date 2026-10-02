@@ -86,23 +86,46 @@ describe("avgViewsValue", () => {
 });
 
 describe("engagement", () => {
-  const measured = { engagementRate: 4, likesCount: 40, lastSyncedAt: "2026-09-01T00:00:00Z" };
-  const unread = { engagementRate: 0, likesCount: 0, lastSyncedAt: null };
+  const read = "2026-09-01T00:00:00Z";
+  // 30 + 5 + 3 + 2 = 40 engagements over 1,000 views = 4%.
+  const measured = { viewsCount: 1000, likesCount: 30, commentsCount: 5, sharesCount: 3, savesCount: 2, lastSyncedAt: read };
+  const unread = { viewsCount: 0, likesCount: 0, commentsCount: 0, lastSyncedAt: null };
 
-  it("averages over measured posts only -- unread zeroes do not dilute it", () => {
-    expect(creatorEngagementValue([measured, { ...measured, engagementRate: 6 }, unread, unread])).toBe(5);
+  it("rates a post from its counters, the campaign rate's four terms", () => {
+    expect(postEngagementValue(measured)).toBeCloseTo(4, 10);
+  });
+
+  it("never prints the stored column, which holds CreatorCore's fraction on imported rows", () => {
+    // An imported 10% post stores 0.1 there; the counters say 10%.
+    const imported = { engagementRate: 0.1, viewsCount: 2000, likesCount: 180, commentsCount: 20, lastSyncedAt: read };
+    expect(postEngagementValue(imported)).toBeCloseTo(10, 10);
+  });
+
+  it("weights a creator's rate by views across measured posts -- unread zeroes do not dilute it", () => {
+    const big = { viewsCount: 9000, likesCount: 540, lastSyncedAt: read }; // 6%
+    // (40 + 540) / (1,000 + 9,000) = 5.8%, the campaign tile's ratio of totals.
+    expect(creatorEngagementValue([measured, big, unread, unread])).toBeCloseTo(5.8, 10);
   });
 
   it("is unknown, not 0.0%, when no post was read", () => {
     const v = creatorEngagementValue([unread, unread]);
     expect(isUnknownMetric(v)).toBe(true);
-    expect(reasonOf(v)).toBe("None of their 2 posts has had its likes and comments read yet.");
+    expect(reasonOf(v)).toBe("None of their 2 posts has had its views and likes read yet.");
     expect(reasonOf(creatorEngagementValue([]))).toBe("No posts are tracked for this creator yet.");
   });
 
   it("keeps a measured zero on a read post", () => {
-    expect(postEngagementValue({ engagementRate: 0, likesCount: 0, lastSyncedAt: "2026-09-01T00:00:00Z" })).toBe(0);
+    expect(postEngagementValue({ viewsCount: 500, likesCount: 0, commentsCount: 0, lastSyncedAt: read })).toBe(0);
     expect(isUnknownMetric(postEngagementValue(unread))).toBe(true);
+  });
+
+  it("has no rate when the read did not measure views or likes", () => {
+    // A partial read: likes measured, views not -- not a 0% post.
+    const noViews = { viewsCount: 0, likesCount: 12, lastSyncedAt: read, platformMetrics: { __measured: ["likes", "comments"] } };
+    expect(isUnknownMetric(postEngagementValue(noViews))).toBe(true);
+    // Likes hidden by the creator: comments alone would understate the rate.
+    const hiddenLikes = { viewsCount: 800, likesCount: 0, commentsCount: 9, lastSyncedAt: read, platformMetrics: { __measured: ["views", "comments"] } };
+    expect(isUnknownMetric(postEngagementValue(hiddenLikes))).toBe(true);
   });
 
   it("reads a post's counters by lib/metricDisplay's per-field rule", () => {

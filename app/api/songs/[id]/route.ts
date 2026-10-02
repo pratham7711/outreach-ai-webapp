@@ -3,6 +3,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { authenticateRequest } from "@/lib/authenticate";
 import { computeEngagementRate } from "@/lib/metrics";
+import { postEngagementPercent } from "@/lib/metricDisplay";
 import { logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
 
@@ -163,7 +164,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       likesCount: p.likesCount,
       commentsCount: p.commentsCount,
       sharesCount: p.sharesCount,
-      engagementRate: p.engagementRate,
+      engagementRate: postEngagementPercent(p),
       status: p.status,
       lastSyncedAt: p.lastSyncedAt,
       creatorId: p.creator?.id ?? null,

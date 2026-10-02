@@ -105,12 +105,12 @@ export function OverviewSection({
              views today raised March and every point after it -- and the chart
              you screenshotted last week no longer matched the chart today.
              It is now genuinely measured: /api/cron/snapshot-org-views writes one
-             row per org per day at 03:30 UTC holding the lifetime views of every
+             row per org per day at 00:30 UTC holding the lifetime views of every
              post the org holds, and the line joins those readings. Each point is
              a running total (it only goes up), and the series starts the day the
              first reading landed -- there is no history to backfill, because
              history was never recorded. */
-          description="One reading per day, taken at 03:30 UTC: the lifetime views of every post in this workspace as of that morning — including posts older than the range the tiles above use. The line starts from the first reading; earlier days were never measured."
+          description="One reading per day, taken at 00:30 UTC: the lifetime views of every post in this workspace as of that morning, a video in two campaigns counted once — including posts older than the range the tiles above use. The line starts from the first reading; earlier days were never measured."
         >
           {loading ? (
             <Skeleton className="h-[400px] w-full rounded-lg" />
@@ -133,14 +133,14 @@ export function OverviewSection({
                   </p>
                   <p className="max-w-sm text-xs text-[var(--cc-text-muted)]">
                     Lifetime views across {formatNumber(series[0].posts)} posts. The next reading
-                    is taken at 03:30 UTC — from two readings on, this becomes a line.
+                    is taken at 00:30 UTC — from two readings on, this becomes a line.
                   </p>
                 </>
               ) : (
                 <>
                   <p className="text-sm font-medium text-[var(--cc-text)]">No readings yet</p>
                   <p className="max-w-sm text-xs text-[var(--cc-text-muted)]">
-                    Views are measured once a day at 03:30 UTC. The first reading appears after
+                    Views are measured once a day at 00:30 UTC. The first reading appears after
                     the next run, and the line builds from there.
                   </p>
                 </>

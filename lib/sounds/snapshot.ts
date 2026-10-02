@@ -3,7 +3,7 @@ import { isCoverUrlStale } from "@/lib/sounds/coverUrl";
 import { readTikTokAudioUsage, isMeasuredRung } from "@/lib/platforms/tiktokAudioUsage";
 import { readInstagramAudioUsage } from "@/lib/platforms/instagramAudioUsage";
 import { createLogger } from "@/lib/observability/logger";
-import { velocityBetween } from "@/lib/trackers/metrics";
+import { holdSoundReading, velocityBetween } from "@/lib/trackers/metrics";
 
 export type SnapshotResult = {
   snapshots: number;
@@ -186,6 +186,18 @@ export async function snapshotSounds(options: SnapshotOptions = {}): Promise<Sna
        not a measurement -- that path returns zero when it could not read -- so it
        stays a skip. The distinction is which rung answered, not the number. */
     if (stats.usesCount < 0 || (!isMeasuredRung(rung) && stats.usesCount <= 0)) {
+      skipped++;
+      continue;
+    }
+
+    // A fall far below the last reading waits for a later one (holdSoundReading).
+    if (holdSoundReading(sound.snapshots[0], stats.usesCount)) {
+      log.warn("sound reading held", {
+        soundId: sound.id,
+        rung,
+        usesCount: stats.usesCount,
+        previous: sound.snapshots[0]?.usesCount,
+      });
       skipped++;
       continue;
     }

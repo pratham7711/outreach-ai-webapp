@@ -42,11 +42,17 @@ export function embedSrcFor(
       return numeric ? `https://www.tiktok.com/embed/v2/${numeric}` : null;
     }
     case "YOUTUBE": {
-      const vid = id || url.match(/(?:youtu\.be\/|[?&]v=|\/shorts\/)([\w-]{6,})/)?.[1];
+      /* A YouTube video id is exactly eleven characters. CreatorCore's import
+         stored its own 32-character record id in platformPostId on 838 posts,
+         and handing that to the player drew "Video unavailable" for every one
+         of them, so the stored id is only trusted when it has the right shape. */
+      const stored = id && /^[\w-]{11}$/.test(id) ? id : undefined;
+      const vid = stored ?? url.match(/(?:youtu\.be\/|[?&]v=|\/shorts\/|\/live\/|\/embed\/)([\w-]{11})/)?.[1];
       return vid ? `https://www.youtube.com/embed/${vid}` : null;
     }
     case "INSTAGRAM": {
-      const shortcode = id || url.match(/\/(?:p|reel|reels)\/([^/?#]+)/)?.[1];
+      // The URL names the post; a stored id can be an importer's record id.
+      const shortcode = url.match(/\/(?:p|reel|reels|tv)\/([^/?#]+)/)?.[1] ?? id;
       return shortcode ? `https://www.instagram.com/p/${shortcode}/embed` : null;
     }
     default:

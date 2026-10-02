@@ -194,11 +194,13 @@ export async function GET(
             p.platformMetrics,
             "comments"
           );
+          /* No fallback to the stored column: it holds CreatorCore's fraction on
+             imported rows and a percent on synced ones (see postEngagementPercent),
+             so a post with no views to divide by has no rate, not that one. */
           const rate =
             likes === null && comments === null
               ? null
-              : engagementRateValue(p.likesCount, p.commentsCount, p.viewsCount, p.lastSyncedAt) ??
-                p.engagementRate;
+              : engagementRateValue(p.likesCount, p.commentsCount, p.viewsCount, p.lastSyncedAt);
           const measured = postMeasuredAt(p);
           return [
             day(p.postedAt),

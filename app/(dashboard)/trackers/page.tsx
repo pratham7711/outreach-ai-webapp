@@ -16,7 +16,7 @@ import { apiDelete, apiFetch, apiPost } from "@/lib/api/client";
 import { errorMessage } from "@/lib/api/errorMessage";
 import { describeTrackerSweep } from "@/lib/refreshSummary";
 import { SOUND_URL_ERRORS, parseSoundUrl } from "@/lib/trackers/soundUrl";
-import { changeSpanLabel, isTrackerWindow } from "@/lib/trackers/metrics";
+import { changeSpanLabel, isTrackerWindow, spanMatchesWindow } from "@/lib/trackers/metrics";
 import type { ChartGranularity } from "@/lib/trackers/granularity";
 import { action } from "@/lib/ui/actions";
 
@@ -339,9 +339,18 @@ export default function TrackersPage() {
       totalTrackers: allSounds.length,
       totalUses: allSounds.reduce((sum, s) => sum + (s.latestSnapshot?.usesCount ?? 0), 0),
       trendingCount: allSounds.filter((s) => s.status === "viral" || s.status === "trending").length,
-      newToday: allSounds.reduce((sum, s) => sum + (s.addedInPeriod ?? 0), 0),
+      /* Only rows whose readings span the period: the tile's label names the
+         period, and a row measured over a different stretch already says so
+         on its own line. */
+      newToday: allSounds.reduce(
+        (sum, s) =>
+          s.change && isTrackerWindow(period) && spanMatchesWindow(s.change.spanHours, period)
+            ? sum + (s.addedInPeriod ?? 0)
+            : sum,
+        0,
+      ),
     }),
-    [allSounds]
+    [allSounds, period]
   );
   const { totalTrackers, totalUses, trendingCount, newToday } = stats;
 

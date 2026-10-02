@@ -18,6 +18,13 @@ jest.mock("@/lib/db", () => ({
   },
 }));
 
+/* Org totals leave out repeat copies of a video (lib/posts/duplicates). That
+   lookup is its own query; these tests are about the aggregates, so it finds none. */
+const mockDuplicatePostIds = jest.fn().mockResolvedValue([]);
+jest.mock("@/lib/posts/duplicates", () => ({
+  ...jest.requireActual("@/lib/posts/duplicates"),
+  duplicatePostIds: (...args: unknown[]) => mockDuplicatePostIds(...args),
+}));
 jest.mock("@/lib/auth", () => ({ auth: jest.fn() }));
 
 import { db } from "@/lib/db";
@@ -302,6 +309,23 @@ describe("GET /api/analytics", () => {
     await getAnalytics(makeRequest());
     expect(mockDb.payout.findMany).not.toHaveBeenCalled();
     expect(mockDb.post.findMany).not.toHaveBeenCalled();
+  });
+
+  /* 303 videos on production sat on two or more rows -- one video delivered
+     against two campaigns -- and the org totals counted their views twice. */
+  it("counts a video in two campaigns once in the org totals, but keeps both campaigns", async () => {
+    mockDuplicatePostIds.mockResolvedValueOnce(["post-copy"]);
+    await getAnalytics(makeRequest());
+
+    for (const call of mockDb.post.aggregate.mock.calls) {
+      expect(call[0].where.id).toEqual({ notIn: ["post-copy"] });
+    }
+    const byGroup = (by: string[]) =>
+      mockDb.post.groupBy.mock.calls.find((c: Array<{ by: string[]; where: unknown }>) => c[0].by.join() === by.join())![0].where;
+    expect(byGroup(["platform"]).id).toEqual({ notIn: ["post-copy"] });
+    expect(byGroup(["creatorId"]).id).toEqual({ notIn: ["post-copy"] });
+    // Campaigns per creator is a count of campaigns, so both copies stay.
+    expect(byGroup(["creatorId", "campaignId"]).id).toBeUndefined();
   });
 
   it("does not leak data across orgs (cross-tenant isolation)", async () => {

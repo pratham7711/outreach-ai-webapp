@@ -8,6 +8,7 @@ import {
   parsePostTracking,
 } from "@/lib/trackers/granularity";
 import { hoursRemaining } from "@/lib/sync/postTracking";
+import { readableSnapshots } from "@/lib/metricDisplay";
 
 type RouteParams = { params: Promise<{ id: string; postId: string }> };
 
@@ -45,19 +46,26 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     );
     const chartGranularity = effectiveChartGranularity(granularity);
 
-    const allRows = await db.postMetricSnapshot.findMany({
-      where: { postId },
-      orderBy: { recordedAt: "asc" },
-      select: {
-        id: true,
-        viewsCount: true,
-        likesCount: true,
-        commentsCount: true,
-        sharesCount: true,
-        engagementRate: true,
-        recordedAt: true,
-      },
-    });
+    /* Readings that did not measure views are dropped, and a counter a reading
+       left out holds its last known level: a placeholder 0 between two real
+       readings drew a collapse on this chart and handed the bot heuristics a
+       spike on the way back up. */
+    const allRows = readableSnapshots(
+      await db.postMetricSnapshot.findMany({
+        where: { postId },
+        orderBy: { recordedAt: "asc" },
+        select: {
+          id: true,
+          viewsCount: true,
+          likesCount: true,
+          commentsCount: true,
+          sharesCount: true,
+          engagementRate: true,
+          platformMetrics: true,
+          recordedAt: true,
+        },
+      }),
+    );
     /* Last reading in a bucket wins, not the mean. Every counter here is a
        level -- the view count as at that moment -- so the close of a bucket is a
        state that was really observed, while an average of six readings is a

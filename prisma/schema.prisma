@@ -1254,6 +1254,9 @@ model TikTokSound {
   org       Organization           @relation(fields: [orgId], references: [id])
   snapshots SoundTrackerSnapshot[]
   songs     Song[]
+
+  /// The tenant key: every trackers page and the sound sweep filter on it.
+  @@index([orgId])
 }
 
 model SoundTrackerSnapshot {
@@ -1266,6 +1269,10 @@ model SoundTrackerSnapshot {
   recordedAt     DateTime @default(now())
 
   sound TikTokSound @relation(fields: [soundId], references: [id])
+
+  /// "Newest reading for this sound" and "its last 61 readings". Without it
+  /// both read the whole table once per sound (lib/ops/trackerIndexDdl.ts).
+  @@index([soundId, recordedAt])
 }
 
 /// Follower and view history for a tracked creator, mirroring SoundTrackerSnapshot.
@@ -1289,9 +1296,10 @@ model CreatorTrackerSnapshot {
 
   creator Creator @relation(fields: [creatorId], references: [id], onDelete: Cascade)
 
-  /// The sweep reads "newest N for this creator" every run; SoundTrackerSnapshot
-  /// has no equivalent index and does a scan per sound.
+  /// The sweep reads "newest N for this creator" every run.
   @@index([creatorId, recordedAt])
+  /// The hourly canary reads "the last day of readings" across every creator.
+  @@index([recordedAt])
 }
 
 // ─── Clients & Plans ──────────────────────────────────────────────────────────

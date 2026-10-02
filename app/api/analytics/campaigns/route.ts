@@ -4,7 +4,7 @@ import { READ_CACHE_HEADERS } from "@/lib/http/readCache";
 import { authenticateRequest } from "@/lib/authenticate";
 import { carryForwardViewsByDay } from "@/lib/analytics/viewsSeries";
 import { campaignVsOrgAverage } from "@/lib/metrics";
-import { rollupEngagement } from "@/lib/metricDisplay";
+import { rollupEngagement, snapshotViewsKnown } from "@/lib/metricDisplay";
 import type { EngagementRatePost } from "@/lib/metricDisplay";
 
 const PLATFORMS = ["TIKTOK", "INSTAGRAM", "YOUTUBE", "TWITTER"] as const;
@@ -69,7 +69,7 @@ export async function GET(req: NextRequest) {
         lastSyncedAt: true,
         snapshots: {
           where: from ? { recordedAt: { gte: from } } : undefined,
-          select: { recordedAt: true, viewsCount: true },
+          select: { recordedAt: true, viewsCount: true, platformMetrics: true },
           orderBy: { recordedAt: "asc" },
         },
       },
@@ -160,8 +160,9 @@ export async function GET(req: NextRequest) {
       postedAt: p.postedAt,
       viewsCount: p.viewsCount,
     })),
+    // A reading that did not measure views is not a reading of 0 views.
     snapshots: posts.flatMap((p) =>
-      p.snapshots.map((s) => ({
+      p.snapshots.filter(snapshotViewsKnown).map((s) => ({
         postId: p.id,
         recordedAt: s.recordedAt,
         viewsCount: s.viewsCount,

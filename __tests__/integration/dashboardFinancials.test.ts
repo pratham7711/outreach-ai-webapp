@@ -22,6 +22,13 @@ jest.mock("@/lib/db", () => ({
   },
 }));
 
+/* Org totals leave out repeat copies of a video (lib/posts/duplicates). That
+   lookup is its own query; these tests are about the aggregates, so it finds none. */
+const mockDuplicatePostIds = jest.fn().mockResolvedValue([]);
+jest.mock("@/lib/posts/duplicates", () => ({
+  ...jest.requireActual("@/lib/posts/duplicates"),
+  duplicatePostIds: (...args: unknown[]) => mockDuplicatePostIds(...args),
+}));
 jest.mock("@/lib/auth", () => ({
   auth: jest.fn(),
 }));
@@ -147,6 +154,18 @@ describe("GET /api/dashboard/financials", () => {
     for (const where of postWheres) {
       expect(where.campaign).toEqual({ orgId: "org-1", deletedAt: null });
     }
+  });
+
+  it("counts a video in two campaigns once org-wide, and once per campaign in Views by campaign", async () => {
+    mockDuplicatePostIds.mockResolvedValueOnce(["post-copy"]);
+    await GET(makeRequest("http://localhost/api/dashboard/financials"));
+
+    const byGroup = (by: string) =>
+      mockDb.post.groupBy.mock.calls.find((c: Array<{ by: string[]; where: unknown }>) => c[0].by.join() === by)![0].where;
+    expect(byGroup("platform").id).toEqual({ notIn: ["post-copy"] });
+    expect(byGroup("creatorId").id).toEqual({ notIn: ["post-copy"] });
+    expect(byGroup("campaignId").id).toBeUndefined();
+    expect(mockDb.post.findMany.mock.calls[0][0].where.id).toEqual({ notIn: ["post-copy"] });
   });
 
   /* Total Creators is a roster count, and a roster is the campaigns that still

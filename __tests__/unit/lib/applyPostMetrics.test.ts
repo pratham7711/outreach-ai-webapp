@@ -149,6 +149,49 @@ describe("applyPostMetrics — writes only what the platform reported", () => {
   });
 });
 
+describe("applyPostMetrics — the snapshot holds what the post holds", () => {
+  const stored = { ...post, viewsCount: 52000, likesCount: 3900, commentsCount: 80, sharesCount: 12, savesCount: 40 };
+
+  it("carries the stored views into a partial read's snapshot instead of 0", async () => {
+    /* Graph timed out, the embed answered with comments: the history must not
+       show this post's 52,000 views falling to nothing for the day. */
+    await applyPostMetrics(stored, metrics({ commentsCount: 95 }));
+    const snap = mockSnapshotCreate.mock.calls[0][0].data;
+    expect(snap.viewsCount).toBe(52000);
+    expect(snap.likesCount).toBe(3900);
+    expect(snap.commentsCount).toBe(95);
+    expect(snap.savesCount).toBe(40);
+    // Still honest about what this read measured.
+    expect(snap.platformMetrics.__measured).toEqual(["comments"]);
+  });
+
+  it("rates the post from known counters when the read carried only some of them", async () => {
+    await applyPostMetrics(stored, metrics({ likesCount: 4100 }));
+    // (4,100 + 80) / 52,000, not (4,100 + 0) / 0 = 0.
+    expect(postWriteData().engagementRate).toBeCloseTo(((4100 + 80) / 52000) * 100, 10);
+  });
+
+  it("leaves the stored rate alone when no views were ever measured", async () => {
+    await applyPostMetrics(post, metrics({ likesCount: 4100, commentsCount: 87 }));
+    expect(postWriteData()).not.toHaveProperty("engagementRate");
+    // The snapshot column cannot be null; the post page rates rows from counts.
+    expect(mockSnapshotCreate.mock.calls[0][0].data.engagementRate).toBe(0);
+  });
+
+  it("leaves the stored rate alone when likes were never measured", async () => {
+    // Hidden likes: comments over views alone would understate the rate.
+    await applyPostMetrics({ ...post, viewsCount: 9000 }, metrics({ viewsCount: 9100, commentsCount: 30 }));
+    expect(postWriteData()).not.toHaveProperty("engagementRate");
+  });
+
+  it("still writes 0 for a counter nobody has ever held", async () => {
+    await applyPostMetrics(post, metrics({ likesCount: 7 }));
+    const snap = mockSnapshotCreate.mock.calls[0][0].data;
+    expect(snap.viewsCount).toBe(0);
+    expect(snap.platformMetrics.__measured).toEqual(["likes"]);
+  });
+});
+
 describe("applyPostMetrics — snapshot provenance", () => {
   it('signs the snapshot "api" by default', async () => {
     await applyPostMetrics(post, metrics({ viewsCount: 100, likesCount: 5 }));

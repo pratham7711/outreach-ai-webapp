@@ -77,7 +77,7 @@ export type CampaignSort = { key: CampaignSortKey; dir: "asc" | "desc" };
  * This used to be `updated`, which reads as "most recently worked on" and is
  * not: `Campaign.updatedAt` is Prisma's `@updatedAt`, so any write to the row
  * bumps it, including background ones nobody asked for. The 6-hourly
- * `sync-posts` cron stamps `lastRefreshAt` on every campaign it sweeps, which
+ * `sync-posts` cron stamps `lastRefreshAt` on every campaign it measures, which
  * drags `updatedAt` with it and silently reorders the list under whoever is
  * reading it. `createdAt` is set once and never moves, so the order only
  * changes when a campaign is created or deleted.

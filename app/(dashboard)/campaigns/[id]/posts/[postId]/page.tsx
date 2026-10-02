@@ -8,7 +8,7 @@ import { Button } from "@/components/ds";
 import { ArrowLeft, ExternalLink, RefreshCw, Eye, Heart, MessageCircle, Share2, Download, Bookmark, TrendingUp, Flag, Lock, Activity, ShieldAlert, Shield, Play, Users } from "lucide-react";
 import dynamic from "next/dynamic";
 import { computeEngagementRate } from "@/lib/metrics";
-import { metricValue, fieldMetricValue, unwrittenMetricValue, type MetricField } from "@/lib/metricDisplay";
+import { metricValue, fieldMetricValue, unwrittenMetricValue, readableSnapshots, snapshotMetric, type MetricField } from "@/lib/metricDisplay";
 import { postAgeContext, postMeasuredAt, postStatus } from "@/lib/posts/postStatus";
 import PostStatusChip from "@/components/posts/PostStatusChip";
 import { AgeLabel } from "@/components/ds/AgeLabel";
@@ -74,6 +74,8 @@ type Snapshot = {
   syncSource: string | null;
   isFinalSnapshot: boolean;
   recordedAt: string;
+  /** Which counters this reading measured (lib/metricDisplay snapshotMetric). */
+  platformMetrics?: unknown;
 };
 
 type LiveComments = {
@@ -103,9 +105,10 @@ type TimeseriesSnapshot = {
   id: string;
   recordedAt: string;
   viewsCount: number;
-  likesCount: number;
-  commentsCount: number;
-  sharesCount: number;
+  /** null until a reading measured it. */
+  likesCount: number | null;
+  commentsCount: number | null;
+  sharesCount: number | null;
   engagementRate: number;
 };
 
@@ -175,6 +178,12 @@ function FigureValue({ text, color = "var(--cc-text)" }: { text: string; color?:
 
 function formatNumber(num: number): string {
   return formatFull(num);
+}
+
+/** One snapshot counter, or "—" when that reading did not measure it. */
+function snapshotCell(value: number | null | undefined, platformMetrics: unknown, field: MetricField): string {
+  const v = snapshotMetric(value, platformMetrics, field);
+  return v === null ? "—" : formatFull(v);
 }
 
 const UNWRITTEN_CARDS = new Set(["savesCount", "reachCount", "downloadsCount"]);
@@ -470,7 +479,11 @@ export default function PostDetailPage() {
   const snapshotGrid = snapshotCols.map((c) => c.width).join(" ");
   const snapshotMinWidth = snapshotCols.reduce((sum, c) => sum + c.min + 12, 48);
 
-  const chartData = post.snapshots.map((s) => ({
+  /* Oldest first: the route sends the newest 50 newest-first for the table
+     below, and charting them in that order ran the time axis backwards. Only
+     readings that measured views are plotted (lib/metricDisplay
+     readableSnapshots), so a partial read is not drawn as a fall to 0. */
+  const chartData = readableSnapshots([...post.snapshots].reverse()).map((s) => ({
     // UTC named, so the axis labels a snapshot with the same day the server
     // rendered it under, and with the day the series is bucketed by.
     date: new Date(s.recordedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }),
@@ -484,7 +497,7 @@ export default function PostDetailPage() {
   const trackingSeries = (timeseries?.snapshots ?? []).map((s) => ({
     ts: new Date(s.recordedAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric" }),
     views: s.viewsCount,
-    engagement: s.likesCount + s.commentsCount,
+    engagement: s.likesCount === null && s.commentsCount === null ? null : (s.likesCount ?? 0) + (s.commentsCount ?? 0),
   }));
 
   return (
@@ -847,21 +860,23 @@ export default function PostDetailPage() {
               }}
             >
               <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text)" }}>{formatDateTimeAbs(s.recordedAt)}</span>
-              <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{formatNumber(s.viewsCount)}</span>
-              <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{formatNumber(s.likesCount)}</span>
-              <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{formatNumber(s.commentsCount)}</span>
-              <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{formatNumber(s.sharesCount ?? 0)}</span>
+              <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{snapshotCell(s.viewsCount, s.platformMetrics, "views")}</span>
+              <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{snapshotCell(s.likesCount, s.platformMetrics, "likes")}</span>
+              <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{snapshotCell(s.commentsCount, s.platformMetrics, "comments")}</span>
+              <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{snapshotCell(s.sharesCount, s.platformMetrics, "shares")}</span>
               {snapshotSaves && (
                 <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{formatNumber(s.savesCount ?? 0)}</span>
               )}
               {engRate !== null && (
                 <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-primary)" }}>
                   {(() => {
-                    const r = computeEngagementRate({
-                      views: s.viewsCount,
-                      likes: s.likesCount,
-                      comments: s.commentsCount,
-                      shares: s.sharesCount,
+                    const views = snapshotMetric(s.viewsCount, s.platformMetrics, "views");
+                    const likes = snapshotMetric(s.likesCount, s.platformMetrics, "likes");
+                    const r = views === null || likes === null ? null : computeEngagementRate({
+                      views,
+                      likes,
+                      comments: snapshotMetric(s.commentsCount, s.platformMetrics, "comments"),
+                      shares: snapshotMetric(s.sharesCount, s.platformMetrics, "shares"),
                       saves: s.savesCount,
                     });
                     return r === null ? "—" : `${(r * 100).toFixed(1)}%`;

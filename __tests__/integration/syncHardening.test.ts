@@ -391,12 +391,13 @@ describe("cron sync hardening — sealing", () => {
     expect(txArg).toHaveLength(2);
   });
 
-  it("stamps lastSyncedAt on the seal only when the post was measured before", async () => {
+  it("never moves lastSyncedAt: a seal reads nothing, so its counters are as old as the last read", async () => {
     mockPostCandidates([
       makePost({
         id: "p-measured",
         trackingExpiresAt: hoursAgo(1),
         lastSyncedAt: hoursAgo(40 * 24),
+        platformMetrics: { __measured: ["views", "likes", "comments"] },
       }),
     ]);
     mockDb.$transaction.mockResolvedValue([{}, {}]);
@@ -408,7 +409,29 @@ describe("cron sync hardening — sealing", () => {
     expect(body.sealed).toBe(1);
     const updateArg = mockDb.post.update.mock.calls[0][0];
     expect(updateArg.where.id).toBe("p-measured");
-    expect(updateArg.data.lastSyncedAt).toBeInstanceOf(Date);
+    expect(updateArg.data).not.toHaveProperty("lastSyncedAt");
+    // The final row says which of its counters were real.
+    const snapArg = mockDb.postMetricSnapshot.create.mock.calls[0][0];
+    expect(snapArg.data.platformMetrics).toEqual({ __measured: ["views", "likes", "comments"] });
+  });
+
+  it("seals saves and downloads too, and marks a never-read post's zeros unknown", async () => {
+    mockPostCandidates([
+      makePost({
+        id: "p-imported",
+        trackingExpiresAt: hoursAgo(1),
+        viewsCount: 900,
+        savesCount: 12,
+        downloadsCount: 4,
+      }),
+    ]);
+    mockDb.$transaction.mockResolvedValue([{}, {}]);
+
+    await cronSync(cronReq());
+
+    const snapArg = mockDb.postMetricSnapshot.create.mock.calls[0][0];
+    expect(snapArg.data).toMatchObject({ viewsCount: 900, savesCount: 12, downloadsCount: 4 });
+    expect(snapArg.data.platformMetrics).toEqual({ __measured: [] });
   });
 
   it("is idempotent — skips when a final snapshot already exists", async () => {
@@ -601,6 +624,101 @@ describe("cron sync — TikTok", () => {
 });
 
 /**
+ * The reads run side by side now, one queue per platform. The loop this
+ * replaced read one post at a time across all three, and on production it ended
+ * at the four-minute deadline every run (243.6s on 2026-10-02 18:00) having
+ * measured 30-45 TikTok posts, while the pool's second lane sat idle.
+ *
+ * What these pin is what concurrency must not change: the pool is never asked
+ * for more reads at once than it has lanes, a budget is spent exactly however
+ * many reads are in flight, and a post the deadline cut off is still counted.
+ */
+describe("cron sync — concurrent reads", () => {
+  const tiktokPost = (id: string) =>
+    makePost({ id, platform: "TIKTOK", postUrl: `https://www.tiktok.com/@u/video/${id}` });
+  const realTikTokBudget = process.env.SYNC_BUDGET_TIKTOK;
+  let clockSpy: jest.SpyInstance | undefined;
+
+  /* A read that takes a tick, and a count of how many were open at once. */
+  function trackInFlight() {
+    const seen = { now: 0, max: 0 };
+    mockFetch.mockImplementation(async () => {
+      seen.now++;
+      seen.max = Math.max(seen.max, seen.now);
+      await new Promise((r) => setTimeout(r, 5));
+      seen.now--;
+      return undefined;
+    });
+    return seen;
+  }
+
+  beforeEach(() => {
+    mockPool.size = 3;
+    mockDb.post.update.mockResolvedValue({});
+  });
+
+  afterEach(() => {
+    mockPool.size = 1;
+    if (realTikTokBudget === undefined) delete process.env.SYNC_BUDGET_TIKTOK;
+    else process.env.SYNC_BUDGET_TIKTOK = realTikTokBudget;
+    clockSpy?.mockRestore();
+    clockSpy = undefined;
+  });
+
+  it("keeps one TikTok read in flight per lane, and no more", async () => {
+    mockPostCandidates(["a", "b", "c", "d", "e", "f", "g"].map(tiktokPost));
+    const inFlight = trackInFlight();
+
+    const res = await cronSync(cronReq());
+    expect(res.status).toBe(200);
+
+    expect(mockFetch).toHaveBeenCalledTimes(7);
+    expect(inFlight.max).toBe(3);
+  });
+
+  it("reads the platforms at the same time rather than one after another", async () => {
+    mockPostCandidates([tiktokPost("tt-1"), makePost({ id: "ig-1" })]);
+    const inFlight = trackInFlight();
+
+    await cronSync(cronReq());
+
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    expect(inFlight.max).toBe(2);
+  });
+
+  it("spends a platform's budget exactly, however many reads are in flight", async () => {
+    process.env.SYNC_BUDGET_TIKTOK = "2";
+    mockPostCandidates(["a", "b", "c", "d", "e"].map(tiktokPost));
+    trackInFlight();
+
+    const body = await (await cronSync(cronReq())).json();
+
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    expect(body.skippedForBudget).toBe(3);
+    expect(body.skippedByReason).toEqual({ budget: 3 });
+  });
+
+  it("counts every post a platform had not reached by the deadline", async () => {
+    mockPostCandidates(["a", "b", "c", "d", "e"].map(tiktokPost));
+    /* The first read takes five minutes, as far as the route can tell. */
+    const start = Date.now();
+    let clock = start;
+    clockSpy = jest.spyOn(Date, "now").mockImplementation(() => clock);
+    mockFetch.mockImplementation(async () => {
+      clock = start + 5 * 60 * 1000;
+      return undefined;
+    });
+
+    const body = await (await cronSync(cronReq())).json();
+
+    /* Three lanes claimed a, b and c before the clock moved; d and e were
+       never claimed. */
+    expect(mockFetch).toHaveBeenCalledTimes(3);
+    expect(body.skippedForBudget).toBe(2);
+  });
+});
+
+/**
  * Which campaigns the cron sweeps at all.
  *
  * Campaign.refreshInterval / refreshActive / lastRefreshAt were migrated from
@@ -709,7 +827,7 @@ describe("cron sync — post tracker selection", () => {
 });
 
 describe("cron sync — campaign lastRefreshAt", () => {
-  it("stamps lastRefreshAt only on the campaigns it actually swept", async () => {
+  it("stamps lastRefreshAt only on the campaigns it actually measured", async () => {
     mockDb.campaign.findMany.mockResolvedValue([
       { id: "campaign-1", refreshActive: true, refreshInterval: 1, lastRefreshAt: hoursAgo(4) },
       { id: "campaign-2", refreshActive: true, refreshInterval: 1, lastRefreshAt: hoursAgo(4) },
@@ -736,6 +854,51 @@ describe("cron sync — campaign lastRefreshAt", () => {
     const arg = mockDb.campaign.updateMany.mock.calls[0][0];
     expect(arg.where.id.in).toEqual(["campaign-1"]);
     expect(arg.data.lastRefreshAt).toBeInstanceOf(Date);
+  });
+
+  it("does not stamp a campaign whose posts were asked but none measured", async () => {
+    mockDb.campaign.findMany.mockResolvedValue([
+      { id: "campaign-1", refreshActive: true, refreshInterval: 1, lastRefreshAt: hoursAgo(4) },
+      { id: "campaign-2", refreshActive: true, refreshInterval: 1, lastRefreshAt: hoursAgo(4) },
+    ]);
+    mockPostCandidates([
+      makePost({ id: "ig-1", campaignId: "campaign-1", postUrl: "https://www.instagram.com/reel/A1/" }),
+      makePost({ id: "ig-2", campaignId: "campaign-2", postUrl: "https://www.instagram.com/reel/A2/" }),
+    ]);
+    const counts = {
+      platform: "INSTAGRAM",
+      platformPostId: "1",
+      thumbnailUrl: null,
+      caption: null,
+      viewsCount: 7,
+      likesCount: 1,
+      commentsCount: 0,
+      sharesCount: 0,
+      engagementRate: 1,
+      postedAt: new Date(),
+    };
+    mockFetch.mockImplementation(async (url: string) => {
+      if (url.includes("A1")) return counts;
+      throw new Error("lane died");
+    });
+    mockDb.$transaction.mockResolvedValue([{}, {}]);
+
+    await cronSync(cronReq());
+
+    expect(mockDb.campaign.updateMany).toHaveBeenCalledTimes(1);
+    expect(mockDb.campaign.updateMany.mock.calls[0][0].where.id.in).toEqual(["campaign-1"]);
+  });
+
+  it("stamps nothing when every read failed", async () => {
+    mockDb.campaign.findMany.mockResolvedValue([
+      { id: "campaign-1", refreshActive: true, refreshInterval: 1, lastRefreshAt: hoursAgo(4) },
+    ]);
+    mockPostCandidates([makePost({ id: "ig-1", campaignId: "campaign-1" })]);
+    mockFetch.mockRejectedValue(new Error("lane died"));
+
+    await cronSync(cronReq());
+
+    expect(mockDb.campaign.updateMany).not.toHaveBeenCalled();
   });
 
   it("stamps nothing when there was nothing to sweep", async () => {

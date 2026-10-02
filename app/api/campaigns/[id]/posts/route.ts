@@ -133,10 +133,13 @@ export async function GET(
         trackingEnabled: true,
         trackingExpiresAt: true,
         creator: { select: { id: true, name: true, handle: true, avatarUrl: true } },
+        /* The views delta needs the two newest readings that measured views;
+           a few spare rows let toPostDto skip a partial read without leaving
+           the post with no delta. */
         snapshots: {
           orderBy: { recordedAt: "desc" },
-          take: 2,
-          select: { id: true, viewsCount: true, recordedAt: true },
+          take: 6,
+          select: { id: true, viewsCount: true, recordedAt: true, platformMetrics: true },
         },
       },
       orderBy: { createdAt: "desc" },

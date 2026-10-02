@@ -4,7 +4,7 @@ import {
   computeEngagementRate,
   sumEngagements,
 } from "@/lib/metrics";
-import { unwrittenMetricValue, fieldMetricValue, rollupEngagement } from "@/lib/metricDisplay";
+import { unwrittenMetricValue, fieldMetricValue, rollupEngagement, snapshotViewsKnownSql } from "@/lib/metricDisplay";
 import type { MetricField } from "@/lib/metricDisplay";
 import { isPostRemoved } from "@/lib/postRemoval";
 import { postStatus, type PostStatusKind } from "@/lib/posts/postStatus";
@@ -467,7 +467,11 @@ async function computeCampaignPerformanceUncached(
        would move readings near midnight into the wrong day. to_char formats it
        in the database, where the value is unambiguous. One row per post per day
        also means there is nothing left to tie-break, so a midnight-UTC Date
-       rebuilt from that string carries all the information the helper needs. */
+       rebuilt from that string carries all the information the helper needs.
+
+       A reading that did not measure views is left out BEFORE the day is
+       collapsed, so the day's latest real reading wins rather than a
+       placeholder 0 (see snapshotViewsKnown). */
     db.$queryRawUnsafe<{ postId: string; day: string; viewsCount: number | null }[]>(
       `SELECT * FROM (
          SELECT DISTINCT ON (s."postId", s."recordedAt"::date)
@@ -477,6 +481,7 @@ async function computeCampaignPerformanceUncached(
            FROM "PostMetricSnapshot" s
            JOIN "Post" p ON p.id = s."postId"
           WHERE p."campaignId" = $1${platformFilter}
+            AND ${snapshotViewsKnownSql("s")}
           ORDER BY s."postId", s."recordedAt"::date, s."recordedAt" DESC, s.id DESC
        ) collapsed
        /* A hard bound, so no single campaign can ever read the whole table.

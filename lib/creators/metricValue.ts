@@ -21,7 +21,13 @@
  * gets a plainer sentence.
  */
 import { UNKNOWN, formatDateAbs, formatFull } from "@/lib/format";
-import { fieldMetricValue, metricValue as postMetricValue, type MetricField } from "@/lib/metricDisplay";
+import {
+  fieldMetricValue,
+  metricValue as postMetricValue,
+  postEngagementPercent,
+  rollupEngagement,
+  type MetricField,
+} from "@/lib/metricDisplay";
 import { followerCount } from "@/lib/trackers/creatorMetrics";
 
 export type UnknownMetric = { unknown: true; reason: string };
@@ -125,9 +131,13 @@ export function avgViewsValue(value: number | null | undefined, evidence: ViewsE
 
 /** A post as the engagement figures need it. */
 export type EngagementPost = {
-  engagementRate: number | null | undefined;
+  viewsCount?: number | null;
   likesCount?: number | null;
+  commentsCount?: number | null;
+  sharesCount?: number | null;
+  savesCount?: number | null;
   lastSyncedAt?: string | Date | null;
+  platformMetrics?: unknown;
 };
 
 /** Whether a post's counters were ever read -- lib/metricDisplay's rule, not a second one. */
@@ -156,33 +166,40 @@ export function postCounterValue(value: number | null | undefined, post: Counter
   );
 }
 
-/** One post's engagement rate, in percent, or why it has none. */
+/**
+ * One post's engagement rate, in percent, or why it has none.
+ *
+ * From the counters, never the stored engagementRate column -- see
+ * postEngagementPercent for why that column cannot be printed.
+ */
 export function postEngagementValue(p: EngagementPost): MetricValue {
-  if (postWasMeasured(p) && typeof p.engagementRate === "number" && Number.isFinite(p.engagementRate)) {
-    return p.engagementRate;
-  }
-  return unknownMetric("Likes and comments have not been read for this post yet.");
+  const rate = postEngagementPercent(p);
+  if (rate !== null) return rate;
+  if (!postWasMeasured(p)) return unknownMetric("Likes and comments have not been read for this post yet.");
+  return unknownMetric("The platform did not report both views and likes for this post, so it has no rate.");
 }
 
 /**
- * A creator's average engagement over their posts, in percent.
+ * A creator's engagement over their posts, in percent.
  *
- * Over measured posts only. An unread post carries engagementRate 0, and
- * averaging it in is how an imported creator's real rate was divided by the
- * zeroes of every post nobody had read (lib/metricDisplay's rollupEngagement
- * documents the same bug on the campaign tile).
+ * The campaign rate's definition -- engagements over views, summed across the
+ * posts whose views and likes were both measured -- so the creator page and a
+ * campaign report agree about the same posts. Unread posts are left out: their
+ * zeroes were never earned, and counting them is how an imported creator's real
+ * rate was divided down towards 0.
  */
 export function creatorEngagementValue(posts: readonly EngagementPost[]): MetricValue {
   if (posts.length === 0) return unknownMetric("No posts are tracked for this creator yet.");
-  const measured = posts.filter((p) => postWasMeasured(p) && typeof p.engagementRate === "number");
+  const measured = posts.filter((p) => postEngagementPercent(p) !== null);
   if (measured.length === 0) {
     return unknownMetric(
       posts.length === 1
-        ? "Their one post has not had its likes and comments read yet."
-        : `None of their ${formatFull(posts.length)} posts has had its likes and comments read yet.`,
+        ? "Their one post has not had its views and likes read yet."
+        : `None of their ${formatFull(posts.length)} posts has had its views and likes read yet.`,
     );
   }
-  return measured.reduce((sum, p) => sum + (p.engagementRate ?? 0), 0) / measured.length;
+  const { rate } = rollupEngagement(measured);
+  return rate === null ? unknownMetric("Their measured posts have no views.") : rate * 100;
 }
 
 /** The figure as text: the number formatted, or "—". */

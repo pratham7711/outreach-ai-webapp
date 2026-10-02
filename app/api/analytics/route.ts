@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { READ_CACHE_HEADERS } from "@/lib/http/readCache";
+import { cachedOrgRead } from "@/lib/reports/orgReadCache";
 import { authenticateRequest } from "@/lib/authenticate";
 import { MEASURED_POSTS_FILTER, rollupEngagementFromTotals } from "@/lib/metricDisplay";
+import { duplicatePostIds, excludingDuplicates } from "@/lib/posts/duplicates";
 import type { Prisma } from "@/lib/generated/prisma/client";
 import { PLATFORM_VALUES } from "@/lib/platforms/constants";
 
@@ -98,14 +100,34 @@ export async function GET(req: NextRequest) {
   const from = parseFrom(req);
   const platform = parsePlatform(req);
   const timeZone = parseTimeZone(req);
+  const now = new Date();
 
+  /* Served from the org's data fingerprint (lib/reports/orgReadCache): the
+     same figures are recomputed only once a post, campaign or creator in the
+     org has changed. The month is in the key because the trend's six slots
+     are cut from it. */
+  const body = await cachedOrgRead(
+    "org-analytics",
+    orgId,
+    [from?.toISOString() ?? "", platform ?? "all", timeZone, monthKey(now.getUTCFullYear(), now.getUTCMonth())],
+    {},
+    () => analyticsBody(orgId, from, platform, timeZone, now),
+  );
+  return NextResponse.json(body, { headers: READ_CACHE_HEADERS });
+}
+
+async function analyticsBody(orgId: string, from: Date | null, platform: string | null, timeZone: string, now: Date) {
   const postWhere: Prisma.PostWhereInput = {
     campaign: { orgId, deletedAt: null },
     ...(platform && { platform: platform as (typeof PLATFORMS)[number] }),
     ...(from && { postedAt: { gte: from } }),
   };
 
-  const now = new Date();
+  /* Org-wide figures count a video once however many campaigns it was
+     delivered against (lib/posts/duplicates). The campaigns-per-creator count
+     below keeps every copy: that is a count of campaigns, not of views. */
+  const orgPostWhere: Prisma.PostWhereInput = { ...postWhere, ...excludingDuplicates(await duplicatePostIds(orgId)) };
+
   const sixMonthsAgo = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 5, 1));
 
   // The same platform and from filters as postWhere, restated for the one query
@@ -135,7 +157,7 @@ export async function GET(req: NextRequest) {
   ] =
     await Promise.all([
       db.post.aggregate({
-        where: postWhere,
+        where: orgPostWhere,
         _sum: { viewsCount: true, likesCount: true, commentsCount: true },
         _count: { _all: true },
       }),
@@ -155,7 +177,7 @@ export async function GET(req: NextRequest) {
          18,602 of 18,708 imported posts, which is why the sample is reported
          beside the rate rather than the rate being quietly diluted. */
       db.post.aggregate({
-        where: { ...postWhere, ...MEASURED_POSTS_FILTER },
+        where: { ...orgPostWhere, ...MEASURED_POSTS_FILTER },
         _sum: {
           viewsCount: true,
           likesCount: true,
@@ -204,7 +226,7 @@ export async function GET(req: NextRequest) {
       ),
       db.post.groupBy({
         by: ["creatorId"],
-        where: postWhere,
+        where: orgPostWhere,
         _sum: {
           viewsCount: true,
           likesCount: true,
@@ -220,7 +242,7 @@ export async function GET(req: NextRequest) {
          always measured -- so the two cannot come from one groupBy. */
       db.post.groupBy({
         by: ["creatorId"],
-        where: { ...postWhere, ...MEASURED_POSTS_FILTER },
+        where: { ...orgPostWhere, ...MEASURED_POSTS_FILTER },
         _sum: {
           viewsCount: true,
           likesCount: true,
@@ -235,7 +257,7 @@ export async function GET(req: NextRequest) {
       db.post.groupBy({ by: ["creatorId", "campaignId"], where: postWhere }),
       db.post.groupBy({
         by: ["platform"],
-        where: postWhere,
+        where: orgPostWhere,
         _sum: { viewsCount: true },
         _count: { _all: true },
       }),
@@ -356,35 +378,32 @@ export async function GET(req: NextRequest) {
     posts: row._count._all,
   }));
 
-  return NextResponse.json(
-    {
-      kpis: {
-        totalViews: kpiRow._sum.viewsCount ?? 0,
-        totalLikes: kpiRow._sum.likesCount ?? 0,
-        totalComments: kpiRow._sum.commentsCount ?? 0,
-        /* A percentage, as the tile prints it — rollupEngagement returns a
-           fraction, and the ×100 lives at the display boundary everywhere else
-           in the product, so it lives at this seam too. */
-        avgEngagementRate: parseFloat(((orgEngagement.rate ?? 0) * 100).toFixed(2)),
-        totalPosts: kpiRow._count._all,
-        engagementSample: measuredRow._count._all,
-      },
-      monthlyTrend,
-      leaderboard,
-      platformBreakdown,
-      campaigns: orgCampaigns,
-      // Already bucketed and medianed by the database, so the client renders the
-      // heatmap without ever seeing a post row. The zone is echoed back because
-      // the buckets only mean anything alongside the clock they were cut in.
-      postingBuckets: slotRows.map((r) => ({
-        day: r.day,
-        hour: r.hour,
-        count: r.count,
-        // percentile_cont is null for a group whose views are all null.
-        medianViews: r.medianViews ?? 0,
-      })),
-      postingTimeZone: timeZone,
+  return {
+    kpis: {
+      totalViews: kpiRow._sum.viewsCount ?? 0,
+      totalLikes: kpiRow._sum.likesCount ?? 0,
+      totalComments: kpiRow._sum.commentsCount ?? 0,
+      /* A percentage, as the tile prints it — rollupEngagement returns a
+         fraction, and the ×100 lives at the display boundary everywhere else
+         in the product, so it lives at this seam too. */
+      avgEngagementRate: parseFloat(((orgEngagement.rate ?? 0) * 100).toFixed(2)),
+      totalPosts: kpiRow._count._all,
+      engagementSample: measuredRow._count._all,
     },
-    { headers: READ_CACHE_HEADERS }
-  );
+    monthlyTrend,
+    leaderboard,
+    platformBreakdown,
+    campaigns: orgCampaigns,
+    // Already bucketed and medianed by the database, so the client renders the
+    // heatmap without ever seeing a post row. The zone is echoed back because
+    // the buckets only mean anything alongside the clock they were cut in.
+    postingBuckets: slotRows.map((r) => ({
+      day: r.day,
+      hour: r.hour,
+      count: r.count,
+      // percentile_cont is null for a group whose views are all null.
+      medianViews: r.medianViews ?? 0,
+    })),
+    postingTimeZone: timeZone,
+  };
 }

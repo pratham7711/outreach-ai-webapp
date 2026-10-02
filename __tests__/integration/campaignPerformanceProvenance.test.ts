@@ -23,6 +23,7 @@ jest.mock("@/lib/db", () => ({
 
 import { db } from "@/lib/db";
 import { computeCampaignPerformance } from "@/lib/reports/campaignPerformance";
+import { snapshotViewsKnownSql } from "@/lib/metricDisplay";
 
 const mockDb = db as unknown as {
   post: { findMany: jest.Mock };
@@ -404,13 +405,23 @@ describe("computeCampaignPerformance views-over-time read", () => {
     await computeCampaignPerformance(campaign);
 
     const sql = sqlOfSeriesRead();
+    // The SELECT list: platformMetrics is read in the WHERE, never sent back.
+    const selected = sql.slice(sql.indexOf("SELECT DISTINCT ON"), sql.indexOf('FROM "PostMetricSnapshot"'));
     for (const column of ["likesCount", "commentsCount", "sharesCount", "platformMetrics", "syncSource"]) {
-      expect(sql).not.toContain(column);
+      expect(selected).not.toContain(column);
     }
     // The day is formatted in Postgres: recordedAt is `timestamp without time
     // zone` holding UTC, and node-postgres reads that as LOCAL time, which would
     // move a reading near midnight into the wrong bucket on an IST laptop.
     expect(sql).toContain("to_char(s.\"recordedAt\", 'YYYY-MM-DD')");
+  });
+
+  it("leaves out readings that did not measure views, before the day is collapsed", async () => {
+    await computeCampaignPerformance(campaign);
+
+    const sql = sqlOfSeriesRead();
+    const where = sql.slice(sql.indexOf("WHERE"), sql.indexOf("ORDER BY s.\"postId\""));
+    expect(where).toContain(snapshotViewsKnownSql("s"));
   });
 
   it("scopes the read to the campaign, with the id bound rather than interpolated", async () => {

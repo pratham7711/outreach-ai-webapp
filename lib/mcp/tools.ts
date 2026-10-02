@@ -2,8 +2,10 @@ import { db } from "@/lib/db";
 import {
   MEASURED_POSTS_FILTER,
   rollupEngagementFromTotals,
+  snapshotMetric,
 } from "@/lib/metricDisplay";
 import { getRefreshCooldown, refreshCampaign } from "@/lib/sync/refreshCampaign";
+import { duplicatePostIds, excludingDuplicates } from "@/lib/posts/duplicates";
 import {
   iso,
   num,
@@ -427,6 +429,7 @@ const TOOLS: Tool[] = [
           savesCount: true,
           syncSource: true,
           isFinalSnapshot: true,
+          platformMetrics: true,
         },
         orderBy: { recordedAt: "desc" },
         take: page.limit,
@@ -435,18 +438,20 @@ const TOOLS: Tool[] = [
       const series = (rows as any[])
         .map((row) => ({
           at: iso(row.recordedAt),
-          views: num(row.viewsCount),
-          likes: num(row.likesCount),
-          comments: num(row.commentsCount),
-          shares: num(row.sharesCount),
+          // null for a counter that reading did not measure, never its placeholder 0.
+          views: snapshotMetric(num(row.viewsCount), row.platformMetrics, "views"),
+          likes: snapshotMetric(num(row.likesCount), row.platformMetrics, "likes"),
+          comments: snapshotMetric(num(row.commentsCount), row.platformMetrics, "comments"),
+          shares: snapshotMetric(num(row.sharesCount), row.platformMetrics, "shares"),
           saves: num(row.savesCount),
           source: row.syncSource ?? null,
           final: row.isFinalSnapshot,
         }))
         .reverse();
 
-      const first = series[0];
-      const last = series[series.length - 1];
+      const withViews = series.filter((r) => r.views !== null);
+      const first = withViews[0];
+      const last = withViews[withViews.length - 1];
       return toolJson({
         postId: post.id,
         postUrl: post.postUrl,
@@ -456,7 +461,7 @@ const TOOLS: Tool[] = [
            snapshots is told the growth across those 10, which is why the window
            is named rather than the whole life of the post implied. */
         growth:
-          series.length < 2 || first?.views == null || last?.views == null
+          withViews.length < 2 || first?.views == null || last?.views == null
             ? null
             : {
                 fromAt: first.at,
@@ -843,15 +848,22 @@ const TOOLS: Tool[] = [
        *
        * Counting also moved into the database. This read every post row in the
        * org to add up two columns.
+       *
+       * Scoped as the dashboard scopes it: live campaigns only, and a video
+       * delivered against two campaigns counted once (lib/posts/duplicates).
        */
+      const orgPosts = {
+        campaign: { orgId, deletedAt: null },
+        ...excludingDuplicates(await duplicatePostIds(orgId)),
+      };
       const [viewRow, ratedRow, payoutRow] = await Promise.all([
         db.post.aggregate({
-          where: { campaign: { orgId } },
+          where: orgPosts,
           _sum: { viewsCount: true },
           _count: { _all: true },
         }),
         db.post.aggregate({
-          where: { campaign: { orgId }, ...MEASURED_POSTS_FILTER },
+          where: { ...orgPosts, ...MEASURED_POSTS_FILTER },
           _sum: {
             viewsCount: true,
             likesCount: true,

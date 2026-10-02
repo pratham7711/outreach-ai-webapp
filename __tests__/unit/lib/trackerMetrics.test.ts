@@ -90,6 +90,23 @@ describe("changeOverWindow", () => {
     expect(result!.to).toBe(900);
   });
 
+  it("spans the window rather than falling short of it at a 12-hourly cadence", () => {
+    // Readings 26h, 14h and 2h ago. The oldest one inside the window is 12h
+    // short of a day; the one just outside it spans the day.
+    const series3 = [snap(100, 26), snap(160, 14), snap(220, 2)];
+    const result = changeOverWindow(series3, "24h", NOW, { nearestBaseline: true });
+    expect(result!.from).toBe(100);
+    expect(result!.spanHours).toBe(24);
+    expect(spanMatchesWindow(result!.spanHours, "24h")).toBe(true);
+    // Off by default, for the creator page's anchored ranking.
+    expect(changeOverWindow(series3, "24h", NOW)!.from).toBe(160);
+  });
+
+  it("keeps the inside reading when it is the nearer one", () => {
+    const result = changeOverWindow([snap(100, 40), snap(160, 23), snap(220, 1)], "24h", NOW, { nearestBaseline: true });
+    expect(result!.from).toBe(160);
+  });
+
   it("does not order-depend on the input array", () => {
     const shuffled = [series[2], series[0], series[3], series[1]];
     expect(changeOverWindow(shuffled, "7d", NOW)).toEqual(changeOverWindow(series, "7d", NOW));

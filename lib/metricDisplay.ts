@@ -177,6 +177,82 @@ export function fieldMetricValue(
 }
 
 /**
+ * One snapshot's counter, or null when that reading did not measure it.
+ *
+ * PostMetricSnapshot's counters are non-nullable Floats, and applyPostMetrics
+ * used to write `?? 0` for every counter a partial read left out -- so a post
+ * whose views did not come back sat at 0 views. Production held 512 such rows
+ * on 419 posts (measured 2026-10-03): 6 between two real readings, which a
+ * chart drew as a collapse and the fraud scan as a spike, and the rest before
+ * the first or after the last, which started or ended a chart at 0 and gave
+ * the posts list a jump. The row's __measured list says which counters the
+ * read held.
+ *
+ * A non-zero figure is kept whatever the list says: the writer now carries the
+ * post's held figure into the row, which is stale but right. A row written
+ * before __measured existed has no list and is taken as read, as before.
+ */
+export function snapshotMetric(
+  value: number | null | undefined,
+  platformMetrics: unknown,
+  field: MetricField,
+): number | null {
+  if (typeof value === "number" && value > 0) return value;
+  const fields = measuredFields(platformMetrics);
+  if (fields && !fields.includes(field)) return null;
+  return typeof value === "number" ? value : null;
+}
+
+/** Whether a snapshot's views were read: snapshotMetric's rule for "views". */
+export function snapshotViewsKnown(s: { viewsCount: number | null | undefined; platformMetrics?: unknown }): boolean {
+  return snapshotMetric(s.viewsCount, s.platformMetrics, "views") !== null;
+}
+
+type SnapshotCounters = {
+  viewsCount: number | null;
+  likesCount: number | null;
+  commentsCount: number | null;
+  sharesCount: number | null;
+  platformMetrics?: unknown;
+};
+
+/**
+ * A post's snapshots as a series, given oldest first: only the rows whose views
+ * were read, and any other counter a reading left out carried from the last row
+ * that held it -- null until one did. A partial read is then a point at the
+ * level the post was last known to be at, never a fall to 0 and back.
+ */
+export function readableSnapshots<T extends SnapshotCounters>(
+  rows: readonly T[],
+): (T & { likesCount: number | null; commentsCount: number | null; sharesCount: number | null })[] {
+  const held: Record<"likes" | "comments" | "shares", number | null> = { likes: null, comments: null, shares: null };
+  const out: (T & { likesCount: number | null; commentsCount: number | null; sharesCount: number | null })[] = [];
+  for (const row of rows) {
+    const read = (value: number | null, field: "likes" | "comments" | "shares") => {
+      const v = snapshotMetric(value, row.platformMetrics, field);
+      if (v !== null) held[field] = v;
+      return held[field];
+    };
+    const likesCount = read(row.likesCount, "likes");
+    const commentsCount = read(row.commentsCount, "comments");
+    const sharesCount = read(row.sharesCount, "shares");
+    if (!snapshotViewsKnown(row)) continue;
+    out.push({ ...row, likesCount, commentsCount, sharesCount });
+  }
+  return out;
+}
+
+/**
+ * snapshotViewsKnown as a SQL predicate over a PostMetricSnapshot alias, for
+ * the readers that collapse snapshots in the database. Same rule, so a chart
+ * drawn in SQL and one drawn in Node drop the same rows.
+ */
+export function snapshotViewsKnownSql(alias: string): string {
+  const bag = `${alias}."platformMetrics" -> '${MEASURED_FIELDS_KEY}'`;
+  return `NOT (${alias}."viewsCount" = 0 AND COALESCE(jsonb_typeof(${bag}) = 'array' AND NOT ((${bag}) @> '["views"]'::jsonb), false))`;
+}
+
+/**
  * Engagement rate is derived from the same unmeasured counters, so it inherits
  * their provenance rather than confidently reporting 0.00%.
  */
@@ -259,6 +335,32 @@ export function rollupEngagement(
     measuredViews,
     rate: measuredViews > 0 ? engagements / measuredViews : null,
   };
+}
+
+/**
+ * One post's engagement rate, in PERCENT, from its counters -- or null.
+ *
+ * The same four-term rate as rollupEngagement, for a single post, and the only
+ * per-post rate a screen may print. Never Post.engagementRate: that column holds
+ * three different things. CreatorCore's import wrote a fraction (0.10 for 10%)
+ * on 14,270 of 15,301 imported TikTok rows, our own sync writes a two-term
+ * percent, and a read that carried no views wrote 0 -- so a screen printing the
+ * column showed a 10% post as "0.1%".
+ *
+ * Null unless views and likes were both measured: a rate over views nobody
+ * read, or with the likes left out, is a number we never had.
+ */
+export function postEngagementPercent(p: EngagementRatePost & { platformMetrics?: unknown }): number | null {
+  const views = fieldMetricValue(p.viewsCount, p.lastSyncedAt, p.platformMetrics, "views");
+  const likes = fieldMetricValue(p.likesCount, p.lastSyncedAt, p.platformMetrics, "likes");
+  if (views === null || views <= 0 || likes === null) return null;
+  const engagements = sumEngagements({
+    likes,
+    comments: p.commentsCount,
+    shares: p.sharesCount,
+    saves: p.savesCount,
+  });
+  return (engagements / views) * 100;
 }
 
 /**

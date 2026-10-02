@@ -106,6 +106,18 @@ describe("parseTikTokSoundRehydration", () => {
     expect(parseTikTokSoundRehydration(wrap(payload))!.usesCount).toBe(77);
   });
 
+  it("never reads userCount as uses: it counts accounts, not videos", () => {
+    const payload = {
+      __DEFAULT_SCOPE__: {
+        "webapp.music-detail": {
+          statusCode: 0,
+          musicInfo: { music: { title: "Users only", userCount: 41_000 } },
+        },
+      },
+    };
+    expect(parseTikTokSoundRehydration(wrap(payload))).toBeNull();
+  });
+
   it("returns null for an unrelated rehydration payload", () => {
     const payload = { __DEFAULT_SCOPE__: { "webapp.video-detail": { statusCode: 0 } } };
     expect(parseTikTokSoundRehydration(wrap(payload))).toBeNull();

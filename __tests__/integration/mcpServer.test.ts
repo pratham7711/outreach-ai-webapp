@@ -24,6 +24,13 @@ jest.mock("@/lib/db", () => ({
   },
 }));
 
+/* Org totals leave out repeat copies of a video (lib/posts/duplicates). That
+   lookup is its own query; these tests are about the aggregates, so it finds none. */
+const mockDuplicatePostIds = jest.fn().mockResolvedValue([]);
+jest.mock("@/lib/posts/duplicates", () => ({
+  ...jest.requireActual("@/lib/posts/duplicates"),
+  duplicatePostIds: (...args: unknown[]) => mockDuplicatePostIds(...args),
+}));
 jest.mock("@/lib/auth", () => ({ auth: jest.fn() }));
 
 jest.mock("@/lib/entitlements", () => ({

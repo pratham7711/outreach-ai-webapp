@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { analyzePostForFraud, fraudFlagKey } from "@/lib/fraud-detection";
+import { readableSnapshots } from "@/lib/metricDisplay";
 
 // POST /api/campaigns/[id]/fraud-scan
 export async function POST(
@@ -57,12 +58,15 @@ export async function POST(
           sharesCount: post.sharesCount,
           engagementRate: post.engagementRate,
         },
-        post.snapshots.map((s) => ({
+        /* Only readings that measured views, other counters held at their last
+           known level: a placeholder 0 between two real readings is a
+           collapse and then a "spike", which is a fraud flag on an honest post. */
+        readableSnapshots(post.snapshots).map((s) => ({
           id: s.id,
           viewsCount: s.viewsCount,
-          likesCount: s.likesCount,
-          commentsCount: s.commentsCount,
-          sharesCount: s.sharesCount,
+          likesCount: s.likesCount ?? 0,
+          commentsCount: s.commentsCount ?? 0,
+          sharesCount: s.sharesCount ?? 0,
           engagementRate: s.engagementRate,
           recordedAt: s.recordedAt,
         }))

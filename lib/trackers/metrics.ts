@@ -121,7 +121,11 @@ export type WindowChange = {
 export function changeOverWindow(
   snapshots: TrackerSnapshot[],
   window: TrackerWindow,
-  now: Date
+  now: Date,
+  /* Opt-in: the creator page ranks on a fixed set of anchor readings that holds
+     no reading from before the window (lib/trackers/creatorPage), and at its
+     2-hourly cadence the shortfall is under two hours anyway. */
+  { nearestBaseline = false }: { nearestBaseline?: boolean } = {}
 ): WindowChange | null {
   if (snapshots.length === 0) return null;
 
@@ -130,12 +134,22 @@ export function changeOverWindow(
   const cutoff = new Date(now.getTime() - windowHours(window) * HOUR_MS);
 
   const inWindow = ordered.filter((s) => s.recordedAt >= cutoff);
-  const baseline =
-    inWindow.length >= 2
-      ? inWindow[0]
-      : ordered.length >= 2
-        ? ordered[ordered.length - 2]
-        : null;
+  /* Of the oldest reading inside the window and the newest one before it, the
+     baseline is whichever spans nearer the window. The inside one alone always
+     fell SHORT: at a 12-hourly cadence a 24h window held two readings 12h
+     apart, so "New uses / 24h" summed about twelve hours of growth. */
+  const inside = inWindow.length >= 2 ? inWindow[0] : null;
+  const outside =
+    nearestBaseline && inWindow.length >= 1 ? ordered[ordered.length - inWindow.length - 1] ?? null : null;
+  const target = windowHours(window);
+  const spanOf = (s: TrackerSnapshot) => (latest.recordedAt.getTime() - s.recordedAt.getTime()) / HOUR_MS;
+  const nearest =
+    inside && outside
+      ? Math.abs(spanOf(outside) - target) < Math.abs(spanOf(inside) - target)
+        ? outside
+        : inside
+      : inside ?? outside;
+  const baseline = nearest ?? (ordered.length >= 2 ? ordered[ordered.length - 2] : null);
 
   if (!baseline || baseline === latest) return null;
 
@@ -200,6 +214,32 @@ export function statusFor(velocityPerHour: number | null): TrackerStatus {
 
 // Growth between two consecutive snapshots, as a percentage, stored on each
 // snapshot as velocityScore when it is recorded.
+/**
+ * Whether a new sound reading should wait rather than be written.
+ *
+ * TikTok's use count is a running total of videos; it slips by a handful when
+ * videos are deleted and never halves. A reading far below the last one is a
+ * different figure or a partial page -- Sound #1 on production fell to
+ * 0.46-0.60x eleven times and recovered on the very next read (measured
+ * 2026-10-03), and each fall was charted, counted as negative growth and fed
+ * the status badge. So such a reading is held. The previous snapshot's age is
+ * the confirmation: every reading that is NOT a fall gets written and resets
+ * it, so a newest snapshot older than SOUND_DROP_HOLD_MS means every read since
+ * was a fall, and a fall that has persisted that long is taken as real.
+ */
+export const SOUND_DROP_RATIO = 0.8;
+export const SOUND_DROP_HOLD_MS = 24 * 60 * 60 * 1000;
+
+export function holdSoundReading(
+  previous: { usesCount: number; recordedAt: Date } | null | undefined,
+  usesCount: number,
+  now: Date = new Date(),
+): boolean {
+  if (!previous || previous.usesCount <= 0) return false;
+  if (usesCount >= previous.usesCount * SOUND_DROP_RATIO) return false;
+  return now.getTime() - previous.recordedAt.getTime() < SOUND_DROP_HOLD_MS;
+}
+
 export function velocityBetween(prev: number, current: number): number {
   if (prev > 0) return Math.round(((current - prev) / prev) * 10000) / 100;
   return current > 0 ? 100 : 0;

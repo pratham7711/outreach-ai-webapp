@@ -1,9 +1,10 @@
 export type MetricSnapshot = {
   recordedAt: string | Date;
   viewsCount: number;
-  likesCount: number;
-  commentsCount: number;
-  sharesCount: number;
+  /** null when no reading so far has measured it (see readableSnapshots). */
+  likesCount: number | null;
+  commentsCount: number | null;
+  sharesCount: number | null;
 };
 
 export type Velocity = {
@@ -129,7 +130,8 @@ export function detectBotSignals(series: MetricSnapshot[]): BotSignal[] {
   const totalViews = isFiniteNumber(last.viewsCount) ? last.viewsCount : 0;
   const totalLikes = isFiniteNumber(last.likesCount) ? last.likesCount : 0;
   const totalComments = isFiniteNumber(last.commentsCount) ? last.commentsCount : 0;
-  if (totalViews > LOW_ENGAGEMENT_MIN_VIEWS) {
+  // A rate needs its likes: an account that hides them has no low engagement to report.
+  if (totalViews > LOW_ENGAGEMENT_MIN_VIEWS && isFiniteNumber(last.likesCount)) {
     const rate = (totalLikes + totalComments) / totalViews;
     if (Number.isFinite(rate) && rate < LOW_ENGAGEMENT_RATE) {
       const severity: BotSignalSeverity =

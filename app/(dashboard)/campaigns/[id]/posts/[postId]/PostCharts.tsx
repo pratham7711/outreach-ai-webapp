@@ -6,8 +6,8 @@ import {
 import { MetricHint } from "@/components/ds";
 import { formatCompact, formatFull } from "@/lib/format";
 
-type PerformancePoint = { date: string; views: number; likes: number; comments: number };
-type TrackingPoint = { ts: string; views: number; engagement: number };
+type PerformancePoint = { date: string; views: number; likes: number | null; comments: number | null };
+type TrackingPoint = { ts: string; views: number; engagement: number | null };
 
 const axisTick = { fontSize: 11, fill: "var(--muted-foreground)" } as const;
 

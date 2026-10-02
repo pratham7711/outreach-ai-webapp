@@ -47,7 +47,8 @@ export type PerformanceData = {
     platform: string | null;
     activationCount: number;
     views: number;
-    avgEngagement: number;
+    /** Percent; null when none of their posts in range had views and likes read. */
+    avgEngagement: number | null;
   }[];
   topPosts: {
     id: string;
@@ -55,7 +56,8 @@ export type PerformanceData = {
     platform: string;
     viewsCount: number;
     likesCount: number;
-    engagementRate: number;
+    /** Percent, from the counters; null when views or likes were never read. */
+    engagementRate: number | null;
     creatorId?: string | null;
     creatorName: string | null;
     creatorHandle?: string | null;

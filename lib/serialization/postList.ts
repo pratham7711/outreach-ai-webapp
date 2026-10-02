@@ -27,6 +27,7 @@
  * how much less there is to parse before the tab can paint.
  */
 import { outreach } from "./postList.generated.js";
+import { snapshotViewsKnown } from "@/lib/metricDisplay";
 
 const PostListMessage = outreach.postlist.v1.PostList;
 
@@ -220,11 +221,17 @@ export function toPostDto(row: PostRow, hasOpenFraudFlag: boolean, complianceFla
           avatarUrl: strOrNull(creator.avatarUrl),
         }
       : null,
-    snapshots: snapshots.map((s) => ({
-      id: str(s.id),
-      viewsCount: num(s.viewsCount),
-      recordedAt: iso(s.recordedAt) ?? "",
-    })),
+    /* The two newest readings that measured views. A partial read stored 0
+       views, and the delta against it was the post's whole count shown as
+       one sync's growth. */
+    snapshots: snapshots
+      .filter((s) => snapshotViewsKnown({ viewsCount: num(s.viewsCount), platformMetrics: s.platformMetrics }))
+      .slice(0, 2)
+      .map((s) => ({
+        id: str(s.id),
+        viewsCount: num(s.viewsCount),
+        recordedAt: iso(s.recordedAt) ?? "",
+      })),
     complianceFlags,
   };
 }

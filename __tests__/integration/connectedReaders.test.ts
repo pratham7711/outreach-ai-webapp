@@ -162,6 +162,52 @@ describe("the post sync cron", () => {
     expect(options.instagramToken).toBe("ig-access-fake");
     expect(mockDb.creatorGrant.findMany).not.toHaveBeenCalled();
   });
+
+  /* The cron reads two Instagram posts at once now. Two posts by one creator
+     would each find the same token inside its refresh window and trade it in
+     -- two exchanges, two writes, and the second replacing a token the first
+     read was still holding. */
+  it("trades an expiring token in once per run, however many of the creator's posts are read", async () => {
+    grants("conn-ig");
+    const realGlobalFetch = global.fetch;
+    const realClientId = process.env.INSTAGRAM_CLIENT_ID;
+    const realClientSecret = process.env.INSTAGRAM_CLIENT_SECRET;
+    process.env.INSTAGRAM_CLIENT_ID = "fake-client-id";
+    process.env.INSTAGRAM_CLIENT_SECRET = "fake-client-secret";
+    const exchange = jest.fn(async () => {
+      await new Promise((r) => setTimeout(r, 5));
+      return new Response(JSON.stringify({ access_token: "ig-access-renewed", expires_in: 5_184_000 }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    });
+    global.fetch = exchange as unknown as typeof fetch;
+    mockDb.creatorSocialAccount.update.mockResolvedValue({});
+
+    const expiring = { ...account("conn-ig", "INSTAGRAM", "ig-access-fake"), tokenExpiry: new Date(Date.now() + 2 * 24 * HOUR_MS) };
+    const post = (id: string) => {
+      const p = instagramPost();
+      return { ...p, id, postUrl: `https://www.instagram.com/reel/${id}/`, creator: { ...p.creator, socialAccounts: [expiring] } };
+    };
+    try {
+      mockDb.post.findMany.mockImplementation(async (args: { where?: { platform?: string } }) =>
+        args?.where?.platform === "INSTAGRAM" ? [post("AAA1"), post("AAA2")] : [],
+      );
+      mockFetch.mockRejectedValue(new Error("stop after the call"));
+      await cronSync(new NextRequest("http://localhost/api/cron/sync-posts", { headers: { authorization: "Bearer secret" } }));
+    } finally {
+      global.fetch = realGlobalFetch;
+      if (realClientId === undefined) delete process.env.INSTAGRAM_CLIENT_ID;
+      else process.env.INSTAGRAM_CLIENT_ID = realClientId;
+      if (realClientSecret === undefined) delete process.env.INSTAGRAM_CLIENT_SECRET;
+      else process.env.INSTAGRAM_CLIENT_SECRET = realClientSecret;
+    }
+
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    expect(mockFetch.mock.calls.map((c) => c[1].instagramToken)).toEqual(["ig-access-renewed", "ig-access-renewed"]);
+    expect(exchange).toHaveBeenCalledTimes(1);
+    expect(mockDb.creatorSocialAccount.update).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("token helpers", () => {

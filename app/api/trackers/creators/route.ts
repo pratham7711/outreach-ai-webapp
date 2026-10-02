@@ -245,6 +245,7 @@ export async function GET(req: NextRequest) {
           avatarUrl: c.avatarUrl,
           trackedSince: c.trackedSince,
           followersCount: f.followersCount,
+          followersFromReading: f.followersFromReading,
           followersChangePercent: f.followersChangePercent,
           followersDelta: f.followersDelta,
           /* The creator's own ten newest posts, from the same readings as the

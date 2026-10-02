@@ -139,6 +139,15 @@ describe("snapshotOrgViews", () => {
     expect(sql).toContain('JOIN "Campaign" c ON c.id = p."campaignId"');
   });
 
+  it("counts a video delivered against two campaigns once, from its freshest copy", async () => {
+    await snapshotOrgViews({ now: new Date("2026-09-01T03:30:00Z") });
+    const [strings, ...values] = mockDb.$queryRaw.mock.calls[0];
+    const sql = strings.join("?") + values.map((v: { text?: string; strings?: string[] } | undefined) => v?.text ?? v?.strings?.join("") ?? "").join(" ");
+    expect(sql).toContain("WHERE copy = 1");
+    expect(sql).toContain('ORDER BY p."viewsCount" DESC');
+    expect(sql).toContain("/(?:video|photo)/([0-9]+)");
+  });
+
   it("writes nothing on a dry run", async () => {
     mockDb.$queryRaw.mockResolvedValue([row("org-1", 1000, 2)]);
 

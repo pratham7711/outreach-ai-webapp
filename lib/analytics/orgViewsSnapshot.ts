@@ -1,5 +1,7 @@
 import { db } from "@/lib/db";
 import { createLogger } from "@/lib/observability/logger";
+import { Prisma } from "@/lib/generated/prisma/client";
+import { postVideoKeySql } from "@/lib/posts/duplicates";
 
 /**
  * Record what every organisation's posts had earned, once a day.
@@ -12,7 +14,7 @@ import { createLogger } from "@/lib/observability/logger";
  * So the sync crons keep the numbers current and this takes the reading.
  *
  * The distinction matters for how the chart should be read: a point is "what our
- * records said at 03:30 UTC that day", which is the freshest figure available
+ * records said at 00:30 UTC that day", which is the freshest figure available
  * and lags real life by however long since each post was last synced. That is
  * the honest claim, and it is the one the chart now makes.
  */
@@ -46,19 +48,30 @@ type Totals = {
  * them, which disagreed with the campaign list and with the "Active campaigns"
  * tile beside it; deleting a campaign should take its delivery out of the
  * headline number, or deleting means nothing.
+ *
+ * A video delivered against two campaigns is counted once, from the copy with
+ * the most views (lib/posts/duplicates). Each campaign still counts its own.
  */
 export async function readOrgViewTotals(): Promise<Totals[]> {
   const rows = await db.$queryRaw<
     { orgId: string; views: number | null; likes: number | null; comments: number | null; posts: bigint }[]
   >`
-    SELECT c."orgId"                          AS "orgId",
-           COALESCE(SUM(p."viewsCount"), 0)    AS views,
-           COALESCE(SUM(p."likesCount"), 0)    AS likes,
-           COALESCE(SUM(p."commentsCount"), 0) AS comments,
-           COUNT(*)                            AS posts
-      FROM "Post" p
-      JOIN "Campaign" c ON c.id = p."campaignId"
-     WHERE c."deletedAt" IS NULL
+    SELECT "orgId",
+           COALESCE(SUM("viewsCount"), 0)    AS views,
+           COALESCE(SUM("likesCount"), 0)    AS likes,
+           COALESCE(SUM("commentsCount"), 0) AS comments,
+           COUNT(*)                          AS posts
+      FROM (
+        SELECT c."orgId", p."viewsCount", p."likesCount", p."commentsCount",
+               row_number() OVER (
+                 PARTITION BY c."orgId", p.platform, ${Prisma.raw(postVideoKeySql("p"))}
+                 ORDER BY p."viewsCount" DESC, p."lastSyncedAt" DESC NULLS LAST, p.id
+               ) AS copy
+          FROM "Post" p
+          JOIN "Campaign" c ON c.id = p."campaignId"
+         WHERE c."deletedAt" IS NULL
+      ) videos
+     WHERE copy = 1
      GROUP BY 1
   `;
 

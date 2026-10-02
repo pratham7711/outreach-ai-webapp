@@ -271,13 +271,30 @@ export async function applyPostMetrics(
   const measured = ranked.metrics;
   const { counts, present } = countsFrom(measured);
 
-  const views = measured.viewsCount ?? 0;
-  const likes = measured.likesCount ?? 0;
-  const comments = measured.commentsCount ?? 0;
-  const shares = measured.sharesCount ?? 0;
-  const saves = measured.savesCount ?? 0;
+  /* What the post holds once this write lands, counter by counter: this read's
+     figure where it measured one, otherwise the figure already on the row --
+     which is exactly what the present-only post write below leaves there. The
+     snapshot records that, not `?? 0`. A partial read (an Instagram embed
+     answering with comments while Graph timed out) used to land in the history
+     as zero views, and every chart built on snapshots -- the client report's
+     views over time, the post's velocity, the bot signals -- dropped the post's
+     whole audience for that day: 26 such rows on prod by 2026-10-03. */
+  const known = (field: MetricField) => present.includes(field) || ranked.held.includes(field);
+  const after = (value: number | undefined, stored: number | undefined) => value ?? stored ?? 0;
+  const views = after(measured.viewsCount, post.viewsCount);
+  const likes = after(measured.likesCount, post.likesCount);
+  const comments = after(measured.commentsCount, post.commentsCount);
+  const shares = after(measured.sharesCount, post.sharesCount);
+  const saves = after(measured.savesCount, post.savesCount);
+  /* Only from counters somebody measured. Coercing an absent views or likes to
+     0 wrote a 0% rate onto a post whose read simply did not carry them, and
+     that 0 then reached the creator page and the dashboard as a real rate.
+     Undefined leaves the stored rate as it was. */
+  const viewsKnown = known("views") || (post.viewsCount ?? 0) > 0;
+  const likesKnown = known("likes") || (post.likesCount ?? 0) > 0;
   const engagementRate =
-    measured.engagementRate ?? (views > 0 ? ((likes + comments) / views) * 100 : 0);
+    measured.engagementRate ??
+    (viewsKnown && likesKnown && views > 0 ? ((likes + comments) / views) * 100 : undefined);
 
   /* The same payload told us how many followers the author has, and nothing in
      this codebase had ever written that column -- so the campaign roster showed
@@ -345,7 +362,7 @@ export async function applyPostMetrics(
         fetchState: "LIVE" as const,
         lastSyncedAt: now,
         ...counts,
-        engagementRate,
+        ...(engagementRate !== undefined ? { engagementRate } : {}),
         /* Merged, not replaced: this bag also holds the importer's raw record. */
         platformMetrics: {
           /* `?? {}` only where the bag is written unconditionally: this branch
@@ -377,7 +394,8 @@ export async function applyPostMetrics(
         commentsCount: comments,
         sharesCount: shares,
         savesCount: saves,
-        engagementRate,
+        // Non-nullable column; the post page rates each row from its counts.
+        engagementRate: engagementRate ?? 0,
         syncSource,
         /* Which of the numbers above were actually measured.
            The post's own columns are protected by countsFrom's present-only

@@ -169,6 +169,48 @@ it("writes velocityScore as percent growth, the unit its reader prints", async (
   expect(written().velocityScore).toBe(30);
 });
 
+/**
+ * A reading far below the last one waits. Sound #1 on production fell to about
+ * half its uses eleven times and recovered on the next read each time; every
+ * fall was charted and counted as negative growth.
+ */
+function soundReadHoursAgo(hoursAgo: number, usesCount: number) {
+  return [{ ...soundWithHistory(usesCount)[0], snapshots: [{ usesCount, recordedAt: new Date(Date.now() - hoursAgo * HOUR) }] }];
+}
+
+it("holds a fall to half the last reading, and names the rung that gave it", async () => {
+  mockDb.tikTokSound.findMany.mockResolvedValue(soundReadHoursAgo(12, 80_000));
+  mockEmbed.mockResolvedValue({ usesCount: 41_000, title: null, artist: null, coverImageUrl: null });
+
+  const body = await (await runCron()).json();
+
+  expect(mockDb.soundTrackerSnapshot.create).not.toHaveBeenCalled();
+  expect(body.decisions).toContainEqual(
+    expect.objectContaining({ soundId: "sound-1", action: "skip", reason: "held-drop:embed-direct" }),
+  );
+});
+
+it("writes a small fall: videos do get deleted", async () => {
+  mockDb.tikTokSound.findMany.mockResolvedValue(soundReadHoursAgo(12, 80_000));
+  mockEmbed.mockResolvedValue({ usesCount: 79_200, title: null, artist: null, coverImageUrl: null });
+
+  const body = await (await runCron()).json();
+
+  expect(written().usesCount).toBe(79_200);
+  expect(body.decisions).toContainEqual(
+    expect.objectContaining({ soundId: "sound-1", action: "snapshot", reason: "ingested:embed-direct" }),
+  );
+});
+
+it("takes a fall as real once it has outlasted a day of reads", async () => {
+  mockDb.tikTokSound.findMany.mockResolvedValue(soundReadHoursAgo(26, 80_000));
+  mockEmbed.mockResolvedValue({ usesCount: 41_000, title: null, artist: null, coverImageUrl: null });
+
+  await runCron();
+
+  expect(written().usesCount).toBe(41_000);
+});
+
 it("counts a failed snapshot write as one sound, not the end of the sweep", async () => {
   const sounds = [
     { ...soundWithHistory(40)[0], id: "sound-bad", tiktokSoundId: "111" },

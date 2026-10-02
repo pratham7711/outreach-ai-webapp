@@ -25,7 +25,7 @@ import { ensureFreshTikTokToken } from "@/lib/platforms/tiktokToken";
 import { isInstagramLoginRow } from "@/lib/platforms/accountOrigin";
 import { decidePostTracking, type PostTrackingAction } from "@/lib/sync/postTracking";
 import { parsePostTracking, type PostTrackingGranularity } from "@/lib/trackers/granularity";
-import { LAST_FETCH_KEY, lastFetchNote } from "@/lib/metricDisplay";
+import { LAST_FETCH_KEY, MEASURED_FIELDS_KEY, lastFetchNote, measuredFields } from "@/lib/metricDisplay";
 import { alertOps, shouldAlertOnBatch } from "@/lib/alerts";
 import { alertIfInstagramSourceDown } from "@/lib/integrations/health";
 import { createLogger } from "@/lib/observability/logger";
@@ -35,6 +35,33 @@ import { grantedConnectionKeys, readableConnection } from "@/lib/creators/connec
 
 const MAX_SYNC_FAILURES = 5;
 const DEFAULT_PLATFORM_BUDGET = 100;
+
+/* Reads one run may spend, per platform, unless SYNC_BUDGET_<PLATFORM> says
+   otherwise. These were a flat 100 that no run ever spent: until the reads ran
+   concurrently, a run was over at the four-minute deadline first. Measured on
+   prod across the eight runs of 2026-10-01/02: 30-45 TikTok and 63-86 YouTube
+   posts measured per run, and the 18:00 run took 243.6s.
+
+   YouTube's is the large one because it is nearly free: 600 ids are twelve
+   batched videos.list calls (fetchYouTubeMetricsBatch), and the rest is the
+   database write. TikTok's is 50 per address at DEFAULT_CRON_TIKTOK_LANES, the
+   same load per address the old 100-over-two-lanes ceiling allowed. Instagram's
+   stays where it was: one business token serves every org's reads. */
+const DEFAULT_PLATFORM_BUDGETS: Record<string, number> = {
+  YOUTUBE: 600,
+  TIKTOK: 300,
+  INSTAGRAM: DEFAULT_PLATFORM_BUDGET,
+};
+
+/* Reads in flight at once, per platform. TikTok's is the pool's lane count --
+   one worker per lane, the way refreshCampaign drives the same pool -- so it is
+   not in this table. YouTube's reads are already in memory by the time the
+   loop reaches them, so its workers only overlap database writes. Instagram's
+   is two because every org's reads share one token's hourly quota. */
+const READ_CONCURRENCY: Record<string, number> = {
+  YOUTUBE: 4,
+  INSTAGRAM: 2,
+};
 
 /* The campaign cadence gate that used to live here is gone.
 
@@ -96,8 +123,11 @@ type SealablePost = {
   likesCount: number;
   commentsCount: number;
   sharesCount: number;
+  savesCount: number;
+  downloadsCount: number;
   reachCount: number;
   engagementRate: number;
+  platformMetrics: unknown;
 };
 
 /**
@@ -113,14 +143,20 @@ type SealablePost = {
  * non-nullable Float defaulting to 0, so lastSyncedAt is the sole discriminator
  * between "no likes" and "nobody looked" (lib/metricDisplay, metricValue).
  * Stamping it here would convert a whole cohort of never-measured posts into
- * measured zeros across the Posts tab, the report and the PDF. So the snapshot
- * always lands and lastSyncedAt moves only for a post that had a real reading.
+ * measured zeros across the Posts tab, the report and the PDF. Nor does it move
+ * for a post that WAS measured: the seal reads nothing, so its counters are as
+ * old as the last real read, and a fresh stamp told every "As of" label the
+ * opposite (22 of 57 sealed posts on production, measured 2026-10-03). The
+ * snapshot always lands; lastSyncedAt never moves.
+ *
+ * The snapshot carries the post's measured list, or an empty one for a post
+ * nobody read, so its zeros read as unknown the way the post's own do.
  *
  * trackingEnabled goes false because the tracker is over, and the UI reads that
  * flag to decide whether to offer Stop or Renew.
  */
 async function sealPost(post: SealablePost, syncSource: string, at: Date = new Date()) {
-  const neverMeasured = post.lastSyncedAt === null;
+  const measured = measuredFields(post.platformMetrics) ?? (post.lastSyncedAt === null ? [] : null);
   await db.$transaction([
     db.postMetricSnapshot.create({
       data: {
@@ -129,40 +165,49 @@ async function sealPost(post: SealablePost, syncSource: string, at: Date = new D
         likesCount: post.likesCount,
         commentsCount: post.commentsCount,
         sharesCount: post.sharesCount,
-        /* Absent here, the seal asserted reach was never measured on the one row
-           nothing ever revisits. savesCount and downloadsCount are still missing
-           for the same reason -- flagged, not fixed here. */
+        /* Absent here, the seal asserted these were never measured on the one
+           row nothing ever revisits. */
+        savesCount: post.savesCount,
+        downloadsCount: post.downloadsCount,
         reachCount: post.reachCount,
         engagementRate: post.engagementRate,
         isFinalSnapshot: true,
         syncSource,
+        recordedAt: at,
+        ...(measured ? { platformMetrics: { [MEASURED_FIELDS_KEY]: measured } } : {}),
       },
     }),
     db.post.update({
       where: { id: post.id },
-      data: { trackingEnabled: false, ...(neverMeasured ? {} : { lastSyncedAt: at }) },
+      data: { trackingEnabled: false },
     }),
   ]);
 }
 
-function parseBudget(raw: string | undefined): number {
+function parseBudget(raw: string | undefined, fallback: number): number {
   const parsed = Number(raw);
-  return Number.isInteger(parsed) && parsed >= 0 ? parsed : DEFAULT_PLATFORM_BUDGET;
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : fallback;
 }
 
 
 /**
  * How many sandbox lanes one cron run may hold open for TikTok.
  *
- * Two, not laneCountFor's eight. The on-demand refresh sizes its pool for a
+ * Six, not laneCountFor's eight. The on-demand refresh sizes its pool for a
  * fast finish because a person is waiting on it; nobody is waiting on the
- * cron, so it can take the whole four-minute budget on a couple of addresses.
- * Sandboxes bill by lifetime, and the lifetime here is bounded by the run --
- * measured on prod 2026-09-07: 13 TikTok posts due per hour, which is ~23
- * sandbox-seconds at LANE_SECONDS_PER_POST. SYNC_BUDGET_TIKTOK caps the reads
- * themselves, so the cost ceiling is budget x 1.8s per hour whatever this is.
+ * cron. This was two, sized 2026-09-07 for 13 due TikTok posts an hour, and
+ * the loop read one post at a time, so the second lane was never busy. After
+ * 15,165 trackers were switched on, every run was cut off by the deadline
+ * having read 30-45 of them (2026-10-01/02), against ~30,000 reads a day the
+ * 12-hourly cadence asks for. The loop now keeps one read in flight per lane.
+ *
+ * cost-guard: ok -- lanes live only for the run: they boot on the first due
+ * post and close in the route's finally, so the ceiling is six lanes x one
+ * four-minute run x four runs a day, about 96 sandbox-minutes a day, and
+ * nothing persists past the run. SYNC_BUDGET_TIKTOK caps the reads, and
+ * SYNC_CRON_TIKTOK_MAX_LANES=2 puts the old ceiling back without a deploy.
  */
-const DEFAULT_CRON_TIKTOK_LANES = 2;
+const DEFAULT_CRON_TIKTOK_LANES = 6;
 function cronTikTokLanes(due: number): number {
   const raw = Number(process.env.SYNC_CRON_TIKTOK_MAX_LANES);
   const cap = Number.isInteger(raw) && raw >= 0 ? raw : DEFAULT_CRON_TIKTOK_LANES;
@@ -184,9 +229,9 @@ async function cronHandler(request: NextRequest) {
   const deadline = Date.now() + 4 * 60 * 1000;
 
   const budgets: Record<string, number> = {
-    YOUTUBE: parseBudget(process.env.SYNC_BUDGET_YOUTUBE),
-    TIKTOK: parseBudget(process.env.SYNC_BUDGET_TIKTOK),
-    INSTAGRAM: parseBudget(process.env.SYNC_BUDGET_INSTAGRAM),
+    YOUTUBE: parseBudget(process.env.SYNC_BUDGET_YOUTUBE, DEFAULT_PLATFORM_BUDGETS.YOUTUBE),
+    TIKTOK: parseBudget(process.env.SYNC_BUDGET_TIKTOK, DEFAULT_PLATFORM_BUDGETS.TIKTOK),
+    INSTAGRAM: parseBudget(process.env.SYNC_BUDGET_INSTAGRAM, DEFAULT_PLATFORM_BUDGETS.INSTAGRAM),
   };
   const attempts: Record<string, number> = {};
 
@@ -207,7 +252,7 @@ async function cronHandler(request: NextRequest) {
   const unexplainedDeadLetters: Record<string, number> = {};
   let skippedForBudget = 0;
   const decisions: Decision[] = [];
-  /* Campaigns this run actually spent a request on. lastRefreshAt no longer
+  /* Campaigns this run actually measured a post for. lastRefreshAt no longer
      gates anything -- the post tracker does -- but it is still what the campaign
      screens and lib/refreshCooldown.ts show as "last refreshed", so it is kept
      accurate. Only campaigns actually read are stamped; one whose posts were all
@@ -270,6 +315,7 @@ async function cronHandler(request: NextRequest) {
         commentsCount: true,
         sharesCount: true,
         savesCount: true,
+        downloadsCount: true,
         reachCount: true,
         engagementRate: true,
         syncFailCount: true,
@@ -323,11 +369,10 @@ async function cronHandler(request: NextRequest) {
       ),
     );
 
-    /* Interleaved, not concatenated. The run has a four-minute deadline and
-       TikTok reads are the slow ones; in platform order, a TikTok backlog would
-       eat the clock before the cheap platforms were reached, which is the same
-       starvation in a new place. Round-robin means a deadline cut lands on all
-       three proportionally. */
+    /* Interleaved, not concatenated. The reads no longer depend on this order
+       -- each platform drains its own queue below, so a TikTok backlog cannot
+       eat the clock before the cheap platforms are reached -- but it is still
+       the order a dry run reports its decisions in. */
     const posts = roundRobin(byPlatform);
 
     /* Read cadence and default TTL are per organisation, so one lookup for the
@@ -413,7 +458,7 @@ async function cronHandler(request: NextRequest) {
       ? 0
       : posts.filter((p) => p.platform === "TIKTOK" && decisionFor(p).action === "sync").length;
     /* The lane cap is passed through rather than recomputed, because it is a
-       cost decision this route made on purpose: two sandboxes, not
+       cost decision this route made on purpose: six sandboxes, not
        laneCountFor's eight, since nobody is waiting on a cron run. It bounds
        only the SANDBOX fallback -- a proxy identity is a session string with no
        standing cost, so when proxies are configured the run reads through those
@@ -441,13 +486,12 @@ async function cronHandler(request: NextRequest) {
     const readable = (orgId: string, account: { id: string; origin: string | null }) =>
       readableConnection(granted, orgId, account);
 
-    for (let i = 0; i < posts.length; i++) {
-      const post = posts[i];
-      if (!dryRun && Date.now() > deadline) {
-        skippedForBudget += posts.length - i;
-        break;
-      }
-
+    /* The decision for one post, made at the moment a worker claims it:
+       cadence, then the source breaker, then the platform's budget. It is
+       synchronous on purpose. A budget check and its increment cannot be split
+       by another worker's, so running reads side by side cannot overspend a
+       budget or let more half-open probes through than the breaker allows. */
+    const claim = (post: (typeof posts)[number]): Decision => {
       let { action, reason } = decisionFor(post);
 
       if (action === "sync" && !sourceGuard.admit(post.platform)) {
@@ -464,17 +508,35 @@ async function cronHandler(request: NextRequest) {
           reason = "budget";
         } else {
           attempts[platform] = used + 1;
-          sweptCampaigns.add(post.campaignId);
         }
       }
 
-      decisions.push({ postId: post.id, platform: post.platform as string, action, reason });
+      const decision: Decision = { postId: post.id, platform: post.platform as string, action, reason };
+      decisions.push(decision);
+      return decision;
+    };
 
-      if (dryRun) continue;
+    /* One refresh per connection per run. Two posts by the same creator can now
+       be read at the same moment, and each would otherwise find the same
+       expiring token and refresh it -- two exchanges, two writes, and the
+       second write replacing a token the first read may still be using. */
+    const tokenRefreshes = new Map<string, Promise<string | undefined>>();
+    const refreshOnce = (key: string | undefined, refresh: () => Promise<string | undefined>) => {
+      if (!key) return refresh();
+      let pending = tokenRefreshes.get(key);
+      if (!pending) {
+        pending = refresh();
+        tokenRefreshes.set(key, pending);
+      }
+      return pending;
+    };
+
+    const readPost = async (post: (typeof posts)[number]) => {
+      const { action, reason } = claim(post);
 
       if (action === "skip") {
         if (reason === "budget") skippedForBudget++;
-        continue;
+        return;
       }
 
       if (action === "seal") {
@@ -488,7 +550,7 @@ async function cronHandler(request: NextRequest) {
           log.error("failed to seal post", { postId: post.id, error: String(err) });
           failed++;
         }
-        continue;
+        return;
       }
 
       try {
@@ -508,7 +570,9 @@ async function cronHandler(request: NextRequest) {
         );
         const instagramToken =
           post.platform === "INSTAGRAM"
-            ? await ensureFreshInstagramToken(igAccount, post.creator.orgId)
+            ? await refreshOnce(igAccount && `ig:${igAccount.id}`, () =>
+                ensureFreshInstagramToken(igAccount, post.creator.orgId),
+              )
             : undefined;
         const instagramHandle =
           post.platform === "INSTAGRAM"
@@ -524,7 +588,9 @@ async function cronHandler(request: NextRequest) {
             : undefined;
         const tiktokToken =
           post.platform === "TIKTOK"
-            ? await ensureFreshTikTokToken(ttAccount, post.creator.orgId)
+            ? await refreshOnce(ttAccount && `tt:${ttAccount.id}`, () =>
+                ensureFreshTikTokToken(ttAccount, post.creator.orgId),
+              )
             : undefined;
         const detected = post.platform === "YOUTUBE" ? detectPlatform(post.postUrl) : null;
         const cached = detected ? youtubeCache.get(detected.id) : undefined;
@@ -541,7 +607,7 @@ async function cronHandler(request: NextRequest) {
                their behaviour here is unchanged. */
             countsOnly: post.platform === "TIKTOK",
           }));
-        if (!metrics) continue;
+        if (!metrics) return;
 
         /* The shared writer, not a local one.
          *
@@ -561,6 +627,10 @@ async function cronHandler(request: NextRequest) {
         sourceGuard.record(post.platform, classifyPostRead(outcome), outcome.status === "measured" ? null : outcome.reason);
 
         if (outcome.status === "measured") {
+          /* Stamped here, not when the request was spent: a campaign whose
+             every post came back empty or threw was not refreshed, and its
+             header must keep showing the last time it actually was. */
+          sweptCampaigns.add(post.campaignId);
           // A real answer clears the streak. Only a real answer.
           if (post.syncFailCount > 0) {
             await db.post.update({ where: { id: post.id }, data: { syncFailCount: 0 } });
@@ -616,7 +686,7 @@ async function cronHandler(request: NextRequest) {
               reason: outcome.reason,
               syncFailCount: post.syncFailCount,
             });
-            continue;
+            return;
           }
           const settled = SETTLED_REASONS.has(outcome.reason);
           const nextFailCount = settled ? MAX_SYNC_FAILURES : post.syncFailCount + 1;
@@ -655,6 +725,45 @@ async function cronHandler(request: NextRequest) {
         });
         failed++;
       }
+    };
+
+    if (dryRun) {
+      for (const post of posts) claim(post);
+    } else {
+      /* Each platform drains its own queue with its own workers, all three at
+         once. The loop this replaces read one post at a time across all of
+         them, so a run's four minutes were spent waiting on one TikTok page
+         after another while the pool's second lane sat idle, and it ended at
+         the deadline every time (243.6s on 2026-10-02 18:00).
+
+         Per platform rather than one shared pool, so that a slow source only
+         slows itself: workers stuck behind paced TikTok lanes would otherwise
+         hold up YouTube rows that are already in memory. The deadline is
+         checked before every claim, and whatever a platform had not reached
+         is counted as skippedForBudget, as before. */
+      const sweep = async (queue: typeof posts, width: number) => {
+        let next = 0;
+        const worker = async () => {
+          while (next < queue.length) {
+            if (Date.now() > deadline) {
+              skippedForBudget += queue.length - next;
+              next = queue.length;
+              return;
+            }
+            await readPost(queue[next++]);
+          }
+        };
+        const workers = Math.min(Math.max(1, width), queue.length);
+        await Promise.all(Array.from({ length: workers }, () => worker()));
+      };
+      await Promise.all(
+        SWEEP_PLATFORMS.map((platform, i) =>
+          sweep(
+            byPlatform[i],
+            platform === "TIKTOK" ? (tiktokSandbox?.size ?? 1) : (READ_CONCURRENCY[platform] ?? 1),
+          ),
+        ),
+      );
     }
 
     if (dryRun) {

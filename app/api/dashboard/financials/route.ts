@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { READ_CACHE_HEADERS } from "@/lib/http/readCache";
+import { cachedOrgRead, utcHourKey } from "@/lib/reports/orgReadCache";
 import { auth } from "@/lib/auth";
 import { z } from "zod";
 import { dateParam, parseQuery } from "@/lib/http/queryParams";
+import { MEASURED_POSTS_FILTER, postEngagementPercent, rollupEngagementFromTotals } from "@/lib/metricDisplay";
+import { duplicatePostIds, excludingDuplicates } from "@/lib/posts/duplicates";
 
 const performanceQuerySchema = z.object({
   from: dateParam.optional(),
@@ -68,212 +71,253 @@ export async function GET(req: NextRequest) {
     const to = parsedQuery.data.to ?? now;
     const granularity = parsedQuery.data.granularity;
 
-    // Everything below aggregates in the database. This used to load every post
-    // in the range, every campaign and every activation into Node and reduce
-    // over them in JavaScript: 4.5 seconds of work to produce 4 KB of JSON.
-
-    /* The date range means "what happened in this period", so it reads the day
-       the creator posted, not the day we imported the row. Filtering on
-       createdAt made a six-month view depend on our own import history. */
-    /* deletedAt: null, the same filter activeCampaigns and campaignTitles carry.
-       Without it the Total Views and Total Posts tiles counted posts belonging to
-       soft-deleted campaigns, and "Views by campaign" drew a bar for a campaign
-       the title lookup deliberately omits -- which rendered as "Unknown campaign".
-       Two tiles and a chart on one screen disagreeing about which campaigns exist. */
-    const postWhere = {
-      campaign: { orgId, deletedAt: null },
-      postedAt: { gte: from, lte: to },
-    };
-    const truncUnit = granularity === "daily" ? "day" : granularity === "weekly" ? "week" : "month";
-
-    const [
-      activeCampaigns,
-      distinctCreators,
-      bucketRows,
-      byCampaign,
-      byPlatform,
-      byCreator,
-      campaignTitles,
-      topPostRows,
-    ] = await Promise.all([
-      db.campaign.count({ where: { orgId, deletedAt: null, status: "IN_PROGRESS" } }),
-      /* A creator is on the roster via an activation, whether or not a post
-         exists -- and the campaign that activation belongs to has to still
-         exist. `deletedAt: null` here is the ACTIVATION's; the campaign's was
-         missing, so Total Creators counted anyone activated on a soft-deleted
-         campaign while the post tiles beside it, activeCampaigns and the title
-         lookup all excluded those campaigns. Delete a finished campaign and the
-         creator count stayed high with nothing on the screen to explain it. */
-      db.activation.findMany({
-        where: { campaign: { orgId, deletedAt: null }, deletedAt: null },
-        select: { creatorId: true },
-        distinct: ["creatorId"],
-      }),
-      /* Measured, not derived. One row per day, written by
-         /api/cron/snapshot-org-views at 03:30 UTC.
-
-         This used to be computed here: posts bucketed by publication date, each
-         contributing its CURRENT view count, accumulated. That has a property
-         no client report should have -- the past moves. A March post gaining
-         views today raised March and every point after it, so the chart
-         screenshotted last week no longer matched the chart today. It also
-         could not answer the question its own axis implies, because nothing in
-         the database recorded what the total actually was on any given day.
-
-         A reading is a LEVEL (lifetime views of every post the org holds, as of
-         that morning), so bucketing to weekly or monthly takes the LAST row in
-         the bucket. Summing would count the same lifetime views once per day
-         and produce a number that means nothing. DISTINCT ON is Postgres's way
-         of saying "one row per bucket, the first one in this ordering".
-
-         truncUnit comes from a validated enum, never from user text. */
-      db.$queryRawUnsafe<{ bucket: Date; views: number; posts: number }[]>(
-        `SELECT DISTINCT ON (bucket)
-                date_trunc('${truncUnit}', s."day") AS bucket,
-                s."viewsCount" AS views,
-                s."postsCount" AS posts
-           FROM "OrgViewsSnapshot" s
-          WHERE s."orgId" = $1 AND s."day" >= $2 AND s."day" <= $3
-          ORDER BY bucket, s."day" DESC`,
-        orgId,
-        from,
-        to
-      ),
-      db.post.groupBy({
-        by: ["campaignId"],
-        where: postWhere,
-        _sum: { viewsCount: true },
-        orderBy: { _sum: { viewsCount: "desc" } },
-        take: 10,
-      }),
-      db.post.groupBy({
-        by: ["platform"],
-        where: postWhere,
-        _sum: { viewsCount: true },
-        _count: { _all: true },
-      }),
-      db.post.groupBy({
-        by: ["creatorId"],
-        where: postWhere,
-        _sum: { viewsCount: true },
-        _avg: { engagementRate: true },
-        _count: { _all: true },
-        orderBy: { _sum: { viewsCount: "desc" } },
-        take: 10,
-      }),
-      db.campaign.findMany({
-        where: { orgId, deletedAt: null },
-        select: { id: true, title: true },
-      }),
-      db.post.findMany({
-        where: postWhere,
-        orderBy: { viewsCount: "desc" },
-        take: 5,
-        select: {
-          id: true, postUrl: true, platform: true, viewsCount: true,
-          likesCount: true, engagementRate: true,
-          creator: { select: { id: true, name: true, handle: true } },
-          campaign: { select: { title: true } },
-        },
-      }),
-    ]);
-
-    const summary = {
-      activeCampaigns,
-      totalCreators: distinctCreators.length,
-    };
-
-    const viewsOverTime = bucketRows.map((r) => ({
-      date: getDateKey(new Date(r.bucket), granularity),
-      views: Number(r.views),
-      posts: Number(r.posts),
-    }));
-
-    const titleById = new Map(campaignTitles.map((c) => [c.id, c.title]));
-
-    // Creator counts per campaign, for the campaigns that actually charted.
-    const topCampaignIds = byCampaign.map((c) => c.campaignId);
-    const campaignCreatorRows = topCampaignIds.length
-      ? await db.activation.findMany({
-          where: { campaignId: { in: topCampaignIds }, deletedAt: null },
-          select: { campaignId: true, creatorId: true },
-          distinct: ["campaignId", "creatorId"],
-        })
-      : [];
-    const creatorsPerCampaign = new Map<string, number>();
-    for (const row of campaignCreatorRows) {
-      creatorsPerCampaign.set(row.campaignId, (creatorsPerCampaign.get(row.campaignId) ?? 0) + 1);
-    }
-
-    const viewsByCampaign = byCampaign.map((c) => ({
-      campaignId: c.campaignId,
-      title: titleById.get(c.campaignId) ?? "Unknown campaign",
-      views: c._sum.viewsCount ?? 0,
-      creatorsCount: creatorsPerCampaign.get(c.campaignId) ?? 0,
-    }));
-
-    const platformBreakdown = byPlatform.map((p) => ({
-      platform: p.platform,
-      views: p._sum.viewsCount ?? 0,
-      postsCount: p._count._all,
-    }));
-
-    const creatorIds = byCreator.map((c) => c.creatorId);
-    const creatorRows = creatorIds.length
-      ? await db.creator.findMany({
-          where: { id: { in: creatorIds } },
-          /* platform is not decoration. One person's TikTok and Instagram
-             accounts are two Creator rows with the SAME handle -- there is no
-             unique constraint on (orgId, handle) and there should not be -- so
-             a table showing only "@handle" lists them twice and reads as a
-             duplicated record. It fooled me during a review of this very
-             page. */
-          select: {
-            id: true, name: true, handle: true, platform: true,
-            _count: { select: { activations: true } },
-          },
-        })
-      : [];
-    const creatorById = new Map(creatorRows.map((c) => [c.id, c]));
-
-    const creatorPerformance = byCreator.map((c) => {
-      const creator = creatorById.get(c.creatorId);
-      return {
-        creatorId: c.creatorId,
-        name: creator?.name ?? "Unknown",
-        handle: creator?.handle ?? "",
-        platform: creator?.platform ?? null,
-        activationCount: creator?._count.activations ?? 0,
-        views: c._sum.viewsCount ?? 0,
-        avgEngagement: Math.round((c._avg.engagementRate ?? 0) * 100) / 100,
-      };
-    });
-
-    const topPosts = topPostRows.map((p) => ({
-      id: p.id,
-      postUrl: p.postUrl,
-      platform: p.platform,
-      viewsCount: p.viewsCount,
-      likesCount: p.likesCount,
-      engagementRate: p.engagementRate,
-      creatorId: p.creator?.id ?? null,
-      creatorName: p.creator?.name ?? null,
-      creatorHandle: p.creator?.handle ?? null,
-      campaignTitle: p.campaign?.title ?? null,
-    }));
-
-    // ── Response ────────────────────────────────────────────────────────────
-
-    return NextResponse.json({
-      summary,
-      viewsOverTime,
-      viewsByCampaign,
-      platformBreakdown,
-      creatorPerformance,
-      topPosts,
-    }, { headers: READ_CACHE_HEADERS });
+    /* Served from the org's data fingerprint (lib/reports/orgReadCache): the
+       same figures are recomputed only once a post, campaign, creator,
+       activation or daily views reading in the org has changed. A defaulted
+       window slides with the clock, so it is keyed by the UTC hour instead of
+       its exact bounds -- otherwise no two requests would ever share a key. */
+    const body = await cachedOrgRead(
+      "dashboard-performance",
+      orgId,
+      [
+        parsedQuery.data.from?.toISOString() ?? `six-months@${utcHourKey(now)}`,
+        parsedQuery.data.to?.toISOString() ?? `now@${utcHourKey(now)}`,
+        granularity,
+      ],
+      { activations: true, viewsSnapshots: true },
+      () => performanceBody(orgId, from, to, granularity),
+    );
+    return NextResponse.json(body, { headers: READ_CACHE_HEADERS });
   } catch (error) {
     console.error("Dashboard performance error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
+}
+
+async function performanceBody(orgId: string, from: Date, to: Date, granularity: "daily" | "weekly" | "monthly") {
+  // Everything below aggregates in the database. This used to load every post
+  // in the range, every campaign and every activation into Node and reduce
+  // over them in JavaScript: 4.5 seconds of work to produce 4 KB of JSON.
+
+  /* The date range means "what happened in this period", so it reads the day
+     the creator posted, not the day we imported the row. Filtering on
+     createdAt made a six-month view depend on our own import history. */
+  /* deletedAt: null, the same filter activeCampaigns and campaignTitles carry.
+     Without it the Total Views and Total Posts tiles counted posts belonging to
+     soft-deleted campaigns, and "Views by campaign" drew a bar for a campaign
+     the title lookup deliberately omits -- which rendered as "Unknown campaign".
+     Two tiles and a chart on one screen disagreeing about which campaigns exist. */
+  const postWhere = {
+    campaign: { orgId, deletedAt: null },
+    postedAt: { gte: from, lte: to },
+  };
+  /* The org-wide breakdowns count a video once however many campaigns it was
+     delivered against (lib/posts/duplicates); views by campaign keeps every
+     copy, because each campaign counts its own. */
+  const orgPostWhere = { ...postWhere, ...excludingDuplicates(await duplicatePostIds(orgId)) };
+  const truncUnit = granularity === "daily" ? "day" : granularity === "weekly" ? "week" : "month";
+
+  const [
+    activeCampaigns,
+    distinctCreators,
+    bucketRows,
+    byCampaign,
+    byPlatform,
+    byCreator,
+    campaignTitles,
+    topPostRows,
+  ] = await Promise.all([
+    db.campaign.count({ where: { orgId, deletedAt: null, status: "IN_PROGRESS" } }),
+    /* A creator is on the roster via an activation, whether or not a post
+       exists -- and the campaign that activation belongs to has to still
+       exist. `deletedAt: null` here is the ACTIVATION's; the campaign's was
+       missing, so Total Creators counted anyone activated on a soft-deleted
+       campaign while the post tiles beside it, activeCampaigns and the title
+       lookup all excluded those campaigns. Delete a finished campaign and the
+       creator count stayed high with nothing on the screen to explain it. */
+    db.activation.findMany({
+      where: { campaign: { orgId, deletedAt: null }, deletedAt: null },
+      select: { creatorId: true },
+      distinct: ["creatorId"],
+    }),
+    /* Measured, not derived. One row per day, written by
+       /api/cron/snapshot-org-views at 00:30 UTC (vercel.json).
+
+       This used to be computed here: posts bucketed by publication date, each
+       contributing its CURRENT view count, accumulated. That has a property
+       no client report should have -- the past moves. A March post gaining
+       views today raised March and every point after it, so the chart
+       screenshotted last week no longer matched the chart today. It also
+       could not answer the question its own axis implies, because nothing in
+       the database recorded what the total actually was on any given day.
+
+       A reading is a LEVEL (lifetime views of every post the org holds, as of
+       that morning), so bucketing to weekly or monthly takes the LAST row in
+       the bucket. Summing would count the same lifetime views once per day
+       and produce a number that means nothing. DISTINCT ON is Postgres's way
+       of saying "one row per bucket, the first one in this ordering".
+
+       truncUnit comes from a validated enum, never from user text. */
+    db.$queryRawUnsafe<{ bucket: Date; views: number; posts: number }[]>(
+      `SELECT DISTINCT ON (bucket)
+              date_trunc('${truncUnit}', s."day") AS bucket,
+              s."viewsCount" AS views,
+              s."postsCount" AS posts
+         FROM "OrgViewsSnapshot" s
+        WHERE s."orgId" = $1 AND s."day" >= $2 AND s."day" <= $3
+        ORDER BY bucket, s."day" DESC`,
+      orgId,
+      from,
+      to
+    ),
+    db.post.groupBy({
+      by: ["campaignId"],
+      where: postWhere,
+      _sum: { viewsCount: true },
+      orderBy: { _sum: { viewsCount: "desc" } },
+      take: 10,
+    }),
+    db.post.groupBy({
+      by: ["platform"],
+      where: orgPostWhere,
+      _sum: { viewsCount: true },
+      _count: { _all: true },
+    }),
+    db.post.groupBy({
+      by: ["creatorId"],
+      where: orgPostWhere,
+      _sum: { viewsCount: true },
+      _count: { _all: true },
+      orderBy: { _sum: { viewsCount: "desc" } },
+      take: 10,
+    }),
+    db.campaign.findMany({
+      where: { orgId, deletedAt: null },
+      select: { id: true, title: true },
+    }),
+    db.post.findMany({
+      where: orgPostWhere,
+      orderBy: { viewsCount: "desc" },
+      take: 5,
+      select: {
+        id: true, postUrl: true, platform: true, viewsCount: true,
+        likesCount: true, commentsCount: true, sharesCount: true, savesCount: true,
+        lastSyncedAt: true, platformMetrics: true,
+        creator: { select: { id: true, name: true, handle: true } },
+        campaign: { select: { title: true } },
+      },
+    }),
+  ]);
+
+  const summary = {
+    activeCampaigns,
+    totalCreators: distinctCreators.length,
+  };
+
+  const viewsOverTime = bucketRows.map((r) => ({
+    date: getDateKey(new Date(r.bucket), granularity),
+    views: Number(r.views),
+    posts: Number(r.posts),
+  }));
+
+  const titleById = new Map(campaignTitles.map((c) => [c.id, c.title]));
+
+  // Creator counts per campaign, for the campaigns that actually charted.
+  const topCampaignIds = byCampaign.map((c) => c.campaignId);
+  const campaignCreatorRows = topCampaignIds.length
+    ? await db.activation.findMany({
+        where: { campaignId: { in: topCampaignIds }, deletedAt: null },
+        select: { campaignId: true, creatorId: true },
+        distinct: ["campaignId", "creatorId"],
+      })
+    : [];
+  const creatorsPerCampaign = new Map<string, number>();
+  for (const row of campaignCreatorRows) {
+    creatorsPerCampaign.set(row.campaignId, (creatorsPerCampaign.get(row.campaignId) ?? 0) + 1);
+  }
+
+  const viewsByCampaign = byCampaign.map((c) => ({
+    campaignId: c.campaignId,
+    title: titleById.get(c.campaignId) ?? "Unknown campaign",
+    views: c._sum.viewsCount ?? 0,
+    creatorsCount: creatorsPerCampaign.get(c.campaignId) ?? 0,
+  }));
+
+  const platformBreakdown = byPlatform.map((p) => ({
+    platform: p.platform,
+    views: p._sum.viewsCount ?? 0,
+    postsCount: p._count._all,
+  }));
+
+  const creatorIds = byCreator.map((c) => c.creatorId);
+  const creatorRows = creatorIds.length
+    ? await db.creator.findMany({
+        where: { id: { in: creatorIds } },
+        /* platform is not decoration. One person's TikTok and Instagram
+           accounts are two Creator rows with the SAME handle -- there is no
+           unique constraint on (orgId, handle) and there should not be -- so
+           a table showing only "@handle" lists them twice and reads as a
+           duplicated record. It fooled me during a review of this very
+           page. */
+        select: {
+          id: true, name: true, handle: true, platform: true,
+          _count: { select: { activations: true } },
+        },
+      })
+    : [];
+  const creatorById = new Map(creatorRows.map((c) => [c.id, c]));
+
+  /* The campaign rate, per creator: engagements over views across their
+     measured posts. Not an average of Post.engagementRate -- that column holds
+     CreatorCore's fraction on imported rows and a percent on synced ones, and
+     a 0 on every post nobody read, so its mean printed 0.0% for most creators. */
+  const measuredByCreator = creatorIds.length
+    ? await db.post.groupBy({
+        by: ["creatorId"],
+        where: { AND: [orgPostWhere, { creatorId: { in: creatorIds } }, MEASURED_POSTS_FILTER] },
+        _sum: { viewsCount: true, likesCount: true, commentsCount: true, sharesCount: true, savesCount: true },
+        _count: { _all: true },
+      })
+    : [];
+  const engagementByCreator = new Map(
+    measuredByCreator.map((m) => {
+      const { rate } = rollupEngagementFromTotals({ measuredPosts: m._count._all, ...m._sum });
+      return [m.creatorId, rate === null ? null : Math.round(rate * 10000) / 100];
+    })
+  );
+
+  const creatorPerformance = byCreator.map((c) => {
+    const creator = creatorById.get(c.creatorId);
+    return {
+      creatorId: c.creatorId,
+      name: creator?.name ?? "Unknown",
+      handle: creator?.handle ?? "",
+      platform: creator?.platform ?? null,
+      activationCount: creator?._count.activations ?? 0,
+      views: c._sum.viewsCount ?? 0,
+      avgEngagement: engagementByCreator.get(c.creatorId) ?? null,
+    };
+  });
+
+  const topPosts = topPostRows.map((p) => ({
+    id: p.id,
+    postUrl: p.postUrl,
+    platform: p.platform,
+    viewsCount: p.viewsCount,
+    likesCount: p.likesCount,
+    engagementRate: postEngagementPercent(p),
+    creatorId: p.creator?.id ?? null,
+    creatorName: p.creator?.name ?? null,
+    creatorHandle: p.creator?.handle ?? null,
+    campaignTitle: p.campaign?.title ?? null,
+  }));
+
+  return {
+    summary,
+    viewsOverTime,
+    viewsByCampaign,
+    platformBreakdown,
+    creatorPerformance,
+    topPosts,
+  };
 }

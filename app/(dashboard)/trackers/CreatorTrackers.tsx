@@ -51,6 +51,8 @@ type TrackedCreator = {
   avatarUrl: string | null;
   trackedSince: string | null;
   followersCount: number | null;
+  /** False when the count is the creator's stored figure, not a tracker reading. */
+  followersFromReading?: boolean;
   followersChangePercent: number | null;
   followersDelta: number | null;
   lastReadAt: string | null;
@@ -301,7 +303,9 @@ const TrackerRow = memo(function TrackerRow({
               : ""
           }
           age={
-            isUnknownMetric(figures.followers) ? undefined : (
+            isUnknownMetric(figures.followers) ? undefined : c.followersFromReading === false ? (
+              <AgeLabel at={null} field="tracker" source="Creator record" never="not yet read by the tracker" />
+            ) : (
               <AgeLabel at={c.lastReadAt} field="tracker" ctx={{ cadenceHours }} source="Tracker reading" never="time not recorded" />
             )
           }
