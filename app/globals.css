@@ -155,6 +155,40 @@
      has to sit on that theme's ground, not on light's. */
   --cc-danger-light: color-mix(in srgb, var(--cc-danger) 9%, transparent);
 
+  /* Status chips, banners and inline status text, one pair per tone: -fg is
+     the tone's own hue for text, icons and small marks (dots, bars), -bg the
+     pale ground it sits on, -solid a fill that carries a white label. Every
+     value here aliases a token that already follows the theme, so light and
+     dark get their own status colours; :root.creatorcore pins each one to the
+     colour these components painted before they read tokens, so that theme
+     does not move. */
+  --cc-success-fg: var(--cc-success);
+  --cc-success-bg: var(--ui-success-dim);
+  --cc-warning-fg: var(--cc-warning);
+  --cc-warning-bg: var(--ui-warning-dim);
+  --cc-warning-solid: var(--cc-warning);
+  --cc-danger-fg: var(--cc-danger-ink);
+  --cc-danger-bg: var(--ui-danger-dim);
+  --cc-danger-solid: var(--cc-danger);
+  --cc-neutral-fg: var(--cc-text-muted);
+  --cc-neutral-bg: var(--ui-neutral-dim);
+  --cc-accent-fg: var(--cc-primary);
+  --cc-accent-bg: var(--cc-primary-light);
+
+  /* Colours with no theme meaning to alias, so the value is the colour itself
+     and no theme block re-points it: a filled rating star, the calendar's
+     deliverable marker, the black behind and over a post's own media (the
+     artwork does not restyle with the theme), the ink a drop shadow is mixed
+     from, and each platform's brand colour. */
+  --cc-rating: #F59E0B;
+  --cc-deliverable: #7C3AED;
+  --cc-media-ink: #000000;
+  --cc-shadow-ink: #000000;
+  --cc-brand-tiktok: #000000;
+  --cc-brand-instagram: #E4405F;
+  --cc-brand-youtube: #FF0000;
+  --cc-brand-twitter: #1DA1F2;
+
   /* An overlay's own ground, deliberately the same in every theme -- the one
      token below that no theme block is allowed to redefine.
      A surface that floats over arbitrary artwork (the counts on a post
@@ -1382,6 +1416,9 @@
      theme's near-black surfaces would be the same bug mirrored. */
   --status-good: #0CA30C;
   --status-warning: #FAB219;
+  /* A fill that carries a white glyph. #FAB219 under white is 1.9:1, so the
+     fill steps toward black until the glyph reads as it did on the old amber. */
+  --cc-warning-solid: color-mix(in srgb, var(--cc-warning) 75%, black);
   --ui-success-dim: rgba(12, 163, 12, 0.22);
   --ui-warning-dim: rgba(250, 178, 25, 0.22);
   --ui-danger-dim: rgba(208, 59, 59, 0.22);
@@ -1786,6 +1823,23 @@
   --ui-neutral-dim: rgba(31, 60, 239, 0.06);
 
   color-scheme: light;
+}
+
+/* The status pairs, held at exactly what this theme painted before the
+   components read tokens (see the base :root). */
+:root.creatorcore {
+  --cc-success-fg: #059669;
+  --cc-success-bg: #D1FAE5;
+  --cc-warning-fg: var(--cc-warning-ink);
+  --cc-warning-bg: #FEF3C7;
+  --cc-warning-solid: #D97706;
+  --cc-danger-fg: #DC2626;
+  --cc-danger-bg: #FEE2E2;
+  --cc-danger-solid: #DC2626;
+  --cc-neutral-fg: #374151;
+  --cc-neutral-bg: #F3F4F6;
+  --cc-accent-fg: #4F46E5;
+  --cc-accent-bg: #EEF2FF;
 }
 
 /*
