@@ -1097,7 +1097,7 @@ export default function PostsTab({
     return () => { cancelled = true; stop(); };
   }, [campaignId]);
 
-  const openAddPost = () => {
+  const openAddPost = useCallback(() => {
     /* Reset here rather than on close: a failed batch leaves its rows on screen
        so the operator can read what went wrong, and only reopening clears them.
        Not while a batch is still being sent, though: closing the dialog does
@@ -1109,7 +1109,26 @@ export default function PostsTab({
       setAddSummary(null);
     }
     setShowAddPost(true);
-  };
+  }, [submitting]);
+
+  /* Links pasted anywhere on the tab open Add Posts with them already in it
+     (plan §04), so a batch copied from a client's sheet needs no click first.
+     A paste into a field or another dialog is that field's, and a paste while
+     a batch is being sent is left alone: the run owns the rows until it ends. */
+  useEffect(() => {
+    if (showAddPost || submitting) return;
+    const onPaste = (e: ClipboardEvent) => {
+      const target = e.target instanceof Element ? e.target : null;
+      if (target?.closest("input, textarea, select, [contenteditable]:not([contenteditable='false']), [role=dialog]")) return;
+      const text = e.clipboardData?.getData("text") ?? "";
+      if (parsePastedPostEntries(text).length === 0) return;
+      e.preventDefault();
+      openAddPost();
+      addLinks(text);
+    };
+    document.addEventListener("paste", onPaste);
+    return () => document.removeEventListener("paste", onPaste);
+  }, [showAddPost, submitting, openAddPost, addLinks]);
 
   /* The two typed filters feed the list through useDeferredValue, so a
      keystroke paints the character first and re-filters afterwards. The inputs
