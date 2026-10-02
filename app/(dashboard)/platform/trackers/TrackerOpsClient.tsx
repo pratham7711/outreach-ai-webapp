@@ -97,7 +97,7 @@ export default function TrackerOpsClient({ initial }: { initial: TrackerOpsRepor
       />
       <p className="cc-tracker-ops-sub">
         Cron heartbeats, kill switches, source breakers and spend are on{" "}
-        <Link href="/platform/ops" style={{ color: "var(--cc-primary)" }}>
+        <Link href="/platform/ops" style={{ color: "var(--cc-primary)", textDecoration: "underline" }}>
           Ops guards
         </Link>
         .

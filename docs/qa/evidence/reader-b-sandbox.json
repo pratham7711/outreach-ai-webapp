@@ -1,0 +1,54 @@
+{
+  "label": "b-sandbox",
+  "plan": "B",
+  "orgs": 1,
+  "creators": 71,
+  "seconds": 264,
+  "sweep": {
+    "snapshots": 64,
+    "failed": 1,
+    "skipped": 6
+  },
+  "dueTikTok": 71,
+  "postsStale": 71,
+  "lanes": 1,
+  "health": {
+    "reads": 130,
+    "proper": 130,
+    "walls": 0,
+    "failures": 0,
+    "medianMs": 14124,
+    "ok": true
+  },
+  "properRate": 100,
+  "readsPerLanePerMinute": 29.5,
+  "maxWallStreak": 0,
+  "db": {
+    "snapshotsWritten": 64,
+    "sourceRows": 64,
+    "sourceRowsByExit": {
+      "B:sb-5kzaadi09tx0.vercel.run#1": 64
+    },
+    "held": 0,
+    "rejected": 0,
+    "rosterLinksFed": 64,
+    "healthRowRecorded": true
+  },
+  "worker": {
+    "ok": true,
+    "served": 130,
+    "refused": 0,
+    "failed": 0,
+    "startedAt": "2026-10-02T01:43:10.791Z",
+    "queued": 0
+  },
+  "exits": [
+    {
+      "id": "B:sb-5kzaadi09tx0.vercel.run#1",
+      "pages": 130,
+      "proper": 130,
+      "walls": 0,
+      "failures": 0
+    }
+  ]
+}

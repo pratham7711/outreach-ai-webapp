@@ -1,0 +1,79 @@
+{
+  "label": "a-soak2",
+  "plan": "A",
+  "orgs": 9,
+  "creators": 639,
+  "seconds": 246,
+  "sweep": {
+    "snapshots": 507,
+    "failed": 7,
+    "skipped": 86
+  },
+  "dueTikTok": 600,
+  "postsStale": 71,
+  "lanes": 5,
+  "health": {
+    "reads": 588,
+    "proper": 585,
+    "walls": 3,
+    "failures": 0,
+    "medianMs": 1616,
+    "ok": true
+  },
+  "properRate": 99.5,
+  "readsPerLanePerMinute": 28.6,
+  "maxWallStreak": 0,
+  "db": {
+    "snapshotsWritten": 507,
+    "sourceRows": 507,
+    "sourceRowsByExit": {
+      "A:cle1:2#1": 98,
+      "A:pdx1:3#1": 104,
+      "A:sfo1:1#1": 100,
+      "A:iad1:0#1": 101,
+      "A:yul1:4#1": 104
+    },
+    "held": 0,
+    "rejected": 0,
+    "rosterLinksFed": 70,
+    "healthRowRecorded": true
+  },
+  "worker": null,
+  "exits": [
+    {
+      "id": "A:iad1:0#1",
+      "pages": 118,
+      "proper": 118,
+      "walls": 0,
+      "failures": 0
+    },
+    {
+      "id": "A:sfo1:1#1",
+      "pages": 118,
+      "proper": 118,
+      "walls": 0,
+      "failures": 0
+    },
+    {
+      "id": "A:cle1:2#1",
+      "pages": 118,
+      "proper": 117,
+      "walls": 1,
+      "failures": 0
+    },
+    {
+      "id": "A:pdx1:3#1",
+      "pages": 118,
+      "proper": 118,
+      "walls": 0,
+      "failures": 0
+    },
+    {
+      "id": "A:yul1:4#1",
+      "pages": 116,
+      "proper": 114,
+      "walls": 2,
+      "failures": 0
+    }
+  ]
+}

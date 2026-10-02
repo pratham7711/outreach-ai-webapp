@@ -16,7 +16,7 @@
  * setup (or any e2e area) once first, against a server using the same
  * NEXTAUTH_SECRET.
  */
-import { chromium } from "@playwright/test";
+import { chromium, request } from "@playwright/test";
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import path from "node:path";
 
@@ -49,8 +49,24 @@ export const PAGES = [
   "/plans",
   "/platform",
   "/platform/trackers",
+  "/platform/ops",
 ];
-const pages = arg("pages") ? arg("pages").split(",") : PAGES;
+/* --portal: the creator app, signed in as the seeded creator (creator@demo.com,
+   the same login e2e/fixtures/portal-auth.setup.ts uses). */
+export const PORTAL_PAGES = [
+  "/portal/dashboard",
+  "/portal/campaigns",
+  "/portal/campaigns?tab=invited",
+  "/portal/campaigns?tab=open",
+  "/portal/accounts",
+  "/portal/stats",
+  "/portal/account",
+  // Parked screens (K7): each should land back on Home.
+  "/portal/messages",
+  "/portal/earnings",
+];
+const PORTAL = argv.includes("--portal");
+const pages = arg("pages") ? arg("pages").split(",") : PORTAL ? PORTAL_PAGES : PAGES;
 const THEMES = ["creatorcore", "light", "dark"];
 const WIDTHS = [
   { name: "1440", width: 1440, height: 900 },
@@ -144,7 +160,14 @@ async function settle(page) {
 }
 
 async function main() {
-  const authFile = path.join(ROOT, "e2e", "fixtures", ".auth.json");
+  const authFile = path.join(ROOT, "e2e", "fixtures", PORTAL ? ".portal-auth.json" : ".auth.json");
+  if (PORTAL) {
+    const api = await request.newContext({ baseURL: BASE });
+    const res = await api.post("/api/portal/auth/login", { data: { email: "creator@demo.com", password: "creator123" }, timeout: 60000 });
+    if (!res.ok()) throw new Error(`portal login failed: ${res.status()}`);
+    writeFileSync(authFile, JSON.stringify(await api.storageState(), null, 2));
+    await api.dispose();
+  }
   if (!existsSync(authFile)) throw new Error("e2e/fixtures/.auth.json is missing -- run the e2e auth setup first");
   mkdirSync(path.join(OUT, "shots"), { recursive: true });
   const browser = await chromium.launch({ channel: "chrome" });

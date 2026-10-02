@@ -154,7 +154,7 @@ export default function OpsGuardsClient({ initial }: { initial: OpsGuardsReport 
       />
       <p className="cc-tracker-ops-sub">
         The tracker reader&rsquo;s own switch (legacy, A, B) is on{" "}
-        <Link href="/platform/trackers" style={{ color: "var(--cc-primary)" }}>
+        <Link href="/platform/trackers" style={{ color: "var(--cc-primary)", textDecoration: "underline" }}>
           Tracker reader
         </Link>
         .
@@ -219,7 +219,7 @@ export default function OpsGuardsClient({ initial }: { initial: OpsGuardsReport 
         <p className="cc-tracker-ops-sub">
           Turning a job off makes its next run answer “skipped” without working; nothing is redeployed. The canary checks every job hourly.
         </p>
-        <div className="cc-tracker-ops-table-wrap">
+        <div className="cc-tracker-ops-table-wrap" tabIndex={0} role="region" aria-labelledby="jobs-heading">
           <table className="cc-tracker-ops-table">
             <thead>
               <tr>
@@ -313,7 +313,7 @@ export default function OpsGuardsClient({ initial }: { initial: OpsGuardsReport 
           Reader v2 and the post sync stop reading a source after 25 failures in a row, try a few reads after 2 hours, and resume on any
           success. The legacy sweep has no breaker.
         </p>
-        <div className="cc-tracker-ops-table-wrap">
+        <div className="cc-tracker-ops-table-wrap" tabIndex={0} role="region" aria-labelledby="breakers-heading">
           <table className="cc-tracker-ops-table">
             <thead>
               <tr>
@@ -363,7 +363,7 @@ export default function OpsGuardsClient({ initial }: { initial: OpsGuardsReport 
         {sb.byCaller.length === 0 ? (
           <p className="cc-tracker-ops-sub">No sandbox has been created today (UTC), or the counter is not applied yet.</p>
         ) : (
-          <div className="cc-tracker-ops-table-wrap">
+          <div className="cc-tracker-ops-table-wrap" tabIndex={0} role="region" aria-labelledby="sandbox-heading">
             <table className="cc-tracker-ops-table">
               <thead>
                 <tr>

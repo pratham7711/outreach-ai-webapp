@@ -101,3 +101,6 @@ docs/parity/history.jsonl
 # the deploy gate's state key hashes untracked file contents too, so an artefact
 # the suite writes would void the receipt that same suite just earned.
 e2e/fixtures/.action-inventory.json
+
+# scripts/qa/serve-local.sh: local-only tokens and logs
+.qa-local/
