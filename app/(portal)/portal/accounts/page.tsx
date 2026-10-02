@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import type { PlatformCapability } from "@/lib/capabilities";
 import { isInstagramLoginRow } from "@/lib/platforms/accountOrigin";
 import { OAUTH_PLATFORMS, toPlatformEnum, type OAuthPlatform } from "@/lib/oauth/providers";
@@ -81,20 +82,45 @@ function readConnectResult(): { tone: "success" | "danger"; text: string } | nul
   };
 }
 
+/* A button rather than <details>/<summary>: the phone touch rule in
+   globals.css (rsp-touch, 44px) reaches buttons and links, not a summary. */
 function WhatWeRead({ platform }: { platform: OAuthPlatform }) {
+  const [open, setOpen] = useState(false);
+  const id = `what-we-read-${platform}`;
   return (
-    <details style={{ marginTop: 10 }}>
-      <summary className="rsp-touch" style={{ cursor: "pointer", fontSize: 13, fontWeight: 600, color: "var(--cc-primary)", display: "flex", alignItems: "center" }}>
+    <div style={{ marginTop: 6 }}>
+      <button
+        type="button"
+        className="rsp-touch"
+        aria-expanded={open}
+        aria-controls={id}
+        onClick={() => setOpen((o) => !o)}
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 4,
+          padding: "6px 0",
+          border: "none",
+          background: "none",
+          cursor: "pointer",
+          fontSize: 13,
+          fontWeight: 600,
+          color: "var(--cc-primary)",
+        }}
+      >
+        {open ? <ChevronUp size={14} aria-hidden="true" /> : <ChevronDown size={14} aria-hidden="true" />}
         What we read
-      </summary>
-      <ul style={{ margin: "8px 0 0", paddingLeft: 18, display: "flex", flexDirection: "column", gap: 6 }}>
-        {WHAT_WE_READ[platform].map((r) => (
-          <li key={r.scope} style={{ fontSize: 13, color: "var(--cc-text)", lineHeight: 1.5 }}>
-            {r.reads} <span style={{ color: "var(--cc-text-muted)", fontSize: 12 }}>({r.scope.replace("https://www.googleapis.com/auth/", "")})</span>
-          </li>
-        ))}
-      </ul>
-    </details>
+      </button>
+      {open && (
+        <ul id={id} style={{ margin: "4px 0 0", paddingLeft: 18, display: "flex", flexDirection: "column", gap: 6 }}>
+          {WHAT_WE_READ[platform].map((r) => (
+            <li key={r.scope} style={{ fontSize: 13, color: "var(--cc-text)", lineHeight: 1.5 }}>
+              {r.reads} <span style={{ color: "var(--cc-text-muted)", fontSize: 12 }}>({r.scope.replace("https://www.googleapis.com/auth/", "")})</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 
