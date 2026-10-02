@@ -518,6 +518,10 @@
   --cc-cal-daynum-fw: 500;
   --cc-cal-daynum-fw-today: 700;
   --cc-cal-daynum-size: 26px;
+  /* Days from the neighbouring months. They were faded to 0.35 opacity, which
+     took their numbers to 1.7:1; a faint ground marks them instead and the
+     number keeps the muted ink every other day uses. */
+  --cc-cal-outside-bg: color-mix(in srgb, var(--cc-text) 4%, transparent);
 
   /* The ramp's own heading leading; creatorcore re-points it to 1.25. */
   --cc-lh-page-title: var(--cc-lh-tight);
@@ -2217,6 +2221,13 @@
   background: var(--cc-btn-sec-bg-hover);
   color: var(--cc-btn-sec-fg-hover);
   border-color: var(--cc-btn-sec-border-hover);
+}
+
+/* The library's danger button writes --ui-danger on its own tint of it, 3.6:1
+   in light (measured on /plans). The danger ink is what every other red label
+   here already uses; hover keeps the library's white on solid red. */
+.ui-btn-danger {
+  color: var(--cc-danger-ink);
 }
 
 /* CreatorCore puts the glyph AFTER the label on every action button -- measured
@@ -4836,6 +4847,22 @@ h1, h2, h3, h4, h5, h6 {
 .cc-icon-btn:hover {
   --cc-icon-btn-bg: var(--cc-icon-btn-bg-hover);
   --cc-icon-btn-fg: var(--cc-icon-btn-fg-hover);
+}
+
+/* MenuButton's trigger is a real <button> so it may carry aria-expanded; the
+   reset leaves the bell and the avatar drawing exactly what they drew inside
+   the ui package's bare div. */
+.cc-menu-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--cc-icon-btn-r);
+  background: none;
+  color: inherit;
+  font: inherit;
 }
 
 /* The unread count. Anchored to the button's own box, so it follows a theme

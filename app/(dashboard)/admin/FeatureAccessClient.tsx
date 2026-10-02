@@ -236,6 +236,7 @@ export default function FeatureAccessClient({ clients: initialClients, plans }: 
                     type="checkbox"
                     checked={selected.size === filtered.length && filtered.length > 0}
                     onChange={toggleAll}
+                    aria-label="Select all clients"
                     style={{ cursor: "pointer", accentColor: "var(--cc-primary)" }}
                   />
                 </div>
@@ -271,6 +272,7 @@ export default function FeatureAccessClient({ clients: initialClients, plans }: 
                         type="checkbox"
                         checked={isSelected}
                         onChange={() => toggleSelect(client.id)}
+                        aria-label={`Select ${client.name}`}
                         style={{ cursor: "pointer", accentColor: "var(--cc-primary)" }}
                       />
                     </div>
@@ -307,6 +309,8 @@ export default function FeatureAccessClient({ clients: initialClients, plans }: 
                       </Button>
                       <Link
                         href={`/clients/${client.id}`}
+                        aria-label={`Open ${client.name}`}
+                        title={`Open ${client.name}`}
                         style={{
                           padding: "5px 10px", borderRadius: 6, fontSize: "var(--cc-t-12)", fontWeight: 500,
                           background: "transparent", border: "1px solid var(--cc-border)",
@@ -314,7 +318,7 @@ export default function FeatureAccessClient({ clients: initialClients, plans }: 
                           textDecoration: "none",
                         }}
                       >
-                        <ExternalLink size={12} />
+                        <ExternalLink size={12} aria-hidden="true" />
                       </Link>
                     </div>
                   </div>

@@ -320,7 +320,7 @@ export default function TeamClient({
             />
           </div>
         ) : (
-          <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+          <div tabIndex={0} role="region" aria-label="Team members" style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
             <div style={{ minWidth: canManage ? 760 : 560 }}>
             {/* Table header. The trailing blank is the remove-button cell. */}
             <div style={{

@@ -80,6 +80,9 @@ function probeLayout() {
     if (cs.display === "none" || cs.visibility === "hidden" || cs.position === "fixed") continue;
     const r = el.getBoundingClientRect();
     if (r.width === 0 || r.height === 0) continue;
+    /* Visually hidden on purpose (.sr-only, the skip link): a 1px box with
+       its text clipped is the technique, not a defect. */
+    if (r.width <= 1 && r.height <= 1) continue;
     if (r.right > vw + 1 && !scrollsSideways(el)) offRight.push(`${label(el)} right=${Math.round(r.right)}`);
     const ownText = Array.from(el.childNodes).some((n) => n.nodeType === 3 && (n.textContent || "").trim());
     if (

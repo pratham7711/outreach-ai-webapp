@@ -247,7 +247,7 @@ export default function TrackerOpsClient({ initial }: { initial: TrackerOpsRepor
 
       <section className="cc-tracker-ops-section" aria-labelledby="runs-heading">
         <h2 id="runs-heading" className="cc-tracker-ops-h2">Recent runs and checks</h2>
-        <div className="cc-tracker-ops-table-wrap">
+        <div className="cc-tracker-ops-table-wrap" tabIndex={0} role="region" aria-labelledby="runs-heading">
           <table className="cc-tracker-ops-table">
             <thead>
               <tr>

@@ -4,7 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { Search, ChevronRight, Settings, LogOut, Check } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import { Dropdown } from "@pratham7711/ui";
+import { MenuButton } from "@/components/ds/MenuButton";
 import { signOut } from "next-auth/react";
 import { THEME_CHOICES, useThemeChoice } from "@/components/ThemeChoices";
 import { NotificationBell } from "@/components/layout/NotificationBell";
@@ -127,7 +127,7 @@ export function TopBar({ user, navHrefs }: { user?: TopBarUser; navHrefs?: strin
   const initial = initials(user?.name, user?.email);
   const displayName = user?.name || user?.email || "Account";
 
-  /* The ui Dropdown takes a flat list of plain-text items -- no headings, no
+  /* The menu takes a flat list of plain-text items -- no headings, no
      radio rows -- so each theme is its own item, "<X> theme", and the one in
      use trades its icon for a check and says "(current)". */
   const accountItems = [
@@ -213,12 +213,9 @@ export function TopBar({ user, navHrefs }: { user?: TopBarUser; navHrefs?: strin
         <NotificationBell />
 
         {/* Account menu */}
-        <Dropdown
+        <MenuButton
           align="right"
-          tabIndex={0}
-          role="button"
-          aria-haspopup="menu"
-          aria-label={`Account menu for ${displayName}`}
+          label={`Account menu for ${displayName}`}
           trigger={
             <span
               title={displayName}

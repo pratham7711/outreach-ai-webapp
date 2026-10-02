@@ -291,7 +291,7 @@ export default function PlansClient({ plans: initialPlans }: { plans: Plan[] }) 
                       const on = plan.features[key] === true;
                       return (
                         <div key={key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                          <span style={{ fontSize: "var(--cc-t-13)", color: on ? "var(--cc-text)" : "var(--cc-text-muted)", opacity: on ? 1 : 0.6 }}>
+                          <span style={{ fontSize: "var(--cc-t-13)", color: on ? "var(--cc-text)" : "var(--cc-text-muted)" }}>
                             {FEATURES[key].label}
                           </span>
                           <Badge variant={on ? "success" : "neutral"} size="sm">

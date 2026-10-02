@@ -164,7 +164,7 @@ function PlatformBreakdown({ stats }: { stats: PlatformStats }) {
   }
 
   return (
-    <div style={{ overflowX: "auto" }}>
+    <div tabIndex={0} role="region" aria-label="Creators by platform" style={{ overflowX: "auto" }}>
       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "var(--cc-t-13)", minWidth: 520 }}>
         <thead>
           <tr style={{ textAlign: "left", color: "var(--cc-text-muted)", fontSize: "var(--cc-t-12)"}}>

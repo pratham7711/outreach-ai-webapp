@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Bell } from "lucide-react";
-import { Dropdown } from "@pratham7711/ui";
+import { MenuButton } from "@/components/ds/MenuButton";
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api/client";
 import { timeAgo } from "@/lib/format";
@@ -89,16 +89,10 @@ export function NotificationBell() {
         });
 
   return (
-    <Dropdown
+    <MenuButton
       align="right"
-      tabIndex={0}
-      role="button"
-      aria-haspopup="menu"
-      aria-label={badge ? `Notifications, ${data?.unreadCount} unread` : "Notifications"}
-      onClick={markSeen}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") markSeen();
-      }}
+      label={badge ? `Notifications, ${data?.unreadCount} unread` : "Notifications"}
+      onOpen={markSeen}
       trigger={
         <span className="cc-icon-btn" data-action="notifications">
           <Bell size={17} aria-hidden="true" />

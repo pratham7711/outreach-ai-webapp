@@ -456,7 +456,7 @@ export default function ApiKeysClient() {
           <p className="cc-microlabel" style={{ marginBottom: 6 }}>
             REST / cURL
           </p>
-          <div style={{ background: "var(--cc-overlay-ink)", borderRadius: 8, padding: "12px 16px", overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+          <div tabIndex={0} role="region" aria-label="REST and cURL example" style={{ background: "var(--cc-overlay-ink)", borderRadius: 8, padding: "12px 16px", overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
             <code style={{ fontFamily: "monospace", fontSize: "var(--cc-t-12)", color: CODE_INK, whiteSpace: "pre" }}>
               {`curl -H "Authorization: Bearer oai_YOUR_KEY_HERE" \\
   ${origin}/api/campaigns`}
@@ -467,7 +467,7 @@ export default function ApiKeysClient() {
           <p className="cc-microlabel" style={{ marginBottom: 6 }}>
             MCP server &mdash; Claude Code
           </p>
-          <div style={{ background: "var(--cc-overlay-ink)", borderRadius: 8, padding: "12px 16px", overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+          <div tabIndex={0} role="region" aria-label="Claude Code MCP example" style={{ background: "var(--cc-overlay-ink)", borderRadius: 8, padding: "12px 16px", overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
             <code style={{ fontFamily: "monospace", fontSize: "var(--cc-t-12)", color: CODE_INK, whiteSpace: "pre" }}>
               {`claude mcp add --transport http campaigns \\
   ${origin}/api/mcp \\
@@ -479,7 +479,7 @@ export default function ApiKeysClient() {
           <p className="cc-microlabel" style={{ marginBottom: 6 }}>
             MCP server &mdash; any other client
           </p>
-          <div style={{ background: "var(--cc-overlay-ink)", borderRadius: 8, padding: "12px 16px", overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+          <div tabIndex={0} role="region" aria-label="MCP client example" style={{ background: "var(--cc-overlay-ink)", borderRadius: 8, padding: "12px 16px", overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
             <code style={{ fontFamily: "monospace", fontSize: "var(--cc-t-12)", color: CODE_INK, whiteSpace: "pre" }}>
               {`{
   "mcpServers": {

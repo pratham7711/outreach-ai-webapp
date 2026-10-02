@@ -25,3 +25,5 @@ export { Button } from "./Button";
 export { LoadError } from "./LoadError";
 export { FeatureState, ComingSoon } from "./FeatureState";
 export type { FeatureStateKind } from "./FeatureState";
+export { MenuButton } from "./MenuButton";
+export type { MenuButtonItem } from "./MenuButton";
