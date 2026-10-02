@@ -192,7 +192,7 @@ export default function DiscoveryPage() {
                 fontWeight: platform === p ? 600 : 400, cursor: "pointer",
                 border: `1px solid ${platform === p ? "var(--cc-primary)" : "var(--cc-border)"}`,
                 background: platform === p ? "var(--cc-primary)" : "var(--cc-card)",
-                color: platform === p ? "white" : "var(--cc-text-muted)",
+                color: platform === p ? "var(--cc-on-primary)" : "var(--cc-text-muted)",
                 transition: "all 0.15s",
               }}
             >
@@ -210,7 +210,7 @@ export default function DiscoveryPage() {
             cursor: "pointer",
             border: `1px solid ${showAdvanced || activeCount > 0 ? "var(--cc-primary)" : "var(--cc-border)"}`,
             background: showAdvanced || activeCount > 0 ? "var(--cc-primary)" : "var(--cc-card)",
-            color: showAdvanced || activeCount > 0 ? "white" : "var(--cc-text-muted)",
+            color: showAdvanced || activeCount > 0 ? "var(--cc-on-primary)" : "var(--cc-text-muted)",
             transition: "all 0.15s",
           }}
         >
@@ -218,7 +218,7 @@ export default function DiscoveryPage() {
           Filters
           {activeCount > 0 && (
             <span style={{
-              background: "white", color: "var(--cc-primary)",
+              background: "var(--cc-on-primary)", color: "var(--cc-primary)",
               borderRadius: 10, fontSize: "var(--cc-t-11)", fontWeight: 700,
               padding: "1px 6px", lineHeight: "16px",
             }}>
@@ -257,7 +257,7 @@ export default function DiscoveryPage() {
                       padding: "5px 12px", borderRadius: 20, fontSize: "var(--cc-t-12)",
                       fontWeight: active ? 600 : 400, cursor: "pointer",
                       background: active ? "var(--cc-primary)" : "var(--cc-card)",
-                      color: active ? "white" : "var(--cc-text-muted)",
+                      color: active ? "var(--cc-on-primary)" : "var(--cc-text-muted)",
                       border: `1.5px solid ${active ? "var(--cc-primary)" : "var(--cc-border)"}`,
                       transition: "all 0.15s",
                     }}
@@ -309,7 +309,7 @@ export default function DiscoveryPage() {
               key={niche}
               style={{
                 display: "inline-flex", alignItems: "center", gap: 4,
-                background: "var(--cc-primary)", color: "white",
+                background: "var(--cc-primary)", color: "var(--cc-on-primary)",
                 borderRadius: 20, fontSize: "var(--cc-t-12)", fontWeight: 500,
                 padding: "4px 10px",
               }}
@@ -317,24 +317,24 @@ export default function DiscoveryPage() {
               {niche.charAt(0) + niche.slice(1).toLowerCase()}
               <button
                 onClick={() => toggleNiche(niche)}
-                style={{ background: "none", border: "none", cursor: "pointer", color: "white", padding: 0, display: "flex", alignItems: "center" }}
+                style={{ background: "none", border: "none", cursor: "pointer", color: "var(--cc-on-primary)", padding: 0, display: "flex", alignItems: "center" }}
               >
                 <X size={12} />
               </button>
             </span>
           ))}
           {minFollowers && (
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "var(--cc-primary)", color: "white", borderRadius: 20, fontSize: "var(--cc-t-12)", fontWeight: 500, padding: "4px 10px" }}>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "var(--cc-primary)", color: "var(--cc-on-primary)", borderRadius: 20, fontSize: "var(--cc-t-12)", fontWeight: 500, padding: "4px 10px" }}>
               Min followers: {minFollowers}
-              <button onClick={() => setMinFollowers("")} style={{ background: "none", border: "none", cursor: "pointer", color: "white", padding: 0, display: "flex", alignItems: "center" }}>
+              <button onClick={() => setMinFollowers("")} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--cc-on-primary)", padding: 0, display: "flex", alignItems: "center" }}>
                 <X size={12} />
               </button>
             </span>
           )}
           {maxFollowers && (
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "var(--cc-primary)", color: "white", borderRadius: 20, fontSize: "var(--cc-t-12)", fontWeight: 500, padding: "4px 10px" }}>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "var(--cc-primary)", color: "var(--cc-on-primary)", borderRadius: 20, fontSize: "var(--cc-t-12)", fontWeight: 500, padding: "4px 10px" }}>
               Max followers: {maxFollowers}
-              <button onClick={() => setMaxFollowers("")} style={{ background: "none", border: "none", cursor: "pointer", color: "white", padding: 0, display: "flex", alignItems: "center" }}>
+              <button onClick={() => setMaxFollowers("")} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--cc-on-primary)", padding: 0, display: "flex", alignItems: "center" }}>
                 <X size={12} />
               </button>
             </span>
@@ -364,7 +364,7 @@ export default function DiscoveryPage() {
             action={
               <Link prefetch={false}
                 href="/settings/billing"
-                style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "10px 16px", borderRadius: 10, background: "var(--cc-primary)", color: "white", fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", textDecoration: "none" }}
+                style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "10px 16px", borderRadius: 10, background: "var(--cc-primary)", color: "var(--cc-on-primary)", fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", textDecoration: "none" }}
               >
                 Open Billing
               </Link>

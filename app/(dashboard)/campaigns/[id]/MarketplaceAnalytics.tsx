@@ -96,7 +96,7 @@ export default function MarketplaceAnalytics({
             <button
               onClick={load}
               style={{
-                background: "var(--cc-primary)", color: "white", border: "none",
+                background: "var(--cc-primary)", color: "var(--cc-on-primary)", border: "none",
                 borderRadius: 8, padding: "8px 16px", fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", cursor: "pointer",
               }}
             >

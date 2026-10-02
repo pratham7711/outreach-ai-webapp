@@ -139,7 +139,7 @@ export default function ApiKeysClient() {
           }}
           style={{
             background: "var(--cc-primary)",
-            color: "white",
+            color: "var(--cc-on-primary)",
             border: "none",
             borderRadius: 8,
             padding: "9px 16px",
@@ -335,7 +335,7 @@ export default function ApiKeysClient() {
                   background: newName.trim()
                     ? "var(--cc-primary)"
                     : "var(--cc-border)",
-                  color: "white",
+                  color: newName.trim() ? "var(--cc-on-primary)" : "white",
                   cursor: newName.trim() ? "pointer" : "not-allowed",
                   opacity: creating ? 0.6 : 1,
                 }}
@@ -594,7 +594,7 @@ export default function ApiKeysClient() {
               }}
               style={{
                 background: "var(--cc-primary)",
-                color: "white",
+                color: "var(--cc-on-primary)",
                 border: "none",
                 borderRadius: 8,
                 padding: "9px 16px",

@@ -101,7 +101,7 @@ export function ErrorCard({
                   alignItems: "center",
                   gap: 8,
                   background: "var(--cc-primary)",
-                  color: "white",
+                  color: "var(--cc-on-primary)",
                   border: "none",
                   borderRadius: 8,
                   padding: "9px 16px",

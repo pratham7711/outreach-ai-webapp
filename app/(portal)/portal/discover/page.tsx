@@ -139,7 +139,7 @@ export default function PortalDiscoverPage() {
                     borderRadius: 20,
                     border: `1px solid ${campaignType === t ? "var(--cc-primary)" : "var(--cc-border)"}`,
                     background: campaignType === t ? "var(--cc-primary)" : "var(--cc-card)",
-                    color: campaignType === t ? "white" : "var(--cc-text-muted)",
+                    color: campaignType === t ? "var(--cc-on-primary)" : "var(--cc-text-muted)",
                     fontSize: 13,
                     fontWeight: campaignType === t ? 600 : 400,
                     cursor: "pointer",

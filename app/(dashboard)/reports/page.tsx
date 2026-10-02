@@ -162,7 +162,7 @@ export default function ReportsPage() {
                     padding: "10px 16px",
                     borderRadius: 10,
                     background: "var(--cc-primary)",
-                    color: "white",
+                    color: "var(--cc-on-primary)",
                     fontSize: "var(--cc-t-14)",
                     fontWeight: "var(--cc-fw-strong)",
                     textDecoration: "none",

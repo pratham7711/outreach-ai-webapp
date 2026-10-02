@@ -147,7 +147,7 @@ export default async function CampaignLandingPage({
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                color: "white",
+                color: campaign.orgPrimaryColor ? "white" : "var(--cc-on-primary)",
                 fontSize: 22,
                 fontWeight: 700,
               }}
@@ -396,7 +396,7 @@ export default async function CampaignLandingPage({
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
-                        color: "white",
+                        color: "var(--cc-on-primary)",
                         fontSize: 13,
                         fontWeight: 700,
                       }}
@@ -577,7 +577,7 @@ const primaryCtaStyle: React.CSSProperties = {
   padding: "10px 20px",
   borderRadius: 10,
   background: "var(--cc-primary)",
-  color: "white",
+  color: "var(--cc-on-primary)",
   fontSize: 14,
   fontWeight: 700,
   textDecoration: "none",

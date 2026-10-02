@@ -202,7 +202,7 @@ export default function SignupPage() {
                           borderRadius: 8,
                           flexShrink: 0,
                           background: selected ? "var(--cc-primary)" : "var(--cc-bg)",
-                          color: selected ? "white" : "var(--cc-text-muted)",
+                          color: selected ? "var(--cc-on-primary)" : "var(--cc-text-muted)",
                         }}
                       >
                         <Icon size={18} />

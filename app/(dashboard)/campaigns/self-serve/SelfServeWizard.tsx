@@ -403,7 +403,7 @@ export default function SelfServeWizard({
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
-                          color: "white",
+                          color: isSelected ? "var(--cc-on-primary)" : "white",
                         }}
                       >
                         {isSelected && <Check size={13} />}

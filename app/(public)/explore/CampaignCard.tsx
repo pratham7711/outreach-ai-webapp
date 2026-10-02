@@ -52,7 +52,7 @@ export default function CampaignCard({ campaign }: { campaign: MarketplaceCardDT
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              color: "white",
+              color: "var(--cc-on-primary)",
               fontSize: 15,
               fontWeight: 700,
             }}

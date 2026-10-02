@@ -439,7 +439,7 @@ export default function TrackersPage() {
               cursor: "pointer",
               border: "1px solid var(--cc-primary)",
               background: sub === t.key ? "var(--cc-primary)" : "var(--cc-card)",
-              color: sub === t.key ? "white" : "var(--cc-primary)",
+              color: sub === t.key ? "var(--cc-on-primary)" : "var(--cc-primary)",
             }}
           >
             {t.label}
@@ -554,7 +554,7 @@ export default function TrackersPage() {
                       border: "1px solid",
                       borderColor: period === p.key ? "var(--cc-primary)" : "var(--cc-border)",
                       background: period === p.key ? "var(--cc-primary)" : "var(--cc-card)",
-                      color: period === p.key ? "white" : "var(--cc-text-muted)",
+                      color: period === p.key ? "var(--cc-on-primary)" : "var(--cc-text-muted)",
                     }}
                   >
                     {p.label}

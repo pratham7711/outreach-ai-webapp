@@ -341,7 +341,7 @@ export default function PayoutsClient({ payouts, stats }: {
           marginBottom: 16, padding: "10px 16px", background: "var(--cc-primary)", borderRadius: 10,
           display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap",
         }}>
-          <span style={{ color: "white", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)"}}>
+          <span style={{ color: "var(--cc-on-primary)", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)"}}>
             {selected.size} selected
           </span>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>

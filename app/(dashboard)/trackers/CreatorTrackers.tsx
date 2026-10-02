@@ -408,7 +408,7 @@ export function CreatorTrackers({
               cursor: "pointer",
               border: "1px solid var(--cc-primary)",
               background: period === p.key ? "var(--cc-primary)" : "var(--cc-card)",
-              color: period === p.key ? "white" : "var(--cc-primary)",
+              color: period === p.key ? "var(--cc-on-primary)" : "var(--cc-primary)",
             }}
           >
             {p.label}

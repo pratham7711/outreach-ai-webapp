@@ -95,7 +95,7 @@ export function PostingTimeHeatmap({
                   className="rounded-full px-3 py-1.5 text-[13px] font-semibold"
                   style={{
                     background: i === 0 ? "var(--cc-primary)" : "var(--cc-bg)",
-                    color: i === 0 ? "white" : "var(--cc-text)",
+                    color: i === 0 ? "var(--cc-on-primary)" : "var(--cc-text)",
                     border: "1px solid var(--cc-border)",
                   }}
                 >

@@ -711,7 +711,7 @@ function EditCreatorModal({ open, onClose, creator, onSaved }: { open: boolean; 
           disabled={saving}
           style={{
             background: "var(--cc-primary)",
-            color: "white",
+            color: "var(--cc-on-primary)",
             border: "none",
             borderRadius: 8,
             padding: "9px 16px",
@@ -1189,7 +1189,7 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
                 onClick={() => setShowAddSocial(true)}
                 style={{
                   display: "flex", alignItems: "center", gap: 6,
-                  background: "var(--cc-primary)", color: "white", border: "none",
+                  background: "var(--cc-primary)", color: "var(--cc-on-primary)", border: "none",
                   borderRadius: 8, padding: "7px 14px", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", cursor: "pointer",
                 }}
               >
@@ -1252,7 +1252,7 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
                       disabled={addingSocial || !addSocialForm.handle.trim()}
                       style={{
                         padding: "7px 14px", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", cursor: addingSocial ? "not-allowed" : "pointer",
-                        background: "var(--cc-primary)", color: "white", border: "none", borderRadius: 8,
+                        background: "var(--cc-primary)", color: "var(--cc-on-primary)", border: "none", borderRadius: 8,
                         opacity: addingSocial || !addSocialForm.handle.trim() ? 0.5 : 1,
                       }}
                     >

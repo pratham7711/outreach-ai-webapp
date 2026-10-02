@@ -145,7 +145,7 @@ export function FilterDrawer({
                             className="cc-visually-gone"
                           />
                           <span aria-hidden className="cc-checkbox" data-on={on}>
-                            {on && <Check size={11} color="white" strokeWidth={3} />}
+                            {on && <Check size={11} strokeWidth={3} />}
                           </span>
                           <span className="cc-filter-option-label">{opt.label}</span>
                           {opt.count !== undefined && (

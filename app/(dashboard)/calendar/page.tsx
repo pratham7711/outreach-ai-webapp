@@ -202,7 +202,7 @@ export default function CalendarPage() {
                     >
                       <span className="cal-daynum" data-today={today ? "true" : undefined} style={{
                         background: today ? "var(--cc-primary)" : "transparent",
-                        color: today ? "white" : "var(--cc-text-muted)",
+                        color: today ? "var(--cc-on-primary)" : "var(--cc-text-muted)",
                       }}>
                         {format(day, "d")}
                       </span>

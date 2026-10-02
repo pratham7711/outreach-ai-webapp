@@ -140,9 +140,9 @@ function InlineDateEditor({
         disabled={saving}
         aria-busy={saving}
         aria-label={saving ? "Saving due date" : "Save due date"}
-        style={{ background: "var(--cc-primary)", border: "none", borderRadius: 4, padding: "3px 6px", cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.6 : 1, display: "flex", alignItems: "center" }}
+        style={{ background: "var(--cc-primary)", color: "var(--cc-on-primary)", border: "none", borderRadius: 4, padding: "3px 6px", cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.6 : 1, display: "flex", alignItems: "center" }}
       >
-        <Check size={12} color="white" />
+        <Check size={12} />
       </button>
       {current && (
         <button
@@ -283,7 +283,7 @@ export default function DeadlinesPage() {
               padding: "6px 14px", borderRadius: 20, fontSize: "var(--cc-t-13)", fontWeight: 500, cursor: "pointer",
               border: filter === tab.key ? "1.5px solid var(--cc-primary)" : "1.5px solid var(--cc-border)",
               background: filter === tab.key ? "var(--cc-primary)" : "var(--cc-card)",
-              color: filter === tab.key ? "white" : "var(--cc-text-muted)",
+              color: filter === tab.key ? "var(--cc-on-primary)" : "var(--cc-text-muted)",
               transition: "all 0.1s",
             }}
           >

@@ -292,7 +292,7 @@ function TabButton({ active, onClick, children }: { active: boolean; onClick: ()
       onClick={onClick}
       style={{
         background: active ? "var(--cc-primary)" : "transparent",
-        color: active ? "white" : "var(--cc-text-muted)",
+        color: active ? "var(--cc-on-primary)" : "var(--cc-text-muted)",
         border: active ? "none" : "1px solid var(--cc-border)",
         borderRadius: 8, padding: "7px 14px", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", cursor: "pointer",
       }}

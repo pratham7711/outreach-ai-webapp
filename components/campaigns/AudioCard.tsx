@@ -210,7 +210,7 @@ export function AudioCard({
                       cursor: "pointer", textTransform: "capitalize",
                       border: `1px solid ${view === key ? "var(--cc-primary)" : "var(--cc-border)"}`,
                       background: view === key ? "var(--cc-primary)" : "var(--cc-card)",
-                      color: view === key ? "white" : "var(--cc-text-muted)",
+                      color: view === key ? "var(--cc-on-primary)" : "var(--cc-text-muted)",
                     }}
                   >
                     {key}

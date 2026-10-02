@@ -251,7 +251,7 @@ export default function FinancialReportsPage() {
               padding: "0 10px", height: 40, borderRadius: 20, fontSize: "var(--cc-t-13)", fontWeight: 500, cursor: "pointer",
               border: period === p.key ? "1.5px solid var(--cc-primary)" : "1.5px solid var(--cc-border)",
               background: period === p.key ? "var(--cc-primary)" : "var(--cc-card)",
-              color: period === p.key ? "white" : "var(--cc-text-muted)",
+              color: period === p.key ? "var(--cc-on-primary)" : "var(--cc-text-muted)",
               transition: "all 0.1s",
               whiteSpace: "nowrap",
             }}

@@ -73,7 +73,7 @@ export default function AttachCampaigns({
           onClick={() => picked && setSong(picked, songId)}
           style={{
             background: picked ? "var(--cc-primary)" : "var(--cc-border)",
-            color: picked ? "white" : "var(--cc-text-muted)",
+            color: picked ? "var(--cc-on-primary)" : "var(--cc-text-muted)",
             border: "none", borderRadius: 8, padding: "8px 14px",
             fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", cursor: picked ? "pointer" : "not-allowed",
             display: "inline-flex", alignItems: "center", gap: 6,

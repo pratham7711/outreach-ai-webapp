@@ -69,7 +69,7 @@ export default function CreativeBriefCard({
             onClick={() => setEditing(true)}
             style={{
               padding: "6px 14px", borderRadius: 8, fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)",
-              background: "white", border: "1.5px solid var(--cc-primary)",
+              background: "var(--cc-card)", border: "1.5px solid var(--cc-primary)",
               color: "var(--cc-primary)", cursor: "pointer",
             }}
           >
@@ -96,7 +96,7 @@ export default function CreativeBriefCard({
               disabled={saving}
               style={{
                 padding: "6px 14px", borderRadius: 8, fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)",
-                border: "none", color: "white", cursor: saving ? "not-allowed" : "pointer",
+                border: "none", color: saving ? "white" : "var(--cc-on-primary)", cursor: saving ? "not-allowed" : "pointer",
                 background: saving ? "var(--cc-border)" : "var(--cc-primary)",
               }}
             >

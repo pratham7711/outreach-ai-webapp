@@ -143,7 +143,7 @@ export function AgentConsole({ goal, result, transcript }: AgentConsoleProps) {
                 borderRadius: 8,
                 border: "1px solid var(--cc-primary)",
                 background: "var(--cc-primary)",
-                color: "white",
+                color: "var(--cc-on-primary)",
                 fontSize: "var(--cc-t-13)",
                 fontWeight: "var(--cc-fw-strong)",
               }}

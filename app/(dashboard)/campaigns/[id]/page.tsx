@@ -1108,7 +1108,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                     style={{
                       padding: "9px 20px", borderRadius: 8, border: "none",
                       background: saving ? "var(--cc-border)" : "var(--cc-primary)",
-                      color: "white", fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)",
+                      color: saving ? "white" : "var(--cc-on-primary)", fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)",
                       cursor: saving ? "not-allowed" : "pointer",
                     }}
                   >
@@ -1292,7 +1292,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                     style={{
                       padding: "9px 20px", borderRadius: 8, border: "none",
                       background: savingMkt ? "var(--cc-border)" : "var(--cc-primary)",
-                      color: "white", fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)",
+                      color: savingMkt ? "white" : "var(--cc-on-primary)", fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)",
                       cursor: savingMkt ? "not-allowed" : "pointer",
                     }}
                   >
@@ -1326,7 +1326,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                 style={{
                   padding: "9px 16px", borderRadius: 8, border: "none",
                   background: selectedCreatorId && !addingCreator ? "var(--cc-primary)" : "var(--cc-border)",
-                  color: "white", fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", cursor: selectedCreatorId ? "pointer" : "not-allowed",
+                  color: selectedCreatorId && !addingCreator ? "var(--cc-on-primary)" : "white", fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", cursor: selectedCreatorId ? "pointer" : "not-allowed",
                 }}
               >
                 {addingCreator ? "Adding..." : "Add Creator"}

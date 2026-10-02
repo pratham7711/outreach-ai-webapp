@@ -72,7 +72,7 @@ function ToolButton({
         background: active ? "var(--cc-primary)" : "transparent",
         color: disabled
           ? "var(--cc-text-subtle)"
-          : active ? "white" : "var(--cc-text-muted)",
+          : active ? "var(--cc-on-primary)" : "var(--cc-text-muted)",
         opacity: disabled ? 0.5 : 1,
       }}
     >
@@ -211,7 +211,7 @@ function Toolbar({ editor }: { editor: Editor }) {
             onClick={applyLink}
             style={{
               padding: "6px 12px", borderRadius: 8, border: "none", fontSize: "var(--cc-t-13)",
-              fontWeight: "var(--cc-fw-strong)", background: "var(--cc-primary)", color: "white", cursor: "pointer",
+              fontWeight: "var(--cc-fw-strong)", background: "var(--cc-primary)", color: "var(--cc-on-primary)", cursor: "pointer",
             }}
           >
             Apply
