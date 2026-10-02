@@ -10,6 +10,7 @@ import {
   refreshConnectedAccounts,
   type ConnectionRefreshSummary,
 } from "@/lib/platforms/connectionRefresh";
+import { cronRoute } from "@/lib/ops/cronRoute";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -44,7 +45,7 @@ const CONNECTION_BUDGET_MS = 35_000;
  * the one we had" is treated as a failure rather than a success, because that
  * is exactly the shape a refresher goes dark in.
  */
-export async function GET(request: NextRequest) {
+async function cronHandler(request: NextRequest) {
   const log = createLogger({ context: { route: "cron/refresh-platform-tokens" } });
 
   const cronSecret = process.env.CRON_SECRET;
@@ -152,3 +153,6 @@ async function alertFor(outcome: RefreshOutcome): Promise<void> {
     facts: { reason: outcome.reason, expiresAt: outcome.expiresAt, daysLeft: outcome.daysLeft },
   });
 }
+
+/* Kill switch and heartbeat around the handler above (lib/ops/cronRoute). */
+export const GET = cronRoute("refresh-platform-tokens", cronHandler);

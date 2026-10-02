@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { refreshCreatorAvatars } from "@/lib/creators/avatarStore";
 import { openSandboxProfileFetcher } from "@/lib/platforms/tiktokProfileSandbox";
 import { createLogger } from "@/lib/observability/logger";
+import { cronRoute } from "@/lib/ops/cronRoute";
 
 export const maxDuration = 300;
 export const runtime = "nodejs";
@@ -18,7 +19,7 @@ export const dynamic = "force-dynamic";
  * The sandbox is opened lazily by the fetcher, so a run where every picture
  * came from a link we already held, or from a plain profile fetch, boots none.
  */
-export async function GET(request: NextRequest) {
+async function cronHandler(request: NextRequest) {
   const log = createLogger({ context: { route: "cron/refresh-creator-avatars" } });
   const cronSecret = process.env.CRON_SECRET;
   if (!cronSecret || request.headers.get("authorization") !== `Bearer ${cronSecret}`) {
@@ -41,3 +42,6 @@ export async function GET(request: NextRequest) {
     await remote.close();
   }
 }
+
+/* Kill switch and heartbeat around the handler above (lib/ops/cronRoute). */
+export const GET = cronRoute("refresh-creator-avatars", cronHandler);

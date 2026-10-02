@@ -23,6 +23,7 @@ import {
   isDueForRead,
   parseGranularity,
 } from "@/lib/trackers/granularity";
+import { cronRoute } from "@/lib/ops/cronRoute";
 
 export const dynamic = "force-dynamic";
 
@@ -37,7 +38,7 @@ type Decision = {
   usesCount?: number;
 };
 
-export async function GET(request: NextRequest) {
+async function cronHandler(request: NextRequest) {
   const log = createLogger({ context: { route: "cron/sync-trackers" } });
 
   const cronSecret = process.env.CRON_SECRET;
@@ -426,3 +427,6 @@ export async function GET(request: NextRequest) {
     await remoteEmbed.close().catch(() => {});
   }
 }
+
+/* Kill switch and heartbeat around the handler above (lib/ops/cronRoute). */
+export const GET = cronRoute("sync-trackers", cronHandler);

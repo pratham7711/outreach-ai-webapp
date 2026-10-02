@@ -4,6 +4,7 @@ import { logAudit } from "@/lib/audit";
 import { computeCampaignAccrual } from "@/lib/marketplace/cap";
 import type { CampaignStatus, Prisma } from "@/lib/generated/prisma/client";
 import { createLogger } from "@/lib/observability/logger";
+import { cronRoute } from "@/lib/ops/cronRoute";
 
 /* Reasons a candidate is not approved. "fraud-flag" and "not-marketplace" are
    no longer produced here -- both are filters on the read now -- but they stay
@@ -106,7 +107,7 @@ function readCandidatePage(
  * Auth + ?dryRun=1 report shape mirror /api/cron/sync-posts exactly
  * (fail-closed on missing/wrong CRON_SECRET).
  */
-export async function GET(request: NextRequest) {
+async function cronHandler(request: NextRequest) {
   const log = createLogger({ context: { route: "cron/auto-approve-submissions" } });
 
   const authHeader = request.headers.get("authorization");
@@ -384,3 +385,6 @@ async function markCampaignCapped(campaignId: string, orgId: string, title: stri
     log.error("failed to complete capped campaign", { campaignId, error: String(err) });
   }
 }
+
+/* Kill switch and heartbeat around the handler above (lib/ops/cronRoute). */
+export const GET = cronRoute("auto-approve-submissions", cronHandler);

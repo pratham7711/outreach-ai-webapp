@@ -4,6 +4,7 @@ import { runReaderV2 } from "@/lib/trackers/readerRun";
 import { checkReaderAlerts } from "@/lib/trackers/readerAlerts";
 import { alertOps } from "@/lib/alerts";
 import { createLogger } from "@/lib/observability/logger";
+import { cronRoute } from "@/lib/ops/cronRoute";
 
 /* Reader v2 (plan §07): hourly, beside the legacy sweep rather than instead of
    it (§14 rule 2). It does nothing at all while the switch says legacy, which
@@ -13,7 +14,7 @@ export const maxDuration = 300;
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function GET(request: NextRequest) {
+async function cronHandler(request: NextRequest) {
   const log = createLogger({ context: { route: "cron/read-creator-trackers" } });
   const cronSecret = process.env.CRON_SECRET;
   if (!cronSecret || request.headers.get("authorization") !== `Bearer ${cronSecret}`) {
@@ -51,3 +52,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Reader run failed" }, { status: 500 });
   }
 }
+
+/* Kill switch and heartbeat around the handler above (lib/ops/cronRoute). */
+export const GET = cronRoute("read-creator-trackers", cronHandler);

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { snapshotOrgViews } from "@/lib/analytics/orgViewsSnapshot";
 import { createLogger } from "@/lib/observability/logger";
 import { alertOps } from "@/lib/alerts";
+import { cronRoute } from "@/lib/ops/cronRoute";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -22,7 +23,7 @@ export const maxDuration = 120;
  * points comparable. A rollup taken at a drifting time would put a day's growth
  * partly in the neighbouring bucket.
  */
-export async function GET(request: NextRequest) {
+async function cronHandler(request: NextRequest) {
   const log = createLogger({ context: { route: "cron/snapshot-org-views" } });
 
   const cronSecret = process.env.CRON_SECRET;
@@ -64,3 +65,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "cron failed" }, { status: 500 });
   }
 }
+
+/* Kill switch and heartbeat around the handler above (lib/ops/cronRoute). */
+export const GET = cronRoute("snapshot-org-views", cronHandler);
