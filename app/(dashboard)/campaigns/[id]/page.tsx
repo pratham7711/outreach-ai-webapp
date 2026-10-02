@@ -1093,8 +1093,9 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                   />
                 </div>
                 <div>
-                  <label style={{ display: "block", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6 }}>Notes</label>
+                  <label style={{ display: "block", fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)", marginBottom: 6 }} htmlFor="edit-notes">Notes</label>
                   <textarea
+                    id="edit-notes"
                     value={editForm.notes}
                     onChange={e => setEditForm(f => ({ ...f, notes: e.target.value }))}
                     rows={3}
@@ -1135,26 +1136,30 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
               <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
                 {/* Visibility picker */}
                 <div>
-                  <label style={mktLabel}>Visibility</label>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  <div id="mkt-visibility-label" style={mktLabel}>Visibility</div>
+                  <div role="radiogroup" aria-labelledby="mkt-visibility-label" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                     {VISIBILITY_OPTIONS.map((opt) => {
                       const selected = mkt.marketplaceVisibility === opt.value;
                       return (
-                        <div
+                        <button
                           key={opt.value}
+                          type="button"
+                          role="radio"
+                          aria-checked={selected}
                           onClick={() => setMkt((m) => ({ ...m, marketplaceVisibility: opt.value }))}
                           style={{
+                            display: "block", width: "100%", textAlign: "left", font: "inherit",
                             padding: 14, borderRadius: 10, cursor: "pointer",
                             border: `2px solid ${selected ? "var(--cc-primary)" : "var(--cc-border)"}`,
                             background: selected ? "var(--cc-primary-light)" : "var(--cc-card)",
                           }}
                         >
-                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
                             <span style={{ fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{opt.label}</span>
                             {selected && <Badge variant="accent">Selected</Badge>}
-                          </div>
-                          <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", marginTop: 4 }}>{opt.desc}</p>
-                        </div>
+                          </span>
+                          <span style={{ display: "block", fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", marginTop: 4 }}>{opt.desc}</span>
+                        </button>
                       );
                     })}
                   </div>
@@ -1191,8 +1196,9 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
 
                 {/* Brief editor */}
                 <div>
-                  <label style={mktLabel}>Guidelines {mkt.marketplaceVisibility === "GLOBAL" && <span style={{ color: "var(--cc-danger)" }}>*</span>}</label>
+                  <label htmlFor="mkt-guidelines" style={mktLabel}>Guidelines {mkt.marketplaceVisibility === "GLOBAL" && <span style={{ color: "var(--cc-danger)" }}>*</span>}</label>
                   <textarea
+                    id="mkt-guidelines"
                     value={mkt.guidelines}
                     onChange={(e) => setMkt((m) => ({ ...m, guidelines: e.target.value }))}
                     rows={4}
@@ -1201,8 +1207,9 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                   />
                 </div>
                 <div>
-                  <label style={mktLabel}>Requirements</label>
+                  <label htmlFor="mkt-requirements" style={mktLabel}>Requirements</label>
                   <textarea
+                    id="mkt-requirements"
                     value={mkt.requirements}
                     onChange={(e) => setMkt((m) => ({ ...m, requirements: e.target.value }))}
                     rows={3}
@@ -1211,8 +1218,9 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                   />
                 </div>
                 <div>
-                  <label style={mktLabel}>Content assets URL</label>
+                  <label htmlFor="mkt-assets-url" style={mktLabel}>Content assets URL</label>
                   <input
+                    id="mkt-assets-url"
                     type="url"
                     value={mkt.contentAssetsUrl}
                     onChange={(e) => setMkt((m) => ({ ...m, contentAssetsUrl: e.target.value }))}
@@ -1234,8 +1242,9 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                     <div className="rsp-grid-2">
                       {MARKETPLACE_PLATFORMS.map((p) => (
                         <div key={p}>
-                          <label style={{ display: "block", fontSize: "var(--cc-t-12)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text-muted)", marginBottom: 4 }}>{p}</label>
+                          <label style={{ display: "block", fontSize: "var(--cc-t-12)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text-muted)", marginBottom: 4 }} htmlFor={`mkt-rate-${p}`}>{p}</label>
                           <input
+                            id={`mkt-rate-${p}`}
                             type="number" min="0" step="0.01"
                             value={mkt.rates[p] ?? ""}
                             onChange={(e) => setMkt((m) => ({ ...m, rates: { ...m.rates, [p]: e.target.value } }))}
@@ -1251,8 +1260,9 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                 {/* Deadline + auto-approve */}
                 <div className="rsp-grid-2">
                   <div>
-                    <label style={mktLabel}>Submission deadline</label>
+                    <label htmlFor="mkt-deadline" style={mktLabel}>Submission deadline</label>
                     <input
+                      id="mkt-deadline"
                       type="date"
                       value={mkt.submissionDeadline}
                       onChange={(e) => setMkt((m) => ({ ...m, submissionDeadline: e.target.value }))}
@@ -1260,8 +1270,9 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                     />
                   </div>
                   <div>
-                    <label style={mktLabel}>Auto-approve after (hours)</label>
+                    <label htmlFor="mkt-auto-approve" style={mktLabel}>Auto-approve after (hours)</label>
                     <input
+                      id="mkt-auto-approve"
                       type="number" min="1" max="720"
                       value={mkt.autoApproveHours}
                       onChange={(e) => setMkt((m) => ({ ...m, autoApproveHours: e.target.value }))}
