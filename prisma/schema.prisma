@@ -844,6 +844,45 @@ model CreatorConnectToken {
   @@index([orgId, creatorId])
 }
 
+/// One agency's consent to read one connected account (plan K4; Meta's Tech
+/// Provider terms §5.b treat each agency as a separate Client). A connection is
+/// read for an org only while that org holds an unrevoked grant for it; see
+/// lib/creators/connectionGate.ts.
+///
+/// Rows are never deleted when the connection goes: revokedAt and revokeReason
+/// are the record that consent ended and why. connectionId and
+/// platformAccountId are plain strings, not relations, for the same reason —
+/// the CreatorSocialAccount row is deleted on Disconnect and the grant must
+/// outlive it. The FK to Creator lives in the DDL only, so no relation field is
+/// added to the existing model. See lib/creators/grantSchemaDdl.ts.
+model CreatorGrant {
+  id                String    @id @default(cuid())
+  orgId             String
+  creatorId         String
+  platform          Platform
+  /// The CreatorSocialAccount the consent produced.
+  connectionId      String?
+  /// The platform's id for the account (TikTok open_id, IG user id, YouTube
+  /// channel id), kept so the record still names the account after the
+  /// connection row is gone.
+  platformAccountId String?
+  scopes            String[]  @default([])
+  /// "provider" when the platform reported what it granted, "requested" when
+  /// it did not and `scopes` is what the consent screen asked for, null when
+  /// nothing was recorded (a backfilled grant).
+  scopesSource      String?
+  grantedAt         DateTime  @default(now())
+  revokedAt         DateTime?
+  revokeReason      String?
+  /// How consent was given: "connect-link", "portal", "dev", "backfill".
+  source            String
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([orgId, creatorId, platform])
+  @@index([connectionId])
+}
+
 model CreatorList {
   id          String   @id @default(cuid())
   orgId       String
