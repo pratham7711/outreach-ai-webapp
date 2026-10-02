@@ -26,8 +26,6 @@ export const AREAS = {
       "campaigns.spec.ts",
       "campaigns-detail.spec.ts",
       "campaigns-proposals.spec.ts",
-      "activations.spec.ts",
-      "deadlines.spec.ts",
       "calendar.spec.ts",
     ],
     sources: [
@@ -42,7 +40,7 @@ export const AREAS = {
     ],
   },
   analytics: {
-    specs: ["gate2-dashboard.spec.ts", "dashboard.spec.ts", "financial-reports.spec.ts"],
+    specs: ["gate2-dashboard.spec.ts", "dashboard.spec.ts"],
     sources: [
       "app/(dashboard)/analytics/",
       "app/(dashboard)/dashboard/",
@@ -59,7 +57,6 @@ export const AREAS = {
       "creators.spec.ts",
       "creators-detail.spec.ts",
       "lists.spec.ts",
-      "discovery.spec.ts",
       "public-profile.spec.ts",
     ],
     sources: [
@@ -114,7 +111,7 @@ export const AREAS = {
     sources: ["app/(portal)/", "app/api/portal/", "components/portal/"],
   },
   marketplace: {
-    specs: ["marketplace-funnel.spec.ts", "negotiation.spec.ts", "self-serve-wizard.spec.ts"],
+    specs: ["marketplace-funnel.spec.ts", "negotiation.spec.ts"],
     sources: [
       "app/(dashboard)/requests/",
       "app/(dashboard)/plans/",
@@ -122,23 +119,11 @@ export const AREAS = {
       "app/api/proposals/",
     ],
   },
-  messaging: {
-    specs: ["messaging.spec.ts", "recipients.spec.ts"],
-    sources: [
-      "app/(dashboard)/inbox/",
-      "app/(dashboard)/recipients/",
-      "app/api/messages/",
-      "lib/email",
-    ],
-  },
   settings: {
     specs: [
       "settings.spec.ts",
-      "connections.spec.ts",
       "audit-log.spec.ts",
-      "clients.spec.ts",
       "trackers.spec.ts",
-      "payouts.spec.ts",
     ],
     sources: [
       "app/(dashboard)/settings/",

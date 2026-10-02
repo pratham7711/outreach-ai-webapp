@@ -8,6 +8,7 @@ import { Dropdown } from "@pratham7711/ui";
 import { signOut } from "next-auth/react";
 import ThemeToggle from "@/components/ThemeToggle";
 import { NotificationBell } from "@/components/layout/NotificationBell";
+import { NAV_SECTIONS } from "@/components/NewSidebar";
 
 const PAGE_TITLES: Record<string, string> = {
   "/dashboard": "Dashboard",
@@ -48,7 +49,12 @@ function initials(name?: string | null, email?: string | null): string {
 
 type TopBarUser = { name: string | null; email: string | null } | null;
 
-export function TopBar({ user }: { user?: TopBarUser }) {
+/* Search offers what the sidebar offers, and nothing else. PAGE_TITLES also
+   names parked pages so their breadcrumb still reads right, which is why it
+   cannot be the search list: it sent people to hidden payment pages. */
+const SEARCHABLE = NAV_SECTIONS.flatMap((s) => s.items.map((i) => [i.href, i.label] as const));
+
+export function TopBar({ user, navHrefs }: { user?: TopBarUser; navHrefs?: string[] | null }) {
   const pathname = usePathname();
   const router = useRouter();
   const [query, setQuery] = useState("");
@@ -85,7 +91,7 @@ export function TopBar({ user }: { user?: TopBarUser }) {
 
   const q = query.trim().toLowerCase();
   const matches = q
-    ? Object.entries(PAGE_TITLES).filter(([, t]) => t.toLowerCase().includes(q)).slice(0, 6)
+    ? SEARCHABLE.filter(([href, t]) => (navHrefs == null || navHrefs.includes(href)) && t.toLowerCase().includes(q)).slice(0, 6)
     : [];
   const showResults = searchOpen && matches.length > 0;
 

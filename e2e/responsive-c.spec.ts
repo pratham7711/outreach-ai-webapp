@@ -72,15 +72,11 @@ test.describe('Responsive C — analytics/finance/plans/settings/audit/admin + p
 
   const STATIC_ROUTES: { name: string; path: string; ready: string }[] = [
     { name: 'analytics', path: '/analytics', ready: 'h1' },
-    { name: 'financial-reports', path: '/financial-reports', ready: 'h1' },
-    { name: 'payouts', path: '/payouts', ready: 'h1' },
-    { name: 'reports', path: '/reports', ready: 'h1' },
     { name: 'plans', path: '/plans', ready: 'h1' },
     { name: 'plans-new', path: '/plans/new', ready: 'h1' },
     { name: 'settings', path: '/settings', ready: 'h1' },
     { name: 'settings-profile', path: '/settings/profile', ready: 'h1' },
     { name: 'settings-team', path: '/settings/team', ready: 'h1' },
-    { name: 'settings-billing', path: '/settings/billing', ready: 'h1' },
     { name: 'settings-api-keys', path: '/settings/api-keys', ready: 'h1' },
     { name: 'settings-ingestion', path: '/settings/ingestion', ready: 'h1' },
     { name: 'audit-log', path: '/audit-log', ready: 'h1' },

@@ -28,14 +28,14 @@ describe("notification feed", () => {
     it("links entity types whose route is reachable from the audit row's id", () => {
       expect(notificationHref({ entityType: "campaign", entityId: "c1" })).toBe("/campaigns/c1");
       expect(notificationHref({ entityType: "creator", entityId: "cr1" })).toBe("/creators/cr1");
-      expect(notificationHref({ entityType: "client", entityId: "cl1" })).toBe("/clients/cl1");
       expect(notificationHref({ entityType: "creator_list", entityId: "l1" })).toBe("/lists/l1");
       expect(notificationHref({ entityType: "song", entityId: "s1" })).toBe("/songs/s1");
     });
 
-    it("falls back to the index for entity types with no detail route", () => {
-      expect(notificationHref({ entityType: "activation", entityId: "a1" })).toBe("/activations");
-      expect(notificationHref({ entityType: "payout", entityId: "p1" })).toBe("/payouts");
+    it("leaves parked pages unlinked rather than sending the bell to a redirect", () => {
+      expect(notificationHref({ entityType: "activation", entityId: "a1" })).toBeNull();
+      expect(notificationHref({ entityType: "payout", entityId: "p1" })).toBeNull();
+      expect(notificationHref({ entityType: "client", entityId: "cl1" })).toBeNull();
     });
 
     it("does not guess a route for a nested entity", () => {

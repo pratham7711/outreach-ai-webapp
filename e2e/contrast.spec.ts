@@ -28,11 +28,8 @@ const PAGES = [
   '/campaigns?status=IN_PROGRESS',
   '/campaigns?status=COMPLETE',
   '/creators',
-  '/clients',
   '/analytics',
-  '/payouts',
   '/lists',
-  '/discovery',
   '/settings',
   '/settings/general',
   /* /settings/team and /requests carry the amber status pill -- a #D97706 ink
@@ -44,7 +41,6 @@ const PAGES = [
      catching a WCAG failure on. A guard is only worth its floor on the routes
      it actually visits. */
   '/settings/team',
-  '/requests',
   /* The campaign detail tabs. The post grid is the reason these are here: its
      cards paint the counts on an overlay above the thumbnail, which is the one
      surface on the app that cannot take its ground from the theme, and none of
@@ -54,7 +50,6 @@ const PAGES = [
   '/campaigns/camp-1?tab=overview',
   '/campaigns/camp-1?tab=creators',
   '/campaigns/camp-1?tab=analytics',
-  '/connections',
 ];
 
 /** Below this nothing is readable at any size or weight. */

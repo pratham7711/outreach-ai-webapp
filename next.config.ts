@@ -9,6 +9,25 @@ const securityHeaders = [
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
 ];
 
+const PARKED_PAGE_REDIRECTS: ReadonlyArray<readonly [string, string]> = [
+  ["/activations", "/campaigns"],
+  ["/deadlines", "/campaigns"],
+  ["/clients", "/campaigns"],
+  ["/clients/:id", "/campaigns"],
+  ["/discovery", "/creators"],
+  ["/connections", "/settings"],
+  ["/payouts", "/campaigns"],
+  ["/requests", "/campaigns"],
+  ["/recipients", "/campaigns"],
+  ["/financial-reports", "/campaigns"],
+  ["/campaigns/self-serve", "/campaigns"],
+  ["/settings/billing", "/settings"],
+  ["/inbox", "/campaigns"],
+  ["/fan-pages", "/campaigns"],
+  ["/media-kits", "/creators"],
+  ["/reports", "/campaigns"],
+];
+
 const nextConfig: NextConfig = {
   /*
     Git worktrees live under .claude/worktrees/ inside this project, so their
@@ -84,6 +103,14 @@ const nextConfig: NextConfig = {
   },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
+  },
+  /* Pages taken out of the app in October 2026 (see NewSidebar.tsx). Their code
+     and data stay; an old bookmark or link lands on the nearest kept page
+     instead of a page that no longer belongs to the product. permanent: false
+     is a 307, which browsers do not cache, so bringing a page back is this
+     list and a deploy -- nobody's browser keeps sending them away. */
+  async redirects() {
+    return PARKED_PAGE_REDIRECTS.map(([source, destination]) => ({ source, destination, permanent: false }));
   },
 };
 

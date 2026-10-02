@@ -5,10 +5,12 @@ test.describe('Settings', () => {
   test('settings hub page loads with navigation cards', async ({ page }) => {
     await navigateAndWait(page, '/settings');
     await expectHeading(page, 'Settings');
-    // Settings has navigation cards: Profile, Team, API Keys, Billing
-    await expect(page.getByText('Profile').first()).toBeVisible({ timeout: 15000 });
-    await expect(page.getByText('Team').first()).toBeVisible({ timeout: 10000 });
-    await expect(page.getByText('Billing').first()).toBeVisible({ timeout: 10000 });
+    // Billing left with the money side; Activity Log moved here for admins.
+    const main = page.locator('main');
+    await expect(main.getByText('Profile').first()).toBeVisible({ timeout: 15000 });
+    await expect(main.getByText('Team').first()).toBeVisible({ timeout: 10000 });
+    await expect(main.getByText('Activity Log').first()).toBeVisible({ timeout: 10000 });
+    await expect(main.getByText('Billing')).toHaveCount(0);
   });
 
   test('profile page loads', async ({ page }) => {

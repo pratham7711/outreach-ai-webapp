@@ -621,18 +621,6 @@ export default function CampaignsClient({
           >
             Folders{folders.length > 0 ? ` (${folders.length})` : ""}
           </Button>
-          {/* /campaigns/self-serve is a whole second way to create a campaign —
-              budget first, shortlist creators, flat platform fee — and nothing
-              in the app linked to it, so it could only be reached by typing the
-              URL. */}
-          <Link
-            href="/campaigns/self-serve"
-            className="cc-link-btn"
-            {...action("self-serve-campaign")}
-          >
-            <Wallet size={15} />
-            Self-serve campaign
-          </Link>
           <Button variant="primary" iconLeft={<Plus size={15} />} size="sm" onClick={() => setShowModal(true)} {...action("new-campaign")}>
             New Campaign
           </Button>

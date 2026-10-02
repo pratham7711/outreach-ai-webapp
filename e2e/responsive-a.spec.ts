@@ -112,7 +112,6 @@ test.describe('Responsive A — dashboard + campaigns surfaces', () => {
   const STATIC_ROUTES: { name: string; path: string; ready: string; settle?: number }[] = [
     { name: 'dashboard', path: '/dashboard', ready: 'h1', settle: 900 },
     { name: 'campaigns', path: '/campaigns', ready: 'h1' },
-    { name: 'self-serve', path: '/campaigns/self-serve', ready: 'h1', settle: 900 },
   ];
 
   for (const route of STATIC_ROUTES) {

@@ -30,12 +30,16 @@ describe('NewSidebar', () => {
     expect(screen.getByRole('link', { name: /Campaigns/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Creator Roster/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Lists/i })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Clients/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Trackers/i })).toBeInTheDocument();
   });
 
   // Payments are not part of the product right now, so these routes still exist
   // but must not be reachable from the nav.
-  it.each(['Payouts', 'Recipients', 'Requests', 'Fan Pages', 'Inbox'])(
+  it.each([
+    'Payouts', 'Recipients', 'Requests', 'Fan Pages', 'Inbox',
+    // Parked October 2026, on prod usage (see NewSidebar.tsx).
+    'Activations', 'Deadlines', 'Clients', 'Discovery', 'Connections', 'Billing', 'Activity Log',
+  ])(
     'does not link parked section %s',
     (label) => {
       render(<NewSidebar />);
@@ -62,16 +66,10 @@ describe('NewSidebar', () => {
     expect(links.length).toBeGreaterThan(0);
   });
 
-  it('renders discovery and trackers links', () => {
+  it('renders the songs and settings links', () => {
     render(<NewSidebar />);
-    expect(screen.getByRole('link', { name: /Discovery/i })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Trackers/i })).toBeInTheDocument();
-  });
-
-  it('renders connections and activations links', () => {
-    render(<NewSidebar />);
-    expect(screen.getByRole('link', { name: /Connections/i })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Activations/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Songs/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /^Settings$/i })).toBeInTheDocument();
   });
 
   it('highlights active nav item based on pathname', () => {

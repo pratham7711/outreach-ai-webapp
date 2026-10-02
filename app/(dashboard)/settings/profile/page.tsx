@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { Card, Input, Skeleton } from "@pratham7711/ui";
-import { Building2, Palette, Landmark, Globe, Save } from "lucide-react";
+import { Building2, Palette, Globe, Save } from "lucide-react";
 import { formatDateAbs } from "@/lib/format";
 import { PLATFORM_DEFAULT_BRANDING } from "@/lib/brandingDefaults";
 import { PageHeader, Dropdown, Button } from "@/components/ds";
@@ -17,19 +17,10 @@ type OrgProfile = {
   planExpiresAt: string | null;
   logoUrl: string | null;
   faviconUrl: string | null;
-  customDomain: string | null;
   primaryColor: string;
   secondaryColor: string;
   accentColor: string;
   fontFamily: string;
-  /* Absent unless the viewer has settings:manage — /api/org leaves the bank
-     block out of its SELECT for everyone else rather than fetching it and
-     trimming the response. */
-  bankAccountName?: string | null;
-  bankAccountNumber?: string | null;
-  bankIFSC?: string | null;
-  bankSwift?: string | null;
-  bankRoutingNumber?: string | null;
   createdAt: string;
   canManageSettings?: boolean;
 };
@@ -78,7 +69,6 @@ export default function OrgProfilePage() {
   const [currency, setCurrency] = useState("USD");
   const [logoUrl, setLogoUrl] = useState("");
   const [faviconUrl, setFaviconUrl] = useState("");
-  const [customDomain, setCustomDomain] = useState("");
   const [primaryColor, setPrimaryColor] = useState<string>(PLATFORM_DEFAULT_BRANDING.primaryColor);
   const [secondaryColor, setSecondaryColor] = useState<string>(PLATFORM_DEFAULT_BRANDING.secondaryColor);
   const [accentColor, setAccentColor] = useState<string>(PLATFORM_DEFAULT_BRANDING.accentColor);
@@ -89,11 +79,6 @@ export default function OrgProfilePage() {
     accentColor === PLATFORM_DEFAULT_BRANDING.accentColor &&
     fontFamily === PLATFORM_DEFAULT_BRANDING.fontFamily;
 
-  const [bankAccountName, setBankAccountName] = useState("");
-  const [bankAccountNumber, setBankAccountNumber] = useState("");
-  const [bankIFSC, setBankIFSC] = useState("");
-  const [bankSwift, setBankSwift] = useState("");
-  const [bankRoutingNumber, setBankRoutingNumber] = useState("");
 
   useEffect(() => {
     fetch("/api/org")
@@ -107,16 +92,10 @@ export default function OrgProfilePage() {
         setCurrency(data.currency);
         setLogoUrl(data.logoUrl ?? "");
         setFaviconUrl(data.faviconUrl ?? "");
-        setCustomDomain(data.customDomain ?? "");
         setPrimaryColor(data.primaryColor);
         setSecondaryColor(data.secondaryColor);
         setAccentColor(data.accentColor);
         setFontFamily(data.fontFamily);
-        setBankAccountName(data.bankAccountName ?? "");
-        setBankAccountNumber(data.bankAccountNumber ?? "");
-        setBankIFSC(data.bankIFSC ?? "");
-        setBankSwift(data.bankSwift ?? "");
-        setBankRoutingNumber(data.bankRoutingNumber ?? "");
       })
       .catch(() => setError("Failed to load profile"))
       .finally(() => setLoading(false));
@@ -137,16 +116,13 @@ export default function OrgProfilePage() {
           currency,
           logoUrl: logoUrl || null,
           faviconUrl: faviconUrl || null,
-          customDomain: customDomain || null,
           primaryColor,
           secondaryColor,
           accentColor,
           fontFamily,
-          bankAccountName: bankAccountName || null,
-          bankAccountNumber: bankAccountNumber || null,
-          bankIFSC: bankIFSC || null,
-          bankSwift: bankSwift || null,
-          bankRoutingNumber: bankRoutingNumber || null,
+          /* Bank details and the custom domain left this form in October 2026
+             (nothing read either). Not sending them is what keeps the stored
+             values: /api/org writes only the keys it receives. */
         }),
       });
       if (!res.ok) {
@@ -181,7 +157,7 @@ export default function OrgProfilePage() {
         title="Organization Profile"
         subtitle={
           canManage
-            ? "Manage your workspace settings, branding, and bank details"
+            ? "Manage your workspace settings and branding"
             : "Your workspace settings. Only an owner or admin can change them."
         }
         actions={
@@ -266,7 +242,7 @@ export default function OrgProfilePage() {
 
           {/* Domain & Assets */}
           <Card variant="outlined" style={{ padding: 24 }}>
-            <SectionHeader icon={Globe} title="Domain & Assets" description="Logo, favicon, and custom domain" />
+            <SectionHeader icon={Globe} title="Domain & Assets" description="Logo and favicon" />
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               <FormRow label="Logo URL">
                 <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
@@ -276,24 +252,6 @@ export default function OrgProfilePage() {
               </FormRow>
               <FormRow label="Favicon URL">
                 <Input value={faviconUrl} onChange={e => setFaviconUrl(e.target.value)} placeholder="https://..." disabled={!canManage} />
-              </FormRow>
-              {/* Disabled, not removed. Organization.customDomain is written by
-                  this form and read by nothing: no route, no middleware, no
-                  tenant resolution. An editable box for a setting that does
-                  nothing is a promise the product does not keep. The value
-                  already stored is preserved — it is still sent on save. */}
-              <FormRow label="Custom Domain">
-                <Input
-                  value={customDomain}
-                  onChange={e => setCustomDomain(e.target.value)}
-                  placeholder="app.yourdomain.com"
-                  disabled
-                  aria-describedby="custom-domain-note"
-                />
-                <p id="custom-domain-note" style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", marginTop: 6 }}>
-                  Not available yet — nothing serves the app from a custom domain today.
-                  Any value already saved here is kept.
-                </p>
               </FormRow>
             </div>
           </Card>
@@ -355,44 +313,6 @@ export default function OrgProfilePage() {
             </div>
           </Card>
 
-          {/* Bank Details. Owner/admin only — /api/org does not even SELECT
-              these columns for anyone else, so there is nothing to render. */}
-          {canManage && (
-          <Card variant="outlined" style={{ padding: 24 }}>
-            {/* The description used to say "Used for payouts and financial
-                reports". These five columns are written here and read back by
-                /api/org and this form only — no invoice, report or payout
-                surface touches them. Say where they actually go, which is
-                nowhere yet. */}
-            <SectionHeader
-              icon={Landmark}
-              title="Bank Details"
-              description="Your organization's own account, for invoices — coming soon"
-            />
-            <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", margin: "-8px 0 16px" }}>
-              Stored for when invoicing lands. Nothing displays these today. Creator
-              payout details are separate — each creator enters their own in the creator
-              portal.
-            </p>
-            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              <FormRow label="Account Name">
-                <Input value={bankAccountName} onChange={e => setBankAccountName(e.target.value)} placeholder="Account holder name" />
-              </FormRow>
-              <FormRow label="Account Number">
-                <Input value={bankAccountNumber} onChange={e => setBankAccountNumber(e.target.value)} placeholder="•••• •••• ••••" type="password" />
-              </FormRow>
-              <FormRow label="IFSC Code">
-                <Input value={bankIFSC} onChange={e => setBankIFSC(e.target.value)} placeholder="SBIN0001234" />
-              </FormRow>
-              <FormRow label="SWIFT / BIC">
-                <Input value={bankSwift} onChange={e => setBankSwift(e.target.value)} placeholder="SBININBB" />
-              </FormRow>
-              <FormRow label="Routing Number">
-                <Input value={bankRoutingNumber} onChange={e => setBankRoutingNumber(e.target.value)} placeholder="For US wire transfers" />
-              </FormRow>
-            </div>
-          </Card>
-          )}
 
         </div>
       )}

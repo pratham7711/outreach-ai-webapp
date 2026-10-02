@@ -43,6 +43,15 @@ describe("every sidebar item has a nav rule", () => {
     "/settings/profile",
     "/settings/notifications",
     "/settings/integrations",
+    // Parked October 2026 (see NewSidebar.tsx); their URLs redirect.
+    "/activations",
+    "/deadlines",
+    "/clients",
+    "/discovery",
+    "/connections",
+    "/settings/billing",
+    // Reached from the Settings hub, for admins.
+    "/audit-log",
   ];
 
   it("only these routes have a rule with no sidebar item, and they are parked on purpose", () => {

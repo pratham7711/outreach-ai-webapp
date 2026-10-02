@@ -5,16 +5,35 @@ const ADMIN_PAGES = [
   '/dashboard',
   '/campaigns',
   '/creators',
-  '/clients',
-  '/payouts',
-  '/activations',
   '/lists',
-  '/discovery',
+  '/trackers',
+  '/songs',
   '/calendar',
-  '/connections',
-  '/deadlines',
-  '/financial-reports',
+  '/analytics',
   '/settings',
+  '/admin',
+  '/plans',
+];
+
+/* Parked in October 2026 (NewSidebar.tsx, next.config.ts). Each must answer a
+   temporary redirect to its kept page -- never a 404, never the old page. */
+const PARKED: Array<[string, string]> = [
+  ['/activations', '/campaigns'],
+  ['/deadlines', '/campaigns'],
+  ['/clients', '/campaigns'],
+  ['/clients/any-id', '/campaigns'],
+  ['/discovery', '/creators'],
+  ['/connections', '/settings'],
+  ['/payouts', '/campaigns'],
+  ['/requests', '/campaigns'],
+  ['/recipients', '/campaigns'],
+  ['/financial-reports', '/campaigns'],
+  ['/campaigns/self-serve', '/campaigns'],
+  ['/settings/billing', '/settings'],
+  ['/inbox', '/campaigns'],
+  ['/fan-pages', '/campaigns'],
+  ['/media-kits', '/creators'],
+  ['/reports', '/campaigns'],
 ];
 
 test.describe('Navigation', () => {
@@ -30,14 +49,25 @@ test.describe('Navigation', () => {
   });
 
   test('sidebar navigation links are present', async ({ page }) => {
-    await navigateAndWait(page, '/dashboard');
-    // Check core sidebar links exist
-    // Payouts is deliberately absent: the money side is parked, so Payouts,
-    // Requests, Recipients and Financials keep their routes but are unlinked
-    // (see the note at the top of NewSidebar.tsx).
-    const sidebarLinks = ['Campaigns', 'Creator Roster', 'Clients'];
-    for (const linkText of sidebarLinks) {
-      await expect(page.getByRole('link', { name: new RegExp(linkText, 'i') }).first()).toBeVisible({ timeout: 10000 });
+    await navigateAndWait(page, '/campaigns');
+    const sidebar = page.locator('nav, aside').first();
+    for (const linkText of ['Campaigns', 'Creator Roster', 'Lists', 'Trackers']) {
+      await expect(sidebar.getByRole('link', { name: new RegExp(linkText, 'i') }).first()).toBeVisible({ timeout: 10000 });
+    }
+  });
+
+  test('parked pages are not in the sidebar', async ({ page }) => {
+    await navigateAndWait(page, '/campaigns');
+    for (const href of ['/activations', '/deadlines', '/clients', '/discovery', '/connections', '/settings/billing', '/payouts']) {
+      await expect(page.locator(`aside a[href="${href}"], nav a[href="${href}"]`)).toHaveCount(0);
+    }
+  });
+
+  test('parked pages redirect temporarily to the page that replaced them', async ({ page }) => {
+    for (const [from, to] of PARKED) {
+      const res = await page.request.get(from, { maxRedirects: 0 });
+      expect([from, res.status()]).toEqual([from, 307]);
+      expect([from, new URL(res.headers()['location'], 'http://x').pathname]).toEqual([from, to]);
     }
   });
 });

@@ -102,6 +102,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   const uiConfig = (entitlements?.uiConfig as OrgUiConfig | null) ?? null;
   const policy = resolveDashboardPolicy({ entitlements, uiConfig });
+  const navHrefs = orgId
+    ? navHrefsForRole(policy.allowedNavHrefs, (session.user as { role?: string }).role)
+    : null;
 
   /* The org's brand colour now travels with every other server-driven token
      through <ThemeStyle>, rather than as an inline custom property on the root
@@ -137,7 +140,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
           <Toaster richColors position="bottom-right" />
           <NewSidebar
-            allowedNavHrefs={orgId ? navHrefsForRole(policy.allowedNavHrefs, (session.user as { role?: string }).role) : null}
+            allowedNavHrefs={navHrefs}
             /* A separate axis from allowedNavHrefs: that is what this org bought,
                this is whether the person signed in operates the platform. Read
                from the email rather than the JWT because the token is minted at
@@ -149,7 +152,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
             user={user}
           />
           <DashboardContent>
-            <TopBar user={user} />
+            <TopBar user={user} navHrefs={navHrefs} />
             {actingAs && (
               <ActingAsBanner orgName={actingAs.orgName} mode={actingAs.mode} />
             )}

@@ -92,15 +92,9 @@ test.describe('Responsive B — creators/clients/discovery/lists/inbox + ops pag
 
   const STATIC_ROUTES: { name: string; path: string; ready: string }[] = [
     { name: 'creators', path: '/creators', ready: 'h1' },
-    { name: 'clients', path: '/clients', ready: 'h1' },
-    { name: 'discovery', path: '/discovery', ready: 'h1' },
     { name: 'lists', path: '/lists', ready: 'h1' },
-    { name: 'inbox', path: '/inbox', ready: 'h1' },
-    { name: 'requests', path: '/requests', ready: 'h1' },
-    { name: 'activations', path: '/activations', ready: 'h1' },
     { name: 'trackers', path: '/trackers', ready: 'h1' },
     { name: 'calendar', path: '/calendar', ready: 'h1' },
-    { name: 'connections', path: '/connections', ready: 'h1' },
   ];
 
   for (const route of STATIC_ROUTES) {

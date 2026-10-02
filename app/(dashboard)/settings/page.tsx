@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
-import { Activity, ArrowRight, Bell, BellRing, Building2, CreditCard, LineChart, Plug, Tags, Users } from "lucide-react";
+import { Activity, ArrowRight, Bell, Building2, CreditCard, FileText, LineChart, Plug, Tags, Users } from "lucide-react";
 import { PageHeader } from "@/components/ds";
+import { hasPermission } from "@/lib/rbac";
+import { ORG_ADMIN_PERMISSION } from "@/lib/dashboardPolicy";
 
 const cards = [
   {
@@ -13,7 +15,7 @@ const cards = [
   },
   {
     title: "Profile",
-    description: "Update your organization name, branding colors, and bank details.",
+    description: "Update your organization name and logo.",
     href: "/settings/profile",
     icon: Building2,
   },
@@ -47,12 +49,6 @@ const cards = [
     href: "/settings/integrations",
     icon: Plug,
   },
-  {
-    title: "Billing",
-    description: "Review your current plan, usage limits, and enabled features.",
-    href: "/settings/billing",
-    icon: BellRing,
-  },
   /* The other seven settings pages were all reachable two ways -- a rail row and
      a card here -- but Ingestion had only the rail row, so it was the one page
      that a theme collapsing the rail would orphan outright. That is now what the
@@ -67,9 +63,21 @@ const cards = [
   },
 ];
 
+/* Left the sidebar in October 2026; the log itself is unchanged. */
+const adminCards = [
+  {
+    title: "Activity Log",
+    description: "Who changed what in this workspace, and when.",
+    href: "/audit-log",
+    icon: FileText,
+  },
+];
+
 export default async function SettingsPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
+  const isAdmin = hasPermission((session.user as { role?: string }).role ?? "", ORG_ADMIN_PERMISSION);
+  const visibleCards = isAdmin ? [...cards, ...adminCards] : cards;
 
   return (
     <div className="rsp-page page-enter">
@@ -85,7 +93,7 @@ export default async function SettingsPage() {
           gap: 16,
         }}
       >
-        {cards.map((card) => {
+        {visibleCards.map((card) => {
           const Icon = card.icon;
 
           return (

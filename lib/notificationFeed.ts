@@ -47,15 +47,14 @@ export type NotificationItem = {
 const DETAIL_HREF: Record<string, (id: string) => string> = {
   campaign: (id) => `/campaigns/${id}`,
   creator: (id) => `/creators/${id}`,
-  client: (id) => `/clients/${id}`,
   creator_list: (id) => `/lists/${id}`,
   song: (id) => `/songs/${id}`,
 };
 
-const INDEX_HREF: Record<string, string> = {
-  activation: "/activations",
-  payout: "/payouts",
-};
+/* Empty since October 2026: activations, payouts and clients were index links
+   to pages that are now parked and redirect, and a bell link that lands
+   somewhere else reads as broken. They show unlinked, like a post. */
+const INDEX_HREF: Record<string, string> = {};
 
 export function notificationHref(item: Pick<NotificationItem, "entityType" | "entityId">): string | null {
   const detail = DETAIL_HREF[item.entityType];

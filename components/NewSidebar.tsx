@@ -7,8 +7,8 @@ import { useState, useEffect, useCallback, useMemo, Suspense } from "react";
 import CampaignRailNav from "@/components/CampaignRailNav";
 import { campaignIdFromPathname } from "@/lib/campaignSections";
 import {
-  LayoutDashboard, Megaphone, Play, Calendar, CalendarClock, Users, Users2, LineChart,
-  Search, List, Link2, CreditCard, Shield, FileText,
+  LayoutDashboard, Megaphone, Calendar, Users, Users2, LineChart,
+  List, CreditCard, Shield,
   ChevronDown, Settings, LogOut, Menu, X, Key, BarChart2, Activity, Music, Tags,
   Globe
 } from "lucide-react";
@@ -22,6 +22,12 @@ import { NotificationBell } from "@/components/layout/NotificationBell";
   payments yet, so Payouts, Requests, Recipients and Financials are unlinked
   while their routes and tables stay put. Inbox and Fan Pages are parked the
   same way. Everything reachable here is campaign delivery and reporting.
+
+  Parked the same way in October 2026, on prod usage: Activations (the
+  campaign's Creators tab is where that work happens), Deadlines (no
+  deliverables exist), Clients (none created since March), Discovery (refused by
+  plan), Connections (stored a flag, connected nothing) and Billing. Their URLs
+  redirect (next.config.ts). Activity Log moved to the Settings hub, for admins.
 */
 /**
  * Exported so a test can assert every href here has a rule in
@@ -37,19 +43,14 @@ export const NAV_SECTIONS = [
       { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
       { href: "/songs", icon: Music, label: "Songs" },
       { href: "/campaigns", icon: Megaphone, label: "Campaigns" },
-      { href: "/activations", icon: Play, label: "Activations" },
       { href: "/calendar", icon: Calendar, label: "Calendar" },
-      { href: "/deadlines", icon: CalendarClock, label: "Deadlines" },
-      { href: "/clients", icon: Users, label: "Clients" },
       { href: "/trackers", icon: LineChart, label: "Trackers" },
       { href: "/analytics", icon: BarChart2, label: "Analytics" },
-      { href: "/audit-log", icon: FileText, label: "Activity Log" },
     ],
   },
   {
     label: "Creators & Pitching",
     items: [
-      { href: "/discovery", icon: Search, label: "Discovery" },
       { href: "/creators", icon: Users, label: "Creator Roster" },
       { href: "/lists", icon: List, label: "Lists" },
     ],
@@ -59,11 +60,9 @@ export const NAV_SECTIONS = [
     items: [
       { href: "/settings", icon: Settings, label: "Settings" },
       { href: "/settings/general", icon: Tags, label: "General" },
-      { href: "/connections", icon: Link2, label: "Connections" },
       { href: "/settings/team", icon: Users2, label: "Team" },
       { href: "/settings/trackers", icon: LineChart, label: "Tracker settings" },
       { href: "/settings/api-keys", icon: Key, label: "API Keys" },
-      { href: "/settings/billing", icon: CreditCard, label: "Billing" },
       { href: "/settings/ingestion", icon: Activity, label: "Ingestion" },
     ],
   },
