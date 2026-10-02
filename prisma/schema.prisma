@@ -2299,3 +2299,95 @@ model TrackerReadingQuarantine {
   @@index([creatorId, recordedAt])
   @@index([orgId, recordedAt])
 }
+
+// ─── Ops guards (plan §13 C and M) ────────────────────────────────────────────
+// New tables only, applied by /api/admin/migrate-ops-guards
+// (lib/ops/opsSchemaDdl.ts). Every reader goes through opsTablesReady(), and
+// absent means today's behaviour: nothing killed, no breaker open, no Sandbox
+// refused.
+
+/// One row per kill switch. "cron:<job>" stops a scheduled job before it does
+/// any work; "source:<platform>" stops the creator and post readers reading
+/// that platform. off = true means switched off. Flipped from /platform/ops.
+model OpsKillSwitch {
+  key       String   @id
+  off       Boolean  @default(false)
+  reason    String?
+  updatedBy String?
+  updatedAt DateTime @default(now())
+}
+
+model OpsKillSwitchLog {
+  id        String   @id @default(cuid())
+  key       String
+  off       Boolean
+  reason    String?
+  changedBy String?
+  changedAt DateTime @default(now())
+
+  @@index([key, changedAt])
+}
+
+/// The latest run of each cron in vercel.json, written by lib/ops/cronRoute.
+model OpsCronHeartbeat {
+  job                 String    @id
+  firstSeenAt         DateTime  @default(now())
+  lastStartedAt       DateTime?
+  lastFinishedAt      DateTime?
+  lastOk              Boolean?
+  /// Truncated; the full error is in the function log.
+  lastError           String?
+  durationMs          Int?
+  lastSuccessAt       DateTime?
+  consecutiveFailures Int       @default(0)
+  runs                Int       @default(0)
+}
+
+/// Per-source breaker, one row per "<reader>:<platform>", e.g.
+/// "creator-reads:tiktok". "closed", "open" or "half-open".
+model OpsSourceBreaker {
+  key                 String    @id
+  state               String    @default("closed")
+  consecutiveFailures Int       @default(0)
+  openedAt            DateTime?
+  lastFailureAt       DateTime?
+  lastSuccessAt       DateTime?
+  lastReason          String?
+  updatedAt           DateTime  @default(now())
+}
+
+/// Sandboxes created per UTC day ("YYYY-MM-DD") and per caller, for the daily
+/// cap and the weekly meter. seconds and vcpuSeconds are measured from create
+/// to delete, so a sandbox that timed out instead of being deleted adds none.
+model OpsSandboxDay {
+  day         String
+  caller      String
+  creations   Int      @default(0)
+  refused     Int      @default(0)
+  closed      Int      @default(0)
+  seconds     Float    @default(0)
+  vcpuSeconds Float    @default(0)
+  updatedAt   DateTime @default(now())
+
+  @@id([day, caller])
+}
+
+/// One weekly reading per meter ("neon-compute", "sandbox-compute"), against
+/// the scale report's 4k budget. id is "<meter>:<weekStart>".
+model OpsMeterWeek {
+  id        String   @id
+  meter     String
+  /// The Monday the week starts on, UTC, "YYYY-MM-DD".
+  weekStart String
+  /// "ok", "over", "not-configured" or "error".
+  status    String
+  value     Float?
+  unit      String?
+  costUsd   Float?
+  budgetUsd Float?
+  ratio     Float?
+  detail    Json?
+  readAt    DateTime @default(now())
+
+  @@index([meter, weekStart])
+}
