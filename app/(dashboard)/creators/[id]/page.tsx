@@ -15,6 +15,7 @@ import CreatorAvatar from "@/components/creators/CreatorAvatar";
 import PlatformChips from "@/components/creators/PlatformChips";
 import HandleFix from "@/components/creators/HandleFix";
 import MergeCreatorModal from "@/components/creators/MergeCreatorModal";
+import CreatorAccess from "@/components/creators/CreatorAccess";
 import type { HandleProblem } from "@/lib/creators/handleCheck";
 
 function formatNumber(num: number): string {
@@ -1212,6 +1213,8 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
                 ))}
               </div>
             )}
+
+            <CreatorAccess creatorId={id} />
 
             {socialAccounts.some(a => a.platform === "TIKTOK") && (
               <div style={{ marginTop: 32 }}>
