@@ -101,7 +101,7 @@ export default function ClientFeatureModal({ open, onClose, client, plans, onSav
     border: "none",
     cursor: "pointer" as const,
     background: active ? color : "transparent",
-    color: active ? "#fff" : "var(--cc-text-muted)",
+    color: active ? "var(--cc-on-primary)" : "var(--cc-text-muted)",
     transition: "all 0.15s",
   });
 

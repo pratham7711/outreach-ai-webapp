@@ -97,12 +97,12 @@ export function Sidebar() {
       {/* Desktop */}
       <aside
         className={cn(
-          "hidden md:flex h-screen flex-col bg-[#0D0D14] border-r border-[#2A2A3A] transition-all duration-300 shrink-0",
+          "hidden md:flex h-screen flex-col bg-[var(--cc-card)] border-r border-[var(--cc-border)] transition-all duration-300 shrink-0",
           collapsed ? "w-[68px]" : "w-60"
         )}
       >
         {/* Logo */}
-        <div className="flex items-center gap-2.5 px-4 h-14 shrink-0 border-b border-[#2A2A3A]">
+        <div className="flex items-center gap-2.5 px-4 h-14 shrink-0 border-b border-[var(--cc-border)]">
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[var(--color-primary)] to-purple-500 flex items-center justify-center shrink-0">
             <Megaphone className="h-4 w-4 text-white" />
           </div>
@@ -119,7 +119,7 @@ export function Sidebar() {
         {/* Collapse toggle */}
         <button
           onClick={() => setCollapsed(!collapsed)}
-          className="mx-3 mt-2 mb-1 flex items-center justify-center rounded-lg p-1.5 text-[#555577] hover:bg-white/5 hover:text-[#8888AA] transition-colors"
+          className="mx-3 mt-2 mb-1 flex items-center justify-center rounded-lg p-1.5 text-[var(--cc-text-muted)] hover:bg-white/5 hover:text-[var(--cc-text-muted)] transition-colors"
         >
           {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
         </button>
@@ -129,7 +129,7 @@ export function Sidebar() {
           {navSections.map((section) => (
             <div key={section.title} className="mb-1">
               {!collapsed && (
-                <p className="text-[10px] uppercase tracking-widest text-[#555577] px-3 mt-4 mb-1 font-medium">
+                <p className="text-[10px] uppercase tracking-widest text-[var(--cc-text-muted)] px-3 mt-4 mb-1 font-medium">
                   {section.title}
                 </p>
               )}
@@ -146,7 +146,7 @@ export function Sidebar() {
                         collapsed && "justify-center px-2",
                         isActive
                           ? "bg-[var(--color-primary)]/15 text-[var(--color-primary)] border-r-2 border-[var(--color-primary)]"
-                          : "text-[#8888AA] hover:text-white hover:bg-white/5"
+                          : "text-[var(--cc-text-muted)] hover:text-white hover:bg-white/5"
                       )}
                     >
                       <span className="shrink-0">{item.icon}</span>
@@ -160,7 +160,7 @@ export function Sidebar() {
         </nav>
 
         {/* User area */}
-        <div className="border-t border-[#2A2A3A] px-3 py-3">
+        <div className="border-t border-[var(--cc-border)] px-3 py-3">
           <div className={cn("flex items-center gap-2.5", collapsed && "justify-center")}>
             <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[var(--color-primary)] to-purple-600 flex items-center justify-center text-white text-[11px] font-bold shrink-0">
               AD
@@ -168,7 +168,7 @@ export function Sidebar() {
             {!collapsed && (
               <div className="flex-1 min-w-0">
                 <p className="text-[13px] font-semibold text-white truncate">Admin Demo</p>
-                <p className="text-[11px] text-[#555577] truncate">admin@demo.com</p>
+                <p className="text-[11px] text-[var(--cc-text-muted)] truncate">admin@demo.com</p>
               </div>
             )}
           </div>
@@ -179,7 +179,7 @@ export function Sidebar() {
               </span>
               <button
                 onClick={() => signOut({ callbackUrl: "/login" })}
-                className="text-[#555577] hover:text-red-400 transition-colors p-1 rounded-lg hover:bg-red-500/10"
+                className="text-[var(--cc-text-muted)] hover:text-red-400 transition-colors p-1 rounded-lg hover:bg-red-500/10"
               >
                 <LogOut className="h-4 w-4" />
               </button>
@@ -189,7 +189,7 @@ export function Sidebar() {
       </aside>
 
       {/* Mobile Bottom Tab Bar */}
-      <nav className="fixed bottom-0 left-0 right-0 z-50 flex md:hidden items-center justify-around border-t border-[#2A2A3A] bg-[#0D0D14]/95 backdrop-blur-xl px-2 py-2">
+      <nav className="fixed bottom-0 left-0 right-0 z-50 flex md:hidden items-center justify-around border-t border-[var(--cc-border)] bg-[var(--cc-card)]/95 backdrop-blur-xl px-2 py-2">
         {[
           { label: "Home", href: "/dashboard", icon: <LayoutDashboard className="h-5 w-5" /> },
           { label: "Campaigns", href: "/campaigns", icon: <Megaphone className="h-5 w-5" /> },
@@ -204,7 +204,7 @@ export function Sidebar() {
               href={item.href}
               className={cn(
                 "flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg text-[10px] font-medium transition-colors",
-                isActive ? "text-[var(--color-primary)]" : "text-[#555577]"
+                isActive ? "text-[var(--color-primary)]" : "text-[var(--cc-text-muted)]"
               )}
             >
               {item.icon}

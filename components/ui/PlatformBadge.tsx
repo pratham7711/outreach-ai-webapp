@@ -9,7 +9,7 @@ const PLATFORM_CONFIG: Record<string, { bg: string; text: string; label: string 
 };
 
 export function PlatformBadge({ platform }: { platform: string }) {
-  const config = PLATFORM_CONFIG[platform] ?? { bg: "bg-[#2A2A3A]", text: "text-[#8888AA]", label: platform };
+  const config = PLATFORM_CONFIG[platform] ?? { bg: "bg-[var(--cc-border)]", text: "text-[var(--cc-text-muted)]", label: platform };
 
   return (
     <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${config.bg} ${config.text}`}>

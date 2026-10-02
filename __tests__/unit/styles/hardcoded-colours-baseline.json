@@ -1,22 +1,3 @@
 {
-  "components/campaigns/AudioCard.tsx": 3,
-  "components/ds/Dropdown.tsx": 3,
-  "components/ds/EntityPicker.tsx": 1,
-  "components/ds/StatusTabs.tsx": 11,
-  "components/layout/ActingAsBanner.tsx": 4,
-  "components/layout/DashboardLayout.tsx": 2,
-  "components/layout/Sidebar.tsx": 13,
-  "components/layout/TopNav.tsx": 1,
-  "components/layout/VerifyEmailBanner.tsx": 3,
-  "components/modals/ClientFeatureModal.tsx": 1,
-  "components/modals/PayoutDetailModal.tsx": 2,
-  "components/PostMedia.tsx": 6,
-  "components/posts/PostGridCard.tsx": 6,
-  "components/providers/FeatureGate.tsx": 5,
-  "components/ui/chart.tsx": 5,
-  "components/ui/EmptyState.tsx": 2,
-  "components/ui/ErrorCard.tsx": 2,
-  "components/ui/PageHeader.tsx": 2,
-  "components/ui/PageSkeleton.tsx": 1,
-  "components/ui/PlatformBadge.tsx": 2
+  "components/ui/chart.tsx": 5
 }

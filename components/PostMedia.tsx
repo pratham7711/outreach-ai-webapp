@@ -94,7 +94,7 @@ export default function PostMedia({
       <a href={href} target="_blank" rel="noopener noreferrer" style={frame} title="Open post" aria-label="Open post">
         {inner}
         <span style={overlayStyle}>
-          <ExternalLink size={14} color="#fff" />
+          <ExternalLink size={14} color="var(--cc-overlay-ink-text)" />
         </span>
       </a>
     );
@@ -116,7 +116,7 @@ export default function PostMedia({
       >
         {inner}
         <span style={overlayStyle}>
-          <Play size={15} color="#fff" fill="#fff" />
+          <Play size={15} color="var(--cc-overlay-ink-text)" fill="var(--cc-overlay-ink-text)" />
         </span>
       </button>
 
@@ -133,7 +133,7 @@ export default function PostMedia({
             position: "fixed",
             inset: 0,
             zIndex: 1000,
-            background: "rgba(0,0,0,0.75)",
+            background: "color-mix(in srgb, var(--cc-media-ink) 75%, transparent)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -147,7 +147,7 @@ export default function PostMedia({
               maxWidth: platform === "YOUTUBE" ? 900 : 420,
               aspectRatio: platform === "YOUTUBE" ? "16 / 9" : "9 / 16",
               maxHeight: "88vh",
-              background: "#000",
+              background: "var(--cc-media-ink)",
               borderRadius: 12,
               overflow: "hidden",
               position: "relative",
@@ -173,5 +173,5 @@ const overlayStyle: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  background: "rgba(0,0,0,0.28)",
+  background: "color-mix(in srgb, var(--cc-media-ink) 28%, transparent)",
 };

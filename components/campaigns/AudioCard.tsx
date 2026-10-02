@@ -319,8 +319,8 @@ const STALE_AFTER_DAYS = 2;
  * Every number below is measured off
  * https://lkay.creatorcore.co/client/jamie-macdonald-roots-7258461 at 1440,
  * where the card is 635 wide with 20px padding: tiles 88 tall on a 10px gap at
- * radius 20, the sound tile #848484 against two black stat tiles, and a 250px
- * chart whose area is a flat #7F7F7F under a black line. Colours live in
+ * radius 20, the sound tile mid grey against two black stat tiles, and a 250px
+ * chart whose area is a flat mid grey under a black line. Colours live in
  * globals.css as --spr-audio-*; the layout lives here.
  */
 function ReportAudio({
@@ -457,7 +457,7 @@ function ReportAudio({
                   contentStyle={{ fontSize: "var(--cc-t-12)", borderRadius: 8 }}
                 />
                 {/* Flat fill, no gradient and no opacity: the reference's area is
-                    a solid #7F7F7F meeting a black line, and a translucent fill
+                    a solid mid grey meeting a black line, and a translucent fill
                     over a white card reads several shades lighter than that. */}
                 <Area
                   type="monotone"

@@ -15,8 +15,8 @@ export function EmptyState({ icon, title, description, action }: EmptyStateProps
       <div className="w-14 h-14 rounded-2xl bg-[var(--color-primary)]/10 flex items-center justify-center mb-4 text-[var(--color-primary)]">
         {icon}
       </div>
-      <h3 className="text-lg font-semibold text-[#F0F0FF] mb-1">{title}</h3>
-      <p className="text-sm text-[#8888AA] max-w-sm mb-5">{description}</p>
+      <h3 className="text-lg font-semibold text-[var(--cc-text)] mb-1">{title}</h3>
+      <p className="text-sm text-[var(--cc-text-muted)] max-w-sm mb-5">{description}</p>
       {action}
     </div>
   );

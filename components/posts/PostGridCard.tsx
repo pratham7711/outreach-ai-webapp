@@ -142,7 +142,7 @@ function PostGridCardImpl({
           to be, because only the element reports a failed fetch --
           see PostCover for what that was costing. */}
       <PostCover thumbnailUrl={post.thumbnailUrl} width={320} height={568} alt={post.caption} />
-      <span style={{ position: "absolute", top: 10, left: 42, padding: "3px 9px", borderRadius: 999, background: "rgba(0,0,0,0.55)", color: "white", fontSize: "var(--cc-t-10)", fontWeight: 700, letterSpacing: 0.4, backdropFilter: "blur(4px)" }}>
+      <span style={{ position: "absolute", top: 10, left: 42, padding: "3px 9px", borderRadius: 999, background: "color-mix(in srgb, var(--cc-media-ink) 55%, transparent)", color: "var(--cc-overlay-ink-text)", fontSize: "var(--cc-t-10)", fontWeight: 700, letterSpacing: 0.4, backdropFilter: "blur(4px)" }}>
         {post.platform}
       </span>
       <span style={{ position: "absolute", top: 10, right: 10 }}>
@@ -170,7 +170,7 @@ function PostGridCardImpl({
           // Every stop is the overlay ink, which is theme-independent
           // on purpose: the thumbnail behind it does not restyle with
           // the theme, and the solid end used to be --cc-text, which
-          // is #FFFFFF under .dark -- white counts on a white panel.
+          // is white under .dark -- white counts on a white panel.
           background:
             "linear-gradient(to bottom, color-mix(in srgb, var(--cc-overlay-ink) 0%, transparent) 0%, color-mix(in srgb, var(--cc-overlay-ink) 72%, transparent) 30%, var(--cc-overlay-ink) 48%, var(--cc-overlay-ink) 100%)",
           color: "var(--cc-overlay-ink-text)",
@@ -200,7 +200,7 @@ function PostGridCardImpl({
           // this post was watched by nobody, which we never checked.
           if (rows.length === 0) {
             return (
-              <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "var(--cc-t-13)", color: "rgba(255,255,255,0.72)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "var(--cc-t-13)", color: "color-mix(in srgb, var(--cc-overlay-ink-text) 72%, transparent)" }}>
                 <Eye size={13} aria-hidden="true" />Not synced yet
               </div>
             );
@@ -213,7 +213,7 @@ function PostGridCardImpl({
         })()}
         {/* No paddingRight any more: the corner icons this row used to clear
             are gone, so the date line gets the tile's full width back. */}
-        <div style={{ marginTop: 8, paddingTop: 7, borderTop: "1px solid rgba(255,255,255,0.22)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, fontSize: 10.5, color: "rgba(255,255,255,0.78)" }}>
+        <div style={{ marginTop: 8, paddingTop: 7, borderTop: "1px solid color-mix(in srgb, var(--cc-overlay-ink-text) 22%, transparent)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, fontSize: 10.5, color: "color-mix(in srgb, var(--cc-overlay-ink-text) 78%, transparent)" }}>
           {/* Only once a platform has answered for this post: until
               then postedAt is the day someone added it here, not the
               day it went up, and Post.postedAt cannot be null. */}
@@ -232,7 +232,7 @@ function PostGridCardImpl({
             {tracking && (
               <span
                 title={trackingLabel(true, post.trackingExpiresAt ?? null)}
-                style={{ width: 6, height: 6, borderRadius: 999, background: "var(--cc-primary)", boxShadow: "0 0 0 2px rgba(255,255,255,0.28)", flexShrink: 0 }}
+                style={{ width: 6, height: 6, borderRadius: 999, background: "var(--cc-primary)", boxShadow: "0 0 0 2px color-mix(in srgb, var(--cc-overlay-ink-text) 28%, transparent)", flexShrink: 0 }}
               />
             )}
             Updated {formatSince(post.lastSyncedAt)}

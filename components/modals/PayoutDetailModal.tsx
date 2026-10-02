@@ -92,7 +92,7 @@ export default function PayoutDetailModal({
         {payout.transactionId && detailRow("Transaction ID", payout.transactionId)}
         {detailRow("Initiated", formatDate(payout.initiatedAt))}
         {detailRow("Completed", formatDate(payout.completedAt))}
-        {payout.failureReason && detailRow("Failure Reason", <span style={{ color: "#DC2626" }}>{payout.failureReason}</span>)}
+        {payout.failureReason && detailRow("Failure Reason", <span style={{ color: "var(--cc-danger-fg)" }}>{payout.failureReason}</span>)}
       </div>
 
       {/* Status Timeline */}
@@ -107,8 +107,8 @@ export default function PayoutDetailModal({
                 width: 28, height: 28, borderRadius: "50%",
                 display: "flex", alignItems: "center", justifyContent: "center",
                 fontSize: "var(--cc-t-11)", fontWeight: 700,
-                background: isActive ? "var(--cc-primary)" : isPast ? "var(--cc-success)" : isFailed ? "#DC2626" : "var(--cc-border)",
-                color: isActive || isPast || isFailed ? "white" : "var(--cc-text-muted)",
+                background: isActive ? "var(--cc-primary)" : isPast ? "var(--cc-success)" : isFailed ? "var(--cc-danger-solid)" : "var(--cc-border)",
+                color: isActive || isPast || isFailed ? "var(--cc-on-primary)" : "var(--cc-text-muted)",
               }}>
                 {isPast ? <CheckCircle2 size={16} color="currentColor" /> : i + 1}
               </div>
