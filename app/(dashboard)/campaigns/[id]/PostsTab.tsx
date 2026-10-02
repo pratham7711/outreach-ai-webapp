@@ -21,6 +21,23 @@ import { CampaignHeaderActions } from "@/components/campaigns/CampaignHeaderActi
 import { action } from "@/lib/ui/actions";
 import { detectPlatform } from "@/lib/platforms/postUrl";
 import { MAX_BULK_POSTS, mergePastedEntries, parsePastedPostEntries, pastedUrlLabel } from "@/lib/posts/pastedUrls";
+import {
+  ADD_GROUP_PAUSE_MS,
+  SETTLE_POLL_DELAYS_MS,
+  addProgressText,
+  addRunReasonsText,
+  addRunSummaryText,
+  groupIndices,
+  settleVerdict,
+  summariseAddRun,
+  unansweredRowMessage,
+  verdictFromPostList,
+  verdictFromPrecheck,
+  type AddProgress,
+  type AddRowOutcome,
+  type SaveVerdict,
+  type UnansweredKind,
+} from "@/lib/posts/bulkAdd";
 import { MAX_BULK_ACTION_POSTS, type BulkAction } from "@/lib/posts/bulkActions";
 import PostActionMenu, { type PostMenuItem } from "@/components/posts/PostActionMenu";
 import { PlatformGlyph } from "@/components/ui/PlatformGlyph";
@@ -125,7 +142,12 @@ type AddRow = {
   mismatchHandle?: string;
   /** Blank means auto-detect. */
   mediaType: string;
-  state: "idle" | "saving" | "done" | "failed";
+  /** "checking": the add got no answer, and the server is being asked whether
+   *  it saved the post anyway. See lib/posts/bulkAdd. */
+  state: "idle" | "saving" | "checking" | "done" | "failed";
+  /** How a done row got there: added by its own request, confirmed saved after
+   *  the request went unanswered, or refused because the campaign holds it. */
+  doneAs?: "added" | "late" | "already";
   error?: string;
   /** Undefined until the precheck for this link comes back. */
   check?: PostCheck;
@@ -250,8 +272,14 @@ function addRowProblem(
  * left the rest of the batch waiting behind it. 25s is past the 8s each
  * platform read is given plus the creator profile read on a new handle, so a
  * slow-but-working add still lands; beyond that the row is wrong, not slow.
+ *
+ * Running out is no longer the verdict, though. A TikTok read queued behind the
+ * server's pacer outlives this wait and still saves, so an unanswered row is
+ * reconciled with the server before it is called anything (lib/posts/bulkAdd).
  */
 const ADD_POST_TIMEOUT_MS = 25_000;
+
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 const PAGE_SIZE = 25;
 
@@ -440,6 +468,10 @@ export default function PostsTab({
   const addDraftRef = useRef<HTMLInputElement>(null);
   /** True while the paste is being checked against the roster and the org's posts. */
   const [checkingUrls, setCheckingUrls] = useState(false);
+  /** Where a submit in flight has got to; null when nothing is being sent. */
+  const [addProgress, setAddProgress] = useState<AddProgress | null>(null);
+  /** The last submit's receipt, kept on screen while the dialog stays open. */
+  const [addSummary, setAddSummary] = useState<{ text: string; reasons: string } | null>(null);
 
   /* Adds every link the text carries, keeping whatever has already been chosen
      for a link that was already there. The spread matters: two rows for the
@@ -588,108 +620,220 @@ export default function PostsTab({
   );
   const addReady = addSubmittable.length > 0;
 
+  /* Whether the campaign now holds this link, asked of the precheck route --
+     the same identity rule the add route's duplicate check uses. Null-safe: a
+     request that fails is "unknown", never "absent". */
+  const askPrecheck = useCallback(
+    async (url: string): Promise<SaveVerdict> => {
+      try {
+        const res = await fetch(`/api/campaigns/${campaignId}/posts/precheck`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ urls: [url] }),
+        });
+        if (!res.ok) return "unknown";
+        return verdictFromPrecheck(await res.json(), url);
+      } catch {
+        return "unknown";
+      }
+    },
+    [campaignId]
+  );
+
+  /* The second opinion, asked once before a row is called absent: the post
+     list this tab already reads, matched on the exact link. It catches a post
+     the precheck cannot -- one whose first read failed is filed under the
+     default platform, and the precheck narrows by the link's platform. */
+  const askPostList = useCallback(
+    async (url: string): Promise<SaveVerdict> => {
+      try {
+        const res = await fetch(`/api/campaigns/${campaignId}/posts`);
+        if (!res.ok) return "unknown";
+        const body = await res.json();
+        return verdictFromPostList(Array.isArray(body?.posts) ? body.posts : null, url);
+      } catch {
+        return "unknown";
+      }
+    },
+    [campaignId]
+  );
+
   const handleAddPosts = async () => {
     const pending = addRows.filter((r) => r.state !== "done");
     if (pending.length === 0) return;
     setSubmitting(true);
+    setAddSummary(null);
     try {
-      /* Sequential on purpose. Each add triggers a first metrics read server
-         side, and firing ten at once is what trips the platform rate limits the
-         sync path spends its life working around. Ten links is a few seconds. */
       const results: AddRow[] = [...addRows];
-      for (let i = 0; i < results.length; i++) {
-        if (results[i].state === "done") continue;
+      /* The rows sent, and every other row's reason for not being sent, so the
+         end summary can account for the whole paste and not only what went. */
+      const outcomes = new Map<number, AddRowOutcome>();
+      const toSend: number[] = [];
+      results.forEach((row, i) => {
+        if (row.state === "done") return;
         // A link pasted twice is one post; submitting it twice would only earn
         // the duplicate refusal it was already marked with.
-        if (results[i].repeatOfPaste) continue;
+        if (row.repeatOfPaste) {
+          outcomes.set(i, { kind: "repeat" });
+          return;
+        }
         /* A row whose rejection is already on screen. Sending it would only
            fetch the refusal it is already showing, and it must not stop the
            rows queued behind it. */
-        if (addProblems[i]?.blocking) continue;
-        results[i] = { ...results[i], state: "saving", error: undefined };
-        setAddRows([...results]);
+        const problem = addProblems[i];
+        if (problem?.blocking) {
+          outcomes.set(i, row.check?.inThisCampaign ? { kind: "already" } : { kind: "failed", reason: problem.message });
+          return;
+        }
+        toSend.push(i);
+      });
 
-        /* Absent keys, not nulls. mediaType is z.enum().optional(), which accepts
-           undefined and rejects null, so sending `mediaType: null` for the
-           "Auto-detect" option -- the default -- failed validation before it could
-           reach the detector. Same for creatorId, whose absence is now what asks
-           the server to read the creator off the URL. */
-        try {
-          const res = await fetch(`/api/campaigns/${campaignId}/posts`, {
-            method: "POST",
-            signal: AbortSignal.timeout(ADD_POST_TIMEOUT_MS),
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              postUrl: results[i].url,
-              ...(results[i].creatorId ? { creatorId: results[i].creatorId } : {}),
-              ...(results[i].mediaType ? { mediaType: results[i].mediaType } : {}),
-              ...(results[i].allowMismatch ? { allowHandleMismatch: true } : {}),
-            }),
-          });
-          if (res.ok) {
-            results[i] = { ...results[i], state: "done" };
-          } else {
-            const body = await res.json().catch(() => null);
-            results[i] = {
-              ...results[i],
-              state: "failed",
+      /* Sequential on purpose, and grouped. Each add triggers a first metrics
+         read server side, and firing several at once is what trips the
+         platform rate limits the sync path spends its life working around.
+         Groups of ten with a pause between are what the operator watches go
+         by; inside a group it is still one link per request, one request at a
+         time -- see groupIndices for why there is no batch request. */
+      const groups = groupIndices(toSend);
+      let sent = 0;
+      for (let g = 0; g < groups.length; g++) {
+        if (g > 0) await sleep(ADD_GROUP_PAUSE_MS);
+        for (const i of groups[g]) {
+          sent += 1;
+          const progress = { current: sent, total: toSend.length, group: g + 1, groups: groups.length };
+          setAddProgress({ ...progress, checking: false });
+          results[i] = { ...results[i], state: "saving", error: undefined, doneAs: undefined };
+          setAddRows([...results]);
+
+          /* Set when the add itself gave no usable answer: no reply in time, no
+             connection, or a server error that may have come after the write. */
+          let unanswered: { kind: UnansweredKind; serverMessage?: string } | null = null;
+
+          /* Absent keys, not nulls. mediaType is z.enum().optional(), which accepts
+             undefined and rejects null, so sending `mediaType: null` for the
+             "Auto-detect" option -- the default -- failed validation before it could
+             reach the detector. Same for creatorId, whose absence is now what asks
+             the server to read the creator off the URL. */
+          try {
+            const res = await fetch(`/api/campaigns/${campaignId}/posts`, {
+              method: "POST",
+              signal: AbortSignal.timeout(ADD_POST_TIMEOUT_MS),
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                postUrl: results[i].url,
+                ...(results[i].creatorId ? { creatorId: results[i].creatorId } : {}),
+                ...(results[i].mediaType ? { mediaType: results[i].mediaType } : {}),
+                ...(results[i].allowMismatch ? { allowHandleMismatch: true } : {}),
+              }),
+            });
+            if (res.ok) {
+              results[i] = { ...results[i], state: "done", doneAs: "added" };
+              outcomes.set(i, { kind: "added" });
+            } else {
+              const body = await res.json().catch(() => null);
               /* message first: it is the sentence written for a person,
                  where error is the machine reason ("duplicate_post"). */
-              error: body?.message ?? body?.error ?? `Rejected (${res.status})`,
-              /* The server asks the platform on every add, so it refuses rows
-                 the precheck never judged -- one whose precheck had not come
-                 back, or whose creator came off an older copy of the post.
-                 Carrying the handle over means the row offers the same two
-                 buttons either way instead of a dead end. */
-              mismatchHandle:
-                body?.error === "author_mismatch" && typeof body?.detectedHandle === "string"
-                  ? body.detectedHandle
-                  : undefined,
-            };
+              const message: string = body?.message ?? body?.error ?? `Rejected (${res.status})`;
+              if (res.status === 409 && body?.error === "duplicate_post") {
+                /* The campaign holds it -- which is where the operator wanted
+                   it. Usually a retry of a link whose first add saved after
+                   the dialog had stopped waiting, so it is not a failure. */
+                results[i] = { ...results[i], state: "done", doneAs: "already" };
+                outcomes.set(i, { kind: "already" });
+              } else if (res.status >= 500) {
+                /* A 5xx can follow the write: the post is created before the
+                   audit lines, and either of those throwing answers 500. */
+                unanswered = { kind: "server", serverMessage: message };
+              } else {
+                results[i] = {
+                  ...results[i],
+                  state: "failed",
+                  error: message,
+                  /* The server asks the platform on every add, so it refuses rows
+                     the precheck never judged -- one whose precheck had not come
+                     back, or whose creator came off an older copy of the post.
+                     Carrying the handle over means the row offers the same two
+                     buttons either way instead of a dead end. */
+                  mismatchHandle:
+                    body?.error === "author_mismatch" && typeof body?.detectedHandle === "string"
+                      ? body.detectedHandle
+                      : undefined,
+                };
+                outcomes.set(i, { kind: "failed", reason: message });
+              }
+            }
+          } catch (err) {
+            /* Two different failures used to share "Network error": a request
+               that never got an answer, and one the operator's connection had
+               nothing to do with. Neither proves the post was not saved. */
+            const timedOut = err instanceof DOMException && err.name === "TimeoutError";
+            unanswered = { kind: timedOut ? "timeout" : "network" };
           }
-        } catch (err) {
-          /* Two different failures used to share "Network error": a request
-             that never got an answer, and one the operator's connection had
-             nothing to do with. A failed row is not skipped on the next
-             Submit, so both are worth saying are retryable. */
-          const timedOut = err instanceof DOMException && err.name === "TimeoutError";
-          results[i] = {
-            ...results[i],
-            state: "failed",
-            error: timedOut
-              ? "No answer in 25s — not added. Submit again to retry."
-              : "Could not reach the server — not added. Submit again to retry.",
-          };
-        }
-        setAddRows([...results]);
-      }
 
-      const added = results.filter((r) => r.state === "done").length;
+          if (unanswered) {
+            /* Ask before answering. A server error has finished, so one ask
+               settles it; an add with no reply may still be inside its platform
+               read, so it is asked about until it could no longer be running --
+               and the next link waits, so the server is never working two adds
+               of this batch at once. */
+            results[i] = { ...results[i], state: "checking" };
+            setAddRows([...results]);
+            setAddProgress({ ...progress, checking: true });
+            const url = results[i].url;
+            const verdict = await settleVerdict(() => askPrecheck(url), {
+              delays: unanswered.kind === "server" ? [0] : SETTLE_POLL_DELAYS_MS,
+              sleep,
+              finalCheck: () => askPostList(url),
+            });
+            if (verdict === "saved") {
+              results[i] = { ...results[i], state: "done", doneAs: "late" };
+              outcomes.set(i, { kind: "late" });
+            } else {
+              const error = unansweredRowMessage(unanswered.kind, verdict, {
+                timeoutSeconds: ADD_POST_TIMEOUT_MS / 1000,
+                serverMessage: unanswered.serverMessage,
+              });
+              results[i] = { ...results[i], state: "failed", error };
+              outcomes.set(i, { kind: "failed", reason: error });
+            }
+          }
+          setAddRows([...results]);
+        }
+      }
+      setAddProgress(null);
+
+      const summary = summariseAddRun([...outcomes.values()]);
       const failed = results.filter((r) => r.state === "failed");
       /* The campaign's own totals live on the page above this tab -- the
          Posts tab counter among them -- so adding posts has to tell it,
          the same way Refresh Data does. Ten at once made the stale 0
          impossible to miss. */
-      if (added > 0) {
+      if (summary.added > 0) {
         fetchPosts();
         onRefreshed?.();
       }
 
       /* A partial batch keeps the dialog open showing only what failed, so the
-         eight that worked are not re-submitted to retry the two that did not. */
+         eight that worked are not re-submitted to retry the two that did not.
+         The receipt goes in the toast either way, and stays on the dialog
+         while it is open, so "48 added · 2 already here · 1 not added" is
+         readable after the toast has gone. */
+      const text = addRunSummaryText(summary);
+      const reasons = addRunReasonsText(summary);
       if (failed.length === 0) {
         setShowAddPost(false);
         setAddRows([]);
         setAddDraft("");
-        toast.success(added === 1 ? "Post added." : `${added} posts added.`);
-      } else {
-        toast.error(
-          added > 0
-            ? `${added} added, ${failed.length} could not be added.`
-            : "None of those could be added."
+        toast.success(
+          summary.added === 1 && summary.already + summary.repeats + summary.failedTotal === 0 ? "Post added." : `${text}.`,
+          reasons ? { description: reasons } : undefined
         );
+      } else {
+        setAddSummary({ text, reasons });
+        toast.error(summary.added > 0 ? `${text}.` : "None of those could be added.", reasons ? { description: reasons } : undefined);
       }
     } finally {
+      setAddProgress(null);
       setSubmitting(false);
     }
   };
@@ -955,9 +1099,15 @@ export default function PostsTab({
 
   const openAddPost = () => {
     /* Reset here rather than on close: a failed batch leaves its rows on screen
-       so the operator can read what went wrong, and only reopening clears them. */
-    setAddDraft("");
-    setAddRows([]);
+       so the operator can read what went wrong, and only reopening clears them.
+       Not while a batch is still being sent, though: closing the dialog does
+       not stop it, and clearing the rows under a run in flight would hide the
+       links it is still adding -- reopening shows the run instead. */
+    if (!submitting) {
+      setAddDraft("");
+      setAddRows([]);
+      setAddSummary(null);
+    }
     setShowAddPost(true);
   };
 
@@ -2058,7 +2208,7 @@ export default function PostsTab({
                   const tone =
                     row.state === "done"
                       ? "done"
-                      : row.state === "saving"
+                      : row.state === "saving" || row.state === "checking"
                         ? "busy"
                         : row.state === "failed" || problem
                           /* Any problem, blocking or not -- the same predicate
@@ -2164,6 +2314,23 @@ export default function PostsTab({
                       addRows.length >= MAX_BULK_POSTS ? ` — the limit is ${MAX_BULK_POSTS} at a time` : ""
                     }. ${checkingUrls ? "Checking… " : ""}Backspace removes the last one.`}
               </p>
+              {/* Where the batch has got to, then what it came to. A live region,
+                  so a screen reader hears "Adding 14 of 37" without the focus
+                  moving, and the receipt stays here after the toast has gone. */}
+              {(addProgress || addSummary) && (
+                <div
+                  role="status"
+                  aria-live="polite"
+                  style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text)", margin: "8px 0 0", fontWeight: "var(--cc-fw-strong)" }}
+                >
+                  {addProgress ? addProgressText(addProgress) : addSummary?.text}
+                  {!addProgress && addSummary?.reasons && (
+                    <span style={{ display: "block", whiteSpace: "pre-line", fontWeight: 400, color: "var(--cc-text-muted)", fontSize: "var(--cc-t-12)", marginTop: 2 }}>
+                      {addSummary.reasons}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
 
             {addRows.map((row, i) => {
@@ -2223,8 +2390,22 @@ export default function PostsTab({
                       <span className="cc-linkchip-label">{pastedUrlLabel(row.url)}</span>
                     </span>
                     <span style={{ flex: 1 }} />
-                    {row.state === "done" && <Badge variant="success">Added</Badge>}
+                    {row.state === "done" && row.doneAs === "already" && (
+                      <Badge variant="success">Already in this campaign</Badge>
+                    )}
+                    {/* Saved, though the add itself never answered -- found by
+                        asking the server afterwards. Said, so a reader who saw
+                        it sit on "Checking…" knows how it ended. */}
+                    {row.state === "done" && row.doneAs === "late" && (
+                      <span title="The add did not answer in time, but the post is in the campaign.">
+                        <Badge variant="success">Added (confirmed)</Badge>
+                      </span>
+                    )}
+                    {row.state === "done" && row.doneAs !== "already" && row.doneAs !== "late" && (
+                      <Badge variant="success">Added</Badge>
+                    )}
                     {row.state === "saving" && <Badge variant="neutral">Adding…</Badge>}
+                    {row.state === "checking" && <Badge variant="neutral">No answer yet — checking…</Badge>}
                     {row.state === "failed" && <Badge variant="danger">{row.error ?? "Failed"}</Badge>}
                     {row.state === "idle" && problem && <Badge variant="danger">{problem.message}</Badge>}
                     {row.state === "idle" && (
@@ -2334,7 +2515,7 @@ export default function PostsTab({
                             account the platform named and adds that creator if the
                             roster has never seen them. The second is for a collab,
                             where one account published a post two creators made. */}
-                        {authorSaid && !row.allowMismatch && row.state !== "saving" && (
+                        {authorSaid && !row.allowMismatch && row.state !== "saving" && row.state !== "checking" && (
                           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, margin: "6px 0 0" }}>
                             <button
                               type="button"
