@@ -134,11 +134,34 @@ async function recordFailure(creatorId: string, orgId: string, failure: string) 
 }
 
 /**
- * Called wherever a profile read has just seen a fresh picture URL. Skips the
- * download when what is stored is recent, so the tracker's six-hourly reads
- * cost one image fetch per creator per fortnight, not per read.
+ * What names the picture itself in a CDN link, apart from the host, size and
+ * signature that change from read to read. TikTok serves one picture from
+ * several hosts and regions with the same object key before its `~` options
+ * (measured: 69 of 70 profiles kept one key across nine reads through
+ * different lanes); Google puts the size after `=`; Meta keeps one file name.
+ * A new picture is a new key. Null when the link has no recognisable key.
  */
-export async function captureAvatarIfStale(
+export function avatarImageKey(url: string | null | undefined): string | null {
+  if (!url) return null;
+  try {
+    const { hostname, pathname } = new URL(url);
+    const last = pathname.split("/").pop() ?? "";
+    if (/tiktokcdn/.test(hostname)) return last.split("~")[0] || null;
+    if (/ggpht\.com$|googleusercontent\.com$/.test(hostname)) return pathname.split("=")[0] || null;
+    return last || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Called wherever a profile read has just seen a fresh picture URL. Downloads
+ * when nothing is stored, when the creator has changed their picture (a new
+ * image key), or when the stored copy is a fortnight old. The same picture
+ * seen again costs nothing, so the tracker's reads cost an image fetch only
+ * when there is a new picture to keep.
+ */
+export async function captureLatestAvatar(
   creator: { id: string; orgId: string },
   url: string | null | undefined,
   nowMs = Date.now()
@@ -147,9 +170,11 @@ export async function captureAvatarIfStale(
   try {
     const row = await db.creatorAvatar.findUnique({
       where: { creatorId: creator.id },
-      select: { fetchedAt: true, data: true },
+      select: { fetchedAt: true, data: true, sourceUrl: true },
     });
-    if (row?.data && row.fetchedAt && nowMs - row.fetchedAt.getTime() < AVATAR_STALE_MS) return false;
+    const key = avatarImageKey(url);
+    const samePicture = key !== null && avatarImageKey(row?.sourceUrl) === key;
+    if (row?.data && row.fetchedAt && samePicture && nowMs - row.fetchedAt.getTime() < AVATAR_STALE_MS) return false;
   } catch (e) {
     if (isMissingTable(e)) return false;
     throw e;

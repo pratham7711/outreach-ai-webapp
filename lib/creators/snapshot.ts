@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { captureAvatarIfStale } from "@/lib/creators/avatarStore";
+import { captureLatestAvatar } from "@/lib/creators/avatarStore";
 import type { Prisma } from "@/lib/generated/prisma";
 import { createLogger } from "@/lib/observability/logger";
 import { velocityBetween } from "@/lib/trackers/metrics";
@@ -671,7 +671,7 @@ export async function snapshotCreators(
        signed link that will be dead within days. Keep the image, not the link. */
     if (result.ok && result.profile.avatarUrl) {
       at.stage = "avatar";
-      await captureAvatarIfStale(creator, result.profile.avatarUrl).catch((e) =>
+      await captureLatestAvatar(creator, result.profile.avatarUrl).catch((e) =>
         log.warn("avatar capture failed", {
           creatorId: creator.id,
           error: e instanceof Error ? e.message : String(e),

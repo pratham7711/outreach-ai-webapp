@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import type { Platform } from "@/lib/generated/prisma/client";
 import { readCreatorProfile, type CreatorReadResult } from "@/lib/platforms/creatorProfile";
-import { captureAvatarIfStale } from "@/lib/creators/avatarStore";
+import { captureLatestAvatar } from "@/lib/creators/avatarStore";
 import { rosterTablesReady } from "@/lib/creators/rosterTables";
 import { recordPlatformAccountId } from "@/lib/creators/accountIds";
 import { createLogger } from "@/lib/observability/logger";
@@ -11,7 +11,7 @@ import { createLogger } from "@/lib/observability/logger";
  *
  * One read per account per day gives both: the profile page that carries the
  * follower count also carries the picture, so the picture costs an image
- * download only when the stored one is stale (captureAvatarIfStale), never a
+ * download only when the picture is new or stale (captureLatestAvatar), never a
  * second platform call. The primary account's figures are also written onto
  * the Creator row, which is what every list and table reads.
  *
@@ -127,7 +127,7 @@ export async function refreshRosterProfiles({
     });
     if (link.isPrimary) {
       await db.creator.update({ where: { id: link.creatorId, orgId: link.orgId }, data: { followersCount, ...views } });
-      if (await captureAvatarIfStale({ id: link.creatorId, orgId: link.orgId }, avatarUrl, nowMs).catch(() => false)) {
+      if (await captureLatestAvatar({ id: link.creatorId, orgId: link.orgId }, avatarUrl, nowMs).catch(() => false)) {
         counts.avatars++;
       }
     }

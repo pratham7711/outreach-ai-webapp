@@ -15,7 +15,8 @@ import { loadImage } from "@/lib/media/loadImage";
 import { readCreatorProfile } from "@/lib/platforms/creatorProfile";
 import {
   AVATAR_STALE_MS,
-  captureAvatarIfStale,
+  avatarImageKey,
+  captureLatestAvatar,
   isFetchableAvatarUrl,
   readStoredAvatar,
   refreshCreatorAvatars,
@@ -105,18 +106,53 @@ describe("storedAvatarVersions", () => {
   });
 });
 
-describe("captureAvatarIfStale", () => {
-  const url = "https://yt3.ggpht.com/a";
-  it("skips the download while the stored picture is recent", async () => {
-    mdb.creatorAvatar.findUnique.mockResolvedValue({ data: new Uint8Array([1]), fetchedAt: new Date(NOW - 1000) });
-    expect(await captureAvatarIfStale({ id: "c1", orgId: "o" }, url, NOW)).toBe(false);
+describe("avatarImageKey", () => {
+  it("names the picture apart from host, size and signature", () => {
+    const tt = (host: string, opts: string) =>
+      `https://${host}.tiktokcdn.com/tos-maliva-avt-0068/7c1f9e~${opts}.jpeg?x-expires=${nowS}&x-signature=s`;
+    expect(avatarImageKey(tt("p16-sign-va", "tplv-tiktokx-cropcenter:100:100"))).toBe("7c1f9e");
+    expect(avatarImageKey(tt("p19-sign-useast", "c5_720x720"))).toBe("7c1f9e");
+    expect(avatarImageKey("https://yt3.ggpht.com/ytc/AIdro_abc=s88-c-k")).toBe("/ytc/AIdro_abc");
+    expect(avatarImageKey("https://yt3.googleusercontent.com/ytc/AIdro_abc=s240")).toBe("/ytc/AIdro_abc");
+    expect(avatarImageKey("https://scontent-sin6-2.cdninstagram.com/v/t51/123_n.jpg?oe=6A000000")).toBe("123_n.jpg");
+    expect(avatarImageKey("not a url")).toBeNull();
+    expect(avatarImageKey(null)).toBeNull();
+  });
+});
+
+describe("captureLatestAvatar", () => {
+  const url = "https://yt3.ggpht.com/a=s88";
+  const stored = (sourceUrl: string, ageMs: number) => ({
+    data: new Uint8Array([1]),
+    fetchedAt: new Date(NOW - ageMs),
+    sourceUrl,
+  });
+
+  it("skips the download while the same picture is stored and recent", async () => {
+    mdb.creatorAvatar.findUnique.mockResolvedValue(stored("https://yt3.ggpht.com/a=s240", 1000));
+    expect(await captureLatestAvatar({ id: "c1", orgId: "o" }, url, NOW)).toBe(false);
+    expect(load).not.toHaveBeenCalled();
+  });
+
+  it("downloads straight away when the creator has a new picture", async () => {
+    mdb.creatorAvatar.findUnique.mockResolvedValue(stored("https://yt3.ggpht.com/old=s88", 1000));
+    load.mockResolvedValue(webp);
+    expect(await captureLatestAvatar({ id: "c1", orgId: "o" }, url, NOW)).toBe(true);
+    expect(load.mock.calls[0][0]).toBe(url);
+    expect(mdb.creatorAvatar.upsert.mock.calls[0][0].update).toMatchObject({ sourceUrl: url });
+  });
+
+  it("treats the same TikTok picture from another host as unchanged", async () => {
+    const at = (host: string) => `https://${host}.tiktokcdn.com/avt/9ab~c5_100x100.jpeg?x-expires=${nowS + 3600}`;
+    mdb.creatorAvatar.findUnique.mockResolvedValue(stored(at("p16-sign-va"), 1000));
+    expect(await captureLatestAvatar({ id: "c1", orgId: "o" }, at("p19-sign-useast"), NOW)).toBe(false);
     expect(load).not.toHaveBeenCalled();
   });
 
   it("re-downloads once the stored picture is a fortnight old", async () => {
-    mdb.creatorAvatar.findUnique.mockResolvedValue({ data: new Uint8Array([1]), fetchedAt: new Date(NOW - AVATAR_STALE_MS - 1) });
+    mdb.creatorAvatar.findUnique.mockResolvedValue(stored(url, AVATAR_STALE_MS + 1));
     load.mockResolvedValue(webp);
-    expect(await captureAvatarIfStale({ id: "c1", orgId: "o" }, url, NOW)).toBe(true);
+    expect(await captureLatestAvatar({ id: "c1", orgId: "o" }, url, NOW)).toBe(true);
   });
 });
 

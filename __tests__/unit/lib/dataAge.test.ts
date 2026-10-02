@@ -8,7 +8,7 @@
  */
 jest.mock("@/lib/db", () => ({ db: {} }));
 jest.mock("@/lib/platforms/creatorProfile", () => ({ readCreatorProfile: jest.fn() }));
-jest.mock("@/lib/creators/avatarStore", () => ({ captureAvatarIfStale: jest.fn() }));
+jest.mock("@/lib/creators/avatarStore", () => ({ captureLatestAvatar: jest.fn() }));
 jest.mock("@/lib/creators/rosterTables", () => ({ rosterTablesReady: jest.fn() }));
 
 import {

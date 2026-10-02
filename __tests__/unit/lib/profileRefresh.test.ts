@@ -8,18 +8,18 @@ jest.mock("@/lib/db", () => ({
   },
 }));
 jest.mock("@/lib/platforms/creatorProfile", () => ({ readCreatorProfile: jest.fn() }));
-jest.mock("@/lib/creators/avatarStore", () => ({ captureAvatarIfStale: jest.fn() }));
+jest.mock("@/lib/creators/avatarStore", () => ({ captureLatestAvatar: jest.fn() }));
 jest.mock("@/lib/creators/rosterTables", () => ({ rosterTablesReady: jest.fn() }));
 
 import { db } from "@/lib/db";
 import { readCreatorProfile } from "@/lib/platforms/creatorProfile";
-import { captureAvatarIfStale } from "@/lib/creators/avatarStore";
+import { captureLatestAvatar } from "@/lib/creators/avatarStore";
 import { rosterTablesReady } from "@/lib/creators/rosterTables";
 import { PROFILE_REFRESH_MS, refreshRosterProfiles } from "@/lib/creators/profileRefresh";
 
 const mockDb = db as any;
 const mockRead = readCreatorProfile as jest.Mock;
-const mockCapture = captureAvatarIfStale as jest.Mock;
+const mockCapture = captureLatestAvatar as jest.Mock;
 const NOW = Date.parse("2026-09-29T10:00:00Z");
 
 const link = (over: Record<string, unknown> = {}) => ({
