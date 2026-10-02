@@ -189,6 +189,40 @@ describe("fetchInstagramMetrics — sources are merged, not raced", () => {
     expect(embed).not.toHaveBeenCalled();
   });
 
+  /* Plan A7: the writer can only keep a connected count from being replaced if
+     the fetch says which counts were connected. Graph is read with the
+     creator's own token; whatever the public sources fill after it is not. */
+  it("names the counts Graph read as connected, and none that the embed filled", async () => {
+    graph.mockResolvedValue({
+      thumbnailUrl: null,
+      caption: null,
+      viewsCount: 10,
+      commentsCount: 3,
+      postedAt: null,
+    });
+    embed.mockResolvedValue({
+      shortcode: "DcQFHR5pdYw",
+      caption: null,
+      thumbnailUrl: "https://cdn/embed.jpg",
+      likesCount: 999,
+      likesHidden: false,
+      commentsCount: 888,
+      copyrightBlocked: false,
+    });
+
+    const out = await fetchInstagramMetrics(URL, "creator-token", "iamswarat");
+    expect(out.likesCount).toBe(999);
+    expect(out.connectedCounters).toEqual(["views", "comments"]);
+  });
+
+  it("names nothing connected when no creator token was used", async () => {
+    bizToken.mockReturnValue("biz-token");
+    bizPost.mockResolvedValue({ thumbnailUrl: null, caption: null, viewsCount: 24245, likesCount: 7, commentsCount: 12, postedAt: null });
+    const out = await fetchInstagramMetrics(URL, undefined, "iamswarat");
+    expect(out.viewsCount).toBe(24245);
+    expect(out).not.toHaveProperty("connectedCounters");
+  });
+
   it("still reports a retryable reason when every source is silent", async () => {
     bizToken.mockReturnValue("biz-token");
     const out = await fetchInstagramMetrics(URL, undefined, "iamswarat");

@@ -31,7 +31,7 @@ import { alertIfInstagramSourceDown } from "@/lib/integrations/health";
 import { createLogger } from "@/lib/observability/logger";
 import { cronRoute } from "@/lib/ops/cronRoute";
 import { classifyPostRead, openSourceGuard } from "@/lib/ops/sourceBreaker";
-import { grantedConnectionKeys, grantKey } from "@/lib/creators/connectionGate";
+import { grantedConnectionKeys, readableConnection } from "@/lib/creators/connectionGate";
 
 const MAX_SYNC_FAILURES = 5;
 const DEFAULT_PLATFORM_BUDGET = 100;
@@ -429,7 +429,8 @@ async function cronHandler(request: NextRequest) {
        a connection is used only for the org that holds a live grant for it.
        null while the grant table does not exist yet -- every row is used, as
        before. A post whose connection is not granted reads the way an
-       unconnected creator's does. */
+       unconnected creator's does. A hand-entered row is never read as a
+       connection, gate open or not (plan A8). */
     const granted = dryRun
       ? null
       : await grantedConnectionKeys(
@@ -437,8 +438,8 @@ async function cronHandler(request: NextRequest) {
             p.creator.socialAccounts.map((a) => ({ orgId: p.creator.orgId, connectionId: a.id })),
           ),
         );
-    const readable = (orgId: string, account: { id: string }) =>
-      granted === null || granted.has(grantKey(orgId, account.id));
+    const readable = (orgId: string, account: { id: string; origin: string | null }) =>
+      readableConnection(granted, orgId, account);
 
     for (let i = 0; i < posts.length; i++) {
       const post = posts[i];

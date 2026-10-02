@@ -4,6 +4,7 @@ import { readCreatorProfile, type CreatorReadResult } from "@/lib/platforms/crea
 import { captureLatestAvatar } from "@/lib/creators/avatarStore";
 import { rosterTablesReady } from "@/lib/creators/rosterTables";
 import { recordPlatformAccountId } from "@/lib/creators/accountIds";
+import { protectedCreatorFollowers } from "@/lib/creators/followerWriter";
 import { createLogger } from "@/lib/observability/logger";
 
 /**
@@ -126,7 +127,19 @@ export async function refreshRosterProfiles({
       now,
     });
     if (link.isPrimary) {
-      await db.creator.update({ where: { id: link.creatorId, orgId: link.orgId }, data: { followersCount, ...views } });
+      const where = { id: link.creatorId, orgId: link.orgId };
+      /* This read is public, so it yields to the creator's own connection
+         (plan A7): a connected figure the tracker put on the row inside its
+         freshness window stays, and only the averages land. The WHERE decides
+         whether the row still holds that figure at the moment of the write, so
+         one typed or read over it since is not protected. */
+      const keep = await protectedCreatorFollowers(link.creatorId, now);
+      if (keep === null) {
+        await db.creator.update({ where, data: { followersCount, ...views } });
+      } else {
+        await db.creator.updateMany({ where: { ...where, NOT: { followersCount: keep } }, data: { followersCount } });
+        if (sampledPosts > 0) await db.creator.update({ where, data: views });
+      }
       if (await captureLatestAvatar({ id: link.creatorId, orgId: link.orgId }, avatarUrl, nowMs).catch(() => false)) {
         counts.avatars++;
       }

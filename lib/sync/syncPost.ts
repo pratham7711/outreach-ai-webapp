@@ -10,6 +10,8 @@ import {
 import { followerLadder, keepPrecise, postLadder, roundedStep } from "@/lib/platforms/precision";
 import { getInstagramAccountForCreator } from "@/lib/platforms/instagramToken";
 import { getTikTokTokenForCreator } from "@/lib/platforms/tiktokToken";
+import { METRIC_WRITERS_KEY, rankPostCounters, type WriterNotes } from "@/lib/metrics/postWriters";
+import { protectedCreatorFollowers } from "@/lib/creators/followerWriter";
 
 /**
  * Refresh one post's metrics from its platform.
@@ -68,6 +70,7 @@ type SyncablePost = {
   commentsCount?: number;
   sharesCount?: number;
   savesCount?: number;
+  reachCount?: number;
 };
 
 /**
@@ -127,10 +130,13 @@ export function withStoredPrecision(metrics: PostMetrics, post: SyncablePost): P
  *
  * See fieldMetricValue in lib/metricDisplay for the other half.
  */
-export function countsFrom(metrics: PostMetrics): {
+export function countsFrom(
+  metrics: PostMetrics,
+  now: Date = new Date(),
+): {
   counts: Record<string, number>;
   present: MetricField[];
-  measuredPatch: Record<string, MetricField[]>;
+  measuredPatch: Record<string, MetricField[] | WriterNotes>;
 } {
   const present: MetricField[] = [];
   const counts: Record<string, number> = {};
@@ -145,7 +151,11 @@ export function countsFrom(metrics: PostMetrics): {
   record("shares", "sharesCount", metrics.sharesCount);
   record("saves", "savesCount", metrics.savesCount);
   record("reach", "reachCount", metrics.reachCount);
-  return { counts, present, measuredPatch: { [MEASURED_FIELDS_KEY]: present } };
+  /* A new post's first reading is signed the way applyPostMetrics signs every
+     later one, so a connected read taken when the post was added is protected
+     from the next public sync like any other (plan A7). */
+  const writers = rankPostCounters(metrics, {}, null, now).notes;
+  return { counts, present, measuredPatch: { [MEASURED_FIELDS_KEY]: present, [METRIC_WRITERS_KEY]: writers } };
 }
 
 /* The importer's raw record also lives in this bag, so it is always merged and
@@ -251,8 +261,14 @@ export async function applyPostMetrics(
   }
 
   /* Before anything reads a counter: a display-rounded figure never replaces a
-     more precise stored one. See withStoredPrecision. */
-  const measured = withStoredPrecision(metrics, post);
+     more precise stored one. See withStoredPrecision. Then the source order
+     (plan A7): a counter the creator's own connection wrote within its
+     freshness window is not replaced by a public reading, and keeps its stored
+     value through the rest of this write -- the post, the snapshot and the
+     rate. See rankPostCounters. */
+  const now = new Date();
+  const ranked = rankPostCounters(withStoredPrecision(metrics, post), post, post.platformMetrics, now);
+  const measured = ranked.metrics;
   const { counts, present } = countsFrom(measured);
 
   const views = measured.viewsCount ?? 0;
@@ -280,25 +296,31 @@ export async function applyPostMetrics(
      that matches nothing is the intended outcome here, not a P2025. */
   const followers = measured.authorFollowers;
   const followerStep = roundedStep(followers, followerLadder(post.platform));
-  const creatorUpdate =
-    typeof followers === "number" && followers > 0
-      ? [
-          db.creator.updateMany({
-            where: {
-              id: post.creatorId,
-              ...(followerStep !== null
-                ? {
-                    OR: [
-                      { followersCount: { lt: followers - followerStep / 2 } },
-                      { followersCount: { gte: followers + followerStep } },
-                    ],
-                  }
-                : {}),
-            },
-            data: { followersCount: followers },
-          }),
-        ]
-      : [];
+  const writesFollowers = typeof followers === "number" && followers > 0;
+  /* Every source of authorFollowers is a public read, so it also yields to
+     the creator's own connection (plan A7): while the column holds a connected
+     figure the tracker wrote inside its freshness window, the WHERE matches
+     nothing. See protectedCreatorFollowers. */
+  const keepFollowers = writesFollowers ? await protectedCreatorFollowers(post.creatorId, now) : null;
+  const creatorUpdate = writesFollowers
+    ? [
+        db.creator.updateMany({
+          where: {
+            id: post.creatorId,
+            ...(followerStep !== null
+              ? {
+                  OR: [
+                    { followersCount: { lt: followers - followerStep / 2 } },
+                    { followersCount: { gte: followers + followerStep } },
+                  ],
+                }
+              : {}),
+            ...(keepFollowers !== null ? { NOT: { followersCount: keepFollowers } } : {}),
+          },
+          data: { followersCount: followers },
+        }),
+      ]
+    : [];
 
   const [updated] = await db.$transaction([
     db.post.update({
@@ -321,7 +343,7 @@ export async function applyPostMetrics(
            here -- and writing UNAVAILABLE on that would tell a brand its
            creators had taken the campaign down. */
         fetchState: "LIVE" as const,
-        lastSyncedAt: new Date(),
+        lastSyncedAt: now,
         ...counts,
         engagementRate,
         /* Merged, not replaced: this bag also holds the importer's raw record. */
@@ -333,11 +355,16 @@ export async function applyPostMetrics(
              whatever else was in the bag either way -- it did before this
              commit too -- and every caller in the tree does select it. */
           ...(currentBag(post) ?? {}),
-          [MEASURED_FIELDS_KEY]: present,
+          /* A held counter the caller did not load is left out of the write,
+             but it was measured -- by the source that is still protecting it. */
+          [MEASURED_FIELDS_KEY]: ranked.held.length > 0 ? [...present, ...ranked.held] : present,
           /* Cleared, not left behind. A post that reads fine today must not keep
              advertising why it failed last week -- a stale cause is worse than
              none, because it invites someone to go and fix a live post. */
           [LAST_FETCH_KEY]: null,
+          /* Which source wrote each counter, and when, for the next write to
+             ask. See lib/metrics/postWriters. */
+          [METRIC_WRITERS_KEY]: ranked.notes,
         },
       },
       include: SYNC_POST_INCLUDE,

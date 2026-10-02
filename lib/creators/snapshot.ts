@@ -34,10 +34,9 @@ import { recordSnapshotSources, type TrackerPosition } from "@/lib/trackers/sour
 import { classifyCreatorRead, type SourceGuard } from "@/lib/ops/sourceBreaker";
 import { connectedFollowerReading } from "./connectedReading";
 import { pickWriter } from "@/lib/metrics/fieldSources";
+import { CONNECTED_VIA } from "./followerWriter";
 
-/** The exit column's value for a snapshot whose follower count came from the
- *  creator's own connection rather than from an exit's public read. */
-export const CONNECTED_VIA = "connected";
+export { CONNECTED_VIA };
 
 /**
  * The creator half of the tracker sweep.

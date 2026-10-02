@@ -21,6 +21,8 @@ import { isRounded, TIKTOK_DISPLAY } from "./precision";
 import { fetchTwitchMetrics } from "./twitch";
 import { createLogger } from "../observability/logger";
 import { MEDIA_TYPES, detectPlatform, tiktokPageUrl, type MediaType } from "./postUrl";
+import type { MetricField } from "../metricDisplay";
+import { countersIn } from "../metrics/postWriters";
 
 export type FetchMetricsContext = {
   instagramToken?: string;
@@ -97,6 +99,16 @@ export type PostMetrics = {
    * written the column.
    */
   authorFollowers?: number;
+  /**
+   * The counters read through the creator's own connection -- their token, on
+   * the platform's API -- rather than off a public page. Every other counter
+   * here is a public reading. Absent when none was.
+   *
+   * What lets the writer apply the source order (lib/metrics/postWriters):
+   * without it a public scrape an hour after a connected read looked like any
+   * other answer and replaced it.
+   */
+  connectedCounters?: MetricField[];
   /** Absent when the platform did not say. Never today's date as a stand-in. */
   postedAt?: Date;
   /**
@@ -574,7 +586,9 @@ export async function fetchTikTokMetrics(
        sandbox and oEmbed paths below -- which is a step backwards, because the
        sandbox reads the public page and frequently does have the numbers.
        Thumbnail and caption are not worth forfeiting a counted read for. */
-    if (viaDisplay && hasMetricCounts(viaDisplay as PostMetrics)) return viaDisplay;
+    if (viaDisplay && hasMetricCounts(viaDisplay as PostMetrics)) {
+      return { ...viaDisplay, connectedCounters: countersIn(viaDisplay) };
+    }
   }
 
   /* Sandbox first, not as a fallback. TikTok answers it and refuses this
@@ -1319,6 +1333,11 @@ export async function fetchInstagramMetrics(
     }
   }
 
+  /* Graph runs first and is the only source read with the creator's own token,
+     so whatever is filled at this point came from their connection; every
+     counter the sources below add is a public reading. */
+  const viaGraph = countersIn(merged);
+
   /* Whether a Business Discovery token existed to ask with -- the verdict
      below needs it, and the chooser is what knows. Set on any outcome but
      "no-credentials", a throw included. */
@@ -1430,7 +1449,7 @@ export async function fetchInstagramMetrics(
       fields: Object.keys(merged).filter((k) => k.endsWith("Count")),
       likesHidden,
     });
-    return merged;
+    return viaGraph.length > 0 ? { ...merged, connectedCounters: viaGraph } : merged;
   }
 
   /* Decided BEFORE the metadata-only endpoint below, which can never return a
@@ -1602,6 +1621,11 @@ export function assemblePostMetrics(
   const followers = finite(m.authorFollowers);
   if (followers !== undefined) result.authorFollowers = followers;
   if (engagement !== undefined) result.engagementRate = engagement;
+  /* Only counters that survived the whitelist above: a connected claim about a
+     counter that is not here would describe nothing. */
+  const present = new Set(countersIn(result));
+  const connected = (m.connectedCounters ?? []).filter((c) => present.has(c));
+  if (connected.length > 0) result.connectedCounters = connected;
 
   return result;
 }
