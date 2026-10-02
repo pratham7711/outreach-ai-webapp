@@ -130,8 +130,12 @@ test.describe('Responsive D — portal shell + pages', () => {
 test.describe('Responsive D — public marketplace + auth', () => {
   let context: BrowserContext;
 
+  /* Signed out on purpose. This block runs in the authenticated chrome
+     project and browser.newContext() inherits its storageState, so /login and
+     /signup redirected the admin to /dashboard, never showed a form, and the
+     test marked itself fixme -- the auth pages were never measured. */
   test.beforeAll(async ({ browser }) => {
-    context = await browser.newContext();
+    context = await browser.newContext({ storageState: { cookies: [], origins: [] } });
   });
 
   test.afterAll(async () => {
