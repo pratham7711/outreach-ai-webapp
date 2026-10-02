@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState, type CSSProperties, type FormEvent } 
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ds";
+import { BRAND } from "@/lib/brand";
 import { Card, LoadFailed, Screen, SectionTitle, SkeletonBlock } from "@/components/portal/app/ui";
 
 /* 16px text so a phone does not zoom into the field on focus, and 44px tall so
@@ -142,7 +143,11 @@ function PasswordForm() {
         </Button>
       </div>
       <p style={{ fontSize: 13, color: "var(--cc-text-muted)", margin: 0 }}>
-        Forgot it? We don&apos;t send password emails. Ask the agency that invited you to reset it.
+        Forgot it? There is no reset email. Write to{" "}
+        <a href={`mailto:${BRAND.contactEmail}`} style={{ color: "var(--cc-primary)" }}>
+          {BRAND.contactEmail}
+        </a>{" "}
+        from the address you sign in with.
       </p>
     </form>
   );
