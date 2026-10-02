@@ -20,25 +20,6 @@ async function orgAdminToken() {
   });
 }
 
-async function orgAdminStorageState() {
-  const token = await orgAdminToken();
-  return {
-    cookies: [
-      {
-        name: 'authjs.session-token',
-        value: token,
-        domain: 'localhost',
-        path: '/',
-        expires: -1,
-        httpOnly: true,
-        secure: false,
-        sameSite: 'Lax' as const,
-      },
-    ],
-    origins: [],
-  };
-}
-
 async function portalLoginStorageState() {
   const apiCtx = await playwrightRequest.newContext({ baseURL: BASE });
   const res = await apiCtx.post('/api/portal/auth/login', {
@@ -102,47 +83,11 @@ async function startBatchViaApi(adminToken: string, campaignId: string, creatorI
   return { offerId: result?.offerId ?? null, onPortal: result?.onPortal ?? false };
 }
 
-async function clickCreatorsTab(page: import('@playwright/test').Page) {
-  // Creators is a link in the campaign rail now, not a tab button in the page.
-  const creatorsTab = page.getByRole('navigation', { name: /campaign navigation/i })
-    .getByRole('link', { name: /^Creators/ }).first();
-  await expect(creatorsTab).toBeVisible({ timeout: 15000 });
-  await creatorsTab.click();
-}
-
+/* The agency's side of this flow -- Make Offer, Approve, Reject in the
+   campaign's Negotiations section -- left the UI in October 2026 with the rest
+   of the payments surface, and its three tests with it. What stays is the
+   creator's side, which the API still drives. */
 test.describe('AI Negotiation', () => {
-  test('(a) org: make single offer via UI — select creator from dropdown, set rate 100 → PENDING row appears', async ({ browser }) => {
-    const adminState = await orgAdminStorageState();
-    const ctx = await browser.newContext({ storageState: adminState });
-    const page = await ctx.newPage();
-
-    await page.goto('/campaigns/camp-1');
-    await expect(page.getByText('LEAK IT').first()).toBeVisible({ timeout: 20000 });
-
-    await clickCreatorsTab(page);
-    await expect(page.getByText(/Negotiations/i).first()).toBeVisible({ timeout: 15000 });
-
-    await page.getByRole('button', { name: /Make Offer/i }).first().click();
-
-    const modal = page.locator('[role="dialog"]');
-    await expect(modal).toBeVisible({ timeout: 10000 });
-
-    // The creator field is a search box, not a <select>: the dropdown it replaced
-    // only ever listed the first 20 of the org's creators.
-    await modal.getByPlaceholder(/Search creators/i).fill('blessingjolie');
-    await modal.getByText('Blessing Jolie').first().click();
-
-    await modal.locator('input[type="number"]').first().fill(String(OFFERED_RATE));
-
-    await modal.getByRole('button', { name: /Send Offer/i }).click();
-
-    await expect(modal).not.toBeVisible({ timeout: 20000 });
-    await page.screenshot({ path: '/tmp/pw-debug-neg-a-after-submit.png' });
-    await expect(page.getByText(/PENDING/i).first()).toBeVisible({ timeout: 20000 });
-
-    await ctx.close();
-  });
-
   test('(b) portal: counter at 200 → AI counter between 100 and 125, status COUNTERED, aiRound=1', async ({ browser }) => {
     const adminToken = await orgAdminToken();
 
@@ -247,78 +192,5 @@ test.describe('AI Negotiation', () => {
     await expect(card.getByText(/Awaiting brand decision/i)).toBeVisible({ timeout: 20000 });
     await expect(card.getByRole('button', { name: /Counter/i })).toHaveCount(0);
     await portalCtx.close();
-  });
-
-  test('(d) org: approve a PENDING offer → status ACCEPTED', async ({ browser }) => {
-    const adminToken = await orgAdminToken();
-    const adminState = await orgAdminStorageState();
-
-    let offerId: string | null = null;
-    try {
-      const result = await startBatchViaApi(adminToken, 'camp-4', ['creator-1'], OFFERED_RATE);
-      offerId = result.offerId;
-    } catch (e: any) {
-      test.fixme(true, `start-batch API error: ${e.message}`);
-      return;
-    }
-
-    if (!offerId) {
-      test.fixme(true, 'No offerId returned — cannot test approve');
-      return;
-    }
-
-    const adminCtx = await browser.newContext({ storageState: adminState });
-    const page = await adminCtx.newPage();
-    await page.goto('/campaigns/camp-4');
-    await expect(page.getByText(/CRUEL WORLD/i).first()).toBeVisible({ timeout: 20000 });
-
-    await clickCreatorsTab(page);
-    await expect(page.getByText(/Negotiations/i).first()).toBeVisible({ timeout: 15000 });
-
-    await page.screenshot({ path: '/tmp/pw-debug-neg-d-negotiations.png' });
-
-    const approveBtn = page.getByRole('button', { name: /Approve/i }).first();
-    await expect(approveBtn).toBeVisible({ timeout: 20000 });
-    await approveBtn.click();
-
-    await page.waitForTimeout(2000);
-    await page.screenshot({ path: '/tmp/pw-debug-neg-d-after-approve.png' });
-
-    await expect(page.getByText(/ACCEPTED/i).first()).toBeVisible({ timeout: 20000 });
-
-    await adminCtx.close();
-  });
-
-  test('(e) org: reject a PENDING offer → status REJECTED', async ({ browser }) => {
-    const adminToken = await orgAdminToken();
-    const adminState = await orgAdminStorageState();
-
-    try {
-      await startBatchViaApi(adminToken, 'camp-5', ['creator-2'], 150);
-    } catch (e: any) {
-      test.fixme(true, `start-batch API error: ${e.message}`);
-      return;
-    }
-
-    const adminCtx = await browser.newContext({ storageState: adminState });
-    const page = await adminCtx.newPage();
-    await page.goto('/campaigns/camp-5');
-    await expect(page.getByText(/American Girls/i).first()).toBeVisible({ timeout: 20000 });
-
-    await clickCreatorsTab(page);
-    await expect(page.getByText(/Negotiations/i).first()).toBeVisible({ timeout: 15000 });
-
-    await page.screenshot({ path: '/tmp/pw-debug-neg-e-negotiations.png' });
-
-    const rejectBtn = page.getByRole('button', { name: /Reject/i }).first();
-    await expect(rejectBtn).toBeVisible({ timeout: 20000 });
-    await rejectBtn.click();
-
-    await page.waitForTimeout(2000);
-    await page.screenshot({ path: '/tmp/pw-debug-neg-e-after-reject.png' });
-
-    await expect(page.getByText(/REJECTED/i).first()).toBeVisible({ timeout: 20000 });
-
-    await adminCtx.close();
   });
 });

@@ -1,5 +1,5 @@
 import {
-  Activity, ClipboardList, FileEdit, FileText, Users, Star, BarChart2, Wallet, Folder, Settings,
+  Activity, ClipboardList, FileEdit, FileText, Users, BarChart2, Settings,
 } from "lucide-react";
 
 /**
@@ -27,17 +27,19 @@ import {
 
    Leading with Overview also makes the rail agree with the landing tab: before
    this, Performance led while CAMPAIGN_DEFAULT_SECTION resolved to a different
-   row, so the first row was never the one you arrived on. */
+   row, so the first row was never the one you arrived on.
+
+   Reviews, Financials and Documents were removed in October 2026 with the
+   payments surface. Their components are still in the campaign folder; a link
+   that names one of them (?section=financials) lands on Overview, the default,
+   rather than on an error. */
 export const CAMPAIGN_SECTIONS = [
   { value: "overview", label: "Overview", icon: ClipboardList },
   { value: "creators", label: "Creators", icon: Users, count: "creators" },
   { value: "drafts", label: "Drafts", icon: FileEdit, count: "drafts" },
   { value: "posts", label: "Posts", icon: FileText, count: "posts" },
   { value: "performance", label: "Performance", icon: Activity },
-  { value: "reviews", label: "Reviews", icon: Star },
   { value: "analytics", label: "Analytics", icon: BarChart2 },
-  { value: "financials", label: "Financials", icon: Wallet },
-  { value: "documents", label: "Documents", icon: Folder },
   { value: "edit", label: "Settings", icon: Settings },
 ] as const;
 

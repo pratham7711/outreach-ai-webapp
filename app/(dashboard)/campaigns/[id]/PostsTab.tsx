@@ -28,6 +28,7 @@ import { platformFromHost, detectPlatformFromUrl, platformLabel } from "@/lib/pl
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
 import CreatorName from "@/components/creators/CreatorName";
 import { creatorNameText } from "@/lib/creators/creatorName";
+import { SHOW_MONEY } from "@/lib/moneyUi";
 
 type SnapshotLite = { id: string; viewsCount: number; recordedAt: string };
 
@@ -1398,24 +1399,26 @@ export default function PostsTab({
       <style>{".posts-min-views { display: none; } @media (min-width: 768px) { .posts-min-views { display: block; } }"}</style>
       {marketplace && (
         <Card variant="outlined" style={{ padding: 16 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: capMinor ? 12 : 0 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: SHOW_MONEY && capMinor ? 12 : 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: "var(--cc-t-13)", fontWeight: 700, color: "var(--cc-text)" }}>Marketplace budget</span>
-              {capReached && <Badge variant="danger" style={{ fontSize: "var(--cc-t-11)"}}>Cap reached</Badge>}
+              <span style={{ fontSize: "var(--cc-t-13)", fontWeight: 700, color: "var(--cc-text)" }}>{SHOW_MONEY ? "Marketplace budget" : "Marketplace"}</span>
+              {SHOW_MONEY && capReached && <Badge variant="danger" style={{ fontSize: "var(--cc-t-11)"}}>Cap reached</Badge>}
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
               <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
                 {pendingCount} pending &middot; auto-approve in {marketplace.autoApproveHours}h
               </span>
-              <span style={{ fontSize: "var(--cc-t-14)", fontWeight: 700, color: "var(--cc-text)" }}>
-                {formatMinor(accruedMinor, marketplace.currency)}
-                {capMinor != null && capMinor > 0 && (
-                  <span style={{ color: "var(--cc-text-muted)", fontWeight: 500 }}> / {formatMinor(capMinor, marketplace.currency)}</span>
-                )}
-              </span>
+              {SHOW_MONEY && (
+                <span style={{ fontSize: "var(--cc-t-14)", fontWeight: 700, color: "var(--cc-text)" }}>
+                  {formatMinor(accruedMinor, marketplace.currency)}
+                  {capMinor != null && capMinor > 0 && (
+                    <span style={{ color: "var(--cc-text-muted)", fontWeight: 500 }}> / {formatMinor(capMinor, marketplace.currency)}</span>
+                  )}
+                </span>
+              )}
             </div>
           </div>
-          {capMinor != null && capMinor > 0 && capFraction != null && (
+          {SHOW_MONEY && capMinor != null && capMinor > 0 && capFraction != null && (
             <div style={{ height: 8, borderRadius: 999, background: "var(--cc-bg)", overflow: "hidden" }}>
               <div
                 style={{

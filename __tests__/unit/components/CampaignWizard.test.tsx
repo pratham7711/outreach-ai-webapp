@@ -1,7 +1,7 @@
 /**
  * @jest-environment jsdom
  */
-import { render, screen, fireEvent, within } from "@testing-library/react";
+import { render, screen, fireEvent, within, act } from "@testing-library/react";
 
 jest.mock(
   "@pratham7711/ui",
@@ -61,132 +61,119 @@ jest.mock("@/components/ds", () => ({
   ),
 }));
 
+/* jest.setup's router has no refresh(), which the wizard calls after a create. */
+jest.mock("next/navigation", () => ({
+  useRouter: () => ({ push: jest.fn(), refresh: jest.fn() }),
+}));
+
 import CampaignWizard from "@/components/modals/CampaignWizard";
 
-const next = () => fireEvent.click(screen.getByText("Next").closest("button")!);
-
-function openPayoutStep(props: { defaultCurrency?: string } = {}) {
+function openWizard(props: { defaultCurrency?: string } = {}) {
   render(<CampaignWizard clients={[]} onClose={jest.fn()} {...props} />);
-  fireEvent.change(screen.getByLabelText("Campaign Name"), { target: { value: "Summer Drop" } });
-  next();
 }
+const create = () => screen.getByText("Create Campaign").closest("button")!;
+const name = (value: string) => fireEvent.change(screen.getByLabelText("Campaign Name"), { target: { value } });
 
 describe("CampaignWizard — currency", () => {
   /* The wizard hardcoded "USD", so an agency billing in INR corrected the
      currency on every single campaign it created. */
   it("opens on the org's own currency", () => {
-    openPayoutStep({ defaultCurrency: "INR" });
+    openWizard({ defaultCurrency: "INR" });
     expect(screen.getByLabelText("Currency")).toHaveValue("INR");
   });
 
   it("falls back to USD when the org currency is absent or not one we offer", () => {
-    openPayoutStep({ defaultCurrency: "XYZ" });
+    openWizard({ defaultCurrency: "XYZ" });
     expect(screen.getByLabelText("Currency")).toHaveValue("USD");
   });
 });
 
 /**
- * canNext() only validated step 0, so a campaign with its rate left blank
- * walked to the end and buildTypeConfig()'s `Number("") || 0` shipped a zero —
- * a campaign that promises every creator nothing.
- *
- * Per-view opens the step now: "Fixed rate per post" was removed along with
- * the rest of the payment surface we do not run.
+ * One step since October 2026: the payout step left with the payments surface.
+ * The trap it had to avoid -- a hidden payout model defaulting to per-view,
+ * which demands a rate and a cap, leaving Create Campaign disabled with no
+ * field on screen to fix it -- is what these pin.
  */
-describe("CampaignWizard — payout step validation", () => {
-  it("offers no fixed rate per post, and no base rate on a negotiated campaign", () => {
-    openPayoutStep();
-    expect(screen.queryByText("Fixed rate per post")).toBeNull();
-    expect(screen.queryByLabelText("Rate per Post")).toBeNull();
-    fireEvent.click(screen.getByText("Negotiated"));
-    expect(screen.queryByLabelText("Base Rate (optional)")).toBeNull();
-  });
-
-  it("holds a per-view campaign until both the rate and the cap are set", () => {
-    openPayoutStep();
-    /* Both empty fields name themselves at once. They used to share a single
-       message that only ever named the first, so satisfying the field it asked
-       about produced a second refusal that looked identical to the one just
-       cleared. */
-    expect(screen.getAllByRole("alert").map((el) => el.textContent)).toEqual([
-      "Enter the rate you pay per 1,000 views.",
-      "Enter the maximum you will pay a creator.",
-    ]);
-
-    fireEvent.change(screen.getByLabelText("Rate per 1K Views"), { target: { value: "5" } });
-    expect(screen.getByRole("alert")).toHaveTextContent(/maximum you will pay/i);
-
-    fireEvent.change(screen.getByLabelText("Cap Amount"), { target: { value: "2000" } });
-    expect(screen.queryByRole("alert")).toBeNull();
-  });
-
-  it("asks nothing of a negotiated campaign, whose rate is agreed per creator", () => {
-    openPayoutStep();
-    fireEvent.click(screen.getByText("Negotiated"));
-    expect(screen.queryByRole("alert")).toBeNull();
-    expect(screen.getByText("Create Campaign").closest("button")).not.toBeDisabled();
-  });
-
-  it("blocks Create Campaign, the last step's button, on the same rule", () => {
-    openPayoutStep();
-    // Payout is the last step now, so the submit button is on screen while the
-    // per-view rate and cap are still empty. It must be held too.
+describe("CampaignWizard — a single step with no payout", () => {
+  it("has no Next and no payout fields", () => {
+    openWizard();
     expect(screen.queryByText("Next")).toBeNull();
-    expect(screen.getByText("Create Campaign").closest("button")).toBeDisabled();
-    fireEvent.change(screen.getByLabelText("Rate per 1K Views"), { target: { value: "5" } });
-    fireEvent.change(screen.getByLabelText("Cap Amount"), { target: { value: "2000" } });
-    expect(screen.getByText("Create Campaign").closest("button")).not.toBeDisabled();
+    expect(screen.queryByRole("radiogroup", { name: "Payout model" })).toBeNull();
+    expect(screen.queryByLabelText("Rate per 1K Views")).toBeNull();
+    expect(screen.queryByLabelText("Cap Amount")).toBeNull();
+    expect(screen.queryByText(/Step \d of/)).toBeNull();
+  });
+
+  it("holds Create Campaign only until the campaign has a name", () => {
+    openWizard();
+    expect(create()).toBeDisabled();
+    name("Summer Drop");
+    expect(create()).not.toBeDisabled();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("creates a negotiated, budget-based campaign with the budget, currency and approval mode given", async () => {
+    const fetchMock = jest.fn().mockResolvedValue({ ok: true, json: async () => ({ id: "c-1" }) });
+    (global as { fetch: unknown }).fetch = fetchMock;
+    openWizard({ defaultCurrency: "INR" });
+    name("Summer Drop");
+    fireEvent.change(screen.getByLabelText("Budget"), { target: { value: "5000" } });
+    fireEvent.click(screen.getByRole("radio", { name: /Auto-Approved/ }));
+    await act(async () => {
+      fireEvent.click(create());
+    });
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("/api/campaigns");
+    const body = JSON.parse(init.body);
+    expect(body).toMatchObject({
+      title: "Summer Drop",
+      campaignType: "BUDGET_BASED",
+      budget: 5000,
+      currency: "INR",
+      postApprovalMode: "AUTO_APPROVED",
+      typeConfig: { model: "negotiated", currency: "INR", allowCounterOffer: true },
+    });
+  });
+
+  /* "Who handles payment?" went earlier: payment is always self-managed, so
+     the question offered a service we do not run. */
+  it("does not ask who handles payment", () => {
+    openWizard();
+    expect(screen.queryByRole("radiogroup", { name: "Who handles payment?" })).toBeNull();
+    expect(screen.queryByText("Payment Release Trigger")).toBeNull();
+    expect(screen.queryByText(/open enrollment/i)).toBeNull();
   });
 });
 
 /**
- * The payout cards were bare <div onClick>. Measured on prod 2026-09-11: role
- * null, tabIndex -1, no aria-checked -- and eighteen Tab presses on the payout
- * step never landed on one, so the model could only be changed with a mouse.
- * The default was still reachable, which is why the flow looked fine.
+ * The approval cards were bare <div onClick> -- role null, tabIndex -1, so the
+ * mode could only be changed with a mouse. They now use the same radio group
+ * the payout model used.
  */
-describe("CampaignWizard — payout model is a radio group", () => {
-  const group = () => screen.getByRole("radiogroup", { name: "Payout model" });
+describe("CampaignWizard — post approval mode is a radio group", () => {
+  const group = () => screen.getByRole("radiogroup", { name: "Post approval mode" });
   const radios = () => within(group()).getAllByRole("radio");
 
-  it("offers the two remaining models as radios, exactly one of them checked", () => {
-    openPayoutStep();
-    expect(radios()).toHaveLength(2);
-    expect(radios().filter((r) => r.getAttribute("aria-checked") === "true")).toHaveLength(1);
+  it("offers Manual Review and Auto-Approved, Manual checked", () => {
+    openWizard();
+    expect(radios().map((r) => [r.textContent?.startsWith("Manual") ? "manual" : "auto", r.getAttribute("aria-checked")])).toEqual([
+      ["manual", "true"],
+      ["auto", "false"],
+    ]);
   });
 
   it("keeps one tab stop, on the selected card", () => {
-    openPayoutStep();
+    openWizard();
     const [first, second] = radios();
-    expect(first).toHaveAttribute("aria-checked", "true");
     expect(first).toHaveAttribute("tabindex", "0");
     expect(second).toHaveAttribute("tabindex", "-1");
   });
 
-  it("selects with the keyboard, which a div onClick could not do", () => {
-    openPayoutStep();
-    expect(screen.getByText("Create Campaign").closest("button")).toBeDisabled();
+  it("selects with the keyboard and moves with the arrows", () => {
+    openWizard();
     fireEvent.keyDown(radios()[1], { key: " " });
     expect(radios()[1]).toHaveAttribute("aria-checked", "true");
-    /* Negotiated agrees its rate per creator, so nothing is left to fill in and
-       the step stops blocking -- reached here without a mouse. */
-    expect(screen.getByText("Create Campaign").closest("button")).not.toBeDisabled();
-  });
-
-  it("moves between the options with the arrow keys", () => {
-    openPayoutStep();
-    fireEvent.keyDown(radios()[0], { key: "ArrowDown" });
-    expect(radios()[1]).toHaveAttribute("aria-checked", "true");
-    fireEvent.keyDown(radios()[1], { key: "ArrowUp" });
+    fireEvent.keyDown(radios()[1], { key: "ArrowLeft" });
     expect(radios()[0]).toHaveAttribute("aria-checked", "true");
-  });
-
-  /* "Who handles payment?" is gone: payment is always self-managed, so the
-     question offered a service we do not run. */
-  it("does not ask who handles payment", () => {
-    openPayoutStep();
-    expect(screen.queryByRole("radiogroup", { name: "Who handles payment?" })).toBeNull();
-    expect(screen.queryByText("Payment Release Trigger")).toBeNull();
-    expect(screen.queryByText(/open enrollment/i)).toBeNull();
   });
 });

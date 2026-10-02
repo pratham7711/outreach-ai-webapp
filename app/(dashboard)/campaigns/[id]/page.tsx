@@ -10,18 +10,14 @@ import { Dropdown, MetricTile, EntityPicker, Button } from "@/components/ds";
 import PostsTab from "./PostsTab";
 import ActivityFeed from "./ActivityFeed";
 import DraftsTab from "./DraftsTab";
-import DocumentsTab from "./DocumentsTab";
-import FinancialsTab from "./FinancialsTab";
 import CreativeBriefCard from "./CreativeBriefCard";
 import RosterTable, { ROSTER_COLUMNS, ROSTER_DEFAULT_COLUMNS } from "./RosterTable";
 import { readCampaignSection } from "@/lib/campaignSections";
+import { SHOW_MONEY } from "@/lib/moneyUi";
 import { useCampaignNav } from "@/components/providers/CampaignNavProvider";
 import { CampaignAudioSetup } from "@/components/campaigns/CampaignAudioSetup";
 import { CAMPAIGN_HEADER_ACTIONS_ID } from "@/components/campaigns/CampaignHeaderActions";
 import InvitesSection from "./InvitesSection";
-import NegotiationsSection from "./NegotiationsSection";
-import ProposalsSection from "./ProposalsSection";
-import ReviewsSection from "./ReviewsSection";
 import {
   Eye, Heart, MessageCircle, Share2, TrendingUp, Users,
   Calendar, Play, ExternalLink, DollarSign,
@@ -560,9 +556,17 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
   const handleSaveMarketplace = async () => {
     // Client-side guard mirrors the server gate for GLOBAL publishing.
     if (mkt.marketplaceVisibility === "GLOBAL") {
-      const hasRate = Object.keys(buildRatePayload()).length > 0;
+      /* With the rate inputs hidden, the rate that counts is the one already
+         stored -- the same one the server's own gate falls back to. */
+      const hasRate = SHOW_MONEY
+        ? Object.keys(buildRatePayload()).length > 0
+        : Object.values(campaign?.ratePerThousand ?? {}).some((v) => typeof v === "number" && v > 0);
       if (!editForm.title.trim() || !mkt.guidelines.trim() || !hasRate) {
-        toast.error("Public marketplace needs a title, guidelines, and at least one platform rate.");
+        toast.error(
+          SHOW_MONEY || hasRate
+            ? "Public marketplace needs a title, guidelines, and at least one platform rate."
+            : "Public marketplace needs a title, guidelines and a rate on file, and this campaign has no rate."
+        );
         return;
       }
     }
@@ -573,7 +577,9 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
         guidelines: mkt.guidelines || null,
         requirements: mkt.requirements || null,
         contentAssetsUrl: mkt.contentAssetsUrl || "",
-        ratePerThousand: buildRatePayload(),
+        /* Not sent while the inputs are hidden: absent keeps the stored
+           rates, an empty object would erase them. */
+        ...(SHOW_MONEY ? { ratePerThousand: buildRatePayload() } : {}),
         submissionDeadline: mkt.submissionDeadline ? new Date(mkt.submissionDeadline).toISOString() : null,
         autoApproveHours: mkt.autoApproveHours ? Number(mkt.autoApproveHours) : 48,
       };
@@ -875,8 +881,6 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
         {/* Drafts Tab */}
         {activeTab === "drafts" && <DraftsTab campaignId={id} onChange={refreshCampaign} />}
 
-        {activeTab === "documents" && <DocumentsTab campaignId={id} />}
-
         {/* Posts Tab */}
         {activeTab === "posts" && (
           <PostsTab
@@ -908,20 +912,10 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
               onAddCreator={() => setShowAddCreator(true)}
             />
 
-            {/* Proposals, Invites & Negotiations */}
-            <ProposalsSection campaignId={id} />
+            {/* Proposals and Negotiations sat either side of Invites until
+                October 2026; both were money, and left with payments. */}
             <InvitesSection campaignId={id} />
-            <NegotiationsSection
-              campaignId={id}
-              platformFeeMinor={(campaign as any).platformFeeMinor ?? 0}
-              currency={campaign.currency ?? "USD"}
-            />
           </div>
-        )}
-
-        {/* Reviews Tab */}
-        {activeTab === "reviews" && (
-          <ReviewsSection campaignId={id} activations={campaign.activations} />
         )}
 
         {/* Analytics Tab */}
@@ -1013,18 +1007,6 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
         )}
 
         {/* Edit Tab */}
-        {activeTab === "financials" && (
-          <FinancialsTab
-            campaignId={id}
-            budget={campaign.budget ?? null}
-            currency={campaign.currency ?? "USD"}
-            notes={campaign.notes ?? null}
-            creatorRateTotals={campaign.creatorRateTotals ?? null}
-            profitTotal={campaign.profitTotal ?? null}
-            financials={campaign.financials ?? null}
-          />
-        )}
-
         {activeTab === "edit" && (
           <div style={{ maxWidth: 640 }}>
             <div style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, padding: 24 }}>
@@ -1146,7 +1128,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
             <div style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, padding: 24, marginTop: 24 }}>
               <h3 style={{ fontSize: "var(--cc-t-15)", fontWeight: 700, color: "var(--cc-text)", marginBottom: 4 }}>Marketplace</h3>
               <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", marginBottom: 20 }}>
-                Control how creators discover and join this campaign. Rates are shown in {campaign.currency} and stored to the cent.
+                Control how creators discover and join this campaign.{SHOW_MONEY && <> Rates are shown in {campaign.currency} and stored to the cent.</>}
               </p>
 
               <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
@@ -1238,29 +1220,32 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                   />
                 </div>
 
-                {/* Per-platform rates (major units → stored minor) */}
-                <div>
-                  <label style={mktLabel}>
-                    Rate per 1,000 verified views {mkt.marketplaceVisibility === "GLOBAL" && <span style={{ color: "var(--cc-danger)" }}>*</span>}
-                  </label>
-                  <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", marginBottom: 10 }}>
-                    Set a payout rate per platform (in {campaign.currency}). Leave blank to exclude a platform.
-                  </p>
-                  <div className="rsp-grid-2">
-                    {MARKETPLACE_PLATFORMS.map((p) => (
-                      <div key={p}>
-                        <label style={{ display: "block", fontSize: "var(--cc-t-12)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text-muted)", marginBottom: 4 }}>{p}</label>
-                        <input
-                          type="number" min="0" step="0.01"
-                          value={mkt.rates[p] ?? ""}
-                          onChange={(e) => setMkt((m) => ({ ...m, rates: { ...m.rates, [p]: e.target.value } }))}
-                          placeholder="e.g. 1.50"
-                          style={mktInput}
-                        />
-                      </div>
-                    ))}
+                {/* Per-platform rates (major units → stored minor). Hidden while
+                    SHOW_MONEY is off; see lib/moneyUi for why that is safe. */}
+                {SHOW_MONEY && (
+                  <div>
+                    <label style={mktLabel}>
+                      Rate per 1,000 verified views {mkt.marketplaceVisibility === "GLOBAL" && <span style={{ color: "var(--cc-danger)" }}>*</span>}
+                    </label>
+                    <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", marginBottom: 10 }}>
+                      Set a payout rate per platform (in {campaign.currency}). Leave blank to exclude a platform.
+                    </p>
+                    <div className="rsp-grid-2">
+                      {MARKETPLACE_PLATFORMS.map((p) => (
+                        <div key={p}>
+                          <label style={{ display: "block", fontSize: "var(--cc-t-12)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text-muted)", marginBottom: 4 }}>{p}</label>
+                          <input
+                            type="number" min="0" step="0.01"
+                            value={mkt.rates[p] ?? ""}
+                            onChange={(e) => setMkt((m) => ({ ...m, rates: { ...m.rates, [p]: e.target.value } }))}
+                            placeholder="e.g. 1.50"
+                            style={mktInput}
+                          />
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {/* Deadline + auto-approve */}
                 <div className="rsp-grid-2">

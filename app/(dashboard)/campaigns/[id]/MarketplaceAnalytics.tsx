@@ -7,6 +7,7 @@ import {
 } from "recharts";
 import { ChartFrame } from "@/components/ds";
 import { formatFull } from "@/lib/format";
+import { SHOW_MONEY } from "@/lib/moneyUi";
 
 type Analytics = {
   visibility: "PRIVATE" | "GLOBAL" | "INVITE_ONLY";
@@ -131,14 +132,18 @@ export default function MarketplaceAnalytics({
           <div style={statLabelStyle}>Submissions</div>
           <div style={statValueStyle}>{formatNumber(data.totals.submissions)}</div>
         </div>
-        <div style={{ padding: 16, borderRadius: 10, background: "var(--cc-card)", border: "1px solid var(--cc-border)" }}>
-          <div style={statLabelStyle}>Accrued</div>
-          <div style={statValueStyle}>{formatCurrency(budget.accruedMajor, currency)}</div>
-        </div>
-        <div style={{ padding: 16, borderRadius: 10, background: "var(--cc-card)", border: "1px solid var(--cc-border)" }}>
-          <div style={statLabelStyle}>Budget cap</div>
-          <div style={statValueStyle}>{budget.capMajor != null ? formatCurrency(budget.capMajor, currency) : "—"}</div>
-        </div>
+        {SHOW_MONEY && (
+          <>
+            <div style={{ padding: 16, borderRadius: 10, background: "var(--cc-card)", border: "1px solid var(--cc-border)" }}>
+              <div style={statLabelStyle}>Accrued</div>
+              <div style={statValueStyle}>{formatCurrency(budget.accruedMajor, currency)}</div>
+            </div>
+            <div style={{ padding: 16, borderRadius: 10, background: "var(--cc-card)", border: "1px solid var(--cc-border)" }}>
+              <div style={statLabelStyle}>Budget cap</div>
+              <div style={statValueStyle}>{budget.capMajor != null ? formatCurrency(budget.capMajor, currency) : "—"}</div>
+            </div>
+          </>
+        )}
       </div>
 
       <div className="mkt-an-split">

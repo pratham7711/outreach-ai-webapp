@@ -25,7 +25,6 @@ export const AREAS = {
     specs: [
       "campaigns.spec.ts",
       "campaigns-detail.spec.ts",
-      "campaigns-proposals.spec.ts",
       "calendar.spec.ts",
     ],
     sources: [
