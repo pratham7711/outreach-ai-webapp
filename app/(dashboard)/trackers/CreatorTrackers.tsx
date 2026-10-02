@@ -155,7 +155,8 @@ function FigureGroup({
   label: string;
   value: React.ReactNode;
   valueTitle?: string;
-  changeNode: React.ReactNode;
+  /** Left out when no tracked creator has this change yet. */
+  changeNode?: React.ReactNode;
   changeTitle: string;
   /** The reading's age under the value (plan A6). */
   age?: React.ReactNode;
@@ -201,10 +202,12 @@ function FigureGroup({
           </div>
           {age}
         </div>
-        <div style={{ padding: "10px 16px", flex: "0 0 auto" }} title={changeTitle}>
-          <div style={{ fontSize: "var(--cc-t-11)", color: "var(--cc-text-muted)" }}>Change</div>
-          {changeNode}
-        </div>
+        {changeNode !== undefined && (
+          <div style={{ padding: "10px 16px", flex: "0 0 auto" }} title={changeTitle}>
+            <div style={{ fontSize: "var(--cc-t-11)", color: "var(--cc-text-muted)" }}>Change</div>
+            {changeNode}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -278,6 +281,13 @@ export function CreatorTrackers({
     placeholderData: keepPreviousData,
   });
   const creators = useMemo(() => data?.creators ?? [], [data]);
+  /* A change needs two readings inside the window, and view readings only
+     count from 2026-10-02, so for a while every row said "No data yet." and
+     the Change sort ranked on nothing. Each change, and the sort, appears once
+     a creator on this page has one. */
+  const anyViewsChange = creators.some((c) => c.views.changePercent !== null);
+  const anyFollowersChange = creators.some((c) => c.followersChangePercent !== null);
+  const sorts = SORTS.filter((s) => s.key !== "change" || anyViewsChange || sort === "change");
   const cadenceHours = data?.readCadenceHours ?? null;
 
   // Only fetched while the picker is open, and only for what was typed.
@@ -360,7 +370,7 @@ export function CreatorTrackers({
     >
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
         <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>Sort</span>
-        {SORTS.map((s) => (
+        {sorts.map((s) => (
           <button
             key={s.key}
             onClick={() => {
@@ -521,7 +531,7 @@ export function CreatorTrackers({
                     value={<MetricFigure value={figures.followers} />}
                     valueTitle={metricReason(figures.followers)}
                     changeNode={
-                      c.followersChangePercent !== null ? (
+                      !anyFollowersChange ? undefined : c.followersChangePercent !== null ? (
                         <ChangeValue percent={c.followersChangePercent} />
                       ) : (
                         <NoData title={followersReason(c, period)} />
@@ -549,7 +559,7 @@ export function CreatorTrackers({
                         : `Average views of their 10 newest posts, pinned posts left out. Measured ${timeAgo(v.measuredAt)}.`
                     }
                     changeNode={
-                      v.changePercent !== null ? (
+                      !anyViewsChange ? undefined : v.changePercent !== null ? (
                         <ChangeValue percent={v.changePercent} />
                       ) : (
                         <NoData title={viewsReason(c)} />

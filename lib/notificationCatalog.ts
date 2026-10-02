@@ -46,6 +46,27 @@ export const NOTIFICATION_EVENTS: NotificationEventDef[] = [
   { key: "payout_request.create", label: "Payout Request", description: "A creator requests a payout", group: "Financial", defaultOn: false, glyph: "🙋" },
 ];
 
+/* Events whose only producers sit behind surfaces parked in October 2026 --
+   /payouts, /requests and the portal offer and payout pages redirect away
+   (next.config.ts), and Documents left the campaign rail. Their API routes
+   still exist, so the keys stay in the catalog and stored preferences survive,
+   but the settings screens stop offering switches for things nothing in the
+   app can make happen. */
+const PARKED_EVENTS = new Set([
+  "document.create",
+  "negotiation.approve",
+  "negotiation.reject",
+  "deposit.create",
+  "payout.create",
+  "payout.status_changed",
+  "payout_request.create",
+]);
+
+/** The rows a settings screen offers: the catalog minus the parked events. */
+export const SETTINGS_NOTIFICATION_EVENTS: NotificationEventDef[] = NOTIFICATION_EVENTS.filter(
+  (e) => !PARKED_EVENTS.has(e.key),
+);
+
 const EVENT_MAP = new Map(NOTIFICATION_EVENTS.map((e) => [e.key, e]));
 
 export function isNotifiableAction(action: string): boolean {

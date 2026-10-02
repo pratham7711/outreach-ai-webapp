@@ -45,8 +45,11 @@ export const CAMPAIGN_SECTIONS = [
 
 export type CampaignSection = (typeof CAMPAIGN_SECTIONS)[number]["value"];
 
-/** The counts the rail badges. Absent or zero renders no badge. */
-export type CampaignSectionCounts = Partial<Record<"drafts" | "posts" | "creators", number>>;
+/** The counts the rail badges. Absent or zero renders no badge. `draftsEver`
+ *  is not a badge: it is how many creators have ever submitted a draft, and the
+ *  Drafts row is offered only when that is non-zero -- campaigns that never use
+ *  drafts were carrying a row that only ever opened onto an empty tab. */
+export type CampaignSectionCounts = Partial<Record<"drafts" | "posts" | "creators" | "draftsEver", number>>;
 
 /* Overview, to match CreatorCore.
 
@@ -87,6 +90,15 @@ export function campaignIdFromPathname(pathname: string): string | null {
   if (!m) return null;
   const id = m[1];
   return id === "new" || id === "self-serve" ? null : id;
+}
+
+export type ShellKind = "campaign" | "settings" | "dashboard";
+
+/** Which shell a path is drawn in. The rail and the shell root both carry it as
+ *  data-shell, and both read it from here so the two can never disagree. */
+export function shellForPathname(pathname: string): ShellKind {
+  if (campaignIdFromPathname(pathname)) return "campaign";
+  return pathname.startsWith("/settings") ? "settings" : "dashboard";
 }
 
 /**

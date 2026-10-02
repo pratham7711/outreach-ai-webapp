@@ -74,7 +74,7 @@ function LoadingState() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
       <style>{`
-        .perf-split { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; }
+        .perf-split { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; align-items: start; }
         @media (min-width: 1024px) { .perf-split { grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); } }
       `}</style>
       <div className="rsp-grid-tiles">
@@ -115,7 +115,7 @@ function ErrorState({ onRetry }: { onRetry: () => void }) {
 type ExportFormat = "xlsx" | "csv" | "pdf";
 
 const EXPORT_FORMATS: { key: ExportFormat; label: string; hint: string }[] = [
-  { key: "xlsx", label: "Excel (.xlsx)", hint: "Summary, posts, creators and payouts as separate sheets" },
+  { key: "xlsx", label: "Excel (.xlsx)", hint: "Summary, posts and creators as separate sheets" },
   { key: "csv", label: "CSV (.csv)", hint: "Same sections in one plain-text file" },
   { key: "pdf", label: "PDF (.pdf)", hint: "Formatted performance report" },
 ];
@@ -248,45 +248,53 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
      fetched ourselves, so those tiles appear only when there is something in
      them. See lib/metricDisplay. */
   const anyEngagementMeasured = leaderboard.some((r) => r.engagementRate !== null);
+  /* Every tile in the row is sized by its longest figure, so one row reads at
+     one size. Absent counters are null and contribute nothing. */
+  const tileFit = Math.max(
+    ...[kpis.posts, kpis.livePosts, kpis.views, kpis.likes, kpis.comments, kpis.shares, kpis.saves, kpis.downloads, kpis.engagements]
+      .map((n) => (n === null ? 0 : formatNumber(n).length)),
+    kpis.engagementRate === null ? 0 : `${(kpis.engagementRate * 100).toFixed(2)}%`.length,
+  );
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
       <style>{`
-        .perf-split { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; }
+        .perf-split { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; align-items: start; }
         @media (min-width: 1024px) { .perf-split { grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); } }
         .perf-tiles .ui-statcard { min-width: 0; }
         .perf-tiles .ui-statcard-value { overflow-wrap: anywhere; font-size: clamp(16px, 1.5vw, 22px); }
       `}</style>
       <div style={{ display: "flex", justifyContent: "flex-end" }}>{headerActions}</div>
-      <div className="rsp-grid-tiles perf-tiles">
+      <div className="cc-tiles-balanced perf-tiles">
         {/* The same per-counter breakout CreatorCore's client report shows, so the
             campaign's own tab and the shared link tell one story. A counter no
             post has measured has no tile -- see lib/metricDisplay. */}
-        <MetricTile metric="totalPosts" value={formatNumber(kpis.posts)} />
+        <MetricTile fitTo={tileFit} metric="totalPosts" value={formatNumber(kpis.posts)} />
         {kpis.livePosts !== null && (
-          <MetricTile metric="livePosts" value={formatNumber(kpis.livePosts)} />
+          <MetricTile fitTo={tileFit} metric="livePosts" value={formatNumber(kpis.livePosts)} />
         )}
-        <MetricTile metric="views" value={formatNumber(kpis.views)} />
+        <MetricTile fitTo={tileFit} metric="views" value={formatNumber(kpis.views)} />
         {kpis.likes !== null && (
-          <MetricTile metric="totalLikes" value={formatNumber(kpis.likes)} />
+          <MetricTile fitTo={tileFit} metric="totalLikes" value={formatNumber(kpis.likes)} />
         )}
         {kpis.comments !== null && (
-          <MetricTile metric="totalComments" value={formatNumber(kpis.comments)} />
+          <MetricTile fitTo={tileFit} metric="totalComments" value={formatNumber(kpis.comments)} />
         )}
         {kpis.shares !== null && (
-          <MetricTile metric="totalShares" value={formatNumber(kpis.shares)} />
+          <MetricTile fitTo={tileFit} metric="totalShares" value={formatNumber(kpis.shares)} />
         )}
         {kpis.saves !== null && (
-          <MetricTile metric="totalSaves" value={formatNumber(kpis.saves)} />
+          <MetricTile fitTo={tileFit} metric="totalSaves" value={formatNumber(kpis.saves)} />
         )}
         {kpis.downloads !== null && (
-          <MetricTile metric="totalDownloads" value={formatNumber(kpis.downloads)} />
+          <MetricTile fitTo={tileFit} metric="totalDownloads" value={formatNumber(kpis.downloads)} />
         )}
         {kpis.engagements !== null && (
-          <MetricTile metric="engagements" value={formatNumber(kpis.engagements)} />
+          <MetricTile fitTo={tileFit} metric="engagements" value={formatNumber(kpis.engagements)} />
         )}
         {kpis.engagementRate !== null && (
           <MetricTile
+            fitTo={tileFit}
             metric="engagementRate"
             label="Eng. rate"
             value={`${(kpis.engagementRate * 100).toFixed(2)}%`}
@@ -304,7 +312,7 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
         </span>
         {timeSeries.length >= 3 ? (
           <ChartFrame height={320}>
-            <AreaChart data={timeSeries} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
+            <AreaChart data={timeSeries} margin={{ top: 8, right: 24, left: -8, bottom: 0 }}>
               <defs>
                 {activeSeries.map((s) => (
                   <linearGradient key={s.key} id={`perfGrad-${s.key}`} x1="0" y1="0" x2="0" y2="1">

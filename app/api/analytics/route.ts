@@ -48,11 +48,36 @@ function parseTimeZone(req: NextRequest): string {
   if (!raw) return "UTC";
   try {
     new Intl.DateTimeFormat("en-US", { timeZone: raw });
-    return raw;
+    return LEGACY_ZONE_NAMES[raw] ?? raw;
   } catch {
     return "UTC";
   }
 }
+
+/* Intl is not "the same set Postgres accepts". Chrome reports CLDR's ids, which
+   keep the old names (an Indian browser sends Asia/Calcutta), while a Postgres
+   built on a tzdata without its legacy links knows only the current one.
+   MEASURED 2026-10-02 on postgres:16 (Debian): 'Asia/Calcutta' fails with 22023
+   "time zone not recognized", the whole Promise.all rejects, and /analytics
+   answers 500. Every name here is CLDR's id on the left and tzdata's on the
+   right; both are the same zone. */
+const LEGACY_ZONE_NAMES: Record<string, string> = {
+  "Asia/Calcutta": "Asia/Kolkata",
+  "Asia/Saigon": "Asia/Ho_Chi_Minh",
+  "Asia/Katmandu": "Asia/Kathmandu",
+  "Asia/Rangoon": "Asia/Yangon",
+  "Europe/Kiev": "Europe/Kyiv",
+  "America/Godthab": "America/Nuuk",
+  "America/Buenos_Aires": "America/Argentina/Buenos_Aires",
+  "America/Indianapolis": "America/Indiana/Indianapolis",
+  "America/Louisville": "America/Kentucky/Louisville",
+  "America/Coral_Harbour": "America/Atikokan",
+  "Atlantic/Faeroe": "Atlantic/Faroe",
+  "Africa/Asmera": "Africa/Asmara",
+  "Pacific/Truk": "Pacific/Chuuk",
+  "Pacific/Ponape": "Pacific/Pohnpei",
+  "Pacific/Enderbury": "Pacific/Kanton",
+};
 
 function parsePlatform(req: NextRequest): string | null {
   const raw = req.nextUrl.searchParams.get("platform");

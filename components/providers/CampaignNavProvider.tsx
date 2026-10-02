@@ -45,6 +45,7 @@ export function CampaignNavProvider({ children }: { children: ReactNode }) {
     setState((prev) =>
       prev.title === next.title &&
       prev.counts.drafts === next.counts.drafts &&
+      prev.counts.draftsEver === next.counts.draftsEver &&
       prev.counts.posts === next.counts.posts &&
       prev.counts.creators === next.counts.creators
         ? prev

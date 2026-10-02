@@ -7,7 +7,7 @@ import {
   startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval,
   format, isSameMonth, isSameDay, isToday, addMonths, subMonths,
 } from "date-fns";
-import { campaignStatusCss, campaignStatusDot } from "@/lib/statusColors";
+import { campaignStatusDot } from "@/lib/statusColors";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
 import CreatorName from "@/components/creators/CreatorName";
 
@@ -207,10 +207,16 @@ export default function CalendarPage() {
                         {format(day, "d")}
                       </span>
                       {campaignCreated.map((c, ci) => (
+                        /* The status rides on the tint and the edge, and the title
+                           is the page's own ink at 11px. In the status colour at
+                           9px it measured 1.9:1 (Pending) to 4.2:1 (Active) --
+                           the smallest, faintest text in the app. */
                         <div key={c.id} title={c.title} className={ci >= 2 ? "cal-chip cal-chip-extra" : "cal-chip"} style={{
                           minWidth: 0,
-                          marginTop: 2, padding: "1px 4px", borderRadius: 3, fontSize: "var(--cc-t-9)", fontWeight: 500,
-                          ...campaignStatusCss(c.status),
+                          marginTop: 2, padding: "1px 4px", borderRadius: 3, fontSize: "var(--cc-t-11)", fontWeight: 500,
+                          background: `color-mix(in srgb, ${campaignStatusDot(c.status)} 14%, transparent)`,
+                          borderLeft: `3px solid ${campaignStatusDot(c.status)}`,
+                          color: "var(--cc-text)",
                           overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
                         }}>
                           {c.title}
@@ -218,7 +224,7 @@ export default function CalendarPage() {
                       ))}
                       {campaignCreated.length > 2 && (
                         <div className="cal-more" style={{
-                          marginTop: 2, fontSize: "var(--cc-t-9)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text-muted)",
+                          marginTop: 2, fontSize: "var(--cc-t-11)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text-muted)",
                         }}>
                           +{campaignCreated.length - 2} more
                         </div>

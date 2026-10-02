@@ -31,7 +31,7 @@ export async function GET(
   const read = await connectionForRead(orgId, id, "TIKTOK", { order: "oldest" });
   if (!read.ok)
     return NextResponse.json(
-      { error: "TikTok account not connected", videos: [] },
+      { error: "TikTok account not connected", code: "not_connected", videos: [] },
       { status: 409 },
     );
 

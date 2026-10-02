@@ -211,7 +211,11 @@ function PlatformCard({
         </p>
       )}
 
-      {comingSoon ? (
+      {/* A gated platform in production has no credentials behind it: the
+          start route can only bounce the creator back with reason=provider,
+          so the button is left out and the note says what to do instead.
+          Development keeps it, because there the route runs a mock flow. */}
+      {comingSoon || (capability?.connect === "gated" && process.env.NODE_ENV === "production") ? (
         capability?.connectNote && <p style={{ fontSize: 13, color: "var(--cc-text-muted)", margin: "10px 0 0" }}>{capability.connectNote}</p>
       ) : (
         <div style={{ marginTop: 12 }}>

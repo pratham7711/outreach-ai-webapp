@@ -2,7 +2,7 @@
 import { useState, useEffect, use } from "react";
 import { motion } from "framer-motion";
 import {
-  ArrowLeft, Eye, Heart, MessageCircle, Share2, Play, ChevronRight, ExternalLink, DollarSign, Pencil, Plus, Trash2, Users,
+  Eye, Heart, MessageCircle, Share2, Play, ChevronRight, ExternalLink, DollarSign, Pencil, Plus, Trash2, Users,
   User, Video, ClipboardList, Link2, Combine,
 } from "lucide-react";
 import Link from "next/link";
@@ -406,9 +406,11 @@ const responsiveStyles = `
   }
   .cd-profile-header {
     display: flex;
-    align-items: flex-end;
+    align-items: center;
     gap: 16px;
     flex-wrap: wrap;
+    margin: 0 -16px;
+    padding: 20px 16px;
   }
   .cd-profile-info { flex: 1; padding-bottom: 4px; min-width: 180px; }
   .cd-profile-actions {
@@ -417,7 +419,7 @@ const responsiveStyles = `
     gap: 12px;
     flex-wrap: wrap;
   }
-  .cd-banner-inner { padding: 0 16px 20px; margin-top: -32px; }
+  .cd-banner-inner { padding: 0 16px 20px; }
   .cd-tabs-bar-wrap {
     position: relative;
     margin-bottom: 24px;
@@ -433,7 +435,6 @@ const responsiveStyles = `
     background: linear-gradient(to right, transparent, var(--cc-bg));
   }
   .cd-banner-band {
-    height: 80px;
     background: linear-gradient(to right, color-mix(in srgb, var(--cd-band) 13%, transparent), color-mix(in srgb, var(--cd-band) 7%, transparent));
   }
   :root.light .cd-banner-band { --cd-band: var(--cc-text); }
@@ -503,7 +504,8 @@ const responsiveStyles = `
 
   @media (min-width: 640px) {
     .cd-stats-grid { grid-template-columns: repeat(2, 1fr); gap: 16px; }
-    .cd-banner-inner { padding: 0 24px 24px; margin-top: -40px; }
+    .cd-banner-inner { padding: 0 24px 24px; }
+    .cd-profile-header { margin: 0 -24px; padding: 24px; }
     .cd-profile-cards { grid-template-columns: 1fr 1fr; gap: 24px; }
     .cd-campaign-row-budget { display: block; }
     .cd-campaign-row-chevron { display: block; }
@@ -746,6 +748,11 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
   const [tiktokVideos, setTiktokVideos] = useState<TikTokVideo[]>([]);
   const [tiktokLoading, setTiktokLoading] = useState(false);
   const [tiktokError, setTiktokError] = useState<string | null>(null);
+  // A handle typed into the roster is a TikTok "account" with no grant behind
+  // it. The panel used to open on "Could not load TikTok posts" for every such
+  // creator; with nothing connected there is nothing to show, so it stays shut.
+  // Null until the first answer, so the panel does not open and then vanish.
+  const [tiktokNotConnected, setTiktokNotConnected] = useState<boolean | null>(null);
 
   const fetchSocialAccounts = () => {
     setSocialLoading(true);
@@ -767,9 +774,10 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
       .then(r => r.json())
       .then(data => {
         setTiktokVideos(Array.isArray(data.videos) ? data.videos : []);
+        setTiktokNotConnected(data.code === "not_connected");
         if (data.error) setTiktokError(data.error);
       })
-      .catch(() => setTiktokError("Request failed"))
+      .catch(() => { setTiktokNotConnected(false); setTiktokError("Request failed"); })
       .finally(() => setTiktokLoading(false));
   };
 
@@ -873,24 +881,21 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
     <div className="rsp-page">
       <style>{responsiveStyles}</style>
 
-      {/* Breadcrumb */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "var(--cc-t-14)", marginBottom: 24, color: "var(--cc-text-muted)" }}>
-        <Link href="/creators" style={{ display: "flex", alignItems: "center", gap: 4, color: "var(--cc-text-muted)", textDecoration: "none" }}>
-          <ArrowLeft size={16} /> Creators
-        </Link>
-        <ChevronRight size={12} />
-        <span title={creator.name} style={{ color: "var(--cc-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{creator.name}</span>
-      </div>
+      {/* No in-page trail: the top bar already reads Creators > <name>, at
+          every width, and two stacked trails was the only detail page that
+          had them. */}
 
       {/* Banner + Profile */}
       <Card variant="outlined" noPadding style={{ marginBottom: 24 }}>
         {/* The platform's colour as a 13%-to-7% wash. color-mix rather than a
             hex alpha suffix: the old `${colour}22` turned the fallback into
             "var(--cc-primary)22", which is not a colour, so an unknown platform
-            drew no band at all. Light swaps the hue for ink (see .cd-banner-band). */}
-        <div className="cd-banner-band" style={{ "--cd-band": PLATFORM_COLORS[creator.platform] ?? "var(--cc-primary)" } as React.CSSProperties} />
-        <div className="cd-banner-inner">
-          <div className="cd-profile-header">
+            drew no band at all. Light swaps the hue for ink (see .cd-banner-band).
+            The band is the identity row's own background now, not an 80px strip
+            the row was pulled up over: the strip ended mid-header, through the
+            @handle line and across the Edit and Merge buttons. */}
+        <div className="cd-banner-inner" style={{ "--cd-band": PLATFORM_COLORS[creator.platform] ?? "var(--cc-primary)" } as React.CSSProperties}>
+          <div className="cd-profile-header cd-banner-band">
             <CreatorAvatar id={creator.id} name={creator.name} size="lg" />
             <div className="cd-profile-info">
               <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
@@ -1021,9 +1026,17 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
           <div className="cd-profile-cards">
             <Card variant="outlined" style={{ padding: 24 }}>
               <span className="cc-panel-title" style={{ display: "block", marginBottom: 12 }}>About</span>
-              <p style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text-muted)", lineHeight: 1.6 }}>
-                {creator.bio ?? `${platformLabel(creator.platform)} content creator. Open to brand partnerships and collaborations.`}
-              </p>
+              {/* Their bio or nothing. The fallback was a sentence nobody wrote,
+                  printed where the creator's own words go. */}
+              {creator.bio?.trim() ? (
+                <p style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text-muted)", lineHeight: 1.6 }}>
+                  {creator.bio}
+                </p>
+              ) : (
+                <p style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text-subtle)", lineHeight: 1.6 }}>
+                  No bio.
+                </p>
+              )}
               {creator.contactEmail && (
                 <div style={{ marginTop: 16, fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
                   <strong>Email:</strong> {creator.contactEmail}
@@ -1320,7 +1333,7 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
 
             <CreatorAccess creatorId={id} />
 
-            {socialAccounts.some(a => a.platform === "TIKTOK") && (
+            {socialAccounts.some(a => a.platform === "TIKTOK") && tiktokNotConnected === false && (
               <div style={{ marginTop: 32 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
                   <span style={{ fontWeight: 700, fontSize: "var(--cc-t-16)", color: "var(--cc-text)" }}>TikTok posts</span>

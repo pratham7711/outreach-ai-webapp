@@ -602,7 +602,11 @@
      in rem, the ones that do not (30/92px logo box, 0.4px tracking, the 9px
      badge) keep their own token rather than being snapped to the nearest step,
      because snapping is a design change and this is a mechanical conversion. */
-  --cc-rail-head-pad: 0 var(--cc-sp-7);
+  /* One left edge for the whole rail: the head, the group labels and the account
+     chip start where a nav row's icon starts -- the nav's 8px plus the row's own
+     inline padding. They used to sit at 16, 20, 22 and 18. */
+  --cc-nav-item-px: 14px;
+  --cc-rail-head-pad: 0 calc(var(--cc-sp-4) + var(--cc-nav-item-px));
   --cc-rail-logo-size: 2rem;
   --cc-rail-logo-r: var(--cc-r-control);
   --cc-rail-logo-bg: var(--cc-primary);
@@ -633,7 +637,7 @@
   --cc-rail-usermenu-item-m: var(--cc-sp-2);
   --cc-rail-usermenu-item-r: var(--cc-r-control);
   --cc-rail-usermenu-divider-m: 0 var(--cc-sp-6);
-  --cc-rail-user-pad: var(--cc-sp-4) var(--cc-sp-5);
+  --cc-rail-user-pad: var(--cc-sp-4) var(--cc-nav-item-px);
   --cc-rail-user-r: var(--cc-r-input);
   --cc-rail-user-bg: transparent;
   --cc-scrim-bg: rgba(0, 0, 0, 0.4);
@@ -1242,9 +1246,13 @@
   --cc-taxonomy-empty-fg: var(--cc-text-muted);
   /* The campaign Overview split, and the Activity panel that sits in its right
      column. Base is one column, which is what the page was before the wrappers
-     existed, and the 24px card padding restates the inline style it replaced. */
+     existed. The two pads are shared by every Overview card: the library already
+     pads .ui-card-body by 24, and a further 24 on the card put the content 48px
+     in from the edge against the tiles' 16 (audit 2026-10-02). */
+  --cc-seg-active-bg: var(--cc-card);
+  --cc-seg-active-fg: var(--cc-text);
   --cc-overview-gap: 24px;
-  --cc-activity-pad: 24px;
+  --cc-activity-pad: 0px;
   --cc-activity-body-pad: 24px;
   --cc-activity-tab-off: var(--cc-text-muted);
   /* The analytics Performance Summary card. Base restates the inline padding
@@ -1474,6 +1482,23 @@
   --ui-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.5);
   --ui-shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.6);
   --ui-glow: 0 2px 12px rgba(0, 0, 0, 0.5);
+  /* Popovers and the filter drawer inherited Light's 12% navy shadow, which
+     is nothing on #0D0D0D -- a #1A1A19 menu sat 1.12:1 off the page with no
+     edge at all. The same depth the rail's own menus already use. */
+  --cc-popover-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+  --cc-drawer-shadow: -8px 0 32px rgba(0, 0, 0, 0.6);
+  /* The portal's selected segment was #1A1A19 on a #222220 track, 1.09:1, so
+     only the label colour said which tab was open (audit P14). White with a
+     black label, the way this theme draws every other active control. */
+  --cc-seg-active-bg: var(--cc-text);
+  --cc-seg-active-fg: var(--cc-bg);
+
+  /* The Posts KPI strip is painted in --cc-primary, which this theme turns
+     white: ten #FAFAFA slabs, the brightest block on the screen. A raised
+     surface with the theme's own ink instead. */
+  --cc-kpi-bg: var(--cc-hover-bg);
+  --cc-kpi-fg: var(--cc-text);
+  --cc-kpi-accent-fg: var(--cc-text);
 
   /* The vivid originals, pinned rather than inherited: :root now carries the
      darkened values that a light ground needs, and those same values on this
@@ -1667,7 +1692,7 @@
      footer and the header. Ours inset the header by 16px and the footer by
      nothing, so three rows of the same rail started at three different x
      (26, 20 and 10). 10px is the rail's own column padding. */
-  --cc-rail-head-pad: 0 10px;
+  --cc-rail-head-pad: 0 calc(10px + var(--cc-nav-item-px));
   --cc-rail-logo-img-h: 34px;
   --cc-rail-logo-img-w: 100%;
   /* The initials chip is the fallback for an org with no uploaded logo -- every
@@ -2201,14 +2226,14 @@
    split as the theme root uses, for the same reason: a vw inside a zoomed
    subtree resolves against the real viewport and applies the scale twice. */
 @media (min-width: 1024px) {
-  :root.creatorcore .cc-shell-root:has(.cc-sidebar-rail[data-shell="campaign"]) {
+  :root.creatorcore .cc-shell-root[data-shell="campaign"] {
     --cc-action-min-w: 200px;
     --cc-action-h: 45px;
   }
 }
 
 @media (min-width: 1600px) {
-  :root.creatorcore .cc-shell-root:has(.cc-sidebar-rail[data-shell="campaign"]) {
+  :root.creatorcore .cc-shell-root[data-shell="campaign"] {
     --cc-action-min-w: 12.5vw;
     --cc-action-h: 2.8125vw;
   }
@@ -2317,6 +2342,28 @@
   color: var(--cc-danger-ink);
 }
 
+/* Same fault on the library's danger badge: --ui-danger on its own tint is
+   3.63:1 in light, 3.35:1 in dark and 2.71:1 in CreatorCore (the trackers'
+   "declining" chip). The status-chip ink reads on that tint in every theme. */
+.ui-badge-danger {
+  color: var(--cc-danger-fg);
+}
+
+/* The shadcn select's popup is --popover on a --card page, and in dark both
+   are #1A1A19: its 10% ring and black shadow-md vanished, and the open list
+   read as part of whatever it overlapped (audit D05, 1.00:1). Unlayered, so it
+   replaces the utility box-shadow rather than fighting it. */
+:root.dark [data-slot="select-content"] {
+  box-shadow: 0 0 0 1px var(--cc-border), var(--cc-popover-shadow);
+}
+
+/* The library's shimmer runs --ui-bg-3 -> --ui-glass-border -> --ui-bg-3, and
+   Dark sets both to #2C2C2A, so its skeletons animated three equal stops: a
+   static grey bar. The highlight steps one border shade up instead. */
+:root.dark .ui-skeleton {
+  background-image: linear-gradient(90deg, var(--ui-bg-3) 25%, var(--ui-border-strong) 50%, var(--ui-bg-3) 75%);
+}
+
 /* CreatorCore puts the glyph AFTER the label on every action button -- measured
    on `New Campaign +`, `Folders <folder>`, `Refresh Data <refresh>` and
    `Add Posts +`. Ours passes iconLeft, which the library renders as a
@@ -2412,6 +2459,7 @@
      rail -- a closer ancestor of the same rows -- can re-point it to their 18
      without a second nav ruleset. */
   --cc-nav-item-fs: 1rem;
+  --cc-nav-item-px: 10px;
 }
 
 .creatorcore .cc-sidebar-nav {
@@ -2420,7 +2468,7 @@
 
 .creatorcore .cc-nav-item {
   min-height: var(--cc-nav-row-h);
-  padding: 10px;
+  padding: 10px var(--cc-nav-item-px);
   gap: 10px;
   line-height: 20px;
   font-weight: 400;
@@ -2441,16 +2489,6 @@
      there was nothing to re-point for one shell; it is now
      --cc-nav-item-fs and this is the only place that moves it. */
   --cc-nav-item-fs: 1.125rem;
-  /* Their campaign rail has no account chip at all, so its 208px is theirs to
-     spend on section names. Ours keeps the chip -- it is the only way to the
-     account menu from inside a campaign -- and at 208px a single row could not
-     hold avatar + name + chevron + two icons: MEASURED 2026-09-15, the name box
-     came out 27px against 47px of text, so "Admin" rendered as "A…". Stacking
-     gives the name the full column instead of the 100px left over beside the
-     icons. */
-  --cc-rail-foot-dir: column;
-  --cc-rail-foot-align: stretch;
-  --cc-rail-foot-gap: var(--cc-sp-4);
 }
 
 /* "All campaigns" is our way back out of a campaign; CreatorCore's rail has no
@@ -2484,6 +2522,14 @@
    `.creatorcore .cc-sidebar-rail` rule inside the same media query, as literal
    declarations rather than through tokens, so the only way to undo it for one
    shell is to out-specify it. */
+/* The ground goes with the ink at every width. The ink list below has no media
+   query, so with the blue only from 1024 up, the drawer a phone or a ~1000px
+   window opens was white with every row at white 0.5 -- only the active row
+   could be read. */
+.creatorcore .cc-sidebar-rail[data-shell="campaign"] {
+  background: var(--cc-camp-rail-bg);
+}
+
 @media (min-width: 1024px) {
   .creatorcore .cc-sidebar-rail[data-shell="campaign"] {
     top: 0;
@@ -2493,13 +2539,39 @@
     /* 13% of 1600 is 208, their measured width, and it tracks the viewport the
        way every other rail number in this theme does. */
     width: 13%;
-    background: var(--cc-camp-rail-bg);
     /* Their 10px above the first row and nothing below it. */
     --cc-rail-pad-block: 10px 0px;
   }
 
   .creatorcore .cc-sidebar-rail[data-shell="campaign"] .cc-sidebar-nav {
     padding: 0 var(--cc-camp-rail-nav-pad-inline);
+  }
+
+  /* The head and foot take the nav's inset too, so the mark, the group label,
+     every row and the avatar share one x. The initials chip is the rail's own
+     blue here, so only its letters show: no inline padding, or they sit 12px
+     off that edge. */
+  .creatorcore .cc-sidebar-rail[data-shell="campaign"] {
+    --cc-rail-head-pad: 0 calc(var(--cc-camp-rail-nav-pad-inline) + var(--cc-nav-item-px));
+    --cc-rail-initials-pad: 5px 0;
+  }
+  .creatorcore .cc-sidebar-rail[data-shell="campaign"] .cc-sidebar-footer {
+    padding-inline: var(--cc-camp-rail-nav-pad-inline);
+  }
+  /* Account chip and bell on one row. The footer used to stack them, which left
+     the bell alone on a row of its own once the theme toggle moved into the
+     account menu. At 13% of the viewport the name cannot share that row --
+     MEASURED 2026-10-02 with "Pratham Sharma": 52px at 1440, 6px at 1024 -- so
+     this rail shows the avatar; the name is still the button's title. */
+  .creatorcore .cc-sidebar-rail[data-shell="campaign"] .cc-sidebar-username {
+    display: none;
+  }
+  .creatorcore .cc-sidebar-rail[data-shell="campaign"] .cc-rail-user {
+    width: auto;
+    flex-grow: 0;
+  }
+  .creatorcore .cc-sidebar-rail[data-shell="campaign"] .cc-rail-utility {
+    margin-inline-start: auto;
   }
 }
 
@@ -2597,7 +2669,7 @@
      are ours to choose, and this value is already an enumerated entry in the
      fidelity allowlist, so the heading can be the weight they draw it at. */
   color: var(--cc-text-faint);
-  padding: 0;
+  padding: 0 var(--cc-nav-item-px);
   margin-bottom: 8px;
 }
 
@@ -3047,7 +3119,7 @@
 /* The campaign shell drops to 20px/25px. `campaignId` is what switches the rail
    into campaign mode, and the rail is the only node that knows it, so the shell
    reads the rail's own attribute rather than routing the same fact twice. */
-:root.creatorcore .cc-shell-root:has(.cc-sidebar-rail[data-shell="campaign"]) {
+:root.creatorcore .cc-shell-root[data-shell="campaign"] {
   --cc-fs-page-title: 1.25rem;
   /* The rail is 13% here, not the dashboard's 15.31%, and the content starts
      where the rail ends plus their 15px gutter: MEASURED, their campaign header
@@ -3162,7 +3234,7 @@
    re-points this to 0 a few rules below, and the CAMPAIGN shell reports no
    marginBottom finding at all, so it has no measurement behind it and is left
    alone rather than changed blind. */
-:root.creatorcore .cc-shell-root:has(.cc-sidebar-rail[data-shell="dashboard"]) {
+:root.creatorcore .cc-shell-root[data-shell="dashboard"] {
   --cc-header-mb: 0px;
   /* 6px between the two actions, not the base 10. MEASURED at desktop-1600 on
      their /campaigns: New Campaign 1188..1368 and Folders 1374..1554, both
@@ -3171,11 +3243,11 @@
      harness was reporting on that button. The campaign shell keeps its own 15,
      which is measured separately on their campaign header. */
   --cc-actions-gap: 6px;
-  /* Their status strip spans the page card, 270..1575, where the content
-     column it sits under starts at 291 and stops at 1553.9. That 21px is the
-     page gutter, so the strip claims it by sitting in the bleed tracks. */
-  --cc-page-bleed-l: 21px;
-  --cc-page-bleed-r: 21.1px;
+  /* Their status strip spans the page card, 270..1575, 21px past the content
+     column on each side. Copied, it read as misaligned against our title,
+     search and rows (Pratham, 2026-10-02), so the strip keeps the column. */
+  --cc-page-bleed-l: 0px;
+  --cc-page-bleed-r: 0px;
   /* Search row 89.8..134.8, sort row under it, strip at 202.8. */
   --cc-list-searchrow-mb: 11px;
   --cc-list-sortrow-mb: 16px;
@@ -3197,12 +3269,12 @@
   --cc-tab-justify: center;
 }
 
-:root.creatorcore .cc-shell-root:has(.cc-sidebar-rail[data-shell="dashboard"]) .cc-tab-count,
-:root.creatorcore .cc-shell-root:has(.cc-sidebar-rail[data-shell="dashboard"]) .cc-tabs > .cc-tab:first-child > svg {
+:root.creatorcore .cc-shell-root[data-shell="dashboard"] .cc-tab-count,
+:root.creatorcore .cc-shell-root[data-shell="dashboard"] .cc-tabs > .cc-tab:first-child > svg {
   display: none;
 }
 
-:root.creatorcore .cc-shell-root:has(.cc-sidebar-rail[data-shell="settings"]) {
+:root.creatorcore .cc-shell-root[data-shell="settings"] {
   --cc-fs-page-title: 1.125rem;
   --cc-fw-page-title: 400;
   --cc-fg-page-title: var(--cc-text-ink);
@@ -3361,7 +3433,7 @@
    Pinning 245 unconditionally would have narrowed that drawer by 15px at tablet
    and phone to fix a desktop bug. */
 @media (min-width: 1024px) {
-  :root.creatorcore .cc-shell-root:has(.cc-sidebar-rail[data-shell="settings"]) {
+  :root.creatorcore .cc-shell-root[data-shell="settings"] {
     --cc-sidebar-w: 245px;
     --cc-page-pad-inline: 46px;
     --cc-rail-card-w: 240px;
@@ -3377,7 +3449,7 @@
    way, at the same breakpoint, using the theme's own base 260px.
    MEASURED 2026-09-15: rail 50.7px at 390 before, 260px after. */
 @media (max-width: 1023px) {
-  :root.creatorcore .cc-shell-root:has(.cc-sidebar-rail[data-shell="campaign"]) {
+  :root.creatorcore .cc-shell-root[data-shell="campaign"] {
     --cc-sidebar-w: 260px;
     --cc-rail-card-w: 260px;
   }
@@ -3438,14 +3510,14 @@
      sides. Measured on both campaign surfaces that resolve on both sides at
      768. The min-height carries over from the desktop block unchanged -- it is
      100 at both widths. */
-  :root.creatorcore .cc-shell-root:has(.cc-sidebar-rail[data-shell="campaign"]) {
+  :root.creatorcore .cc-shell-root[data-shell="campaign"] {
     --cc-page-pad-inline: 10px;
     --cc-page-pad-end: 10px;
     --cc-page-titlebar-r: 20px;
     --cc-page-titlebar-pad: 10px;
   }
 
-  :root.creatorcore .cc-shell-root:has(.cc-sidebar-rail[data-shell="settings"]) {
+  :root.creatorcore .cc-shell-root[data-shell="settings"] {
     --cc-page-pad-inline: 10px;
     --cc-page-pad-end: 10px;
     --cc-header-pad: 10px;
@@ -3520,7 +3592,7 @@
     font-size: 0;
   }
 
-  :root.creatorcore .cc-shell-root:has(.cc-sidebar-rail[data-shell="campaign"]) {
+  :root.creatorcore .cc-shell-root[data-shell="campaign"] {
     --cc-page-pad-inline: 20px;
     --cc-page-pad-end: 20px;
     --cc-page-titlebar-bg: transparent;
@@ -3712,7 +3784,7 @@ h1, h2, h3, h4, h5, h6 {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 9px 14px;
+  padding: 9px var(--cc-nav-item-px);
   border-radius: 10px;
   transition: all 0.15s ease;
   font-size: var(--cc-nav-item-fs);
@@ -3740,7 +3812,7 @@ h1, h2, h3, h4, h5, h6 {
   letter-spacing: 0.8px;
   text-transform: uppercase;
   color: var(--cc-text-subtle);
-  padding: 12px 12px 4px;
+  padding: 12px var(--cc-nav-item-px) 4px;
   white-space: nowrap;
   overflow: hidden;
 }
@@ -3823,29 +3895,29 @@ h1, h2, h3, h4, h5, h6 {
 
    Base leaves every one of these tokens at the value the Tailwind classes
    already produced, so light and dark keep the header row they had. */
-:root.creatorcore .cc-shell-root:has(.cc-sidebar-rail[data-shell="settings"]) .cc-section-card {
+:root.creatorcore .cc-shell-root[data-shell="settings"] .cc-section-card {
   display: grid;
   grid-template-columns: var(--cc-section-label-w) 1fr;
   align-items: start;
   padding: var(--cc-section-card-pad);
 }
 
-:root.creatorcore .cc-shell-root:has(.cc-sidebar-rail[data-shell="settings"]) .cc-section-card-head {
+:root.creatorcore .cc-shell-root[data-shell="settings"] .cc-section-card-head {
   display: contents;
 }
 
-:root.creatorcore .cc-shell-root:has(.cc-sidebar-rail[data-shell="settings"]) .cc-section-card-heading {
+:root.creatorcore .cc-shell-root[data-shell="settings"] .cc-section-card-heading {
   grid-column: 1;
   grid-row: 1;
 }
 
 /* No icon chip on their side, and it is what put our heading at 360 against
    their 323. */
-:root.creatorcore .cc-shell-root:has(.cc-sidebar-rail[data-shell="settings"]) .cc-section-card-icon {
+:root.creatorcore .cc-shell-root[data-shell="settings"] .cc-section-card-icon {
   display: none;
 }
 
-:root.creatorcore .cc-shell-root:has(.cc-sidebar-rail[data-shell="settings"]) .cc-section-card-action {
+:root.creatorcore .cc-shell-root[data-shell="settings"] .cc-section-card-action {
   grid-column: 1;
   grid-row: 2;
   align-self: start;
@@ -3864,7 +3936,7 @@ h1, h2, h3, h4, h5, h6 {
    mobile primary-action rule above. Both tokens resolve to `auto` at base,
    which is each property's initial value, so this is inert outside the shell
    that re-points them. */
-:root.creatorcore .cc-shell-root:has(.cc-sidebar-rail[data-shell="settings"]) .cc-section-card-action .ui-btn {
+:root.creatorcore .cc-shell-root[data-shell="settings"] .cc-section-card-action .ui-btn {
   height: var(--cc-section-action-h);
   min-height: var(--cc-section-action-h);
   font-size: var(--cc-section-action-fs);
@@ -3878,7 +3950,7 @@ h1, h2, h3, h4, h5, h6 {
    page-header rule a few hundred lines up says the same thing for
    `.cc-page-actions`; this is the section card's own action cluster, which
    that selector does not reach. */
-:root.creatorcore .cc-shell-root:has(.cc-sidebar-rail[data-shell="settings"]) .cc-section-card-action .ui-btn > .ui-btn-icon:first-child {
+:root.creatorcore .cc-shell-root[data-shell="settings"] .cc-section-card-action .ui-btn > .ui-btn-icon:first-child {
   order: var(--cc-section-action-icon-order);
 }
 
@@ -3887,7 +3959,7 @@ h1, h2, h3, h4, h5, h6 {
    Scoped like the section action above, and for the same reason -- the five
    tokens it reads are `auto`/`0`/`inherit` at base and are only meaningful
    here. */
-:root.creatorcore .cc-shell-root:has(.cc-sidebar-rail[data-shell="settings"]) .cc-provider-cta.ui-btn {
+:root.creatorcore .cc-shell-root[data-shell="settings"] .cc-provider-cta.ui-btn {
   height: var(--cc-provider-cta-h);
   min-height: var(--cc-provider-cta-h);
   border-radius: var(--cc-provider-cta-r);
@@ -3896,7 +3968,7 @@ h1, h2, h3, h4, h5, h6 {
   padding-inline: var(--cc-provider-cta-pad-x);
 }
 
-:root.creatorcore .cc-shell-root:has(.cc-sidebar-rail[data-shell="settings"]) .cc-section-card-body {
+:root.creatorcore .cc-shell-root[data-shell="settings"] .cc-section-card-body {
   grid-column: 2;
   grid-row: 1 / span 2;
   padding: 0;
@@ -3912,14 +3984,14 @@ h1, h2, h3, h4, h5, h6 {
    one: theirs sit flush (row 1 ends at 376.5, row 2 starts at 376.5), so the
    line reads as a separator and a trailing one would float above the card's
    own 32px of bottom padding. */
-:root.creatorcore .cc-shell-root:has(.cc-sidebar-rail[data-shell="settings"]) .cc-section-stack > .cc-section-card {
+:root.creatorcore .cc-shell-root[data-shell="settings"] .cc-section-stack > .cc-section-card {
   background: transparent;
   border: 0;
   border-radius: 0;
   box-shadow: none;
 }
 
-:root.creatorcore .cc-shell-root:has(.cc-sidebar-rail[data-shell="settings"]) .cc-section-stack > .cc-section-card:not(:last-child) {
+:root.creatorcore .cc-shell-root[data-shell="settings"] .cc-section-stack > .cc-section-card:not(:last-child) {
   border-bottom: 1px solid var(--cc-border);
 }
 
@@ -3930,7 +4002,7 @@ h1, h2, h3, h4, h5, h6 {
    here and a row there, and it needs the skin the stack carries -- the 32px is
    what puts the heading at 323 and the content column at 603 on both pages.
    `32px 0` on the row form is deliberate: there the stack supplies the sides. */
-:root.creatorcore .cc-shell-root:has(.cc-sidebar-rail[data-shell="settings"]) .cc-settings-groups > .cc-section-card {
+:root.creatorcore .cc-shell-root[data-shell="settings"] .cc-settings-groups > .cc-section-card {
   padding: var(--cc-section-card-solo-pad);
   background: var(--cc-section-stack-bg);
   border: 0;
@@ -4478,8 +4550,10 @@ h1, h2, h3, h4, h5, h6 {
   grid-row: 1 / span 2;
 }
 
-.cc-activity-card { padding: var(--cc-activity-pad); }
-.cc-activity-card > .ui-card-body { padding: var(--cc-activity-body-pad); }
+.cc-activity-card,
+.cc-overview-card { padding: var(--cc-activity-pad); }
+.cc-activity-card > .ui-card-body,
+.cc-overview-card > .ui-card-body { padding: var(--cc-activity-body-pad); }
 
 /* Their activity filter is not a pill pair -- it is two 16px text links at the
    panel's right edge, All in black and Comments at half black, 21px apart.
@@ -4523,11 +4597,14 @@ h1, h2, h3, h4, h5, h6 {
    this campaign!' is 15px/400 at rgba(31,60,239,0.36) -- a faint note, not the
    18px near-black headline the library ships. 15px as a literal, not
    --cc-t-15: creatorcore shifts the whole rem ladder up a step, so that token
-   renders 18 here and the slot that renders 15 is --cc-t-13. */
+   renders 18 here and the slot that renders 15 is --cc-t-13. The size and
+   weight are theirs; the ink is not. At their 0.36 the line read 1.86:1, and an
+   empty state is the one sentence on the page that says why it is empty, so it
+   takes the theme's deeper indigo (0.85, ~5:1). */
 :root.creatorcore .ui-empty-title {
   font-size: 15px;
   font-weight: 400;
-  color: var(--cc-text-faint);
+  color: var(--cc-text-subtle);
 }
 
 /* Payouts: the row their balance banner holds. Right-aligned because that is
@@ -4674,6 +4751,21 @@ h1, h2, h3, h4, h5, h6 {
   font-size: var(--cc-kpi-value-fs);
   font-weight: var(--cc-kpi-value-fw);
   font-variant-numeric: tabular-nums;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Equal columns that wrap, rather than equal flex children that never do. The
+   0-basis flex row held all ten chips on one line at every width: fine at
+   1600, where each is ~128px, but MEASURED 2026-10-02 at 1000 each was 74px
+   and "81,581,031" needed 96 -- the figure ran out of its chip and the labels
+   broke over three lines. 120px keeps their ten-across row at desktop
+   (10 x 120 + 9 x 5 = 1245 inside a 1330 column) and wraps below it. */
+:root.creatorcore .cc-kpi-strip:not(.cc-kpi-quiet) {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
 }
 
 /* THE SECOND KPI STRIP. CreatorCore paints two of them and they are not the
@@ -4699,9 +4791,12 @@ h1, h2, h3, h4, h5, h6 {
   --cc-kpi-label-tracking: 0.06em;
   --cc-kpi-label-mb: 4px;
   --cc-kpi-value-fs: var(--cc-t-22);
-  --cc-kpi-min-w: 0px;
+  --cc-kpi-min-w: 9rem;
   --cc-kpi-grow: 1;
-  --cc-kpi-basis: 200px;
+  /* One row split evenly by --cc-tiles-cols (see .cc-tiles-balanced). A fixed
+     200px basis put 4 of the 5 stats on a row and stretched Posts alone
+     across the next. */
+  --cc-kpi-basis: calc((100% - (var(--cc-tiles-cols) - 1) * var(--cc-kpi-strip-gap)) / var(--cc-tiles-cols));
   --cc-kpi-h: auto;
   --cc-kpi-strip-gap: 12px;
 }
@@ -4793,7 +4888,7 @@ h1, h2, h3, h4, h5, h6 {
    table's own padding: `.cc-table-row` is used across the app with different
    paddings, and hoisting one value into a global rule would flatten all of them
    in light and dark too. Precedent for a scoped creatorcore rule:
-   `:root.creatorcore .cc-shell-root:has(...)` above. */
+   `:root.creatorcore .cc-shell-root[data-shell=...]` above. */
 :root.creatorcore main .cc-table-row {
   padding: var(--cc-table-row-pad);
 }
@@ -4840,6 +4935,89 @@ h1, h2, h3, h4, h5, h6 {
 
 .cc-table-row:hover {
   background: var(--cc-row-hover);
+}
+
+/* A tracked sound. In classes rather than inline because the phone layout has
+   to replace the flex row outright. As a wrapping row at 390 it left the title
+   ~4 characters wide, set the artist one word per line, ran the trend badge
+   into the title and floated the readings mid-row (MEASURED 2026-10-02). On a
+   phone it becomes two lines: what the sound is, then what was read. */
+.cc-sound-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 20px;
+  flex-wrap: wrap;
+}
+.cc-sound-row-count {
+  text-align: right;
+  min-width: 96px;
+}
+@media (max-width: 640px) {
+  .cc-sound-row {
+    display: grid;
+    grid-template-columns: 40px minmax(0, 1fr) auto auto;
+    grid-template-areas:
+      "cover main  main badge"
+      "count count read del";
+    gap: 8px 12px;
+    padding: 12px 16px;
+  }
+  .cc-sound-row-cover { grid-area: cover; }
+  .cc-sound-row-main { grid-area: main; }
+  .cc-sound-row-badge { grid-area: badge; }
+  .cc-sound-row-count { grid-area: count; text-align: left; min-width: 0; }
+  .cc-sound-row-read { grid-area: read; }
+  .cc-sound-row-del { grid-area: del; }
+}
+
+/* The posts tab's filter cluster. The date inputs size to their own content:
+   a fixed 140px under 12px padding and a 1px border left 114px for
+   "dd/mm/yyyy" and the picker glyph, and the year was clipped (audit
+   2026-10-02). On a
+   phone the wrapping row broke into five ragged lines; there it is a two-column
+   grid with search on its own line and sort + view on the last. */
+.cc-posts-filters {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.cc-posts-filter-search {
+  flex-grow: 1;
+  min-width: 140px;
+  width: auto;
+}
+.cc-posts-filter-min {
+  width: 110px;
+}
+.cc-posts-filter-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+@media (max-width: 640px) {
+  .cc-posts-filters {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .cc-posts-filters > *,
+  .cc-posts-filters > div > [role="combobox"] {
+    width: 100%;
+    min-width: 0;
+  }
+  .cc-posts-filter-search,
+  .cc-posts-filter-tools {
+    grid-column: 1 / -1;
+  }
+  .cc-posts-filter-tools {
+    justify-content: space-between;
+  }
+  /* The sort glyph, squeezed to a 3px dot by the two selects beside it. The
+     /campaigns sort row drops it on a phone for the same reason. */
+  .cc-posts-filter-tools > span > svg {
+    display: none;
+  }
 }
 
 /* The campaign list row, which is the one `.cc-table-row` whose trailing
@@ -5119,6 +5297,31 @@ h1, h2, h3, h4, h5, h6 {
 @media (max-width: 640px) {
   .cc-tabs {
     scrollbar-width: none;
+  }
+}
+
+/* With the scrollbar gone nothing said the row went on: at 390, Complete and
+   Canceled on /campaigns and three platforms on /creators sat fully off-screen
+   (MEASURED 2026-10-02, scrollWidth 649 and 626 in a 358 box). The trailing
+   edge fades while there is more to swipe to and clears at the end. It is
+   driven by the strip's own scroll position, so a row that fits never fades:
+   with nothing to scroll the timeline is inactive and the fade stays 0. */
+@property --cc-tabs-fade {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+@keyframes cc-tabs-fade {
+  from { --cc-tabs-fade: 40px; }
+  to { --cc-tabs-fade: 0px; }
+}
+@supports (animation-timeline: scroll()) {
+  @media (max-width: 640px) {
+    .cc-tabs {
+      mask-image: linear-gradient(to left, transparent 0, #000 var(--cc-tabs-fade));
+      animation: cc-tabs-fade linear both;
+      animation-timeline: scroll(self inline);
+    }
   }
 }
 
@@ -5575,6 +5778,42 @@ h1, h2, h3, h4, h5, h6 {
     auto-fit,
     minmax(max(10rem, (100% - 3 * var(--cc-tiles-gap)) / 4), 1fr)
   );
+}
+
+/* Tile rows that come out even. A fixed column count strands whatever does
+   not divide it: 7 tiles in 6 columns left "Eng. rate" alone on a second row
+   on Performance, 4 in 3 did the same on /analytics and on the campaign
+   Overview (Budget), 7 in 5 on a post page (MEASURED 2026-10-02). The count is
+   read off the children and the row is split to divide it -- 7 and 8 run four
+   across, 9 and 10 five -- with a second, narrower split once the row itself
+   is under 40rem (4 tiles go 2 x 2 rather than 3 + 1). flex-grow lets a short
+   last row fill its line instead of leaving holes, and the min width still
+   wraps them on a phone. The count also feeds the quiet KPI strip's basis. */
+.cc-tiles-balanced,
+.cc-kpi-quiet { --cc-tiles-cols: 6; --cc-tiles-cols-mid: 3; }
+:is(.cc-tiles-balanced, .cc-kpi-quiet):has(> :last-child:nth-child(1)) { --cc-tiles-cols: 1; --cc-tiles-cols-mid: 1; }
+:is(.cc-tiles-balanced, .cc-kpi-quiet):has(> :last-child:nth-child(2)) { --cc-tiles-cols: 2; --cc-tiles-cols-mid: 2; }
+:is(.cc-tiles-balanced, .cc-kpi-quiet):has(> :last-child:nth-child(3)) { --cc-tiles-cols: 3; --cc-tiles-cols-mid: 3; }
+:is(.cc-tiles-balanced, .cc-kpi-quiet):has(> :last-child:nth-child(4)) { --cc-tiles-cols: 4; --cc-tiles-cols-mid: 2; }
+:is(.cc-tiles-balanced, .cc-kpi-quiet):has(> :last-child:nth-child(5)) { --cc-tiles-cols: 5; }
+:is(.cc-tiles-balanced, .cc-kpi-quiet):has(> :last-child:nth-child(7)),
+:is(.cc-tiles-balanced, .cc-kpi-quiet):has(> :last-child:nth-child(8)) { --cc-tiles-cols: 4; --cc-tiles-cols-mid: 4; }
+:is(.cc-tiles-balanced, .cc-kpi-quiet):has(> :last-child:nth-child(9)),
+:is(.cc-tiles-balanced, .cc-kpi-quiet):has(> :last-child:nth-child(10)) { --cc-tiles-cols: 5; --cc-tiles-cols-mid: 5; }
+.cc-tiles-balanced {
+  container-type: inline-size;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cc-tiles-gap);
+}
+.cc-tiles-balanced > * {
+  flex: 1 1 calc((100% - (var(--cc-tiles-cols) - 1) * var(--cc-tiles-gap)) / var(--cc-tiles-cols));
+  min-width: var(--cc-tiles-min, 8rem);
+}
+@container (max-width: 40rem) {
+  .cc-tiles-balanced > * {
+    flex-basis: calc((100% - (var(--cc-tiles-cols-mid) - 1) * var(--cc-tiles-gap)) / var(--cc-tiles-cols-mid));
+  }
 }
 
 /* The two !important declarations here were not a style preference: app/page.tsx
@@ -6887,7 +7126,8 @@ html:has(.lp-page) { scroll-behavior: smooth; }
   border: none;
   background: none;
   cursor: pointer;
-  color: var(--cc-danger);
+  /* The ink, not the fill: --cc-danger on Dark's menu was 3.62:1 at 13px. */
+  color: var(--cc-danger-fg);
 }
 
 /* The theme radio group in the same popover. Rows are cc-nav-items, so each
@@ -6971,15 +7211,23 @@ html:has(.lp-page) { scroll-behavior: smooth; }
   background: var(--cc-drawer-bg);
   border-inline-start: var(--cc-drawer-edge);
   border-radius: var(--cc-drawer-r);
-  box-shadow: var(--cc-drawer-shadow);
   transform: translateX(var(--cc-drawer-hidden-x));
-  transition: var(--cc-drawer-move);
+  /* Closed means gone, not just off-screen. Translated out but still
+     visible, the closed drawer kept its 16 controls in the tab order (11 of
+     120 Tab presses landed in it, MEASURED 2026-10-02) and its shadow drew a
+     dark strip down the right edge of /campaigns and /creators. visibility
+     waits out the slide before it hides, so closing still animates. */
+  visibility: hidden;
+  transition: var(--cc-drawer-move), visibility 0s linear 200ms;
   z-index: var(--cc-z-drawer);
   display: flex;
   flex-direction: column;
 }
 .cc-drawer[data-open="true"] {
   transform: translateX(0);
+  box-shadow: var(--cc-drawer-shadow);
+  visibility: visible;
+  transition: var(--cc-drawer-move), visibility 0s;
 }
 
 .cc-drawer-head {
@@ -7923,6 +8171,12 @@ html:has(.lp-page) { scroll-behavior: smooth; }
   white-space: nowrap;
 }
 .spr-btn:hover { border-color: var(--spr-on-page-dim); }
+/* The page's own ink, outside the pill: the browser default ring measured
+   1.06:1 against this page in light (audit 2026-10-02). */
+.spr-btn:focus-visible {
+  outline: 2px solid var(--spr-on-page);
+  outline-offset: 2px;
+}
 
 .spr-main {
   display: flex;
@@ -8732,6 +8986,50 @@ html:has(.lp-page) { scroll-behavior: smooth; }
   .cc-postpick .cc-postpick-box { transition: none; }
 }
 
+/* The platform chip and the status badge share one row across the top of the
+   frame. As two absolute corners they overlapped once the grid reached five
+   columns -- MEASURED 2026-10-02 at 1440: 232px tiles, INSTAGRAM over "PENDING
+   REVIEW" by 17px. The row starts 42px in because the pick sits in the corner.
+   When the tile is too short for both words, the platform drops to its glyph
+   first (the badge is the state an operator acts on), and the badge truncates
+   only if even that is not enough. */
+.cc-posttile { container: posttile / inline-size; }
+.cc-posttile-chips {
+  position: absolute;
+  top: 10px;
+  left: 42px;
+  right: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--cc-sp-2);
+  min-width: 0;
+}
+.cc-posttile-platform {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--cc-media-ink) 55%, transparent);
+  color: var(--cc-overlay-ink-text);
+  font-size: var(--cc-t-10);
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  backdrop-filter: blur(4px);
+}
+.cc-posttile-chips .ui-badge {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+@container posttile (max-width: 280px) {
+  .cc-posttile-platform-name { display: none; }
+  .cc-posttile-platform { padding: 4px; }
+}
+
 /* The input stays in the DOM and keeps the whole 30px hit area -- it is the
    checkbox, and a div with a click handler would not be. Only its painting is
    handed to the box beside it. */
@@ -8856,6 +9154,14 @@ html:has(.lp-page) { scroll-behavior: smooth; }
   align-items: center;
   gap: 14px;
 }
+/* The row's own background outranks .cc-table-row:hover, so a clickable row
+   gave no sign of it under the pointer -- MEASURED 2026-10-02 in Dark, the
+   same rgb(26,26,25) before and after. The hover tint is layered over the
+   card rather than replacing it, because --cc-row-hover is translucent. Not
+   CreatorCore's, whose rows are parity-measured and carry no hover. */
+:root:not(.creatorcore) main .cc-campaign-row.cc-table-row:hover {
+  background: linear-gradient(var(--cc-row-hover), var(--cc-row-hover)), var(--cc-card);
+}
 .cc-campaign-id {
   text-decoration: none;
   display: flex;
@@ -8863,6 +9169,27 @@ html:has(.lp-page) { scroll-behavior: smooth; }
   gap: 12px;
   flex: 1 1 240px;
   min-width: 0;
+}
+/* Cover and initials share one frame, so every title starts at the same x. */
+.cc-campaign-thumb {
+  display: block;
+  flex-shrink: 0;
+  overflow: hidden;
+  border-radius: 8px;
+  border: 1px solid var(--cc-border);
+  background: var(--cc-hover-bg);
+}
+/* The library Avatar's own ink and ground, which the contrast spec already
+   measures in every theme. */
+.cc-campaign-thumb-initials {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ui-bg-3);
+  color: var(--ui-accent);
+  font-size: var(--cc-t-18);
+  font-weight: 600;
+  line-height: 1;
 }
 .cc-campaign-stats {
   display: flex;
@@ -8978,8 +9305,8 @@ html:has(.lp-page) { scroll-behavior: smooth; }
   }
 
   /* On the page element itself, not the shell root: the dashboard shell's own
-     tokens sit on `.cc-shell-root:has(.cc-sidebar-rail[data-shell=...])`, which
-     outranks any sibling `:has()` here, and a declaration on the element that
+     tokens sit on `.cc-shell-root[data-shell=...]`, an ancestor, and a
+     declaration on the element that
      consumes a token beats every inherited one regardless of specificity. */
   :root.creatorcore .cc-campaigns-page {
     --cc-page-pad-inline: 10px;
@@ -9060,7 +9387,7 @@ html:has(.lp-page) { scroll-behavior: smooth; }
    15px/500 label. Ours kept them beside the title, where the 40px box token
    clipped "Refresh Data" to a 40px sliver. */
 @media (max-width: 767px) {
-  :root.creatorcore .cc-shell-root:has(.cc-sidebar-rail[data-shell="campaign"]) .cc-page-titlebar > .cc-page-actions {
+  :root.creatorcore .cc-shell-root[data-shell="campaign"] .cc-page-titlebar > .cc-page-actions {
     order: 1;
     flex: 1 0 100%;
     display: grid;
@@ -9069,7 +9396,7 @@ html:has(.lp-page) { scroll-behavior: smooth; }
     gap: 15px;
   }
 
-  :root.creatorcore .cc-shell-root:has(.cc-sidebar-rail[data-shell="campaign"]) .cc-page-actions > [data-cc-slot] {
+  :root.creatorcore .cc-shell-root[data-shell="campaign"] .cc-page-actions > [data-cc-slot] {
     width: auto;
     min-width: 0;
     height: 40px;
@@ -9092,17 +9419,18 @@ html:has(.lp-page) { scroll-behavior: smooth; }
     font-size: 14px;
   }
 
-  :root.creatorcore .cc-shell-root:has(.cc-sidebar-rail[data-shell="campaign"]) .cc-page-titlebar > .cc-page-close {
+  :root.creatorcore .cc-shell-root[data-shell="campaign"] .cc-page-titlebar > .cc-page-close {
     margin-left: auto;
   }
 
   /* Their chips are 88.8x42, four to a row with 5px between, radius 10, and a
      9px label. Ours put all ten chips on one flex line with a 0 basis, so each
-     was 31px wide and every label and figure was cut. Four columns is their
-     pitch; the extra chips wrap to further rows instead of shrinking. */
+     was 31px wide and every label and figure was cut. Three columns, not their
+     four: at four a 68px chip could not hold "81,581,031" at 14px (75px,
+     MEASURED 2026-10-02 at 390), and a figure is worth more than the pitch. */
   :root.creatorcore .cc-kpi-strip:not(.cc-kpi-quiet) {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 5px;
     --cc-kpi-r: 10px;
     --cc-kpi-min-h: 42px;
@@ -9124,22 +9452,22 @@ html:has(.lp-page) { scroll-behavior: smooth; }
    plain stack: heading, content, then the section's action. The 32px
    paddings are desktop measurements too and come down to the phone gutter. */
 @media (max-width: 767px) {
-  :root.creatorcore .cc-shell-root:has(.cc-sidebar-rail[data-shell="settings"]) .cc-section-card {
+  :root.creatorcore .cc-shell-root[data-shell="settings"] .cc-section-card {
     grid-template-columns: minmax(0, 1fr);
     row-gap: 16px;
   }
 
-  :root.creatorcore .cc-shell-root:has(.cc-sidebar-rail[data-shell="settings"]) .cc-section-card-body {
+  :root.creatorcore .cc-shell-root[data-shell="settings"] .cc-section-card-body {
     grid-column: 1;
     grid-row: 2;
   }
 
-  :root.creatorcore .cc-shell-root:has(.cc-sidebar-rail[data-shell="settings"]) .cc-section-card-action {
+  :root.creatorcore .cc-shell-root[data-shell="settings"] .cc-section-card-action {
     grid-row: 3;
     padding-top: 0;
   }
 
-  :root.creatorcore .cc-shell-root:has(.cc-sidebar-rail[data-shell="settings"]) .cc-settings-groups > .cc-section-card {
+  :root.creatorcore .cc-shell-root[data-shell="settings"] .cc-settings-groups > .cc-section-card {
     padding: 20px 16px;
   }
 }

@@ -1271,10 +1271,13 @@ export default function PostsTab({
     add("Total Likes", kpis.likes === null ? null : formatNumber(kpis.likes));
     add("Total Comments", kpis.comments === null ? null : formatNumber(kpis.comments));
     add("Total Shares", kpis.shares === null ? null : formatNumber(kpis.shares));
-    add("Total Saves", kpis.saves === null ? null : formatNumber(kpis.saves));
-    add("Total Downloads", kpis.downloads === null ? null : formatNumber(kpis.downloads));
+    /* Saves and downloads behind the same gates as their columns. The sums
+       count the 0 every unfetched row holds, so these chips printed "0" on
+       campaigns whose list view hid both columns as never measured. */
+    add("Total Saves", !anySaves || kpis.saves === null ? null : formatNumber(kpis.saves));
+    add("Total Downloads", !anyDownloads || kpis.downloads === null ? null : formatNumber(kpis.downloads));
     return chips;
-  }, [kpis]);
+  }, [kpis, anySaves, anyDownloads]);
 
   const accruedMinor = useMemo(() => {
     if (!marketplace) return 0;
@@ -1414,11 +1417,6 @@ export default function PostsTab({
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {Array.from({ length: 7 }).map((_, i) => (
             <Skeleton key={i} width="112px" height="59px" borderRadius="8px" />
-          ))}
-        </div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {STATUS_TABS.map((t) => (
-            <Skeleton key={t.key} width={`${52 + t.label.length * 7}px`} height="34px" borderRadius="8px" />
           ))}
         </div>
         {/* The same nine controls at their real widths, in the same order, so
@@ -1606,15 +1604,22 @@ export default function PostsTab({
           two pills 32px tall at 293,134 and the strip follows at 180. The
           search-and-date cluster stays under the strip: carried up here it
           wrapped to a second line and pushed the strip 49px past theirs. */}
-      <div className="cc-poststab-filter" style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-        <StatusTabs
-          variant="pill"
-          ariaLabel="Filter posts by status"
-          tabs={STATUS_TABS}
-          active={statusFilter}
-          onChange={setStatusFilter}
-        />
-      </div>
+      {/* Only when the posts are actually in more than one review state. With
+          manual approval as the default, every post sits in Pending Review
+          until someone approves it, and four pills that all filter to the same
+          list are a control for nothing. Kept while a status is picked, so the
+          way back to All never disappears. */}
+      {(statusFilter !== "ALL" || new Set(posts.map((p) => p.status)).size > 1) && (
+        <div className="cc-poststab-filter" style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <StatusTabs
+            variant="pill"
+            ariaLabel="Filter posts by status"
+            tabs={STATUS_TABS}
+            active={statusFilter}
+            onChange={setStatusFilter}
+          />
+        </div>
+      )}
       {!error && posts.length > 0 && (
         /* Classes, not inline styles: every number that was here is now a
            --cc-kpi-* token, because an inline style is the one thing a theme
@@ -1630,20 +1635,21 @@ export default function PostsTab({
           {kpiChips.map((chip) => (
             <div key={chip.label} className="cc-kpi-chip">
               <span className="cc-kpi-chip-label">{chip.label}</span>
-              <span className="cc-kpi-chip-value">{chip.value}</span>
+              <span className="cc-kpi-chip-value" title={chip.value}>{chip.value}</span>
             </div>
           ))}
         </div>
       )}
       <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
-        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+        <div className="cc-posts-filters">
           <input
             type="search"
             value={creatorSearch}
             onChange={(e) => setCreatorSearch(e.target.value)}
             placeholder="Search creator..."
             aria-label="Search creator"
-            style={{ ...selectStyle, flexGrow: 1, minWidth: 140, width: "auto" }}
+            className="cc-posts-filter-search"
+            style={selectStyle}
           />
           <input
             type="number"
@@ -1652,8 +1658,8 @@ export default function PostsTab({
             onChange={(e) => setMinViews(e.target.value)}
             placeholder="Min views"
             aria-label="Minimum views filter"
-            className="posts-min-views"
-            style={{ ...selectStyle, width: 110 }}
+            className="posts-min-views cc-posts-filter-min"
+            style={selectStyle}
           />
           <input
             type="date"
@@ -1661,7 +1667,7 @@ export default function PostsTab({
             max={postedTo || undefined}
             onChange={(e) => setPostedFrom(e.target.value)}
             aria-label="Posted on or after"
-            style={{ ...selectStyle, width: 140 }}
+            style={selectStyle}
           />
           <input
             type="date"
@@ -1669,7 +1675,7 @@ export default function PostsTab({
             min={postedFrom || undefined}
             onChange={(e) => setPostedTo(e.target.value)}
             aria-label="Posted on or before"
-            style={{ ...selectStyle, width: 140 }}
+            style={selectStyle}
           />
           <Dropdown
             ariaLabel="Filter by platform"
@@ -1707,45 +1713,46 @@ export default function PostsTab({
           {/* Sorting used to live entirely in the list headers, and grid is the
               default view, so the view most people see could not be sorted at
               all. Same state as the headers: changing either moves both. */}
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-            <ArrowUpDown size={15} aria-hidden="true" style={{ color: "var(--cc-text-muted)" }} />
-            <Dropdown
-              ariaLabel="Sort posts by"
-              align="left"
-              minWidth={130}
-              value={sortKey}
-              onChange={(v) => setSortKey(v as SortKey)}
-              options={sortFields.map((f) => ({ value: f.key, label: f.label }))}
-            />
-            <Dropdown
-              ariaLabel="Sort direction"
-              align="left"
-              minWidth={110}
-              value={sortDir}
-              onChange={(v) => setSortDir(v as SortDir)}
-              /* Posted is a date and the rest are counts, so the words differ. */
-              options={
-                sortKey === "posted"
-                  ? [
-                      { value: "desc", label: "Newest" },
-                      { value: "asc", label: "Oldest" },
-                    ]
-                  : [
-                      { value: "desc", label: "Highest" },
-                      { value: "asc", label: "Lowest" },
-                    ]
-              }
-            />
+          <span className="cc-posts-filter-tools">
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+              <ArrowUpDown size={15} aria-hidden="true" style={{ color: "var(--cc-text-muted)" }} />
+              <Dropdown
+                ariaLabel="Sort posts by"
+                align="left"
+                minWidth={130}
+                value={sortKey}
+                onChange={(v) => setSortKey(v as SortKey)}
+                options={sortFields.map((f) => ({ value: f.key, label: f.label }))}
+              />
+              <Dropdown
+                ariaLabel="Sort direction"
+                align="left"
+                minWidth={110}
+                value={sortDir}
+                onChange={(v) => setSortDir(v as SortDir)}
+                /* Posted is a date and the rest are counts, so the words differ. */
+                options={
+                  sortKey === "posted"
+                    ? [
+                        { value: "desc", label: "Newest" },
+                        { value: "asc", label: "Oldest" },
+                      ]
+                    : [
+                        { value: "desc", label: "Highest" },
+                        { value: "asc", label: "Lowest" },
+                      ]
+                }
+              />
+            </span>
+            <div style={{ display: "flex", border: "1px solid var(--cc-border)", borderRadius: 8, overflow: "hidden" }}>
+              <button onClick={() => setViewMode("list")} aria-label="List view" aria-pressed={viewMode === "list"} style={{ padding: "6px 10px", background: viewMode === "list" ? "var(--cc-bg)" : "var(--cc-card)", border: "none", cursor: "pointer" }}>
+                <List size={16} color={viewMode === "list" ? "var(--cc-primary)" : "var(--cc-text-muted)"} />
+              </button>
+              <button onClick={() => setViewMode("grid")} aria-label="Grid view" aria-pressed={viewMode === "grid"} style={{ padding: "6px 10px", background: viewMode === "grid" ? "var(--cc-bg)" : "var(--cc-card)", border: "none", cursor: "pointer" }}>
+                <Grid3X3 size={16} color={viewMode === "grid" ? "var(--cc-primary)" : "var(--cc-text-muted)"} />
+              </button>
+            </div>
           </span>
-
-          <div style={{ display: "flex", border: "1px solid var(--cc-border)", borderRadius: 8, overflow: "hidden" }}>
-            <button onClick={() => setViewMode("list")} aria-label="List view" aria-pressed={viewMode === "list"} style={{ padding: "6px 10px", background: viewMode === "list" ? "var(--cc-bg)" : "var(--cc-card)", border: "none", cursor: "pointer" }}>
-              <List size={16} color={viewMode === "list" ? "var(--cc-primary)" : "var(--cc-text-muted)"} />
-            </button>
-            <button onClick={() => setViewMode("grid")} aria-label="Grid view" aria-pressed={viewMode === "grid"} style={{ padding: "6px 10px", background: viewMode === "grid" ? "var(--cc-bg)" : "var(--cc-card)", border: "none", cursor: "pointer" }}>
-              <Grid3X3 size={16} color={viewMode === "grid" ? "var(--cc-primary)" : "var(--cc-text-muted)"} />
-            </button>
-          </div>
 
         </div>
       </div>

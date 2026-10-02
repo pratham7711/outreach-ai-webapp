@@ -142,6 +142,17 @@ function FolderSelect({
   );
 }
 
+/** "IG Football (Sep)" → "IF". The library's Avatar took the first and last
+ *  words, so a bracketed month came out as "I(". */
+function campaignInitials(title: string): string {
+  const wordsOf = (s: string) => s.replace(/['’]/g, "").match(/[\p{L}\p{M}\p{N}]+/gu) ?? [];
+  const unbracketed = wordsOf(title.replace(/\([^)]*\)|\[[^\]]*\]/g, " "));
+  const [first, second] = unbracketed.length > 0 ? unbracketed : wordsOf(title);
+  if (!first) return "?";
+  if (!second) return first.slice(0, 2).toUpperCase();
+  return (first.charAt(0) + second.charAt(0)).toUpperCase();
+}
+
 function CampaignThumb({ title, src, size = 44 }: { title: string; src?: string | null; size?: number }) {
   // Initials were only used when there was no URL at all. An image that had a
   // URL but failed to load -- a dead CDN link, an undecodable HEIC, a host the
@@ -149,20 +160,18 @@ function CampaignThumb({ title, src, size = 44 }: { title: string; src?: string 
   // which reads as a broken page rather than a campaign without a picture.
   const [broken, setBroken] = useState(false);
   const url = imgSrc(src, size * 2); // doubled for retina
-  if (!url || broken) return <Avatar name={title} size="md" />;
+  // The fallback takes the cover's frame. It used to be the library's 40px
+  // round Avatar beside 56px square covers, so titles in one list started at
+  // two different x positions.
+  if (!url || broken) {
+    return (
+      <span className="cc-campaign-thumb cc-campaign-thumb-initials" style={{ width: size, height: size }} aria-hidden>
+        {campaignInitials(title)}
+      </span>
+    );
+  }
   return (
-    <span
-      style={{
-        width: size,
-        height: size,
-        borderRadius: 8,
-        flexShrink: 0,
-        overflow: "hidden",
-        display: "block",
-        border: "1px solid var(--cc-border)",
-        background: "var(--cc-hover-bg)",
-      }}
-    >
+    <span className="cc-campaign-thumb" style={{ width: size, height: size }}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={url}
@@ -172,6 +181,12 @@ function CampaignThumb({ title, src, size = 44 }: { title: string; src?: string 
         width={size}
         height={size}
         onError={() => setBroken(true)}
+        /* A fetch that fails before hydration fires its error event before
+           React has attached onError, and the glyph stayed for good. The ref
+           runs on attach, so it sees a failure that already happened. */
+        ref={(img) => {
+          if (img?.complete && img.naturalWidth === 0) setBroken(true);
+        }}
         style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
       />
     </span>
@@ -260,7 +275,13 @@ function StatusSelect({
         value={value}
         disabled={saving}
         onChange={change}
-        variant="primary"
+        /* Outlined until a status is chosen, so colour means "has a status".
+           Primary on an empty row was a solid slab in every theme -- under Dark,
+           white blocks down the list beside #1A1A19 selects. */
+        variant={value ? "primary" : "outlined"}
+        /* "Set status" is the action, not a hint: in the muted ink it measured
+           2.58:1 on white under CreatorCore. */
+        triggerStyle={value ? undefined : { color: "var(--cc-text)" }}
         minWidth={150}
         placeholder="Set status"
         options={options}
@@ -532,12 +553,16 @@ export default function CampaignsClient({
   const folderLabel = folderId === UNFILED ? "Unfiled" : selectedFolder?.name;
 
   const FILTERS: FilterDef[] = [
-    {
-      type: "multiSelect",
-      key: "clientIds",
-      label: "Client",
-      options: clients.map((c) => ({ value: c.id, label: c.name })),
-    },
+    // Clients are added on the Clients page, which is parked, so for most orgs
+    // this list is empty and the filter could only ever open onto nothing.
+    ...(clients.length
+      ? [{
+          type: "multiSelect" as const,
+          key: "clientIds",
+          label: "Client",
+          options: clients.map((c) => ({ value: c.id, label: c.name })),
+        }]
+      : []),
     { type: "multiSelect", key: "campaignType", label: "Campaign type", options: CAMPAIGN_TYPE_OPTIONS },
     // Both are omitted entirely when nothing has been tagged or assigned. The
     // options come from the join tables, so an always-empty dropdown is not a

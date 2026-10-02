@@ -72,6 +72,11 @@ export function TrackAllButton() {
   const track = useBulkTrack();
   const confirm = useConfirm();
   if (!status || status.roster === 0) return null;
+  /* Not offered while the gate is shut. Disabled, it sat on the roster header
+     as a control that never did anything, explained only by a hover title --
+     which a touch screen never shows. Track selected still covers up to the
+     ungated maximum in the meantime. */
+  if (!status.trackAllOpen) return null;
 
   const reason = blocked(status, status.untracked, "all");
   const willAdd = status.roomLeft === null ? status.untracked : Math.min(status.untracked, status.roomLeft);

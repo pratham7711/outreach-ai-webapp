@@ -4,11 +4,12 @@ import { memo, type ReactNode } from "react";
 import { Badge } from "@pratham7711/ui";
 import { Eye, Heart, MessageCircle, TrendingUp, Share2, Bookmark, Check } from "lucide-react";
 import { formatDateAbs, formatFull } from "@/lib/format";
-import { fieldMetricValue, engagementRateValue } from "@/lib/metricDisplay";
+import { fieldMetricValue, engagementRateValue, unwrittenMetricValue } from "@/lib/metricDisplay";
 import { postAgeContext, postMeasuredAt, postStatus } from "@/lib/posts/postStatus";
 import PostStatusChip from "@/components/posts/PostStatusChip";
 import { AgeLabel } from "@/components/ds/AgeLabel";
 import PostCover from "@/components/posts/PostCover";
+import { PlatformGlyph } from "@/components/ui/PlatformGlyph";
 import { STATUS_BADGE, engRatePct, trackingLabel } from "@/lib/posts/postDisplay";
 import type { ComplianceFlag } from "@/lib/compliance/postCompliance";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
@@ -88,7 +89,9 @@ function PostGridCardImpl({
   const cardLikes = fieldMetricValue(post.likesCount, post.lastSyncedAt, post.platformMetrics, "likes");
   const cardComments = fieldMetricValue(post.commentsCount, post.lastSyncedAt, post.platformMetrics, "comments");
   const cardShares = fieldMetricValue(post.sharesCount, post.lastSyncedAt, post.platformMetrics, "shares");
-  const cardSaves = fieldMetricValue(post.savesCount, post.lastSyncedAt, post.platformMetrics, "saves");
+  /* The list view's gate, so the two views agree: no reader stores saves for
+     posts we do not own, and the 0 an unfetched row holds printed "0 saves". */
+  const cardSaves = unwrittenMetricValue(post.savesCount);
   const cardEngRate =
     cardLikes === null && cardComments === null
       ? null
@@ -146,10 +149,14 @@ function PostGridCardImpl({
           to be, because only the element reports a failed fetch --
           see PostCover for what that was costing. */}
       <PostCover thumbnailUrl={post.thumbnailUrl} width={320} height={568} alt={post.caption} />
-      <span style={{ position: "absolute", top: 10, left: 42, padding: "3px 9px", borderRadius: 999, background: "color-mix(in srgb, var(--cc-media-ink) 55%, transparent)", color: "var(--cc-overlay-ink-text)", fontSize: "var(--cc-t-10)", fontWeight: 700, letterSpacing: 0.4, backdropFilter: "blur(4px)" }}>
-        {post.platform}
-      </span>
-      <span style={{ position: "absolute", top: 10, right: 10 }}>
+      {/* One row, not two absolute corners: at five columns (232px tiles at
+          1440) the two corners overlapped by up to 17px. See
+          .cc-posttile-chips for how the row gives way when it is short. */}
+      <span className="cc-posttile-chips">
+        <span className="cc-posttile-platform" title={post.platform}>
+          <PlatformGlyph platform={post.platform} size="1.2em" />
+          <span className="cc-posttile-platform-name" aria-hidden="true">{post.platform}</span>
+        </span>
         <Badge variant={STATUS_BADGE[post.status] ?? "neutral"} style={{ fontSize: "var(--cc-t-9)"}}>
           {post.status.replace(/_/g, " ")}
         </Badge>

@@ -58,7 +58,7 @@ const COLUMNS: Col[] = [
   { key: "posts", label: "Posts", width: "80px" },
   { key: "views", label: "Views", width: "100px" },
   { key: "avgViews", label: "Avg. Views", width: "110px", optional: true },
-  { key: "rate", label: "Rate", width: "100px" },
+  { key: "rate", label: "Rate", width: "100px", optional: true },
   { key: "due", label: "Due", width: "110px", optional: true },
   { key: "status", label: "Status", width: "130px" },
 ];

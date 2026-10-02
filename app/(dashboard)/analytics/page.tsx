@@ -112,6 +112,10 @@ export default function AnalyticsPage() {
   const [error, setError] = useState(false);
   const [range, setRange] = useState("30d");
   const [platform, setPlatform] = useState("ALL");
+  // Platforms the account has posts on, from the last unfiltered load. The
+  // breakdown narrows to the chosen platform once one is picked, so it cannot
+  // be read live -- the other pills would vanish the moment one was clicked.
+  const [postedOn, setPostedOn] = useState<string[] | null>(null);
   // The posting hours have to be bucketed in someone's clock, and only the
   // browser knows which. Resolved once, so the buckets never straddle two zones.
   const [timeZone] = useState(resolveTimeZone);
@@ -128,8 +132,10 @@ export default function AnalyticsPage() {
     fetch(`/api/analytics${qs ? `?${qs}` : ""}`)
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then((d) => {
-        if (d && d.kpis) setData(d);
-        else setError(true);
+        if (d && d.kpis) {
+          setData(d);
+          if (platform === "ALL") setPostedOn(d.platformBreakdown.map((p: { platform: string }) => p.platform));
+        } else setError(true);
       })
       .catch(() => setError(true))
       .finally(() => setLoading(false));
@@ -140,6 +146,19 @@ export default function AnalyticsPage() {
   }, [load]);
 
   const k = data?.kpis;
+  /* The overview tiles share one figure size, set by the longest of them. */
+  const tileFit = k
+    ? Math.max(
+        ...[k.totalViews, k.totalLikes, k.totalComments].map((n) => formatNumber(n).length),
+        k.engagementSample > 0 ? `${k.avgEngagementRate.toFixed(1)}%`.length : 0,
+      )
+    : 0;
+  // "All" plus the platforms there is something to show for. X, LinkedIn,
+  // Snapchat and Pinterest have no reader, so their pills could only filter to
+  // an empty page.
+  const platformPills = PLATFORM_FILTERS.filter(
+    (o) => o.key === "ALL" || o.key === platform || (postedOn ?? []).includes(o.key),
+  );
 
   return (
     <div className="rsp-page page-enter">
@@ -150,7 +169,9 @@ export default function AnalyticsPage() {
 
       <div className="mb-6 flex flex-wrap items-start gap-5">
         <PillGroup legend="Date range" options={RANGE_PRESETS} active={range} onChange={setRange} />
-        <PillGroup legend="Platform" options={PLATFORM_FILTERS} active={platform} onChange={setPlatform} />
+        {platformPills.length > 2 && (
+          <PillGroup legend="Platform" options={platformPills} active={platform} onChange={setPlatform} />
+        )}
       </div>
 
       {loading ? (
@@ -199,17 +220,19 @@ export default function AnalyticsPage() {
                   description="Track a post on a campaign, or widen the date range, and the totals appear here."
                 />
               ) : (
-              <div className="grid grid-cols-2 gap-5 lg:grid-cols-3">
+              <div className="cc-tiles-balanced">
                 <MetricTile
+                  fitTo={tileFit}
                   metric="totalViews"
                   value={formatNumber(k.totalViews)}
                   footer={`${formatNumber(k.totalPosts)} posts`}
                 />
-                <MetricTile metric="totalLikes" value={formatNumber(k.totalLikes)} />
-                <MetricTile metric="totalComments" value={formatNumber(k.totalComments)} />
+                <MetricTile fitTo={tileFit} metric="totalLikes" value={formatNumber(k.totalLikes)} />
+                <MetricTile fitTo={tileFit} metric="totalComments" value={formatNumber(k.totalComments)} />
                 {/* Absent entirely when no post in range carries a rate. */}
                 {k.engagementSample > 0 && (
                   <MetricTile
+                    fitTo={tileFit}
                     metric="avgEngagementRate"
                     value={`${k.avgEngagementRate.toFixed(1)}%`}
                     footer={

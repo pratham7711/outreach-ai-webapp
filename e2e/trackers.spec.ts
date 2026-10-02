@@ -48,7 +48,7 @@ test.describe('Post Tracking', () => {
     }
   });
 
-  test('tracking card: Bot Signals empty state renders with no snapshot', async ({ page }) => {
+  test('tracking card: Bot Signals waits for enough snapshots to have run', async ({ page }) => {
     const href = await navigateToFirstPostDetail(page);
 
     await page.goto(href);
@@ -65,11 +65,21 @@ test.describe('Post Tracking', () => {
       }
     }
 
-    const botSignalsSection = page.getByText('Bot Signals').first();
-    await expect(botSignalsSection).toBeVisible({ timeout: 15000 });
+    // The heuristics need 3 readings (MIN_SNAPSHOTS in lib/fraud/botSignals.ts);
+    // below that the section must not claim "No bot signals detected".
+    const [, campaignId, postId] = href.match(/\/campaigns\/([^/]+)\/posts\/([^/?#]+)/) ?? [];
+    const res = await page.request.get(`/api/campaigns/${campaignId}/posts/${postId}/timeseries`);
+    expect(res.ok()).toBe(true);
+    const snapshots = ((await res.json()).snapshots ?? []).length;
 
-    const noSignals = page.getByText(/no bot signals detected/i).first();
-    await expect(noSignals).toBeVisible({ timeout: 10000 });
+    const botSignalsSection = page.getByText('Bot Signals').first();
+    if (snapshots >= 3) {
+      await expect(botSignalsSection).toBeVisible({ timeout: 15000 });
+    } else {
+      await expect(page.getByText(/Tracking (on|off)/i).first()).toBeVisible({ timeout: 15000 });
+      await expect(botSignalsSection).toHaveCount(0);
+      await expect(page.getByText(/no bot signals detected/i)).toHaveCount(0);
+    }
   });
 
   test('Untrack button works: disables tracking after clicking', async ({ page }) => {

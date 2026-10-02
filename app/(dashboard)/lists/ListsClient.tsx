@@ -106,7 +106,10 @@ export default function ListsClient({ lists, review = false }: { lists: List[]; 
         <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search Lists" iconLeft={<Search size={16} />} />
       </div>
 
-      {review && (
+      {/* Only when the lists span more than one status: with every list a
+          Draft, "Draft" was "All" under another name. A filter already chosen
+          keeps the strip, so it can be cleared. */}
+      {review && (status !== "ALL" || new Set(lists.map((l) => l.status)).size > 1) && (
         <div style={{ marginBottom: 24 }}>
           <StatusTabs
             variant="pill"

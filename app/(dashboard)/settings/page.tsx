@@ -39,7 +39,7 @@ const cards = [
   },
   {
     title: "Notifications",
-    description: "Which events email you. Personal — every teammate chooses their own.",
+    description: "Which events reach your notification bell. Personal — every teammate chooses their own.",
     href: "/settings/notifications",
     icon: Bell,
   },

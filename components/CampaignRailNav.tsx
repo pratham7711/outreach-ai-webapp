@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
-import { CAMPAIGN_SECTIONS, readCampaignSection } from "@/lib/campaignSections";
+import { CAMPAIGN_SECTIONS, readCampaignSection, type CampaignSection } from "@/lib/campaignSections";
 import { useCampaignNav } from "@/components/providers/CampaignNavProvider";
 
 /**
@@ -21,7 +21,12 @@ import { useCampaignNav } from "@/components/providers/CampaignNavProvider";
  */
 export default function CampaignRailNav({ campaignId }: { campaignId: string }) {
   const searchParams = useSearchParams();
-  const active = readCampaignSection(searchParams);
+  const pathname = usePathname();
+  /* A post's own page sits under Posts. It carries no ?section, so it used to
+     resolve to the default and mark Overview as where you are. */
+  const active: CampaignSection = /^\/campaigns\/[^/]+\/posts\//.test(pathname ?? "")
+    ? "posts"
+    : readCampaignSection(searchParams);
   const { title, counts } = useCampaignNav();
 
   return (
@@ -41,7 +46,7 @@ export default function CampaignRailNav({ campaignId }: { campaignId: string }) 
         {title ?? "Campaign"}
       </div>
 
-      {CAMPAIGN_SECTIONS.map((section) => {
+      {CAMPAIGN_SECTIONS.filter((s) => s.value !== "drafts" || counts.draftsEver || active === "drafts").map((section) => {
         const activeSection = active === section.value;
         const count = "count" in section ? counts[section.count] : undefined;
         const link = (

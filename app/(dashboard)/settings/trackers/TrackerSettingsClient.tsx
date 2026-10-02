@@ -147,50 +147,9 @@ export function TrackerSettingsClient() {
         ) : null}
       </Section>
 
-      {/* Disabled rather than removed. The value is real and stored — it is
-          simply not connected to anything: nothing in the product deletes a
-          SoundTrackerSnapshot by age, so every reading is kept for as long as
-          the org exists. Offering a working-looking number box for a limit that
-          is never applied is the worse of the two, and silently treating
-          "365" as "forever" is worse still, so the copy says which it is.
-          Removing the field would throw away the value an org already chose,
-          which the pruning job will want when it lands. */}
-      <Section
-        title="History kept"
-        blurb="How far back readings are retained for charting."
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <input
-            type="number"
-            min={7}
-            max={1095}
-            value={settings.retentionDays}
-            disabled
-            readOnly
-            aria-label="Days of history to keep"
-            aria-describedby="retention-note"
-            style={{
-              width: 100, padding: "8px 10px", borderRadius: 8,
-              border: "1px solid var(--cc-border)", background: "var(--cc-bg)",
-              color: "var(--cc-text-muted)", fontSize: "var(--cc-t-14)",
-            }}
-          />
-          <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
-            days (7–1095), stored but not yet applied.
-          </span>
-        </div>
-        <p
-          id="retention-note"
-          style={{
-            marginTop: 10, fontSize: "var(--cc-t-12)", color: "var(--cc-text)",
-            borderLeft: "3px solid var(--cc-warning)", paddingLeft: 10,
-          }}
-        >
-          Nothing prunes readings yet — every snapshot is kept indefinitely,
-          whatever this number says. The setting is held for the pruning job and
-          is read-only until then.
-        </p>
-      </Section>
+      {/* "History kept" is not offered: nothing prunes readings, so the box
+          could only ever be read-only. The stored retentionDays is untouched
+          and still round-trips through save, for the pruning job to read. */}
     </div>
   );
 }
@@ -232,7 +191,7 @@ function RadioRow({
             checked={value === o.value}
             disabled={disabled}
             onChange={() => onChange(o.value)}
-            style={{ marginTop: 2 }}
+            style={{ marginTop: 2, accentColor: "var(--cc-primary)" }}
           />
           <span>
             <span style={{ display: "block", fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{o.label}</span>

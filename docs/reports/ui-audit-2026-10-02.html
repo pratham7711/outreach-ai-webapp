@@ -1,0 +1,531 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>UI audit and cleanup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@400;600&family=Atkinson+Hyperlegible+Next:ital,wght@0,400;0,600;0,700;1,400&family=Schibsted+Grotesk:wght@600;700;800&display=swap">
+<style>
+/* Layout: a QA run sheet, the same shape as the overnight report: a results
+   band, then numbered sections with a sticky contents rail on wide screens. */
+:root {
+  --paper: #f3f4f7;
+  --surface: #ffffff;
+  --ink: #14172a;
+  --ink-2: #4c526a;
+  --rule: #d8dbe5;
+  --accent: #2337c6;
+  --accent-soft: #e5e8fb;
+  --code-bg: #eceef4;
+  --ok: #136a39;      --ok-soft: #dcf0e3;
+  --part: #774700;    --part-soft: #faedd2;
+  --you: #0b5f6b;     --you-soft: #d6eef1;
+  --no: #50566c;      --no-soft: #e7e9ef;
+  --bad: #b0261e;     --bad-soft: #fae3e1;
+  --chart-line: #2337c6;
+  --chart-low: #b0261e;
+
+  --display: "Schibsted Grotesk", "Helvetica Neue", Arial, sans-serif;
+  --body: "Atkinson Hyperlegible Next", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mono: "Atkinson Hyperlegible Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --t-xs: 0.8125rem;  /* 13 */
+  --t-sm: 0.875rem;   /* 14 */
+  --t-md: 1rem;       /* 16 */
+  --t-lg: 1.3125rem;  /* 21 */
+  --t-xl: 1.75rem;    /* 28 */
+  --t-2xl: 2.625rem;  /* 42 */
+  --radius: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0e1016; --surface: #161922; --ink: #e8eaf2; --ink-2: #a3a9be; --rule: #2a2f3d;
+    --accent: #95a3ff; --accent-soft: #1e2447; --code-bg: #1e2230;
+    --ok: #7fd3a0; --ok-soft: #13301e; --part: #f2c26b; --part-soft: #3a2b0f;
+    --you: #74d3de; --you-soft: #0d2f35; --no: #b4b9cb; --no-soft: #252a37;
+    --bad: #f4a29b; --bad-soft: #3b1a18; --chart-line: #95a3ff; --chart-low: #f4a29b;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #0e1016; --surface: #161922; --ink: #e8eaf2; --ink-2: #a3a9be; --rule: #2a2f3d;
+  --accent: #95a3ff; --accent-soft: #1e2447; --code-bg: #1e2230;
+  --ok: #7fd3a0; --ok-soft: #13301e; --part: #f2c26b; --part-soft: #3a2b0f;
+  --you: #74d3de; --you-soft: #0d2f35; --no: #b4b9cb; --no-soft: #252a37;
+  --bad: #f4a29b; --bad-soft: #3b1a18; --chart-line: #95a3ff; --chart-low: #f4a29b;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { scroll-padding-top: 16px; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 400 var(--t-md)/1.6 var(--body);
+  -webkit-font-smoothing: antialiased;
+}
+a { color: var(--accent); text-underline-offset: 2px; }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+b, strong { font-weight: 700; }
+
+.shell {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding-inline: 16px;
+  padding-block: 40px 96px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 40px;
+}
+@media (min-width: 1180px) {
+  .shell { grid-template-columns: 200px minmax(0, 1fr); padding-inline: 32px; }
+}
+main { min-width: 0; }
+
+/* Contents rail */
+.rail { display: none; }
+@media (min-width: 1180px) {
+  .rail { display: block; }
+  .rail nav { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 24px); display: grid; gap: 2px; }
+}
+.rail .rail-title, .eyebrow, th {
+  font: 600 0.6875rem/1.3 var(--body);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+.rail .rail-title { margin-bottom: 10px; }
+.rail a {
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  gap: 6px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  color: var(--ink-2);
+  text-decoration: none;
+  font-size: var(--t-sm);
+  line-height: 1.35;
+}
+.rail a span:first-child { font-family: var(--mono); font-size: var(--t-xs); }
+.rail a:hover { color: var(--ink); background: var(--surface); }
+.rail a[aria-current="true"] { color: var(--accent); background: var(--accent-soft); font-weight: 600; }
+
+/* Header */
+header.top { display: grid; gap: 14px; margin-bottom: 28px; }
+h1 {
+  font: 800 var(--t-2xl)/1.05 var(--display);
+  letter-spacing: -0.02em;
+  margin: 0;
+  text-wrap: balance;
+}
+.lede { font-size: var(--t-lg); line-height: 1.45; margin: 0; max-width: 46ch; text-wrap: pretty; }
+.meta { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; color: var(--ink-2); font-size: var(--t-sm); }
+.meta .legend { display: inline-flex; gap: 12px; }
+
+/* Results band: one object, divided by rules */
+.band {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+@media (min-width: 1100px) { .band { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.band > div { padding: 16px 18px 18px; border-right: 1px solid var(--rule); border-bottom: 1px solid var(--rule); margin-right: -1px; margin-bottom: -1px; display: grid; gap: 4px; align-content: start; }
+.band .fig { font: 700 var(--t-xl)/1.1 var(--display); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+.band .fig.ok { color: var(--ok); }
+.band .what { font-weight: 600; font-size: var(--t-sm); }
+.band .how { font-size: var(--t-xs); color: var(--ink-2); line-height: 1.45; }
+
+.panels { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); align-items: start; margin-bottom: 8px; }
+@media (min-width: 900px) { .panels { grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); } }
+.panel { border-radius: var(--radius); padding: 18px 20px; display: grid; gap: 10px; align-content: start; min-width: 0; }
+.panel h2 { font: 700 var(--t-md)/1.3 var(--display); margin: 0; border: 0; padding: 0; display: block; }
+.panel p, .panel ul { margin: 0; }
+.panel.safe { background: var(--ok-soft); color: var(--ink); }
+.panel.safe h2 { color: var(--ok); }
+.panel.run { background: var(--surface); border: 1px solid var(--rule); }
+.panel.second { grid-column: 1 / -1; background: var(--accent-soft); color: var(--ink); }
+.panel.second h2 { color: var(--accent); }
+.panel.second a { color: var(--accent); }
+table.second td:first-child { white-space: nowrap; font-weight: 600; }
+table.second td:nth-child(2) { min-width: 200px; }
+table.second td:nth-child(3) { min-width: 280px; }
+.panel pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+.panel ul { padding-left: 18px; display: grid; gap: 6px; font-size: var(--t-sm); }
+
+/* Sections */
+section { padding-top: 48px; }
+h2 {
+  font: 700 var(--t-xl)/1.15 var(--display);
+  letter-spacing: -0.01em;
+  margin: 0 0 16px;
+  display: flex;
+  gap: 14px;
+  align-items: baseline;
+  text-wrap: balance;
+  padding-top: 20px;
+  border-top: 2px solid var(--ink);
+}
+h2 .n { font: 600 var(--t-md)/1 var(--mono); color: var(--ink-2); }
+h3 { font: 700 var(--t-lg)/1.25 var(--display); margin: 32px 0 10px; text-wrap: balance; }
+h4 { font: 700 var(--t-md)/1.3 var(--body); margin: 22px 0 6px; }
+p, li { max-width: 72ch; }
+p { margin: 0 0 12px; }
+ul, ol { margin: 0 0 14px; padding-left: 22px; }
+li { margin: 4px 0; }
+li > ul { margin: 6px 0 0; }
+.muted { color: var(--ink-2); }
+.note { font-size: var(--t-sm); color: var(--ink-2); }
+
+code, pre, .mono { font-family: var(--mono); }
+code { font-size: 0.86em; background: var(--code-bg); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
+pre { font-size: var(--t-xs); line-height: 1.6; background: var(--code-bg); padding: 12px 14px; border-radius: 8px; overflow-x: auto; margin: 0; }
+pre code { background: none; padding: 0; font-size: inherit; overflow-wrap: normal; }
+td code { overflow-wrap: normal; }
+
+/* Tables */
+.table-wrap { overflow-x: auto; margin: 12px 0 20px; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--surface); }
+table { width: 100%; border-collapse: collapse; font-size: var(--t-sm); line-height: 1.5; }
+th { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--rule); background: var(--paper); white-space: nowrap; }
+td { text-align: left; vertical-align: top; padding: 10px 12px; border-bottom: 1px solid var(--rule); }
+tbody tr:last-child td { border-bottom: 0; }
+tbody tr:hover td { background: var(--paper); }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+td.ref { font-family: var(--mono); font-size: var(--t-xs); white-space: nowrap; color: var(--ink-2); }
+td.item { min-width: 220px; }
+td.ev { min-width: 260px; }
+td.mono { font-size: var(--t-xs); white-space: nowrap; }
+
+/* Status chips */
+.chip { display: inline-flex; align-items: center; gap: 6px; font: 600 var(--t-xs)/1.2 var(--body); padding: 3px 9px 3px 7px; border-radius: 999px; white-space: nowrap; }
+.chip::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.chip.ok { color: var(--ok); background: var(--ok-soft); }
+.chip.part { color: var(--part); background: var(--part-soft); }
+.chip.you { color: var(--you); background: var(--you-soft); }
+.chip.no { color: var(--no); background: var(--no-soft); }
+.chip.bad { color: var(--bad); background: var(--bad-soft); }
+
+/* Glance filter */
+.filters { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0; }
+.filters button {
+  font: 600 var(--t-sm)/1 var(--body);
+  color: var(--ink-2);
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  padding: 8px 14px;
+  cursor: pointer;
+  display: inline-flex; gap: 8px; align-items: center;
+}
+.filters button .c { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.filters button:hover { border-color: var(--ink-2); color: var(--ink); }
+.filters button[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+.filter-note { font-size: var(--t-xs); color: var(--ink-2); margin: 0; min-height: 1.2em; }
+
+/* Chart */
+figure.chart { margin: 12px 0 20px; background: var(--surface); border: 1px solid var(--rule); border-radius: var(--radius); padding: 16px 16px 10px; }
+figure.chart svg { display: block; width: 100%; height: auto; max-width: 100%; }
+figure.chart figcaption { font-size: var(--t-xs); color: var(--ink-2); padding: 6px 2px 0; }
+.chart-title { font: 700 var(--t-sm)/1.3 var(--body); margin: 0 0 8px; }
+.chart text { font-family: var(--mono); font-size: 11px; fill: var(--ink-2); }
+.chart .grid { stroke: var(--rule); stroke-width: 1; fill: none; }
+.chart .bar { stroke: var(--ok); stroke-width: 1.5; stroke-dasharray: 5 4; fill: none; }
+.chart text.bar-label { fill: var(--ok); font-weight: 600; }
+.chart .line { stroke: var(--chart-line); stroke-width: 2; fill: none; }
+.chart .dot { fill: var(--chart-line); }
+.chart .dot.low { fill: var(--chart-low); }
+.chart text.low-label { fill: var(--chart-low); font-weight: 600; paint-order: stroke; stroke: var(--surface); stroke-width: 5px; stroke-linejoin: round; }
+
+/* Steps (drill) */
+ol.how { counter-reset: s; list-style: none; padding: 0; display: grid; gap: 10px; }
+ol.how li { counter-increment: s; display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 10px; margin: 0; max-width: 78ch; }
+ol.how li::before { content: counter(s); font: 700 var(--t-sm)/28px var(--mono); width: 28px; height: 28px; text-align: center; border-radius: 50%; background: var(--accent-soft); color: var(--accent); }
+.steps td:first-child { font-family: var(--mono); font-size: var(--t-xs); white-space: nowrap; color: var(--ink-2); }
+.steps td:nth-child(2) { font-weight: 600; min-width: 200px; }
+.steps td:last-child { font-family: var(--mono); font-size: var(--t-xs); min-width: 260px; }
+.kv { display: inline-block; margin-right: 12px; }
+.kv i { font-style: normal; color: var(--ink-2); }
+
+/* Matrix summary */
+.mtitle { font-weight: 700; margin: 22px 0 6px; }
+.mstats { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 4px; }
+.mstat { display: inline-flex; align-items: baseline; gap: 6px; font-size: var(--t-sm); background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 6px 10px; }
+.mstat b { font: 700 var(--t-md)/1 var(--mono); font-variant-numeric: tabular-nums; }
+.mstat.zero b { color: var(--ok); }
+.mstat.hit b { color: var(--bad); }
+
+/* Galleries */
+.gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; margin: 14px 0 8px; }
+.gallery.wide { grid-template-columns: repeat(auto-fill, minmax(min(340px, 100%), 1fr)); }
+.gallery.phones { grid-template-columns: repeat(auto-fill, minmax(150px, 200px)); }
+.gallery figure { margin: 0; background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; display: grid; grid-template-rows: auto 1fr; }
+.gallery img { display: block; width: 100%; height: auto; max-width: 100%; border-bottom: 1px solid var(--rule); }
+.gallery figcaption { font-size: var(--t-xs); color: var(--ink-2); padding: 8px 10px; line-height: 1.45; }
+.gallery figcaption .p { font-family: var(--mono); color: var(--ink); }
+.missing { color: var(--bad); font-size: var(--t-sm); padding: 8px; }
+
+/* Risk cards */
+.risks { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; margin-top: 14px; }
+@media (min-width: 860px) { .risks { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.risk { background: var(--surface); border: 1px solid var(--rule); border-radius: var(--radius); padding: 16px 18px; min-width: 0; }
+.risk h3 { font-size: var(--t-md); margin: 0 0 8px; }
+.risk ul { margin: 0; font-size: var(--t-sm); padding-left: 18px; }
+
+/* Decisions */
+ol.decide { list-style: none; padding: 0; counter-reset: d; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--surface); }
+ol.decide li { counter-increment: d; display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 12px; padding: 14px 16px; margin: 0; border-bottom: 1px solid var(--rule); max-width: none; }
+ol.decide li:last-child { border-bottom: 0; }
+ol.decide li::before { content: counter(d, decimal-leading-zero); font: 600 var(--t-sm)/1.6 var(--mono); color: var(--ink-2); }
+ol.decide li > div { max-width: 78ch; }
+
+ul.gaps { list-style: none; padding: 0; display: grid; gap: 10px; }
+ul.gaps li { padding-left: 18px; position: relative; max-width: 80ch; margin: 0; }
+ul.gaps li::before { content: ""; position: absolute; left: 0; top: 0.62em; width: 7px; height: 7px; border-radius: 50%; background: var(--no); }
+
+footer { margin-top: 56px; padding-top: 16px; border-top: 1px solid var(--rule); font-size: var(--t-xs); color: var(--ink-2); }
+
+@media (max-width: 600px) {
+  h1 { font-size: 2rem; }
+  h2 { font-size: 1.4rem; }
+  .lede { font-size: 1.125rem; }
+  .shell { padding-block: 24px 64px; }
+}
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+</style>
+</head>
+<body>
+<div class="shell">
+
+<aside class="rail" aria-label="Contents">
+<nav>
+<div class="rail-title">Contents</div>
+<a href="#speed"><span>01</span><span>Why CreatorCore felt slow</span></a>
+<a href="#removed"><span>02</span><span>Removed: no data behind it</span></a>
+<a href="#fixed"><span>03</span><span>Fixed: layout and visual</span></a>
+<a href="#needs"><span>04</span><span>Needs fixing, left in place</span></a>
+<a href="#you"><span>05</span><span>For you to decide</span></a>
+<a href="#trackers"><span>06</span><span>Trackers and zero readings</span></a>
+<a href="#checked"><span>07</span><span>How this was checked</span></a>
+</nav>
+</aside>
+
+<main>
+<header class="top">
+<div class="eyebrow">UI audit · 2 October 2026 · branch <code>integrate/demo-ready</code></div>
+<h1>UI audit and cleanup</h1>
+<p class="lede">A visual audit of Light, Dark and CreatorCore at 1440, 1000 and 390 pixels. Parts with no data behind them are removed, the layout problems it found are fixed, and the parts that work only partly are listed here rather than removed.</p>
+<div class="meta">
+<span>Builds on <code>800c4a8</code>, the commit on production when this was written</span>
+<span class="legend" aria-label="Evidence marks"><span>● measured</span><span>○ read</span><span>△ estimate</span></span>
+</div>
+</header>
+
+<div class="band" aria-label="Headline results">
+<div><span class="fig ok">667 → 62 ms</span><span class="what">CreatorCore restyle on /campaigns ●</span><span class="how">Style recalculation for 200 DOM changes. Light measures 57 ms on the same page.</span></div>
+<div><span class="fig">24</span><span class="what">Things removed or hidden</span><span class="how">Each one showed a zero, a blank or a control that did nothing.</span></div>
+<div><span class="fig">33</span><span class="what">Layout and visual fixes</span><span class="how">Grouped by screen. Checked on a production build in all three themes.</span></div>
+<div><span class="fig">37</span><span class="what">Left in place, listed</span><span class="how">Partly working. Audited, not removed, as you asked.</span></div>
+</div>
+
+<section id="speed">
+<h2><span class="n">01</span>Why CreatorCore felt slow</h2>
+<p>Two CreatorCore rules had the shape <code>:root.creatorcore .cc-shell-root:has(.cc-sidebar-rail[data-shell="dashboard"]) .cc-tab-count</code>: a <code>:has()</code> on the whole shell with a descendant after it. Taking out just those two rules brought /campaigns from 667 ms to 73 ms. ● The likely mechanism is that Chrome re-checks that pattern across the whole shell whenever anything inside it changes, and the app changes the DOM constantly: typing, hover cards, toasts, live counts. ○ Every such rule starts with <code>:root.creatorcore</code>, so Light and Dark never match them. They measured 44–50 ms on the same pages before the fix. ●</p>
+<p>The fix puts the shell kind on the root element as an attribute, <code>data-shell</code>, set by <code>components/layout/ShellRoot.tsx</code>, and the rules select on that. A computed-style comparison of the old rules against the new ones, on 40 pages, found 0 differences. ●</p>
+<div class="table-wrap">
+<table>
+<thead><tr><th>Page, 1440 wide</th><th class="num">CreatorCore before</th><th class="num">CreatorCore after</th><th class="num">Light after</th><th class="num">Dark after</th></tr></thead>
+<tbody>
+<tr><td>/campaigns</td><td class="num">667 ms</td><td class="num"><b>62 ms</b></td><td class="num">57 ms</td><td class="num">51 ms</td></tr>
+<tr><td>/creators</td><td class="num">989 ms</td><td class="num"><b>56 ms</b></td><td class="num">49 ms</td><td class="num">66 ms</td></tr>
+<tr><td>/trackers</td><td class="num">64 ms</td><td class="num"><b>47 ms</b></td><td class="num">49 ms</td><td class="num">54 ms</td></tr>
+</tbody>
+</table>
+</div>
+<p class="note">Style recalculation time, read from Chrome's performance metrics while 200 elements are added to and removed from the page. Medians of three runs on a local production build, at 1440 × 900. "Before" is the same pages with the old selectors in place. ●</p>
+</section>
+
+<section id="removed">
+<h2><span class="n">02</span>Removed: no data behind it</h2>
+<p>Nothing is deleted from the database, and each item comes back by itself once there is something real to show.</p>
+<div class="table-wrap">
+<table>
+<thead><tr><th>Where</th><th>What went</th><th>Why</th><th>Comes back when</th></tr></thead>
+<tbody>
+<tr><td>Campaign rail</td><td>Drafts section</td><td>Empty on every campaign that never had a draft</td><td>The campaign gets its first draft</td></tr>
+<tr><td>Campaign header</td><td>Total Likes chip</td><td>Likes are summed from a column that defaults to 0, so it read "0" when likes were never read</td><td>Any post has a likes reading</td></tr>
+<tr><td>Campaign Posts tab</td><td>Status pills</td><td>Four pills that all filter to the same list when every post is in one state</td><td>Posts are in two or more states</td></tr>
+<tr><td>Campaign Posts tab</td><td>Total Saves and Total Downloads chips</td><td>Downloads are never collected, and saves are read for only some posts. Both read 0 on campaigns with 90+ posts.</td><td>A post has a saves or downloads reading</td></tr>
+<tr><td>Post card (grid)</td><td>Saves figure</td><td>Same reason</td><td>Same</td></tr>
+<tr><td>Post detail</td><td>Saves, Reach and Downloads cards; their snapshot columns</td><td>Same reason; reach cannot be read for posts we do not own</td><td>The counter is read</td></tr>
+<tr><td>Post detail</td><td>Bot Signals panel</td><td>Below three readings the checks cannot run</td><td>The post has three readings</td></tr>
+<tr><td>Campaign Invites</td><td>"No invites sent" card</td><td>Took most of the tab; the Invite button already says what to do</td><td>An invite is sent</td></tr>
+<tr><td>Campaign Creators</td><td>Rate column, now off by default</td><td>Rates are typed by hand and most rosters have none</td><td>Turn it on in the column picker</td></tr>
+<tr><td>Creator detail</td><td>TikTok videos section</td><td>Had nothing to show when the creator's TikTok is not connected</td><td>The creator connects TikTok</td></tr>
+<tr><td>Creator roster</td><td>Price per video filter</td><td>It filters on rates, so with none entered it could only empty the list</td><td>Any creator has a rate</td></tr>
+<tr><td>Campaigns list</td><td>Client filter</td><td>Nothing to filter by while there are no clients</td><td>A client is added</td></tr>
+<tr><td>Analytics</td><td>Platform pills with no posts behind them (X, LinkedIn, Snapchat, Pinterest and others)</td><td>Each could only filter to an empty page</td><td>Posts exist on that platform</td></tr>
+<tr><td>Post analysis table</td><td>Platform options with no posts</td><td>Same reason</td><td>Same</td></tr>
+<tr><td>Song dashboard</td><td>"Views by phase" card and "· 0 phases"</td><td>Empty until a campaign phase exists</td><td>A phase exists</td></tr>
+<tr><td>Settings → Notifications and Slack</td><td>7 events: documents, negotiation approve/reject, deposits, payouts (3)</td><td>Those features are parked, so the events never fire. Stored preferences are kept.</td><td>The feature is un-parked</td></tr>
+<tr><td>Creator trackers</td><td>"Track all" button</td><td>It is held shut and only showed as disabled</td><td>Track all opens</td></tr>
+<tr><td>Creator trackers</td><td>Change column and the "Change" sort</td><td>Every row read "No data yet"</td><td>Any change exists</td></tr>
+<tr><td>Tracker settings</td><td>"History kept" choice</td><td>Nothing prunes readings, so the setting had no effect. The stored value is kept.</td><td>A pruning job exists</td></tr>
+<tr><td>Creator app → Accounts</td><td>Connect button for platforms still in review</td><td>It could only bounce back. The "not available yet" note stays.</td><td>The platform's app review passes</td></tr>
+<tr><td>Lists</td><td>Status tabs</td><td>Every list in one status, so all tabs showed the same lists</td><td>Lists are in two or more statuses</td></tr>
+<tr><td>Creator detail, list detail</td><td>The in-page breadcrumb</td><td>It repeated the top bar's trail</td><td>Not planned</td></tr>
+<tr><td>Track Sound dialog</td><td>"Instagram audio is not supported yet."</td><td>Out of date since 17 September, when Instagram audio tracking shipped</td><td>Not applicable</td></tr>
+<tr><td>Campaign Performance export</td><td>"payouts" in the Excel description</td><td>The workbook has no payouts sheet</td><td>Not applicable</td></tr>
+</tbody>
+</table>
+</div>
+</section>
+
+<section id="fixed">
+<h2><span class="n">03</span>Fixed: layout and visual</h2>
+<div class="table-wrap">
+<table>
+<thead><tr><th>Where</th><th>Problem</th><th>Fix</th></tr></thead>
+<tbody>
+<tr><td>All CreatorCore pages</td><td>Slow restyles (section 01)</td><td>Shell selectors on a <code>data-shell</code> attribute</td></tr>
+<tr><td>Campaigns list</td><td>Tab strip ran past the content column; thumbnails and avatars different sizes; initials taken from punctuation and brackets</td><td>One column edge, one thumbnail size, initials from words only</td></tr>
+<tr><td>Sidebar and campaign rail</td><td>Uneven left edges; the bell on its own row; below 1024 px the CreatorCore campaign drawer was white with its rows in 50% white, so only the active row could be read</td><td>One left edge, bell beside the user, the blue ground at every width</td></tr>
+<tr><td>Post cards</td><td>Platform and status chips overlapped on narrow cards; the placeholder icon covered the creator's name</td><td>Both chips in one row that truncates; platform name hidden on cards under 280 px; the icon no longer covers the name</td></tr>
+<tr><td>Thumbnails</td><td>A cover that failed before the page finished loading stayed blank</td><td>The failure is caught on load as well (post cards, campaign list, shared report)</td></tr>
+<tr><td>Posts tab figure strip</td><td>At 1000 px long figures overflowed their chips ("81,581,03")</td><td>Chips sized to their figures</td></tr>
+<tr><td>Posts tab filters</td><td>Date fields clipped the year; five ragged rows on a phone</td><td>Date fields size to their content; a two-column grid on a phone</td></tr>
+<tr><td>Trackers, sounds</td><td>On a phone the title was cut to about four characters</td><td>Two lines on a phone: the sound, then its readings</td></tr>
+<tr><td>Trackers header</td><td>"Remove all" styled like a normal action; an unlabelled "63/100"; the Instagram warning shown on the Audios tab</td><td>Danger style at the same size as Refresh; "N / M tracked"; warning on the Creators tab only</td></tr>
+<tr><td>Tile rows</td><td>A lone tile left on a row (7 in 6 columns, 4 in 3)</td><td>The column count follows the tile count: campaign Overview and Performance, Analytics, post detail, Trackers</td></tr>
+<tr><td>Tile rows</td><td>Figures in one row at different sizes</td><td>Every tile in a row takes the size of its longest figure</td></tr>
+<tr><td>Campaign Overview</td><td>Tags, Brief, Notes and Team cards inset 44–48 px against the tiles' 16</td><td>One inset for every Overview card: 25 px measured in Light and Dark, 17–19 px in CreatorCore</td></tr>
+<tr><td>Campaign Performance</td><td>Last date on the chart clipped; donut card stretched to the table's height</td><td>Right margin for the last label; cards keep their own height</td></tr>
+<tr><td>Dashboard, Performance</td><td>A lone chart filled half the row</td><td>It spans the row, with its legend beside the donut</td></tr>
+<tr><td>Post detail</td><td>Opened from a link, the rail had no campaign name and highlighted nothing</td><td>Campaign name in the rail, Posts highlighted; engagement per reading computed the same way as everywhere else</td></tr>
+<tr><td>Creator detail</td><td>The coloured band sat apart from the header; an empty bio left a blank space</td><td>The band runs behind the header; "No bio." when there is none</td></tr>
+<tr><td>List detail</td><td>Toolbar buttons in mixed sizes; the approval counts broke mid-phrase</td><td>One size for all; the counts stay on one line</td></tr>
+<tr><td>Campaigns list</td><td>Rows with no status showed a solid "Set status" block</td><td>Outlined until a status is set, in full-strength text</td></tr>
+<tr><td>Calendar</td><td>Chip titles were 9 px in the status colour: 1.9:1 to 4.2:1</td><td>11 px in the page's own ink, on a status tint with a coloured edge</td></tr>
+<tr><td>Dark</td><td>Menus and drawers had no visible edge; figure strip was a row of white blocks; loading bars did not shimmer; notifications were light-themed</td><td>Deeper shadows, edge on select menus, quieter figure strip, visible shimmer, notifications follow the theme</td></tr>
+<tr><td>Side drawer</td><td>While closed it kept 16 controls in the keyboard tab order</td><td>Hidden when closed, so the tab order skips it</td></tr>
+<tr><td>Tabs on a phone</td><td>No hint that the tab strip scrolls</td><td>The strip fades at the edge that has more tabs</td></tr>
+<tr><td>Campaign list rows</td><td>Rows did not change on hover in Dark</td><td>A hover tint in every theme</td></tr>
+<tr><td>Account menu</td><td>In Dark, Sign out measured 3.62:1 at 13 px</td><td>The danger text ink</td></tr>
+<tr><td>Plans form</td><td>The feature switches had no accessible name</td><td>Each switch is named by its feature's label, in a way that keeps its 24 px track on a phone</td></tr>
+<tr><td>Sign-in and sign-up</td><td>The footer overlapped the form on short screens; the password eye sat off-centre</td><td>Footer in normal flow; eye centred in the field; creator sign-in eye labelled</td></tr>
+<tr><td>Creator app</td><td>Bottom tab bar also showed on desktop; selected tab invisible in Dark (1.09:1)</td><td>Tab bar on small screens only; selected tab white with a black label in Dark</td></tr>
+<tr><td>Shared report</td><td>Export and PDF buttons had no visible focus ring (1.06:1)</td><td>A ring in the page's own ink</td></tr>
+<tr><td>Audit log</td><td>Reset looked active with no filters set</td><td>Disabled until a filter is set</td></tr>
+<tr><td>Analytics</td><td>Failed to load for browsers that report an old timezone name such as Asia/Calcutta, measured on Postgres 16. Whether production hits it is unverified.</td><td>Old names mapped to current ones before the query</td></tr>
+<tr><td>Tracker settings</td><td>Radio buttons in the browser's default blue</td><td>Theme colour</td></tr>
+<tr><td>Danger text</td><td>Marketplace analytics, the trackers change figure, danger badges and the post detail bot icon used the fill red, not the text red</td><td>The danger text ink</td></tr>
+<tr><td>Settings</td><td>The Notifications card said "Which events email you"; they reach the bell only</td><td>"Which events reach your notification bell"</td></tr>
+</tbody>
+</table>
+</div>
+</section>
+
+<section id="needs">
+<h2><span class="n">04</span>Needs fixing, left in place</h2>
+<p>These work partly or look wrong, but each has real data or a real use behind it, so they stay until fixed properly.</p>
+<div class="table-wrap">
+<table>
+<thead><tr><th>Ref</th><th>Where</th><th>What is wrong</th></tr></thead>
+<tbody>
+<tr><td class="ref">L02</td><td>Dashboard top posts, creator detail</td><td>Engagement shows 0.0% for posts whose stored rate was never computed, while the campaign pages compute it from the counts</td></tr>
+<tr><td class="ref">L03</td><td>Post detail</td><td>"Performance Over Time" runs right to left: readings come back newest first</td></tr>
+<tr><td class="ref">L18 D17</td><td>Campaign Performance and others</td><td>The time axis spaces dates evenly whatever the gap, so January and late September sit side by side</td></tr>
+<tr><td class="ref">L29</td><td>Analytics</td><td>Monthly whole-number counts drawn as a smooth curve, which implies fractions between months; the card ignores the chosen date range</td></tr>
+<tr><td class="ref">L05</td><td>Several editors</td><td>A failed save gives no message</td></tr>
+<tr><td class="ref">L06</td><td>Post detail</td><td>"Back to Posts" goes back in history, which can leave the app on a deep link</td></tr>
+<tr><td class="ref">L19</td><td>Remove all</td><td>Uses the browser's own prompt rather than the app's dialog</td></tr>
+<tr><td class="ref">L20 D12</td><td>Avatars</td><td>Some stored avatar links now return 404 and fall back to initials after a request</td></tr>
+<tr><td class="ref">L24 D15</td><td>Several</td><td>The same thing labelled differently on different pages; some toggle buttons do not announce their state</td></tr>
+<tr><td class="ref">L26 CC-27</td><td>Lists, list detail, Team, Plans, Calendar, roster</td><td>List cards in one row differ in height when a name wraps (133 vs 113 px); list detail puts Delete List first; Team stat cards wrap "Team / Members"; plan card footers misaligned; Today stays enabled on the current month; the roster card shows followers twice</td></tr>
+<tr><td class="ref">L27</td><td>Phone width</td><td>Overview close button wraps; Trackers "30d" wraps; campaign row figures wrap 2 + 1. The posts page needed about 830 px of filters and figures before the first post; not re-measured after this batch's filter change.</td></tr>
+<tr><td class="ref">L31 CC-02</td><td>Campaign rail</td><td>Below 1024 px the campaign's sections are only in the menu drawer, with nothing on the page saying which section is open</td></tr>
+<tr><td class="ref">L13</td><td>Feature Access, Plans</td><td>The switches save but nothing reads them yet</td></tr>
+<tr><td class="ref">CC-10</td><td>Page gutters</td><td>List pages, settings and campaign pages each use a different side gutter (at 1000 px: 31, 10 and 10 px with the title at 20)</td></tr>
+<tr><td class="ref">CC-15</td><td>Songs, campaign Drafts</td><td>The empty-state title is fainter than its description, and the description is link blue but not a link</td></tr>
+<tr><td class="ref">CC-20 CC-21</td><td>Calendar</td><td>The grid runs 5–6 px past the page edge; deliverable dots are unlabelled; campaigns are placed by creation date under the heading "Campaign schedule and deadlines"</td></tr>
+<tr><td class="ref">CC-31</td><td>Campaign Drafts</td><td>Add Draft is disabled with the reason only in a tooltip</td></tr>
+<tr><td class="ref">CC-32</td><td>Campaign Invites</td><td>The public page path shows even when the campaign is Private</td></tr>
+<tr><td class="ref">CC-33</td><td>Campaign Analytics</td><td>Repeats the donut and tiles from Performance</td></tr>
+<tr><td class="ref">CC-35</td><td>Tags cards</td><td>No way to add a tag in place</td></tr>
+<tr><td class="ref">CC-37</td><td>Campaign Creators</td><td>Initials still keep punctuation ("J."); fixed on the campaigns list only</td></tr>
+<tr><td class="ref">L21</td><td>Settings, Profile, campaign header</td><td>Copy for removed features: the settings subtitle mentions plan details, the API keys note mentions payouts, Profile shows "Current Plan: Pro", and campaigns carry a "Budget Based" badge</td></tr>
+<tr><td class="ref">L28</td><td>Settings</td><td>"No Creator Tags yet." beside "No Campaign Tags Found"; General settings uses one icon for every section</td></tr>
+<tr><td class="ref">P03</td><td>Creator app, sign-in footer</td><td>Password help and the Contact link use an address that defaults to a personal Gmail unless an environment variable is set. Whether production sets it is unverified.</td></tr>
+<tr><td class="ref">P07</td><td>Sign-in</td><td>The button focus ring is 2.58:1 in Light and 2.34–2.76:1 in CreatorCore; 3:1 is the bar</td></tr>
+<tr><td class="ref">P08</td><td>Sign-in pages, creator app</td><td>Muted grey text at 2.58:1 on white, kept to match CreatorCore's palette</td></tr>
+<tr><td class="ref">P09</td><td>Sign-in, sign-up</td><td>Placeholders are brand blue on a blue field, so "Jane Doe" reads like a filled-in value</td></tr>
+<tr><td class="ref">P10 P11</td><td>Shared report</td><td>Fixed colours that ignore the viewer's theme; chart axis text at 2.00:1; "Eng." and section headings at 4.17:1</td></tr>
+<tr><td class="ref">P12</td><td>Shared report</td><td>Every post on one page, with no paging</td></tr>
+<tr><td class="ref">P13</td><td>Shared report</td><td>Post-handle links: the focus ring is drawn but was not seen in the audit. Buttons fixed; handles not re-checked.</td></tr>
+<tr><td class="ref">P15</td><td>Creator app</td><td>A divider under a single to-do; indented lists without bullets</td></tr>
+<tr><td class="ref">P16</td><td>Landing page</td><td>Rows still reading "Placeholder"</td></tr>
+<tr><td class="ref">P17</td><td>Shared report</td><td>A deleted share link answers 200 with an empty page rather than "not found"</td></tr>
+<tr><td class="ref">—</td><td>List detail, 1000 px CreatorCore</td><td>Long list names wrap to two lines beside the toolbar</td></tr>
+<tr><td class="ref">CC-09</td><td>List detail, /admin</td><td>Table runs past the page column: see decision 1</td></tr>
+<tr><td class="ref">—</td><td>34 cards across the app</td><td>Doubled inner padding: see decision 2</td></tr>
+<tr><td class="ref">D03</td><td>Dark charts</td><td>The grey ramp makes neighbouring series hard to tell apart: see decision 4</td></tr>
+</tbody>
+</table>
+</div>
+</section>
+
+<section id="you">
+<h2><span class="n">05</span>Decisions for you</h2>
+<ol class="decide">
+<li><div><b>CC-09, the table bleed.</b> In CreatorCore the list tables extend past the page column: 20 px left and 24 px right at 1440, 22 px each side at 1000. That copies CreatorCore's own list pages. On list detail and /admin it reads as a table running off the page. Keep it, or limit the bleed to the screens it was measured on?</div></li>
+<li><div><b>Doubled card padding, app-wide.</b> 34 cards set 24 px of padding on top of the 24 px the card component already adds, so their content sits 48 px in. This batch fixes it on the campaign Overview only. Fixing it everywhere changes the look of most pages, so it needs your yes.</div></li>
+<li><div><b>CC-11, the settings zoom jump.</b> CreatorCore zooms its pages to 90% from 1280 to 1600 px and 85% from 1024 to 1280, but not its settings pages, so the sidebar grows about 11% on entering settings. That matches CreatorCore exactly. Keep the match, or smooth it?</div></li>
+<li><div><b>D03, Dark charts in greys.</b> Dark draws series in greys told apart by dash pattern. That is deliberate, but neighbouring greys are close. Add one accent, or keep it monochrome?</div></li>
+<li><div><b>The zero-follower guard (section 06)</b> is ready and not in this batch, because it needs its own yes.</div></li>
+</ol>
+</section>
+
+<section id="trackers">
+<h2><span class="n">06</span>Trackers and zero readings</h2>
+<p><b>Are all creator trackers live?</b> No. Each sweep reads most creators, but some fail every time. The three causes are an Instagram rate limit, an account that no longer exists, and an Instagram account that is not a professional account. A sweep also stops at 400 creators, so anything beyond that never shows in the logs. Exact counts come from a read-only query you run; they are given in the session, not here, because this repository is public. ○</p>
+<p><b>Why some creators now read 0 followers.</b> The older sweep, still the one writing on production, has no check for "fell to zero". TikTok sometimes serves a page with zeroed figures, the parser accepts 0 as a reading, and the sweep stores it. ● in code; whether TikTok or the account caused a given zero is unverified.</p>
+<p><b>What it does to client tracking:</b> charts show a drop to zero for up to 30 days; the change column shows −100%, and later a false gain the size of the whole audience; shared lists show "—" and a minimum-followers filter hides the creator. The headline figure recovers on the next good reading, but the history does not. ○</p>
+<p><b>The fix, ready but not in this batch:</b> both readers refuse a drop to zero, judged against the last non-zero reading, and so does the canary. The tracker chart and the change figure skip zeros already stored. It comes with nine tests. Repairing the zeros already stored is a production write, so it is yours to run. ○</p>
+</section>
+
+<section id="checked">
+<h2><span class="n">07</span>How this was checked</h2>
+<ul class="gaps">
+<li>Every change was built as a production build and served locally against a throwaway Postgres in Docker, seeded with a test organisation. Nothing touched the production database. ●</li>
+<li>Each fix was measured in Chrome in all three themes at 1440, 1000 and 390 px: element sizes, computed styles and overflow, plus screenshots. Across all of them: no page errors, and no horizontal page scroll. ●</li>
+<li>The contrast suite passes (4 of 4). 19 low-contrast pairs it had on record no longer occur, so its CreatorCore debt list went from 114 entries to 95. ●</li>
+<li>Type check passes, and lint finds no problems in the changed files that were not there before. ●</li>
+<li>The deploy gate's unit, build and full Playwright suites run on the commit that contains this report. Their results are given in the session, because writing them here would change the code they certify.</li>
+</ul>
+</section>
+
+</main>
+</div>
+<script>
+(function () {
+  var links = Array.prototype.slice.call(document.querySelectorAll(".rail a"));
+  if (!links.length) return;
+  var targets = links.map(function (a) { return document.getElementById(a.getAttribute("href").slice(1)); });
+  var ticking = false;
+  function mark() {
+    ticking = false;
+    var line = window.innerHeight * 0.3, current = -1;
+    targets.forEach(function (t, i) { if (t && t.getBoundingClientRect().top <= line) current = i; });
+    links.forEach(function (a, i) { if (i === current) a.setAttribute("aria-current", "true"); else a.removeAttribute("aria-current"); });
+  }
+  window.addEventListener("scroll", function () { if (!ticking) { ticking = true; requestAnimationFrame(mark); } }, { passive: true });
+  mark();
+})();
+</script>
+</body>
+</html>

@@ -113,7 +113,9 @@ export function PostAnalysisTable({
           minWidth={150}
           value={platform}
           onChange={setPlatform}
-          options={PLATFORM_FILTER_OPTIONS.map((o) => ({ value: o.key, label: o.label }))}
+          options={PLATFORM_FILTER_OPTIONS
+            .filter((o) => o.key === "ALL" || o.key === platform || posts.some((p) => p.platform === o.key))
+            .map((o) => ({ value: o.key, label: o.label }))}
         />
         {campaigns.length > 1 && (
           <Dropdown

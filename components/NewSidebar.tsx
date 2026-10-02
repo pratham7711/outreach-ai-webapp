@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { useState, useEffect, useCallback, useMemo, Suspense } from "react";
 import CampaignRailNav from "@/components/CampaignRailNav";
-import { campaignIdFromPathname } from "@/lib/campaignSections";
+import { campaignIdFromPathname, shellForPathname } from "@/lib/campaignSections";
 import {
   LayoutDashboard, Megaphone, Calendar, Users, Users2, LineChart,
   List, CreditCard, Shield,
@@ -210,7 +210,7 @@ export default function NewSidebar({ allowedNavHrefs, isPlatformOperator, brandN
            away needs it -- their campaign screens set a 20px title against the
            dashboard's 24px. Routing the same pathname test through a second
            component would give two places to keep in step. */
-        data-shell={campaignId ? "campaign" : pathname.startsWith("/settings") ? "settings" : "dashboard"}
+        data-shell={shellForPathname(pathname)}
         data-ready={ready}
         role="navigation"
         aria-label="Main sidebar"
@@ -377,6 +377,7 @@ export default function NewSidebar({ allowedNavHrefs, isPlatformOperator, brandN
             data-open={showUserMenu}
             aria-expanded={showUserMenu}
             aria-label="User menu"
+            title={userName}
           >
             <div className="flex items-center gap-2.5">
               <div className="cc-sidebar-avatar" aria-hidden="true">

@@ -47,7 +47,7 @@ export default async function CreatorsPage({
   // result set, so they are left out of their own counts.
   const tabBase = creatorWhere(orgId, { ...filters, platform: [], search: undefined }, { roster });
 
-  const [creators, total, platformGroups, orgTags] = await Promise.all([
+  const [creators, total, platformGroups, orgTags, anyRate] = await Promise.all([
     db.creator.findMany({
       where,
       include: {
@@ -63,6 +63,8 @@ export default async function CreatorsPage({
     // Every definition from Settings → General, not only the ones in use: a tag
     // exists because someone created it on purpose.
     db.creatorTagDef.findMany({ where: { orgId }, orderBy: { name: "asc" }, select: { name: true } }),
+    // Rates are only ever typed in by hand; most rosters have none.
+    db.creator.findFirst({ where: { orgId, deletedAt: null, rate: { gt: 0 } }, select: { id: true } }),
   ]);
 
   const platformCounts: Record<string, number> = { All: 0 };
@@ -178,6 +180,7 @@ export default async function CreatorsPage({
       q={filters.search ?? ""}
       platform={filters.platform[0] ?? "All"}
       tagOptions={orgTags.map((t) => t.name)}
+      offerRateFilter={anyRate !== null || filters.minRate != null || filters.maxRate != null}
       filterValues={{
         minFollowers: firstParam(sp.minFollowers),
         maxFollowers: firstParam(sp.maxFollowers),

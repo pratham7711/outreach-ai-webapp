@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { SETTINGS_NOTIFICATION_EVENTS } from "@/lib/notificationCatalog";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -40,7 +41,7 @@ export async function GET() {
 
   return NextResponse.json({
     prefs: resolvePrefs(user.notificationPrefs),
-    catalog: NOTIFICATION_EVENTS,
+    catalog: SETTINGS_NOTIFICATION_EVENTS,
   });
 }
 
@@ -79,6 +80,6 @@ export async function PATCH(request: NextRequest) {
 
   return NextResponse.json({
     prefs: resolvePrefs(next.notificationPrefs),
-    catalog: NOTIFICATION_EVENTS,
+    catalog: SETTINGS_NOTIFICATION_EVENTS,
   });
 }

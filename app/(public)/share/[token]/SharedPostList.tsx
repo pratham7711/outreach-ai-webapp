@@ -82,6 +82,11 @@ export default function SharedPostList({
                   loading="lazy"
                   decoding="async"
                   onError={() => setBroken((prev) => new Set(prev).add(post.id))}
+                  /* Catches an error that fired before hydration attached
+                     onError, which otherwise left the browser's broken glyph. */
+                  ref={(img) => {
+                    if (img?.complete && img.naturalWidth === 0) setBroken((prev) => new Set(prev).add(post.id));
+                  }}
                 />
               ) : (
                 <ImageOff size={22} aria-hidden="true" />

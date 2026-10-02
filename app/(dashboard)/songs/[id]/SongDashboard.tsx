@@ -162,14 +162,16 @@ export default function SongDashboard({
         <HeroStat
           value={String(summary.campaignCount)}
           label="Campaigns"
-          sub={`${summary.activeCampaignCount} active · ${summary.phaseCount} phases`}
+          sub={summary.phaseCount > 0 ? `${summary.activeCampaignCount} active · ${summary.phaseCount} phases` : `${summary.activeCampaignCount} active`}
         />
         <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 4, fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-primary)" }}>
           View posts <ArrowRight size={14} aria-hidden="true" />
         </span>
       </Link>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2" style={{ gap: 20, marginBottom: 20 }}>
+      {/* Nothing in the app writes phases yet, so the phase card shows only when
+          one exists; until then the platform card has the row to itself. */}
+      <div className={phases.length > 0 ? "grid grid-cols-1 lg:grid-cols-2" : "grid grid-cols-1"} style={{ gap: 20, marginBottom: 20 }}>
         <div style={card}>
           <h2 style={{ fontSize: "var(--cc-t-13)", fontWeight: 700, color: "var(--cc-text)", marginBottom: 16 }}>Views by platform</h2>
           {platformBreakdown.length === 0 ? (
@@ -190,11 +192,9 @@ export default function SongDashboard({
           )}
         </div>
 
-        <div style={card}>
-          <h2 style={{ fontSize: "var(--cc-t-13)", fontWeight: 700, color: "var(--cc-text)", marginBottom: 16 }}>Views by phase</h2>
-          {phases.length === 0 ? (
-            <Empty>This song&rsquo;s campaigns don&rsquo;t use phases yet.</Empty>
-          ) : (
+        {phases.length > 0 && (
+          <div style={card}>
+            <h2 style={{ fontSize: "var(--cc-t-13)", fontWeight: 700, color: "var(--cc-text)", marginBottom: 16 }}>Views by phase</h2>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {phases.map((p, i) => (
                 <DistributionRow
@@ -207,8 +207,8 @@ export default function SongDashboard({
                 />
               ))}
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       <div style={{ ...card, marginBottom: 20 }}>
@@ -232,9 +232,11 @@ export default function SongDashboard({
               >
                 <Megaphone size={15} color="var(--cc-text-muted)" aria-hidden="true" />
                 <span style={{ flex: 1, fontSize: "var(--cc-t-14)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{c.title}</span>
-                <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", display: "inline-flex", alignItems: "center", gap: 4 }}>
-                  <Layers size={12} aria-hidden="true" /> {c.phaseCount}
-                </span>
+                {c.phaseCount > 0 && (
+                  <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                    <Layers size={12} aria-hidden="true" /> {c.phaseCount}
+                  </span>
+                )}
                 <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", fontVariantNumeric: "tabular-nums" }}>
                   {c.postCount} posts
                 </span>

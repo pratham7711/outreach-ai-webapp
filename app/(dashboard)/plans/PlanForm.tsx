@@ -115,13 +115,16 @@ export default function PlanForm({ initial }: PlanFormProps) {
                 }}
               >
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: "var(--cc-fw-strong)", fontSize: "var(--cc-t-14)", color: "var(--cc-text)" }}>{feat.label}</div>
+                  <div id={`plan-feat-${key}`} style={{ fontWeight: "var(--cc-fw-strong)", fontSize: "var(--cc-t-14)", color: "var(--cc-text)" }}>{feat.label}</div>
                   <div style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)", marginTop: 1 }}>{feat.description}</div>
                 </div>
                 <button
                   type="button"
                   role="switch"
                   aria-checked={enabled}
+                  /* labelledby, not aria-label: the phone touch rule keys on
+                     [aria-label] and would stretch this 24px track to 44px. */
+                  aria-labelledby={`plan-feat-${key}`}
                   onClick={() => toggleFeature(key)}
                   style={{
                     width: 44,

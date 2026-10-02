@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { SETTINGS_NOTIFICATION_EVENTS } from "@/lib/notificationCatalog";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -71,7 +72,7 @@ function view(slack: SlackIntegration | null) {
     channel: slack?.channel ?? null,
     connectedAt: slack?.connectedAt ?? null,
     events,
-    catalog: NOTIFICATION_EVENTS,
+    catalog: SETTINGS_NOTIFICATION_EVENTS,
   };
 }
 

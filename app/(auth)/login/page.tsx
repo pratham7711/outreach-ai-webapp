@@ -264,7 +264,12 @@ export default function LoginPage() {
                 style={{
                   position: "absolute",
                   right: 12,
-                  bottom: 10,
+                  /* Centred on the 38px input rather than pinned 10px off its
+                     bottom: the phone touch rule makes this button 44px tall,
+                     and growing upward from a fixed bottom put the eye 13px
+                     above the field's centre. */
+                  bottom: 19,
+                  transform: "translateY(50%)",
                   background: "none",
                   border: "none",
                   cursor: "pointer",

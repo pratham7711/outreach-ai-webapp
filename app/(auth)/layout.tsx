@@ -10,13 +10,13 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
   return (
     <>
       {children}
+      {/* In the flow, after the page, not fixed over it. Fixed, it covered the
+          bottom 43px of a screen nothing had reserved -- 17.8px of the Create
+          account button at 1440x900 and 77px of a 390px phone (MEASURED
+          2026-10-02). Every auth page is at least a screen tall, so the links
+          are one short scroll away. */}
       <footer
         style={{
-          position: "fixed",
-          bottom: 0,
-          left: 0,
-          right: 0,
-          zIndex: 2,
           display: "flex",
           flexWrap: "wrap",
           justifyContent: "center",

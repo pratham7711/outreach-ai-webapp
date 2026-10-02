@@ -148,6 +148,7 @@ export default function CreatorsClient({
   filterCount,
   sort,
   tagOptions,
+  offerRateFilter,
   query,
   rosterReady,
   handleIssues = { gone: 0, unreadable: 0 },
@@ -161,6 +162,8 @@ export default function CreatorsClient({
   q: string;
   platform: string;
   tagOptions: string[];
+  /** Some creator in the org has a rate, or a rate filter is already applied. */
+  offerRateFilter: boolean;
   filterValues: FilterValues;
   filterCount: number;
   sort: CreatorSort;
@@ -231,7 +234,9 @@ export default function CreatorsClient({
       : []),
     { type: "numberRange", label: "Followers", minKey: "minFollowers", maxKey: "maxFollowers" },
     { type: "numberRange", label: "Avg. views", minKey: "minAvgViews", maxKey: "maxAvgViews" },
-    { type: "numberRange", label: "Price per video", minKey: "minRate", maxKey: "maxRate", unit: "USD" },
+    ...(offerRateFilter
+      ? [{ type: "numberRange" as const, label: "Price per video", minKey: "minRate", maxKey: "maxRate", unit: "USD" }]
+      : []),
     {
       type: "multiSelect",
       key: "accounts",

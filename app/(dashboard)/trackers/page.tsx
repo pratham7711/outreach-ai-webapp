@@ -370,8 +370,11 @@ export default function TrackersPage() {
               {refreshMutation.isPending ? "Refreshing..." : "Refresh"}
             </Button>
             {allSounds.length > 0 ? (
+              /* Danger, but in the action-slot box: as a bare danger button it
+                 rendered a different size from Refresh beside it. */
               <Button
-                variant="secondary"
+                variant="danger"
+                data-cc-slot="secondary"
                 onClick={confirmRemoveAll}
                 disabled={removeAllMutation.isPending}
                 title="Remove every tracker and its reading history"
@@ -392,7 +395,7 @@ export default function TrackersPage() {
                     : `${limits.used} of ${limits.max} trackers used on this plan`
                 }
               >
-                {planHasNoTrackers ? "Not on this plan" : `${limits.used}/${limits.max}`}
+                {planHasNoTrackers ? "Not on this plan" : `${limits.used} / ${limits.max} tracked`}
               </span>
             ) : null}
             <Button
@@ -420,10 +423,12 @@ export default function TrackersPage() {
         }
       />
 
-      {/* Above the tabs, not inside one: creator trackers carry Instagram view
-          counts, so the warning has to be visible before a reader picks a tab
-          and starts believing a number. Renders nothing while the source is up. */}
-      <InstagramSourceBanner style={{ marginTop: 16, marginBottom: 16 }} />
+      {/* Creators tab only: creator trackers carry Instagram view counts from
+          Business Discovery, which is what this banner reports on. Sound
+          trackers read Instagram's audio page directly and never touch that
+          token, so on Audios the warning described numbers it does not show.
+          Renders nothing while the source is up. */}
+      {sub === "creator" && <InstagramSourceBanner style={{ marginTop: 16, marginBottom: 16 }} />}
 
       {/* Sub-tabs: Audios | Creators */}
       <div style={{ display: "flex", gap: 8, marginBottom: 24 }}>
@@ -453,7 +458,7 @@ export default function TrackersPage() {
       <>
       {/* Stat Cards */}
       {loading ? (
-        <div className="rsp-grid-tiles" style={{ marginBottom: 32 }}>
+        <div className="cc-tiles-balanced" style={{ marginBottom: 32 }}>
           {[1, 2, 3, 4].map((i) => (
             <div key={i} style={{ background: "var(--cc-card)", border: "1px solid var(--cc-border)", borderRadius: 12, padding: 20 }}>
               <Skeleton width={80} height={14} />
@@ -467,7 +472,7 @@ export default function TrackersPage() {
            to report; the tiles arrive with the first tracked sound. */
         null
       ) : (
-        <div className="rsp-grid-tiles" style={{ marginBottom: 32 }}>
+        <div className="cc-tiles-balanced" style={{ marginBottom: 32 }}>
           <MetricTile metric="trackersActive" value={String(totalTrackers)} />
           <MetricTile metric="trackerUses" value={formatCount(totalUses)} />
           <MetricTile metric="trackersTrending" value={String(trendingCount)} />
@@ -595,24 +600,19 @@ export default function TrackersPage() {
             return (
               <div
                 key={s.id}
-                className="cc-table-row"
+                className="cc-table-row cc-sound-row"
                 style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 16,
-                  padding: "14px 20px",
-                  flexWrap: "wrap",
                   borderBottom: i < sounds.length - 1 ? "1px solid var(--cc-border)" : "none",
                 }}
               >
-                <div style={{ width: 40, height: 40, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--cc-primary-light)" }}>
+                <div className="cc-sound-row-cover" style={{ width: 40, height: 40, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--cc-primary-light)" }}>
                   {s.coverImageUrl ? (
                     <img src={s.coverImageUrl} alt={s.title} style={{ width: 40, height: 40, borderRadius: 12, objectFit: "cover" }} />
                   ) : (
                     <Music size={18} style={{ color: "var(--cc-primary)" }} />
                   )}
                 </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="cc-sound-row-main" style={{ flex: 1, minWidth: 0 }}>
                   {/* Opening the detail is a real button, so the row is reachable
                       by keyboard rather than click-only. The id goes in the URL
                       (?tracker=) so a manager can paste the link to one sound. */}
@@ -645,16 +645,18 @@ export default function TrackersPage() {
                 {/* Trend and read-health never share a slot. A sound that is
                     genuinely losing uses and a sound nobody has read in a week
                     are different facts, and one badge cannot say both. */}
-                {s.health === "live" ? (
-                  <Badge variant={STATUS_VARIANTS[s.status]} size="sm">
-                    {s.status === "unknown" ? "no data" : s.status}
-                  </Badge>
-                ) : (
-                  <Badge variant={s.health === "pending" ? "neutral" : "warning"} size="sm">
-                    {s.health === "pending" ? "awaiting first reading" : "not updating"}
-                  </Badge>
-                )}
-                <div style={{ textAlign: "right", minWidth: 96 }}>
+                <span className="cc-sound-row-badge">
+                  {s.health === "live" ? (
+                    <Badge variant={STATUS_VARIANTS[s.status]} size="sm">
+                      {s.status === "unknown" ? "no data" : s.status}
+                    </Badge>
+                  ) : (
+                    <Badge variant={s.health === "pending" ? "neutral" : "warning"} size="sm">
+                      {s.health === "pending" ? "awaiting first reading" : "not updating"}
+                    </Badge>
+                  )}
+                </span>
+                <div className="cc-sound-row-count">
                   <div
                     style={{
                       fontWeight: 700,
@@ -679,7 +681,7 @@ export default function TrackersPage() {
                        time, and printing "/ 24h" over a ten-day gain overstated
                        the rate by a factor of ten. */
                     <div
-                      style={{ fontSize: "var(--cc-t-12)", color: added >= 0 ? "var(--cc-primary)" : "var(--cc-danger)" }}
+                      style={{ fontSize: "var(--cc-t-12)", color: added >= 0 ? "var(--cc-primary)" : "var(--cc-danger-fg)" }}
                       title={
                         spanLabel !== periodLabel(period)
                           ? `Only ${spanLabel} of readings are available inside the ${periodLabel(period)} window.`
@@ -717,7 +719,7 @@ export default function TrackersPage() {
                     </div>
                   )}
                 </div>
-                <div style={{ minWidth: 110, textAlign: "right", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
+                <div className="cc-sound-row-read" style={{ minWidth: 110, textAlign: "right", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
                   {/* Only while the reader is keeping up: when it is not, the trend
                       slot above already carries "last read …", and saying it twice
                       in two colours reads as two different facts. */}
@@ -739,6 +741,7 @@ export default function TrackersPage() {
                   </span>
                 </div>
                 <button
+                  className="cc-sound-row-del"
                   onClick={() => handleDelete(s)}
                   /* The icon alone named nothing to a screen reader, and a 28px
                      target is under the 44px minimum for a destructive control. */
@@ -799,7 +802,7 @@ export default function TrackersPage() {
             <div id="sound-url-help" style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
               Open the sound&apos;s own page — tap the spinning record on any video, or the sound
               name at the bottom — then copy that link. The title and artwork fill in
-              automatically after the first reading. Instagram audio is not supported yet.
+              automatically after the first reading.
             </div>
           )}
         </div>

@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ChevronRight, Plus, Trash2, Users, ClipboardList, Share2, Copy, DollarSign, Archive } from "lucide-react";
+import { Plus, Trash2, Users, ClipboardList, Share2, Copy, DollarSign, Archive } from "lucide-react";
 import Link from "next/link";
 import { Card, Badge, EmptyState, Skeleton, Input } from "@pratham7711/ui";
 import { toast } from "sonner";
@@ -148,14 +148,7 @@ export default function ListDetailPage({ params }: { params: Promise<{ id: strin
 
   return (
     <div className="rsp-page">
-      {/* Breadcrumb */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "var(--cc-t-14)", marginBottom: 24, color: "var(--cc-text-muted)" }}>
-        <Link href="/lists" style={{ display: "flex", alignItems: "center", gap: 4, color: "var(--cc-text-muted)", textDecoration: "none" }}>
-          <ArrowLeft size={16} /> Lists
-        </Link>
-        <ChevronRight size={12} />
-        <span style={{ color: "var(--cc-text)" }}>{list.name}</span>
-      </div>
+      {/* No in-page trail: the top bar already reads Lists > <name>. */}
 
       {/* Header */}
       <PageHeader
@@ -167,7 +160,7 @@ export default function ListDetailPage({ params }: { params: Promise<{ id: strin
             {list.approval && (
               <>
                 <Badge variant={LIST_STATUS_BADGE[list.approval.status]}>{LIST_STATUS_LABELS[list.approval.status]}</Badge>
-                <span>
+                <span style={{ whiteSpace: "nowrap" }}>
                   {list.approval.counts.approved} approved · {list.approval.counts.rejected} declined · {list.approval.counts.pending} pending
                 </span>
               </>
@@ -175,6 +168,9 @@ export default function ListDetailPage({ params }: { params: Promise<{ id: strin
           </div>
         }
         actions={
+          /* Seven tools, not the reference's two-button header: "tool" keeps the
+             secondaries out of CreatorCore's 180x40 action-slot box, so they stay
+             the same size="sm" as Delete and Export beside them. */
           <>
             <Button variant="danger" size="sm" iconLeft={<Trash2 size={14} />} onClick={handleDeleteList} disabled={deleting}>
               {deleting ? "Deleting…" : "Delete List"}
@@ -189,21 +185,21 @@ export default function ListDetailPage({ params }: { params: Promise<{ id: strin
               />
             )}
             {list.approval && (
-              <Button variant="secondary" size="sm" iconLeft={<Archive size={14} />} onClick={() => handleArchive(!list.approval!.archived)}>
+              <Button variant="secondary" data-cc-slot="tool" size="sm" iconLeft={<Archive size={14} />} onClick={() => handleArchive(!list.approval!.archived)}>
                 {list.approval.archived ? "Restore" : "Archive"}
               </Button>
             )}
             {list.approval && list.items.length > 0 && (
-              <Button variant="secondary" size="sm" iconLeft={<DollarSign size={14} />} onClick={handleImportRates} loading={importing}>
+              <Button variant="secondary" data-cc-slot="tool" size="sm" iconLeft={<DollarSign size={14} />} onClick={handleImportRates} loading={importing}>
                 Import rates
               </Button>
             )}
             {list.approval && list.items.length > 0 && (
-              <Button variant="secondary" size="sm" iconLeft={<Copy size={14} />} onClick={() => setDuplicating(true)}>
+              <Button variant="secondary" data-cc-slot="tool" size="sm" iconLeft={<Copy size={14} />} onClick={() => setDuplicating(true)}>
                 Duplicate
               </Button>
             )}
-            <Button variant="secondary" size="sm" iconLeft={<Share2 size={14} />} onClick={() => setSharing(true)}>
+            <Button variant="secondary" data-cc-slot="tool" size="sm" iconLeft={<Share2 size={14} />} onClick={() => setSharing(true)}>
               Share
             </Button>
             <AddCreatorsDropdown

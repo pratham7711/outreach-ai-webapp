@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { Toaster } from "sonner";
+import { ThemedToaster } from "@/components/layout/ThemedToaster";
 import Link from "next/link";
 import { Home, Briefcase, Link2, BarChart3, UserRound, LogOut } from "lucide-react";
 import { BRAND } from "@/lib/brand";
@@ -152,14 +152,16 @@ function PortalNav() {
 
       <nav
         aria-label="Creator app tabs"
-        className="lg:hidden"
+        /* display in the class, not the style: an inline display:grid outranks
+           lg:hidden, so the phone bar sat over the last 57px of every desktop
+           page while its spacer (which has no inline display) was hidden. */
+        className="grid lg:hidden"
         style={{
           position: "fixed",
           left: 0,
           right: 0,
           bottom: 0,
           zIndex: 50,
-          display: "grid",
           gridTemplateColumns: `repeat(${NAV_LINKS.length}, 1fr)`,
           background: "var(--cc-card)",
           borderTop: "1px solid var(--cc-border)",
@@ -207,7 +209,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   return (
     <ConfirmProvider>
       <div style={{ minHeight: "100vh", background: "var(--cc-bg)" }}>
-        <Toaster richColors position="top-center" />
+        <ThemedToaster richColors position="top-center" />
         {!isAuthPage && <PortalNav />}
         {children}
         {/* Room for the phone tab bar, so it never covers the last row. */}

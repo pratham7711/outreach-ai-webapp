@@ -22,6 +22,9 @@ type MetricTileProps = {
   };
   footer?: React.ReactNode;
   variant?: "card" | "plain";
+  /** Step the figure's size as if it were this many characters long. A row
+   *  passes its longest value here so every tile in it shares one size. */
+  fitTo?: number;
 };
 
 const TREND_ICON = {
@@ -39,6 +42,7 @@ export function MetricTile({
   delta,
   footer,
   variant = "card",
+  fitTo,
 }: MetricTileProps) {
   const definition = metric ? METRIC_DEFINITIONS[metric] : undefined;
   const displayLabel = label ?? definition?.label ?? "";
@@ -56,9 +60,12 @@ export function MetricTile({
    * Stepping the size down by length keeps the whole figure visible, which is
    * the entire point of showing the full number instead of "1.4M". Only strings
    * can be measured; a ReactNode value keeps the base size.
+   *
+   * Measured per tile, a row mixed sizes: "81,581,033" stepped down to 22px
+   * beside "8.58%" at 28px. `fitTo` lets the row decide once.
    */
   const valueText = typeof value === "string" || typeof value === "number" ? String(value) : null;
-  const len = valueText?.length ?? 0;
+  const len = Math.max(valueText?.length ?? 0, fitTo ?? 0);
   const valueSize =
     variant === "plain"
       ? len >= 15 ? "text-[13px]" : len >= 12 ? "text-[15px]" : len >= 9 ? "text-[18px]" : "text-[22px]"

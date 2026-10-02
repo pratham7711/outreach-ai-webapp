@@ -226,14 +226,18 @@ export default function AuditLogClient({
             </div>
           </div>
           <div style={{ display: "flex", alignItems: "end" }}>
+            {/* Disabled with no filter set: it had nothing to reset and still
+                looked like it would do something. */}
             <button
+              type="button"
+              disabled={!action && !entityType && !q}
               onClick={() => {
                 setAction("");
                 setEntityType("");
                 setQ("");
                 setPage(1);
               }}
-              style={{ height: 38, borderRadius: 10, border: "1px solid var(--cc-border)", background: "transparent", color: "var(--cc-text-muted)", padding: "0 14px", cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}
+              style={{ height: 38, borderRadius: 10, border: "1px solid var(--cc-border)", background: "transparent", color: "var(--cc-text-muted)", padding: "0 14px", cursor: !action && !entityType && !q ? "default" : "pointer", opacity: !action && !entityType && !q ? 0.5 : 1, display: "flex", alignItems: "center", gap: 6 }}
             >
               <RefreshCw size={14} />
               Reset

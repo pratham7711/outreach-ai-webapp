@@ -35,14 +35,18 @@ export default function PostCover({
   const src = imgSrc(thumbnailUrl, width, height);
 
   if (!src || broken) {
+    /* The mark sits in the upper half, not the middle: the card's metric
+       panel climbs past the middle of a narrow tile, and a centred icon landed
+       on the creator's name (16-33px of overlap at 232px tiles). */
     return (
       <div
         style={{
           position: "absolute",
           inset: 0,
-          display: "flex",
+          display: "grid",
+          gridTemplateRows: "1fr 1fr",
           alignItems: "center",
-          justifyContent: "center",
+          justifyItems: "center",
           background: "var(--cc-bg)",
           color: "var(--cc-text-subtle)",
         }}
@@ -61,6 +65,10 @@ export default function PostCover({
       loading="lazy"
       decoding="async"
       onError={() => setBroken(true)}
+      /* An error that fired before hydration attached onError. */
+      ref={(img) => {
+        if (img?.complete && img.naturalWidth === 0) setBroken(true);
+      }}
       style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", display: "block" }}
     />
   );

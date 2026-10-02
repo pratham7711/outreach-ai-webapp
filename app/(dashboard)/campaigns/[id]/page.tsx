@@ -25,7 +25,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatDateAbs, formatFull, formatFullCurrency, fitFigureSize } from "@/lib/format";
-import { rollupEngagement } from "@/lib/metricDisplay";
+import { fieldMetricValue, rollupEngagement } from "@/lib/metricDisplay";
 import { CreatorSelect } from "@/components/CreatorSelect";
 import { platformColor } from "@/app/(dashboard)/analytics/shared";
 import { loadCharts } from "@/components/charts/lazyCharts";
@@ -308,7 +308,7 @@ function CampaignTagsCard({
   const available = (defs ?? []).filter((d) => !selectedIds.includes(d.id));
 
   return (
-    <Card variant="outlined" style={{ padding: 24 }}>
+    <Card variant="outlined" className="cc-overview-card">
       <span className="cc-panel-title" style={{ display: "block", marginBottom: 12 }}>
         Tags
       </span>
@@ -643,6 +643,11 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
     (a) => a.status === "DRAFT_SUBMITTED" || a.status === "AWAITING_APPROVAL"
   ).length;
 
+  const draftsEver = (campaign?.activations ?? []).filter((a) => {
+    const d = a as { draftSubmittedAt?: unknown; draftUrl?: unknown };
+    return Boolean(d.draftSubmittedAt || d.draftUrl);
+  }).length;
+
   const roster = buildRoster(campaign?.activations ?? [], campaign?.posts ?? []);
 
   /* What the rail shows beside each section. The rail lives in the dashboard
@@ -654,11 +659,12 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
       title: campaign?.title ?? null,
       counts: {
         drafts: pendingDrafts || undefined,
+        draftsEver: draftsEver || undefined,
         posts: campaign?._count.posts || undefined,
         creators: roster.length || undefined,
       },
     });
-  }, [campaign?.title, campaign?._count.posts, pendingDrafts, roster.length, publishCampaignNav]);
+  }, [campaign?.title, campaign?._count.posts, pendingDrafts, draftsEver, roster.length, publishCampaignNav]);
 
   if (loading) return <LoadingSkeleton />;
   if (loadError) return (
@@ -679,6 +685,12 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
 
   const totalViews = campaign.posts.reduce((s, p) => s + p.viewsCount, 0);
   const totalLikes = campaign.posts.reduce((s, p) => s + p.likesCount, 0);
+  // Likes are summed straight off the column, whose default is 0, so a campaign
+  // whose likes were never read showed "Total Likes 0". Shown only when at
+  // least one post's likes were actually measured.
+  const likesMeasured = campaign.posts.some(
+    (p) => fieldMetricValue(p.likesCount, p.lastSyncedAt, (p as { platformMetrics?: unknown }).platformMetrics, "likes") !== null,
+  );
   /* The product's one engagement-rate definition, shared with the Posts tab, the
      Performance tab and the client report. This used to be an unweighted mean of
      Post.engagementRate over EVERY post, so the 18,602 imported posts that carry
@@ -687,6 +699,13 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
      across. null means no post on the campaign has been measured at all. */
   const engagement = rollupEngagement(campaign.posts);
   const avgEngagement = engagement.rate === null ? null : engagement.rate * 100;
+  /* The Overview tiles share one figure size, set by the longest of them. */
+  const overviewFit = Math.max(
+    formatNumber(totalViews).length,
+    avgEngagement === null ? 0 : (avgEngagement.toFixed(2) + "%").length,
+    String(roster.length).length,
+    campaign.budget == null ? 0 : formatFullCurrency(campaign.budget, campaign.currency).length,
+  );
 
   // Platform breakdown for analytics
   const platformStats = campaign.posts.reduce((acc, p) => {
@@ -817,20 +836,20 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
             {/* A figure nobody recorded is not shown at all: budget is optional to
                 enter, and engagement is absent on most imported posts. Neither
                 gets a zero or a dash standing in for the real number. */}
-            <div className="rsp-grid-tiles">
-              <MetricTile metric="totalViews" value={formatNumber(totalViews)} />
+            <div className="cc-tiles-balanced">
+              <MetricTile fitTo={overviewFit} metric="totalViews" value={formatNumber(totalViews)} />
               {/* "Engagement rate", not "Avg engagement": the label described the
                   old mean-of-means and would now misname the figure below it. */}
               {avgEngagement !== null && (
-                <MetricTile metric="engagementRate" value={avgEngagement.toFixed(2) + "%"} />
+                <MetricTile fitTo={overviewFit} metric="engagementRate" value={avgEngagement.toFixed(2) + "%"} />
               )}
-              <MetricTile metric="campaignCreators" value={String(roster.length)} />
+              <MetricTile fitTo={overviewFit} metric="campaignCreators" value={String(roster.length)} />
               {campaign.budget != null && (
                 /* `budget`, not `totalBudget`: this is one campaign's own cap.
                    totalBudget's help says "across all campaigns in this date
                    range", which is a different number and a range this page
                    does not have. */
-                <MetricTile metric="budget" value={formatFullCurrency(campaign.budget, campaign.currency)} />
+                <MetricTile fitTo={overviewFit} metric="budget" value={formatFullCurrency(campaign.budget, campaign.currency)} />
               )}
               </div>
             </div>
@@ -854,7 +873,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
 
             {/* Notes */}
             {campaign.notes && (
-              <Card variant="outlined" style={{ padding: 24 }}>
+              <Card variant="outlined" className="cc-overview-card">
                 <span className="cc-panel-title" style={{ display: "block", marginBottom: 12 }}>Notes</span>
                 <p style={{ fontSize: "var(--cc-t-14)", color: "var(--cc-text-muted)", lineHeight: 1.6 }}>{campaign.notes}</p>
               </Card>
@@ -862,7 +881,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
 
             {/* Team */}
             {campaign.teamMembers.length > 0 && (
-              <Card variant="outlined" style={{ padding: 24 }}>
+              <Card variant="outlined" className="cc-overview-card">
                 <span className="cc-panel-title" style={{ display: "block", marginBottom: 12 }}>Team</span>
                 <div style={{ display: "flex", gap: 12 }}>
                   {campaign.teamMembers.map(tm => (
@@ -947,26 +966,31 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                     <span className="cc-kpi-chip-label">Total Views</span>
                     <span className="cc-kpi-chip-value" title={formatNumber(totalViews)}>{formatNumber(totalViews)}</span>
                   </div>
-                  <div className="cc-kpi-chip cc-kpi-chip-extra" style={{ "--cc-kpi-fit": fitFigureSize(formatNumber(totalLikes), 22) } as CSSProperties}>
-                    <span className="cc-kpi-chip-label">Total Likes</span>
-                    <span className="cc-kpi-chip-value" title={formatNumber(totalLikes)}>{formatNumber(totalLikes)}</span>
-                  </div>
-                  <div className="cc-kpi-chip">
-                    {/* "Avg. Campaign Engagement Rate" is their wording, and it
-                        is the more honest one: this is the campaign-wide rate
-                        from rollupEngagement, not a per-post average. */}
-                    <span className="cc-kpi-chip-label">Avg. Campaign Engagement Rate</span>
-                    {/* An em dash, not 0.0%: a campaign whose engagement nobody
-                        has fetched has no rate, and printing one asserts a
-                        measurement we never took. */}
-                    <span className="cc-kpi-chip-value cc-kpi-chip-value-accent">{avgEngagement === null ? "\u2014" : avgEngagement.toFixed(2) + "%"}</span>
-                  </div>
+                  {likesMeasured && (
+                    <div className="cc-kpi-chip cc-kpi-chip-extra" style={{ "--cc-kpi-fit": fitFigureSize(formatNumber(totalLikes), 22) } as CSSProperties}>
+                      <span className="cc-kpi-chip-label">Total Likes</span>
+                      <span className="cc-kpi-chip-value" title={formatNumber(totalLikes)}>{formatNumber(totalLikes)}</span>
+                    </div>
+                  )}
+                  {/* "Avg. Campaign Engagement Rate" is their wording, and it is
+                      the more honest one: this is the campaign-wide rate from
+                      rollupEngagement, not a per-post average. Both engagement
+                      chips are left out, rather than printed as an em dash, for
+                      a campaign whose engagement nobody has fetched. */}
+                  {avgEngagement !== null && (
+                    <div className="cc-kpi-chip">
+                      <span className="cc-kpi-chip-label">Avg. Campaign Engagement Rate</span>
+                      <span className="cc-kpi-chip-value cc-kpi-chip-value-accent">{avgEngagement.toFixed(2) + "%"}</span>
+                    </div>
+                  )}
                   {/* Their third panel. The figure is the numerator the rate
                       beside it is computed from, so the two always agree. */}
-                  <div className="cc-kpi-chip">
-                    <span className="cc-kpi-chip-label">Total Engagement</span>
-                    <span className="cc-kpi-chip-value">{engagement.engagements === null ? "\u2014" : formatNumber(engagement.engagements)}</span>
-                  </div>
+                  {engagement.engagements !== null && (
+                    <div className="cc-kpi-chip">
+                      <span className="cc-kpi-chip-label">Total Engagement</span>
+                      <span className="cc-kpi-chip-value">{formatNumber(engagement.engagements)}</span>
+                    </div>
+                  )}
                   <div className="cc-kpi-chip cc-kpi-chip-extra">
                     <span className="cc-kpi-chip-label">Posts</span>
                     <span className="cc-kpi-chip-value">{campaign.posts.length}</span>

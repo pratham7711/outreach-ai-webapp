@@ -26,7 +26,7 @@ type Analytics = {
 const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
   PENDING_REVIEW: { label: "Pending", color: "var(--status-warning)", bg: "color-mix(in srgb, var(--status-warning) 12%, transparent)" },
   APPROVED: { label: "Approved", color: "var(--status-good)", bg: "color-mix(in srgb, var(--status-good) 12%, transparent)" },
-  REJECTED: { label: "Rejected", color: "var(--status-critical)", bg: "color-mix(in srgb, var(--status-critical) 12%, transparent)" },
+  REJECTED: { label: "Rejected", color: "var(--cc-danger-fg)", bg: "color-mix(in srgb, var(--status-critical) 12%, transparent)" },
 };
 
 function formatNumber(num: number): string {

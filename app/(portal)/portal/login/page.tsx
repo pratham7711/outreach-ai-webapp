@@ -97,7 +97,8 @@ function LoginInner() {
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              style={{ position: "absolute", right: 12, top: 34, background: "none", border: "none", cursor: "pointer", color: "var(--cc-text-muted)" }}
+              aria-label={showPassword ? "Hide password" : "Show password"}
+              style={{ position: "absolute", right: 12, bottom: 19, transform: "translateY(50%)", padding: 4, display: "flex", alignItems: "center", background: "none", border: "none", cursor: "pointer", color: "var(--cc-text-muted)" }}
             >
               {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
             </button>

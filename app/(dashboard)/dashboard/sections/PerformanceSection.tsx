@@ -53,75 +53,83 @@ export function PerformanceSection({
   const byCampaign = financials?.viewsByCampaign ?? [];
   const topPosts = financials?.topPosts ?? [];
   const creators = financials?.creatorPerformance ?? [];
+  /* Two columns only when both charts are on: a lone chart in a two-column row
+     filled half of it and left the other half blank. */
+  const chartCount = ["platform_breakdown", "campaign_reach"].filter((w) => widgets.includes(w)).length;
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {widgets.includes("platform_breakdown") && (
-          <SectionCard
-            icon={Activity}
-            title="Views by platform"
-            description="Share of total views each platform contributed."
-            metric="views"
-          >
-            {loading ? (
-              <Skeleton className="h-[200px] w-full rounded-lg" />
-            ) : platforms.length > 0 ? (
-              <>
+      {chartCount > 0 && (
+        <div className={chartCount === 2 ? "grid grid-cols-1 gap-6 lg:grid-cols-2" : "grid grid-cols-1 gap-6"}>
+          {widgets.includes("platform_breakdown") && (
+            <SectionCard
+              icon={Activity}
+              title="Views by platform"
+              description="Share of total views each platform contributed."
+              metric="views"
+            >
+              {loading ? (
+                <Skeleton className="h-[200px] w-full rounded-lg" />
+              ) : platforms.length > 0 ? (
+                /* Alone in the row, the legend sits beside the donut: stacked
+                   under it at full width, each name and its figure ended up a
+                   thousand pixels apart. */
+                <div className={chartCount === 1 ? "grid gap-6 lg:grid-cols-2 lg:items-center" : undefined}>
+                  <div className="h-[200px]">
+                    <PlatformBreakdownPie
+                      data={platforms}
+                      colors={platforms.map((entry, i) => platformColor(entry.platform, i))}
+                      formatNumber={formatNumber}
+                    />
+                  </div>
+                  <ul className={chartCount === 1 ? "mt-4 flex flex-col gap-2 lg:mt-0" : "mt-4 flex flex-col gap-2"}>
+                    {platforms.map((p, i) => (
+                      <li key={p.platform} className="flex items-center justify-between text-[13px]">
+                        <span className="flex items-center gap-2">
+                          <span
+                            aria-hidden="true"
+                            className="size-2.5 shrink-0 rounded-full"
+                            style={{ background: platformColor(p.platform, i) }}
+                          />
+                          <span className="font-semibold text-foreground">{p.platform}</span>
+                        </span>
+                        <span className="text-muted-foreground tabular-nums">
+                          {formatNumber(p.views)} views · {p.postsCount} posts
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : (
+                <Empty>No platform data yet</Empty>
+              )}
+            </SectionCard>
+          )}
+
+          {widgets.includes("campaign_reach") && (
+            <SectionCard
+              icon={BarChart3}
+              title="Views by campaign"
+              description={`Top ${Math.min(5, byCampaign.length) || 5} campaigns by views delivered.`}
+              metric="totalViews"
+            >
+              {loading ? (
+                <Skeleton className="h-[200px] w-full rounded-lg" />
+              ) : byCampaign.length > 0 ? (
                 <div className="h-[200px]">
-                  <PlatformBreakdownPie
-                    data={platforms}
-                    colors={platforms.map((entry, i) => platformColor(entry.platform, i))}
+                  <ViewsByCampaignBar
+                    data={byCampaign.slice(0, 5)}
                     formatNumber={formatNumber}
                   />
                 </div>
-                <ul className="mt-4 flex flex-col gap-2">
-                  {platforms.map((p, i) => (
-                    <li key={p.platform} className="flex items-center justify-between text-[13px]">
-                      <span className="flex items-center gap-2">
-                        <span
-                          aria-hidden="true"
-                          className="size-2.5 shrink-0 rounded-full"
-                          style={{ background: platformColor(p.platform, i) }}
-                        />
-                        <span className="font-semibold text-foreground">{p.platform}</span>
-                      </span>
-                      <span className="text-muted-foreground tabular-nums">
-                        {formatNumber(p.views)} views · {p.postsCount} posts
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </>
-            ) : (
-              <Empty>No platform data yet</Empty>
-            )}
-          </SectionCard>
-        )}
+              ) : (
+                <Empty>No campaign views yet</Empty>
+              )}
+            </SectionCard>
+          )}
 
-        {widgets.includes("campaign_reach") && (
-          <SectionCard
-            icon={BarChart3}
-            title="Views by campaign"
-            description={`Top ${Math.min(5, byCampaign.length) || 5} campaigns by views delivered.`}
-            metric="totalViews"
-          >
-            {loading ? (
-              <Skeleton className="h-[200px] w-full rounded-lg" />
-            ) : byCampaign.length > 0 ? (
-              <div className="h-[200px]">
-                <ViewsByCampaignBar
-                  data={byCampaign.slice(0, 5)}
-                  formatNumber={formatNumber}
-                />
-              </div>
-            ) : (
-              <Empty>No campaign views yet</Empty>
-            )}
-          </SectionCard>
-        )}
-
-      </div>
+        </div>
+      )}
 
       {widgets.includes("top_posts") && (
         <SectionCard

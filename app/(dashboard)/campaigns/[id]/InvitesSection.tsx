@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Card, Badge, Modal, EmptyState, Skeleton } from "@pratham7711/ui";
-import { Send, Copy, RotateCcw, X, Mail } from "lucide-react";
+import { Card, Badge, Modal, Skeleton } from "@pratham7711/ui";
+import { Send, Copy, RotateCcw, X } from "lucide-react";
 import { CreatorSelect } from "@/components/CreatorSelect";
 import { Dropdown, Button } from "@/components/ds";
 import { formatDateAbs } from "@/lib/format";
@@ -107,11 +107,10 @@ export default function InvitesSection({ campaignId }: { campaignId: string }) {
         </Button>
       </div>
 
-      {invites.length === 0 ? (
-        <Card variant="outlined" style={{ padding: 24 }}>
-          <EmptyState icon={<Mail size={32} color="var(--cc-text-subtle)" />} title="No invites sent" description="Invite creators to join this campaign." />
-        </Card>
-      ) : (
+      {/* No empty card: the Invite Creator button above already says what to do,
+          and a bordered "No invites sent" box was most of this tab for every
+          campaign that never used invites. */}
+      {invites.length > 0 && (
         <Card variant="solid" noPadding>
           <div style={{
             display: "grid", gridTemplateColumns: "1fr 100px 100px 120px 120px 140px",

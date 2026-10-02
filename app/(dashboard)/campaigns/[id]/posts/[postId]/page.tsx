@@ -8,16 +8,18 @@ import { Button } from "@/components/ds";
 import { ArrowLeft, ExternalLink, RefreshCw, Eye, Heart, MessageCircle, Share2, Download, Bookmark, TrendingUp, Flag, Lock, Activity, ShieldAlert, Shield, Play, Users } from "lucide-react";
 import dynamic from "next/dynamic";
 import { computeEngagementRate } from "@/lib/metrics";
-import { metricValue, fieldMetricValue, type MetricField } from "@/lib/metricDisplay";
+import { metricValue, fieldMetricValue, unwrittenMetricValue, type MetricField } from "@/lib/metricDisplay";
 import { postAgeContext, postMeasuredAt, postStatus } from "@/lib/posts/postStatus";
 import PostStatusChip from "@/components/posts/PostStatusChip";
 import { AgeLabel } from "@/components/ds/AgeLabel";
 import { metricReason, metricText, postCounterValue } from "@/lib/creators/metricValue";
 import { imgSrc, embedSrcFor } from "@/lib/postMedia";
 import { stripAt, formatDateAbs, formatDateTimeAbs, formatFull, fitFigureSize } from "@/lib/format";
+import { MIN_SNAPSHOTS } from "@/lib/fraud/botSignals";
 import { loadCharts } from "@/components/charts/lazyCharts";
 import { readCadenceLabel, DEFAULT_POST_TRACKING } from "@/lib/trackers/granularity";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
+import { useCampaignNav } from "@/components/providers/CampaignNavProvider";
 
 const PerformanceOverTimeArea = dynamic(() => loadCharts().then((m) => m.PerformanceOverTimeArea), {
   ssr: false,
@@ -57,6 +59,8 @@ type PostDetail = {
   lastFreshAt?: string | null;
   creator: { id: string; name: string; handle: string; avatarUrl: string | null; platform: string };
   snapshots: Snapshot[];
+  /** Sent by GET only, for the rail's heading. */
+  campaignTitle?: string;
 };
 
 type Snapshot = {
@@ -173,6 +177,8 @@ function formatNumber(num: number): string {
   return formatFull(num);
 }
 
+const UNWRITTEN_CARDS = new Set(["savesCount", "reachCount", "downloadsCount"]);
+
 const BASE_METRIC_CARDS = [
   { key: "viewsCount", field: "views", label: "Views", icon: Eye, color: "var(--cc-primary)" },
   { key: "likesCount", field: "likes", label: "Likes", icon: Heart, color: "var(--chart-5)" },
@@ -200,6 +206,15 @@ export default function PostDetailPage() {
   const [timeseries, setTimeseries] = useState<Timeseries | null>(null);
   const [trackToggling, setTrackToggling] = useState(false);
   const [ttlDays, setTtlDays] = useState<number>(DEFAULT_TTL_CHOICE);
+
+  /* Head the rail with this campaign's title. Opened from the campaign the
+     rail already has it; opened by its own link it had only "Campaign". The
+     counts are passed through untouched, since this page does not know them. */
+  const { title: railTitle, counts: railCounts, publish: publishRail } = useCampaignNav();
+  const campaignTitle = post?.campaignTitle;
+  useEffect(() => {
+    if (campaignTitle && railTitle !== campaignTitle) publishRail({ title: campaignTitle, counts: railCounts });
+  }, [campaignTitle, railTitle, railCounts, publishRail]);
 
   const fetchTimeseries = useCallback(async () => {
     try {
@@ -419,13 +434,41 @@ export default function PostDetailPage() {
   const metricCards = allMetricCards.filter(
     ({ key, field }) =>
       key === "viewsCount" ||
-      fieldMetricValue(
+      /* No reader stores saves, reach or downloads for a post we do not own,
+         and the legacy rows carry a lastSyncedAt that reads their 0 as
+         measured -- the tiles printed "Saves 0" and "Reach 0" on public posts.
+         The list view's gate: a positive value or nothing. */
+      (UNWRITTEN_CARDS.has(key)
+        ? unwrittenMetricValue((post as unknown as Record<string, number>)[key]) !== null
+        : fieldMetricValue(
         (post as unknown as Record<string, number>)[key],
         post.lastSyncedAt,
         post.platformMetrics,
         field,
-      ) !== null
+      ) !== null)
   );
+
+  /* The snapshot table's columns, each offered only when some row fills it.
+     Saves had no reader for public posts, Sealed is set by nothing on most
+     campaigns, and the stored per-snapshot engagementRate is 0 on almost every
+     row -- the column read 0.0% under a header tile saying 8.60%. The rate is
+     worked out from each row's own counts instead, with the header's rule for
+     when there is a rate at all. */
+  const snapshotSaves = post.snapshots.some((s) => unwrittenMetricValue(s.savesCount) !== null);
+  const snapshotSealed = post.snapshots.some((s) => s.isFinalSnapshot);
+  const snapshotCols = [
+    { key: "recorded", label: "Recorded", width: "1.4fr", min: 160 },
+    { key: "views", label: "Views", width: "90px", min: 90 },
+    { key: "likes", label: "Likes", width: "80px", min: 80 },
+    { key: "comments", label: "Comments", width: "90px", min: 90 },
+    { key: "shares", label: "Shares", width: "80px", min: 80 },
+    ...(snapshotSaves ? [{ key: "saves", label: "Saves", width: "80px", min: 80 }] : []),
+    ...(engRate !== null ? [{ key: "eng", label: "Eng %", width: "90px", min: 90 }] : []),
+    { key: "source", label: "Source", width: "110px", min: 110 },
+    ...(snapshotSealed ? [{ key: "sealed", label: "Sealed", width: "90px", min: 90 }] : []),
+  ];
+  const snapshotGrid = snapshotCols.map((c) => c.width).join(" ");
+  const snapshotMinWidth = snapshotCols.reduce((sum, c) => sum + c.min + 12, 48);
 
   const chartData = post.snapshots.map((s) => ({
     // UTC named, so the axis labels a snapshot with the same day the server
@@ -539,7 +582,7 @@ export default function PostDetailPage() {
         </Card>
       )}
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: 12, marginBottom: 24 }}>
+      <div className="cc-tiles-balanced" style={{ marginBottom: 24 }}>
         {metricCards.map(({ key, field, label, icon: Icon, color }) => (
           <Card key={key} variant="outlined" style={{ padding: "16px 20px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
@@ -733,6 +776,10 @@ export default function PostDetailPage() {
           </p>
         )}
 
+        {/* The heuristics need MIN_SNAPSHOTS readings and return nothing below
+            that, so "No bot signals detected" on a post with one reading claimed
+            a check that never ran. The section waits until it has. */}
+        {(timeseries?.snapshots?.length ?? 0) >= MIN_SNAPSHOTS && (
         <div style={{ marginTop: 20, paddingTop: 20, borderTop: "1px solid var(--cc-border)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
             <ShieldAlert size={16} color={botSignals.length > 0 ? "var(--cc-danger-fg)" : "var(--cc-text-muted)"} />
@@ -774,6 +821,7 @@ export default function PostDetailPage() {
             </div>
           )}
         </div>
+        )}
       </Card>
 
       {post.snapshots.length > 0 ? (
@@ -782,18 +830,18 @@ export default function PostDetailPage() {
             <h3 style={{ fontSize: "var(--cc-t-16)", fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>Metric Snapshots</h3>
           </div>
           <div style={{
-            display: "grid", gridTemplateColumns: "1.4fr 90px 80px 90px 80px 80px 90px 110px 90px", minWidth: 900,
+            display: "grid", gridTemplateColumns: snapshotGrid, minWidth: snapshotMinWidth,
             gap: 12, padding: "10px 24px", borderBottom: "1px solid var(--cc-border)", background: "var(--cc-bg)",
           }}>
-            {["Recorded", "Views", "Likes", "Comments", "Shares", "Saves", "Eng %", "Source", "Sealed"].map(h => (
-              <span key={h} className="cc-microlabel">{h}</span>
+            {snapshotCols.map(c => (
+              <span key={c.key} className="cc-microlabel">{c.label}</span>
             ))}
           </div>
           {post.snapshots.map((s, i) => (
             <div
               key={s.id}
               style={{
-                display: "grid", gridTemplateColumns: "1.4fr 90px 80px 90px 80px 80px 90px 110px 90px", minWidth: 900,
+                display: "grid", gridTemplateColumns: snapshotGrid, minWidth: snapshotMinWidth,
                 gap: 12, padding: "12px 24px", alignItems: "center",
                 borderTop: i > 0 ? "1px solid var(--cc-border)" : undefined,
               }}
@@ -803,18 +851,35 @@ export default function PostDetailPage() {
               <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{formatNumber(s.likesCount)}</span>
               <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{formatNumber(s.commentsCount)}</span>
               <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{formatNumber(s.sharesCount ?? 0)}</span>
-              <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{formatNumber(s.savesCount ?? 0)}</span>
-              <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-primary)" }}>{(s.engagementRate ?? 0).toFixed(1)}%</span>
+              {snapshotSaves && (
+                <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{formatNumber(s.savesCount ?? 0)}</span>
+              )}
+              {engRate !== null && (
+                <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-primary)" }}>
+                  {(() => {
+                    const r = computeEngagementRate({
+                      views: s.viewsCount,
+                      likes: s.likesCount,
+                      comments: s.commentsCount,
+                      shares: s.sharesCount,
+                      saves: s.savesCount,
+                    });
+                    return r === null ? "—" : `${(r * 100).toFixed(1)}%`;
+                  })()}
+                </span>
+              )}
               <Badge variant="neutral" style={{ fontSize: "var(--cc-t-11)"}}>{s.syncSource ?? "system"}</Badge>
-              <span>
-                {s.isFinalSnapshot ? (
-                  <Tag variant="success" outlined>
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}><Lock size={10} /> Sealed</span>
-                  </Tag>
-                ) : (
-                  <span />
-                )}
-              </span>
+              {snapshotSealed && (
+                <span>
+                  {s.isFinalSnapshot ? (
+                    <Tag variant="success" outlined>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}><Lock size={10} /> Sealed</span>
+                    </Tag>
+                  ) : (
+                    <span />
+                  )}
+                </span>
+              )}
             </div>
           ))}
         </Card>

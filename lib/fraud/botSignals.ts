@@ -24,7 +24,7 @@ export type BotSignal = {
   at: string;
 };
 
-const MIN_SNAPSHOTS = 3;
+export const MIN_SNAPSHOTS = 3;
 const VIEW_SPIKE_RATIO = 5;
 const ENGAGEMENT_STABLE_RATIO = 1.5;
 const LOW_ENGAGEMENT_RATE = 0.005;

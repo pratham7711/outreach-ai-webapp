@@ -60,7 +60,7 @@ export default function CreativeBriefCard({
   };
 
   return (
-    <Card variant="outlined" style={{ padding: 24 }}>
+    <Card variant="outlined" className="cc-overview-card">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
         <span className="cc-panel-title">Creative Brief</span>
         {canEdit && !editing && (

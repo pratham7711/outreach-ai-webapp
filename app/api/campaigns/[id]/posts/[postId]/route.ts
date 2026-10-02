@@ -34,7 +34,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     });
     if (!post) return NextResponse.json({ error: "Post not found" }, { status: 404 });
 
-    return NextResponse.json(post);
+    /* The campaign's title rides along for the rail, which otherwise headed a
+       post opened by its own link with the placeholder "Campaign". */
+    return NextResponse.json({ ...post, campaignTitle: campaign.title });
   } catch (error) {
     console.error("Failed to fetch post:", error);
     return NextResponse.json({ error: "Failed to fetch post" }, { status: 500 });

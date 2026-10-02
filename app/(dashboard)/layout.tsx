@@ -4,8 +4,9 @@ import { TenantProvider } from "@/components/providers/TenantProvider";
 import { SidebarProvider } from "@/components/providers/SidebarProvider";
 import { CampaignNavProvider } from "@/components/providers/CampaignNavProvider";
 import { DashboardContent } from "@/components/layout/DashboardContent";
+import { ShellRoot } from "@/components/layout/ShellRoot";
 import { ConfirmProvider } from "@/components/ds";
-import { Toaster } from "sonner";
+import { ThemedToaster } from "@/components/layout/ThemedToaster";
 import { auth } from "@/lib/auth";
 import { isPlatformAdmin } from "@/lib/billing/subscription";
 import { getOrgEntitlements } from "@/lib/entitlements";
@@ -117,7 +118,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           orgId={orgId}
           uiConfig={uiConfig as Record<string, unknown> | null}
         />
-        <div className="cc-shell-root flex h-screen overflow-hidden">
+        <ShellRoot className="cc-shell-root flex h-screen overflow-hidden">
           {/* Skip to content link for accessibility */}
           <a
             href="#main-content"
@@ -127,7 +128,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
             Skip to main content
           </a>
 
-          <Toaster richColors position="bottom-right" />
+          <ThemedToaster richColors position="bottom-right" />
           <NewSidebar
             allowedNavHrefs={navHrefs}
             /* A separate axis from allowedNavHrefs: that is what this org bought,
@@ -154,7 +155,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
               </div>
             </main>
           </DashboardContent>
-        </div>
+        </ShellRoot>
        </ConfirmProvider>
        </CampaignNavProvider>
       </SidebarProvider>
