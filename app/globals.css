@@ -1373,7 +1373,9 @@
   --cc-landing-tiktok: var(--cc-landing-blue);
   --cc-landing-instagram: var(--cc-landing-pink);
   --cc-landing-youtube: var(--cc-landing-orange);
-  /* White labels: 6.09:1 on the fill, 8.27:1 on the hover. */
+  /* White labels: 6.09:1 on the fill, 8.27:1 on the hover. Their own token,
+     not --cc-on-primary, which Dark points at near-black. */
+  --cc-landing-cta-fg: #FFFFFF;
   --cc-landing-cta-bg: #1F5FBF;
   --cc-landing-cta-bg-hover: #184C9A;
   --cc-landing-header-bg: rgba(255, 255, 255, 0.88);
@@ -5726,7 +5728,7 @@ html:has(.lp-page) { scroll-behavior: smooth; }
 .lp-btn-sm { min-height: 44px; padding: 0 var(--cc-sp-7); font-size: var(--cc-t-14); }
 .lp-btn-primary {
   background: var(--cc-landing-cta-bg);
-  color: var(--cc-on-primary);
+  color: var(--cc-landing-cta-fg);
   box-shadow: 0 8px 20px -10px var(--cc-landing-cta-bg);
 }
 .lp-btn-primary:hover { background: var(--cc-landing-cta-bg-hover); box-shadow: 0 10px 24px -10px var(--cc-landing-cta-bg); }
