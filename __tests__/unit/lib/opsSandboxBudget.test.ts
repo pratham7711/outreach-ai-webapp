@@ -134,6 +134,12 @@ describe("createSandbox", () => {
     expect(sb).toMatchObject({ sandboxId: "sb_test" });
   });
 
+  it("counts every lane that boots at once on a cold instance, with one table check", async () => {
+    await Promise.all([1, 2, 3, 4, 5].map(() => createSandbox(params, "reader-v2")));
+    expect(queryRaw).toHaveBeenCalledTimes(1);
+    expect(executeRaw.mock.calls.filter(([sql]) => String(sql).includes(`"creations"`))).toHaveLength(5);
+  });
+
   it("propagates a failed boot without counting it", async () => {
     create.mockRejectedValueOnce(new Error("quota"));
     await expect(createSandbox(params, "post-lanes")).rejects.toThrow("quota");
