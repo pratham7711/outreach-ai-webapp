@@ -51,8 +51,9 @@ export const PAGES = [
   "/platform/trackers",
   "/platform/ops",
 ];
-/* --portal: the creator app, signed in as the seeded creator (creator@demo.com,
-   the same login e2e/fixtures/portal-auth.setup.ts uses). */
+/* --portal: the creator app, signed in as the seeded creator -- the session
+   e2e/fixtures/portal-auth.setup.ts writes to e2e/fixtures/.portal-auth.json.
+   PORTAL_EMAIL and PORTAL_PASSWORD, when both are set, sign in afresh instead. */
 export const PORTAL_PAGES = [
   "/portal/dashboard",
   "/portal/campaigns",
@@ -160,14 +161,17 @@ async function settle(page) {
 
 async function main() {
   const authFile = path.join(ROOT, "e2e", "fixtures", PORTAL ? ".portal-auth.json" : ".auth.json");
-  if (PORTAL) {
+  if (PORTAL && process.env.PORTAL_EMAIL && process.env.PORTAL_PASSWORD) {
     const api = await request.newContext({ baseURL: BASE });
-    const res = await api.post("/api/portal/auth/login", { data: { email: "creator@demo.com", password: "creator123" }, timeout: 60000 });
+    const res = await api.post("/api/portal/auth/login", {
+      data: { email: process.env.PORTAL_EMAIL, password: process.env.PORTAL_PASSWORD },
+      timeout: 60000,
+    });
     if (!res.ok()) throw new Error(`portal login failed: ${res.status()}`);
     writeFileSync(authFile, JSON.stringify(await api.storageState(), null, 2));
     await api.dispose();
   }
-  if (!existsSync(authFile)) throw new Error("e2e/fixtures/.auth.json is missing -- run the e2e auth setup first");
+  if (!existsSync(authFile)) throw new Error(`${path.relative(ROOT, authFile)} is missing -- run the e2e auth setup first`);
   mkdirSync(path.join(OUT, "shots"), { recursive: true });
   const browser = await chromium.launch({ channel: "chrome" });
   const results = [];
