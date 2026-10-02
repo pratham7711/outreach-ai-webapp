@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { authenticateRequest } from "@/lib/authenticate";
+import { logAudit } from "@/lib/audit";
+import { getRequestIp } from "@/lib/request";
 import { downsample, effectiveChartGranularity, parseGranularity } from "@/lib/trackers/granularity";
 import { LATEST_TEN_SINCE } from "@/lib/trackers/recentViews";
 
@@ -79,13 +81,28 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
 
     const creator = await db.creator.findFirst({
       where: { id, orgId, deletedAt: null },
-      select: { id: true, trackedSince: true },
+      select: { id: true, name: true, trackedSince: true },
     });
     if (!creator) return NextResponse.json({ error: "Creator not found" }, { status: 404 });
 
     // Untracking twice is the same outcome as untracking once.
     if (creator.trackedSince) {
       await db.creator.update({ where: { id: creator.id }, data: { trackedSince: null } });
+      /* Logged: it stops a standing read and drops the date the watch began,
+         which tracking the creator again does not restore. */
+      await logAudit({
+        orgId,
+        userId: result.userId ?? undefined,
+        actorEmail: result.actorEmail ?? undefined,
+        actorType: result.actorType,
+        action: "tracker.creator_untrack",
+        entityType: "creator",
+        entityId: creator.id,
+        entityLabel: creator.name,
+        ipAddress: getRequestIp(req),
+        before: { trackedSince: creator.trackedSince.toISOString() },
+        after: { trackedSince: null },
+      });
     }
 
     return NextResponse.json({ tracked: false });
