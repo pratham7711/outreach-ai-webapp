@@ -8,6 +8,9 @@ import { fetchYouTubeChannel, fetchYouTubeVideos } from "@/lib/platforms/youtube
 import { fetchFacebookPage, fetchFacebookPagePosts } from "@/lib/platforms/facebookPage";
 import { fetchThreadsPosts } from "@/lib/platforms/threads";
 import { ensureFreshThreadsToken } from "@/lib/platforms/threadsToken";
+import { fetchInstagramLoginMedia } from "@/lib/platforms/instagramLogin";
+import { ensureFreshInstagramLoginToken } from "@/lib/platforms/instagramLoginToken";
+import { isInstagramLoginRow } from "@/lib/platforms/accountOrigin";
 
 /**
  * The creator's own numbers, for one connected platform.
@@ -34,6 +37,10 @@ export type InsightsPost = {
   postedAt: string;
   shareUrl: string | null;
   coverImageUrl: string | null;
+  /** Accounts reached, from the Instagram insights edge
+   *  (instagram_manage_insights / instagram_business_manage_insights). Present
+   *  only on Instagram posts; null when Instagram did not measure it. */
+  reach?: number | null;
 };
 
 export type PlatformInsights = {
@@ -46,6 +53,9 @@ export type PlatformInsights = {
    *  authorise again. Distinct from a creator who simply has no posts. */
   needsReconnect: boolean;
   handle: string;
+  /** The platform's display name where it differs from the handle (TikTok's
+   *  display_name). Absent when none was recorded. */
+  displayName?: string | null;
   avatarUrl: string | null;
   /** The creator's own words. Rendered, not just stored: it is the only thing
    *  TikTok's user.info.profile and Instagram's instagram_basic return that a
@@ -87,6 +97,16 @@ export type InsightsAccount = {
   followingCount: number | null;
   totalLikes: number | null;
   mediaCount: number | null;
+  /** Which OAuth flow minted the row. Both Instagram paths store
+   *  platform = INSTAGRAM, and an Instagram Login token is read at
+   *  graph.instagram.com, never graph.facebook.com. Optional so a caller that
+   *  does not select it keeps today's (Facebook Login) reading. */
+  origin?: string | null;
+  /** Marked "Reconnect needed" (CreatorAccountState): the platform refused
+   *  the refresh for good, so no read is attempted until the creator
+   *  reconnects. */
+  reconnectNeeded?: boolean;
+  displayName?: string | null;
 };
 
 /** A post as any of the three platform modules returns it. */
@@ -103,7 +123,7 @@ type NormalisedPost = {
   sharesCount: number;
   /** The uncoerced counters every platform module returns alongside the
    *  display ones; `views` absent here means the platform did not measure it. */
-  exact?: { views?: number };
+  exact?: { views?: number; reach?: number };
 };
 
 /** The measured view count, or null when the platform never reported one. */
@@ -133,6 +153,9 @@ function toInsightsPost(post: NormalisedPost): InsightsPost {
     postedAt: post.postedAt,
     shareUrl: post.shareUrl,
     coverImageUrl: post.coverImageUrl,
+    ...(post.exact && "reach" in post.exact
+      ? { reach: typeof post.exact.reach === "number" ? post.exact.reach : null }
+      : {}),
   };
 }
 
@@ -150,6 +173,16 @@ async function loadPosts(
     const token = await ensureFreshTikTokToken(account, orgId);
     if (!token) return null;
     return await fetchTikTokVideos(token);
+  }
+
+  /* Instagram Login rows first: same platform value, different host, different
+     refresh. Their media and per-media insights (views, reach, shares — what
+     instagram_business_manage_insights grants) come from graph.instagram.com
+     with the creator's own token; no Page is involved. */
+  if (account.platform === "INSTAGRAM" && isInstagramLoginRow(account.origin)) {
+    const token = await ensureFreshInstagramLoginToken(account, orgId);
+    if (!token) return null;
+    return await fetchInstagramLoginMedia(token);
   }
 
   if (account.platform === "INSTAGRAM") {
@@ -223,6 +256,7 @@ export async function buildPlatformInsights(
     platform: account.platform,
     connected: true as const,
     handle: account.handle,
+    ...(account.displayName ? { displayName: account.displayName } : {}),
     avatarUrl: account.avatarUrl,
     bio: account.bio,
     profileUrl: account.profileUrl,
@@ -235,7 +269,10 @@ export async function buildPlatformInsights(
 
   let posts: NormalisedPost[] | null;
   try {
-    posts = await loadPosts(account, orgId);
+    /* A connection marked "Reconnect needed" is not read at all: its refresh
+       grant is dead, and asking again every page load only repeats the
+       refusal. The stored figures above still show. */
+    posts = account.reconnectNeeded ? null : await loadPosts(account, orgId);
   } catch (err) {
     /* Instagram's graphGet throws InstagramAuthError on a dead token or a
        withdrawn scope. That is precisely the reconnect case, so it must not

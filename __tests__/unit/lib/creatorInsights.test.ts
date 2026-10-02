@@ -20,8 +20,15 @@ jest.mock("@/lib/platforms/instagramAccount", () => ({
   fetchInstagramAccount: jest.fn(),
   fetchInstagramMedia: jest.fn(),
 }));
+jest.mock("@/lib/platforms/instagramLogin", () => ({ fetchInstagramLoginMedia: jest.fn() }));
+jest.mock("@/lib/platforms/instagramLoginToken", () => ({
+  ensureFreshInstagramLoginToken: jest.fn().mockResolvedValue("ig-login-token"),
+}));
 
 import { fetchInstagramMedia } from "@/lib/platforms/instagramAccount";
+import { fetchInstagramLoginMedia } from "@/lib/platforms/instagramLogin";
+import { ensureFreshInstagramToken } from "@/lib/platforms/instagramToken";
+import { ensureFreshInstagramLoginToken } from "@/lib/platforms/instagramLoginToken";
 
 const account: InsightsAccount = {
   id: "sa-ig",
@@ -137,5 +144,43 @@ describe("buildPlatformInsights — views the platform did not measure", () => {
     const block = await buildPlatformInsights(account, "org1");
     expect(block!.needsReconnect).toBe(true);
     expect(block!.posts).toEqual([]);
+  });
+});
+
+describe("buildPlatformInsights — the two Instagram flows, and Reconnect needed", () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it("reads an Instagram Login row at graph.instagram.com with its own token", async () => {
+    (fetchInstagramLoginMedia as jest.Mock).mockResolvedValueOnce([
+      { ...media("m1", 10, 500), exact: { views: 500, likes: 10, comments: 1, reach: 320 } },
+    ]);
+    const block = await buildPlatformInsights({ ...account, origin: "oauth_instagram_login" }, "org1");
+
+    expect(ensureFreshInstagramLoginToken).toHaveBeenCalledTimes(1);
+    expect(fetchInstagramLoginMedia).toHaveBeenCalledWith("ig-login-token");
+    // Never the Facebook Login path for this row.
+    expect(ensureFreshInstagramToken).not.toHaveBeenCalled();
+    expect(fetchInstagramMedia).not.toHaveBeenCalled();
+    expect(block!.needsReconnect).toBe(false);
+    expect(block!.posts[0].reach).toBe(320);
+  });
+
+  it("keeps a row with no origin on the Facebook Login path, as before", async () => {
+    (fetchInstagramMedia as jest.Mock).mockResolvedValueOnce([media("m1", 5, 50)]);
+    await buildPlatformInsights(account, "org1");
+    expect(fetchInstagramMedia).toHaveBeenCalledTimes(1);
+    expect(fetchInstagramLoginMedia).not.toHaveBeenCalled();
+  });
+
+  it("does not read a row marked Reconnect needed, and says so", async () => {
+    const block = await buildPlatformInsights(
+      { ...account, origin: "oauth_instagram_login", reconnectNeeded: true },
+      "org1",
+    );
+    expect(ensureFreshInstagramLoginToken).not.toHaveBeenCalled();
+    expect(fetchInstagramLoginMedia).not.toHaveBeenCalled();
+    expect(block!.needsReconnect).toBe(true);
+    // The stored figures still show.
+    expect(block!.followers).toBe(395);
   });
 });
