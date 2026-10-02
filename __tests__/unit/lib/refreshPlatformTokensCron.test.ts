@@ -19,6 +19,11 @@ jest.mock("@/lib/platforms/instagramBusinessToken", () => ({
 const mockAlert = jest.fn();
 jest.mock("@/lib/alerts", () => ({ alertOps: (...args: unknown[]) => mockAlert(...args) }));
 
+const mockConnections = jest.fn();
+jest.mock("@/lib/platforms/connectionRefresh", () => ({
+  refreshConnectedAccounts: (...args: unknown[]) => mockConnections(...args),
+}));
+
 import { NextRequest } from "next/server";
 import { GET } from "@/app/api/cron/refresh-platform-tokens/route";
 
@@ -35,6 +40,14 @@ function call(query = "", auth: string | null = `Bearer ${SECRET}`) {
 beforeEach(() => {
   mockRefresh.mockReset().mockResolvedValue({ status: "not-due", expiresAt: "x", daysLeft: 40 });
   mockAlert.mockReset().mockResolvedValue(undefined);
+  mockConnections.mockReset().mockResolvedValue({
+    considered: 0,
+    refreshed: 0,
+    skippedReconnect: 0,
+    noToken: 0,
+    identityFailed: 0,
+    deferred: 0,
+  });
   process.env.CRON_SECRET = SECRET;
 });
 
@@ -121,5 +134,36 @@ describe("what earns an alert", () => {
     const res = await call();
     expect(res.status).toBe(500);
     expect(mockAlert.mock.calls[0][0].severity).toBe("critical");
+  });
+});
+
+describe("the creators' own connections", () => {
+  it("are refreshed after the platform credential, inside a deadline", async () => {
+    const before = Date.now();
+    const res = await call();
+    expect(mockConnections).toHaveBeenCalledTimes(1);
+    const { deadlineAt } = mockConnections.mock.calls[0][0];
+    expect(deadlineAt).toBeGreaterThanOrEqual(before + 30_000);
+    expect(deadlineAt).toBeLessThanOrEqual(Date.now() + 40_000);
+    expect((await res.json()).connections).toMatchObject({ considered: 0 });
+  });
+
+  it("cannot fail the credential run when they crash", async () => {
+    mockRefresh.mockResolvedValue({ status: "refreshed", expiresAt: "x", daysLeft: 60, addedDays: 46 });
+    mockConnections.mockRejectedValue(new Error("db down"));
+    const res = await call();
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.instagram.status).toBe("refreshed");
+    expect(body.connections).toEqual({ error: "connection refresh failed" });
+    // One warning, not a page: the platform credential is fine.
+    expect(mockAlert).toHaveBeenCalledTimes(1);
+    expect(mockAlert.mock.calls[0][0].severity).toBe("warn");
+  });
+
+  it("are not reached when the credential refresh itself throws", async () => {
+    mockRefresh.mockRejectedValue(new Error("boom"));
+    await call();
+    expect(mockConnections).not.toHaveBeenCalled();
   });
 });

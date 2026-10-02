@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { decrypt, encrypt } from "@/lib/crypto/encrypt";
 import { exchangeForLongLivedToken } from "./instagram";
 import { createLogger } from "@/lib/observability/logger";
+import { ACCOUNT_ORIGINS } from "./accountOrigin";
 
 const EXPIRY_SKEW_MS = 5 * 60 * 1000;
 const REFRESH_AHEAD_MS = 7 * 24 * 60 * 60 * 1000;
@@ -142,7 +143,13 @@ export async function getInstagramAccountForCreator(
     select: {
       ...INSTAGRAM_HANDLE_SELECT,
       socialAccounts: {
-        where: { platform: "INSTAGRAM" },
+        /* Facebook Login rows only: every read this token feeds goes to
+           graph.facebook.com, which rejects an Instagram Login token. NULL
+           origin predates Instagram Login, so it is always Facebook Login. */
+        where: {
+          platform: "INSTAGRAM",
+          OR: [{ origin: null }, { origin: { not: ACCOUNT_ORIGINS.OAUTH_INSTAGRAM_LOGIN } }],
+        },
         select: { id: true, accessToken: true, tokenExpiry: true, handle: true },
       },
     },

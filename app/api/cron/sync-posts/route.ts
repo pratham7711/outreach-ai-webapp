@@ -22,6 +22,7 @@ import {
 import { openTikTokPostFetcher } from "@/lib/platforms/tiktokEgress";
 import { ensureFreshInstagramToken, INSTAGRAM_HANDLE_SELECT, instagramLookupHandle } from "@/lib/platforms/instagramToken";
 import { ensureFreshTikTokToken } from "@/lib/platforms/tiktokToken";
+import { isInstagramLoginRow } from "@/lib/platforms/accountOrigin";
 import { decidePostTracking, type PostTrackingAction } from "@/lib/sync/postTracking";
 import { parsePostTracking, type PostTrackingGranularity } from "@/lib/trackers/granularity";
 import { LAST_FETCH_KEY, lastFetchNote } from "@/lib/metricDisplay";
@@ -282,6 +283,7 @@ export async function GET(request: NextRequest) {
                 refreshToken: true,
                 handle: true,
                 tokenExpiry: true,
+                origin: true,
               },
             },
           },
@@ -456,7 +458,15 @@ export async function GET(request: NextRequest) {
       }
 
       try {
-        const igAccount = post.creator.socialAccounts.find((a) => a.platform === "INSTAGRAM");
+        /* A Facebook Login row only. An Instagram Login token is governed by
+           graph.instagram.com, and the metrics walk below is graph.facebook.com,
+           which rejects it — so handing it over bought a failed call and an
+           "auth" reason on a post whose creator had connected fine. Without a
+           Facebook Login row the post reads the way an unconnected creator's
+           does. */
+        const igAccount = post.creator.socialAccounts.find(
+          (a) => a.platform === "INSTAGRAM" && !isInstagramLoginRow(a.origin),
+        );
         const ttAccount = post.creator.socialAccounts.find((a) => a.platform === "TIKTOK");
         const instagramToken =
           post.platform === "INSTAGRAM"

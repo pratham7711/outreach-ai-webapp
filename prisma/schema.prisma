@@ -797,6 +797,53 @@ model CreatorSocialAccount {
   @@index([platform, platformUserId])
 }
 
+/// Per-connection state that CreatorSocialAccount has no column for, kept in
+/// its own table because an existing model may only grow when every database
+/// already has the column (Prisma's implicit select names every field).
+///
+/// One row per connection, created lazily. A missing row means "nothing
+/// recorded", which is exactly what every connection meant before this table
+/// existed. The FK to CreatorSocialAccount lives in the DDL only (ON DELETE
+/// CASCADE), so no relation field is added to the existing model.
+/// See lib/creators/connectSchemaDdl.ts.
+model CreatorAccountState {
+  accountId         String    @id
+  /// The user id Meta's deauthorize and data-deletion callbacks name for
+  /// whoever granted this connection: the Facebook user for Facebook and
+  /// Instagram-via-Facebook rows, the app-scoped Instagram user for Instagram
+  /// Login rows. platformUserId names the ACCOUNT (an IG account, a Page),
+  /// which is not what those callbacks send.
+  grantorUserId     String?
+  /// Set when the platform refused to refresh this connection for good
+  /// (Google invalid_grant). Readers skip the connection until a reconnect
+  /// clears it. Nothing is ever deleted on this signal.
+  reconnectNeededAt DateTime?
+  reconnectReason   String?
+  /// TikTok's display_name. The handle column holds the username.
+  displayName       String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([grantorUserId])
+}
+
+/// A connect link (/connect/<token>) an agency made for ONE roster row. The
+/// raw token is shown once and only its SHA-256 is stored, so a database read
+/// cannot be replayed as a link.
+model CreatorConnectToken {
+  id          String    @id @default(cuid())
+  orgId       String
+  creatorId   String
+  tokenHash   String    @unique
+  createdById String?
+  createdAt   DateTime  @default(now())
+  revokedAt   DateTime?
+  /// When an account was last connected through this link.
+  usedAt      DateTime?
+
+  @@index([orgId, creatorId])
+}
+
 model CreatorList {
   id          String   @id @default(cuid())
   orgId       String

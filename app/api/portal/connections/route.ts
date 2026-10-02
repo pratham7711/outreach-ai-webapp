@@ -1,15 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getCreatorSession } from "@/lib/creator-auth";
-import { decrypt, isEncrypted } from "@/lib/crypto/encrypt";
+import { isEncrypted } from "@/lib/crypto/encrypt";
 import { OAUTH_PLATFORMS, isProviderConfigured } from "@/lib/oauth/providers";
 import { resolveCapabilities } from "@/lib/capabilities";
-import { revokeTikTokToken } from "@/lib/platforms/tiktokDisplay";
-import { revokeInstagramToken } from "@/lib/platforms/instagramAccount";
-import { revokeYouTubeToken } from "@/lib/platforms/youtube";
-import { revokeFacebookToken } from "@/lib/platforms/facebookPage";
 import { findLinkedCreatorsForHandle } from "@/lib/portal/creatorLink";
-import { isInstagramLoginRow } from "@/lib/platforms/accountOrigin";
+import { accountStatesFor } from "@/lib/platforms/accountState";
+import { disconnectSocialAccount } from "@/lib/portal/disconnect";
 
 export async function GET() {
   try {
@@ -46,6 +43,10 @@ export async function GET() {
             orderBy: { createdAt: "asc" },
           });
 
+    /* Empty when CreatorAccountState is not there yet, which reads as "no
+       mark, no display name" — every account exactly as it was listed before. */
+    const states = await accountStatesFor(accounts.map((a) => a.id));
+
     return NextResponse.json({
       accounts: accounts.map((a) => ({
         id: a.id,
@@ -69,6 +70,12 @@ export async function GET() {
            connected without a Facebook Page would be listed under both
            Instagram cards. */
         origin: a.origin,
+        /* Google refused this connection's refresh for good (invalid_grant).
+           The row is kept; the creator reconnects to clear it. */
+        reconnectNeeded: Boolean(states.get(a.id)?.reconnectNeededAt),
+        /* TikTok's display_name, where one was recorded; `handle` stays the
+           username. */
+        displayName: states.get(a.id)?.displayName ?? null,
       })),
       /* Built from OAUTH_PLATFORMS rather than listed by hand: the three names
          used to be hardcoded here, so adding a provider to the code left it
@@ -120,71 +127,10 @@ export async function DELETE(req: NextRequest) {
     if (!creator)
       return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-    /* Disconnect has to mean disconnected at the platform too, not just a
-       forgotten row — otherwise our grant on the creator's account outlives
-       the connection they revoked. This ran for TikTok alone; Instagram and
-       YouTube both have a revoke endpoint and neither was being called.
-
-       A failure here still lets the creator disconnect: their intent is
-       unambiguous, and a row we keep because the platform's revoke endpoint
-       was down is the worse outcome. */
-    /* Instagram and Facebook are ONE grant at Meta: both rows hold a user token
-       from the same app, and their revoke is DELETE /me/permissions, which
-       drops every permission the app holds for that user. Revoking for the
-       Facebook row therefore invalidated the Instagram token on the spot
-       (measured on prod 2026-09-07: Graph code 190 "session has been
-       invalidated" on the very next Instagram read). So the Graph revoke runs
-       only when this is the creator's LAST Meta row; until then the row and its
-       token are simply deleted here, and the grant is withdrawn at Meta when
-       the last one goes. */
-    const META_PLATFORMS = ["INSTAGRAM", "FACEBOOK"] as const;
-    /* An Instagram-Login row is NOT part of the Facebook grant. It was minted
-       by a different app id on a different host and has no me/permissions
-       endpoint, so it must neither be revoked through Facebook nor counted as a
-       sibling that keeps the Facebook grant alive — counting it would suppress
-       the real revoke and leave the Facebook grant standing after the creator
-       disconnected their last Page. */
-    const isIgLogin = isInstagramLoginRow(account.origin);
-    const isMeta =
-      !isIgLogin && (META_PLATFORMS as readonly string[]).includes(account.platform);
-    const siblingMetaRows = isMeta
-      ? await db.creatorSocialAccount.count({
-          where: {
-            creatorId: account.creatorId,
-            platform: { in: [...META_PLATFORMS] },
-            id: { not: account.id },
-            OR: [{ origin: null }, { origin: { not: "oauth_instagram_login" } }],
-          },
-        })
-      : 0;
-
-    try {
-      const token = decrypt(account.accessToken, creator.orgId);
-      if (account.platform === "TIKTOK") await revokeTikTokToken(token);
-      /* Instagram Login publishes no revoke endpoint, so there is nothing to
-         call — see revokeInstagramLoginToken. Deliberately not routed to
-         revokeInstagramToken: that DELETEs me/permissions on graph.facebook.com
-         and would 400 against a token that host does not govern, which this
-         catch swallows. The row is still deleted below and the creator
-         withdraws the app from Instagram's own settings, exactly as with
-         Threads. */
-      else if (isIgLogin) {
-        // no-op by design
-      } else if (account.platform === "INSTAGRAM" && siblingMetaRows === 0)
-        await revokeInstagramToken(token);
-      else if (account.platform === "YOUTUBE") await revokeYouTubeToken(token);
-      else if (account.platform === "FACEBOOK" && siblingMetaRows === 0)
-        await revokeFacebookToken(token);
-      /* THREADS is deliberately absent: the Threads API publishes no revoke
-         endpoint, so there is nothing to call. Deleting the row is the whole of
-         what we can do, and the creator withdraws the grant from their own
-         Threads settings. Do not add a DELETE /me/permissions here — that is
-         the Facebook host and it does not govern a Threads token. */
-    } catch {
-      // A revoke that fails must not block the creator from disconnecting.
-    }
-
-    await db.creatorSocialAccount.delete({ where: { id: account.id } });
+    /* The revoke rules (Meta's shared grant, Instagram Login and Threads having
+       no revoke endpoint) live in lib/portal/disconnect.ts, because TikTok's
+       authorization.removed webhook disconnects through the same path. */
+    await disconnectSocialAccount(account, creator.orgId);
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Failed to delete portal connection:", error);

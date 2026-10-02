@@ -2,7 +2,11 @@
 // forgetting the user it names.
 
 import type { NextRequest } from "next/server";
+import type { Prisma } from "@/lib/generated/prisma";
 import { db } from "@/lib/db";
+import { ACCOUNT_ORIGINS } from "@/lib/platforms/accountOrigin";
+import { accountIdsForGrantor } from "@/lib/platforms/accountState";
+import { isGrantorPlatform } from "@/lib/platforms/metaGrantor";
 import { toPlatformEnum, type OAuthPlatform } from "./providers";
 
 /**
@@ -33,16 +37,70 @@ export async function readSignedRequest(req: NextRequest): Promise<string | null
  * platforms. Returns how many rows went.
  *
  * There is no orgId here on purpose: a webhook has no tenant, and the Meta
- * user id is unique across the app, so [platform, platformUserId] is the
- * whole scope. Tokens live on the row, so deleting it revokes our access at
- * the same time.
+ * user id is unique across the app, so the user is the whole scope — two orgs
+ * that rostered the same person both lose the connection, as they should.
+ * Tokens live on the row, so deleting it revokes our access at the same time.
+ *
+ * What `userId` names depends on the platform, and so does the match:
+ *
+ *   - THREADS: the Threads user id, which is the platformUserId we stored.
+ *     Matched exactly as it always was.
+ *   - INSTAGRAM / FACEBOOK (Facebook Login): the app-scoped Facebook user who
+ *     granted access. platformUserId holds the IG account or Page id instead,
+ *     so that match alone deleted nothing; the grantor id recorded at connect
+ *     time (CreatorAccountState) is what finds these rows. platformUserId is
+ *     still accepted, so nothing that matched before stops matching. Instagram
+ *     Login rows are left alone: they are a different grant, at a different
+ *     app, and removing the Facebook app does not withdraw them.
+ *   - instagram-login: only rows minted by Instagram Login, matched on either
+ *     the account id (platformUserId) or the app-scoped id (grantor), because
+ *     which one Instagram's callback sends is not something the code can know.
+ *
+ * Absent CreatorAccountState table: the grantor half matches nothing and this
+ * behaves exactly as it did before the table existed.
  */
 export async function forgetMetaUser(userId: string, platforms: OAuthPlatform[]): Promise<number> {
+  if (!userId || platforms.length === 0) return 0;
+
+  const needsGrantor = platforms.some(isGrantorPlatform);
+  const grantedIds = needsGrantor ? await accountIdsForGrantor(userId) : [];
+  const ownedBy: Prisma.CreatorSocialAccountWhereInput[] = [
+    { platformUserId: userId },
+    ...(grantedIds.length > 0 ? [{ id: { in: grantedIds } }] : []),
+  ];
+
+  const clauses: Prisma.CreatorSocialAccountWhereInput[] = [];
+
+  const facebookLogin = platforms
+    .filter((p) => p === "instagram" || p === "facebook")
+    .map(toPlatformEnum);
+  if (facebookLogin.length > 0) {
+    clauses.push({
+      platform: { in: facebookLogin },
+      AND: [
+        /* `origin <> x` is NULL for a NULL origin in SQL, so the legacy rows
+           (origin NULL, all Facebook Login) need their own arm. */
+        { OR: [{ origin: null }, { origin: { not: ACCOUNT_ORIGINS.OAUTH_INSTAGRAM_LOGIN } }] },
+        { OR: ownedBy },
+      ],
+    });
+  }
+
+  if (platforms.includes("instagram-login")) {
+    clauses.push({
+      platform: toPlatformEnum("instagram-login"),
+      origin: ACCOUNT_ORIGINS.OAUTH_INSTAGRAM_LOGIN,
+      OR: ownedBy,
+    });
+  }
+
+  if (platforms.includes("threads")) {
+    clauses.push({ platformUserId: userId, platform: toPlatformEnum("threads") });
+  }
+
+  if (clauses.length === 0) return 0;
   const { count } = await db.creatorSocialAccount.deleteMany({
-    where: {
-      platformUserId: userId,
-      platform: { in: platforms.map(toPlatformEnum) },
-    },
+    where: clauses.length === 1 ? clauses[0] : { OR: clauses },
   });
   return count;
 }

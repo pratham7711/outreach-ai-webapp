@@ -12,14 +12,36 @@ import {
 } from "@/lib/oauth/providers";
 import { safeReturnTo, returnToWithQuery } from "@/lib/oauth/returnTo";
 import { resolvePlatformCapability } from "@/lib/capabilities";
+import { ACCOUNT_ORIGINS } from "@/lib/platforms/accountOrigin";
+import {
+  connectLinkPath,
+  connectState,
+  isWellFormedConnectToken,
+  markConnectTokenUsed,
+  resolveConnectToken,
+} from "@/lib/creators/connectToken";
 
 const STATE_COOKIE = "portal_oauth_state";
 const RETURN_COOKIE = "portal_oauth_return";
+
+const COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === "production",
+  sameSite: "lax" as const,
+  path: "/",
+  maxAge: 600,
+};
 
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ platform: string }> },
 ) {
+  /* A connect link (/connect/<token>) starts here with ?connect=<token> and no
+     login at all. It is a separate branch rather than a variation of the one
+     below so the signed-in flow is exactly what it was. */
+  const connectToken = req.nextUrl.searchParams.get("connect");
+  if (connectToken !== null) return startFromConnectLink(req, (await params).platform, connectToken);
+
   const session = await getCreatorSession();
   if (!session)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -143,5 +165,71 @@ export async function GET(
     return NextResponse.redirect(
       new URL(returnToWithQuery(devReturnTo, `error=${platform}`), req.url),
     );
+  }
+}
+
+/**
+ * The connect-link start: the roster row comes from the token, never from a
+ * handle, and the token's row id rides through OAuth inside a signed state.
+ * Every outcome lands back on /connect/<token>, the page the creator came from.
+ */
+async function startFromConnectLink(req: NextRequest, platform: string, token: string) {
+  if (!isWellFormedConnectToken(token))
+    return NextResponse.json({ error: "Invalid link" }, { status: 404 });
+
+  const back = connectLinkPath(token);
+  const backWith = (query: string) =>
+    NextResponse.redirect(new URL(returnToWithQuery(back, query), req.url));
+
+  if (!isOAuthPlatform(platform)) return backWith("error=platform");
+
+  const capability = resolvePlatformCapability(platform);
+  if (capability.connect === "coming_soon") return backWith(`error=${platform}&reason=provider`);
+
+  const binding = await resolveConnectToken(token);
+  if (!binding) return backWith("error=link");
+
+  if (isProviderConfigured(platform)) {
+    const state = connectState(binding.tokenId);
+    const authorizeUrl = state ? buildAuthorizeUrl(platform, state) : null;
+    if (!state || !authorizeUrl) return backWith(`error=${platform}&reason=provider`);
+    const res = NextResponse.redirect(authorizeUrl);
+    res.cookies.set(STATE_COOKIE, state, COOKIE_OPTIONS);
+    res.cookies.set(RETURN_COOKIE, back, COOKIE_OPTIONS);
+    return res;
+  }
+
+  if (process.env.NODE_ENV === "production") return backWith(`error=${platform}&reason=provider`);
+
+  /* The same non-production shortcut as the signed-in flow, onto the bound
+     row, so the whole connect-link journey can be walked locally without a
+     real consent screen. */
+  try {
+    const platformEnum = toPlatformEnum(platform);
+    const devPlatformUserId = `dev-${platform}-${binding.creatorId}`;
+    const accessToken = encrypt(`dev-token-${platform}-${Date.now()}`, binding.orgId);
+    await db.creatorSocialAccount.upsert({
+      where: {
+        creatorId_platform_platformUserId: {
+          creatorId: binding.creatorId,
+          platform: platformEnum,
+          platformUserId: devPlatformUserId,
+        },
+      },
+      create: {
+        creatorId: binding.creatorId,
+        platform: platformEnum,
+        platformUserId: devPlatformUserId,
+        handle: binding.creatorHandle,
+        accessToken,
+        origin: ACCOUNT_ORIGINS.DEV,
+      },
+      update: { accessToken },
+    });
+    await markConnectTokenUsed(binding.tokenId);
+    return backWith(`connected=${platform}`);
+  } catch (error) {
+    console.error(`Dev connect (link) failed for ${platform}:`, error);
+    return backWith(`error=${platform}`);
   }
 }

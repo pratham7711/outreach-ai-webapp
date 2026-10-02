@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { getCreatorSession } from "@/lib/creator-auth";
 import { findLinkedCreatorsForHandle } from "@/lib/portal/creatorLink";
 import { buildPlatformInsights, type PlatformInsights } from "@/lib/portal/creatorInsights";
+import { accountStatesFor } from "@/lib/platforms/accountState";
 
 export const dynamic = "force-dynamic";
 
@@ -50,12 +51,18 @@ export async function GET() {
         followingCount: true,
         mediaCount: true,
         totalLikes: true,
+        origin: true,
       },
       orderBy: { createdAt: "asc" },
     });
 
     if (accounts.length === 0)
       return NextResponse.json({ connected: false, platforms: [] });
+
+    /* "Reconnect needed" marks and display names live beside the account row
+       (CreatorAccountState); an empty map — table not there yet — reads every
+       account the way it was read before. */
+    const states = await accountStatesFor(accounts.map((a) => a.id));
 
     /* One creator can have several platforms and each block makes its own
        outbound calls, so they run together rather than one after another —
@@ -64,7 +71,15 @@ export async function GET() {
       accounts.map(async (account) => {
         const orgId = orgByCreator.get(account.creatorId);
         if (!orgId) return null;
-        return await buildPlatformInsights(account, orgId);
+        const state = states.get(account.id);
+        return await buildPlatformInsights(
+          {
+            ...account,
+            reconnectNeeded: Boolean(state?.reconnectNeededAt),
+            displayName: state?.displayName ?? null,
+          },
+          orgId,
+        );
       }),
     );
 

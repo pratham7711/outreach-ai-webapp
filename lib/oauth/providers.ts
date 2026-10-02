@@ -227,6 +227,12 @@ export function toPlatformEnum(platform: OAuthPlatform): PlatformEnumValue {
   return PROVIDERS[platform].platformEnum;
 }
 
+/** The scopes a platform's consent asks for, before any TIKTOK_SCOPES narrowing.
+ *  Read by the "what we read" copy, so every scope asked for has words. */
+export function requestedScopes(platform: OAuthPlatform): string[] {
+  return [...PROVIDERS[platform].scopes];
+}
+
 function appBaseUrl(): string {
   const base =
     process.env.APP_URL ||

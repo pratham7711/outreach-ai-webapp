@@ -40,6 +40,12 @@ export type AccountIdentity = {
   followingCount: number | null;
   mediaCount: number | null;
   totalLikes: number | null;
+  /**
+   * The platform's display name, where it publishes one apart from the handle
+   * (TikTok's display_name). Not a CreatorSocialAccount column — it is kept in
+   * CreatorAccountState — so identityWriteData ignores it.
+   */
+  displayName?: string | null;
 };
 
 /**
@@ -69,6 +75,7 @@ export async function fetchAccountIdentity(
       followingCount: info.followingCount,
       mediaCount: info.videoCount,
       totalLikes: info.likesCount,
+      displayName: info.displayName || null,
     };
   }
 
@@ -235,12 +242,19 @@ export async function persistAccountIdentity(
  * Reads the account behind a token and writes it onto an existing row.
  *
  * Never throws: a refresh that fails must not disturb a working connection.
+ *
+ * `expectedPlatformUserId` is the id the row already holds. A token can reach
+ * more than one account — a Facebook user with two Pages, two IG business
+ * accounts behind two Pages — and the identity read picks the first, so a
+ * refresh could otherwise write a sibling account's name and numbers over this
+ * row. When the read comes back as a different account, nothing is written.
  */
 export async function refreshAccountIdentity(
   platform: OAuthPlatform,
   platformEnum: PlatformEnumValue,
   accountId: string,
   token: string,
+  expectedPlatformUserId?: string | null,
 ): Promise<AccountIdentity | null> {
   const log = createLogger({
     context: { platform: platformEnum, call: "account.refresh" },
@@ -249,6 +263,14 @@ export async function refreshAccountIdentity(
     const identity = await fetchAccountIdentity(platform, token);
     if (!identity) {
       log.warn("No identity could be read for a connected account", { accountId });
+      return null;
+    }
+    if (
+      expectedPlatformUserId &&
+      identity.platformUserId &&
+      identity.platformUserId !== expectedPlatformUserId
+    ) {
+      log.warn("Token now resolves to a different account; row left as it was", { accountId });
       return null;
     }
     await persistAccountIdentity(accountId, identity, platformEnum);

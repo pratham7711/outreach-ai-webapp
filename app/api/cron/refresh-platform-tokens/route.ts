@@ -6,6 +6,10 @@ import {
 } from "@/lib/platforms/instagramBusinessToken";
 import { createLogger } from "@/lib/observability/logger";
 import { alertOps } from "@/lib/alerts";
+import {
+  refreshConnectedAccounts,
+  type ConnectionRefreshSummary,
+} from "@/lib/platforms/connectionRefresh";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -13,6 +17,12 @@ export const runtime = "nodejs";
    from Meta is not cut off mid-exchange, which would be the one way to lose a
    token: a new one minted at Meta and never written here. */
 export const maxDuration = 60;
+
+/* The creators' own connections get what is left of the minute after the
+   platform credential, minus a margin for the rows already in flight to finish
+   their writes — a refreshed token that is minted but never stored is the one
+   way this job could cost a connection. Rows not reached roll to tomorrow. */
+const CONNECTION_BUDGET_MS = 35_000;
 
 /**
  * Keeps the platform's own credentials alive.
@@ -48,12 +58,19 @@ export async function GET(request: NextRequest) {
      weeks to find out. It exchanges regardless of the window; the answer is the
      same either way and a successful early exchange simply resets the clock. */
   const force = request.nextUrl.searchParams.get("force") === "1";
+  const startedAt = Date.now();
 
   try {
     const instagram = await refreshInstagramBusinessToken({ force });
     log.info("instagram business credential", { ...instagram });
     await alertFor(instagram);
-    return NextResponse.json({ instagram, refreshWindowDays: REFRESH_WHEN_DAYS_LEFT, force });
+    const connections = await refreshCreatorConnections(startedAt + CONNECTION_BUDGET_MS);
+    return NextResponse.json({
+      instagram,
+      refreshWindowDays: REFRESH_WHEN_DAYS_LEFT,
+      force,
+      connections,
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     log.error("refresh-platform-tokens cron failed", { error: message });
@@ -64,6 +81,34 @@ export async function GET(request: NextRequest) {
       facts: { error: message },
     });
     return NextResponse.json({ error: "Refresh failed" }, { status: 500 });
+  }
+}
+
+/**
+ * The daily pass over creators' own connections (lib/platforms/connectionRefresh).
+ *
+ * Runs only after the platform credential above has been refreshed and
+ * reported, and can never fail this request: a crash here is logged and
+ * alerted on its own, and the credential result above is returned regardless.
+ * No per-row alert — a creator's lapsed token is shown to that creator as
+ * "Reconnect needed", and paging an operator for each one is noise.
+ */
+async function refreshCreatorConnections(
+  deadlineAt: number,
+): Promise<ConnectionRefreshSummary | { error: string }> {
+  const log = createLogger({ context: { route: "cron/refresh-platform-tokens", call: "connections" } });
+  try {
+    return await refreshConnectedAccounts({ deadlineAt });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    log.error("creator connection refresh crashed", { error: message });
+    await alertOps({
+      source: "cron/refresh-platform-tokens",
+      title: "Creator connection refresh crashed",
+      severity: "warn",
+      facts: { error: message },
+    }).catch(() => undefined);
+    return { error: "connection refresh failed" };
   }
 }
 

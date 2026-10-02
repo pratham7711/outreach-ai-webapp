@@ -22,6 +22,15 @@ import {
 import { createLogger } from "@/lib/observability/logger";
 import { returnToWithQuery } from "@/lib/oauth/returnTo";
 import { stripAt } from "@/lib/format";
+import {
+  bindingForTokenId,
+  markConnectTokenUsed,
+  readConnectState,
+} from "@/lib/creators/connectToken";
+import { connectTablesReady } from "@/lib/creators/connectTables";
+import { recordConnectionState } from "@/lib/platforms/accountState";
+import { fetchMetaGrantorId, isGrantorPlatform } from "@/lib/platforms/metaGrantor";
+import type { AccountIdentity } from "@/lib/platforms/accountSync";
 
 const STATE_COOKIE = "portal_oauth_state";
 
@@ -47,7 +56,10 @@ export type CallbackFailure =
   | "token_missing"
   | "creator"
   | "identity"
-  | "exception";
+  | "exception"
+  /* A connect link that was revoked, or whose roster row is gone, between
+     the creator pressing Continue and coming back from consent. */
+  | "link";
 
 function failureRedirect(
   req: NextRequest,
@@ -63,8 +75,14 @@ export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ platform: string }> },
 ) {
-  const session = await getCreatorSession();
-  if (!session)
+  /* A connect-link consent (/connect/<token>) has no portal login behind it;
+     its roster row travels in a state this app signed. Any other state is the
+     signed-in flow, exactly as before. The state must still equal the cookie
+     below either way — the signature says WHICH row, the cookie says this
+     browser started it. */
+  const connectTokenId = readConnectState(req.nextUrl.searchParams.get("state"));
+  const session = connectTokenId ? null : await getCreatorSession();
+  if (!connectTokenId && !session)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { platform } = await params;
@@ -88,6 +106,14 @@ export async function GET(
     return failureRedirect(req, platform, "provider");
 
   try {
+    /* Checked before the code is spent: a link revoked mid-consent should
+       not cost the creator a provider round trip that stores nothing. */
+    const binding = connectTokenId ? await bindingForTokenId(connectTokenId) : null;
+    if (connectTokenId && !binding) {
+      log.warn("Connect link no longer valid at callback", { platform });
+      return failureRedirect(req, platform, "link");
+    }
+
     const tokenRequest = buildTokenRequest(platform, code);
     if (!tokenRequest) return failureRedirect(req, platform, "provider");
 
@@ -129,7 +155,14 @@ export async function GET(
       return failureRedirect(req, platform, "token_missing");
     }
 
-    const creator = await findCreatorForHandle(session.handle);
+    /* Through a connect link the row is the one the agency bound the link to
+       — orgId and id, never a handle. Signed in, it is found by handle as
+       before, and proven below. */
+    const creator = binding
+      ? { id: binding.creatorId, orgId: binding.orgId }
+      : session
+        ? await findCreatorForHandle(session.handle)
+        : null;
     if (!creator) {
       log.warn("No creator row matches the portal handle", { platform });
       return failureRedirect(req, platform, "creator");
@@ -244,18 +277,22 @@ export async function GET(
            connection), or
          - the account that just authorised IS this handle, which is what makes
            the very first connection able to establish the link. */
-    const linkedIds = new Set(
-      (await findLinkedCreatorsForHandle(session)).map((c) => c.id),
-    );
-    const identityProvesHandle =
-      stripAt(identity.handle ?? "").trim().toLowerCase() ===
-      stripAt(session.handle).trim().toLowerCase();
-    if (!linkedIds.has(creator.id) && !identityProvesHandle) {
-      log.warn("Authorised account does not belong to this portal handle", {
-        platform,
-        creatorId: creator.id,
-      });
-      return failureRedirect(req, platform, "creator");
+    /* A connect link needs no such proof: the agency bound it to this row and
+       handed it to the creator, and the link is the credential. */
+    if (session) {
+      const linkedIds = new Set(
+        (await findLinkedCreatorsForHandle(session)).map((c) => c.id),
+      );
+      const identityProvesHandle =
+        stripAt(identity.handle ?? "").trim().toLowerCase() ===
+        stripAt(session.handle).trim().toLowerCase();
+      if (!linkedIds.has(creator.id) && !identityProvesHandle) {
+        log.warn("Authorised account does not belong to this portal handle", {
+          platform,
+          creatorId: creator.id,
+        });
+        return failureRedirect(req, platform, "creator");
+      }
     }
 
     /* What the row already holds, so a platform that only publishes a rounded
@@ -277,7 +314,7 @@ export async function GET(
       existingAccount?.followersCount,
     );
 
-    await db.creatorSocialAccount.upsert({
+    const saved = await db.creatorSocialAccount.upsert({
       where: {
         creatorId_platform_platformUserId: {
           creatorId: creator.id,
@@ -290,7 +327,7 @@ export async function GET(
         platform: platformEnum,
         /* Falls back to the portal username only when the platform returned a
            blank handle, so the row never renders as an empty account. */
-        handle: identity.handle || session.handle,
+        handle: identity.handle || session?.handle || binding?.creatorHandle || "",
         accessToken: encryptedAccess,
         refreshToken: encryptedRefresh,
         tokenExpiry,
@@ -315,6 +352,9 @@ export async function GET(
       select: { id: true },
     });
 
+    if (saved?.id) await recordAfterConnect(platform, saved.id, storedToken, identity);
+    if (binding) await markConnectTokenUsed(binding.tokenId);
+
     return finishRedirect(req, `connected=${platform}`);
   } catch (error) {
     log.error("OAuth callback threw", {
@@ -323,4 +363,35 @@ export async function GET(
     });
     return failureRedirect(req, platform, "exception");
   }
+}
+
+/**
+ * Bookkeeping beside the account row (CreatorAccountState), after it is saved.
+ *
+ *  - the grantor id: for Facebook Login and Instagram Login rows, the
+ *    app-scoped id Meta's deauthorize and data-deletion callbacks will name —
+ *    one `me?fields=id` with the token just stored (lib/platforms/metaGrantor);
+ *  - TikTok's display_name;
+ *  - and the "Reconnect needed" mark is cleared, since this consent is the
+ *    reconnect it was waiting for.
+ *
+ * Never fails the connection: every step here degrades to "not recorded", and
+ * nothing is fetched at all while the table does not exist yet.
+ */
+async function recordAfterConnect(
+  platform: OAuthPlatform,
+  accountId: string,
+  token: string,
+  identity: AccountIdentity,
+): Promise<void> {
+  if (!(await connectTablesReady())) return;
+  const grantorUserId = isGrantorPlatform(platform)
+    ? await fetchMetaGrantorId(platform, token)
+    : null;
+  await recordConnectionState(accountId, {
+    /* undefined, not null, when Meta did not answer: a reconnect whose /me
+       call failed must not erase the grantor an earlier consent recorded. */
+    grantorUserId: grantorUserId ?? undefined,
+    displayName: identity.displayName,
+  });
 }

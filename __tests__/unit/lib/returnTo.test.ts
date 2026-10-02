@@ -43,3 +43,24 @@ describe("returnToWithQuery", () => {
     );
   });
 });
+
+describe("safeReturnTo — connect-link pages", () => {
+  const token = "A".repeat(40) + "b-_";
+
+  it("accepts exactly /connect/<token>, the page a signed-out creator starts from", () => {
+    expect(safeReturnTo(`/connect/${token}`)).toBe(`/connect/${token}`);
+    expect(returnToWithQuery(`/connect/${token}`, "connected=tiktok")).toBe(
+      `/connect/${token}?connected=tiktok`,
+    );
+  });
+
+  it.each([
+    ["a short token", "/connect/abc"],
+    ["a further path", `/connect/${token}/../../dashboard`],
+    ["a query smuggled in", `/connect/${token}?next=//evil.com`],
+    ["a protocol-relative lookalike", "//connect/" + token],
+    ["a header injection", `/connect/${token}\nLocation: https://evil.com`],
+  ])("rejects %s", (_label, input) => {
+    expect(safeReturnTo(input)).toBeNull();
+  });
+});
