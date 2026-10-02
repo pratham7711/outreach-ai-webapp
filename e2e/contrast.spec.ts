@@ -428,8 +428,16 @@ async function sweep(page: import('@playwright/test').Page, theme: (typeof THEME
        record different pairs and the two-way ratchet cannot hold for both.
        "All" takes the seed's age out of it. */
     if (p === '/analytics') {
-      await page.getByRole('group', { name: 'Date range' }).getByRole('button', { name: 'All', exact: true }).click();
-      await page.waitForLoadState('networkidle', { timeout: 30000 }).catch(() => {});
+      /* The click only schedules the refetch, so networkidle and a zero
+         skeleton count can both read true before it starts: MEASURED, both
+         waits returned at 441ms against a response at 774ms, and the sweep
+         scored the loading grid. Wait for the response itself. */
+      await Promise.all([
+        page
+          .waitForResponse((r) => r.url().includes('/api/analytics') && !r.url().includes('from='), { timeout: 30000 })
+          .catch(() => {}),
+        page.getByRole('group', { name: 'Date range' }).getByRole('button', { name: 'All', exact: true }).click(),
+      ]);
       await page
         .waitForFunction(() => document.querySelectorAll('.ui-skeleton').length === 0, null, { timeout: 30000 })
         .catch(() => {});
