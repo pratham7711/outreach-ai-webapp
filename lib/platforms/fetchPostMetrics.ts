@@ -8,6 +8,13 @@ import {
 } from "./instagram";
 import { fetchInstagramPublicPostMetrics } from "./instagramBusinessDiscovery";
 import { readWithDiscoveryToken } from "./instagramDiscoveryTokens";
+import {
+  fetchYouTubeBatchStats,
+  isQuotaExceeded,
+  markVideosListExhausted,
+  videosListExhausted,
+  type BatchStatItem,
+} from "./youtubeBatchStats";
 import { fetchInstagramEmbedPost } from "./instagramEmbed";
 import { fetchTikTokVideosByIds } from "./tiktokDisplay";
 import { isRounded, TIKTOK_DISPLAY } from "./precision";
@@ -301,6 +308,10 @@ export async function fetchYouTubeMetrics(videoId: string): Promise<Partial<Post
     return stubMetrics("not-configured");
   }
 
+  /* videos.list already said its quota is gone today: straight to the
+     fallback rather than spending a request to hear the same 403. */
+  if (videosListExhausted()) return youtubeStatsFallback(videoId, apiKey);
+
   try {
     const res = await fetch(
       `https://www.googleapis.com/youtube/v3/videos?part=statistics,snippet&id=${videoId}&key=${apiKey}`,
@@ -309,6 +320,10 @@ export async function fetchYouTubeMetrics(videoId: string): Promise<Partial<Post
     if (!res.ok) {
       const reason = await res.text().catch(() => "");
       log.error("YouTube API request failed", { status: res.status, reason: reason.slice(0, 300) });
+      if (isQuotaExceeded(res.status, reason)) {
+        await markVideosListExhausted();
+        return youtubeStatsFallback(videoId, apiKey);
+      }
       return stubMetrics("platform-refused");
     }
 
@@ -352,6 +367,42 @@ function mapYouTubeItem(item: any): Partial<PostMetrics> {
   };
 }
 
+/**
+ * A videos.batchGetStats entry as metrics (plan §13 B). Counters and the
+ * publish time only: that method returns no title and no thumbnail, and the
+ * writer keeps the stored ones when these are null. Absent counters stay
+ * absent, as in mapYouTubeItem.
+ */
+function mapYouTubeStatItem(item: BatchStatItem): Partial<PostMetrics> {
+  const stats = item?.statistics ?? {};
+  const views = pickOptionalCount(stats.viewCount);
+  const likes = pickOptionalCount(stats.likeCount);
+  const comments = pickOptionalCount(stats.commentCount);
+  const published = item?.snippet?.publishTime ? new Date(item.snippet.publishTime) : undefined;
+  return {
+    thumbnailUrl: null,
+    caption: null,
+    ...(views !== undefined ? { viewsCount: views } : {}),
+    ...(likes !== undefined ? { likesCount: likes } : {}),
+    ...(comments !== undefined ? { commentsCount: comments } : {}),
+    ...(views !== undefined && views > 0
+      ? { engagementRate: (((likes ?? 0) + (comments ?? 0)) / views) * 100 }
+      : {}),
+    ...(published && !Number.isNaN(published.getTime()) ? { postedAt: published } : {}),
+  };
+}
+
+/**
+ * One video through the fallback. Not returned means not read this time --
+ * "platform-refused", which spends no retry -- never "post-deleted": see
+ * lib/platforms/youtubeBatchStats.
+ */
+async function youtubeStatsFallback(videoId: string, apiKey: string): Promise<Partial<PostMetrics>> {
+  const { items } = await fetchYouTubeBatchStats([videoId], apiKey);
+  const item = items.get(videoId);
+  return item ? mapYouTubeStatItem(item) : stubMetrics("platform-refused");
+}
+
 export async function fetchYouTubeMetricsBatch(videoIds: string[]): Promise<Map<string, PostMetrics>> {
   const out = new Map<string, PostMetrics>();
   const ids = [...new Set(videoIds.filter((id) => typeof id === "string" && id.length > 0))];
@@ -364,8 +415,16 @@ export async function fetchYouTubeMetricsBatch(videoIds: string[]): Promise<Map<
     return out;
   }
 
+  /* Chunks videos.list could not answer for quota, read afterwards through
+     videos.batchGetStats, which has its own bucket (plan §13 B). */
+  const viaFallback: string[] = [];
+
   for (let i = 0; i < ids.length; i += 50) {
     const chunk = ids.slice(i, i + 50);
+    if (videosListExhausted()) {
+      viaFallback.push(...chunk);
+      continue;
+    }
     try {
       const res = await fetch(
         `https://www.googleapis.com/youtube/v3/videos?part=statistics,snippet&id=${chunk
@@ -380,6 +439,10 @@ export async function fetchYouTubeMetricsBatch(videoIds: string[]): Promise<Map<
           count: chunk.length,
           reason: reason.slice(0, 300),
         });
+        if (isQuotaExceeded(res.status, reason)) {
+          await markVideosListExhausted();
+          viaFallback.push(...chunk);
+        }
         continue;
       }
       const data = await res.json();
@@ -399,6 +462,22 @@ export async function fetchYouTubeMetricsBatch(videoIds: string[]): Promise<Map<
         error: err instanceof Error ? err.message : String(err),
       });
     }
+  }
+
+  if (viaFallback.length > 0) {
+    const { items, unread } = await fetchYouTubeBatchStats(viaFallback, apiKey);
+    for (const [id, item] of items) out.set(id, assemblePostMetrics("YOUTUBE", id, mapYouTubeStatItem(item)));
+    /* Entered as unread rather than left out: a post missing from this map is
+       read again one by one by the caller, and every one of those would be
+       one more call to a fallback that has just said no. "platform-refused"
+       is what that per-post read answered on a quota 403 anyway, and it
+       spends no retry. */
+    for (const id of unread) out.set(id, assemblePostMetrics("YOUTUBE", id, stubMetrics("platform-refused")));
+    log.warn("YouTube post stats read through videos.batchGetStats", {
+      asked: viaFallback.length,
+      answered: items.size,
+      unread: unread.length,
+    });
   }
   return out;
 }

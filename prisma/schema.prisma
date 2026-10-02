@@ -2372,6 +2372,23 @@ model OpsSandboxDay {
   @@id([day, caller])
 }
 
+/// API quota spent per provider quota day and bucket, e.g.
+/// "youtube.batchGetStats" (plan §13 B). day is the provider's: YouTube resets
+/// at midnight Pacific, "YYYY-MM-DD". Applied by /api/admin/migrate-ops-quota
+/// (lib/ops/quotaSchemaDdl.ts), separately from the ops-guard tables, and read
+/// only through quotaTablesReady().
+model OpsQuotaDay {
+  day         String
+  bucket      String
+  units       Int      @default(0)
+  calls       Int      @default(0)
+  refused     Int      @default(0)
+  quotaErrors Int      @default(0)
+  updatedAt   DateTime @default(now())
+
+  @@id([day, bucket])
+}
+
 /// One weekly reading per meter ("neon-compute", "sandbox-compute"), against
 /// the scale report's 4k budget. id is "<meter>:<weekStart>".
 model OpsMeterWeek {
