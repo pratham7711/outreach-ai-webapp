@@ -15,7 +15,15 @@ import CreatorAvatar from "@/components/creators/CreatorAvatar";
 import PlatformChips from "@/components/creators/PlatformChips";
 import HandleFix from "@/components/creators/HandleFix";
 import MergeCreatorModal from "@/components/creators/MergeCreatorModal";
-import type { HandleProblem } from "@/lib/creators/handleCheck";
+import { handleProblemText, type HandleProblem } from "@/lib/creators/handleCheck";
+import {
+  avgViewsValue,
+  creatorEngagementValue,
+  followersValue,
+  postCounterValue,
+  postEngagementValue,
+} from "@/lib/creators/metricValue";
+import MetricFigure from "@/components/creators/MetricFigure";
 
 function formatNumber(num: number): string {
   return formatFull(num);
@@ -84,6 +92,9 @@ type Post = {
   commentsCount: number;
   sharesCount: number;
   engagementRate: number;
+  /** Set only when we read the post ourselves; what tells a measured 0 from an unread one. */
+  lastSyncedAt?: string | null;
+  platformMetrics?: unknown;
   campaign: { id: string; title: string } | null;
 };
 
@@ -96,6 +107,9 @@ type Creator = {
   contactEmail: string | null;
   followersCount: number;
   averageViews: number;
+  /** When the tracker last tried to read this creator, and why it failed. */
+  trackerLastAttemptAt?: string | null;
+  trackerLastError?: string | null;
   rate: number | null;
   notes: string | null;
   activations: {
@@ -130,6 +144,7 @@ type Creator = {
     followersCount: number | null;
     averageViews: number | null;
     isPrimary: boolean;
+    refreshedAt?: string | null;
     /** The platform could not find this account; see lib/creators/handleCheck. */
     problem: HandleProblem | null;
   }[];
@@ -794,9 +809,19 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
     </div>
   );
 
-  const avgEngagement = creator.posts.length > 0
-    ? creator.posts.reduce((sum, p) => sum + p.engagementRate, 0) / creator.posts.length
-    : 0;
+  /* "Unknown" is never shown as 0 (plan A1). The primary account's read is the
+     one that writes followersCount, so its stamp and its problem explain a
+     missing count; the tracker's own attempt is the fallback. */
+  const primaryLink = creator.profileLinks?.find((l) => l.isPrimary) ?? null;
+  const followers = followersValue(creator.followersCount, {
+    readError: primaryLink?.problem ? handleProblemText(primaryLink.platform, primaryLink.handle, primaryLink.problem) : null,
+    lastError: creator.trackerLastError ?? null,
+    attemptedAt: primaryLink?.refreshedAt ?? creator.trackerLastAttemptAt ?? null,
+  });
+  /* Over the posts that were read, never over the zeroes of the ones that were
+     not -- see creatorEngagementValue. */
+  const avgEngagement = creatorEngagementValue(creator.posts);
+  const percent = (n: number) => `${n.toFixed(1)}%`;
 
   return (
     <div className="rsp-page">
@@ -881,18 +906,16 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
           )}
 
           {/* Stats row */}
-          {/* Only the figures this creator actually has. Follower counts and
-              engagement rates are absent for most of the imported roster, and a
-              tile reading 0 or "—" claims a measurement that was never taken. */}
+          {/* Every tile, always. Follower counts and engagement rates are
+              absent for most of the imported roster; a tile reading 0 would
+              claim a measurement that was never taken, so an unknown one reads
+              "—" and says why on hover (plan A1). Hiding it instead left the
+              reader to guess whether the figure was missing or the page was. */}
           <div className="cd-stats-grid">
-            {creator.followersCount > 0 && (
-              <MetricTile metric="followers" value={formatNumber(creator.followersCount)} />
-            )}
+            <MetricTile metric="followers" value={<MetricFigure value={followers} format={formatNumber} />} />
             <MetricTile metric="creatorCampaigns" value={String(creator.campaignCount)} />
             <MetricTile metric="posts" label="Posts" value={formatNumber(creator._count.posts)} />
-            {avgEngagement > 0 && (
-              <MetricTile metric="engagementRate" label="Avg engagement" value={avgEngagement.toFixed(1) + "%"} />
-            )}
+            <MetricTile metric="engagementRate" label="Avg engagement" value={<MetricFigure value={avgEngagement} format={percent} />} />
           </div>
         </div>
       </Card>
@@ -1008,11 +1031,11 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
                         <p style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>{formatDateAbs(post.postedAt)}</p>
                       </div>
                       <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{post.campaign?.title ?? "—"}</span>
-                      <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{formatNumber(post.viewsCount)}</span>
-                      <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{formatNumber(post.likesCount)}</span>
-                      <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{formatNumber(post.commentsCount)}</span>
-                      <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{formatNumber(post.sharesCount)}</span>
-                      <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-primary)" }}>{post.engagementRate.toFixed(1)}%</span>
+                      <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}><MetricFigure value={postCounterValue(post.viewsCount, post, "views")} format={formatNumber} /></span>
+                      <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}><MetricFigure value={postCounterValue(post.likesCount, post, "likes")} format={formatNumber} /></span>
+                      <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}><MetricFigure value={postCounterValue(post.commentsCount, post, "comments")} format={formatNumber} /></span>
+                      <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}><MetricFigure value={postCounterValue(post.sharesCount, post, "shares")} format={formatNumber} /></span>
+                      <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-primary)" }}><MetricFigure value={postEngagementValue(post)} format={percent} /></span>
                     </a>
                     {/* Mobile card */}
                     <a href={post.postUrl} target="_blank" rel="noopener noreferrer" className="cd-post-card">
@@ -1025,13 +1048,13 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
                             {post.campaign?.title ?? "—"} · {formatDateAbs(post.postedAt)}
                           </p>
                         </div>
-                        <span style={{ fontSize: "var(--cc-t-14)", fontWeight: 700, color: "var(--cc-primary)", flexShrink: 0 }}>{post.engagementRate.toFixed(1)}%</span>
+                        <span style={{ fontSize: "var(--cc-t-14)", fontWeight: 700, color: "var(--cc-primary)", flexShrink: 0 }}><MetricFigure value={postEngagementValue(post)} format={percent} /></span>
                       </div>
                       <div className="cd-post-stats">
-                        <span className="cd-post-stat"><Eye size={13} /> {formatNumber(post.viewsCount)}</span>
-                        <span className="cd-post-stat"><Heart size={13} /> {formatNumber(post.likesCount)}</span>
-                        <span className="cd-post-stat"><MessageCircle size={13} /> {formatNumber(post.commentsCount)}</span>
-                        <span className="cd-post-stat"><Share2 size={13} /> {formatNumber(post.sharesCount)}</span>
+                        <span className="cd-post-stat"><Eye size={13} /> <MetricFigure value={postCounterValue(post.viewsCount, post, "views")} format={formatNumber} /></span>
+                        <span className="cd-post-stat"><Heart size={13} /> <MetricFigure value={postCounterValue(post.likesCount, post, "likes")} format={formatNumber} /></span>
+                        <span className="cd-post-stat"><MessageCircle size={13} /> <MetricFigure value={postCounterValue(post.commentsCount, post, "comments")} format={formatNumber} /></span>
+                        <span className="cd-post-stat"><Share2 size={13} /> <MetricFigure value={postCounterValue(post.sharesCount, post, "shares")} format={formatNumber} /></span>
                       </div>
                     </a>
                   </div>
@@ -1202,8 +1225,10 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
                       {acct.handle.startsWith("@") ? acct.handle : `@${acct.handle}`}
                     </div>
                     <div style={{ display: "flex", gap: 16, fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", marginBottom: 8 }}>
-                      <span><Users size={12} style={{ marginRight: 4, verticalAlign: "middle" }} />{formatNumber(acct.followersCount)} followers</span>
-                      <span><Eye size={12} style={{ marginRight: 4, verticalAlign: "middle" }} />{formatNumber(acct.avgViews)} avg views</span>
+                      {/* Both columns default to 0 on a connected account, so 0 here
+                          is "not read yet" far more often than a real count. */}
+                      <span><Users size={12} style={{ marginRight: 4, verticalAlign: "middle" }} /><MetricFigure value={followersValue(acct.followersCount)} format={formatNumber} /> followers</span>
+                      <span><Eye size={12} style={{ marginRight: 4, verticalAlign: "middle" }} /><MetricFigure value={avgViewsValue(acct.avgViews)} format={formatNumber} /> avg views</span>
                     </div>
                     <div style={{ fontSize: "var(--cc-t-11)", color: "var(--cc-text-subtle)" }}>
                       Connected {formatDateAbs(acct.createdAt)}

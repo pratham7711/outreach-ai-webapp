@@ -192,6 +192,12 @@ describe("sorting", () => {
     expect(byMetricDescending(rows, "followers").map((r) => r.followersCount)).toEqual([900, 100, null, null]);
   });
 
+  it("sorts a reading of zero followers with the unknowns, not above them", () => {
+    const rows = [row(null, null, 0, 0), row(null, null, 0, null), row(null, null, 0, 40)];
+    expect(sortValueFor(rows[0], "followers")).toBeNull();
+    expect(byMetricDescending(rows, "followers").map((r) => r.followersCount)).toEqual([40, 0, null]);
+  });
+
   it("does not mutate the array it was given", () => {
     const rows = [row(1, null, 1, null), row(9, null, 1, null)];
     const first = rows[0];

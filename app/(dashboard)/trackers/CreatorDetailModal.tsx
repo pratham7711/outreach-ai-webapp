@@ -8,6 +8,14 @@ import { AudioUsesChart, type SeriesPoint } from "./SoundCharts";
 import { changeOver } from "./horizonChange";
 import type { ChartGranularity } from "@/lib/trackers/granularity";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
+import MetricFigure from "@/components/creators/MetricFigure";
+import {
+  avgViewsValue,
+  followersValue,
+  isUnknownMetric,
+  metricReason,
+  type MetricValue,
+} from "@/lib/creators/metricValue";
 
 /**
  * The creator detail, matching the reference's ?tracker=<id> modal: a Followers
@@ -57,6 +65,32 @@ export type DetailCreator = {
   topPostsSource?: "platform" | "campaigns" | null;
 };
 
+/**
+ * The two headline figures, or why each is missing (plan A1). The list's card
+ * and this modal both read them from here, so they give the same reason. A
+ * reading of 0 followers is a reading that did not carry the count, never an
+ * empty account.
+ */
+export function trackedFigures(c: {
+  followersCount: number | null;
+  readError: string | null;
+  snapshotCount: number;
+  lastAttemptAt?: string | null;
+  views: { avgViews: number | null };
+}): { followers: MetricValue; avgViews: MetricValue } {
+  return {
+    followers: followersValue(c.followersCount, {
+      readError: c.readError,
+      readings: c.snapshotCount,
+      attemptedAt: c.lastAttemptAt ?? null,
+    }),
+    avgViews: avgViewsValue(c.views.avgViews === null ? null : Math.round(c.views.avgViews), {
+      readError:
+        c.readError ?? "We have not measured this creator's recent posts yet. Posts are read once a day.",
+    }),
+  };
+}
+
 /** Matches the shape the sweep stores in Creator.topPosts. */
 export type TopPost = {
   postId: string;
@@ -91,6 +125,7 @@ export function CreatorDetailModal({
 
   if (!creator) return null;
   const stale = creator.health !== "live";
+  const figures = trackedFigures(creator);
 
   return (
     <Modal open={open} onClose={onClose} title="" size="lg">
@@ -150,7 +185,8 @@ export function CreatorDetailModal({
       >
         <MetricCard
           title="Followers"
-          value={creator.followersCount}
+          value={figures.followers}
+          note={metricReason(figures.followers)}
           unit="followers"
           series={history.data?.followers}
           granularity={history.data?.chartGranularity}
@@ -159,10 +195,10 @@ export function CreatorDetailModal({
         />
         <MetricCard
           title="Average Views"
-          value={creator.views.avgViews === null ? null : Math.round(creator.views.avgViews)}
+          value={figures.avgViews}
           note={
-            creator.views.avgViews === null
-              ? "Not measured yet. Posts are read once a day."
+            isUnknownMetric(figures.avgViews)
+              ? figures.avgViews.reason
               : `Their 10 newest posts, pinned posts left out · measured ${timeAgo(creator.views.measuredAt)}`
           }
           unit="avg. views"
@@ -271,7 +307,7 @@ function MetricCard({
   failed,
 }: {
   title: string;
-  value: number | null;
+  value: MetricValue;
   note?: string;
   unit: string;
   series: SeriesPoint[] | undefined;
@@ -290,7 +326,7 @@ function MetricCard({
         {title}
       </h3>
       <div style={{ fontSize: "var(--cc-t-24)", fontWeight: 700, color: "var(--cc-primary)" }}>
-        {value === null ? "—" : formatFull(value)}
+        <MetricFigure value={value} />
       </div>
       {note ? (
         <div style={{ fontSize: "var(--cc-t-11)", color: "var(--cc-text-muted)", marginTop: 2 }}>{note}</div>

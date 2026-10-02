@@ -14,6 +14,8 @@ import CreatorAvatar from "@/components/creators/CreatorAvatar";
 import RateCardTable, { type RateCardItem } from "@/components/lists/RateCardTable";
 import DuplicateListDialog from "@/components/lists/DuplicateListDialog";
 import { LIST_STATUS_BADGE, LIST_STATUS_LABELS, type DecisionCounts, type ListStatus } from "@/lib/lists/approval";
+import MetricFigure from "@/components/creators/MetricFigure";
+import { avgViewsValue, followersValue } from "@/lib/creators/metricValue";
 
 type CreatorItem = {
   id: string;
@@ -249,8 +251,10 @@ export default function ListDetailPage({ params }: { params: Promise<{ id: strin
                   </div>
                 </Link>
                 <Badge variant="neutral">{item.creator.platform}</Badge>
-                <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{formatNumber(item.creator.followersCount)}</span>
-                <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{item.creator.avgViews ? formatNumber(item.creator.avgViews) : ""}</span>
+                {/* "—" with the reason, never 0 or blank (plan A1): followersCount
+                    defaults to 0 for a creator nobody has read. */}
+                <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}><MetricFigure value={followersValue(item.creator.followersCount)} format={formatNumber} /></span>
+                <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}><MetricFigure value={avgViewsValue(item.creator.avgViews)} format={formatNumber} /></span>
                 <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>{formatDateAbs(item.addedAt)}</span>
                 <button
                   onClick={() => handleRemoveCreator(item.id, item.creator.id)}

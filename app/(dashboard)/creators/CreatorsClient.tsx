@@ -20,6 +20,8 @@ import PlatformChips, { type PlatformChipLink } from "@/components/creators/Plat
 import RosterActions, { type RosterSelection } from "@/components/creators/RosterActions";
 import { profileUrl, type ImportPlatform } from "@/lib/creators/importParse";
 import { handleIssueSummary } from "@/lib/creators/handleCheck";
+import { isUnknownMetric, type MetricValue } from "@/lib/creators/metricValue";
+import MetricFigure from "@/components/creators/MetricFigure";
 
 type Creator = {
   id: string;
@@ -30,9 +32,12 @@ type Creator = {
   /** See CreatorAvatar's `version`: stored, fetchable on view, or nothing to ask for. */
   avatarVersion: string | null;
   followerCount: number | null;
+  /** The same count, or why there is none -- what the cells render (plan A1). */
+  followers: MetricValue;
   /** Distinct campaigns, counted from posts as well as activations. */
   campaignCount: number;
   avgViews: number | null;
+  avgViewsFigure: MetricValue;
   _count: { activations: number; posts: number };
   rate: number | null;
   tags: string[];
@@ -354,16 +359,27 @@ export default function CreatorsClient({
   /* A stat nobody on this page has is not shown at all. Follower counts came
      across empty for 1,823 of 1,834 creators, and a column of em dashes is a
      column pretending to hold a measurement. */
-  const hasFollowers = filtered.some((c) => c.followerCount);
-  const hasAvgViews = filtered.some((c) => c.avgViews);
+  const hasFollowers = filtered.some((c) => !isUnknownMetric(c.followers));
+  const hasAvgViews = filtered.some((c) => !isUnknownMetric(c.avgViewsFigure));
+  /* A creator without the figure in a drawn column gets "—" with the reason
+     the server gave (plan A1) -- never blank, never 0. */
   const optionalStats = [
-    hasFollowers && { key: "followers", label: "Followers", read: (c: Creator) => c.followerCount },
-    hasAvgViews && { key: "avgViews", label: "Avg. Views", read: (c: Creator) => c.avgViews },
-  ].filter(Boolean) as { key: string; label: string; read: (c: Creator) => number | null }[];
-  // The card's strip adds price, which the table keeps in a column of its own.
-  const cardStats = [
-    ...optionalStats.map((stat) => ({ ...stat, format: formatNumber })),
-    ...(hasPrice ? [{ key: "price", label: "Price", read: (c: Creator) => c.rate, format: (n: number) => formatFullCurrency(n) }] : []),
+    hasFollowers && { key: "followers", label: "Followers", read: (c: Creator) => c.followers },
+    hasAvgViews && { key: "avgViews", label: "Avg. Views", read: (c: Creator) => c.avgViewsFigure },
+  ].filter(Boolean) as { key: string; label: string; read: (c: Creator) => MetricValue }[];
+  /* The card's strip adds price, which the table keeps in a column of its own.
+     A missing price is "not set" rather than an unmeasured figure, so it keeps
+     its plain dash. */
+  const cardStats: { key: string; label: string; empty: (c: Creator) => boolean; render: (c: Creator) => React.ReactNode }[] = [
+    ...optionalStats.map((stat) => ({
+      key: stat.key,
+      label: stat.label,
+      empty: (c: Creator) => isUnknownMetric(stat.read(c)),
+      render: (c: Creator) => <MetricFigure value={stat.read(c)} format={formatNumber} />,
+    })),
+    ...(hasPrice
+      ? [{ key: "price", label: "Price", empty: (c: Creator) => !c.rate, render: (c: Creator) => (c.rate ? formatFullCurrency(c.rate) : "—") }]
+      : []),
   ];
 
   return (
@@ -529,7 +545,6 @@ export default function CreatorsClient({
                   {cardStats.length > 0 && (
                     <dl className="cc-roster-card-stats" style={{ gridTemplateColumns: `repeat(${cardStats.length}, minmax(0, 1fr))` }}>
                       {cardStats.map((stat) => {
-                        const value = stat.read(creator);
                         return (
                           <div key={stat.key}>
                             <dt className="cc-microlabel">{stat.label}</dt>
@@ -538,7 +553,7 @@ export default function CreatorsClient({
                                 without one still has to say so -- an empty string
                                 left "Avg. Views" captioning blank space, which
                                 reads as a value that failed to load. */}
-                            <dd data-empty={value ? undefined : true}>{value ? stat.format(value) : "—"}</dd>
+                            <dd data-empty={stat.empty(creator) || undefined}>{stat.render(creator)}</dd>
                           </div>
                         );
                       })}
@@ -622,8 +637,8 @@ export default function CreatorsClient({
                   {optionalStats.map((stat) => {
                     const value = stat.read(c);
                     return (
-                      <td key={stat.key} style={{ padding: "14px 24px", fontSize: "var(--cc-t-14)", fontWeight: 500, color: value ? "var(--cc-text)" : "var(--cc-text-muted)" }}>
-                        {value ? formatNumber(value) : "—"}
+                      <td key={stat.key} style={{ padding: "14px 24px", fontSize: "var(--cc-t-14)", fontWeight: 500, color: isUnknownMetric(value) ? "var(--cc-text-muted)" : "var(--cc-text)" }}>
+                        <MetricFigure value={value} format={formatNumber} />
                       </td>
                     );
                   })}

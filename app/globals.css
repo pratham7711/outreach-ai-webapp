@@ -1420,6 +1420,9 @@
   --secondary-foreground: #0A0A0A;
   --muted: #F0F0F0;
   --muted-foreground: #525252;
+  /* The empty-state description and every placeholder: 0.45 measured 3.1:1 on
+     the page ground; 0.6 is 5.1:1 there and 5.6:1 on a card. */
+  --ui-text-2: rgba(11, 11, 11, 0.6);
   --accent: #F0F0F0;
   --accent-foreground: #0A0A0A;
   --border: #E5E5E5;

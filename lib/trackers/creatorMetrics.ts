@@ -152,7 +152,9 @@ type SortableCreator = {
 export function sortValueFor(row: SortableCreator, sort: CreatorTrackerSort): number | null {
   if (sort === "change") return row.views.changePercent;
   if (sort === "posts") return row.metrics.postsInWindow > 0 ? row.metrics.postsInWindow : null;
-  if (sort === "followers") return row.followersCount;
+  /* A reading of 0 followers is a reading that did not carry the count (plan
+     A1), so it sorts with the unknowns rather than above them. */
+  if (sort === "followers") return followerCount(row.followersCount);
   return row.views.avgViews;
 }
 
