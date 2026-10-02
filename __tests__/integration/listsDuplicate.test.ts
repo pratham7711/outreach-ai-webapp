@@ -65,7 +65,7 @@ beforeEach(() => {
   ]);
 });
 
-const copiedDetails = () => mockDb.creatorListItemDetail.createMany.mock.calls[0][0].data;
+const copiedDetails = (): Array<Record<string, unknown>> => mockDb.creatorListItemDetail.createMany.mock.calls[0][0].data;
 
 describe("POST /api/lists/[id]/duplicate", () => {
   it("returns 401 when unauthenticated and 403 for a viewer", async () => {
