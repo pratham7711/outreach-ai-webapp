@@ -175,6 +175,10 @@ export const AREAS = {
       "app/(dashboard)/platform/ops/",
       "app/api/platform/ops/",
       "app/api/admin/migrate-ops-guards/",
+      // Backups (plan §13 B): the overdue-crons list the Plan B backup
+      // scheduler polls, and the DDL route for the API quota counter.
+      "app/api/ops/",
+      "app/api/admin/migrate-ops-quota/",
     ],
   },
   nav: {

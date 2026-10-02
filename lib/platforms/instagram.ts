@@ -137,20 +137,43 @@ function requestSignal(walk?: AbortSignal): AbortSignal | undefined {
   return typeof AbortSignal.any === "function" ? AbortSignal.any([walk, perRequest]) : perRequest;
 }
 
+/**
+ * Sees the response headers of a Graph call, success or failure alike.
+ *
+ * Meta reports how close a token is to its limit in two headers
+ * (x-app-usage, x-business-use-case-usage) on every answer, not only on the
+ * one that finally refuses -- so this is how a caller sees the limit coming
+ * (lib/platforms/instagramDiscoveryTokens.ts). Only callers that pass one get
+ * their headers read; everyone else is untouched.
+ */
+export type GraphHeadersListener = (headers: { get(name: string): string | null }) => void;
+
+export type GraphGetOptions = {
+  rateLimitThrows?: boolean;
+  noSuchAccountThrows?: boolean;
+  onHeaders?: GraphHeadersListener;
+};
+
 export async function graphGet(
   path: string,
   params: Record<string, string>,
   signal?: AbortSignal,
-  {
-    rateLimitThrows = false,
-    noSuchAccountThrows = false,
-  }: { rateLimitThrows?: boolean; noSuchAccountThrows?: boolean } = {},
+  { rateLimitThrows = false, noSuchAccountThrows = false, onHeaders }: GraphGetOptions = {},
 ): Promise<any | null> {
   const url = new URL(`${GRAPH_BASE}/${path}`);
   for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
   const log = createLogger({ context: { platform: "INSTAGRAM", call: `graph.${path}` } });
   try {
     const res = await fetch(url.toString(), { signal: requestSignal(signal) });
+    if (onHeaders && typeof res.headers?.get === "function") {
+      /* A listener is monitoring. Whatever it does wrong must not turn a good
+         answer into a failed read. */
+      try {
+        onHeaders(res.headers);
+      } catch {
+        // ignored on purpose
+      }
+    }
     if (!res.ok) {
       // Every failure here collapses to null, so an expired token, a missing
       // scope and a genuinely empty result are indistinguishable to callers.
@@ -276,11 +299,24 @@ export async function exchangeForLongLivedToken(
   };
 }
 
-export async function resolveIgUserId(token: string, signal?: AbortSignal): Promise<string | null> {
+/**
+ * The IG user id behind a token, from the Pages it manages.
+ *
+ * `options` reaches graphGet unchanged. A Business Discovery read asks this
+ * first, so when its token is throttled this is the call that is refused --
+ * and without rateLimitThrows reaching it, that refusal came back as "no IG
+ * account", which the roster read files as a personal account.
+ */
+export async function resolveIgUserId(
+  token: string,
+  signal?: AbortSignal,
+  options: Pick<GraphGetOptions, "rateLimitThrows" | "onHeaders"> = {},
+): Promise<string | null> {
   const data = await graphGet(
     "me/accounts",
     { fields: "instagram_business_account{id}", access_token: token, limit: "50" },
     signal,
+    options,
   );
   const pages: Array<{ instagram_business_account?: { id?: string } }> = data?.data ?? [];
   for (const page of pages) {

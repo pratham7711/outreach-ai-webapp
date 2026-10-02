@@ -13,12 +13,27 @@ reasons. It is off on prod until someone flips it; flipping takes no deploy.
 | `outreach-fetch.service`, `outreach-daily-check.{service,timer}` | systemd units |
 | `bootstrap-plan-b.sh` | VM install, idempotent; Caddy for TLS when `DOMAIN` is set |
 | `fetch-server.test.mjs` | `node --test scripts/creator-worker/fetch-server.test.mjs` |
+| `backup-scheduler.mjs` | Optional (plan §13 B). Asks `GET /api/ops/overdue-crons` which of the app's crons missed their heartbeat and calls each one's `/api/cron/<job>` with the cron secret, as Vercel's scheduler would. Talks to `APP_URL` only — never TikTok. At most 1 trigger per job per 30 min and 5 per run, remembered in `/var/lib/outreach-backup-scheduler/state.json`; sleeps until the app's `recheckInMinutes` between asks so it does not wake the database for nothing. Logs job names and statuses only. `--dry-run` asks and calls nothing |
+| `outreach-backup-scheduler.{service,timer}` | Every 10 minutes; installed by the bootstrap only when the scheduler variables are given, never enabled by it |
+| `backup-scheduler.test.mjs` | `node --test scripts/creator-worker/backup-scheduler.test.mjs` |
 
 **Configuration.** On the VM: `FETCH_TOKEN`, `APP_URL`, `TRACKER_PLAN_B_HEALTH_TOKEN`.
 On Vercel: `TRACKER_PLAN_B_URL` (comma-separate two VMs for full coverage —
 one address reads ~3.2k pages a day at 1.8 s, and 1,850 creators at a 12 h
 cadence need ~3.7k), `TRACKER_PLAN_B_TOKEN` (= the VM's `FETCH_TOKEN`) and
 `TRACKER_PLAN_B_HEALTH_TOKEN`. The VM holds no database credentials.
+
+**The backup scheduler.** Off unless the bootstrap is given both
+`OPS_SCHEDULER_TOKEN` (24+ characters; the same value set on Vercel, where it
+switches `/api/ops/overdue-crons` on — unset there, the route is a 404) and
+`CRON_SECRET` (Vercel's own value). They go in `/etc/outreach-scheduler.env`,
+mode 600, read only by the scheduler's unit; the internet-facing fetch service
+never sees the cron secret. The bootstrap dry-runs it once and prints
+`systemctl enable --now outreach-backup-scheduler.timer` for you to run.
+A job counts as overdue one cadence plus 15 minutes after its last start
+(`lib/ops/overdueCrons.ts`), one cadence before the canary would alert a
+person; a job switched off on `/platform/ops` is never listed. Exit status 2
+means the app did not answer, 1 means a triggered cron did not return 2xx/3xx.
 
 **Testing it without a VM.**
 `npx tsx scripts/trackers/reader-local-run.mts --plan B --sandbox-worker --orgs 1`

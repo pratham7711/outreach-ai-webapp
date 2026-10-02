@@ -1,0 +1,252 @@
+import { createLogger } from "@/lib/observability/logger";
+import { InstagramAuthError, InstagramRateLimitError, type GraphHeadersListener } from "./instagram";
+import { businessDiscoveryToken, type DiscoveryReadOptions } from "./instagramBusinessDiscovery";
+
+/**
+ * Business Discovery's two tokens (plan §13 B): A, the one there has always
+ * been (the credential store, then INSTAGRAM_BUSINESS_TOKEN), and an optional
+ * standby B -- a second Instagram professional account, which brings its own
+ * 200 calls an hour.
+ *
+ * The rule is small on purpose:
+ *   - every read goes to A;
+ *   - once A reports a rate limit -- an error code 4/17/32/613, or a usage
+ *     header at USAGE_SWITCH_PERCENT or above -- reads go to B for the rest of
+ *     that window, and the read that was refused is retried on B at once;
+ *   - with B unset there is nothing to switch to, and a read behaves exactly
+ *     as it did before this module: one token, every read, whatever it answers;
+ *   - when both are limited the answer is a rate limit (InstagramRateLimitError),
+ *     which every caller already files as "rate-limited" and never as a 0 or
+ *     as a personal account.
+ *
+ * The window is Meta's own when it states one (estimated_time_to_regain_access,
+ * in minutes, on x-business-use-case-usage), otherwise an hour -- the length of
+ * the rolling window the 200-calls-an-hour figure is measured over.
+ *
+ * State is per process. A cold instance learns A is limited from its first
+ * refused call, which costs one wasted request, not a wrong number. Nothing
+ * here is tenant data: no handle, no token and no account id is ever logged,
+ * only which slot and the usage percentages Meta reported.
+ */
+
+export type DiscoverySlot = "A" | "B";
+
+export type DiscoveryCredential = {
+  slot: DiscoverySlot;
+  token: string;
+  /** Spread into fetchInstagramProfile / fetchInstagramPublicPostMetrics. */
+  graphOptions: Pick<DiscoveryReadOptions, "igUserId" | "onHeaders">;
+};
+
+export type DiscoveryOutcome<T> =
+  | { ok: true; value: T; slot: DiscoverySlot }
+  | { ok: false; reason: "no-credentials" };
+
+/** At or above this share of any limit Meta reports, the token counts as limited. */
+export const USAGE_SWITCH_PERCENT = 95;
+/** How long a limited token is left alone when Meta does not say. */
+export const DEFAULT_LIMIT_WINDOW_MS = 60 * 60 * 1000;
+/** Usage is logged at most this often per token, so a sync of two hundred
+ *  posts writes a handful of lines rather than four hundred. */
+export const USAGE_LOG_EVERY_MS = 60_000;
+/** From this share up, every usage reading is logged, as a warning. */
+export const USAGE_WARN_PERCENT = 80;
+
+export const TOKEN_B_ENV = "INSTAGRAM_BD_TOKEN_B";
+export const TOKEN_B_USER_ID_ENV = "INSTAGRAM_BD_USER_ID_B";
+
+type SlotState = { limitedUntil: number; lastCode: number; usageLoggedAt: number };
+
+const fresh = (): SlotState => ({ limitedUntil: 0, lastCode: 4, usageLoggedAt: 0 });
+let state: Record<DiscoverySlot, SlotState> = { A: fresh(), B: fresh() };
+
+/** For tests. */
+export function resetDiscoveryTokenState() {
+  state = { A: fresh(), B: fresh() };
+}
+
+const log = () => createLogger({ context: { platform: "INSTAGRAM", call: "businessDiscovery.tokens" } });
+
+export type GraphUsage = {
+  /** x-app-usage: call_count, total_cputime, total_time, each a percentage. */
+  app?: { calls: number; cpu: number; time: number };
+  /** x-business-use-case-usage: the highest percentage across its entries. */
+  bucPercent?: number;
+  /** Minutes until Meta lets the token back in, when it says. */
+  regainMinutes?: number;
+  /** The highest percentage anywhere in either header. */
+  maxPercent: number;
+};
+
+const pctOf = (v: unknown): number => {
+  const n = Number(v);
+  return Number.isFinite(n) && n >= 0 ? n : 0;
+};
+
+type UsageEntry = {
+  call_count?: unknown;
+  total_cputime?: unknown;
+  total_time?: unknown;
+  estimated_time_to_regain_access?: unknown;
+};
+
+function parseJson(raw: string | null): Record<string, unknown> | null {
+  if (!raw) return null;
+  try {
+    const v: unknown = JSON.parse(raw);
+    return v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Pure: Meta's two usage headers, or null when neither is present or readable. */
+export function parseGraphUsage(headers: { get(name: string): string | null }): GraphUsage | null {
+  const app = parseJson(headers.get("x-app-usage"));
+  const buc = parseJson(headers.get("x-business-use-case-usage"));
+  if (!app && !buc) return null;
+
+  const out: GraphUsage = { maxPercent: 0 };
+  if (app) {
+    out.app = { calls: pctOf(app.call_count), cpu: pctOf(app.total_cputime), time: pctOf(app.total_time) };
+    out.maxPercent = Math.max(out.app.calls, out.app.cpu, out.app.time);
+  }
+  if (buc) {
+    /* Keyed by a business or IG user id, each holding a list of use cases.
+       Only the numbers are kept; the id is never carried any further. */
+    let bucMax = 0;
+    let regain = 0;
+    for (const entries of Object.values(buc)) {
+      if (!Array.isArray(entries)) continue;
+      for (const e of entries as (UsageEntry | null)[]) {
+        bucMax = Math.max(bucMax, pctOf(e?.call_count), pctOf(e?.total_cputime), pctOf(e?.total_time));
+        regain = Math.max(regain, pctOf(e?.estimated_time_to_regain_access));
+      }
+    }
+    out.bucPercent = bucMax;
+    if (regain > 0) out.regainMinutes = regain;
+    out.maxPercent = Math.max(out.maxPercent, bucMax);
+  }
+  return out;
+}
+
+function markLimited(slot: DiscoverySlot, nowMs: number, why: string, regainMinutes?: number, code?: number) {
+  const s = state[slot];
+  const until = nowMs + (regainMinutes && regainMinutes > 0 ? regainMinutes * 60_000 : DEFAULT_LIMIT_WINDOW_MS);
+  const wasLimited = s.limitedUntil > nowMs;
+  s.limitedUntil = Math.max(s.limitedUntil, until);
+  if (typeof code === "number") s.lastCode = code;
+  if (!wasLimited) {
+    log().warn("Business Discovery token is rate-limited", {
+      slot,
+      why,
+      until: new Date(s.limitedUntil).toISOString(),
+    });
+  }
+}
+
+function usageListener(slot: DiscoverySlot, now: () => number): GraphHeadersListener {
+  return (headers) => {
+    const usage = parseGraphUsage(headers);
+    if (!usage) return;
+    const nowMs = now();
+    const s = state[slot];
+    const warn = usage.maxPercent >= USAGE_WARN_PERCENT;
+    if (warn || nowMs - s.usageLoggedAt >= USAGE_LOG_EVERY_MS) {
+      s.usageLoggedAt = nowMs;
+      const facts = {
+        slot,
+        appCallPct: usage.app?.calls,
+        appCpuPct: usage.app?.cpu,
+        appTimePct: usage.app?.time,
+        bucPct: usage.bucPercent,
+        regainMinutes: usage.regainMinutes,
+      };
+      if (warn) log().warn("Graph usage near the limit", facts);
+      else log().info("Graph usage", facts);
+    }
+    if (usage.maxPercent >= USAGE_SWITCH_PERCENT) {
+      markLimited(slot, nowMs, `usage ${Math.round(usage.maxPercent)}%`, usage.regainMinutes);
+    }
+  };
+}
+
+function tokenB(env: Record<string, string | undefined>): { token: string; igUserId?: string } | null {
+  const token = env[TOKEN_B_ENV]?.trim();
+  if (!token) return null;
+  const igUserId = env[TOKEN_B_USER_ID_ENV]?.trim();
+  return igUserId ? { token, igUserId } : { token };
+}
+
+/** Whether a standby token is configured. Never its value. */
+export function hasStandbyToken(env: Record<string, string | undefined> = process.env): boolean {
+  return tokenB(env) !== null;
+}
+
+/**
+ * Runs one Business Discovery read with the right token.
+ *
+ * `read` must ask Graph to throw on a rate limit (rateLimitThrows: true) and
+ * spread `cred.graphOptions` into its call, or this cannot see the limit.
+ * Every other error -- a rejected A, a timeout, a name with no account --
+ * reaches the caller unchanged, so its existing handling still applies.
+ */
+export async function readWithDiscoveryToken<T>(
+  read: (cred: DiscoveryCredential) => Promise<T>,
+  { now = Date.now, env = process.env }: { now?: () => number; env?: Record<string, string | undefined> } = {},
+): Promise<DiscoveryOutcome<T>> {
+  const a = await businessDiscoveryToken();
+  const b = tokenB(env);
+  const creds: DiscoveryCredential[] = [];
+  if (a) creds.push({ slot: "A", token: a, graphOptions: { onHeaders: usageListener("A", now) } });
+  if (b) {
+    creds.push({
+      slot: "B",
+      token: b.token,
+      graphOptions: { onHeaders: usageListener("B", now), ...(b.igUserId ? { igUserId: b.igUserId } : {}) },
+    });
+  }
+  if (creds.length === 0) return { ok: false, reason: "no-credentials" };
+
+  /* One token: today's behaviour exactly. Nothing to switch to, so nothing is
+     skipped -- a limited token is still asked, and its answer still stands. */
+  if (creds.length === 1) {
+    const only = creds[0];
+    try {
+      return { ok: true, value: await read(only), slot: only.slot };
+    } catch (e) {
+      if (e instanceof InstagramRateLimitError) markLimited(only.slot, now(), `code ${e.code}`, undefined, e.code);
+      throw e;
+    }
+  }
+
+  let refusal: InstagramRateLimitError | null = null;
+  for (const cred of creds) {
+    if (state[cred.slot].limitedUntil > now()) {
+      refusal ??= new InstagramRateLimitError(state[cred.slot].lastCode);
+      continue;
+    }
+    try {
+      return { ok: true, value: await read(cred), slot: cred.slot };
+    } catch (e) {
+      if (e instanceof InstagramRateLimitError) {
+        markLimited(cred.slot, now(), `code ${e.code}`, undefined, e.code);
+        refusal = e;
+        continue;
+      }
+      /* B is the standby. A rejected B is an operator problem with the spare,
+         not with A and not with the creator -- so it is said once, B is left
+         alone for the window, and the read is answered as A left it. */
+      if (cred.slot === "B" && e instanceof InstagramAuthError) {
+        log().error(`${TOKEN_B_ENV} rejected; the standby token is unusable until it is replaced`, {
+          status: e.status,
+          code: e.code,
+        });
+        markLimited("B", now(), "token rejected");
+        continue;
+      }
+      throw e;
+    }
+  }
+  throw refusal ?? new InstagramRateLimitError(state.A.lastCode);
+}

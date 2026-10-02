@@ -1,0 +1,22 @@
+[Unit]
+Description=Plan B backup scheduler: trigger the app's own crons that missed their heartbeat
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/outreach-creator-worker/creator-worker
+ExecStart=/usr/bin/node backup-scheduler.mjs
+EnvironmentFile=/etc/outreach-scheduler.env
+Environment=SCHEDULER_STATE_FILE=/var/lib/outreach-backup-scheduler/state.json
+StateDirectory=outreach-backup-scheduler
+StateDirectoryMode=0700
+User=creators
+Group=creators
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+# Five triggers start 30 s apart and each may run as long as a Vercel cron
+# (800 s); the script's own per-trigger timeout is 870 s.
+TimeoutStartSec=1020

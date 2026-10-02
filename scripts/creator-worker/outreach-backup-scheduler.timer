@@ -1,0 +1,10 @@
+[Unit]
+Description=Ask the app every 10 minutes whether a cron missed its heartbeat
+
+[Timer]
+OnCalendar=*:0/10
+RandomizedDelaySec=60
+Persistent=false
+
+[Install]
+WantedBy=timers.target

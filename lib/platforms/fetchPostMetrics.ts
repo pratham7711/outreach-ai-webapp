@@ -3,12 +3,18 @@ import {
   fetchInstagramMetricsGraph,
   InstagramAuthError,
   InstagramNoSuchAccountError,
+  InstagramRateLimitError,
   InstagramTimeoutError,
 } from "./instagram";
+import { fetchInstagramPublicPostMetrics } from "./instagramBusinessDiscovery";
+import { readWithDiscoveryToken } from "./instagramDiscoveryTokens";
 import {
-  businessDiscoveryToken,
-  fetchInstagramPublicPostMetrics,
-} from "./instagramBusinessDiscovery";
+  fetchYouTubeBatchStats,
+  isQuotaExceeded,
+  markVideosListExhausted,
+  videosListExhausted,
+  type BatchStatItem,
+} from "./youtubeBatchStats";
 import { fetchInstagramEmbedPost } from "./instagramEmbed";
 import { fetchTikTokVideosByIds } from "./tiktokDisplay";
 import { isRounded, TIKTOK_DISPLAY } from "./precision";
@@ -302,6 +308,10 @@ export async function fetchYouTubeMetrics(videoId: string): Promise<Partial<Post
     return stubMetrics("not-configured");
   }
 
+  /* videos.list already said its quota is gone today: straight to the
+     fallback rather than spending a request to hear the same 403. */
+  if (videosListExhausted()) return youtubeStatsFallback(videoId, apiKey);
+
   try {
     const res = await fetch(
       `https://www.googleapis.com/youtube/v3/videos?part=statistics,snippet&id=${videoId}&key=${apiKey}`,
@@ -310,6 +320,10 @@ export async function fetchYouTubeMetrics(videoId: string): Promise<Partial<Post
     if (!res.ok) {
       const reason = await res.text().catch(() => "");
       log.error("YouTube API request failed", { status: res.status, reason: reason.slice(0, 300) });
+      if (isQuotaExceeded(res.status, reason)) {
+        await markVideosListExhausted();
+        return youtubeStatsFallback(videoId, apiKey);
+      }
       return stubMetrics("platform-refused");
     }
 
@@ -353,6 +367,42 @@ function mapYouTubeItem(item: any): Partial<PostMetrics> {
   };
 }
 
+/**
+ * A videos.batchGetStats entry as metrics (plan §13 B). Counters and the
+ * publish time only: that method returns no title and no thumbnail, and the
+ * writer keeps the stored ones when these are null. Absent counters stay
+ * absent, as in mapYouTubeItem.
+ */
+function mapYouTubeStatItem(item: BatchStatItem): Partial<PostMetrics> {
+  const stats = item?.statistics ?? {};
+  const views = pickOptionalCount(stats.viewCount);
+  const likes = pickOptionalCount(stats.likeCount);
+  const comments = pickOptionalCount(stats.commentCount);
+  const published = item?.snippet?.publishTime ? new Date(item.snippet.publishTime) : undefined;
+  return {
+    thumbnailUrl: null,
+    caption: null,
+    ...(views !== undefined ? { viewsCount: views } : {}),
+    ...(likes !== undefined ? { likesCount: likes } : {}),
+    ...(comments !== undefined ? { commentsCount: comments } : {}),
+    ...(views !== undefined && views > 0
+      ? { engagementRate: (((likes ?? 0) + (comments ?? 0)) / views) * 100 }
+      : {}),
+    ...(published && !Number.isNaN(published.getTime()) ? { postedAt: published } : {}),
+  };
+}
+
+/**
+ * One video through the fallback. Not returned means not read this time --
+ * "platform-refused", which spends no retry -- never "post-deleted": see
+ * lib/platforms/youtubeBatchStats.
+ */
+async function youtubeStatsFallback(videoId: string, apiKey: string): Promise<Partial<PostMetrics>> {
+  const { items } = await fetchYouTubeBatchStats([videoId], apiKey);
+  const item = items.get(videoId);
+  return item ? mapYouTubeStatItem(item) : stubMetrics("platform-refused");
+}
+
 export async function fetchYouTubeMetricsBatch(videoIds: string[]): Promise<Map<string, PostMetrics>> {
   const out = new Map<string, PostMetrics>();
   const ids = [...new Set(videoIds.filter((id) => typeof id === "string" && id.length > 0))];
@@ -365,8 +415,16 @@ export async function fetchYouTubeMetricsBatch(videoIds: string[]): Promise<Map<
     return out;
   }
 
+  /* Chunks videos.list could not answer for quota, read afterwards through
+     videos.batchGetStats, which has its own bucket (plan §13 B). */
+  const viaFallback: string[] = [];
+
   for (let i = 0; i < ids.length; i += 50) {
     const chunk = ids.slice(i, i + 50);
+    if (videosListExhausted()) {
+      viaFallback.push(...chunk);
+      continue;
+    }
     try {
       const res = await fetch(
         `https://www.googleapis.com/youtube/v3/videos?part=statistics,snippet&id=${chunk
@@ -381,6 +439,10 @@ export async function fetchYouTubeMetricsBatch(videoIds: string[]): Promise<Map<
           count: chunk.length,
           reason: reason.slice(0, 300),
         });
+        if (isQuotaExceeded(res.status, reason)) {
+          await markVideosListExhausted();
+          viaFallback.push(...chunk);
+        }
         continue;
       }
       const data = await res.json();
@@ -400,6 +462,22 @@ export async function fetchYouTubeMetricsBatch(videoIds: string[]): Promise<Map<
         error: err instanceof Error ? err.message : String(err),
       });
     }
+  }
+
+  if (viaFallback.length > 0) {
+    const { items, unread } = await fetchYouTubeBatchStats(viaFallback, apiKey);
+    for (const [id, item] of items) out.set(id, assemblePostMetrics("YOUTUBE", id, mapYouTubeStatItem(item)));
+    /* Entered as unread rather than left out: a post missing from this map is
+       read again one by one by the caller, and every one of those would be
+       one more call to a fallback that has just said no. "platform-refused"
+       is what that per-post read answered on a quota 403 anyway, and it
+       spends no retry. */
+    for (const id of unread) out.set(id, assemblePostMetrics("YOUTUBE", id, stubMetrics("platform-refused")));
+    log.warn("YouTube post stats read through videos.batchGetStats", {
+      asked: viaFallback.length,
+      answered: items.size,
+      unread: unread.length,
+    });
   }
   return out;
 }
@@ -1241,18 +1319,35 @@ export async function fetchInstagramMetrics(
     }
   }
 
-  const bizToken = await businessDiscoveryToken();
-  if (bizToken && handle) {
+  /* Whether a Business Discovery token existed to ask with -- the verdict
+     below needs it, and the chooser is what knows. Set on any outcome but
+     "no-credentials", a throw included. */
+  let bizAttempted = false;
+  if (handle) {
     let post: Awaited<ReturnType<typeof fetchInstagramPublicPostMetrics>> = null;
+    bizAttempted = true;
     try {
-      post = await fetchInstagramPublicPostMetrics(
-        handle,
-        url,
-        bizToken,
-        fetchTimeoutSignal(GRAPH_WALK_TIMEOUT_MS),
+      /* Token A, or the standby B while A is limited (plan §13 B). Each attempt
+         gets its own walk budget, so a retry on B is not starved by A's. */
+      const read = await readWithDiscoveryToken((cred) =>
+        fetchInstagramPublicPostMetrics(handle, url, cred.token, fetchTimeoutSignal(GRAPH_WALK_TIMEOUT_MS), {
+          rateLimitThrows: true,
+          ...cred.graphOptions,
+        }),
       );
+      if (read.ok) post = read.value;
+      else bizAttempted = false;
     } catch (err) {
-      if (err instanceof InstagramTimeoutError) {
+      if (err instanceof InstagramRateLimitError) {
+        /* Every token is limited. The same outcome a throttle always had on
+           this path -- no counts from here, and the embed below may still
+           answer -- now said rather than folded into an empty page. */
+        createLogger({ context: { platform: "INSTAGRAM", call: "businessDiscovery" } }).warn(
+          "Business Discovery is rate-limited; falling through to the embed",
+          { code: err.code },
+        );
+        post = null;
+      } else if (err instanceof InstagramTimeoutError) {
         timedOut = true;
         createLogger({ context: { platform: "INSTAGRAM", call: "businessDiscovery" } }).warn(
           "Business Discovery walk timed out; falling through to the embed",
@@ -1349,7 +1444,7 @@ export async function fetchInstagramMetrics(
      no handle there is no Business Discovery lookup to make, so the shortfall
      is still something the deployment has to supply, not something Instagram
      refused us. */
-  const attempted = Boolean(token) || Boolean(bizToken && handle);
+  const attempted = Boolean(token) || bizAttempted;
   /* A rejected credential outranks both other verdicts. "platform-refused"
      would send this back through the retry cycle every hour with the same dead
      token and report it as the platform's doing; naming it is what lets the

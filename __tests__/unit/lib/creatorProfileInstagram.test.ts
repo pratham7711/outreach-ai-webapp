@@ -20,7 +20,9 @@ describe("readCreatorProfile on Instagram", () => {
   it("asks Business Discovery to throw on a rate limit", async () => {
     fetchProfile.mockResolvedValue(null);
     await readCreatorProfile("INSTAGRAM", "someone");
-    expect(fetchProfile.mock.calls[0][4]).toEqual({ rateLimitThrows: true });
+    /* toMatchObject: the token chooser also hands over its usage listener
+       (lib/platforms/instagramDiscoveryTokens). */
+    expect(fetchProfile.mock.calls[0][4]).toMatchObject({ rateLimitThrows: true });
   });
 
   it("files a Graph throttle as rate-limited, to be retried", async () => {
