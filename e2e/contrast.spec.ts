@@ -50,6 +50,15 @@ const PAGES = [
   '/campaigns/camp-1?tab=overview',
   '/campaigns/camp-1?tab=creators',
   '/campaigns/camp-1?tab=analytics',
+  /* Every other page the sidebar keeps (plan §03: "extended to every kept
+     page"), and the detail pages a list row or roster row opens. */
+  '/songs',
+  '/calendar',
+  '/trackers',
+  '/creators/creator-1',
+  '/settings/trackers',
+  '/settings/api-keys',
+  '/settings/ingestion',
 ];
 
 /** Below this nothing is readable at any size or weight. */
@@ -120,11 +129,6 @@ const CREATORCORE_INKS: { ink: string; token: string; measured: string }[] = [
     ink: 'rgb(86, 186, 87)',
     token: 'CAMPAIGN_STATUS_STYLE.COMPLETE via --cc-status-ink-strength',
     measured: 'their Complete tab is rgb(86,186,87) (globals.css:4775)',
-  },
-  {
-    ink: 'rgb(255, 59, 48)',
-    token: '--cc-danger',
-    measured: 'the same rule one hue over -- their Canceled tab is rgb(255,0,0) (globals.css:4775)',
   },
   {
     ink: 'rgba(255, 255, 255, 0.5)',
@@ -353,9 +357,32 @@ function probe() {
   return out;
 }
 
-test('no invisible text in any theme', async ({ page }) => {
-  test.setTimeout(600000);
+/**
+ * The ratchet (plan §03, §12). Light and Dark answer to WCAG AA, 4.5:1, but on
+ * the day the floor moved from 3:1 they failed 196 and 154 checks -- so the
+ * AA failures that exist are recorded here as debt, keyed by page, element and
+ * the colour PAIR (not the text, which carries counts and dates and would make
+ * every key flaky). A pair that is not in the file fails the run: no new debt.
+ * A recorded pair that no longer occurs also fails, so the file only shrinks --
+ * delete the line, or rewrite it with CONTRAST_BASELINE=write after a fix.
+ *
+ * CreatorCore is held to "no worse than today": no pair under 3:1 that is not
+ * recorded, on top of the fidelity list (only their own inks may sit there).
+ */
+const BASELINE_FILE = path.join(__dirname, 'fixtures', 'contrast-baseline.json');
+type Baseline = { light: string[]; dark: string[]; creatorcore: string[] };
 
+function readBaseline(): Baseline | null {
+  try {
+    return JSON.parse(fs.readFileSync(BASELINE_FILE, 'utf8')) as Baseline;
+  } catch {
+    return null;
+  }
+}
+
+const debtKey = (f: Finding) => `${f.path}  ${f.sel}  ${inkKey(f.color)} on ${inkKey(f.bg)}`;
+
+async function sweep(page: import('@playwright/test').Page, theme: (typeof THEMES)[number]) {
   const findings: Finding[] = [];
   /* What each visit actually had to score. A contrast sweep over a page that
      never finished loading is the failure mode this spec is most exposed to:
@@ -364,71 +391,69 @@ test('no invisible text in any theme', async ({ page }) => {
   let visited = 0;
   let attempted = 0;
 
-  for (const theme of THEMES) {
-    for (const p of PAGES) {
-      attempted++;
-      await page.goto(p, { waitUntil: 'domcontentloaded' });
-      await page.evaluate((t) => {
-        localStorage.setItem('theme', t);
-        document.documentElement.classList.remove('light', 'dark', 'creatorcore');
-        if (t !== 'light') document.documentElement.classList.add(t);
-      }, theme);
-      // Re-render under the theme class rather than trusting a class swap to
-      // restyle everything already painted.
-      await page.reload({ waitUntil: 'domcontentloaded' });
+  for (const p of PAGES) {
+    attempted++;
+    await page.goto(p, { waitUntil: 'domcontentloaded' });
+    await page.evaluate((t) => {
+      localStorage.setItem('theme', t);
+      document.documentElement.classList.remove('light', 'dark', 'creatorcore');
+      if (t !== 'light') document.documentElement.classList.add(t);
+    }, theme);
+    // Re-render under the theme class rather than trusting a class swap to
+    // restyle everything already painted.
+    await page.reload({ waitUntil: 'domcontentloaded' });
 
-      /* Wait for content, not for a stopwatch. The old fixed 600ms was the
-         hole that let the post card through: that tab is still a grid of
-         .ui-skeleton shimmers at 2.5s and only paints its cards near 12s, so
-         the probe was scoring placeholder boxes and reporting a clean page.
-         Skeletons carry .ui-skeleton from @pratham7711/ui, so their absence is
-         the honest ready signal. */
-      /* Network first: the skeleton count is not monotonic -- measured on the
-         posts tab it goes 7 at 1s, 30 at 4s as the second wave mounts, 0 at
-         6s -- so waiting for the first zero can land in a gap between waves. */
-      await page.waitForLoadState('networkidle', { timeout: 30000 }).catch(() => {});
-      await page
-        .waitForFunction(() => document.querySelectorAll('.ui-skeleton').length === 0, null, {
-          timeout: 30000,
-        })
-        .catch(() => {
-          /* Left spinning: recorded below as too little content rather than
-             silently accepted. */
-        });
-      await page.waitForTimeout(400);
-      visited++;
+    /* Wait for content, not for a stopwatch. The old fixed 600ms was the
+       hole that let the post card through: that tab is still a grid of
+       .ui-skeleton shimmers at 2.5s and only paints its cards near 12s, so
+       the probe was scoring placeholder boxes and reporting a clean page.
+       Skeletons carry .ui-skeleton from @pratham7711/ui, so their absence is
+       the honest ready signal. */
+    /* Network first: the skeleton count is not monotonic -- measured on the
+       posts tab it goes 7 at 1s, 30 at 4s as the second wave mounts, 0 at
+       6s -- so waiting for the first zero can land in a gap between waves. */
+    await page.waitForLoadState('networkidle', { timeout: 30000 }).catch(() => {});
+    await page
+      .waitForFunction(() => document.querySelectorAll('.ui-skeleton').length === 0, null, {
+        timeout: 30000,
+      })
+      .catch(() => {
+        /* Left spinning: recorded below as too little content rather than
+           silently accepted. */
+      });
+    await page.waitForTimeout(400);
+    visited++;
 
-      coverage.push({
-        theme,
-        path: p,
-        ...(await page.evaluate(() => {
-          let textNodes = 0;
-          let overlaysWithText = 0;
-          for (const el of Array.from(document.querySelectorAll('body *'))) {
-            const hasOwnText = Array.from(el.childNodes).some(
-              (n) => n.nodeType === 3 && (n.textContent || '').trim()
-            );
-            if (!hasOwnText) continue;
-            textNodes++;
-            /* The gradient is on the panel, never on the element holding the
-               text -- the counts are separate child rows inside it. So this
-               asks whether the text SITS ON an overlay, walking the same
-               chain effectiveBgs walks; asking whether the text-bearing
-               element is itself the gradient answers 0 every time. */
-            for (let n: Element | null = el; n; n = n.parentElement) {
-              if ((getComputedStyle(n).backgroundImage || '').includes('gradient')) {
-                overlaysWithText++;
-                break;
-              }
+    coverage.push({
+      theme,
+      path: p,
+      ...(await page.evaluate(() => {
+        let textNodes = 0;
+        let overlaysWithText = 0;
+        for (const el of Array.from(document.querySelectorAll('body *'))) {
+          const hasOwnText = Array.from(el.childNodes).some(
+            (n) => n.nodeType === 3 && (n.textContent || '').trim()
+          );
+          if (!hasOwnText) continue;
+          textNodes++;
+          /* The gradient is on the panel, never on the element holding the
+             text -- the counts are separate child rows inside it. So this
+             asks whether the text SITS ON an overlay, walking the same
+             chain effectiveBgs walks; asking whether the text-bearing
+             element is itself the gradient answers 0 every time. */
+          for (let n: Element | null = el; n; n = n.parentElement) {
+            if ((getComputedStyle(n).backgroundImage || '').includes('gradient')) {
+              overlaysWithText++;
+              break;
             }
           }
-          return { textNodes, overlaysWithText, skeletons: document.querySelectorAll('.ui-skeleton').length };
-        })),
-      });
+        }
+        return { textNodes, overlaysWithText, skeletons: document.querySelectorAll('.ui-skeleton').length };
+      })),
+    });
 
-      const rows = await page.evaluate(probe);
-      for (const r of rows) findings.push({ theme, path: p, ...r });
-    }
+    const rows = await page.evaluate(probe);
+    for (const r of rows) findings.push({ theme, path: p, ...r });
   }
 
   /* An empty result is only good news if the pages actually loaded. Without
@@ -456,23 +481,56 @@ test('no invisible text in any theme', async ({ page }) => {
 
   const invisible = findings.filter((f) => f.severity === 'INVISIBLE');
   const aaFails = findings.filter((f) => f.severity === 'aa-fail');
+  const report = { generatedAt: new Date().toISOString(), theme, visited, coverage, invisible, aaFails };
+  fs.writeFileSync(path.join(__dirname, 'fixtures', `.contrast-report.${theme}.json`), JSON.stringify(report, null, 2));
+  return { invisible, aaFails };
+}
 
-  const report = { generatedAt: new Date().toISOString(), visited, coverage, invisible, aaFails };
-  const out = path.join(__dirname, 'fixtures', '.contrast-report.json');
-  fs.writeFileSync(out, JSON.stringify(report, null, 2));
+const fmt = (f: Finding) =>
+  `  ${f.ratio.toFixed(2)}:1  [${f.theme}] ${f.path}  ${f.sel}  "${f.text}"  ${f.color} on ${f.bg}`;
 
-  const fmt = (f: Finding) =>
-    `  ${f.ratio.toFixed(2)}:1  [${f.theme}] ${f.path}  ${f.sel}  "${f.text}"  ${f.color} on ${f.bg}`;
-  console.log(`\nINVISIBLE (<${INVISIBLE}:1): ${invisible.length}`);
-  invisible.slice(0, 40).forEach((f) => console.log(fmt(f)));
-  console.log(`\nAA fails (${INVISIBLE}-${AA}:1): ${aaFails.length}`);
-  aaFails.slice(0, 30).forEach((f) => console.log(fmt(f)));
+/** Writes this theme's part of the baseline when asked to, and only then. */
+function writeBaseline(part: Partial<Baseline>) {
+  if (process.env.CONTRAST_BASELINE !== 'write') return false;
+  const current = readBaseline() ?? { light: [], dark: [], creatorcore: [] };
+  fs.writeFileSync(BASELINE_FILE, JSON.stringify({ ...current, ...part }, null, 2) + '\n');
+  return true;
+}
 
-  /* The floor, on the themes whose colours are ours to choose. */
-  expect(
-    invisible.filter((f) => OUR_THEMES.includes(f.theme)).map(fmt).join('\n') || 'none',
-    'text below 3:1 is unreadable at any size'
-  ).toBe('none');
+for (const theme of OUR_THEMES as ('light' | 'dark')[]) {
+  test(`contrast: ${theme} -- nothing under 3:1, and no new pair under 4.5:1`, async ({ page }) => {
+    test.setTimeout(600000);
+    const { invisible, aaFails } = await sweep(page, theme);
+
+    console.log(`\n[${theme}] INVISIBLE (<${INVISIBLE}:1): ${invisible.length}`);
+    invisible.slice(0, 40).forEach((f) => console.log(fmt(f)));
+    console.log(`[${theme}] AA fails (${INVISIBLE}-${AA}:1): ${aaFails.length}`);
+
+    /* The floor, on the themes whose colours are ours to choose. */
+    expect(invisible.map(fmt).join('\n') || 'none', 'text below 3:1 is unreadable at any size').toBe('none');
+
+    const keys = [...new Set(aaFails.map(debtKey))].sort();
+    if (writeBaseline({ [theme]: keys })) return;
+
+    const recorded = new Set(readBaseline()?.[theme] ?? []);
+    const fresh = aaFails.filter((f) => !recorded.has(debtKey(f)));
+    expect(
+      [...new Set(fresh.map(fmt))].join('\n') || 'none',
+      `new text under ${AA}:1 in ${theme}: fix it with a token, not a baseline line`
+    ).toBe('none');
+
+    const seen = new Set(keys);
+    const fixed = [...recorded].filter((k) => !seen.has(k));
+    expect(
+      fixed.join('\n') || 'none',
+      `these ${theme} pairs no longer occur -- remove them from e2e/fixtures/contrast-baseline.json so the ratchet holds`
+    ).toBe('none');
+  });
+}
+
+test('contrast: creatorcore -- no worse than recorded, and only their own inks under 3:1', async ({ page }) => {
+  test.setTimeout(600000);
+  const { invisible } = await sweep(page, 'creatorcore');
 
   /* Fidelity, on the theme whose colours are CreatorCore's. Same findings, same
      floor -- the only question that changes is whether the ink underneath is one
@@ -481,14 +539,12 @@ test('no invisible text in any theme', async ({ page }) => {
   const matched = new Set<string>();
   const unrecognised: Finding[] = [];
   for (const f of invisible) {
-    if (OUR_THEMES.includes(f.theme)) continue;
     const key = inkKey(f.color);
     if (exempt.has(key)) matched.add(key);
     else unrecognised.push(f);
   }
 
-  const ccTotal = invisible.filter((f) => !OUR_THEMES.includes(f.theme)).length;
-  console.log(`\ncreatorcore: ${ccTotal - unrecognised.length} of ${ccTotal} finding(s) held to fidelity, ${unrecognised.length} not`);
+  console.log(`\ncreatorcore: ${invisible.length - unrecognised.length} of ${invisible.length} finding(s) held to fidelity, ${unrecognised.length} not`);
   for (const [key, e] of exempt) {
     if (matched.has(key)) console.log(`  ${e.ink}  ${e.token}\n      ${e.measured}`);
   }
@@ -505,5 +561,22 @@ test('no invisible text in any theme', async ({ page }) => {
       .map((e) => `  ${e.ink}  ${e.token}`)
       .join('\n') || 'none',
     'every CREATORCORE_INKS entry must still match a real finding, or it is stale and should be removed'
+  ).toBe('none');
+
+  /* No worse than recorded: the same key as the other two themes, so a new
+     page or element showing one of their pale inks still has to be accepted
+     on purpose, by rewriting the baseline. */
+  const keys = [...new Set(invisible.map(debtKey))].sort();
+  if (writeBaseline({ creatorcore: keys })) return;
+  const recorded = new Set(readBaseline()?.creatorcore ?? []);
+  const fresh = invisible.filter((f) => !recorded.has(debtKey(f)));
+  expect(
+    [...new Set(fresh.map(fmt))].join('\n') || 'none',
+    'creatorcore may not get worse: these pairs under 3:1 are new'
+  ).toBe('none');
+  const seen = new Set(keys);
+  expect(
+    [...recorded].filter((k) => !seen.has(k)).join('\n') || 'none',
+    'these creatorcore pairs no longer occur -- remove them from e2e/fixtures/contrast-baseline.json so the ratchet holds'
   ).toBe('none');
 });

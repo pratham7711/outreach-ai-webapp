@@ -215,7 +215,7 @@ export const CROSS_CUTTING = [
 ];
 
 /** Paths that cannot change what the app renders, so they force nothing. */
-export const INERT = ["__tests__/", "docs/", "README", ".gitignore", "scratchpad/", ".vscode/", "scripts/creator-worker/", "scripts/trackers/"];
+export const INERT = ["__tests__/", "docs/", "README", ".gitignore", "scratchpad/", ".vscode/", "scripts/creator-worker/", "scripts/trackers/", "scripts/qa/"];
 
 export const AREA_NAMES = Object.keys(AREAS);
 
