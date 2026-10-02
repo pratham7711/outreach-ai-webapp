@@ -35,8 +35,24 @@ function envInt(name: string, fallback: number): number {
 
 /* Regions measured 2026-10-02 to serve full TikTok profiles to a Sandbox.
    bom1 and hkg1 do not; sin1 is where this project's own functions live, and
-   is left out so a lane never shares a range with the egress that is walled. */
-const DEFAULT_REGIONS = ["iad1", "sfo1", "cle1", "pdx1", "cdg1"];
+   is left out so a lane never shares a range with the egress that is walled.
+   cdg1 served a 12-page probe in full but walled 59 of 111 pages in a
+   sustained 4-minute soak the same day, while the four US lanes beside it
+   answered 467 of 467 -- so the primaries are North American, and the rest
+   are spares a replaced lane moves to. */
+const DEFAULT_REGIONS = ["iad1", "sfo1", "cle1", "pdx1", "yul1", "gru1", "hnd1", "syd1"];
+
+/** Which region a lane boots in. The first `lanes` regions are the
+ *  primaries, one per slot; a replacement (a lane that latched on walls)
+ *  moves to the spares in turn, so it does not boot straight back into the
+ *  range that just walled it. With no spares it steps to the next primary. */
+export function laneRegion(regions: string[], lanes: number, slot: number, generation: number): string {
+  const primaries = regions.slice(0, Math.max(1, lanes));
+  const spares = regions.slice(primaries.length);
+  if (generation <= 1) return primaries[slot % primaries.length];
+  if (spares.length > 0) return spares[(slot + generation - 2) % spares.length];
+  return primaries[(slot + generation - 1) % primaries.length];
+}
 
 export const READER_V2_DEADLINE_MS = 4 * 60 * 1000;
 export const READER_V2_GRACE_MS = 30_000;
@@ -103,7 +119,7 @@ export async function runReaderV2(options: ReaderRunOptions): Promise<ReaderRunR
        the 270s the sweep may run). */
     const lifetimeMs = deadlineMs + READER_V2_GRACE_MS + 60_000;
     makeExit = (slot, generation) => {
-      const region = laneRegions[(slot + (generation - 1) * maxLanes) % laneRegions.length];
+      const region = laneRegion(laneRegions, maxLanes, slot, generation);
       return sandboxExit({
         region,
         lifetimeMs,

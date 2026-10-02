@@ -10,7 +10,7 @@ jest.mock("@/lib/db", () => ({ db: {} }));
 
 import { snapshotCreators } from "@/lib/creators/snapshot";
 import { recordSourceHealth, type ResolvedTrackerPlan } from "@/lib/trackers/sourceSwitch";
-import { runReaderV2, summariseExits } from "@/lib/trackers/readerRun";
+import { laneRegion, runReaderV2, summariseExits } from "@/lib/trackers/readerRun";
 import type { TikTokExit } from "@/lib/platforms/tiktokExit";
 
 const mockSweep = snapshotCreators as jest.Mock;
@@ -127,5 +127,19 @@ describe("summariseExits", () => {
     expect(summariseExits([e(96, 3, 1)]).ok).toBe(false);
     expect(summariseExits([]).ok).toBe(true);
     expect(summariseExits([e(10, 0, 0)]).medianMs).toBe(200);
+  });
+});
+
+describe("laneRegion", () => {
+  const regions = ["iad1", "sfo1", "cle1", "pdx1", "yul1", "gru1", "hnd1", "syd1"];
+  it("gives each slot its own primary, and a replacement a spare rather than the range that walled it", () => {
+    expect([0, 1, 2, 3, 4].map((s) => laneRegion(regions, 5, s, 1))).toEqual(["iad1", "sfo1", "cle1", "pdx1", "yul1"]);
+    expect(laneRegion(regions, 5, 4, 2)).not.toBe("yul1");
+    expect(regions.slice(5)).toContain(laneRegion(regions, 5, 4, 2));
+    expect(laneRegion(regions, 5, 4, 3)).not.toBe(laneRegion(regions, 5, 4, 2));
+  });
+  it("steps to another primary when there are no spares", () => {
+    const five = regions.slice(0, 5);
+    expect(laneRegion(five, 5, 4, 2)).not.toBe("yul1");
   });
 });
