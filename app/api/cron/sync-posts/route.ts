@@ -29,6 +29,8 @@ import { LAST_FETCH_KEY, lastFetchNote } from "@/lib/metricDisplay";
 import { alertOps, shouldAlertOnBatch } from "@/lib/alerts";
 import { alertIfInstagramSourceDown } from "@/lib/integrations/health";
 import { createLogger } from "@/lib/observability/logger";
+import { cronRoute } from "@/lib/ops/cronRoute";
+import { classifyPostRead, openSourceGuard } from "@/lib/ops/sourceBreaker";
 
 const MAX_SYNC_FAILURES = 5;
 const DEFAULT_PLATFORM_BUDGET = 100;
@@ -166,7 +168,7 @@ function cronTikTokLanes(due: number): number {
   return Math.min(cap, laneCountFor(due));
 }
 
-export async function GET(request: NextRequest) {
+async function cronHandler(request: NextRequest) {
   const log = createLogger({ context: { route: "cron/sync-posts" } });
 
   const authHeader = request.headers.get("authorization");
@@ -210,6 +212,12 @@ export async function GET(request: NextRequest) {
      accurate. Only campaigns actually read are stamped; one whose posts were all
      throttled or cut off by the deadline was not refreshed and must not claim it. */
   const sweptCampaigns = new Set<string>();
+
+  /* Per-source kill switches and breakers (plan §13 C, lib/ops/sourceBreaker).
+     A platform switched off, or whose breaker is open, is not asked for
+     candidates at all; one whose breaker opens mid-run is skipped from then on
+     as "source-breaker", uncharged, so its posts stay due. */
+  const sourceGuard = await openSourceGuard({ reader: "post-reads", breakers: true });
 
   /* Declared outside the try so the finally can close it: a pool left open
      after a crash keeps billing until SANDBOX_LIFETIME_MS. */
@@ -308,7 +316,11 @@ export async function GET(request: NextRequest) {
      * It adds no reads beyond what the budgets already allow, and YouTube's are
      * nearly free anyway: they are answered by one batched API call per 50 ids
      * (fetchYouTubeMetricsBatch, below) rather than a request per post. */
-    const byPlatform = await Promise.all(SWEEP_PLATFORMS.map((p) => candidatesFor(p)));
+    const byPlatform = await Promise.all(
+      SWEEP_PLATFORMS.map((p) =>
+        sourceGuard.excludes(p) ? Promise.resolve([] as Awaited<ReturnType<typeof candidatesFor>>) : candidatesFor(p),
+      ),
+    );
 
     /* Interleaved, not concatenated. The run has a four-minute deadline and
        TikTok reads are the slow ones; in platform order, a TikTok backlog would
@@ -421,6 +433,11 @@ export async function GET(request: NextRequest) {
 
       let { action, reason } = decisionFor(post);
 
+      if (action === "sync" && !sourceGuard.admit(post.platform)) {
+        action = "skip";
+        reason = "source-breaker";
+      }
+
       if (action === "sync") {
         const platform = post.platform as string;
         const budget = budgets[platform] ?? DEFAULT_PLATFORM_BUDGET;
@@ -518,6 +535,7 @@ export async function GET(request: NextRequest) {
          * applyPostMetrics stamps lastSyncedAt only when counts actually
          * arrived, and writes only the counters the platform reported. */
         const outcome = await applyPostMetrics(post, metrics, { syncSource: "cron" });
+        sourceGuard.record(post.platform, classifyPostRead(outcome), outcome.status === "measured" ? null : outcome.reason);
 
         if (outcome.status === "measured") {
           // A real answer clears the streak. Only a real answer.
@@ -762,5 +780,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Sync failed" }, { status: 500 });
   } finally {
     await tiktokSandbox?.close();
+    if (!dryRun) await sourceGuard.flush();
   }
 }
+
+/* Kill switch and heartbeat around the handler above (lib/ops/cronRoute). */
+export const GET = cronRoute("sync-posts", cronHandler);

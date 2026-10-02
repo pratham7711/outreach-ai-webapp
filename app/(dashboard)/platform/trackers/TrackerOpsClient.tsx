@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { PageHeader } from "@/components/ds";
 import type { TrackerOpsReport, PlanDay } from "@/lib/trackers/opsReport";
 
@@ -94,6 +95,13 @@ export default function TrackerOpsClient({ initial }: { initial: TrackerOpsRepor
         title="Tracker reader"
         subtitle="Which reader reads creator trackers, how Plan A and Plan B are doing, and the switch between them."
       />
+      <p className="cc-tracker-ops-sub">
+        Cron heartbeats, kill switches, source breakers and spend are on{" "}
+        <Link href="/platform/ops" style={{ color: "var(--cc-primary)" }}>
+          Ops guards
+        </Link>
+        .
+      </p>
 
       {!report.tablesReady && (
         <div className="cc-tracker-ops-banner" role="status">

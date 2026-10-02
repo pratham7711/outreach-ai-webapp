@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { refreshRosterProfiles } from "@/lib/creators/profileRefresh";
 import { openSandboxProfileFetcher } from "@/lib/platforms/tiktokProfileSandbox";
 import { createLogger } from "@/lib/observability/logger";
+import { cronRoute } from "@/lib/ops/cronRoute";
 
 export const maxDuration = 300;
 export const runtime = "nodejs";
@@ -17,7 +18,7 @@ export const dynamic = "force-dynamic";
  * The sandbox is opened lazily by the fetcher, so an hour with nothing due, or
  * with only Instagram and YouTube due, starts none.
  */
-export async function GET(request: NextRequest) {
+async function cronHandler(request: NextRequest) {
   const log = createLogger({ context: { route: "cron/refresh-roster-profiles" } });
   const cronSecret = process.env.CRON_SECRET;
   if (!cronSecret || request.headers.get("authorization") !== `Bearer ${cronSecret}`) {
@@ -38,3 +39,6 @@ export async function GET(request: NextRequest) {
     await remote.close();
   }
 }
+
+/* Kill switch and heartbeat around the handler above (lib/ops/cronRoute). */
+export const GET = cronRoute("refresh-roster-profiles", cronHandler);

@@ -5,6 +5,8 @@ import { openSandboxProfileFetcher } from "@/lib/platforms/tiktokProfileSandbox"
 import { withTimeout } from "@/lib/platforms/tiktokBrowser";
 import { createLogger } from "@/lib/observability/logger";
 import { inReaderV2Scope, resolveTrackerPlan } from "@/lib/trackers/sourceSwitch";
+import { cronRoute } from "@/lib/ops/cronRoute";
+import { openSourceGuard } from "@/lib/ops/sourceBreaker";
 
 /* TikTok reads open a browser, which is the expensive case; Instagram and
    YouTube are ordinary HTTP and take milliseconds. The ceiling is sized for the
@@ -21,7 +23,7 @@ export const preferredRegion = "iad1";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(request: NextRequest) {
+async function cronHandler(request: NextRequest) {
   const log = createLogger({ context: { route: "cron/sync-creator-trackers" } });
 
   const cronSecret = process.env.CRON_SECRET;
@@ -47,6 +49,10 @@ export async function GET(request: NextRequest) {
         ? { orgIdsNotIn: plan.scopeOrgIds }
         : { inScope: (c: { id: string; orgId: string }) => !inReaderV2Scope(plan, c) };
 
+  /* The per-source kill switches apply here; the breakers do not (see
+     lib/ops/sourceBreaker). With no switch off this changes nothing. */
+  const sourceGuard = await openSourceGuard({ reader: "creator-reads", breakers: false });
+
   try {
     /* Stats are plain fetches; the browser exists only for TikTok post grids,
        is launched lazily on the first grid actually due (daily cadence), and
@@ -61,6 +67,7 @@ export async function GET(request: NextRequest) {
         readTikTokPosts: (handle) => grids.read(handle),
         readTikTokProfileRemote: (handle) => remote.read(handle),
         readTikTokEmbedHtml: (handle) => remote.readEmbedHtml(handle),
+        sourceGuard,
         ...scope,
       });
       log.info("creator tracker cron complete", { ...counts, dryRun });
@@ -81,3 +88,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Sweep failed" }, { status: 500 });
   }
 }
+
+/* Kill switch and heartbeat around the handler above (lib/ops/cronRoute). */
+export const GET = cronRoute("sync-creator-trackers", cronHandler);

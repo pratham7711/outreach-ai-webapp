@@ -162,6 +162,14 @@ export const AREAS = {
       "app/(dashboard)/platform/trackers/",
       "app/api/platform/tracker-source/",
       "app/api/admin/migrate-tracker-sources/",
+      // Ops guards (plan §13 C and M): kill switches, heartbeats, breakers, the
+      // Sandbox cap and meters, their crons, the ops page, its API and DDL route.
+      "lib/ops/",
+      "app/api/cron/ops-canary/",
+      "app/api/cron/ops-meters/",
+      "app/(dashboard)/platform/ops/",
+      "app/api/platform/ops/",
+      "app/api/admin/migrate-ops-guards/",
     ],
   },
   nav: {

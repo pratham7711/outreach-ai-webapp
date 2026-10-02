@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { snapshotSounds } from "@/lib/sounds/snapshot";
 import { createLogger } from "@/lib/observability/logger";
 import { alertOps, shouldAlertOnBatch } from "@/lib/alerts";
+import { cronRoute } from "@/lib/ops/cronRoute";
 
-export async function GET(request: NextRequest) {
+async function cronHandler(request: NextRequest) {
   const log = createLogger({ context: { route: "cron/snapshot-sounds" } });
 
   const authHeader = request.headers.get("authorization");
@@ -51,3 +52,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "cron failed" }, { status: 500 });
   }
 }
+
+/* Kill switch and heartbeat around the handler above (lib/ops/cronRoute). */
+export const GET = cronRoute("snapshot-sounds", cronHandler);

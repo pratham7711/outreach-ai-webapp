@@ -1,4 +1,5 @@
-import { Sandbox } from "@vercel/sandbox";
+import type { Sandbox } from "@vercel/sandbox";
+import { createSandbox } from "@/lib/ops/sandboxBudget";
 import { createLogger } from "@/lib/observability/logger";
 import { createRateGate, readTikTokPostHtml, type TikTokPostLookup } from "./fetchPostMetrics";
 import { tiktokPageUrl } from "./postUrl";
@@ -210,14 +211,17 @@ export function openSandboxPostPool(size: number): SandboxPostFetcher {
 
   const boot = (lane: Lane) => {
     if (!lane.sandbox) {
-      lane.sandbox = Sandbox.create({
-        region: lane.region as any,
-        timeout: SANDBOX_LIFETIME_MS,
-        // See tiktokProfileSandbox: a stop with persistence on snapshots the
-        // whole 642MB filesystem and bills it for 30 days. Lanes are replaced
-        // aggressively, so this is the single largest storage line if left on.
-        persistent: false,
-      });
+      lane.sandbox = createSandbox(
+        {
+          region: lane.region as any,
+          timeout: SANDBOX_LIFETIME_MS,
+          // See tiktokProfileSandbox: a stop with persistence on snapshots the
+          // whole 642MB filesystem and bills it for 30 days. Lanes are replaced
+          // aggressively, so this is the single largest storage line if left on.
+          persistent: false,
+        },
+        "post-lanes",
+      );
       lane.sandbox.catch(() => {
         lane.sandbox = null;
       });

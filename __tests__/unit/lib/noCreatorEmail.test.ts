@@ -25,6 +25,9 @@ const SENDERS = new Map<string, string>([
   ["lib/auth.ts", "the account holder signing in"],
   ["lib/emailVerification.ts", "the account holder"],
   ["lib/inviteEmail.ts", "a teammate an admin typed in"],
+  ["lib/ops/canary.ts", "alertOps only: the hourly ops canary (ops)"],
+  ["lib/ops/meters.ts", "alertOps only: weekly spend over 120% of the model (ops)"],
+  ["lib/ops/sandboxBudget.ts", "alertOps only: the daily Sandbox cap reached (ops)"],
   ["lib/trackers/readerAlerts.ts", "alertOps only: reader v2 health (ops)"],
 ]);
 

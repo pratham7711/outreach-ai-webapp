@@ -1,4 +1,5 @@
-import { Sandbox } from "@vercel/sandbox";
+import type { Sandbox } from "@vercel/sandbox";
+import { createSandbox } from "@/lib/ops/sandboxBudget";
 import { tikTokMusicEmbedUrl } from "./tiktokSoundEmbed";
 import { parseTikTokProfileHtml } from "./tiktokProfile";
 import { tikTokEmbedUrl } from "./tiktokTopPostsEmbed";
@@ -42,17 +43,20 @@ export function openSandboxProfileFetcher(): SandboxProfileFetcher {
 
   const get = () => {
     if (!sandboxPromise) {
-      sandboxPromise = Sandbox.create({
-        // iad1 is where the successful reads were measured. Not the project
-        // region, and deliberately so.
-        region: "iad1",
-        timeout: SANDBOX_LIFETIME_MS,
-        // Without this, stopping the sandbox snapshots its whole filesystem --
-        // 642MB that then bills as Sandbox Snapshot Storage for 30 days. Two
-        // hourly crons open one of these each, so it accrues ~31GB/day forever.
-        // We only ever run curl in here; there is no filesystem worth keeping.
-        persistent: false,
-      });
+      sandboxPromise = createSandbox(
+        {
+          // iad1 is where the successful reads were measured. Not the project
+          // region, and deliberately so.
+          region: "iad1",
+          timeout: SANDBOX_LIFETIME_MS,
+          // Without this, stopping the sandbox snapshots its whole filesystem --
+          // 642MB that then bills as Sandbox Snapshot Storage for 30 days. Two
+          // hourly crons open one of these each, so it accrues ~31GB/day forever.
+          // We only ever run curl in here; there is no filesystem worth keeping.
+          persistent: false,
+        },
+        "profile-fetcher",
+      );
       sandboxPromise.catch(() => {
         sandboxPromise = null;
       });

@@ -30,6 +30,7 @@ import type { TikTokPostsRead } from "@/lib/platforms/tiktokTopPostsBrowser";
 import { rosterTablesReady } from "./rosterTables";
 import { gateFollowerReading } from "@/lib/trackers/readingGate";
 import { recordSnapshotSources, type TrackerPosition } from "@/lib/trackers/sourceSwitch";
+import { classifyCreatorRead, type SourceGuard } from "@/lib/ops/sourceBreaker";
 
 /**
  * The creator half of the tracker sweep.
@@ -92,6 +93,12 @@ export type CreatorSnapshotOptions = {
   /** Called once the run knows how many reads are due, before any is made --
    *  which is when the lanes can be sized (plan T3). */
   onSelected?: (due: { total: number; byPlatform: Record<string, number>; tiktokPostsStale: number }) => void | Promise<void>;
+  /** The ops guard (plan §13 C), passed by the cron routes only. A platform
+   *  whose kill switch is off, or whose breaker is open, is left out at the
+   *  query; one whose breaker opens mid-run is skipped from then on, unstamped,
+   *  so it stays first in line. Absent -- an explicit refresh, a script -- the
+   *  sweep runs exactly as before. */
+  sourceGuard?: SourceGuard;
 };
 
 /**
@@ -346,6 +353,7 @@ export async function snapshotCreators(
     maxCreators = MAX_CREATORS_PER_RUN,
     concurrency = SWEEP_CONCURRENCY,
     onSelected,
+    sourceGuard,
   } = options;
   const log = createLogger({ context: { job: "snapshot-creators", orgId: orgId ?? "all", ...(plan ? { reader: plan } : {}) } });
   const deadline = Date.now() + deadlineMs;
@@ -376,6 +384,9 @@ export async function snapshotCreators(
         : orgIdsIn || orgIdsNotIn
           ? { orgId: { ...(orgIdsIn ? { in: orgIdsIn } : {}), ...(orgIdsNotIn ? { notIn: orgIdsNotIn } : {}) } }
           : {}),
+      /* Left out here rather than skipped one by one, so a platform that is
+         switched off cannot fill the page and starve the others. */
+      ...(sourceGuard?.excludedPlatforms.length ? { platform: { notIn: sourceGuard.excludedPlatforms } } : {}),
     },
     ...(creatorId ? {} : { take: maxCreators }),
     select: {
@@ -479,6 +490,10 @@ export async function snapshotCreators(
   });
 
   const readOne = async (creator: (typeof creators)[number], at: { stage: string }): Promise<void> => {
+    if (sourceGuard && !sourceGuard.admit(creator.platform)) {
+      skipped++;
+      return;
+    }
     const cadence = cadenceByOrg.get(creator.orgId) ?? DEFAULT_GRANULARITY;
     const previous = creator.trackerSnapshots[0] ?? null;
 
@@ -640,6 +655,10 @@ export async function snapshotCreators(
       else failed++;
       return;
     }
+
+    /* After every rung, so the breaker hears what the run finally got: a
+       TikTok profile the sandbox rescued is the source working. */
+    sourceGuard?.record(creator.platform, classifyCreatorRead(result), result.ok ? null : result.reason);
 
     /* The read that produced these figures also saw the profile picture, on a
        signed link that will be dead within days. Keep the image, not the link. */
