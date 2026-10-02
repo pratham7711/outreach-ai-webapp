@@ -121,6 +121,27 @@ describe('GET /api/creators/[id]', () => {
     expect(body.campaigns[0].postCount).toBe(0);
   });
 
+  /* Plan A6: the page is told when its follower figure was measured, decided
+     from the read that wrote it -- here the newest tracker reading, whose count
+     matches. A count no read produced would get no time at all. */
+  it('dates the follower figure by the reading that produced it', async () => {
+    mockDb.creator.findFirst.mockResolvedValue({
+      id: 'cr-1', orgId: 'org-1', name: 'A', handle: '@fake.a', platform: 'TIKTOK', followersCount: 1500, activations: [], posts: [],
+    });
+    const recordedAt = new Date('2026-10-01T06:00:00Z');
+    mockDb.creatorTrackerSnapshot = {
+      groupBy: jest.fn().mockResolvedValue([{ creatorId: 'cr-1', _max: { recordedAt } }]),
+      findMany: jest.fn().mockResolvedValue([{ creatorId: 'cr-1', followersCount: 1500, avgViews: 0, recordedAt }]),
+    };
+    try {
+      const body = await (await GET(makeRequest('http://localhost/api/creators/cr-1'), makeParams('cr-1'))).json();
+      expect(body.figureTimes.followers).toMatchObject({ at: recordedAt.toISOString(), source: 'Tracker reading', field: 'tracker' });
+      expect(mockDb.creatorTrackerSnapshot.groupBy.mock.calls[0][0].where).toEqual({ creatorId: { in: ['cr-1'] }, creator: { orgId: 'org-1' } });
+    } finally {
+      delete mockDb.creatorTrackerSnapshot;
+    }
+  });
+
   it('names the lists the creator is on, scoped to the org', async () => {
     mockDb.creator.findFirst.mockResolvedValue({ id: 'cr-1', orgId: 'org-1', name: 'A', handle: '@a', platform: 'TIKTOK', activations: [], posts: [] });
     mockDb.creatorListItem.findMany.mockResolvedValueOnce([{ list: { id: 'list-1', name: 'Anime Pages' } }]);

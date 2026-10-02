@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { deriveAverageViews, deriveCampaignCounts } from "@/lib/creatorMetrics";
+import { deriveAverageViewsMeasured, deriveCampaignCounts } from "@/lib/creatorMetrics";
 import CreatorsClient from "./CreatorsClient";
 import { CREATORS_PAGE_SIZE } from "@/lib/listPageSize";
 import { CREATOR_FILTER_KEYS, countCreatorFilters, creatorOrderBy, creatorWhere, readCreatorFilters } from "@/lib/listFilters";
@@ -10,6 +10,8 @@ import { rosterTablesReady } from "@/lib/creators/rosterTables";
 import { isFetchableAvatarUrl, storedAvatarVersions } from "@/lib/creators/avatarStore";
 import { HANDLE_GONE_WHERE, HANDLE_UNREADABLE_WHERE, handleProblem } from "@/lib/creators/handleCheck";
 import { rosterAvgViews, rosterFollowers } from "@/lib/creators/rosterMetrics";
+import { creatorAvgViewsTime, creatorFollowersTime, figureTimeDto, linkFollowersTime } from "@/lib/creators/figureTime";
+import { latestTrackerReadings } from "@/lib/creators/latestReadings";
 
 /** "United States, Brazil" rows counted per country, most common first. */
 function countryOptions(groups: { value: string | null; _count: number }[]) {
@@ -73,8 +75,8 @@ export default async function CreatorsPage({
   // and counting activations alone reads 0 campaigns for the imported roster.
   const ids = creators.map((c) => c.id);
   const detailWhere = { orgId, creator: { deletedAt: null } };
-  const [derivedAvgViews, campaignCounts, links, details, audienceGroups, countryGroups, avatarVersions, handleGone, handleUnreadable] = await Promise.all([
-    deriveAverageViews(ids),
+  const [derivedAvgViews, campaignCounts, links, details, audienceGroups, countryGroups, avatarVersions, handleGone, handleUnreadable, readings] = await Promise.all([
+    deriveAverageViewsMeasured(ids),
     deriveCampaignCounts(ids),
     roster
       ? db.creatorProfileLink.findMany({
@@ -104,6 +106,8 @@ export default async function CreatorsPage({
     roster
       ? db.creator.count({ where: { orgId, deletedAt: null, profileLinks: { some: HANDLE_UNREADABLE_WHERE, none: HANDLE_GONE_WHERE } } })
       : 0,
+    // Dates each row's figures (plan A6); an empty map, never an error, when it cannot.
+    latestTrackerReadings(orgId, ids),
   ]);
   const linksBy = new Map<string, typeof links>();
   for (const l of links) linksBy.set(l.creatorId, [...(linksBy.get(l.creatorId) ?? []), l]);
@@ -125,7 +129,9 @@ export default async function CreatorsPage({
            account's last read -- the read that writes followersCount. */
         const primaryLink = (linksBy.get(c.id) ?? []).find((l) => l.isPrimary) ?? null;
         const facts = { trackerLastAttemptAt: c.trackerLastAttemptAt, trackerLastError: c.trackerLastError, primaryLink };
-        const avgViews = derivedAvgViews.get(c.id) ?? (c.averageViews || null);
+        const derived = derivedAvgViews.get(c.id) ?? null;
+        const avgViews = derived?.value ?? (c.averageViews || null);
+        const latestSnapshot = readings.get(c.id) ?? null;
         return {
           id: c.id,
           name: c.name,
@@ -141,6 +147,9 @@ export default async function CreatorsPage({
               : null,
           followerCount: c.followersCount,
           followers: rosterFollowers({ followersCount: c.followersCount, ...facts }),
+          // When each figure was measured, and by what -- never a guessed time.
+          followersAt: figureTimeDto(creatorFollowersTime({ followersCount: c.followersCount, primaryLink, latestSnapshot })),
+          avgViewsAt: figureTimeDto(creatorAvgViewsTime({ derived, averageViews: c.averageViews, primaryLink, latestSnapshot })),
           // Measured from tracked posts where there are any; otherwise what the
           // account's own page last said (import, then the daily refresh).
           avgViews,
@@ -153,6 +162,7 @@ export default async function CreatorsPage({
             ...l,
             refreshedAt: l.refreshedAt?.toISOString() ?? null,
             problem: handleProblem(l.platform, refreshError),
+            age: figureTimeDto(linkFollowersTime({ ...l, refreshError })),
           })),
           audienceCountry: detailBy.get(c.id)?.audienceCountry ?? null,
         };

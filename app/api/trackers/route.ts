@@ -13,6 +13,7 @@ import {
   type WindowChange,
 } from "@/lib/trackers/metrics";
 import {
+  READ_CADENCE_HOURS,
   downsample,
   effectiveChartGranularity,
   parseGranularity,
@@ -143,6 +144,8 @@ export async function GET(req: NextRequest) {
         used: usage.used,
         max: Number.isFinite(usage.max) ? usage.max : null,
       },
+      // The org's read cadence, for the page's Stale rule (plan A6, lib/dataAge).
+      readCadenceHours: READ_CADENCE_HOURS[granularity.readCadence],
     });
   } catch (error) {
     console.error("Failed to fetch trackers:", error);

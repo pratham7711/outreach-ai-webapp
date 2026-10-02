@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Modal, Badge, Skeleton } from "@pratham7711/ui";
 import { RefreshCw } from "lucide-react";
 import { timeAgo, formatFull, formatHandle } from "@/lib/format";
+import { AgeLabel } from "@/components/ds/AgeLabel";
 import { apiFetch } from "@/lib/api/client";
 import { AudioUsesChart, type SeriesPoint } from "./SoundCharts";
 import { changeOver } from "./horizonChange";
@@ -224,11 +225,8 @@ export function CreatorDetailModal({
             <div style={{ fontSize: "var(--cc-t-13)", fontWeight: 700, color: "var(--cc-text)" }}>
               {creator.topPostsSource === "campaigns" ? "Top Posts in Your Campaigns" : "Top Posts"}
             </div>
-            {creator.topPostsAt ? (
-              <div style={{ fontSize: "var(--cc-t-11)", color: "var(--cc-text-muted)" }}>
-                as of {timeAgo(creator.topPostsAt)}
-              </div>
-            ) : null}
+            {/* Top posts are refreshed at most daily (plan A6's topPosts cadence). */}
+            <AgeLabel at={creator.topPostsAt} field="topPosts" prefix="As of" source="Top posts" never={null} />
           </div>
           <div
             style={{
@@ -286,11 +284,16 @@ export function CreatorDetailModal({
         </div>
       ) : null}
 
-      {creator.lastReadAt ? (
-        <div style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
-          Last read {timeAgo(creator.lastReadAt)}
-        </div>
-      ) : null}
+      {/* With the Stale chip once the reading is past twice the read cadence. The
+          modal is not handed the org's cadence, so it judges by the default. */}
+      <AgeLabel
+        at={creator.lastReadAt}
+        field="tracker"
+        prefix="Last read"
+        source="Tracker reading"
+        never={null}
+        style={{ fontSize: "var(--cc-t-12)" }}
+      />
     </Modal>
   );
 }

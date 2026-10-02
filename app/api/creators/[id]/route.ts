@@ -8,6 +8,8 @@ import { getRequestIp } from "@/lib/request";
 import { deriveCampaignCounts, deriveCreatorCampaigns } from "@/lib/creatorMetrics";
 import { rosterTablesReady } from "@/lib/creators/rosterTables";
 import { handleProblem } from "@/lib/creators/handleCheck";
+import { creatorFollowersTime, figureTimeDto, linkFollowersTime } from "@/lib/creators/figureTime";
+import { latestTrackerReadings } from "@/lib/creators/latestReadings";
 
 const updateCreatorSchema = z.object({
   name: z.string().optional(),
@@ -63,7 +65,7 @@ export async function GET(
     // Campaigns counted from posts as well as activations: activations did not
     // import from CreatorCore, so the relation count alone reads 0.
     const roster = await rosterTablesReady();
-    const [campaignCounts, campaigns, profileLinks, detail, lists] = await Promise.all([
+    const [campaignCounts, campaigns, profileLinks, detail, lists, readings] = await Promise.all([
       deriveCampaignCounts([creator.id]),
       deriveCreatorCampaigns(creator.id, orgId),
       roster
@@ -94,12 +96,30 @@ export async function GET(
         orderBy: { addedAt: "desc" },
         select: { list: { select: { id: true, name: true } } },
       }),
+      latestTrackerReadings(orgId, [creator.id]),
     ]);
+    const primaryLink = profileLinks.find((l) => l.isPrimary) ?? null;
     return NextResponse.json({
       ...creator,
       campaignCount: campaignCounts.get(creator.id) ?? 0,
       campaigns,
-      profileLinks: profileLinks.map(({ refreshError, ...l }) => ({ ...l, problem: handleProblem(l.platform, refreshError) })),
+      /* When the headline figure was measured and by what (plan A6), decided
+         here because the read that failed is a server-side fact the page is
+         otherwise only given as a problem badge. */
+      figureTimes: {
+        followers: figureTimeDto(
+          creatorFollowersTime({
+            followersCount: creator.followersCount,
+            primaryLink,
+            latestSnapshot: readings.get(creator.id) ?? null,
+          }),
+        ),
+      },
+      profileLinks: profileLinks.map(({ refreshError, ...l }) => ({
+        ...l,
+        problem: handleProblem(l.platform, refreshError),
+        age: figureTimeDto(linkFollowersTime({ ...l, refreshError })),
+      })),
       detail,
       lists: lists.map((l) => l.list),
     });
