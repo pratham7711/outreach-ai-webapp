@@ -27,6 +27,9 @@ import {
 } from "@/lib/platforms/tiktokTopPostsEmbed";
 import { readTopPostsFromCampaigns } from "./topPostsFromCampaigns";
 import type { TikTokPostsRead } from "@/lib/platforms/tiktokTopPostsBrowser";
+import { rosterTablesReady } from "./rosterTables";
+import { gateFollowerReading } from "@/lib/trackers/readingGate";
+import { recordSnapshotSources, type TrackerPosition } from "@/lib/trackers/sourceSwitch";
 
 /**
  * The creator half of the tracker sweep.
@@ -68,6 +71,27 @@ export type CreatorSnapshotOptions = {
   /** The embed page from an egress TikTok answers, for when this one is
    *  refused. Injected for the same bundling reason as the profile read. */
   readTikTokEmbedHtml?: (handle: string) => Promise<string | null>;
+
+  /* Reader v2 (plan §07). Every option below is absent on the legacy sweep,
+     which therefore runs exactly as it did before they existed. */
+
+  /** TikTok profiles go straight to reader v2's lanes; the direct fetch, which
+   *  this deployment's egress gets as a WAF shell, is not tried first. Reports
+   *  which exit answered, for TrackerSnapshotSource. */
+  readTikTokProfileVia?: (handle: string) => Promise<{ result: CreatorReadResult; via: string | null }>;
+  /** Which reader this run is. Recorded with each snapshot; also turns on the
+   *  validation gate (A3) and the one-read-three-uses write (T4). */
+  plan?: Exclude<TrackerPosition, "legacy">;
+  /** Orgs to read, or to leave out, at the query. */
+  orgIdsIn?: string[];
+  orgIdsNotIn?: string[];
+  /** A per-creator filter on top, for a percentage rollout. */
+  inScope?: (creator: { id: string; orgId: string }) => boolean;
+  maxCreators?: number;
+  concurrency?: number;
+  /** Called once the run knows how many reads are due, before any is made --
+   *  which is when the lanes can be sized (plan T3). */
+  onSelected?: (due: { total: number; byPlatform: Record<string, number>; tiktokPostsStale: number }) => void | Promise<void>;
 };
 
 /**
@@ -314,8 +338,16 @@ export async function snapshotCreators(
     readTikTokPosts: readTikTokPostsInjected,
     readTikTokProfileRemote,
     readTikTokEmbedHtml,
+    readTikTokProfileVia,
+    plan,
+    orgIdsIn,
+    orgIdsNotIn,
+    inScope,
+    maxCreators = MAX_CREATORS_PER_RUN,
+    concurrency = SWEEP_CONCURRENCY,
+    onSelected,
   } = options;
-  const log = createLogger({ context: { job: "snapshot-creators", orgId: orgId ?? "all" } });
+  const log = createLogger({ context: { job: "snapshot-creators", orgId: orgId ?? "all", ...(plan ? { reader: plan } : {}) } });
   const deadline = Date.now() + deadlineMs;
   /* The browser rung opens a Chromium page per read, in a function that runs
      single-process Chromium in its memory. It has already reported
@@ -332,16 +364,20 @@ export async function snapshotCreators(
   let failed = 0;
   let skipped = 0;
 
-  const creators = await db.creator.findMany({
+  const selected = await db.creator.findMany({
     // orgId stays in the filter alongside creatorId for the same reason it does
     // in snapshotSounds: a scope check here costs nothing.
     where: {
       deletedAt: null,
       trackedSince: { not: null },
       ...(creatorId ? { id: creatorId } : {}),
-      ...(orgId ? { orgId } : {}),
+      ...(orgId
+        ? { orgId }
+        : orgIdsIn || orgIdsNotIn
+          ? { orgId: { ...(orgIdsIn ? { in: orgIdsIn } : {}), ...(orgIdsNotIn ? { notIn: orgIdsNotIn } : {}) } }
+          : {}),
     },
-    ...(creatorId ? {} : { take: MAX_CREATORS_PER_RUN }),
+    ...(creatorId ? {} : { take: maxCreators }),
     select: {
       id: true,
       orgId: true,
@@ -374,6 +410,7 @@ export async function snapshotCreators(
      * sorts to the back rather than being re-examined and skipped. */
     orderBy: { trackerLastAttemptAt: { sort: "asc", nulls: "first" } },
   });
+  const creators = inScope ? selected.filter(inScope) : selected;
 
   if (creators.length === 0) return { snapshots, failed, skipped };
 
@@ -408,6 +445,26 @@ export async function snapshotCreators(
   });
   const cadenceByOrg = new Map(orgs.map((o) => [o.id, parseGranularity(o.uiConfig)]));
   const now = new Date();
+
+  if (onSelected) {
+    const byPlatform: Record<string, number> = {};
+    let total = 0;
+    /* TikTok Top Posts come from the embed page, which goes through the same
+       lanes when this egress is refused it, so it counts toward their size. */
+    let tiktokPostsStale = 0;
+    for (const c of creators) {
+      const cadence = cadenceByOrg.get(c.orgId) ?? DEFAULT_GRANULARITY;
+      const due = isDueForRead(c.trackerSnapshots[0]?.recordedAt ?? null, cadence, now);
+      if (c.platform === "TIKTOK" && (due ? platformPostsAreStaleFor(c) : postsAreStaleFor(c))) tiktokPostsStale++;
+      if (!due) continue;
+      byPlatform[c.platform] = (byPlatform[c.platform] ?? 0) + 1;
+      total++;
+    }
+    await onSelected({ total, byPlatform, tiktokPostsStale });
+  }
+
+  /* Which exit read each snapshot, written in one batch at the end. */
+  const sources: { snapshotId: string; creatorId: string; plan: TrackerPosition; exitId: string | null; recordedAt: Date }[] = [];
 
   log.info("creator sweep starting", {
     /* Which region this actually ran in -- preferredRegion is a request, and
@@ -450,9 +507,17 @@ export async function snapshotCreators(
     }
 
     let result: CreatorReadResult;
+    let via: string | null = null;
     try {
       at.stage = "profile";
-      result = await readCreatorProfile(creator.platform, creator.handle);
+      if (creator.platform === "TIKTOK" && readTikTokProfileVia && !dryRun) {
+        at.stage = "lanes";
+        const read = await readTikTokProfileVia(creator.handle);
+        result = read.result;
+        via = read.via;
+      } else {
+        result = await readCreatorProfile(creator.platform, creator.handle);
+      }
     } catch (e) {
       result = {
         ok: false,
@@ -465,7 +530,7 @@ export async function snapshotCreators(
        profile pages -- to plain fetch and to headless Chromium alike -- so a
        failed direct read goes to the sandbox fetcher, which runs the same
        request from an egress TikTok answers. */
-    if (!result.ok && creator.platform === "TIKTOK" && readTikTokProfileRemote && !dryRun) {
+    if (!result.ok && creator.platform === "TIKTOK" && readTikTokProfileRemote && !readTikTokProfileVia && !dryRun) {
       at.stage = "sandbox";
       const remote = await readTikTokProfileRemote(creator.handle).catch(
         (e): CreatorReadResult => ({
@@ -789,6 +854,35 @@ export async function snapshotCreators(
         followerLadder(creator.platform),
       ) ?? profile.followersCount;
 
+    /* Reader v2 only: a reading that cannot be right is never written, and a
+       surprising one waits for a second read (plan A3). The attempt is still
+       stamped so the creator rotates, but no snapshot lands, so they stay due
+       and the next hourly run is the confirming read. The legacy sweep is
+       left exactly as it was. */
+    if (plan) {
+      at.stage = "gate";
+      const verdict = await gateFollowerReading({
+        creator,
+        previous: previous ? { followersCount: previous.followersCount } : null,
+        next: { followersCount, postsCount: profile.postsCount },
+        via,
+      }).catch(() => ({ action: "write" as const }));
+      if (verdict.action !== "write") {
+        skipped++;
+        log.warn("tracker reading not written", {
+          creatorId: creator.id,
+          platform: creator.platform,
+          verdict: verdict.action,
+          reason: verdict.reason,
+          via,
+        });
+        await db.creator
+          .update({ where: { id: creator.id }, data: { trackerLastAttemptAt: new Date() } })
+          .catch(() => {});
+        return;
+      }
+    }
+
     const deltaFollowers = previous
       ? Math.round(followersCount - previous.followersCount)
       : 0;
@@ -807,7 +901,7 @@ export async function snapshotCreators(
        problem. */
     try {
       at.stage = "write";
-      await db.$transaction([
+      const [snapshot] = await db.$transaction([
         db.creatorTrackerSnapshot.create({
           data: {
             creatorId: creator.id,
@@ -851,6 +945,30 @@ export async function snapshotCreators(
         }),
       ]);
       snapshots++;
+      if (plan) {
+        sources.push({ snapshotId: (snapshot as { id?: string } | undefined)?.id ?? "", creatorId: creator.id, plan, exitId: via, recordedAt });
+        /* One read, three uses (plan T4): the roster's link for this account
+           takes the same figure, so the hourly roster pass finds it fresh and
+           does not read the profile again. The avatar was already kept above. */
+        if (await rosterTablesReady()) {
+          await db.creatorProfileLink
+            .updateMany({
+              where: {
+                orgId: creator.orgId,
+                creatorId: creator.id,
+                platform: creator.platform as never,
+                handle: { equals: creator.handle.replace(/^@/, ""), mode: "insensitive" },
+              },
+              data: {
+                followersCount,
+                ...(profile.sampledPosts > 0 ? { averageViews: profile.avgViews } : {}),
+                refreshedAt: recordedAt,
+                refreshError: null,
+              },
+            })
+            .catch(() => {});
+        }
+      }
     } catch (e) {
       failed++;
       log.error("creator snapshot write failed", {
@@ -905,7 +1023,7 @@ export async function snapshotCreators(
 
   let backstop: ReturnType<typeof setTimeout> | undefined;
   const finished = await Promise.race([
-    Promise.all(Array.from({ length: Math.min(SWEEP_CONCURRENCY, creators.length) }, worker)).then(() => true),
+    Promise.all(Array.from({ length: Math.min(Math.max(1, concurrency), creators.length) }, worker)).then(() => true),
     new Promise<false>((resolve) => {
       backstop = setTimeout(() => resolve(false), Math.max(0, deadline + abandonGraceMs - Date.now()));
     }),
@@ -944,6 +1062,8 @@ export async function snapshotCreators(
       remaining: notStarted,
     });
   }
+
+  if (plan && !dryRun) await recordSnapshotSources(sources.filter((s) => s.snapshotId)).catch(() => {});
 
   log.info("creator sweep complete", { snapshots, failed, skipped, considered: creators.length });
   return { snapshots, failed, skipped };

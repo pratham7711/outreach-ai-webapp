@@ -2110,3 +2110,93 @@ model PlatformCredential {
   /// The refresher selects on "expiring soonest", not by provider.
   @@index([expiresAt])
 }
+
+// ─── Tracker reader switch (plan T5) ──────────────────────────────────────────
+// New tables only, applied by /api/admin/migrate-tracker-sources
+// (lib/trackers/sourceSchemaDdl.ts). Every reader goes through
+// trackerSourceTablesReady(), so a database without them stays on the legacy
+// sweep.
+
+/// Which reader the creator-tracker cron uses: "legacy" (today's sweep), "A"
+/// (reader v2 on Sandbox lanes) or "B" (our own worker). Flipped from the ops
+/// page; the next run picks it up with no redeploy. One row, id "creator-tracker".
+model TrackerSourceSwitch {
+  id          String   @id
+  position    String   @default("legacy")
+  /// Orgs on the new reader; empty means every org.
+  scopeOrgIds String[] @default([])
+  /// Share of those orgs' creators on the new reader, by a stable hash of the id.
+  percent     Int      @default(100)
+  changedAt   DateTime @default(now())
+  changedBy   String?
+  note        String?
+}
+
+model TrackerSourceSwitchLog {
+  id           String   @id @default(cuid())
+  switchId     String
+  fromPosition String?
+  toPosition   String
+  scopeOrgIds  String[] @default([])
+  percent      Int      @default(100)
+  changedBy    String?
+  note         String?
+  changedAt    DateTime @default(now())
+
+  @@index([switchId, changedAt])
+}
+
+/// One row per reader run, Plan B daily check or staging drill.
+model TrackerSourceHealth {
+  id         String   @id @default(cuid())
+  /// "A", "B" or "legacy".
+  plan       String
+  /// "run", "daily-check" or "drill".
+  kind       String
+  startedAt  DateTime
+  finishedAt DateTime
+  reads      Int      @default(0)
+  /// Pages that were TikTok answering (a profile or "no such account").
+  proper     Int      @default(0)
+  walls      Int      @default(0)
+  failures   Int      @default(0)
+  medianMs   Int?
+  ok         Boolean
+  detail     Json?
+
+  @@index([plan, kind, startedAt])
+}
+
+/// Which reader and exit produced a CreatorTrackerSnapshot. Its own table so
+/// the snapshot model gains no column (plan F6).
+model TrackerSnapshotSource {
+  snapshotId String   @id
+  creatorId  String
+  plan       String
+  exitId     String?
+  recordedAt DateTime
+
+  @@index([creatorId, recordedAt])
+}
+
+/// Readings the validation gate would not write over good data (plan A3).
+/// "held" waits for a second read to confirm it; "rejected" never lands.
+model TrackerReadingQuarantine {
+  id                String    @id @default(cuid())
+  creatorId         String
+  orgId             String
+  platform          String
+  followersCount    Float?
+  postsCount        Int?
+  previousFollowers Float?
+  verdict           String
+  reason            String
+  via               String?
+  recordedAt        DateTime  @default(now())
+  resolvedAt        DateTime?
+  /// "confirmed" (a second read agreed and it was written) or "superseded".
+  resolution        String?
+
+  @@index([creatorId, recordedAt])
+  @@index([orgId, recordedAt])
+}

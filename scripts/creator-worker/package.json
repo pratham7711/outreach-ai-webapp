@@ -3,10 +3,14 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "Reads TikTok creator post grids with real Chrome from a box outside India, and posts them to the app.",
+  "description": "Plan B's TikTok page-fetch service and daily check (zero dependencies), and the Top Posts grid reader.",
   "scripts": {
     "read": "node read-top-posts.mjs",
-    "read:dry": "node read-top-posts.mjs --dry-run"
+    "read:dry": "node read-top-posts.mjs --dry-run",
+    "serve": "node fetch-server.mjs",
+    "check": "node daily-check.mjs",
+    "check:dry": "node daily-check.mjs --no-report",
+    "test": "node --test fetch-server.test.mjs"
   },
   "dependencies": {
     "playwright": "^1.58.2"

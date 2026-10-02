@@ -25,6 +25,10 @@
       "schedule": "30 */2 * * *"
     },
     {
+      "path": "/api/cron/read-creator-trackers",
+      "schedule": "40 * * * *"
+    },
+    {
       "path": "/api/cron/refresh-creator-avatars",
       "schedule": "12 * * * *"
     },

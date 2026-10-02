@@ -1,3 +1,34 @@
+# Plan B — the tracker reader's own fetch service
+
+This directory now holds two things. The first, and the one in use, is
+**Plan B** of the creator tracker (plan §07): a page-fetch service on a VM on
+a non-AWS network that the reader can switch to from the ops page
+(`/platform/trackers`) when Plan A's Vercel Sandbox lanes fail for our own
+reasons. It is off on prod until someone flips it; flipping takes no deploy.
+
+| File | What it is |
+|---|---|
+| `fetch-server.mjs` | `POST /fetch {url}` → `{status, body, ms}`. tiktok.com pages only, bearer token, its own 1.8 s pace, 429 past a queue of 20, no handles in its logs. Zero npm dependencies: node + curl, with the same curl flags as Plan A's lanes |
+| `daily-check.mjs` | 12 public brand profiles + 3 embeds read **through** the service, reported to `/api/trackers/source-health`. Two failures in a row alert the operator; the ops page refuses B unless the last check passed within 36 h |
+| `outreach-fetch.service`, `outreach-daily-check.{service,timer}` | systemd units |
+| `bootstrap-plan-b.sh` | VM install, idempotent; Caddy for TLS when `DOMAIN` is set |
+| `fetch-server.test.mjs` | `node --test scripts/creator-worker/fetch-server.test.mjs` |
+
+**Configuration.** On the VM: `FETCH_TOKEN`, `APP_URL`, `TRACKER_PLAN_B_HEALTH_TOKEN`.
+On Vercel: `TRACKER_PLAN_B_URL` (comma-separate two VMs for full coverage —
+one address reads ~3.2k pages a day at 1.8 s, and 1,850 creators at a 12 h
+cadence need ~3.7k), `TRACKER_PLAN_B_TOKEN` (= the VM's `FETCH_TOKEN`) and
+`TRACKER_PLAN_B_HEALTH_TOKEN`. The VM holds no database credentials.
+
+**Testing it without a VM.**
+`npx tsx scripts/trackers/reader-local-run.mts --plan B --sandbox-worker --orgs 1`
+boots this service in a Vercel Sandbox with its port exposed and runs the real
+reader through it against the e2e seed database. That proves the whole path
+on an AWS address; the private `egress-probe` repo's `plan-b` workflow runs the
+same service on GitHub's Azure runners for the network half.
+
+---
+
 # Creator worker — the TikTok Top Posts reader
 
 **Not needed for Top Posts any more, and probably not worth provisioning.**

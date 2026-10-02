@@ -4,6 +4,7 @@ import { openTopPostsSession } from "@/lib/platforms/tiktokTopPostsBrowser";
 import { openSandboxProfileFetcher } from "@/lib/platforms/tiktokProfileSandbox";
 import { withTimeout } from "@/lib/platforms/tiktokBrowser";
 import { createLogger } from "@/lib/observability/logger";
+import { inReaderV2Scope, resolveTrackerPlan } from "@/lib/trackers/sourceSwitch";
 
 /* TikTok reads open a browser, which is the expensive case; Instagram and
    YouTube are ordinary HTTP and take milliseconds. The ceiling is sized for the
@@ -30,6 +31,22 @@ export async function GET(request: NextRequest) {
 
   const dryRun = request.nextUrl.searchParams.get("dryRun") === "1";
 
+  /* The legacy position of the three-way switch (plan §07). While the switch
+     says legacy -- or its tables are absent, or anything about it fails --
+     this is today's sweep, unchanged. Once reader v2 owns some creators, this
+     reads only the rest, so no creator is read twice and none is left out. */
+  const plan = await resolveTrackerPlan();
+  const v2OwnsEverything = plan.effective !== "legacy" && plan.scopeOrgIds.length === 0 && plan.percent >= 100;
+  if (v2OwnsEverything) {
+    return NextResponse.json({ ok: true, ran: false, position: plan.effective, reason: "reader v2 owns every creator" });
+  }
+  const scope =
+    plan.effective === "legacy"
+      ? {}
+      : plan.percent >= 100
+        ? { orgIdsNotIn: plan.scopeOrgIds }
+        : { inScope: (c: { id: string; orgId: string }) => !inReaderV2Scope(plan, c) };
+
   try {
     /* Stats are plain fetches; the browser exists only for TikTok post grids,
        is launched lazily on the first grid actually due (daily cadence), and
@@ -44,6 +61,7 @@ export async function GET(request: NextRequest) {
         readTikTokPosts: (handle) => grids.read(handle),
         readTikTokProfileRemote: (handle) => remote.read(handle),
         readTikTokEmbedHtml: (handle) => remote.readEmbedHtml(handle),
+        ...scope,
       });
       log.info("creator tracker cron complete", { ...counts, dryRun });
       return NextResponse.json({ ok: true, dryRun, ...counts });

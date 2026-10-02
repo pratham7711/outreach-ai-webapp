@@ -137,6 +137,13 @@ export const AREAS = {
       "app/api/admin/migrate-platform-credentials/",
       "lib/platforms/platformCredentialDdl.ts",
       "lib/trackers/",
+      // Reader v2 and its switch (plan §07): the cron, the ops page and its API,
+      // the Plan B health intake and its DDL route.
+      "app/api/cron/read-creator-trackers/",
+      "app/api/cron/sync-creator-trackers/",
+      "app/(dashboard)/platform/trackers/",
+      "app/api/platform/tracker-source/",
+      "app/api/admin/migrate-tracker-sources/",
     ],
   },
   nav: {
@@ -195,7 +202,7 @@ export const CROSS_CUTTING = [
 ];
 
 /** Paths that cannot change what the app renders, so they force nothing. */
-export const INERT = ["__tests__/", "docs/", "README", ".gitignore", "scratchpad/", ".vscode/"];
+export const INERT = ["__tests__/", "docs/", "README", ".gitignore", "scratchpad/", ".vscode/", "scripts/creator-worker/", "scripts/trackers/"];
 
 export const AREA_NAMES = Object.keys(AREAS);
 

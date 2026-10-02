@@ -1,0 +1,17 @@
+[Unit]
+Description=Plan B daily check: 12 brand profiles and 3 embeds through the fetch service, reported to the app
+After=outreach-fetch.service network-online.target
+Requires=outreach-fetch.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/outreach-creator-worker/creator-worker
+ExecStart=/usr/bin/node daily-check.mjs
+EnvironmentFile=/etc/outreach-fetch.env
+User=creators
+Group=creators
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+TimeoutStartSec=600
