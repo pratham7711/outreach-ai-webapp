@@ -7,8 +7,8 @@ import { getInstagramAccountForCreator } from "@/lib/platforms/instagramToken";
 import { getTikTokTokenForCreator } from "@/lib/platforms/tiktokToken";
 import { parseRatePerThousand, type PlatformKey } from "@/lib/marketplace/earnings";
 import { computeCampaignAccrual } from "@/lib/marketplace/cap";
-import { isPortalCampaignVisible, isPortalCampaignActionable } from "@/lib/marketplace/portalVisibility";
-import { findCreatorInOrgForHandle } from "@/lib/portal/creatorLookup";
+import { isPortalCampaignActionable } from "@/lib/marketplace/portalVisibility";
+import { isCampaignIdKey, resolvePortalAccess } from "@/lib/portal/campaignAccess";
 import { httpUrl } from "@/lib/validation/url";
 import { z } from "zod";
 
@@ -42,19 +42,23 @@ export async function POST(
       );
     }
 
-    const campaign = await db.campaign.findUnique({
-      where: { publicSlug: slug },
-      select: {
-        id: true,
-        orgId: true,
-        status: true,
-        deletedAt: true,
-        ratePerThousand: true,
-        submissionDeadline: true,
-        marketplaceVisibility: true,
-        marketplaceBudgetCapMinor: true,
-      },
-    });
+    const CAMPAIGN_SELECT = {
+      id: true,
+      orgId: true,
+      status: true,
+      deletedAt: true,
+      ratePerThousand: true,
+      submissionDeadline: true,
+      marketplaceVisibility: true,
+      marketplaceBudgetCapMinor: true,
+    } as const;
+    /* A slug for a marketplace campaign, an id for an agency's private one,
+       which has no slug (lib/portal/campaignAccess.ts). */
+    const campaign =
+      (await db.campaign.findUnique({ where: { publicSlug: slug }, select: CAMPAIGN_SELECT })) ??
+      (isCampaignIdKey(slug)
+        ? await db.campaign.findUnique({ where: { id: slug }, select: CAMPAIGN_SELECT })
+        : null);
     if (!campaign || campaign.deletedAt) {
       return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
     }
@@ -67,22 +71,15 @@ export async function POST(
        TikTok submissions" — a running status report on a campaign the detail
        route two paths up already 404s them out of. The write was never at risk:
        the 403 below has always required an activation. The disclosure was. */
-    /* findCreatorInOrgForHandle, not an exact `handle: session.handle`: a roster
-       stores handles with or without the leading @, and join (lib/marketplace/join.ts)
-       resolves the same row case/@-insensitively. Exact equality here 403'd
-       "You must join this campaign" at a creator who had just joined successfully. */
-    const creator = await findCreatorInOrgForHandle(campaign.orgId, session.handle);
-    const activation = creator
-      ? await db.activation.findFirst({
-          where: { campaignId: campaign.id, creatorId: creator.id, deletedAt: null },
-          select: { id: true },
-        })
-      : null;
+    /* The activation is found the way the detail route finds it
+       (lib/portal/campaignAccess.ts): on a PRIVATE campaign only a roster row
+       linked to this login counts, and the @-insensitive handle match is for
+       marketplace campaigns (F10). */
+    const access = await resolvePortalAccess(session, campaign);
+    const activation = access.activation;
+    const creator = access.creatorId ? { id: access.creatorId } : null;
 
-    if (!isPortalCampaignVisible({
-      marketplaceVisibility: campaign.marketplaceVisibility,
-      hasActivation: !!activation,
-    })) {
+    if (!access.visible) {
       return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
     }
 
@@ -114,11 +111,17 @@ export async function POST(
       );
     }
 
-    // Campaign must have a rate for the detected platform
+    /* A marketplace campaign must have a rate for the detected platform: it
+       pays per view, and a platform nobody priced is one it does not accept.
+       An agency's PRIVATE campaign is not paid per view at all -- its creators
+       are on a fee the agency agreed with them -- and almost none carry a
+       ratePerThousand, so the same check would refuse every post its invited
+       creators submit. There the agency reviews each post instead (status
+       PENDING_REVIEW below). */
     const rates = parseRatePerThousand(campaign.ratePerThousand);
     /* detected.platform includes TWITCH, which is not a PlatformKey: the
          lookup yields undefined and the 400 below is the correct answer. */
-      if (!rates[detected.platform as PlatformKey]) {
+    if (campaign.marketplaceVisibility !== "PRIVATE" && !rates[detected.platform as PlatformKey]) {
       return NextResponse.json(
         { error: `This campaign does not accept ${detected.platform} submissions` },
         { status: 400 }

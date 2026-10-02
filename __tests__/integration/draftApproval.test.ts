@@ -9,7 +9,7 @@ jest.mock("@/lib/db", () => ({
   db: {
     activation: { findFirst: jest.fn(), update: jest.fn() },
     campaign: { findUnique: jest.fn() },
-    creator: { findFirst: jest.fn() },
+    creator: { findFirst: jest.fn(), findMany: jest.fn() },
   },
 }));
 
@@ -50,6 +50,7 @@ const slugParams = { params: Promise.resolve({ slug: "my-campaign" }) } as any;
 beforeEach(() => {
   jest.clearAllMocks();
   mockAuth.mockResolvedValue(owner);
+  mockDb.creator.findMany.mockResolvedValue([]);
 });
 
 // ─── Agency: approve / request changes ───────────────────────────────────────
