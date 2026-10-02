@@ -144,7 +144,7 @@ function PasswordForm() {
       </div>
       <p style={{ fontSize: 13, color: "var(--cc-text-muted)", margin: 0 }}>
         Forgot it? There is no reset email. Write to{" "}
-        <a href={`mailto:${BRAND.contactEmail}`} style={{ color: "var(--cc-primary)" }}>
+        <a href={`mailto:${BRAND.contactEmail}`} style={{ color: "var(--cc-primary)", textDecoration: "underline" }}>
           {BRAND.contactEmail}
         </a>{" "}
         from the address you sign in with.
@@ -193,7 +193,7 @@ function DeleteAccount() {
         </ul>
         <p style={{ margin: "8px 0 0" }}>
           Posts you submitted to a campaign stay with that campaign&apos;s agency, which holds its own records. See{" "}
-          <a href="/data-deletion" style={{ color: "var(--cc-primary)" }}>
+          <a href="/data-deletion" style={{ color: "var(--cc-primary)", textDecoration: "underline" }}>
             how deletion works
           </a>
           .

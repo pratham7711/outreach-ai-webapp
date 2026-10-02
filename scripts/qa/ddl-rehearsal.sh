@@ -8,7 +8,7 @@ cd "$(dirname "$0")/../.."
 BASE="${BASE:-http://localhost:3009}"
 TOKEN="$(cat .qa-local/admin-migrate-token)"
 call() { curl -sS -X "$1" -H "authorization: Bearer $TOKEN" -w ' [%{http_code}]\n' "$BASE$2"; }
-for route in migrate-tracker-sources migrate-creator-connect migrate-list-approval migrate-ops-guards "$@"; do
+for route in migrate-tracker-sources migrate-creator-connect migrate-list-approval migrate-ops-guards migrate-creator-account-ids "$@"; do
   echo "== $route"
   echo -n "inspect  "; call GET "/api/admin/$route"
   echo -n "apply    "; call POST "/api/admin/$route"

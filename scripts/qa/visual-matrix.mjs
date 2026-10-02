@@ -143,7 +143,6 @@ async function focusRing(page) {
 async function runAxe(page) {
   await page.addScriptTag({ path: path.join(ROOT, "node_modules", "axe-core", "axe.min.js") });
   return page.evaluate(async () => {
-    // eslint-disable-next-line no-undef
     const r = await axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21aa"] }, resultTypes: ["violations"] });
     return r.violations
       .filter((v) => v.impact === "serious" || v.impact === "critical")
