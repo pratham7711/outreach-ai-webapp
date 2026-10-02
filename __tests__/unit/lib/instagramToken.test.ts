@@ -6,7 +6,12 @@ import {
 } from "@/lib/platforms/instagramToken";
 
 jest.mock("@/lib/db", () => ({
-  db: { creatorSocialAccount: { update: jest.fn() }, creator: { findUnique: jest.fn() } },
+  /* findFirst is the grant gate's ungated read (lib/creators/connectionGate):
+     no grant table in a unit test, so the token comes from there, or not. */
+  db: {
+    creatorSocialAccount: { update: jest.fn(), findFirst: jest.fn().mockResolvedValue(null) },
+    creator: { findUnique: jest.fn() },
+  },
 }));
 jest.mock("@/lib/crypto/encrypt", () => ({
   decrypt: jest.fn((value: string) => `plain:${value}`),

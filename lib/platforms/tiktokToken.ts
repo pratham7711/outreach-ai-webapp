@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { decrypt, encrypt } from "@/lib/crypto/encrypt";
 import { refreshTikTokAccessToken } from "./tiktokDisplay";
 import { createLogger } from "@/lib/observability/logger";
+import { connectionForRead } from "@/lib/creators/connectionGate";
 
 const EXPIRY_SKEW_MS = 5 * 60 * 1000;
 
@@ -74,18 +75,16 @@ export async function ensureFreshTikTokToken(
   return refreshed.accessToken;
 }
 
+/**
+ * The creator's TikTok token as `orgId` may use it: only through a connection
+ * that org holds a live grant for (lib/creators/connectionGate.ts). undefined
+ * otherwise, which every caller already treats as "not connected" and reads
+ * the public page instead.
+ */
 export async function getTikTokTokenForCreator(
   creatorId: string,
   orgId: string,
 ): Promise<string | undefined> {
-  const creator = await db.creator.findUnique({
-    where: { id: creatorId },
-    select: {
-      socialAccounts: {
-        where: { platform: "TIKTOK" },
-        select: { id: true, accessToken: true, refreshToken: true, tokenExpiry: true },
-      },
-    },
-  });
-  return ensureFreshTikTokToken(creator?.socialAccounts[0], orgId);
+  const read = await connectionForRead(orgId, creatorId, "TIKTOK");
+  return read.ok ? ensureFreshTikTokToken(read.connection, orgId) : undefined;
 }

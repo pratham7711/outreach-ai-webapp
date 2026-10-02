@@ -31,6 +31,12 @@ import { rosterTablesReady } from "./rosterTables";
 import { gateFollowerReading } from "@/lib/trackers/readingGate";
 import { recordSnapshotSources, type TrackerPosition } from "@/lib/trackers/sourceSwitch";
 import { classifyCreatorRead, type SourceGuard } from "@/lib/ops/sourceBreaker";
+import { connectedFollowerReading } from "./connectedReading";
+import { pickWriter } from "@/lib/metrics/fieldSources";
+
+/** The exit column's value for a snapshot whose follower count came from the
+ *  creator's own connection rather than from an exit's public read. */
+export const CONNECTED_VIA = "connected";
 
 /**
  * The creator half of the tracker sweep.
@@ -857,6 +863,28 @@ export async function snapshotCreators(
 
     const recordedAt = new Date();
 
+    /* Reader v2 only: one writer per field (plan A7, lib/metrics/fieldSources).
+       The creator's own connection outranks the public read for their follower
+       count, so a fresh figure from it -- through the grant gate, for the same
+       account, newer than the last snapshot -- is what this snapshot records,
+       and the snapshot says so in its exit column. The public read still ran
+       and still feeds everything else here (posts, averages, the avatar). The
+       legacy sweep is left exactly as it was. */
+    let readFollowers = profile.followersCount;
+    if (plan) {
+      at.stage = "connected";
+      const connected = await connectedFollowerReading(creator, previous?.recordedAt ?? null);
+      const winner = pickWriter(
+        "creator.followers",
+        [{ source: "public" as const, value: profile.followersCount, measuredAt: recordedAt }, ...(connected ? [connected] : [])],
+        recordedAt,
+      );
+      if (winner?.source === "connected") {
+        readFollowers = winner.value;
+        via = CONNECTED_VIA;
+      }
+    }
+
     /* A platform that only publishes a rendered figure must not be allowed to
        grind down an exact one we already hold. YouTube's Data API rounds
        subscriberCount to three significant figures above 1,000 and offers
@@ -865,13 +893,17 @@ export async function snapshotCreators(
 
        It has to happen before the delta, not just at the write: a series that
        alternates an exact 1,234,567 with a rounded 1,230,000 reports a 4,567
-       drop and a negative velocity for a channel that only grew. */
+       drop and a negative velocity for a channel that only grew.
+
+       Reader v2 anchors on the last reading it recorded, not on the Creator
+       column: an agency can type over that column, and a typed-in figure is
+       never what a computed change is measured from (plan A8). */
     const followersCount =
       keepPrecise(
-        profile.followersCount,
-        creator.followersCount,
+        readFollowers,
+        plan ? previous?.followersCount : creator.followersCount,
         followerLadder(creator.platform),
-      ) ?? profile.followersCount;
+      ) ?? readFollowers;
 
     /* Reader v2 only: a reading that cannot be right is never written, and a
        surprising one waits for a second read (plan A3). The attempt is still

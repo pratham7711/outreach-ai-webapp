@@ -78,6 +78,10 @@ export const AREAS = {
       "app/api/admin/migrate-list-approval/",
       "app/api/cron/refresh-roster-profiles/",
       "app/api/admin/migrate-creator-roster/",
+      // K4: the consent record behind every agency read of a connection.
+      "app/api/admin/migrate-creator-grants/",
+      "app/api/admin/backfill-creator-grants/",
+      "components/creators/CreatorAccess.tsx",
       "components/creators/CreatorName.tsx",
       "components/creators/ExportMenu.tsx",
       "components/creators/HandleFix.tsx",

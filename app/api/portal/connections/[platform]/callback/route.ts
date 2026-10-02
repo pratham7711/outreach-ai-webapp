@@ -31,6 +31,7 @@ import { connectTablesReady } from "@/lib/creators/connectTables";
 import { recordConnectionState } from "@/lib/platforms/accountState";
 import { fetchMetaGrantorId, isGrantorPlatform } from "@/lib/platforms/metaGrantor";
 import type { AccountIdentity } from "@/lib/platforms/accountSync";
+import { GRANT_SOURCES, grantedScopes, recordGrant } from "@/lib/creators/grants";
 
 const STATE_COOKIE = "portal_oauth_state";
 
@@ -145,6 +146,9 @@ export async function GET(
       access_token?: unknown;
       refresh_token?: unknown;
       expires_in?: unknown;
+      /* What the provider says was granted: TikTok (comma-separated) and
+         Google (space-separated) send it; Meta's exchange does not. */
+      scope?: unknown;
     };
     const accessToken = tokens.access_token;
     if (typeof accessToken !== "string" || !accessToken) {
@@ -352,7 +356,22 @@ export async function GET(
       select: { id: true },
     });
 
-    if (saved?.id) await recordAfterConnect(platform, saved.id, storedToken, identity);
+    if (saved?.id) {
+      await recordAfterConnect(platform, saved.id, storedToken, identity);
+      /* The consent record (plan K4): from here on THIS org may read this
+         connection, and no other. The org is the one the connection was made
+         under -- the connect link's, or, signed in, that of the roster row the
+         handle resolved to -- never one named by the request. */
+      await recordGrant({
+        orgId: creator.orgId,
+        creatorId: creator.id,
+        platform: platformEnum,
+        connectionId: saved.id,
+        platformAccountId: identity.platformUserId,
+        ...grantedScopes(platform, tokens.scope),
+        source: binding ? GRANT_SOURCES.CONNECT_LINK : GRANT_SOURCES.PORTAL,
+      });
+    }
     if (binding) await markConnectTokenUsed(binding.tokenId);
 
     return finishRedirect(req, `connected=${platform}`);

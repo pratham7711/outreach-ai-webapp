@@ -13,6 +13,7 @@ import {
 import { safeReturnTo, returnToWithQuery } from "@/lib/oauth/returnTo";
 import { resolvePlatformCapability } from "@/lib/capabilities";
 import { ACCOUNT_ORIGINS } from "@/lib/platforms/accountOrigin";
+import { GRANT_SOURCES, recordGrant } from "@/lib/creators/grants";
 import {
   connectLinkPath,
   connectState,
@@ -136,7 +137,7 @@ export async function GET(
        several per platform, and a dev connection has no real one. */
     const devPlatformUserId = `dev-${platform}-${creator.id}`;
 
-    await db.creatorSocialAccount.upsert({
+    const saved = await db.creatorSocialAccount.upsert({
       where: {
         creatorId_platform_platformUserId: {
           creatorId: creator.id,
@@ -155,6 +156,19 @@ export async function GET(
         handle: session.handle,
         accessToken,
       },
+      select: { id: true },
+    });
+    /* Granted like a real consent, so the gate reads a dev connection the way
+       it reads a real one; no scopes, because no provider granted any. */
+    await recordGrant({
+      orgId: creator.orgId,
+      creatorId: creator.id,
+      platform: platformEnum,
+      connectionId: saved.id,
+      platformAccountId: devPlatformUserId,
+      scopes: [],
+      scopesSource: null,
+      source: GRANT_SOURCES.DEV,
     });
 
     return NextResponse.redirect(
@@ -208,7 +222,7 @@ async function startFromConnectLink(req: NextRequest, platform: string, token: s
     const platformEnum = toPlatformEnum(platform);
     const devPlatformUserId = `dev-${platform}-${binding.creatorId}`;
     const accessToken = encrypt(`dev-token-${platform}-${Date.now()}`, binding.orgId);
-    await db.creatorSocialAccount.upsert({
+    const saved = await db.creatorSocialAccount.upsert({
       where: {
         creatorId_platform_platformUserId: {
           creatorId: binding.creatorId,
@@ -225,6 +239,17 @@ async function startFromConnectLink(req: NextRequest, platform: string, token: s
         origin: ACCOUNT_ORIGINS.DEV,
       },
       update: { accessToken },
+      select: { id: true },
+    });
+    await recordGrant({
+      orgId: binding.orgId,
+      creatorId: binding.creatorId,
+      platform: platformEnum,
+      connectionId: saved.id,
+      platformAccountId: devPlatformUserId,
+      scopes: [],
+      scopesSource: null,
+      source: GRANT_SOURCES.DEV,
     });
     await markConnectTokenUsed(binding.tokenId);
     return backWith(`connected=${platform}`);

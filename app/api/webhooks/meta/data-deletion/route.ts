@@ -21,6 +21,7 @@ import {
 import { clientSecretFor } from "@/lib/oauth/providers";
 import { forgetMetaUser, readSignedRequest } from "@/lib/oauth/metaDeletion";
 import { createLogger } from "@/lib/observability/logger";
+import { REVOKE_REASONS } from "@/lib/creators/grants";
 
 export const dynamic = "force-dynamic";
 
@@ -44,7 +45,7 @@ export async function POST(req: NextRequest) {
   const userId = typeof verified.payload.user_id === "string" ? verified.payload.user_id : null;
   if (!userId) return NextResponse.json({ error: "user_id missing" }, { status: 400 });
 
-  const removed = await forgetMetaUser(userId, verified.platforms);
+  const removed = await forgetMetaUser(userId, verified.platforms, REVOKE_REASONS.META_DATA_DELETION);
 
   // Every platform in `verified.platforms` shares the secret that verified, so
   // any of them yields the same code.

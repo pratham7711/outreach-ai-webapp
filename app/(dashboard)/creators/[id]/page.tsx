@@ -24,6 +24,7 @@ import {
   postEngagementValue,
 } from "@/lib/creators/metricValue";
 import MetricFigure from "@/components/creators/MetricFigure";
+import CreatorAccess from "@/components/creators/CreatorAccess";
 
 function formatNumber(num: number): string {
   return formatFull(num);
@@ -1237,6 +1238,8 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
                 ))}
               </div>
             )}
+
+            <CreatorAccess creatorId={id} />
 
             {socialAccounts.some(a => a.platform === "TIKTOK") && (
               <div style={{ marginTop: 32 }}>

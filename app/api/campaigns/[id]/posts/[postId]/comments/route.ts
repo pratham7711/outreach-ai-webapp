@@ -9,6 +9,7 @@ import {
   fetchFacebookPostComments,
 } from "@/lib/platforms/facebookPage";
 import { createLogger } from "@/lib/observability/logger";
+import { connectionForRead } from "@/lib/creators/connectionGate";
 
 /**
  * Comments on a Facebook post, read live and stored nowhere.
@@ -83,17 +84,11 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
       );
 
     /* The Page token is minted from the creator's own user token, which lives
-       on their CreatorSocialAccount row for THIS org. Scoped through the
-       creator's orgId so one tenant's connection can never read for another. */
-    const account = await db.creatorSocialAccount.findFirst({
-      where: {
-        creatorId: post.creatorId,
-        platform: "FACEBOOK",
-        creator: { orgId },
-      },
-      select: { id: true, accessToken: true, handle: true },
-      orderBy: { createdAt: "desc" },
-    });
+       on their CreatorSocialAccount row for THIS org. Read through the grant
+       gate, so one tenant's connection can never read for another and a
+       revoked consent reads as no connection. */
+    const read = await connectionForRead(orgId, post.creatorId, "FACEBOOK", { order: "newest" });
+    const account = read.ok ? read.connection : null;
     if (!account)
       return NextResponse.json(
         {
