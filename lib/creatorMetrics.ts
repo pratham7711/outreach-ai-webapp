@@ -29,6 +29,47 @@ export async function deriveAverageViews(creatorIds: string[]): Promise<Map<stri
   return result;
 }
 
+export type MeasuredAverage = {
+  value: number;
+  /** The newest read among the posts behind the mean, or null when none is stamped. */
+  asOf: Date | null;
+  /** What that read was: our own sync, or only the CreatorCore import. */
+  source: string;
+};
+
+/**
+ * deriveAverageViews with its age (plan A2/A6): the same mean over the same
+ * posts, plus the newest time any of them was read. Our own read
+ * (lastSyncedAt) wins; a creator whose posts only ever came from the import is
+ * dated by that import's refresh (lastFreshAt), and says so.
+ *
+ * One query, like deriveAverageViews -- the roster and its export call this in
+ * its place rather than beside it.
+ */
+export async function deriveAverageViewsMeasured(creatorIds: string[]): Promise<Map<string, MeasuredAverage>> {
+  const result = new Map<string, MeasuredAverage>();
+  if (creatorIds.length === 0) return result;
+
+  const grouped = await db.post.groupBy({
+    by: ["creatorId"],
+    where: { creatorId: { in: creatorIds }, viewsCount: { gt: 0 } },
+    _avg: { viewsCount: true },
+    _max: { lastSyncedAt: true, lastFreshAt: true },
+  });
+
+  for (const g of grouped) {
+    if (g._avg.viewsCount === null) continue;
+    const synced = g._max?.lastSyncedAt ?? null;
+    const imported = g._max?.lastFreshAt ?? null;
+    result.set(g.creatorId, {
+      value: Math.round(g._avg.viewsCount),
+      asOf: synced ?? imported,
+      source: synced ? "Tracked posts" : imported ? "CreatorCore import" : "Not recorded",
+    });
+  }
+  return result;
+}
+
 /**
  * Engagement rate per creator, as a percentage: (likes + comments + shares) /
  * views over their posts.

@@ -12,6 +12,8 @@ jest.mock("@/lib/db", () => ({
     creatorListItemDetail: { findMany: jest.fn() },
     // deriveAverageViews: Avg views measured from tracked posts. None by default.
     post: { groupBy: jest.fn().mockResolvedValue([]) },
+    // latestTrackerReadings: dates the figures. No readings by default.
+    creatorTrackerSnapshot: { groupBy: jest.fn().mockResolvedValue([]), findMany: jest.fn().mockResolvedValue([]) },
   },
 }));
 jest.mock("@/lib/auth", () => ({ auth: jest.fn() }));
@@ -138,7 +140,8 @@ describe("unknown figures in the export (plan §13 A1)", () => {
   it("writes a dash, with the reason, for every figure it does not have", async () => {
     mdb.creator.findMany.mockResolvedValueOnce([{ id: "u" }]).mockResolvedValueOnce([unread]);
     const { header, rows, col } = await sheet(await exportRoster(get("/api/creators/export?ids=u")));
-    expect(header[header.length - 1]).toBe("Why a figure is —");
+    // Right after Added, where it has always been; the age columns follow it.
+    expect(header[header.indexOf("Added") + 1]).toBe("Why a figure is —");
     const [row] = rows;
     expect(col(row, "TikTok followers")).toBe("—");
     expect(col(row, "Followers (primary)")).toBe("—");
@@ -157,7 +160,7 @@ describe("unknown figures in the export (plan §13 A1)", () => {
     expect(lines).toHaveLength(2);
     expect(lines[1]).toContain('"https://www.tiktok.com/@fake.unread","—"');
     expect(lines[1]).not.toContain(`"'—"`);
-    expect(lines[0].endsWith('"Why a figure is —"')).toBe(true);
+    expect(lines[0]).toContain('"Added","Why a figure is —","Followers as of"');
   });
 
   it("uses the Avg views the roster shows, measured from tracked posts", async () => {
@@ -222,11 +225,109 @@ describe("GET /api/lists/[id]/export with the rate card", () => {
     mdb.creator.findMany.mockResolvedValue([evil, plain]);
     const res = await exportList(get("/api/lists/l1/export?format=csv"), params("l1"));
     const lines = (await res.text()).split("\n");
-    expect(lines[0]).toMatch(/"List rate \(USD\)","Notes","Client decision","Client note"$/);
+    // The card's columns follow everything the roster export has, and the age
+    // columns come after them, so neither moves the other.
+    expect(lines[0]).toMatch(/"List rate \(USD\)","Notes","Client decision","Client note","Followers as of","Followers source","Avg views as of","Avg views source","Status"$/);
     expect(lines[1].startsWith(`"'=HYPERLINK`)).toBe(true);
-    expect(lines[1]).toMatch(/,"900","fast","Declined","Off-brand"$/);
+    expect(lines[1]).toContain(',"900","fast","Declined","Off-brand","—",');
     // No detail row: no rate, no note, undecided.
-    expect(lines[2]).toMatch(/,"","","Pending",""$/);
+    expect(lines[2]).toContain(',"","","Pending","","—",');
     expect(mdb.creatorListItemDetail.findMany.mock.calls[0][0].where).toEqual({ orgId: "org-1", listId: "l1" });
+  });
+});
+
+describe("age columns in the export (plan A2/A6)", () => {
+  const HOUR = 60 * 60 * 1000;
+  const sheet = async (res: Response) => {
+    const wb = XLSX.read(Buffer.from(await res.arrayBuffer()), { type: "buffer" });
+    const rows = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets.Creators, { header: 1, defval: null });
+    const header = rows[0] as string[];
+    return { header, row: rows[1], col: (row: unknown[], name: string) => row[header.indexOf(name)] };
+  };
+  const withPrimary = (link: Record<string, unknown>) => ({
+    ...evil,
+    profileLinks: [{ ...evil.profileLinks[0], ...link }],
+  });
+
+  it("ends every row with the five age columns, after everything else", async () => {
+    mdb.creator.findMany.mockResolvedValueOnce([{ id: "a" }]).mockResolvedValueOnce([evil]);
+    const { header } = await sheet(await exportRoster(get("/api/creators/export?ids=a")));
+    expect(header.slice(-6)).toEqual([
+      "Why a figure is —",
+      "Followers as of",
+      "Followers source",
+      "Avg views as of",
+      "Avg views source",
+      "Status",
+    ]);
+  });
+
+  it("dates followers by the primary account's read when it produced the count", async () => {
+    const readAt = new Date(Date.now() - 2 * HOUR);
+    mdb.creator.findMany.mockResolvedValueOnce([{ id: "a" }]).mockResolvedValueOnce([withPrimary({ refreshedAt: readAt, refreshError: null })]);
+    const { row, col } = await sheet(await exportRoster(get("/api/creators/export?ids=a")));
+    expect(col(row, "Followers as of")).toBe(readAt.toISOString());
+    expect(col(row, "Followers source")).toBe("Profile read");
+    expect(col(row, "Status")).toBe("Current");
+  });
+
+  it("calls a profile figure stale past twice its daily cadence", async () => {
+    const readAt = new Date(Date.now() - 49 * HOUR);
+    mdb.creator.findMany.mockResolvedValueOnce([{ id: "a" }]).mockResolvedValueOnce([withPrimary({ refreshedAt: readAt, refreshError: null })]);
+    const { row, col } = await sheet(await exportRoster(get("/api/creators/export?ids=a")));
+    expect(col(row, "Status")).toBe("Stale");
+  });
+
+  it("prefers a newer tracker reading of the same count", async () => {
+    const readAt = new Date(Date.now() - 20 * HOUR);
+    const trackedAt = new Date(Date.now() - 1 * HOUR);
+    mdb.creatorTrackerSnapshot.groupBy.mockResolvedValueOnce([{ creatorId: "a", _max: { recordedAt: trackedAt } }]);
+    mdb.creatorTrackerSnapshot.findMany.mockResolvedValueOnce([{ creatorId: "a", followersCount: 150000, avgViews: 0, recordedAt: trackedAt }]);
+    mdb.creator.findMany.mockResolvedValueOnce([{ id: "a" }]).mockResolvedValueOnce([withPrimary({ refreshedAt: readAt, refreshError: null })]);
+    const { row, col } = await sheet(await exportRoster(get("/api/creators/export?ids=a")));
+    expect(col(row, "Followers as of")).toBe(trackedAt.toISOString());
+    expect(col(row, "Followers source")).toBe("Tracker reading");
+    // Scoped to the caller's org through the creator.
+    expect(mdb.creatorTrackerSnapshot.groupBy.mock.calls[0][0].where).toEqual({ creatorId: { in: ["a"] }, creator: { orgId: "org-1" } });
+  });
+
+  it("gives a hand-edited count no age rather than a read's that did not produce it", async () => {
+    mdb.creator.findMany
+      .mockResolvedValueOnce([{ id: "a" }])
+      .mockResolvedValueOnce([{ ...withPrimary({ refreshedAt: new Date(), refreshError: null }), followersCount: 99000 }]);
+    const { row, col } = await sheet(await exportRoster(get("/api/creators/export?ids=a")));
+    expect(col(row, "Followers (primary)")).toBe(99000);
+    expect(col(row, "Followers as of")).toBe("—");
+    expect(col(row, "Followers source")).toBe("Time not recorded");
+    expect(col(row, "Status")).toBe("Age unknown");
+  });
+
+  it("says the last read failed when the held count cannot be dated", async () => {
+    mdb.creator.findMany
+      .mockResolvedValueOnce([{ id: "a" }])
+      .mockResolvedValueOnce([withPrimary({ refreshedAt: new Date(), refreshError: "rate-limited" })]);
+    const { row, col } = await sheet(await exportRoster(get("/api/creators/export?ids=a")));
+    // The last good value stays; its time is what was lost.
+    expect(col(row, "Followers (primary)")).toBe(150000);
+    expect(col(row, "Followers source")).toBe("Last read failed; time not recorded");
+  });
+
+  it("dates a posts-derived Avg views by the newest post read", async () => {
+    const synced = new Date("2026-09-30T06:00:00Z");
+    mdb.post.groupBy.mockResolvedValueOnce([{ creatorId: "a", _avg: { viewsCount: 1234 }, _max: { lastSyncedAt: synced, lastFreshAt: null } }]);
+    mdb.creator.findMany.mockResolvedValueOnce([{ id: "a" }]).mockResolvedValueOnce([evil]);
+    const { row, col } = await sheet(await exportRoster(get("/api/creators/export?ids=a")));
+    expect(col(row, "Avg views")).toBe(1234);
+    expect(col(row, "Avg views as of")).toBe(synced.toISOString());
+    expect(col(row, "Avg views source")).toBe("Tracked posts");
+  });
+
+  it("writes Not read for a creator with no figure at all", async () => {
+    mdb.creator.findMany
+      .mockResolvedValueOnce([{ id: "a" }])
+      .mockResolvedValueOnce([{ ...evil, followersCount: 0, profileLinks: [] }]);
+    const { row, col } = await sheet(await exportRoster(get("/api/creators/export?ids=a")));
+    expect(col(row, "Followers as of")).toBe("—");
+    expect(col(row, "Status")).toBe("Not read");
   });
 });
