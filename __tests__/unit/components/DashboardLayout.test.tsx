@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react';
 
-// Mock next-themes for NewSidebar → ThemeToggle
+// Mock next-themes for NewSidebar → ThemeChoices
 jest.mock('next-themes', () => ({
   useTheme: () => ({ theme: 'dark', setTheme: jest.fn() }),
 }));

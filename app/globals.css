@@ -159,7 +159,8 @@
      its contents are built for a dark surface -- white labels, rgba(255,…)
      dividers, translucent chip fills. These three used --cc-text, which is
      var(--foreground) and therefore #FFFFFF under .dark, so the whole set
-     painted white on white and the counts vanished. 15.6:1 against its text. */
+     painted white on white and the counts vanished. 15.6:1 against its text.
+     Light re-points it to black, which is still dark under the same labels. */
   --cc-overlay-ink: #1C2048;
   --cc-overlay-ink-text: #FFFFFF;
 
@@ -1383,6 +1384,85 @@
 
   color-scheme: dark;
 }
+
+/*
+  Light, black and white (October 2026). Ink on white, neutral greys for
+  surfaces and rules, black controls with white labels, a black focus ring.
+  Colour is left only where it carries meaning: --status-* and the danger and
+  warning inks are inherited from the base unchanged.
+
+  Scoped to :root.light rather than written into the base :root because .dark
+  and .creatorcore both inherit every base token they do not redefine -- 19 of
+  them in .dark alone -- so a base edit would repaint those themes too. The
+  base keeps the blue palette for the instant before next-themes sets a class.
+
+  Charts get a grey ramp, black to #949494, the lightest that still holds 3:1
+  against white; series past the first are told apart by dash pattern (see the
+  .recharts rules under this theme), not by hue.
+*/
+:root.light {
+  --background: #F5F5F5;
+  --foreground: #0A0A0A;
+  --card: #FFFFFF;
+  --card-foreground: #0A0A0A;
+  --popover: #FFFFFF;
+  --popover-foreground: #0A0A0A;
+  --primary: #0A0A0A;
+  --primary-foreground: #FFFFFF;
+  --secondary: #F0F0F0;
+  --secondary-foreground: #0A0A0A;
+  --muted: #F0F0F0;
+  --muted-foreground: #525252;
+  --accent: #F0F0F0;
+  --accent-foreground: #0A0A0A;
+  --border: #E5E5E5;
+  --input: #E5E5E5;
+  --ring: #0A0A0A;
+
+  --chart-1: #0a0a0a;
+  --chart-2: #3d3d3d;
+  --chart-3: #5e5e5e;
+  --chart-4: #7a7a7a;
+  --chart-5: #949494;
+
+  --chart-grid: #EBEBEB;
+  --chart-axis: #C4C4C4;
+
+  --cc-primary-hover: #333333;
+  --cc-primary-light: rgba(10, 10, 10, 0.05);
+  --cc-primary-medium: rgba(10, 10, 10, 0.10);
+  --cc-text-subtle: #6B6B6B;
+  --cc-info: #525252;
+  --cc-hover-bg: #F0F0F0;
+  --cc-row-hover: rgba(10, 10, 10, 0.03);
+  --cc-icon-btn-bg-hover: rgba(10, 10, 10, 0.07);
+  --cc-drawer-shadow: -8px 0 32px rgba(10, 10, 10, 0.10);
+  --cc-popover-shadow: 0 8px 24px rgba(10, 10, 10, 0.10);
+
+  --ui-accent-dim: rgba(10, 10, 10, 0.10);
+  --ui-accent-glow: rgba(10, 10, 10, 0.08);
+  --cc-on-accent-soft: #0A0A0A;
+
+  --ui-bg-2: #F0F0F0;
+  --ui-bg-3: #E8E8E8;
+  --ui-border-strong: #C7C7C7;
+
+  /* The overlay ground is otherwise the same in every theme (see base). It
+     moves here only from navy to black -- still a dark ground under the same
+     white labels, 19.8:1 instead of 15.6:1 -- so post cards stop being the one
+     blue surface left in a black-and-white theme. */
+  --cc-overlay-ink: #0A0A0A;
+}
+
+/* Light's line and area series 2-5: a dash per series, since five greys are
+   too close to name apart. Counted with `of S`, so axes and grid groups that
+   share the parent do not shift the numbering. A series that already sets its
+   own strokeDasharray (an inline attribute) keeps it -- the rule only fills in
+   where the chart said nothing. */
+:root.light :is(.recharts-line:nth-child(2 of .recharts-line) .recharts-line-curve, .recharts-area:nth-child(2 of .recharts-area) .recharts-area-curve):not([stroke-dasharray]) { stroke-dasharray: 7 3; }
+:root.light :is(.recharts-line:nth-child(3 of .recharts-line) .recharts-line-curve, .recharts-area:nth-child(3 of .recharts-area) .recharts-area-curve):not([stroke-dasharray]) { stroke-dasharray: 2 3; }
+:root.light :is(.recharts-line:nth-child(4 of .recharts-line) .recharts-line-curve, .recharts-area:nth-child(4 of .recharts-area) .recharts-area-curve):not([stroke-dasharray]) { stroke-dasharray: 9 3 2 3; }
+:root.light :is(.recharts-line:nth-child(5 of .recharts-line) .recharts-line-curve, .recharts-area:nth-child(5 of .recharts-area) .recharts-area-curve):not([stroke-dasharray]) { stroke-dasharray: 1 2; }
 
 
 /*
@@ -5838,6 +5918,31 @@ h1, h2, h3, h4, h5, h6 {
   background: none;
   cursor: pointer;
   color: var(--cc-danger);
+}
+
+/* The theme radio group in the same popover. Rows are cc-nav-items, so each
+   theme's own nav colours apply; only the button box and the check are new. */
+.cc-rail-theme-label {
+  display: block;
+  padding: var(--cc-sp-4) var(--cc-sp-7) 0;
+  font-size: var(--cc-microlabel-fs);
+  font-weight: 600;
+  color: var(--cc-text-subtle);
+}
+
+.cc-rail-usermenu .cc-rail-theme-choice {
+  width: calc(100% - var(--cc-rail-usermenu-item-m) * 2);
+  border: none;
+  cursor: pointer;
+  text-align: start;
+}
+
+.cc-rail-usermenu .cc-rail-theme-choice[aria-checked="true"] {
+  font-weight: 600;
+}
+
+.cc-rail-theme-check {
+  margin-inline-start: auto;
 }
 
 /* The account chip at the foot of the rail. It used to wear `.cc-table-row`,

@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { Card, Input, Skeleton } from "@pratham7711/ui";
-import { Building2, Palette, Globe, Save } from "lucide-react";
+import { Building2, Type, Globe, Save } from "lucide-react";
 import { formatDateAbs } from "@/lib/format";
 import { PLATFORM_DEFAULT_BRANDING } from "@/lib/brandingDefaults";
 import { PageHeader, Dropdown, Button } from "@/components/ds";
@@ -17,9 +17,6 @@ type OrgProfile = {
   planExpiresAt: string | null;
   logoUrl: string | null;
   faviconUrl: string | null;
-  primaryColor: string;
-  secondaryColor: string;
-  accentColor: string;
   fontFamily: string;
   createdAt: string;
   canManageSettings?: boolean;
@@ -69,15 +66,8 @@ export default function OrgProfilePage() {
   const [currency, setCurrency] = useState("USD");
   const [logoUrl, setLogoUrl] = useState("");
   const [faviconUrl, setFaviconUrl] = useState("");
-  const [primaryColor, setPrimaryColor] = useState<string>(PLATFORM_DEFAULT_BRANDING.primaryColor);
-  const [secondaryColor, setSecondaryColor] = useState<string>(PLATFORM_DEFAULT_BRANDING.secondaryColor);
-  const [accentColor, setAccentColor] = useState<string>(PLATFORM_DEFAULT_BRANDING.accentColor);
   const [fontFamily, setFontFamily] = useState<string>(PLATFORM_DEFAULT_BRANDING.fontFamily);
-  const isDefaultBranding =
-    primaryColor === PLATFORM_DEFAULT_BRANDING.primaryColor &&
-    secondaryColor === PLATFORM_DEFAULT_BRANDING.secondaryColor &&
-    accentColor === PLATFORM_DEFAULT_BRANDING.accentColor &&
-    fontFamily === PLATFORM_DEFAULT_BRANDING.fontFamily;
+  const isDefaultFont = fontFamily === PLATFORM_DEFAULT_BRANDING.fontFamily;
 
 
   useEffect(() => {
@@ -92,9 +82,6 @@ export default function OrgProfilePage() {
         setCurrency(data.currency);
         setLogoUrl(data.logoUrl ?? "");
         setFaviconUrl(data.faviconUrl ?? "");
-        setPrimaryColor(data.primaryColor);
-        setSecondaryColor(data.secondaryColor);
-        setAccentColor(data.accentColor);
         setFontFamily(data.fontFamily);
       })
       .catch(() => setError("Failed to load profile"))
@@ -116,13 +103,11 @@ export default function OrgProfilePage() {
           currency,
           logoUrl: logoUrl || null,
           faviconUrl: faviconUrl || null,
-          primaryColor,
-          secondaryColor,
-          accentColor,
           fontFamily,
-          /* Bank details and the custom domain left this form in October 2026
-             (nothing read either). Not sending them is what keeps the stored
-             values: /api/org writes only the keys it receives. */
+          /* Bank details, the custom domain and the three brand colours left
+             this form in October 2026 (nothing reads any of them now -- the
+             themes own the app's colours). Not sending them is what keeps the
+             stored values: /api/org writes only the keys it receives. */
         }),
       });
       if (!res.ok) {
@@ -258,34 +243,8 @@ export default function OrgProfilePage() {
 
           {/* Branding */}
           <Card variant="outlined" style={{ padding: 24 }}>
-            <SectionHeader icon={Palette} title="Branding" description="Colors and typography for your workspace" />
+            <SectionHeader icon={Type} title="Branding" description="The typeface your workspace uses" />
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              {[
-                { label: "Primary Color", value: primaryColor, set: setPrimaryColor },
-                { label: "Secondary Color", value: secondaryColor, set: setSecondaryColor },
-                { label: "Accent Color", value: accentColor, set: setAccentColor },
-              ].map(({ label, value, set }) => (
-                <FormRow key={label} label={label}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <input
-                      type="color"
-                      value={value}
-                      onChange={e => set(e.target.value)}
-                      aria-label={label}
-                      disabled={!canManage}
-                      style={{ width: 40, height: 36, borderRadius: 6, border: "1px solid var(--cc-border)", cursor: "pointer", padding: 2, background: "var(--cc-card)" }}
-                    />
-                    <Input
-                      value={value}
-                      onChange={e => set(e.target.value)}
-                      placeholder="#5B5BD6"
-                      style={{ width: 120 }}
-                      disabled={!canManage}
-                    />
-                    <div style={{ width: 28, height: 28, borderRadius: 6, background: value, border: "1px solid var(--cc-border)" }} />
-                  </div>
-                </FormRow>
-              ))}
               <FormRow label="Font Family">
                 <Input value={fontFamily} onChange={e => setFontFamily(e.target.value)} placeholder="Inter" disabled={!canManage} />
               </FormRow>
@@ -294,20 +253,15 @@ export default function OrgProfilePage() {
                   variant="secondary"
                   size="sm"
                   type="button"
-                  disabled={isDefaultBranding || !canManage}
-                  onClick={() => {
-                    setPrimaryColor(PLATFORM_DEFAULT_BRANDING.primaryColor);
-                    setSecondaryColor(PLATFORM_DEFAULT_BRANDING.secondaryColor);
-                    setAccentColor(PLATFORM_DEFAULT_BRANDING.accentColor);
-                    setFontFamily(PLATFORM_DEFAULT_BRANDING.fontFamily);
-                  }}
+                  disabled={isDefaultFont || !canManage}
+                  onClick={() => setFontFamily(PLATFORM_DEFAULT_BRANDING.fontFamily)}
                 >
                   Reset to default
                 </Button>
                 <span style={{ fontSize: "var(--cc-t-12)", color: "var(--cc-text-muted)" }}>
-                  {isDefaultBranding
-                    ? "Using the default palette."
-                    : "Restores the default palette. Save to apply."}
+                  {isDefaultFont
+                    ? "Using the default font."
+                    : "Restores the default font. Save to apply."}
                 </span>
               </div>
             </div>

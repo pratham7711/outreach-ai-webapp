@@ -1,12 +1,12 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { Search, ChevronRight, Settings, LogOut } from "lucide-react";
+import { Search, ChevronRight, Settings, LogOut, Check } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { Dropdown } from "@pratham7711/ui";
 import { signOut } from "next-auth/react";
-import ThemeToggle from "@/components/ThemeToggle";
+import { THEME_CHOICES, useThemeChoice } from "@/components/ThemeChoices";
 import { NotificationBell } from "@/components/layout/NotificationBell";
 import { NAV_SECTIONS } from "@/components/NewSidebar";
 
@@ -57,6 +57,7 @@ const SEARCHABLE = NAV_SECTIONS.flatMap((s) => s.items.map((i) => [i.href, i.lab
 export function TopBar({ user, navHrefs }: { user?: TopBarUser; navHrefs?: string[] | null }) {
   const pathname = usePathname();
   const router = useRouter();
+  const themeChoice = useThemeChoice();
   const [query, setQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [activeIdx, setActiveIdx] = useState(-1);
@@ -126,8 +127,19 @@ export function TopBar({ user, navHrefs }: { user?: TopBarUser; navHrefs?: strin
   const initial = initials(user?.name, user?.email);
   const displayName = user?.name || user?.email || "Account";
 
+  /* The ui Dropdown takes a flat list of plain-text items -- no headings, no
+     radio rows -- so each theme is its own item, "<X> theme", and the one in
+     use trades its icon for a check and says "(current)". */
   const accountItems = [
     { icon: <Settings size={15} />, label: "Settings", onClick: () => router.push("/settings") },
+    ...THEME_CHOICES.map(({ key, label, icon: Icon }) => {
+      const on = themeChoice.current === key;
+      return {
+        icon: on ? <Check size={15} /> : <Icon size={15} />,
+        label: on ? `${label} theme (current)` : `${label} theme`,
+        onClick: () => themeChoice.choose(key),
+      };
+    }),
     { icon: <LogOut size={15} />, label: "Sign out", danger: true, onClick: () => signOut({ callbackUrl: "/login" }) },
   ];
 
@@ -196,9 +208,6 @@ export function TopBar({ user, navHrefs }: { user?: TopBarUser; navHrefs?: strin
             </ul>
           )}
         </div>
-
-        {/* Theme toggle */}
-        <ThemeToggle />
 
         {/* Notifications */}
         <NotificationBell />

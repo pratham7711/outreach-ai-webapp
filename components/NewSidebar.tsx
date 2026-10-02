@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { mediaUrl } from "@/lib/postMedia";
 import { useSidebar } from "@/components/providers/SidebarProvider";
-import ThemeToggle from "@/components/ThemeToggle";
+import { ThemeRadioGroup } from "@/components/ThemeChoices";
 import { NotificationBell } from "@/components/layout/NotificationBell";
 
 /*
@@ -336,14 +336,14 @@ export default function NewSidebar({ allowedNavHrefs, isPlatformOperator, brandN
 
         {/* Footer - User Profile */}
         <div className="cc-sidebar-footer px-2 py-2">
-          {/* The theme toggle and the bell live in two places and are painted in
-              one: creatorcore hides the top bar above 1024px to put the page
-              header where the reference puts it, and a theme that silently took
-              away the only control for changing themes would be a trap. CSS
-              cannot move a node to a different parent, so the node exists twice
-              and `--cc-rail-utility-display` decides which copy is seen. */}
+          {/* The bell lives in two places and is painted in one: creatorcore
+              hides the top bar above 1024px to put the page header where the
+              reference puts it, and a theme that silently took away the bell
+              would be a trap. CSS cannot move a node to a different parent, so
+              the node exists twice and `--cc-rail-utility-display` decides which
+              copy is seen. The theme choice is not here: it is in the account
+              menu below, which every theme shows. */}
           <div className="cc-rail-utility" aria-hidden={false}>
-            <ThemeToggle />
             <NotificationBell />
           </div>
           {/* User menu dropdown */}
@@ -357,6 +357,8 @@ export default function NewSidebar({ allowedNavHrefs, isPlatformOperator, brandN
                 <Settings size={15} aria-hidden="true" />
                 <span>Settings</span>
               </Link>
+              <div className="cc-rail-usermenu-divider" />
+              <ThemeRadioGroup />
               <div className="cc-rail-usermenu-divider" />
               <button
                 className="cc-nav-item cc-rail-usermenu-signout"

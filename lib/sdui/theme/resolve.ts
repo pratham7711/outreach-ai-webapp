@@ -52,7 +52,6 @@ function mergeModes(
 
 export async function resolveOrgTheme(
   orgId: string | null | undefined,
-  primaryColor?: string,
   /* The caller's already-loaded uiConfig, when it has one. The dashboard layout
      does: it reads entitlements (uiConfig included) two lines above rendering
      <ThemeStyle>, and querying the same organization row a second time on every
@@ -91,15 +90,11 @@ export async function resolveOrgTheme(
     }
   }
 
+  /* The org's brand colour used to be folded in here as --cc-primary on every
+     mode. It is gone (October 2026): the three themes own the app's colours,
+     and a brand colour on Light's black controls or CreatorCore's measured
+     indigo is exactly the drift they exist to prevent. */
   const { modes, source } = mergeModes(FILE_THEME, stored);
-  /* Applied to every mode, which is the point: one brand colour, three modes,
-     and the cascade -- not an inline style -- decides which one is showing. */
-  if (primaryColor) {
-    for (const mode of ["light", "dark", "creatorcore"] as const) {
-      modes[mode] = { ...(modes[mode] ?? {}), "--cc-primary": primaryColor };
-      source[`${mode} --cc-primary`] = "org";
-    }
-  }
   /* Responsive layers merge BY BREAKPOINT, so an org retuning the >=1024 shell
      replaces that layer's tokens without silently dropping the file's other
      breakpoints. */

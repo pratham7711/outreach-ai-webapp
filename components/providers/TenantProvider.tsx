@@ -43,19 +43,12 @@ export function TenantProvider({
       .then((data) => {
         if (!data) return;
         setConfig((prev) => ({ ...prev, ...data }));
-        const root = document.documentElement;
-        const primaryColor = customBrandingValue("primaryColor", data.primaryColor);
-        const secondaryColor = customBrandingValue("secondaryColor", data.secondaryColor);
-        const accentColor = customBrandingValue("accentColor", data.accentColor);
+        // The org's colours are deliberately NOT written here any more. An
+        // inline custom property on <html> outranks every theme block, so a
+        // brand colour repainted Light, Dark and CreatorCore alike; the three
+        // themes now own the app's colours outright (October 2026).
         const fontFamily = customBrandingValue("fontFamily", data.fontFamily);
-        // Write the root tokens, not the aliases. Both --cc-* and --color-* are
-        // defined as var(--primary) etc. in globals.css, so overriding an alias
-        // leaves it reading the unchanged token it was derived from and the
-        // tenant's colour paints nothing.
-        if (primaryColor) root.style.setProperty("--primary", primaryColor);
-        if (secondaryColor) root.style.setProperty("--secondary", secondaryColor);
-        if (accentColor) root.style.setProperty("--accent", accentColor);
-        if (fontFamily) root.style.setProperty("--font-family", fontFamily);
+        if (fontFamily) document.documentElement.style.setProperty("--font-family", fontFamily);
       })
       .catch(() => {
         // Tenant config endpoint not available — use defaults

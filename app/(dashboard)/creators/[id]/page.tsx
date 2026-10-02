@@ -397,8 +397,13 @@ const responsiveStyles = `
     bottom: 1px;
     width: 48px;
     pointer-events: none;
-    background: linear-gradient(to right, transparent, var(--cc-card));
+    background: linear-gradient(to right, transparent, var(--cc-bg));
   }
+  .cd-banner-band {
+    height: 80px;
+    background: linear-gradient(to right, color-mix(in srgb, var(--cd-band) 13%, transparent), color-mix(in srgb, var(--cd-band) 7%, transparent));
+  }
+  :root.light .cd-banner-band { --cd-band: var(--cc-text); }
   .cd-tabs-bar {
     display: flex;
     gap: 4px;
@@ -808,7 +813,11 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
 
       {/* Banner + Profile */}
       <Card variant="outlined" noPadding style={{ marginBottom: 24 }}>
-        <div style={{ height: 80, background: `linear-gradient(to right, ${PLATFORM_COLORS[creator.platform] ?? "var(--cc-primary)"}22, ${PLATFORM_COLORS[creator.platform] ?? "var(--cc-primary)"}11)` }} />
+        {/* The platform's colour as a 13%-to-7% wash. color-mix rather than a
+            hex alpha suffix: the old `${colour}22` turned the fallback into
+            "var(--cc-primary)22", which is not a colour, so an unknown platform
+            drew no band at all. Light swaps the hue for ink (see .cd-banner-band). */}
+        <div className="cd-banner-band" style={{ "--cd-band": PLATFORM_COLORS[creator.platform] ?? "var(--cc-primary)" } as React.CSSProperties} />
         <div className="cd-banner-inner">
           <div className="cd-profile-header">
             <CreatorAvatar id={creator.id} name={creator.name} size="lg" />

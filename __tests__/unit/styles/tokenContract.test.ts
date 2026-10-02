@@ -29,7 +29,7 @@ for (const r of rules.filter(isBaseRoot)) {
   });
 }
 
-const THEME_SELECTOR = /(^|[\s,])(:root)?\.(dark|creatorcore)\b/;
+const THEME_SELECTOR = /(^|[\s,])(:root)?\.(light|dark|creatorcore)\b/;
 
 describe("globals.css layout-token contract", () => {
   it("uses no !important anywhere", () => {
@@ -100,7 +100,7 @@ describe("globals.css layout-token contract", () => {
     const bareTokenBlocks: string[] = [];
     for (const r of rules) {
       const sel = r.selector.trim();
-      if (!/^\.(dark|creatorcore)$/.test(sel)) continue;
+      if (!/^\.(light|dark|creatorcore)$/.test(sel)) continue;
       let declaresToken = false;
       r.walkDecls((d) => {
         if (d.prop.startsWith("--")) declaresToken = true;

@@ -11,7 +11,7 @@ import { isPlatformAdmin } from "@/lib/billing/subscription";
 import { getOrgEntitlements } from "@/lib/entitlements";
 import { ThemeStyle } from "@/components/sdui/ThemeStyle";
 import { navHrefsForRole, resolveDashboardPolicy } from "@/lib/dashboardPolicy";
-import { customBrandingValue, usableIconHref } from "@/lib/brandingDefaults";
+import { usableIconHref } from "@/lib/brandingDefaults";
 import type { OrgUiConfig } from "@/lib/orgConfig";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
@@ -106,16 +106,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
     ? navHrefsForRole(policy.allowedNavHrefs, (session.user as { role?: string }).role)
     : null;
 
-  /* The org's brand colour now travels with every other server-driven token
-     through <ThemeStyle>, rather than as an inline custom property on the root
-     div. The old form out-specified .dark and .creatorcore, so a tenant's accent
-     bled into every mode -- tolerable at one token, guaranteed breakage at
-     twenty. It is passed as an override layer so nothing about white-label
-     behaviour changes, only where in the cascade it lands. */
-  const primaryColorOverride = orgId
-    ? customBrandingValue("primaryColor", policy.primaryColor)
-    : null;
-
   return (
     <TenantProvider>
       <SidebarProvider>
@@ -125,7 +115,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
        <ConfirmProvider>
         <ThemeStyle
           orgId={orgId}
-          primaryColor={primaryColorOverride}
           uiConfig={uiConfig as Record<string, unknown> | null}
         />
         <div className="cc-shell-root flex h-screen overflow-hidden">

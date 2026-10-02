@@ -19,9 +19,11 @@ import { TOKEN_CONTRACT, canonicalise, type TokenName } from "./contract";
 
 export type ThemeMode = "light" | "dark" | "creatorcore";
 
-/** `:root.dark` / `:root.creatorcore`; light is the bare `:root` base. */
+/** `:root.light` / `:root.dark` / `:root.creatorcore`. Light was the bare
+ *  `:root` until it got its own block in globals.css; a bare `:root` here would
+ *  now lose to that block, and would leak into the other two themes besides. */
 function selectorFor(mode: ThemeMode): string {
-  return mode === "light" ? ":root" : `:root.${mode}`;
+  return `:root.${mode}`;
 }
 
 export type EmitResult = {

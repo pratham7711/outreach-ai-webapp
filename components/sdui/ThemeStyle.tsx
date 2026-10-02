@@ -16,18 +16,14 @@ import { resolveOrgTheme } from "@/lib/sdui/theme/resolve";
 
 export async function ThemeStyle({
   orgId,
-  primaryColor,
   uiConfig,
 }: {
   orgId: string | null | undefined;
-  /** White-label's existing brand colour, folded in as the highest layer so its
-   *  behaviour is unchanged and only its position in the cascade moves. */
-  primaryColor?: string | null;
   /** The layout already holds the org's uiConfig. Passing it keeps this from
    *  re-reading the same row on every dashboard render. */
   uiConfig?: Record<string, unknown> | null;
 }) {
-  const theme = await resolveOrgTheme(orgId, primaryColor ?? undefined, uiConfig);
+  const theme = await resolveOrgTheme(orgId, uiConfig);
   if (!theme.css) return null;
   return (
     <style
