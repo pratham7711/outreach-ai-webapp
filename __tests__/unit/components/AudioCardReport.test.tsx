@@ -35,14 +35,16 @@ const DAY = 24 * 60 * 60 * 1000;
 function audio(over: Partial<CampaignAudio> = {}, points = 3, daysAgo = 0): CampaignAudio {
   const usageSeries = Array.from({ length: points }, (_, i) => {
     const at = new Date(Date.now() - (daysAgo + (points - 1 - i)) * DAY).toISOString();
-    return { date: at.slice(0, 10), at, uses: 30 + i * 10, velocity: i === 0 ? null : 12.5 };
+    return { date: at.slice(0, 10), at, t: Date.parse(at), uses: 30 + i * 10, rounded: false, velocity: i === 0 ? null : 12.5 };
   });
   return {
     title: "Roots",
     artist: "Jamie MacDonald & The Chosen",
     coverUrl: null,
     soundUrl: "https://www.tiktok.com/music/x-1",
+    platform: "TIKTOK",
     uses: 93,
+    usesRounded: false,
     videosAdded24h: 63,
     usageSeries,
     ...over,
@@ -113,4 +115,14 @@ it("keeps the dashboard card on its own skin", () => {
 
   expect(container.querySelector(".spr-audio")).toBeNull();
   expect(screen.getByText("TikTok Audio")).toBeInTheDocument();
+});
+
+it("marks a display-rounded use count as approximate, and names Instagram's audio", () => {
+  /* Instagram prints "15K reels" for a sound past 10K; the card must not pass
+     that off as a count of 15,000. */
+  render(<AudioCard audio={audio({ platform: "INSTAGRAM", uses: 15_000, usesRounded: true, videosAdded24h: null })} variant="report" />);
+
+  expect(screen.getByText("Instagram Audio")).toBeInTheDocument();
+  expect(screen.getByText("≈15,000")).toBeInTheDocument();
+  expect(screen.getByText("—")).toBeInTheDocument();
 });

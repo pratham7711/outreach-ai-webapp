@@ -6,8 +6,26 @@ import {
 import { MetricHint } from "@/components/ds";
 import { formatCompact, formatFull } from "@/lib/format";
 
-type PerformancePoint = { date: string; views: number; likes: number | null; comments: number | null };
-type TrackingPoint = { ts: string; views: number; engagement: number | null };
+type PerformancePoint = { t: number; date: string; views: number; likes: number | null; comments: number | null };
+type TrackingPoint = { t: number; ts: string; views: number; engagement: number | null };
+
+/**
+ * Time-scaled x-axis over each point's epoch ms. A categorical axis spaced
+ * readings evenly, so an hourly burst and a week's silence were the same width
+ * and several readings on one day sat under one repeated date.
+ */
+const timeAxis = {
+  dataKey: "t",
+  type: "number",
+  scale: "time",
+  domain: ["dataMin", "dataMax"],
+  tickFormatter: (t: number) =>
+    new Date(t).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }),
+  minTickGap: 24,
+} as const;
+
+const utcInstant = (t: unknown) =>
+  `${new Date(Number(t)).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: "UTC" })} UTC`;
 
 const axisTick = { fontSize: 11, fill: "var(--muted-foreground)" } as const;
 
@@ -57,7 +75,7 @@ export function PerformanceOverTimeArea({ data }: { data: PerformancePoint[] }) 
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
-            <XAxis dataKey="date" tick={axisTick} axisLine={false} tickLine={false} />
+            <XAxis {...timeAxis} tick={axisTick} axisLine={false} tickLine={false} />
             <YAxis
               tick={axisTick}
               axisLine={false}
@@ -67,6 +85,7 @@ export function PerformanceOverTimeArea({ data }: { data: PerformancePoint[] }) 
             />
             <Tooltip
               contentStyle={chartTooltipStyle}
+              labelFormatter={utcInstant}
               formatter={(value) => [formatFull(Number(value)), "Views"]}
             />
             <Area
@@ -92,7 +111,7 @@ export function PerformanceOverTimeArea({ data }: { data: PerformancePoint[] }) 
         <ResponsiveContainer width="100%" height={140}>
           <AreaChart data={data} margin={{ top: 4, right: 16, bottom: 0, left: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
-            <XAxis dataKey="date" tick={axisTick} axisLine={false} tickLine={false} />
+            <XAxis {...timeAxis} tick={axisTick} axisLine={false} tickLine={false} />
             <YAxis
               tick={axisTick}
               axisLine={false}
@@ -102,6 +121,7 @@ export function PerformanceOverTimeArea({ data }: { data: PerformancePoint[] }) 
             />
             <Tooltip
               contentStyle={chartTooltipStyle}
+              labelFormatter={utcInstant}
               formatter={(value, name) => [formatFull(Number(value)), String(name)]}
             />
             <Legend wrapperStyle={{ fontSize: "var(--cc-t-12)"}} />
@@ -146,7 +166,7 @@ export function TrackingLine({ data }: { data: TrackingPoint[] }) {
         <ResponsiveContainer width="100%" height={130}>
           <LineChart data={data} margin={{ top: 4, right: 16, bottom: 0, left: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
-            <XAxis dataKey="ts" tick={axisTick} axisLine={false} tickLine={false} />
+            <XAxis {...timeAxis} tick={axisTick} axisLine={false} tickLine={false} />
             <YAxis
               tick={axisTick}
               axisLine={false}
@@ -156,6 +176,7 @@ export function TrackingLine({ data }: { data: TrackingPoint[] }) {
             />
             <Tooltip
               contentStyle={chartTooltipStyle}
+              labelFormatter={utcInstant}
               formatter={(value) => [formatFull(Number(value)), "Views"]}
             />
             <Line
@@ -181,7 +202,7 @@ export function TrackingLine({ data }: { data: TrackingPoint[] }) {
         <ResponsiveContainer width="100%" height={130}>
           <LineChart data={data} margin={{ top: 4, right: 16, bottom: 0, left: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
-            <XAxis dataKey="ts" tick={axisTick} axisLine={false} tickLine={false} />
+            <XAxis {...timeAxis} tick={axisTick} axisLine={false} tickLine={false} />
             <YAxis
               tick={axisTick}
               axisLine={false}
@@ -191,6 +212,7 @@ export function TrackingLine({ data }: { data: TrackingPoint[] }) {
             />
             <Tooltip
               contentStyle={chartTooltipStyle}
+              labelFormatter={utcInstant}
               formatter={(value) => [formatFull(Number(value)), "Engagement"]}
             />
             <Line

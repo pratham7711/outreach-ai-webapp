@@ -9,6 +9,9 @@ import type { MetricField } from "@/lib/metricDisplay";
 import { isPostRemoved } from "@/lib/postRemoval";
 import { postStatus, type PostStatusKind } from "@/lib/posts/postStatus";
 import { carryForwardViewsByDay } from "@/lib/analytics/viewsSeries";
+import { soundSeries, videosAddedSinceLast } from "@/lib/sounds/usageSeries";
+import { usesPrecisionOf } from "@/lib/sounds/precision";
+import { CHART_BUCKET_HOURS, effectiveChartGranularity, parseGranularity } from "@/lib/trackers/granularity";
 import type { SharePlatform } from "@/lib/reports/shareVisibility";
 import type { ActivationStatus } from "@/lib/generated/prisma/client";
 
@@ -93,7 +96,8 @@ export type CampaignPerformance = {
     handle: string | null;
     avatarUrl: string | null;
     posts: number;
-    views: number;
+    /** Null when none of the creator's posts had its views read -- see knownViews. */
+    views: number | null;
     engagements: number | null;
     engagementRate: number | null;
     /**
@@ -179,22 +183,28 @@ export type CampaignAudio = {
   artist: string;
   coverUrl: string | null;
   soundUrl: string;
+  /** Which platform's audio this is: the card's heading and link follow it. */
+  platform: "TIKTOK" | "INSTAGRAM";
   uses: number | null;
+  /** True when `uses` is the platform's rounded figure ("74K"), not a count. */
+  usesRounded: boolean;
+  /** Null without two readings, or when either is a rounded figure. */
   videosAdded24h: number | null;
   /**
-   * Oldest to newest, for the usage curve. Empty until the sound is synced.
+   * Oldest to newest, for the usage curve, one point per chart bucket of the
+   * org's granularity (lib/sounds/usageSeries). Empty until the sound is synced.
+   * `t` is the reading's epoch ms, for a time-scaled axis; `at` the same instant
+   * as ISO.
    *
-   * `velocity` is the percentage change from the reading before it, which is what
+   * `velocity` is the percentage change from the point before it, which is what
    * CreatorCore's Velocity view of this chart plots -- the same series, asked a
    * different question: Usage is how many, Velocity is how fast.
    *
-   * It is NULL on a sound's very first reading. recordSoundSnapshot stores a 0
-   * there because there is no earlier reading to divide by, and that 0 is the
-   * absence of a baseline rather than an observation of no growth -- charted, it
-   * drew a real "0.00%" point and pulled the line down to it. The tracker's own
-   * VelocityChart has always dropped its first point for the same reason.
+   * It is NULL on a sound's very first point (the stored 0 there is the absence
+   * of a baseline, and charted it pulled the line down to "0.00%"), across a run
+   * of empty buckets, and wherever either end is a rounded figure.
    */
-  usageSeries: { date: string; at: string; uses: number; velocity: number | null }[];
+  usageSeries: { date: string; at: string; t: number; uses: number; rounded: boolean; velocity: number | null }[];
 };
 
 /**
@@ -473,7 +483,9 @@ async function computeCampaignPerformanceUncached(
 
        A reading that did not measure views is left out BEFORE the day is
        collapsed, so the day's latest real reading wins rather than a
-       placeholder 0 (see snapshotViewsKnown). */
+       placeholder 0 (see snapshotViewsKnown). So is any other 0: views are a
+       lifetime level, and carryForwardViewsByDay skips a 0 anyway, so sending
+       one only spends the row cap below on a row that cannot be charted. */
     db.$queryRawUnsafe<{ postId: string; day: string; viewsCount: number | null }[]>(
       `SELECT * FROM (
          SELECT DISTINCT ON (s."postId", s."recordedAt"::date)
@@ -484,6 +496,7 @@ async function computeCampaignPerformanceUncached(
            JOIN "Post" p ON p.id = s."postId"
           WHERE p."campaignId" = $1${platformFilter}
             AND ${snapshotViewsKnownSql("s")}
+            AND s."viewsCount" > 0
           ORDER BY s."postId", s."recordedAt"::date, s."recordedAt" DESC, s.id DESC
        ) collapsed
        /* A hard bound, so no single campaign can ever read the whole table.
@@ -633,13 +646,21 @@ async function computeCampaignPerformanceUncached(
         handle: creator.handle ?? null,
         avatarUrl: creator.avatarUrl,
         posts: creatorPosts.length,
-        views: creatorPosts.reduce((s, p) => s + (p.viewsCount ?? 0), 0),
+        views: knownViews(creatorPosts),
         engagements: creatorEngagements,
         engagementRate: rate,
         status: statusByCreator.get(creator.id) ?? null,
       };
     })
-    .sort((a, b) => b.views - a.views)
+    /* Known views first, most first; a creator whose views are unknown ranks
+       below every measured one and among those by engagements, rather than
+       being read as a creator with 0 views. */
+    .sort(
+      (a, b) =>
+        (b.views ?? -1) - (a.views ?? -1) ||
+        (b.engagements ?? -1) - (a.engagements ?? -1) ||
+        b.posts - a.posts,
+    )
     .slice(0, 10);
 
   /* Sorted by views, matching CreatorCore's own order, so the post a brand cares
@@ -711,7 +732,7 @@ async function computeCampaignPerformanceUncached(
     platformSplit,
     leaderboard,
     posts: postRows,
-    audio: await loadCampaignAudio(campaign.id),
+    audio: await loadCampaignAudio(campaign.id, campaign.orgId),
   };
 }
 
@@ -722,14 +743,37 @@ async function computeCampaignPerformanceUncached(
  * bounded independently of the song lookup, and most campaigns have no song at
  * all, so the second query usually never runs.
  */
-async function loadCampaignAudio(campaignId: string): Promise<CampaignAudio | null> {
+/**
+ * A creator's views on the campaign: the sum over the posts whose views were
+ * read, or null when none were.
+ *
+ * Instagram photos and carousels publish no view count, so a creator who posted
+ * only those has unknown views, not zero. Summing `viewsCount ?? 0` printed
+ * "0" for six of seven creators on a 121-post Instagram campaign and ranked them
+ * as the campaign's worst. fieldMetricValue is the per-field provenance test the
+ * post rows already use.
+ */
+export function knownViews(
+  posts: readonly { viewsCount: number | null; lastSyncedAt: Date | null; platformMetrics: unknown }[],
+): number | null {
+  let total: number | null = null;
+  for (const p of posts) {
+    const v = fieldMetricValue(p.viewsCount, p.lastSyncedAt, p.platformMetrics, "views");
+    if (v !== null) total = (total ?? 0) + v;
+  }
+  return total;
+}
+
+async function loadCampaignAudio(campaignId: string, orgId: string): Promise<CampaignAudio | null> {
   const campaign = await db.campaign.findUnique({
     where: { id: campaignId },
     select: {
       song: {
         select: {
           coverUrl: true,
-          sound: { select: { id: true, tiktokSoundId: true, title: true, artist: true, coverImageUrl: true } },
+          sound: {
+            select: { id: true, platform: true, tiktokSoundId: true, title: true, artist: true, coverImageUrl: true },
+          },
         },
       },
     },
@@ -737,21 +781,25 @@ async function loadCampaignAudio(campaignId: string): Promise<CampaignAudio | nu
   const sound = campaign?.song?.sound;
   if (!sound) return null;
 
-  /* Newest first here so `take` keeps the most recent window, then reversed for
-     the chart, which reads left to right. */
-  const SERIES_POINTS = 60;
-  /* One past the window, purely to answer "is the oldest point we are about to
-     chart this sound's FIRST reading?". If a 61st exists, the oldest charted
-     point has a predecessor and its stored velocity is a real measurement. */
-  const rows = await db.soundTrackerSnapshot.findMany({
-    where: { soundId: sound.id },
-    select: { usesCount: true, videosAdded24h: true, velocityScore: true, recordedAt: true },
-    orderBy: { recordedAt: "desc" },
-    take: SERIES_POINTS + 1,
-  });
-  const hasEarlier = rows.length > SERIES_POINTS;
-  const snaps = rows.slice(0, SERIES_POINTS);
-  const latest = snaps[0] ?? null;
+  /* A year of readings at the four-hourly cadence, newest first so `take` keeps
+     the recent end, then bucketed to the org's own chart granularity -- the
+     same buckets the trackers page draws this sound in. The flat take:60 this
+     replaced was ten days at that cadence, and five of its points could be one
+     refresh pressed five times. */
+  const READINGS = 2_200;
+  const [rows, org] = await Promise.all([
+    db.soundTrackerSnapshot.findMany({
+      where: { soundId: sound.id },
+      select: { usesCount: true, recordedAt: true },
+      orderBy: { recordedAt: "desc" },
+      take: READINGS,
+    }),
+    db.organization.findUnique({ where: { id: orgId }, select: { uiConfig: true } }),
+  ]);
+  const latest = rows[0] ?? null;
+  const chartAt = effectiveChartGranularity(parseGranularity(org?.uiConfig ?? null));
+  const series = soundSeries(rows.slice().reverse(), { bucketHours: CHART_BUCKET_HOURS[chartAt] });
+  const platform = sound.platform === "INSTAGRAM" ? "INSTAGRAM" : "TIKTOK";
 
   return {
     title: sound.title,
@@ -759,24 +807,20 @@ async function loadCampaignAudio(campaignId: string): Promise<CampaignAudio | nu
     // The tracker's own cover wins; the song's art is the fallback for a sound
     // that has been tracked but not yet synced, which is when it has no cover.
     coverUrl: sound.coverImageUrl ?? campaign?.song?.coverUrl ?? null,
-    soundUrl: `https://www.tiktok.com/music/x-${sound.tiktokSoundId}`,
+    platform,
+    /* An Instagram audio linked to tiktok.com/music/x-<its id> -- someone
+       else's sound, or none -- and was headed "TikTok Audio". */
+    soundUrl:
+      platform === "INSTAGRAM"
+        ? `https://www.instagram.com/reels/audio/${encodeURIComponent(sound.tiktokSoundId)}/`
+        : `https://www.tiktok.com/music/x-${sound.tiktokSoundId}`,
     uses: latest ? latest.usesCount : null,
-    // A change needs two readings. With one snapshot the stored 0 is the absence
-    // of a baseline, not an observation of no growth, so the card shows a dash.
-    videosAdded24h: snaps.length >= 2 ? latest!.videosAdded24h : null,
-    usageSeries: snaps
-      .slice()
-      .reverse()
-      .map((s, i) => ({
-        date: s.recordedAt.toISOString().slice(0, 10),
-        // Several readings can land on one day -- a sync run taken four times
-        // in an hour -- and then every point on the axis carried the same date.
-        // The card needs the time to tell them apart.
-        at: s.recordedAt.toISOString(),
-        uses: s.usesCount,
-        // The stored 0 on a sound's first-ever reading is a placeholder, not a
-        // measurement. Null so the velocity chart starts at the second point.
-        velocity: i === 0 && !hasEarlier ? null : s.velocityScore,
-      })),
+    usesRounded: latest ? usesPrecisionOf(latest.usesCount) === "rounded" : false,
+    // A change needs two readings, both exact; otherwise the card shows a dash.
+    videosAdded24h: videosAddedSinceLast(rows),
+    usageSeries: series.map((p) => {
+      const at = new Date(p.t).toISOString();
+      return { date: at.slice(0, 10), at, t: p.t, uses: p.usesCount, rounded: p.precision === "rounded", velocity: p.velocity };
+    }),
   };
 }

@@ -254,7 +254,7 @@ export function CampaignPerformancePDF({
                 <View key={row.creatorId} style={styles.tableRow}>
                   <Text style={[styles.tableCell, { flex: 2 }]}>{creatorNameText(row.name, row.handle)}</Text>
                   <Text style={[styles.tableCell, { flex: 1 }]}>{row.posts}</Text>
-                  <Text style={[styles.tableCell, { flex: 1 }]}>{fmtNumber(row.views)}</Text>
+                  <Text style={[styles.tableCell, { flex: 1 }]}>{row.views === null ? "—" : fmtNumber(row.views)}</Text>
                   <Text style={[styles.tableCell, { flex: 1 }]}>
                     {row.engagementRate !== null ? (row.engagementRate * 100).toFixed(1) + "%" : "—"}
                   </Text>

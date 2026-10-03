@@ -23,10 +23,14 @@ describe("carryForwardViewsByDay", () => {
       groups: ["camp-1"],
     });
 
-    expect(rows).toHaveLength(1);
-    expect(rows[0]).toEqual({ date: "2026-09-02", totals: { "camp-1": 1_200 } });
+    // The first day's level also stands on the posting day (see the backdating
+    // test below), so two rows, both at the day's LAST reading.
+    expect(rows).toEqual([
+      { date: "2026-09-01", totals: { "camp-1": 1_200 } },
+      { date: "2026-09-02", totals: { "camp-1": 1_200 } },
+    ]);
     // Emphatically not 1,000 + 1,200.
-    expect(rows[0].totals["camp-1"]).not.toBe(2_200);
+    expect(rows[1].totals["camp-1"]).not.toBe(2_200);
   });
 
   it("does not depend on the order the snapshots arrive in", () => {
@@ -58,7 +62,8 @@ describe("carryForwardViewsByDay", () => {
       groups: ["g"],
     });
 
-    expect(rows.map((r) => r.totals.g)).toEqual([500, 600]);
+    // 09-01 is both posts' posting day, carrying their first readings back.
+    expect(rows.map((r) => r.totals.g)).toEqual([500, 500, 600]);
   });
 
   /* The consistency fix: campaignPerformance charted unsnapshotted posts from
@@ -125,6 +130,84 @@ describe("carryForwardViewsByDay", () => {
     expect(rows).toEqual([{ date: "2026-09-01", totals: { g: 5 } }]);
   });
 
+  /* The axis is the list of rows' dates, so a day with no row was a day missing
+     from the axis: a 22-day gap drew as wide as one day. */
+  it("emits every day between the first and last, carrying levels through the gap", () => {
+    const rows = carryForwardViewsByDay({
+      posts: [{ id: "p1", group: "g", postedAt: at("2026-09-04T10:00:00Z"), viewsCount: 900 }],
+      snapshots: [
+        { postId: "p1", recordedAt: at("2026-09-04T12:00:00Z"), viewsCount: 100 },
+        { postId: "p1", recordedAt: at("2026-09-09T12:00:00Z"), viewsCount: 600 },
+      ],
+      groups: ["g"],
+    });
+
+    expect(rows.map((r) => r.date)).toEqual([
+      "2026-09-04", "2026-09-05", "2026-09-06", "2026-09-07", "2026-09-08", "2026-09-09",
+    ]);
+    expect(rows.map((r) => r.totals.g)).toEqual([100, 100, 100, 100, 100, 600]);
+  });
+
+  it("crosses a month and a year boundary one UTC day at a time", () => {
+    const rows = carryForwardViewsByDay({
+      posts: [{ id: "p1", group: "g", postedAt: at("2026-12-30T23:59:59Z"), viewsCount: 7 }],
+      snapshots: [{ postId: "p1", recordedAt: at("2027-01-02T00:00:00Z"), viewsCount: 9 }],
+      groups: ["g"],
+    });
+    expect(rows.map((r) => r.date)).toEqual(["2026-12-30", "2026-12-31", "2027-01-01", "2027-01-02"]);
+    expect(rows.map((r) => r.totals.g)).toEqual([9, 9, 9, 9]);
+  });
+
+  /* Measured on production: a campaign posted from January and first read in
+     September charted 44.7M of its 58.8M views arriving on one September day. */
+  it("stands a post's first reading from its posting day, not from the day tracking began", () => {
+    const rows = carryForwardViewsByDay({
+      posts: [
+        { id: "old", group: "g", postedAt: at("2026-01-08T00:00:00Z"), viewsCount: 5_000 },
+        { id: "new", group: "g", postedAt: at("2026-01-10T00:00:00Z"), viewsCount: 50 },
+      ],
+      snapshots: [
+        { postId: "old", recordedAt: at("2026-01-11T09:00:00Z"), viewsCount: 4_000 },
+        { postId: "old", recordedAt: at("2026-01-12T09:00:00Z"), viewsCount: 5_000 },
+        { postId: "new", recordedAt: at("2026-01-12T09:00:00Z"), viewsCount: 50 },
+      ],
+      groups: ["g"],
+    });
+
+    expect(rows.map((r) => [r.date, r.totals.g])).toEqual([
+      ["2026-01-08", 4_000],
+      ["2026-01-09", 4_000],
+      ["2026-01-10", 4_050],
+      ["2026-01-11", 4_050],
+      ["2026-01-12", 5_050],
+    ]);
+  });
+
+  it("skips a 0-view reading rather than dropping the post's views to zero", () => {
+    const rows = carryForwardViewsByDay({
+      posts: [{ id: "p1", group: "g", postedAt: at("2026-09-01T00:00:00Z"), viewsCount: 800 }],
+      snapshots: [
+        { postId: "p1", recordedAt: at("2026-09-01T06:00:00Z"), viewsCount: 700 },
+        { postId: "p1", recordedAt: at("2026-09-02T06:00:00Z"), viewsCount: 0 },
+        { postId: "p1", recordedAt: at("2026-09-03T06:00:00Z"), viewsCount: 800 },
+      ],
+      groups: ["g"],
+    });
+    expect(rows.map((r) => r.totals.g)).toEqual([700, 700, 800]);
+  });
+
+  /* Production's one campaign whose chart ended below its Total Views tile: six
+     imported posts whose only readings were legacy zeros, so the chart drew 0
+     for views the tile (Post.viewsCount) counted. */
+  it("charts a post whose readings are all zero at its own current count", () => {
+    const rows = carryForwardViewsByDay({
+      posts: [{ id: "imported", group: "g", postedAt: at("2026-09-01T00:00:00Z"), viewsCount: 84_357 }],
+      snapshots: [{ postId: "imported", recordedAt: at("2026-09-02T18:56:00Z"), viewsCount: 0 }],
+      groups: ["g"],
+    });
+    expect(rows).toEqual([{ date: "2026-09-01", totals: { g: 84_357 } }]);
+  });
+
   it("returns no rows when there is nothing to chart", () => {
     expect(carryForwardViewsByDay({ posts: [], snapshots: [], groups: ["g"] })).toEqual([]);
   });
@@ -135,8 +218,10 @@ describe("carryForwardViewsByDay", () => {
  * emitted -- O(posts x days) to produce one row per day. It now carries running
  * per-group totals and moves them by the delta of the posts that actually got a
  * reading that day. That is a rewrite of the arithmetic, not a refactor of it,
- * so the old implementation is kept HERE, in the test, and the two are compared
- * on randomized inputs. It exists only to be the oracle; nothing ships it.
+ * so the rules are restated HERE as the slowest obvious re-sum -- every post,
+ * every day, its latest positive reading so far (or its first, before that, from
+ * its posting day) -- and the two are compared on randomized inputs. It exists
+ * only to be the oracle; nothing ships it.
  */
 function carryForwardViewsByDay_reSum<G extends string>(input: {
   posts: readonly { id: string; group: G; postedAt: Date; viewsCount: number | null }[];
@@ -144,53 +229,47 @@ function carryForwardViewsByDay_reSum<G extends string>(input: {
   groups: readonly G[];
 }): { date: string; totals: Record<G, number> }[] {
   const { posts, snapshots, groups } = input;
-  const groupByPost = new Map<string, G>(posts.map((p) => [p.id, p.group]));
-  const latest = new Map<string, Map<string, { at: number; views: number }>>();
-  const withSnapshots = new Set<string>();
-  const days = new Set<string>();
-
-  for (const snap of snapshots) {
-    if (!groupByPost.has(snap.postId)) continue;
-    const day = snap.recordedAt.toISOString().slice(0, 10);
-    const at = snap.recordedAt.getTime();
-    let ofDay = latest.get(day);
-    if (!ofDay) latest.set(day, (ofDay = new Map()));
-    const existing = ofDay.get(snap.postId);
-    if (!existing || at >= existing.at) {
-      ofDay.set(snap.postId, { at, views: snap.viewsCount ?? 0 });
-    }
-    withSnapshots.add(snap.postId);
-    days.add(day);
+  const day = (d: Date) => d.toISOString().slice(0, 10);
+  const inScope = new Set(posts.map((p) => p.id));
+  // Every positive reading of each post, by day, keeping the day's latest.
+  const byPost = new Map<string, Map<string, { at: number; views: number }>>();
+  for (const s of snapshots) {
+    if (!inScope.has(s.postId) || s.viewsCount === null || !(s.viewsCount > 0)) continue;
+    let days = byPost.get(s.postId);
+    if (!days) byPost.set(s.postId, (days = new Map()));
+    const d = day(s.recordedAt);
+    const existing = days.get(d);
+    if (!existing || s.recordedAt.getTime() >= existing.at) days.set(d, { at: s.recordedAt.getTime(), views: s.viewsCount });
   }
-
-  const firstSeen = new Map<string, { postId: string; views: number }[]>();
-  for (const post of posts) {
-    if (withSnapshots.has(post.id)) continue;
-    const day = post.postedAt.toISOString().slice(0, 10);
-    days.add(day);
-    const bucket = firstSeen.get(day);
-    const entry = { postId: post.id, views: post.viewsCount ?? 0 };
-    if (bucket) bucket.push(entry);
-    else firstSeen.set(day, [entry]);
-  }
-
-  const lastKnown = new Map<string, number>();
+  const startOf = (p: (typeof posts)[number]) => {
+    const readDays = [...(byPost.get(p.id)?.keys() ?? [])].sort();
+    const posted = day(p.postedAt);
+    return readDays.length && readDays[0] < posted ? readDays[0] : posted;
+  };
+  const allDays = [...posts.map(startOf), ...[...byPost.values()].flatMap((m) => [...m.keys()])].sort();
+  if (allDays.length === 0) return [];
   const rows: { date: string; totals: Record<G, number> }[] = [];
-  for (const day of Array.from(days).sort()) {
-    for (const [postId, reading] of latest.get(day) ?? []) lastKnown.set(postId, reading.views);
-    for (const entry of firstSeen.get(day) ?? []) lastKnown.set(entry.postId, entry.views);
-
+  for (let t = Date.parse(`${allDays[0]}T00:00:00Z`); t <= Date.parse(`${allDays.at(-1)}T00:00:00Z`); t += 86_400_000) {
+    const d = day(new Date(t));
     const totals = Object.fromEntries(groups.map((g) => [g, 0])) as Record<G, number>;
-    for (const [postId, views] of lastKnown) {
-      const group = groupByPost.get(postId);
-      if (group !== undefined && group in totals) totals[group] += views;
+    for (const p of posts) {
+      if (!(p.group in totals) || d < startOf(p)) continue;
+      const reads = byPost.get(p.id);
+      let views: number;
+      if (!reads) views = p.viewsCount ?? 0;
+      else {
+        const sorted = [...reads.entries()].sort((x, y) => (x[0] < y[0] ? -1 : 1));
+        const upTo = sorted.filter(([rd]) => rd <= d);
+        views = (upTo.length ? upTo.at(-1)! : sorted[0])[1].views;
+      }
+      totals[p.group] += views;
     }
-    rows.push({ date: day, totals });
+    rows.push({ date: d, totals });
   }
   return rows;
 }
 
-describe("carryForwardViewsByDay — equivalence with the re-summing implementation", () => {
+describe("carryForwardViewsByDay — equivalence with a per-day re-sum", () => {
   /* A tiny deterministic PRNG, so a failure is reproducible from the seed
      printed in the assertion rather than gone on the next run. */
   function rng(seed: number) {
@@ -237,5 +316,56 @@ describe("carryForwardViewsByDay — equivalence with the re-summing implementat
       const actual = carryForwardViewsByDay({ posts, snapshots, groups });
       expect({ seed, rows: actual }).toEqual({ seed, rows: expected });
     }
+  });
+});
+
+/* Scale: the shape production actually has -- hundreds of posts read daily for a
+   month, posted across the month before tracking began, some read sparsely, some
+   never. Checked against the oracle and against the invariants a reader relies
+   on: one row per calendar day, the last row equal to every post's last known
+   level, and no fall in a series whose every post only ever rises. */
+describe("carryForwardViewsByDay at campaign scale", () => {
+  it("charts 600 posts x 30 days exactly, with one row per day and a non-falling total", () => {
+    const DAY = 86_400_000;
+    const start = Date.UTC(2026, 8, 1);
+    let seed = 7;
+    const rand = () => ((seed = (seed * 1_103_515_245 + 12_345) % 2_147_483_648) / 2_147_483_648);
+    const groups = ["TIKTOK", "INSTAGRAM", "YOUTUBE"] as const;
+
+    const posts = Array.from({ length: 600 }, (_, i) => ({
+      id: `p${i}`,
+      group: groups[i % 3],
+      postedAt: new Date(start - Math.floor(rand() * 30) * DAY + Math.floor(rand() * DAY)),
+      viewsCount: Math.floor(rand() * 1_000_000),
+    }));
+    const snapshots: { postId: string; recordedAt: Date; viewsCount: number | null }[] = [];
+    const lastLevel = new Map<string, number>();
+    for (const post of posts) {
+      if (rand() < 0.1) continue; // never read: charted at its own count
+      let level = 1 + Math.floor(rand() * 10_000);
+      for (let d = 0; d < 30; d++) {
+        if (rand() < 0.3) continue; // a skipped sync
+        level += Math.floor(rand() * 5_000);
+        for (let k = 0; k < 2; k++) {
+          // two readings a day, the second higher; plus the odd unmeasured 0
+          const reading = k === 0 ? level - 1 : level;
+          snapshots.push({ postId: post.id, recordedAt: new Date(start + d * DAY + (k + 1) * 3_600_000), viewsCount: reading });
+        }
+        if (rand() < 0.05) snapshots.push({ postId: post.id, recordedAt: new Date(start + d * DAY + 20 * 3_600_000), viewsCount: 0 });
+        lastLevel.set(post.id, level);
+      }
+    }
+
+    const rows = carryForwardViewsByDay({ posts, snapshots, groups });
+
+    expect(rows).toEqual(carryForwardViewsByDay_reSum({ posts, snapshots, groups }));
+    for (let i = 1; i < rows.length; i++) {
+      expect(Date.parse(`${rows[i].date}T00:00:00Z`) - Date.parse(`${rows[i - 1].date}T00:00:00Z`)).toBe(DAY);
+      const sum = (r: (typeof rows)[number]) => groups.reduce((s, g) => s + r.totals[g], 0);
+      expect(sum(rows[i])).toBeGreaterThanOrEqual(sum(rows[i - 1]));
+    }
+    const expectedEnd = posts.reduce((s, p) => s + (lastLevel.get(p.id) ?? p.viewsCount), 0);
+    const last = rows.at(-1)!;
+    expect(groups.reduce((s, g) => s + last.totals[g], 0)).toBe(expectedEnd);
   });
 });

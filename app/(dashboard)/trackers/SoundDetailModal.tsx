@@ -4,7 +4,8 @@ import { Music, RefreshCw } from "lucide-react";
 import { formatDateAbs, timeAgo, formatFull } from "@/lib/format";
 import type { ChartGranularity } from "@/lib/trackers/granularity";
 import { AudioUsesChart, VelocityChart, type SeriesPoint } from "./SoundCharts";
-import { changeOver } from "./horizonChange";
+import { soundChangeOver } from "./horizonChange";
+import { usesPrecisionOf } from "@/lib/sounds/precision";
 
 /**
  * The audio detail, mirroring the reference: a cumulative level chart beside a
@@ -137,7 +138,9 @@ export function SoundDetailModal({
             Audio Uses
           </h3>
           <div style={{ fontSize: "var(--cc-t-24)", fontWeight: 700, color: "var(--cc-text)", marginBottom: 10 }}>
-            {sound.latestSnapshot ? formatFull(sound.latestSnapshot.usesCount) : "—"}
+            {sound.latestSnapshot
+              ? `${usesPrecisionOf(sound.latestSnapshot.usesCount) === "rounded" ? "≈" : ""}${formatFull(sound.latestSnapshot.usesCount)}`
+              : "—"}
           </div>
           <AudioUsesChart series={sound.series} granularity={sound.chartGranularity} />
         </section>
@@ -153,11 +156,18 @@ export function SoundDetailModal({
           </h3>
           <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 10 }}>
             {HORIZONS.map((h) => {
-              const c = changeOver(sound.series, h.days);
+              const c = soundChangeOver(sound.series, h.days);
               return (
                 <div key={h.label} style={{ minWidth: 84 }}>
                   <div style={{ fontSize: "var(--cc-t-11)", color: "var(--cc-text-muted)" }}>{h.label}</div>
-                  {c === "short-history" ? (
+                  {c === "rounded" ? (
+                    <div
+                      style={{ fontSize: "var(--cc-t-14)", fontWeight: 700, color: "var(--cc-text-muted)" }}
+                      title="The platform shows this sound's count rounded (e.g. 74K), so the change between two readings is not known."
+                    >
+                      —
+                    </div>
+                  ) : c === "short-history" ? (
                     <div
                       style={{ fontSize: "var(--cc-t-14)", fontWeight: 700, color: "var(--cc-text-muted)" }}
                       title={`Not enough history — this sound has no reading from ${h.days} days ago yet.`}

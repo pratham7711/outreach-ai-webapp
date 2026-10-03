@@ -121,6 +121,17 @@ it("still tries a sound that has never been read at all", async () => {
   expect(result.failed).toBe(1);
 });
 
+/* Production: bursts of five readings of one sound two seconds apart, each a
+   point on the campaign's audio chart. */
+it("does not read one sound again within minutes of the last reading", async () => {
+  mockDb.tikTokSound.findMany.mockResolvedValue(soundLastReadHoursAgo(0.05));
+
+  const result = await snapshotSounds({ soundId: "sound-1" });
+
+  expect(mockRead).not.toHaveBeenCalled();
+  expect(result).toEqual({ snapshots: 0, failed: 0, skipped: 1 });
+});
+
 it("does not silently do nothing when a person asked for this one sound", async () => {
   /* The Refresh button on a campaign runs this with a soundId. Skipping there
      would answer a deliberate click with no work and no explanation, however

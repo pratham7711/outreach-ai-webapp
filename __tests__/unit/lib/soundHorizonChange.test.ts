@@ -6,7 +6,7 @@
  * cadence. Falling back to series[0] when nothing predates the cutoff therefore
  * printed the SAME ten-day gain under "14-Day Change" and "30-Day Change".
  */
-import { changeOver } from "@/app/(dashboard)/trackers/horizonChange";
+import { changeOver, soundChangeOver } from "@/app/(dashboard)/trackers/horizonChange";
 
 const DAY = 86_400_000;
 const NOW = Date.parse("2026-09-01T00:00:00.000Z");
@@ -29,4 +29,24 @@ it("refuses a horizon longer than the series instead of borrowing series[0]", ()
 
 it("still says nothing at all when there is only one reading", () => {
   expect(changeOver([point(5, 0)], 1)).toBeNull();
+});
+
+describe("soundChangeOver", () => {
+  const rounded = (value: number, daysAgo: number) => ({ ...point(value, daysAgo), rounded: true });
+
+  it("reports a change only when both ends are counts", () => {
+    expect(soundChangeOver([point(6_921, 7), point(7_429, 0)], 7)).toEqual({ added: 508, percent: expect.closeTo(7.34, 2) });
+  });
+
+  /* 73,500 -> 74,100 on a 74K sound is the K-rounding moving, not 600 videos. */
+  it("says 'rounded' when either end is a display-rounded figure", () => {
+    expect(soundChangeOver([rounded(73_500, 7), rounded(74_100, 0)], 7)).toBe("rounded");
+    expect(soundChangeOver([point(8_659, 7), rounded(12_000, 0)], 7)).toBe("rounded");
+    expect(soundChangeOver([rounded(12_000, 7), point(12_345, 0)], 7)).toBe("rounded");
+  });
+
+  it("keeps changeOver's absences", () => {
+    expect(soundChangeOver([rounded(74_100, 0)], 7)).toBeNull();
+    expect(soundChangeOver([rounded(74_000, 3), rounded(74_100, 0)], 7)).toBe("short-history");
+  });
 });

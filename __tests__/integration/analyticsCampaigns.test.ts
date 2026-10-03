@@ -88,8 +88,13 @@ describe("GET /api/analytics/campaigns", () => {
 
     const body = await (await GET(req("?ids=camp-1"))).json();
 
-    expect(body.series).toEqual([{ date: "2026-09-02", "camp-1": 1_200 }]);
-    expect(body.series[0]["camp-1"]).not.toBe(2_200);
+    // The post's posting day (the fixture's, 09-01) carries its first day's
+    // level back; both rows are the day's LAST reading.
+    expect(body.series).toEqual([
+      { date: "2026-09-01", "camp-1": 1_200 },
+      { date: "2026-09-02", "camp-1": 1_200 },
+    ]);
+    expect(body.series[1]["camp-1"]).not.toBe(2_200);
   });
 
   /* A post nobody snapshotted still has views, and the KPI total counts them,

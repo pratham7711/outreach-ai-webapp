@@ -29,12 +29,39 @@ function makeAxisLabel(series: CampaignAudio["usageSeries"]) {
      the server render and the browser's. */
   const days = new Set(series.map((p) => p.at.slice(0, 10)));
   if (days.size <= 1) {
-    return (v: string) =>
+    return (v: number | string) =>
       new Date(v).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" });
   }
-  return (v: string) =>
+  return (v: number | string) =>
     new Date(v).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
 }
+
+/**
+ * The tooltip's heading: the reading's own instant, in UTC and saying so. It
+ * was the viewer's local time beside axis labels in UTC, so a reading at 20:00
+ * UTC sat under "2 Oct" on the axis and read "3 Oct, 01:30" in its tooltip.
+ */
+function readingInstant(v: number | string): string {
+  return `${new Date(v).toLocaleString("en-GB", {
+    day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "UTC",
+  })} UTC`;
+}
+
+/** A rounded point is the platform's "74K", and says so in its tooltip. */
+function usageTooltipValue(view: "usage" | "velocity") {
+  return (v: unknown, _name: unknown, item: { payload?: { rounded?: boolean } } | undefined) =>
+    view === "velocity"
+      ? `${Number(v).toFixed(2)}%`
+      : `${item?.payload?.rounded ? "≈" : ""}${formatFull(Number(v))}`;
+}
+
+/**
+ * Time-scaled, not categorical. A categorical axis spaces points evenly, so a
+ * month of daily readings and one reading a week later were drawn the same
+ * distance apart, and five readings taken in one minute spread across the
+ * width with one date under all of them.
+ */
+const TIME_AXIS = { dataKey: "t", type: "number", scale: "time", domain: ["dataMin", "dataMax"] } as const;
 
 /**
  * `report` is the public client link's skin, measured off CreatorCore's own
@@ -59,10 +86,10 @@ export type AudioCardVariant = "dashboard" | "report";
 function makeReportAxisLabel(series: CampaignAudio["usageSeries"]) {
   const days = new Set(series.map((p) => p.at.slice(0, 10)));
   if (days.size <= 1) {
-    return (v: string) =>
+    return (v: number | string) =>
       new Date(v).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" });
   }
-  return (v: string) => {
+  return (v: number | string) => {
     const d = new Date(v);
     const month = d.getUTCMonth() + 1;
     const day = String(d.getUTCDate()).padStart(2, "0");
@@ -99,7 +126,8 @@ export function AudioCard({
       : imgSrc(audio.coverUrl, coverPx);
   // A tracked sound has counts only after a sync. Zero would claim the audio has
   // never been used, so an unsynced tracker shows an em dash instead.
-  const uses = audio.uses === null ? "—" : formatFull(audio.uses);
+  const uses = audio.uses === null ? "—" : `${audio.usesRounded ? "≈" : ""}${formatFull(audio.uses)}`;
+  const heading = audio.platform === "INSTAGRAM" ? "Instagram Audio" : "TikTok Audio";
   const added = audio.videosAdded24h === null ? "—" : `+${formatFull(audio.videosAdded24h)}`;
 
   /* Usage is how many videos use the sound; Velocity is how fast that is moving.
@@ -127,7 +155,7 @@ export function AudioCard({
       <div style={{ padding: 20 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
           <Music2 size={16} style={{ color: "var(--audio-title-ink, var(--cc-text-muted))" }} aria-hidden="true" />
-          <span style={{ fontSize: "var(--audio-title-size, 15px)", fontWeight: 700, color: "var(--audio-title-ink, var(--cc-text))" }}>TikTok Audio</span>
+          <span style={{ fontSize: "var(--audio-title-size, 15px)", fontWeight: 700, color: "var(--audio-title-ink, var(--cc-text))" }}>{heading}</span>
         </div>
 
         <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginBottom: audio.usageSeries.length > 1 ? 20 : 0 }}>
@@ -221,7 +249,7 @@ export function AudioCard({
             <ResponsiveContainer width="100%" height="82%">
               <AreaChart data={audio.usageSeries} margin={{ top: 4, right: 8, left: -12, bottom: 0 }}>
                 <XAxis
-                  dataKey="at"
+                  {...TIME_AXIS}
                   tick={{ fontSize: 11, fill: "var(--cc-text-muted)" }}
                   tickLine={false}
                   axisLine={false}
@@ -242,12 +270,8 @@ export function AudioCard({
                   tickFormatter={(v) => (view === "velocity" ? `${Number(v).toFixed(0)}%` : formatCompact(Number(v)))}
                 />
                 <Tooltip
-                  formatter={(v) => (view === "velocity" ? `${Number(v).toFixed(2)}%` : formatFull(Number(v)))}
-                  labelFormatter={(v) =>
-                    new Date(String(v)).toLocaleString("en-GB", {
-                      day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
-                    })
-                  }
+                  formatter={usageTooltipValue(view)}
+                  labelFormatter={(v) => readingInstant(v as number)}
                   labelStyle={{ fontSize: "var(--cc-t-12)"}}
                   contentStyle={{ fontSize: "var(--cc-t-12)", borderRadius: 8 }}
                 />
@@ -341,7 +365,7 @@ function ReportAudio({
   added: string;
   view: "usage" | "velocity";
   setView: (v: "usage" | "velocity") => void;
-  axisLabel: (v: string) => string;
+  axisLabel: (v: number | string) => string;
 }) {
   const hasCurve = audio.usageSeries.length > 1;
   /* A month-old figure rendered as a bare number claims to be current, and this
@@ -353,7 +377,7 @@ function ReportAudio({
 
   return (
     <section className="spr-card spr-audio">
-      <h2 className="spr-section">TikTok Audio</h2>
+      <h2 className="spr-section">{audio.platform === "INSTAGRAM" ? "Instagram Audio" : "TikTok Audio"}</h2>
 
       <div className="spr-audio-tiles">
         <a
@@ -428,7 +452,7 @@ function ReportAudio({
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={audio.usageSeries} margin={{ top: 4, right: 30, left: -8, bottom: 0 }}>
                 <XAxis
-                  dataKey="at"
+                  {...TIME_AXIS}
                   tick={{ fontSize: 14, fill: "var(--spr-audio-axis)" }}
                   tickLine={false}
                   axisLine={false}
@@ -448,12 +472,8 @@ function ReportAudio({
                   tickFormatter={(v) => (view === "velocity" ? `${Number(v).toFixed(0)}%` : formatCompact(Number(v)))}
                 />
                 <Tooltip
-                  formatter={(v) => (view === "velocity" ? `${Number(v).toFixed(2)}%` : formatFull(Number(v)))}
-                  labelFormatter={(v) =>
-                    new Date(String(v)).toLocaleString("en-GB", {
-                      day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
-                    })
-                  }
+                  formatter={usageTooltipValue(view)}
+                  labelFormatter={(v) => readingInstant(v as number)}
                   labelStyle={{ fontSize: "var(--cc-t-12)"}}
                   contentStyle={{ fontSize: "var(--cc-t-12)", borderRadius: 8 }}
                 />

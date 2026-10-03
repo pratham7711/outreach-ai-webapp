@@ -83,6 +83,30 @@ describe("GET /api/portal/stats", () => {
     expect(mdb.creator.findMany.mock.calls[0][0].where).toEqual({ id: { in: ["cr-1", "cr-2"] }, deletedAt: null });
   });
 
+  /* The rows arrive newest first, and the old loop let the last row written win:
+     the day's EARLIEST reading, or whichever agency's row came second. */
+  it("keeps the day's latest reading, whatever order the rows arrive in", async () => {
+    mdb.creator.findMany.mockResolvedValue([
+      {
+        id: "cr-1",
+        platform: "TIKTOK",
+        handle: "fake_creator_one",
+        trackerSnapshots: [
+          { followersCount: 1300, recordedAt: new Date("2026-09-01T22:00:00Z") },
+          { followersCount: 1000, recordedAt: new Date("2026-09-01T02:00:00Z") },
+        ],
+      },
+      {
+        id: "cr-2",
+        platform: "TIKTOK",
+        handle: "fake_creator_one",
+        trackerSnapshots: [{ followersCount: 1100, recordedAt: new Date("2026-09-01T12:00:00Z") }],
+      },
+    ]);
+    const body = await (await stats()).json();
+    expect(body.trends[0].points).toEqual([{ day: "2026-09-01", followers: 1300 }]);
+  });
+
   it("shows Instagram reach and saves only where they were measured", async () => {
     const base = {
       postUrl: "https://example.test/p/1",

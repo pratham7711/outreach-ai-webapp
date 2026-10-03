@@ -31,7 +31,7 @@ type LeaderboardRow = {
   handle: string | null;
   avatarUrl: string | null;
   posts: number;
-  views: number;
+  views: number | null;
   engagements: number | null;
   engagementRate: number | null;
 };
@@ -368,8 +368,10 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
                   nameKey="platform"
                   paddingAngle={2}
                   label={false}
+                  /* The stroke separates slices; on a lone slice it is a seam
+                     drawn across a full ring. */
                   stroke="var(--cc-card)"
-                  strokeWidth={2}
+                  strokeWidth={pieData.length > 1 ? 2 : 0}
                 >
                   {pieData.map((entry) => (
                     <Cell key={entry.platform} fill={platformColor(entry.platform)} />
@@ -415,7 +417,7 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
                     <CreatorName name={row.name} handle={row.handle} />
                   </div>
                   <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{row.posts}</span>
-                  <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{formatNumber(row.views)}</span>
+                  <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{row.views === null ? "—" : formatNumber(row.views)}</span>
                   {anyEngagementMeasured && (
                     <span>
                       {row.engagementRate !== null && (

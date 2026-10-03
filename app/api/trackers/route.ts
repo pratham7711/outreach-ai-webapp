@@ -13,13 +13,15 @@ import {
   type WindowChange,
 } from "@/lib/trackers/metrics";
 import {
+  CHART_BUCKET_HOURS,
   READ_CADENCE_HOURS,
-  downsample,
   effectiveChartGranularity,
   parseGranularity,
   snapshotFetchLimit,
 } from "@/lib/trackers/granularity";
 import { SOUND_URL_ERRORS, parseSoundUrl } from "@/lib/trackers/soundUrl";
+import { soundSeries } from "@/lib/sounds/usageSeries";
+import { usesPrecisionOf } from "@/lib/sounds/precision";
 import { readOneInstagramAudio } from "@/lib/platforms/instagramAudioUsage";
 import { expandShortLink } from "@/lib/trackers/expandShortLink";
 import { trackerLimitError, trackerUsage } from "@/lib/trackers/limit";
@@ -82,7 +84,14 @@ export async function GET(req: NextRequest) {
         value: s.usesCount,
         recordedAt: s.recordedAt,
       }));
-      const change = changeOverWindow(history, period, now, { nearestBaseline: true });
+      /* A change between two rounded figures ("74K" then "74.1K") is the
+         rounding, not new uses (lib/sounds/precision), so the window's change
+         needs exact readings at both ends or it is not offered at all. */
+      const windowChange = changeOverWindow(history, period, now, { nearestBaseline: true });
+      const change =
+        windowChange && usesPrecisionOf(windowChange.from) === "exact" && usesPrecisionOf(windowChange.to) === "exact"
+          ? windowChange
+          : null;
       const latest = sound.snapshots[0] ?? null;
 
       // Age is served with the count, never separately. changeOverWindow will
@@ -107,12 +116,15 @@ export async function GET(req: NextRequest) {
         addedInPeriod: measurable ? change?.added ?? null : null,
         snapshotCount: sound.snapshots.length,
         // The series the chart draws: one point per bucket, oldest first, with
-        // the closing value of each bucket rather than its mean. Change figures
-        // above stay on the raw history — downsampling is a display concern and
+        // the closing value of each bucket rather than its mean -- the campaign
+        // audio card's own series (lib/sounds/usageSeries), so a rounded "74K"
+        // never sits between exact readings on either screen. Change figures
+        // above stay on the raw history — bucketing is a display concern and
         // must not move the numbers in the tiles.
-        series: downsample(history, chartAt).map((s) => ({
-          value: s.value,
-          recordedAt: s.recordedAt,
+        series: soundSeries(sound.snapshots, { bucketHours: CHART_BUCKET_HOURS[chartAt] }).map((p) => ({
+          value: p.usesCount,
+          recordedAt: new Date(p.t),
+          rounded: p.precision === "rounded",
         })),
         chartGranularity: chartAt,
       };

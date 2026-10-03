@@ -728,15 +728,21 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
       name: platform, value: stats.views, fill: platformColor(platform),
     }));
 
-  // Per-creator breakdown for analytics
+  /* Per-creator breakdown for analytics. Keyed by creator, not by name -- two
+     creators called the same drew as one bar -- and each counter summed only
+     over the posts that measured it, so a creator whose likes (or, on Instagram
+     photos, views) were never read gets no bar rather than a bar at 0. */
   const creatorStats = campaign.posts.reduce((acc, p) => {
-    const name = (p as any).creator?.name ?? "Unknown";
-    if (!acc[name]) acc[name] = { views: 0, likes: 0, posts: 0 };
-    acc[name].views += p.viewsCount;
-    acc[name].likes += p.likesCount;
-    acc[name].posts += 1;
+    const key = p.creator?.id ?? "unknown";
+    if (!acc[key]) acc[key] = { name: p.creator?.name ?? "Unknown", views: null, likes: null, posts: 0 };
+    const metrics = (p as { platformMetrics?: unknown }).platformMetrics;
+    const views = fieldMetricValue(p.viewsCount, p.lastSyncedAt, metrics, "views");
+    const likes = fieldMetricValue(p.likesCount, p.lastSyncedAt, metrics, "likes");
+    if (views !== null) acc[key].views = (acc[key].views ?? 0) + views;
+    if (likes !== null) acc[key].likes = (acc[key].likes ?? 0) + likes;
+    acc[key].posts += 1;
     return acc;
-  }, {} as Record<string, { views: number; likes: number; posts: number }>);
+  }, {} as Record<string, { name: string; views: number | null; likes: number | null; posts: number }>);
 
   /* The leaders only. Every creator used to get a bar pair, in post order: a
      120-creator campaign drew 240 bars into a 240px card, so no label could be
@@ -744,11 +750,11 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
      -- a single 290ms task at 4x CPU, which put this tab over the 200ms
      Total Blocking Time budget on its own. */
   const creatorCount = Object.keys(creatorStats).length;
-  const creatorBarData = Object.entries(creatorStats)
-    .sort(([, a], [, b]) => b.views - a.views)
+  const creatorBarData = Object.values(creatorStats)
+    .sort((a, b) => (b.views ?? -1) - (a.views ?? -1) || (b.likes ?? -1) - (a.likes ?? -1))
     .slice(0, TOP_CREATOR_BARS)
-    .map(([name, stats]) => ({
-      name: name.split(" ")[0], views: stats.views, likes: stats.likes,
+    .map((stats) => ({
+      name: stats.name.split(" ")[0], views: stats.views, likes: stats.likes,
     }));
 
   return (

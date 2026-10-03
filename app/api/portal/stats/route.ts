@@ -82,7 +82,7 @@ export async function GET() {
 
     const trendByKey = new Map<
       string,
-      { platform: string; handle: string; points: Map<string, number> }
+      { platform: string; handle: string; points: Map<string, { at: number; followers: number }> }
     >();
     for (const row of rows) {
       if (row.trackerSnapshots.length === 0) continue;
@@ -91,9 +91,14 @@ export async function GET() {
       const entry = trendByKey.get(key) ?? { platform: row.platform, handle, points: new Map() };
       for (const s of row.trackerSnapshots) {
         /* One point per day: two orgs reading the same profile on the same day
-           are the same reading twice. The later one wins. */
+           are the same reading twice. The later one wins -- by recordedAt, not
+           by arrival: the rows come newest first, so "last written" was the
+           day's EARLIEST reading, and across two orgs it was whichever row
+           Prisma returned second. */
         const day = s.recordedAt.toISOString().slice(0, 10);
-        entry.points.set(day, s.followersCount);
+        const at = s.recordedAt.getTime();
+        const held = entry.points.get(day);
+        if (!held || at >= held.at) entry.points.set(day, { at, followers: s.followersCount });
       }
       trendByKey.set(key, entry);
     }
@@ -103,7 +108,7 @@ export async function GET() {
       source: "public_profile" as const,
       points: [...t.points.entries()]
         .sort(([a], [b]) => a.localeCompare(b))
-        .map(([day, followers]) => ({ day, followers })),
+        .map(([day, { followers }]) => ({ day, followers })),
     }));
 
     const campaignPosts = posts.map((p) => {

@@ -3,7 +3,8 @@ import { isCoverUrlStale } from "@/lib/sounds/coverUrl";
 import { readTikTokAudioUsage, isMeasuredRung } from "@/lib/platforms/tiktokAudioUsage";
 import { readInstagramAudioUsage } from "@/lib/platforms/instagramAudioUsage";
 import { createLogger } from "@/lib/observability/logger";
-import { holdSoundReading, velocityBetween } from "@/lib/trackers/metrics";
+import { holdSoundReading } from "@/lib/trackers/metrics";
+import { readingPrecision, roundedAddsNothing, soundReadingChange, type UsesPrecision } from "@/lib/sounds/precision";
 
 export type SnapshotResult = {
   snapshots: number;
@@ -23,6 +24,9 @@ export type SnapshotResult = {
  * genuinely stopped is picked up again the following night.
  */
 const HANDOVER_WINDOW_MS = 8 * 60 * 60 * 1000;
+
+/** The shortest gap between two readings of one sound taken on request. */
+const REFRESH_MIN_GAP_MS = 10 * 60 * 1000;
 
 export type SnapshotOptions = {
   orgId?: string;
@@ -90,6 +94,15 @@ export async function snapshotSounds(options: SnapshotOptions = {}): Promise<Sna
       skipped++;
       return false;
     }
+    /* "Now" is not "again within seconds", though. Production holds bursts of
+       five readings of one sound two seconds apart (2026-09-23 19:43:58 to
+       19:44:07, and four more on 09-24): every refresh and save in a row read
+       it again, and each burst is five identical points on the audio chart. A
+       reading this recent already answers the person who clicked. */
+    if (soundId && lastAt && Date.now() - lastAt.getTime() < REFRESH_MIN_GAP_MS) {
+      skipped++;
+      return false;
+    }
     return true;
   });
 
@@ -145,8 +158,8 @@ export async function snapshotSounds(options: SnapshotOptions = {}): Promise<Sna
       }
 
       const { reading } = outcome;
-      await recordSoundSnapshot(sound, reading, { deltaKnown: reading.precision === "exact" });
-      snapshots++;
+      if (await recordSoundSnapshot(sound, reading, { precision: reading.precision })) snapshots++;
+      else skipped++;
       continue;
     }
 
@@ -207,8 +220,8 @@ export async function snapshotSounds(options: SnapshotOptions = {}): Promise<Sna
       continue;
     }
 
-    await recordSoundSnapshot(sound, stats);
-    snapshots++;
+    if (await recordSoundSnapshot(sound, stats)) snapshots++;
+    else skipped++;
   }
 
   if (unread > 0) log.warn("time budget reached; stopping early", { remaining: unread });
@@ -241,31 +254,44 @@ export type RecordSnapshotOptions = {
    * The level still gets recorded — "about a million reels" is worth having.
    * Only the change is withheld, and it is withheld the same way a first-ever
    * snapshot withholds it: zero, which the reader already renders as unknown.
+   *
+   * TikTok's embed does the same above 10K (lib/sounds/precision), and its
+   * reader cannot say so, so the figure's own shape is checked as well: a
+   * rounded-looking level on either end withholds the change too.
    */
-  deltaKnown?: boolean;
+  precision?: UsesPrecision;
 };
 
+/**
+ * Returns whether a row was written. It is not when the reading is a rounded
+ * figure that agrees with the exact one already stored (roundedAddsNothing):
+ * writing it would replace 73,912 with "74K" and chart the difference.
+ */
 export async function recordSoundSnapshot(
   sound: { id: string; title?: string | null; artist?: string | null; coverImageUrl?: string | null; snapshots: { usesCount: number }[] },
   stats: { usesCount: number; title?: string | null; artist?: string | null; coverImageUrl?: string | null },
   options: RecordSnapshotOptions = {},
-): Promise<void> {
+): Promise<boolean> {
+  const precision = readingPrecision(stats.usesCount, options.precision);
+  const previous = sound.snapshots[0]?.usesCount;
+  if (roundedAddsNothing(previous, stats.usesCount, precision)) return false;
+
   // A delta needs two observations. On the first snapshot of a sound there is no
   // earlier reading to subtract, and the lifetime total is not a 24-hour figure:
   // treating a fresh sound with 46 uses as "+46 videos added today" is inventing
   // history for a sound that may have been trending for a month. Record the
   // level, leave the change at zero, and let the reader say "unknown" -- it can,
-  // because a single snapshot has no predecessor.
-  const baseline = options.deltaKnown === false ? undefined : sound.snapshots[0];
-  const delta = baseline ? stats.usesCount - baseline.usesCount : 0;
+  // because a single snapshot has no predecessor. Two rounded figures, or a
+  // rounded and an exact one, are withheld the same way.
+  const change = soundReadingChange(previous, stats.usesCount, precision);
 
   await db.soundTrackerSnapshot.create({
     data: {
       soundId: sound.id,
       usesCount: stats.usesCount,
       // A count of videos, not a rate: velocityScore is where the percentage goes.
-      videosAdded24h: Math.max(0, Math.round(delta)),
-      deltaUses24h: Math.round(delta),
+      videosAdded24h: change.videosAdded24h,
+      deltaUses24h: change.deltaUses24h,
       /* velocityScore's unit is PERCENT change since the previous reading, for
          every writer of this column: here, the creator sweep, the seed, and
          app/api/cron/sync-trackers -- which used to write uses/hour into it
@@ -274,7 +300,7 @@ export async function recordSoundSnapshot(
          point with a "%" suffix (lib/reports/campaignPerformance -> AudioCard).
          The trackers page does not read this column; it recomputes
          velocityPerHour from the series. */
-      velocityScore: baseline ? velocityBetween(baseline.usesCount, stats.usesCount) : 0,
+      velocityScore: change.velocityScore,
     },
   });
 
@@ -282,6 +308,7 @@ export async function recordSoundSnapshot(
   if (Object.keys(patch).length > 0) {
     await db.tikTokSound.update({ where: { id: sound.id }, data: patch });
   }
+  return true;
 }
 
 /**
