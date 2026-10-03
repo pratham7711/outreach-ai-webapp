@@ -97,8 +97,11 @@ const CREATOR_SOURCE_FAILURES = new Set(["unreadable", "rate-limited"]);
 const CREATOR_NEITHER = new Set(["no-credentials", "unsupported-platform"]);
 
 /** A creator profile read, as the breaker counts it. */
-export function classifyCreatorRead(result: { ok: true } | { ok: false; reason: string }): ReadOutcome {
+export function classifyCreatorRead(result: { ok: true } | { ok: false; reason: string; detail?: string }): ReadOutcome {
   if (result.ok) return "ok";
+  /* A sweep that held back below Meta's limit asked nothing, so the source
+     said nothing either way (lib/platforms/instagramDiscoveryTokens). */
+  if (result.reason === "rate-limited" && result.detail?.startsWith("deferred:")) return "neutral";
   if (CREATOR_SOURCE_FAILURES.has(result.reason)) return "fail";
   if (CREATOR_NEITHER.has(result.reason)) return "neutral";
   return "ok";

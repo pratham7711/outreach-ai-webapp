@@ -29,6 +29,10 @@ import { countsContradict } from "../metrics/coherence";
 export type FetchMetricsContext = {
   instagramToken?: string;
   instagramHandle?: string;
+  /** Business Discovery reads stop at this share of Meta's hourly usage
+   *  (POST_SWEEP_STOP_PERCENT from the post sweep). Unset: a person is waiting,
+   *  and the read is asked whatever the usage. */
+  instagramStopAtPercent?: number;
   tiktokToken?: string;
   /**
    * Skip the metadata-only fallbacks when the counters could not be had.
@@ -1335,6 +1339,7 @@ export async function fetchInstagramMetrics(
   url: string,
   token?: string,
   handle?: string,
+  stopAtPercent?: number,
 ): Promise<Partial<PostMetrics>> {
   const log = createLogger({ context: { platform: "INSTAGRAM" } });
   const merged: Partial<PostMetrics> = {};
@@ -1439,14 +1444,16 @@ export async function fetchInstagramMetrics(
     try {
       /* Token A, or the standby B while A is limited (plan §13 B). Each attempt
          gets its own walk budget, so a retry on B is not starved by A's. */
-      const read = await readWithDiscoveryToken((cred) =>
-        fetchInstagramPublicPostMetrics(handle, url, cred.token, fetchTimeoutSignal(GRAPH_WALK_TIMEOUT_MS), {
-          rateLimitThrows: true,
-          ...cred.graphOptions,
-          onNotOnAccount: () => {
-            notOnAccount = true;
-          },
-        }),
+      const read = await readWithDiscoveryToken(
+        (cred) =>
+          fetchInstagramPublicPostMetrics(handle, url, cred.token, fetchTimeoutSignal(GRAPH_WALK_TIMEOUT_MS), {
+            rateLimitThrows: true,
+            ...cred.graphOptions,
+            onNotOnAccount: () => {
+              notOnAccount = true;
+            },
+          }),
+        { stopAtPercent },
       );
       if (read.ok) post = read.value;
       else bizAttempted = false;
@@ -1575,9 +1582,17 @@ export async function fetchInstagramMetrics(
         ? "not-a-professional-account"
         : notOnAccount && !bizRateLimited
           ? "not-on-account"
-          : attempted
-            ? "platform-refused"
-            : "not-configured";
+          : /* Meta's hourly limit, or a sweep holding back below it. Not a
+               refusal of this post and not the source failing: filed as
+               platform-refused, 26 throttled reads in a row opened the
+               post-reads breaker on 2026-10-03, whose probes were throttled in
+               turn, and Instagram post reads stayed shut after the window
+               reset. backing-off is uncharged and neutral to the breaker. */
+            bizRateLimited
+            ? "backing-off"
+            : attempted
+              ? "platform-refused"
+              : "not-configured";
   log.warn("instagram metrics unavailable from every source", { reason, sources });
 
   try {
@@ -1664,7 +1679,12 @@ export async function fetchPostMetrics(
       );
       break;
     case "INSTAGRAM":
-      metrics = await fetchInstagramMetrics(url, context?.instagramToken, context?.instagramHandle);
+      metrics = await fetchInstagramMetrics(
+        url,
+        context?.instagramToken,
+        context?.instagramHandle,
+        context?.instagramStopAtPercent,
+      );
       break;
     case "TWITCH":
       metrics = await fetchTwitchMetrics(url, detected.id, fetchTimeoutSignal());

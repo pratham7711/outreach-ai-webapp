@@ -25,8 +25,14 @@ jest.mock("@/lib/platforms/instagramEmbed", () => ({
 import { readCreatorProfile } from "@/lib/platforms/creatorProfile";
 import { fetchInstagramMetrics } from "@/lib/platforms/fetchPostMetrics";
 import { getInstagramBusinessToken } from "@/lib/platforms/instagramBusinessToken";
+import { classifyCreatorRead } from "@/lib/ops/sourceBreaker";
 import {
   DEFAULT_LIMIT_WINDOW_MS,
+  InstagramDeferredError,
+  POST_SWEEP_STOP_PERCENT,
+  TRACKER_SWEEP_STOP_PERCENT,
+  USAGE_FRESH_MS,
+  backgroundReadsDeferred,
   TOKEN_B_ENV,
   TOKEN_B_USER_ID_ENV,
   parseGraphUsage,
@@ -272,6 +278,81 @@ describe("usage logging", () => {
     for (const secret of [HANDLE, TOKEN_A, TOKEN_B, "17841400000000000", "ig-fake-a"]) {
       expect(all).not.toContain(secret);
     }
+  });
+});
+
+describe("background readers stop below the limit", () => {
+  const usageAt = (pct: number) => ({
+    "x-app-usage": JSON.stringify({ call_count: pct, total_cputime: 1, total_time: 1 }),
+  });
+
+  it("defers a tracker read past 60% without calling, and reads it as neutral for the breaker", async () => {
+    const calls = fakeGraph({ [TOKEN_A]: "ok" }, usageAt(65));
+    expect(await readCreatorProfile("INSTAGRAM", HANDLE, { instagramStopAtPercent: TRACKER_SWEEP_STOP_PERCENT })).toMatchObject({
+      ok: true,
+    });
+
+    calls.length = 0;
+    const second = await readCreatorProfile("INSTAGRAM", HANDLE, { instagramStopAtPercent: TRACKER_SWEEP_STOP_PERCENT });
+    expect(second).toMatchObject({ ok: false, reason: "rate-limited" });
+    expect(second.ok ? "" : second.detail).toMatch(/^deferred: Meta usage at 65%/);
+    expect(calls).toHaveLength(0);
+    expect(classifyCreatorRead(second as { ok: false; reason: string; detail?: string })).toBe("neutral");
+  });
+
+  it("lets the post sweep through at the same usage, and a person's Refresh through at any", async () => {
+    const calls = fakeGraph({ [TOKEN_A]: "ok" }, usageAt(65));
+    await readCreatorProfile("INSTAGRAM", HANDLE);
+    calls.length = 0;
+    expect(backgroundReadsDeferred(TRACKER_SWEEP_STOP_PERCENT)).toBe(true);
+    expect(backgroundReadsDeferred(POST_SWEEP_STOP_PERCENT)).toBe(false);
+    expect(await readWithDiscoveryToken(async (c) => c.slot, { now, stopAtPercent: POST_SWEEP_STOP_PERCENT })).toMatchObject({
+      ok: true,
+    });
+    expect(await readCreatorProfile("INSTAGRAM", HANDLE)).toMatchObject({ ok: true });
+  });
+
+  it("forgets a usage reading once it is stale", async () => {
+    fakeGraph({ [TOKEN_A]: "ok" }, usageAt(90));
+    await readCreatorProfile("INSTAGRAM", HANDLE);
+    expect(backgroundReadsDeferred(POST_SWEEP_STOP_PERCENT)).toBe(true);
+    clock += USAGE_FRESH_MS;
+    expect(backgroundReadsDeferred(POST_SWEEP_STOP_PERCENT)).toBe(false);
+  });
+
+  it("holds a background read for the window after a code 4, even with one token", async () => {
+    const calls = fakeGraph({ [TOKEN_A]: "limited" });
+    await readCreatorProfile("INSTAGRAM", HANDLE);
+    calls.length = 0;
+
+    await expect(
+      readWithDiscoveryToken(async (c) => c.slot, { now, stopAtPercent: POST_SWEEP_STOP_PERCENT }),
+    ).rejects.toBeInstanceOf(InstagramDeferredError);
+    expect(calls).toHaveLength(0);
+    /* A person's Refresh still asks, exactly as before. */
+    expect(await readCreatorProfile("INSTAGRAM", HANDLE)).toMatchObject({ ok: false, reason: "rate-limited" });
+    expect(tokensAsked(calls)).toEqual([TOKEN_A]);
+
+    clock += DEFAULT_LIMIT_WINDOW_MS;
+    expect(backgroundReadsDeferred(POST_SWEEP_STOP_PERCENT)).toBe(false);
+  });
+
+  it("uses B when only A is past the threshold", async () => {
+    process.env[TOKEN_B_ENV] = TOKEN_B;
+    fakeGraph({ [TOKEN_A]: "ok", [TOKEN_B]: "ok" }, usageAt(85));
+    await readWithDiscoveryToken(async (c) => c.slot, { now });
+    /* No Graph call was made above, so give A a reading through a real read. */
+    await readCreatorProfile("INSTAGRAM", HANDLE);
+    expect(backgroundReadsDeferred(POST_SWEEP_STOP_PERCENT)).toBe(false);
+    expect(await readWithDiscoveryToken(async (c) => c.slot, { now, stopAtPercent: POST_SWEEP_STOP_PERCENT })).toMatchObject({
+      slot: "B",
+    });
+  });
+
+  it("files a throttled post read as backing-off, which the breaker does not count", async () => {
+    fakeGraph({ [TOKEN_A]: "limited" });
+    const m = await fetchInstagramMetrics(POST, undefined, HANDLE);
+    expect(m.fetchReason).toBe("backing-off");
   });
 });
 

@@ -1,4 +1,5 @@
 import { snapshotCreators, type CreatorSnapshotResult } from "@/lib/creators/snapshot";
+import { TRACKER_SWEEP_STOP_PERCENT } from "@/lib/platforms/instagramDiscoveryTokens";
 import { httpWorkerExit, sandboxExit, type TikTokExit } from "@/lib/platforms/tiktokExit";
 import {
   openTikTokProfileFetcher,
@@ -176,6 +177,7 @@ export async function runReaderV2(options: ReaderRunOptions): Promise<ReaderRunR
       readTikTokProfileVia: (handle) => (fetcher ? fetcher.read(handle) : Promise.resolve(noLanes)),
       readTikTokEmbedHtml: (handle) => (fetcher ? fetcher.readEmbedHtml(handle) : Promise.resolve(null)),
       sourceGuard,
+      instagramStopAtPercent: TRACKER_SWEEP_STOP_PERCENT,
     });
   } finally {
     const open = fetcher as TikTokProfileFetcher | null;

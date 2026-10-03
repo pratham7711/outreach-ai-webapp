@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import type { Platform } from "@/lib/generated/prisma/client";
 import { readCreatorProfile, type CreatorReadResult } from "@/lib/platforms/creatorProfile";
+import { TRACKER_SWEEP_STOP_PERCENT } from "@/lib/platforms/instagramDiscoveryTokens";
 import { captureLatestAvatar } from "@/lib/creators/avatarStore";
 import { rosterTablesReady } from "@/lib/creators/rosterTables";
 import { recordPlatformAccountId } from "@/lib/creators/accountIds";
@@ -84,7 +85,9 @@ export async function refreshRosterProfiles({
     counts.considered++;
     const now = new Date(nowMs);
 
-    let read: CreatorReadResult = await readCreatorProfile(link.platform, link.handle).catch(
+    let read: CreatorReadResult = await readCreatorProfile(link.platform, link.handle, {
+      instagramStopAtPercent: TRACKER_SWEEP_STOP_PERCENT,
+    }).catch(
       (e): CreatorReadResult => ({ ok: false, reason: "unreadable", detail: String(e) }),
     );
     // Function egress gets TikTok's login shell; the sandbox gets the page.

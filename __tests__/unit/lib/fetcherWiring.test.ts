@@ -36,7 +36,7 @@ describe("fetch capabilities are wired to a caller", () => {
     },
     {
       capability: "openTikTokPostFetcher",
-      caller: "app/api/cron/sync-posts/route.ts",
+      caller: "lib/sync/postSweepRun.ts",
       why:
         "The tracker sweep reads TikTok too. Wired separately from the bulk refresh because " +
         "it was once the path that quietly kept using the weaker egress after the others moved.",

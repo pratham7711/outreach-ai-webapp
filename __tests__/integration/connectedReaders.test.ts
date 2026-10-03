@@ -12,6 +12,18 @@ import { randomBytes } from "crypto";
 process.env.TOKEN_ENCRYPTION_KEY = randomBytes(32).toString("base64");
 
 import { GET as cronSync } from "@/app/api/cron/sync-posts/route";
+
+/* Instagram belongs to the hourly paced pass by default (lib/sync/instagramPacing).
+   These tests are about the shared sweep through the 6-hourly route, reading
+   every platform, which is what it does with that pass switched off. */
+const realInstagramHourly = process.env.SYNC_INSTAGRAM_HOURLY;
+beforeAll(() => {
+  process.env.SYNC_INSTAGRAM_HOURLY = "off";
+});
+afterAll(() => {
+  if (realInstagramHourly === undefined) delete process.env.SYNC_INSTAGRAM_HOURLY;
+  else process.env.SYNC_INSTAGRAM_HOURLY = realInstagramHourly;
+});
 import { GET as tiktokVideos } from "@/app/api/creators/[id]/tiktok-videos/route";
 import { getTikTokTokenForCreator } from "@/lib/platforms/tiktokToken";
 import { getInstagramAccountForCreator } from "@/lib/platforms/instagramToken";

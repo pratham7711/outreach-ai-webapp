@@ -60,6 +60,9 @@ export type CreatorSnapshotResult = {
 };
 
 export type CreatorSnapshotOptions = {
+  /** Instagram reads stop at this share of Meta's hourly usage. The crons pass
+   *  TRACKER_SWEEP_STOP_PERCENT; a person's Refresh passes nothing and is never held back. */
+  instagramStopAtPercent?: number;
   orgId?: string;
   creatorId?: string;
   dryRun?: boolean;
@@ -374,6 +377,7 @@ export async function snapshotCreators(
     concurrency = SWEEP_CONCURRENCY,
     onSelected,
     sourceGuard,
+    instagramStopAtPercent,
   } = options;
   const log = createLogger({ context: { job: "snapshot-creators", orgId: orgId ?? "all", ...(plan ? { reader: plan } : {}) } });
   const deadline = Date.now() + deadlineMs;
@@ -551,7 +555,7 @@ export async function snapshotCreators(
         result = read.result;
         via = read.via;
       } else {
-        result = await readCreatorProfile(creator.platform, creator.handle);
+        result = await readCreatorProfile(creator.platform, creator.handle, { instagramStopAtPercent });
       }
     } catch (e) {
       result = {

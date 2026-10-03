@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { loadImage } from "@/lib/media/loadImage";
 import { readCreatorProfile, type CreatorReadResult } from "@/lib/platforms/creatorProfile";
+import { TRACKER_SWEEP_STOP_PERCENT } from "@/lib/platforms/instagramDiscoveryTokens";
 import { createLogger } from "@/lib/observability/logger";
 
 /**
@@ -285,7 +286,9 @@ export async function refreshCreatorAvatars({
       return;
     }
     if (!stored && creator.handle) {
-      let read: CreatorReadResult = await readCreatorProfile(creator.platform, creator.handle).catch(
+      let read: CreatorReadResult = await readCreatorProfile(creator.platform, creator.handle, {
+        instagramStopAtPercent: TRACKER_SWEEP_STOP_PERCENT,
+      }).catch(
         (e): CreatorReadResult => ({ ok: false, reason: "unreadable", detail: String(e) })
       );
       if (!read.ok && creator.platform === "TIKTOK" && readTikTokProfileRemote) {

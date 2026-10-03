@@ -174,7 +174,7 @@ describe("refreshCreatorAvatars", () => {
     read.mockResolvedValue({ ok: true, profile: { avatarUrl: "https://yt3.ggpht.com/fresh" } });
     load.mockResolvedValue(webp);
     const counts = await refreshCreatorAvatars({ nowMs: NOW });
-    expect(read).toHaveBeenCalledWith("YOUTUBE", "chan");
+    expect(read).toHaveBeenCalledWith("YOUTUBE", "chan", { instagramStopAtPercent: 60 });
     expect(load.mock.calls[0][0]).toBe("https://yt3.ggpht.com/fresh");
     expect(counts.stored).toBe(1);
   });

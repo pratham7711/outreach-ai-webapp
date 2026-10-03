@@ -5,6 +5,18 @@ import { NextRequest } from "next/server";
 import { POST as POSTSync } from "@/app/api/campaigns/[id]/posts/[postId]/sync/route";
 import { GET as cronSync } from "@/app/api/cron/sync-posts/route";
 
+/* Instagram belongs to the hourly paced pass by default (lib/sync/instagramPacing).
+   These tests are about the shared sweep through the 6-hourly route, reading
+   every platform, which is what it does with that pass switched off. */
+const realInstagramHourly = process.env.SYNC_INSTAGRAM_HOURLY;
+beforeAll(() => {
+  process.env.SYNC_INSTAGRAM_HOURLY = "off";
+});
+afterAll(() => {
+  if (realInstagramHourly === undefined) delete process.env.SYNC_INSTAGRAM_HOURLY;
+  else process.env.SYNC_INSTAGRAM_HOURLY = realInstagramHourly;
+});
+
 jest.mock("@/lib/db", () => ({
   db: {
     campaign: { findFirst: jest.fn(), findMany: jest.fn(), updateMany: jest.fn() },

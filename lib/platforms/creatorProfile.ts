@@ -238,12 +238,14 @@ async function readDiscoveryProfile(handle: string, cred: DiscoveryCredential): 
   return first;
 }
 
-async function readInstagram(handle: string): Promise<CreatorReadResult> {
+async function readInstagram(handle: string, stopAtPercent?: number): Promise<CreatorReadResult> {
   let profile;
   try {
     /* Token A, or the standby B while A is limited (plan §13 B). Both limited
-       is a rate limit, caught below like any other. */
-    const read = await readWithDiscoveryToken((cred) => readDiscoveryProfile(handle, cred));
+       is a rate limit, caught below like any other. A sweep passes its
+       threshold and is deferred below Meta's limit; the detail then starts
+       "deferred:", which the breaker does not count against the source. */
+    const read = await readWithDiscoveryToken((cred) => readDiscoveryProfile(handle, cred), { stopAtPercent });
     if (!read.ok) return { ok: false, reason: "no-credentials" };
     profile = read.value;
   } catch (e) {
@@ -505,11 +507,11 @@ async function readYouTube(handle: string, channelId?: string): Promise<CreatorR
 export async function readCreatorProfile(
   platform: string,
   handle: string,
-  options: { youtubeChannelId?: string } = {}
+  options: { youtubeChannelId?: string; instagramStopAtPercent?: number } = {}
 ): Promise<CreatorReadResult> {
   switch (platform?.toUpperCase()) {
     case "INSTAGRAM":
-      return readInstagram(handle);
+      return readInstagram(handle, options.instagramStopAtPercent);
     case "YOUTUBE":
       return readYouTube(handle, options.youtubeChannelId);
     case "TIKTOK":

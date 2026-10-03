@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { snapshotCreators } from "@/lib/creators/snapshot";
+import { TRACKER_SWEEP_STOP_PERCENT } from "@/lib/platforms/instagramDiscoveryTokens";
 import { openTopPostsSession } from "@/lib/platforms/tiktokTopPostsBrowser";
 import { openSandboxProfileFetcher } from "@/lib/platforms/tiktokProfileSandbox";
 import { withTimeout } from "@/lib/platforms/tiktokBrowser";
@@ -68,6 +69,7 @@ async function cronHandler(request: NextRequest) {
         readTikTokProfileRemote: (handle) => remote.read(handle),
         readTikTokEmbedHtml: (handle) => remote.readEmbedHtml(handle),
         sourceGuard,
+        instagramStopAtPercent: TRACKER_SWEEP_STOP_PERCENT,
         ...scope,
       });
       log.info("creator tracker cron complete", { ...counts, dryRun });

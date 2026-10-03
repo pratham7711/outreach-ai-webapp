@@ -9,13 +9,16 @@
  *
  * Minutes already taken, for whoever adds the next one (plan §14 rule 1 keeps
  * releases away from them): :00 every 6 h and daily at 04:00 / 05:00, :10 and
- * :12 hourly, :15 every 6 h, :30 every 2 h and at 00:30, :40 hourly. The canary
+ * :12 and :13 hourly, :15 every 6 h, :30 every 2 h and at 00:30, :40 hourly.
+ * The Instagram post pass sits at :13, inside the window :10 and :12 have already
+ * woken Neon for. The canary
  * runs at :44, inside the database's awake window from the :40 reader rather
  * than waking Neon a fifth time an hour; the weekly meter at 03:14 on Monday,
  * after the :10 and :12 jobs have woken it.
  */
 export const CRON_JOBS = [
   { job: "sync-posts", path: "/api/cron/sync-posts", schedule: "0 */6 * * *", label: "Post metric sync" },
+  { job: "sync-instagram-posts", path: "/api/cron/sync-instagram-posts", schedule: "13 * * * *", label: "Instagram post sync (hourly, paced)" },
   { job: "auto-approve-submissions", path: "/api/cron/auto-approve-submissions", schedule: "0 */6 * * *", label: "Auto-approve submissions" },
   { job: "snapshot-sounds", path: "/api/cron/snapshot-sounds", schedule: "0 4 * * *", label: "Sound snapshots" },
   { job: "sync-trackers", path: "/api/cron/sync-trackers", schedule: "15 */6 * * *", label: "Sound trackers" },

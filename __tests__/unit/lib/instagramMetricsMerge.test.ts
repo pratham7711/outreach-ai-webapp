@@ -434,13 +434,16 @@ describe("fetchInstagramMetrics — a post the account does not list", () => {
     expect(m.fetchReason).toBeUndefined();
   });
 
-  it("stays a refusal when the throttle cut the walk short", async () => {
+  it("is a throttle, not a verdict, when the throttle cut the walk short", async () => {
     const { InstagramRateLimitError } = jest.requireActual("@/lib/platforms/instagram");
     bizPost.mockImplementation(async (_h: string, _u: string, _t: string, _s: unknown, opts: { onNotOnAccount?: () => void }) => {
       opts.onNotOnAccount?.();
       throw new InstagramRateLimitError(4);
     });
     const m = await fetchInstagramMetrics(URL, undefined, "creator.name");
-    expect(m.fetchReason).toBe("platform-refused");
+    /* Not "not-on-account" (the walk was cut short) and not "platform-refused"
+       either: that reason counts toward the post-reads breaker, and Meta's
+       hourly limit is a window, not the source failing. */
+    expect(m.fetchReason).toBe("backing-off");
   });
 });

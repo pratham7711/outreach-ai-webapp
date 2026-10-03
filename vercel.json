@@ -9,6 +9,10 @@
       "schedule": "0 */6 * * *"
     },
     {
+      "path": "/api/cron/sync-instagram-posts",
+      "schedule": "13 * * * *"
+    },
+    {
       "path": "/api/cron/auto-approve-submissions",
       "schedule": "0 */6 * * *"
     },

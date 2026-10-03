@@ -65,7 +65,7 @@ function fakeYouTube({
     const u = new URL(input);
     if (u.pathname === "/watch") {
       asked.push({ method: "page", ids: [u.searchParams.get("v") ?? ""] });
-      return { ok: false, status: 404, url: input, text: async () => "" };
+      return reply(404, "");
     }
     const ids = (u.searchParams.get("id") ?? "").split(",").filter(Boolean);
     if (u.pathname.endsWith("/videos:batchGetStats")) {

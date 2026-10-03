@@ -96,7 +96,14 @@ describe("/api/platform/ops", () => {
     expect(r.tablesReady).toBe(true);
     expect(r.jobs.map((j: { job: string }) => j.job)).toContain("ops-canary");
     expect(r.jobs.every((j: { health: string }) => j.health === "no-heartbeat")).toBe(true);
-    expect(r.switches.filter((s: { kind: string }) => s.kind === "source")).toHaveLength(3);
+    /* Three platforms, and the two plan-B readers that can be switched off on their own. */
+    expect(r.switches.filter((s: { kind: string }) => s.kind === "source").map((s: { key: string }) => s.key)).toEqual([
+      "source:tiktok",
+      "source:instagram",
+      "source:youtube",
+      "source:youtube-watch-page",
+      "source:tiktok-worker",
+    ]);
     expect(r.breakers).toHaveLength(6);
     expect(r.sandbox).toMatchObject({ used: 0, cap: 600 });
   });
