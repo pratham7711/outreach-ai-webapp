@@ -83,14 +83,18 @@ function Figure({ label, value, meta = false }: { label: string; value: number |
     stay in the line as a dash when unmeasured, so rows line up; shares and
     reach are only reported on some media, so an unmeasured one is left out
     rather than written as 0. */
+function counted(n: number | null, noun: string): string {
+  return `${formatCount(n)} ${n === 1 ? noun : `${noun}s`}`;
+}
+
 function postCounters(post: InsightsPost): string {
   const parts = [
     formatDay(post.postedAt),
-    `${formatCount(post.views)} views`,
-    `${formatCount(post.likes)} likes`,
-    `${formatCount(post.comments)} comments`,
+    counted(post.views, "view"),
+    counted(post.likes, "like"),
+    counted(post.comments, "comment"),
   ];
-  if (typeof post.shares === "number") parts.push(`${formatCount(post.shares)} shares`);
+  if (typeof post.shares === "number") parts.push(counted(post.shares, "share"));
   if (typeof post.reach === "number") parts.push(`${formatCount(post.reach)} reach`);
   return parts.join(" · ");
 }
@@ -163,7 +167,9 @@ function Avatar({ src, name }: { src: string | null; name: string }) {
 /** Who the connected account is, as the platform describes it: picture, name,
     username, verified status, bio and a link out to the profile. */
 function ProfileHeader({ block }: { block: PlatformInsights }) {
-  const handle = block.handle.startsWith("@") ? block.handle : `@${block.handle}`;
+  /* A Facebook Page with no username is stored under its name, which is not
+     an @handle. */
+  const handle = block.handle.startsWith("@") || /\s/.test(block.handle) ? block.handle : `@${block.handle}`;
   const name = block.displayName?.trim() || handle;
   return (
     <div style={{ display: "flex", gap: 12, alignItems: "flex-start", minWidth: 0 }}>
