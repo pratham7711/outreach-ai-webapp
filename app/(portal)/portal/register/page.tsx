@@ -94,10 +94,14 @@ function RegisterInner() {
                 : "Join campaigns and track how your posts do"}
         </p>
 
+        {/* Consent comes back to My accounts, not to nextPath: it is the screen
+            that reads the callback's ?connected / ?error&reason and says what
+            happened. The campaigns page ignores both, so a refused connect
+            (no roster row yet: reason=creator) used to land there silently. */}
         {nextPath && (
           <ConnectPrompt
             variant="step"
-            returnTo={nextPath}
+            returnTo="/portal/accounts"
             onSkip={() => router.push(nextPath)}
             skipLabel="Skip for now"
           />
