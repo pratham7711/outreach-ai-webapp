@@ -1,6 +1,8 @@
 // Meta "Data Deletion Request Callback": a user asked Meta to have their data
 // deleted from this app. Meta expects a JSON reply with a status URL and a
-// confirmation code, and the user may later visit that URL to check on it.
+// confirmation code, and the user may later visit that URL to check on it, so
+// the URL is the human-readable /data-deletion page; GET here answers the same
+// status as JSON.
 //
 // Registered in the Meta App Dashboard as
 //   https://campaign.madeboring.com/api/webhooks/meta/data-deletion
@@ -13,11 +15,8 @@
 // was deleted. Unauthenticated by design; the signature is the credential.
 
 import { NextRequest, NextResponse } from "next/server";
-import {
-  deletionConfirmationCode,
-  readDeletionConfirmationCode,
-  verifyMetaSignedRequest,
-} from "@/lib/oauth/metaSignedRequest";
+import { deletionConfirmationCode, verifyMetaSignedRequest } from "@/lib/oauth/metaSignedRequest";
+import { metaDeletionStatus } from "@/lib/oauth/metaDeletionStatus";
 import { clientSecretFor } from "@/lib/oauth/providers";
 import { forgetMetaUser, readSignedRequest } from "@/lib/oauth/metaDeletion";
 import { createLogger } from "@/lib/observability/logger";
@@ -27,7 +26,7 @@ export const dynamic = "force-dynamic";
 
 function statusUrl(req: NextRequest, code: string): string {
   const base = (process.env.APP_URL || process.env.NEXTAUTH_URL || req.nextUrl.origin).replace(/\/+$/, "");
-  return `${base}/api/webhooks/meta/data-deletion?code=${encodeURIComponent(code)}`;
+  return `${base}/data-deletion?code=${encodeURIComponent(code)}`;
 }
 
 export async function POST(req: NextRequest) {
@@ -56,37 +55,12 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ url: statusUrl(req, code), confirmation_code: code });
 }
 
-/** Status check for a confirmation code — the URL we hand back above. */
+/** Status check for a confirmation code, as JSON. The URL we hand Meta is the
+    /data-deletion page, which reads the same status for a person. */
 export async function GET(req: NextRequest) {
-  const code = req.nextUrl.searchParams.get("code") ?? "";
-  const outcome = code ? readDeletionConfirmationCode(code) : null;
-  if (!outcome) {
+  const status = metaDeletionStatus(req.nextUrl.searchParams.get("code") ?? "");
+  if (!status) {
     return NextResponse.json({ error: "unknown confirmation code" }, { status: 404 });
   }
-  if (outcome === "none") {
-    return NextResponse.json({
-      confirmation_code: code,
-      status: "complete",
-      deleted: false,
-      detail:
-        "When the request was received we held no linked-account data or access tokens for this account, so there was nothing to delete.",
-    });
-  }
-  if (outcome === "legacy") {
-    /* Issued before codes recorded their outcome, so whether rows went is not
-       known here; say only what is true of every one of them. */
-    return NextResponse.json({
-      confirmation_code: code,
-      status: "complete",
-      detail:
-        "The request was processed when it was received. Any linked-account data and access tokens matching this account were deleted at that time.",
-    });
-  }
-  return NextResponse.json({
-    confirmation_code: code,
-    status: "complete",
-    deleted: true,
-    detail:
-      "All linked-account data and access tokens for this account were deleted when the request was received.",
-  });
+  return NextResponse.json(status);
 }

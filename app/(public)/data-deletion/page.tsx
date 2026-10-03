@@ -1,6 +1,7 @@
 import React from "react";
 import type { Metadata } from "next";
 import { LegalShell, LegalSection, LEGAL } from "@/components/LegalShell";
+import { metaDeletionStatus } from "@/lib/oauth/metaDeletionStatus";
 
 export const metadata: Metadata = {
   title: "Data deletion",
@@ -17,13 +18,24 @@ export const metadata: Metadata = {
  *                   offers it, then delete the row and its token)
  *   Delete account  POST /api/portal/account/delete  -> lib/portal/deleteCreatorLogin.ts
  *   Meta callback   /api/webhooks/meta/data-deletion -> lib/oauth/metaDeletion.ts
+ *
+ * With ?code=, it is also the status URL that callback hands Meta: the person
+ * who removed the app lands here and reads what happened to their request.
  */
-export default function DataDeletionPage() {
+export default async function DataDeletionPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ code?: string | string[] }>;
+}) {
+  const { code: raw } = await searchParams;
+  const code = typeof raw === "string" ? raw.trim() : "";
   return (
     <LegalShell
       title="Data deletion"
       intro={`How to delete the data ${LEGAL.name} holds about you. A creator can do most of it alone, straight away, without asking the agency they work with.`}
     >
+      {code && <RequestStatus code={code} />}
+
       <LegalSection heading="Disconnect one account">
         <p>
           In the creator portal, open <strong>My accounts</strong> and choose{" "}
@@ -106,5 +118,44 @@ export default function DataDeletionPage() {
         </p>
       </LegalSection>
     </LegalShell>
+  );
+}
+
+/** A Meta deletion request's outcome, read from its confirmation code. */
+function RequestStatus({ code }: { code: string }) {
+  const status = metaDeletionStatus(code);
+  return (
+    <section
+      id="request-status"
+      aria-labelledby="request-status-title"
+      style={{
+        marginBottom: 40,
+        padding: "16px 20px",
+        border: "1px solid var(--cc-border)",
+        borderRadius: "var(--cc-r-control)",
+        background: "var(--cc-card)",
+      }}
+    >
+      <h2 id="request-status-title" style={{ fontSize: "var(--cc-t-18)", fontWeight: 700, color: "var(--cc-text)", marginBottom: 8 }}>
+        Your deletion request
+      </h2>
+      <dl style={{ margin: 0, fontSize: "var(--cc-t-14)", lineHeight: 1.7, color: "var(--cc-text)" }}>
+        <dt style={{ color: "var(--cc-text-muted)", fontSize: "var(--cc-t-13)" }}>Confirmation code</dt>
+        <dd style={{ margin: "0 0 8px", fontFamily: "monospace", overflowWrap: "anywhere" }}>{code}</dd>
+        <dt style={{ color: "var(--cc-text-muted)", fontSize: "var(--cc-t-13)" }}>Status</dt>
+        <dd style={{ margin: 0 }}>
+          {status ? (
+            <>
+              <strong>Complete.</strong> {status.detail}
+            </>
+          ) : (
+            <>
+              We did not issue this confirmation code. Check it against the one Meta showed you, or
+              email <a href={`mailto:${LEGAL.privacyEmail}`}>{LEGAL.privacyEmail}</a> with it.
+            </>
+          )}
+        </dd>
+      </dl>
+    </section>
   );
 }

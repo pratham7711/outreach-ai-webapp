@@ -40,6 +40,12 @@ const ENV_KEYS = [
 ] as const;
 const saved: Partial<Record<(typeof ENV_KEYS)[number], string | undefined>> = {};
 
+/** The JSON status API, asked about the code in the URL we handed Meta. */
+function statusRequest(pageUrl: string) {
+  const code = new URL(pageUrl).searchParams.get("code") ?? "";
+  return new NextRequest(`https://campaign.madeboring.com/api/webhooks/meta/data-deletion?code=${encodeURIComponent(code)}`);
+}
+
 function formPost(url: string, signedRequest: string) {
   return new NextRequest(url, {
     method: "POST",
@@ -212,13 +218,14 @@ describe("POST /api/webhooks/meta/data-deletion", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.confirmation_code).toMatch(/^12345-d-[0-9a-f]{16}$/);
+    // A page a person can read, not the JSON API.
     expect(body.url).toBe(
-      `https://campaign.madeboring.com/api/webhooks/meta/data-deletion?code=${encodeURIComponent(body.confirmation_code)}`,
+      `https://campaign.madeboring.com/data-deletion?code=${encodeURIComponent(body.confirmation_code)}`,
     );
     expect(mockDb.creatorSocialAccount.deleteMany).toHaveBeenCalledTimes(1);
 
-    // The URL we handed back must answer for that code.
-    const status = await deletionStatus(new NextRequest(body.url));
+    // The JSON status API still answers for that code.
+    const status = await deletionStatus(statusRequest(body.url));
     expect(status.status).toBe(200);
     const statusBody = await status.json();
     expect(statusBody.status).toBe("complete");
@@ -237,7 +244,7 @@ describe("POST /api/webhooks/meta/data-deletion", () => {
     const body = await res.json();
     expect(body.confirmation_code).toMatch(/^12345-n-[0-9a-f]{16}$/);
 
-    const status = await deletionStatus(new NextRequest(body.url));
+    const status = await deletionStatus(statusRequest(body.url));
     expect(status.status).toBe(200);
     const statusBody = await status.json();
     expect(statusBody.deleted).toBe(false);
