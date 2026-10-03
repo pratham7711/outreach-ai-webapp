@@ -11,6 +11,10 @@ import {
   type ConnectionRefreshSummary,
 } from "@/lib/platforms/connectionRefresh";
 import { cronRoute } from "@/lib/ops/cronRoute";
+import {
+  refreshAgencyCredentials,
+  type AgencyRefreshSummary,
+} from "@/lib/platforms/instagramAgencyCredential";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -24,6 +28,9 @@ export const maxDuration = 60;
    their writes — a refreshed token that is minted but never stored is the one
    way this job could cost a connection. Rows not reached roll to tomorrow. */
 const CONNECTION_BUDGET_MS = 35_000;
+
+/* Agencies' own Instagram accounts go between the two, each its own exchange. */
+const AGENCY_BUDGET_MS = 20_000;
 
 /**
  * Keeps the platform's own credentials alive.
@@ -65,11 +72,13 @@ async function cronHandler(request: NextRequest) {
     const instagram = await refreshInstagramBusinessToken({ force });
     log.info("instagram business credential", { ...instagram });
     await alertFor(instagram);
+    const agencies = await refreshAgencyAccounts(force, startedAt + AGENCY_BUDGET_MS);
     const connections = await refreshCreatorConnections(startedAt + CONNECTION_BUDGET_MS);
     return NextResponse.json({
       instagram,
       refreshWindowDays: REFRESH_WHEN_DAYS_LEFT,
       force,
+      agencies,
       connections,
     });
   } catch (error) {
@@ -110,6 +119,42 @@ async function refreshCreatorConnections(
       facts: { error: message },
     }).catch(() => undefined);
     return { error: "connection refresh failed" };
+  }
+}
+
+/**
+ * Agencies' own Instagram accounts (lib/platforms/instagramAgencyCredential),
+ * extended with the same exchange as the platform credential above.
+ *
+ * Each org's row is its own attempt, so one dead token is that org's outcome
+ * and the rest still run. Never fails this request, and no per-org alert: an
+ * org whose account lapses is told on its own Integrations card, and its
+ * reads go back to the platform token meanwhile.
+ */
+async function refreshAgencyAccounts(
+  force: boolean,
+  deadlineAt: number,
+): Promise<Omit<AgencyRefreshSummary, "outcomes"> | { error: string }> {
+  const log = createLogger({ context: { route: "cron/refresh-platform-tokens", call: "agencies" } });
+  try {
+    const { outcomes, ...summary } = await refreshAgencyCredentials({ force, deadlineAt });
+    for (const o of outcomes) {
+      if (o.status !== "refreshed" && o.status !== "not-due") {
+        log.warn("agency Instagram account not extended", { orgId: o.orgId, status: o.status, daysLeft: o.daysLeft, reason: o.reason });
+      }
+    }
+    log.info("agency Instagram accounts", { ...summary.byStatus, considered: summary.considered, skipped: summary.skipped });
+    return summary;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    log.error("agency Instagram refresh crashed", { error: message });
+    await alertOps({
+      source: "cron/refresh-platform-tokens",
+      title: "Agency Instagram account refresh crashed",
+      severity: "warn",
+      facts: { error: message },
+    }).catch(() => undefined);
+    return { error: "agency refresh failed" };
   }
 }
 
