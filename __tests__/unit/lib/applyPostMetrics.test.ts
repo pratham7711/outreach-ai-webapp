@@ -141,6 +141,30 @@ describe("applyPostMetrics — lastSyncedAt means measured", () => {
     expect(mockSnapshotCreate).not.toHaveBeenCalled();
   });
 
+  it("refuses a view count that falls from a real figure to a measured zero", async () => {
+    /* The 2026-09-19 reading: 53,700 views, then 0 an hour later. That one
+       also carried 25 comments, which the coherence check would catch; this
+       one carries nothing above zero, and only the fall itself gives it away. */
+    const stored = { ...post, platform: "TIKTOK", viewsCount: 53700, likesCount: 2759, platformMetrics: {} };
+    const outcome = await applyPostMetrics(
+      stored,
+      metrics({ platform: "TIKTOK", viewsCount: 0, likesCount: 0, commentsCount: 0, sharesCount: 0, savesCount: 0 }),
+    );
+    expect(outcome).toMatchObject({ status: "no-metrics", reason: "counts-inconsistent" });
+    const data = postWriteData();
+    expect(data.viewsCount).toBeUndefined();
+    expect(data.lastSyncedAt).toBeUndefined();
+    expect(data.platformMetrics.__lastFetch.reason).toBe("counts-inconsistent");
+    expect(mockSnapshotCreate).not.toHaveBeenCalled();
+  });
+
+  it("still takes a measured zero for a post that has never shown a view", async () => {
+    const stored = { ...post, platform: "TIKTOK", viewsCount: 0, platformMetrics: {} };
+    const outcome = await applyPostMetrics(stored, metrics({ platform: "TIKTOK", viewsCount: 0, likesCount: 0 }));
+    expect(outcome.status).toBe("measured");
+    expect(postWriteData()).toMatchObject({ viewsCount: 0 });
+  });
+
   it("lets a full consistent reading replace a contradictory stored row", async () => {
     const stored = { ...post, platform: "TIKTOK", viewsCount: 2440, likesCount: 6043, platformMetrics: {} };
     const outcome = await applyPostMetrics(

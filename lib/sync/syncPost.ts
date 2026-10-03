@@ -283,6 +283,14 @@ export async function applyPostMetrics(
   const now = new Date();
   const ranked = rankPostCounters(withStoredPrecision(metrics, post), post, post.platformMetrics, now);
   const measured = ranked.metrics;
+  /* A lifetime view count does not fall to zero. A reading that says it did
+     is a bad read, not a fact about the post: on 2026-09-19 a TikTok post read
+     53,700 views at 13:35 and a measured 0 at 14:43, and that 0 has stood on
+     the post ever since. The coherence check below catches such a reading only
+     while some other counter is still above zero; an all-zero one passed. */
+  if (measured.viewsCount === 0 && (post.viewsCount ?? 0) > 0) {
+    return recordUnread(post, metrics, "counts-inconsistent", syncSource);
+  }
   const { counts, present } = countsFrom(measured);
 
   /* What the post holds once this write lands, counter by counter: this read's
