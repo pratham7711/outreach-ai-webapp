@@ -42,6 +42,26 @@ jest.mock("@/lib/platforms/tiktokPostSandbox", () => ({
   openSandboxPostFetcher: () => openOne(),
 }));
 
+/* Plan B's transport. Only reached when TRACKER_PLAN_B_* is set, which the
+   "plan B worker" block below does and nothing else in this file does. */
+const workerPages: Array<{ status: number; body: string; ms: number } | null> = [];
+const workerAsked: string[] = [];
+jest.mock("@/lib/platforms/tiktokExit", () => ({
+  httpWorkerExit: () => ({
+    id: "worker",
+    kind: "worker",
+    fetchPage: async (url: string) => {
+      workerAsked.push(url);
+      return workerPages.length ? workerPages.shift()! : null;
+    },
+    close: async () => {},
+  }),
+}));
+jest.mock("@/lib/ops/killSwitch", () => ({
+  fallbackKillKey: (r: string) => `source:${r}`,
+  isKilled: async () => false,
+}));
+
 import {
   openTikTokPostFetcher,
   openTikTokPostFetcherForOne,
@@ -252,5 +272,60 @@ describe("proxyLaneCountFor", () => {
     process.env.TIKTOK_PROXY_POSTS_PER_LANE = "10";
     process.env.TIKTOK_PROXY_MAX_LANES = "50";
     expect(proxyLaneCountFor(200)).toBe(20);
+  });
+});
+
+describe("with a plan B worker configured", () => {
+  const LIVE_PAGE = `<html><body><script id="__UNIVERSAL_DATA_FOR_REHYDRATION__" type="application/json">${JSON.stringify({
+    __DEFAULT_SCOPE__: {
+      "webapp.video-detail": {
+        statusCode: 0,
+        itemInfo: { itemStruct: { desc: "", createTime: "1750000000", video: {}, stats: { playCount: 77, diggCount: 5, commentCount: 1, shareCount: 0 } } },
+      },
+    },
+  })}</script></body></html>`;
+
+  beforeEach(() => {
+    process.env.TRACKER_PLAN_B_URL = "https://worker.example";
+    process.env.TRACKER_PLAN_B_TOKEN = "t";
+    workerPages.length = 0;
+    workerAsked.length = 0;
+  });
+  afterEach(() => {
+    delete process.env.TRACKER_PLAN_B_URL;
+    delete process.env.TRACKER_PLAN_B_TOKEN;
+  });
+
+  it("still opens nothing for zero work", () => {
+    expect(openTikTokPostFetcher(0)).toBeUndefined();
+  });
+
+  it("carries the run on the worker when the caller opened no lanes", async () => {
+    workerPages.push({ status: 200, body: LIVE_PAGE, ms: 800 });
+    const f = openTikTokPostFetcher(40, { sandboxLanes: 0 })!;
+    expect(f).toBeDefined();
+    expect(openPool).not.toHaveBeenCalled();
+    expect((await f.readPost(URL_UNDER_TEST))?.metrics?.viewsCount).toBe(77);
+  });
+
+  it("asks the worker only for posts the sandbox pool could not deliver", async () => {
+    sandboxPool.readPost.mockResolvedValueOnce(live).mockResolvedValueOnce(walled).mockResolvedValueOnce(null);
+    workerPages.push({ status: 200, body: LIVE_PAGE, ms: 800 }, { status: 200, body: LIVE_PAGE, ms: 800 });
+    const f = openTikTokPostFetcher(40)!;
+    expect(await f.readPost(URL_UNDER_TEST)).toBe(live);
+    expect(workerAsked).toHaveLength(0);
+    expect((await f.readPost(URL_UNDER_TEST))?.metrics?.viewsCount).toBe(77);
+    expect((await f.readPost(URL_UNDER_TEST))?.metrics?.viewsCount).toBe(77);
+    expect(workerAsked).toHaveLength(2);
+    await f.close();
+    expect(sandboxPool.close).toHaveBeenCalled();
+  });
+
+  it("backs up the single-post Sync Now reader too", async () => {
+    oneLaneSandbox.readPost.mockResolvedValueOnce(null);
+    workerPages.push({ status: 200, body: LIVE_PAGE, ms: 800 });
+    const f = openTikTokPostFetcherForOne();
+    expect(openOne).toHaveBeenCalled();
+    expect((await f.readPost(URL_UNDER_TEST))?.metrics?.viewsCount).toBe(77);
   });
 });

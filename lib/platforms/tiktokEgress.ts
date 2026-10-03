@@ -6,6 +6,7 @@ import {
   type SandboxPostFetcher,
 } from "./tiktokPostSandbox";
 import { openTikTokProxyPool, proxiesConfigured } from "./tiktokProxy";
+import { openWorkerPostFetcher, withWorkerFallback } from "./tiktokPostWorker";
 
 /**
  * Pick the best TikTok egress available, and fall back down the ladder.
@@ -25,7 +26,10 @@ import { openTikTokProxyPool, proxiesConfigured } from "./tiktokProxy";
  *      answers them far more often than it answers this project's own function
  *      egress. Today's behaviour, and still the whole story when no proxy is
  *      configured.
- *   3. The direct function egress, which fetchTikTokMetrics already tries on
+ *   3. OUR OWN WORKER (plan B, tiktokPostWorker.ts) -- when TRACKER_PLAN_B_*
+ *      is set, for any post the rungs above could not deliver: lanes that
+ *      could not boot, zero lanes, or every address walled.
+ *   4. The direct function egress, which fetchTikTokMetrics already tries on
  *      its own after a fetcher comes back empty. Not this module's business.
  *
  * The sandbox is opened LAZILY and only if the proxy actually fails to
@@ -87,6 +91,10 @@ export function openTikTokPostFetcher(
   options: EgressOptions = {},
 ): SandboxPostFetcher | undefined {
   if (postCount <= 0) return undefined;
+  return withWorkerFallback(openPlanA(postCount, options), openWorkerPostFetcher());
+}
+
+function openPlanA(postCount: number, options: EgressOptions): SandboxPostFetcher | undefined {
 
   const sandboxLanes = options.sandboxLanes ?? laneCountFor(postCount);
   const openSandbox = () => (sandboxLanes > 0 ? openSandboxPostPool(sandboxLanes) : undefined);
@@ -209,6 +217,9 @@ export function openTikTokPostFetcherForOne(): SandboxPostFetcher {
      written for this caller, and routing around it would leave it exported with
      nothing calling it -- the exact shape of the bug fetcherWiring.test.ts
      exists to catch. */
-  if (!proxiesConfigured()) return openSandboxPostFetcher();
+  if (!proxiesConfigured()) {
+    const one = openSandboxPostFetcher();
+    return withWorkerFallback(one, openWorkerPostFetcher()) ?? one;
+  }
   return openTikTokPostFetcher(1, { sandboxLanes: 1 }) ?? openSandboxPostFetcher();
 }

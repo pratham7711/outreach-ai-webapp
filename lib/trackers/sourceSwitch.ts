@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { createLogger } from "@/lib/observability/logger";
+import { planBWorkerConfig } from "./planBWorker";
 import { TRACKER_SOURCE_TABLES } from "./sourceSchemaDdl";
 
 /**
@@ -81,13 +82,7 @@ export async function readTrackerSwitch(): Promise<TrackerSwitchState> {
   }
 }
 
-/** Plan B's worker, if this deployment knows where it is. */
-export function planBWorkerConfig(env: NodeJS.ProcessEnv = process.env): { baseUrl: string; token: string } | null {
-  const baseUrl = env.TRACKER_PLAN_B_URL?.trim();
-  const token = env.TRACKER_PLAN_B_TOKEN?.trim();
-  if (!baseUrl || !token || !/^https?:\/\//.test(baseUrl)) return null;
-  return { baseUrl, token };
-}
+export { planBWorkerConfig };
 
 export type ResolvedTrackerPlan = TrackerSwitchState & {
   /** What actually runs. Differs from `position` only when the selected

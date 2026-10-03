@@ -59,6 +59,13 @@ describe("fetch capabilities are wired to a caller", () => {
       why: "Still the bulk reader with no proxies, and the fallback for posts a proxy could not deliver.",
     },
     {
+      capability: "openWorkerPostFetcher",
+      caller: "lib/platforms/tiktokEgress.ts",
+      why:
+        "Plan B for TikTok posts. Without it a dead or fully walled lane pool drops every post " +
+        "onto the function egress TikTok walls three times in four, while the tracker worker sits idle.",
+    },
+    {
       capability: "fetchInstagramEmbedPost",
       caller: "lib/platforms/fetchPostMetrics.ts",
       why:
