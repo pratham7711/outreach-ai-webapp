@@ -192,6 +192,35 @@ describe("GET /api/trackers/creators", () => {
       expect(body.creators[1].views).toMatchObject({ avgViews: 900, changePercent: null });
       expect(body.creators[1].metrics.avgViews).toBe(999999);
     });
+
+    /* Business Discovery cannot read a personal Instagram account; the follower
+       reading then comes from the embed of one of its posts, stored with
+       postsCount 0 and no views. Measured on prod 2026-10-03: every one of the
+       59 Instagram readings since the 10-02 deploy that lacked views had that
+       shape. "Read once a day" would tell the reader to wait for nothing. */
+    it("says why an Instagram account read from its own post has no views", async () => {
+      mockDb.creator.findMany.mockResolvedValue([
+        creatorRow({
+          id: "cr1",
+          handle: "personal",
+          platform: "INSTAGRAM",
+          trackerSnapshots: [{ followersCount: 4_000, avgViews: 0, postsCount: 0, recordedAt: daysAgo(0.1) }],
+        }),
+        creatorRow({
+          id: "cr2",
+          handle: "business",
+          platform: "INSTAGRAM",
+          trackerSnapshots: [{ followersCount: 9_000, avgViews: 0, postsCount: 310, recordedAt: daysAgo(0.1) }],
+        }),
+      ]);
+      const body = await (await GET(req(BASE))).json();
+      const personal = body.creators.find((c: { handle: string }) => c.handle === "personal");
+      const business = body.creators.find((c: { handle: string }) => c.handle === "business");
+      expect(personal.views.avgViews).toBeNull();
+      expect(personal.viewsNote).toMatch(/Business and Creator accounts/);
+      expect(business.views.avgViews).toBeNull();
+      expect(business.viewsNote).toBeNull();
+    });
   });
 
   it("falls back to the default window and sort rather than trusting the query string", async () => {

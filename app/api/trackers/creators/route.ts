@@ -49,6 +49,9 @@ function parseSort(value: string | null): CreatorTrackerSort {
   return isCreatorTrackerSort(value) ? value : "views";
 }
 
+const INSTAGRAM_FOLLOWERS_ONLY =
+  "Instagram shares views only with Business and Creator accounts, and it did not answer for this one, so we read the follower count from one of the creator's own posts. A post shows followers, not average views.";
+
 export async function GET(req: NextRequest) {
   try {
     const result = await authenticateRequest(req);
@@ -206,7 +209,7 @@ export async function GET(req: NextRequest) {
         trackerSnapshots: {
           where: { recordedAt: { gte: bounds.current } },
           orderBy: { recordedAt: "desc" },
-          select: { followersCount: true, avgViews: true, recordedAt: true },
+          select: { followersCount: true, avgViews: true, postsCount: true, recordedAt: true },
         },
       },
     });
@@ -236,6 +239,17 @@ export async function GET(req: NextRequest) {
             .join(" ")
         : null;
 
+      /* An Instagram account Business Discovery cannot read still gets a
+         follower reading, from the embed of one of its own posts -- which
+         carries no lifetime post count (so it is stored as 0) and no views.
+         The views are not late, they are not available, and the generic
+         "posts are read once a day" would tell the reader to wait. */
+      const latest = c.trackerSnapshots[0];
+      const viewsNote =
+        f.views.avgViews === null && !readError && c.platform === "INSTAGRAM" && latest?.postsCount === 0
+          ? INSTAGRAM_FOLLOWERS_ONLY
+          : null;
+
       return [
         {
           id: c.id,
@@ -255,6 +269,7 @@ export async function GET(req: NextRequest) {
           lastAttemptAt: c.trackerLastAttemptAt,
           health: f.health,
           readError,
+          viewsNote,
           series: downsample(f.followerHistory, chartAt).map((s) => ({
             value: s.value,
             recordedAt: s.recordedAt,

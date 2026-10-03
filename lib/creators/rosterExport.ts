@@ -116,7 +116,7 @@ export async function rosterExportRows(orgId: string, ids: string[], opts: Roste
     const avgViews = rosterAvgViews(derived?.value ?? (c.averageViews || null), c._count?.posts, facts);
     const latestSnapshot = readings.get(c.id) ?? null;
     const followersAt = creatorFollowersTime({ followersCount: c.followersCount, primaryLink: facts.primaryLink, latestSnapshot });
-    const avgViewsAt = creatorAvgViewsTime({ derived, averageViews: c.averageViews, primaryLink: facts.primaryLink, latestSnapshot });
+    const avgViewsAt = creatorAvgViewsTime({ derived, averageViews: c.averageViews, primaryLink: facts.primaryLink, latestSnapshot: latestSnapshot?.viewsReading ?? null });
     const notes: [string, MetricValue][] = [];
     const accountFor = (platform: string): Cell[] => {
       const link = links.find((l) => l.platform === platform && l.isPrimary) ?? links.find((l) => l.platform === platform);

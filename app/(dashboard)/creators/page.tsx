@@ -151,7 +151,7 @@ export default async function CreatorsPage({
           followers: rosterFollowers({ followersCount: c.followersCount, ...facts }),
           // When each figure was measured, and by what -- never a guessed time.
           followersAt: figureTimeDto(creatorFollowersTime({ followersCount: c.followersCount, primaryLink, latestSnapshot })),
-          avgViewsAt: figureTimeDto(creatorAvgViewsTime({ derived, averageViews: c.averageViews, primaryLink, latestSnapshot })),
+          avgViewsAt: figureTimeDto(creatorAvgViewsTime({ derived, averageViews: c.averageViews, primaryLink, latestSnapshot: latestSnapshot?.viewsReading ?? null })),
           // Measured from tracked posts where there are any; otherwise what the
           // account's own page last said (import, then the daily refresh).
           avgViews,
