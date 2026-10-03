@@ -302,14 +302,12 @@ export function creatorWhere(orgId: string, f: CreatorFilters, { roster = false 
   const and: Prisma.CreatorWhereInput[] = [];
   if (countRange(f.minAvgViews, f.maxAvgViews)) and.push({ averageViews: countRange(f.minAvgViews, f.maxAvgViews) });
   if (countRange(f.minRate, f.maxRate)) and.push({ rate: countRange(f.minRate, f.maxRate) });
-  if (f.accounts?.length) {
-    and.push({
-      OR: [
-        { platform: { in: f.accounts } },
-        ...(roster ? [{ profileLinks: { some: { platform: { in: f.accounts } } } }] : []),
-      ],
-    });
-  }
+  // The platform tab and the drawer's "Has an account on" are one rule. The tab
+  // used to match the creator's FIRST account only, so on the LKM roster the
+  // Instagram tab listed 428 of the 863 creators with an Instagram account --
+  // while every row it left out showed an Instagram chip of its own.
+  if (f.platform.length) and.push(hasAccountOn(f.platform, roster));
+  if (f.accounts?.length) and.push(hasAccountOn(f.accounts, roster));
   if (roster && f.audienceCountry?.length) {
     and.push({
       OR: f.audienceCountry.map((c) => ({ detail: { audienceCountry: { contains: c, mode: Prisma.QueryMode.insensitive } } })),
@@ -323,7 +321,6 @@ export function creatorWhere(orgId: string, f: CreatorFilters, { roster = false 
     ...(and.length && { AND: and }),
     orgId,
     deletedAt: null,
-    ...(f.platform.length && { platform: { in: f.platform } }),
     ...(countRange(f.minFollowers, f.maxFollowers) && {
       followersCount: countRange(f.minFollowers, f.maxFollowers),
     }),
@@ -352,6 +349,17 @@ export function creatorWhere(orgId: string, f: CreatorFilters, { roster = false 
         }
       : {}),
   };
+}
+
+/**
+ * A creator with an account on any of these platforms: its own row's platform
+ * or any linked profile. Before the roster tables exist a creator has one
+ * account, its own row.
+ */
+function hasAccountOn(platforms: Platform[], roster: boolean): Prisma.CreatorWhereInput {
+  return roster
+    ? { OR: [{ platform: { in: platforms } }, { profileLinks: { some: { platform: { in: platforms } } } }] }
+    : { platform: { in: platforms } };
 }
 
 export function countCreatorFilters(f: CreatorFilters): number {

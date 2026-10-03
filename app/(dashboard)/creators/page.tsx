@@ -12,6 +12,7 @@ import { HANDLE_GONE_WHERE, HANDLE_UNREADABLE_WHERE, handleProblem } from "@/lib
 import { rosterAvgViews, rosterFollowers } from "@/lib/creators/rosterMetrics";
 import { creatorAvgViewsTime, creatorFollowersTime, figureTimeDto, linkFollowersTime } from "@/lib/creators/figureTime";
 import { latestTrackerReadings } from "@/lib/creators/latestReadings";
+import { CREATOR_PLATFORM_TABS } from "@/lib/creators/platformTabs";
 
 /** "United States, Brazil" rows counted per country, most common first. */
 function countryOptions(groups: { value: string | null; _count: number }[]) {
@@ -43,11 +44,19 @@ export default async function CreatorsPage({
   const sort = readCreatorSort(sp);
   const roster = await rosterTablesReady();
   const where = creatorWhere(orgId, filters, { roster });
-  // The platform tabs and the search box are quick filters over the drawer's
-  // result set, so they are left out of their own counts.
-  const tabBase = creatorWhere(orgId, { ...filters, platform: [], search: undefined }, { roster });
+  // Each tab counts what clicking it would list: every filter and the search,
+  // with that tab's platform in place of the one picked. A creator with
+  // accounts on two platforms is in both tabs, so All is its own count of
+  // creators rather than the tabs summed -- and it is the caption's number
+  // whenever All is the tab in view. The tabs used to leave the search out, so
+  // a search listing 341 creators sat under chips still reading 2,569.
+  const tabCounts = Promise.all(
+    [[], ...CREATOR_PLATFORM_TABS.map((p) => [p])].map((platform) =>
+      db.creator.count({ where: creatorWhere(orgId, { ...filters, platform }, { roster }) }),
+    ),
+  );
 
-  const [creators, total, platformGroups, orgTags, anyRate] = await Promise.all([
+  const [creators, total, [allCount, ...perTab], orgTags, anyRate] = await Promise.all([
     db.creator.findMany({
       where,
       include: {
@@ -59,7 +68,7 @@ export default async function CreatorsPage({
       skip: (page - 1) * CREATORS_PAGE_SIZE,
     }),
     db.creator.count({ where }),
-    db.creator.groupBy({ by: ["platform"], where: tabBase, _count: true }),
+    tabCounts,
     // Every definition from Settings → General, not only the ones in use: a tag
     // exists because someone created it on purpose.
     db.creatorTagDef.findMany({ where: { orgId }, orderBy: { name: "asc" }, select: { name: true } }),
@@ -67,11 +76,25 @@ export default async function CreatorsPage({
     db.creator.findFirst({ where: { orgId, deletedAt: null, rate: { gt: 0 } }, select: { id: true } }),
   ]);
 
-  const platformCounts: Record<string, number> = { All: 0 };
-  for (const g of platformGroups) {
-    platformCounts[g.platform] = g._count;
-    platformCounts.All += g._count;
+  // A page past the end -- the last rows deleted, or an old link -- lands on the
+  // last page that has rows, rather than on "No creators match" over a list
+  // that has them.
+  const lastPage = Math.max(1, Math.ceil(total / CREATORS_PAGE_SIZE));
+  if (page > lastPage) {
+    const here = new URLSearchParams();
+    for (const [key, value] of Object.entries(sp)) {
+      const v = firstParam(value);
+      if (v && key !== "page") here.set(key, v);
+    }
+    if (lastPage > 1) here.set("page", String(lastPage));
+    const qs = here.toString();
+    redirect(qs ? `/creators?${qs}` : "/creators");
   }
+
+  const platformCounts: Record<string, number> = { All: allCount };
+  CREATOR_PLATFORM_TABS.forEach((p, i) => {
+    platformCounts[p] = perTab[i];
+  });
 
   // Both measured from the posts: the stored averageViews column is always 0,
   // and counting activations alone reads 0 campaigns for the imported roster.

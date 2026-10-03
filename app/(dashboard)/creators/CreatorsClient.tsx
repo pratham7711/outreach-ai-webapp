@@ -11,6 +11,7 @@ import ImportCreatorsModal from "@/components/creators/ImportCreatorsModal";
 import Link from "next/link";
 import { stripAt, platformLabel, formatFull, formatCompact, formatFullCurrency } from "@/lib/format";
 import { useListQuery } from "@/lib/useListQuery";
+import { CREATOR_PLATFORM_TABS, type CreatorPlatformTab } from "@/lib/creators/platformTabs";
 import { CREATORS_PAGE_SIZE } from "@/lib/listPageSize";
 import type { CreatorSort } from "@/lib/listParams";
 import { action } from "@/lib/ui/actions";
@@ -76,13 +77,14 @@ function formatNumber(n: number): string {
   return formatFull(n);
 }
 
-const PLATFORM_TABS = [
-  { key: "All", label: "All" },
-  { key: "INSTAGRAM", label: "Instagram" },
-  { key: "YOUTUBE", label: "YouTube" },
-  { key: "TIKTOK", label: "TikTok" },
-  { key: "TWITTER", label: "Twitter" },
-];
+const TAB_LABELS: Record<CreatorPlatformTab, string> = {
+  INSTAGRAM: "Instagram",
+  YOUTUBE: "YouTube",
+  TIKTOK: "TikTok",
+  TWITTER: "Twitter",
+};
+
+const PLATFORM_TABS = [{ key: "All", label: "All" }, ...CREATOR_PLATFORM_TABS.map((key) => ({ key, label: TAB_LABELS[key] }))];
 
 const LINKABLE = new Set<string>(["TIKTOK", "INSTAGRAM", "YOUTUBE", "TWITTER"]);
 
