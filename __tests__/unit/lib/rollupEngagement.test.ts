@@ -81,6 +81,39 @@ describe("rollupEngagement", () => {
     expect(r.rate).toBeCloseTo(0.05, 10); // 5%, not 65.8%
   });
 
+  /* Instagram omits a hidden like count; the read stores 0 and leaves "likes"
+     out of __measured. Rated on its comments alone, 121 such reels showed 0.04%. */
+  it("leaves a post whose likes were not read out of the rate", () => {
+    const hidden = { __measured: ["views", "comments"] };
+    const r = rollupEngagement([
+      post({ viewsCount: 10_000, likesCount: 500, lastSyncedAt: SYNCED, platformMetrics: { __measured: ["views", "likes", "comments"] } }),
+      post({ viewsCount: 90_000, likesCount: 0, commentsCount: 4, lastSyncedAt: SYNCED, platformMetrics: hidden }),
+    ]);
+
+    expect(r.measuredViews).toBe(10_000);
+    expect(r.rate).toBeCloseTo(0.05, 10); // 5%, not 0.5%
+    expect(r.engagements).toBe(504); // the comments are real and still totalled
+  });
+
+  it("has no rate when no post's likes were read", () => {
+    const hidden = { __measured: ["views", "comments"] };
+    const r = rollupEngagement([
+      post({ viewsCount: 2_000, commentsCount: 1, lastSyncedAt: SYNCED, platformMetrics: hidden }),
+      post({ viewsCount: 610, lastSyncedAt: SYNCED, platformMetrics: hidden }),
+    ]);
+
+    expect(r.rate).toBeNull();
+    expect(r.engagements).toBe(1);
+  });
+
+  it("keeps a measured zero likes in the rate", () => {
+    const r = rollupEngagement([
+      post({ viewsCount: 1_000, likesCount: 0, commentsCount: 10, lastSyncedAt: SYNCED, platformMetrics: { __measured: ["views", "likes", "comments"] } }),
+    ]);
+
+    expect(r.rate).toBeCloseTo(0.01, 10);
+  });
+
   it("returns nothing for an empty campaign", () => {
     expect(rollupEngagement([])).toEqual({ engagements: null, measuredViews: 0, rate: null });
   });
@@ -101,5 +134,22 @@ describe("rollupEngagement", () => {
        field, which this column is audited against, still counts them. */
     expect(summary.engagement).toBe(3_380); // + 30 downloads
     expect(rollup.engagements).toBe(3_350);
+  });
+
+  /* The Posts header beside the Performance tab on an Instagram campaign: shares
+     never returned, one post's likes hidden. */
+  it("leaves out of the Posts header what a read did not return", () => {
+    const base = { sharesCount: 0, savesCount: 0, downloadsCount: 0, lastSyncedAt: SYNCED };
+    const summary = summarizePostMetrics([
+      { ...base, viewsCount: 10_000, likesCount: 500, commentsCount: 20, platformMetrics: { __measured: ["views", "likes", "comments"] } },
+      { ...base, viewsCount: 90_000, likesCount: 0, commentsCount: 4, platformMetrics: { __measured: ["views", "comments"] } },
+    ]);
+
+    expect(summary.shares).toBeNull();
+    expect(summary.likes).toBe(500);
+    expect(summary.comments).toBe(24);
+    expect(summary.engagement).toBe(524);
+    expect(summary.avgPostRate).toBeCloseTo(5.2, 10); // the hidden-likes post is not rated at 0.004%
+    expect(summary.campaignRate).toBeCloseTo(5.2, 10);
   });
 });

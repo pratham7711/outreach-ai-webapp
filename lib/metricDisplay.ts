@@ -321,12 +321,14 @@ export type EngagementRatePost = {
   sharesCount?: number | null;
   savesCount?: number | null;
   lastSyncedAt?: string | Date | null;
+  /** The row's __measured list, when loaded: it says whether the likes were read. */
+  platformMetrics?: unknown;
 };
 
 export type EngagementRollup = {
   /** likes + comments + shares + saves over measured posts; null when none are. */
   engagements: number | null;
-  /** Views belonging to the measured posts -- the rate's denominator. */
+  /** Views of the posts the rate is taken over -- its denominator. */
   measuredViews: number;
   /** engagements / measuredViews as a fraction, or null when unmeasurable. */
   rate: number | null;
@@ -349,14 +351,25 @@ export function rollupEngagement(
       }),
     0
   );
-  const measuredViews = measured.reduce((sum, p) => sum + (p.viewsCount || 0), 0);
   /* The rate's numerator comes only from posts that also have views. A post
      whose views are unknown -- an Instagram image, or a TikTok video whose
      view count contradicted its likes and was set aside -- adds nothing below
      the line, so its likes above it pushed the rate up for every campaign,
-     creator and org that held one. RATED_POSTS_FILTER is the same test in SQL. */
-  const ratedEngagements = measured
-    .filter((p) => (p.viewsCount ?? 0) > 0)
+     creator and org that held one. RATED_POSTS_FILTER is the same test in SQL.
+
+     Nor a post whose likes were not read: Instagram omits a hidden like count,
+     the read stores 0 and leaves "likes" out of __measured, and rating that post
+     on its comments alone pulled the rate towards 0. Measured on a copy of a
+     production campaign 2026-10-03: 121 reels, no like count read on any, and
+     ENG. RATE said 0.04% -- one comment over 2,610 views. postEngagementPercent
+     already refuses such a post; the campaign rate now agrees with it. */
+  const rated = measured.filter(
+    (p) =>
+      (p.viewsCount ?? 0) > 0 &&
+      fieldMetricValue(p.likesCount, p.lastSyncedAt, p.platformMetrics, "likes") !== null
+  );
+  const measuredViews = rated.reduce((sum, p) => sum + (p.viewsCount || 0), 0);
+  const ratedEngagements = rated
     .reduce(
       (sum, p) =>
         sum +
@@ -423,6 +436,10 @@ export const MEASURED_POSTS_FILTER: {
  * for every aggregate that feeds rollupEngagementFromTotals' rate; keep
  * MEASURED_POSTS_FILTER for totals of likes and comments, which a post with
  * unknown views still has.
+ *
+ * It does not read __measured, so a post whose like count was hidden still
+ * rates here on its comments -- the one way the org-wide aggregates differ from
+ * rollupEngagement over loaded posts.
  */
 export const RATED_POSTS_FILTER: {
   OR: ({ likesCount: { gt: number } } | { lastSyncedAt: { not: null } })[];
@@ -476,6 +493,7 @@ export type MeasurablePost = {
   savesCount: number;
   downloadsCount: number;
   lastSyncedAt: string | Date | null;
+  platformMetrics?: unknown;
 };
 
 /**
@@ -489,25 +507,35 @@ export type MeasurablePost = {
  */
 export function summarizePostMetrics(posts: readonly MeasurablePost[]) {
   const measured = posts.filter((p) => metricValue(p.likesCount, p.lastSyncedAt) !== UNKNOWN);
-  const sum = (pick: (p: MeasurablePost) => number) =>
-    measured.length === 0 ? UNKNOWN : measured.reduce((acc, p) => acc + (pick(p) || 0), 0);
+  /* A read that left a counter out of __measured stored 0 for it. Summed in,
+     an Instagram campaign whose shares were never returned showed "Total
+     Shares 0" here while the Performance tab hid the tile as unknown. */
+  const read = (p: MeasurablePost, field: MetricField, value: number) => {
+    const fields = measuredFields(p.platformMetrics);
+    return !fields || fields.includes(field) || value > 0;
+  };
+  const sum = (field: MetricField, pick: (p: MeasurablePost) => number) => {
+    const known = measured.filter((p) => read(p, field, pick(p)));
+    return known.length === 0 ? UNKNOWN : known.reduce((acc, p) => acc + (pick(p) || 0), 0);
+  };
 
-  const likes = sum((p) => p.likesCount);
-  const comments = sum((p) => p.commentsCount);
-  const shares = sum((p) => p.sharesCount);
-  const saves = sum((p) => p.savesCount);
-  const downloads = sum((p) => p.downloadsCount);
+  const likes = sum("likes", (p) => p.likesCount);
+  const comments = sum("comments", (p) => p.commentsCount);
+  const shares = sum("shares", (p) => p.sharesCount);
+  const saves = sum("saves", (p) => p.savesCount);
+  const downloads = sum("downloads", (p) => p.downloadsCount);
   /* Five terms, matching CreatorCore's own `engagement` field rather than
      guessing: audited over 9,372 of their statistic-post records, 8,767 equal
      likes+comments+shares+downloads (no saves on the row) and 804 equal that
      plus saves, with 0 matching neither. Their engagementRate is exactly this
      over views in every row. */
   const engagement =
-    likes === UNKNOWN
+    measured.length === 0
       ? UNKNOWN
-      : likes + (comments ?? 0) + (shares ?? 0) + (downloads ?? 0) + (saves ?? 0);
+      : (likes ?? 0) + (comments ?? 0) + (shares ?? 0) + (downloads ?? 0) + (saves ?? 0);
 
   const perPostRates = measured
+    .filter((p) => read(p, "likes", p.likesCount))
     .map((p) => engagementRateValue(p.likesCount, p.commentsCount, p.viewsCount, p.lastSyncedAt))
     .filter((r): r is number => r !== UNKNOWN);
   const avgPostRate =

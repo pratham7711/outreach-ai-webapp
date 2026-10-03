@@ -425,9 +425,11 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
                   <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>{row.posts}</span>
                   <span style={{ fontSize: "var(--cc-t-13)", fontWeight: "var(--cc-fw-strong)", color: "var(--cc-text)" }}>{row.views === null ? "—" : formatNumber(row.views)}</span>
                   {anyEngagementMeasured && (
-                    <span>
-                      {row.engagementRate !== null && (
+                    <span style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)" }}>
+                      {row.engagementRate !== null ? (
                         <Badge variant="neutral" size="sm">{(row.engagementRate * 100).toFixed(1)}%</Badge>
+                      ) : (
+                        "—"
                       )}
                     </span>
                   )}

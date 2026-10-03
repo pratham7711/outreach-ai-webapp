@@ -380,7 +380,7 @@ export default function SharedPerformanceReport({
                             <span className="spr-board-cell-strong">{row.views === null ? "—" : formatNumber(row.views)}</span>
                             {anyEngagementMeasured && (
                               <span className="spr-board-cell">
-                                {row.engagementRate !== null ? `${(row.engagementRate * 100).toFixed(1)}%` : ""}
+                                {row.engagementRate !== null ? `${(row.engagementRate * 100).toFixed(1)}%` : "—"}
                               </span>
                             )}
                           </div>
