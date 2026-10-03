@@ -298,7 +298,7 @@ export default function SharedPerformanceReport({
                           paddingAngle={2}
                           label={false}
                           stroke="var(--spr-card)"
-                          strokeWidth={2}
+                          strokeWidth={platformSplit.filter((p) => p.views > 0).length > 1 ? 2 : 0}
                         >
                           {platformSplit.filter((p) => p.views > 0).map((entry) => (
                             <Cell key={entry.platform} fill={platformColor(entry.platform)} />
@@ -374,7 +374,7 @@ export default function SharedPerformanceReport({
                               </div>
                             </div>
                             <span className="spr-board-cell">{row.posts}</span>
-                            <span className="spr-board-cell-strong">{formatNumber(row.views)}</span>
+                            <span className="spr-board-cell-strong">{row.views === null ? "—" : formatNumber(row.views)}</span>
                             {anyEngagementMeasured && (
                               <span className="spr-board-cell">
                                 {row.engagementRate !== null ? `${(row.engagementRate * 100).toFixed(1)}%` : ""}

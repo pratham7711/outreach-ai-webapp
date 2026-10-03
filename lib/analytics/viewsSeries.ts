@@ -52,12 +52,37 @@ export function dayKey(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
+const DAY_MS = 86_400_000;
+
 /**
- * One row per day on which anything is known, each carrying every group's
- * running view total as of that day.
+ * One row per UTC day, every day from the first thing known to the last, each
+ * carrying every group's running view total as of that day.
  *
  * `groups` fixes the columns, so a group with no posts still gets an explicit 0
  * rather than an absent key the chart would read as a gap.
+ *
+ * Three rules beyond the two in the header, each from a measured chart:
+ *
+ *  - EVERY day, not only the days something was read. The chart's x-axis is a
+ *    list of these dates, so a day with no reading used to vanish from it and a
+ *    22-day gap was drawn the width of one day (an Instagram campaign read Sep 4,
+ *    Sep 6, Sep 9, Sep 10, Oct 2 at equal spacing). Filling the days is what puts
+ *    the axis to scale; the carry-forward is what makes the filled days true.
+ *
+ *  - A post's first reading stands from its POSTING day. Tracking often starts
+ *    long after a post went live -- one production campaign posted from January
+ *    and was first read on 19 September -- and charting each post only from its
+ *    first reading drew 44.7M of a 58.8M campaign arriving on one September day,
+ *    with the axis jumping from March straight to it. An unsnapshotted post was
+ *    already charted from its posting day; a snapshotted one now is too, at the
+ *    first level it was seen at.
+ *
+ *  - A reading of 0 views is not a level. Views are lifetime counts and do not
+ *    return to zero, so a 0 is a read that did not see the views (a legacy row
+ *    written before __measured existed, or a post read before it had any). It is
+ *    skipped, and the post's last real level carries on through it. A post whose
+ *    readings are ALL zero is charted like one with no readings: its own current
+ *    count from its posting day, which is also what the Total Views tile sums.
  */
 export function carryForwardViewsByDay<G extends string>(input: {
   posts: readonly ViewsSeriesPost<G>[];
@@ -73,35 +98,46 @@ export function carryForwardViewsByDay<G extends string>(input: {
      difference between them would silently be the difference between the first
      and last reading of the day. */
   const latest = new Map<string, Map<string, { at: number; views: number }>>();
-  const withSnapshots = new Set<string>();
-  const days = new Set<string>();
+  const firstDay = new Map<string, string>();
 
   for (const snap of snapshots) {
     if (!groupByPost.has(snap.postId)) continue;
+    const views = snap.viewsCount;
+    if (views === null || !(views > 0)) continue;
     const day = dayKey(snap.recordedAt);
     const at = snap.recordedAt.getTime();
     let ofDay = latest.get(day);
     if (!ofDay) latest.set(day, (ofDay = new Map()));
     const existing = ofDay.get(snap.postId);
     if (!existing || at >= existing.at) {
-      ofDay.set(snap.postId, { at, views: snap.viewsCount ?? 0 });
+      ofDay.set(snap.postId, { at, views });
     }
-    withSnapshots.add(snap.postId);
-    days.add(day);
+    const first = firstDay.get(snap.postId);
+    if (first === undefined || day < first) firstDay.set(snap.postId, day);
   }
 
-  /* A post nobody ever snapshotted still published on a day and still has views.
-     Its posting day joins the axis and its current count carries from there. */
-  const firstSeen = new Map<string, { postId: string; views: number }[]>();
+  /* Where each post enters the chart, and at what level: its posting day (or its
+     first reading, if a clock disagreement puts that earlier), at its first
+     reading's level -- or, with no reading, at its current count. */
+  const entries = new Map<string, { postId: string; views: number }[]>();
+  let lo: string | undefined;
+  let hi: string | undefined;
+  const widen = (day: string) => {
+    if (lo === undefined || day < lo) lo = day;
+    if (hi === undefined || day > hi) hi = day;
+  };
   for (const post of posts) {
-    if (withSnapshots.has(post.id)) continue;
-    const day = dayKey(post.postedAt);
-    days.add(day);
-    const bucket = firstSeen.get(day);
-    const entry = { postId: post.id, views: post.viewsCount ?? 0 };
-    if (bucket) bucket.push(entry);
-    else firstSeen.set(day, [entry]);
+    const posted = dayKey(post.postedAt);
+    const first = firstDay.get(post.id);
+    const day = first !== undefined && first < posted ? first : posted;
+    const views = first !== undefined ? latest.get(first)!.get(post.id)!.views : post.viewsCount ?? 0;
+    const bucket = entries.get(day);
+    if (bucket) bucket.push({ postId: post.id, views });
+    else entries.set(day, [{ postId: post.id, views }]);
+    widen(day);
   }
+  for (const day of latest.keys()) widen(day);
+  if (lo === undefined || hi === undefined) return [];
 
   /* Running totals, moved by DELTAS, rather than re-summing every post on every
      day. The re-sum was O(posts x days) -- a campaign with 500 posts charted
@@ -126,12 +162,14 @@ export function carryForwardViewsByDay<G extends string>(input: {
     if (group !== undefined && group in running) running[group] += views - previous;
   };
 
-  for (const day of Array.from(days).sort()) {
+  const end = Date.parse(`${hi}T00:00:00.000Z`);
+  for (let t = Date.parse(`${lo}T00:00:00.000Z`); t <= end; t += DAY_MS) {
+    const day = dayKey(new Date(t));
+    for (const entry of entries.get(day) ?? []) {
+      apply(entry.postId, entry.views);
+    }
     for (const [postId, reading] of latest.get(day) ?? []) {
       apply(postId, reading.views);
-    }
-    for (const entry of firstSeen.get(day) ?? []) {
-      apply(entry.postId, entry.views);
     }
 
     // A copy per row: the caller spreads these into chart data and would

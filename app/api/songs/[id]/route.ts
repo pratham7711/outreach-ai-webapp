@@ -5,6 +5,7 @@ import { authenticateRequest } from "@/lib/authenticate";
 import { computeEngagementRate } from "@/lib/metrics";
 import { fieldMetricValue, postEngagementPercent } from "@/lib/metricDisplay";
 import { logAudit } from "@/lib/audit";
+import { oneCopyPerVideo } from "@/lib/posts/duplicates";
 import { getRequestIp } from "@/lib/request";
 
 /**
@@ -77,7 +78,13 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     c.posts.map((p) => ({ ...p, campaignId: c.id, campaignTitle: c.title })),
   );
 
-  const sum = (fn: (p: (typeof allPosts)[number]) => number) => allPosts.reduce((s, p) => s + fn(p), 0);
+  /* The song's own totals count each video once. A video delivered to two of
+     the song's campaigns is two rows, and each campaign keeps its own count
+     below -- but "Total views" for the song added both (production: one song,
+     18 posts of 17 videos, measured 2026-10-03). Same rule as the org totals
+     (lib/posts/duplicates). */
+  const songPosts = oneCopyPerVideo(allPosts);
+  const sum = (fn: (p: (typeof allPosts)[number]) => number) => songPosts.reduce((s, p) => s + fn(p), 0);
   const totalViews = sum((p) => p.viewsCount);
   const totalLikes = sum((p) => p.likesCount);
   const totalComments = sum((p) => p.commentsCount);
@@ -85,7 +92,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   const totalSaves = sum((p) => p.savesCount);
 
   const byPlatform = new Map<string, { views: number; posts: number }>();
-  for (const p of allPosts) {
+  for (const p of songPosts) {
     const row = byPlatform.get(p.platform) ?? { views: 0, posts: 0 };
     row.views += p.viewsCount;
     row.posts += 1;

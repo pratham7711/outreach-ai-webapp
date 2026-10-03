@@ -26,6 +26,38 @@ export function postVideoKeySql(alias: string): string {
   )`;
 }
 
+/** postVideoKeySql in JavaScript, for totals built from rows already loaded. */
+export function postVideoKey(platform: string, postUrl: string | null | undefined): string {
+  const url = postUrl ?? "";
+  const pattern =
+    platform === "TIKTOK"
+      ? /\/(?:video|photo)\/([0-9]+)/
+      : platform === "INSTAGRAM"
+        ? /\/(?:p|reel|reels|tv)\/([A-Za-z0-9_-]+)/
+        : platform === "YOUTUBE"
+          ? /(?:youtu\.be\/|[?&]v=|\/shorts\/|\/live\/|\/embed\/)([A-Za-z0-9_-]{11})/
+          : null;
+  const id = pattern ? url.match(pattern)?.[1] : undefined;
+  return `${platform}:${id ?? url.split("?")[0]}`;
+}
+
+/**
+ * Each video once: of the posts sharing a video, the one with the most views
+ * (view counts only grow, so that is the freshest read) -- duplicatePostIds'
+ * rule, for a set of posts rather than a whole org.
+ */
+export function oneCopyPerVideo<T extends { platform: string; postUrl?: string | null; viewsCount: number }>(
+  posts: readonly T[],
+): T[] {
+  const kept = new Map<string, T>();
+  for (const post of posts) {
+    const key = postVideoKey(post.platform, post.postUrl);
+    const held = kept.get(key);
+    if (!held || post.viewsCount > held.viewsCount) kept.set(key, post);
+  }
+  return [...kept.values()];
+}
+
 /**
  * The org's posts that repeat a video another of its posts already counts.
  *

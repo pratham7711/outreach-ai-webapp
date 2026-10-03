@@ -16,6 +16,9 @@ jest.mock("@/lib/db", () => ({
     // The report also reaches campaign -> song -> sound for the audio card.
     campaign: { findUnique: jest.fn() },
     soundTrackerSnapshot: { findMany: jest.fn() },
+    // The audio curve is bucketed to the org's chart granularity; none set
+    // means the default, daily.
+    organization: { findUnique: jest.fn().mockResolvedValue(null) },
     // The cache key is a stamp read off the campaign's own state.
     $queryRaw: jest.fn(),
   },
@@ -249,10 +252,15 @@ describe("computeCampaignPerformance audio provenance", () => {
        a baseline, and charted it drew a real "0.00%" point that pulled the
        velocity line down to it — the tracker's own VelocityChart has always
        dropped its first point for exactly this reason. */
+    /* Velocity is now computed from the charted levels -- (44 - 23) / 23 --
+       rather than read off the stored column, so it is null wherever the pair
+       cannot say (lib/sounds/usageSeries). */
     expect(result.audio!.usageSeries).toEqual([
-      { date: "2026-08-21", at: "2026-08-21T00:00:00.000Z", uses: 23, velocity: null },
-      { date: "2026-08-22", at: "2026-08-22T00:00:00.000Z", uses: 44, velocity: 91.3 },
+      { date: "2026-08-21", at: "2026-08-21T00:00:00.000Z", t: Date.UTC(2026, 7, 21), uses: 23, rounded: false, velocity: null },
+      { date: "2026-08-22", at: "2026-08-22T00:00:00.000Z", t: Date.UTC(2026, 7, 22), uses: 44, rounded: false, velocity: 91.3 },
     ]);
+    expect(result.audio!.usesRounded).toBe(false);
+    expect(result.audio!.platform).toBe("TIKTOK");
     // The tracker's own cover wins over the song's art.
     expect(result.audio!.coverUrl).toBe("https://cdn/sound.jpg");
   });
@@ -466,8 +474,10 @@ describe("computeCampaignPerformance views-over-time read", () => {
     const result = await computeCampaignPerformance(campaign);
 
     // One key per platform the campaign posted on, and this campaign is
-    // TikTok-only, so INSTAGRAM and YOUTUBE are absent rather than zero.
+    // TikTok-only, so INSTAGRAM and YOUTUBE are absent rather than zero. The
+    // posting day, 08-01, carries the first reading back.
     expect(result.timeSeries).toEqual([
+      { date: "2026-08-01", TIKTOK: 4_000 },
       { date: "2026-08-02", TIKTOK: 4_000 },
       { date: "2026-08-03", TIKTOK: 5_000 },
     ]);
@@ -524,15 +534,99 @@ describe("first-reading velocity", () => {
     mockDb.campaign.findUnique.mockResolvedValue(song);
   });
 
-  it("keeps the oldest point's velocity when an earlier reading exists beyond the window", async () => {
-    // 61 rows come back: the 61st exists only to prove the 60th has a
-    // predecessor, and it is not charted.
+  it("charts one point a day with velocity from the day before, null only on the first", async () => {
     const rows = Array.from({ length: 61 }, (_, i) => snapshot(60 - i));
     mockDb.soundTrackerSnapshot.findMany.mockResolvedValue(rows);
 
     const result = await computeCampaignPerformance(campaign);
 
-    expect(result.audio!.usageSeries).toHaveLength(60);
-    expect(result.audio!.usageSeries[0].velocity).toBe(5);
+    expect(result.audio!.usageSeries).toHaveLength(61);
+    expect(result.audio!.usageSeries[0].velocity).toBeNull();
+    expect(result.audio!.usageSeries[1].velocity).toBe(1); // 100 -> 101
+  });
+
+  /* Production, 2026-10-03: a TikTok sound near 74K read 33 times, every
+     reading a multiple of 100 -- the embed's "73.9K" -- and the card showed the
+     wobble between roundings as "+400 videos added". */
+  it("withholds videos added and velocity when the readings are the platform's rounded figures", async () => {
+    const at = (d: number) => new Date(Date.UTC(2026, 8, d, 4));
+    mockDb.soundTrackerSnapshot.findMany.mockResolvedValue([
+      { usesCount: 74_100, recordedAt: at(28) },
+      { usesCount: 73_700, recordedAt: at(27) },
+      { usesCount: 74_000, recordedAt: at(26) },
+    ]);
+
+    const result = await computeCampaignPerformance(campaign);
+
+    expect(result.audio!.uses).toBe(74_100);
+    expect(result.audio!.usesRounded).toBe(true);
+    expect(result.audio!.videosAdded24h).toBeNull();
+    expect(result.audio!.usageSeries.map((p) => p.velocity)).toEqual([null, null, null]);
+    expect(result.audio!.usageSeries.every((p) => p.rounded)).toBe(true);
+  });
+
+  it("collapses a burst of refreshes into one point", async () => {
+    const at = (s: number) => new Date(Date.UTC(2026, 8, 23, 19, 44, s));
+    mockDb.soundTrackerSnapshot.findMany.mockResolvedValue(
+      [7, 5, 3, 0].map((sec) => ({ usesCount: 8_659, recordedAt: at(sec) })),
+    );
+
+    const result = await computeCampaignPerformance(campaign);
+
+    expect(result.audio!.usageSeries).toHaveLength(1);
+  });
+
+  it("links an Instagram audio to Instagram and says so", async () => {
+    mockDb.campaign.findUnique.mockResolvedValue({
+      song: { coverUrl: null, sound: { ...song.song.sound, platform: "INSTAGRAM", tiktokSoundId: "2094289147512017" } },
+    });
+    mockDb.soundTrackerSnapshot.findMany.mockResolvedValue([snapshot(1)]);
+
+    const result = await computeCampaignPerformance(campaign);
+
+    expect(result.audio!.platform).toBe("INSTAGRAM");
+    expect(result.audio!.soundUrl).toBe("https://www.instagram.com/reels/audio/2094289147512017/");
+  });
+});
+
+/* Local copy of a 121-post Instagram campaign: six of seven creators showed
+   VIEWS 0 in Top Creators. Their posts were photos and carousels, which publish
+   no view count -- unknown, not zero. */
+describe("Top Creators with unknown views", () => {
+  const photo = (id: string, who: { id: string; name: string }, likes: number) =>
+    post({
+      id,
+      platform: "INSTAGRAM",
+      viewsCount: 0,
+      likesCount: likes,
+      lastSyncedAt: new Date("2026-10-02T13:06:00Z"),
+      platformMetrics: { __measured: ["likes", "comments"] },
+      creator: { ...who, avatarUrl: null },
+    });
+
+  it("reports null views for a creator none of whose posts had views read", async () => {
+    mockDb.post.findMany.mockResolvedValue([
+      post({ id: "reel", platform: "INSTAGRAM", viewsCount: 5_000, creator: { id: "c-reel", name: "Reel", avatarUrl: null } }),
+      photo("p1", { id: "c-photo", name: "Photo" }, 300),
+    ]);
+
+    const result = await computeCampaignPerformance(campaign);
+
+    const byId = Object.fromEntries(result.leaderboard.map((r) => [r.creatorId, r]));
+    expect(byId["c-reel"].views).toBe(5_000);
+    expect(byId["c-photo"].views).toBeNull();
+    expect(byId["c-photo"].engagementRate).toBeNull();
+  });
+
+  it("ranks unknown views below every measured creator, then by engagements", async () => {
+    mockDb.post.findMany.mockResolvedValue([
+      photo("p1", { id: "c-few", name: "Few" }, 10),
+      photo("p2", { id: "c-many", name: "Many" }, 900),
+      post({ id: "v1", viewsCount: 40, likesCount: 1, lastSyncedAt: new Date(), creator: { id: "c-small", name: "Small", avatarUrl: null } }),
+    ]);
+
+    const result = await computeCampaignPerformance(campaign);
+
+    expect(result.leaderboard.map((r) => r.creatorId)).toEqual(["c-small", "c-many", "c-few"]);
   });
 });

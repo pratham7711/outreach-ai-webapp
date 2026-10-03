@@ -484,6 +484,9 @@ export default function PostDetailPage() {
      readings that measured views are plotted (lib/metricDisplay
      readableSnapshots), so a partial read is not drawn as a fall to 0. */
   const chartData = readableSnapshots([...post.snapshots].reverse()).map((s) => ({
+    // The reading's instant, for a time-scaled axis: readings are not evenly
+    // spaced, and several a day each drew under the same date label.
+    t: new Date(s.recordedAt).getTime(),
     // UTC named, so the axis labels a snapshot with the same day the server
     // rendered it under, and with the day the series is bucketed by.
     date: new Date(s.recordedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }),
@@ -495,7 +498,9 @@ export default function PostDetailPage() {
   const trackingEnabled = timeseries?.trackingEnabled ?? false;
   const botSignals = timeseries?.botSignals ?? [];
   const trackingSeries = (timeseries?.snapshots ?? []).map((s) => ({
-    ts: new Date(s.recordedAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric" }),
+    t: new Date(s.recordedAt).getTime(),
+    // UTC, like the chart above; this was the viewer's zone with no zone named.
+    ts: `${new Date(s.recordedAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", timeZone: "UTC" })} UTC`,
     views: s.viewsCount,
     engagement: s.likesCount === null && s.commentsCount === null ? null : (s.likesCount ?? 0) + (s.commentsCount ?? 0),
   }));

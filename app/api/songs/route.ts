@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { oneCopyPerVideo } from "@/lib/posts/duplicates";
 import { authenticateRequest } from "@/lib/authenticate";
 
 const createSchema = z.object({
@@ -32,7 +33,7 @@ export async function GET(req: NextRequest) {
         select: {
           id: true,
           status: true,
-          posts: { select: { viewsCount: true, platform: true } },
+          posts: { select: { viewsCount: true, platform: true, postUrl: true } },
         },
       },
     },
@@ -50,7 +51,8 @@ export async function GET(req: NextRequest) {
         campaignCount: s.campaigns.length,
         activeCampaignCount: s.campaigns.filter((c) => c.status === "IN_PROGRESS").length,
         postCount: posts.length,
-        totalViews: posts.reduce((sum, p) => sum + p.viewsCount, 0),
+        // Each video once, as on the song's own page (lib/posts/duplicates).
+        totalViews: oneCopyPerVideo(posts).reduce((sum, p) => sum + p.viewsCount, 0),
         platforms: [...new Set(posts.map((p) => p.platform))],
       };
     }),

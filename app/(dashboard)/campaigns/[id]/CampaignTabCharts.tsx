@@ -7,7 +7,8 @@ import {
 import { ChartFrame } from "@/components/ds";
 
 type PieDatum = { name?: string; value: number; fill?: string };
-type BarDatum = { name: string; views: number; likes: number };
+/** Null where none of the creator's posts measured that counter: no bar, not a 0. */
+type BarDatum = { name: string; views: number | null; likes: number | null };
 
 const axisTick = { fontSize: 12, fill: "var(--muted-foreground)" } as const;
 
@@ -29,7 +30,7 @@ export function PlatformViewsPie({
   return (
     <ChartFrame minHeight={200}>
       <PieChart>
-        <Pie isAnimationActive={false} data={data} cx="50%" cy="50%" innerRadius={55} outerRadius={85} dataKey="value" nameKey="name" paddingAngle={2} label={false} stroke="var(--cc-card)" strokeWidth={2}>
+        <Pie isAnimationActive={false} data={data} cx="50%" cy="50%" innerRadius={55} outerRadius={85} dataKey="value" nameKey="name" paddingAngle={2} label={false} stroke="var(--cc-card)" strokeWidth={data.length > 1 ? 2 : 0}>
           {data.map((entry, i) => (
             <Cell key={i} fill={entry.fill} />
           ))}
@@ -81,7 +82,7 @@ export function CreatorPerformanceBar({
         />
         <Tooltip
           contentStyle={chartTooltipStyle}
-          formatter={(v: any, name: any) => [formatNumber(Number(v ?? 0)), String(name)]}
+          formatter={(v: any, name: any) => [v == null ? "—" : formatNumber(Number(v)), String(name)]}
         />
         {/* Formatted like the pie chart's legend above. Left to itself recharts
             paints each label in its series colour, so "Likes" rendered in the
