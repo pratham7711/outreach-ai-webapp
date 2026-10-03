@@ -346,6 +346,9 @@
   --cc-camp-rail-active-bg: var(--cc-primary);
   --cc-camp-rail-active-fg: var(--card);
   --cc-camp-rail-active-fw: 600;
+  /* The org name heading the rail. It reads as a title, not as an inactive row,
+     so a theme that dims its rows must not dim this with them. */
+  --cc-camp-rail-brand-fg: var(--cc-camp-rail-fg);
   --cc-camp-rail-nav-pad-inline: 10px;
   --cc-rail-border-w: 1px;
   /* The rail card's own width, and the air around it. Base values make the card
@@ -1781,6 +1784,9 @@
   --cc-camp-rail-active-bg: var(--card);
   --cc-camp-rail-active-fg: var(--cc-primary);
   --cc-camp-rail-active-fw: 700;
+  /* Their 0.5 white is the inactive-row ink; on the org name it measured 2.84:1
+     (e2e/contrast.spec.ts). Full white, the rail's own hover ink, is 7.12:1. */
+  --cc-camp-rail-brand-fg: var(--cc-camp-rail-hover-fg);
   /* 208 - 21 - 166.4 = 20.6 on the far side, so 21px of nav padding reproduces
      both their row inset and their row width from the rail width alone. */
   --cc-camp-rail-nav-pad-inline: 21px;
@@ -2551,7 +2557,6 @@
    background and stay legible on any ground. */
 .cc-sidebar-rail[data-shell="campaign"] .cc-sidebar-nav .cc-nav-item,
 .cc-sidebar-rail[data-shell="campaign"] .cc-nav-group-label,
-.cc-sidebar-rail[data-shell="campaign"] .cc-rail-brand,
 .cc-sidebar-rail[data-shell="campaign"] .cc-sidebar-username,
 .cc-sidebar-rail[data-shell="campaign"] .cc-sidebar-head button,
 .cc-sidebar-rail[data-shell="campaign"] .cc-rail-utility button,
@@ -2559,6 +2564,9 @@
 .cc-sidebar-rail[data-shell="campaign"] .cc-rail-utility svg,
 .cc-sidebar-rail[data-shell="campaign"] .cc-rail-user-chevron {
   color: var(--cc-camp-rail-fg);
+}
+.cc-sidebar-rail[data-shell="campaign"] .cc-rail-brand {
+  color: var(--cc-camp-rail-brand-fg);
 }
 
 /* Scoped to .cc-sidebar-nav on purpose. The user menu that opens from the rail
