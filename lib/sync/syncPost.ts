@@ -12,6 +12,7 @@ import { getInstagramAccountForCreator } from "@/lib/platforms/instagramToken";
 import { getTikTokTokenForCreator } from "@/lib/platforms/tiktokToken";
 import { METRIC_WRITERS_KEY, rankPostCounters, type WriterNotes } from "@/lib/metrics/postWriters";
 import { protectedCreatorFollowers } from "@/lib/creators/followerWriter";
+import { countsContradict, engagementExceedsViews } from "@/lib/metrics/coherence";
 
 /**
  * Refresh one post's metrics from its platform.
@@ -179,6 +180,72 @@ function currentBag(post: SyncablePost): Record<string, unknown> | null {
     : {};
 }
 
+/** The countless write: keep the post's numbers, record why this read added none. */
+async function recordUnread(
+  post: SyncablePost,
+  metrics: PostMetrics,
+  reason: FetchReason,
+  syncSource: string,
+): Promise<SyncPostOutcome> {
+  const noMetricsBag = currentBag(post);
+  // Worth keeping if the fetch produced one: a thumbnail with no counts is
+  // still better than an empty card. No lastSyncedAt -- see above.
+  const updated = await db.post.update({
+    where: { id: post.id },
+    data: {
+      thumbnailUrl: metrics.thumbnailUrl ?? post.thumbnailUrl,
+      caption: metrics.caption ?? post.caption,
+      /* UNAVAILABLE on exactly two reasons, and never on the others.
+         "post-deleted" and "post-hidden" are the platform stating positively
+         that the public cannot see the post; every other failure here is us
+         failing to read it, and the
+         measured branch below explains at length why writing UNAVAILABLE on
+         those would tell a brand its creators had pulled the campaign.
+
+         No ERROR state is written. It would need to mean "persistently
+         unreadable", and there is no longer a counter for that: the reasons
+         that used to accumulate toward one are precisely the reasons the cron
+         now refuses to charge. The honest per-post record of a failed read is
+         __lastFetch, written just below. */
+      ...(reason === "post-deleted" || reason === "post-hidden" ? { fetchState: "UNAVAILABLE" as const } : {}),
+      /* The cause, on the post, in the write this branch already made.
+         Costs no extra query and is the only record that survives the run:
+         the aggregate on CampaignRefreshRun says 21 posts went unmeasured
+         but never which, and the platform log lines age out.
+
+         It also carries the streak (since, strikes) from the note already
+         there, because "deleted" needs two checks that agree (plan A5) and
+         the previous note is the only memory of the first one. */
+      ...(noMetricsBag
+        ? {
+            platformMetrics: {
+              ...noMetricsBag,
+              [LAST_FETCH_KEY]: nextLastFetchNote(
+                lastFetchNote(noMetricsBag),
+                reason,
+                new Date().toISOString(),
+                syncSource,
+              ),
+            },
+          }
+        : {}),
+    },
+    include: SYNC_POST_INCLUDE,
+  });
+  /* Why, not just that. A caller counting these can now say "62 challenged by
+     TikTok, 4 deleted" instead of "66 returned no metrics", which is the
+     difference between a report someone can act on and one they cannot. */
+  return {
+    status: "no-metrics",
+    post: updated as unknown as Record<string, unknown>,
+    /* "unknown", not "no-counts-published". A fetcher that named no reason
+       has told us nothing about the post, and the old default turned that
+       silence into the claim that the post publishes no counters -- which
+       refreshCampaign treats as settled and never retries. */
+    reason,
+  };
+}
+
 /**
  * Write metrics that were already fetched.
  *
@@ -200,64 +267,11 @@ export async function applyPostMetrics(
 ): Promise<SyncPostOutcome> {
   const syncSource = options.syncSource ?? "api";
   if (!hasMetricCounts(metrics)) {
-    const reason = metrics.fetchReason ?? "unknown";
-    const noMetricsBag = currentBag(post);
-    // Worth keeping if the fetch produced one: a thumbnail with no counts is
-    // still better than an empty card. No lastSyncedAt -- see above.
-    const updated = await db.post.update({
-      where: { id: post.id },
-      data: {
-        thumbnailUrl: metrics.thumbnailUrl ?? post.thumbnailUrl,
-        caption: metrics.caption ?? post.caption,
-        /* UNAVAILABLE on exactly two reasons, and never on the others.
-           "post-deleted" and "post-hidden" are the platform stating positively
-           that the public cannot see the post; every other failure here is us
-           failing to read it, and the
-           measured branch below explains at length why writing UNAVAILABLE on
-           those would tell a brand its creators had pulled the campaign.
-
-           No ERROR state is written. It would need to mean "persistently
-           unreadable", and there is no longer a counter for that: the reasons
-           that used to accumulate toward one are precisely the reasons the cron
-           now refuses to charge. The honest per-post record of a failed read is
-           __lastFetch, written just below. */
-        ...(reason === "post-deleted" || reason === "post-hidden" ? { fetchState: "UNAVAILABLE" as const } : {}),
-        /* The cause, on the post, in the write this branch already made.
-           Costs no extra query and is the only record that survives the run:
-           the aggregate on CampaignRefreshRun says 21 posts went unmeasured
-           but never which, and the platform log lines age out.
-
-           It also carries the streak (since, strikes) from the note already
-           there, because "deleted" needs two checks that agree (plan A5) and
-           the previous note is the only memory of the first one. */
-        ...(noMetricsBag
-          ? {
-              platformMetrics: {
-                ...noMetricsBag,
-                [LAST_FETCH_KEY]: nextLastFetchNote(
-                  lastFetchNote(noMetricsBag),
-                  reason,
-                  new Date().toISOString(),
-                  syncSource,
-                ),
-              },
-            }
-          : {}),
-      },
-      include: SYNC_POST_INCLUDE,
-    });
-    /* Why, not just that. A caller counting these can now say "62 challenged by
-       TikTok, 4 deleted" instead of "66 returned no metrics", which is the
-       difference between a report someone can act on and one they cannot. */
-    return {
-      status: "no-metrics",
-      post: updated as unknown as Record<string, unknown>,
-      /* "unknown", not "no-counts-published". A fetcher that named no reason
-         has told us nothing about the post, and the old default turned that
-         silence into the claim that the post publishes no counters -- which
-         refreshCampaign treats as settled and never retries. */
-      reason,
-    };
+    /* Named before the fetcher's own reason: a reading refused for
+       contradicting itself carried numbers, so whatever the fetcher said about
+       an empty answer does not describe it. Filed as "unknown" until
+       2026-10-03, which charged it and switched four live posts off. */
+    return recordUnread(post, metrics, countsContradict(metrics) ? "counts-inconsistent" : metrics.fetchReason ?? "unknown", syncSource);
   }
 
   /* Before anything reads a counter: a display-rounded figure never replaces a
@@ -292,6 +306,15 @@ export async function applyPostMetrics(
      Undefined leaves the stored rate as it was. */
   const viewsKnown = known("views") || (post.viewsCount ?? 0) > 0;
   const likesKnown = known("likes") || (post.likesCount ?? 0) > 0;
+  /* The row this write would leave, not just the reading. A read carrying
+     views alone (an embed, or a held connected counter beside a public one)
+     can be consistent on its own and still land under a stored likes count
+     from another source -- one post on prod held 1,406 views under 5,083
+     likes that way on 2026-09-30. Which side is wrong cannot be told from
+     here, so the post keeps what it had. See lib/metrics/coherence. */
+  if (viewsKnown && engagementExceedsViews(views, { likes, comments, shares, saves })) {
+    return recordUnread(post, metrics, "counts-inconsistent", syncSource);
+  }
   const engagementRate =
     measured.engagementRate ??
     (viewsKnown && likesKnown && views > 0 ? ((likes + comments) / views) * 100 : undefined);

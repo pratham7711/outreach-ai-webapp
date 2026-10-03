@@ -300,7 +300,7 @@ export function CampaignPerformancePDF({
                   )}
                   <Text style={[styles.tableCell, { flex: 1.1 }]}>{row.platform}</Text>
                   <Text style={[styles.tableCell, { flex: 1.2 }]}>{fmtPostedAt(row.postedAt)}</Text>
-                  <Text style={[styles.tableCell, { flex: 1 }]}>{fmtNumber(row.views)}</Text>
+                  <Text style={[styles.tableCell, { flex: 1 }]}>{fmtMaybe(row.views)}</Text>
                   <Text style={[styles.tableCell, { flex: 1 }]}>{fmtMaybe(row.likes)}</Text>
                   <Text style={[styles.tableCell, { flex: 1 }]}>{fmtMaybe(row.comments)}</Text>
                   {/* When these figures were read; words, not a dash, so a

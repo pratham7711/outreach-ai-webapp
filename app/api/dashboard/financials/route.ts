@@ -5,7 +5,7 @@ import { cachedOrgRead, utcHourKey } from "@/lib/reports/orgReadCache";
 import { auth } from "@/lib/auth";
 import { z } from "zod";
 import { dateParam, parseQuery } from "@/lib/http/queryParams";
-import { MEASURED_POSTS_FILTER, postEngagementPercent, rollupEngagementFromTotals } from "@/lib/metricDisplay";
+import { RATED_POSTS_FILTER, postEngagementPercent, rollupEngagementFromTotals } from "@/lib/metricDisplay";
 import { duplicatePostIds, excludingDuplicates } from "@/lib/posts/duplicates";
 
 const performanceQuerySchema = z.object({
@@ -274,7 +274,7 @@ async function performanceBody(orgId: string, from: Date, to: Date, granularity:
   const measuredByCreator = creatorIds.length
     ? await db.post.groupBy({
         by: ["creatorId"],
-        where: { AND: [orgPostWhere, { creatorId: { in: creatorIds } }, MEASURED_POSTS_FILTER] },
+        where: { AND: [orgPostWhere, { creatorId: { in: creatorIds } }, RATED_POSTS_FILTER] },
         _sum: { viewsCount: true, likesCount: true, commentsCount: true, sharesCount: true, savesCount: true },
         _count: { _all: true },
       })

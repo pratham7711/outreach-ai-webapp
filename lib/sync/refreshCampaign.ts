@@ -138,6 +138,8 @@ const REASON_IS_RETRYABLE: Record<RefreshFailReason, boolean> = {
   "credentials-rejected": false,
   /* The same name gets the same answer within one request. */
   "not-a-professional-account": false,
+  /* Another lane renders another page; the neighbour's stats were one page's. */
+  "counts-inconsistent": true,
   // Our bug, not their verdict -- and a thrown call is often transient.
   error: true,
 };

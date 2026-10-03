@@ -3,7 +3,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { authenticateRequest } from "@/lib/authenticate";
 import { computeEngagementRate } from "@/lib/metrics";
-import { postEngagementPercent } from "@/lib/metricDisplay";
+import { fieldMetricValue, postEngagementPercent } from "@/lib/metricDisplay";
 import { logAudit } from "@/lib/audit";
 import { getRequestIp } from "@/lib/request";
 
@@ -61,6 +61,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
               engagementRate: true,
               status: true,
               lastSyncedAt: true,
+              platformMetrics: true,
               creator: { select: { id: true, name: true, handle: true, avatarUrl: true } },
             },
           },
@@ -161,6 +162,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       caption: p.caption,
       postedAt: p.postedAt,
       viewsCount: p.viewsCount,
+      viewsKnown: fieldMetricValue(p.viewsCount, p.lastSyncedAt, p.platformMetrics, "views") !== null,
       likesCount: p.likesCount,
       commentsCount: p.commentsCount,
       sharesCount: p.sharesCount,

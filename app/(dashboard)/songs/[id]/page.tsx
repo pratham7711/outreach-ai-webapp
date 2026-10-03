@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { computeEngagementRate } from "@/lib/metrics";
-import { postEngagementPercent } from "@/lib/metricDisplay";
+import { fieldMetricValue, postEngagementPercent } from "@/lib/metricDisplay";
 import SongDashboard from "./SongDashboard";
 
 export default async function SongPage({ params }: { params: Promise<{ id: string }> }) {
@@ -32,7 +32,7 @@ export default async function SongPage({ params }: { params: Promise<{ id: strin
             select: {
               id: true, phaseId: true, platform: true, postUrl: true, postedAt: true,
               viewsCount: true, likesCount: true, commentsCount: true, sharesCount: true,
-              savesCount: true, engagementRate: true, status: true, lastSyncedAt: true,
+              savesCount: true, engagementRate: true, status: true, lastSyncedAt: true, platformMetrics: true,
               creator: { select: { id: true, name: true, handle: true } },
             },
           },
@@ -134,6 +134,7 @@ export default async function SongPage({ params }: { params: Promise<{ id: strin
           postUrl: p.postUrl,
           postedAt: p.postedAt.toISOString(),
           viewsCount: p.viewsCount,
+          viewsKnown: fieldMetricValue(p.viewsCount, p.lastSyncedAt, p.platformMetrics, "views") !== null,
           likesCount: p.likesCount,
           commentsCount: p.commentsCount,
           sharesCount: p.sharesCount,

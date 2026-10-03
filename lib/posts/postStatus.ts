@@ -76,6 +76,8 @@ const UNREAD_REASON: Record<string, string> = {
   "credentials-rejected": "the platform rejected our credentials",
   "not-a-professional-account":
     "Instagram shares nothing for this account; it may be personal, private, renamed or gone",
+  "counts-inconsistent":
+    "the platform's numbers for it contradicted each other (more likes than views), so its last consistent numbers are kept",
 };
 
 function toDate(at: string | Date | null | undefined): Date | null {

@@ -94,6 +94,10 @@ const ANSWERED_REASONS: ReadonlySet<FetchReason> = new Set<FetchReason>([
   "no-counts-published",
   "not-a-professional-account",
   "post-hidden",
+  /* Answered, with numbers that contradicted each other. A post TikTok keeps
+     answering this way does so every run, and five of them inside a ten-post
+     run would page as an outage. */
+  "counts-inconsistent",
 ]);
 
 type Decision = { postId: string; platform: string; action: PostTrackingAction; reason: string };

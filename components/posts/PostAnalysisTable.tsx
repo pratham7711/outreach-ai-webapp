@@ -18,6 +18,8 @@ export type AnalysisPost = {
   postUrl: string;
   postedAt: string;
   viewsCount: number;
+  /** False when the 0 in viewsCount is a views figure nobody measured. */
+  viewsKnown?: boolean;
   likesCount: number;
   commentsCount: number;
   sharesCount: number;
@@ -203,7 +205,7 @@ export function PostAnalysisTable({
                       synced {p.lastSyncedAt ? timeAgo(p.lastSyncedAt) : "never"}
                     </div>
                   </td>
-                  <td style={numericCell}>{formatFull(p.viewsCount)}</td>
+                  <td style={numericCell}>{p.viewsKnown === false ? UNKNOWN : formatFull(p.viewsCount)}</td>
                   <td style={numericCell}>{cell(metricValue(p.likesCount, p.lastSyncedAt))}</td>
                   <td style={numericCell}>{cell(metricValue(p.commentsCount, p.lastSyncedAt))}</td>
                   <td style={numericCell}>{p.engagementRate === null ? UNKNOWN : `${p.engagementRate.toFixed(1)}%`}</td>

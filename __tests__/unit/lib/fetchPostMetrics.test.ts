@@ -315,6 +315,16 @@ describe("hasMetricCounts — any counter, not views specifically", () => {
     // because there is no views figure for it to exceed.
     expect(hasMetricCounts({ ...base, likesCount: 1092 })).toBe(true);
   });
+
+  it("rejects comments, shares or saves above views as well as likes", () => {
+    const ok = { ...base, viewsCount: 1000, likesCount: 70, commentsCount: 3, sharesCount: 2, savesCount: 1 };
+    expect(hasMetricCounts(ok)).toBe(true);
+    expect(hasMetricCounts({ ...ok, commentsCount: 1001 })).toBe(false);
+    expect(hasMetricCounts({ ...ok, sharesCount: 1001 })).toBe(false);
+    expect(hasMetricCounts({ ...ok, savesCount: 1001 })).toBe(false);
+    // Equal is possible, so it stands.
+    expect(hasMetricCounts({ ...ok, likesCount: 1000 })).toBe(true);
+  });
 });
 
 /**

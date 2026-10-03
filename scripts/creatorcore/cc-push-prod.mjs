@@ -15,6 +15,7 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import {
+  coherentCounts,
   ccCampaignData,
   ccPostData,
   mapPlatform,
@@ -203,7 +204,7 @@ for (const rec of posts) {
   const creatorId = creatorIdByKey.get(`${platform}|${(rec.username || "unknown").trim().toLowerCase()}`);
   const statRec = rec.lastStatistics ? statMap.get(rec.lastStatistics) ?? null : null;
   const le = rec["latestViews/Engagement"];
-  newPosts.push({
+  newPosts.push(coherentCounts({
     id: randomUUID(),
     campaignId,
     creatorId,
@@ -230,7 +231,7 @@ for (const rec of posts) {
     authorProfilePic: rec.authorProfilePic ?? null,
     lastFreshAt: toDate(rec.lastFresh),
     autoAdded: bool(rec.autoAdd) ?? false,
-  });
+  }));
 }
 if (havePosts.size) console.log(`  post: ${havePosts.size} already present`);
 if (skipped) console.log(`  post: ${skipped} skipped (campaign not imported / no url)`);

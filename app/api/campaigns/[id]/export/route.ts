@@ -209,9 +209,10 @@ export async function GET(
             p.platform,
             p.status,
             p.postUrl,
-            // Views are always real -- every import carried them, so no
-            // provenance test here, exactly as the share export does it.
-            p.viewsCount,
+            // Not "always real": an import carried a views figure lower than
+            // the post's likes on 191 TikTok videos, and those are now held as
+            // unknown. A dash, as for every other counter nobody measured.
+            fieldMetricValue(p.viewsCount, p.lastSyncedAt, p.platformMetrics, "views") ?? UNKNOWN,
             likes ?? UNKNOWN,
             comments ?? UNKNOWN,
             fieldMetricValue(p.sharesCount, p.lastSyncedAt, p.platformMetrics, "shares") ?? UNKNOWN,

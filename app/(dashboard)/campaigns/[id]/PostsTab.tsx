@@ -369,7 +369,11 @@ function deltaViews(post: PostData): number | null {
   if (!snaps || snaps.length < 2) return null;
   const previous = snaps[1];
   if (typeof previous.viewsCount !== "number") return null;
-  return post.viewsCount - previous.viewsCount;
+  /* A post whose views are unknown holds 0 in the column, and 0 minus its last
+     reading printed as a large red loss. */
+  const views = fieldMetricValue(post.viewsCount, post.lastSyncedAt, post.platformMetrics, "views");
+  if (views === null) return null;
+  return views - previous.viewsCount;
 }
 
 /* Keyed rather than positional: the engagement columns are dropped whenever no

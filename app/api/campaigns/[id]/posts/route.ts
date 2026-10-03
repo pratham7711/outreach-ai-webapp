@@ -362,6 +362,11 @@ export async function POST(
     });
 
     const initialStatus: PostStatus = campaign.postApprovalMode === "AUTO_APPROVED" ? "APPROVED" : "PENDING_REVIEW";
+    /* hasMetricCounts also refuses a reading with more likes than views, and
+       the counts below used to be written whether or not it passed -- so a new
+       post could start life with the contradiction applyPostMetrics refuses
+       on every later read. See lib/metrics/coherence. */
+    const measuredMetrics = metrics && hasMetricCounts(metrics) ? metrics : null;
 
     const post = await db.post.create({
       data: {
@@ -380,15 +385,15 @@ export async function POST(
         // those were. Writing `?? 0` for the rest and then stamping lastSyncedAt
         // is what made an Instagram post claim "0 shares" -- Instagram reports
         // none. sharesCount was not even written here before. See countsFrom.
-        ...(metrics ? countsFrom(metrics).counts : {}),
-        engagementRate: metrics?.engagementRate ?? 0,
+        ...(measuredMetrics ? countsFrom(measuredMetrics).counts : {}),
+        engagementRate: measuredMetrics?.engagementRate ?? 0,
         postedAt: metrics?.postedAt ?? new Date(),
-        ...(metrics ? { platformMetrics: countsFrom(metrics).measuredPatch } : {}),
+        ...(measuredMetrics ? { platformMetrics: countsFrom(measuredMetrics).measuredPatch } : {}),
         // Without this a post created with real counts reads as never synced,
         // which makes lib/metricDisplay treat its measured zeroes as unknown and
         // makes the card say "Never" under numbers we just fetched. Only set
         // when counts actually arrived -- see lib/sync/syncPost for why.
-        lastSyncedAt: metrics && hasMetricCounts(metrics) ? new Date() : null,
+        lastSyncedAt: measuredMetrics ? new Date() : null,
         status: initialStatus,
         activationId: activationId ?? null,
       },

@@ -23,6 +23,7 @@ import { createLogger } from "../observability/logger";
 import { MEDIA_TYPES, detectPlatform, tiktokPageUrl, type MediaType } from "./postUrl";
 import type { MetricField } from "../metricDisplay";
 import { countersIn } from "../metrics/postWriters";
+import { countsContradict } from "../metrics/coherence";
 
 export type FetchMetricsContext = {
   instagramToken?: string;
@@ -193,6 +194,11 @@ export type FetchReason =
    *  charged post is switched off for good after five runs, so a corrected
    *  handle would never be read. */
   | "not-a-professional-account"
+  /** The reading carried numbers that cannot all be true -- more likes,
+   *  comments, shares or saves than views -- so none of it was kept and the
+   *  post keeps its last consistent figures. Not charged: the post is fine and
+   *  its next reading usually is too. See lib/metrics/coherence. */
+  | "counts-inconsistent"
   /** A fetcher came back empty without saying why.
    *
    *  Exists so that "we do not know" stops being spelled
@@ -244,6 +250,8 @@ const SOURCE_WENT_QUIET: Record<FetchReason, boolean> = {
   "post-hidden": false,
   /* A verdict about the account, said out loud as error 110. */
   "not-a-professional-account": false,
+  /* The round trip carried numbers; we refused them. */
+  "counts-inconsistent": false,
 };
 
 /** True when a reason is evidence the platform stopped answering, not that we did. */
@@ -268,9 +276,9 @@ export function isSourceWentQuiet(reason: string | null | undefined): boolean {
  * under MEASURED_FIELDS_KEY, so the UI can tell "zero likes" from "likes not
  * reported". Nothing here has to invent a views figure to compensate.
  *
- * The likes-exceed-views guard stays, but only where it means something -- when
- * both numbers are present. A missing views count is not evidence of a bad
- * likes count.
+ * The engagement-exceeds-views guard stays, but only where it means something --
+ * when views are present. A missing views count is not evidence of a bad likes
+ * count. See lib/metrics/coherence for why the whole reading is refused.
  */
 export function hasMetricCounts(m: PostMetrics): boolean {
   const anyCount =
@@ -280,11 +288,7 @@ export function hasMetricCounts(m: PostMetrics): boolean {
     typeof m.sharesCount === "number" ||
     typeof m.savesCount === "number";
   if (!anyCount) return false;
-  const likesExceedViews =
-    typeof m.viewsCount === "number" &&
-    typeof m.likesCount === "number" &&
-    m.likesCount > m.viewsCount;
-  return !likesExceedViews;
+  return !countsContradict(m);
 }
 
 /**
@@ -551,6 +555,9 @@ export const UNCHARGEABLE_REASONS: ReadonlySet<FetchReason> = new Set<FetchReaso
   "not-a-professional-account",
   /* The creator can undo it, and a dead letter is forever. */
   "post-hidden",
+  /* A reading we refused is about the reading. On 2026-10-02 four live posts
+     were switched off for good this way, filed as "unknown". */
+  "counts-inconsistent",
 ]);
 
 /**

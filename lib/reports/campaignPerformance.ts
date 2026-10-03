@@ -146,7 +146,9 @@ export type SharedPostRow = {
   lastSyncedAt: string | null;
   /** Null when the link hides creators, exactly as the leaderboard is withheld. */
   creator: { id: string; name: string; handle: string | null; avatarUrl: string | null } | null;
-  views: number;
+  /** Null when views were never measured, or were set aside for being lower
+   *  than the post's likes -- printed as a dash, never as 0 views. */
+  views: number | null;
   likes: number | null;
   comments: number | null;
   shares: number | null;
@@ -652,7 +654,7 @@ async function computeCampaignPerformanceUncached(
         fieldMetricValue(value, p.lastSyncedAt, p.platformMetrics, field);
       const likes = at("likes", p.likesCount);
       const comments = at("comments", p.commentsCount);
-      const views = p.viewsCount ?? 0;
+      const views = at("views", p.viewsCount);
       const engagements =
         likes === null && comments === null
           ? null
@@ -685,7 +687,7 @@ async function computeCampaignPerformanceUncached(
         saves: unwrittenMetricValue(p.savesCount),
         downloads: unwrittenMetricValue(p.downloadsCount),
         engagementRate:
-          engagements !== null && views > 0
+          engagements !== null && views !== null && views > 0
             ? computeEngagementRate({ views, likes: engagements })
             : null,
         /* Computed for every report and stripped in redactForShare, not the

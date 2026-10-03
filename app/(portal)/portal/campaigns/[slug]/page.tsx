@@ -8,7 +8,6 @@ import { ArrowLeft, Download, ExternalLink } from "lucide-react";
 import { Input } from "@pratham7711/ui";
 import { Button, Dropdown } from "@/components/ds";
 import { detectPlatform, MEDIA_TYPES } from "@/lib/platforms/postUrl";
-import { metricValue } from "@/lib/metricDisplay";
 import { SHOW_MONEY } from "@/lib/moneyUi";
 import type { CampaignDate } from "@/lib/portal/campaignDates";
 import { splitLinks } from "@/lib/portal/postLinks";
@@ -53,6 +52,7 @@ type Submission = {
   platform: string;
   status: string;
   viewsCount: number;
+  views: number | null;
   caption: string | null;
   rejectionReason: string | null;
   createdAt: string;
@@ -405,8 +405,9 @@ function SubmissionList({ submissions, currency }: { submissions: Submission[]; 
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {submissions.map((s) => {
             const state = SUBMISSION_STATE[s.status] ?? { tone: "neutral" as Tone, label: s.status };
-            /* A 0 we never read is not a measurement (lib/metricDisplay). */
-            const views = metricValue(s.viewsCount, s.lastSyncedAt);
+            /* A 0 we never read is not a measurement (lib/metricDisplay); the
+               route decides, because only it sees which counters were read. */
+            const views = s.views;
             return (
               <div key={s.id} style={{ padding: 14, borderRadius: 12, border: "1px solid var(--cc-border)", background: "var(--cc-card)" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>

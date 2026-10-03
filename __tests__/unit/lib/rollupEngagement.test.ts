@@ -67,6 +67,20 @@ describe("rollupEngagement", () => {
     expect(r.rate).toBeNull();
   });
 
+  /* A post whose views are unknown -- an Instagram image, or a TikTok video
+     whose view count was set aside for being lower than its likes -- adds
+     nothing to the denominator, so its likes must not reach the numerator. */
+  it("rates only the posts that have views, and still totals every measured post", () => {
+    const r = rollupEngagement([
+      post({ viewsCount: 10_000, likesCount: 500, lastSyncedAt: SYNCED }),
+      post({ viewsCount: 0, likesCount: 6_043, commentsCount: 40, lastSyncedAt: SYNCED }),
+    ]);
+
+    expect(r.engagements).toBe(6_583);
+    expect(r.measuredViews).toBe(10_000);
+    expect(r.rate).toBeCloseTo(0.05, 10); // 5%, not 65.8%
+  });
+
   it("returns nothing for an empty campaign", () => {
     expect(rollupEngagement([])).toEqual({ engagements: null, measuredViews: 0, rate: null });
   });

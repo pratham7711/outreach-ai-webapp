@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import {
   MEASURED_POSTS_FILTER,
+  RATED_POSTS_FILTER,
   rollupEngagementFromTotals,
   snapshotMetric,
 } from "@/lib/metricDisplay";
@@ -172,10 +173,21 @@ const TOOLS: Tool[] = [
       const topCount = Math.min(Math.max(Number(args.topPosts ?? 5) || 0, 0), 25);
       const scope = { campaignId: campaign.id };
 
-      const [allRow, measuredRow, byPlatform, topPosts, creators, range] = await Promise.all([
+      const [allRow, measuredRow, ratedRow, byPlatform, topPosts, creators, range] = await Promise.all([
         db.post.aggregate({ where: scope, _sum: { viewsCount: true }, _count: { _all: true } }),
         db.post.aggregate({
           where: { ...scope, ...MEASURED_POSTS_FILTER },
+          _sum: {
+            viewsCount: true,
+            likesCount: true,
+            commentsCount: true,
+            sharesCount: true,
+            savesCount: true,
+          },
+          _count: { _all: true },
+        }),
+        db.post.aggregate({
+          where: { ...scope, ...RATED_POSTS_FILTER },
           _sum: {
             viewsCount: true,
             likesCount: true,
@@ -212,6 +224,16 @@ const TOOLS: Tool[] = [
         sharesCount: measuredRow._sum.sharesCount,
         savesCount: measuredRow._sum.savesCount,
       });
+      /* Totals stay over every measured post; the rate is taken only over the
+         ones with views (RATED_POSTS_FILTER), as rollupEngagement takes it. */
+      const { rate: ratedRate } = rollupEngagementFromTotals({
+        measuredPosts: ratedRow._count._all,
+        viewsCount: ratedRow._sum.viewsCount,
+        likesCount: ratedRow._sum.likesCount,
+        commentsCount: ratedRow._sum.commentsCount,
+        sharesCount: ratedRow._sum.sharesCount,
+        savesCount: ratedRow._sum.savesCount,
+      });
 
       return toolJson({
         campaign,
@@ -234,7 +256,7 @@ const TOOLS: Tool[] = [
           saves: measuredPosts > 0 ? num(measuredRow._sum.savesCount) : null,
           engagements: engagement.engagements,
           engagementRatePercent:
-            engagement.rate === null ? null : Math.round(engagement.rate * 100 * 100) / 100,
+            ratedRate === null ? null : Math.round(ratedRate * 100 * 100) / 100,
         },
         creators: creators.length,
         byPlatform: byPlatform.map((row: any) => ({
@@ -615,10 +637,21 @@ const TOOLS: Tool[] = [
         ...(args.campaignId && { campaignId: args.campaignId }),
       };
 
-      const [allRow, measuredRow, campaigns, topPosts] = await Promise.all([
+      const [allRow, measuredRow, ratedRow, campaigns, topPosts] = await Promise.all([
         db.post.aggregate({ where: scope, _sum: { viewsCount: true }, _count: { _all: true } }),
         db.post.aggregate({
           where: { ...scope, ...MEASURED_POSTS_FILTER },
+          _sum: {
+            viewsCount: true,
+            likesCount: true,
+            commentsCount: true,
+            sharesCount: true,
+            savesCount: true,
+          },
+          _count: { _all: true },
+        }),
+        db.post.aggregate({
+          where: { ...scope, ...RATED_POSTS_FILTER },
           _sum: {
             viewsCount: true,
             likesCount: true,
@@ -648,6 +681,16 @@ const TOOLS: Tool[] = [
         sharesCount: measuredRow._sum.sharesCount,
         savesCount: measuredRow._sum.savesCount,
       });
+      /* Totals stay over every measured post; the rate is taken only over the
+         ones with views (RATED_POSTS_FILTER), as rollupEngagement takes it. */
+      const { rate: ratedRate } = rollupEngagementFromTotals({
+        measuredPosts: ratedRow._count._all,
+        viewsCount: ratedRow._sum.viewsCount,
+        likesCount: ratedRow._sum.likesCount,
+        commentsCount: ratedRow._sum.commentsCount,
+        sharesCount: ratedRow._sum.sharesCount,
+        savesCount: ratedRow._sum.savesCount,
+      });
 
       return toolJson({
         creator: { ...creator, addedAt: iso(creator.addedAt) },
@@ -658,7 +701,7 @@ const TOOLS: Tool[] = [
           measuredViews: engagement.measuredViews,
           engagements: engagement.engagements,
           engagementRatePercent:
-            engagement.rate === null ? null : Math.round(engagement.rate * 100 * 100) / 100,
+            ratedRate === null ? null : Math.round(ratedRate * 100 * 100) / 100,
         },
         topPosts: (topPosts as any[]).map(shapePost),
       });
@@ -863,7 +906,7 @@ const TOOLS: Tool[] = [
           _count: { _all: true },
         }),
         db.post.aggregate({
-          where: { ...orgPosts, ...MEASURED_POSTS_FILTER },
+          where: { ...orgPosts, ...RATED_POSTS_FILTER },
           _sum: {
             viewsCount: true,
             likesCount: true,

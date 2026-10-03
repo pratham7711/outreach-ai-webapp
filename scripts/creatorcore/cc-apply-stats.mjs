@@ -43,6 +43,7 @@ import { createInterface } from "node:readline";
 import path from "node:path";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../../lib/generated/prisma/client.js";
+import { coherentCounts, countsContradict } from "./cc-import.mjs";
 
 const APPLY = process.argv.includes("--apply");
 const IN = path.join(import.meta.dirname, "out", "statistic-post.jsonl");
@@ -86,7 +87,7 @@ console.log(`${stats.length} stats records read`);
 // One query rather than 18k: which of these posts do we actually hold?
 const known = await db.post.findMany({
   where: { ccPostId: { in: stats.map((s) => s.ccPostId) } },
-  select: { id: true, ccPostId: true, likesCount: true, lastSyncedAt: true },
+  select: { id: true, ccPostId: true, likesCount: true, lastSyncedAt: true, platformMetrics: true },
 });
 const byCcId = new Map(known.map((p) => [p.ccPostId, p]));
 console.log(`${byCcId.size} of them match a Post we hold`);
@@ -115,6 +116,9 @@ for (const s of stats) {
     if (s[key] !== null) data[key] = s[key];
   }
   if (Object.keys(data).length === 0) continue;
+  /* The source of the 191 contradictory TikTok rows of 2026-10-03. The bag is
+     merged rather than replaced, and only written when views are set aside. */
+  if (countsContradict(data)) Object.assign(data, coherentCounts({ ...data, platformMetrics: post.platformMetrics ?? {} }));
   if (s.measuredAt && !Number.isNaN(s.measuredAt.getTime())) {
     data.lastSyncedAt = s.measuredAt;
   }

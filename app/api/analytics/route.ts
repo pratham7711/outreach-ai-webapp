@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { READ_CACHE_HEADERS } from "@/lib/http/readCache";
 import { cachedOrgRead } from "@/lib/reports/orgReadCache";
 import { authenticateRequest } from "@/lib/authenticate";
-import { MEASURED_POSTS_FILTER, rollupEngagementFromTotals } from "@/lib/metricDisplay";
+import { RATED_POSTS_FILTER, rollupEngagementFromTotals } from "@/lib/metricDisplay";
 import { duplicatePostIds, excludingDuplicates } from "@/lib/posts/duplicates";
 import type { Prisma } from "@/lib/generated/prisma/client";
 import { PLATFORM_VALUES } from "@/lib/platforms/constants";
@@ -177,7 +177,7 @@ async function analyticsBody(orgId: string, from: Date | null, platform: string 
          18,602 of 18,708 imported posts, which is why the sample is reported
          beside the rate rather than the rate being quietly diluted. */
       db.post.aggregate({
-        where: { ...orgPostWhere, ...MEASURED_POSTS_FILTER },
+        where: { ...orgPostWhere, ...RATED_POSTS_FILTER },
         _sum: {
           viewsCount: true,
           likesCount: true,
@@ -242,7 +242,7 @@ async function analyticsBody(orgId: string, from: Date | null, platform: string 
          always measured -- so the two cannot come from one groupBy. */
       db.post.groupBy({
         by: ["creatorId"],
-        where: { ...orgPostWhere, ...MEASURED_POSTS_FILTER },
+        where: { ...orgPostWhere, ...RATED_POSTS_FILTER },
         _sum: {
           viewsCount: true,
           likesCount: true,

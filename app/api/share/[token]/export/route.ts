@@ -141,7 +141,7 @@ export async function GET(
       p.platform,
       p.postedAt ? p.postedAt.toISOString().slice(0, 10) : "",
       ...(visibility.showCreators ? [p.postUrl] : []),
-      p.viewsCount,
+      fieldMetricValue(p.viewsCount, p.lastSyncedAt, p.platformMetrics, "views") ?? UNKNOWN,
       fieldMetricValue(p.likesCount, p.lastSyncedAt, p.platformMetrics, "likes") ?? UNKNOWN,
       fieldMetricValue(p.commentsCount, p.lastSyncedAt, p.platformMetrics, "comments") ?? UNKNOWN,
       fieldMetricValue(p.sharesCount, p.lastSyncedAt, p.platformMetrics, "shares") ?? UNKNOWN,

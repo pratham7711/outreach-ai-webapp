@@ -192,6 +192,34 @@ export function ccCampaignData(rec, orgId) {
   };
 }
 
+/* lib/metrics/coherence, for the importers: nothing is engaged with more often
+   than it is viewed. 191 TikTok videos came out of CreatorCore with likes a
+   median 2.7x views (2026-10-03) -- a views counter that stopped moving, with
+   the engagement intact. So the engagement is kept and views become unknown:
+   0, and left out of __measured so every screen prints a dash, together with
+   the rate built on them. */
+export const MEASURED_EXCEPT_VIEWS = ["likes", "comments", "shares", "saves", "downloads", "reach"];
+
+export function countsContradict(data) {
+  const views = data.viewsCount;
+  return (
+    typeof views === "number" &&
+    ["likesCount", "commentsCount", "sharesCount", "savesCount"].some(
+      (k) => typeof data[k] === "number" && data[k] > views,
+    )
+  );
+}
+
+export function coherentCounts(data) {
+  if (!countsContradict(data)) return data;
+  return {
+    ...data,
+    viewsCount: 0,
+    engagementRate: 0,
+    platformMetrics: { ...(data.platformMetrics ?? {}), __measured: MEASURED_EXCEPT_VIEWS },
+  };
+}
+
 export function ccPostData(rec, orgId) {
   return {
     orgId, ccId: rec._id, raw: rec,
@@ -374,7 +402,7 @@ async function main() {
     const le = rec["latestViews/Engagement"];
 
     const views = statFrom(statRec, "view") || num(typeof le === "object" ? le?.views ?? le?.view : le);
-    const data = {
+    const data = coherentCounts({
       campaignId,
       creatorId,
       platform,
@@ -405,7 +433,7 @@ async function main() {
       authorProfilePic: rec.authorProfilePic ?? null,
       lastFreshAt: toDate(rec.lastFresh),
       autoAdded: bool(rec.autoAdd) ?? false,
-    };
+    });
     if (!data.postUrl) { pSkipped++; continue; }
 
     // Match on the source _id, never on (campaign, postUrl): 24 such pairs are

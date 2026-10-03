@@ -5,6 +5,7 @@ import { parseRatePerThousand, earnedMinorForPost } from "@/lib/marketplace/earn
 import { isPortalCampaignActionable } from "@/lib/marketplace/portalVisibility";
 import { isCampaignIdKey, resolvePortalAccess } from "@/lib/portal/campaignAccess";
 import { campaignDates } from "@/lib/portal/campaignDates";
+import { fieldMetricValue } from "@/lib/metricDisplay";
 
 const CAMPAIGN_SELECT = {
   id: true,
@@ -80,6 +81,8 @@ export async function GET(
       platform: string;
       status: string;
       viewsCount: number;
+      /** What the page may print: null when views were not measured. */
+      views: number | null;
       thumbnailUrl: string | null;
       caption: string | null;
       rejectionReason: string | null;
@@ -102,11 +105,15 @@ export async function GET(
           rejectionReason: true,
           createdAt: true,
           lastSyncedAt: true,
+          platformMetrics: true,
         },
         orderBy: { createdAt: "desc" },
       });
-      submissions = posts.map((p) => ({
+      /* The bag holds the importer's record and our fetch notes, which are not
+         the creator's to read, so only the verdict on views leaves here. */
+      submissions = posts.map(({ platformMetrics, ...p }) => ({
         ...p,
+        views: fieldMetricValue(p.viewsCount, p.lastSyncedAt, platformMetrics, "views"),
         earnedMinor:
           p.status === "APPROVED" ? earnedMinorForPost(p.viewsCount, p.platform, rates) : 0,
       }));

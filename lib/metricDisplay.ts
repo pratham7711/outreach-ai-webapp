@@ -329,11 +329,29 @@ export function rollupEngagement(
     0
   );
   const measuredViews = measured.reduce((sum, p) => sum + (p.viewsCount || 0), 0);
+  /* The rate's numerator comes only from posts that also have views. A post
+     whose views are unknown -- an Instagram image, or a TikTok video whose
+     view count contradicted its likes and was set aside -- adds nothing below
+     the line, so its likes above it pushed the rate up for every campaign,
+     creator and org that held one. RATED_POSTS_FILTER is the same test in SQL. */
+  const ratedEngagements = measured
+    .filter((p) => (p.viewsCount ?? 0) > 0)
+    .reduce(
+      (sum, p) =>
+        sum +
+        sumEngagements({
+          likes: p.likesCount,
+          comments: p.commentsCount,
+          shares: p.sharesCount,
+          saves: p.savesCount,
+        }),
+      0
+    );
 
   return {
     engagements,
     measuredViews,
-    rate: measuredViews > 0 ? engagements / measuredViews : null,
+    rate: measuredViews > 0 ? ratedEngagements / measuredViews : null,
   };
 }
 
@@ -377,6 +395,20 @@ export const MEASURED_POSTS_FILTER: {
   OR: ({ likesCount: { gt: number } } | { lastSyncedAt: { not: null } })[];
 } = {
   OR: [{ likesCount: { gt: 0 } }, { lastSyncedAt: { not: null } }],
+};
+
+/**
+ * The posts an engagement RATE is taken over: measured, and with views. Use it
+ * for every aggregate that feeds rollupEngagementFromTotals' rate; keep
+ * MEASURED_POSTS_FILTER for totals of likes and comments, which a post with
+ * unknown views still has.
+ */
+export const RATED_POSTS_FILTER: {
+  OR: ({ likesCount: { gt: number } } | { lastSyncedAt: { not: null } })[];
+  viewsCount: { gt: number };
+} = {
+  ...MEASURED_POSTS_FILTER,
+  viewsCount: { gt: 0 },
 };
 
 /**

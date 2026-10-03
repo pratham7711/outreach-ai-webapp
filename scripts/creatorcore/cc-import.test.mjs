@@ -1,7 +1,7 @@
 // Runnable check for the importer's data-correctness helpers (the parts that
 // silently corrupt data if wrong). Run: node scripts/creatorcore/cc-import.test.mjs
 import assert from "node:assert";
-import { mapPlatform, mapCampaignStatus, mapPostStatus, mapFetchState, mapCurrency, num, statFrom, platformPostIdFrom, toDate, bool, fnum, ccCampaignData, ccPostData } from "./cc-import.mjs";
+import { coherentCounts, countsContradict, MEASURED_EXCEPT_VIEWS, mapPlatform, mapCampaignStatus, mapPostStatus, mapFetchState, mapCurrency, num, statFrom, platformPostIdFrom, toDate, bool, fnum, ccCampaignData, ccPostData } from "./cc-import.mjs";
 
 // platform: explicit text, then URL inference, then default
 assert.equal(mapPlatform("TikTok"), "TIKTOK");
@@ -108,5 +108,27 @@ assert.equal(cp.isInstagramStory, false);
 assert.ok(cp.postDate instanceof Date);
 assert.deepEqual(cp.raw, samplePost);           // nothing lost
 for (const [k, v] of Object.entries(cp)) assert.notEqual(v, undefined, `post column ${k} undefined`);
+
+// coherentCounts: views lower than likes are held as unknown, engagement kept
+{
+  const bad = coherentCounts({ viewsCount: 2440, likesCount: 6043, commentsCount: 40, engagementRate: 2.53, platformMetrics: { __stat: null } });
+  assert.equal(bad.viewsCount, 0);
+  assert.equal(bad.likesCount, 6043);
+  assert.equal(bad.commentsCount, 40);
+  assert.equal(bad.engagementRate, 0);
+  assert.deepEqual(bad.platformMetrics, { __stat: null, __measured: MEASURED_EXCEPT_VIEWS });
+  assert.ok(!MEASURED_EXCEPT_VIEWS.includes("views"));
+  // comments, shares or saves over views count too
+  assert.equal(coherentCounts({ viewsCount: 10, likesCount: 1, sharesCount: 11 }).viewsCount, 0);
+  // a consistent record is returned untouched
+  const ok = { viewsCount: 1000, likesCount: 70, commentsCount: 3, platformMetrics: { __stat: null } };
+  assert.equal(coherentCounts(ok), ok);
+  // equal is consistent; views absent says nothing
+  assert.equal(coherentCounts({ viewsCount: 5, likesCount: 5 }).viewsCount, 5);
+  assert.equal(coherentCounts({ likesCount: 5 }).viewsCount, undefined);
+  // a zero views figure under real likes is a contradiction too
+  assert.ok(countsContradict({ viewsCount: 0, likesCount: 3 }));
+  assert.deepEqual(coherentCounts({ viewsCount: 0, likesCount: 3 }).platformMetrics, { __measured: MEASURED_EXCEPT_VIEWS });
+}
 
 console.log("cc-import helpers: all assertions passed");

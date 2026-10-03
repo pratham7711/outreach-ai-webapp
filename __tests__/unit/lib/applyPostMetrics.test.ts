@@ -113,6 +113,44 @@ describe("applyPostMetrics — lastSyncedAt means measured", () => {
     expect(outcome).toMatchObject({ status: "no-metrics", reason: "unknown" });
   });
 
+  it('names a reading with more likes than views "counts-inconsistent" and writes none of it', async () => {
+    /* The neighbour's stats of b52f8ba. Filed as "unknown" before, which the
+       cron charged: four live posts were switched off that way. */
+    const stored = { ...post, platform: "TIKTOK", viewsCount: 52000, likesCount: 3900, platformMetrics: {} };
+    const outcome = await applyPostMetrics(
+      stored,
+      metrics({ platform: "TIKTOK", viewsCount: 1406, likesCount: 5083, fetchReason: "unknown" }),
+    );
+    expect(outcome).toMatchObject({ status: "no-metrics", reason: "counts-inconsistent" });
+    const data = postWriteData();
+    expect(data.viewsCount).toBeUndefined();
+    expect(data.likesCount).toBeUndefined();
+    expect(data.lastSyncedAt).toBeUndefined();
+    expect(data.platformMetrics.__lastFetch.reason).toBe("counts-inconsistent");
+    expect(mockSnapshotCreate).not.toHaveBeenCalled();
+  });
+
+  it("refuses a reading that would leave the row with more likes than views", async () => {
+    /* Consistent on its own -- it carried views only -- but it lands under a
+       stored likes count from another source. Which side is wrong cannot be
+       told, so the post keeps what it had. */
+    const stored = { ...post, viewsCount: 0, likesCount: 5083, platformMetrics: {} };
+    const outcome = await applyPostMetrics(stored, metrics({ viewsCount: 1406 }));
+    expect(outcome).toMatchObject({ status: "no-metrics", reason: "counts-inconsistent" });
+    expect(mockTransaction).not.toHaveBeenCalled();
+    expect(mockSnapshotCreate).not.toHaveBeenCalled();
+  });
+
+  it("lets a full consistent reading replace a contradictory stored row", async () => {
+    const stored = { ...post, platform: "TIKTOK", viewsCount: 2440, likesCount: 6043, platformMetrics: {} };
+    const outcome = await applyPostMetrics(
+      stored,
+      metrics({ platform: "TIKTOK", viewsCount: 88000, likesCount: 6100, commentsCount: 41, sharesCount: 9, savesCount: 30 }),
+    );
+    expect(outcome.status).toBe("measured");
+    expect(postWriteData()).toMatchObject({ viewsCount: 88000, likesCount: 6100 });
+  });
+
   it("stamps lastSyncedAt once real counts arrive", async () => {
     const outcome = await applyPostMetrics(post, metrics({ likesCount: 4100, commentsCount: 87 }));
 
