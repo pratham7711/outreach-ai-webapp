@@ -64,16 +64,24 @@ const STAGES = [
   },
 ];
 
+/* One line per platform the creator portal connects, worded to match the
+   permissions it asks for (lib/portal/whatWeRead.ts), so the homepage a
+   platform reviewer opens describes the same reads as the consent screen. */
 const CONNECTIONS = [
   {
     platform: "TikTok",
     tone: "lp-tone-blue",
-    reads: "Display name and avatar, follower count, and the public view, like, comment and share counts on the videos the creator published for the campaign.",
+    reads: "Display name, avatar, username, bio, profile link and verified badge; follower, following, like and video counts; and the view, like, comment and share counts on the creator's public videos.",
   },
   {
     platform: "Instagram",
     tone: "lp-tone-pink",
-    reads: "Profile handle and the public engagement counts on the posts delivered against a brief.",
+    reads: "Username, profile picture, bio, follower and following counts, and recent posts with their likes and comments, plus the insights Instagram shares with the account: views, reach, shares and saves.",
+  },
+  {
+    platform: "Facebook",
+    tone: "lp-tone-violet",
+    reads: "The Page the creator chooses: its name, picture and follower count, and its recent posts with their likes, comments, shares and views, and the comments people leave on them.",
   },
   {
     platform: "YouTube",
@@ -112,6 +120,15 @@ export default function Home() {
             <Link href="/explore" className="lp-nav-link lp-hide-sm">
               Marketplace
             </Link>
+            <Link href="/about" className="lp-nav-link lp-hide-sm">
+              About
+            </Link>
+            <Link href="/privacy" className="lp-nav-link lp-hide-sm">
+              Privacy
+            </Link>
+            <Link href="/terms" className="lp-nav-link lp-hide-sm">
+              Terms
+            </Link>
             <Link href="/login" className="lp-nav-link" data-strong>
               Sign in
             </Link>
@@ -148,7 +165,7 @@ export default function Home() {
                 </Link>
               </div>
               <div className="lp-platforms lp-rise lp-rise-4">
-                <span>Reads public post counts on</span>
+                <span>Creators connect</span>
                 {CONNECTIONS.map((c) => (
                   <span key={c.platform} className={`lp-chip ${c.tone}`}>
                     <span className="lp-dot" aria-hidden />
@@ -219,8 +236,8 @@ export default function Home() {
             <p className="lp-section-lead">
               A creator links an account from their own portal, and can disconnect it there at
               any time. Disconnecting revokes the token with the platform and deletes it from
-              our database. We read public performance data for the posts delivered against a
-              campaign — we never publish, edit or delete anything.
+              our database. We read the profile and the post performance the creator lets each
+              platform share with us — we never publish, edit or delete anything.
             </p>
             <ul className="lp-accounts">
               {CONNECTIONS.map((c) => (
@@ -280,6 +297,12 @@ export default function Home() {
             </Link>
             <Link href="/terms" className="lp-nav-link">
               Terms of Service
+            </Link>
+            <Link href="/data-deletion" className="lp-nav-link">
+              Data deletion
+            </Link>
+            <Link href="/about" className="lp-nav-link">
+              About
             </Link>
             <a href={`mailto:${BRAND.contactEmail}`} className="lp-nav-link">
               Contact

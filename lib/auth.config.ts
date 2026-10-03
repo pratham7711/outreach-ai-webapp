@@ -37,7 +37,8 @@ export const authConfig = {
       const isPublicLegalPage =
         nextUrl.pathname.startsWith("/privacy") ||
         nextUrl.pathname.startsWith("/terms") ||
-        underSegment(nextUrl.pathname, "/data-deletion");
+        underSegment(nextUrl.pathname, "/data-deletion") ||
+        underSegment(nextUrl.pathname, "/about");
       /* The creator app's two ways in that need no account: an agency's connect
          link (/connect/<token>) and its campaign invite (/invite/<code>). Both
          are opened from inside Instagram, TikTok or WhatsApp, usually on a phone

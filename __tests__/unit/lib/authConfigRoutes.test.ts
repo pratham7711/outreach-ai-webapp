@@ -76,6 +76,8 @@ describe("the creator app's entry links", () => {
     "/invite/cinv_abc123",
     "/invite/cinv_abc123?accept=1",
     "/data-deletion",
+    "/data-deletion?code=12345-d-deadbeefdeadbeef",
+    "/about",
   ])("%s opens signed out", (path) => {
     expect(allowed(visit(path, false))).toBe(true);
   });
@@ -91,7 +93,7 @@ describe("the creator app's entry links", () => {
 
   /* Segment matches, not prefixes: "/connect" is one suffix away from
      "/connections", an agency page, and "/invite" from "/invites". */
-  it.each(["/connections", "/connectionsx", "/invites", "/inviteabc", "/data-deletionx"])(
+  it.each(["/connections", "/connectionsx", "/invites", "/inviteabc", "/data-deletionx", "/aboutx"])(
     "does not open %s",
     (path) => {
       expect(redirectsTo(visit(path, false))).toBe("/login");

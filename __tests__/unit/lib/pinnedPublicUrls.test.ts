@@ -17,6 +17,8 @@ import fs from "fs";
 import path from "path";
 import { authConfig } from "@/lib/auth.config";
 import { OAUTH_PLATFORMS, redirectUri } from "@/lib/oauth/providers";
+import robots from "@/app/robots";
+import sitemap from "@/app/sitemap";
 
 const root = path.resolve(__dirname, "../../..");
 const exists = (rel: string) => fs.existsSync(path.join(root, rel));
@@ -72,6 +74,8 @@ describe("public pages", () => {
     ["/", "app/page.tsx"],
     ["/privacy", "app/(public)/privacy/page.tsx"],
     ["/terms", "app/(public)/terms/page.tsx"],
+    ["/about", "app/(public)/about/page.tsx"],
+    ["/data-deletion", "app/(public)/data-deletion/page.tsx"],
     ["/explore", "app/(public)/explore/page.tsx"],
     ["/c/somecreator", "app/(public)/c/[handle]/page.tsx"],
     ["/l/sometoken", "app/(public)/l/[token]/page.tsx"],
@@ -91,6 +95,25 @@ describe("public pages", () => {
   it("the TikTok verification file opens signed out", () => {
     const file = fs.readdirSync(path.join(root, "public")).find((f) => f.startsWith("tiktok"));
     expect(signedOut(`/${file}`)).toBe(true);
+  });
+});
+
+describe("robots.txt and sitemap.xml", () => {
+  it.each(["/robots.txt", "/sitemap.xml"])("%s opens signed out", (url) => {
+    expect(signedOut(url)).toBe(true);
+  });
+
+  it("the sitemap lists the pages a reviewer starts from", () => {
+    const paths = sitemap().map((e) => new URL(e.url).pathname);
+    expect(paths).toEqual(["/", "/explore", "/about", "/privacy", "/terms", "/data-deletion"]);
+    for (const p of paths) expect(signedOut(p)).toBe(true);
+  });
+
+  it("robots keeps the portal and tokenised links out of search and names the sitemap", () => {
+    const r = robots();
+    const rules = Array.isArray(r.rules) ? r.rules[0] : r.rules;
+    expect(rules.disallow).toEqual(expect.arrayContaining(["/api/", "/portal/", "/connect/", "/invite/"]));
+    expect(r.sitemap).toMatch(/\/sitemap\.xml$/);
   });
 });
 

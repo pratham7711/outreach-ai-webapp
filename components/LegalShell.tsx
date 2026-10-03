@@ -51,10 +51,14 @@ export function LegalSection({
 export function LegalShell({
   title,
   intro,
+  dated = true,
   children,
 }: {
   title: string;
   intro: string;
+  /** False on a page that is not a policy, such as About, so it does not
+      carry the policies' "Last updated" date. */
+  dated?: boolean;
   children: React.ReactNode;
 }) {
   return (
@@ -88,9 +92,13 @@ export function LegalShell({
         >
           {title}
         </h1>
-        <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", marginBottom: 24 }}>
-          Last updated {LEGAL.updated}
-        </p>
+        {dated ? (
+          <p style={{ fontSize: "var(--cc-t-13)", color: "var(--cc-text-muted)", marginBottom: 24 }}>
+            Last updated {LEGAL.updated}
+          </p>
+        ) : (
+          <div style={{ marginBottom: 24 }} />
+        )}
         <p
           style={{
             fontSize: "var(--cc-t-15)",
