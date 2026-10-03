@@ -84,6 +84,13 @@ jobs:
       # two CI retries push it over and the duplicate-email test then asserts
       # 201/409 against a 429. Headroom here only; production leaves this unset.
       SIGNUP_RATE_LIMIT_PER_HOUR: '100'
+      # The suite makes no live platform reads. playwright.config.ts turns
+      # YouTube's keyless plan B off for the server it starts, but this job
+      # starts its own, so without this the suite read live watch pages: Track
+      # wrote a real snapshot and took the ingestion page's "no snapshots"
+      # empty state -- one of the contrast ratchet's recorded pairs -- off the
+      # page.
+      YOUTUBE_WATCH_PAGE_FALLBACK: 'off'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

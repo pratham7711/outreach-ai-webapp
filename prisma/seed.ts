@@ -282,6 +282,34 @@ async function main() {
     prisma.creator.upsert({ where: { id: "creator-10" }, update: { addedAt: SEEDED_AT }, create: { id: "creator-10", orgId: org.id, name: "David Osei", handle: "@davidosei", platform: "TWITTER", followersCount: 340000, rate: 1200, bio: "Pop culture commentary" } }),
   ]);
 
+  /* One roster tag and one list, so the tag chip and the list card render on a
+     freshly seeded database. Without them CI drew the Creators and Lists pages
+     empty while the long-lived e2e database, carrying a tag and a list left by
+     an earlier session, drew both -- and the contrast ratchet, recorded there,
+     failed CI on "pairs no longer occur" for every commit since 2026-10-02.
+     Upserted on their natural keys, so a database that already has a
+     "Football" tag is left as it is. */
+  const seedTag = await prisma.creatorTagDef.upsert({
+    where: { orgId_name: { orgId: org.id, name: "Football" } },
+    update: {},
+    create: { orgId: org.id, name: "Football" },
+  });
+  await prisma.creatorTagLink.upsert({
+    where: { creatorId_tagId: { creatorId: creators[1].id, tagId: seedTag.id } },
+    update: {},
+    create: { creatorId: creators[1].id, tagId: seedTag.id },
+  });
+  const seedList = await prisma.creatorList.upsert({
+    where: { id: "list-1" },
+    update: {},
+    create: { id: "list-1", orgId: org.id, name: "Shortlist" },
+  });
+  await prisma.creatorListItem.upsert({
+    where: { listId_creatorId: { listId: seedList.id, creatorId: creators[1].id } },
+    update: {},
+    create: { listId: seedList.id, creatorId: creators[1].id },
+  });
+
   // ─── Campaigns ───
   const campaigns = await Promise.all([
     prisma.campaign.upsert({ where: { id: "camp-1" }, update: { updatedAt: SEEDED_AT }, create: { id: "camp-1", orgId: org.id, clientId: clients[0].id, createdById: user.id, title: "LEAK IT (BTS)", status: "IN_PROGRESS", budget: 25000, currency: "USD", createdAt: new Date("2026-01-15") } }),
