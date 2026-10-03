@@ -37,10 +37,12 @@ type Connection = {
 type PublicProfile = { platform: string; handle: string; lastReadAt: string | null };
 
 /** How each connect flow is named to a creator. Both Instagram flows store
-    platform INSTAGRAM, so they are told apart by what the creator has. */
+    platform INSTAGRAM, so they are told apart by what the creator has, and
+    never share a title: two cards both called "Instagram" read as a duplicate.
+    Same names as the agency's connect link (lib/portal/permissionCopy.ts). */
 const CARD_LABEL: Record<OAuthPlatform, string> = {
   instagram: "Instagram",
-  "instagram-login": "Instagram",
+  "instagram-login": "Instagram (no Facebook Page)",
   tiktok: "TikTok",
   youtube: "YouTube",
   facebook: "Facebook Page",
@@ -342,6 +344,13 @@ export default function MyAccountsPage() {
   const publicFor = (platform: OAuthPlatform) =>
     platform === "instagram-login" ? null : profiles.find((p) => p.platform === toPlatformEnum(platform)) ?? null;
   const cardPlatforms = new Set<string>(OAUTH_PLATFORMS.map((p) => toPlatformEnum(p)));
+  /* A platform switched to "coming soon" has nothing to offer a creator but a
+     disabled card, so it is left off the list, unless the creator already has
+     an account on it and needs the card to disconnect it. */
+  const shown = OAUTH_PLATFORMS.filter(
+    (platform) =>
+      capabilities.find((c) => c.platform === platform)?.connect !== "coming_soon" || accountsFor(platform).length > 0,
+  );
   const otherPublic = profiles.filter((p) => !cardPlatforms.has(p.platform));
 
   return (
@@ -372,7 +381,7 @@ export default function MyAccountsPage() {
       ) : (
         connections && (
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {OAUTH_PLATFORMS.map((platform) => (
+            {shown.map((platform) => (
               <PlatformCard
                 key={platform}
                 platform={platform}

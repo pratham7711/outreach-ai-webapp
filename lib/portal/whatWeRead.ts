@@ -34,7 +34,7 @@ export const WHAT_WE_READ: Record<OAuthPlatform, PermissionRead[]> = {
     {
       scope: "instagram_manage_insights",
       reads:
-        "Views and shares on your recent posts, and reach, views, shares and saves on the posts you submit to a campaign.",
+        "Views, reach and shares on your recent posts, and reach, views, shares and saves on the posts you submit to a campaign.",
     },
     {
       scope: "pages_show_list",
