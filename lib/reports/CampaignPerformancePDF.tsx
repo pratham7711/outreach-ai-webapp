@@ -6,6 +6,7 @@ import { creatorNameText } from "@/lib/creators/creatorName";
 import { ACTIVATION_STATUS_LABEL } from "@/lib/activationQueues";
 import { POWERED_BY } from "@/lib/brand";
 import { dataAsOf, dataAsOfLine } from "@/lib/dataAge";
+import { viewsCoverageNote } from "@/lib/metricDisplay";
 
 const styles = StyleSheet.create({
   page: {
@@ -64,6 +65,11 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontFamily: "Helvetica-Bold",
     color: "#1C2048",
+  },
+  kpiNote: {
+    fontSize: 8,
+    color: "#9097B4",
+    marginTop: 4,
   },
   table: {
     border: "1px solid #E4E6F0",
@@ -184,7 +190,7 @@ export function CampaignPerformancePDF({
   // Engagement is unknown for posts we never fetched, so those cells are left
   // out of the report rather than printed as a zero or a dash.
   const kpiCells = [
-    { label: "Views", value: fmtNumber(kpis.views) },
+    { label: "Views", value: fmtNumber(kpis.views), note: viewsCoverageNote(kpis.viewsKnownPosts, kpis.posts) },
     kpis.engagements !== null
       ? { label: "Engagements", value: fmtNumber(kpis.engagements) }
       : null,
@@ -194,7 +200,7 @@ export function CampaignPerformancePDF({
     // The web report leads with this tile; the PDF simply did not have it.
     { label: "Total Posts", value: fmtNumber(kpis.posts) },
     budget !== null ? { label: "Total Budget", value: fmtCurrency(budget, currency) } : null,
-  ].filter((cell): cell is { label: string; value: string } => cell !== null);
+  ].filter((cell): cell is { label: string; value: string; note?: string | null } => cell !== null);
 
   return (
     <Document>
@@ -214,6 +220,7 @@ export function CampaignPerformancePDF({
               <View key={c.label} style={styles.kpiBox}>
                 <Text style={styles.kpiLabel}>{c.label}</Text>
                 <Text style={styles.kpiValue}>{c.value}</Text>
+                {c.note ? <Text style={styles.kpiNote}>{c.note}</Text> : null}
               </View>
             ))}
           </View>

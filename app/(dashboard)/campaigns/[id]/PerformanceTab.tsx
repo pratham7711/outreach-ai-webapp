@@ -14,6 +14,7 @@ import { AudioCard } from "@/components/campaigns/AudioCard";
 import type { CampaignAudio, CampaignPerformance } from "@/lib/reports/campaignPerformance";
 import CreatorAvatar from "@/components/creators/CreatorAvatar";
 import CreatorName from "@/components/creators/CreatorName";
+import { viewsCoverageNote } from "@/lib/metricDisplay";
 
 /* Taken from the report seam rather than restated here. It was restated, and the
    two drifted the moment the seam grew the per-counter totals. */
@@ -273,7 +274,12 @@ export default function PerformanceTab({ campaignId }: { campaignId: string }) {
         {kpis.livePosts !== null && (
           <MetricTile fitTo={tileFit} metric="livePosts" value={formatNumber(kpis.livePosts)} />
         )}
-        <MetricTile fitTo={tileFit} metric="views" value={formatNumber(kpis.views)} />
+        <MetricTile
+          fitTo={tileFit}
+          metric="views"
+          value={formatNumber(kpis.views)}
+          footer={viewsCoverageNote(kpis.viewsKnownPosts, kpis.posts)}
+        />
         {kpis.likes !== null && (
           <MetricTile fitTo={tileFit} metric="totalLikes" value={formatNumber(kpis.likes)} />
         )}

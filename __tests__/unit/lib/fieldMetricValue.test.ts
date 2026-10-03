@@ -8,7 +8,7 @@
  * Instagram posts on the reference campaign reported "0 likes, 0 shares" while
  * CreatorCore's report of the same three posts shows neither row.
  */
-import { fieldMetricValue, measuredFields, MEASURED_FIELDS_KEY } from "@/lib/metricDisplay";
+import { fieldMetricValue, measuredFields, MEASURED_FIELDS_KEY, viewsCoverageNote } from "@/lib/metricDisplay";
 
 const SYNCED = new Date("2026-08-22T00:00:00Z");
 const bag = (fields: string[]) => ({ [MEASURED_FIELDS_KEY]: fields });
@@ -56,5 +56,24 @@ describe("fieldMetricValue", () => {
   it("reports nothing for a counter that is absent rather than zero", () => {
     expect(fieldMetricValue(null, SYNCED, bag(["views"]), "likes")).toBeNull();
     expect(fieldMetricValue(undefined, SYNCED, bag(["likes"]), "likes")).toBeNull();
+  });
+});
+
+/* A views total over some posts reads as the campaign's views unless it says
+   which posts it covers: on a copy of a production campaign, 4 of 121 reels
+   had views and the tile said 2,610. */
+describe("viewsCoverageNote", () => {
+  it("says how many posts a partial total covers", () => {
+    expect(viewsCoverageNote(4, 121)).toBe("Views known for 4 of 121 posts");
+    expect(viewsCoverageNote(0, 1)).toBe("Views known for 0 of 1 post");
+  });
+
+  it("says nothing when every post is covered, or there are none", () => {
+    expect(viewsCoverageNote(41, 41)).toBeNull();
+    expect(viewsCoverageNote(0, 0)).toBeNull();
+  });
+
+  it("says nothing for a report cached before the count existed", () => {
+    expect(viewsCoverageNote(undefined, 40)).toBeNull();
   });
 });

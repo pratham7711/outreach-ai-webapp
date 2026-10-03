@@ -630,3 +630,24 @@ describe("Top Creators with unknown views", () => {
     expect(result.leaderboard.map((r) => r.creatorId)).toEqual(["c-small", "c-many", "c-few"]);
   });
 });
+
+describe("computeCampaignPerformance views coverage", () => {
+  it("counts only the posts whose views are known", async () => {
+    const SYNCED = new Date("2026-10-02T00:00:00Z");
+    mockDb.post.findMany.mockResolvedValue([
+      // Read, views among the counters the read returned.
+      post({ id: "p-read", viewsCount: 2_610, lastSyncedAt: SYNCED, platformMetrics: { __measured: ["views", "comments"] } }),
+      // Read, but the read carried no views: unknown, not 0.
+      post({ id: "p-unread-1", viewsCount: 0, lastSyncedAt: SYNCED, platformMetrics: { __measured: ["comments"] } }),
+      post({ id: "p-unread-2", viewsCount: 0, lastSyncedAt: SYNCED, platformMetrics: { __measured: ["comments"] } }),
+      // An older figure the latest read did not replace is still a known figure.
+      post({ id: "p-carried", viewsCount: 900, lastSyncedAt: SYNCED, platformMetrics: { __measured: ["comments"] } }),
+    ]);
+
+    const result = await computeCampaignPerformance(campaign);
+
+    expect(result.kpis.posts).toBe(4);
+    expect(result.kpis.views).toBe(3_510);
+    expect(result.kpis.viewsKnownPosts).toBe(2);
+  });
+});

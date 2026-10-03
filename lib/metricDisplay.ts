@@ -177,6 +177,22 @@ export function fieldMetricValue(
 }
 
 /**
+ * The line under a views total that leaves posts out, or null when it covers
+ * every post.
+ *
+ * A total is a sum over the posts whose views are known, and on its own it
+ * reads as the campaign's views. Measured on a copy of a production campaign
+ * 2026-10-03: 121 Instagram reels, views known for 4, and the tile said "2,610"
+ * -- a brand would read that as the reach of 121 posts.
+ */
+export function viewsCoverageNote(viewsKnownPosts: number | null | undefined, posts: number): string | null {
+  /* Absent on a report cached before the count existed: say nothing rather
+     than "undefined of 40". */
+  if (typeof viewsKnownPosts !== "number" || posts <= 0 || viewsKnownPosts >= posts) return null;
+  return `Views known for ${viewsKnownPosts} of ${posts} post${posts === 1 ? "" : "s"}`;
+}
+
+/**
  * One snapshot's counter, or null when that reading did not measure it.
  *
  * PostMetricSnapshot's counters are non-nullable Floats, and applyPostMetrics

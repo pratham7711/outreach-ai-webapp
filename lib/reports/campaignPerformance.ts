@@ -47,6 +47,8 @@ export type CampaignPerformance = {
   currency: string;
   kpis: {
     views: number;
+    /** Posts whose views are known -- the posts `views` is a sum over. */
+    viewsKnownPosts: number;
     /** null when no post in the campaign has had its engagement fetched. */
     engagements: number | null;
     engagementRate: number | null;
@@ -566,6 +568,7 @@ async function computeCampaignPerformanceUncached(
 
   const kpis = {
     views,
+    viewsKnownPosts: posts.filter((p) => fieldMetricValue(p.viewsCount, p.lastSyncedAt, p.platformMetrics, "views") !== null).length,
     engagements,
     engagementRate,
     posts: posts.length,

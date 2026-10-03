@@ -18,6 +18,7 @@ import { AudioCard } from "@/components/campaigns/AudioCard";
 import { shareImgSrc } from "@/lib/postMedia";
 import { campaignStatusLabel } from "@/lib/statusColors";
 import SharedPostList from "./SharedPostList";
+import { viewsCoverageNote } from "@/lib/metricDisplay";
 
 /**
  * The chart's series come from the campaign, not from a fixed triple.
@@ -57,11 +58,12 @@ function formatDate(iso: string): string {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 }
 
-function StatTile({ value, label }: { value: string; label: string }) {
+function StatTile({ value, label, note }: { value: string; label: string; note?: string | null }) {
   return (
     <div className="spr-tile">
       <span className="spr-tile-label">{label}</span>
       <span className="spr-tile-value" title={value}>{value}</span>
+      {note && <span className="spr-tile-label" style={{ fontSize: 12 }}>{note}</span>}
     </div>
   );
 }
@@ -142,6 +144,7 @@ export default function SharedPerformanceReport({
   const boardCols = { "--spr-board-cols": rowCols, "--spr-board-cols-phone": rowColsPhone } as React.CSSProperties;
 
   const isEmpty = kpis.views === 0 && leaderboard.length === 0 && timeSeries.length === 0;
+  const viewsNote = viewsCoverageNote(kpis.viewsKnownPosts, kpis.posts);
   const cover = coverBroken ? null : shareImgSrc(token, data.audio?.coverUrl ?? null, 302);
   const hasSplit = platformSplit.some((p) => p.views > 0);
   const showBoard = visibility.showCreators && leaderboard.length > 0;
@@ -220,7 +223,7 @@ export default function SharedPerformanceReport({
                     post has measured has no tile at all -- printing "Total Eng. 0"
                     to a brand would claim a measurement nobody ever took. */}
                 <div className="spr-tiles">
-                  <StatTile value={formatCompact(kpis.views)} label="Total Views" />
+                  <StatTile value={formatCompact(kpis.views)} label="Total Views" note={viewsNote} />
                   {kpis.engagementRate !== null && (
                     <StatTile value={`${(kpis.engagementRate * 100).toFixed(2)}%`} label="Eng. Rate" />
                   )}
@@ -395,7 +398,7 @@ export default function SharedPerformanceReport({
                   grid, in this order, and omits any counter nothing measured. */}
               <div className="spr-tiles spr-tiles-compact">
                 <StatTile value={formatExact(kpis.posts)} label="Total Posts" />
-                <StatTile value={formatExact(kpis.views)} label="Total Views" />
+                <StatTile value={formatExact(kpis.views)} label="Total Views" note={viewsNote} />
                 {kpis.likes !== null && <StatTile value={formatExact(kpis.likes)} label="Total Likes" />}
                 {kpis.comments !== null && <StatTile value={formatExact(kpis.comments)} label="Total Comments" />}
                 {kpis.shares !== null && <StatTile value={formatExact(kpis.shares)} label="Total Shares" />}

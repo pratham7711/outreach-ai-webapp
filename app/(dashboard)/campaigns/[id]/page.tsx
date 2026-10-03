@@ -25,7 +25,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatDateAbs, formatFull, formatFullCurrency, fitFigureSize } from "@/lib/format";
-import { fieldMetricValue, rollupEngagement } from "@/lib/metricDisplay";
+import { fieldMetricValue, rollupEngagement, viewsCoverageNote } from "@/lib/metricDisplay";
 import { CreatorSelect } from "@/components/CreatorSelect";
 import { platformColor } from "@/app/(dashboard)/analytics/shared";
 import { loadCharts } from "@/components/charts/lazyCharts";
@@ -690,6 +690,12 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
   );
 
   const totalViews = campaign.posts.reduce((s, p) => s + p.viewsCount, 0);
+  const viewsNote = viewsCoverageNote(
+    campaign.posts.filter(
+      (p) => fieldMetricValue(p.viewsCount, p.lastSyncedAt, (p as { platformMetrics?: unknown }).platformMetrics, "views") !== null,
+    ).length,
+    campaign.posts.length,
+  );
   const totalLikes = campaign.posts.reduce((s, p) => s + p.likesCount, 0);
   // Likes are summed straight off the column, whose default is 0, so a campaign
   // whose likes were never read showed "Total Likes 0". Shown only when at
@@ -859,7 +865,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                 enter, and engagement is absent on most imported posts. Neither
                 gets a zero or a dash standing in for the real number. */}
             <div className="cc-tiles-balanced">
-              <MetricTile fitTo={overviewFit} metric="totalViews" value={formatNumber(totalViews)} />
+              <MetricTile fitTo={overviewFit} metric="totalViews" value={formatNumber(totalViews)} footer={viewsNote} />
               {/* "Engagement rate", not "Avg engagement": the label described the
                   old mean-of-means and would now misname the figure below it. */}
               {avgEngagement !== null && (
