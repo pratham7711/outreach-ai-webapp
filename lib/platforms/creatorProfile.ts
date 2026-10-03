@@ -1,8 +1,8 @@
-import { fetchInstagramProfile } from "./instagramBusinessDiscovery";
-import { readWithDiscoveryToken } from "./instagramDiscoveryTokens";
-import { InstagramRateLimitError } from "./instagram";
+import { fetchInstagramProfile, MEDIA_PAGE_SIZE, type IgPublicProfile } from "./instagramBusinessDiscovery";
+import { readWithDiscoveryToken, type DiscoveryCredential } from "./instagramDiscoveryTokens";
+import { InstagramNoSuchAccountError, InstagramRateLimitError, resolveIgUserId } from "./instagram";
 import { fetchTikTokProfile } from "./tiktokProfile";
-import { latestAverageViews } from "@/lib/trackers/recentViews";
+import { latestAverageViews, RECENT_POSTS_FOR_AVERAGE } from "@/lib/trackers/recentViews";
 
 /**
  * Reading a tracked creator's public numbers, per platform.
@@ -60,8 +60,9 @@ export type CreatorProfileRead = {
    * signed CDN URL with a shelf life of days -- download it, do not store it. */
   avatarUrl?: string;
   /** The platform's own id for the account, when the same read carried it:
-   * TikTok's user id and secUid, Instagram's user id (plan A4). A handle can be
-   * renamed; these cannot. Recorded in CreatorPlatformAccountId. */
+   * TikTok's user id and secUid, Instagram's user id, YouTube's channel id
+   * (plan A4). A handle can be renamed; these cannot. Recorded in
+   * CreatorPlatformAccountId. */
   accountId?: string;
   secUid?: string;
 };
@@ -168,20 +169,91 @@ export function moreSpecificFailure(
   return FAILURE_SPECIFICITY[second] > FAILURE_SPECIFICITY[first] ? second : first;
 }
 
+/* The IG user id behind each Business Discovery token, for the life of the
+   process. Every read is asked through the reading account's own id, and with
+   none configured fetchInstagramProfile looks it up with a me/accounts call
+   first -- one extra Graph call per creator read, for an answer that only
+   changes when the token does. */
+const readerIgUserIds = new Map<string, string>();
+
+/** For tests. */
+export function resetInstagramReaderState() {
+  readerIgUserIds.clear();
+}
+
+async function readerIgUserId(cred: DiscoveryCredential): Promise<string | null> {
+  if (cred.graphOptions.igUserId) return cred.graphOptions.igUserId;
+  const known = readerIgUserIds.get(cred.token);
+  if (known) return known;
+  const id = await resolveIgUserId(cred.token, undefined, {
+    rateLimitThrows: true,
+    onHeaders: cred.graphOptions.onHeaders,
+  });
+  if (id) readerIgUserIds.set(cred.token, id);
+  return id;
+}
+
+/**
+ * How many media the first Business Discovery page asks for.
+ *
+ * The figure needs the newest ten reels, and reels are most of what a tracked
+ * creator posts, so thirty media usually hold them. Meta bills a read by the
+ * time it spends answering it (x-app-usage total_time, the limit the sweep
+ * hits first), and a hundred media with captions and links is the bulk of
+ * that answer. A creator whose first thirty hold fewer than ten reels gets the
+ * other seventy too, so the figure covers the same hundred media it always
+ * did.
+ */
+export const PROFILE_MEDIA_FIRST_PAGE = 30;
+
+class NoReaderAccountError extends Error {
+  constructor() {
+    super("the Business Discovery token has no Instagram account to read through");
+    this.name = "NoReaderAccountError";
+  }
+}
+
+async function readDiscoveryProfile(handle: string, cred: DiscoveryCredential): Promise<IgPublicProfile | null> {
+  const igUserId = await readerIgUserId(cred);
+  if (!igUserId) throw new NoReaderAccountError();
+  const options = { ...cred.graphOptions, igUserId, rateLimitThrows: true };
+  const first = await fetchInstagramProfile(handle, cred.token, undefined, undefined, {
+    ...options,
+    noSuchAccountThrows: true,
+    mediaLimit: PROFILE_MEDIA_FIRST_PAGE,
+  });
+  if (!first?.nextMediaCursor) return first;
+  const reels = latestAverageViews(first.recentPosts.map((p) => ({ views: p.viewsCount, postedAt: p.postedAt })));
+  if (reels.sampledPosts >= RECENT_POSTS_FOR_AVERAGE) return first;
+  try {
+    const rest = await fetchInstagramProfile(handle, cred.token, undefined, first.nextMediaCursor, {
+      ...options,
+      mediaLimit: MEDIA_PAGE_SIZE - PROFILE_MEDIA_FIRST_PAGE,
+    });
+    if (rest) return { ...first, recentPosts: [...first.recentPosts, ...rest.recentPosts] };
+  } catch {
+    /* The first page already holds the followers and some reels. The second
+       only widens the sample, so its failure is not the read's. */
+  }
+  return first;
+}
+
 async function readInstagram(handle: string): Promise<CreatorReadResult> {
   let profile;
   try {
     /* Token A, or the standby B while A is limited (plan §13 B). Both limited
        is a rate limit, caught below like any other. */
-    const read = await readWithDiscoveryToken((cred) =>
-      fetchInstagramProfile(handle, cred.token, undefined, undefined, {
-        rateLimitThrows: true,
-        ...cred.graphOptions,
-      })
-    );
+    const read = await readWithDiscoveryToken((cred) => readDiscoveryProfile(handle, cred));
     if (!read.ok) return { ok: false, reason: "no-credentials" };
     profile = read.value;
   } catch (e) {
+    /* Graph's 110 is its whole answer for a name it has no Business or Creator
+       account for: a personal or private account, or a handle nobody holds.
+       Until it was asked for as an error it came back as null -- and so did a
+       Graph 500, a dropped connection and a token whose own account could not
+       be looked up, every one of them filed as "personal account", which the
+       roster shows as a handle for someone to fix. */
+    if (e instanceof InstagramNoSuchAccountError) return { ok: false, reason: "not-a-professional-account" };
     const detail = e instanceof Error ? e.message : String(e);
     // Graph signals throttling with codes 4/17/32/613; treat those as retryable so a
     // busy hour does not get written down as "this account is personal".
@@ -191,10 +263,7 @@ async function readInstagram(handle: string): Promise<CreatorReadResult> {
     return { ok: false, reason: "unreadable", detail };
   }
 
-  /* Business Discovery answers with nothing at all for an account that is not a
-     Business or Creator account, which is the overwhelmingly common cause here
-     and the one the reader can act on. */
-  if (!profile) return { ok: false, reason: "not-a-professional-account" };
+  if (!profile) return { ok: false, reason: "unreadable", detail: "Business Discovery answered without a profile" };
 
   if (profile.followersCount === undefined) {
     return { ok: false, reason: "unreadable", detail: "no followers_count in response" };
@@ -322,11 +391,29 @@ async function readYouTube(handle: string, channelId?: string): Promise<CreatorR
     let sampledPosts = 0;
     let topPosts: TopPost[] = [];
     if (uploads) {
-      const pl = await api("playlistItems", {
-        part: "contentDetails",
-        playlistId: uploads,
-        maxResults: String(YT_RECENT),
-      });
+      let pl: any = null;
+      try {
+        pl = await api("playlistItems", {
+          part: "contentDetails",
+          playlistId: uploads,
+          maxResults: String(YT_RECENT),
+        });
+      } catch (e) {
+        /* An uploads playlist answers 404 when its channel has no videos, and
+           a handle that lands on an empty channel has usually landed on the
+           wrong one. MEASURED on prod 2026-10-03: 5 tracked YouTube creators
+           and 14 roster links failed "unreadable: playlistItems 404" and none
+           had ever been read. For both of the tracked ones with campaign
+           videos, forHandle named a different channel from the one those
+           videos were published by -- 0 videos, 5 and 21 subscribers. Filed
+           as unreadable, the sweep's own-posts rung, which only answers "no
+           such account", never looked for the real one. Asked by id, the
+           channel is the right one and simply has nothing to average. */
+        if (!(e instanceof Error && e.message === "playlistItems 404")) throw e;
+        if (!channelId) {
+          return { ok: false, reason: "no-such-account", detail: "the channel for this handle has no videos" };
+        }
+      }
       const ids: string[] = (pl?.items ?? [])
         .map((i: any) => i?.contentDetails?.videoId)
         .filter(Boolean);
@@ -398,6 +485,7 @@ async function readYouTube(handle: string, channelId?: string): Promise<CreatorR
         sampledPosts,
         ...(topPosts.length ? { topPosts } : {}),
         ...(channelThumbnail(item.snippet?.thumbnails) ? { avatarUrl: channelThumbnail(item.snippet?.thumbnails)! } : {}),
+        ...(isYouTubeChannelId(item.id) ? { accountId: item.id } : {}),
       },
     };
   } catch (e) {

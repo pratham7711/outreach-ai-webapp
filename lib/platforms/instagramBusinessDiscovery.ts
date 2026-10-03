@@ -120,6 +120,10 @@ export type DiscoveryReadOptions = {
   igUserId?: string;
   /** Reads Meta's usage headers on every call this read makes. */
   onHeaders?: GraphHeadersListener;
+  /** How many media to ask for. Defaults to a full page; a profile read that
+   *  only needs the newest posts asks for fewer, which is what Meta's
+   *  total_time usage is spent on. */
+  mediaLimit?: number;
 };
 
 export async function fetchInstagramProfile(
@@ -127,7 +131,13 @@ export async function fetchInstagramProfile(
   token: string,
   signal?: AbortSignal,
   after?: string,
-  { rateLimitThrows = false, noSuchAccountThrows = false, igUserId: knownIgUserId, onHeaders }: DiscoveryReadOptions = {},
+  {
+    rateLimitThrows = false,
+    noSuchAccountThrows = false,
+    igUserId: knownIgUserId,
+    onHeaders,
+    mediaLimit = MEDIA_PAGE_SIZE,
+  }: DiscoveryReadOptions = {},
 ): Promise<IgPublicProfile | null> {
   const handle = normalizeUsername(username);
   if (!handle) return null;
@@ -138,7 +148,8 @@ export async function fetchInstagramProfile(
   /* `.after(cursor)` before `.limit()` -- Graph reads the edge modifiers left to
      right and silently ignores an unknown ordering rather than erroring, which
      is exactly the kind of failure that looks like "there are no more pages". */
-  const pageArgs = after ? `.after(${after}).limit(${MEDIA_PAGE_SIZE})` : `.limit(${MEDIA_PAGE_SIZE})`;
+  const limit = Math.max(1, Math.min(MEDIA_PAGE_SIZE, Math.round(mediaLimit)));
+  const pageArgs = after ? `.after(${after}).limit(${limit})` : `.limit(${limit})`;
   const mediaFields = `media${pageArgs}{id,caption,view_count,like_count,comments_count,timestamp,permalink,media_url,thumbnail_url}`;
   const data = await graphGet(
     igUserId,
