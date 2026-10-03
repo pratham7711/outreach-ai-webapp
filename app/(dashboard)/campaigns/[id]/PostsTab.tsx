@@ -16,7 +16,7 @@ import PostStatusChip from "@/components/posts/PostStatusChip";
 import { AgeLabel } from "@/components/ds/AgeLabel";
 import PostGridCard from "@/components/posts/PostGridCard";
 import { STATUS_BADGE, engRatePct, trackingLabel } from "@/lib/posts/postDisplay";
-import { summariseRefresh } from "@/lib/refreshSummary";
+import { summariseRefresh, type RefreshResult } from "@/lib/refreshSummary";
 import { toast } from "sonner";
 import { CampaignHeaderActions } from "@/components/campaigns/CampaignHeaderActions";
 import { action } from "@/lib/ui/actions";
@@ -280,6 +280,18 @@ function addRowProblem(
 const ADD_POST_TIMEOUT_MS = 25_000;
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/* A window writes its progress post by post, so a run whose count has not moved
+   in longer than one window's 300s ceiling has died with its process. */
+const REFRESH_STALL_MS = 6 * 60 * 1000;
+/* Later windows land numbers as they go; re-reading the list on every 2s tick
+   would be a request per tick for a change most ticks do not have. */
+const REFRESH_RELOAD_EVERY_MS = 10_000;
+
+type RefreshRunState = {
+  running: null | { runId: string; total: number; completed: number };
+  lastRun: null | (RefreshResult & { runId: string });
+};
 
 const PAGE_SIZE = 25;
 
@@ -1034,6 +1046,56 @@ export default function PostsTab({
   // campaign's tracked sound in the same run. It used to fan out one fetch per
   // post from here and discard every response, so a campaign whose platform was
   // unreachable refreshed nothing and said nothing.
+  /* Unmounting ends the wait below; the run itself carries on server-side. */
+  const unmountedRef = useRef(false);
+  useEffect(() => {
+    /* Reset on mount too: StrictMode mounts, unmounts and mounts again. */
+    unmountedRef.current = false;
+    return () => { unmountedRef.current = true; };
+  }, []);
+
+  /**
+   * Follows a run past its first window, until it ends.
+   *
+   * The POST answers when the FIRST window closes. A campaign with posts left
+   * over continues in fresh invocations for up to twenty minutes, and those
+   * windows used to land with nobody watching: the button stopped, and their
+   * numbers showed only after a reload. Returns the run's final tally, or null
+   * when it stalled or the page went away.
+   */
+  const followRun = async (runId: string): Promise<RefreshRunState["lastRun"]> => {
+    let lastCompleted = -1;
+    let movedAt = Date.now();
+    let reloadedAt = Date.now();
+    while (!unmountedRef.current) {
+      await sleep(2000);
+      let state: RefreshRunState;
+      try {
+        const r = await fetch(`/api/campaigns/${campaignId}/refresh`);
+        if (!r.ok) continue;
+        state = await r.json();
+      } catch {
+        continue;
+      }
+      if (!state.running || state.running.runId !== runId) {
+        return state.lastRun?.runId === runId ? state.lastRun : null;
+      }
+      const { completed, total } = state.running;
+      setRefreshProgress({ completed, total });
+      if (completed !== lastCompleted) {
+        lastCompleted = completed;
+        movedAt = Date.now();
+        if (Date.now() - reloadedAt >= REFRESH_RELOAD_EVERY_MS) {
+          reloadedAt = Date.now();
+          fetchPostsRef.current();
+        }
+      } else if (Date.now() - movedAt > REFRESH_STALL_MS) {
+        return null;
+      }
+    }
+    return null;
+  };
+
   const handleRefreshAll = async () => {
     setRefreshingAll(true);
     setRefreshNote(null);
@@ -1070,9 +1132,20 @@ export default function PostsTab({
         setRefreshNote(body.error ?? "Refresh failed.");
         return;
       }
-      setRefreshNote(summariseRefresh(body));
       fetchPosts();
       onRefreshed?.();
+      if (body.continuing && typeof body.runId === "string") {
+        clearInterval(poll);
+        const final = await followRun(body.runId);
+        if (unmountedRef.current) return;
+        /* The sound is read once, in the first window, so its half of the
+           sentence comes from that answer. */
+        setRefreshNote(summariseRefresh({ ...(final ?? body), sound: body.sound }));
+        fetchPosts();
+        onRefreshed?.();
+        return;
+      }
+      setRefreshNote(summariseRefresh(body));
     } finally {
       clearInterval(poll);
       setRefreshingAll(false);

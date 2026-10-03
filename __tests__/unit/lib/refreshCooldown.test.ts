@@ -1,5 +1,6 @@
 import {
   REFRESH_COOLDOWN_MS,
+  REFRESH_RUN_MAY_LIVE_MS,
   cooldownStateFrom,
   tooSoonMessage,
   type RefreshRunRow,
@@ -89,13 +90,40 @@ describe("cooldownStateFrom", () => {
     const startedAt = new Date("2026-09-02T12:00:00Z");
     const s = cooldownStateFrom(
       base({ startedAt, status: "running", finishedAt: null }),
-      new Date(startedAt.getTime() + 20 * 60 * 1000),
+      new Date(startedAt.getTime() + REFRESH_RUN_MAY_LIVE_MS + 1000),
     );
 
     expect(s.running).toBeNull();
     /* Still inside the cooldown, though -- a run that died having already spent
        most of a campaign's platform budget must not license another one. */
     expect(s.canRefresh).toBe(false);
+  });
+
+  /* Measured: between windows the row says "continuing", and accepting only
+     "running" -- within five minutes -- told the page a run had finished at the
+     end of its first window, while the rest of it was still landing. */
+  it("reports a run between windows as still running, for as long as it may continue", () => {
+    const startedAt = new Date("2026-09-02T12:00:00Z");
+    for (const minutes of [1, 6, 19, 24]) {
+      const s = cooldownStateFrom(
+        base({ startedAt, status: "continuing", finishedAt: null, completed: 40 }),
+        new Date(startedAt.getTime() + minutes * 60 * 1000),
+      );
+      expect(s.running).toEqual({ runId: "run-1", total: 88, completed: 40 });
+      expect(s.lastRun).toBeNull();
+    }
+  });
+
+  it("hands back the whole run's tally once it has ended", () => {
+    const s = cooldownStateFrom(
+      base({ reasons: { "post-deleted": 3, note: "x" } }),
+      new Date("2026-09-02T12:03:00Z"),
+    );
+    expect(s.running).toBeNull();
+    expect(s.lastRun).toEqual({
+      runId: "run-1", status: "done", total: 88, measured: 22, noMetrics: 62,
+      unfetchable: 4, failed: 0, remaining: 0, reasons: { "post-deleted": 3 },
+    });
   });
 
   it("treats a failed run as having spent the window", () => {
