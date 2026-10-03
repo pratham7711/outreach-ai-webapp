@@ -25,6 +25,21 @@ describe('NewSidebar', () => {
     expect(screen.getByText(BRAND.name)).toBeInTheDocument();
   });
 
+  it('heads the rail with the org name alone: no product mark, no initials chip', () => {
+    const { container } = render(<NewSidebar brandName="LKM" />);
+    const head = container.querySelector('.cc-sidebar-head') as HTMLElement;
+    expect(head.textContent?.replace(/\s+/g, '')).toBe('LKM');
+    expect(head.querySelector('svg:not(.lucide-x)')).toBeNull();
+    expect(head.querySelector('img')).toBeNull();
+  });
+
+  it("shows the org's uploaded logo in place of its name", () => {
+    const { container } = render(<NewSidebar brandName="LKM" brandLogoUrl="https://example.com/lkm.png" />);
+    const head = container.querySelector('.cc-sidebar-head') as HTMLElement;
+    expect(head.querySelector('img')).toHaveAttribute('alt', 'LKM logo');
+    expect(head.textContent).not.toContain('LKM');
+  });
+
   it('renders all main navigation links', () => {
     render(<NewSidebar />);
     expect(screen.getByRole('link', { name: /Campaigns/i })).toBeInTheDocument();

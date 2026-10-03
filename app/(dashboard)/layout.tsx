@@ -7,6 +7,8 @@ import { DashboardContent } from "@/components/layout/DashboardContent";
 import { ShellRoot } from "@/components/layout/ShellRoot";
 import { ConfirmProvider } from "@/components/ds";
 import { ThemedToaster } from "@/components/layout/ThemedToaster";
+import { NavigationProgress } from "@/components/layout/NavigationProgress";
+import { Suspense } from "react";
 import { auth } from "@/lib/auth";
 import { isPlatformAdmin } from "@/lib/billing/subscription";
 import { getOrgEntitlements } from "@/lib/entitlements";
@@ -129,6 +131,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
           </a>
 
           <ThemedToaster richColors position="bottom-right" />
+          <Suspense fallback={null}>
+            <NavigationProgress />
+          </Suspense>
           <NewSidebar
             allowedNavHrefs={navHrefs}
             /* A separate axis from allowedNavHrefs: that is what this org bought,

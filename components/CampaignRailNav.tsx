@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { NavLink } from "@/components/layout/NavLink";
 import { usePathname, useSearchParams } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { CAMPAIGN_SECTIONS, readCampaignSection, type CampaignSection } from "@/lib/campaignSections";
@@ -31,10 +31,10 @@ export default function CampaignRailNav({ campaignId }: { campaignId: string }) 
 
   return (
     <>
-      <Link href="/campaigns" className="cc-nav-item sidebar-link">
+      <NavLink href="/campaigns" className="cc-nav-item sidebar-link">
         <ArrowLeft size={17} style={{ flexShrink: 0 }} aria-hidden="true" />
         <span style={{ whiteSpace: "nowrap", overflow: "hidden" }}>All campaigns</span>
-      </Link>
+      </NavLink>
 
       <div style={{ height: 1, background: "var(--cc-border)", margin: "8px 8px" }} />
 
@@ -49,9 +49,24 @@ export default function CampaignRailNav({ campaignId }: { campaignId: string }) 
       {CAMPAIGN_SECTIONS.filter((s) => s.value !== "drafts" || counts.draftsEver || active === "drafts").map((section) => {
         const activeSection = active === section.value;
         const count = "count" in section ? counts[section.count] : undefined;
+        const href = `/campaigns/${campaignId}?section=${section.value}`;
         const link = (
-          <Link
-            href={`/campaigns/${campaignId}?section=${section.value}`}
+          <NavLink
+            href={href}
+            onNavigate={(e) => {
+              /* Another section of the campaign already open. The page is a
+                 client component that reads ?section itself, so a server round
+                 trip sends nothing new -- and that round trip is what stalled
+                 for 10-14s on prod (MEASURED 2026-10-03: the requests reached
+                 Vercel that long after the click, then took under a second).
+                 The router syncs a native pushState into useSearchParams, so
+                 the switch is immediate and the back button still walks the
+                 sections. */
+              if (pathname !== `/campaigns/${campaignId}`) return;
+              e.preventDefault();
+              window.history.pushState(null, "", href);
+              document.getElementById("main-content")?.scrollTo({ top: 0 });
+            }}
             className={`cc-nav-item sidebar-link ${activeSection ? "active btn-press" : ""}`}
             aria-current={activeSection ? "page" : undefined}
           >
@@ -82,7 +97,7 @@ export default function CampaignRailNav({ campaignId }: { campaignId: string }) 
                 {count}
               </span>
             ) : null}
-          </Link>
+          </NavLink>
         );
 
         return <div key={section.value}>{link}</div>;

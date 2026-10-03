@@ -2,6 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
+import { NavLink } from "@/components/layout/NavLink";
 import { ArrowUpRight, ChevronRight, Clock, Megaphone } from "lucide-react";
 import { Badge } from "@pratham7711/ui";
 import { SectionCard } from "@/components/ds";
@@ -67,13 +68,13 @@ export function ActivitySection({ recentCampaigns, recentEvents }: ActivitySecti
                 {recentCampaigns.map((c) => (
                   <TableRow key={c.id} className="group relative border-border">
                     <TableCell className="py-3 pr-3 pl-6">
-                      <Link prefetch={false}
+                      <NavLink prefetch={false}
                         href={`/campaigns/${c.id}`}
                         title={c.title}
                         className="inline-block max-w-[34ch] truncate rounded-sm font-semibold text-foreground after:absolute after:inset-0 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                       >
                         {c.title}
-                      </Link>
+                      </NavLink>
                       <span className="mt-0.5 block text-xs text-muted-foreground">
                         {c.client?.name ?? "No client assigned"}
                       </span>

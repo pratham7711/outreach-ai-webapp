@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { NavLink } from "@/components/layout/NavLink";
 import { BRAND } from "@/lib/brand";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
@@ -108,7 +109,7 @@ type SidebarProps = {
   /** Whether to show the operator-only Platform section. See PLATFORM_SECTION. */
   isPlatformOperator?: boolean;
   brandName?: string | null;
-  /** The tenant's own mark. CreatorCore shows one here; we fall back to initials. */
+  /** The tenant's own mark. CreatorCore shows one here; we fall back to the name. */
   brandLogoUrl?: string | null;
   user?: { name: string | null; email: string | null } | null;
 };
@@ -166,15 +167,7 @@ export default function NewSidebar({ allowedNavHrefs, isPlatformOperator, brandN
      app, and "All campaigns" at the top is the way back out. */
   const campaignId = campaignIdFromPathname(pathname);
 
-  const logoMark = (
-    <div className="cc-rail-logo">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-        <circle cx="12" cy="12" r="8" stroke="currentColor" strokeWidth="2.5" />
-        <circle cx="12" cy="12" r="4" stroke="currentColor" strokeWidth="1.5" />
-        <circle cx="12" cy="12" r="1.5" fill="currentColor" />
-      </svg>
-    </div>
-  );
+  const showLogo = Boolean(brandLogoUrl) && !logoBroken;
 
   return (
     <>
@@ -217,26 +210,13 @@ export default function NewSidebar({ allowedNavHrefs, isPlatformOperator, brandN
       >
         {/* Header: Logo + Org */}
         <div className="cc-sidebar-head h-14 flex items-center shrink-0 justify-between">
+              {/*
+                The tenant's own uploaded logo when there is one, otherwise its
+                name. Nothing of ours sits beside it: the product mark and the
+                initials chip both read as somebody's logo, and neither was.
+              */}
               <div className="flex min-w-0 items-center gap-2.5">
-                {logoMark}
-                <span
-                  className="cc-rail-brand truncate"
-                  title={brandName ?? BRAND.name}
-                >
-                  {brandName ?? BRAND.name}
-                </span>
-              </div>
-
-              <div className="cc-rail-head-end flex items-center gap-1.5">
-                {/*
-                  CreatorCore's rail carries the tenant's uploaded logo here --
-                  a 90x30 image beside its own wordmark. Ours drew two letters
-                  because nothing passed the org's logoUrl down, though
-                  entitlements had been reading it all along. The initials stay
-                  as the fallback: every org's logoUrl is still null, and an
-                  image that 404s must not leave a blank gap where the brand was.
-                */}
-                {brandLogoUrl && !logoBroken ? (
+                {showLogo ? (
                   /* eslint-disable-next-line @next/next/no-img-element */
                   <img
                     src={mediaUrl(brandLogoUrl) ?? undefined}
@@ -244,12 +224,17 @@ export default function NewSidebar({ allowedNavHrefs, isPlatformOperator, brandN
                     onError={() => setLogoBroken(true)}
                     className="cc-rail-logo-img"
                   />
-                ) : brandName ? (
-                  <div aria-hidden="true" className="cc-rail-initials">
-                    {sidebarInitials(brandName)}
-                  </div>
-                ) : null}
+                ) : (
+                  <span
+                    className="cc-rail-brand truncate"
+                    title={brandName ?? BRAND.name}
+                  >
+                    {brandName ?? BRAND.name}
+                  </span>
+                )}
+              </div>
 
+              <div className="flex items-center gap-1.5">
                 {/* Mobile close */}
                 <button
                   className="flex cursor-pointer items-center rounded-md border-0 bg-transparent p-1 text-muted-foreground hover:text-foreground lg:hidden"
@@ -310,7 +295,7 @@ export default function NewSidebar({ allowedNavHrefs, isPlatformOperator, brandN
                     ? pathname === href
                     : pathname === href || pathname.startsWith(href + "/");
                   const navLink = (
-                    <Link
+                    <NavLink
                       href={href}
                       className={`cc-nav-item sidebar-link ${active ? "active btn-press" : ""}`}
                       aria-current={active ? "page" : undefined}
@@ -322,7 +307,7 @@ export default function NewSidebar({ allowedNavHrefs, isPlatformOperator, brandN
                           {badge}
                         </span>
                       )}
-                    </Link>
+                    </NavLink>
                   );
 
                   return <div key={href}>{navLink}</div>;

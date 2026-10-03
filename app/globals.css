@@ -607,19 +607,11 @@
      inline padding. They used to sit at 16, 20, 22 and 18. */
   --cc-nav-item-px: 14px;
   --cc-rail-head-pad: 0 calc(var(--cc-sp-4) + var(--cc-nav-item-px));
-  --cc-rail-logo-size: 2rem;
-  --cc-rail-logo-r: var(--cc-r-control);
-  --cc-rail-logo-bg: var(--cc-primary);
   --cc-rail-brand-fs: 0.9375rem;
   --cc-rail-brand-fw: 800;
   --cc-rail-brand-tk: -0.4px;
   --cc-rail-logo-img-h: 30px;
   --cc-rail-logo-img-w: 92px;
-  --cc-rail-initials-fs: 0.625rem;
-  --cc-rail-initials-fw: 700;
-  --cc-rail-initials-pad: 3px 10px;
-  --cc-rail-initials-r: var(--cc-r-sm);
-  --cc-rail-initials-tk: 0.5px;
   --cc-rail-divider-h: 1px;
   --cc-nav-badge-fs: 0.5625rem;
   --cc-nav-badge-fw: 700;
@@ -651,17 +643,6 @@
      the bar is hidden, so neither theme ever draws both and neither ever
      strands the theme toggle somewhere unreachable. */
   --cc-rail-utility-display: none;
-
-  /* The rail header's three slots, as tokens rather than as JSX branches.
-     CreatorCore's header row carries the tenant's logo ALONE -- no product
-     wordmark, no app mark -- so the tenant gets the whole 56px row. Ours drew
-     all three, and at 240px the wordmark truncated to "Made Borin…", which
-     reads as a bug rather than as branding: a clipped proper noun is the one
-     string a reader cannot repair from context. */
-  --cc-rail-logomark-display: flex;
-  --cc-rail-brand-display: inline;
-  --cc-rail-head-end-grow: 0;
-  --cc-rail-head-end-justify: flex-end;
 
   /* The footer is ONE row -- account chip left, utility icons right -- because
      that is where every rail-navigation product of the last decade puts them,
@@ -1681,20 +1662,6 @@
   --cc-fg-page-title: var(--cc-primary);
   --cc-text-ink: #101828;
 
-  /* Their rail header is the tenant's logo and nothing else, left-aligned on
-     the same edge every nav label sits on. Ours put the product wordmark first
-     and left the tenant whatever the truncation did not eat. Dropping our own
-     mark is the point of a white-label theme, not a loss. */
-  --cc-rail-logomark-display: none;
-  --cc-rail-brand-display: none;
-  --cc-rail-head-end-grow: 1;
-  /* MEASURED 2026-09-15 at desktop-1600: with `flex-end` the org chip sat hard
-     against the rail's right edge with 134px of dead space to its left.
-     CreatorCore's own header is the same row used end to end, starting with the
-     tenant's mark on the LEFT edge at x=20 -- the same x every nav row below it
-     starts at. `space-between` on a row that now holds one visible item puts it
-     there, on the rail's single alignment edge. */
-  --cc-rail-head-end-justify: space-between;
   /* Their rail is one 220px column: every nav row runs 20..240, and so does the
      footer and the header. Ours inset the header by 16px and the footer by
      nothing, so three rows of the same rail started at three different x
@@ -1702,11 +1669,6 @@
   --cc-rail-head-pad: 0 calc(10px + var(--cc-nav-item-px));
   --cc-rail-logo-img-h: 34px;
   --cc-rail-logo-img-w: 100%;
-  /* The initials chip is the fallback for an org with no uploaded logo -- every
-     org today. With the whole row to itself it can be read at arm's length
-     instead of squeezed to 10px beside a wordmark. */
-  --cc-rail-initials-fs: 0.75rem;
-  --cc-rail-initials-pad: 5px 12px;
   /* The rail avatar. A bare `.cc-sidebar-avatar { width: 40px }` sat in the
      CreatorCore section of this file and never applied ONCE, in any theme: a
      second bare rule of identical specificity appears later in the file and
@@ -2554,13 +2516,10 @@
     padding: 0 var(--cc-camp-rail-nav-pad-inline);
   }
 
-  /* The head and foot take the nav's inset too, so the mark, the group label,
-     every row and the avatar share one x. The initials chip is the rail's own
-     blue here, so only its letters show: no inline padding, or they sit 12px
-     off that edge. */
+  /* The head and foot take the nav's inset too, so the name, the group label,
+     every row and the avatar share one x. */
   .creatorcore .cc-sidebar-rail[data-shell="campaign"] {
     --cc-rail-head-pad: 0 calc(var(--cc-camp-rail-nav-pad-inline) + var(--cc-nav-item-px));
-    --cc-rail-initials-pad: 5px 0;
   }
   .creatorcore .cc-sidebar-rail[data-shell="campaign"] .cc-sidebar-footer {
     padding-inline: var(--cc-camp-rail-nav-pad-inline);
@@ -7042,34 +7001,45 @@ html:has(.lp-page) { scroll-behavior: smooth; }
 .cc-sidebar-head {
   padding: var(--cc-rail-head-pad);
 }
-.cc-rail-logo {
-  width: var(--cc-rail-logo-size);
-  height: var(--cc-rail-logo-size);
-  border-radius: var(--cc-rail-logo-r);
-  background: var(--cc-rail-logo-bg);
-  color: var(--cc-on-primary);
-  display: var(--cc-rail-logomark-display);
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
 .cc-rail-brand {
-  display: var(--cc-rail-brand-display);
   font-size: var(--cc-rail-brand-fs);
   font-weight: var(--cc-rail-brand-fw);
   color: var(--cc-text);
   letter-spacing: var(--cc-rail-brand-tk);
 }
 
-/* Grows into the row the wordmark vacates, so the tenant's logo is the header
-   rather than a chip at the end of it. `min-width: 0` because the flex default
-   of `auto` would refuse to let a wide logo shrink, so a wide one would push the
-   rest of the header off the rail. */
-.cc-rail-head-end {
-  flex: var(--cc-rail-head-end-grow) 1 auto;
-  min-width: 0;
-  justify-content: var(--cc-rail-head-end-justify);
+/* NavigationProgress: the router holds the old page until the next one
+   arrives, so a slow navigation needs its own sign of life. Above the rail
+   (z-40) and the mobile menu button (z-50). */
+.cc-nav-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  z-index: 60;
+  overflow: hidden;
+  pointer-events: none;
+}
+.cc-nav-progress::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 40%;
+  background: var(--cc-primary);
+  animation: cc-nav-progress 1.1s ease-in-out infinite;
+}
+@keyframes cc-nav-progress {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(250%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cc-nav-progress::before {
+    animation: none;
+    width: 100%;
+  }
 }
 
 .cc-rail-logo-img {
@@ -7077,16 +7047,6 @@ html:has(.lp-page) { scroll-behavior: smooth; }
   max-width: var(--cc-rail-logo-img-w);
   object-fit: contain;
   display: block;
-}
-
-.cc-rail-initials {
-  background: var(--cc-primary);
-  color: var(--cc-on-primary);
-  font-size: var(--cc-rail-initials-fs);
-  font-weight: var(--cc-rail-initials-fw);
-  padding: var(--cc-rail-initials-pad);
-  border-radius: var(--cc-rail-initials-r);
-  letter-spacing: var(--cc-rail-initials-tk);
 }
 
 .cc-nav-icon {

@@ -3,7 +3,7 @@
 import { memo, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Search, Target, Sun, Zap, CheckCircle2, XCircle, Wallet, Users, FileText, LayoutList, Folder, Share2, ArrowUpDown, Trash2 } from "lucide-react";
-import Link from "next/link";
+import { NavLink } from "@/components/layout/NavLink";
 import { Card, Badge, Input, EmptyState, Avatar } from "@pratham7711/ui";
 import { PageHeader, StatusTabs, Pagination, FilterDrawer, FilterButton, Dropdown, useConfirm, Button } from "@/components/ds";
 import type { FilterDef, FilterValues } from "@/components/ds";
@@ -498,7 +498,7 @@ const CampaignRow = memo(function CampaignRow({
       {/* Only the identity block navigates. The chips and the status
           dropdown sit outside the link, because a select nested in an
           anchor navigates instead of opening. */}
-      <Link
+      <NavLink
         prefetch={false}
         href={`/campaigns/${campaign.id}`}
         className="cc-campaign-id"
@@ -532,7 +532,7 @@ const CampaignRow = memo(function CampaignRow({
             </span>
           )}
         </span>
-      </Link>
+      </NavLink>
 
       {/* Budget and Team are dropped when absent rather than shown as a
           zero or an empty avatar row: budget is nullable and unset on
