@@ -8,7 +8,7 @@ import { Button } from "@/components/ds";
 import { ArrowLeft, ExternalLink, RefreshCw, Eye, Heart, MessageCircle, Share2, Download, Bookmark, TrendingUp, Flag, Lock, Activity, ShieldAlert, Shield, Play, Users } from "lucide-react";
 import dynamic from "next/dynamic";
 import { computeEngagementRate } from "@/lib/metrics";
-import { metricValue, fieldMetricValue, unwrittenMetricValue, readableSnapshots, snapshotMetric, type MetricField } from "@/lib/metricDisplay";
+import { fieldMetricValue, unwrittenMetricValue, readableSnapshots, snapshotMetric, type MetricField } from "@/lib/metricDisplay";
 import { postAgeContext, postMeasuredAt, postStatus } from "@/lib/posts/postStatus";
 import { viewsAsOf, viewsReadAt } from "@/lib/posts/fieldFreshness";
 import PostStatusChip from "@/components/posts/PostStatusChip";
@@ -426,8 +426,7 @@ export default function PostDetailPage() {
   const thumb = imgSrc(post.thumbnailUrl, 240, 160);
 
   const engRate =
-    metricValue(post.likesCount, post.lastSyncedAt) === null &&
-    metricValue(post.commentsCount, post.lastSyncedAt) === null
+    fieldMetricValue(post.likesCount, post.lastSyncedAt, post.platformMetrics, "likes") === null
       ? null
       : computeEngagementRate({
           views: post.viewsCount,

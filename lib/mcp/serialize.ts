@@ -182,14 +182,17 @@ export function shapePost(post: ShapeablePost): Record<string, unknown> {
          quotient carries fifteen digits of precision the underlying counts do
          not have, and a model repeating it back reads as a claim about the
          seventh decimal of a like count. */
-      engagementRatePercent: round2(
-        engagementRateValue(
-          post.likesCount,
-          post.commentsCount,
-          post.viewsCount,
-          post.lastSyncedAt ?? null
-        )
-      ),
+      engagementRatePercent:
+        metrics.likes === null
+          ? null
+          : round2(
+              engagementRateValue(
+                post.likesCount,
+                post.commentsCount,
+                post.viewsCount,
+                post.lastSyncedAt ?? null
+              )
+            ),
     },
     measured: measuredFields(post.platformMetrics),
     ...(note ? { notMeasuredReason: note } : {}),

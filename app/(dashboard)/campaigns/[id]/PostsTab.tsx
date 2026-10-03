@@ -1302,7 +1302,8 @@ export default function PostsTab({
         case "shares": return p.sharesCount;
         case "saves": return p.savesCount;
         case "downloads": return p.downloadsCount;
-        case "engRate": return engRatePct(p) ?? -1;
+        case "engRate":
+          return fieldMetricValue(p.likesCount, p.lastSyncedAt, p.platformMetrics, "likes") === null ? -1 : engRatePct(p) ?? -1;
         case "delta": return deltaViews(p) ?? Number.NEGATIVE_INFINITY;
         default: return 0;
       }
@@ -1347,6 +1348,7 @@ export default function PostsTab({
     () =>
       posts.some(
         (p) =>
+          fieldMetricValue(p.likesCount, p.lastSyncedAt, p.platformMetrics, "likes") !== null &&
           engagementRateValue(p.likesCount, p.commentsCount, p.viewsCount, p.lastSyncedAt) !== null
       ),
     [posts]
@@ -2078,7 +2080,7 @@ export default function PostsTab({
               const saves = unwrittenMetricValue(post.savesCount);
               const downloads = unwrittenMetricValue(post.downloadsCount);
               const erShown =
-                likes === null && comments === null
+                likes === null
                   ? null
                   : engagementRateValue(post.likesCount, post.commentsCount, post.viewsCount, post.lastSyncedAt) ?? er;
               return (

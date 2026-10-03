@@ -100,7 +100,7 @@ function PostGridCardImpl({
      posts we do not own, and the 0 an unfetched row holds printed "0 saves". */
   const cardSaves = unwrittenMetricValue(post.savesCount);
   const cardEngRate =
-    cardLikes === null && cardComments === null
+    cardLikes === null
       ? null
       : engagementRateValue(
           post.likesCount,
