@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { InsightsPost, PlatformInsights } from "@/lib/portal/creatorInsights";
+import { META_MINIMUM_SIZE_NOTE, META_UNAVAILABLE, isMetaPlatform } from "@/lib/metricDisplay";
 import {
   ButtonLink,
   Card,
@@ -62,10 +63,17 @@ const PROFILE_LINK_LABEL: Record<PlatformInsights["platform"], string> = {
   THREADS: "Open on Threads",
 };
 
-function Figure({ label, value }: { label: string; value: string }) {
+/** A figure, or on Instagram and Facebook one Meta did not return, which
+    says so rather than showing a dash that reads as a failed fetch. */
+function Figure({ label, value, meta = false }: { label: string; value: number | null; meta?: boolean }) {
+  const withheld = meta && value === null;
   return (
-    <div style={{ minWidth: 0 }}>
-      <div style={{ fontSize: 20, fontWeight: 700, color: "var(--cc-text)" }}>{value}</div>
+    <div style={{ minWidth: 0 }} title={withheld ? META_MINIMUM_SIZE_NOTE : undefined}>
+      {withheld ? (
+        <div style={{ fontSize: 13, fontWeight: 600, lineHeight: "26px", color: "var(--cc-text-muted)" }}>{META_UNAVAILABLE}</div>
+      ) : (
+        <div style={{ fontSize: 20, fontWeight: 700, color: "var(--cc-text)" }}>{formatCount(value)}</div>
+      )}
       <div style={{ fontSize: 12, color: "var(--cc-text-muted)" }}>{label}</div>
     </div>
   );
@@ -183,16 +191,30 @@ function ProfileHeader({ block }: { block: PlatformInsights }) {
 
 function AccountBlock({ block }: { block: PlatformInsights }) {
   const posts = block.posts.slice(0, RECENT_POSTS);
+  const meta = isMetaPlatform(block.platform);
   /* Lifetime counts the platform publishes, shown only when it did: Facebook
      Pages and Threads have no following or like total, and a dash there would
-     read as a number we failed to fetch. */
-  const lifetime: Array<[string, number]> = (
+     read as a number we failed to fetch. Instagram publishes following and
+     posts, so those stay on screen even when Meta withheld them. */
+  const lifetime: Array<[string, number | null]> = (
     [
-      ["Following", block.following],
-      ["Total likes", block.totalLikes],
-      [MEDIA_LABEL[block.platform], block.mediaCount],
-    ] as Array<[string, number | null]>
-  ).filter((entry): entry is [string, number] => typeof entry[1] === "number");
+      ["Following", block.following, block.platform === "INSTAGRAM"],
+      ["Total likes", block.totalLikes, false],
+      [MEDIA_LABEL[block.platform], block.mediaCount, block.platform === "INSTAGRAM"],
+    ] as Array<[string, number | null, boolean]>
+  )
+    .filter(([, value, published]) => published || typeof value === "number")
+    .map(([label, value]) => [label, value]);
+  const figures: Array<[string, number | null]> = [
+    ["Followers", block.followers],
+    ...lifetime,
+    [`Median views, last ${block.sampleSize}`, block.medianViews],
+    ["Best post views", block.bestPost?.views ?? null],
+    ...(block.platform === "INSTAGRAM"
+      ? ([[`Median reach, last ${block.sampleSize}`, block.medianReach]] as Array<[string, number | null]>)
+      : []),
+  ];
+  const withheld = meta && figures.some(([, value]) => value === null);
   return (
     <Card>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
@@ -213,13 +235,13 @@ function AccountBlock({ block }: { block: PlatformInsights }) {
       ) : (
         <>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 12, marginTop: 14 }}>
-            <Figure label="Followers" value={formatCount(block.followers)} />
-            {lifetime.map(([label, value]) => (
-              <Figure key={label} label={label} value={formatCount(value)} />
+            {figures.map(([label, value]) => (
+              <Figure key={label} label={label} value={value} meta={meta} />
             ))}
-            <Figure label={`Median views, last ${block.sampleSize}`} value={formatCount(block.medianViews)} />
-            <Figure label="Best post views" value={formatCount(block.bestPost?.views ?? null)} />
           </div>
+          {withheld && (
+            <p style={{ fontSize: 12, color: "var(--cc-text-muted)", margin: "8px 0 0" }}>{META_MINIMUM_SIZE_NOTE}.</p>
+          )}
           {posts.length > 0 ? (
             <>
               <h3 style={{ fontSize: 13, fontWeight: 700, color: "var(--cc-text)", margin: "16px 0 0" }}>Recent posts</h3>

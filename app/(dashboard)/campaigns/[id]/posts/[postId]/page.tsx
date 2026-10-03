@@ -8,12 +8,22 @@ import { Button } from "@/components/ds";
 import { ArrowLeft, ExternalLink, RefreshCw, Eye, Heart, MessageCircle, Share2, Download, Bookmark, TrendingUp, Flag, Lock, Activity, ShieldAlert, Shield, Play, Users } from "lucide-react";
 import dynamic from "next/dynamic";
 import { computeEngagementRate } from "@/lib/metrics";
-import { fieldMetricValue, unwrittenMetricValue, readableSnapshots, snapshotMetric, type MetricField } from "@/lib/metricDisplay";
+import {
+  META_CONNECTED_NOTE,
+  META_UNAVAILABLE,
+  fieldMetricValue,
+  isMetaPlatform,
+  measuredFields,
+  unwrittenMetricValue,
+  readableSnapshots,
+  snapshotMetric,
+  type MetricField,
+} from "@/lib/metricDisplay";
 import { postAgeContext, postMeasuredAt, postStatus } from "@/lib/posts/postStatus";
 import { viewsAsOf, viewsReadAt } from "@/lib/posts/fieldFreshness";
 import PostStatusChip from "@/components/posts/PostStatusChip";
 import { AgeLabel } from "@/components/ds/AgeLabel";
-import { metricReason, metricText, postCounterValue } from "@/lib/creators/metricValue";
+import { isUnknownMetric, metricReason, metricText, postCounterValue, unknownMetric, type MetricValue } from "@/lib/creators/metricValue";
 import { imgSrc, embedSrcFor } from "@/lib/postMedia";
 import { stripAt, formatDateAbs, formatDateTimeAbs, formatFull, fitFigureSize } from "@/lib/format";
 import { MIN_SNAPSHOTS } from "@/lib/fraud/botSignals";
@@ -201,6 +211,11 @@ function snapshotCell(value: number | null | undefined, platformMetrics: unknown
 }
 
 const UNWRITTEN_CARDS = new Set(["savesCount", "reachCount", "downloadsCount"]);
+
+/** Meta's insight counters. On an Instagram or Facebook post these cards stay
+    on screen when Meta withheld the figure, saying so, rather than vanishing:
+    a reviewer has to see where reach and saves would be. */
+const META_INSIGHT_CARDS = new Set(["viewsCount", "reachCount", "savesCount"]);
 
 const BASE_METRIC_CARDS = [
   { key: "viewsCount", field: "views", label: "Views", icon: Eye, color: "var(--cc-primary)" },
@@ -459,9 +474,11 @@ export default function PostDetailPage() {
      fieldMetricValue, not metricValue: one lastSyncedAt cannot describe a row
      whose likes were fetched and whose reach was not, and every Instagram post
      synced before the reach fix is exactly that row. See lib/metricDisplay. */
+  const metaPost = isMetaPlatform(post.platform);
   const metricCards = allMetricCards.filter(
     ({ key, field }) =>
       key === "viewsCount" ||
+      (metaPost && META_INSIGHT_CARDS.has(key)) ||
       /* No reader stores saves, reach or downloads for a post we do not own,
          and the legacy rows carry a lastSyncedAt that reads their 0 as
          measured -- the tiles printed "Saves 0" and "Reach 0" on public posts.
@@ -629,32 +646,52 @@ export default function PostDetailPage() {
             {/* "—" with its reason for a counter nobody read, never a 0;
                 a hidden or deleted post keeps its last real figures. */}
             {(() => {
-              const value = postCounterValue((post as unknown as Record<string, number>)[key], post, field);
+              const raw = (post as unknown as Record<string, number>)[key];
+              /* Saves and reach on a post with no measured-field list are the
+                 column default, not a reading: positive or unknown, never 0. */
+              const value: MetricValue =
+                UNWRITTEN_CARDS.has(key) && measuredFields(post.platformMetrics) === null
+                  ? (unwrittenMetricValue(raw) ?? unknownMetric(`The platform did not report ${field} for this post.`))
+                  : postCounterValue(raw, post, field);
+              if (metaPost && META_INSIGHT_CARDS.has(key) && isUnknownMetric(value)) {
+                return (
+                  <span title={META_CONNECTED_NOTE}>
+                    <span style={{ display: "block", fontSize: "var(--cc-t-14)", fontWeight: 600, lineHeight: "30px", color: "var(--cc-text-muted)" }}>
+                      {META_UNAVAILABLE}
+                    </span>
+                    <span style={{ display: "block", marginTop: 4, fontSize: "var(--cc-t-11)", lineHeight: 1.3, color: "var(--cc-text-muted)" }}>
+                      {META_CONNECTED_NOTE}
+                    </span>
+                  </span>
+                );
+              }
               return (
-                <span title={metricReason(value)}>
-                  <FigureValue text={metricText(value, formatNumber)} />
-                </span>
+                <>
+                  <span title={metricReason(value)}>
+                    <FigureValue text={metricText(value, formatNumber)} />
+                  </span>
+                  {/* The latest read's age, except on a views figure that read
+                      did not return: that one says when it was read. */}
+                  {field === "views" && viewsNote ? (
+                    <span
+                      title={viewsNote.title}
+                      style={{ display: "block", marginTop: 4, fontSize: "var(--cc-t-11)", lineHeight: 1.3, color: "var(--cc-text-muted)" }}
+                    >
+                      {viewsNote.sentence}
+                    </span>
+                  ) : (
+                    <AgeLabel
+                      at={measured.at}
+                      field="post"
+                      ctx={postAgeContext({ postedAt: post.postedAt, trackingEnabled: timeseries?.trackingEnabled, trackingExpiresAt: timeseries?.trackingExpiresAt }, status)}
+                      source={measured.source}
+                      never={null}
+                      style={{ marginTop: 4 }}
+                    />
+                  )}
+                </>
               );
             })()}
-            {/* The latest read's age, except on a views figure that read did
-                not return: that one says when it was read. */}
-            {field === "views" && viewsNote ? (
-              <span
-                title={viewsNote.title}
-                style={{ display: "block", marginTop: 4, fontSize: "var(--cc-t-11)", lineHeight: 1.3, color: "var(--cc-text-muted)" }}
-              >
-                {viewsNote.sentence}
-              </span>
-            ) : (
-              <AgeLabel
-                at={measured.at}
-                field="post"
-                ctx={postAgeContext({ postedAt: post.postedAt, trackingEnabled: timeseries?.trackingEnabled, trackingExpiresAt: timeseries?.trackingExpiresAt }, status)}
-                source={measured.source}
-                never={null}
-                style={{ marginTop: 4 }}
-              />
-            )}
           </Card>
         ))}
         {engRate !== null && (

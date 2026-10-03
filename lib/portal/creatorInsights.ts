@@ -78,6 +78,9 @@ export type PlatformInsights = {
    *  when it measured none of them, which is not the same as zero views. */
   totalViews: number | null;
   medianViews: number | null;
+  /** Median accounts reached over the posts Instagram reported reach for;
+   *  null when it reported none, and on every other platform. */
+  medianReach: number | null;
   bestPost: InsightsPost | null;
   posts: InsightsPost[];
 };
@@ -300,6 +303,7 @@ export async function buildPlatformInsights(
       sampleSize: 0,
       totalViews: 0,
       medianViews: 0,
+      medianReach: null,
       bestPost: null,
       posts: [],
     };
@@ -311,6 +315,9 @@ export async function buildPlatformInsights(
      posts went up looked like: real likes, "0 views" on every row. */
   const views = posts
     .map(measuredViews)
+    .filter((v): v is number => typeof v === "number");
+  const reach = posts
+    .map((p) => p.exact?.reach)
     .filter((v): v is number => typeof v === "number");
   /* Best post by measured views; when none are measured, by likes, so the
      card still leads with the creator's strongest post. */
@@ -337,6 +344,7 @@ export async function buildPlatformInsights(
     sampleSize: posts.length,
     totalViews: views.length > 0 ? views.reduce((a, b) => a + b, 0) : null,
     medianViews: views.length > 0 ? Math.round(median(views)) : null,
+    medianReach: reach.length > 0 ? Math.round(median(reach)) : null,
     bestPost: best ? toInsightsPost(best) : null,
     posts: posts.slice(0, 6).map(toInsightsPost),
   };

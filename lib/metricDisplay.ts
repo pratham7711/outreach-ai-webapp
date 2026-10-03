@@ -17,6 +17,21 @@ import { sumEngagements } from "@/lib/metrics/costs";
 /** Sentinel for "we never measured this", so callers can format it their own way. */
 export const UNKNOWN = null;
 
+/**
+ * An Instagram or Facebook insight Meta did not return. Meta answers some
+ * insights only above a minimum size (Page insights at 100 likes, some
+ * Instagram metrics at 100 followers) and only to the account's own connected
+ * token, so a missing one is shown as a card that says so, never hidden and
+ * never 0. A 0 Meta did return is printed as 0.
+ */
+export const META_UNAVAILABLE = "Not available from Meta";
+export const META_MINIMUM_SIZE_NOTE = "Meta shares this only for accounts above its minimum size";
+export const META_CONNECTED_NOTE = "Meta shares this only with the creator's connected account, above its minimum size";
+
+export function isMetaPlatform(platform: string): boolean {
+  return platform === "INSTAGRAM" || platform === "FACEBOOK";
+}
+
 export function metricValue(
   value: number | null | undefined,
   lastSyncedAt: string | Date | null | undefined

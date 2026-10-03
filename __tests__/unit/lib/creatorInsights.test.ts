@@ -151,6 +151,15 @@ describe("buildPlatformInsights — views the platform did not measure", () => {
     expect(image.reach).toBe(250);
     // Instagram reports shares on reels only; the image's is unmeasured.
     expect(image.shares).toBeNull();
+    expect(block!.medianReach).toBe(430);
+  });
+
+  it("has no median reach when Instagram reported reach on none of the posts", async () => {
+    (fetchInstagramMedia as jest.Mock).mockResolvedValueOnce([
+      { ...media("old", 12, 300), exact: { views: 300, likes: 12, comments: 1 } },
+    ]);
+    const block = await buildPlatformInsights(account, "org1");
+    expect(block!.medianReach).toBeNull();
   });
 
   it("still treats a failed media fetch as a reconnect, with zeroed aggregates", async () => {
