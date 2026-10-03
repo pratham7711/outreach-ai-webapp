@@ -20,11 +20,11 @@ export type CapabilityReport = {
 };
 
 const LABELS: Record<OAuthPlatform, string> = {
-  instagram: "Instagram",
-  /* Named by what the creator has to have, not by which Meta product the token
-     comes from: the only question a creator can answer about themselves is
-     whether their Instagram is linked to a Facebook Page. */
-  "instagram-login": "Instagram (no Facebook Page)",
+  /* Each Instagram flow is named by how the creator signs in, so the two
+     cards never share a title and each matches the Meta product a reviewer
+     is testing: Facebook Login for Business or Instagram Login. */
+  instagram: "Instagram (via Facebook Page)",
+  "instagram-login": "Instagram (Instagram login)",
   tiktok: "TikTok",
   youtube: "YouTube",
   facebook: "Facebook",

@@ -41,8 +41,8 @@ type PublicProfile = { platform: string; handle: string; lastReadAt: string | nu
     never share a title: two cards both called "Instagram" read as a duplicate.
     Same names as the agency's connect link (lib/portal/permissionCopy.ts). */
 const CARD_LABEL: Record<OAuthPlatform, string> = {
-  instagram: "Instagram",
-  "instagram-login": "Instagram (no Facebook Page)",
+  instagram: "Instagram (via Facebook Page)",
+  "instagram-login": "Instagram (Instagram login)",
   tiktok: "TikTok",
   youtube: "YouTube",
   facebook: "Facebook Page",

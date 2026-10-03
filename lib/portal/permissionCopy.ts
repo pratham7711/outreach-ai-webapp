@@ -20,7 +20,7 @@ export type PlatformReads = {
 
 export const CONNECT_READS: Record<OAuthPlatform, PlatformReads> = {
   instagram: {
-    label: "Instagram",
+    label: "Instagram (via Facebook Page)",
     lines: [
       {
         scope: "instagram_basic",
@@ -42,7 +42,7 @@ export const CONNECT_READS: Record<OAuthPlatform, PlatformReads> = {
     ],
   },
   "instagram-login": {
-    label: "Instagram (no Facebook Page)",
+    label: "Instagram (Instagram login)",
     lines: [
       {
         scope: "instagram_business_basic",

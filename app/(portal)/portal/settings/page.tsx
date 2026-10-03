@@ -45,8 +45,8 @@ type Connection = {
 type ProviderFlags = Partial<Record<OAuthPlatform, boolean>>;
 
 const PLATFORM_LABELS: Record<OAuthPlatform, string> = {
-  instagram: "Instagram",
-  "instagram-login": "Instagram (no Facebook Page)",
+  instagram: "Instagram (via Facebook Page)",
+  "instagram-login": "Instagram (Instagram login)",
   tiktok: "TikTok",
   youtube: "YouTube",
   facebook: "Facebook",
@@ -151,7 +151,7 @@ export default function PortalSettingsPage() {
     const reason = params.get("reason");
     const platform = connected ?? failed ?? "";
     /* PLATFORM_LABELS is how the rest of the screen names these, so
-       "instagram-login" reads "Instagram (no Facebook Page)" and not
+       "instagram-login" reads "Instagram (Instagram login)" and not
        "Instagram-login". An unknown slug falls back to itself. */
     const name =
       PLATFORM_LABELS[platform as OAuthPlatform] ??
