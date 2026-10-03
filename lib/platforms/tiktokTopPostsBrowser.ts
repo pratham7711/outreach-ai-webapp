@@ -45,10 +45,20 @@ export type TikTokPostsRead = {
 
 export type TopPostsSession = BrowserSession<string, TikTokPostsRead>;
 
-/** One lazily-launched, self-healing browser per sweep -- see tiktokBrowser. */
+/** One lazily-launched, self-healing browser per sweep -- see tiktokBrowser.
+ *  After a page fails with ERR_INSUFFICIENT_RESOURCES the session stops
+ *  reading rather than relaunching into the same failure; every caller
+ *  already treats null as "no grid". */
 export function openTopPostsSession(): TopPostsSession {
-  return createBrowserSession(readWith);
+  return createBrowserSession(readWith, { stopWhenExhausted: true });
 }
+
+/* What a TikTok profile page spends its bytes on, and nothing this read needs:
+   the stats are in the served HTML and the grid, when it comes, is an XHR.
+   The video previews above all, which a single-process Chromium would
+   otherwise stream inside the same function instance as the rest of the
+   sweep. */
+const UNNEEDED_RESOURCES: ReadonlySet<string> = new Set(["image", "media", "font"]);
 
 async function readWith(
   browser: LaunchedBrowser,
@@ -61,6 +71,11 @@ async function readWith(
   let page: any = null;
   try {
     page = await browser.newPage({ userAgent: UA, viewport: { width: 1400, height: 1000 } });
+    await page
+      .route("**/*", (route: any) =>
+        (UNNEEDED_RESOURCES.has(route.request().resourceType()) ? route.abort() : route.continue()).catch(() => {})
+      )
+      .catch(() => {});
 
     let items: any[] | null = null;
     page.on("response", async (res: any) => {

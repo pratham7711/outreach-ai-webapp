@@ -1,7 +1,7 @@
 /**
  * @jest-environment node
  */
-import { createBrowserSession } from "@/lib/platforms/tiktokBrowser";
+import { createBrowserSession, isResourceExhaustion } from "@/lib/platforms/tiktokBrowser";
 
 jest.mock("playwright-core", () => ({ chromium: { launch: jest.fn() } }));
 
@@ -49,5 +49,42 @@ describe("the browser session's keeper page", () => {
 
     await expect(session.read("someone")).resolves.toBe("read");
     expect(mockLaunch).toHaveBeenCalledTimes(2);
+  });
+});
+
+/* MEASURED in production logs 2026-09-30 to 10-02: once one page failed with
+   net::ERR_INSUFFICIENT_RESOURCES, every later browser read in that run failed
+   the same way, relaunch after relaunch. */
+describe("a function instance out of resources", () => {
+  const exhausted = () =>
+    new Error("page.goto: net::ERR_INSUFFICIENT_RESOURCES at https://www.tiktok.com/@someone\nCall log: ...");
+
+  it("recognises Chromium's message and nothing else", () => {
+    expect(isResourceExhaustion(exhausted())).toBe(true);
+    expect(isResourceExhaustion(new Error("browser read exceeded 90000ms"))).toBe(false);
+  });
+
+  it("stops reading for the rest of the run when the caller asks it to", async () => {
+    mockLaunch.mockResolvedValue(fakeBrowser(() => Promise.resolve({})));
+    const readWith = jest.fn().mockRejectedValueOnce(exhausted()).mockResolvedValue("read");
+    const session = createBrowserSession(readWith, { stopWhenExhausted: true });
+
+    await expect(session.read("first")).rejects.toThrow("ERR_INSUFFICIENT_RESOURCES");
+    await expect(session.read("second")).resolves.toBeNull();
+    expect(readWith).toHaveBeenCalledTimes(1);
+    expect(mockLaunch).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps relaunching by default, and after any other failure", async () => {
+    mockLaunch.mockResolvedValue(fakeBrowser(() => Promise.resolve({})));
+    const plain = jest.fn().mockRejectedValueOnce(exhausted()).mockResolvedValue("read");
+    const session = createBrowserSession(plain);
+    await expect(session.read("first")).rejects.toThrow();
+    await expect(session.read("second")).resolves.toBe("read");
+
+    const other = jest.fn().mockRejectedValueOnce(new Error("page crashed")).mockResolvedValue("read");
+    const opted = createBrowserSession(other, { stopWhenExhausted: true });
+    await expect(opted.read("first")).rejects.toThrow("page crashed");
+    await expect(opted.read("second")).resolves.toBe("read");
   });
 });
