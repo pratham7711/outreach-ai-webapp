@@ -166,6 +166,8 @@ type Creator = {
   }[];
   /** When the headline figures were measured and by what (plan A6). */
   figureTimes?: { followers: FigureTimeDto };
+  /** Set when the follower count was read through the org's own Instagram account. */
+  instagramReadVia?: { username: string } | null;
   detail?: { country: string | null; audienceCountry: string | null; niche: string | null; source: string | null; signedUpAt: string | null } | null;
   lists?: { id: string; name: string }[];
 };
@@ -968,13 +970,20 @@ export default function CreatorProfilePage({ params }: { params: Promise<{ id: s
               value={<MetricFigure value={followers} format={formatNumber} />}
               footer={
                 followersAt && !isUnknownMetric(followers) ? (
-                  <AgeLabel
-                    at={followersAt.at}
-                    field={followersAt.field}
-                    source={followersAt.source}
-                    never={followersAt.missing}
-                    style={{ whiteSpace: "normal" }}
-                  />
+                  <>
+                    <AgeLabel
+                      at={followersAt.at}
+                      field={followersAt.field}
+                      source={followersAt.source}
+                      never={followersAt.missing}
+                      style={{ whiteSpace: "normal" }}
+                    />
+                    {creator.instagramReadVia ? (
+                      <span className="cc-ig-read-via">
+                        via your Instagram Business account (@{creator.instagramReadVia.username})
+                      </span>
+                    ) : null}
+                  </>
                 ) : undefined
               }
             />
