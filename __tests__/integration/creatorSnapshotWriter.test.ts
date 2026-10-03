@@ -183,4 +183,33 @@ describe("the legacy sweep", () => {
     expect(mockConnected).not.toHaveBeenCalled();
     expect(written().snapshot).toBe(1_234_567);
   });
+
+  /* So the next read can ask by id once the handle stops resolving. Before,
+     only a channel found through the creator's own campaign videos was kept. */
+  it("keeps the channel id a YouTube read answered for", async () => {
+    const CHANNEL = "UC" + "c".repeat(22);
+    mockDb.creator.findMany.mockResolvedValue([creator({ platform: "YOUTUBE" })]);
+    mockRead.mockResolvedValue({
+      ok: true,
+      profile: { followersCount: 2000, postsCount: 10, avgViews: 500, sampledPosts: 5, accountId: CHANNEL },
+    });
+
+    await snapshotCreators({});
+
+    const row = mockDb.creator.update.mock.calls.find((c) => "followersCount" in (c[0].data ?? {}))?.[0]?.data;
+    expect(row.platformUserId).toBe(CHANNEL);
+  });
+
+  it("leaves platformUserId alone for an id from another platform's namespace", async () => {
+    mockDb.creator.findMany.mockResolvedValue([creator({ platform: "INSTAGRAM" })]);
+    mockRead.mockResolvedValue({
+      ok: true,
+      profile: { followersCount: 2000, postsCount: 10, avgViews: 500, sampledPosts: 5, accountId: "17841400000000001" },
+    });
+
+    await snapshotCreators({});
+
+    const row = mockDb.creator.update.mock.calls.find((c) => "followersCount" in (c[0].data ?? {}))?.[0]?.data;
+    expect(row).not.toHaveProperty("platformUserId");
+  });
 });

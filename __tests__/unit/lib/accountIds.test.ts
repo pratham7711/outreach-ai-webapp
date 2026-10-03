@@ -12,13 +12,13 @@ jest.mock("@/lib/db", () => ({
   db: {
     $queryRawUnsafe: jest.fn(),
     $executeRawUnsafe: jest.fn(),
-    creatorPlatformAccountId: { upsert: jest.fn() },
+    creatorPlatformAccountId: { upsert: jest.fn(), findMany: jest.fn() },
   },
 }));
 
 import { ACCOUNT_ID_TABLES, CREATOR_ACCOUNT_ID_DDL } from "@/lib/creators/accountIdSchemaDdl";
 import { accountIdTablesReady, resetAccountIdTablesCache } from "@/lib/creators/accountIdTables";
-import { recordPlatformAccountId } from "@/lib/creators/accountIds";
+import { previousAccountUnderHandle, recordPlatformAccountId } from "@/lib/creators/accountIds";
 import { GET, POST } from "@/app/api/admin/migrate-creator-account-ids/route";
 import { parseTikTokProfileHtml } from "@/lib/platforms/tiktokProfile";
 import { parseBusinessDiscovery } from "@/lib/platforms/instagramBusinessDiscovery";
@@ -27,7 +27,7 @@ import { db } from "@/lib/db";
 const mdb = db as unknown as {
   $queryRawUnsafe: jest.Mock;
   $executeRawUnsafe: jest.Mock;
-  creatorPlatformAccountId: { upsert: jest.Mock };
+  creatorPlatformAccountId: { upsert: jest.Mock; findMany: jest.Mock };
 };
 
 describe("account-id schema DDL", () => {
@@ -162,11 +162,56 @@ describe("recordPlatformAccountId", () => {
     await expect(recordPlatformAccountId(sighting)).resolves.toBe(false);
   });
 
-  it("keeps only TikTok and Instagram, and only with an id", async () => {
+  it("keeps TikTok, Instagram and YouTube, and only with an id", async () => {
     mdb.$queryRawUnsafe.mockResolvedValue([{ n: 1 }]);
-    expect(await recordPlatformAccountId({ ...sighting, platform: "YOUTUBE" })).toBe(false);
+    mdb.creatorPlatformAccountId.upsert.mockResolvedValue({});
+    expect(await recordPlatformAccountId({ ...sighting, platform: "TWITTER" })).toBe(false);
     expect(await recordPlatformAccountId({ ...sighting, profile: {} })).toBe(false);
     expect(mdb.creatorPlatformAccountId.upsert).not.toHaveBeenCalled();
+    expect(
+      await recordPlatformAccountId({ ...sighting, platform: "YOUTUBE", profile: { accountId: "UCfakeChannelIdForTests0" } })
+    ).toBe(true);
+  });
+});
+
+describe("previousAccountUnderHandle", () => {
+  const read = { creatorId: "cr-1", platform: "TIKTOK", handle: "@Fake.Creator", accountId: "6900000000000000002" };
+
+  beforeEach(() => jest.clearAllMocks());
+
+  it("names the account the same handle belonged to before", async () => {
+    mdb.creatorPlatformAccountId.findMany.mockResolvedValue([{ platformAccountId: "6900000000000000001", handle: "fake.creator" }]);
+    await expect(previousAccountUnderHandle(read)).resolves.toBe("6900000000000000001");
+    expect(mdb.creatorPlatformAccountId.findMany.mock.calls[0][0].where).toEqual({ creatorId: "cr-1", platform: "TIKTOK" });
+  });
+
+  it("is quiet when the account is one already seen", async () => {
+    mdb.creatorPlatformAccountId.findMany.mockResolvedValue([
+      { platformAccountId: "6900000000000000001", handle: "fake.creator" },
+      { platformAccountId: "6900000000000000002", handle: "fake.creator" },
+    ]);
+    await expect(previousAccountUnderHandle(read)).resolves.toBeNull();
+  });
+
+  it("is quiet when the handle was edited in between, which is a correction", async () => {
+    mdb.creatorPlatformAccountId.findMany.mockResolvedValue([{ platformAccountId: "6900000000000000001", handle: "someone.else" }]);
+    await expect(previousAccountUnderHandle(read)).resolves.toBeNull();
+  });
+
+  it("never throws", async () => {
+    mdb.creatorPlatformAccountId.findMany.mockRejectedValue(new Error("down"));
+    await expect(previousAccountUnderHandle(read)).resolves.toBeNull();
+  });
+
+  it("does not stop the new account being kept", async () => {
+    resetAccountIdTablesCache();
+    mdb.$queryRawUnsafe.mockResolvedValue([{ n: 1 }]);
+    mdb.creatorPlatformAccountId.findMany.mockResolvedValue([{ platformAccountId: "6900000000000000001", handle: "fake.creator" }]);
+    mdb.creatorPlatformAccountId.upsert.mockResolvedValue({});
+    await expect(
+      recordPlatformAccountId({ creatorId: "cr-1", orgId: "org-1", platform: "TIKTOK", handle: "fake.creator", profile: { accountId: "6900000000000000002" }, source: "tracker" })
+    ).resolves.toBe(true);
+    expect(mdb.creatorPlatformAccountId.upsert).toHaveBeenCalledTimes(1);
   });
 });
 

@@ -207,6 +207,53 @@ describe("readYouTube by channel id", () => {
     expect(urls).toHaveLength(0);
   });
 
+  it("hands on the channel id it read, so the next read can ask by id", async () => {
+    mockYouTube({
+      channels: { items: [{ id: CHANNEL, statistics: { subscriberCount: "5100", videoCount: "3" }, contentDetails: { relatedPlaylists: {} } }] },
+    });
+
+    const result = await readCreatorProfile("YOUTUBE", "someone");
+
+    expect(result).toMatchObject({ ok: true, profile: { accountId: CHANNEL } });
+  });
+
+  /* MEASURED on prod 2026-10-03: forHandle named an empty channel that was not
+     the one the creator's campaign videos came from, and that channel's uploads
+     playlist answered 404. */
+  describe("an uploads playlist that answers 404", () => {
+    function mock404(channel: Record<string, unknown>) {
+      urls = [];
+      global.fetch = jest.fn(async (input: unknown) => {
+        const url = String(input);
+        urls.push(url);
+        if (url.includes("/youtube/v3/playlistItems?")) {
+          return { ok: false, status: 404, json: async () => ({}) } as unknown as Response;
+        }
+        return { ok: true, status: 200, json: async () => ({ items: [channel] }) } as unknown as Response;
+      }) as unknown as typeof fetch;
+    }
+    const empty = {
+      id: CHANNEL,
+      statistics: { subscriberCount: "21", videoCount: "0" },
+      contentDetails: { relatedPlaylists: { uploads: "UU" + "a".repeat(22) } },
+    };
+
+    it("is a handle that names the wrong channel, so the own-posts rung gets to look", async () => {
+      mock404(empty);
+      await expect(readCreatorProfile("YOUTUBE", "someone")).resolves.toEqual({
+        ok: false,
+        reason: "no-such-account",
+        detail: "the channel for this handle has no videos",
+      });
+    });
+
+    it("is, for a channel asked for by id, the right channel with nothing to average", async () => {
+      mock404(empty);
+      const result = await readCreatorProfile("YOUTUBE", "x", { youtubeChannelId: CHANNEL });
+      expect(result).toMatchObject({ ok: true, profile: { followersCount: 21, sampledPosts: 0, avgViews: 0, accountId: CHANNEL } });
+    });
+  });
+
   it("recognises channel ids and nothing else", () => {
     expect(isYouTubeChannelId(CHANNEL)).toBe(true);
     expect(isYouTubeChannelId("UCshort")).toBe(false);

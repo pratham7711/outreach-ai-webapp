@@ -987,6 +987,12 @@ export async function snapshotCreators(
       ? velocityBetween(previous.followersCount, followersCount)
       : 0;
 
+    /* The channel this read actually answered for, whichever rung found it.
+       Kept so the next read can ask by id when the handle stops resolving --
+       a handle can be renamed, a channel id cannot. */
+    const channelId =
+      creator.platform === "YOUTUBE" && isYouTubeChannelId(profile.accountId) ? profile.accountId : youtubeChannelId;
+
     /* The one unguarded await in the sweep, and the only write that ends it.
        Every read above is wrapped, so a creator TikTok refuses costs one
        `failed` and the run continues -- but a unique-constraint clash, a lost
@@ -1031,9 +1037,7 @@ export async function snapshotCreators(
                   ...(topPostsSource ? { topPostsSource } : {}),
                 }
               : {}),
-            ...(youtubeChannelId && youtubeChannelId !== creator.platformUserId
-              ? { platformUserId: youtubeChannelId }
-              : {}),
+            ...(channelId && channelId !== creator.platformUserId ? { platformUserId: channelId } : {}),
             trackerLastAttemptAt: recordedAt,
             trackerLastError: null,
           },

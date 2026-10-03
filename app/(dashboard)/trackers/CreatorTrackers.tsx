@@ -60,6 +60,8 @@ type TrackedCreator = {
   health: "pending" | "live" | "regressed" | "stale";
   /** Why the last read produced nothing, already worded for a reader. */
   readError: string | null;
+  /** Why the last read, which worked, still carried no views. */
+  viewsNote?: string | null;
   series: { value: number; recordedAt: string }[];
   chartGranularity: ChartGranularity;
   snapshotCount: number;
@@ -111,6 +113,7 @@ function periodLabel(key: string): string {
 function viewsReason(c: TrackedCreator): string {
   if (c.views.avgViews === null) {
     if (c.readError) return c.readError;
+    if (c.viewsNote) return c.viewsNote;
     return "We have not measured this creator's recent posts yet. Posts are read once a day.";
   }
   if (c.health !== "live") {
