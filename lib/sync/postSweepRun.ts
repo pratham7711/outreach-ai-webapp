@@ -40,6 +40,7 @@ import { alertIfInstagramSourceDown } from "@/lib/integrations/health";
 import { createLogger } from "@/lib/observability/logger";
 import { classifyPostRead, openSourceGuard } from "@/lib/ops/sourceBreaker";
 import { backgroundReadsDeferred } from "@/lib/platforms/instagramDiscoveryTokens";
+import { loadAgencyDiscoveryCredentials } from "@/lib/platforms/instagramAgencyCredential";
 import { grantedConnectionKeys, readableConnection } from "@/lib/creators/connectionGate";
 
 const MAX_SYNC_FAILURES = 5;
@@ -537,6 +538,14 @@ export async function runPostSweep(request: NextRequest, options: PostSweepOptio
     const readable = (orgId: string, account: { id: string; origin: string | null }) =>
       readableConnection(granted, orgId, account);
 
+    /* Orgs that read Instagram through their own account, looked up before the
+       synchronous claim below so it can ask that account's usage, not A's. */
+    if (options.instagramStopAtPercent !== undefined) {
+      await loadAgencyDiscoveryCredentials(
+        posts.filter((p) => p.platform === "INSTAGRAM").map((p) => p.creator.orgId),
+      );
+    }
+
     /* The decision for one post, made at the moment a worker claims it:
        cadence, then the source breaker, then the platform's budget. It is
        synchronous on purpose. A budget check and its increment cannot be split
@@ -557,7 +566,7 @@ export async function runPostSweep(request: NextRequest, options: PostSweepOptio
         action === "sync" &&
         post.platform === "INSTAGRAM" &&
         options.instagramStopAtPercent !== undefined &&
-        backgroundReadsDeferred(options.instagramStopAtPercent)
+        backgroundReadsDeferred(options.instagramStopAtPercent, undefined, undefined, post.creator.orgId)
       ) {
         action = "skip";
         reason = "meta-usage";
@@ -666,6 +675,7 @@ export async function runPostSweep(request: NextRequest, options: PostSweepOptio
             tiktokToken,
             tiktokSandbox,
             instagramStopAtPercent: options.instagramStopAtPercent,
+            instagramOrgId: post.creator.orgId,
             /* Counts only for TikTok: every post here already has its
                thumbnail, and oEmbed cannot return a counter, so a paced lane
                slot spent on it would buy nothing. Left off for the others so

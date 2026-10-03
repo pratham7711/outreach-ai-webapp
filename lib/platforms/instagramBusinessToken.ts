@@ -44,7 +44,7 @@ export const ASSUMED_LIFETIME_DAYS = 60;
 /** A new expiry must beat the old one by at least this much to count as a
  *  refresh. Below it, the exchange returned the same window back and the
  *  credential is not actually renewable this way. */
-const MIN_EXTENSION_MS = 24 * 60 * 60 * 1000;
+export const MIN_EXTENSION_MS = 24 * 60 * 60 * 1000;
 
 /** In-process cache. The value changes at most once a fortnight, and without
  *  this every post read in a sync would cost a query where it used to cost an

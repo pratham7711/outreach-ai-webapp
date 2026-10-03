@@ -33,6 +33,8 @@ export type FetchMetricsContext = {
    *  (POST_SWEEP_STOP_PERCENT from the post sweep). Unset: a person is waiting,
    *  and the read is asked whatever the usage. */
   instagramStopAtPercent?: number;
+  /** The org the post belongs to: its own Instagram account reads it, when it has one. */
+  instagramOrgId?: string;
   tiktokToken?: string;
   /**
    * Skip the metadata-only fallbacks when the counters could not be had.
@@ -1340,6 +1342,7 @@ export async function fetchInstagramMetrics(
   token?: string,
   handle?: string,
   stopAtPercent?: number,
+  orgId?: string,
 ): Promise<Partial<PostMetrics>> {
   const log = createLogger({ context: { platform: "INSTAGRAM" } });
   const merged: Partial<PostMetrics> = {};
@@ -1453,7 +1456,7 @@ export async function fetchInstagramMetrics(
               notOnAccount = true;
             },
           }),
-        { stopAtPercent },
+        { stopAtPercent, orgId },
       );
       if (read.ok) post = read.value;
       else bizAttempted = false;
@@ -1684,6 +1687,7 @@ export async function fetchPostMetrics(
         context?.instagramToken,
         context?.instagramHandle,
         context?.instagramStopAtPercent,
+        context?.instagramOrgId,
       );
       break;
     case "TWITCH":

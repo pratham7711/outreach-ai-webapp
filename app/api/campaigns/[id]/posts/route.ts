@@ -387,6 +387,7 @@ export async function POST(
     const metrics = await fetchPostMetrics(postUrl, {
       instagramToken: instagram?.token,
       instagramHandle: instagram?.handle,
+      instagramOrgId: orgId,
       tiktokToken,
     });
 
