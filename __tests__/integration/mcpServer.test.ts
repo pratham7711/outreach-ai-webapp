@@ -453,6 +453,11 @@ describe("POST /api/mcp", () => {
         _sum: { viewsCount: 30000, likesCount: 1000, commentsCount: 100, sharesCount: 100, savesCount: 0 },
         _count: { _all: 6 },
       })
+      // The rate's own sample: the measured posts that have views (RATED_POSTS_FILTER).
+      .mockResolvedValueOnce({
+        _sum: { viewsCount: 30000, likesCount: 1000, commentsCount: 100, sharesCount: 100, savesCount: 0 },
+        _count: { _all: 6 },
+      })
       .mockResolvedValueOnce({ _min: { postedAt: new Date("2026-09-02T00:00:00Z") }, _max: { postedAt: new Date("2026-09-15T00:00:00Z") } });
     mockDb.post.groupBy
       .mockResolvedValueOnce([{ platform: "INSTAGRAM", _sum: { viewsCount: 50000 }, _count: { _all: 40 } }])
