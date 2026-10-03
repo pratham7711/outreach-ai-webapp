@@ -70,7 +70,7 @@ describe("fetchInstagramMedia", () => {
     global.fetch = realFetch;
   });
 
-  it("maps the four counters, taking views and shares from the insights edge", async () => {
+  it("maps the four counters, taking views, reach and shares from the insights edge", async () => {
     global.fetch = jest
       .fn()
       .mockResolvedValueOnce(
@@ -93,6 +93,7 @@ describe("fetchInstagramMedia", () => {
         jsonResponse({
           data: [
             { name: "views", values: [{ value: 9100 }] },
+            { name: "reach", values: [{ value: 6400 }] },
             { name: "shares", values: [{ value: 33 }] },
           ],
         }),
@@ -105,6 +106,7 @@ describe("fetchInstagramMedia", () => {
     expect(m.likesCount).toBe(220);
     expect(m.commentsCount).toBe(14);
     expect(m.sharesCount).toBe(33);
+    expect(m.exact.reach).toBe(6400);
     // Instagram has no title field, so the first caption line stands in.
     expect(m.title).toBe("First line");
     expect(m.description).toBe("First line\nsecond line");
@@ -145,7 +147,7 @@ describe("fetchInstagramMedia", () => {
     expect(m.exact.likes).toBe(12);
   });
 
-  it("retries with views alone when Instagram rejects the combined metric set", async () => {
+  it("narrows the metric set when Instagram rejects the combined one", async () => {
     const fetchMock = jest
       .fn()
       .mockResolvedValueOnce(
@@ -169,6 +171,9 @@ describe("fetchInstagramMedia", () => {
         jsonResponse({ error: { code: 100, message: "Invalid parameter" } }, false, 400),
       )
       .mockResolvedValueOnce(
+        jsonResponse({ error: { code: 100, message: "Invalid parameter" } }, false, 400),
+      )
+      .mockResolvedValueOnce(
         jsonResponse({ data: [{ name: "views", values: [{ value: 777 }] }] }),
       );
     global.fetch = fetchMock;
@@ -179,7 +184,7 @@ describe("fetchInstagramMedia", () => {
     const metrics = fetchMock.mock.calls
       .map(([url]) => new URL(String(url)).searchParams.get("metric"))
       .filter(Boolean);
-    expect(metrics).toEqual(["views,shares", "views"]);
+    expect(metrics).toEqual(["views,reach,shares", "views,reach", "views"]);
   });
 
   it("survives an insights call that fails for one media, leaving views unmeasured", async () => {
@@ -199,8 +204,9 @@ describe("fetchInstagramMedia", () => {
           ],
         }),
       )
-      // Both the combined call and the views-only retry fail — the shape of a
-      // post published before the account became a Business account.
+      // Every narrowed retry fails — the shape of a post published before the
+      // account became a Business account.
+      .mockResolvedValueOnce(jsonResponse({}, false, 400))
       .mockResolvedValueOnce(jsonResponse({}, false, 400))
       .mockResolvedValueOnce(jsonResponse({}, false, 400));
 

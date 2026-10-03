@@ -79,6 +79,7 @@ export type InstagramMediaItem = {
    *  Instagram does not support for a media type must not be written as 0. */
   exact: {
     views?: number;
+    reach?: number;
     likes?: number;
     comments?: number;
     shares?: number;
@@ -151,10 +152,10 @@ export async function fetchInstagramAccount(
   return null;
 }
 
-type MediaInsights = { views?: number; shares?: number };
+type MediaInsights = { views?: number; reach?: number; shares?: number };
 
 /**
- * Views and shares for one media, from the insights edge.
+ * Views, reach and shares for one media, from the insights edge.
  *
  * This is the call `instagram_manage_insights` is for. Instagram supports a
  * different metric set per media type — `shares` is reels-only, and `views`
@@ -181,10 +182,12 @@ async function fetchMediaInsights(
   /* Instagram rejects the WHOLE request (400, code 100 "Invalid parameter")
      when any one metric is unsupported for that media, rather than omitting
      the metric — so a media that has views but no shares answered nothing at
-     all. Ask for views alone before giving up on the media. Media published
-     before the account became a Business/Creator account fail both calls; they
-     stay unmeasured. */
-  let data = await ask("views,shares");
+     all. Narrow the set (reach is supported more widely than shares, views
+     most widely) before giving up on the media. Media published before the
+     account became a Business/Creator account fail every call; they stay
+     unmeasured. */
+  let data = await ask("views,reach,shares");
+  if (!data) data = await ask("views,reach");
   if (!data) data = await ask("views");
 
   const rows: Array<{ name?: string; values?: Array<{ value?: unknown }> }> =
@@ -192,7 +195,7 @@ async function fetchMediaInsights(
   const read = (name: string) =>
     optNum(rows.find((r) => r.name === name)?.values?.[0]?.value);
 
-  return { views: read("views"), shares: read("shares") };
+  return { views: read("views"), reach: read("reach"), shares: read("shares") };
 }
 
 /**
@@ -227,7 +230,7 @@ export async function fetchInstagramMedia(
     const caption = typeof m.caption === "string" ? m.caption : "";
     const timestamp = typeof m.timestamp === "string" ? m.timestamp : null;
     const createdAt = timestamp ? new Date(timestamp) : undefined;
-    const { views, shares } = insights[i] ?? {};
+    const { views, reach, shares } = insights[i] ?? {};
     const likes = optNum(m.like_count);
     const comments = optNum(m.comments_count);
 
@@ -251,6 +254,7 @@ export async function fetchInstagramMedia(
       sharesCount: num(shares),
       exact: {
         views,
+        reach,
         likes,
         comments,
         shares,

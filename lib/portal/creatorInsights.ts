@@ -33,7 +33,9 @@ export type InsightsPost = {
   views: number | null;
   likes: number;
   comments: number;
-  shares: number;
+  /** Null when the platform did not measure it: Instagram reports shares on
+   *  reels only, and YouTube has no share count at all. */
+  shares: number | null;
   postedAt: string;
   shareUrl: string | null;
   coverImageUrl: string | null;
@@ -123,7 +125,7 @@ type NormalisedPost = {
   sharesCount: number;
   /** The uncoerced counters every platform module returns alongside the
    *  display ones; `views` absent here means the platform did not measure it. */
-  exact?: { views?: number; reach?: number };
+  exact?: { views?: number; reach?: number; shares?: number };
 };
 
 /** The measured view count, or null when the platform never reported one. */
@@ -149,7 +151,11 @@ function toInsightsPost(post: NormalisedPost): InsightsPost {
     views: measuredViews(post),
     likes: post.likesCount,
     comments: post.commentsCount,
-    shares: post.sharesCount,
+    shares: post.exact
+      ? typeof post.exact.shares === "number"
+        ? post.exact.shares
+        : null
+      : post.sharesCount,
     postedAt: post.postedAt,
     shareUrl: post.shareUrl,
     coverImageUrl: post.coverImageUrl,

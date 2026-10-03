@@ -45,6 +45,23 @@ const INSIGHTS_SOURCE: Record<PlatformInsights["platform"], string> = {
 
 const RECENT_POSTS = 5;
 
+/** What the platform calls the account's post count. */
+const MEDIA_LABEL: Record<PlatformInsights["platform"], string> = {
+  TIKTOK: "Videos",
+  INSTAGRAM: "Posts",
+  YOUTUBE: "Videos",
+  FACEBOOK: "Posts",
+  THREADS: "Posts",
+};
+
+const PROFILE_LINK_LABEL: Record<PlatformInsights["platform"], string> = {
+  TIKTOK: "Open on TikTok",
+  INSTAGRAM: "Open on Instagram",
+  YOUTUBE: "Open on YouTube",
+  FACEBOOK: "Open on Facebook",
+  THREADS: "Open on Threads",
+};
+
 function Figure({ label, value }: { label: string; value: string }) {
   return (
     <div style={{ minWidth: 0 }}>
@@ -54,17 +71,30 @@ function Figure({ label, value }: { label: string; value: string }) {
   );
 }
 
-function PostLine({ post, showComments }: { post: InsightsPost; showComments: boolean }) {
+/** "Oct 2 · 1.2K views · 40 likes · 3 comments · 2 shares · 900 reach". Views
+    stay in the line as a dash when unmeasured, so rows line up; shares and
+    reach are only reported on some media, so an unmeasured one is left out
+    rather than written as 0. */
+function postCounters(post: InsightsPost): string {
+  const parts = [
+    formatDay(post.postedAt),
+    `${formatCount(post.views)} views`,
+    `${formatCount(post.likes)} likes`,
+    `${formatCount(post.comments)} comments`,
+  ];
+  if (typeof post.shares === "number") parts.push(`${formatCount(post.shares)} shares`);
+  if (typeof post.reach === "number") parts.push(`${formatCount(post.reach)} reach`);
+  return parts.join(" · ");
+}
+
+function PostLine({ post }: { post: InsightsPost }) {
   const caption = post.caption?.trim() || "Untitled post";
   const body = (
     <>
       <span style={{ display: "block", fontSize: 14, color: "var(--cc-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
         {caption}
       </span>
-      <span style={{ display: "block", fontSize: 12, color: "var(--cc-text-muted)" }}>
-        {formatDay(post.postedAt)} · {formatCount(post.views)} views · {formatCount(post.likes)} likes
-        {showComments && <> · {formatCount(post.comments)} comments</>}
-      </span>
+      <span style={{ display: "block", fontSize: 12, color: "var(--cc-text-muted)" }}>{postCounters(post)}</span>
     </>
   );
   return (
@@ -80,17 +110,98 @@ function PostLine({ post, showComments }: { post: InsightsPost; showComments: bo
   );
 }
 
+/** The account's picture. Platform avatar URLs are signed and expire (TikTok's
+    within days), so a dead one falls back to the name's first letter instead
+    of a broken image. */
+function Avatar({ src, name }: { src: string | null; name: string }) {
+  const [broken, setBroken] = useState(false);
+  const size = 44;
+  if (src && !broken) {
+    return (
+      /* eslint-disable-next-line @next/next/no-img-element */
+      <img
+        src={src}
+        alt=""
+        width={size}
+        height={size}
+        onError={() => setBroken(true)}
+        style={{ width: size, height: size, borderRadius: "50%", objectFit: "cover", flexShrink: 0, background: "var(--cc-bg)" }}
+      />
+    );
+  }
+  return (
+    <span
+      aria-hidden="true"
+      style={{
+        width: size,
+        height: size,
+        borderRadius: "50%",
+        flexShrink: 0,
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "var(--cc-bg)",
+        border: "1px solid var(--cc-border)",
+        fontSize: 16,
+        fontWeight: 700,
+        color: "var(--cc-text-muted)",
+      }}
+    >
+      {name.replace(/^@/, "").charAt(0).toUpperCase() || "?"}
+    </span>
+  );
+}
+
+/** Who the connected account is, as the platform describes it: picture, name,
+    username, verified status, bio and a link out to the profile. */
+function ProfileHeader({ block }: { block: PlatformInsights }) {
+  const handle = block.handle.startsWith("@") ? block.handle : `@${block.handle}`;
+  const name = block.displayName?.trim() || handle;
+  return (
+    <div style={{ display: "flex", gap: 12, alignItems: "flex-start", minWidth: 0 }}>
+      <Avatar src={block.avatarUrl} name={name} />
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 16, fontWeight: 700, color: "var(--cc-text)", overflowWrap: "anywhere" }}>{name}</span>
+          {block.isVerified && <StatusPill tone="info">Verified</StatusPill>}
+        </div>
+        <p style={{ fontSize: 13, color: "var(--cc-text-muted)", margin: "2px 0 0", overflowWrap: "anywhere" }}>
+          {platformLabel(block.platform)} · {handle}
+          {block.profileUrl && (
+            <>
+              {" · "}
+              <a href={block.profileUrl} target="_blank" rel="noreferrer" style={{ color: "var(--cc-primary)", fontWeight: 600, textDecoration: "none" }}>
+                {PROFILE_LINK_LABEL[block.platform]}
+              </a>
+            </>
+          )}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function AccountBlock({ block }: { block: PlatformInsights }) {
   const posts = block.posts.slice(0, RECENT_POSTS);
+  /* Lifetime counts the platform publishes, shown only when it did: Facebook
+     Pages and Threads have no following or like total, and a dash there would
+     read as a number we failed to fetch. */
+  const lifetime: Array<[string, number]> = (
+    [
+      ["Following", block.following],
+      ["Total likes", block.totalLikes],
+      [MEDIA_LABEL[block.platform], block.mediaCount],
+    ] as Array<[string, number | null]>
+  ).filter((entry): entry is [string, number] => typeof entry[1] === "number");
   return (
     <Card>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
-        <div style={{ minWidth: 0 }}>
-          <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--cc-text)", margin: 0 }}>{platformLabel(block.platform)}</h2>
-          <p style={{ fontSize: 13, color: "var(--cc-text-muted)", margin: "2px 0 0", overflowWrap: "anywhere" }}>{block.handle}</p>
-        </div>
+        <ProfileHeader block={block} />
         {block.needsReconnect && <StatusPill tone="warning">Reconnect needed</StatusPill>}
       </div>
+      {block.bio?.trim() && (
+        <p style={{ fontSize: 13, color: "var(--cc-text)", margin: "10px 0 0", whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{block.bio.trim()}</p>
+      )}
 
       {block.needsReconnect ? (
         <div style={{ marginTop: 12 }}>
@@ -103,6 +214,9 @@ function AccountBlock({ block }: { block: PlatformInsights }) {
         <>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 12, marginTop: 14 }}>
             <Figure label="Followers" value={formatCount(block.followers)} />
+            {lifetime.map(([label, value]) => (
+              <Figure key={label} label={label} value={formatCount(value)} />
+            ))}
             <Figure label={`Median views, last ${block.sampleSize}`} value={formatCount(block.medianViews)} />
             <Figure label="Best post views" value={formatCount(block.bestPost?.views ?? null)} />
           </div>
@@ -111,7 +225,7 @@ function AccountBlock({ block }: { block: PlatformInsights }) {
               <h3 style={{ fontSize: 13, fontWeight: 700, color: "var(--cc-text)", margin: "16px 0 0" }}>Recent posts</h3>
               <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
                 {posts.map((p) => (
-                  <PostLine key={p.id} post={p} showComments={block.platform === "FACEBOOK" || block.platform === "YOUTUBE"} />
+                  <PostLine key={p.id} post={p} />
                 ))}
               </ul>
             </>
