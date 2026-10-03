@@ -42,8 +42,10 @@ function RegisterInner() {
       if (res.ok) {
         const next = await landingAfterAuth(errand, "/portal/campaigns?tab=open");
         /* A refused invitation goes back to its public landing page; the
-           connect step is for creators who made it into the app. */
-        if (!next.startsWith("/portal/")) {
+           connect step is for creators who made it into the app, and is
+           skipped for one who arrived from a connect link, having just
+           connected. */
+        if (!next.startsWith("/portal/") || errand.connect) {
           router.push(next);
           return;
         }
@@ -91,7 +93,9 @@ function RegisterInner() {
               ? "Sign up to accept your invitation"
               : errand.join
                 ? "Sign up to join this campaign"
-                : "Join campaigns and track how your posts do"}
+                : errand.connect
+                  ? "Sign up to see the accounts you connected"
+                  : "Join campaigns and track how your posts do"}
         </p>
 
         {/* Consent comes back to My accounts, not to nextPath: it is the screen

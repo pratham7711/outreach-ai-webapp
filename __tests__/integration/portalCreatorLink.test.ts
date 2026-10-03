@@ -93,10 +93,26 @@ describe("findLinkedCreatorsForHandle", () => {
       expect.objectContaining({
         where: {
           deletedAt: null,
-          OR: [{ handle: "bigcreator" }, { handle: "@bigcreator" }],
+          OR: [{ handle: "bigcreator" }, { handle: "@bigcreator" }, { creatorUserId: "cu-1" }],
         },
       }),
     );
+  });
+
+  it("links a row naming this portal account even when its handle is different", async () => {
+    /* What an accepted invite or a claimed connect link leaves behind when the
+       creator registered under another handle than the one the agency typed. */
+    mockDb.creator.findMany.mockResolvedValue([{ id: "c9", orgId: "org-9", creatorUserId: "cu-1" }]);
+    expect(await findLinkedCreatorsForHandle(subject)).toEqual([{ id: "c9", orgId: "org-9" }]);
+  });
+
+  it("does not search by portal id when there is none", async () => {
+    mockDb.creator.findMany.mockResolvedValue([]);
+    await findLinkedCreatorsForHandle({ handle: "bigcreator", email: "" });
+    expect(mockDb.creator.findMany.mock.calls[0][0].where.OR).toEqual([
+      { handle: "bigcreator" },
+      { handle: "@bigcreator" },
+    ]);
   });
 
   it("treats a missing portal id as no proof rather than matching rows with no creatorUserId", async () => {

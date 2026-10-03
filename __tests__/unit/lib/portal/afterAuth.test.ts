@@ -38,10 +38,14 @@ describe("readAuthErrand / errandQuery", () => {
   it("is empty with no errand", () => {
     expect(errandQuery(readAuthErrand(params("")))).toBe("");
   });
+
+  it("carries a connect link to the other auth page", () => {
+    expect(errandQuery(readAuthErrand(params("connect=tokABC")))).toBe("?connect=tokABC");
+  });
 });
 
 describe("landingAfterAuth", () => {
-  const none = { invitation: null, join: null, invite: null };
+  const none = { invitation: null, join: null, invite: null, connect: null };
 
   it("goes to the fallback with no errand, and calls nothing", async () => {
     const fetchMock = mockFetch(200, {});
@@ -85,9 +89,22 @@ describe("landingAfterAuth", () => {
 
   it("prefers the invitation when both are present", async () => {
     const fetchMock = mockFetch(200, { campaignPath: "/portal/campaigns/c2" });
-    await landingAfterAuth({ invitation: "tok123", join: "summer-drop", invite: null }, "/x");
+    await landingAfterAuth({ invitation: "tok123", join: "summer-drop", invite: null, connect: null }, "/x");
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock.mock.calls[0][0]).toBe("/api/portal/invites/tok123/accept");
+  });
+
+  it("claims a connect link and lands on My accounts", async () => {
+    const fetchMock = mockFetch(201, { alreadyLinked: false });
+    await expect(landingAfterAuth({ ...none, connect: "tokABC" }, "/x")).resolves.toBe("/portal/accounts");
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("/api/portal/connect-link/claim");
+    expect(JSON.parse(init.body)).toEqual({ token: "tokABC" });
+  });
+
+  it("goes to the fallback when the connect link is refused", async () => {
+    mockFetch(409, { error: "linked elsewhere" });
+    await expect(landingAfterAuth({ ...none, connect: "tokABC" }, "/x")).resolves.toBe("/x");
   });
 });
 

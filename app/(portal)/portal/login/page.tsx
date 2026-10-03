@@ -74,7 +74,9 @@ function LoginInner() {
             ? "Log in to accept your invitation"
             : errand.join
               ? "Sign in to join this campaign"
-              : "Sign in to your creator account"}
+              : errand.connect
+                ? "Sign in to see the accounts you connected"
+                : "Sign in to your creator account"}
         </p>
 
         {error && (

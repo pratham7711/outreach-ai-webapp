@@ -15,7 +15,10 @@ import { campaignInvitePath } from "@/lib/portal/invitePath";
  *  - `join=<slug>` with optional `invite=<code>`: the open marketplace and the
  *    older join-with-code links (/portal/register?join=&invite=). Joining is
  *    immediate; a refusal is shown on the campaign page.
- *  - neither: Home.
+ *  - `connect=<token>`: "Create a login to see your campaigns" on an agency's
+ *    connect link (/connect/<token>). Names this login on the link's roster
+ *    row and lands on My accounts, which then lists what was just connected.
+ *  - none: Home.
  *
  * Client-side only (it calls fetch on the creator's own cookie).
  */
@@ -23,6 +26,7 @@ export type AuthErrand = {
   invitation: string | null;
   join: string | null;
   invite: string | null;
+  connect: string | null;
 };
 
 export function readAuthErrand(params: { get(name: string): string | null }): AuthErrand {
@@ -30,6 +34,7 @@ export function readAuthErrand(params: { get(name: string): string | null }): Au
     invitation: params.get("invitation"),
     join: params.get("join"),
     invite: params.get("invite"),
+    connect: params.get("connect"),
   };
 }
 
@@ -41,6 +46,7 @@ export function errandQuery(errand: AuthErrand): string {
     q.set("join", errand.join);
     if (errand.invite) q.set("invite", errand.invite);
   }
+  if (errand.connect) q.set("connect", errand.connect);
   const s = q.toString();
   return s ? `?${s}` : "";
 }
@@ -73,6 +79,19 @@ export async function landingAfterAuth(errand: AuthErrand, fallback: string): Pr
       return `${base}?joinError=${encodeURIComponent(data.error ?? "Could not join")}`;
     } catch {
       return `${base}?joinError=${encodeURIComponent("Network error")}`;
+    }
+  }
+
+  if (errand.connect) {
+    try {
+      const res = await fetch("/api/portal/connect-link/claim", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: errand.connect }),
+      });
+      if (res.ok) return "/portal/accounts";
+    } catch {
+      /* Fall through: the login works, the link can be opened again. */
     }
   }
 

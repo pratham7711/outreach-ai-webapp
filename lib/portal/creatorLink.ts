@@ -60,10 +60,16 @@ export async function findLinkedCreatorsForHandle(
   const bareHandle = norm(subject.handle);
   if (!bareHandle) return [];
 
+  /* A row that names this portal account is a candidate whatever its handle:
+     an invite or a connect link links the row without touching the handle the
+     agency typed, and proof 1 does not depend on it. */
   const candidates = await db.creator.findMany({
     where: {
       deletedAt: null,
-      OR: handleVariants(subject.handle).map((handle) => ({ handle })),
+      OR: [
+        ...handleVariants(subject.handle).map((handle) => ({ handle })),
+        ...(subject.creatorUserId ? [{ creatorUserId: subject.creatorUserId }] : []),
+      ],
     },
     select: { id: true, orgId: true, creatorUserId: true },
   });
